@@ -1,0 +1,7 @@
+{
+  "dependencies": {
+    "@react-native-async-storage/async-storage": "^3.0.1",
+    "expo-localization": "^55.0.8",
+    "react-native-public-ip": "^1.0.2"
+  }
+}

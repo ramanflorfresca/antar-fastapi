@@ -1,0 +1,84 @@
+{
+  "yogas": {
+    "wealth": [
+      { "id": "dhana_yoga", "name": "Dhana Yoga", "category": "wealth", "condition": "Lords of 2nd and 11th conjunct or mutually aspecting", "effect": "Financial prosperity and wealth accumulation", "intensity": "high", "remedy_planet": "Jupiter", "timing": "Activated in dasha of 2nd or 11th lord" },
+      { "id": "lakshmi_yoga", "name": "Lakshmi Yoga", "category": "wealth", "condition": "Lord of 9th in own or exaltation sign in Kendra (1/4/7/10)", "effect": "Great fortune, grace, abundant blessings, Lakshmi's grace", "intensity": "very_high", "remedy_planet": "Venus", "timing": "Jupiter or 9th lord dasha" },
+      { "id": "kubera_yoga", "name": "Kubera Yoga", "category": "wealth", "condition": "Lords of 2nd, 9th, 11th mutually connected", "effect": "Exceptional wealth, financial mastery, money flows easily", "intensity": "very_high", "remedy_planet": "Jupiter", "timing": "Any of the 3 lords dasha" },
+      { "id": "chandra_mangal_yoga", "name": "Chandra Mangal Yoga", "category": "wealth", "condition": "Moon and Mars conjunct or mutually aspecting", "effect": "Wealth through real estate, property, or mother's side", "intensity": "medium", "remedy_planet": "Mars", "timing": "Moon or Mars dasha" }
+    ],
+    "career": [
+      { "id": "raja_yoga", "name": "Raja Yoga", "category": "career", "condition": "Kendra lord (1/4/7/10) conjunct or mutually aspecting Trikona lord (1/5/9)", "effect": "Authority, status, leadership, royal treatment, recognition", "intensity": "very_high", "remedy_planet": "Sun", "timing": "Dasha of either yoga-forming planet" },
+      { "id": "hamsa_yoga", "name": "Hamsa Yoga", "category": "career", "condition": "Jupiter in own sign (Sagittarius/Pisces) or exaltation (Cancer) in Kendra", "effect": "Wisdom, teaching ability, spiritual authority, purity of character", "intensity": "high", "remedy_planet": "Jupiter", "timing": "Jupiter dasha" },
+      { "id": "malavya_yoga", "name": "Malavya Yoga", "category": "career", "condition": "Venus in own sign (Taurus/Libra) or exaltation (Pisces) in Kendra", "effect": "Luxury, artistic mastery, charm, magnetic personality, comfort", "intensity": "high", "remedy_planet": "Venus", "timing": "Venus dasha" },
+      { "id": "sasa_yoga", "name": "Sasa Yoga", "category": "career", "condition": "Saturn in own sign (Capricorn/Aquarius) or exaltation (Libra) in Kendra", "effect": "Discipline, mass leadership, enduring legacy, political power", "intensity": "high", "remedy_planet": "Saturn", "timing": "Saturn dasha" },
+      { "id": "ruchaka_yoga", "name": "Ruchaka Yoga", "category": "career", "condition": "Mars in own sign (Aries/Scorpio) or exaltation (Capricorn) in Kendra", "effect": "Warrior qualities, athletic achievement, courage, military success", "intensity": "high", "remedy_planet": "Mars", "timing": "Mars dasha" },
+      { "id": "bhadra_yoga", "name": "Bhadra Yoga", "category": "career", "condition": "Mercury in own sign (Gemini/Virgo) or exaltation (Virgo) in Kendra", "effect": "Intellectual excellence, business acumen, communication mastery", "intensity": "high", "remedy_planet": "Mercury", "timing": "Mercury dasha" },
+      { "id": "amala_yoga", "name": "Amala Yoga", "category": "career", "condition": "Benefic planet in 10th from Lagna or Moon (no malefic)", "effect": "Fame, good reputation, lasting name, virtuous livelihood", "intensity": "medium", "remedy_planet": "Jupiter", "timing": "10th lord or benefic dasha" }
+    ],
+    "relationships": [
+      { "id": "kalathra_yoga", "name": "Kalathra Yoga", "category": "relationships", "condition": "Strong Venus + 7th lord well-placed, no malefic aspect", "effect": "Happy marriage, devoted spouse, harmonious relationship", "intensity": "high", "remedy_planet": "Venus", "timing": "Venus or 7th lord dasha" },
+      { "id": "darakaraka_strong", "name": "Strong Darakaraka", "category": "relationships", "condition": "Darakaraka (lowest degree planet) in own/exalt sign or Kendra", "effect": "Supportive, compatible spouse with good character", "intensity": "medium", "remedy_planet": "Venus", "timing": "Darakaraka dasha" }
+    ],
+    "spiritual": [
+      { "id": "pravrajya_yoga", "name": "Pravrajya Yoga", "category": "spiritual", "condition": "4 or more planets in one sign", "effect": "Renunciation tendency, monastic leanings, deep spiritual path", "intensity": "high", "remedy_planet": "Ketu", "timing": "Saturn or Ketu dasha", "caution": "Can indicate leaving worldly life — frame sensitively" },
+      { "id": "ketu_jupiter_conj", "name": "Ketu-Jupiter Conjunction", "category": "spiritual", "condition": "Ketu conjunct Jupiter", "effect": "Deep spiritual wisdom, past-life knowledge, liberation path", "intensity": "high", "remedy_planet": "Jupiter", "timing": "Ketu or Jupiter dasha" },
+      { "id": "viparita_raja_yoga", "name": "Viparita Raja Yoga", "category": "spiritual", "condition": "Lords of 6th, 8th, 12th in each other's signs or conjunct", "effect": "Rise through adversity, success from others' misfortune, hidden power", "intensity": "medium", "remedy_planet": "Saturn", "timing": "Dasha of 6/8/12 lord" },
+      { "id": "moksha_yoga", "name": "Moksha Yoga", "category": "spiritual", "condition": "Strong 12th lord + Ketu in Kendra or Trikona", "effect": "Liberation tendency, spiritual awakening, foreign settlement", "intensity": "medium", "remedy_planet": "Ketu", "timing": "12th lord or Ketu dasha" }
+    ],
+    "challenging": [
+      {
+        "id": "kemadruma_yoga", "name": "Kemadruma Yoga", "category": "challenging",
+        "condition": "Moon with no planets in 2nd or 12th from it (adjacent signs)",
+        "effect_raw": "Emotional isolation, lack of support, poverty tendency",
+        "effect_safe": "A tendency toward emotional self-reliance — learning to find security from within rather than depending on others",
+        "cancellation": ["Another planet in Kendra from Lagna or Moon", "Moon in Kendra from Lagna", "Full moon"],
+        "remedy_planet": "Moon", "remedy_action": "Moon remedies, therapy, community building",
+        "intensity": "medium", "timing": "Moon dasha or Saturn over Moon",
+        "language_rule": "NEVER say 'poverty' or 'total isolation'. Frame as inner journey."
+      },
+      {
+        "id": "grahan_yoga", "name": "Grahan Yoga", "category": "challenging",
+        "condition": "Sun or Moon conjunct Rahu or Ketu (within 10 degrees)",
+        "effect_raw": "Eclipsed luminaries, father/mother wound, blocked consciousness",
+        "effect_safe": "An invitation to do the deep inner work of clearing ancestral and karmic patterns that eclipse your natural light",
+        "cancellation": ["Jupiter conjunct or aspecting Moon/Sun in same yoga"],
+        "remedy_planet": "Sun or Moon (whichever is afflicted)",
+        "remedy_action": "Daily Sun/Moon mantra, psychological healing work",
+        "intensity": "high", "timing": "Rahu/Ketu dasha or eclipse transits",
+        "language_rule": "Frame as 'karmic clearing pattern' not 'damaged mind/soul'"
+      },
+      {
+        "id": "shakata_yoga", "name": "Shakata Yoga", "category": "challenging",
+        "condition": "Moon in 6th, 8th, or 12th house from Jupiter",
+        "effect_raw": "Fluctuating fortune, rises and falls",
+        "effect_safe": "A dynamic life path with significant highs and lows — the lesson is inner equanimity through all cycles",
+        "cancellation": ["Moon in Kendra from Lagna", "Jupiter aspecting Moon"],
+        "remedy_planet": "Jupiter", "remedy_action": "Jupiter remedies, building savings, equanimity practice",
+        "intensity": "medium", "timing": "Jupiter or Moon dasha",
+        "language_rule": "Frame as 'cyclical nature of fortune' — empowering not fatalistic"
+      },
+      {
+        "id": "vish_yoga", "name": "Vish Yoga", "category": "challenging",
+        "condition": "Saturn and Moon conjunct in same sign",
+        "effect_raw": "Depression, poison in mind, melancholy",
+        "effect_safe": "Deep emotional sensitivity that, when worked with consciously, becomes profound wisdom and empathy",
+        "cancellation": ["Jupiter aspecting Moon-Saturn conjunction", "Moon in Saturn's own sign"],
+        "remedy_planet": "Moon", "remedy_action": "Therapy, Moon remedies, Saturn remedies, community support",
+        "intensity": "high", "timing": "Saturn or Moon dasha",
+        "language_rule": "⚠️ ALWAYS add professional mental health resource. Frame as 'emotional depth requiring support'",
+        "mental_health_flag": true
+      },
+      {
+        "id": "daridra_yoga", "name": "Daridra Yoga", "category": "challenging",
+        "condition": "Lords of 2nd or 11th in 6th/8th/12th, or debilitated",
+        "effect_raw": "Financial difficulties",
+        "effect_safe": "Financial challenges that teach resourcefulness, generosity, and non-attachment to material security",
+        "cancellation": ["Neecha Bhanga of the debilitated planet", "Strong Jupiter aspect"],
+        "remedy_planet": "Jupiter", "remedy_action": "Lakshmi worship, charity, Jupiter remedies",
+        "intensity": "medium", "timing": "2nd or 11th lord dasha",
+        "language_rule": "Frame as 'financial growth opportunity' not 'destined poverty'"
+      }
+    ]
+  }
+}
+

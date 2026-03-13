@@ -1,0 +1,97 @@
+{
+  "age_triggers": {
+    "planetary_maturity_ages": {
+      "Jupiter": { "age": 16, "theme": "Wisdom awakens, dharmic direction clarifies, first philosophical understanding" },
+      "Sun": { "age": 22, "theme": "Identity crystallizes, career direction emerges, relationship with father matures" },
+      "Moon": { "age": 24, "theme": "Emotional maturity, independence from mother, inner security develops" },
+      "Venus": { "age": 25, "theme": "Relationship readiness, aesthetic sense matures, love becomes conscious" },
+      "Mars": { "age": 28, "theme": "Courage matures into wisdom, Mangal Dosha reduces, aggression becomes directed energy" },
+      "Mercury": { "age": 32, "theme": "Intellectual peak, communication mastery, business judgment sharpens" },
+      "Saturn": { "age": 36, "theme": "Saturn return complete, life's true structure revealed, karma crystallized" },
+      "Rahu": { "age": 42, "theme": "Obsessions mature, worldly desires peak then begin to subside" },
+      "Ketu": { "age": 48, "theme": "Spiritual awakening intensifies, detachment from material grows naturally" }
+    },
+    "life_stages": [
+      {
+        "stage": "Childhood", "ages": "0-12",
+        "ruling_planets": ["Moon", "Jupiter"],
+        "themes": ["Emotional foundation", "Learning", "Mother bond", "Basic security"],
+        "focus": "Moon and Jupiter remedies support healthy emotional and intellectual development",
+        "remedy_emphasis": "Moon for emotional security, Jupiter for education and optimism",
+        "market_message": { "india": "The Moon and Jupiter guide this child's formation", "usa": "Early foundations of emotional and intellectual development", "latam": "Los fundamentos emocionales e intelectuales se están formando" }
+      },
+      {
+        "stage": "Adolescence", "ages": "12-18",
+        "ruling_planets": ["Mars", "Mercury"],
+        "themes": ["Identity formation", "Energy", "Education", "Risk-taking", "Peer connection"],
+        "focus": "Mars remedies for safe channeling of energy. Mercury for academic success.",
+        "remedy_emphasis": "Hanuman worship for Mars management, Mercury mantra for studies",
+        "market_message": { "india": "Mangal and Budh guide this formation period", "usa": "Identity, energy, and intellect are the developmental themes", "latam": "Período de formación de identidad, energía y educación" }
+      },
+      {
+        "stage": "Young Adult", "ages": "18-30",
+        "ruling_planets": ["Rahu", "Venus", "Sun"],
+        "themes": ["Ambition", "Romance", "Career beginning", "Identity", "Foreign exposure"],
+        "focus": "Rahu's ambition needs grounding. Venus governs romance. Sun activates career identity.",
+        "remedy_emphasis": "Balance Rahu ambition with Saturn discipline. Venus for relationships.",
+        "market_message": { "india": "Rahu's ambitions and Venus's relationships are primary themes in youth", "usa": "Building identity, career, and relationships — ambition and love are key", "latam": "Ambición, amor y construcción de identidad — los temas centrales de la juventud" }
+      },
+      {
+        "stage": "Saturn Return", "ages": "28-31",
+        "ruling_planets": ["Saturn"],
+        "themes": ["Karmic reckoning", "Life restructuring", "Commitment", "Adult responsibility"],
+        "focus": "Most significant crossroad of early life. Must shed what is inauthentic.",
+        "remedy_emphasis": "Saturn remedies intensified, life review, commitment to true path",
+        "is_milestone": true,
+        "market_message": { "india": "Shani's first return — a profound karmic crossroads demanding authentic living", "usa": "Saturn return — life's first great reckoning. Choose your authentic path.", "latam": "El retorno de Saturno — una encrucijada kármica profunda" }
+      },
+      {
+        "stage": "Midlife", "ages": "36-45",
+        "ruling_planets": ["Saturn", "Rahu", "Jupiter"],
+        "themes": ["Saturn maturity at 36", "Career peak", "Rahu peak desires at 42", "Midlife questioning"],
+        "focus": "Saturn's 36 maturity brings wisdom. Rahu's 42 peak may bring restlessness.",
+        "remedy_emphasis": "Jupiter for wisdom expansion, Saturn for discipline, Rahu grounding",
+        "market_message": { "india": "Shani matures at 36 — karma crystallizes, wisdom arrives. Rahu peaks at 42.", "usa": "Saturn's wisdom arrives at 36. The midlife questioning around 42 is Rahu's peak.", "latam": "La madurez de Saturno a los 36 y el cuestionamiento de la mediana edad a los 42" }
+      },
+      {
+        "stage": "Wisdom Years", "ages": "45-60",
+        "ruling_planets": ["Jupiter", "Ketu"],
+        "themes": ["Spiritual deepening", "Legacy building", "Ketu detachment grows", "Teaching others"],
+        "focus": "Jupiter brings wisdom and teaching. Ketu brings spiritual depth.",
+        "remedy_emphasis": "Jupiter for wisdom sharing, Ketu for spiritual practice",
+        "market_message": { "india": "Guru and Ketu guide these wisdom years — time for guru seva and sadhana", "usa": "The wisdom years — legacy, teaching, and spiritual deepening", "latam": "Los años de sabiduría — legado, enseñanza y profundización espiritual" }
+      },
+      {
+        "stage": "Second Saturn Return", "ages": "57-60",
+        "ruling_planets": ["Saturn"],
+        "themes": ["Life review", "Legacy crystallization", "Final life purpose"],
+        "focus": "Second Saturn return — what has your life built? What is your true legacy?",
+        "remedy_emphasis": "Saturn remedies, karma review, service to next generation",
+        "is_milestone": true
+      },
+      {
+        "stage": "Elder Years", "ages": "60+",
+        "ruling_planets": ["Ketu", "Jupiter", "Saturn"],
+        "themes": ["Spiritual liberation", "Legacy", "Detachment", "Wisdom transmission"],
+        "focus": "Movement toward moksha. Ketu's detachment becomes natural. Jupiter's wisdom transmits.",
+        "remedy_emphasis": "Ketu and Jupiter practices, pilgrimage, spiritual sadhana",
+        "market_message": { "india": "Vanaprastha and Sanyasa stages — Ketu and Guru guide toward moksha", "usa": "The elder years — spiritual liberation and wisdom legacy", "latam": "Los años mayores — liberación espiritual y legado de sabiduría" }
+      }
+    ]
+  },
+  "houses": {
+    "1": { "name": "Lagna / Ascendant", "significations": ["Self", "Body", "Personality", "Health", "Longevity", "First impression", "Soul in this life"], "body_part": "Head, face, brain", "natural_sign": "Aries", "natural_ruler": "Mars" },
+    "2": { "name": "Dhana Bhava", "significations": ["Wealth", "Family", "Speech", "Food", "Early education", "Values", "Accumulated assets", "Eyes (right)"], "body_part": "Face, right eye, mouth, teeth, tongue", "natural_sign": "Taurus", "natural_ruler": "Venus" },
+    "3": { "name": "Parakrama Bhava", "significations": ["Courage", "Younger siblings", "Communication", "Short travel", "Hands", "Writing", "Media", "Neighbors"], "body_part": "Shoulders, arms, hands, ears", "natural_sign": "Gemini", "natural_ruler": "Mercury" },
+    "4": { "name": "Sukha Bhava", "significations": ["Mother", "Home", "Property", "Happiness", "Vehicles", "Inner peace", "Education foundation", "Land"], "body_part": "Chest, heart, lungs, breast", "natural_sign": "Cancer", "natural_ruler": "Moon" },
+    "5": { "name": "Putra Bhava", "significations": ["Children", "Creativity", "Intelligence", "Past life merit", "Romance", "Speculation", "Mantra power", "Higher education"], "body_part": "Stomach, upper digestive", "natural_sign": "Leo", "natural_ruler": "Sun" },
+    "6": { "name": "Shatru Bhava", "significations": ["Enemies", "Disease", "Debt", "Competition", "Service", "Litigation", "Daily work", "Pets"], "body_part": "Lower digestive, intestines, waist", "natural_sign": "Virgo", "natural_ruler": "Mercury" },
+    "7": { "name": "Kalatra Bhava", "significations": ["Marriage", "Partnerships", "Business partners", "Foreign travel", "Desires", "Open enemies", "Spouse"], "body_part": "Kidneys, lower back, pelvic region", "natural_sign": "Libra", "natural_ruler": "Venus" },
+    "8": { "name": "Ayu Bhava", "significations": ["Longevity", "Transformation", "Hidden matters", "Inheritance", "Research", "Occult", "Sudden events", "Death and rebirth"], "body_part": "Reproductive organs, anus, colon", "natural_sign": "Scorpio", "natural_ruler": "Mars" },
+    "9": { "name": "Dharma Bhava", "significations": ["Father", "Dharma", "Luck", "Higher education", "Religion", "Long travel", "Guru", "Philosophy", "Past life merit"], "body_part": "Thighs, hips", "natural_sign": "Sagittarius", "natural_ruler": "Jupiter" },
+    "10": { "name": "Karma Bhava", "significations": ["Career", "Status", "Government", "Public life", "Karma", "Authority", "Boss", "Fame", "Actions in the world"], "body_part": "Knees, joints", "natural_sign": "Capricorn", "natural_ruler": "Saturn" },
+    "11": { "name": "Labha Bhava", "significations": ["Income", "Gains", "Elder siblings", "Social network", "Aspirations", "Fulfillment of desires", "Friends"], "body_part": "Calves, ankles, left ear", "natural_sign": "Aquarius", "natural_ruler": "Saturn" },
+    "12": { "name": "Vyaya Bhava", "significations": ["Losses", "Foreign settlement", "Spirituality", "Isolation", "Expenses", "Liberation", "Hidden enemies", "Sleep", "Moksha"], "body_part": "Feet, left eye, lymphatic system", "natural_sign": "Pisces", "natural_ruler": "Jupiter" }
+  }
+}
+

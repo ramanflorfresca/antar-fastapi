@@ -1,0 +1,180 @@
+{
+  "dasha_rules": {
+    "mahadasha_themes": {
+      "Sun": {
+        "years": 6, "intensity": "medium_high",
+        "themes": ["career advancement", "father's health", "government matters", "authority", "recognition", "ego development"],
+        "positive": "Rise in status, government support, name and fame, leadership opportunities",
+        "challenging": "Ego conflicts, father's health issues, conflict with authority, heart/eye health",
+        "remedy_priority": ["Sun mantra daily at dawn", "Ruby or Red Garnet", "Sunday charity", "Surya Namaskar"],
+        "alert_message": "Sun Mahadasha activates your soul's purpose, career, and relationship with authority figures.",
+        "market_message": {
+          "india": "Surya Mahadasha — time for Surya upasana, government matters, and establishing your dharma",
+          "usa": "Solar period active — your identity, career, and authentic self-expression are in focus",
+          "latam": "Período Solar — tu propósito de vida y autoridad personal están siendo activados"
+        }
+      },
+      "Moon": {
+        "years": 10, "intensity": "medium",
+        "themes": ["home and property", "mother's health", "emotional wellbeing", "public life", "travel", "mind"],
+        "positive": "Emotional happiness, property gains, public recognition, good relationships, mental peace",
+        "challenging": "Mental stress, mother's health, relationship volatility, insomnia, digestive issues",
+        "remedy_priority": ["Moon mantra on Mondays", "Pearl or Moonstone", "Monday fasting", "Shiva worship"],
+        "alert_message": "Moon Mahadasha heightens emotional sensitivity and brings home, family, and inner world into focus.",
+        "market_message": {
+          "india": "Chandra Mahadasha — time for Shiva-Parvati upasana, emotional purification, and home matters",
+          "usa": "Lunar period — your emotional life, home environment, and inner landscape are the focus",
+          "latam": "Período Lunar — tu mundo emocional, hogar y conexión con lo femenino están en primer plano"
+        }
+      },
+      "Mars": {
+        "years": 7, "intensity": "high",
+        "themes": ["property", "siblings", "courage", "energy", "accidents risk", "real estate"],
+        "positive": "Property acquisition, courage, athletic achievement, real estate success, sibling support",
+        "challenging": "Accidents, surgeries, conflicts, property disputes, brothers/siblings issues",
+        "remedy_priority": ["Hanuman Chalisa daily", "Red Coral", "Tuesday fasting", "Mars mantra"],
+        "alert_message": "Mars Mahadasha is a high-energy period. Channel your vitality constructively and take extra care with safety.",
+        "safety_note": "Advise extra caution with driving, physical risks, and conflicts",
+        "market_message": {
+          "india": "Mangal Mahadasha — Hanuman upasana essential, channel energy wisely, be cautious of accidents",
+          "usa": "Mars period — high energy, action-oriented time. Direct your drive constructively or it creates conflict",
+          "latam": "Período de Marte — tiempo de acción, valentía y energía — úsala con sabiduría"
+        }
+      },
+      "Mercury": {
+        "years": 17, "intensity": "medium",
+        "themes": ["business", "communication", "education", "writing", "trade", "intellect", "young people"],
+        "positive": "Business success, communication excellence, educational achievements, writing/media opportunities",
+        "challenging": "Miscommunication, business disputes, nervous disorders, skin problems, overthinking",
+        "remedy_priority": ["Mercury mantra on Wednesdays", "Emerald", "Wednesday fasting", "Saraswati worship"],
+        "alert_message": "Mercury Mahadasha is a 17-year period ideal for business, education, and communication. Your mind is your greatest asset.",
+        "market_message": {
+          "india": "Budh Mahadasha — 17 years of intellectual and commercial opportunity. Saraswati and Vishnu upasana",
+          "usa": "Mercury period — your intellect, communication, and business abilities are highlighted for 17 years",
+          "latam": "Período de Mercurio — 17 años de oportunidades intelectuales y comerciales"
+        }
+      },
+      "Jupiter": {
+        "years": 16, "intensity": "positive_high",
+        "themes": ["wisdom", "marriage", "children", "wealth", "spirituality", "education", "guru"],
+        "positive": "Marriage, children, wealth expansion, spiritual growth, education, guru's blessings",
+        "challenging": "Overexpansion, weight gain, liver issues, religious dogma, over-optimism without planning",
+        "remedy_priority": ["Jupiter mantra on Thursdays", "Yellow Sapphire", "Thursday fasting", "Guru pranaam"],
+        "alert_message": "Jupiter Mahadasha is a 16-year blessing period. Expand with wisdom — this is your time for growth.",
+        "market_message": {
+          "india": "Guru Mahadasha — Brihaspati's grace is upon you. Time for marriage, children, education, and spiritual growth",
+          "usa": "Jupiter period — an expansive 16-year blessing cycle. Growth, wisdom, and abundance are your themes",
+          "latam": "Período de Júpiter — 16 años de abundancia, sabiduría y crecimiento espiritual"
+        }
+      },
+      "Venus": {
+        "years": 20, "intensity": "positive_very_high",
+        "themes": ["love", "marriage", "luxury", "vehicles", "arts", "beauty", "pleasure", "relationships"],
+        "positive": "Marriage, romance, artistic success, luxury, social recognition, vehicles, creative achievements",
+        "challenging": "Overindulgence, relationship complications, kidney issues, overspending, sensory excess",
+        "remedy_priority": ["Venus mantra on Fridays", "Diamond or White Sapphire", "Lakshmi worship", "Friday fasting"],
+        "alert_message": "Venus Mahadasha is the longest at 20 years — a full cycle of love, beauty, and refinement.",
+        "market_message": {
+          "india": "Shukra Mahadasha — 20 years of Lakshmi's grace. Marriage, luxuries, and Venus significations bloom",
+          "usa": "Venus period — your 20-year cycle of love, beauty, creativity, and refined pleasures begins",
+          "latam": "Período de Venus — 20 años de amor, belleza, creatividad y abundancia"
+        }
+      },
+      "Saturn": {
+        "years": 19, "intensity": "challenging_high",
+        "themes": ["karma", "discipline", "hard work", "delays", "chronic health", "isolation", "wisdom through suffering"],
+        "positive": "Sustained success through hard work, property, long-term recognition, karmic clearing",
+        "challenging": "Delays, depression, health issues, loss, isolation, bones/joints, chronic illness",
+        "remedy_priority": ["Shani Chalisa daily", "Shani temple on Saturdays", "Donate mustard oil", "Feed crows"],
+        "alert_message": "Saturn Mahadasha is a 19-year karmic period. Discipline, patience, and humility are your greatest tools.",
+        "safety_note": "Monitor for depression or chronic health issues — recommend professional support if needed",
+        "market_message": {
+          "india": "Shani Mahadasha — 19 years of karmic reckoning. Shani upasana, discipline, seva are essential",
+          "usa": "Saturn period — a 19-year restructuring cycle. What you build with integrity now will last a lifetime",
+          "latam": "Período de Saturno — 19 años de aprendizaje kármico, disciplina y construcción sólida"
+        }
+      },
+      "Rahu": {
+        "years": 18, "intensity": "unpredictable_high",
+        "themes": ["ambition", "foreign elements", "technology", "obsession", "illusion", "material desire", "unconventional path"],
+        "positive": "Rapid material rise, foreign success, technological achievement, unconventional recognition",
+        "challenging": "Confusion, deception, obsession, health illusions, relationship illusions",
+        "remedy_priority": ["Durga worship", "Rahu mantra on Saturdays", "Avoid intoxicants", "Grounding practices"],
+        "alert_message": "Rahu Mahadasha is an 18-year period of ambition and illusion. Truth-seeking and grounding are essential anchors.",
+        "market_message": {
+          "india": "Rahu Mahadasha — Durga upasana essential. Avoid maya, seek truth amid Rahu's illusions",
+          "usa": "Rahu period — an ambitious 18-year cycle. Technology, foreign connections, and unconventional paths are highlighted",
+          "latam": "Período de Rahu — 18 años de ambición y transformación. Mantente centrado en la verdad"
+        }
+      },
+      "Ketu": {
+        "years": 7, "intensity": "spiritual_high",
+        "themes": ["spirituality", "detachment", "past life resolution", "sudden events", "psychic experiences", "liberation"],
+        "positive": "Spiritual breakthrough, liberation path, psychic development, release of karma",
+        "challenging": "Confusion, sudden losses, accidents, health issues, detachment from life",
+        "remedy_priority": ["Ganesha worship", "Ketu mantra", "Past life healing", "Meditation retreat"],
+        "alert_message": "Ketu Mahadasha is a 7-year spiritual period. The outer world recedes — your inner world awakens.",
+        "market_message": {
+          "india": "Ketu Mahadasha — Ganesha and Bhairav upasana. Spiritual sadhana and detachment are key",
+          "usa": "Ketu period — a 7-year spiritual awakening cycle. Release what no longer serves your soul's growth",
+          "latam": "Período de Ketu — 7 años de despertar espiritual y liberación kármica"
+        }
+      }
+    },
+    "confluence_rules": [
+      {
+        "id": "saturn_sade_sati_md",
+        "condition": "Saturn_mahadasha AND Saturn_sade_sati_active",
+        "intensity": "very_high",
+        "message": "Double Saturn activation — one of life's most intense karmic periods. Extraordinary patience and spiritual practice required. This period builds your most enduring foundations.",
+        "remedies": ["Shani Chalisa twice daily", "Hanuman Chalisa (Saturn relief)", "Donate mustard oil weekly", "Shani temple every Saturday", "Blue Sapphire ONLY after thorough chart analysis"]
+      },
+      {
+        "id": "jupiter_transit_md",
+        "condition": "Jupiter_mahadasha AND Jupiter_transiting_lagna_or_5th_or_9th",
+        "intensity": "very_positive",
+        "message": "Peak Jupiter blessing — double Jupiter activation. This may be the most auspicious period of your life. Act boldly toward your highest aspirations.",
+        "remedies": ["Yellow Sapphire", "Thursday rituals", "Guru pranaam", "Start new ventures now"]
+      },
+      {
+        "id": "rahu_md_transit_moon",
+        "condition": "Rahu_mahadasha AND Rahu_transiting_natal_moon",
+        "intensity": "very_challenging",
+        "message": "Maximum Rahu-Moon activation — peak confusion and illusion period. Ground yourself in truth, avoid major decisions, and prioritize mental clarity practices.",
+        "remedies": ["Daily Durga worship", "Pearl or Moonstone", "Avoid deceptive people and situations", "Grounding meditation twice daily"]
+      },
+      {
+        "id": "ketu_md_transit_lagna",
+        "condition": "Ketu_mahadasha AND Ketu_transiting_natal_lagna",
+        "intensity": "spiritual_intense",
+        "message": "Profound spiritual uprooting. External world may feel meaningless. This is not emptiness — it is preparation for spiritual rebirth.",
+        "remedies": ["Meditation retreat", "Ganesha worship", "Detach from outcomes", "Seek a genuine spiritual teacher"]
+      },
+      {
+        "id": "venus_md_7th_transit",
+        "condition": "Venus_mahadasha AND Jupiter_transiting_7th_house",
+        "intensity": "positive",
+        "message": "Strong marriage and relationship indicators. If unmarried, this is a prime period for finding a life partner.",
+        "remedies": ["Venus and Jupiter remedies", "Seek romantic connections actively", "Family introductions for marriage"]
+      }
+    ],
+    "antardasha_themes": {
+      "within_saturn_md": {
+        "Saturn_Saturn": "Deepest karmic period. Maximum Saturn intensity. 2-3 years of pure discipline and karmic reckoning.",
+        "Saturn_Mercury": "Mental clarity returns. Business and communication improve. Mind becomes sharper.",
+        "Saturn_Ketu": "Spiritual acceleration within a difficult period. Sudden insights and losses.",
+        "Saturn_Venus": "Some relief and pleasure. Relationship matters and comforts improve briefly.",
+        "Saturn_Sun": "Authority conflicts and father matters come up. Identity under pressure.",
+        "Saturn_Moon": "Emotional heaviness and mental challenges. Sade Sati-like effect even without transit."
+      },
+      "within_jupiter_md": {
+        "Jupiter_Jupiter": "Peak blessings. Maximum expansion. Marriage, children, wealth most likely now.",
+        "Jupiter_Saturn": "Slowdown after expansion. Consolidate gains made earlier.",
+        "Jupiter_Mercury": "Intellectual and business expansion. Study, writing, communication flourish.",
+        "Jupiter_Venus": "Love and marriage highly likely. Artistic and creative success.",
+        "Jupiter_Sun": "Recognition and career advancement. Father's wellbeing good."
+      }
+    }
+  }
+}
+

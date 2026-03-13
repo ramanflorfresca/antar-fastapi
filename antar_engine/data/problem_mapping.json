@@ -1,0 +1,75 @@
+{
+  "problem_mapping": {
+    "career": {
+      "primary_planets": ["Saturn", "Sun", "Mercury"],
+      "secondary_planets": ["Jupiter", "Mars"],
+      "primary_houses": [10, 6, 2],
+      "secondary_houses": [1, 9, 11],
+      "divisional_chart": "D-10 (Dasamsa)",
+      "key_yogas": ["Raja Yoga", "Hamsa Yoga", "Bhadra Yoga", "Sasa Yoga"],
+      "key_transits": ["Saturn over 10th lord", "Jupiter over Lagna", "Sun over MC"],
+      "remedies": ["Saturn mantra", "Sun mantra", "Mercury mantra", "Karma Yoga (selfless service)"],
+      "questions_to_ask": ["Which house is Saturn in?", "What sign is 10th lord in?", "Is there a Raja Yoga?", "What D-10 Lagna lord is placed where?"]
+    },
+    "relationships": {
+      "primary_planets": ["Venus", "Moon", "Jupiter"],
+      "secondary_planets": ["Mars", "Mercury"],
+      "primary_houses": [7, 5, 11],
+      "secondary_houses": [1, 2, 4],
+      "divisional_chart": "D-9 (Navamsa)",
+      "key_yogas": ["Kalathra Yoga", "Malavya Yoga", "Jupiter-Venus conjunction"],
+      "key_transits": ["Jupiter over 7th house", "Venus dasha", "Saturn over Venus"],
+      "remedies": ["Venus mantra Fridays", "Lakshmi worship", "Ashtakoot matching for marriage"],
+      "questions_to_ask": ["7th lord placement?", "Venus sign and house?", "Navamsa 7th house?", "Mangal Dosha present?", "Darakaraka planet?"]
+    },
+    "health": {
+      "primary_planets": ["Saturn", "Mars", "Moon"],
+      "secondary_planets": ["Sun", "Ketu", "Rahu"],
+      "primary_houses": [6, 8, 1],
+      "secondary_houses": [12, 4],
+      "body_mapping": {
+        "Sun": "heart, spine, right eye",
+        "Moon": "mind, left eye, lungs, stomach",
+        "Mars": "blood, muscles, head",
+        "Mercury": "nervous system, skin",
+        "Jupiter": "liver, thighs, fat",
+        "Venus": "kidneys, reproductive",
+        "Saturn": "bones, joints, chronic conditions",
+        "Rahu": "unusual illnesses, skin",
+        "Ketu": "wounds, immune system, mysterious illness"
+      },
+      "remedies": ["Planet-specific mantra for afflicted body ruler", "Chakra healing for affected area", "Ayurvedic consultation"],
+      "safety_note": "Always recommend consulting a medical professional. Never diagnose or prescribe."
+    },
+    "finances": {
+      "primary_planets": ["Jupiter", "Venus", "Mercury"],
+      "secondary_planets": ["Sun", "Moon"],
+      "primary_houses": [2, 11, 9],
+      "secondary_houses": [5, 10],
+      "key_yogas": ["Dhana Yoga", "Lakshmi Yoga", "Kubera Yoga", "Raja Yoga"],
+      "remedies": ["Jupiter mantra", "Lakshmi worship", "Charity on Thursdays", "Yellow Sapphire"],
+      "questions_to_ask": ["2nd lord placement?", "11th lord placement?", "Jupiter sign and strength?", "Any Dhana Yoga present?"]
+    },
+    "spirituality": {
+      "primary_planets": ["Jupiter", "Ketu", "Saturn"],
+      "secondary_planets": ["Moon", "Sun"],
+      "primary_houses": [9, 12, 5],
+      "secondary_houses": [1, 4, 8],
+      "key_yogas": ["Pravrajya Yoga", "Moksha Yoga", "Ketu-Jupiter conjunction"],
+      "remedies": ["Meditation", "Guru seva", "Pilgrimage", "Ketu mantra"],
+      "questions_to_ask": ["9th lord placement?", "Atmakaraka planet?", "Ketu placement?", "12th house strength?"]
+    },
+    "family": {
+      "primary_planets": ["Moon", "Sun", "Jupiter"],
+      "secondary_planets": ["Saturn", "Mars"],
+      "primary_houses": [4, 2, 9],
+      "secondary_houses": [1, 7, 10],
+      "mother_indicators": "Moon and 4th house lord",
+      "father_indicators": "Sun and 9th house lord",
+      "children_indicators": "Jupiter and 5th house lord",
+      "remedies": ["Moon mantra for mother harmony", "Sun mantra for father bond", "Jupiter for children"],
+      "questions_to_ask": ["Moon sign and house?", "4th lord placement?", "Sun and 9th lord strength?"]
+    }
+  }
+}
+

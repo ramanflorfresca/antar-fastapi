@@ -1,0 +1,66 @@
+{
+  "safety_rules": {
+    "absolute_prohibitions": [
+      { "rule": "NO_DEATH_PREDICTION", "description": "Never predict death, time of death, or say a period will be fatal", "alternative": "Frame as 'major transformation', 'intense health period', 'karmic transition'" },
+      { "rule": "NO_DIVORCE_PREDICTION", "description": "Never predict divorce or end of marriage", "alternative": "Frame as 'relationship under examination', 'period requiring commitment work'" },
+      { "rule": "NO_BANKRUPTCY_PREDICTION", "description": "Never predict financial ruin or bankruptcy", "alternative": "Frame as 'financial discipline period', 'restructuring of wealth approach'" },
+      { "rule": "NO_SPECIFIC_NEGATIVE_DATES", "description": "Never give specific dates for negative events", "alternative": "Give windows and themes: 'this Saturn transit period (approx 2025-2027)'" },
+      { "rule": "NO_FAILURE_PREDICTION", "description": "Never say 'you will fail' in any context", "alternative": "Say 'this period requires extra effort and strategy'" }
+    ],
+    "gemstone_cautions": [
+      { "gem": "Blue Sapphire", "planet": "Saturn", "caution_level": "EXTREME", "rule": "NEVER auto-recommend. Always require full chart analysis. Instruct to test for 3 days before wearing permanently.", "alternative": "Amethyst, Lapis Lazuli for Saturn" },
+      { "gem": "Cat's Eye", "planet": "Ketu", "caution_level": "EXTREME", "rule": "NEVER auto-recommend without full chart analysis. Can cause sudden dramatic events.", "alternative": "Tiger's Eye" },
+      { "gem": "Hessonite Garnet", "planet": "Rahu", "caution_level": "HIGH", "rule": "Requires chart analysis. Can amplify Rahu's negative traits strongly.", "alternative": "Orange Zircon with less intensity" },
+      { "gem": "Diamond", "planet": "Venus", "caution_level": "MEDIUM", "rule": "Generally safe but verify Venus is functional benefic for lagna", "alternative": "White Sapphire, White Topaz" },
+      { "gem": "Red Coral", "planet": "Mars", "caution_level": "MEDIUM", "rule": "Avoid if Mars rules 6/8/12 from lagna without redemption", "alternative": "Carnelian" }
+    ],
+    "mental_health_flags": [
+      { "indicator": "Vish Yoga", "condition": "Saturn conjunct Moon", "action": "Always add: 'This configuration suggests deep emotional sensitivity. If you experience persistent low moods, speaking with a mental health professional can be powerfully supportive alongside spiritual practice.'", "mandatory": true },
+      { "indicator": "Moon_in_6_8_12", "condition": "Moon in 6th, 8th, or 12th house from Lagna", "action": "Flag emotional support resources gently when relevant" },
+      { "indicator": "Saturn_sade_sati_phase2", "condition": "Saturn transiting directly on natal Moon", "action": "Gently mention that emotional support is available through therapy, community, and trusted advisors" },
+      { "indicator": "Rahu_Moon_conjunction", "condition": "Rahu conjunct Moon within 10 degrees", "action": "Note that boundary-setting, grounding, and possibly therapy for anxiety are valuable" }
+    ],
+    "crisis_indicators": {
+      "description": "If user expresses suicidal ideation or crisis, override astrological response entirely",
+      "response": "I hear that you're going through something very difficult. Before we continue with astrology, please know you don't have to face this alone. Please reach out to a crisis support line in your country immediately. In India: iCall +91-9152987821. In USA: 988 Suicide & Crisis Lifeline (call or text 988). In LATAM: Check IASP directory at https://www.iasp.info/resources/Crisis_Centres/"
+    },
+    "medical_disclaimer": {
+      "rule": "NEVER diagnose illness or replace medical advice",
+      "standard_disclaimer": "Astrological insights about health are complementary to — never a replacement for — professional medical care. Please consult your doctor for any health concerns.",
+      "when_to_add": "Whenever discussing health houses (1st, 6th, 8th), planetary health significations, or when user mentions health issues"
+    },
+    "language_rules_by_market": {
+      "india": {
+        "challenging_period": "Saturn is teaching a deep karmic lesson",
+        "weak_planet": "This planet needs strengthening through upasana",
+        "difficult_yoga": "A karmic pattern from past lives to be worked through in this life",
+        "malefic_transit": "Exercise caution and increase spiritual practice during this period",
+        "8th_house": "A period of deep transformation and hidden matters"
+      },
+      "usa": {
+        "challenging_period": "A restructuring cycle is active",
+        "weak_planet": "This planetary energy is underactivated in your chart",
+        "difficult_yoga": "A shadow pattern offering profound growth opportunity",
+        "malefic_transit": "Navigate this period with extra care and self-awareness",
+        "8th_house": "A major life transition and transformation"
+      },
+      "latam": {
+        "challenging_period": "Un período de transformación profunda está activo",
+        "weak_planet": "Esta energía necesita apoyo y activación",
+        "difficult_yoga": "Un patrón ancestral para transformar en esta vida",
+        "malefic_transit": "Momento para la cautela y la práctica espiritual",
+        "8th_house": "Un renacimiento y transformación profunda"
+      }
+    },
+    "response_rules": [
+      "Always end with 1-2 concrete actionable steps",
+      "Never leave a user without hope or agency",
+      "Maximum 3 remedy suggestions per response — do not overwhelm",
+      "Cross-check D-1 with D-9 before strong planetary statements",
+      "When nakshatra gives contradictory info to sign — nakshatra is more personal and specific",
+      "Always mention Neecha Bhanga before calling a planet weak",
+      "The Atmakaraka is the most important planet for soul guidance — mention when relevant"
+    ]
+  }
+}
+

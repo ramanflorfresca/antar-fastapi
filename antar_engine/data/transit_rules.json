@@ -1,0 +1,139 @@
+{
+  "transit_rules": {
+    "major_transits": [
+      {
+        "id": "sade_sati",
+        "name": "Sade Sati",
+        "planet": "Saturn",
+        "trigger": "Saturn transiting natal Moon sign, sign before, or sign after",
+        "duration": "7.5 years (3 phases of 2.5 years each)",
+        "intensity": "very_high",
+        "phases": [
+          { "phase": 1, "position": "Sign before natal Moon", "theme": "Mental unrest, preparation, external changes begin", "duration": "2.5 years" },
+          { "phase": 2, "position": "On natal Moon", "theme": "Peak intensity — core life restructuring, maximum karmic pressure", "duration": "2.5 years" },
+          { "phase": 3, "position": "Sign after natal Moon", "theme": "Resolution, new foundations, gradual relief", "duration": "2.5 years" }
+        ],
+        "alert_timing": "30 days before phase begins",
+        "remedies": ["Shani Chalisa daily", "Hanuman Chalisa (for Saturn relief)", "Mustard oil lamp on Saturdays", "Feed black sesame to crows", "Donate to underprivileged", "Wear iron ring on middle finger"],
+        "positive_aspects": "Builds character, removes shallow attachments, creates enduring foundations",
+        "message_india": "Sade Sati is beginning — Shani Dev is restructuring your life for karmic growth. Discipline, service, and patience are your armor.",
+        "message_usa": "A significant Saturn restructuring cycle is activating — old structures that don't serve your growth will be cleared to make way for what's truly lasting.",
+        "message_latam": "El período de Sade Sati comienza — una transformación profunda que elimina lo que ya no sirve para revelar tu esencia más auténtica."
+      },
+      {
+        "id": "guru_peyarchi",
+        "name": "Guru Peyarchi (Jupiter Transit)",
+        "planet": "Jupiter",
+        "trigger": "Jupiter transiting over natal Lagna, 5th house, or 9th house",
+        "duration": "1 year per sign",
+        "intensity": "positive_very_high",
+        "favorable_houses": [1, 2, 5, 7, 9, 11],
+        "unfavorable_houses": [3, 4, 6, 8, 10, 12],
+        "alert_timing": "14 days before Jupiter changes sign",
+        "remedies": ["Yellow Sapphire", "Thursday rituals", "Guru pranaam", "Expand boldly"],
+        "message_india": "Guru Peyarchi — Jupiter is blessing your lagna/5th/9th. Expand in all directions. This period brings marriage, children, education, and prosperity.",
+        "message_usa": "Jupiter's blessing transit — a one-year window of expansion, opportunity, and good fortune. Act toward your biggest goals now.",
+        "message_latam": "Tránsito de Júpiter — un año de abundancia, expansión y bendiciones. Este es tu momento de crecer."
+      },
+      {
+        "id": "rahu_ketu_transit",
+        "name": "Rahu-Ketu Axis Shift",
+        "planet": "Rahu/Ketu",
+        "trigger": "Rahu and Ketu changing signs (every 18 months)",
+        "duration": "18 months",
+        "intensity": "high",
+        "alert_timing": "14 days before axis shift",
+        "remedies": ["Durga worship (Rahu)", "Ganesha worship (Ketu)", "Eclipse precautions", "Grounding practices"],
+        "message_india": "Rahu-Ketu axis is shifting — major life themes are changing. New obsessions, new releases. Stay anchored in dharma.",
+        "message_usa": "The Rahu-Ketu axis is shifting — the areas of life where you're hungry for growth and where you need to release are changing.",
+        "message_latam": "El eje Rahu-Ketu cambia — nuevos temas de crecimiento y liberación se activan en tu vida."
+      },
+      {
+        "id": "saturn_return",
+        "name": "Saturn Return",
+        "planet": "Saturn",
+        "trigger": "Saturn transiting its natal position in birth chart",
+        "ages": [29, 58],
+        "duration": "2-3 years",
+        "intensity": "life_defining",
+        "alert_timing": "6 months before",
+        "remedies": ["Saturn remedies intensified", "Major life review and restructuring", "Commit to authentic path"],
+        "message": "Saturn Return — life's most significant crossroad. Saturn demands you shed what is inauthentic and commit fully to your true path. The decisions made now echo for the next 29 years."
+      },
+      {
+        "id": "jupiter_return",
+        "name": "Jupiter Return",
+        "planet": "Jupiter",
+        "trigger": "Jupiter transiting its natal position",
+        "frequency": "Every 12 years",
+        "intensity": "positive_high",
+        "message": "Jupiter Return — a year of fresh expansion, wisdom upgrades, and new opportunities aligned with your deeper purpose."
+      }
+    ],
+    "transit_through_houses": {
+      "Saturn": {
+        "1": "Identity restructuring, health focus, new beginnings under pressure",
+        "2": "Financial discipline required, family responsibilities increase",
+        "3": "Hard work in communication, sibling matters, short trips with effort",
+        "4": "Home changes, mother's health, property challenges",
+        "5": "Creative and children challenges, disciplined romance",
+        "6": "Health improvement through discipline, work intensifies, victory over enemies",
+        "7": "Relationship restructuring, marriage under examination, business discipline",
+        "8": "Transformation, inheritance matters, deep karmic clearing",
+        "9": "Dharma challenges, father's health, philosophical restructuring",
+        "10": "Career discipline and restructuring, reputation under scrutiny",
+        "11": "Slow but steady gains, friend circle changes, long-term goals crystalize",
+        "12": "Isolation, foreign matters, spiritual growth, hidden karmic clearing"
+      },
+      "Jupiter": {
+        "1": "New cycle of expansion, health improvement, fresh optimism",
+        "2": "Financial expansion, family blessings, wealth increase",
+        "3": "Travel, communication, sibling support",
+        "4": "Home expansion, property gains, mother's wellbeing",
+        "5": "Children blessings, creative breakthrough, romantic expansion",
+        "6": "Victory over enemies, health improvement, service opportunities",
+        "7": "Marriage blessings, partnership success, relationship harmony",
+        "8": "Hidden gains, inheritance, occult insights",
+        "9": "Peak fortune, father's wellbeing, spiritual expansion, travel",
+        "10": "Career peak, recognition, promotion, status rise",
+        "11": "Maximum gains, dreams fulfilled, social expansion",
+        "12": "Spiritual growth, foreign travel, charitable activity"
+      }
+    },
+    "eclipse_rules": {
+      "precaution_window_days": 14,
+      "avoid_during_eclipse": [
+        "Starting new ventures",
+        "Signing contracts",
+        "Medical procedures (non-emergency)",
+        "Marriage ceremonies",
+        "Major financial decisions"
+      ],
+      "remedies": ["Mantra chanting during eclipse", "Fasting", "Donation after eclipse", "Bath after eclipse ends"],
+      "auspicious_after_eclipse": "3 days after eclipse passes — new beginnings are powerfully supported"
+    },
+    "rahu_kaal": {
+      "description": "Daily inauspicious 90-minute window ruled by Rahu",
+      "schedule_approximate": {
+        "Sunday": "16:30-18:00",
+        "Monday": "07:30-09:00",
+        "Tuesday": "15:00-16:30",
+        "Wednesday": "12:00-13:30",
+        "Thursday": "13:30-15:00",
+        "Friday": "10:30-12:00",
+        "Saturday": "09:00-10:30"
+      },
+      "note": "Exact timing varies by location and sunrise time — calculate from local sunrise",
+      "avoid": ["Starting new ventures", "Signing contracts", "Important decisions", "Travel beginnings", "Medical procedures"]
+    },
+    "ashtakavarga_thresholds": {
+      "description": "Points (0-8) each planet receives in each sign based on natal positions",
+      "very_favorable": { "min_points": 5, "message": "Strong transit — act on this planet's significations" },
+      "favorable": { "min_points": 4, "message": "Supportive transit — proceed with confidence" },
+      "neutral": { "min_points": 3, "message": "Ordinary transit — neither helped nor harmed" },
+      "challenging": { "max_points": 2, "message": "Weak transit — exercise caution in this area" },
+      "very_challenging": { "max_points": 1, "message": "Very weak transit — delays and obstacles likely" }
+    }
+  }
+}
+

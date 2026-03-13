@@ -1,0 +1,171 @@
+"""
+Jaimini Chara Dasha calculation module (K.N. Rao method).
+Date: 2026-03-10 (Corrected: exclusive distance, same-sign rule)
+Includes mahadasha and antardasha (sub‑period) computation.
+"""
+
+import swisseph as swe
+from datetime import datetime, timedelta
+import math
+from . import constants
+from . import utils
+
+SIGNS = constants.SIGNS
+SIGN_LORDS = constants.SIGN_LORDS
+FIXED_SIGNS = constants.FIXED_SIGNS
+
+
+# ---------- Core Distance Helpers ----------
+def zodiac_distance_exclusive(start, end, direction):
+    """
+    Exclusive distance: number of signs traversed from start to end,
+    following the given direction. Returns 0 if start == end.
+    """
+    if start == end:
+        return 0
+    dist = 0
+    current = start
+    while True:
+        current = (current + direction) % 12
+        dist += 1
+        if current == end:
+            break
+    return dist
+
+
+def get_dispositor_sign(planet, planet_signs):
+    """Return the sign occupied by the dispositor of a node (Rahu/Ketu)."""
+    node_sign = planet_signs[planet]
+    dispositor = SIGN_LORDS[node_sign]
+    return planet_signs[dispositor]
+
+
+def calculate_dasha_duration(sign, direction, planet_signs):
+    """
+    Compute Chara Dasha duration for a sign using K.N. Rao rules.
+    Exclusive distance; if distance == 0 (lord in same sign), returns 12.
+    For dual-lord signs (Scorpio, Aquarius), takes the maximum of distances.
+    """
+    if sign == 7:  # Scorpio – dual lords Mars and Ketu (using Ketu's dispositor)
+        mars_sign = planet_signs['Mars']
+        ketu_ruler_sign = get_dispositor_sign('Ketu', planet_signs)
+        dist1 = zodiac_distance_exclusive(sign, mars_sign, direction)
+        dist2 = zodiac_distance_exclusive(sign, ketu_ruler_sign, direction)
+        # Apply same-sign rule: if distance == 0 → 12
+        if dist1 == 0:
+            dist1 = 12
+        if dist2 == 0:
+            dist2 = 12
+        dist = max(dist1, dist2)
+    elif sign == 10:  # Aquarius – dual lords Saturn and Rahu (using Rahu's dispositor)
+        saturn_sign = planet_signs['Saturn']
+        rahu_ruler_sign = get_dispositor_sign('Rahu', planet_signs)
+        dist1 = zodiac_distance_exclusive(sign, saturn_sign, direction)
+        dist2 = zodiac_distance_exclusive(sign, rahu_ruler_sign, direction)
+        if dist1 == 0:
+            dist1 = 12
+        if dist2 == 0:
+            dist2 = 12
+        dist = max(dist1, dist2)
+    else:
+        ruler = SIGN_LORDS[sign]
+        ruler_sign = planet_signs[ruler]
+        dist = zodiac_distance_exclusive(sign, ruler_sign, direction)
+        if dist == 0:
+            return 12
+    return dist
+
+
+def compute_antardashas(main_sign_duration, start_jd, direction, start_sign):
+    """Antardashas are equal divisions of the main sign period."""
+    ad_duration = main_sign_duration / 12
+    antardashas = []
+    current_jd = start_jd
+    current_sign = start_sign
+    for _ in range(12):
+        end_jd = current_jd + ad_duration * 365.25
+        antardashas.append({
+            'sign': SIGNS[current_sign],
+            'sign_index': current_sign,
+            'start_jd': current_jd,
+            'end_jd': end_jd,
+            'duration_years': ad_duration
+        })
+        current_jd = end_jd
+        current_sign = (current_sign + direction) % 12
+    return antardashas
+
+
+# ---------- Chart-Based Wrapper ----------
+def calculate_chara_dasha_from_chart(chart_data, birth_jd):
+    """
+    Compute full Jaimini Chara Dasha from chart data.
+    Returns a dict with:
+        - 'mahadashas': list of mahadasha dicts (with datetime strings)
+        - 'antardashas': list of antardasha dicts, each with 'parent_sign' reference
+    """
+    lagna_sign = chart_data['lagna']['sign_index']
+    lagna_deg = chart_data['lagna']['degree']
+    planet_signs = {p: chart_data['planets'][p]['sign_index'] for p in chart_data['planets']}
+
+    # Direction: backward for fixed signs, forward otherwise
+    direction = -1 if lagna_sign in FIXED_SIGNS else +1
+
+    # Generate 12-sign sequence starting from lagna
+    sequence = []
+    current = lagna_sign
+    for _ in range(12):
+        sequence.append(current)
+        current = (current + direction) % 12
+
+    # Compute full durations for each sign in sequence
+    full_durations = []
+    for sign in sequence:
+        dur = calculate_dasha_duration(sign, direction, planet_signs)
+        full_durations.append(dur)
+
+    # First dasha balance: only for movable/dual lagnas
+    if lagna_sign in FIXED_SIGNS:
+        first_duration = full_durations[0]
+    else:
+        balance_factor = (30 - lagna_deg) / 30
+        first_duration = full_durations[0] * balance_factor
+
+    # Build mahadasha timeline
+    mahadashas = []
+    current_jd = birth_jd
+    for i, sign in enumerate(sequence):
+        years = first_duration if i == 0 else full_durations[i]
+        md = {
+            'sign': SIGNS[sign],
+            'sign_index': sign,
+            'start_jd': current_jd,
+            'duration_years': years
+        }
+        md['end_jd'] = current_jd + years * 365.25
+        mahadashas.append(md)
+        current_jd = md['end_jd']
+
+    # Convert to datetime strings
+    for md in mahadashas:
+        md['start_datetime'] = utils.datetime_from_jd(md['start_jd'])
+        md['end_datetime'] = utils.datetime_from_jd(md['end_jd'])
+        md['start_date'] = md['start_datetime'].isoformat()
+        md['end_date'] = md['end_datetime'].isoformat()
+
+    # Compute antardashas for each mahadasha
+    all_antardashas = []
+    for md in mahadashas:
+        ad_list = compute_antardashas(md['duration_years'], md['start_jd'], direction, md['sign_index'])
+        for ad in ad_list:
+            ad['parent_sign'] = md['sign']
+            ad['start_datetime'] = utils.datetime_from_jd(ad['start_jd'])
+            ad['end_datetime'] = utils.datetime_from_jd(ad['end_jd'])
+            ad['start_date'] = ad['start_datetime'].isoformat()
+            ad['end_date'] = ad['end_datetime'].isoformat()
+        all_antardashas.extend(ad_list)
+
+    return {
+        'mahadashas': mahadashas,
+        'antardashas': all_antardashas
+    }

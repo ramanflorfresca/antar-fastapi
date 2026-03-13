@@ -1,0 +1,128 @@
+import swisseph as swe
+from datetime import datetime, timedelta
+import math
+import os
+
+# Set ephemeris path to a folder named 'ephe' in the same directory as this script
+script_dir = os.path.dirname(os.path.abspath(__file__))
+ephe_path = os.path.join(script_dir, 'ephe')
+swe.set_ephe_path(ephe_path)
+
+# Set ayanamsa to Lahiri (Vedic sidereal)
+swe.set_sid_mode(swe.SIDM_LAHIRI)
+
+# Dasha sequence and lengths (in years)
+DASHA_SEQUENCE = [
+    'Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu', 'Jupiter', 'Saturn', 'Mercury'
+]
+DASHA_LENGTHS = {
+    'Ketu': 7,
+    'Venus': 20,
+    'Sun': 6,
+    'Moon': 10,
+    'Mars': 7,
+    'Rahu': 18,
+    'Jupiter': 16,
+    'Saturn': 19,
+    'Mercury': 17
+}
+
+NAKSHATRAS = [
+    'Ashvini', 'Bharani', 'Krittika', 'Rohini', 'Mrigashira', 'Ardra',
+    'Punarvasu', 'Pushya', 'Ashlesha', 'Magha', 'Purva Phalguni', 'Uttara Phalguni',
+    'Hasta', 'Chitra', 'Swati', 'Vishakha', 'Anuradha', 'Jyeshtha',
+    'Mula', 'Purva Ashadha', 'Uttara Ashadha', 'Shravana', 'Dhanishta', 'Shatabhisha',
+    'Purva Bhadrapada', 'Uttara Bhadrapada', 'Revati'
+]
+
+def nakshatra_to_dasha_index(nakshatra_idx):
+    return nakshatra_idx % 9
+
+def get_moon_nakshatra(jd):
+    """Calculate Moon's sidereal nakshatra at given Julian day."""
+    # Use sidereal flag
+    moon_long, _ = swe.calc_ut(jd, swe.MOON, flags=swe.FLG_SWIEPH | swe.FLG_SIDEREAL)
+    nakshatra_deg = 360 / 27  # 13.3333333
+    nakshatra_idx = int(moon_long[0] / nakshatra_deg)
+    if nakshatra_idx >= 27:
+        nakshatra_idx = 26
+    start_deg = nakshatra_idx * nakshatra_deg
+    lon_in_nak = moon_long[0] - start_deg
+    portion_elapsed = lon_in_nak / nakshatra_deg
+    return nakshatra_idx, lon_in_nak, portion_elapsed
+
+def calculate_vimsottari(birth_date, birth_time, lat, lon, tz_offset):
+    dt_local = datetime.strptime(f"{birth_date} {birth_time}", "%Y-%m-%d %H:%M")
+    dt_utc = dt_local - timedelta(hours=tz_offset)
+    jd_utc = swe.julday(dt_utc.year, dt_utc.month, dt_utc.day,
+                        dt_utc.hour + dt_utc.minute/60.0)
+
+    # Get Moon nakshatra at birth
+    nakshatra_idx, lon_in_nak, portion_elapsed = get_moon_nakshatra(jd_utc)
+    print(f"Moon nakshatra: {NAKSHATRAS[nakshatra_idx]} (index {nakshatra_idx}), lord: {DASHA_SEQUENCE[nakshatra_to_dasha_index(nakshatra_idx)]}")
+    print(f"Portion elapsed in nakshatra: {portion_elapsed:.3f}")
+
+    # Determine starting dasha lord
+    start_dasha_idx = nakshatra_to_dasha_index(nakshatra_idx)
+    start_lord = DASHA_SEQUENCE[start_dasha_idx]
+
+    # Remaining portion of first dasha
+    remaining_years = DASHA_LENGTHS[start_lord] * (1 - portion_elapsed)
+    print(f"First dasha: {start_lord}, remaining at birth: {remaining_years:.3f} years")
+
+    # Build mahadasha list
+    dashas = []
+    current_jd = jd_utc
+    current_lord_idx = start_dasha_idx
+
+    # First dasha with remaining balance
+    dashas.append({
+        'lord': start_lord,
+        'start_jd': jd_utc,
+        'duration_years': remaining_years
+    })
+    current_jd += remaining_years * 365.25
+
+    # Subsequent dashas
+    next_idx = (current_lord_idx + 1) % 9
+    total_years_covered = remaining_years
+    while total_years_covered < 120:
+        lord = DASHA_SEQUENCE[next_idx]
+        duration = DASHA_LENGTHS[lord]
+        dashas.append({
+            'lord': lord,
+            'start_jd': current_jd,
+            'duration_years': duration
+        })
+        current_jd += duration * 365.25
+        total_years_covered += duration
+        next_idx = (next_idx + 1) % 9
+
+    # Convert JD to datetime
+    for d in dashas:
+        d['start_date'] = swe.revjul(d['start_jd'])
+        year, month, day, hour = d['start_date']
+        d['start_datetime'] = datetime(year, month, day) + timedelta(hours=hour)
+        d['end_jd'] = d['start_jd'] + d['duration_years'] * 365.25
+        end_date = swe.revjul(d['end_jd'])
+        year, month, day, hour = end_date
+        d['end_datetime'] = datetime(year, month, day) + timedelta(hours=hour)
+        d['end_date_str'] = d['end_datetime'].strftime('%Y-%m-%d')
+
+    return dashas
+
+if __name__ == "__main__":
+    # Test with your corrected birth data: Nov 2, 1970, 6:02 AM, New Delhi
+    dashas = calculate_vimsottari(
+        birth_date='1974-11-26',
+        birth_time='11:59',       # 6:02 AM local time
+        lat=28.6139,               # ← changed from 'latitude' to 'lat'
+        lon=77.2090,               # ← changed from 'longitude' to 'lon'
+        tz_offset=5.5
+    )
+
+    print("\nMahadashas:")
+    for i, d in enumerate(dashas[:10]):  # first 10
+        start = d['start_datetime'].strftime('%Y-%m-%d')
+        end = d['end_datetime'].strftime('%Y-%m-%d')
+        print(f"{d['lord']}: {start} to {end} ({d['duration_years']:.2f} years)")

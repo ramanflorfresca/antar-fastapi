@@ -1,0 +1,724 @@
+{
+  "planets": {
+    "Sun": {
+      "id": "sun",
+      "symbol": "☉",
+      "color": "#FF6B35",
+      "day": "Sunday",
+      "number": 1,
+      "significations": ["soul", "father", "authority", "career", "vitality", "government", "ego", "spine", "heart", "eyes"],
+      "body_parts": ["heart", "spine", "right eye", "bones"],
+      "exaltation": { "sign": "Aries", "degree": 10 },
+      "debilitation": { "sign": "Libra", "degree": 10 },
+      "own_signs": ["Leo"],
+      "friend_planets": ["Moon", "Mars", "Jupiter"],
+      "enemy_planets": ["Saturn", "Venus", "Rahu", "Ketu"],
+      "neutral_planets": ["Mercury"],
+      "mahadasha_years": 6,
+      "remedy": {
+        "mantra": {
+          "primary": "Om Hraam Hreem Hraum Sah Suryaya Namah",
+          "secondary": "Aditya Hridayam",
+          "gayatri": "Om Bhaskaraya Vidmahe Mahadyutikaraya Dhimahi Tanno Aditya Prachodayat",
+          "bija": "RAM",
+          "count": 7,
+          "timing": "Sunrise on Sundays",
+          "audio_file": "mantras/sun_beej_mantra.mp3"
+        },
+        "gemstone": {
+          "primary": "Ruby",
+          "substitute": "Red Garnet, Red Spinel",
+          "finger": "Ring finger, right hand",
+          "metal": "Gold",
+          "weight_carats": "3-5",
+          "day_to_wear": "Sunday sunrise",
+          "caution": "Consult astrologer before wearing"
+        },
+        "chakra": {
+          "name": "Manipura",
+          "english": "Solar Plexus",
+          "bija": "RAM",
+          "hz": 528,
+          "color": "#FFB703",
+          "location": "Navel to sternum"
+        },
+        "fasting": {
+          "day": "Sunday",
+          "food_to_avoid": "Salt",
+          "food_to_eat": "Wheat, jaggery, lotus seeds"
+        },
+        "charity": {
+          "items": ["wheat", "jaggery", "copper", "red flowers", "red cloth"],
+          "day": "Sunday",
+          "recipient": "Temples, elderly, father figures"
+        },
+        "deity": {
+          "primary": "Surya",
+          "secondary": "Vishnu, Ram",
+          "stotra": "Aditya Hridayam, Surya Chalisa"
+        },
+        "color_therapy": ["orange", "gold", "red"],
+        "yantra": "Surya Yantra",
+        "rudraksha": "1 Mukhi",
+        "herbs": ["saffron", "cardamom", "calamus"],
+        "yoga_poses": ["Surya Namaskar", "Warrior I", "Cobra"],
+        "meditation": "Visualize golden light at solar plexus, chant RAM 7 times"
+      },
+      "psychological_themes": {
+        "strong": "Confident, authoritative, generous, natural leader, clear sense of purpose",
+        "weak": "Ego issues, lack of confidence, poor relationship with father, career struggles",
+        "shadow": "Arrogance, need for approval, domineering",
+        "growth": "Develop authentic self-expression without need for external validation"
+      },
+      "dasha_themes": {
+        "mahadasha": "Career advancement, government dealings, father's health, authority, recognition",
+        "positive_period": "Rise in status, government favor, name and fame",
+        "challenging_period": "Conflict with authority, father's health, ego clashes, heart issues"
+      }
+    },
+    "Moon": {
+      "id": "moon",
+      "symbol": "☽",
+      "color": "#C8D8E8",
+      "day": "Monday",
+      "number": 2,
+      "significations": ["mind", "mother", "emotions", "memory", "water", "fertility", "home", "public", "intuition", "sleep"],
+      "body_parts": ["mind", "left eye", "breasts", "lungs", "stomach", "lymphatic system"],
+      "exaltation": { "sign": "Taurus", "degree": 3 },
+      "debilitation": { "sign": "Scorpio", "degree": 3 },
+      "own_signs": ["Cancer"],
+      "friend_planets": ["Sun", "Mercury"],
+      "enemy_planets": ["Saturn", "Rahu", "Ketu"],
+      "neutral_planets": ["Mars", "Jupiter", "Venus"],
+      "mahadasha_years": 10,
+      "remedy": {
+        "mantra": {
+          "primary": "Om Shraam Shreem Shraum Sah Chandraya Namah",
+          "secondary": "Om Som Somaya Namah",
+          "gayatri": "Om Kshirputraya Vidmahe Amrit Tatvaya Dhimahi Tanno Chandra Prachodayat",
+          "bija": "SOM",
+          "count": 11,
+          "timing": "Monday evenings, full moon nights",
+          "audio_file": "mantras/moon_beej_mantra.mp3"
+        },
+        "gemstone": {
+          "primary": "Pearl",
+          "substitute": "Moonstone, White Coral",
+          "finger": "Little finger or ring finger, right hand",
+          "metal": "Silver",
+          "weight_carats": "5-7",
+          "day_to_wear": "Monday",
+          "caution": "Pearl not recommended with Rahu/Ketu affliction"
+        },
+        "chakra": {
+          "name": "Svadhisthana",
+          "english": "Sacral",
+          "bija": "VAM",
+          "hz": 396,
+          "color": "#FB8500",
+          "location": "Lower abdomen, 2 inches below navel"
+        },
+        "fasting": {
+          "day": "Monday",
+          "food_to_avoid": "Salty and spicy food",
+          "food_to_eat": "Rice, milk, white foods, coconut"
+        },
+        "charity": {
+          "items": ["rice", "milk", "white cloth", "silver", "curd", "pearls"],
+          "day": "Monday",
+          "recipient": "Women, mothers, temples"
+        },
+        "deity": {
+          "primary": "Shiva (Chandrashekhara)",
+          "secondary": "Parvati, Durga",
+          "stotra": "Shiva Chalisa, Chandra Kavacham"
+        },
+        "color_therapy": ["white", "silver", "light blue", "cream"],
+        "yantra": "Chandra Yantra",
+        "rudraksha": "2 Mukhi",
+        "herbs": ["jasmine", "lotus", "sandalwood", "white rose"],
+        "yoga_poses": ["Child's Pose", "Moon Salutation", "Legs Up the Wall"],
+        "meditation": "Trataka on full moon, water visualization, chant SOM 11 times"
+      },
+      "psychological_themes": {
+        "strong": "Emotionally balanced, nurturing, excellent memory, intuitive, calm",
+        "weak": "Anxiety, mood swings, mother issues, insomnia, depression",
+        "shadow": "Over-emotional, clingy, escapism, victim mentality",
+        "growth": "Develop emotional security from within, not from external sources"
+      },
+      "dasha_themes": {
+        "mahadasha": "Home life, mother's health, emotional wellbeing, public recognition, travel near water",
+        "positive_period": "Happiness, property gains, good relationships, mental peace",
+        "challenging_period": "Mental stress, mother's health, relationship issues, insomnia"
+      }
+    },
+    "Mars": {
+      "id": "mars",
+      "symbol": "♂",
+      "color": "#E63946",
+      "day": "Tuesday",
+      "number": 9,
+      "significations": ["energy", "courage", "siblings", "property", "accidents", "surgery", "police", "military", "fire", "passion"],
+      "body_parts": ["blood", "muscles", "head", "nose", "forehead", "bone marrow"],
+      "exaltation": { "sign": "Capricorn", "degree": 28 },
+      "debilitation": { "sign": "Cancer", "degree": 28 },
+      "own_signs": ["Aries", "Scorpio"],
+      "friend_planets": ["Sun", "Moon", "Jupiter"],
+      "enemy_planets": ["Mercury", "Rahu", "Ketu"],
+      "neutral_planets": ["Venus", "Saturn"],
+      "mahadasha_years": 7,
+      "remedy": {
+        "mantra": {
+          "primary": "Om Kraam Kreem Kraum Sah Bhaumaya Namah",
+          "secondary": "Om Angarakaya Namah",
+          "gayatri": "Om Veeradhwajaya Vidmahe Vighna Hasthaya Dhimahi Tanno Bhuma Prachodayat",
+          "bija": "KUM",
+          "count": 21,
+          "timing": "Tuesday mornings",
+          "audio_file": "mantras/mars_beej_mantra.mp3"
+        },
+        "gemstone": {
+          "primary": "Red Coral",
+          "substitute": "Carnelian, Red Jasper",
+          "finger": "Ring finger or index finger, right hand",
+          "metal": "Gold or Copper",
+          "weight_carats": "7-12",
+          "day_to_wear": "Tuesday",
+          "caution": "Avoid if Mars is in 1st house without benefic aspect"
+        },
+        "chakra": {
+          "name": "Muladhara",
+          "english": "Root",
+          "bija": "LAM",
+          "hz": 256,
+          "color": "#C1121F",
+          "location": "Base of spine"
+        },
+        "fasting": {
+          "day": "Tuesday",
+          "food_to_avoid": "Non-vegetarian",
+          "food_to_eat": "Red lentils, jaggery, sesame"
+        },
+        "charity": {
+          "items": ["red lentils", "red cloth", "copper", "wheat", "jaggery"],
+          "day": "Tuesday",
+          "recipient": "Temples of Hanuman, military personnel, brothers"
+        },
+        "deity": {
+          "primary": "Hanuman",
+          "secondary": "Kartikeya, Durga",
+          "stotra": "Hanuman Chalisa, Sundar Kand"
+        },
+        "color_therapy": ["red", "orange", "crimson"],
+        "yantra": "Mangal Yantra",
+        "rudraksha": "3 Mukhi",
+        "herbs": ["ginger", "garlic", "ashwagandha", "nettle"],
+        "yoga_poses": ["Warrior II", "Chair Pose", "Plank"],
+        "meditation": "Root chakra grounding, visualize red energy at base of spine, chant LAM 21 times"
+      },
+      "mangal_dosha": {
+        "dosha_houses": [1, 4, 7, 8, 12],
+        "reference_points": ["Lagna", "Moon", "Venus"],
+        "cancellations": [
+          "Mars in own sign (Aries or Scorpio)",
+          "Mars in exaltation (Capricorn)",
+          "Mars conjunct Jupiter",
+          "Both partners have Mangal Dosha",
+          "Mars in Cancer (debilitated) — some schools",
+          "After age 28 Mars matures"
+        ]
+      },
+      "psychological_themes": {
+        "strong": "Courageous, athletic, decisive, passionate, strong willpower",
+        "weak": "Accidents, conflict with siblings, property disputes, anger issues, surgery",
+        "shadow": "Aggression, impulsiveness, domination, violence",
+        "growth": "Channel energy into constructive physical and creative outlets"
+      },
+      "dasha_themes": {
+        "mahadasha": "Property matters, sibling issues, courage and adventure, physical vitality",
+        "positive_period": "Property gains, courage, athletic achievement, real estate success",
+        "challenging_period": "Accidents, conflicts, surgeries, disputes with brothers"
+      }
+    },
+    "Mercury": {
+      "id": "mercury",
+      "symbol": "☿",
+      "color": "#2DC653",
+      "day": "Wednesday",
+      "number": 5,
+      "significations": ["intellect", "communication", "business", "writing", "trade", "skin", "nervous system", "education", "analysis"],
+      "body_parts": ["nervous system", "skin", "hands", "lungs", "tongue", "arms"],
+      "exaltation": { "sign": "Virgo", "degree": 15 },
+      "debilitation": { "sign": "Pisces", "degree": 15 },
+      "own_signs": ["Gemini", "Virgo"],
+      "friend_planets": ["Sun", "Venus", "Rahu"],
+      "enemy_planets": ["Moon"],
+      "neutral_planets": ["Mars", "Jupiter", "Saturn", "Ketu"],
+      "mahadasha_years": 17,
+      "remedy": {
+        "mantra": {
+          "primary": "Om Braam Breem Braum Sah Budhaya Namah",
+          "secondary": "Om Budhaya Namah",
+          "gayatri": "Om Gajadhwajaya Vidmahe Sukha Hasthaya Dhimahi Tanno Budha Prachodayat",
+          "bija": "BUM",
+          "count": 17,
+          "timing": "Wednesday mornings, preferably at sunrise",
+          "audio_file": "mantras/mercury_beej_mantra.mp3"
+        },
+        "gemstone": {
+          "primary": "Emerald",
+          "substitute": "Green Tourmaline, Peridot, Green Jade",
+          "finger": "Little finger, right hand",
+          "metal": "Gold",
+          "weight_carats": "3-5",
+          "day_to_wear": "Wednesday",
+          "caution": "Avoid Emerald if Mercury rules 3rd/6th/8th/12th from lagna"
+        },
+        "chakra": {
+          "name": "Vishuddha",
+          "english": "Throat",
+          "bija": "HAM",
+          "hz": 384,
+          "color": "#219EBC",
+          "location": "Throat center"
+        },
+        "fasting": {
+          "day": "Wednesday",
+          "food_to_avoid": "Heavy non-vegetarian",
+          "food_to_eat": "Green vegetables, green moong dal"
+        },
+        "charity": {
+          "items": ["green moong dal", "green cloth", "books", "green vegetables"],
+          "day": "Wednesday",
+          "recipient": "Students, teachers, young children"
+        },
+        "deity": {
+          "primary": "Vishnu",
+          "secondary": "Saraswati, Ganesha",
+          "stotra": "Vishnu Sahasranama, Saraswati Stotra"
+        },
+        "color_therapy": ["green", "light green", "emerald"],
+        "yantra": "Budha Yantra",
+        "rudraksha": "4 Mukhi",
+        "herbs": ["brahmi", "holy basil", "peppermint", "ginkgo"],
+        "yoga_poses": ["Shoulder Stand", "Plow Pose", "Fish Pose"],
+        "meditation": "Throat chakra activation, blue light visualization at throat, chant HAM 17 times"
+      },
+      "psychological_themes": {
+        "strong": "Brilliant communicator, analytical, adaptable, excellent writer and speaker",
+        "weak": "Communication problems, skin issues, nervous anxiety, indecisiveness",
+        "shadow": "Overthinking, deception, manipulation through words, scattered energy",
+        "growth": "Develop clarity of thought and integrity in communication"
+      },
+      "dasha_themes": {
+        "mahadasha": "Business opportunities, education, communication, writing, intellectual pursuits",
+        "positive_period": "Business success, good communication, educational achievements",
+        "challenging_period": "Miscommunication, skin problems, nervous disorders, business disputes"
+      }
+    },
+    "Jupiter": {
+      "id": "jupiter",
+      "symbol": "♃",
+      "color": "#FFB703",
+      "day": "Thursday",
+      "number": 3,
+      "significations": ["wisdom", "children", "husband", "wealth", "religion", "law", "liver", "fat", "dharma", "guru"],
+      "body_parts": ["liver", "thighs", "hips", "fat tissue", "arterial system"],
+      "exaltation": { "sign": "Cancer", "degree": 5 },
+      "debilitation": { "sign": "Capricorn", "degree": 5 },
+      "own_signs": ["Sagittarius", "Pisces"],
+      "friend_planets": ["Sun", "Moon", "Mars"],
+      "enemy_planets": ["Mercury", "Venus", "Rahu", "Ketu"],
+      "neutral_planets": ["Saturn"],
+      "mahadasha_years": 16,
+      "remedy": {
+        "mantra": {
+          "primary": "Om Graam Greem Graum Sah Gurave Namah",
+          "secondary": "Om Brihaspathaye Namah",
+          "gayatri": "Om Vrishabhadhwajaya Vidmahe Gruni Hasthaya Dhimahi Tanno Guru Prachodayat",
+          "bija": "BRIM",
+          "count": 19,
+          "timing": "Thursday mornings before sunrise",
+          "audio_file": "mantras/jupiter_beej_mantra.mp3"
+        },
+        "gemstone": {
+          "primary": "Yellow Sapphire",
+          "substitute": "Yellow Topaz, Citrine, Golden Beryl",
+          "finger": "Index finger, right hand",
+          "metal": "Gold",
+          "weight_carats": "3-5",
+          "day_to_wear": "Thursday",
+          "caution": "Most universally safe gem — but avoid if Jupiter rules 3/6/8/12"
+        },
+        "chakra": {
+          "name": "Sahasrara",
+          "english": "Crown",
+          "bija": "OM",
+          "hz": 432,
+          "color": "#F3E1F5",
+          "location": "Top of head"
+        },
+        "fasting": {
+          "day": "Thursday",
+          "food_to_avoid": "Salt (some traditions)",
+          "food_to_eat": "Chickpeas, yellow items, banana, turmeric"
+        },
+        "charity": {
+          "items": ["yellow cloth", "chickpeas", "turmeric", "books", "gold"],
+          "day": "Thursday",
+          "recipient": "Priests, teachers, Brahmins, temples"
+        },
+        "deity": {
+          "primary": "Brihaspati",
+          "secondary": "Vishnu, Dattatreya, Sai Baba",
+          "stotra": "Guru Brihaspati Stotra, Vishnu Sahasranama"
+        },
+        "color_therapy": ["yellow", "gold", "orange-yellow"],
+        "yantra": "Guru Yantra",
+        "rudraksha": "5 Mukhi",
+        "herbs": ["turmeric", "ashwagandha", "shatavari", "gotu kola"],
+        "yoga_poses": ["Tree Pose", "Half Moon", "Camel"],
+        "meditation": "Crown chakra opening, violet/white light at crown, chant OM 19 times"
+      },
+      "psychological_themes": {
+        "strong": "Wise, generous, philosophical, strong moral compass, natural teacher",
+        "weak": "Lack of wisdom, weight issues, liver problems, financial mismanagement, children issues",
+        "shadow": "Self-righteousness, over-expansion, laziness, religious dogma",
+        "growth": "Develop genuine wisdom through experience, not just knowledge"
+      },
+      "dasha_themes": {
+        "mahadasha": "Spiritual growth, marriage (for women), children, wealth, education, wisdom",
+        "positive_period": "Marriage, children, wealth, spiritual growth, guru's grace",
+        "challenging_period": "Financial losses, liver issues, children problems, over-optimism"
+      }
+    },
+    "Venus": {
+      "id": "venus",
+      "symbol": "♀",
+      "color": "#F4ACB7",
+      "day": "Friday",
+      "number": 6,
+      "significations": ["love", "marriage", "beauty", "luxury", "arts", "vehicles", "reproduction", "kidneys", "semen", "diamonds"],
+      "body_parts": ["kidneys", "reproductive system", "throat", "face", "eyes", "skin"],
+      "exaltation": { "sign": "Pisces", "degree": 27 },
+      "debilitation": { "sign": "Virgo", "degree": 27 },
+      "own_signs": ["Taurus", "Libra"],
+      "friend_planets": ["Mercury", "Saturn", "Rahu", "Ketu"],
+      "enemy_planets": ["Sun", "Moon"],
+      "neutral_planets": ["Mars", "Jupiter"],
+      "mahadasha_years": 20,
+      "remedy": {
+        "mantra": {
+          "primary": "Om Draam Dreem Draum Sah Shukraya Namah",
+          "secondary": "Om Shukraya Namah",
+          "gayatri": "Om Ashwadhwajaya Vidmahe Dhanur Hasthaya Dhimahi Tanno Shukra Prachodayat",
+          "bija": "SHUM",
+          "count": 16,
+          "timing": "Friday mornings",
+          "audio_file": "mantras/venus_beej_mantra.mp3"
+        },
+        "gemstone": {
+          "primary": "Diamond",
+          "substitute": "White Sapphire, White Topaz, Zircon",
+          "finger": "Middle finger or ring finger, right hand",
+          "metal": "Silver or Platinum",
+          "weight_carats": "0.5-1 (diamond), 3-5 (substitute)",
+          "day_to_wear": "Friday",
+          "caution": "Diamond very powerful — consult before wearing"
+        },
+        "chakra": {
+          "name": "Anahata",
+          "english": "Heart",
+          "bija": "YAM",
+          "hz": 639,
+          "color": "#2DC653",
+          "location": "Center of chest"
+        },
+        "fasting": {
+          "day": "Friday",
+          "food_to_avoid": "Non-vegetarian, garlic, onion",
+          "food_to_eat": "White foods, rice, dairy, lotus seeds"
+        },
+        "charity": {
+          "items": ["white cloth", "rice", "curd", "ghee", "perfume", "silver"],
+          "day": "Friday",
+          "recipient": "Women, young girls, Lakshmi temples"
+        },
+        "deity": {
+          "primary": "Lakshmi",
+          "secondary": "Parashurama, Saraswati",
+          "stotra": "Lakshmi Chalisa, Sri Sukta, Kanakadhara Stotra"
+        },
+        "color_therapy": ["white", "pink", "light blue", "cream"],
+        "yantra": "Shukra Yantra",
+        "rudraksha": "6 Mukhi",
+        "herbs": ["rose", "shatavari", "hibiscus", "sandalwood"],
+        "yoga_poses": ["Camel Pose", "Cobra", "Bridge Pose"],
+        "meditation": "Heart chakra expansion, green/pink light at heart, chant YAM 16 times"
+      },
+      "psychological_themes": {
+        "strong": "Charming, artistic, loving, refined taste, magnetic, excellent in relationships",
+        "weak": "Relationship problems, kidney issues, overindulgence, vanity",
+        "shadow": "Materialism, promiscuity, laziness, superficiality",
+        "growth": "Develop love that transcends the physical and material"
+      },
+      "dasha_themes": {
+        "mahadasha": "Marriage, love affairs, luxury, vehicles, artistic success, beauty",
+        "positive_period": "Marriage, romance, artistic success, luxury, social recognition",
+        "challenging_period": "Relationship problems, kidney issues, overspending, sensory overindulgence"
+      }
+    },
+    "Saturn": {
+      "id": "saturn",
+      "symbol": "♄",
+      "color": "#4A4E69",
+      "day": "Saturday",
+      "number": 8,
+      "significations": ["karma", "discipline", "delay", "chronic illness", "bones", "longevity", "servants", "loss", "old age", "justice"],
+      "body_parts": ["bones", "teeth", "knees", "joints", "nervous system", "skin (chronic)"],
+      "exaltation": { "sign": "Libra", "degree": 20 },
+      "debilitation": { "sign": "Aries", "degree": 20 },
+      "own_signs": ["Capricorn", "Aquarius"],
+      "friend_planets": ["Mercury", "Venus", "Rahu", "Ketu"],
+      "enemy_planets": ["Sun", "Moon", "Mars"],
+      "neutral_planets": ["Jupiter"],
+      "mahadasha_years": 19,
+      "remedy": {
+        "mantra": {
+          "primary": "Om Praam Preem Praum Sah Shanaischaraya Namah",
+          "secondary": "Om Sham Shanaishcharaya Namah",
+          "gayatri": "Om Kakdhwajaya Vidmahe Khadga Hasthaya Dhimahi Tanno Manda Prachodayat",
+          "bija": "SHAM",
+          "count": 23,
+          "timing": "Saturday evenings at sunset",
+          "audio_file": "mantras/saturn_beej_mantra.mp3"
+        },
+        "gemstone": {
+          "primary": "Blue Sapphire",
+          "substitute": "Amethyst, Blue Spinel, Lapis Lazuli",
+          "finger": "Middle finger, right hand",
+          "metal": "Iron or Silver",
+          "weight_carats": "3-5",
+          "day_to_wear": "Saturday",
+          "caution": "⚠️ NEVER recommend Blue Sapphire without full chart analysis. Test for 3 days first."
+        },
+        "chakra": {
+          "name": "Ajna",
+          "english": "Third Eye",
+          "bija": "OM",
+          "hz": 741,
+          "color": "#7B2D8B",
+          "location": "Between eyebrows"
+        },
+        "fasting": {
+          "day": "Saturday",
+          "food_to_avoid": "Non-vegetarian, oil, salt (some traditions)",
+          "food_to_eat": "Black sesame, urad dal, mustard"
+        },
+        "charity": {
+          "items": ["black sesame", "mustard oil", "iron", "black cloth", "urad dal"],
+          "day": "Saturday",
+          "recipient": "Underprivileged, laborers, Shani temples, disabled people"
+        },
+        "deity": {
+          "primary": "Shani Dev",
+          "secondary": "Bhairav, Hanuman (for protection from Saturn)",
+          "stotra": "Shani Chalisa, Shani Stotra, Hanuman Chalisa (for Saturn relief)"
+        },
+        "color_therapy": ["dark blue", "black", "purple", "indigo"],
+        "yantra": "Shani Yantra",
+        "rudraksha": "7 Mukhi or 14 Mukhi",
+        "herbs": ["shilajit", "triphala", "neem", "sesame"],
+        "yoga_poses": ["Mountain Pose", "Corpse Pose", "Forward Fold"],
+        "meditation": "Third eye activation, indigo light between brows, chant OM 23 times"
+      },
+      "sade_sati": {
+        "description": "Saturn transiting natal Moon sign ±1 sign",
+        "duration": "7.5 years (3 phases of 2.5 years each)",
+        "phases": [
+          { "phase": 1, "desc": "Saturn in sign before natal Moon — preparation, mental unrest" },
+          { "phase": 2, "desc": "Saturn on natal Moon — peak intensity, core restructuring" },
+          { "phase": 3, "desc": "Saturn in sign after natal Moon — resolution, new foundations" }
+        ],
+        "remedies": ["Shani Chalisa daily", "Oil lamp on Saturday", "Donate mustard oil", "Hanuman Chalisa", "Feed black sesame to crows"]
+      },
+      "psychological_themes": {
+        "strong": "Disciplined, organized, patient, enduring, excellent at long-term planning",
+        "weak": "Depression, chronic illness, delays, poverty, loneliness",
+        "shadow": "Fear, rigidity, excessive self-criticism, workaholism",
+        "growth": "Embrace discipline as liberation, not punishment"
+      },
+      "dasha_themes": {
+        "mahadasha": "Karmic reckoning, discipline, hard work, long-term results, health challenges",
+        "positive_period": "Sustained success through hard work, property, long-term gains",
+        "challenging_period": "Delays, depression, health issues, loss, isolation"
+      }
+    },
+    "Rahu": {
+      "id": "rahu",
+      "symbol": "☊",
+      "color": "#6D6875",
+      "day": "Saturday",
+      "number": 4,
+      "significations": ["obsession", "foreigners", "technology", "illusion", "politics", "unconventional", "drugs", "past life", "material desire"],
+      "body_parts": ["skin (unusual)", "nervous system", "breath", "lymph"],
+      "exaltation": { "sign": "Gemini", "degree": 20, "alt_sign": "Taurus" },
+      "debilitation": { "sign": "Sagittarius", "degree": 20, "alt_sign": "Scorpio" },
+      "own_signs": ["Aquarius"],
+      "friend_planets": ["Saturn", "Venus", "Mercury"],
+      "enemy_planets": ["Sun", "Moon", "Mars"],
+      "neutral_planets": ["Jupiter", "Ketu"],
+      "mahadasha_years": 18,
+      "remedy": {
+        "mantra": {
+          "primary": "Om Bhram Bhreem Bhraum Sah Rahave Namah",
+          "secondary": "Om Raam Rahave Namah",
+          "gayatri": "Om Sookdantaya Vidmahe Ugraroopaya Dhimahi Tanno Rahu Prachodayat",
+          "bija": "RAHUM",
+          "count": 18,
+          "timing": "Saturday after sunset, Rahu Kaal on Wednesdays",
+          "audio_file": "mantras/rahu_beej_mantra.mp3"
+        },
+        "gemstone": {
+          "primary": "Hessonite Garnet (Gomed)",
+          "substitute": "Orange Zircon",
+          "finger": "Middle finger, right hand",
+          "metal": "Silver",
+          "weight_carats": "5-7",
+          "day_to_wear": "Saturday",
+          "caution": "⚠️ ALWAYS consult astrologer. Hessonite can amplify Rahu's shadow strongly."
+        },
+        "chakra": {
+          "name": "Ajna",
+          "english": "Third Eye",
+          "bija": "AIM",
+          "hz": 741,
+          "color": "#7B2D8B",
+          "location": "Between eyebrows"
+        },
+        "fasting": {
+          "day": "Saturday",
+          "food_to_avoid": "Non-vegetarian, alcohol, intoxicants",
+          "food_to_eat": "Black items, urad dal"
+        },
+        "charity": {
+          "items": ["black sesame", "coconut", "black cloth", "donate to underprivileged"],
+          "day": "Saturday",
+          "recipient": "Outcasts, foreigners, underprivileged communities"
+        },
+        "deity": {
+          "primary": "Durga",
+          "secondary": "Saraswati, Kali",
+          "stotra": "Durga Chalisa, Devi Mahatmya, Rahu Stotra"
+        },
+        "color_therapy": ["dark blue", "ultraviolet", "smoky grey"],
+        "yantra": "Rahu Yantra",
+        "rudraksha": "8 Mukhi",
+        "herbs": ["calamus", "bayberry", "camphor"],
+        "yoga_poses": ["Downward Dog", "Standing Forward Fold", "Legs Up Wall"],
+        "meditation": "Grounding practices, visualize dark blue light clearing confusion, chant AIM 18 times"
+      },
+      "rahu_kaal": {
+        "description": "Inauspicious 90-minute window ruled by Rahu each day",
+        "schedule": {
+          "Sunday": "16:30-18:00",
+          "Monday": "07:30-09:00",
+          "Tuesday": "15:00-16:30",
+          "Wednesday": "12:00-13:30",
+          "Thursday": "13:30-15:00",
+          "Friday": "10:30-12:00",
+          "Saturday": "09:00-10:30"
+        },
+        "avoid": "Starting new ventures, signing contracts, important decisions"
+      },
+      "psychological_themes": {
+        "strong": "Innovative, unconventional success, foreign connections, technology mastery",
+        "weak": "Illusion, addiction, confusion, obsessive behavior, manipulation",
+        "shadow": "Deception, materialism, boundary-crossing, identity confusion",
+        "growth": "Channel Rahu's ambition toward genuine contribution, not just acquisition"
+      },
+      "dasha_themes": {
+        "mahadasha": "Foreign travel, technology, unconventional paths, ambition, illusion",
+        "positive_period": "Rapid material rise, foreign success, technological achievement",
+        "challenging_period": "Confusion, deception, health issues, relationship illusions"
+      }
+    },
+    "Ketu": {
+      "id": "ketu",
+      "symbol": "☋",
+      "color": "#8B5E3C",
+      "day": "Tuesday",
+      "number": 7,
+      "significations": ["spirituality", "past life", "detachment", "enlightenment", "accidents", "psychic ability", "liberation", "surgery"],
+      "body_parts": ["feet", "tail bone", "immune system", "wounds"],
+      "exaltation": { "sign": "Sagittarius", "degree": 20, "alt_sign": "Scorpio" },
+      "debilitation": { "sign": "Gemini", "degree": 20, "alt_sign": "Taurus" },
+      "own_signs": ["Scorpio"],
+      "friend_planets": ["Mars", "Venus", "Saturn"],
+      "enemy_planets": ["Sun", "Moon"],
+      "neutral_planets": ["Jupiter", "Mercury", "Rahu"],
+      "mahadasha_years": 7,
+      "remedy": {
+        "mantra": {
+          "primary": "Om Sraam Sreem Sraum Sah Ketave Namah",
+          "secondary": "Om Kem Ketave Namah",
+          "gayatri": "Om Ashwadhwajaya Vidmahe Soola Hasthaya Dhimahi Tanno Ketu Prachodayat",
+          "bija": "KETUM",
+          "count": 18,
+          "timing": "Tuesday evenings",
+          "audio_file": "mantras/ketu_beej_mantra.mp3"
+        },
+        "gemstone": {
+          "primary": "Cat's Eye (Lehsunia)",
+          "substitute": "Tiger's Eye",
+          "finger": "Middle finger, right hand",
+          "metal": "Silver",
+          "weight_carats": "5-7",
+          "day_to_wear": "Tuesday",
+          "caution": "⚠️ NEVER recommend without full chart analysis. Extremely sensitive stone."
+        },
+        "chakra": {
+          "name": "Muladhara + Sahasrara",
+          "english": "Root + Crown (bridging both)",
+          "bija": "HRIM",
+          "hz": 963,
+          "color": "#F3E1F5",
+          "location": "Base of spine to crown of head"
+        },
+        "fasting": {
+          "day": "Tuesday",
+          "food_to_avoid": "Non-vegetarian",
+          "food_to_eat": "Sesame, lotus seeds"
+        },
+        "charity": {
+          "items": ["multicolor blankets", "spiritual books", "donate to ashrams"],
+          "day": "Tuesday",
+          "recipient": "Spiritual seekers, saints, dogs (Ketu's animal)"
+        },
+        "deity": {
+          "primary": "Ganesha",
+          "secondary": "Bhairav, Matangi",
+          "stotra": "Ganesha Chalisa, Ketu Stotra"
+        },
+        "color_therapy": ["grey", "brown", "smoky", "multicolor"],
+        "yantra": "Ketu Yantra",
+        "rudraksha": "9 Mukhi",
+        "herbs": ["ashwagandha", "valerian", "calamus"],
+        "yoga_poses": ["Headstand", "Lotus Pose", "Corpse Pose"],
+        "meditation": "Past life regression, violet light from crown to base, chant HRIM 18 times"
+      },
+      "psychological_themes": {
+        "strong": "Deeply spiritual, psychic ability, mastery from past lives, profound wisdom",
+        "weak": "Accidents, confusion, sudden losses, detachment from life",
+        "shadow": "Escapism, disconnection from reality, chronic confusion",
+        "growth": "Embrace spiritual detachment while staying grounded in physical reality"
+      },
+      "dasha_themes": {
+        "mahadasha": "Spiritual awakening, past life resolution, sudden events, psychic experiences",
+        "positive_period": "Spiritual breakthrough, liberation, psychic development, moksha path",
+        "challenging_period": "Confusion, accidents, sudden losses, health issues"
+      }
+    }
+  }
+}
+

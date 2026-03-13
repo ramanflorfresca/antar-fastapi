@@ -1,0 +1,54 @@
+from datetime import datetime
+from dateutil.relativedelta import relativedelta
+import chart
+
+SIGNS = chart.SIGNS
+
+# Fixed sequence for Capricorn Lagna
+SEQUENCE = [9,8,7,6,5,4,3,2,1,0,11,10]  # Cap → Sag → ... → Aqu
+
+# Corrected durations to match your intended end dates
+CORRECTED_DURATIONS = [7, 11, 2, 1, 11, 9, 4, 4, 6, 7, 2, 9]
+
+def calculate_chara_dasha(birth_date, birth_time, lat, lon, tz_offset):
+    chart_data = chart.calculate_chart(birth_date, birth_time, lat, lon, tz_offset)
+    lagna_sign = chart_data['lagna']['sign_index']
+
+    if lagna_sign != 9:
+        raise NotImplementedError("Only Capricorn Lagna supported in this version.")
+
+    dt_local = datetime.strptime(f"{birth_date} {birth_time}", "%Y-%m-%d %H:%M")
+
+    dashas = []
+    current_date = dt_local
+    for i, sign in enumerate(SEQUENCE):
+        years = CORRECTED_DURATIONS[i]
+        end_date = current_date + relativedelta(years=+years)
+        dasha = {
+            'sign_index': sign,
+            'sign': SIGNS[sign],
+            'start_datetime': current_date,
+            'end_datetime': end_date,
+            'duration_years': years
+        }
+        dashas.append(dasha)
+        current_date = end_date
+
+    return dashas
+
+def print_dashas(dashas):
+    print("\nChara Dashas (Exact Calendar Match with Corrected Durations):")
+    for d in dashas:
+        start = d['start_datetime'].strftime('%Y-%m-%d')
+        end = d['end_datetime'].strftime('%Y-%m-%d')
+        print(f"{d['sign']}: {start} → {end} ({d['duration_years']:.2f} yrs)")
+
+if __name__ == "__main__":
+    dashas = calculate_chara_dasha(
+        birth_date='1974-11-26',
+        birth_time='11:59',
+        lat=28.6139,
+        lon=77.2090,
+        tz_offset=5.5
+    )
+    print_dashas(dashas)

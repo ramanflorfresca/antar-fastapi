@@ -1,0 +1,221 @@
+import swisseph as swe
+from datetime import datetime, timedelta
+import os
+
+# Initialize Swiss Ephemeris
+script_dir = os.path.dirname(os.path.abspath(__file__))
+ephe_path = os.path.join(script_dir, 'ephe')
+swe.set_ephe_path(ephe_path)
+swe.set_sid_mode(swe.SIDM_LAHIRI)  # Lahiri ayanamsa for sidereal
+
+# Constants
+PLANETS = {
+    'Sun': swe.SUN,
+    'Moon': swe.MOON,
+    'Mars': swe.MARS,
+    'Mercury': swe.MERCURY,
+    'Jupiter': swe.JUPITER,
+    'Venus': swe.VENUS,
+    'Saturn': swe.SATURN,
+    # Rahu and Ketu are handled separately in get_planet_longitude
+}
+
+SIGNS = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo',
+         'Libra', 'Scorpio', 'Sagittarius', 'Capricorn', 'Aquarius', 'Pisces']
+
+NAKSHATRAS = [
+    'Ashvini', 'Bharani', 'Krittika', 'Rohini', 'Mrigashira', 'Ardra',
+    'Punarvasu', 'Pushya', 'Ashlesha', 'Magha', 'Purva Phalguni', 'Uttara Phalguni',
+    'Hasta', 'Chitra', 'Swati', 'Vishakha', 'Anuradha', 'Jyeshtha',
+    'Mula', 'Purva Ashadha', 'Uttara Ashadha', 'Shravana', 'Dhanishta', 'Shatabhisha',
+    'Purva Bhadrapada', 'Uttara Bhadrapada', 'Revati'
+]
+
+def julian_day(dt_utc):
+    """Convert UTC datetime to Julian day number."""
+    return swe.julday(dt_utc.year, dt_utc.month, dt_utc.day,
+                      dt_utc.hour + dt_utc.minute/60.0 + dt_utc.second/3600.0)
+
+def get_lagna(jd_utc, lat, lon):
+    """
+    Calculate sidereal ascendant (Lagna) at given Julian day and location.
+    Returns: (sign_index, longitude_in_sign)
+    """
+    # Calculate sidereal Ascendant using swe_houses_ex with sidereal flag
+    cusps, ascmc = swe.houses_ex(jd_utc, lat, lon, b'P', swe.FLG_SIDEREAL)
+    asc_sidereal = ascmc[0]  # already sidereal
+    sign_index = int(asc_sidereal / 30)
+    lon_in_sign = asc_sidereal - sign_index * 30
+    return sign_index, lon_in_sign
+
+def get_planet_longitude(jd_utc, planet):
+    """
+    Get sidereal longitude of a planet at given Julian day.
+    Returns: (longitude, sign_index, lon_in_sign, nakshatra_index, nakshatra_lord)
+    """
+    flags = swe.FLG_SWIEPH | swe.FLG_SIDEREAL
+
+    if planet == 'Rahu':
+        lon, _ = swe.calc_ut(jd_utc, swe.TRUE_NODE, flags=flags)
+        lon_deg = lon[0]
+    elif planet == 'Ketu':
+        # Ketu is 180° opposite Rahu
+        lon_rahu, _ = swe.calc_ut(jd_utc, swe.TRUE_NODE, flags=flags)
+        lon_deg = (lon_rahu[0] + 180) % 360
+    else:
+        lon, _ = swe.calc_ut(jd_utc, PLANETS[planet], flags=flags)
+        lon_deg = lon[0]
+
+    sign_index = int(lon_deg / 30)
+    lon_in_sign = lon_deg - sign_index * 30
+
+    # Nakshatra
+    nakshatra_deg = 360 / 27
+    nakshatra_idx = int(lon_deg / nakshatra_deg)
+    if nakshatra_idx >= 27:
+        nakshatra_idx = 26
+    nakshatra_lord = ['Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu',
+                      'Jupiter', 'Saturn', 'Mercury'][nakshatra_idx % 9]
+
+    return lon_deg, sign_index, lon_in_sign, nakshatra_idx, nakshatra_lord
+
+def calculate_chart(birth_date, birth_time, lat, lon, tz_offset):
+    """
+    Main function: returns a dictionary with Lagna and all planets.
+    """
+    dt_local = datetime.strptime(f"{birth_date} {birth_time}", "%Y-%m-%d %H:%M")
+    dt_utc = dt_local - timedelta(hours=tz_offset)
+    jd_utc = julian_day(dt_utc)
+
+    # Lagna
+    lagna_sign, lagna_deg = get_lagna(jd_utc, lat, lon)
+    chart = {
+        'lagna': {
+            'sign': SIGNS[lagna_sign],
+            'sign_index': lagna_sign,
+            'degree': lagna_deg
+        },
+        'planets': {}
+    }
+
+    # All planets (including nodes)
+    all_planets = list(PLANETS.keys()) + ['Rahu', 'Ketu']
+    for planet in all_planets:
+        lon_deg, sign_idx, lon_in_sign, nak_idx, nak_lord = get_planet_longitude(jd_utc, planet)
+        chart['planets'][planet] = {
+            'longitude': lon_deg,
+            'sign': SIGNS[sign_idx],
+            'sign_index': sign_idx,
+            'degree': lon_in_sign,
+            'nakshatra': NAKSHATRAS[nak_idx],
+            'nakshatra_lord': nak_lord
+        }
+    return chart
+
+def get_atmakaraka(chart, include_rahu_ketu=False):
+    """
+    Determine Atmakaraka: planet with highest longitude.
+    By default excludes Rahu/Ketu. Set include_rahu_ketu=True to include them.
+    Returns: (planet_name, longitude, sign_index, degree_in_sign)
+    """
+    candidates = ['Sun', 'Moon', 'Mars', 'Mercury', 'Jupiter', 'Venus', 'Saturn']
+    if include_rahu_ketu:
+        candidates.extend(['Rahu', 'Ketu'])
+    max_lon = -1
+    ak = None
+    for planet in candidates:
+        lon = chart['planets'][planet]['longitude']
+        if lon > max_lon:
+            max_lon = lon
+            ak = planet
+    # Return details
+    return {
+        'planet': ak,
+        'longitude': max_lon,
+        'sign': chart['planets'][ak]['sign'],
+        'sign_index': chart['planets'][ak]['sign_index'],
+        'degree': chart['planets'][ak]['degree']
+    }
+
+# ==================== Divisional Chart Functions ====================
+
+def divisional_longitude(longitude, div):
+    """
+    Convert a sidereal longitude to its position in a divisional chart.
+    div: divisional number (e.g., 9 for Navamsa, 10 for Dasamsa)
+    Returns: (div_sign_index, div_longitude_in_sign)
+    """
+    part_length = 30.0 / div
+    sign_index = int(longitude / 30)
+    deg_in_sign = longitude - sign_index * 30
+    part = int(deg_in_sign / part_length)  # 0 to div-1
+    # The divisional sign is (sign_index * div + part) % 12
+    div_sign = (sign_index * div + part) % 12
+    # Longitude within the divisional sign (scaled to 30°)
+    div_deg = (deg_in_sign % part_length) * (12 / div)
+    return div_sign, div_deg
+
+def calculate_divisional_chart(chart, div):
+    """
+    Given a chart dictionary (from calculate_chart), return a new chart
+    with planets and lagna in the divisional chart of order 'div'.
+    """
+    div_chart = {
+        'lagna': {},
+        'planets': {}
+    }
+    # Transform Lagna
+    lagna_lon = chart['lagna']['sign_index'] * 30 + chart['lagna']['degree']
+    div_lagna_sign, div_lagna_deg = divisional_longitude(lagna_lon, div)
+    div_chart['lagna'] = {
+        'sign': SIGNS[div_lagna_sign],
+        'sign_index': div_lagna_sign,
+        'degree': div_lagna_deg
+    }
+    # Transform each planet
+    for planet, data in chart['planets'].items():
+        lon = data['longitude']
+        div_sign, div_deg = divisional_longitude(lon, div)
+        div_chart['planets'][planet] = {
+            'longitude': lon,  # original longitude for reference
+            'sign': SIGNS[div_sign],
+            'sign_index': div_sign,
+            'degree': div_deg,
+            # nakshatra etc. are not typically recalculated for divisional charts
+        }
+    return div_chart
+
+def print_divisional_chart(div_chart, div_name):
+    """Pretty print a divisional chart."""
+    print(f"\n--- {div_name} Chart ---")
+    print(f"Lagna: {div_chart['lagna']['sign']} at {div_chart['lagna']['degree']:.2f}°")
+    print("Planets:")
+    for planet, data in div_chart['planets'].items():
+        print(f"  {planet}: {data['sign']} {data['degree']:.2f}°")
+
+# ==================== Example / Test ====================
+
+if __name__ == "__main__":
+    # Test with Nov 26, 1974, 11:59 AM, New Delhi
+    chart = calculate_chart(
+        birth_date='1974-11-26',
+        birth_time='11:59',
+        lat=28.6139,
+        lon=77.2090,
+        tz_offset=5.5
+    )
+
+    print("Lagna:", chart['lagna']['sign'], "at", f"{chart['lagna']['degree']:.2f}°")
+    print("\nPlanets:")
+    for planet, data in chart['planets'].items():
+        print(f"{planet}: {data['sign']} {data['degree']:.2f}° ({data['nakshatra']} - {data['nakshatra_lord']})")
+
+    ak = get_atmakaraka(chart)
+    print(f"\nAtmakaraka: {ak['planet']} in {ak['sign']} at {ak['degree']:.2f}°")
+
+    # Compute and print D-9 and D-10
+    d9 = calculate_divisional_chart(chart, 9)
+    print_divisional_chart(d9, "Navamsa (D-9)")
+
+    d10 = calculate_divisional_chart(chart, 10)
+    print_divisional_chart(d10, "Dasamsa (D-10)")
