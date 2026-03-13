@@ -2758,3 +2758,14 @@ async def track_remedy_endpoint(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+@app.get("/debug/env")
+async def debug_env():
+    """Debug endpoint to check environment variables"""
+    import os
+    return {
+        "supabase_url": os.getenv("SUPABASE_URL"),
+        "supabase_url_length": len(os.getenv("SUPABASE_URL", "")),
+        "supabase_key_exists": os.getenv("SUPABASE_SERVICE_ROLE_KEY") is not None,
+        "supabase_key_length": len(os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")),
+    }
