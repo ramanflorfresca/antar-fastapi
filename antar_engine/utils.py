@@ -1,6 +1,6 @@
 # utils.py
 
-import swisseph as swe
+import pyswisseph as swe
 from datetime import datetime, timedelta, timezone
 
 import math

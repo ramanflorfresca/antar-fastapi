@@ -1,4 +1,4 @@
-import swisseph as swe
+import pyswisseph as swe
 import pytz
 from datetime import datetime, timedelta
 import os

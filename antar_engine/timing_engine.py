@@ -6,7 +6,7 @@ and dasha‑transit confluence scores.
 Date: 2026-03-10
 """
 
-import swisseph as swe
+import pyswisseph as swe
 from datetime import datetime, timedelta, timezone
 from dateutil.relativedelta import relativedelta
 from . import utils

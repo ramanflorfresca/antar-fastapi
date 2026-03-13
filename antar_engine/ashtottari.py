@@ -5,7 +5,7 @@ Based on 8‑lord cycle: Sun, Moon, Mars, Mercury, Jupiter, Venus, Saturn, Rahu.
 Nakshatra lords are assigned in a repeating cycle starting from Ashvini.
 """
 
-import swisseph as swe
+import pyswisseph as swe
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from . import utils

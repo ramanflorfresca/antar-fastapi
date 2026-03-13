@@ -4,7 +4,7 @@ Date: 2026-03-10
 Includes mahadasha and antardasha (sub‑period) computation using exact calendar arithmetic.
 """
 
-import swisseph as swe
+import pyswisseph as swe
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 import math
