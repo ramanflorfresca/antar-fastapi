@@ -1,4 +1,4 @@
-# Antar Backend API
+#Antar Backend API
 # Updated: full DKP + i18n + predictions integration + conversation memory
 # ─────────────────────────────────────────────────────────────────────
 
@@ -28,12 +28,15 @@ from antar_engine.predictions import (
     predictions_to_context_block,
     detect_concern,
 )
+
 # Use richer detect_concern from astrological_rules if available
 try:
     from antar_engine.astrological_rules import detect_concern as _rules_detect_concern
     detect_concern = _rules_detect_concern
 except ImportError:
     pass
+
+load_dotenv(override=False)
 
 # ── Email via Resend ──────────────────────────────────────────────────────────
 import httpx as _httpx
@@ -100,7 +103,6 @@ from antar_engine.lal_kitab_db import (
 from antar_engine.lal_kitab_charts import LalKitabChartGenerator
 from antar_engine.vedic_enrichment import build_enrichment_context_v2, get_sade_sati_phase
 
-load_dotenv()
 
 # ── Clients ──────────────────────────────────────────────────────────────────
 
@@ -111,7 +113,7 @@ deepseek_client = AsyncOpenAI(
 
 supabase: Client = create_client(
     os.getenv("SUPABASE_URL"),
-    os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_ANON_KEY")
 )
 
 # Lal Kitab chart generator (shared across requests; thread-safe read-only state)
