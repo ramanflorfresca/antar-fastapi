@@ -5,7 +5,7 @@ Computes current planetary positions and aspects to natal chart.
 Uses the same ayanamsa as the chart (Lahiri default).
 """
 
-import pyswisseph as swe
+import swisseph as swe
 from datetime import datetime, timedelta
 from . import utils
 from . import constants

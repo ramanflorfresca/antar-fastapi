@@ -31,7 +31,7 @@ BUG 6 - planet_signs stored only sign_index, losing within-sign degree.
         The nakshatra chain needs full ecliptic longitude for accuracy.
 """
 
-import pyswisseph as swe
+import swisseph as swe
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from . import chart

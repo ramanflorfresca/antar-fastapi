@@ -6,7 +6,7 @@ Matches Parāśara Light algorithm.
 Includes optional debug output to verify planet longitudes and distances.
 """
 
-import pyswisseph as swe
+import swisseph as swe
 from datetime import datetime, timedelta
 from dateutil.relativedelta import relativedelta
 from . import chart
