@@ -385,7 +385,12 @@ D10 Dashamsa (Career): Lagna = {d10_lagna}
   Jupiter in D10: house {d10_jup.get('house','?')} (expansion in career)
   Saturn in D10: house {d10_sat.get('house','?')} (discipline/longevity)
 
-D2 Hora (Wealth): Jupiter in house {d2_jupiter.get('house','?')}
+D2 Hora (Wealth chart — Sun hora=Leo=self-made, Moon hora=Cancer=public/inherited):
+  D2 Lagna: {d2.get('lagna','?')} ({d2.get('lagna_lord','?')} hora dominant)
+  Sun hora planets  : {d2.get('sun_hora_planets',[])}
+  Moon hora planets : {d2.get('moon_hora_planets',[])}
+  Wealth signals from D2:
+{chr(10).join('    • '+s for s in d2.get('wealth_signals',['No strong D2 signals'])) }
 D7 Saptamsa (Children): Lagna = {d7.get('lagna','?')}
 {concern_context}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━

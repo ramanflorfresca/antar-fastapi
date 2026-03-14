@@ -58,19 +58,106 @@ def _get_divisional_sign(longitude: float, division: int) -> str:
     return SIGNS[result_sign]
 
 
+
+def calculate_d2_hora(planets: dict, lagna_longitude: float) -> dict:
+    """
+    D2 Hora chart — special rules, NOT like other divisional charts.
+    
+    Rules:
+    - Only 2 possible positions: Sun hora (Leo) or Moon hora (Cancer)
+    - Odd signs (Aries/Gemini/Leo/Libra/Sag/Aquarius):
+        first 15° = Sun hora (Leo)
+        last 15°  = Moon hora (Cancer)
+    - Even signs (Taurus/Cancer/Virgo/Scorpio/Cap/Pisces):
+        first 15° = Moon hora (Cancer)
+        last 15°  = Sun hora (Leo)
+    - Lagna: whichever hora the lagna degree falls in
+    - Only 2 houses: house 1 (same as lagna hora) or house 2 (other hora)
+    
+    Interpretation:
+    - Sun hora (Leo): wealth through self-effort, authority, father
+    - Moon hora (Cancer): wealth through public, mother, inherited, business
+    - Planets in house 1: directly supports the lagna hora wealth type
+    - Planets in house 2: supports the other wealth channel
+    - More planets in house 1 = stronger that wealth channel
+    """
+    ODD_SIGNS  = [0, 2, 4, 6, 8, 10]  # Aries, Gemini, Leo, Libra, Sag, Aquarius
+    EVEN_SIGNS = [1, 3, 5, 7, 9, 11]  # Taurus, Cancer, Virgo, Scorpio, Cap, Pisces
+
+    def get_hora(longitude: float) -> str:
+        sign_num = int(longitude / 30)
+        degree   = longitude % 30
+        if sign_num in ODD_SIGNS:
+            return "Leo" if degree < 15 else "Cancer"
+        else:
+            return "Cancer" if degree < 15 else "Leo"
+
+    lagna_hora = get_hora(lagna_longitude)
+    other_hora = "Cancer" if lagna_hora == "Leo" else "Leo"
+
+    planet_positions = {}
+    for planet, data in planets.items():
+        longitude = data.get("longitude", 0)
+        if planet == "Ketu":
+            rahu_long = planets.get("Rahu", {}).get("longitude", 0)
+            longitude = (rahu_long + 180) % 360
+        hora = get_hora(longitude)
+        house = 1 if hora == lagna_hora else 2
+        planet_positions[planet] = {
+            "sign":      hora,
+            "house":     house,
+            "hora_type": "Sun hora" if hora == "Leo" else "Moon hora",
+        }
+
+    # Analysis
+    sun_hora_planets  = [p for p, d in planet_positions.items() if d["sign"] == "Leo"]
+    moon_hora_planets = [p for p, d in planet_positions.items() if d["sign"] == "Cancer"]
+
+    # Wealth indicators from D2
+    wealth_signals = []
+    if "Jupiter" in sun_hora_planets:
+        wealth_signals.append("Jupiter in Sun hora — wealth through authority, expertise, teaching")
+    if "Jupiter" in moon_hora_planets:
+        wealth_signals.append("Jupiter in Moon hora — wealth through public, business, real estate")
+    if "Venus" in sun_hora_planets:
+        wealth_signals.append("Venus in Sun hora — wealth through luxury, arts, authority")
+    if "Venus" in moon_hora_planets:
+        wealth_signals.append("Venus in Moon hora — wealth through public-facing beauty, relationships")
+    if len(sun_hora_planets) >= 4:
+        wealth_signals.append(f"Strong Sun hora ({len(sun_hora_planets)} planets) — self-made wealth dominant")
+    if len(moon_hora_planets) >= 4:
+        wealth_signals.append(f"Strong Moon hora ({len(moon_hora_planets)} planets) — inherited/public wealth dominant")
+
+    return {
+        "lagna":             lagna_hora,
+        "lagna_lord":        "Sun" if lagna_hora == "Leo" else "Moon",
+        "other_hora":        other_hora,
+        "planets":           planet_positions,
+        "sun_hora_planets":  sun_hora_planets,
+        "moon_hora_planets": moon_hora_planets,
+        "wealth_signals":    wealth_signals,
+        "meaning":           "D2 Hora — wealth chart. Sun hora=Leo=self-effort wealth. Moon hora=Cancer=public/inherited wealth.",
+        "d2_rule":           "Planets in house 1 strengthen lagna hora wealth. Planets in house 2 strengthen alternate wealth channel.",
+    }
+
+
 def calculate_all_divisional_charts(planets: dict, lagna_longitude: float) -> dict:
     """
     Calculate D1 through D12 for all planets + lagna.
     Returns dict of divisional charts, each with planet sign placements.
     """
     divisions = {
-        "d1": 1, "d2": 2, "d3": 3, "d4": 4, "d5": 5,
+        "d1": 1, "d2": "hora",  # special calculation — handled separately "d3": 3, "d4": 4, "d5": 5,
         "d7": 7, "d9": 9, "d10": 10, "d12": 12
     }
 
     results = {}
 
     for div_name, div_num in divisions.items():
+        # D2 Hora has special rules — skip in main loop
+        if div_name == "d2" or div_num == "hora":
+            continue
+
         chart = {}
 
         # Lagna in divisional chart
@@ -109,6 +196,9 @@ def calculate_all_divisional_charts(planets: dict, lagna_longitude: float) -> di
         chart["planets"]  = planet_positions
         chart["meaning"]  = DIVISIONAL_MEANINGS.get(div_name, "")
         results[div_name] = chart
+
+    # Calculate D2 Hora separately with correct rules
+    results["d2"] = calculate_d2_hora(planets, lagna_longitude)
 
     return results
 
