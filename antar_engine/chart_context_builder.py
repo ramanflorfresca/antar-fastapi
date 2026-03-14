@@ -21,6 +21,12 @@ grounded entirely in the provided data.
 
 from datetime import date, datetime
 try:
+    from antar_engine.domain_engines_extended import run_extended_engines, build_extended_verdicts_block
+    _EXT_ENGINES_AVAILABLE = True
+except ImportError:
+    _EXT_ENGINES_AVAILABLE = False
+
+try:
     from antar_engine.domain_engines import run_all_domain_engines, build_domain_verdicts_block
     _DOMAIN_ENGINES_AVAILABLE = True
 except ImportError:
