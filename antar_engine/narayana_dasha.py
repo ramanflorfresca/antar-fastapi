@@ -210,13 +210,17 @@ def calculate_narayana_dasha(chart_data: dict, birth_jd: float) -> dict:
     antardashas = []
     current_dt  = birth_dt
 
-    for i in range(12):
+    # Generate enough cycles to cover 120 years
+    i = 0
+    cycle = 0
+    max_years = 120
+    while (current_dt - birth_dt).days / 365.25 < max_years:
         sign_idx  = (start_sign_idx + i) % 12
         sign_name = SIGNS_LIST[sign_idx]
         full_years = get_narayana_dasha_years(sign_idx, planet_signs)
 
-        # First dasha uses balance
-        if i == 0:
+        # First dasha balance only applies at the very beginning
+        if i == 0 and cycle == 0:
             period_years = first_balance
         else:
             period_years = float(full_years)
@@ -236,7 +240,7 @@ def calculate_narayana_dasha(chart_data: dict, birth_jd: float) -> dict:
             "end_datetime":   end_dt,
             "duration_years": round(period_years, 4),
             "full_years":     full_years,
-            "sequence":       i,
+            "sequence":       (cycle * 12) + (i % 12),
         }
         mahadashas.append(md)
 
@@ -266,11 +270,14 @@ def calculate_narayana_dasha(chart_data: dict, birth_jd: float) -> dict:
                 "end_datetime":   ad_end,
                 "duration_years": round(ad_proportion, 4),
                 "sequence":       j,
-                "parent_sequence": i,
+                "parent_sequence": (cycle * 12) + (i % 12),
             })
             ad_current = ad_end
 
         current_dt = end_dt
+        i += 1
+        if i % 12 == 0:
+            cycle += 1
 
     return {
         "mahadashas":  mahadashas,
