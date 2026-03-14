@@ -625,6 +625,9 @@ class ChartCreateRequest(BaseModel):
     birth_country:   Optional[str] = Field(None, example="IN")
     country_code:    Optional[str] = Field(None, example="IN")
     language_preference: Optional[str] = Field(None, example="en")
+    gender:          Optional[str] = Field(None, example="female")
+    current_city:    Optional[str] = Field(None, example="Mumbai")
+    current_country: Optional[str] = Field(None, example="IN")
     marital_status:   Optional[str] = Field(None, example="single")
     children_status:  Optional[str] = Field(None, example="no_children_unsure")
     career_stage:     Optional[str] = Field(None, example="mid_career")
@@ -2222,6 +2225,9 @@ async def create_chart(
         "birth_time":          request.birth_time,
         "latitude":            lat,
         "longitude":           lng,
+        "gender":          getattr(request, "gender", "") or "",
+        "current_city":    getattr(request, "current_city", "") or "",
+        "current_country": getattr(request, "current_country", "") or "",
         "timezone_offset":     _offset,
         "country_code":        request.birth_country,
         "chart_data":          chart_data,
