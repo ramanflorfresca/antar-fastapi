@@ -982,6 +982,46 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
                 }
             )
 
+    # Guest rate limiting — 3 predictions per month
+    if not user_id:
+        if not check_guest_rate_limit(request.chart_id, limit=3):
+            usage = get_guest_usage(request.chart_id)
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "monthly_limit_reached",
+                    "message": f"You have used your {usage['limit']} free readings this month.",
+                    "used": usage["count"],
+                    "limit": usage["limit"],
+                    "resets": usage["month"],
+                    "upgrade_url": "https://antar.world/upgrade",
+                    "plans": [
+                        {
+                            "name": "Seeker",
+                            "price_monthly": "$4.99",
+                            "price_annual": "$39",
+                            "features": [
+                                "Unlimited predictions",
+                                "Career & wealth reading",
+                                "Mantra audio playback",
+                                "Full prediction history",
+                                "Monthly life briefing",
+                            ]
+                        },
+                        {
+                            "name": "Navigator",
+                            "price_monthly": "$19.99",
+                            "features": [
+                                "Everything in Seeker",
+                                "1 live reading/month",
+                                "Astrocartography",
+                                "Priority responses",
+                            ]
+                        }
+                    ]
+                }
+            )
+
     # Log action
     try:
         supabase.table("user_actions").insert({
@@ -2243,7 +2283,7 @@ async def get_career_reading(
 
     locale = get_locale_from_request(
         country_code=chart_record.get("country_code"),
-        birth_country=chart_record.get("birth_country"),
+        birth_country=chart_record.get("country_code"),
         user_language_preference=chart_record.get("language_preference"),
     )
 
