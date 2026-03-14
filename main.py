@@ -1335,25 +1335,29 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     if _full_context and len(_full_context) > 500:
         prompt = _full_context
     else:
-        prompt = build_predict_prompt(
-            question=request.question,
-            chart_data=chart_data,
-            dashas=dashas_response,
-            life_events=life_events,
-            profile=profile_text,
-            transit_summary=transit_summary,
-            country_context=country_context,
-            timing_text=timing_text,
-            nation_insight=nation_insight,
-            language=language,
-            predictions_context=predictions_context,
-            concern=concern,
-            country_code=country_code or "US",
-            patra_context=patra_context,
-            desh_context=desh_context,
-            dkp_block=dkp_block,
-            funding_summary=_funding_summary,
-        )
+        if _full_context and len(_full_context) > 500:
+            prompt = _full_context
+            print(f"[predict] Using master context ({len(_full_context)} chars)")
+        else:
+            prompt = build_predict_prompt(
+                question=request.question,
+                chart_data=chart_data,
+                dashas=dashas_response,
+                life_events=life_events,
+                profile=profile_text,
+                transit_summary=transit_summary,
+                country_context=country_context,
+                timing_text=timing_text,
+                nation_insight=nation_insight,
+                language=language,
+                predictions_context=predictions_context,
+                concern=concern,
+                country_code=country_code or "US",
+                patra_context=patra_context,
+                desh_context=desh_context,
+                dkp_block=dkp_block,
+                funding_summary=_funding_summary,
+            )
 
     for extra_block in [rarity_context, windows_context, chakra_context, arc_context,
                         lk_context, enrichment_context, sade_sati_context,
