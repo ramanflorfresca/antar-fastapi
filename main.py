@@ -1311,7 +1311,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             chart_data.get("lagna", {}).get("sign", "") if isinstance(chart_data.get("lagna"), dict) else "",
         )
         _tr_data = calculate_current_transits(chart_data)
-        _chart_rec = supabase.table("charts").select("birth_date,gender,name").eq("id", chart_id).execute()
+        _chart_rec = supabase.table("charts").select("birth_date,gender,name").eq("id", request.chart_id).execute()
         _birth_dt  = _chart_rec.data[0].get("birth_date", "") if _chart_rec.data else ""
         _gender_v  = _chart_rec.data[0].get("gender", "") if _chart_rec.data else ""
         _name_v    = _chart_rec.data[0].get("name", "") if _chart_rec.data else ""
