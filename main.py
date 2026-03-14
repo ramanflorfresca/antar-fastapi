@@ -2692,9 +2692,12 @@ async def get_proof_points(request: ProofPointsRequest):
     dashas       = get_dashas_for_chart(request.chart_id)
 
     points = generate_proof_points(
-        birth_date=chart_record["birth_date"],
-        chart_data=chart_data,
-        dashas=dashas,
+        birth_date  = chart_record["birth_date"],
+        chart_data  = chart_data,
+        dashas      = dashas,
+        first_name  = chart_record.get("name","").split()[0] if chart_record.get("name") else "",
+        gender      = chart_record.get("gender",""),
+        lagna_sign  = (chart_data.get("lagna",{}) or {}).get("sign","") if isinstance(chart_data.get("lagna"),dict) else chart_data.get("lagna",""),
     )
 
     clean_points = [

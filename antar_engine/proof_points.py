@@ -382,26 +382,36 @@ def _recency_score(end_dt: datetime, now: datetime) -> float:
 def _get_past_mahadashas(dashas: dict, now: datetime) -> list:
     """
     Extract all completed Mahadashas (end date before today).
-    Returns list of dicts sorted by end_date descending (most recent first).
+    Uses type/level field — not duration hack.
     """
     vim = dashas.get("vimsottari", [])
-    # Mahadashas are the longer-duration rows.
-    # We identify them as rows where duration > 3 years (antardashas are shorter).
     past_mds = []
     for p in vim:
         try:
-            start_dt = _parse_dt(p["start"])
-            end_dt   = _parse_dt(p["end"])
-            duration_years = (end_dt - start_dt).days / 365.25
-            # Mahadashas range from 6 to 20 years
-            if duration_years >= 4 and end_dt < now:
-                past_mds.append({
-                    "planet":   p["lord_or_sign"],
-                    "start_dt": start_dt,
-                    "end_dt":   end_dt,
-                    "duration_months": _duration_months(start_dt, end_dt),
-                    "level":    "mahadasha",
-                })
+            # Check level/type field — mahadasha or antardasha
+            level = p.get("level") or p.get("type") or ""
+            if level not in ("mahadasha", "1"):
+                # Also check by duration as fallback
+                start_dt_tmp = _parse_dt(p.get("start") or p.get("start_date",""))
+                end_dt_tmp   = _parse_dt(p.get("end")   or p.get("end_date",""))
+                dur = (end_dt_tmp - start_dt_tmp).days / 365.25
+                if dur < 4:
+                    continue
+            start_str = p.get("start") or p.get("start_date","")
+            end_str   = p.get("end")   or p.get("end_date","")
+            if not start_str or not end_str:
+                continue
+            start_dt = _parse_dt(start_str)
+            end_dt   = _parse_dt(end_str)
+            if end_dt >= now:
+                continue
+            past_mds.append({
+                "planet":          p.get("lord_or_sign") or p.get("planet_or_sign",""),
+                "start_dt":        start_dt,
+                "end_dt":          end_dt,
+                "duration_months": _duration_months(start_dt, end_dt),
+                "level":           "mahadasha",
+            })
         except Exception:
             continue
     past_mds.sort(key=lambda x: x["end_dt"], reverse=True)
@@ -419,16 +429,25 @@ def _get_past_high_impact_antardashas(dashas: dict, now: datetime) -> list:
     past_ads = []
     for p in vim:
         try:
-            planet   = p["lord_or_sign"]
+            planet = p.get("lord_or_sign") or p.get("planet_or_sign","")
             if planet not in HIGH_IMPACT:
                 continue
-            start_dt = _parse_dt(p["start"])
-            end_dt   = _parse_dt(p["end"])
+            # Only antardashas — skip mahadashas
+            level = p.get("level") or p.get("type") or ""
+            if level == "mahadasha":
+                continue
+            # Duration check: antardasha should be < 4 years
+            start_str = p.get("start") or p.get("start_date","")
+            end_str   = p.get("end")   or p.get("end_date","")
+            if not start_str or not end_str:
+                continue
+            start_dt = _parse_dt(start_str)
+            end_dt   = _parse_dt(end_str)
             if end_dt >= now:
-                continue   # not completed yet
+                continue
             months = _duration_months(start_dt, end_dt)
             if months < 5 or months > 50:
-                continue   # too short to be memorable / too long to be specific
+                continue
             past_ads.append({
                 "planet":          planet,
                 "start_dt":        start_dt,
@@ -599,6 +618,9 @@ def generate_proof_points(
     birth_date:  str,
     chart_data:  dict,
     dashas:      dict,
+    first_name:  str = "",
+    gender:      str = "",
+    lagna_sign:  str = "",
 ) -> list:
     """
     Generate the top 3 proof points for the given chart.
