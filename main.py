@@ -1299,25 +1299,61 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     _funding_signals = apply_funding_rules(chart_data, concern, current_transits)
     _funding_summary = get_funding_summary(_funding_signals)
 
-    prompt = build_predict_prompt(
-        question=request.question,
-        chart_data=chart_data,
-        dashas=dashas_response,
-        life_events=life_events,
-        profile=profile_text,
-        transit_summary=transit_summary,
-        country_context=country_context,
-        timing_text=timing_text,
-        nation_insight=nation_insight,
-        language=language,
-        predictions_context=predictions_context,
-        concern=concern,
-        country_code=country_code or "US",
-        patra_context=patra_context,
-        desh_context=desh_context,
-        dkp_block=dkp_block,
-        funding_summary=_funding_summary,
-    )
+    # Build master context (D1-D12, yogas, LK, transits, anti-hallucination)
+    _full_context = ""
+    try:
+        from antar_engine.chart_context_builder import build_complete_context
+        from antar_engine.lal_kitab_engine import calculate_lal_kitab_analysis
+        from antar_engine.transits_engine import calculate_current_transits
+        _lk_data = calculate_lal_kitab_analysis(
+            chart_data.get("planets", {}),
+            chart_data.get("lagna", {}).get("sign", "") if isinstance(chart_data.get("lagna"), dict) else "",
+        )
+        _tr_data = calculate_current_transits(chart_data)
+        _chart_rec = supabase.table("charts").select("birth_date,gender,name").eq("id", chart_id).execute()
+        _birth_dt  = _chart_rec.data[0].get("birth_date", "") if _chart_rec.data else ""
+        _gender_v  = _chart_rec.data[0].get("gender", "") if _chart_rec.data else ""
+        _name_v    = _chart_rec.data[0].get("name", "") if _chart_rec.data else ""
+        _fname     = _name_v.split()[0] if _name_v else ""
+        _full_context = build_complete_context(
+            chart_data=chart_data,
+            dashas=dashas_response if isinstance(dashas_response, dict) else {},
+            birth_date=_birth_dt,
+            first_name=_fname,
+            gender=_gender_v,
+            concern=concern,
+            question=request.question,
+            lk_analysis=_lk_data,
+            transit_data=_tr_data,
+            yogas=chart_data.get("yogas", []),
+            divisional_charts=chart_data.get("divisional_charts", {}),
+        )
+        print(f"[predict] Full context: {len(_full_context)} chars")
+    except Exception as _ctx_e:
+        print(f"[predict] Context build error (non-fatal): {_ctx_e}")
+
+    if _full_context and len(_full_context) > 500:
+        prompt = _full_context
+    else:
+        prompt = build_predict_prompt(
+            question=request.question,
+            chart_data=chart_data,
+            dashas=dashas_response,
+            life_events=life_events,
+            profile=profile_text,
+            transit_summary=transit_summary,
+            country_context=country_context,
+            timing_text=timing_text,
+            nation_insight=nation_insight,
+            language=language,
+            predictions_context=predictions_context,
+            concern=concern,
+            country_code=country_code or "US",
+            patra_context=patra_context,
+            desh_context=desh_context,
+            dkp_block=dkp_block,
+            funding_summary=_funding_summary,
+        )
 
     for extra_block in [rarity_context, windows_context, chakra_context, arc_context,
                         lk_context, enrichment_context, sade_sati_context,
