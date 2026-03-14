@@ -2106,20 +2106,28 @@ async def create_chart(
             return []
         flat = []
         for p in raw.get("mahadashas", []):
+            sd = str(p.get("start_date", "") or "")[:10]
+            ed = str(p.get("end_date",   "") or "")[:10]
             flat.append({
                 "lord_or_sign":   p.get("lord", ""),
                 "planet_or_sign": p.get("lord", ""),
-                "start":          p.get("start_date", "")[:10],
-                "end":            p.get("end_date",   "")[:10],
+                "start":          sd,
+                "end":            ed,
+                "start_date":     sd,
+                "end_date":       ed,
                 "duration_years": p.get("duration_years", 0),
                 "level":          "mahadasha",
             })
         for p in raw.get("antardashas", []):
+            sd = str(p.get("start_date", "") or "")[:10]
+            ed = str(p.get("end_date",   "") or "")[:10]
             flat.append({
                 "lord_or_sign":   p.get("lord", ""),
                 "planet_or_sign": p.get("lord", ""),
-                "start":          p.get("start_date", "")[:10],
-                "end":            p.get("end_date",   "")[:10],
+                "start":          sd,
+                "end":            ed,
+                "start_date":     sd,
+                "end_date":       ed,
                 "duration_years": p.get("duration_years", 0),
                 "level":          "antardasha",
                 "parent_lord":    p.get("parent_lord", ""),
