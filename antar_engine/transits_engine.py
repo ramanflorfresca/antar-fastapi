@@ -72,7 +72,7 @@ def calculate_current_transits(natal_chart: dict) -> dict:
     Returns transit analysis for next 12 months.
     """
     try:
-        import pyswisseph as swe
+        import swisseph as swe
         script_dir = os.path.dirname(os.path.abspath(__file__))
         ephe_path  = os.path.join(script_dir, 'ephe')
         swe.set_ephe_path(ephe_path)

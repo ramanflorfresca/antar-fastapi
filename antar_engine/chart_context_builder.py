@@ -348,7 +348,7 @@ CONCERN DOMAIN: {concern}
 D1 NATAL CHART (Primary Chart)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Rising Sign (Lagna): {lagna_sign} at {lagna_deg:.2f}°
-Lagna Lord: {lagna_lord} in house {planets.get(lagna_lord,{{}}).get('house','?')}
+Lagna Lord: {lagna_lord} in house {planets.get(lagna_lord,{}).get('house','?')}
 Atmakaraka (Soul Significator): {atmakaraka}
   → Soul archetype: {PLANET_KARAKAS.get(atmakaraka,'').split(',')[0] if atmakaraka else ''}
 
