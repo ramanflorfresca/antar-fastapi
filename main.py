@@ -1331,7 +1331,9 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         )
         print(f"[predict] Full context: {len(_full_context)} chars")
     except Exception as _ctx_e:
-        print(f"[predict] Context build error (non-fatal): {_ctx_e}")
+        import traceback
+        print(f"[predict] Context build ERROR: {_ctx_e}")
+        print(f"[predict] Traceback: {traceback.format_exc()}")
 
     if _full_context and len(_full_context) > 500:
         print(f"[predict] Using master context ({len(_full_context)} chars)")
