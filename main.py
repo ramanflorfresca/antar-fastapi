@@ -759,12 +759,20 @@ def get_dashas_for_chart(chart_id: str) -> dict:
         system = row["system"]
         if system not in dashas_by_system:
             dashas_by_system[system] = []
+        parent_lord = ""
+        if isinstance(row.get("metadata"), dict):
+            parent_lord = row["metadata"].get("parent_lord", "")
         dashas_by_system[system].append({
-            "lord_or_sign": row.get("planet_or_sign") or row.get("lord_or_sign", ""),
-            "start":        row.get("start_date") or row.get("start", ""),
-            "end":          row.get("end_date") or row.get("end", ""),
-            "duration":     row.get("duration_years", 0),
-            "level":        row.get("level", "mahadasha"),
+            "lord_or_sign":   row.get("planet_or_sign", ""),
+            "planet_or_sign": row.get("planet_or_sign", ""),
+            "start":          row.get("start_date", ""),
+            "end":            row.get("end_date", ""),
+            "start_date":     row.get("start_date", ""),
+            "end_date":       row.get("end_date", ""),
+            "duration":       row.get("duration_years", 0),
+            "duration_years": row.get("duration_years", 0),
+            "level":          row.get("level") or row.get("type", "mahadasha"),
+            "parent_lord":    parent_lord,
         })
     for sys in dashas_by_system:
         dashas_by_system[sys] = dashas_by_system[sys][:10]
