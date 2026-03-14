@@ -413,6 +413,19 @@ WEALTH ANALYSIS CONTEXT:
     except Exception:
         _lk_aspect_insights = []
 
+    # Build Narayana Dasha block
+    _narayana_block = ""
+    try:
+        from antar_engine.narayana_dasha import (
+            calculate_narayana_dasha, build_narayana_context_block,
+            get_current_narayana_period
+        )
+        _narayana = calculate_narayana_dasha(chart_data, chart_data.get("birth_jd",0))
+        _narayana_block = build_narayana_context_block(chart_data, _narayana,
+                            yogas=yogas)
+    except Exception as _nde:
+        print(f"[narayana_context] error (non-fatal): {_nde}")
+
     lk_block  = lal_kitab_prompt_block(lk_analysis) if lk_analysis else "LK analysis not available"
     trans_block = transits_prompt_block(transit_data) if transit_data else "Transit data not available"
 
