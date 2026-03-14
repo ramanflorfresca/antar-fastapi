@@ -475,12 +475,15 @@ def build_jaimini_context_block(
         meaning = kdata.get("meaning","")
         lines.append(f"  {abbrev:<4} {kname:<16} → {planet} in {sign} (house {house}) — {meaning}")
 
+    _ak_planet = karakas.get('Atmakaraka', {}).get('planet', '?')
+    _kk_sign   = karakamsha.get('sign', '?')
+    _kk_aspects = ', '.join(karakamsha.get('aspecting_signs', []))
     lines += [
         "",
-        f"KARAKAMSHA (soul's life purpose platform):",
-        f"  AK ({karakas.get('Atmakaraka',{{}}).get('planet','?')}) in D9 = {karakamsha.get('sign','?')} sign",
-        f"  This is the Karakamsha lagna — soul's operating domain",
-        f"  Rashi aspects on Karakamsha: {', '.join(karakamsha.get('aspecting_signs',[]))}",
+        "KARAKAMSHA (soul's life purpose platform):",
+        f"  AK ({_ak_planet}) in D9 = {_kk_sign} sign",
+        "  This is the Karakamsha lagna — soul's operating domain",
+        f"  Rashi aspects on Karakamsha: {_kk_aspects}",
         "",
         "CURRENT CHARA DASHA:",
         f"  Mahadasha sign: {md_sign} ({md_start}–{md_end})",
