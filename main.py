@@ -2230,12 +2230,38 @@ async def create_chart(
         "current_country": getattr(request, "current_country", "") or "",
         "timezone_offset":     _offset,
         "country_code":        request.birth_country,
-        "chart_data":          chart_data,
+        "chart_data":          {
+            **chart_data,
+            "divisional_charts": chart_data.get("divisional_charts", {}),
+            "yogas":             chart_data.get("yogas", []),
+            "house_lords":       chart_data.get("house_lords", {}),
+            "atmakaraka":        chart_data.get("atmakaraka", ""),
+        },
         "language_preference": request.language or "en",
         "patra_complete":      False,
     }
     try:
         supabase.table("charts").insert(chart_row).execute()
+
+        # Save yogas to separate table for queryability
+        detected_yogas = chart_data.get("yogas", [])
+        if detected_yogas:
+            yoga_rows = [
+                {
+                    "chart_id":  chart_id,
+                    "yoga_name": y.get("name",""),
+                    "strength":  y.get("strength",""),
+                    "category":  y.get("category",""),
+                    "planets":   y.get("planets",[]),
+                    "effect":    y.get("effect",""),
+                }
+                for y in detected_yogas
+            ]
+            try:
+                supabase.table("chart_yogas").insert(yoga_rows).execute()
+                print(f"[yogas] Saved {len(yoga_rows)} yogas for chart {chart_id}")
+            except Exception as _ye:
+                print(f"[yogas] Save error (non-fatal): {_ye}")
     except Exception as e:
         raise HTTPException(500, f"Failed to save chart: {e}")
 

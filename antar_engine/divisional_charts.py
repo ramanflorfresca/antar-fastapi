@@ -1,0 +1,215 @@
+"""
+antar_engine/divisional_charts.py
+Calculate D1 through D12 divisional charts from planetary longitudes.
+Each divisional chart shows a specific life dimension.
+"""
+
+SIGNS = [
+    "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
+    "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"
+]
+
+SIGN_LORDS = {
+    "Aries":"Mars","Taurus":"Venus","Gemini":"Mercury","Cancer":"Moon",
+    "Leo":"Sun","Virgo":"Mercury","Libra":"Venus","Scorpio":"Mars",
+    "Sagittarius":"Jupiter","Capricorn":"Saturn","Aquarius":"Saturn","Pisces":"Jupiter"
+}
+
+DIVISIONAL_MEANINGS = {
+    "d1":  "Natal chart — overall life",
+    "d2":  "Hora — wealth and finances",
+    "d3":  "Drekkana — siblings, courage, initiative",
+    "d4":  "Chaturthamsa — property, fixed assets, fortune",
+    "d5":  "Panchamsa — creativity, children, intelligence",
+    "d7":  "Saptamsa — children, progeny, creativity",
+    "d9":  "Navamsa — soul, dharma, marriage, deeper nature",
+    "d10": "Dashamsa — career, profession, public life",
+    "d12": "Dwadashamsa — parents, ancestry",
+}
+
+def _get_divisional_sign(longitude: float, division: int) -> str:
+    """Calculate divisional sign for any division D1-D12."""
+    sign_num = int(longitude / 30)
+    degree_in_sign = longitude % 30
+    division_size = 30.0 / division
+    division_num = int(degree_in_sign / division_size)
+
+    # D9 uses the Navamsa calculation
+    if division == 9:
+        fire_signs  = [0, 4, 8]
+        earth_signs = [1, 5, 9]
+        air_signs   = [2, 6, 10]
+        water_signs = [3, 7, 11]
+        if sign_num in fire_signs:   start = 0
+        elif sign_num in earth_signs: start = 9
+        elif sign_num in air_signs:   start = 6
+        else:                         start = 3
+        return SIGNS[(start + division_num) % 12]
+
+    # D10: 1-15 degrees → sign itself, 16-30 → 9th from sign
+    if division == 10:
+        if degree_in_sign < 15:
+            return SIGNS[sign_num]
+        else:
+            return SIGNS[(sign_num + 8) % 12]
+
+    # Standard calculation for other divisions
+    result_sign = (sign_num * division + division_num) % 12
+    return SIGNS[result_sign]
+
+
+def calculate_all_divisional_charts(planets: dict, lagna_longitude: float) -> dict:
+    """
+    Calculate D1 through D12 for all planets + lagna.
+    Returns dict of divisional charts, each with planet sign placements.
+    """
+    divisions = {
+        "d1": 1, "d2": 2, "d3": 3, "d4": 4, "d5": 5,
+        "d7": 7, "d9": 9, "d10": 10, "d12": 12
+    }
+
+    results = {}
+
+    for div_name, div_num in divisions.items():
+        chart = {}
+
+        # Lagna in divisional chart
+        lagna_sign = _get_divisional_sign(lagna_longitude, div_num)
+        chart["lagna"] = lagna_sign
+        chart["lagna_lord"] = SIGN_LORDS.get(lagna_sign, "")
+
+        # Calculate lagna index for house placement
+        lagna_idx = SIGNS.index(lagna_sign) if lagna_sign in SIGNS else 0
+
+        # Planets in divisional chart
+        planet_positions = {}
+        for planet, data in planets.items():
+            longitude = data.get("longitude", 0)
+            if planet in ("Rahu", "Ketu"):
+                # Rahu/Ketu are always opposite in navamsa
+                if planet == "Rahu":
+                    sign = _get_divisional_sign(longitude, div_num)
+                else:
+                    # Ketu is 180 degrees from Rahu
+                    ketu_long = (longitude + 180) % 360
+                    sign = _get_divisional_sign(ketu_long, div_num)
+            else:
+                sign = _get_divisional_sign(longitude, div_num)
+
+            sign_idx = SIGNS.index(sign) if sign in SIGNS else 0
+            house = ((sign_idx - lagna_idx) % 12) + 1
+            sign_lord = SIGN_LORDS.get(sign, "")
+
+            planet_positions[planet] = {
+                "sign":       sign,
+                "house":      house,
+                "sign_lord":  sign_lord,
+            }
+
+        chart["planets"]  = planet_positions
+        chart["meaning"]  = DIVISIONAL_MEANINGS.get(div_name, "")
+        results[div_name] = chart
+
+    return results
+
+
+def get_d10_career_picture(d10: dict) -> str:
+    """Generate a career analysis from D10 chart."""
+    if not d10:
+        return ""
+
+    lagna = d10.get("lagna", "")
+    lagna_lord = d10.get("lagna_lord", "")
+    planets = d10.get("planets", {})
+
+    lines = [f"D10 Lagna: {lagna} (lord: {lagna_lord})"]
+
+    # 10th house from D10 lagna = career peak
+    lagna_idx = SIGNS.index(lagna) if lagna in SIGNS else 0
+    tenth_sign_idx = (lagna_idx + 9) % 12
+    tenth_sign = SIGNS[tenth_sign_idx]
+    tenth_lord = SIGN_LORDS.get(tenth_sign, "")
+    lines.append(f"D10 10th house: {tenth_sign} (lord: {tenth_lord})")
+
+    # Planets in houses 1, 10, 11 of D10 (career indicators)
+    key_houses = {1: "identity in career", 10: "peak career", 11: "career gains"}
+    for planet, data in planets.items():
+        if data.get("house") in key_houses:
+            lines.append(f"  {planet} in D10 house {data['house']} ({key_houses[data['house']]})")
+
+    return " | ".join(lines)
+
+
+def get_d9_soul_picture(d9: dict) -> str:
+    """Generate a soul/dharma analysis from D9 chart."""
+    if not d9:
+        return ""
+
+    lagna = d9.get("lagna", "")
+    planets = d9.get("planets", {})
+
+    lines = [f"D9 Lagna: {lagna}"]
+
+    # Venus in D9 = marriage/relationship quality
+    venus = planets.get("Venus", {})
+    if venus:
+        lines.append(f"Venus in D9: {venus.get('sign','')} house {venus.get('house','')}")
+
+    # 7th house in D9 = spouse nature
+    lagna_idx = SIGNS.index(lagna) if lagna in SIGNS else 0
+    seventh_idx = (lagna_idx + 6) % 12
+    seventh_sign = SIGNS[seventh_idx]
+    lines.append(f"D9 7th (spouse): {seventh_sign} (lord: {SIGN_LORDS.get(seventh_sign,'')})")
+
+    # Atmakaraka in D9 (planet with highest degree = soul significator)
+    return " | ".join(lines)
+
+
+def get_house_analysis(planets: dict, lagna_sign: str) -> dict:
+    """
+    Full house analysis from D1 chart.
+    Returns which planets are in which houses, house lords, etc.
+    """
+    lagna_idx = SIGNS.index(lagna_sign) if lagna_sign in SIGNS else 0
+
+    houses = {}
+    for h in range(1, 13):
+        sign_idx = (lagna_idx + h - 1) % 12
+        sign = SIGNS[sign_idx]
+        lord = SIGN_LORDS.get(sign, "")
+        houses[h] = {
+            "sign": sign,
+            "lord": lord,
+            "planets": [],
+        }
+
+    for planet, data in planets.items():
+        house = data.get("house", 1)
+        if 1 <= house <= 12:
+            houses[house]["planets"].append(planet)
+
+    # Key house analysis
+    key_houses = {
+        1:  "Self, body, personality",
+        2:  "Wealth, family, speech",
+        4:  "Home, mother, property, happiness",
+        5:  "Children, intelligence, past karma, creativity",
+        7:  "Marriage, partnerships, business",
+        8:  "Transformation, longevity, hidden matters",
+        9:  "Dharma, father, fortune, higher wisdom",
+        10: "Career, public life, authority, karma",
+        11: "Gains, income, elder siblings, aspirations",
+        12: "Loss, spirituality, foreign lands, moksha",
+    }
+
+    analysis = {}
+    for h, meaning in key_houses.items():
+        house_data = houses.get(h, {})
+        analysis[h] = {
+            "sign":    house_data.get("sign", ""),
+            "lord":    house_data.get("lord", ""),
+            "planets": house_data.get("planets", []),
+            "meaning": meaning,
+        }
+
+    return {"all": houses, "key": analysis}

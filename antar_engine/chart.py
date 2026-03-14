@@ -157,12 +157,62 @@ def _calculate_chart_raw(birth_date, birth_time, lat, lon, tz_offset):
             'sign':             SIGNS[sign_idx],
             'sign_index':       sign_idx,
             'degree':           lon_in_sign,
-            'house':            house,          # ← was missing
+            'house':            house,
             'nakshatra':        NAKSHATRAS[nak_idx],
             'nakshatra_index':  nak_idx,
             'nakshatra_lord':   nak_lord,
             'nakshatra_portion': nak_portion,
         }
+
+    # ── Enrich chart with divisional charts + yogas ───────────────
+    try:
+        from antar_engine.divisional_charts import (
+            calculate_all_divisional_charts,
+            get_house_analysis,
+        )
+        lagna_long = (lagna_sign * 30) + lagna_deg
+        divisional = calculate_all_divisional_charts(chart['planets'], lagna_long)
+        chart['divisional_charts'] = divisional
+        chart['house_analysis']    = get_house_analysis(chart['planets'], SIGNS[lagna_sign])
+    except Exception as _e:
+        print(f"[chart] Divisional charts error (non-fatal): {_e}")
+        chart['divisional_charts'] = {}
+        chart['house_analysis']    = {}
+
+    try:
+        from antar_engine.yogas import detect_all_yogas, yogas_to_prompt_block
+        detected_yogas = detect_all_yogas(chart['planets'], SIGNS[lagna_sign])
+        chart['yogas']            = detected_yogas
+        chart['yogas_prompt_block'] = yogas_to_prompt_block(detected_yogas)
+    except Exception as _e:
+        print(f"[chart] Yoga detection error (non-fatal): {_e}")
+        chart['yogas']             = []
+        chart['yogas_prompt_block'] = ""
+
+    # ── House lords ───────────────────────────────────────────────
+    try:
+        house_lords = {}
+        for h in range(1, 13):
+            sign_num = (lagna_sign + h - 1) % 12
+            house_lords[h] = {
+                "sign": SIGNS[sign_num],
+                "lord": SIGN_LORDS[sign_num],
+            }
+        chart['house_lords'] = house_lords
+    except Exception as _e:
+        chart['house_lords'] = {}
+
+    # ── Atmakaraka (highest degree planet = soul significator) ────
+    try:
+        ak_planet = max(
+            {p: d for p, d in chart['planets'].items()
+             if p not in ('Rahu', 'Ketu')}.items(),
+            key=lambda x: x[1].get('degree', 0)
+        )[0]
+        chart['atmakaraka'] = ak_planet
+    except Exception:
+        chart['atmakaraka'] = 'Sun'
+
     return chart
 
 

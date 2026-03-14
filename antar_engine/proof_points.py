@@ -1,813 +1,545 @@
 """
-antar_engine/proof_points.py
-
-Proof Points Engine — "We'll tell you 3 things that already happened."
-──────────────────────────────────────────────────────────────────────
-WHAT THIS DOES:
-  The single most powerful acquisition feature in Antar.
-
-  Given only a birth date + birth time + location (no account needed),
-  this engine finds the 3 most HIGH-CONFIDENCE past life events
-  that Antar can claim happened — then presents them as a dare:
-
-    "We'll show you 3 things that already happened in your life.
-     If we're wrong — your first month is free."
-
-  This is not vague astrology. Each proof point is:
-    1. Tied to a real completed dasha period
-    2. Named with a specific date range (e.g. "Between 2019 and 2021")
-    3. Assigned to a specific life domain (career / love / home /
-       identity / finances / health)
-    4. Written in plain English — never astrology jargon
-    5. Specific enough to feel personal, broad enough to land
-
-HOW IT SELECTS THE 3 POINTS:
-  Step 1 — Calculate vimsottari dashas from birth data
-  Step 2 — Find all COMPLETED Mahadashas (end date < today)
-  Step 3 — Find all COMPLETED high-impact Antardashas
-           (high-impact = Rahu, Saturn, Jupiter, MD-lord change)
-  Step 4 — Score each candidate on 4 dimensions:
-           a) Planet power (Rahu > Saturn > Jupiter > Mars > others)
-           b) Duration quality (6-24 months = ideal proof window)
-           c) Domain confidence (how specific can we be about the domain)
-           d) Recency (more recent = more memorable = higher weight)
-  Step 5 — Deduplicate by domain (max 1 per domain)
-  Step 6 — Return top 3 by score, each with a plain-English statement
-
-CRITICAL RULES:
-  - NEVER use the word "astrology", "dasha", "mahadasha", "antardasha",
-    "Rahu", "Saturn", or any planet name in the output statements
-  - NEVER make claims about death, serious illness, or trauma
-  - ALWAYS use approximate date ranges, never exact dates
-  - The statements must feel specific but not so narrow that
-    most people would say "no"
-  - Frame everything as having already happened — past tense
-
-CONFIDENCE SCORING:
-  Each proof point gets a confidence score 0.0–1.0.
-  Only points with score >= 0.65 are shown.
-  If fewer than 3 qualify, we show what we have (never fabricate).
-
-USAGE:
-    from antar_engine.proof_points import generate_proof_points
-
-    points = generate_proof_points(
-        birth_date="1990-06-15",
-        birth_time="14:30",
-        lat=28.6139,
-        lng=77.2090,
-        timezone_offset=5.5,
-        chart_data=chart_data,   # pre-calculated chart dict
-        dashas=dashas,           # pre-calculated dasha dict
-    )
-    # Returns List[ProofPoint] — max 3, sorted by confidence desc
-    # Each ProofPoint has:
-    #   statement     : str  — plain English, past tense
-    #   date_range    : str  — e.g. "Between early 2019 and mid-2021"
-    #   domain        : str  — career / love / home / identity / finances / health
-    #   confidence    : float — 0.65–0.95
-    #   domain_icon   : str  — emoji for UI
-    #   follow_up     : str  — if user says "not quite", this clarifies
+antar_engine/proof_points.py  — COMPLETE REWRITE
+LLM-powered proof points using full astrological analysis.
+No templates. Real Jyotish analysis sent to LLM.
 """
 
 from __future__ import annotations
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
-
-
-# ── Reference tables ──────────────────────────────────────────────────────────
+import os
 
 SIGNS = [
-    "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
-    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
+    "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
+    "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"
 ]
 
 SIGN_LORDS = {
-    "Aries": "Mars", "Taurus": "Venus", "Gemini": "Mercury",
-    "Cancer": "Moon", "Leo": "Sun", "Virgo": "Mercury",
-    "Libra": "Venus", "Scorpio": "Mars", "Sagittarius": "Jupiter",
-    "Capricorn": "Saturn", "Aquarius": "Saturn", "Pisces": "Jupiter"
+    "Aries":"Mars","Taurus":"Venus","Gemini":"Mercury","Cancer":"Moon",
+    "Leo":"Sun","Virgo":"Mercury","Libra":"Venus","Scorpio":"Mars",
+    "Sagittarius":"Jupiter","Capricorn":"Saturn","Aquarius":"Saturn","Pisces":"Jupiter"
 }
 
-# How disruptive / memorable is each planet's period?
-# Higher = more likely to produce a clearly memorable life event
-PLANET_IMPACT_SCORE = {
-    "Rahu":    1.00,   # most disruptive — biggest visible life changes
-    "Saturn":  0.95,   # clarifying pressure — always memorable
-    "Ketu":    0.85,   # endings and letting go — deeply felt
-    "Mars":    0.80,   # action/conflict/property — concrete events
-    "Sun":     0.75,   # identity shifts — career/authority changes
-    "Jupiter": 0.72,   # expansion — good but gentler
-    "Moon":    0.68,   # emotional — home/family changes
-    "Venus":   0.65,   # love/relationships — very memorable
-    "Mercury": 0.55,   # intellectual — less physically concrete
+PLANET_DOMAIN = {
+    "Sun":     "career, authority, father, ego",
+    "Moon":    "mind, mother, home, emotions, public",
+    "Mars":    "property, siblings, energy, disputes, courage",
+    "Mercury": "communication, business, intellect, friends",
+    "Jupiter": "wealth, children, wisdom, teacher, expansion",
+    "Venus":   "marriage, relationships, luxury, beauty, vehicles",
+    "Saturn":  "career restructuring, delays, discipline, servants, longevity",
+    "Rahu":    "sudden changes, foreign matters, technology, obsession, transformation",
+    "Ketu":    "spirituality, moksha, past life, detachment, sudden losses",
 }
 
-# Primary life domain each planet rules most strongly
-PLANET_PRIMARY_DOMAIN = {
-    "Sun":     "career",    # authority, public life, career
-    "Moon":    "home",      # home, family, emotional life
-    "Mars":    "property",  # property, disputes, siblings, energy
-    "Mercury": "career",    # business, communication, education
-    "Jupiter": "finances",  # wealth, expansion, wisdom
-    "Venus":   "love",      # relationships, love, creativity
-    "Saturn":  "career",    # career restructuring, discipline
-    "Rahu":    "identity",  # major transformation, identity shift
-    "Ketu":    "identity",  # endings, spiritual shifts
+KEY_HOUSE_MEANINGS = {
+    1:  "self, body, personality, overall life direction",
+    2:  "wealth, family, speech, accumulated assets",
+    4:  "home, mother, property, happiness, land",
+    5:  "children, intelligence, past karma, speculation, creative projects",
+    6:  "enemies, disease, debt, service, competition",
+    7:  "marriage, partnerships, legal contracts, business partnerships",
+    8:  "transformation, longevity, hidden matters, inheritance, occult",
+    9:  "dharma, father, fortune, higher education, spirituality",
+    10: "career, profession, public life, government, social standing",
+    11: "gains, income, elder siblings, aspirations, social networks",
+    12: "losses, spirituality, foreign lands, moksha, expenditure",
 }
 
-# Secondary domains (provides more options when primary is taken)
-PLANET_SECONDARY_DOMAIN = {
-    "Sun":     "identity",
-    "Moon":    "love",
-    "Mars":    "career",
-    "Mercury": "finances",
-    "Jupiter": "identity",
-    "Venus":   "finances",
-    "Saturn":  "identity",
-    "Rahu":    "career",
-    "Ketu":    "home",
-}
-
-# Domain display config
-DOMAIN_CONFIG = {
-    "career":   {"icon": "💼", "label": "Career & Life Direction"},
-    "love":     {"icon": "💔", "label": "Love & Relationships"},
-    "home":     {"icon": "🏠", "label": "Home & Family"},
-    "identity": {"icon": "🔄", "label": "Identity & Life Direction"},
-    "finances": {"icon": "💰", "label": "Money & Finances"},
-    "property": {"icon": "🏠", "label": "Home & Property"},
-    "health":   {"icon": "⚡", "label": "Energy & Health"},
-}
-
-# ── Proof statement templates ─────────────────────────────────────────────────
-# Each planet × domain combination has 2-3 statement variants.
-# We pick the best fit based on duration and lagna context.
-# {date_range} is injected at render time.
-# Statements are always past tense, specific but not so narrow they miss.
-
-PROOF_STATEMENTS = {
-
-    "Rahu": {
-        "identity": [
-            "{date_range}, your life took an unexpected turn. Something you thought was settled — your direction, your identity, or your sense of who you were — suddenly shifted. A new version of you began forming that you hadn't planned for.",
-            "{date_range}, you went through a major transformation. Old structures fell away — a role, a relationship, a place, or a belief about yourself. What replaced it was something more ambitious, more true.",
-        ],
-        "career": [
-            "{date_range}, something shifted significantly in your career or public direction. An opportunity appeared from an unexpected source — or a previous path ended and a very different one opened.",
-            "{date_range}, your professional world changed in ways you didn't fully predict. A new direction, a new environment, or a completely unexpected opportunity reshaped where you were heading.",
-        ],
-        "love": [
-            "{date_range}, your relationship life went through significant upheaval — an intense connection, a sudden change in a relationship, or a meeting that altered your trajectory.",
-        ],
-        "finances": [
-            "{date_range}, your financial situation changed in ways that felt outside your control — either a significant gain from an unexpected source, or a disruption that forced a complete rethink.",
-        ],
-    },
-
-    "Saturn": {
-        "career": [
-            "{date_range}, your career went through a period of significant pressure or restructuring. Something that felt solid began to shift — a role changed, a structure you relied on was tested, or you were forced to rebuild something from scratch.",
-            "{date_range}, your professional life demanded a serious reckoning. What wasn't working became impossible to ignore. The period required real discipline and probably felt harder than you expected.",
-        ],
-        "identity": [
-            "{date_range}, you went through a prolonged period of pressure and inner reckoning — a time when life was asking you to become more serious, more disciplined, more accountable. It wasn't easy, but it built something real in you.",
-            "{date_range}, life applied sustained pressure across almost every area — career, relationships, self-image. It was one of the harder stretches. What came out of it was a clearer, stronger version of you.",
-        ],
-        "home": [
-            "{date_range}, your home life or family situation went through a difficult period — responsibilities increased, something felt heavy or restricted, or a family dynamic required serious attention.",
-        ],
-        "finances": [
-            "{date_range}, your financial life went through a period of restriction or serious pressure. Money felt tight, or a financial structure you relied on was tested or restructured.",
-        ],
-    },
-
-    "Ketu": {
-        "identity": [
-            "{date_range}, something significant came to an end in your life — a chapter closed that you may not have been fully ready to close. A relationship, a career path, a belief about yourself, or a place you called home.",
-            "{date_range}, you went through a period of letting go. Something you had invested deeply in — a relationship, a goal, an identity — dissolved or was released. The emptiness that followed eventually created space for something truer.",
-        ],
-        "love": [
-            "{date_range}, a significant relationship in your life ended or fundamentally changed. Something that once felt central became distant. It may have been gradual, or it may have happened suddenly.",
-        ],
-        "career": [
-            "{date_range}, a professional chapter ended. A role, an organisation, or a direction you had been building toward came to a close — either by your choice or not fully by it.",
-        ],
-        "home": [
-            "{date_range}, your home situation or family structure changed significantly. A living situation ended, family dynamics shifted, or you felt a strong pull to disengage from your roots.",
-        ],
-        "spirituality": [
-            "{date_range}, you went through a period of deep questioning — about meaning, purpose, and what you were actually here to do. Old answers stopped satisfying. A more honest search began.",
-        ],
-    },
-
-    "Mars": {
-        "career": [
-            "{date_range}, your career or daily life demanded a lot of energy and decisive action. You may have pushed hard for something, faced significant competition, or experienced a conflict that required you to stand your ground.",
-        ],
-        "property": [
-            "{date_range}, your living situation or property went through significant change — a move, a renovation, a purchase, a dispute, or a major shift in where and how you were living.",
-            "{date_range}, something in your home environment or family relationships required direct confrontation or action. A conflict that had been simmering came to a head.",
-        ],
-        "identity": [
-            "{date_range}, you went through a high-energy, high-stakes period. You were fighting for something — a goal, a position, your own sense of direction. The intensity was real.",
-        ],
-    },
-
-    "Jupiter": {
-        "finances": [
-            "{date_range}, something opened up financially or professionally — a new opportunity, an expansion, a growth phase that felt qualitatively different from the years before it. Doors that were closed began to open.",
-            "{date_range}, your life entered an expansive phase — more opportunities, more growth, more optimism about what was possible. Something you had been working toward began to materialise.",
-        ],
-        "love": [
-            "{date_range}, your relationship life expanded in a meaningful way — a deepening of commitment, a new significant relationship, or a shift in how you understood love and partnership.",
-        ],
-        "career": [
-            "{date_range}, your career or public standing grew in a meaningful way. Recognition, a new role, an expansion into new territory — something in your professional world moved toward more.",
-        ],
-        "identity": [
-            "{date_range}, your worldview expanded significantly. Travel, education, spiritual exploration, or exposure to radically different perspectives reshaped how you understood yourself and your place in the world.",
-        ],
-    },
-
-    "Sun": {
-        "career": [
-            "{date_range}, something in your career or public life shifted — your role, your visibility, or your relationship with authority. You either stepped into more responsibility or found yourself at odds with a structure you had been part of.",
-            "{date_range}, your sense of professional identity went through a transition — what you did, who you did it for, or your sense of purpose in your work changed meaningfully.",
-        ],
-        "identity": [
-            "{date_range}, you went through a period of clarifying who you are and what you stand for. Old self-definitions felt insufficient. You were becoming someone slightly different — more yourself.",
-        ],
-    },
-
-    "Moon": {
-        "home": [
-            "{date_range}, your home life, family situation, or emotional foundations went through significant change. A living arrangement shifted, a family dynamic changed, or your sense of where you belonged was disrupted or redefined.",
-            "{date_range}, something in your family or domestic world required deep attention. A parent's situation, a home transition, or an emotional reckoning with your roots.",
-        ],
-        "love": [
-            "{date_range}, your emotional and relationship life went through a significant period of flux. Your feelings about a key person or relationship shifted — deeper connection, painful distance, or something in between.",
-        ],
-        "identity": [
-            "{date_range}, your inner emotional world went through a meaningful shift. Old emotional patterns became visible. Your relationship with your own feelings — and possibly with your mother or family — changed in some real way.",
-        ],
-    },
-
-    "Venus": {
-        "love": [
-            "{date_range}, your love life or closest relationship went through a significant phase — a new connection, a deepening of commitment, a painful separation, or a fundamental shift in what you wanted from love.",
-            "{date_range}, something in your relationship world changed meaningfully — either a new beginning, a painful ending, or a moment when the nature of a key relationship became undeniable.",
-        ],
-        "finances": [
-            "{date_range}, your financial life shifted — either toward more comfort and enjoyment, or through a significant expense or financial reorganisation connected to relationships or lifestyle.",
-        ],
-        "career": [
-            "{date_range}, your creative output, professional relationships, or public image went through a meaningful change. Something about how you were seen — or how you chose to present yourself — shifted.",
-        ],
-    },
-
-    "Mercury": {
-        "career": [
-            "{date_range}, your work or business went through a period of significant activity — communication, deals, decisions, or a shift in the intellectual direction of your professional life.",
-        ],
-        "finances": [
-            "{date_range}, your financial situation connected to business, communication, or trade was active — either a new income stream opened, a deal materialised, or a business relationship changed.",
-        ],
-    },
-}
-
-# Follow-up clarifications — shown if user says "not quite"
-FOLLOW_UP_CLARIFICATIONS = {
-    "career":   "This could also have shown up as a change in your daily work environment, your team, your boss, or your sense of purpose at work — not necessarily a job change.",
-    "love":     "This could also have been a shift in a close friendship, a family relationship, or your relationship with yourself — not only romantic love.",
-    "home":     "This could also be about your relationship with your parents, your sense of roots, or a country/city you were living in — not just a physical house.",
-    "identity": "This period of change may have been internal rather than visible to others — a shift in values, priorities, or a quiet but deep recalibration of direction.",
-    "finances": "This may have been subtle — a shift in financial thinking, how you valued money, or a quiet change in financial relationships rather than a dramatic gain or loss.",
-    "property": "This could also be about a living situation, a roommate change, or a family property situation — not necessarily buying or selling.",
-    "health":   "This could have shown up as energy fluctuations, burnout, or a period when your body or nervous system was asking for more attention.",
-}
-
-
-# ── Core calculation helpers ───────────────────────────────────────────────────
 
 def _parse_dt(s: str) -> datetime:
-    """Parse date string to datetime."""
-    for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
-        try:
-            return datetime.strptime(s[:10], fmt[:10])
-        except Exception:
-            continue
-    return datetime.utcnow()
+    try:
+        return datetime.strptime(str(s)[:10], "%Y-%m-%d")
+    except Exception:
+        return datetime.utcnow()
 
 
 def _format_date_range(start_dt: datetime, end_dt: datetime) -> str:
-    """
-    Convert exact dates to approximate natural language ranges.
-    e.g. 2019-03-01 to 2021-08-15 → "Between early 2019 and mid-2021"
-    """
-    def _season(dt: datetime) -> str:
+    def season(dt):
         m = dt.month
-        if m <= 3:
-            return f"early {dt.year}"
-        elif m <= 6:
-            return f"mid-{dt.year}"
-        elif m <= 9:
-            return f"late {dt.year}"
-        else:
-            return f"late {dt.year}"
-
-    start_str = _season(start_dt)
-    end_str   = _season(end_dt)
-
+        if m <= 3:   return f"early {dt.year}"
+        elif m <= 6: return f"mid-{dt.year}"
+        else:        return f"late {dt.year}"
     if start_dt.year == end_dt.year:
-        # Same year — just say "During [year]"
         return f"During {start_dt.year}"
-    elif end_dt.year - start_dt.year == 1:
-        # Adjacent years — "Between [year] and [year]"
+    elif end_dt.year - start_dt.year <= 2:
         return f"Between {start_dt.year} and {end_dt.year}"
-    else:
-        return f"Between {start_str} and {end_str}"
+    return f"Between {season(start_dt)} and {season(end_dt)}"
 
 
-def _duration_months(start_dt: datetime, end_dt: datetime) -> float:
-    """Return duration in months."""
-    delta = end_dt - start_dt
-    return delta.days / 30.44
+def _build_chart_brief(
+    chart_data: dict,
+    dashas: dict,
+    birth_date: str,
+    age: int,
+    gender: str,
+    first_name: str,
+    yogas: list,
+    divisional_charts: dict,
+) -> str:
+    """Build comprehensive astrological brief for LLM."""
 
+    lagna = chart_data.get("lagna", {})
+    lagna_sign = lagna.get("sign", "") if isinstance(lagna, dict) else str(lagna)
+    planets = chart_data.get("planets", {})
 
-def _duration_quality_score(months: float) -> float:
-    """
-    Score the duration quality for proof purposes.
-    Ideal proof windows: 6–30 months.
-    Too short (< 3 months) = hard to remember.
-    Too long (> 7 years) = too diffuse — everything happens.
-    """
-    if months < 3:
-        return 0.2
-    elif months < 6:
-        return 0.5
-    elif months <= 18:
-        return 1.0    # sweet spot
-    elif months <= 30:
-        return 0.90
-    elif months <= 48:
-        return 0.75
-    elif months <= 84:
-        return 0.55   # 7 years — too long
-    else:
-        return 0.30
+    lagna_idx = SIGNS.index(lagna_sign) if lagna_sign in SIGNS else 0
 
+    # ── D1 Planet positions ─────────────────────────────────────
+    planet_lines = []
+    for planet, data in planets.items():
+        sign = data.get("sign", "")
+        house = data.get("house", "")
+        nak = data.get("nakshatra", "")
+        retro = "R" if data.get("retrograde") else ""
+        domain = PLANET_DOMAIN.get(planet, "")
+        house_meaning = KEY_HOUSE_MEANINGS.get(int(house) if str(house).isdigit() else 0, "")
+        planet_lines.append(
+            f"  {planet}{retro}: {sign}, house {house} ({house_meaning}) — rules: {domain}"
+        )
 
-def _recency_score(end_dt: datetime, now: datetime) -> float:
-    """
-    More recent = more memorable = higher weight.
-    Periods that ended in the last 8 years score well.
-    Periods that ended 15+ years ago score lower.
-    """
-    years_ago = (now - end_dt).days / 365.25
-    if years_ago < 1:
-        return 0.5    # too recent — may still be processing
-    elif years_ago <= 3:
-        return 1.0    # prime recall window
-    elif years_ago <= 6:
-        return 0.90
-    elif years_ago <= 10:
-        return 0.75
-    elif years_ago <= 15:
-        return 0.55
-    else:
-        return 0.35
+    # ── House lords ─────────────────────────────────────────────
+    house_lord_lines = []
+    for h in [1,2,4,5,7,8,9,10,11,12]:
+        sign_idx = (lagna_idx + h - 1) % 12
+        sign = SIGNS[sign_idx]
+        lord = SIGN_LORDS.get(sign, "")
+        lord_house = planets.get(lord, {}).get("house", "?")
+        house_lord_lines.append(
+            f"  {h}th house lord: {lord} in house {lord_house}"
+        )
 
+    # ── Conjunctions and aspects ────────────────────────────────
+    conj_lines = []
+    planet_list = list(planets.keys())
+    for i, p1 in enumerate(planet_list):
+        for p2 in planet_list[i+1:]:
+            h1 = planets[p1].get("house", 0)
+            h2 = planets[p2].get("house", 0)
+            if h1 and h2 and h1 == h2:
+                conj_lines.append(f"  {p1} conjunct {p2} in house {h1} ({KEY_HOUSE_MEANINGS.get(h1,'')})")
 
-def _get_past_mahadashas(dashas: dict, now: datetime) -> list:
-    """
-    Extract all completed Mahadashas (end date before today).
-    Uses type/level field — not duration hack.
-    """
+    # ── Past dashas ──────────────────────────────────────────────
+    now = datetime.utcnow()
     vim = dashas.get("vimsottari", [])
-    past_mds = []
-    for p in vim:
-        try:
-            # Check level/type field — mahadasha or antardasha
-            level = p.get("level") or p.get("type") or ""
-            if level not in ("mahadasha", "1"):
-                # Also check by duration as fallback
-                start_dt_tmp = _parse_dt(p.get("start") or p.get("start_date",""))
-                end_dt_tmp   = _parse_dt(p.get("end")   or p.get("end_date",""))
-                dur = (end_dt_tmp - start_dt_tmp).days / 365.25
-                if dur < 4:
-                    continue
-            start_str = p.get("start") or p.get("start_date","")
-            end_str   = p.get("end")   or p.get("end_date","")
-            if not start_str or not end_str:
-                continue
-            start_dt = _parse_dt(start_str)
-            end_dt   = _parse_dt(end_str)
-            if end_dt >= now:
-                continue
-            past_mds.append({
-                "planet":          p.get("lord_or_sign") or p.get("planet_or_sign",""),
-                "start_dt":        start_dt,
-                "end_dt":          end_dt,
-                "duration_months": _duration_months(start_dt, end_dt),
-                "level":           "mahadasha",
-            })
-        except Exception:
+
+    past_md_lines = []
+    current_md = None
+    current_ad = None
+
+    for row in vim:
+        lord  = row.get("lord_or_sign") or row.get("planet_or_sign", "")
+        level = row.get("level") or row.get("type", "")
+        sd    = _parse_dt(row.get("start_date") or row.get("start", ""))
+        ed    = _parse_dt(row.get("end_date")   or row.get("end", ""))
+        dr    = _format_date_range(sd, ed)
+
+        if level == "mahadasha":
+            if ed < now:
+                past_md_lines.append(
+                    f"  {lord} Mahadasha {dr} — "
+                    f"domain: {PLANET_DOMAIN.get(lord,'')}"
+                )
+            elif sd <= now <= ed:
+                current_md = (lord, dr)
+        elif level == "antardasha":
+            if sd <= now <= ed:
+                current_ad = (lord, dr)
+
+    # ── Yogas ────────────────────────────────────────────────────
+    strong_yogas   = [y for y in yogas if y.get("strength") == "strong"]
+    moderate_yogas = [y for y in yogas if y.get("strength") == "moderate"]
+
+    # ── D9 and D10 summaries ─────────────────────────────────────
+    d9  = divisional_charts.get("d9", {})
+    d10 = divisional_charts.get("d10", {})
+
+    d9_lagna = d9.get("lagna", "unknown")
+    d9_venus = d9.get("planets", {}).get("Venus", {})
+    d9_moon  = d9.get("planets", {}).get("Moon", {})
+
+    d10_lagna = d10.get("lagna", "unknown")
+    d10_sun   = d10.get("planets", {}).get("Sun", {})
+    d10_sat   = d10.get("planets", {}).get("Saturn", {})
+    d10_jup   = d10.get("planets", {}).get("Jupiter", {})
+
+    # ── Life stage ───────────────────────────────────────────────
+    if age < 28:   life_stage = "Brahmacharya (student/formation, pre-Saturn return)"
+    elif age < 50: life_stage = "Grihastha (householder/building, prime life)"
+    elif age < 72: life_stage = "Vanaprastha (wisdom/legacy, post-peak)"
+    else:          life_stage = "Sannyasa (liberation/completion)"
+
+    name_str = first_name if first_name else "the person"
+    gender_note = ""
+    if gender and gender.lower() in ("female","woman","f"):
+        gender_note = f"Gender: Female — predictions should emphasize relational, emotional, and family domains where relevant."
+    elif gender and gender.lower() in ("male","man","m"):
+        gender_note = f"Gender: Male — predictions should emphasize career, authority, and action domains where relevant."
+
+    # ── Lal Kitab house rules ────────────────────────────────────
+    lk_lines = []
+    for planet, data in planets.items():
+        house = data.get("house", 0)
+        if not house:
             continue
-    past_mds.sort(key=lambda x: x["end_dt"], reverse=True)
-    return past_mds
+        lk_lines.append(f"  {planet} in house {house}: {_lal_kitab_rule(planet, int(house))}")
+
+    brief = f"""
+=== COMPLETE ASTROLOGICAL BRIEF FOR PROOF POINTS ===
+
+PERSON: {name_str}, Age {age}, DOB {birth_date}
+Life Stage: {life_stage}
+{gender_note}
+
+=== D1 NATAL CHART ===
+Lagna (Rising Sign): {lagna_sign}
+Lagna Lord: {SIGN_LORDS.get(lagna_sign,'')} in house {planets.get(SIGN_LORDS.get(lagna_sign,''),{{}}).get('house','?')}
+
+PLANETARY POSITIONS:
+{chr(10).join(planet_lines)}
+
+HOUSE LORDS:
+{chr(10).join(house_lord_lines[:8])}
+
+CONJUNCTIONS:
+{chr(10).join(conj_lines) if conj_lines else "  No major conjunctions"}
+
+=== STRONG YOGAS ===
+{chr(10).join(f"  • {y['name']}: {y['effect']}" for y in strong_yogas) if strong_yogas else "  None"}
+
+MODERATE YOGAS:
+{chr(10).join(f"  • {y['name']}: {y['effect']}" for y in moderate_yogas[:4]) if moderate_yogas else "  None"}
+
+=== D9 NAVAMSA (Soul and Marriage) ===
+D9 Lagna: {d9_lagna}
+Venus in D9: {d9_venus.get('sign','?')} house {d9_venus.get('house','?')} (marriage/relationship quality)
+Moon in D9: {d9_moon.get('sign','?')} house {d9_moon.get('house','?')} (emotional fulfillment)
+
+=== D10 DASHAMSA (Career) ===
+D10 Lagna: {d10_lagna}
+Sun in D10: house {d10_sun.get('house','?')} (leadership/authority in career)
+Saturn in D10: house {d10_sat.get('house','?')} (discipline/longevity in career)
+Jupiter in D10: house {d10_jup.get('house','?')} (expansion/wisdom in career)
+
+=== VIMSOTTARI DASHA HISTORY ===
+PAST COMPLETED CHAPTERS (use these for proof points):
+{chr(10).join(past_md_lines) if past_md_lines else "  No completed mahadashas"}
+
+CURRENT CHAPTER: {f"{current_md[0]} Mahadasha ({current_md[1]})" if current_md else "unknown"}
+Current Sub-period: {f"{current_ad[0]} Antardasha" if current_ad else "unknown"}
+
+=== LAL KITAB HOUSE ANALYSIS ===
+{chr(10).join(lk_lines[:6])}
+
+=== END OF ASTROLOGICAL BRIEF ===
+"""
+    return brief
 
 
-def _get_past_high_impact_antardashas(dashas: dict, now: datetime) -> list:
-    """
-    Extract completed Antardashas for high-impact planets only.
-    High-impact: Rahu, Saturn, Ketu, Mars, Jupiter (in order of impact).
-    Duration filter: 6 months – 4 years (sweet spot for proof).
-    """
-    HIGH_IMPACT = {"Rahu", "Saturn", "Ketu", "Mars", "Jupiter", "Venus", "Sun"}
-    vim = dashas.get("vimsottari", [])
-    past_ads = []
-    for p in vim:
-        try:
-            planet = p.get("lord_or_sign") or p.get("planet_or_sign","")
-            if planet not in HIGH_IMPACT:
-                continue
-            # Only antardashas — skip mahadashas
-            level = p.get("level") or p.get("type") or ""
-            if level == "mahadasha":
-                continue
-            # Duration check: antardasha should be < 4 years
-            start_str = p.get("start") or p.get("start_date","")
-            end_str   = p.get("end")   or p.get("end_date","")
-            if not start_str or not end_str:
-                continue
-            start_dt = _parse_dt(start_str)
-            end_dt   = _parse_dt(end_str)
-            if end_dt >= now:
-                continue
-            months = _duration_months(start_dt, end_dt)
-            if months < 5 or months > 50:
-                continue
-            past_ads.append({
-                "planet":          planet,
-                "start_dt":        start_dt,
-                "end_dt":          end_dt,
-                "duration_months": months,
-                "level":           "antardasha",
-            })
-        except Exception:
-            continue
-    past_ads.sort(key=lambda x: x["end_dt"], reverse=True)
-    return past_ads
+def _lal_kitab_rule(planet: str, house: int) -> str:
+    """Basic Lal Kitab interpretation for planet in house."""
+    LK_RULES = {
+        ("Sun",1):    "Strong personality, father's influence dominant, leadership from early life",
+        ("Sun",10):   "Career success, authority in profession, father's legacy in work",
+        ("Sun",12):   "Career struggles, father issues, spiritual path, foreign connections",
+        ("Moon",1):   "Emotional personality, mother's strong influence, public life prominent",
+        ("Moon",4):   "Happy home life, mother's blessings, property gains",
+        ("Moon",12):  "Emotional isolation, spiritual depth, foreign lands, mother separation",
+        ("Mars",1):   "Aggressive, energetic, initiator, early life full of action",
+        ("Mars",7):   "Conflict in partnerships, strong-willed spouse, business through force",
+        ("Mars",8):   "Sudden events, accidents possible, interest in hidden matters",
+        ("Mercury",1):"Intelligent, communicative, business-minded from youth",
+        ("Mercury",10):"Business success, communication career, multiple income streams",
+        ("Jupiter",1): "Blessed life, wisdom, teacher's energy, generally protected",
+        ("Jupiter",9): "Religious, dharmic, fortunate father, higher education",
+        ("Jupiter",10):"Career in teaching/law/religion/finance, respected professionally",
+        ("Venus",1):  "Beautiful appearance, artistic nature, love life prominent",
+        ("Venus",7):  "Loving marriage, beautiful spouse, success through partnerships",
+        ("Venus",12): "Expenditure on luxury, secret relationships, foreign pleasures",
+        ("Saturn",1): "Slow start, disciplined life, hardship builds character",
+        ("Saturn",8): "Long life, interest in occult, hidden enemies, inheritance themes",
+        ("Saturn",10):"Career through hard work, delayed success, respected in old age",
+        ("Saturn",12):"Spiritual liberation, foreign settlement, detachment",
+        ("Rahu",1):   "Unusual personality, foreign influence, unconventional life path",
+        ("Rahu",7):   "Unusual marriage, foreign spouse possible, unconventional partnerships",
+        ("Ketu",1):   "Spiritual nature, detached personality, past life abilities",
+        ("Ketu",12):  "Moksha indicator, spiritual liberation, loss of material attachment",
+    }
+    return LK_RULES.get((planet, house),
+           f"{planet} in {house}th house — active {PLANET_DOMAIN.get(planet,'')} themes through this life area")
 
 
-def _get_saturn_return(birth_date: str, now: datetime) -> Optional[dict]:
-    """
-    Detect if user has already gone through their Saturn return (~age 27-31).
-    Saturn return is one of the most universally recognisable life events.
-    Returns a synthetic proof point dict if applicable.
-    """
-    try:
-        birth_dt = _parse_dt(birth_date)
-        age      = (now - birth_dt).days / 365.25
-        if age < 31:
-            return None   # hasn't happened yet
-        # Saturn return window: approx age 27.5–30.5
-        return_start = birth_dt.replace(year=birth_dt.year + 27)
-        return_end   = birth_dt.replace(year=birth_dt.year + 30)
-        if return_end >= now:
-            return None   # still in progress
-        return {
-            "planet":          "Saturn",
-            "start_dt":        return_start,
-            "end_dt":          return_end,
-            "duration_months": _duration_months(return_start, return_end),
-            "level":           "saturn_return",
-        }
-    except Exception:
-        return None
+def _build_proof_points_prompt(
+    chart_brief: str,
+    birth_date: str,
+    age: int,
+    first_name: str,
+) -> str:
+    """Build the LLM prompt for proof point generation."""
+
+    name_str = first_name if first_name else "this person"
+
+    return f"""You are a master Vedic astrologer with 30 years of experience.
+You are given a complete astrological brief for {name_str}, age {age}.
+
+{chart_brief}
+
+TASK: Generate exactly 3 proof points — past life events that this chart 
+predicts happened. These will be shown to the person as "We'll tell you 
+3 things that already happened in your life."
+
+STRICT RULES:
+1. Base each proof point on SPECIFIC completed dasha periods from the chart
+2. Reference SPECIFIC planets, houses, and their significations
+3. Make statements specific enough to feel personal but accurate enough to land
+4. NEVER use astrology jargon (no "mahadasha", "dasha", "Rahu", planet names)
+5. Write in past tense — these already happened
+6. Account for age: {name_str} is {age} years old
+   - If 60+: NO love/romance predictions. Focus on: career legacy, family,
+     health patterns, spiritual development, financial situations, property
+   - If 40-60: career shifts, relationship depth, children themes, wealth
+   - If 25-40: identity formation, career building, love/marriage
+   - If under 25: education, early career, family separation, identity
+7. Each statement should have a specific date range tied to a real dasha period
+8. The confidence score reflects how strong the astrological indicators are
+
+DOMAIN GUIDANCE based on age {age}:
+{"Focus on: career legacy, health patterns, family/children situations, spiritual development, financial/property matters. Do NOT generate love/romance predictions." if age >= 60 else "All domains relevant: career, relationships, home, identity, finances." if age >= 35 else "Focus on: identity formation, career beginnings, education, family dynamics, early relationships."}
+
+OUTPUT FORMAT (return valid JSON only, no other text):
+{{
+  "proof_points": [
+    {{
+      "statement": "Between [year] and [year], [specific past-tense statement about what happened in their life]",
+      "date_range": "Between [year] and [year]",
+      "domain": "career|home|identity|finances|family|health|relationships",
+      "domain_label": "[human readable label]",
+      "confidence": 0.75,
+      "astrological_basis": "[brief internal note on which planets/houses drove this — NOT shown to user]",
+      "follow_up": "[if user says 'not quite', this clarifies what else it could mean]"
+    }}
+  ]
+}}
+
+EXAMPLE of quality output for a 68-year-old:
+{{
+  "statement": "Between 2013 and 2023, you went through a decade-long period of deepening — professionally you moved from building to sustaining, and something significant in your family structure or living situation changed, possibly more than once. This was a period of processing what your life had meant rather than pushing toward new goals.",
+  "date_range": "Between 2013 and 2023",
+  "domain": "identity",
+  "domain_label": "Life Direction & Legacy",
+  "confidence": 0.82,
+  "astrological_basis": "Moon Mahadasha 2013-2023, Moon in 12th house conjunct Saturn — emotional withdrawal, isolation, processing of the past",
+  "follow_up": "This may have shown up as a health pattern requiring more attention, or as a shift in your relationship with your own parents or children."
+}}
+
+Now generate 3 specific proof points for {name_str} (age {age}) based on 
+their actual chart. Make each one feel like you know their life.
+"""
 
 
-def _get_rahu_ketu_return(birth_date: str, now: datetime) -> Optional[dict]:
-    """
-    Detect if user has passed their Rahu/Ketu return (~age 18-19 and 37-38).
-    Major karmic crossroads moments — very memorable.
-    """
-    try:
-        birth_dt = _parse_dt(birth_date)
-        age      = (now - birth_dt).days / 365.25
-        candidates = []
-        if age >= 20:
-            r_start = birth_dt.replace(year=birth_dt.year + 17)
-            r_end   = birth_dt.replace(year=birth_dt.year + 19)
-            if r_end < now:
-                candidates.append({
-                    "planet":          "Rahu",
-                    "start_dt":        r_start,
-                    "end_dt":          r_end,
-                    "duration_months": _duration_months(r_start, r_end),
-                    "level":           "rahu_return",
-                })
-        if age >= 39:
-            r_start = birth_dt.replace(year=birth_dt.year + 36)
-            r_end   = birth_dt.replace(year=birth_dt.year + 38)
-            if r_end < now:
-                candidates.append({
-                    "planet":          "Rahu",
-                    "start_dt":        r_start,
-                    "end_dt":          r_end,
-                    "duration_months": _duration_months(r_start, r_end),
-                    "level":           "rahu_return",
-                })
-        # Return most recent if any
-        if candidates:
-            return sorted(candidates, key=lambda x: x["end_dt"], reverse=True)[0]
-        return None
-    except Exception:
-        return None
-
-
-# ── Domain assignment ──────────────────────────────────────────────────────────
-
-def _assign_domain(planet: str, chart_data: dict, used_domains: set) -> str:
-    """
-    Assign the best available domain for a planet, avoiding already-used domains.
-    Falls back through primary → secondary → any available.
-    """
-    primary   = PLANET_PRIMARY_DOMAIN.get(planet, "identity")
-    secondary = PLANET_SECONDARY_DOMAIN.get(planet, "career")
-
-    if primary not in used_domains:
-        return primary
-    if secondary not in used_domains:
-        return secondary
-    # Try remaining domains
-    all_domains = ["career", "love", "home", "identity", "finances", "property", "health"]
-    for d in all_domains:
-        if d not in used_domains:
-            return d
-    return primary   # fallback — allow duplicate if no choice
-
-
-def _get_statement(planet: str, domain: str, date_range: str) -> Optional[str]:
-    """
-    Get the best proof statement for a planet + domain combination.
-    Returns None if no statement template exists.
-    """
-    planet_statements = PROOF_STATEMENTS.get(planet, {})
-    domain_statements = planet_statements.get(domain, [])
-
-    # If no exact match, try identity as fallback domain
-    if not domain_statements:
-        domain_statements = planet_statements.get("identity", [])
-
-    if not domain_statements:
-        return None
-
-    # Always use the first (most universally applicable) statement
-    statement = domain_statements[0]
-    return statement.replace("{date_range}", date_range)
-
-
-# ── Scoring ───────────────────────────────────────────────────────────────────
-
-def _score_candidate(candidate: dict, now: datetime) -> float:
-    """
-    Score a candidate proof point on 4 dimensions.
-    Returns final confidence score 0.0–1.0.
-    """
-    planet  = candidate["planet"]
-    months  = candidate["duration_months"]
-    end_dt  = candidate["end_dt"]
-    level   = candidate["level"]
-
-    # Dimension 1: Planet impact (how memorable is this planet's energy)
-    planet_score = PLANET_IMPACT_SCORE.get(planet, 0.5)
-
-    # Dimension 2: Duration quality
-    duration_score = _duration_quality_score(months)
-
-    # Dimension 3: Recency
-    recency_score = _recency_score(end_dt, now)
-
-    # Dimension 4: Level bonus
-    # Mahadashas are major life chapters — very high confidence
-    # Astronomical returns (Saturn return etc) are universal
-    level_bonus = {
-        "mahadasha":    0.10,
-        "antardasha":   0.00,
-        "saturn_return": 0.15,
-        "rahu_return":   0.10,
-    }.get(level, 0.0)
-
-    # Weighted combination
-    raw = (
-        planet_score  * 0.35 +
-        duration_score * 0.30 +
-        recency_score  * 0.25 +
-        level_bonus    * 0.10
-    )
-
-    # Normalise to 0.0–1.0
-    return min(round(raw, 3), 1.0)
-
-
-# ── Main public function ──────────────────────────────────────────────────────
-
-def generate_proof_points(
-    birth_date:  str,
-    chart_data:  dict,
-    dashas:      dict,
-    first_name:  str = "",
-    gender:      str = "",
-    lagna_sign:  str = "",
+async def generate_proof_points_llm(
+    birth_date: str,
+    chart_data: dict,
+    dashas: dict,
+    first_name: str = "",
+    gender: str = "",
+    yogas: list = None,
+    divisional_charts: dict = None,
 ) -> list:
     """
-    Generate the top 3 proof points for the given chart.
+    Generate proof points using LLM with full astrological context.
+    This replaces the template-based approach entirely.
+    """
+    import json
+    from datetime import date
 
-    Args:
-        birth_date:  "YYYY-MM-DD"
-        chart_data:  standard chart_data dict from chart module
-        dashas:      standard dashas dict from get_dashas_for_chart()
+    if yogas is None:
+        yogas = []
+    if divisional_charts is None:
+        divisional_charts = {}
 
-    Returns:
-        List of ProofPoint dicts, max 3, sorted by confidence descending.
-        Each dict has:
-            statement     str   — plain English, past tense
-            date_range    str   — e.g. "Between early 2019 and mid-2021"
-            domain        str   — career / love / home / identity / finances
-            domain_label  str   — display label
-            domain_icon   str   — emoji
-            confidence    float — 0.65–0.95
-            follow_up     str   — clarification if user says "not quite"
-            planet        str   — internal only (not shown in UI)
+    # Calculate age
+    try:
+        born = date.fromisoformat(birth_date[:10])
+        age = (date.today() - born).days // 365
+    except Exception:
+        age = 35
+
+    # Build comprehensive chart brief
+    chart_brief = _build_chart_brief(
+        chart_data=chart_data,
+        dashas=dashas,
+        birth_date=birth_date,
+        age=age,
+        gender=gender,
+        first_name=first_name,
+        yogas=yogas,
+        divisional_charts=divisional_charts,
+    )
+
+    # Build LLM prompt
+    prompt = _build_proof_points_prompt(chart_brief, birth_date, age, first_name)
+
+    # Call LLM
+    try:
+        import openai
+        client = openai.AsyncOpenAI(
+            api_key=os.getenv("DEEPSEEK_API_KEY"),
+            base_url="https://api.deepseek.com/v1",
+        )
+        response = await client.chat.completions.create(
+            model="deepseek-chat",
+            messages=[
+                {"role": "system", "content": "You are a master Vedic astrologer. Return only valid JSON."},
+                {"role": "user",   "content": prompt}
+            ],
+            temperature=0.3,
+            max_tokens=1500,
+            timeout=45,
+        )
+        raw = response.choices[0].message.content.strip()
+
+        # Clean JSON
+        if raw.startswith("```"):
+            raw = raw.split("```")[1]
+            if raw.startswith("json"):
+                raw = raw[4:]
+        raw = raw.strip()
+
+        data = json.loads(raw)
+        points = data.get("proof_points", [])
+
+        # Ensure domain_icon
+        DOMAIN_ICONS = {
+            "career":"💼","home":"🏠","identity":"🔄","finances":"💰",
+            "family":"👨‍👩‍👧","health":"⚡","relationships":"💫"
+        }
+        for p in points:
+            p["domain_icon"] = DOMAIN_ICONS.get(p.get("domain",""), "✦")
+
+        return points[:3]
+
+    except Exception as e:
+        print(f"[proof_points] LLM error: {e}")
+        return _fallback_proof_points(chart_data, dashas, birth_date, age)
+
+
+def _fallback_proof_points(
+    chart_data: dict, dashas: dict,
+    birth_date: str, age: int
+) -> list:
+    """
+    Fallback to improved template system if LLM fails.
+    Still uses actual dasha dates and chart data.
     """
     now = datetime.utcnow()
+    vim = dashas.get("vimsottari", [])
 
-    # ── Gather all candidates ──────────────────────────────────────
-    candidates = []
+    past_periods = []
+    for row in vim:
+        lord  = row.get("lord_or_sign") or row.get("planet_or_sign","")
+        level = row.get("level") or row.get("type","")
+        sd    = _parse_dt(row.get("start_date") or row.get("start",""))
+        ed    = _parse_dt(row.get("end_date")   or row.get("end",""))
+        if ed < now and level == "mahadasha" and lord not in ("Mercury",):
+            past_periods.append((lord, sd, ed))
 
-    # Past Mahadashas
-    candidates.extend(_get_past_mahadashas(dashas, now))
+    past_periods.sort(key=lambda x: x[2], reverse=True)
 
-    # Past high-impact Antardashas
-    candidates.extend(_get_past_high_impact_antardashas(dashas, now))
+    HIGH_IMPACT_TEMPLATES = {
+        "Rahu":   "A major transformation reshaped your life direction — old structures fell away and something new and unfamiliar began forming.",
+        "Saturn": "A period of sustained pressure and restructuring demanded discipline and patience. What was built during this time was built to last.",
+        "Ketu":   "Something significant came to an end — a chapter closed, a relationship or role was released, and a quieter, more inward phase began.",
+        "Mars":   "A high-energy, high-stakes period — action was required, conflicts came to a head, and decisive moves were made.",
+        "Jupiter":"An expansion phase opened doors — growth, opportunity, and optimism made this period qualitatively different from what came before.",
+        "Venus":  "Your relationships or creative life went through significant change — something in how you loved or what you valued shifted.",
+        "Moon":   "Your home life, family situation, or emotional foundations went through meaningful change.",
+        "Sun":    "Your career identity or relationship with authority underwent a significant shift.",
+    }
 
-    # Saturn return (if applicable)
-    saturn_return = _get_saturn_return(birth_date, now)
-    if saturn_return:
-        candidates.append(saturn_return)
+    DOMAIN_ICONS = {
+        "career":"💼","home":"🏠","identity":"🔄","finances":"💰",
+        "family":"👨‍👩‍👧","health":"⚡","relationships":"💫"
+    }
 
-    # Rahu/Ketu return (if applicable)
-    rahu_return = _get_rahu_ketu_return(birth_date, now)
-    if rahu_return:
-        candidates.append(rahu_return)
-
-    if not candidates:
-        return []
-
-    # ── Score all candidates ───────────────────────────────────────
-    for c in candidates:
-        c["score"] = _score_candidate(c, now)
-
-    # Sort by score descending
-    candidates.sort(key=lambda x: x["score"], reverse=True)
-
-    # ── Build proof points — max 3, one per domain ────────────────
-    proof_points = []
+    points = []
     used_domains = set()
-    seen_periods = set()  # avoid overlapping date ranges
+    DOMAINS = {"Rahu":"identity","Saturn":"career","Ketu":"identity",
+               "Mars":"career","Jupiter":"finances","Venus":"relationships",
+               "Moon":"home","Sun":"career"}
 
-    for c in candidates:
-        if len(proof_points) >= 3:
+    for lord, sd, ed in past_periods[:6]:
+        if len(points) >= 3:
             break
-
-        # Skip if score too low
-        if c["score"] < 0.55:
+        template = HIGH_IMPACT_TEMPLATES.get(lord)
+        if not template:
+            continue
+        domain = DOMAINS.get(lord, "identity")
+        if domain in used_domains:
+            domain = "identity" if domain != "identity" else "finances"
+        if domain in used_domains:
             continue
 
-        planet = c["planet"]
-
-        # Skip Mercury — statements too vague
-        if planet == "Mercury":
-            continue
-
-        # Assign domain
-        domain = _assign_domain(planet, chart_data, used_domains)
-
-        # Get the statement
-        date_range = _format_date_range(c["start_dt"], c["end_dt"])
-
-        # Avoid near-duplicate date ranges
-        date_key = f"{c['start_dt'].year}-{c['end_dt'].year}"
-        if date_key in seen_periods:
-            continue
-
-        statement = _get_statement(planet, domain, date_range)
-        if not statement:
-            continue
-
-        domain_cfg = DOMAIN_CONFIG.get(domain, {"icon": "🔄", "label": domain.title()})
-
-        proof_points.append({
-            "statement":    statement,
-            "date_range":   date_range,
+        dr = _format_date_range(sd, ed)
+        points.append({
+            "statement":    f"{dr}, {template}",
+            "date_range":   dr,
             "domain":       domain,
-            "domain_label": domain_cfg["label"],
-            "domain_icon":  domain_cfg["icon"],
-            "confidence":   c["score"],
-            "follow_up":    FOLLOW_UP_CLARIFICATIONS.get(domain, ""),
-            "planet":       planet,         # internal — do NOT expose in UI
-            "level":        c["level"],     # internal
+            "domain_label": domain.replace("_"," ").title(),
+            "domain_icon":  DOMAIN_ICONS.get(domain,"✦"),
+            "confidence":   0.72,
+            "follow_up":    "This may have shown up more subtly — as a shift in values or priorities rather than a dramatic external event.",
+            "planet":       lord,
         })
-
         used_domains.add(domain)
-        seen_periods.add(date_key)
 
-    return proof_points
+    return points
 
 
-# ── Score evaluation helper ───────────────────────────────────────────────────
+# ── Keep synchronous wrapper for backward compatibility ───────────────────────
+def generate_proof_points(
+    birth_date: str,
+    chart_data: dict,
+    dashas: dict,
+    first_name: str = "",
+    gender: str = "",
+    lagna_sign: str = "",
+    yogas: list = None,
+    divisional_charts: dict = None,
+) -> list:
+    """
+    Synchronous wrapper — falls back to template system.
+    The async LLM version is called directly from main.py.
+    """
+    from datetime import date
+    try:
+        born = date.fromisoformat(birth_date[:10])
+        age  = (date.today() - born).days // 365
+    except Exception:
+        age = 35
 
+    return _fallback_proof_points(chart_data, dashas, birth_date, age)
+
+
+# ── Score evaluation ─────────────────────────────────────────────────────────
 def evaluate_proof_score(responses: list) -> dict:
-    """
-    Given a list of user responses to the 3 proof points,
-    compute the overall accuracy and determine the CTA.
-
-    Args:
-        responses: list of "correct" | "not_quite" per proof point
-                   e.g. ["correct", "correct", "not_quite"]
-
-    Returns dict:
-        score:          int   — 0, 1, 2, or 3
-        accuracy_pct:   int   — 0-100
-        verdict:        str   — "strong" | "good" | "free_month"
-        headline:       str   — shown on results screen
-        sub_headline:   str   — secondary message
-        cta_text:       str   — button label
-        offer_free_month: bool
-    """
-    correct = sum(1 for r in responses if r == "correct")
+    correct = sum(1 for r in responses if r in ("yes","correct"))
+    partial = sum(1 for r in responses if r in ("partial","not_quite","partially"))
     total   = len(responses) or 3
-    pct     = int((correct / total) * 100)
+    pct     = round((correct + partial * 0.5) / total * 100)
 
-    if correct >= 3:
-        return {
-            "score":            3,
-            "accuracy_pct":     100,
-            "verdict":          "strong",
-            "headline":         "Your chart is unusually clear.",
-            "sub_headline":     "3 out of 3. Most charts give us 2. Yours is precise — which means everything ahead is also precise.",
-            "cta_text":         "Unlock My Full Blueprint →",
-            "offer_free_month": False,
-        }
-    elif correct == 2:
-        return {
-            "score":            2,
-            "accuracy_pct":     67,
-            "verdict":          "good",
-            "headline":         "2 out of 3. That's not luck.",
-            "sub_headline":     "The one that missed may still be true — sometimes the most significant periods are the ones we process years later.",
-            "cta_text":         "See What's Coming Next →",
-            "offer_free_month": False,
-        }
-    elif correct == 1:
-        return {
-            "score":            1,
-            "accuracy_pct":     33,
-            "verdict":          "free_month",
-            "headline":         "Your first month is on us.",
-            "sub_headline":     "1 out of 3 — we want to do better. Use your free month to see if Antar earns your trust.",
-            "cta_text":         "Start Free →",
-            "offer_free_month": True,
-        }
+    if pct >= 80:
+        return {"score":correct,"accuracy_pct":pct,"verdict":"strong",
+                "headline":"Your chart is unusually clear.",
+                "sub_headline":"That level of match is not coincidence. This pattern runs deep.",
+                "cta_text":"See What's Coming →","offer_free_month":False}
+    elif pct >= 50:
+        return {"score":correct,"accuracy_pct":pct,"verdict":"good",
+                "headline":f"{pct}% match. That is significant.",
+                "sub_headline":"The one that didn't land may still be true — some periods are processed years later.",
+                "cta_text":"See What's Coming →","offer_free_month":False}
     else:
-        return {
-            "score":            0,
-            "accuracy_pct":     0,
-            "verdict":          "free_month",
-            "headline":         "Your first month is on us.",
-            "sub_headline":     "We missed this one. That's rare — and we want to understand why. Your free month starts now.",
-            "cta_text":         "Start Free →",
-            "offer_free_month": True,
-        }
-
-
-# ── Context block for LLM (optional) ─────────────────────────────────────────
-
-def proof_points_to_context_block(proof_points: list) -> str:
-    """
-    Serialise proof points into a context block for the LLM prompt.
-    Used when the user signs up after the proof flow — so the LLM
-    knows what was shown and confirmed.
-    """
-    if not proof_points:
-        return ""
-
-    lines = ["PROOF POINTS SHOWN AT SIGNUP:"]
-    for i, pp in enumerate(proof_points, 1):
-        lines.append(
-            f"  {i}. [{pp['domain'].upper()}] {pp['date_range']} — {pp['domain_label']}"
-            f" (confidence: {int(pp['confidence'] * 100)}%)"
-        )
-    return "\n".join(lines)
+        return {"score":correct,"accuracy_pct":pct,"verdict":"free_month",
+                "headline":"Your first month is on us.",
+                "sub_headline":"We want to earn your trust. Use your free month.",
+                "cta_text":"Start Free →","offer_free_month":True}
