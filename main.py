@@ -2164,19 +2164,25 @@ async def create_chart(
     dasha_rows = []
     for system, periods in [("vimsottari",vim_dashas),("jaimini",jai_dashas),("ashtottari",ash_dashas)]:
         for i, p in enumerate(periods):
+            # Use 'lord' (vimsottari engine key) or fallback to lord_or_sign
+            lord = p.get("lord") or p.get("lord_or_sign") or p.get("planet_or_sign", "")
+            # Use start_date/end_date (engine keys) or fallback to start/end
+            sd = p.get("start_date") or p.get("start", "")
+            ed = p.get("end_date")   or p.get("end", "")
+            # Truncate ISO timestamps to date only
+            if sd and len(sd) > 10: sd = sd[:10]
+            if ed and len(ed) > 10: ed = ed[:10]
             dasha_rows.append({
                 "chart_id":       chart_id,
                 "system":         system,
+                "type":           p.get("level", "mahadasha"),
                 "level":          p.get("level", "mahadasha"),
-                "lord_or_sign":   p.get("lord_or_sign", ""),
-                "planet_or_sign": p.get("lord_or_sign", ""),
-                "start_date":     p.get("start", ""),
-                "end_date":       p.get("end", ""),
-                "start":          p.get("start", ""),
-                "end":            p.get("end", ""),
+                "planet_or_sign": lord,
+                "start_date":     sd,
+                "end_date":       ed,
                 "duration_years": p.get("duration_years", 0),
                 "sequence":       i,
-                "parent_lord":    p.get("parent_lord", ""),
+                "metadata":       {"parent_lord": p.get("parent_lord", "")},
             })
     if dasha_rows:
         try:
