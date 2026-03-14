@@ -2049,18 +2049,36 @@ def _ak_amk(planets: dict):
     return ak, amk
 
 def _current_dasha_str(dashas: dict) -> str:
+    """Return current Mahadasha-Antardasha e.g. Mars-Moon"""
     now = datetime.utcnow()
     vim = dashas.get("vimsottari", [])
-    md = vim[0].get("lord_or_sign","") if vim else ""
+    current_maha = None
+    current_antar = None
     for row in vim:
+        lord  = row.get("lord_or_sign") or row.get("planet_or_sign", "")
+        level = row.get("level") or row.get("type", "mahadasha")
+        start_str = row.get("start_date") or row.get("start", "")
+        end_str   = row.get("end_date")   or row.get("end", "")
+        if not start_str or not end_str:
+            continue
         try:
-            s = datetime.strptime(row["start"][:10],"%Y-%m-%d")
-            e = datetime.strptime(row["end"][:10],"%Y-%m-%d")
-            if s <= now <= e and row.get("level") == "antardasha":
-                return f"{md}-{row['lord_or_sign']}"
+            s = datetime.strptime(str(start_str)[:10], "%Y-%m-%d")
+            e = datetime.strptime(str(end_str)[:10],   "%Y-%m-%d")
+            if s <= now <= e:
+                if level == "mahadasha":
+                    current_maha = lord
+                elif level in ("antardasha", "antar"):
+                    current_antar = lord
         except Exception:
             continue
-    return md
+    if current_maha and current_antar:
+        return f"{current_maha}-{current_antar}"
+    if current_maha:
+        return current_maha
+    for row in vim:
+        if (row.get("level") or row.get("type", "")) == "mahadasha":
+            return row.get("lord_or_sign") or row.get("planet_or_sign", "Unknown")
+    return "Unknown"
 
 @app.post("/api/v1/chart/create", response_model=ChartCreateResponse)
 async def create_chart(
