@@ -3127,6 +3127,197 @@ async def get_timing_windows(request: dict):
         "current_dasha":   _current_dasha_str(dashas),
     }
 
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# COMPATIBILITY SESSION ENDPOINTS
+# ─────────────────────────────────────────────────────────────────────────────
+
+class CompatibilityStartRequest(BaseModel):
+    chart_id_a:         str
+    chart_id_b:         Optional[str] = None
+    name_a:             str = "Person A"
+    name_b:             str = "Person B"
+    compatibility_type: str = "cofounder"
+    birth_date_b:       Optional[str] = None
+    birth_time_b:       Optional[str] = None
+    birth_city_b:       Optional[str] = None
+    birth_country_b:    Optional[str] = None
+
+
+class CompatibilityContinueRequest(BaseModel):
+    session_id:      str
+    layer:           int
+    startup_context: Optional[dict] = None
+    product_context: Optional[str]  = None
+
+
+@app.post("/api/v1/compatibility/start")
+async def compatibility_start(request: CompatibilityStartRequest):
+    from antar_engine.compatibility_session_engine import (
+        build_person_brief, run_layer1_llm, detect_no_birth_time_chart
+    )
+    import uuid as _uuid
+
+    res_a = supabase.table("charts").select("chart_data,birth_date,name").eq("id", request.chart_id_a).execute()
+    if not res_a.data:
+        raise HTTPException(404, f"Chart {request.chart_id_a} not found")
+    chart_a  = res_a.data[0]["chart_data"]
+    birth_a  = res_a.data[0].get("birth_date","")
+    name_a   = request.name_a or (res_a.data[0].get("name","") or "").split()[0] or "Person A"
+    dashas_a = get_dashas_for_chart(request.chart_id_a)
+    has_time_a = not detect_no_birth_time_chart(chart_a)
+
+    if request.chart_id_b:
+        res_b = supabase.table("charts").select("chart_data,birth_date,name").eq("id", request.chart_id_b).execute()
+        if not res_b.data:
+            raise HTTPException(404, f"Chart {request.chart_id_b} not found")
+        chart_b    = res_b.data[0]["chart_data"]
+        birth_b    = res_b.data[0].get("birth_date","")
+        chart_id_b = request.chart_id_b
+        dashas_b   = get_dashas_for_chart(chart_id_b)
+        has_time_b = not detect_no_birth_time_chart(chart_b)
+    else:
+        if not request.birth_date_b:
+            raise HTTPException(400, "Either chart_id_b or birth_date_b required")
+        birth_time_b = request.birth_time_b or "12:00"
+        has_time_b   = bool(request.birth_time_b)
+        city_b    = request.birth_city_b or "New Delhi"
+        country_b = request.birth_country_b or "IN"
+        coords_b  = geocode_city(city_b, country_b)
+        chart_b   = calculate_chart(
+            birth_date=request.birth_date_b,
+            birth_time=birth_time_b,
+            lat=coords_b["lat"], lng=coords_b["lng"],
+            timezone=coords_b.get("timezone","Asia/Kolkata"),
+        )
+        chart_id_b = str(_uuid.uuid4())
+        supabase.table("charts").insert({
+            "id": chart_id_b,
+            "birth_date": request.birth_date_b,
+            "birth_time": birth_time_b,
+            "birth_city": city_b,
+            "birth_country": country_b,
+            "name": request.name_b,
+            "chart_data": chart_b,
+            "lagna": chart_b.get("lagna",{}).get("sign",""),
+            "moon_sign": chart_b.get("planets",{}).get("Moon",{}).get("sign",""),
+        }).execute()
+        dashas_b = {}
+
+    brief_a = build_person_brief(name_a, chart_a, dashas_a, birth_a, has_time_a)
+    brief_b = build_person_brief(request.name_b, chart_b, dashas_b,
+                                  birth_b if request.chart_id_b else request.birth_date_b,
+                                  has_time_b)
+
+    layer1 = await run_layer1_llm(
+        brief_a=brief_a, brief_b=brief_b,
+        name_a=name_a, name_b=request.name_b,
+        compat_type=request.compatibility_type,
+        has_time_a=has_time_a, has_time_b=has_time_b,
+    )
+
+    session_id = str(_uuid.uuid4())
+    try:
+        supabase.table("compatibility_sessions").insert({
+            "id": session_id,
+            "chart_id_a": request.chart_id_a,
+            "chart_id_b": chart_id_b,
+            "name_a": name_a, "name_b": request.name_b,
+            "compat_type": request.compatibility_type,
+            "brief_a": brief_a, "brief_b": brief_b,
+            "layer1_analysis": layer1,
+            "has_time_a": has_time_a, "has_time_b": has_time_b,
+            "current_layer": 1,
+        }).execute()
+    except Exception as _se:
+        print(f"[compat] session save error (non-fatal): {_se}")
+
+    return {
+        "session_id":     session_id,
+        "layer":          1,
+        "chart_id_b":     chart_id_b,
+        "analysis":       layer1,
+        "has_time_a":     has_time_a,
+        "has_time_b":     has_time_b,
+        "confidence_pct": 90 if (has_time_a and has_time_b) else 65,
+        "next_question":  "Would you like to analyze startup or business alignment?",
+        "can_continue":   True,
+    }
+
+
+@app.post("/api/v1/compatibility/continue")
+async def compatibility_continue(request: CompatibilityContinueRequest):
+    from antar_engine.compatibility_session_engine import run_layer2_llm, run_layer3_llm
+
+    res = supabase.table("compatibility_sessions").select("*").eq("id", request.session_id).execute()
+    if not res.data:
+        raise HTTPException(404, "Compatibility session not found")
+    session = res.data[0]
+    brief_a = session["brief_a"]
+    brief_b = session["brief_b"]
+    name_a  = session["name_a"]
+    name_b  = session["name_b"]
+
+    if request.layer == 2:
+        if not request.startup_context:
+            raise HTTPException(400, "startup_context required for layer 2")
+        analysis = await run_layer2_llm(
+            brief_a=brief_a, brief_b=brief_b,
+            name_a=name_a, name_b=name_b,
+            layer1_summary=session.get("layer1_analysis","")[:500],
+            startup_context=request.startup_context,
+        )
+        supabase.table("compatibility_sessions").update({
+            "layer2_analysis": analysis,
+            "startup_context": request.startup_context,
+            "current_layer": 2,
+        }).eq("id", request.session_id).execute()
+        return {"session_id": request.session_id, "layer": 2,
+                "analysis": analysis, "can_continue": True,
+                "next_question": "Would you like me to analyze your product or pitch deck?"}
+
+    elif request.layer == 3:
+        if not request.product_context:
+            raise HTTPException(400, "product_context required for layer 3")
+        analysis = await run_layer3_llm(
+            brief_a=brief_a, brief_b=brief_b,
+            name_a=name_a, name_b=name_b,
+            layer1_summary=session.get("layer1_analysis","")[:400],
+            layer2_summary=session.get("layer2_analysis","")[:400],
+            product_context=request.product_context,
+        )
+        supabase.table("compatibility_sessions").update({
+            "layer3_analysis": analysis,
+            "product_context": request.product_context,
+            "current_layer": 3,
+        }).eq("id", request.session_id).execute()
+        return {"session_id": request.session_id, "layer": 3,
+                "analysis": analysis, "can_continue": False}
+
+    raise HTTPException(400, "layer must be 2 or 3")
+
+
+@app.get("/api/v1/compatibility/session/{session_id}")
+async def get_compatibility_session(session_id: str):
+    res = supabase.table("compatibility_sessions").select("*").eq("id", session_id).execute()
+    if not res.data:
+        raise HTTPException(404, "Session not found")
+    s = res.data[0]
+    return {
+        "session_id":    session_id,
+        "current_layer": s.get("current_layer", 1),
+        "layer1":        s.get("layer1_analysis"),
+        "layer2":        s.get("layer2_analysis"),
+        "layer3":        s.get("layer3_analysis"),
+        "has_time_a":    s.get("has_time_a", True),
+        "has_time_b":    s.get("has_time_b", True),
+        "compat_type":   s.get("compat_type"),
+        "name_a":        s.get("name_a"),
+        "name_b":        s.get("name_b"),
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
