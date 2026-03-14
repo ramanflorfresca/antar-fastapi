@@ -405,6 +405,14 @@ WEALTH ANALYSIS CONTEXT:
     except Exception as _lka_e:
         print(f"[lk_advanced] error (non-fatal): {_lka_e}")
 
+        # Calculate LK aspects
+    try:
+        from antar_engine.lal_kitab_engine import calculate_lk_aspects
+        _lk_aspects = calculate_lk_aspects(planets, lagna_sign)
+        _lk_aspect_insights = _lk_aspects.get("key_insights",[])
+    except Exception:
+        _lk_aspect_insights = []
+
     lk_block  = lal_kitab_prompt_block(lk_analysis) if lk_analysis else "LK analysis not available"
     trans_block = transits_prompt_block(transit_data) if transit_data else "Transit data not available"
 
@@ -471,6 +479,15 @@ D2 Hora (Wealth chart — Sun hora=Leo=self-made, Moon hora=Cancer=public/inheri
   Wealth signals from D2:
 {chr(10).join('    • '+s for s in d2.get('wealth_signals',['No strong D2 signals'])) }
 D7 Saptamsa (Children): Lagna = {d7.get('lagna','?')}
+
+D60 SHASHTIAMSA (Past Life Karma):
+  Lagna karma: {divisional_charts.get('d60',{{}}).get('lagna','')} — {str(divisional_charts.get('d60',{{}}).get('lagna_karma',('',''))[-1])}
+  Positive karma (karmic gifts): {' | '.join(divisional_charts.get('d60',{{}}).get('positive_karma',[])[:2])}
+  Challenging karma (karmic debts): {' | '.join(divisional_charts.get('d60',{{}}).get('challenging_karma',[])[:2])}
+  Use D60 when asked WHY patterns repeat — this reveals past life causes.
+
+D24 Education chart: Lagna = {divisional_charts.get('d24',{{}}).get('lagna','?')}
+D30 Misfortune chart: Lagna = {divisional_charts.get('d30',{{}}).get('lagna','?')} (malefic sign = problems during that sign lord dasha)
 {concern_context}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 VIMSOTTARI DASHA TIMELINE

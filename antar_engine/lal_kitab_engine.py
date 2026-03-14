@@ -288,3 +288,138 @@ def lal_kitab_prompt_block(lk_analysis: dict, age: int = 35) -> str:
 
     lines.append("=== END LAL KITAB ===")
     return "\n".join(lines)
+
+
+def calculate_lk_aspects(planets: dict, lagna_sign: str) -> dict:
+    """
+    Lal Kitab Aspect System — completely different from Parashari.
+
+    LK Aspect Rules:
+    1. Every planet aspects the 7th house from itself (universal)
+    2. Jupiter aspects 5th and 9th from itself (additional)
+    3. Mars aspects 4th and 8th from itself (additional)
+    4. Saturn aspects 3rd and 10th from itself (additional)
+    5. Rahu/Ketu aspect 5th, 7th, 9th from themselves
+
+    Aspect RESULTS in LK (very different from Parashari):
+    - Planet aspecting its OWN house = powerful protection
+    - Benefic aspecting a house = planet sleeps less, gives results
+    - Malefic aspecting a house = planet in that house becomes disturbed
+    - Mutual aspect of enemies = very bad for both houses
+    - Planet aspecting 2nd from itself = activates income/speech
+    """
+    SIGNS = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo",
+             "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"]
+
+    BENEFICS = ["Jupiter", "Venus", "Moon", "Mercury"]
+    MALEFICS  = ["Saturn", "Mars", "Sun", "Rahu", "Ketu"]
+
+    lagna_idx = SIGNS.index(lagna_sign) if lagna_sign in SIGNS else 0
+
+    # Build house occupation
+    house_planets = {h: [] for h in range(1, 13)}
+    for planet, data in planets.items():
+        h = data.get("house", 0)
+        if h:
+            house_planets[h].append(planet)
+
+    # Calculate all aspects
+    all_aspects = []
+    aspect_on_house = {h: [] for h in range(1, 13)}
+
+    for planet, data in planets.items():
+        p_house = data.get("house", 0)
+        if not p_house:
+            continue
+
+        # Universal 7th aspect
+        seventh = ((p_house - 1 + 6) % 12) + 1
+        all_aspects.append({
+            "from_planet": planet,
+            "from_house":  p_house,
+            "to_house":    seventh,
+            "aspect_type": "7th",
+            "quality":     "benefic" if planet in BENEFICS else "malefic",
+        })
+        aspect_on_house[seventh].append({"planet": planet, "type": "7th"})
+
+        # Special aspects
+        if planet == "Jupiter":
+            for offset in [4, 8]:
+                to_h = ((p_house - 1 + offset) % 12) + 1
+                all_aspects.append({
+                    "from_planet": planet, "from_house": p_house,
+                    "to_house": to_h, "aspect_type": f"{offset+1}th",
+                    "quality": "benefic",
+                })
+                aspect_on_house[to_h].append({"planet": planet, "type": f"{offset+1}th"})
+
+        elif planet == "Mars":
+            for offset in [3, 7]:
+                to_h = ((p_house - 1 + offset) % 12) + 1
+                all_aspects.append({
+                    "from_planet": planet, "from_house": p_house,
+                    "to_house": to_h, "aspect_type": f"{offset+1}th",
+                    "quality": "malefic",
+                })
+                aspect_on_house[to_h].append({"planet": planet, "type": f"{offset+1}th"})
+
+        elif planet == "Saturn":
+            for offset in [2, 9]:
+                to_h = ((p_house - 1 + offset) % 12) + 1
+                all_aspects.append({
+                    "from_planet": planet, "from_house": p_house,
+                    "to_house": to_h, "aspect_type": f"{offset+1}th",
+                    "quality": "malefic",
+                })
+                aspect_on_house[to_h].append({"planet": planet, "type": f"{offset+1}th"})
+
+        elif planet in ["Rahu", "Ketu"]:
+            for offset in [4, 6, 8]:
+                to_h = ((p_house - 1 + offset) % 12) + 1
+                all_aspects.append({
+                    "from_planet": planet, "from_house": p_house,
+                    "to_house": to_h, "aspect_type": f"{offset+1}th",
+                    "quality": "malefic",
+                })
+                aspect_on_house[to_h].append({"planet": planet, "type": f"{offset+1}th"})
+
+    # Key insights from LK aspects
+    key_insights = []
+
+    for house, aspects in aspect_on_house.items():
+        if not aspects:
+            continue
+        benefic_aspects  = [a for a in aspects if a["planet"] in BENEFICS]
+        malefic_aspects  = [a for a in aspects if a["planet"] in MALEFICS]
+        house_occupants  = house_planets.get(house, [])
+
+        if len(malefic_aspects) >= 2 and not benefic_aspects:
+            key_insights.append({
+                "house":   house,
+                "message": f"House {house} has {len(malefic_aspects)} malefic LK aspects ({', '.join(a['planet'] for a in malefic_aspects)}) — this house's significations face obstacles",
+                "type":    "warning",
+            })
+
+        if benefic_aspects and not malefic_aspects:
+            if house in [1,2,4,5,7,9,10,11]:
+                key_insights.append({
+                    "house":   house,
+                    "message": f"House {house} receives benefic LK aspects only ({', '.join(a['planet'] for a in benefic_aspects)}) — protected and supported",
+                    "type":    "positive",
+                })
+
+        # Jupiter aspecting 2nd/5th/9th/11th = wealth/children protection
+        if any(a["planet"] == "Jupiter" for a in aspects) and house in [2, 5, 9, 11]:
+            key_insights.append({
+                "house":   house,
+                "message": f"Jupiter LK aspect on house {house} — divine protection for this house's significations",
+                "type":    "blessing",
+            })
+
+    return {
+        "all_aspects":    all_aspects,
+        "aspect_on_house": aspect_on_house,
+        "key_insights":   key_insights[:6],
+        "lk_aspect_rule": "LK aspects are action-oriented — benefic aspects wake sleeping planets, malefic aspects disturb house significations",
+    }
