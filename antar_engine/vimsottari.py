@@ -112,11 +112,15 @@ def calculate_vimsottari_from_chart(chart_data, birth_jd):
         current_dt = end_dt
 
     # Compute antardashas
+    # Rule: antardasha sequence within a mahadasha STARTS from the mahadasha lord
     all_antardashas = []
     for md in mahadashas_exact:
         total_seconds = (md['end_datetime'] - md['start_datetime']).total_seconds()
         start_dt = md['start_datetime']
-        for i, lord in enumerate(DASHA_SEQUENCE):
+        # Find starting index for this mahadasha lord
+        md_start_idx = DASHA_SEQUENCE.index(md['lord'])
+        for i in range(9):
+            lord = DASHA_SEQUENCE[(md_start_idx + i) % 9]
             lord_years = DASHA_LENGTHS[lord]
             ad_years = (lord_years / 120) * md['duration_years']
             ad_seconds = total_seconds * (ad_years / md['duration_years'])

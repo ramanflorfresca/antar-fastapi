@@ -753,7 +753,7 @@ def verify_token(authorization: str) -> str:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
 
 def get_dashas_for_chart(chart_id: str) -> dict:
-    result = supabase.table("dasha_periods").select("*").eq("chart_id", chart_id).order("sequence").execute()
+    result = supabase.table("dasha_periods").select("*").eq("chart_id", chart_id).order("sequence").limit(500).execute()
     dashas_by_system = {}
     for row in result.data:
         system = row["system"]
@@ -774,8 +774,6 @@ def get_dashas_for_chart(chart_id: str) -> dict:
             "level":          row.get("type") or row.get("level", "mahadasha"),
             "parent_lord":    parent_lord,
         })
-    for sys in dashas_by_system:
-        dashas_by_system[sys] = dashas_by_system[sys][:10]
     return dashas_by_system
 
 # ── LLM ──────────────────────────────────────────────────────────────────────
@@ -2188,7 +2186,7 @@ async def create_chart(
                 "end_date":       ed,
                 "duration_years": p.get("duration_years", 0),
                 "sequence":       i,
-                "metadata":       {"parent_lord": p.get("parent_lord", ""), "level": level_name},
+                "metadata":       {"parent_lord": p.get("parent_lord", ""), "type": level_name},
             })
     if dasha_rows:
         try:
