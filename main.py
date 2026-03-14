@@ -1814,6 +1814,22 @@ async def create_life_event(event: LifeEventCreate, authorization: str = Header(
     result = supabase.table("life_events").insert(data).execute()
     if not result.data:
         raise HTTPException(500, "Failed to create life event")
+    # Merge panchanga into result
+    if panchanga and not panchanga.get("error"):
+        result["panchanga"] = panchanga_formatted
+        result["rahu_kalam"]     = panchanga.get("rahu_kalam","")
+        result["abhijit"]        = panchanga.get("abhijit_muhurta","")
+        result["lucky_hours"]    = panchanga.get("lucky_hours",{})
+        result["do_today"]       = panchanga.get("do_today",[])
+        result["dont_today"]     = panchanga.get("dont_today",[])
+        result["day_color"]      = panchanga.get("day_color","")
+        result["day_number"]     = panchanga.get("day_number","")
+        result["day_mantra"]     = panchanga.get("day_mantra","")
+        result["tithi"]          = panchanga.get("tithi","")
+        result["yoga"]           = panchanga.get("yoga","")
+        result["day_quality"]    = panchanga.get("day_quality","")
+        result["panchanga_5"]    = panchanga_formatted.get("panchanga_5",{})
+
     return result.data[0]
 
 @app.get("/api/v1/user/life-events", response_model=List[LifeEventOut])
@@ -3338,6 +3354,28 @@ async def get_compatibility_session(session_id: str):
         "name_a":        s.get("name_a"),
         "name_b":        s.get("name_b"),
     }
+
+
+
+
+@app.get("/api/v1/panchanga")
+@app.post("/api/v1/panchanga")
+async def get_panchanga(request: dict = {}):
+    """
+    Today's Panchanga — 5 limbs of the day.
+    Includes lucky hours, do/don't, Rahu Kalam, Abhijit Muhurta.
+    No chart_id needed — universal for the day.
+    Optional: pass lat/lng for location-specific timing.
+    """
+    lat = request.get("lat", 28.6) if request else 28.6
+    lng = request.get("lng", 77.2) if request else 77.2
+
+    panchanga = calculate_panchanga(lat=lat, lng=lng)
+    if panchanga.get("error"):
+        raise HTTPException(500, f"Panchanga error: {panchanga['error']}")
+
+    formatted = format_daily_for_user(panchanga)
+    return {**panchanga, **formatted}
 
 
 if __name__ == "__main__":
