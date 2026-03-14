@@ -793,6 +793,7 @@ SYSTEM_PROMPT = (
 async def call_llm(
     prompt: str,
     history: Optional[List[Dict[str, str]]] = None,
+    system_override: str = "",
 ) -> tuple[str, Optional[int]]:
     """
     Calls DeepSeek with the system prompt + optional conversation history
