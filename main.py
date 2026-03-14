@@ -3042,6 +3042,91 @@ async def track_remedy_endpoint(
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+
+@app.post("/api/v1/compatibility")
+async def get_compatibility(request: dict):
+    """
+    Vedic compatibility analysis — D1+D9+Houses+Dasha timing.
+    Supports: relationship | business compatibility types.
+    """
+    from antar_engine.Compatibility import calculate_compatibility
+
+    chart_id_a   = request.get("chart_id_a")
+    chart_id_b   = request.get("chart_id_b")
+    compat_type  = request.get("compatibility_type", "relationship")
+    name_a       = request.get("name_a", "Person A")
+    name_b       = request.get("name_b", "Person B")
+
+    if not chart_id_a or not chart_id_b:
+        raise HTTPException(400, "Both chart_id_a and chart_id_b required")
+
+    res_a = supabase.table("charts").select("chart_data,birth_date").eq("id", chart_id_a).execute()
+    res_b = supabase.table("charts").select("chart_data,birth_date").eq("id", chart_id_b).execute()
+
+    if not res_a.data:
+        raise HTTPException(404, f"Chart {chart_id_a} not found")
+    if not res_b.data:
+        raise HTTPException(404, f"Chart {chart_id_b} not found")
+
+    chart_a      = res_a.data[0]["chart_data"]
+    chart_b      = res_b.data[0]["chart_data"]
+    birth_date_a = res_a.data[0].get("birth_date", "")
+    birth_date_b = res_b.data[0].get("birth_date", "")
+
+    # Inject current dasha strings
+    dashas_a = get_dashas_for_chart(chart_id_a)
+    dashas_b = get_dashas_for_chart(chart_id_b)
+    chart_a["current_dasha"] = _current_dasha_str(dashas_a)
+    chart_b["current_dasha"] = _current_dasha_str(dashas_b)
+
+    result = calculate_compatibility(
+        chart_a=chart_a,
+        chart_b=chart_b,
+        name_a=name_a,
+        name_b=name_b,
+        birth_date_a=birth_date_a,
+        birth_date_b=birth_date_b,
+        compatibility_type=compat_type,
+    )
+    return result
+
+
+@app.post("/api/v1/timing/windows")
+async def get_timing_windows(request: dict):
+    """
+    Auspicious timing windows for specific life events.
+    Uses dasha confluence + transit analysis.
+    """
+    from antar_engine.timing_engine import timing_insights, upcoming_transit_windows
+
+    chart_id = request.get("chart_id")
+    concern  = request.get("concern", "general")
+    language = request.get("language", "en")
+
+    if not chart_id:
+        raise HTTPException(400, "chart_id required")
+
+    res = supabase.table("charts").select("chart_data").eq("id", chart_id).execute()
+    if not res.data:
+        raise HTTPException(404, "Chart not found")
+
+    chart_data = res.data[0]["chart_data"]
+    dashas     = get_dashas_for_chart(chart_id)
+
+    try:
+        insights = timing_insights(chart_data, dashas, supabase=supabase)
+        transits = upcoming_transit_windows(chart_data)
+    except Exception as e:
+        raise HTTPException(500, f"Timing calculation failed: {e}")
+
+    return {
+        "chart_id":        chart_id,
+        "concern":         concern,
+        "timing_insights": insights,
+        "transit_windows": transits[:6] if isinstance(transits, list) else [],
+        "current_dasha":   _current_dasha_str(dashas),
+    }
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
