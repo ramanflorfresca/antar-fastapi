@@ -803,7 +803,7 @@ async def call_llm(
     """
     history = history or []
     messages = [
-        {"role": "system", "content": SYSTEM_PROMPT},
+        {"role": "system", "content": system_override if system_override else SYSTEM_PROMPT},
         *history[-8:],
         {"role": "user", "content": prompt},
     ]
@@ -1364,16 +1364,31 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             prompt += f"\n\n{extra_block}"
 
     # ── LLM CALL — passes conversation history for multi-turn context ──
-    # DEBUG — remove after fix confirmed
-    _is_master = "[predict] Using master context" in str(_full_context[:50]) or (len(_full_context) > 500)
-    print(f"[DEBUG] prompt length: {len(prompt)}")
-    print(f"[DEBUG] prompt starts with: {prompt[:80]!r}")
-    print(f"[DEBUG] _full_context length: {len(_full_context)}")
+    # Use different system prompt for master context vs template
+    _using_master = _full_context and len(_full_context) > 500
+    print(f"[predict] using_master={_using_master} prompt_len={len(prompt)}")
 
-    prediction_text, tokens_used = await call_llm(
-        prompt,
-        history=request.conversation_history or [],
-    )
+    if _using_master:
+        _master_system = (
+            "You are Antar — a precise Vedic astrology AI advisor. "
+            "You have been given a complete astrological brief with exact planetary positions, "
+            "yogas, divisional charts, dasha timeline, Lal Kitab analysis, and current transits. "
+            "Answer the question DIRECTLY and SPECIFICALLY using ONLY the data provided. "
+            "Reference specific planets, houses, yogas, and dasha periods by name. "
+            "Never use generic astrology advice. Never use template headers like "
+            "'YOUR SIGNAL RIGHT NOW'. "
+            "Be direct, specific, and honest — including when the chart does NOT support something."
+        )
+        prediction_text, tokens_used = await call_llm(
+            prompt,
+            history=request.conversation_history or [],
+            system_override=_master_system,
+        )
+    else:
+        prediction_text, tokens_used = await call_llm(
+            prompt,
+            history=request.conversation_history or [],
+        )
 
     confidence = predictions["highest_confidence"] or 0.75
     factors = [
