@@ -712,6 +712,34 @@ class PatraUpdateRequest(BaseModel):
 class LanguageSetRequest(BaseModel):
     language: str = Field(..., example="es")
 
+
+# ── Guest rate limiting ───────────────────────────────────────────────────
+from collections import defaultdict
+
+_guest_usage: dict = defaultdict(lambda: {"count": 0, "month": None})
+
+def check_guest_rate_limit(chart_id: str, limit: int = 3) -> bool:
+    """Returns True if allowed, False if monthly limit exceeded."""
+    from datetime import date
+    month = date.today().strftime("%Y-%m")
+    record = _guest_usage[chart_id]
+    if record["month"] != month:
+        record["count"] = 0
+        record["month"] = month
+    if record["count"] >= limit:
+        return False
+    record["count"] += 1
+    return True
+
+def get_guest_usage(chart_id: str) -> dict:
+    """Returns current usage for a guest chart."""
+    from datetime import date
+    month = date.today().strftime("%Y-%m")
+    record = _guest_usage[chart_id]
+    if record["month"] != month:
+        return {"count": 0, "limit": 3, "month": month}
+    return {"count": record["count"], "limit": 3, "month": month}
+
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def verify_token(authorization: str) -> str:
@@ -732,10 +760,11 @@ def get_dashas_for_chart(chart_id: str) -> dict:
         if system not in dashas_by_system:
             dashas_by_system[system] = []
         dashas_by_system[system].append({
-            "lord_or_sign": row["planet_or_sign"],
-            "start": row["start_date"],
-            "end": row["end_date"],
-            "duration": row["duration_years"]
+            "lord_or_sign": row.get("planet_or_sign") or row.get("lord_or_sign", ""),
+            "start":        row.get("start_date") or row.get("start", ""),
+            "end":          row.get("end_date") or row.get("end", ""),
+            "duration":     row.get("duration_years", 0),
+            "level":        row.get("level", "mahadasha"),
         })
     for sys in dashas_by_system:
         dashas_by_system[sys] = dashas_by_system[sys][:10]
@@ -913,6 +942,46 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     if not request.chart_id:
         raise HTTPException(status_code=400, detail="chart_id required")
 
+    # Guest rate limiting — 3 predictions per month
+    if not user_id:
+        if not check_guest_rate_limit(request.chart_id, limit=3):
+            usage = get_guest_usage(request.chart_id)
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": "monthly_limit_reached",
+                    "message": f"You have used your {usage['limit']} free readings this month.",
+                    "used": usage["count"],
+                    "limit": usage["limit"],
+                    "resets": usage["month"],
+                    "upgrade_url": "https://antar.world/upgrade",
+                    "plans": [
+                        {
+                            "name": "Seeker",
+                            "price_monthly": "$4.99",
+                            "price_annual": "$39",
+                            "features": [
+                                "Unlimited predictions",
+                                "Career & wealth reading",
+                                "Mantra audio playback",
+                                "Full prediction history",
+                                "Monthly life briefing",
+                            ]
+                        },
+                        {
+                            "name": "Navigator",
+                            "price_monthly": "$19.99",
+                            "features": [
+                                "Everything in Seeker",
+                                "1 live reading/month",
+                                "Astrocartography",
+                                "Priority responses",
+                            ]
+                        }
+                    ]
+                }
+            )
+
     # Log action
     try:
         supabase.table("user_actions").insert({
@@ -944,7 +1013,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     # Locale detection
     locale = get_locale_from_request(
         country_code=chart_record.get("country_code"),
-        birth_country=chart_record.get("birth_country"),
+        birth_country=chart_record.get("country_code"),
         user_language_preference=chart_record.get("language_preference"),
     )
     language = locale.language
@@ -988,7 +1057,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         "career_stage":     chart_record.get("career_stage", "mid_career"),
         "health_status":    chart_record.get("health_status", "excellent"),
         "financial_status": chart_record.get("financial_status", "stable"),
-        "birth_country":    chart_record.get("birth_country", ""),
+        "birth_country":    chart_record.get("country_code", ""),
         "current_country":  chart_record.get("country_code", ""),
         "countries_lived":  chart_record.get("countries_lived", []),
     }
@@ -2025,16 +2094,27 @@ async def create_chart(
     dashas_combined = {"vimsottari": vim_dashas, "jaimini": jai_dashas, "ashtottari": ash_dashas}
 
     chart_id = str(uuid.uuid4())
+    # Calculate timezone offset in hours from timezone string
+    try:
+        import pytz as _pytz
+        from datetime import datetime as _dt
+        _tz = _pytz.timezone(timezone)
+        _offset = _tz.utcoffset(_dt.now()).total_seconds() / 3600
+    except Exception:
+        _offset = 0.0
+
     chart_row = {
-        "id": chart_id, "user_id": user_id,
-        "birth_date": request.birth_date, "birth_time": request.birth_time,
-        "birth_city": request.birth_city, "birth_country": request.birth_country,
-        "birth_lat": lat, "birth_lng": lng, "timezone": timezone,
-        "country_code": request.birth_country,
-        "chart_data": chart_data,
-        "name": request.name, "gender": request.gender,
-        "language_preference": request.language,
-        "patra_complete": False, "created_at": "now()",
+        "id":                  chart_id,
+        "user_id":             user_id,
+        "birth_date":          request.birth_date,
+        "birth_time":          request.birth_time,
+        "latitude":            lat,
+        "longitude":           lng,
+        "timezone_offset":     _offset,
+        "country_code":        request.birth_country,
+        "chart_data":          chart_data,
+        "language_preference": request.language or "en",
+        "patra_complete":      False,
     }
     try:
         supabase.table("charts").insert(chart_row).execute()
@@ -2045,11 +2125,18 @@ async def create_chart(
     for system, periods in [("vimsottari",vim_dashas),("jaimini",jai_dashas),("ashtottari",ash_dashas)]:
         for i, p in enumerate(periods):
             dasha_rows.append({
-                "chart_id": chart_id, "system": system,
-                "level": p.get("level","mahadasha"),
-                "lord_or_sign": p.get("lord_or_sign",""),
-                "start": p.get("start",""), "end": p.get("end",""),
-                "sequence": i,
+                "chart_id":       chart_id,
+                "system":         system,
+                "level":          p.get("level", "mahadasha"),
+                "lord_or_sign":   p.get("lord_or_sign", ""),
+                "planet_or_sign": p.get("lord_or_sign", ""),
+                "start_date":     p.get("start", ""),
+                "end_date":       p.get("end", ""),
+                "start":          p.get("start", ""),
+                "end":            p.get("end", ""),
+                "duration_years": p.get("duration_years", 0),
+                "sequence":       i,
+                "parent_lord":    p.get("parent_lord", ""),
             })
     if dasha_rows:
         try:
@@ -2140,7 +2227,7 @@ async def get_career_reading(
         "marital_status":   chart_record.get("marital_status", "unknown"),
         "career_stage":     chart_record.get("career_stage", "mid_career"),
         "financial_status": chart_record.get("financial_status", "stable"),
-        "birth_country":    chart_record.get("birth_country", ""),
+        "birth_country":    chart_record.get("country_code", ""),
         "current_country":  chart_record.get("country_code", ""),
     }
     patra = build_patra_context(
@@ -2436,7 +2523,7 @@ async def chapter_arc_endpoint(
         "career_stage":     chart_record.get("career_stage", "mid_career"),
         "health_status":    chart_record.get("health_status", "excellent"),
         "financial_status": chart_record.get("financial_status", "stable"),
-        "birth_country":    chart_record.get("birth_country", ""),
+        "birth_country":    chart_record.get("country_code", ""),
         "current_country":  chart_record.get("country_code", ""),
         "countries_lived":  chart_record.get("countries_lived", []),
     }
