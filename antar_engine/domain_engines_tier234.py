@@ -799,14 +799,10 @@ def engine_wow_effects(chart_data, birth_date=""):
         if count >= 4:
             planets_here = [p for p,d in planets.items() if d.get("house")==house]
             from antar_engine.domain_engines import _house_meaning_simple
-            try:
-                from antar_engine.domain_engines import _house_meaning_simple as hm
-                meaning = hm(house)
-            except Exception:
-                meanings = {1:"self",2:"wealth",3:"courage",4:"home",5:"children",
-                           6:"enemies",7:"marriage",8:"transformation",9:"dharma",
-                           10:"career",11:"gains",12:"spirituality"}
-                meaning = meanings.get(house, f"house {house}")
+            meanings = {1:"self",2:"wealth",3:"courage",4:"home",5:"children",
+                       6:"enemies",7:"marriage",8:"transformation",9:"dharma",
+                       10:"career",11:"gains",12:"spirituality"}
+            meaning = meanings.get(house, f"house {house}")
             wow_effects.append({
                 "name":        f"Stellium in House {house} ({count} planets)",
                 "category":    "concentrated_power",
