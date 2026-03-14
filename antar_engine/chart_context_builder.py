@@ -20,6 +20,11 @@ grounded entirely in the provided data.
 """
 
 from datetime import date, datetime
+try:
+    from antar_engine.jaimini_analysis import build_jaimini_context_block, jaimini_from_dasha_rows
+    _JAIMINI_AVAILABLE = True
+except ImportError:
+    _JAIMINI_AVAILABLE = False
 
 SIGNS = [
     "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
@@ -242,12 +247,42 @@ def build_complete_context(
 
     # Jaimini current
     jai_current = ""
+    jai_current_end = ""
     for row in jai:
         sd = _parse_dt(row.get("start_date") or row.get("start",""))
         ed = _parse_dt(row.get("end_date")   or row.get("end",""))
         if sd <= now <= ed:
-            jai_current = row.get("lord_or_sign") or row.get("planet_or_sign","")
+            jai_current     = row.get("lord_or_sign") or row.get("planet_or_sign","")
+            jai_current_end = ed.strftime("%b %Y") if hasattr(ed,"strftime") else str(ed)[:7]
             break
+
+    # Extract Ashtottari current period
+    ash_current = ""
+    ash_current_end = ""
+    for row in ash:
+        level = row.get("level") or row.get("type","")
+        sd = _parse_dt(row.get("start_date") or row.get("start",""))
+        ed = _parse_dt(row.get("end_date")   or row.get("end",""))
+        if sd <= now <= ed and level in ("mahadasha","1"):
+            ash_current     = row.get("lord_or_sign") or row.get("planet_or_sign","")
+            ash_current_end = ed.strftime("%b %Y") if hasattr(ed,"strftime") else str(ed)[:7]
+            break
+
+    # Extract Jaimini karakas from planets (degree-based ranking)
+    jaimini_karakas = {}
+    try:
+        planet_degrees = {
+            p: d.get("degree", 0)
+            for p, d in planets.items()
+            if p not in ("Rahu", "Ketu")
+        }
+        sorted_planets = sorted(planet_degrees.items(), key=lambda x: x[1], reverse=True)
+        karaka_names = ["Atmakaraka","Amatyakaraka","Bhratrukaraka",
+                        "Matrukaraka","Putrakaraka","Gnatikaraka","Darakaraka"]
+        for i, (planet, deg) in enumerate(sorted_planets[:7]):
+            jaimini_karakas[karaka_names[i]] = {"planet": planet, "degree": round(deg,2)}
+    except Exception:
+        pass
 
     # ── D9 and D10 ───────────────────────────────────────────────
     d9  = divisional_charts.get("d9", {})
@@ -400,9 +435,27 @@ COMPLETED CHAPTERS:
 {chr(10).join(past_mds[-5:]) if past_mds else '  (none completed yet)'}
 
 CURRENT CHAPTER:
-  {f"Mahadasha: {current_md[0]} ({current_md[1].year}–{current_md[2].year})" if current_md else 'unknown'}
-  {f"Antardasha: {current_ad[0]} ({current_ad[1].strftime('%b %Y')}–{current_ad[2].strftime('%b %Y')})" if current_ad else ''}
-  {f"Jaimini Chara Dasha current: {jai_current}" if jai_current else ''}
+  Vimsottari MD : {f"{current_md[0]} ({current_md[1].year}–{current_md[2].year})" if current_md else 'unknown'}
+  Vimsottari AD : {f"{current_ad[0]} until {current_ad[2].strftime('%b %Y')}" if current_ad else 'unknown'}
+  Jaimini Chara : {f"{jai_current} until {jai_current_end}" if jai_current else 'not calculated'}
+  Ashtottari MD : {f"{ash_current} until {ash_current_end}" if ash_current else 'not calculated'}
+
+JAIMINI KARAKAS (soul significators — fixed for life):
+  Atmakaraka   (AK)  : {jaimini_karakas.get('Atmakaraka',{{}}).get('planet','?')} — soul purpose
+  Amatyakaraka (AmK) : {jaimini_karakas.get('Amatyakaraka',{{}}).get('planet','?')} — career/advisor
+  Darakaraka   (DK)  : {jaimini_karakas.get('Darakaraka',{{}}).get('planet','?')} — spouse nature
+  Putrakaraka  (PK)  : {jaimini_karakas.get('Putrakaraka',{{}}).get('planet','?')} — children
+  Matrukaraka  (MK)  : {jaimini_karakas.get('Matrukaraka',{{}}).get('planet','?')} — mother
+
+JAIMINI RULES:
+  • Amatyakaraka sign and house = career direction (stronger than D10 alone)
+  • Darakaraka sign = spouse nature and timing
+  • Current Chara Dasha sign = life area being activated NOW
+  • Atmakaraka in D9 = Karakamsha = soul's ultimate purpose
+
+ASHTOTTARI SYSTEM (108-year cycle — especially relevant for Rahu-prominent charts):
+  Current Ashtottari MD: {ash_current if ash_current else 'not calculated'}
+  NOTE: Ashtottari is used alongside Vimsottari — when both agree on a theme, confidence is high
 
 UPCOMING CHAPTERS:
 {chr(10).join(upcoming_mds) if upcoming_mds else '  (current MD has many years remaining)'}
@@ -411,6 +464,10 @@ UPCOMING CHAPTERS:
 {lk_block}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {trans_block}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{_jaimini_block}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{lk_warnings}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 VEDIC ASTROLOGY RULES FOR ACCURATE ANALYSIS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
