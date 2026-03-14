@@ -21,6 +21,12 @@ grounded entirely in the provided data.
 
 from datetime import date, datetime
 try:
+    from antar_engine.lal_kitab_advanced import build_lk_advanced_context
+    _LK_ADV_AVAILABLE = True
+except ImportError:
+    _LK_ADV_AVAILABLE = False
+
+try:
     from antar_engine.jaimini_analysis import build_jaimini_context_block, jaimini_from_dasha_rows
     _JAIMINI_AVAILABLE = True
 except ImportError:
@@ -361,6 +367,20 @@ WEALTH ANALYSIS CONTEXT:
 """
 
     # ── Full context assembly ─────────────────────────────────────
+    # Build advanced LK block
+    _lk_advanced_block = ""
+    try:
+        if _LK_ADV_AVAILABLE:
+            _lk_advanced_block = build_lk_advanced_context(
+                planets=planets,
+                lagna_sign=lagna_sign,
+                birth_date=birth_date,
+                current_md_lord=current_md[0] if current_md else "",
+                current_ad_lord=current_ad[0] if current_ad else "",
+            )
+    except Exception as _lka_e:
+        print(f"[lk_advanced] error (non-fatal): {_lka_e}")
+
     lk_block  = lal_kitab_prompt_block(lk_analysis) if lk_analysis else "LK analysis not available"
     trans_block = transits_prompt_block(transit_data) if transit_data else "Transit data not available"
 
