@@ -412,6 +412,57 @@ UPCOMING CHAPTERS:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {trans_block}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+VEDIC ASTROLOGY RULES FOR ACCURATE ANALYSIS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WEALTH COMBINATIONS (Dhana Yogas) — apply these rules:
+  • Rahu in 11th house = strongest unconventional wealth indicator
+  • Jupiter in 2nd or 11th = classical Dhana Yoga
+  • 2nd lord in 11th OR 11th lord in 2nd = wealth yoga
+  • 2nd and 11th lords conjunct = strong Dhana Yoga
+  • Multiple planets in 11th = exceptional gains potential
+  • Raj Yoga present = wealth through authority and leadership
+  • D2 Hora: planet in Sun hora (Leo) = self-made wealth, Moon hora (Cancer) = public/inherited
+
+DASHA TIMING RULES:
+  • Current antardasha lord = active sub-theme RIGHT NOW
+  • Mahadasha lord = dominant theme for its entire duration
+  • When MD and AD lords are both natural benefics = peak period
+  • Rahu/Ketu MD = transformation, unconventional events
+  • Saturn MD = restructuring, discipline, slow but lasting results
+  • Jupiter MD/AD = expansion, education, wealth, children
+
+HOUSE RULES FOR SPECIFIC QUESTIONS:
+  Wealth:       2nd (assets), 11th (gains), 5th (speculation), 9th (fortune)
+  Career:       10th (profession), 6th (service), 2nd (income), 11th (success)
+  Marriage:     7th (partner), 2nd (family), 5th (love), 9th (dharmic union)
+  Children:     5th (first child), D7 chart
+  Health:       1st (body), 6th (disease), 8th (longevity), lagna lord strength
+  Foreign:      12th (abroad), 9th (long journey), Rahu (foreign element)
+  Spirituality: 12th (moksha), 8th (occult), 9th (dharma), Ketu
+
+DIVISIONAL CHART RULES:
+  D1  = overall life — primary chart
+  D2  = wealth channel — Sun hora (Leo) vs Moon hora (Cancer)
+  D7  = children and creativity
+  D9  = soul, marriage, dharma — most important after D1
+  D10 = career and profession — read alongside D1 10th house
+  D12 = parents and ancestry
+
+YOGA INTERPRETATION RULES:
+  • Raj Yoga = kendra lord + trikona lord combined → authority + success
+  • Dhana Yoga = 2nd/11th lords connected → financial prosperity
+  • Gajakesari = Jupiter-Moon angle → wisdom, public recognition
+  • Budhaditya = Sun+Mercury → intelligence + authority
+  • Viparita Raj = dusthana lords in dusthana → rise through adversity
+  • Neechabhanga = debilitated planet cancelled → weakness becomes strength
+
+LAL KITAB RULES:
+  • Planet in its natural house = strong, direct results
+  • Planet in enemy house = results come through struggle
+  • Remedy activates the planet's positive potential
+  • Karmic debts (Rin) must be identified and addressed
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ANTI-HALLUCINATION INSTRUCTIONS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 1. ONLY reference planets, houses, and yogas listed above
