@@ -1317,7 +1317,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         _fname     = _name_v.split()[0] if _name_v else ""
         _full_context = build_complete_context(
             chart_data=chart_data,
-            dashas=dashas_response if isinstance(dashas_response, dict) else {},
+            dashas={"vimsottari": dashas_response} if isinstance(dashas_response, list) else (dashas_response if isinstance(dashas_response, dict) else {"vimsottari": []}),
             birth_date=_birth_dt,
             first_name=_fname,
             gender=_gender_v,
@@ -1333,31 +1333,29 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         print(f"[predict] Context build error (non-fatal): {_ctx_e}")
 
     if _full_context and len(_full_context) > 500:
-        prompt = _full_context
+        print(f"[predict] Using master context ({len(_full_context)} chars)")
+        prompt = _full_context + f"\n\nQUESTION: {request.question}\nCONCERN: {concern}\n\nAnswer the question directly, referencing specific planets, houses, yogas, and dasha periods from the context above. No generic advice."
     else:
-        if _full_context and len(_full_context) > 500:
-            prompt = _full_context
-            print(f"[predict] Using master context ({len(_full_context)} chars)")
-        else:
-            prompt = build_predict_prompt(
-                question=request.question,
-                chart_data=chart_data,
-                dashas=dashas_response,
-                life_events=life_events,
-                profile=profile_text,
-                transit_summary=transit_summary,
-                country_context=country_context,
-                timing_text=timing_text,
-                nation_insight=nation_insight,
-                language=language,
-                predictions_context=predictions_context,
-                concern=concern,
-                country_code=country_code or "US",
-                patra_context=patra_context,
-                desh_context=desh_context,
-                dkp_block=dkp_block,
-                funding_summary=_funding_summary,
-            )
+        print(f"[predict] Master context empty — falling back to build_predict_prompt")
+        prompt = build_predict_prompt(
+            question=request.question,
+            chart_data=chart_data,
+            dashas=dashas_response,
+            life_events=life_events,
+            profile=profile_text,
+            transit_summary=transit_summary,
+            country_context=country_context,
+            timing_text=timing_text,
+            nation_insight=nation_insight,
+            language=language,
+            predictions_context=predictions_context,
+            concern=concern,
+            country_code=country_code or "US",
+            patra_context=patra_context,
+            desh_context=desh_context,
+            dkp_block=dkp_block,
+            funding_summary=_funding_summary,
+        )
 
     for extra_block in [rarity_context, windows_context, chakra_context, arc_context,
                         lk_context, enrichment_context, sade_sati_context,
