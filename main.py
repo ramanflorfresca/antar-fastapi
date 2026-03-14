@@ -2192,10 +2192,17 @@ async def create_chart(
             })
     if dasha_rows:
         try:
+            print(f"[dasha_insert] Attempting to insert {len(dasha_rows)} rows for chart {chart_id}")
+            # Log first row so we can see what's being sent
+            if dasha_rows:
+                print(f"[dasha_insert] Sample row: {dasha_rows[0]}")
             for i in range(0, len(dasha_rows), 100):
-                supabase.table("dasha_periods").insert(dasha_rows[i:i+100]).execute()
+                batch = dasha_rows[i:i+100]
+                result = supabase.table("dasha_periods").insert(batch).execute()
+                print(f"[dasha_insert] Batch {i//100+1}: inserted {len(result.data)} rows")
         except Exception as e:
-            print(f"Dasha save error (non-fatal): {e}")
+            print(f"[dasha_insert] FAILED: {e}")
+            print(f"[dasha_insert] First row was: {dasha_rows[0] if dasha_rows else 'empty'}")
 
     lk_data = None
     if user_id:
