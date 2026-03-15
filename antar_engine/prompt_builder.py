@@ -282,6 +282,22 @@ def build_concern_block(concern: str, question: str, funding_summary: dict = Non
             "\n=== END CONCERN BLOCK ===\n"
         )
 
+    elif concern in ("legal", "court", "lawsuit", "dispute", "case"):
+        return (
+            "=== CONCERN: LEGAL MATTER / COURT CASE ===\n\n"
+            "MANDATORY RESPONSE STRUCTURE:\n"
+            "1. VERDICT: Will they win or face delays? (direct answer first)\n"
+            "2. KEY FACTORS: What in the chart supports or challenges them?\n"
+            "3. TIMING: When does the case resolve based on dasha?\n"
+            "4. ACTION: Two specific remedies — one for Mars, one for Saturn\n\n"
+            "REQUIRED ELEMENTS:\n"
+            "  - Reference 6th house (disputes) condition\n"
+            "  - Reference Saturn position (justice/karma)\n"
+            "  - Reference current dasha lord's legal signification\n"
+            "  - Give specific timing window for resolution\n"
+            "  - Always give TWO remedies\n\n"
+        )
+
     elif concern in ("loss", "losses"):
         return (
             "\n=== CONCERN: FINANCIAL LOSS / MONEY DRAIN ===\n\n"
