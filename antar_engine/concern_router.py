@@ -108,10 +108,8 @@ DOMAIN_CONFIGS = {
             "Current dasha lord's wealth signification",
             "D60 karma for Jupiter and Venus (past life wealth pattern)",
         ],
-        "system_instruction": """WEALTH FOCUS MODE.
-The question is about money, wealth, or financial matters.
-
-Answer ONLY through the financial lens:
+        "system_instruction": """WEALTH FOCUS MODE — prioritize financial data.
+Answer this wealth/money question by leading with:
 1. Lead with the WEALTH ENGINE SCORE and verdict as the foundation
 2. Identify the PRIMARY wealth combinations present (Rahu in 11th, Jupiter in 2nd, etc.)
 3. Explain the CURRENT financial chapter based on active dasha
@@ -160,10 +158,8 @@ MUST MENTION: specific score, peak period years, wealth type, one remedy""",
             "Raj Yoga presence and activation status",
             "Current dasha lord's career signification",
         ],
-        "system_instruction": """CAREER FOCUS MODE.
-The question is about career, job, business, or professional matters.
-
-Answer ONLY through the career lens:
+        "system_instruction": """CAREER FOCUS MODE — prioritize career data.
+Answer this career/job question by leading with:
 1. Lead with D10 Dashamsa lagna — this is the career chart. What does it say?
 2. Identify the Amatyakaraka (career's guiding planet) and its current strength
 3. Reference Narayana Dasha — this system specifically times CAREER events
@@ -209,10 +205,8 @@ Answer format:
             "Affairs engine analysis",
             "D60 Venus karma (past life relationship patterns)",
         ],
-        "system_instruction": """LOVE AND RELATIONSHIP FOCUS MODE.
-The question is about romance, love, attraction, or relationship status.
-
-Answer through the relationship and emotional lens:
+        "system_instruction": """RELATIONSHIP FOCUS MODE — prioritize love/relationship data.
+Answer this relationship question by leading with:
 1. Venus position — where is love energy directed in this chart?
 2. 5th house — what does the heart want? What kind of love is activated?
 3. Moon sign — emotional nature and what kind of partner completes this person
@@ -255,8 +249,8 @@ ONE remedy for Venus/relationship activation.
             "Second marriage indicators",
             "Current dasha lord's marriage signification",
         ],
-        "system_instruction": """MARRIAGE FOCUS MODE.
-The question is about marriage, spouse, or married life.
+        "system_instruction": """MARRIAGE FOCUS MODE — prioritize marriage data.
+Answer this marriage question by leading with:
 
 1. 7th house condition — is this a strong or challenged marriage house?
 2. 7th lord — where is marriage energy going in the chart?
@@ -310,10 +304,8 @@ MUST reference: D9 Navamsa, Darakaraka nature, this year's Varshphal""",
             "Jail yoga assessment",
             "Winning indicators in chart",
         ],
-        "system_instruction": """LEGAL FOCUS MODE.
-The question is about a legal case, court matter, or dispute.
-
-Answer through the legal lens:
+        "system_instruction": """LEGAL FOCUS MODE — prioritize legal data.
+Answer this legal question by leading with:
 1. Legal engine verdict — is the chart favorable or challenging for this case?
 2. 6th house strength — how strong is the person's ability to fight/defend?
 3. Saturn and Mars positions — are they supporting or opposing?
@@ -366,10 +358,8 @@ MUST mention: winning score, timing of resolution, specific remedies""",
             "D30 active health risks",
             "Ayurveda dosha from Moon nakshatra",
         ],
-        "system_instruction": """HEALTH FOCUS MODE.
-The question is about physical or mental health.
-
-Answer through the health lens:
+        "system_instruction": """HEALTH FOCUS MODE — prioritize health data.
+Answer this health question by leading with:
 1. D27 Bhamsa — physical constitution strength
 2. Health engine watch areas — specific body systems at risk
 3. Current dasha lord's health theme — what physical themes are active NOW
@@ -421,8 +411,8 @@ MUST mention: specific watch areas, dosha, current dasha health theme""",
             "Current dasha lord's foreign signification",
             "Visa/immigration timing from dasha",
         ],
-        "system_instruction": """FOREIGN SETTLEMENT FOCUS MODE.
-The question is about moving abroad, immigration, or foreign opportunities.
+        "system_instruction": """FOREIGN FOCUS MODE — prioritize foreign/immigration data.
+Answer this foreign settlement question by leading with:
 
 1. Foreign settlement engine score — strong/moderate/weak indicators
 2. Rahu position — Rahu in 1/7/9/12 = strong foreign connection
@@ -480,10 +470,8 @@ DIRECTION MAPPING:
             "Current dasha — spiritual activation periods",
             "WOW effects related to spirituality",
         ],
-        "system_instruction": """SPIRITUAL AND SOUL PURPOSE FOCUS MODE.
-The question is about life purpose, spirituality, or deeper meaning.
-
-Answer through the soul lens:
+        "system_instruction": """SPIRITUAL FOCUS MODE — prioritize soul/purpose data.
+Answer this spiritual question by leading with:
 1. Atmakaraka — what is this soul's core mission? (translated to plain language)
 2. Karakamsha — what is the soul's operating platform this life?
 3. D20 Vimshamsa — what spiritual path is indicated?
@@ -535,10 +523,8 @@ MUST mention: Atmakaraka mission, D20 path, Ketu's past-life gift""",
             "Current dasha theme",
             "Daily do and don't list",
         ],
-        "system_instruction": """DAILY SIGNAL FOCUS MODE.
-The question is about today, right now, or this week.
-
-Answer through the daily cosmic lens:
+        "system_instruction": """DAILY FOCUS MODE — prioritize today's Panchanga and timing.
+Answer this daily question by leading with:
 1. Moon nakshatra — what energy is the Moon broadcasting today?
 2. Day lord — whose day is it and what does that mean practically?
 3. Panchanga quality — is today auspicious, neutral, or to be navigated carefully?
