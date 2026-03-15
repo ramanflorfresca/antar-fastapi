@@ -3433,12 +3433,11 @@ async def ask_prashna(request: PrashnaRequest):
                 "Never use Sanskrit terms. Be direct, specific, under 200 words. "
                 "Lead with the verdict. Sound like a wise mentor."
             )
-            narrative = await call_llm(
+            result_tuple = await call_llm(
                 prompt=llm_prompt,
                 system_override=system_prompt,
-                language=request.language,
-                max_tokens=400,
             )
+            narrative = result_tuple[0] if isinstance(result_tuple, tuple) else result_tuple
         except Exception as _le:
             narrative = (
                 f"**The Answer**\n{result['verdict']} — {result['analysis']['explanation']}\n\n"
