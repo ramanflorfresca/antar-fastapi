@@ -1389,11 +1389,14 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         print(f"[predict] Full context: {len(_full_context)} chars")
     except Exception as _ctx_e:
         import traceback
-        print(f"[predict] Context build ERROR: {_ctx_e}")
+        print(f"[predict] Context build ERROR concern={concern}: {_ctx_e}")
+        print(f"[predict] dashas_response type={type(dashas_response)} len={len(dashas_response) if hasattr(dashas_response,'__len__') else 'N/A'}")
+        if isinstance(dashas_response, list) and dashas_response:
+            print(f"[predict] first dasha row keys: {list(dashas_response[0].keys()) if isinstance(dashas_response[0],dict) else type(dashas_response[0])}")
         print(f"[predict] Traceback: {traceback.format_exc()}")
 
     if _full_context and len(_full_context) > 500:
-        print(f"[predict] Using master context ({len(_full_context)} chars)")
+        print(f"[predict] Using master context ({len(_full_context)} chars) concern={concern}")
         prompt = _full_context + f"\n\nQUESTION: {request.question}\nCONCERN: {concern}\n\nAnswer the question directly, referencing specific planets, houses, yogas, and dasha periods from the context above. No generic advice."
     else:
         print(f"[predict] Master context empty — falling back to build_predict_prompt")
