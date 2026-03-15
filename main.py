@@ -1420,11 +1420,21 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             funding_summary=_funding_summary,
         )
 
-    for extra_block in [rarity_context, windows_context, chakra_context, arc_context,
-                        lk_context, enrichment_context, sade_sati_context,
-                        life_question_context]:
-        if extra_block:
-            prompt += f"\n\n{extra_block}"
+    for _extra_name, _extra_block in [
+        ("rarity",       rarity_context),
+        ("windows",      windows_context),
+        ("chakra",       chakra_context),
+        ("arc",          arc_context),
+        ("lk",           lk_context),
+        ("enrichment",   enrichment_context),
+        ("sade_sati",    sade_sati_context),
+        ("life_question",life_question_context),
+    ]:
+        try:
+            if _extra_block:
+                prompt += f"\n\n{_extra_block}"
+        except Exception as _eb_e:
+            print(f"[predict] extra_block {_extra_name} error: {_eb_e}")
 
     # ── LLM CALL — passes conversation history for multi-turn context ──
     # Use different system prompt for master context vs template
