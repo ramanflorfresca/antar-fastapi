@@ -3449,6 +3449,7 @@ async def get_panchanga(request: dict = {}):
     lat = request.get("lat", 28.6) if request else 28.6
     lng = request.get("lng", 77.2) if request else 77.2
 
+    from antar_engine.daily_panchanga import calculate_panchanga, format_daily_for_user
     panchanga = calculate_panchanga(lat=lat, lng=lng)
     if panchanga.get("error"):
         raise HTTPException(500, f"Panchanga error: {panchanga['error']}")
@@ -3491,6 +3492,7 @@ async def ask_prashna(request: PrashnaRequest):
             pass
 
     # Run Prashna
+    from antar_engine.prashna_engine import run_prashna
     result = run_prashna(
         question=request.question,
         lat=request.lat or 28.6139,
