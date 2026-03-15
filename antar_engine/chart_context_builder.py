@@ -505,7 +505,7 @@ WEALTH ANALYSIS CONTEXT:
     _jk_dk  = jaimini_karakas.get('Darakaraka',{}).get('planet','?')
     _jk_pk  = jaimini_karakas.get('Putrakaraka',{}).get('planet','?')
     _jk_mk  = jaimini_karakas.get('Matrukaraka',{}).get('planet','?')
-    f"""
+    context = f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║         COMPLETE ASTROLOGICAL CONTEXT — ANTAR ENGINE         ║
 ║   DO NOT FABRICATE. USE ONLY WHAT IS PROVIDED BELOW.         ║
