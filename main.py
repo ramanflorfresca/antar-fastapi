@@ -1501,6 +1501,21 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             "tokens_used": tokens_used,
             "model":       "deepseek-chat",
         }).execute()
+
+        # ── Prediction tracking hook ──────────────────────────────
+        try:
+            from antar_engine.prediction_tracker import save_trackable_claim
+            save_trackable_claim(
+                chart_id=chart_id,
+                prediction_id=str(pred_record.get("id", "")),
+                prediction_text=prediction_response,
+                concern=concern,
+                sb=supabase,
+            )
+        except Exception:
+            pass
+        # ── End tracking hook ─────────────────────────────────────
+
         if pred_res.data:
             prediction_db_id = pred_res.data[0]["id"]
     except Exception as e:
@@ -3916,4 +3931,36 @@ async def debug_env():
         "supabase_url_length": len(os.getenv("SUPABASE_URL", "")),
         "supabase_key_exists": os.getenv("SUPABASE_SERVICE_ROLE_KEY") is not None,
         "supabase_key_length": len(os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")),
+
+
+# ── Prediction Tracking Endpoints ─────────────────────────────────
+
+@app.post("/api/v1/predictions/feedback")
+async def submit_prediction_feedback(request: dict):
+    """User submits yes/no/partial on a prediction claim."""
+    from antar_engine.prediction_tracker import record_feedback
+    correlation_id = request.get("correlation_id")
+    status         = request.get("status")
+    note           = request.get("note", "")
+    if not correlation_id or status not in ("yes", "no", "partial", "skipped"):
+        raise HTTPException(400, "correlation_id and valid status required")
+    result = record_feedback(correlation_id, status, note, supabase)
+    return {"success": True, "updated": result}
+
+
+@app.get("/api/v1/predictions/pending-feedback/{chart_id}")
+async def get_pending_feedback_endpoint(chart_id: str):
+    """Return predictions ready for user verification (max 3)."""
+    from antar_engine.prediction_tracker import get_pending_feedback
+    items = get_pending_feedback(chart_id, supabase)
+    return {"pending": items, "count": len(items)}
+
+
+@app.get("/api/v1/predictions/accuracy/{chart_id}")
+async def get_prediction_accuracy_endpoint(chart_id: str):
+    """Return accuracy score — powers the trust badge."""
+    from antar_engine.prediction_tracker import get_accuracy_score
+    return get_accuracy_score(chart_id, supabase)
+
+
     }
