@@ -3458,6 +3458,7 @@ async def ask_prashna(request: PrashnaRequest):
             "timing":        result["timing"],
             "narrative":     narrative,
             "prashna_data":  {
+                "prashna_chart":  result["prashna_chart"],
                 "lagna":          result["lagna"],
                 "moon_nakshatra": result["moon_nakshatra"],
                 "yes_factors":    result["yes_factors"],
@@ -3481,6 +3482,113 @@ async def ask_prashna(request: PrashnaRequest):
         "remedy":        result["remedy"],
         "lagna":         result["lagna"],
         "question_type": result["question_type"],
+    }
+
+
+
+
+class PrashnaFollowupRequest(BaseModel):
+    session_id:  str
+    question:    str
+    language:    Optional[str] = "en"
+
+@app.post("/api/v1/prashna/followup")
+async def prashna_followup(request: PrashnaFollowupRequest):
+    """
+    Follow-up question on an existing Prashna session.
+    REUSES the same chart — no new chart cast.
+    One Prashna chart = one session = unlimited follow-ups.
+    """
+    # Load session from DB
+    res = supabase.table("prashna_readings").select("*").eq(
+        "id", request.session_id
+    ).execute()
+
+    if not res.data:
+        raise HTTPException(404, "Prashna session not found")
+
+    row = res.data[0]
+
+    # Reconstruct session object
+    session = {
+        "session_id":    request.session_id,
+        "question":      row.get("question",""),
+        "question_type": row.get("question_type",""),
+        "asked_at":      str(row.get("created_at","")),
+        "prashna_chart": row.get("prashna_data",{}).get("prashna_chart",{}),
+        "analysis": {
+            "score":       row.get("score", 50),
+            "verdict":     row.get("verdict",""),
+            "yes_factors": row.get("prashna_data",{}).get("yes_factors",[]),
+            "no_factors":  row.get("prashna_data",{}).get("no_factors",[]),
+            "explanation": "",
+        },
+        "verdict": row.get("verdict",""),
+        "score":   row.get("score", 50),
+    }
+
+    # Analyze follow-up using same chart
+    followup_result = analyze_prashna_followup(session, request.question)
+
+    # Generate LLM narrative
+    narrative = ""
+    try:
+        llm_prompt = followup_result.get("llm_prompt","")
+        system_prompt = (
+            "You are Antar answering a follow-up Prashna question. "
+            "The SAME chart is being reused — no new chart cast. "
+            "Reference the original question and verdict. "
+            "Answer the follow-up specifically. "
+            "Plain language only — no Sanskrit terms. Under 150 words."
+        )
+        narrative = await call_llm(
+            prompt=llm_prompt,
+            system_override=system_prompt,
+            language=request.language,
+            max_tokens=300,
+        )
+    except Exception as _le:
+        narrative = followup_result.get("verdict","")
+
+    # Save follow-up to DB
+    try:
+        supabase.table("prashna_followups").insert({
+            "session_id":      request.session_id,
+            "question":        request.question,
+            "followup_type":   followup_result.get("followup_type",""),
+            "verdict":         followup_result.get("verdict",""),
+            "narrative":       narrative,
+            "chart_reused_from": session.get("asked_at",""),
+        }).execute()
+    except Exception:
+        pass
+
+    return {
+        "session_id":     request.session_id,
+        "original_question": session["question"],
+        "original_verdict":  session["verdict"],
+        "followup_question": request.question,
+        "followup_type":  followup_result.get("followup_type",""),
+        "verdict":        followup_result.get("verdict",""),
+        "narrative":      narrative,
+        "chart_note":     f"Using same chart from {session['asked_at'][:16]} — Prashna principle: one question, one chart",
+    }
+
+@app.get("/api/v1/prashna/session/{session_id}")
+async def get_prashna_session(session_id: str):
+    """Get full Prashna session with all follow-ups."""
+    res = supabase.table("prashna_readings").select("*").eq("id",session_id).execute()
+    if not res.data:
+        raise HTTPException(404, "Session not found")
+
+    followups = supabase.table("prashna_followups").select("*").eq(
+        "session_id", session_id
+    ).order("created_at").execute()
+
+    return {
+        "session":    res.data[0],
+        "followups":  followups.data if followups.data else [],
+        "total_questions": 1 + len(followups.data if followups.data else []),
     }
 
 
