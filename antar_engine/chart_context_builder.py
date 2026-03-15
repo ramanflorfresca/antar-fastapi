@@ -427,6 +427,50 @@ WEALTH ANALYSIS CONTEXT:
         print(f"[narayana_context] error (non-fatal): {_nde}")
 
     lk_block  = lal_kitab_prompt_block(lk_analysis) if lk_analysis else "LK analysis not available"
+    # Build Jaimini block
+    _jaimini_block = ""
+    try:
+        if _JAIMINI_AVAILABLE:
+            _jai_rows = dashas.get("jaimini", [])
+            _chara = {"mahadashas": [], "antardashas": []}
+            from antar_engine.jaimini_analysis import SIGNS as _JAI_SIGNS
+            for _jr in _jai_rows:
+                _jlevel = _jr.get("level") or _jr.get("type", "")
+                _jsign  = _jr.get("lord_or_sign") or _jr.get("planet_or_sign", "")
+                if _jsign not in _JAI_SIGNS:
+                    continue
+                _jentry = {
+                    "sign": _jsign,
+                    "start_date": str(_jr.get("start_date") or _jr.get("start", "")),
+                    "end_date":   str(_jr.get("end_date")   or _jr.get("end", "")),
+                }
+                if _jlevel == "mahadasha":
+                    _chara["mahadashas"].append(_jentry)
+                else:
+                    _jentry["parent_sign"] = (_jr.get("metadata") or {}).get("parent_lord", "")
+                    _chara["antardashas"].append(_jentry)
+            if _chara["mahadashas"]:
+                _jaimini_block = build_jaimini_context_block(chart_data, _chara)
+    except Exception as _jbe:
+        _jaimini_block = ""
+
+    # LK warnings block
+    lk_warnings = ""
+    try:
+        if lk_analysis and current_md:
+            md_lord = current_md[0]
+            for key, val in lk_analysis.get("planet_in_house_analysis", {}).items():
+                if val.get("planet") == md_lord:
+                    lk_warnings = (
+                        f"LAL KITAB ACTIVE PERIOD WARNING:\n"
+                        f"  {md_lord} is your current period lord.\n"
+                        f"  In Lal Kitab: {md_lord} in house {val.get('house','')} = {val.get('effect','')}\n"
+                        f"  Active remedy: {val.get('remedy','')}"
+                    )
+                    break
+    except Exception:
+        pass
+
     trans_block = transits_prompt_block(transit_data) if transit_data else "Transit data not available"
 
     _d60      = divisional_charts.get('d60', {})
