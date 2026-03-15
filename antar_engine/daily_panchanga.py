@@ -440,7 +440,7 @@ def build_daily_panchanga_block(panchanga: dict, natal_chart: dict = None) -> st
         "═══════════════════════════════════════════════════════",
         "",
         "THE 5 LIMBS OF TODAY:",
-        f"  Vara (Day):       {panchanga['vara']} — {DAY_LORD_PROPS.get(panchanga['vara'],{{}}).get('favorable_for',[''])[:2]}",
+        f"  Vara (Day):       {panchanga['vara']} — {DAY_LORD_PROPS.get(panchanga['vara'], {}).get('favorable_for', [''])[:2]}",
         f"  Tithi (Lunar day):{panchanga['tithi']} (#{panchanga['tithi_num']}) — {panchanga['tithi_quality']}",
         f"  Nakshatra:        {panchanga['nakshatra']} in {panchanga['moon_sign']}",
         f"  Yoga:             {panchanga['yoga']} — {panchanga['yoga_quality']}",

@@ -13,6 +13,7 @@ Daily signal engine — generates a rich daily reading that includes:
 
 from datetime import datetime, date, timedelta
 import os
+import json
 
 SIGNS = [
     "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
@@ -285,8 +286,8 @@ PLANETARY HOUR NOW:
   Best for: {planetary_hour['best_activity']}
 {wow_block}
 NATAL CHART CONTEXT:
-  Lagna: {natal_chart.get('lagna',{{}}).get('sign','') if isinstance(natal_chart.get('lagna'),dict) else ''}
-  Moon: {natal_chart.get('planets',{{}}).get('Moon',{{}}).get('sign','')} in {natal_chart.get('planets',{{}}).get('Moon',{{}}).get('nakshatra','')}
+  Lagna: {natal_chart.get('lagna', {}).get('sign', '') if isinstance(natal_chart.get('lagna'), dict) else ''}
+  Moon: {natal_chart.get('planets', {}).get('Moon', {}).get('sign', '')} in {natal_chart.get('planets', {}).get('Moon', {}).get('nakshatra', '')}
   Active Dasha: {dasha_str}
   Atmakaraka: {natal_chart.get('atmakaraka','')}
 
@@ -419,7 +420,7 @@ async def generate_daily_signal(
         "moon_sign":      moon_sign,
         "day_lord":       planetary_hour["day_lord"],
         "hour_lord":      planetary_hour["current_hour_lord"],
-        "wow_today":      wow_today,
+        "wow_today":      json.dumps(wow_today),
         "has_wow":        len(wow_today) > 0,
         "dasha_string":   f"{current_md}-{current_ad}" if current_ad else current_md,
         "ayurveda_tip":   MOON_NAKSHATRA_TIPS.get(moon_nak,{}).get("tip",""),

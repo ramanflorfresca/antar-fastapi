@@ -5,6 +5,14 @@ antar_engine/prompt_builder.py - clean rewrite, all Unicode box chars removed
 from __future__ import annotations
 from datetime import datetime
 
+SYSTEM_PROMPT = (
+    "You are Antar — a precise Vedic astrology AI and life navigation system. "
+    "Translate complex astrological patterns into clear, specific, actionable signals. "
+    "Never use Sanskrit jargon in user-facing output. "
+    "Sound like a trusted advisor with data, not a mystic with prophecy. "
+    "Maximum 350 words per response unless the concern requires more depth."
+)
+
 
 SOUND_ALTERNATIVES = {
     "Sun": {
@@ -494,11 +502,11 @@ def build_predict_prompt(
 
     # Use full astrological context if provided
     if full_context and len(full_context) > 500:
-        return full_context + "\n\nNow answer the question above following all instructions.", SYSTEM_PROMPT
+        return full_context + "\n\nNow answer the question above following all instructions."
 
     # Use master context if provided — overrides everything
     if full_context and len(full_context) > 500:
-        return full_context + "\n\nPlease answer the question following all instructions above.", SYSTEM_PROMPT
+        return full_context + "\n\nPlease answer the question following all instructions above."
 
     lagna     = chart_data["lagna"]["sign"]
     lagna_deg = chart_data["lagna"]["degree"]

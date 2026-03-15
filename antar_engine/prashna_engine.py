@@ -144,7 +144,10 @@ def cast_prashna_chart(
     Cast a Prashna chart for the exact moment of the question.
     Returns complete chart data for the question moment.
     """
-    import swisseph as swe
+    try:
+        import swisseph as swe
+    except ImportError as _swe_err:
+        return {"error": f"swisseph not available on this server: {_swe_err}"}
 
     if question_time is None:
         question_time = datetime.utcnow()
@@ -591,7 +594,7 @@ def run_prashna(
     )
 
     if prashna_chart.get("error"):
-        return {"error": prashna_chart["error"]}
+        return {"error": prashna_chart["error"], "verdict": "UNAVAILABLE", "confidence": "none"}
 
     # Detect question type
     q_type, significator = detect_question_type(question)
