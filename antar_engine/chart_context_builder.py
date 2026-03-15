@@ -505,8 +505,8 @@ D60 SHASHTIAMSA (Past Life Karma):
   Challenging karma (karmic debts): {_d60_chal}
   Use D60 when asked WHY patterns repeat — this reveals past life causes.
 
-D24 Education chart: Lagna = {divisional_charts.get('d24',{{}}).get('lagna','?')}
-D30 Misfortune chart: Lagna = {divisional_charts.get('d30',{{}}).get('lagna','?')} (malefic sign = problems during that sign lord dasha)
+D24 Education chart: Lagna = {_d24_lagna}
+D30 Misfortune chart: Lagna = {_d30_lagna} (malefic sign = problems during that sign lord dasha)
 {concern_context}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 VIMSOTTARI DASHA TIMELINE
