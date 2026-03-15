@@ -1449,6 +1449,11 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             prompt += f"\n\nUSE THIS EXACT FORMAT (no other headers):\n{_answer_fmt}"
         prompt += "\n\nCRITICAL: Do NOT start with 'YOUR SIGNAL RIGHT NOW'. Answer directly using the format above."
 
+        # Append answer format and anti-template instruction to prompt
+        if _answer_fmt:
+            prompt += f"\n\nUSE THIS EXACT FORMAT (no other headers):\n{_answer_fmt}"
+        prompt += "\n\nCRITICAL: Do NOT start with 'YOUR SIGNAL RIGHT NOW'. Answer directly using the format above."
+
         _master_system = _concern_system
         prediction_text, tokens_used = await call_llm(
             prompt,
