@@ -3962,3 +3962,95 @@ async def get_prediction_accuracy_endpoint(chart_id: str):
     """Return accuracy score — powers the trust badge."""
     from antar_engine.prediction_tracker import get_accuracy_score
     return get_accuracy_score(chart_id, supabase)
+
+
+# ── Alert System Endpoints ────────────────────────────────────────
+
+@app.get("/api/v1/alerts/{chart_id}")
+async def get_alerts(chart_id: str, unread_only: bool = False):
+    """Get personal alerts for a chart — powers in-app badge."""
+    query = supabase.table("user_alerts").select("*").eq(
+        "chart_id", chart_id
+    ).is_("dismissed_at", "null").order("created_at", desc=True).limit(20)
+
+    if unread_only:
+        query = query.is_("read_at", "null")
+
+    res = query.execute()
+    alerts = res.data or []
+    unread_count = sum(1 for a in alerts if not a.get("read_at"))
+    return {"alerts": alerts, "unread_count": unread_count}
+
+
+@app.post("/api/v1/alerts/{alert_id}/read")
+async def mark_alert_read(alert_id: str):
+    """Mark alert as read — clears badge."""
+    from datetime import timezone
+    supabase.table("user_alerts").update({
+        "read_at": datetime.now(timezone.utc).isoformat()
+    }).eq("id", alert_id).execute()
+    return {"success": True}
+
+
+@app.post("/api/v1/alerts/{alert_id}/dismiss")
+async def dismiss_alert(alert_id: str):
+    """Dismiss alert permanently."""
+    from datetime import timezone
+    supabase.table("user_alerts").update({
+        "dismissed_at": datetime.now(timezone.utc).isoformat()
+    }).eq("id", alert_id).execute()
+    return {"success": True}
+
+
+@app.post("/api/v1/alerts/subscribe")
+async def subscribe_to_alerts(request: dict):
+    """Save email for alert delivery."""
+    chart_id = request.get("chart_id")
+    email    = request.get("email")
+    if not chart_id or not email:
+        raise HTTPException(400, "chart_id and email required")
+    supabase.table("charts").update({"email": email}).eq("id", chart_id).execute()
+    return {"success": True, "message": "You will receive personal transit alerts at " + email}
+
+
+@app.post("/api/v1/alerts/run-check")
+async def manual_alert_check(request: dict):
+    """Manually trigger alert check — for testing."""
+    secret = request.get("secret", "")
+    if secret != os.getenv("ALERT_SECRET", "antar-alerts-2026"):
+        raise HTTPException(403, "Invalid secret")
+    from antar_engine.alert_engine import run_daily_alert_check
+    stats = run_daily_alert_check(supabase)
+    return {"success": True, "stats": stats}
+
+
+# ── Daily Alert Scheduler ─────────────────────────────────────────
+import asyncio
+from datetime import datetime as _dt
+
+async def _daily_alert_job():
+    """Runs daily at 6am UTC — checks all charts for personal alerts."""
+    import asyncio
+    while True:
+        try:
+            now = _dt.utcnow()
+            # Sleep until next 6am UTC
+            target = now.replace(hour=6, minute=0, second=0, microsecond=0)
+            if now >= target:
+                target = target.replace(day=target.day + 1)
+            sleep_secs = (target - now).total_seconds()
+            await asyncio.sleep(sleep_secs)
+
+            from antar_engine.alert_engine import run_daily_alert_check
+            stats = run_daily_alert_check(supabase)
+            print(f"[alerts] Daily check: {stats}")
+        except Exception as e:
+            print(f"[alerts] Scheduler error: {e}")
+            await asyncio.sleep(3600)
+
+@app.on_event("startup")
+async def start_alert_scheduler():
+    asyncio.create_task(_daily_alert_job())
+    print("[startup] Alert scheduler started — runs daily 06:00 UTC")
+
+
