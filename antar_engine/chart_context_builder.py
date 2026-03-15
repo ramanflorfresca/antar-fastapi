@@ -429,7 +429,13 @@ WEALTH ANALYSIS CONTEXT:
     lk_block  = lal_kitab_prompt_block(lk_analysis) if lk_analysis else "LK analysis not available"
     trans_block = transits_prompt_block(transit_data) if transit_data else "Transit data not available"
 
-    context = f"""
+    context = _d60      = divisional_charts.get('d60', {})
+    _d60_lagna     = _d60.get('lagna', '')
+    _d60_karma     = _d60.get('lagna_karma', ('', ''))
+    _d60_karma_desc= str(_d60_karma[-1]) if _d60_karma else ''
+    _d60_pos       = ' | '.join(_d60.get('positive_karma', [])[:2])
+    _d60_chal      = ' | '.join(_d60.get('challenging_karma', [])[:2])
+    f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║         COMPLETE ASTROLOGICAL CONTEXT — ANTAR ENGINE         ║
 ║   DO NOT FABRICATE. USE ONLY WHAT IS PROVIDED BELOW.         ║
@@ -494,9 +500,9 @@ D2 Hora (Wealth chart — Sun hora=Leo=self-made, Moon hora=Cancer=public/inheri
 D7 Saptamsa (Children): Lagna = {d7.get('lagna','?')}
 
 D60 SHASHTIAMSA (Past Life Karma):
-  Lagna karma: {divisional_charts.get('d60',{{}}).get('lagna','')} — {str(divisional_charts.get('d60',{{}}).get('lagna_karma',('',''))[-1])}
-  Positive karma (karmic gifts): {' | '.join(divisional_charts.get('d60',{{}}).get('positive_karma',[])[:2])}
-  Challenging karma (karmic debts): {' | '.join(divisional_charts.get('d60',{{}}).get('challenging_karma',[])[:2])}
+  Lagna karma: {_d60_lagna} — {_d60_karma_desc}
+  Positive karma (karmic gifts): {_d60_pos}
+  Challenging karma (karmic debts): {_d60_chal}
   Use D60 when asked WHY patterns repeat — this reveals past life causes.
 
 D24 Education chart: Lagna = {divisional_charts.get('d24',{{}}).get('lagna','?')}

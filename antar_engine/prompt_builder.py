@@ -594,39 +594,31 @@ SIGNAL 6 - RECALIBRATION PRACTICE:
 
 === END MANDATORY SIGNALS ===
 
-=== RESPONSE STRUCTURE - FOLLOW EXACTLY ===
+=== RESPONSE STRUCTURE ===
 
-1. YOUR SIGNAL RIGHT NOW (2 sentences)
-   Sentence 1: Name the convergence if it exists - plainly, no jargon.
-   Sentence 2: One hyper-specific detail that only fits THIS chart.
+Answer "{question}" directly and specifically.
 
-2. THE PATTERN THAT'S ACTIVE (2-3 sentences)
-   REQUIRED: "This pattern is active through [Month Year]."
+Structure your response as:
 
-3. THE DATA BEHIND IT - SOUL LEVEL (2-3 sentences)
-   REQUIRED: Name soul's core signal (see SIGNAL 1 above).
+**[Direct answer to the question]**
+[2-3 sentences — lead with the answer, name specific planets and timing]
 
-4. WHAT THIS MEANS FOR YOU RIGHT NOW (3-4 sentences)
-   Answer: "{question}"
-   REQUIRED: Name career path signal (see SIGNAL 2 above).
-   REQUIRED: "The most important window is [Month]-[Month] [Year]."
-   REQUIRED: Include navigational alert if one exists (see SIGNAL 3).
+**What's driving this**
+[2-3 sentences — the specific combinations from the data that explain it]
 
-5. YOUR MOVE - 2 actions only
-   -> START: [one specific action]
-   -> SLOW DOWN ON: [one navigational caution]
+**Your window**
+[1-2 sentences — specific timing: which period, which years]
 
-6. RECALIBRATION PRACTICES
-   Sound practice: [from SIGNAL 6 - exact mantra/alternative from lookup]
-   Physical practice: [one grounding or journaling practice]
-   Mindset recalibration: [one sentence they can repeat]
+**Do this**
+[One specific action + one Lal Kitab remedy]
 
-7. YOUR NAVIGATION HEADING (2 sentences)
-   Sentence 1: The 10,000ft view - where they are in their larger life arc.
-   Sentence 2: The one thing that's true at 3am - real, not motivational poster.
-   {tone['close']}
-
-=== END RESPONSE STRUCTURE ===
+RULES:
+- Never use "YOUR SIGNAL RIGHT NOW" as a header
+- Never use "THE PATTERN THAT'S ACTIVE" as a header
+- Answer the actual question in the first sentence
+- Reference specific planets by name (Sun, Jupiter, Rahu etc)
+- Give specific years/months for timing
+- One remedy — concrete, not vague
 
 {lang_note}
 User's question: {question}
