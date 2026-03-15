@@ -3931,6 +3931,7 @@ async def debug_env():
         "supabase_url_length": len(os.getenv("SUPABASE_URL", "")),
         "supabase_key_exists": os.getenv("SUPABASE_SERVICE_ROLE_KEY") is not None,
         "supabase_key_length": len(os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")),
+    }
 
 
 # ── Prediction Tracking Endpoints ─────────────────────────────────
@@ -3961,6 +3962,3 @@ async def get_prediction_accuracy_endpoint(chart_id: str):
     """Return accuracy score — powers the trust badge."""
     from antar_engine.prediction_tracker import get_accuracy_score
     return get_accuracy_score(chart_id, supabase)
-
-
-    }
