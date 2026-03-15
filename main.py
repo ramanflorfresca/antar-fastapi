@@ -1429,37 +1429,29 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     print(f"[predict] using_master={_using_master} prompt_len={len(prompt)}")
 
     if _using_master:
-        # Use concern-specific system prompt
+        # Add concern focus to prompt (not system override — avoids empty responses)
         try:
-            from antar_engine.concern_router import build_concern_system_prompt, get_answer_format
-            _concern_system   = build_concern_system_prompt(concern)
-            _answer_fmt       = get_answer_format(concern)
-            if _answer_fmt:
-                prompt += f"\n\nUSE THIS ANSWER FORMAT:\n{_answer_fmt}"
+            from antar_engine.concern_router import get_priority_context_instruction
+            _priority_instr = get_priority_context_instruction(concern)
+            prompt += f"\n\n{_priority_instr}"
         except Exception:
-            _concern_system = (
-                "You are Antar — a precise Vedic astrology AI. "
-                "Answer DIRECTLY using ONLY the provided data. "
-                "Reference specific planets, houses, yogas. "
-                "Never use generic advice. Never use template headers."
-            )
+            pass
+        prompt += "\n\nCRITICAL: Do NOT use 'YOUR SIGNAL RIGHT NOW' or 'THE PATTERN THAT\'S ACTIVE' as headers. Answer the question directly in the first sentence."
 
-        # Append answer format and anti-template instruction to prompt
-        if _answer_fmt:
-            prompt += f"\n\nUSE THIS EXACT FORMAT (no other headers):\n{_answer_fmt}"
-        prompt += "\n\nCRITICAL: Do NOT start with 'YOUR SIGNAL RIGHT NOW'. Answer directly using the format above."
-
-        # Append answer format and anti-template instruction to prompt
-        if _answer_fmt:
-            prompt += f"\n\nUSE THIS EXACT FORMAT (no other headers):\n{_answer_fmt}"
-        prompt += "\n\nCRITICAL: Do NOT start with 'YOUR SIGNAL RIGHT NOW'. Answer directly using the format above."
-
-        _master_system = _concern_system
+        _master_system = (
+            "You are Antar — a precise Vedic astrology AI. "
+            "Answer directly and specifically using the data provided. "
+            "Reference specific planets, houses, yogas, and timing. "
+            "Lead with the actual answer in the first sentence. "
+            "Never start responses with template headers like 'YOUR SIGNAL RIGHT NOW'."
+        )
         prediction_text, tokens_used = await call_llm(
             prompt,
             history=request.conversation_history or [],
             system_override=_master_system,
         )
+
+
     else:
         prediction_text, tokens_used = await call_llm(
             prompt,
