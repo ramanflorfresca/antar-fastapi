@@ -1429,16 +1429,22 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     print(f"[predict] using_master={_using_master} prompt_len={len(prompt)}")
 
     if _using_master:
-        _master_system = (
-            "You are Antar — a precise Vedic astrology AI advisor. "
-            "You have been given a complete astrological brief with exact planetary positions, "
-            "yogas, divisional charts, dasha timeline, Lal Kitab analysis, and current transits. "
-            "Answer the question DIRECTLY and SPECIFICALLY using ONLY the data provided. "
-            "Reference specific planets, houses, yogas, and dasha periods by name. "
-            "Never use generic astrology advice. Never use template headers like "
-            "'YOUR SIGNAL RIGHT NOW'. "
-            "Be direct, specific, and honest — including when the chart does NOT support something."
-        )
+        # Use concern-specific system prompt
+        try:
+            from antar_engine.concern_router import build_concern_system_prompt, get_answer_format
+            _concern_system   = build_concern_system_prompt(concern)
+            _answer_fmt       = get_answer_format(concern)
+            if _answer_fmt:
+                prompt += f"\n\nUSE THIS ANSWER FORMAT:\n{_answer_fmt}"
+        except Exception:
+            _concern_system = (
+                "You are Antar — a precise Vedic astrology AI. "
+                "Answer DIRECTLY using ONLY the provided data. "
+                "Reference specific planets, houses, yogas. "
+                "Never use generic advice. Never use template headers."
+            )
+
+        _master_system = _concern_system
         prediction_text, tokens_used = await call_llm(
             prompt,
             history=request.conversation_history or [],
