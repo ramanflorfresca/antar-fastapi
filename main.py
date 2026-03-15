@@ -1009,45 +1009,25 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     if not request.chart_id:
         raise HTTPException(status_code=400, detail="chart_id required")
 
-    # Guest rate limiting — 3 predictions per month
-    if not user_id:
-        if not check_guest_rate_limit(request.chart_id, limit=3):
-            usage = get_guest_usage(request.chart_id)
+    # Persistent rate limiting — DB-backed, survives redeploys
+    if request.chart_id:
+        from antar_engine.subscription_engine import check_limit, get_what_youre_missing, increment_usage
+        limit_check = check_limit(request.chart_id, "pred", supabase)
+        if not limit_check["allowed"]:
+            missing = get_what_youre_missing(request.chart_id, supabase)
             raise HTTPException(
                 status_code=429,
                 detail={
-                    "error": "monthly_limit_reached",
-                    "message": f"You have used your {usage['limit']} free readings this month.",
-                    "used": usage["count"],
-                    "limit": usage["limit"],
-                    "resets": usage["month"],
+                    "error":       "monthly_limit_reached",
+                    "used":        limit_check["used"],
+                    "limit":       limit_check["limit"],
+                    "hook_lines":  missing["hook_lines"],
+                    "plans":       missing["plans"],
                     "upgrade_url": "https://antar.world/upgrade",
-                    "plans": [
-                        {
-                            "name": "Seeker",
-                            "price_monthly": "$4.99",
-                            "price_annual": "$39",
-                            "features": [
-                                "Unlimited predictions",
-                                "Career & wealth reading",
-                                "Mantra audio playback",
-                                "Full prediction history",
-                                "Monthly life briefing",
-                            ]
-                        },
-                        {
-                            "name": "Navigator",
-                            "price_monthly": "$19.99",
-                            "features": [
-                                "Everything in Seeker",
-                                "1 live reading/month",
-                                "Astrocartography",
-                                "Priority responses",
-                            ]
-                        }
-                    ]
                 }
             )
+        # Increment usage counter
+        increment_usage(request.chart_id, "pred", supabase)
 
     # Guest rate limiting — 3 predictions per month
     if not user_id:
@@ -4052,5 +4032,100 @@ async def _daily_alert_job():
 async def start_alert_scheduler():
     asyncio.create_task(_daily_alert_job())
     print("[startup] Alert scheduler started — runs daily 06:00 UTC")
+
+
+# ── Subscription / Paywall Endpoints ─────────────────────────────
+
+@app.get("/api/v1/subscription/{chart_id}")
+async def get_subscription_status(chart_id: str):
+    """Get subscription plan + this month\'s usage."""
+    from antar_engine.subscription_engine import (
+        get_subscription, get_usage, PLANS
+    )
+    sub   = get_subscription(chart_id, supabase)
+    usage = get_usage(chart_id, supabase)
+    plan  = sub.get("plan", "free")
+    plan_data = PLANS.get(plan, PLANS["free"])
+    return {
+        "plan":            plan,
+        "status":          sub.get("status", "active"),
+        "is_paid":         plan != "free",
+        "pred_used":       usage.get("pred_count", 0),
+        "pred_limit":      plan_data["pred_limit"],
+        "ask_used":        usage.get("ask_count", 0),
+        "ask_limit":       plan_data["ask_limit"],
+        "compat_used":     usage.get("compat_count", 0),
+        "compat_limit":    plan_data["compat_limit"],
+        "period_end":      sub.get("current_period_end"),
+        "features":        plan_data["features"],
+    }
+
+
+@app.get("/api/v1/subscription/what-youre-missing/{chart_id}")
+async def get_upgrade_hook(chart_id: str):
+    """
+    Personalized upgrade hook — what will this user miss
+    if they don\'t upgrade? Powers the upgrade modal.
+    """
+    from antar_engine.subscription_engine import get_what_youre_missing
+    return get_what_youre_missing(chart_id, supabase)
+
+
+@app.post("/api/v1/subscription/verify")
+async def verify_subscription(request: dict):
+    """
+    Verify payment and activate subscription.
+    Called after Stripe/Razorpay payment succeeds.
+    Body: { chart_id, plan, provider, provider_sub_id, period_end }
+    """
+    from antar_engine.subscription_engine import activate_subscription
+    chart_id       = request.get("chart_id")
+    plan           = request.get("plan", "seeker")
+    provider       = request.get("provider", "stripe")
+    provider_sub_id= request.get("provider_sub_id", "")
+    period_end     = request.get("period_end", "")
+
+    if not chart_id:
+        raise HTTPException(400, "chart_id required")
+
+    result = activate_subscription(
+        chart_id=chart_id,
+        plan=plan,
+        provider=provider,
+        provider_sub_id=provider_sub_id,
+        period_end_iso=period_end,
+        sb=supabase,
+    )
+    return {"success": True, "subscription": result}
+
+
+@app.post("/api/v1/subscription/stripe-webhook")
+async def stripe_webhook(request: Request):
+    """Handle Stripe webhook — auto-activate on payment."""
+    import json
+    body = await request.body()
+    try:
+        event = json.loads(body)
+        if event["type"] == "checkout.session.completed":
+            session  = event["data"]["object"]
+            chart_id = session.get("client_reference_id", "")
+            sub_id   = session.get("subscription", "")
+            if chart_id and sub_id:
+                from antar_engine.subscription_engine import activate_subscription
+                from datetime import timedelta
+                period_end = (
+                    datetime.now(timezone.utc) + timedelta(days=30)
+                ).isoformat()
+                activate_subscription(
+                    chart_id=chart_id,
+                    plan="seeker",
+                    provider="stripe",
+                    provider_sub_id=sub_id,
+                    period_end_iso=period_end,
+                    sb=supabase,
+                )
+        return {"received": True}
+    except Exception as e:
+        raise HTTPException(400, str(e))
 
 
