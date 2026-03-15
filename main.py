@@ -3378,6 +3378,112 @@ async def get_panchanga(request: dict = {}):
     return {**panchanga, **formatted}
 
 
+
+
+class PrashnaRequest(BaseModel):
+    question:       str
+    chart_id:       Optional[str] = None
+    lat:            Optional[float] = 28.6139
+    lng:            Optional[float] = 77.2090
+    language:       Optional[str] = "en"
+    generate_answer: Optional[bool] = True
+
+@app.post("/api/v1/prashna")
+async def ask_prashna(request: PrashnaRequest):
+    """
+    Prashna (Horary) — answer any question using the chart
+    cast for the EXACT moment the question is asked.
+    No birth data needed. Question moment IS the chart.
+    """
+    # Get natal chart if chart_id provided (for additional context)
+    natal_chart = None
+    if request.chart_id:
+        try:
+            res = supabase.table("charts").select(
+                "chart_data,latitude,longitude"
+            ).eq("id", request.chart_id).execute()
+            if res.data:
+                natal_chart = res.data[0]["chart_data"]
+                if not request.lat or request.lat == 28.6139:
+                    request.lat = res.data[0].get("latitude", 28.6139) or 28.6139
+                if not request.lng or request.lng == 77.2090:
+                    request.lng = res.data[0].get("longitude", 77.2090) or 77.2090
+        except Exception:
+            pass
+
+    # Run Prashna
+    result = run_prashna(
+        question=request.question,
+        lat=request.lat or 28.6139,
+        lng=request.lng or 77.2090,
+        natal_chart=natal_chart,
+    )
+
+    if result.get("error"):
+        raise HTTPException(500, f"Prashna error: {result['error']}")
+
+    # Generate LLM narrative answer
+    narrative = ""
+    if request.generate_answer:
+        try:
+            llm_prompt = result.get("llm_prompt","")
+            system_prompt = (
+                "You are Antar — a precise Vedic astrology AI. "
+                "Answer Prashna questions in plain psychological language. "
+                "Never use Sanskrit terms. Be direct, specific, under 200 words. "
+                "Lead with the verdict. Sound like a wise mentor."
+            )
+            narrative = await call_llm(
+                prompt=llm_prompt,
+                system_override=system_prompt,
+                language=request.language,
+                max_tokens=400,
+            )
+        except Exception as _le:
+            narrative = (
+                f"**The Answer**\n{result['verdict']} — {result['analysis']['explanation']}\n\n"
+                f"**Timing**\n{result['timing']}\n\n"
+                f"**What to do**\n{result['remedy']}"
+            )
+
+    # Save to DB
+    try:
+        supabase.table("prashna_readings").insert({
+            "chart_id":      request.chart_id,
+            "question":      request.question,
+            "question_type": result["question_type"],
+            "verdict":       result["verdict"],
+            "score":         result["score"],
+            "confidence":    result["confidence"],
+            "timing":        result["timing"],
+            "narrative":     narrative,
+            "prashna_data":  {
+                "lagna":          result["lagna"],
+                "moon_nakshatra": result["moon_nakshatra"],
+                "yes_factors":    result["yes_factors"],
+                "no_factors":     result["no_factors"],
+            },
+        }).execute()
+    except Exception:
+        pass
+
+    return {
+        "question":      request.question,
+        "verdict":       result["verdict"],
+        "confidence":    result["confidence"],
+        "score":         result["score"],
+        "timing":        result["timing"],
+        "narrative":     narrative,
+        "moon_nakshatra":result["moon_nakshatra"],
+        "moon_quality":  result["moon_quality"],
+        "yes_factors":   result["yes_factors"][:3],
+        "no_factors":    result["no_factors"][:3],
+        "remedy":        result["remedy"],
+        "lagna":         result["lagna"],
+        "question_type": result["question_type"],
+    }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
