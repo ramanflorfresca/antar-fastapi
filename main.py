@@ -1461,6 +1461,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             history=request.conversation_history or [],
         )
 
+    print(f"[predict] LLM response len={len(prediction_text) if prediction_text else 0} concern={concern}")
     confidence = predictions["highest_confidence"] or 0.75
     factors = [
         f"Layer 1: Dasha timing ({len(predictions['layer_1'])} signals)",
