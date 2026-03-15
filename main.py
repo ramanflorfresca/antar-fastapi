@@ -3659,6 +3659,72 @@ async def get_prashna_session(session_id: str):
     }
 
 
+
+
+@app.post("/api/v1/debug/context")
+async def debug_context(request: dict):
+    """Debug endpoint — returns context build result for a chart+concern."""
+    chart_id = request.get("chart_id")
+    concern  = request.get("concern","career")
+    question = request.get("question","test")
+
+    res = supabase.table("charts").select("chart_data,birth_date,gender,name").eq("id",chart_id).execute()
+    if not res.data:
+        return {"error":"chart not found"}
+
+    row        = res.data[0]
+    chart_data = row["chart_data"]
+    birth_date = row.get("birth_date","")
+    name       = row.get("name","")
+    fname      = name.split()[0] if name else ""
+    gender     = row.get("gender","")
+
+    # Get dashas
+    dasha_rows = supabase.table("dasha_periods").select("*").eq("chart_id",chart_id).eq("system","vimsottari").execute().data
+    dashas_list = [{
+        "lord_or_sign": r.get("planet_or_sign"),
+        "level":        r.get("type"),
+        "start_date":   str(r.get("start_date","")),
+        "end_date":     str(r.get("end_date","")),
+    } for r in dasha_rows]
+
+    dashas = {"vimsottari": dashas_list}
+
+    try:
+        from antar_engine.chart_context_builder import build_complete_context
+        from antar_engine.lal_kitab_engine import calculate_lal_kitab_analysis
+        from antar_engine.transits_engine import calculate_current_transits
+
+        lk = calculate_lal_kitab_analysis(
+            chart_data.get("planets",{}),
+            chart_data.get("lagna",{}).get("sign","") if isinstance(chart_data.get("lagna"),dict) else ""
+        )
+        tr = calculate_current_transits(chart_data)
+
+        ctx = build_complete_context(
+            chart_data=chart_data, dashas=dashas,
+            birth_date=birth_date, first_name=fname,
+            gender=gender, concern=concern, question=question,
+            lk_analysis=lk, transit_data=tr,
+            yogas=chart_data.get("yogas",[]),
+            divisional_charts=chart_data.get("divisional_charts",{}),
+        )
+        return {
+            "concern":     concern,
+            "context_len": len(ctx),
+            "context_ok":  len(ctx) > 500,
+            "dashas_len":  len(dashas_list),
+            "preview":     ctx[:500],
+        }
+    except Exception as e:
+        import traceback
+        return {
+            "concern": concern,
+            "error":   str(e),
+            "trace":   traceback.format_exc(),
+        }
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
