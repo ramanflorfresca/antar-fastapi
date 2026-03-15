@@ -429,12 +429,38 @@ WEALTH ANALYSIS CONTEXT:
     lk_block  = lal_kitab_prompt_block(lk_analysis) if lk_analysis else "LK analysis not available"
     trans_block = transits_prompt_block(transit_data) if transit_data else "Transit data not available"
 
-    context = _d60      = divisional_charts.get('d60', {})
+    _d60      = divisional_charts.get('d60', {})
+    _d24      = divisional_charts.get('d24', {})
+    _d30      = divisional_charts.get('d30', {})
+    _d16      = divisional_charts.get('d16', {})
+    _d20      = divisional_charts.get('d20', {})
+    _d27      = divisional_charts.get('d27', {})
+    _d3       = divisional_charts.get('d3',  {})
+    _d4       = divisional_charts.get('d4',  {})
+    _d5       = divisional_charts.get('d5',  {})
+    _d60_lagna      = _d60.get('lagna', '')
+    _d60_karma      = _d60.get('lagna_karma', ('', ''))
+    _d60_karma_desc = str(_d60_karma[-1]) if _d60_karma else ''
+    _d60_pos        = ' | '.join(_d60.get('positive_karma', [])[:2])
+    _d60_chal       = ' | '.join(_d60.get('challenging_karma', [])[:2])
+    _d24_lagna = _d24.get('lagna', '?')
+    _d30_lagna = _d30.get('lagna', '?')
+    _d16_lagna = _d16.get('lagna', '?')
+    _d20_lagna = _d20.get('lagna', '?')
+    _d27_lagna = _d27.get('lagna', '?')
+    _d3_lagna  = _d3.get('lagna',  '?')
+    _d4_lagna  = _d4.get('lagna',  '?')
+    _d5_lagna  = _d5.get('lagna',  '?')
     _d60_lagna     = _d60.get('lagna', '')
     _d60_karma     = _d60.get('lagna_karma', ('', ''))
     _d60_karma_desc= str(_d60_karma[-1]) if _d60_karma else ''
     _d60_pos       = ' | '.join(_d60.get('positive_karma', [])[:2])
     _d60_chal      = ' | '.join(_d60.get('challenging_karma', [])[:2])
+    _jk_ak  = jaimini_karakas.get('Atmakaraka',{}).get('planet','?')
+    _jk_amk = jaimini_karakas.get('Amatyakaraka',{}).get('planet','?')
+    _jk_dk  = jaimini_karakas.get('Darakaraka',{}).get('planet','?')
+    _jk_pk  = jaimini_karakas.get('Putrakaraka',{}).get('planet','?')
+    _jk_mk  = jaimini_karakas.get('Matrukaraka',{}).get('planet','?')
     f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║         COMPLETE ASTROLOGICAL CONTEXT — ANTAR ENGINE         ║
@@ -521,11 +547,11 @@ CURRENT CHAPTER:
   Ashtottari MD : {f"{ash_current} until {ash_current_end}" if ash_current else 'not calculated'}
 
 JAIMINI KARAKAS (soul significators — fixed for life):
-  Atmakaraka   (AK)  : {jaimini_karakas.get('Atmakaraka',{{}}).get('planet','?')} — soul purpose
-  Amatyakaraka (AmK) : {jaimini_karakas.get('Amatyakaraka',{{}}).get('planet','?')} — career/advisor
-  Darakaraka   (DK)  : {jaimini_karakas.get('Darakaraka',{{}}).get('planet','?')} — spouse nature
-  Putrakaraka  (PK)  : {jaimini_karakas.get('Putrakaraka',{{}}).get('planet','?')} — children
-  Matrukaraka  (MK)  : {jaimini_karakas.get('Matrukaraka',{{}}).get('planet','?')} — mother
+  Atmakaraka   (AK)  : {_jk_ak} — soul purpose
+  Amatyakaraka (AmK) : {_jk_amk} — career/advisor
+  Darakaraka   (DK)  : {_jk_dk} — spouse nature
+  Putrakaraka  (PK)  : {_jk_pk} — children
+  Matrukaraka  (MK)  : {_jk_mk} — mother
 
 JAIMINI RULES:
   • Amatyakaraka sign and house = career direction (stronger than D10 alone)
