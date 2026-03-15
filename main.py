@@ -3736,6 +3736,171 @@ async def debug_context(request: dict):
         }
 
 
+
+
+# ── DAILY SIGNAL ──────────────────────────────────────────────────
+@app.post("/api/v1/daily-signal")
+@app.get("/api/v1/daily-signal/{chart_id}")
+async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}):
+    cid = chart_id or (request.get("chart_id") if request else None)
+    if not cid:
+        raise HTTPException(400, "chart_id required")
+    try:
+        from antar_engine.daily_prediction_engine import generate_daily_signal
+        from antar_engine.daily_panchanga import calculate_panchanga, format_daily_for_user
+        res = supabase.table("charts").select("chart_data,birth_date,name,gender,latitude,longitude").eq("id",cid).execute()
+        if not res.data: raise HTTPException(404,"Chart not found")
+        row = res.data[0]
+        cd  = row["chart_data"]
+        dashas = get_dashas_for_chart(cid) if callable(get_dashas_for_chart) else []
+        dashas_dict = {"vimsottari":dashas} if isinstance(dashas,list) else dashas
+        name = row.get("name","")
+        result = await generate_daily_signal(
+            natal_chart=cd, dashas=dashas_dict,
+            birth_date=row.get("birth_date",""),
+            chart_id=cid,
+            first_name=name.split()[0] if name else "",
+            gender=row.get("gender",""),
+        )
+        lat = float(row.get("latitude",28.6) or 28.6)
+        lng = float(row.get("longitude",77.2) or 77.2)
+        panchanga = calculate_panchanga(lat=lat, lng=lng)
+        formatted  = format_daily_for_user(panchanga)
+        result.update({
+            "panchanga":   formatted,
+            "rahu_kalam":  panchanga.get("rahu_kalam",""),
+            "abhijit":     panchanga.get("abhijit_muhurta",""),
+            "lucky_hours": panchanga.get("lucky_hours",{}),
+            "do_today":    panchanga.get("do_today",[]),
+            "dont_today":  panchanga.get("dont_today",[]),
+            "day_color":   panchanga.get("day_color",""),
+            "day_number":  panchanga.get("day_number",""),
+            "day_mantra":  panchanga.get("day_mantra",""),
+            "tithi":       panchanga.get("tithi",""),
+            "yoga":        panchanga.get("yoga",""),
+        })
+        return result
+    except HTTPException: raise
+    except Exception as e:
+        raise HTTPException(500, f"Daily signal error: {e}")
+
+
+# ── MUHURTA ───────────────────────────────────────────────────────
+@app.post("/api/v1/muhurta/best-times")
+async def get_muhurta_endpoint(request: dict):
+    chart_id = request.get("chart_id")
+    event    = request.get("event","general")
+    if not chart_id: raise HTTPException(400,"chart_id required")
+    try:
+        from antar_engine.timing_engine import timing_insights
+        res = supabase.table("charts").select("chart_data").eq("id",chart_id).execute()
+        if not res.data: raise HTTPException(404,"Chart not found")
+        cd = res.data[0]["chart_data"]
+        dashas = get_dashas_for_chart(chart_id) if callable(get_dashas_for_chart) else []
+        dashas_dict = {"vimsottari":dashas} if isinstance(dashas,list) else dashas
+        MUHURTA_RULES = {
+            "marriage":       {"best_day":"Wednesday or Thursday or Friday","note":"Start during waxing moon"},
+            "business_start": {"best_day":"Wednesday or Thursday","note":"Shukla Paksha preferred"},
+            "property_purchase":{"best_day":"Tuesday or Saturday","note":"4th house lord dasha ideal"},
+            "travel":         {"best_day":"Wednesday or Thursday","note":"Avoid Ashlesha nakshatra"},
+            "surgery":        {"best_day":"Tuesday","note":"Avoid Moon in body part sign"},
+            "investment":     {"best_day":"Thursday or Friday","note":"Jupiter transit over 2nd/11th"},
+        }
+        rules = MUHURTA_RULES.get(event, MUHURTA_RULES["business_start"])
+        vim = dashas_dict.get("vimsottari",[])
+        current_dasha = ""
+        from datetime import datetime
+        now = datetime.utcnow()
+        for row in vim:
+            level = row.get("level") or row.get("type","")
+            if level != "mahadasha": continue
+            try:
+                sd = datetime.strptime(str(row.get("start_date",""))[:10],"%Y-%m-%d")
+                ed = datetime.strptime(str(row.get("end_date",""))[:10],"%Y-%m-%d")
+                if sd <= now <= ed:
+                    current_dasha = row.get("lord_or_sign") or row.get("planet_or_sign","")
+                    break
+            except: pass
+        return {
+            "chart_id":     chart_id,
+            "event":        event,
+            "current_dasha":current_dasha,
+            "muhurta_rules":rules,
+            "general_advice": f"For {event}: best on {rules.get('best_day','Thursday')}. {rules.get('note','')}",
+        }
+    except HTTPException: raise
+    except Exception as e:
+        raise HTTPException(500, f"Muhurta error: {e}")
+
+
+# ── VARSHPHAL ─────────────────────────────────────────────────────
+@app.post("/api/v1/varshphal/annual")
+async def get_varshphal_endpoint(request: dict):
+    chart_id = request.get("chart_id")
+    year     = request.get("year", datetime.utcnow().year)
+    if not chart_id: raise HTTPException(400,"chart_id required")
+    try:
+        from datetime import date
+        res = supabase.table("charts").select("chart_data,birth_date").eq("id",chart_id).execute()
+        if not res.data: raise HTTPException(404,"Chart not found")
+        row  = res.data[0]
+        cd   = row["chart_data"]
+        born = date.fromisoformat(str(row.get("birth_date","1970-01-01"))[:10])
+        age  = year - born.year
+        day_lords = ["Moon","Mars","Mercury","Jupiter","Venus","Saturn","Sun"]
+        try:
+            last_bday = born.replace(year=year)
+            if last_bday > date.today(): last_bday = born.replace(year=year-1)
+        except: last_bday = date(year, born.month, born.day)
+        year_lord = day_lords[last_bday.weekday()]
+        year_lord_house = cd.get("planets",{}).get(year_lord,{}).get("house",0)
+        THEMES = {
+            "Sun":"authority and career","Moon":"emotions and public life",
+            "Mars":"action and property","Mercury":"communication and business",
+            "Jupiter":"expansion and wisdom","Venus":"relationships and luxury",
+            "Saturn":"discipline and karma",
+        }
+        return {
+            "chart_id":   chart_id,
+            "year":       year,
+            "age":        age,
+            "year_lord":  year_lord,
+            "year_lord_house": year_lord_house,
+            "year_quality": "good" if year_lord_house in [1,4,5,9,10,11] else "challenging" if year_lord_house in [6,8,12] else "neutral",
+            "summary": f"Year {year} ruled by {year_lord} in house {year_lord_house}. Theme: {THEMES.get(year_lord,'')}.",
+            "favorable_areas": THEMES.get(year_lord,"").split(" and "),
+        }
+    except HTTPException: raise
+    except Exception as e:
+        raise HTTPException(500, f"Varshphal error: {e}")
+
+
+# ── TRANSIT ALERTS ────────────────────────────────────────────────
+@app.post("/api/v1/transit-alerts")
+@app.get("/api/v1/transit-alerts/{chart_id}")
+async def get_transit_alerts_endpoint(chart_id: str = None, request: dict = {}):
+    cid = chart_id or (request.get("chart_id") if request else None)
+    if not cid: raise HTTPException(400,"chart_id required")
+    try:
+        from antar_engine.transit_alerts_engine import generate_all_active_alerts, format_alerts_for_api
+        from antar_engine.transits_engine import calculate_current_transits
+        res = supabase.table("charts").select("chart_data").eq("id",cid).execute()
+        if not res.data: raise HTTPException(404,"Chart not found")
+        cd = res.data[0]["chart_data"]
+        tr = calculate_current_transits(cd)
+        alerts = generate_all_active_alerts(cd, tr)
+        formatted = format_alerts_for_api(alerts)
+        return {
+            "chart_id":    cid,
+            "alert_count": len(formatted),
+            "alerts":      formatted,
+            "generated_at": datetime.utcnow().isoformat(),
+        }
+    except HTTPException: raise
+    except Exception as e:
+        raise HTTPException(500, f"Transit alerts error: {e}")
+
+
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)
