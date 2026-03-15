@@ -121,7 +121,7 @@ Answer ONLY through the financial lens:
 7. ONE specific Lal Kitab remedy for wealth activation
 8. End with: "Your most important financial action this week is: [specific action]"
 
-DO NOT discuss: relationships, health, career (unless directly tied to income)
+
 MUST MENTION: specific score, peak period years, wealth type, one remedy""",
         "required_elements": [
             "wealth score from engine",
@@ -180,16 +180,7 @@ Answer format:
 **Job vs Business** — which path the chart favors
 **Your Move** — one specific action + remedy
 
-DO NOT discuss: romance, health, money (unless asked)""",
-        "required_elements": [
-            "D10 lagna interpretation",
-            "Narayana Dasha current period",
-            "job vs business recommendation",
-            "peak authority window",
-        ],
-        "answer_format": """
-**Your Career Blueprint**
-[D10 + AmK reading in plain language]
+
 
 **Right Now (2025-2026)**
 [Current dasha career themes]
@@ -235,16 +226,7 @@ Be warm, specific, and emotionally intelligent. This is sensitive territory.
 Never be dismissive. Even challenging placements have wisdom.
 ONE remedy for Venus/relationship activation.
 
-DO NOT discuss: finance, career, health unless directly connected""",
-        "required_elements": [
-            "Venus placement reading",
-            "Darakaraka partner nature",
-            "current dasha relationship theme",
-            "timing for next activation",
-        ],
-        "answer_format": """
-**Your Heart's Blueprint**
-[Venus + 5th house in plain emotional language]
+
 
 **The Partner You're Drawn To**
 [Darakaraka + Moon sign reading]
@@ -398,7 +380,7 @@ Answer through the health lens:
 8. Specific health practices for this chart
 9. TWO remedies — one for the body part/system at risk, one for current dasha lord
 
-NEVER give medical advice. Say "consult a doctor for diagnosis."
+Frame health insights as awareness and prevention, not diagnosis. Always add 'get professional checkups'.
 Frame as: "your chart suggests attention to..." not "you have..."
 Focus on preventive wisdom and remedies.
 
