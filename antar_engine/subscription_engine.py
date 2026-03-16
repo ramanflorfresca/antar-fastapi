@@ -201,7 +201,7 @@ def get_what_youre_missing(chart_id: str, sb) -> dict:
 
     if opportunity_alerts:
         a = opportunity_alerts[0]
-        hook_lines.append(f"✨ {a[\'headline\']} — full reading locked")
+        hook_lines.append("✨ " + a.get("headline","") + " — full reading locked")
 
     hook_lines += [
         "📊 Unlimited life readings — no monthly cap",
