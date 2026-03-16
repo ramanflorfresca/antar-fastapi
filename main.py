@@ -3347,8 +3347,11 @@ async def compatibility_start(request: CompatibilityStartRequest):
             "birth_country": country_b,
             "name": request.name_b,
             "chart_data": chart_b,
-            "lagna": chart_b.get("lagna",{}).get("sign",""),
+            "lagna_sign": chart_b.get("lagna",{}).get("sign",""),
+            "lagna_degree": chart_b.get("lagna",{}).get("degree",0),
             "moon_sign": chart_b.get("planets",{}).get("Moon",{}).get("sign",""),
+            "moon_nakshatra": chart_b.get("planets",{}).get("Moon",{}).get("nakshatra",""),
+            "sun_sign": chart_b.get("planets",{}).get("Sun",{}).get("sign",""),
         }).execute()
         dashas_b = {}
 
