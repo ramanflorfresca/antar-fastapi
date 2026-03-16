@@ -4310,3 +4310,221 @@ async def handle_razorpay_webhook(request: Request):
         raise HTTPException(400, str(e))
 
 
+# ── Remedies & Practices Endpoint ────────────────────────────────
+
+@app.get("/api/v1/remedies/{chart_id}")
+async def get_personal_remedies(
+    chart_id: str,
+    concern:  str = "general",
+    question: str = "",
+):
+    """
+    Returns 2-3 structured remedies specific to this chart right now.
+    Each remedy includes WHY (diagnosis) + WHAT (practice) + HOW (exact instructions).
+    Tied to active dasha + weak planets + current transits.
+    """
+    from antar_engine import remedy_selector
+    from antar_engine.transits_engine import calculate_current_transits
+    from datetime import date
+
+    # Load chart
+    res = supabase.table("charts").select(
+        "chart_data,lal_kitab_data,birth_date,first_name,gender,"
+        "career_stage,health_status,marital_status,lagna_sign"
+    ).eq("id", chart_id).execute()
+
+    if not res.data:
+        raise HTTPException(404, "Chart not found")
+
+    row         = res.data[0]
+    chart_data  = row.get("chart_data", {})
+    birth_date  = row.get("birth_date", "")
+    first_name  = row.get("first_name", "") or "Explorer"
+
+    if not chart_data or not chart_data.get("planets"):
+        raise HTTPException(400, "Chart data incomplete")
+
+    # Load dashas
+    dasha_res = supabase.table("dasha_periods").select("*").eq(
+        "chart_id", chart_id
+    ).order("start_date").execute()
+    dashas = {"vimsottari": dasha_res.data or []}
+
+    # Get current dasha lord
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+    current_md = current_ad = ""
+    for d in dashas["vimsottari"]:
+        try:
+            sd = datetime.fromisoformat(str(d.get("start_date",""))[:10])
+            ed = datetime.fromisoformat(str(d.get("end_date",""))[:10])
+            if sd.date() <= now.date() <= ed.date():
+                level = d.get("level","")
+                lord  = d.get("planet","") or d.get("lord","") or d.get("planet_or_sign","")
+                if level in ("mahadasha","md","1"): current_md = lord
+                elif level in ("antardasha","ad","2"): current_ad = lord
+        except Exception:
+            pass
+
+    # Build patra object for remedy personalisation
+    class Patra:
+        age          = (now.year - int(str(birth_date)[:4])) if birth_date else 35
+        career_stage = row.get("career_stage","") or ""
+        health_status= row.get("health_status","") or ""
+        marital_status=row.get("marital_status","") or ""
+
+    patra = Patra()
+
+    # Select remedies
+    remedy_objects = remedy_selector.select_remedies(
+        supabase=supabase,
+        chart_data=chart_data,
+        dashas=dashas,
+        transits={},
+        user_age=patra.age,
+        question=question or concern,
+        patra=patra,
+        limit=3,
+    )
+
+    # Build rich structured response
+    planets     = chart_data.get("planets", {})
+    lagna_sign  = chart_data.get("lagna", {}).get("sign", "")
+    dasha_string= f"{current_md}-{current_ad}" if current_ad else current_md
+
+    remedies = []
+    for rem in remedy_objects:
+        planet = rem.get("planet","")
+        p_data = planets.get(planet, {})
+        p_sign = p_data.get("sign","")
+        p_house= p_data.get("house", 0)
+
+        # Build WHY — the diagnosis
+        priority_label = rem.get("priority_label","")
+        remedy_type    = rem.get("type","pacify")
+        energy_lang    = rem.get("energy_language","")
+
+        if priority_label == "Your current chapter needs support":
+            why = (
+                f"Your current life chapter is ruled by {planet}. "
+                f"{planet} is in {p_sign} (house {p_house}) — "
+                f"{'a challenging position that needs recalibration' if remedy_type == 'pacify' else 'a position that can be amplified'}. "
+                f"{energy_lang}"
+            )
+        elif priority_label == "All timing systems point here":
+            why = (
+                f"Three separate timing systems — your life chapter, "
+                f"annual chart, and current transits — all point to {planet} "
+                f"as the most active pattern right now. {energy_lang}"
+            )
+        elif priority_label == "This year's clearing practice":
+            why = (
+                f"{planet} is in a challenging position in your annual chart this year. "
+                f"This practice clears the resistance it's creating. {energy_lang}"
+            )
+        elif priority_label == "Amplify what's already working":
+            why = (
+                f"{planet} is exceptionally strong in your chart right now. "
+                f"This practice amplifies that strength. {energy_lang}"
+            )
+        else:
+            why = energy_lang or f"Recalibrates {planet} energy in your current pattern."
+
+        # Build WHAT — the practice
+        mantra   = rem.get("mantra","")
+        count    = rem.get("count", 108)
+        best_day = rem.get("best_day","")
+        best_time= rem.get("best_time","")
+        ritual   = rem.get("ritual","")
+        charity  = rem.get("charity","")
+        color    = rem.get("color","")
+        food     = rem.get("food","")
+
+        # Build HOW — exact instructions
+        how_parts = []
+        if mantra and best_time:
+            how_parts.append(f"Chant {mantra} × {count} — {best_time}")
+        elif mantra:
+            how_parts.append(f"Chant {mantra} × {count}")
+        if best_day:
+            how_parts.append(f"Best day: {best_day}")
+        if ritual:
+            how_parts.append(ritual)
+        if charity:
+            how_parts.append(f"Donate: {charity}")
+        if color:
+            how_parts.append(f"Wear or use {color} today")
+        if food:
+            how_parts.append(f"Eat: {food}")
+
+        remedies.append({
+            "planet":         planet,
+            "planet_sign":    p_sign,
+            "planet_house":   p_house,
+            "remedy_type":    remedy_type,
+            "priority_label": priority_label,
+
+            # The 3 layers
+            "why":  why,
+            "what": mantra or ritual or "See how instructions",
+            "how":  how_parts,
+
+            # Practice details
+            "mantra":       mantra,
+            "beej_mantra":  rem.get("full_mantra",""),
+            "count":        count,
+            "best_day":     best_day,
+            "best_time":    best_time,
+            "ritual":       ritual,
+            "charity":      charity,
+            "color":        color,
+            "gemstone":     rem.get("gemstone",""),
+            "metal":        rem.get("metal",""),
+
+            # Chakra data (if present)
+            "chakra":           rem.get("chakra",{}).get("chakra_name","") if isinstance(rem.get("chakra"),dict) else "",
+            "chakra_color":     rem.get("chakra",{}).get("color","") if isinstance(rem.get("chakra"),dict) else "",
+            "chakra_location":  rem.get("chakra",{}).get("location","") if isinstance(rem.get("chakra"),dict) else "",
+            "chakra_meditation":rem.get("chakra",{}).get("visualization","") if isinstance(rem.get("chakra"),dict) else "",
+        })
+
+    # Get today's dasha-specific remedy (separate from day-lord mantra)
+    dasha_remedy = None
+    if current_md:
+        from antar_engine.prompt_builder import SOUND_ALTERNATIVES
+        sound = SOUND_ALTERNATIVES.get(current_md, {})
+        dasha_planet_data = planets.get(current_md, {})
+        dasha_sign  = dasha_planet_data.get("sign","")
+        dasha_house = dasha_planet_data.get("house", 0)
+
+        from antar_engine.remedy_engine import DEBILITATION
+        is_weak = dasha_sign == DEBILITATION.get(current_md,"")
+
+        dasha_remedy = {
+            "planet":    current_md,
+            "sign":      dasha_sign,
+            "house":     dasha_house,
+            "is_weak":   is_weak,
+            "dasha":     dasha_string,
+            "diagnosis": (
+                f"Your {current_md} chapter is active"
+                + (f" — {current_md} is weakened in {dasha_sign}, needs support" if is_weak
+                   else f" — {current_md} in {dasha_sign} (house {dasha_house})")
+            ),
+            "mantra":     sound.get("mantra",""),
+            "buddhist":   sound.get("buddhist",""),
+            "universal":  sound.get("universal",""),
+        }
+
+    return {
+        "chart_id":      chart_id,
+        "first_name":    first_name,
+        "dasha":         dasha_string,
+        "concern":       concern,
+        "remedies":      remedies,
+        "dasha_remedy":  dasha_remedy,
+        "remedy_count":  len(remedies),
+        "generated_at":  now.isoformat(),
+    }
+
+

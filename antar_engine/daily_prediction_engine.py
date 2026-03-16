@@ -412,6 +412,40 @@ async def generate_daily_signal(
     wow_today = detect_daily_wow(natal_chart, moon_nak, moon_sign)
     planetary_hour = get_todays_planetary_hour()
 
+    # Build dasha-specific remedy (separate from day-lord mantra)
+    dasha_lord = current_md or current_ad or ""
+    dasha_remedy_obj = {}
+    if dasha_lord:
+        try:
+            from antar_engine.prompt_builder import SOUND_ALTERNATIVES
+            sound = SOUND_ALTERNATIVES.get(dasha_lord, {})
+            natal_planets = natal_chart.get("planets", {}) if natal_chart else {}
+            dl_data  = natal_planets.get(dasha_lord, {})
+            dl_sign  = dl_data.get("sign","")
+            dl_house = dl_data.get("house", 0)
+            DEBIL = {
+                "Sun":"Libra","Moon":"Scorpio","Mars":"Cancer",
+                "Mercury":"Pisces","Jupiter":"Capricorn",
+                "Venus":"Virgo","Saturn":"Aries"
+            }
+            is_weak = dl_sign == DEBIL.get(dasha_lord,"")
+            dasha_remedy_obj = {
+                "planet":    dasha_lord,
+                "sign":      dl_sign,
+                "house":     dl_house,
+                "is_weak":   is_weak,
+                "diagnosis": (
+                    f"Your {dasha_lord} chapter is active"
+                    + (f" — {dasha_lord} is weakened in {dl_sign}, needs recalibration" if is_weak
+                       else f" — {dasha_lord} in {dl_sign} (house {dl_house})")
+                ),
+                "mantra":    sound.get("mantra",""),
+                "buddhist":  sound.get("buddhist",""),
+                "universal": sound.get("universal",""),
+            }
+        except Exception:
+            pass
+
     result = {
         "chart_id":       chart_id,
         "signal_date":    today,
@@ -425,6 +459,7 @@ async def generate_daily_signal(
         "dasha_string":   f"{current_md}-{current_ad}" if current_ad else current_md,
         "ayurveda_tip":   MOON_NAKSHATRA_TIPS.get(moon_nak,{}).get("tip",""),
         "food_today":     MOON_NAKSHATRA_TIPS.get(moon_nak,{}).get("food",""),
+        "dasha_remedy":   dasha_remedy_obj,
     }
 
     # Cache in DB
