@@ -3331,6 +3331,7 @@ async def compatibility_start(request: CompatibilityStartRequest):
                 pass
         if not coords_b or not coords_b.get("lat"):
             raise HTTPException(400, f"Could not locate '{city_b}'. Try a larger nearby city.")
+        from antar_engine.chart import calculate_chart
         chart_b   = calculate_chart(
             birth_date=request.birth_date_b,
             birth_time=birth_time_b,
