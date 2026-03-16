@@ -3296,12 +3296,41 @@ async def compatibility_start(request: CompatibilityStartRequest):
         has_time_b   = bool(request.birth_time_b)
         city_b    = request.birth_city_b or "New Delhi"
         country_b = request.birth_country_b or "IN"
-        coords_b  = await _geocode_city(city_b, country_b)
+        # Try internal geocoder, fall back to Nominatim for unknown cities
+        coords_b = await _geocode_city(city_b, country_b)
+        if not coords_b or not coords_b.get("lat"):
+            try:
+                import httpx as _httpx
+                nom = await _httpx.AsyncClient().get(
+                    "https://nominatim.openstreetmap.org/search",
+                    params={"q": f"{city_b}, {country_b}", "format": "json", "limit": 1},
+                    headers={"User-Agent": "Antar/1.0"},
+                    timeout=10,
+                )
+                nom_data = nom.json()
+                if nom_data:
+                    coords_b = {
+                        "lat": float(nom_data[0]["lat"]),
+                        "lng": float(nom_data[0]["lon"]),
+                        "timezone": "UTC",
+                    }
+                    # Get timezone from coords
+                    try:
+                        import timezonefinder as _tzf
+                        tf = _tzf.TimezoneFinder()
+                        tz = tf.timezone_at(lat=coords_b["lat"], lng=coords_b["lng"])
+                        if tz: coords_b["timezone"] = tz
+                    except Exception:
+                        pass
+            except Exception:
+                pass
+        if not coords_b or not coords_b.get("lat"):
+            raise HTTPException(400, f"Could not locate '{city_b}'. Try a larger nearby city.")
         chart_b   = calculate_chart(
             birth_date=request.birth_date_b,
             birth_time=birth_time_b,
             lat=coords_b["lat"], lng=coords_b["lng"],
-            timezone=coords_b.get("timezone","Asia/Kolkata"),
+            timezone=coords_b.get("timezone","UTC"),
         )
         chart_id_b = str(_uuid.uuid4())
         supabase.table("charts").insert({
