@@ -4657,7 +4657,7 @@ async def _get_dashboard_inner(chart_id: str):
         raise HTTPException(404, "Chart not found")
 
     row        = chart_res.data[0]
-    first_name = row.get("first_name","") or "Explorer"
+    first_name = row.get("first_name","") or row.get("name","") or "Explorer"
     lagna      = row.get("lagna_sign","")
     moon_sign  = row.get("moon_sign","")
     moon_nak   = row.get("moon_nakshatra","")
@@ -4686,7 +4686,7 @@ async def _get_dashboard_inner(chart_id: str):
         except Exception:
             pass
 
-    dasha_string = f"{current_md}-{current_ad}" if current_ad else current_md
+    dasha_string = f"{current_md}-{current_ad}" if (current_md and current_ad) else (current_md or current_ad)
 
     # Get today's cached signal
     today = date.today().isoformat()
