@@ -72,7 +72,7 @@ def build_system_prompt(
         user_chart: Dict with chart data (lagna, planets, D-9, D-10, etc.)
         concern: Primary life concern (career/relationships/health/finances/spirituality/family)
         market: Target market for tone (india/usa/latam)
-        active_dasha: Current Mahadasha string e.g. "Saturn Mahadasha"
+        active_dasha: Current main life chapter string e.g. "Saturn main life chapter"
         active_transits: List of active transit events
         user_age: User's current age for life stage context
     
@@ -119,7 +119,7 @@ Lagna (Rising Sign): {user_chart.get("lagna", "Unknown")}
 Moon Sign: {user_chart.get("moon_sign", "Unknown")}
 Moon Nakshatra: {moon_nakshatra}
 Sun Sign: {user_chart.get("sun_sign", "Unknown")}
-Current Mahadasha: {active_dasha or "Unknown"}
+Current main life chapter: {active_dasha or "Unknown"}
 Primary Concern: {concern}
 User Age: {user_age or "Unknown"}
 
@@ -127,10 +127,10 @@ Planet Positions:
 {json.dumps(user_chart.get("planets", {}), indent=2)}
 
 Divisional Charts Available:
-- D-9 (Navamsa): {json.dumps(user_chart.get("d9", {}), indent=2) if user_chart.get("d9") else "Not provided"}
+- D-9 (D9 soul chart): {json.dumps(user_chart.get("d9", {}), indent=2) if user_chart.get("d9") else "Not provided"}
 - D-10 (Dasamsa): {json.dumps(user_chart.get("d10", {}), indent=2) if user_chart.get("d10") else "Not provided"}
 
-Atmakaraka (soul indicator): {user_chart.get("atmakaraka", "Compute from highest degree planet")}
+soul's core signal planet (soul indicator): {user_chart.get("atmakaraka", "Compute from highest degree planet")}
 
 ═══════════════════════════════════════
 NAKSHATRA PSYCHOLOGICAL PROFILE

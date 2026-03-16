@@ -21,3 +21,4 @@ httpx
 stripe
 razorpay
 timezonefinder
+weasyprint

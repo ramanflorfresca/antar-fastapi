@@ -4960,3 +4960,61 @@ async def get_profile(google_id: str):
     }
 
 
+# ── PDF Report Endpoint ───────────────────────────────────────────
+
+@app.get("/api/v1/report/{chart_id}/pdf")
+async def generate_life_report(chart_id: str):
+    """
+    Generate and download complete PDF life report.
+    Requires Seeker or Navigator plan.
+    """
+    from antar_engine.subscription_engine import get_subscription
+    from antar_engine.pdf_engine import generate_pdf_report
+    from fastapi.responses import Response
+
+    # Check subscription
+    sub = get_subscription(chart_id, supabase)
+    if sub.get("plan","free") == "free":
+        raise HTTPException(403, {
+            "error": "upgrade_required",
+            "message": "PDF reports are available on Seeker and Navigator plans",
+            "upgrade_url": "https://antar.world/upgrade",
+        })
+
+    # Get remedies for the report
+    try:
+        from antar_engine import remedy_selector
+        chart_res = supabase.table("charts").select(
+            "chart_data,birth_date,first_name,career_stage,health_status"
+        ).eq("id", chart_id).execute()
+        chart_data = chart_res.data[0]["chart_data"] if chart_res.data else {}
+        dasha_res  = supabase.table("dasha_periods").select("*").eq(
+            "chart_id", chart_id
+        ).execute()
+        dashas = {"vimsottari": dasha_res.data or []}
+        remedies = remedy_selector.select_remedies(
+            supabase=supabase, chart_data=chart_data,
+            dashas=dashas, transits={}, user_age=35,
+            question="general", patra=None, limit=3,
+        )
+    except Exception:
+        remedies = []
+
+    pdf_bytes = await generate_pdf_report(chart_id, supabase, remedies)
+
+    # Determine content type
+    content_type = "application/pdf"
+    filename     = f"antar-report-{chart_id[:8]}.pdf"
+
+    if pdf_bytes[:4] != b"%PDF":
+        # Fallback HTML returned
+        content_type = "text/html"
+        filename     = f"antar-report-{chart_id[:8]}.html"
+
+    return Response(
+        content=pdf_bytes,
+        media_type=content_type,
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
+    )
+
+

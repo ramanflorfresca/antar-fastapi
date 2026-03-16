@@ -74,6 +74,11 @@ def run_wealth_engine(
     found = []
     total_weight = 0.0
 
+    # Normalize house_lords keys to integers (DB stores as strings "1","2" etc)
+    if isinstance(house_lords, dict):
+        house_lords = {int(k) if str(k).isdigit() else k: v
+                       for k, v in house_lords.items()}
+
     lagna_idx  = SIGNS.index(lagna_sign) if lagna_sign in SIGNS else 0
     lord_2_planet  = house_lords.get(2, {}).get("lord", "") if isinstance(house_lords, dict) else ""
     lord_11_planet = house_lords.get(11, {}).get("lord", "") if isinstance(house_lords, dict) else ""
@@ -243,6 +248,7 @@ def run_career_engine(
     planets_in_10th = [p for p,d in planets.items() if d.get("house")==10]
 
     # 10th lord
+    house_lords = {int(k) if str(k).isdigit() else k: v for k, v in house_lords.items()} if isinstance(house_lords, dict) else {}
     lord_10 = house_lords.get(10, {}).get("lord","") if isinstance(house_lords, dict) else ""
     lord_10_house = planets.get(lord_10, {}).get("house", 0) if lord_10 else 0
 
@@ -334,6 +340,7 @@ def run_relationship_engine(
     def house(planet): return planets.get(planet, {}).get("house", 0)
     def sign(planet):  return planets.get(planet, {}).get("sign","")
 
+    house_lords = {int(k) if str(k).isdigit() else k: v for k, v in house_lords.items()} if isinstance(house_lords, dict) else {}
     lord_7  = house_lords.get(7, {}).get("lord","") if isinstance(house_lords,dict) else ""
     lord_7_house = planets.get(lord_7, {}).get("house",0) if lord_7 else 0
 

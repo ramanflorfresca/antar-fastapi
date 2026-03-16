@@ -149,7 +149,7 @@ MUST MENTION: specific score, peak period years, wealth type, one remedy""",
         "priority_data": [
             "D10 Dashamsa lagna and planets (career chart — most important)",
             "10th house of D1 — planets and lord",
-            "Amatyakaraka (AmK) planet — career's guiding force",
+            "career path signal planet — career's guiding force",
             "Narayana Dasha current period — external career events",
             "Sun position (authority/government)",
             "Saturn position (service/discipline)",
@@ -161,7 +161,7 @@ MUST MENTION: specific score, peak period years, wealth type, one remedy""",
         "system_instruction": """CAREER FOCUS MODE — prioritize career data.
 Answer this career/job question by leading with:
 1. Lead with D10 Dashamsa lagna — this is the career chart. What does it say?
-2. Identify the Amatyakaraka (career's guiding planet) and its current strength
+2. Identify the career path signal planet and its current strength
 3. Reference Narayana Dasha — this system specifically times CAREER events
 4. What is the current dasha lord saying about professional life?
 5. Is there a Raj Yoga? Is it activated by current timing?
@@ -197,8 +197,8 @@ Answer format:
             "Venus house and sign (love and attraction)",
             "5th house (romance and heart connections)",
             "Moon sign (emotional nature and compatibility)",
-            "D9 Navamsa — soul-level relationship chart",
-            "Darakaraka (DK) — partner's nature",
+            "D9 soul chart — soul-level relationship chart",
+            "partner signal planet — partner's nature",
             "7th house condition for partnerships",
             "Current dasha lord's relationship signification",
             "Mars position (passion and desire)",
@@ -210,8 +210,8 @@ Answer this relationship question by leading with:
 1. Venus position — where is love energy directed in this chart?
 2. 5th house — what does the heart want? What kind of love is activated?
 3. Moon sign — emotional nature and what kind of partner completes this person
-4. D9 Navamsa — the soul's truth about relationships (deeper than surface)
-5. Darakaraka planet — what the partner will be like (planet's qualities)
+4. D9 soul chart — the soul's truth about relationships (deeper than surface)
+5. partner signal planet planet — what the partner will be like (planet's qualities)
 6. Current dasha — is this a relationship-activation period?
 7. D60 Venus karma — are there past-life patterns affecting love now?
 8. Timing — when is the next significant romantic activation?
@@ -223,7 +223,7 @@ ONE remedy for Venus/relationship activation.
 
 
 **The Partner You're Drawn To**
-[Darakaraka + Moon sign reading]
+[partner signal planet + Moon sign reading]
 
 **Right Now**
 [Current dasha relationship theme]
@@ -242,9 +242,9 @@ ONE remedy for Venus/relationship activation.
             "7th lord position and strength",
             "Venus position (marriage karaka for men)",
             "Jupiter position (marriage karaka for women)",
-            "D9 Navamsa lagna and 7th house (soul marriage chart)",
+            "D9 soul chart ascendant and 7th house (soul marriage chart)",
             "D9 Venus and Jupiter positions",
-            "Darakaraka planet and sign",
+            "partner signal planet planet and sign",
             "Divorce risk engine score",
             "Second marriage indicators",
             "Current dasha lord's marriage signification",
@@ -254,22 +254,22 @@ Answer this marriage question by leading with:
 
 1. 7th house condition — is this a strong or challenged marriage house?
 2. 7th lord — where is marriage energy going in the chart?
-3. D9 Navamsa 7th house — the soul's truth about the marriage
-4. Darakaraka — what is the spouse's nature? Use the planet's qualities.
+3. D9 soul chart 7th house — the soul's truth about the marriage
+4. partner signal planet — what is the spouse's nature? Use the planet's qualities.
 5. Marriage timing — when is the chart activated for marriage?
 6. Divorce risk score — mention if elevated with specific reasons
 7. Second marriage indicators — mention if present
-8. Lal Kitab Varshphal for THIS year — what does the annual chart say about marriage this year?
+8. Lal Kitab annual chart for THIS year — what does the annual chart say about marriage this year?
 
 Be sensitive. Marriage questions often come from pain or hope.
 Be honest but constructive. Challenges can be remedied.
 ONE specific Lal Kitab remedy for marriage.
 
-MUST reference: D9 Navamsa, Darakaraka nature, this year's Varshphal""",
+MUST reference: D9 soul chart, partner signal planet nature, this year's annual chart""",
         "required_elements": [
             "7th house reading",
             "D9 navamsa marriage indication",
-            "Darakaraka partner nature",
+            "partner signal planet partner nature",
             "marriage timing",
             "Lal Kitab remedy",
         ],
@@ -278,9 +278,9 @@ MUST reference: D9 Navamsa, Darakaraka nature, this year's Varshphal""",
 [7th house + D9 reading]
 
 **Your Spouse's Nature**
-[Darakaraka planet qualities in plain language]
+[partner signal planet planet qualities in plain language]
 
-**This Year (Varshphal)**
+**This Year (annual chart)**
 [Annual chart reading for marriage matters]
 
 **Timing**
@@ -407,7 +407,7 @@ MUST mention: specific watch areas, dosha, current dasha health theme""",
             "Rahu position (foreign karma)",
             "12th lord and 9th lord positions",
             "Moon sign (movable = travel friendly)",
-            "D9 Navamsa for foreign indicators",
+            "D9 soul chart for foreign indicators",
             "Current dasha lord's foreign signification",
             "Visa/immigration timing from dasha",
         ],
@@ -465,14 +465,14 @@ DIRECTION MAPPING:
             "Jupiter position (wisdom and dharma)",
             "12th house (liberation and moksha)",
             "9th house (dharma and higher purpose)",
-            "Atmakaraka planet (soul's core mission)",
+            "soul's core signal planet (soul's core mission)",
             "Karakamsha sign (soul's operating platform)",
             "Current dasha — spiritual activation periods",
             "WOW effects related to spirituality",
         ],
         "system_instruction": """SPIRITUAL FOCUS MODE — prioritize soul/purpose data.
 Answer this spiritual question by leading with:
-1. Atmakaraka — what is this soul's core mission? (translated to plain language)
+1. Soul's core signal planet — what is this soul's core mission? (in plain language)
 2. Karakamsha — what is the soul's operating platform this life?
 3. D20 Vimshamsa — what spiritual path is indicated?
 4. Ketu position — what spiritual merit came from past lives?
@@ -486,16 +486,16 @@ Be profound but accessible. Spiritual seekers want depth.
 Connect cosmic patterns to everyday experience.
 Frame D60 challenging karma as "the soul chose this to learn X"
 
-MUST mention: Atmakaraka mission, D20 path, Ketu's past-life gift""",
+MUST mention: soul's core signal mission, D20 spiritual path, Ketu's past-life gift""",
         "required_elements": [
-            "Atmakaraka soul mission",
+            "soul's core signal mission",
             "D20 spiritual path",
             "Ketu past life gift",
             "specific practice",
         ],
         "answer_format": """
 **Your Soul's Mission**
-[Atmakaraka in plain language]
+[Soul's core signal in plain language]
 
 **What You Brought From Past Lives**
 [Ketu + D60 positive karma]
