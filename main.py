@@ -3299,6 +3299,8 @@ async def compatibility_start(request: CompatibilityStartRequest):
         # Try internal geocoder, fall back to Nominatim for unknown cities
         try:
             coords_b = await _geocode_city(city_b, country_b)
+            if not coords_b or not coords_b.get('lat'):
+                coords_b = None
         except Exception:
             coords_b = None
         if not coords_b or not coords_b.get("lat"):
