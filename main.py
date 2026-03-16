@@ -3297,7 +3297,10 @@ async def compatibility_start(request: CompatibilityStartRequest):
         city_b    = request.birth_city_b or "New Delhi"
         country_b = request.birth_country_b or "IN"
         # Try internal geocoder, fall back to Nominatim for unknown cities
-        coords_b = await _geocode_city(city_b, country_b)
+        try:
+            coords_b = await _geocode_city(city_b, country_b)
+        except Exception:
+            coords_b = None
         if not coords_b or not coords_b.get("lat"):
             try:
                 import httpx as _httpx
