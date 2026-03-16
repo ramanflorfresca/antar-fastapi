@@ -4637,6 +4637,13 @@ async def get_dashboard(chart_id: str):
     Powers the home page with all 6 sections.
     Parallel fetches for speed.
     """
+    try:
+        return await _get_dashboard_inner(chart_id)
+    except Exception as e:
+        import traceback
+        raise HTTPException(500, f"Dashboard error: {str(e)} | {traceback.format_exc()[-300:]}")
+
+async def _get_dashboard_inner(chart_id: str):
     import asyncio
     from datetime import date, timezone as _tz
 
