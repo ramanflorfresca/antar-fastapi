@@ -4903,11 +4903,13 @@ async def restore_chart(google_id: str):
     current_md = current_ad = ""
     for d in (dasha_res.data or []):
         try:
-            sd = datetime.fromisoformat(str(d.get("start_date",""))[:10])
-            ed = datetime.fromisoformat(str(d.get("end_date",""))[:10])
+            sd = datetime.fromisoformat(str(d.get("start_date",""))[:10].replace("Z",""))
+            ed = datetime.fromisoformat(str(d.get("end_date",""))[:10].replace("Z",""))
             if sd.date() <= now.date() <= ed.date():
-                if d.get("level") == 1: current_md = d.get("planet_or_sign","")
-                elif d.get("level") == 2: current_ad = d.get("planet_or_sign","")
+                level = d.get("level",0)
+                lord  = d.get("planet_or_sign","")
+                if level == 1:   current_md = lord
+                elif level == 2: current_ad = lord
         except Exception:
             pass
 
