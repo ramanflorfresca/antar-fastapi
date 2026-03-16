@@ -3296,7 +3296,7 @@ async def compatibility_start(request: CompatibilityStartRequest):
         has_time_b   = bool(request.birth_time_b)
         city_b    = request.birth_city_b or "New Delhi"
         country_b = request.birth_country_b or "IN"
-        coords_b  = geocode_city(city_b, country_b)
+        coords_b  = await _geocode_city(city_b, country_b)
         chart_b   = calculate_chart(
             birth_date=request.birth_date_b,
             birth_time=birth_time_b,
