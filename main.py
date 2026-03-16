@@ -3298,8 +3298,12 @@ async def compatibility_start(request: CompatibilityStartRequest):
         country_b = request.birth_country_b or "IN"
         # Try internal geocoder, fall back to Nominatim for unknown cities
         try:
-            coords_b = await _geocode_city(city_b, country_b)
-            if not coords_b or not coords_b.get('lat'):
+            _gc = await _geocode_city(city_b, country_b)
+            if isinstance(_gc, (tuple, list)) and len(_gc) >= 2:
+                coords_b = {"lat": _gc[0], "lng": _gc[1], "timezone": _gc[2] if len(_gc) > 2 else "UTC"}
+            elif isinstance(_gc, dict) and _gc.get("lat"):
+                coords_b = _gc
+            else:
                 coords_b = None
         except Exception:
             coords_b = None
