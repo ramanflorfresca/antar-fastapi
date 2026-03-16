@@ -4692,7 +4692,7 @@ async def _get_dashboard_inner(chart_id: str):
     today = date.today().isoformat()
     signal_res = supabase.table("daily_signals").select(
         "signal_text,moon_nakshatra,moon_sign,dasha_string,"
-        "rahu_kalam,abhijit,has_wow,wow_today,panchanga,do_today,dont_today"
+        "has_wow,wow_today,panchanga,do_today,dont_today,dasha_remedy"
     ).eq("chart_id", chart_id).eq("signal_date", today).execute()
 
     signal_data = signal_res.data[0] if signal_res.data else {}
@@ -4776,8 +4776,8 @@ async def _get_dashboard_inner(chart_id: str):
         "has_signal":  bool(signal_data),
         "signal_preview": (signal_data.get("signal_text","")[:200] if signal_data else ""),
         "moon_nak_today": signal_data.get("moon_nakshatra","") if signal_data else "",
-        "rahu_kalam":  signal_data.get("rahu_kalam","") if signal_data else "",
-        "abhijit":     signal_data.get("abhijit","") if signal_data else "",
+        "rahu_kalam":  (panchanga.get("rahu_kalam","") if panchanga else "") or (signal_data.get("rahu_kalam","") if signal_data else ""),
+        "abhijit":     (panchanga.get("abhijit","") if panchanga else "") or (signal_data.get("abhijit","") if signal_data else ""),
         "has_wow":     signal_data.get("has_wow", False) if signal_data else False,
         "do_today":    signal_data.get("do_today",[]) if signal_data else [],
         "dont_today":  signal_data.get("dont_today",[]) if signal_data else [],
