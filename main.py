@@ -3354,6 +3354,7 @@ async def compatibility_start(request: CompatibilityStartRequest):
             "timezone": coords_b.get("timezone","UTC"),
             "timezone_offset": 0.0,
             "timezone_offset": 0.0,
+            "timezone_offset": 0.0,
             "name": request.name_b,
             "chart_data": chart_b,
             "lagna_sign": chart_b.get("lagna",{}).get("sign",""),
