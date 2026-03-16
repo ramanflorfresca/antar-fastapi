@@ -4356,13 +4356,15 @@ async def get_personal_remedies(
     current_md = current_ad = ""
     for d in dashas["vimsottari"]:
         try:
-            sd = datetime.fromisoformat(str(d.get("start_date",""))[:10])
-            ed = datetime.fromisoformat(str(d.get("end_date",""))[:10])
+            sd = datetime.fromisoformat(str(d.get("start_date",""))[:10].replace("Z",""))
+            ed = datetime.fromisoformat(str(d.get("end_date",""))[:10].replace("Z",""))
             if sd.date() <= now.date() <= ed.date():
-                level = d.get("level","")
-                lord  = d.get("planet","") or d.get("lord","") or d.get("planet_or_sign","")
-                if level in ("mahadasha","md","1"): current_md = lord
-                elif level in ("antardasha","ad","2"): current_ad = lord
+                level  = d.get("level", 0)
+                lord   = d.get("planet_or_sign","") or d.get("planet","") or d.get("lord","")
+                system = d.get("system","vimsottari")
+                if system == "vimsottari":
+                    if level == 1:   current_md = lord
+                    elif level == 2: current_ad = lord
         except Exception:
             pass
 
@@ -4400,7 +4402,11 @@ async def get_personal_remedies(
         p_house= p_data.get("house", 0)
 
         # Build WHY — the diagnosis
-        priority_label = rem.get("priority_label","")
+        priority_label = rem.get("priority_label","") or (
+            "Amplify what's already working"
+            if rem.get("type") == "strengthen"
+            else "Recalibrate this energy pattern"
+        )
         remedy_type    = rem.get("type","pacify")
         energy_lang    = rem.get("energy_language","")
 
