@@ -4129,3 +4129,184 @@ async def stripe_webhook(request: Request):
         raise HTTPException(400, str(e))
 
 
+# ── Payment Checkout Endpoints ────────────────────────────────────
+
+@app.post("/api/v1/payments/stripe/create-checkout")
+async def create_stripe_checkout_session(request: dict):
+    """
+    Create Stripe checkout session.
+    Body: { chart_id, plan_key, success_url?, cancel_url? }
+    plan_key: seeker_monthly | seeker_annual | navigator_monthly
+    """
+    from antar_engine.payment_engine import create_stripe_checkout
+    chart_id    = request.get("chart_id", "")
+    plan_key    = request.get("plan_key", "seeker_monthly")
+    success_url = request.get("success_url", "https://antar.world/upgrade/success")
+    cancel_url  = request.get("cancel_url",  "https://antar.world/upgrade")
+
+    if not chart_id:
+        raise HTTPException(400, "chart_id required")
+
+    result = create_stripe_checkout(chart_id, plan_key, success_url, cancel_url)
+    if result.get("error"):
+        raise HTTPException(500, f"Stripe error: {result['error']}")
+    return result
+
+
+@app.post("/api/v1/payments/stripe/verify")
+async def verify_stripe_payment(request: dict):
+    """
+    Verify Stripe checkout after redirect back from Stripe.
+    Body: { session_id, chart_id }
+    """
+    from antar_engine.payment_engine import verify_stripe_session
+    from antar_engine.subscription_engine import activate_subscription
+
+    session_id = request.get("session_id", "")
+    chart_id   = request.get("chart_id", "")
+
+    if not session_id:
+        raise HTTPException(400, "session_id required")
+
+    result = verify_stripe_session(session_id)
+    if result.get("error"):
+        raise HTTPException(500, result["error"])
+    if not result.get("verified"):
+        raise HTTPException(402, "Payment not completed")
+
+    # Activate subscription
+    sub = activate_subscription(
+        chart_id   = result["chart_id"] or chart_id,
+        plan       = result["plan"],
+        provider   = "stripe",
+        provider_sub_id = result["sub_id"],
+        period_end_iso  = result["period_end"],
+        sb         = supabase,
+    )
+    return {"success": True, "plan": result["plan"], "subscription": sub}
+
+
+@app.post("/api/v1/payments/stripe/webhook")
+async def handle_stripe_webhook(request: Request):
+    """Stripe webhook — auto-renew subscriptions."""
+    import json
+    from antar_engine.subscription_engine import activate_subscription
+    body = await request.body()
+    try:
+        event = json.loads(body)
+        if event["type"] in ("checkout.session.completed",
+                             "invoice.payment_succeeded"):
+            session  = event["data"]["object"]
+            chart_id = (session.get("client_reference_id") or
+                        session.get("metadata", {}).get("chart_id", ""))
+            sub_id   = (session.get("subscription") or
+                        session.get("payment_intent", ""))
+            plan_key = session.get("metadata", {}).get("plan", "seeker_monthly")
+            plan     = plan_key.split("_")[0]
+            if chart_id:
+                period_end = (
+                    datetime.now(timezone.utc) + timedelta(days=32)
+                ).isoformat()
+                activate_subscription(
+                    chart_id=chart_id, plan=plan,
+                    provider="stripe", provider_sub_id=str(sub_id),
+                    period_end_iso=period_end, sb=supabase,
+                )
+        return {"received": True}
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
+@app.post("/api/v1/payments/razorpay/create-order")
+async def create_razorpay_order_endpoint(request: dict):
+    """
+    Create Razorpay order for Indian payments.
+    Body: { chart_id, plan_key }
+    Returns order details for Razorpay JS checkout widget.
+    """
+    from antar_engine.payment_engine import create_razorpay_order
+    chart_id = request.get("chart_id", "")
+    plan_key = request.get("plan_key", "seeker_monthly")
+
+    if not chart_id:
+        raise HTTPException(400, "chart_id required")
+
+    result = create_razorpay_order(chart_id, plan_key)
+    if result.get("error"):
+        raise HTTPException(500, f"Razorpay error: {result['error']}")
+    return result
+
+
+@app.post("/api/v1/payments/razorpay/verify")
+async def verify_razorpay_payment_endpoint(request: dict):
+    """
+    Verify Razorpay payment after widget success callback.
+    Body: { payment_id, order_id, signature, chart_id, plan_key }
+    """
+    from antar_engine.payment_engine import verify_razorpay_payment
+    from antar_engine.subscription_engine import activate_subscription
+
+    result = verify_razorpay_payment(
+        payment_id = request.get("payment_id", ""),
+        order_id   = request.get("order_id", ""),
+        signature  = request.get("signature", ""),
+        chart_id   = request.get("chart_id", ""),
+        plan_key   = request.get("plan_key", "seeker_monthly"),
+    )
+
+    if result.get("error"):
+        raise HTTPException(500, result["error"])
+    if not result.get("verified"):
+        raise HTTPException(402, f"Payment verification failed: {result.get('reason')}")
+
+    sub = activate_subscription(
+        chart_id        = result["chart_id"],
+        plan            = result["plan"],
+        provider        = "razorpay",
+        provider_sub_id = result["sub_id"],
+        period_end_iso  = result["period_end"],
+        sb              = supabase,
+    )
+    return {"success": True, "plan": result["plan"], "subscription": sub}
+
+
+@app.post("/api/v1/payments/razorpay/webhook")
+async def handle_razorpay_webhook(request: Request):
+    """Razorpay webhook — handle subscription renewals."""
+    import json, hmac, hashlib
+    body = await request.body()
+    try:
+        # Verify webhook signature
+        secret    = os.getenv("RAZORPAY_KEY_SECRET", "").encode()
+        signature = request.headers.get("x-razorpay-signature", "")
+        digest    = hmac.new(secret, body, hashlib.sha256).hexdigest()
+
+        if digest != signature:
+            raise HTTPException(400, "Invalid signature")
+
+        event = json.loads(body)
+        if event.get("event") in ("payment.captured", "subscription.charged"):
+            payload  = event.get("payload", {})
+            payment  = payload.get("payment", {}).get("entity", {})
+            notes    = payment.get("notes", {})
+            chart_id = notes.get("chart_id", "")
+            plan_key = notes.get("plan", "seeker_monthly")
+            plan     = plan_key.split("_")[0]
+            if chart_id:
+                from antar_engine.subscription_engine import activate_subscription
+                period_end = (
+                    datetime.now(timezone.utc) + timedelta(days=32)
+                ).isoformat()
+                activate_subscription(
+                    chart_id=chart_id, plan=plan,
+                    provider="razorpay",
+                    provider_sub_id=payment.get("id", ""),
+                    period_end_iso=period_end, sb=supabase,
+                )
+        return {"received": True}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(400, str(e))
+
+
