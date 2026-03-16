@@ -4865,7 +4865,6 @@ async def link_chart_to_google(request: dict):
         "display_name": display_name,
         "avatar_url":   avatar_url,
         "first_name":   display_name.split()[0] if display_name else "",
-        "user_id":      google_id,
     }).eq("id", chart_id).execute()
 
     return {
