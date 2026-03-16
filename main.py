@@ -4691,8 +4691,7 @@ async def _get_dashboard_inner(chart_id: str):
     # Get today's cached signal
     today = date.today().isoformat()
     signal_res = supabase.table("daily_signals").select(
-        "signal_text,moon_nakshatra,moon_sign,dasha_string,"
-        "has_wow,wow_today,panchanga,do_today,dont_today,dasha_remedy"
+        "signal_text,moon_nakshatra,moon_sign,dasha_string,has_wow,wow_today,ayurveda_tip,food_today"
     ).eq("chart_id", chart_id).eq("signal_date", today).execute()
 
     signal_data = signal_res.data[0] if signal_res.data else {}
