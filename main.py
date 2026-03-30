@@ -1363,6 +1363,9 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
 
     # ── DKP SYNTHESIS ─────────────────────────────────────────────
     dkp_block = build_desh_kaal_patra_block(desh, patra, predictions)
+    # C2: Append real-world economic context to existing dkp_block
+    if dkp_context:
+        dkp_block = (dkp_block or "") + "\n\n" + dkp_context
 
     # ── REMEDIES ──────────────────────────────────────────────────
     karakas_list = get_all_karakas(chart_data)
@@ -1442,7 +1445,6 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             profile=profile_text,
             transit_summary=transit_summary,
             country_context=country_context,
-            dkp_block=dkp_context,
             timing_text=timing_text,
             nation_insight=nation_insight,
             language=language,
