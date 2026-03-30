@@ -63,6 +63,12 @@ except ImportError:
     _MASIK_AVAILABLE = False
 
 try:
+    from antar_engine.lal_kitab_teva import build_teva_context_block
+    _TEVA_AVAILABLE = True
+except ImportError:
+    _TEVA_AVAILABLE = False
+
+try:
     from antar_engine.jaimini_analysis import build_jaimini_context_block, jaimini_from_dasha_rows
     _JAIMINI_AVAILABLE = True
 except ImportError:
@@ -433,6 +439,14 @@ WEALTH ANALYSIS CONTEXT:
     except Exception as _me:
         print(f"[masik] error (non-fatal): {_me}")
 
+    # Teva annual transit table
+    _teva_block = ""
+    try:
+        if _TEVA_AVAILABLE and transit_data:
+            _teva_block = build_teva_context_block(transit_data)
+    except Exception as _te:
+        print(f"[teva] error (non-fatal): {_te}")
+
     # Calculate LK aspects
     try:
         from antar_engine.lal_kitab_engine import calculate_lk_aspects
@@ -648,6 +662,8 @@ LAL KITAB ADVANCED ANALYSIS
 {_umra_block}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {_masik_block}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{_teva_block}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {trans_block}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
