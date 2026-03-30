@@ -2456,24 +2456,46 @@ async def create_chart(
             print(f"[dasha_insert] First row was: {dasha_rows[0] if dasha_rows else 'empty'}")
 
     lk_data = None
-    if user_id:
-        try:
-            lk_varshphal = lal_kitab_gen.generate_varshphal(
-                user_id=user_id,
-                chart_id=chart_id,
-                store=True,
-            )
-            lk_data = {
-                "age":                lk_varshphal["age"],
-                "table_age":          lk_varshphal["table_age"],
-                "placements":         lk_varshphal["placements"],
-                "is_special_cycle":   lk_varshphal["is_special_cycle"],
-                "cycle_significance": lk_varshphal["cycle_significance"],
-                "predictions":        lk_varshphal["predictions"],
-                "remedies_summary":   lk_varshphal["remedies"],
-            }
-        except Exception as e:
-            print(f"Lal Kitab varshphal error (non-fatal): {e}")
+    try:
+        from antar_engine.varshaphal_table import get_annual_house
+        from antar_engine.lal_kitab_advanced import build_lk_advanced_context
+        from datetime import date as _date
+
+        _born     = _date.fromisoformat(request.birth_date[:10])
+        _age      = (_date.today() - _born).days // 365
+        _planets  = chart_data.get("planets", {})
+        _lagna    = chart_data.get("lagna", {})
+        _lagna_sign = _lagna.get("sign","") if isinstance(_lagna, dict) else str(_lagna)
+
+        # Annual house placements (Varshphal)
+        _natal_houses = {
+            p: d.get("house", 1)
+            for p, d in _planets.items()
+        }
+        _placements = {
+            p: get_annual_house(h, _age)
+            for p, h in _natal_houses.items()
+            if 1 <= h <= 12
+        }
+
+        lk_data = {
+            "age":                _age,
+            "placements":         _placements,
+            "natal_planets":      {p: {"house": d.get("house"), "sign": d.get("sign")} for p, d in _planets.items()},
+            "lagna_sign":         _lagna_sign,
+            "birth_date":         request.birth_date,
+            "is_special_cycle":   False,
+            "cycle_significance": None,
+        }
+
+        # Save to charts table for hot path reads
+        supabase.table("charts").update({
+            "lal_kitab_data": lk_data,
+        }).eq("id", chart_id).execute()
+
+        print(f"[lk] Saved lal_kitab_data for chart {chart_id}")
+    except Exception as e:
+        print(f"[lk] lal_kitab_data error (non-fatal): {e}")
 
     planets = chart_data["planets"]
     ak, amk = _ak_amk(planets)
