@@ -25,6 +25,7 @@ from antar_engine.country_context import get_country_context
 # New modules
 from antar_engine.plain_english import generate_plain_english
 from antar_engine.desh_kal_patra import get_dkp_context
+from antar_engine.pattern_memory import build_pattern_memory
 
 from antar_engine.predictions import (
     build_layered_predictions,
@@ -1188,6 +1189,24 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             print(f"Nation insight error: {e}")
     # ── end C2 ───────────────────────────────────────────────────
 
+    # ── C3: Pattern Memory — Layer 7 ─────────────────────────────
+    _memory = {}
+    try:
+        _memory = build_pattern_memory(
+            chart_id=request.chart_id,
+            current_concern=concern,
+            current_question=request.question,
+            supabase=supabase,
+        )
+        if _memory.get("diagnostic_mode"):
+            print(f"[predict] C3 DIAGNOSTIC MODE — unresolved {concern} case detected")
+        elif _memory.get("memory_block"):
+            print(f"[predict] C3 memory loaded — {len(_memory['past_predictions'])} past predictions")
+    except Exception as _mem_err:
+        print(f"[predict] C3 pattern memory failed (non-fatal): {_mem_err}")
+        _memory = {}
+    # ── end C3 ───────────────────────────────────────────────────
+
     # Concern detection
     concern = _detect_concern(request.question)
 
@@ -1475,6 +1494,20 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
 
     # ── LLM CALL — passes conversation history for multi-turn context ──
     # Use different system prompt for master context vs template
+    # ── C3: Append memory + diagnostic blocks to prompt ─────────
+    _memory_block     = (_memory or {}).get("memory_block", "")
+    _diagnostic_block = (_memory or {}).get("diagnostic_block", "")
+
+    if _memory_block and _full_context:
+        _full_context += f"\n\n{_memory_block}"
+    if _diagnostic_block and _full_context:
+        _full_context += f"\n\n{_diagnostic_block}"
+    if _memory_block and not _full_context:
+        prompt += f"\n\n{_memory_block}"
+    if _diagnostic_block and not _full_context:
+        prompt += f"\n\n{_diagnostic_block}"
+    # ── end C3 memory injection ───────────────────────────────────
+
     _using_master = _full_context and len(_full_context) > 500
     print(f"[predict] using_master={_using_master} prompt_len={len(prompt)}")
 
@@ -5212,4 +5245,98 @@ async def get_domain_signals(chart_id: str):
     except Exception as e:
         print(f"[domain-signals] error: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch domain signals")
+
+
+# ── C3: Rate a prediction ─────────────────────────────────────────────────────
+@app.post("/api/v1/predictions/{prediction_id}/rate")
+async def rate_prediction(prediction_id: str, body: dict):
+    """
+    User rates whether a prediction came true.
+    Body: { "rating": 1 }  — 1 = accurate, 0 = did not happen
+    Sprint C3.
+    """
+    rating = body.get("rating")
+    if rating not in (0, 1):
+        raise HTTPException(status_code=400, detail="rating must be 0 or 1")
+    try:
+        result = supabase.table("predictions") \
+            .update({"accuracy_rating": rating}) \
+            .eq("id", prediction_id) \
+            .execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Prediction not found")
+        return {"success": True, "prediction_id": prediction_id, "rating": rating}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[rate] error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save rating")
+
+
+# ── C3: Pattern summary for a chart ──────────────────────────────────────────
+@app.get("/api/v1/patterns/{chart_id}")
+async def get_pattern_summary(chart_id: str):
+    """
+    Returns pattern memory analysis for a chart:
+    - Recurring themes
+    - Unresolved cases
+    - Accuracy summary
+    - All past predictions with fulfillment status
+    Sprint C3.
+    """
+    from antar_engine.pattern_memory import build_pattern_memory, _fetch_predictions, _infer_fulfillment, _detect_themes, _accuracy_summary
+
+    try:
+        past = _fetch_predictions(chart_id, supabase)
+        if not past:
+            return {
+                "chart_id":         chart_id,
+                "total_predictions": 0,
+                "recurring_themes":  [],
+                "unresolved_cases":  [],
+                "accuracy_summary":  "",
+                "predictions":       [],
+            }
+
+        past = _infer_fulfillment(past)
+
+        unresolved = [
+            p for p in past
+            if p.get("fulfillment_status") == "inferred_unresolved"
+        ]
+        themes      = _detect_themes(past)
+        acc_summary = _accuracy_summary(past)
+
+        return {
+            "chart_id":          chart_id,
+            "total_predictions": len(past),
+            "recurring_themes":  themes,
+            "unresolved_cases":  [
+                {
+                    "id":           p.get("id"),
+                    "concern":      p.get("concern"),
+                    "signal_line":  p.get("signal_line"),
+                    "timing_window":p.get("timing_window"),
+                    "created_at":   p.get("created_at"),
+                }
+                for p in unresolved
+            ],
+            "accuracy_summary":  acc_summary,
+            "predictions":       [
+                {
+                    "id":               p.get("id"),
+                    "created_at":       p.get("created_at"),
+                    "concern":          p.get("concern"),
+                    "signal_line":      p.get("signal_line"),
+                    "timing_window":    p.get("timing_window"),
+                    "fulfillment_status": p.get("fulfillment_status"),
+                    "accuracy_rating":  p.get("accuracy_rating"),
+                }
+                for p in past
+            ],
+        }
+
+    except Exception as e:
+        print(f"[patterns] error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch pattern summary")
 
