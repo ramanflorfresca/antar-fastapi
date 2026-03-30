@@ -23,7 +23,7 @@ from antar_engine import transits, divisional, timing_engine, nation_engine, rem
 from antar_engine.country_context import get_country_context
 
 # New modules
-from plain_english import generate_plain_english
+from antar_engine.plain_english import generate_plain_english
 
 from antar_engine.predictions import (
     build_layered_predictions,
