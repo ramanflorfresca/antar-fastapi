@@ -2352,8 +2352,24 @@ async def create_chart(
     try: vim_dashas = _normalise_dashas(
             vimsottari.calculate_vimsottari_from_chart(chart_data, chart_data.get("birth_jd")))
     except Exception as e: print(f"Vimsottari error: {e}")
-    try: jai_dashas = _normalise_dashas(
-            jaimini.calculate_chara_dasha_from_chart(chart_data, chart_data.get("birth_jd")))
+    try:
+        from antar_engine.jaimini import build_planet_map
+        import datetime as _dt
+        _lagna     = chart_data.get("lagna", {})
+        _lagna_sign = _lagna.get("sign","Aries") if isinstance(_lagna, dict) else "Aries"
+        SIGNS_LIST = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo",
+                      "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"]
+        _lagna_idx  = SIGNS_LIST.index(_lagna_sign) if _lagna_sign in SIGNS_LIST else 0
+        _planet_longs = {
+            p: (SIGNS_LIST.index(d.get("sign","Aries")) * 30 + d.get("degree", 0))
+            for p, d in chart_data.get("planets", {}).items()
+            if d.get("sign","") in SIGNS_LIST
+        }
+        _planet_sign_map = build_planet_map(_planet_longs)
+        _bdate = _dt.date.fromisoformat(request.birth_date[:10])
+        jai_dashas = _normalise_dashas(
+            jaimini.compute_jaimini_dashas(_lagna_idx, _planet_sign_map, _bdate)
+        )
     except Exception as e: print(f"Jaimini error: {e}")
     try: ash_dashas = _normalise_dashas(
             ashtottari.calculate_ashtottari_from_chart(chart_data, chart_data.get("birth_jd")))

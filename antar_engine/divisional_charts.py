@@ -508,7 +508,8 @@ def calculate_all_divisional_charts(planets: dict, lagna_longitude: float) -> di
     Returns dict of divisional charts, each with planet sign placements.
     """
     divisions = {
-        "d1": 1, "d2": "hora",  # special calculation — handled separately "d3": 3, "d4": 4, "d5": 5,
+        "d1": 1, "d2": "hora",  # special calculation — handled separately
+        "d3": 3, "d4": 4, "d5": 5,
         "d7": 7, "d9": 9, "d10": 10, "d12": 12
     }
 

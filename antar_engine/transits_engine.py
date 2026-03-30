@@ -84,6 +84,7 @@ def calculate_current_transits(natal_chart: dict) -> dict:
         'Sun': swe.SUN, 'Moon': swe.MOON, 'Mars': swe.MARS,
         'Mercury': swe.MERCURY, 'Jupiter': swe.JUPITER,
         'Venus': swe.VENUS, 'Saturn': swe.SATURN,
+        'Rahu': swe.MEAN_NODE,
     }
 
     now    = datetime.utcnow()
@@ -138,6 +139,29 @@ def calculate_current_transits(natal_chart: dict) -> dict:
                 "planet": planet,
                 "error": str(e),
             })
+
+    # Add Ketu = Rahu + 180
+    try:
+        rahu = next((t for t in current_transits if t["planet"] == "Rahu"), None)
+        if rahu and "current_sign" in rahu:
+            ketu_long = (SIGNS.index(rahu["current_sign"]) * 30 + rahu["current_degree"] + 180) % 360
+            ketu_sign_idx = int(ketu_long / 30)
+            ketu_sign     = SIGNS[ketu_sign_idx]
+            ketu_house    = ((ketu_sign_idx - lagna_idx) % 12) + 1
+            natal_ketu    = natal_planets.get("Ketu", {})
+            current_transits.append({
+                "planet":             "Ketu",
+                "current_sign":       ketu_sign,
+                "current_house":      ketu_house,
+                "current_degree":     round(rahu["current_degree"], 2),
+                "natal_sign":         natal_ketu.get("sign",""),
+                "natal_house":        natal_ketu.get("house", 0),
+                "transit_over_natal": ketu_sign == natal_ketu.get("sign",""),
+                "house_effect":       TRANSIT_HOUSE_EFFECTS.get("Ketu",{}).get(ketu_house,""),
+                "sign_changed":       ketu_sign != natal_ketu.get("sign",""),
+            })
+    except Exception as _ke:
+        print(f"[transits] Ketu calculation error: {_ke}")
 
     # Calculate Jupiter's current house — most important for timing
     jup_transit = next((t for t in current_transits if t["planet"] == "Jupiter"), {})
