@@ -1061,26 +1061,12 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
 
     # Persistent rate limiting — DB-backed, survives redeploys
     if request.chart_id:
-        from antar_engine.subscription_engine import check_limit, get_what_youre_missing, increment_usage
-        limit_check = check_limit(request.chart_id, "pred", supabase)
-        if not limit_check["allowed"]:
-            missing = get_what_youre_missing(request.chart_id, supabase)
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "error":       "monthly_limit_reached",
-                    "used":        limit_check["used"],
-                    "limit":       limit_check["limit"],
-                    "hook_lines":  missing["hook_lines"],
-                    "plans":       missing["plans"],
-                    "upgrade_url": "https://antar.world/upgrade",
-                }
-            )
-        # Increment usage counter
-        increment_usage(request.chart_id, "pred", supabase)
+        from antar_engine.subscription_engine import increment_usage
+        # LIMITS DISABLED — free launch (re-enable post-PMF)
+        # increment_usage(request.chart_id, "pred", supabase)
 
-    # Guest rate limiting — 3 predictions per month
-    if not user_id:
+    # Guest rate limiting DISABLED — free launch
+    if False:  # LIMIT DISABLED — was: if not user_id:
         if not check_guest_rate_limit(request.chart_id, limit=3):
             usage = get_guest_usage(request.chart_id)
             raise HTTPException(
