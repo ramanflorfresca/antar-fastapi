@@ -2107,6 +2107,7 @@ class ChartCreateRequest(BaseModel):
     birth_timezone: Optional[str]  = None
     user_id:        Optional[str]  = None
     name:           Optional[str]  = None
+    first_name:     Optional[str]  = None
     gender:         Optional[str]  = None
     language:       Optional[str]  = "en"
 
@@ -2373,6 +2374,7 @@ async def create_chart(
     chart_row = {
         "id":                  chart_id,
         "user_id":             user_id,
+        "first_name":          getattr(request, "first_name", "") or "",
         "birth_date":          request.birth_date,
         "birth_time":          request.birth_time,
         "latitude":            lat,
