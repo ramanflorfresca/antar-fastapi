@@ -57,6 +57,12 @@ except ImportError:
     _UMRA_AVAILABLE = False
 
 try:
+    from antar_engine.lal_kitab_masik import build_masik_context_block
+    _MASIK_AVAILABLE = True
+except ImportError:
+    _MASIK_AVAILABLE = False
+
+try:
     from antar_engine.jaimini_analysis import build_jaimini_context_block, jaimini_from_dasha_rows
     _JAIMINI_AVAILABLE = True
 except ImportError:
@@ -419,6 +425,14 @@ WEALTH ANALYSIS CONTEXT:
     except Exception as _ue:
         print(f"[umra] error (non-fatal): {_ue}")
 
+    # Masik Phal monthly chart
+    _masik_block = ""
+    try:
+        if _MASIK_AVAILABLE:
+            _masik_block = build_masik_context_block(birth_date, planets)
+    except Exception as _me:
+        print(f"[masik] error (non-fatal): {_me}")
+
     # Calculate LK aspects
     try:
         from antar_engine.lal_kitab_engine import calculate_lk_aspects
@@ -632,6 +646,8 @@ LAL KITAB ADVANCED ANALYSIS
 {_lk_advanced_block}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {_umra_block}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{_masik_block}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {trans_block}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
