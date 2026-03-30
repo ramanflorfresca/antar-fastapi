@@ -621,6 +621,7 @@ class PredictResponse(BaseModel):
     signal_line:            Optional[str]  = None
     timing_window:          Optional[str]  = None
     all_domains:            List[str]      = Field(default_factory=list)
+    signal_confidence:      Optional[str]  = None
 
 class ChartResponse(BaseModel):
     id: str
@@ -1644,6 +1645,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         signal_line=_pe.get("signal_line") if _pe else None,
         timing_window=_pe.get("timing_window") if _pe else None,
         all_domains=_pe.get("all_domains") if _pe else [],
+        signal_confidence=_pe.get("confidence") if _pe else None,
     )
 
 # ── Conversations ─────────────────────────────────────────────────────────────
