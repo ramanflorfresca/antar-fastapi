@@ -106,6 +106,15 @@ from antar_engine.vedic_enrichment import build_enrichment_context_v2, get_sade_
 
 # ── Clients ──────────────────────────────────────────────────────────────────
 
+# Claude client for high-quality predictions
+try:
+    import anthropic as _anthropic
+    claude_client = _anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    _CLAUDE_AVAILABLE = bool(os.getenv("ANTHROPIC_API_KEY"))
+except Exception:
+    claude_client = None
+    _CLAUDE_AVAILABLE = False
+
 deepseek_client = AsyncOpenAI(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
     base_url="https://api.deepseek.com/v1/"
@@ -877,6 +886,40 @@ async def call_llm(
         print(f"LLM error: {e}")
         return "I'm sorry, I'm having trouble connecting to my intuition right now. Please try again later.", None
 
+async def call_llm_claude(
+    prompt: str,
+    history: Optional[List[Dict[str, str]]] = None,
+    system_override: str = "",
+) -> tuple[str, Optional[int]]:
+    """
+    Calls Claude Sonnet for high-quality predictions.
+    Used for: plain English summaries, career/wealth predictions, Prashna verdicts.
+    Falls back to DeepSeek if Claude unavailable.
+    """
+    if not _CLAUDE_AVAILABLE or not claude_client:
+        return await call_llm(prompt, history, system_override)
+
+    history = history or []
+    messages = [
+        *[{"role": m["role"], "content": m["content"]} for m in history[-8:]],
+        {"role": "user", "content": prompt},
+    ]
+    system = system_override if system_override else SYSTEM_PROMPT
+
+    try:
+        response = await claude_client.messages.create(
+            model="claude-sonnet-4-5",
+            max_tokens=1200,
+            system=system,
+            messages=messages,
+        )
+        text = response.content[0].text.strip()
+        tokens = response.usage.output_tokens
+        return text, tokens
+    except Exception as e:
+        print(f"[claude] error, falling back to DeepSeek: {e}")
+        return await call_llm(prompt, history, system_override)
+
 # ── Conversation persistence ──────────────────────────────────────────────────
 
 async def save_conversation_turn(
@@ -1438,7 +1481,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             "Lead with the actual answer in the first sentence. "
             "Never start responses with template headers like 'YOUR SIGNAL RIGHT NOW'."
         )
-        prediction_text, tokens_used = await call_llm(
+        prediction_text, tokens_used = await call_llm_claude(
             prompt,
             history=request.conversation_history or [],
             system_override=_master_system,
@@ -1446,7 +1489,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
 
 
     else:
-        prediction_text, tokens_used = await call_llm(
+        prediction_text, tokens_used = await call_llm_claude(
             prompt,
             history=request.conversation_history or [],
         )
@@ -1480,6 +1523,8 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             "created_at":  "now()",
             "tokens_used": tokens_used,
             "model":       "deepseek-chat",
+            "chart_id":    chart_id,
+            "concern":     concern,
         }).execute()
 
         # ── Prediction tracking hook ──────────────────────────────
