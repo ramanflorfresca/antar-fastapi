@@ -616,6 +616,11 @@ class PredictResponse(BaseModel):
     chapter_arc:            Optional[Dict] = None
     conversation_id:        Optional[str]  = None   # returned so frontend stores and re-sends it
     message_id:             Optional[str]  = None   # DB id of the assistant message row
+    plain_summary:          Optional[str]  = None
+    action_item:            Optional[str]  = None
+    signal_line:            Optional[str]  = None
+    timing_window:          Optional[str]  = None
+    all_domains:            List[str]      = Field(default_factory=list)
 
 class ChartResponse(BaseModel):
     id: str
@@ -1648,6 +1653,11 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         chapter_arc=chapter_arc_data,
         conversation_id=saved_conv_id,
         message_id=saved_msg_id,
+        plain_summary=_pe.get("plain_summary") if _pe else None,
+        action_item=_pe.get("action_item") if _pe else None,
+        signal_line=_pe.get("signal_line") if _pe else None,
+        timing_window=_pe.get("timing_window") if _pe else None,
+        all_domains=_pe.get("all_domains") if _pe else [],
     )
 
 # ── Conversations ─────────────────────────────────────────────────────────────
