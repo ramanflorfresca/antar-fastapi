@@ -2427,15 +2427,18 @@ async def create_chart(
             # level column is INTEGER in DB — use sequence i
             # type column is TEXT — store mahadasha/antardasha
             level_name = p.get("level", "mahadasha")
+            level_int  = 1 if level_name == "mahadasha" else (2 if level_name == "antardasha" else 3)
             dasha_rows.append({
                 "chart_id":       chart_id,
                 "system":         system,
                 "type":           level_name,
+                "level":          level_int,
                 "planet_or_sign": lord,
                 "start_date":     sd,
                 "end_date":       ed,
                 "duration_years": p.get("duration_years", 0),
                 "sequence":       i,
+                "parent_id":      None,
                 "metadata":       {"parent_lord": p.get("parent_lord", ""), "type": level_name},
             })
     if dasha_rows:
