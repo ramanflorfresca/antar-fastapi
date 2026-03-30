@@ -24,6 +24,7 @@ from antar_engine.country_context import get_country_context
 
 # New modules
 from antar_engine.plain_english import generate_plain_english
+from antar_engine.desh_kal_patra import get_dkp_context
 
 from antar_engine.predictions import (
     build_layered_predictions,
@@ -1154,22 +1155,38 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     )
     transit_summary = transits.summarize_transits(_raw_transits)
 
-    # Country context
+    # Country context — static cultural layer (always available)
     country_code = chart_record.get("country_code")
     country_context = get_country_context(country_code) if country_code else ""
 
     # Timing
     timing_text = timing_engine.timing_insights(chart_data, dashas_response)
 
-    # Nation insight
+    # ── C2: Desh Kal Patra — real-world economic context ──────────
+    dkp_context  = ""
     nation_insight = ""
     if country_code:
+        try:
+            from antar_engine.country_context import COUNTRY_CONTEXT
+            _country_name = COUNTRY_CONTEXT.get(country_code, {}).get("name", country_code)
+            dkp_context = await get_dkp_context(
+                country_code=country_code,
+                country_name=_country_name,
+                supabase=supabase,
+                deepseek_client=deepseek_client,
+            )
+            print(f"[predict] DKP loaded for {country_code} ({len(dkp_context)} chars)")
+        except Exception as e:
+            print(f"[predict] DKP failed (non-fatal): {e}")
+
+        # Nation astrological insight (existing — keep as fallback)
         try:
             nation_insight = nation_engine.get_nation_insight(
                 country_code, supabase, deepseek_client, language
             )
         except Exception as e:
             print(f"Nation insight error: {e}")
+    # ── end C2 ───────────────────────────────────────────────────
 
     # Concern detection
     concern = _detect_concern(request.question)
@@ -1425,6 +1442,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             profile=profile_text,
             transit_summary=transit_summary,
             country_context=country_context,
+            dkp_block=dkp_context,
             timing_text=timing_text,
             nation_insight=nation_insight,
             language=language,
