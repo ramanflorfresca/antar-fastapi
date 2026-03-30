@@ -51,6 +51,12 @@ except ImportError:
     _LK_ADV_AVAILABLE = False
 
 try:
+    from antar_engine.lal_kitab_umra import build_umra_context_block
+    _UMRA_AVAILABLE = True
+except ImportError:
+    _UMRA_AVAILABLE = False
+
+try:
     from antar_engine.jaimini_analysis import build_jaimini_context_block, jaimini_from_dasha_rows
     _JAIMINI_AVAILABLE = True
 except ImportError:
@@ -405,7 +411,15 @@ WEALTH ANALYSIS CONTEXT:
     except Exception as _lka_e:
         print(f"[lk_advanced] error (non-fatal): {_lka_e}")
 
-        # Calculate LK aspects
+        # Umra age activation
+    _umra_block = ""
+    try:
+        if _UMRA_AVAILABLE:
+            _umra_block = build_umra_context_block(birth_date, planets)
+    except Exception as _ue:
+        print(f"[umra] error (non-fatal): {_ue}")
+
+    # Calculate LK aspects
     try:
         from antar_engine.lal_kitab_engine import calculate_lk_aspects
         _lk_aspects = calculate_lk_aspects(planets, lagna_sign)
@@ -616,6 +630,8 @@ UPCOMING CHAPTERS:
 LAL KITAB ADVANCED ANALYSIS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {_lk_advanced_block}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{_umra_block}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {trans_block}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
