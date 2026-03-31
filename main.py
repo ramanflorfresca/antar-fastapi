@@ -5678,6 +5678,17 @@ async def get_annual_plan(chart_id: str, refresh: bool = False):
         except Exception:
             pass
 
+# --- Jaimini Engine v2.0 (Sprint A refactored) ---
+from antar_engine.jaimini_integration import (
+    format_jaimini_context_from_stored,
+    score_jaimini_convergence,
+    build_and_store_jaimini,
+    jaimini_prashna_check,
+)
+from antar_engine.welcome_signal_v2 import (
+    generate_welcome_signal_v2,
+)
+
 
         # Fetch current dasha from dasha_periods
         _current_dasha = ""
