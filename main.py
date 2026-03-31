@@ -114,6 +114,7 @@ from antar_engine.vedic_enrichment import build_enrichment_context_v2, get_sade_
 
 # --- Jaimini Engine v2.0 (Sprint A refactored) ---
 try:
+    from antar_engine.jaimini_lk_bridge import format_bridge_from_stored
     from antar_engine.jaimini_integration import (
         format_jaimini_context_from_stored,
         score_jaimini_convergence,
@@ -1511,6 +1512,14 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
                 _full_context += "\n" + _jaimini_conv + "\n"
         except Exception as _je:
             print(f"Jaimini context failed (non-blocking): {_je}")
+
+        # --- LAYER 3.5: JAIMINI → LK BRIDGE ---
+        try:
+            _bridge_block = format_bridge_from_stored(chart_data)
+            if _bridge_block:
+                _full_context += _bridge_block
+        except Exception as _be:
+            print(f"Bridge context failed (non-blocking): {_be}")
         print(f"[predict] Full context: {len(_full_context)} chars")
     except Exception as _ctx_e:
         import traceback
