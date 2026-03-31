@@ -2569,7 +2569,7 @@ async def create_chart(
     chart_row = {
         "id":                  chart_id,
         "user_id":             user_id,
-        "first_name":          getattr(request, "first_name", "") or "",
+        "first_name":          getattr(request, "first_name", None) or getattr(request, "name", None) or "",
         "birth_date":          request.birth_date,
         "birth_time":          request.birth_time,
         "latitude":            lat,
