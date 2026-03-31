@@ -1612,7 +1612,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             "created_at":  "now()",
             "tokens_used": tokens_used,
             "model":       "deepseek-chat",
-            "chart_id":          chart_id,
+            "chart_id":          request.chart_id,
             "concern":           concern,
             "plain_summary":     _pe.get("plain_summary")   if _pe else None,
             "action_item":       _pe.get("action_item")     if _pe else None,
