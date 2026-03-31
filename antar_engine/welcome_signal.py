@@ -66,19 +66,27 @@ The user should feel that every chapter led directly to what they are doing righ
 If no proof events are in the context, fall back to naming their current life chapter
 with a specific future timing.
 
-SIGNAL 3 — THE SIGNAL
+SIGNAL 3 — THE PAYOFF
+This is chapter 4 of the story you just told in Signal 2.
+The proof events showed what happened. Signal 3 shows what it was all leading to.
+
 One specific thing to watch for in the next 60-90 days.
 Based on current planetary period + slow planet transits.
 Name the domain. Name the date range. End with one action or thing to watch for.
-2-3 sentences.
+
+CRITICAL: Connect this to the thread from Signal 2. Reference the arc.
+NOT: "A financial door opens in April."
+YES: "Everything those chapters cost you starts paying back now. Between April and June, a financial door opens through your network — act on it within the week."
+
+2-3 sentences. The user should feel this is the destination, not random advice.
 
 ABSOLUTE RULES:
 1. This user is {{current_age}} years old. NEVER reference events or themes from before age {{floor_age}}.
 2. Zero Sanskrit terms. Zero jargon. Plain English only.
 3. Each signal is 2-4 sentences. No padding. No hedging. No filler.
 4. Do NOT say "your chart shows" or "astrologically speaking." State facts directly.
-5. All dates in Signal 2 and Signal 3 must be in the FUTURE. Never reference a date that has passed.
-6. Signal 2 timing must be a specific Month YYYY at least 1 month in the future.
+5. Signal 2 dates are PAST events (proof). Signal 3 dates must be in the FUTURE. The proof is about what already happened — the signal is about what is coming.
+6. Signal 2 proof events must use the exact periods provided in the context — do not invent dates.
 7. Signal 3 domain must be one of: career / relationship / financial / health / travel / legal
 8. Signal 3 watch_for must be one concrete sentence — what to watch for or do.
 9. If the user's name is provided, start Signal 1 headline with their name.
@@ -349,6 +357,9 @@ def _build_convergence_proof(
     chart_data: dict,
     birth_date: str,
     supabase,
+    current_age: int = None,
+    birth_country: str = "",
+    current_country: str = "",
 ) -> str:
     """
     Queries dasha_periods for all past Vimsottari + Jaimini periods.
@@ -447,8 +458,17 @@ def _build_convergence_proof(
                 age_start = overlap_start.year - bd.year
                 age_end = overlap_end.year - bd.year
 
-                # Skip childhood (before age 16)
-                if age_end < 16:
+                # Age-adaptive floor:
+                # 40+ users: skip events before age 25 (focus on peak life)
+                # 25-40 users: skip events before age 18 (include career/migration)
+                # 18-24 users: skip events before age 16
+                if current_age and current_age >= 40:
+                    _min_event_age = 25
+                elif current_age and current_age >= 25:
+                    _min_event_age = 18
+                else:
+                    _min_event_age = 16
+                if age_end < _min_event_age:
                     continue
 
                 overlap_years = (overlap_end - overlap_start).days / 365.25
@@ -468,12 +488,73 @@ def _build_convergence_proof(
                     "meaning": HOUSE_MEANING.get(jai_house, "This was part of the pattern leading to now."),
                 })
 
+    # ── Migration detection ─────────────────────────────────────
+    # If birth_country != current_country, find the 12th/9th/Rahu period
+    # that most likely corresponds to when they left home
+    _is_migrant = (
+        birth_country and current_country
+        and birth_country.strip().upper() != current_country.strip().upper()
+    )
+    if _is_migrant:
+        # Look for 12th house, 9th house, or Rahu-linked periods in age 16-30
+        migration_houses = {12, 9}
+        migration_candidates = []
+        for c in convergences:
+            if c["house"] in migration_houses and c["age_start"] >= 16 and c["age_start"] <= 35:
+                migration_candidates.append(c)
+        
+        # Also check for Rahu periods (even without house convergence)
+        for vim in vim_periods:
+            vim_planet = vim["planet_or_sign"]
+            if vim_planet == "Rahu":
+                vim_start = date.fromisoformat(str(vim["start_date"])[:10])
+                vim_end = date.fromisoformat(str(vim["end_date"])[:10])
+                rahu_age_start = vim_start.year - bd.year
+                rahu_age_end = vim_end.year - bd.year
+                if rahu_age_start <= 35 and rahu_age_end >= 16 and vim_end <= today:
+                    # Check if already in convergences
+                    already_found = any(
+                        c["vim_planet"] == "Rahu" and abs(c["start_year"] - vim_start.year) < 3
+                        for c in convergences
+                    )
+                    if not already_found:
+                        _mig_start = max(vim_start.year, bd.year + 16)
+                        _mig_end = min(vim_end.year, today.year)
+                        _mig_age_s = max(rahu_age_start, 16)
+                        _mig_age_e = min(rahu_age_end, today.year - bd.year)
+                        migration_candidates.append({
+                            "house": 12,
+                            "vim_planet": "Rahu",
+                            "jai_sign": "migration",
+                            "start_year": _mig_start,
+                            "end_year": _mig_end,
+                            "age_start": _mig_age_s,
+                            "age_end": _mig_age_e,
+                            "overlap_years": (_mig_end - _mig_start),
+                            "theme": "migration",
+                            "chapter": "The crossing",
+                            "question": f"Around {_mig_start}–{_mig_end}, did you leave your home country — a move that felt like starting from zero in a completely new world?",
+                            "meaning": "This was not exile. It was the chart redirecting your entire trajectory — everything you have built since was only possible because you left.",
+                        })
+        
+        if migration_candidates:
+            # Add best migration candidate if not already in convergences
+            migration_candidates.sort(key=lambda c: c["start_year"])
+            best_mig = migration_candidates[0]
+            already_has = any(
+                c["house"] == best_mig["house"]
+                and abs(c["start_year"] - best_mig["start_year"]) < 3
+                for c in convergences
+            )
+            if not already_has:
+                convergences.append(best_mig)
+
     if not convergences:
         return ""
 
     # ── Sort by recency and significance, take top 3 ─────────────
-    # Prefer: recent, longer overlap, transformation houses (7,8,10)
-    priority_houses = {8: 3, 7: 2, 10: 2, 6: 1, 1: 1}
+    # Prefer: recent, longer overlap, transformation houses (7,8,10,12 for migration)
+    priority_houses = {8: 3, 7: 2, 10: 2, 12: 2, 6: 1, 1: 1}
     convergences.sort(
         key=lambda c: (
             -priority_houses.get(c["house"], 0),  # priority houses first
@@ -516,8 +597,19 @@ def _build_convergence_proof(
         lines.append(f"  Why it happened: {c['meaning']}")
         lines.append("")
 
-    lines.append("FINAL THREAD (after the 3 proof events):")
-    lines.append("Connect all three events to the present. The user should feel that")
+    # Add age-specific strategy note
+    if current_age and current_age < 25:
+        lines.append("AGE NOTE: This user is under 25. If proof events are thin or absent,")
+        lines.append("Signal 2 should INSTEAD name what they are struggling with RIGHT NOW")
+        lines.append("with uncomfortable specificity — the tension between family expectations")
+        lines.append("and personal desire, the career decision they are avoiding, the relationship")
+        lines.append("question they already know the answer to. Make it feel private and precise.")
+        lines.append("Format: still use the proof JSON structure but with 1 event that describes")
+        lines.append("the CURRENT tension, not a past event. Thread connects to Signal 3.")
+        lines.append("")
+    
+    lines.append("FINAL THREAD (after the proof events):")
+    lines.append("Connect all events to the present. The user should feel that")
     lines.append("every chapter — the break, the reckoning, the fight — led directly")
     lines.append("to what they are doing right now. The present is not accidental.")
     lines.append("")
@@ -574,9 +666,14 @@ def _build_welcome_context(
 
     # ── Convergence proof (past events) ────────────────────────
     proof_block = ""
-    if chart_id and supabase and birth_date and current_age and current_age > 25:
+    if chart_id and supabase and birth_date and current_age and current_age >= 18:
         try:
-            proof_block = _build_convergence_proof(chart_id, chart_data, birth_date, supabase)
+            proof_block = _build_convergence_proof(
+                chart_id, chart_data, birth_date, supabase,
+                current_age=current_age,
+                birth_country=country_code or "",
+                current_country=_current_country or country_code or "",
+            )
         except Exception as e:
             print(f"[welcome] Convergence proof failed (non-fatal): {e}")
             proof_block = ""
