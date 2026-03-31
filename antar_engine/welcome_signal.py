@@ -50,12 +50,21 @@ This is about IDENTITY — who they are, how they process the world.
 Personal. Slightly uncomfortable in its accuracy. NOT an event — a truth.
 2-3 sentences. No dates. No predictions. No events.
 
-SIGNAL 2 — THE CHAPTER
-Name the exact life chapter they are in right now.
-Include: what this planetary period governs, what it is asking of them,
-and one specific event or decision arriving before a named future date.
-The chapter name should be 3-5 words (e.g. "The Inheritance Phase", "The Authority Window").
-3-4 sentences. The timing field MUST be a specific future Month YYYY.
+SIGNAL 2 — THE PROOF
+Your context contains PROOF EVENTS — past convergence points where two independent
+timing systems activated the same life area simultaneously. Use them.
+
+For each proof event (up to 3):
+- ASK the user if it happened (question format — "Between X and Y, did...?")
+- Then CONNECT it to the arc — one sentence explaining WHY it happened in their life story
+- Use the chapter name provided (e.g. "The break", "The reckoning")
+
+After all proof events, add THE THREAD: connect all events to the present moment.
+The user should feel that every chapter led directly to what they are doing right now.
+2 sentences maximum for the thread.
+
+If no proof events are in the context, fall back to naming their current life chapter
+with a specific future timing.
 
 SIGNAL 3 — THE SIGNAL
 One specific thing to watch for in the next 60-90 days.
@@ -85,10 +94,17 @@ Return EXACTLY this JSON and nothing else:
     "body": "2-3 sentences. Character/identity only. No events. No dates."
   },
   "signal_2": {
-    "type": "chapter",
-    "headline": "<chapter name 3-5 words>",
-    "body": "3-4 sentences. What this period governs + what decision/event is arriving.",
-    "timing": "Month YYYY"
+    "type": "proof",
+    "events": [
+      {
+        "chapter": "The break",
+        "period": "2006–2009",
+        "age": "32–35",
+        "question": "Between 2006 and 2009, did something you had built or depended on end — suddenly, and not on your terms?",
+        "meaning": "This was not bad luck. It was a scheduled demolition — clearing ground for what comes next."
+      }
+    ],
+    "thread": "Each of those chapters cleared the ground for what you are creating right now. The pattern is not random — and neither is this moment."
   },
   "signal_3": {
     "type": "signal",
@@ -151,6 +167,8 @@ async def generate_welcome_signal(
         chart_data, dashas, first_name, lagna,
         moon_sign, current_dasha, age, country_code,
         birth_date=birth_date,
+        chart_id=chart_id,
+        supabase=supabase,
     )
 
     # ── Call Claude ───────────────────────────────────────────────
@@ -176,11 +194,11 @@ async def generate_welcome_signal(
             "signal_1_type":     s1.get("type", "mirror"),
             "signal_1_headline": s1.get("headline", ""),
             "signal_1_body":     s1.get("body", ""),
-            # Signal 2 — Chapter
-            "signal_2_type":     s2.get("type", "chapter"),
-            "signal_2_headline": s2.get("headline", ""),
-            "signal_2_body":     s2.get("body", ""),
-            "signal_2_timing":   s2.get("timing", ""),
+            # Signal 2 — Proof
+            "signal_2_type":     s2.get("type", "proof"),
+            "signal_2_headline": s2.get("thread", ""),
+            "signal_2_body":     json.dumps(s2.get("events", [])),
+            "signal_2_timing":   "",
             # Signal 3 — Signal
             "signal_3_type":     s3.get("type", "signal"),
             "signal_3_headline": s3.get("headline", ""),
@@ -215,12 +233,7 @@ def _row_to_response(row: dict) -> dict:
             "headline": row.get("signal_1_headline", ""),
             "body":     row.get("signal_1_body", ""),
         },
-        "signal_2": {
-            "type":     row.get("signal_2_type", "chapter"),
-            "headline": row.get("signal_2_headline", ""),
-            "body":     row.get("signal_2_body", ""),
-            "timing":   row.get("signal_2_timing", ""),
-        },
+        "signal_2": _reconstruct_signal_2(row),
         "signal_3": {
             "type":     row.get("signal_3_type", "signal"),
             "headline": row.get("signal_3_headline", ""),
@@ -237,6 +250,281 @@ def _row_to_response(row: dict) -> dict:
     }
 
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Convergence proof engine — finds past events where 2+ dasha systems agree
+# ─────────────────────────────────────────────────────────────────────────────
+
+# House themes for plain English output
+HOUSE_THEMES = {
+    1: ("identity", "Self, health, personality — who you are at your core"),
+    2: ("finances", "Wealth, family, speech — what you possess and value"),
+    3: ("courage", "Courage, siblings, communication — how you assert yourself"),
+    4: ("home", "Home, mother, property — your foundation and inner peace"),
+    5: ("creation", "Children, creativity, intelligence — what you bring into the world"),
+    6: ("conflict", "Enemies, debts, health challenges — what tests you"),
+    7: ("partnership", "Marriage, partnerships, contracts — your closest alliances"),
+    8: ("transformation", "Transformation, crisis, hidden matters — what breaks and rebuilds you"),
+    9: ("fortune", "Fortune, father, higher learning — your dharma and beliefs"),
+    10: ("career", "Career, authority, public life — how the world sees you"),
+    11: ("gains", "Gains, networks, aspirations — what you receive and who helps you"),
+    12: ("surrender", "Spirituality, foreign lands, loss — what you release"),
+}
+
+# Chapter names for each house convergence
+CHAPTER_NAMES = {
+    1: "The identity shift",
+    2: "The financial reckoning",
+    3: "The assertion",
+    4: "The foundation crack",
+    5: "The creative rupture",
+    6: "The fight",
+    7: "The reckoning",
+    8: "The break",
+    9: "The belief shift",
+    10: "The authority test",
+    11: "The network shift",
+    12: "The surrender",
+}
+
+# Question templates for each house (B+C format)
+HOUSE_QUESTIONS = {
+    1: "Did something force you to fundamentally redefine who you are — a health crisis, an identity shift, or a moment where the version of yourself you had been living as stopped working?",
+    2: "Did your financial foundation shift — a major gain, a loss, or a change in how your family or income was structured?",
+    3: "Did you have to assert yourself in a way you had been avoiding — a confrontation, a bold move, or a break from a sibling or close peer?",
+    4: "Did something shift in your home, your relationship with your mother, or a property matter — a move, a loss, or a decision about where you truly belong?",
+    5: "Did something change in your creative life, your relationship with children, or a speculative venture — something you brought into the world that demanded a new version of you?",
+    6: "Did you face a legal, financial, or health battle that exhausted you — but left you knowing exactly what you are willing to fight for?",
+    7: "Did a partnership — marriage, business, or deep alliance — reach a point where you had to decide who you actually are versus who you had been performing as?",
+    8: "Did something you had built or depended on end — suddenly, and not on your terms?",
+    9: "Did your beliefs, your relationship with your father, or your sense of purpose go through a fundamental shift — where what you thought was true stopped being true?",
+    10: "Did your career or public standing face a test — a demotion, a role change, or a moment where your authority was challenged?",
+    11: "Did your network, your income sources, or a long-held aspiration shift dramatically — old alliances ending, new ones forming?",
+    12: "Did you experience a period of isolation, a foreign connection, or a loss that forced you to let go of something you thought you needed?",
+}
+
+# Meaning connectors — why it happened in the arc
+HOUSE_MEANING = {
+    1: "This was not a breakdown — it was an identity upgrade. Who you were before could not carry what comes next.",
+    2: "This was the financial ground being cleared. What you lost or gained here set the terms for everything that followed.",
+    3: "This was you finding your voice. The courage that emerged here is what you now use daily.",
+    4: "This was your foundation being tested. What survived is what you actually stand on now.",
+    5: "This was creative destruction. What you released made room for what you are building now.",
+    6: "This was not punishment — it was purification. The fight stripped away everything except what actually matters to you.",
+    7: "The relationship was the vehicle, but the real event was identity. What you chose here shaped everything after.",
+    8: "This was not bad luck. It was a scheduled demolition — clearing ground for what comes next.",
+    9: "This was your worldview being rebuilt. The beliefs you carry now were forged in this window.",
+    10: "This was your authority being tested so it could be earned, not inherited. What you proved here is what you stand on now.",
+    11: "This was your network being pruned. The connections that survived are the ones that matter.",
+    12: "This was a necessary surrender. What you released created the space you now occupy.",
+}
+
+
+
+def _reconstruct_signal_2(row: dict) -> dict:
+    """Reconstruct Signal 2 from DB row — handles both proof and legacy chapter format."""
+    s2_type = row.get("signal_2_type", "chapter")
+    if s2_type == "proof":
+        events = []
+        try:
+            events = json.loads(row.get("signal_2_body", "[]"))
+        except (json.JSONDecodeError, TypeError):
+            events = []
+        return {
+            "type": "proof",
+            "events": events,
+            "thread": row.get("signal_2_headline", ""),
+        }
+    else:
+        return {
+            "type": "chapter",
+            "headline": row.get("signal_2_headline", ""),
+            "body": row.get("signal_2_body", ""),
+            "timing": row.get("signal_2_timing", ""),
+        }
+
+
+def _build_convergence_proof(
+    chart_id: str,
+    chart_data: dict,
+    birth_date: str,
+    supabase,
+) -> str:
+    """
+    Queries dasha_periods for all past Vimsottari + Jaimini periods.
+    Finds convergence points where both systems activate the same house.
+    Returns a context block for Claude with 3 past-event proof cards.
+    """
+    from datetime import date
+
+    if not birth_date or not chart_id:
+        return ""
+
+    today = date.today()
+    house_lords = chart_data.get("house_lords", {})
+
+    # ── Build planet-to-houses mapping ────────────────────────────
+    # Which houses does each planet rule?
+    planet_to_houses = {}
+    for house_num, lord_info in house_lords.items():
+        lord_name = lord_info.get("lord", "") if isinstance(lord_info, dict) else str(lord_info)
+        if lord_name:
+            if lord_name not in planet_to_houses:
+                planet_to_houses[lord_name] = []
+            try:
+                planet_to_houses[lord_name].append(int(house_num))
+            except (ValueError, TypeError):
+                pass
+
+    # ── Build sign-to-house mapping (for Jaimini) ────────────────
+    SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+             "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
+    lagna_info = chart_data.get("lagna", {})
+    lagna_sign = lagna_info.get("sign", "Aries") if isinstance(lagna_info, dict) else "Aries"
+    lagna_idx = SIGNS.index(lagna_sign) if lagna_sign in SIGNS else 0
+    sign_to_house = {}
+    for i, sign in enumerate(SIGNS):
+        house = ((SIGNS.index(sign) - lagna_idx) % 12) + 1
+        sign_to_house[sign] = house
+
+    # ── Query all dasha periods ──────────────────────────────────
+    try:
+        vim_res = supabase.table("dasha_periods")             .select("planet_or_sign, start_date, end_date")             .eq("chart_id", chart_id)             .eq("system", "vimsottari")             .eq("level", 1)             .order("start_date")             .execute()
+        vim_periods = vim_res.data if vim_res.data else []
+
+        jai_res = supabase.table("dasha_periods")             .select("planet_or_sign, start_date, end_date")             .eq("chart_id", chart_id)             .eq("system", "jaimini")             .eq("level", 1)             .order("start_date")             .execute()
+        jai_periods = jai_res.data if jai_res.data else []
+    except Exception as e:
+        print(f"[welcome] Convergence query failed: {e}")
+        return ""
+
+    if not vim_periods or not jai_periods:
+        return ""
+
+    # ── Find convergences — overlapping periods activating same house ─
+    bd = date.fromisoformat(birth_date[:10])
+    convergences = []
+
+    for vim in vim_periods:
+        vim_start = date.fromisoformat(str(vim["start_date"])[:10])
+        vim_end = date.fromisoformat(str(vim["end_date"])[:10])
+        vim_planet = vim["planet_or_sign"]
+
+        # Skip current and future periods — we want PAST events only
+        if vim_end > today:
+            # Include partially past periods (started in past, ends in future)
+            # but only if it started at least 2 years ago
+            if vim_start > date(today.year - 2, today.month, today.day):
+                continue
+
+        vim_houses = planet_to_houses.get(vim_planet, [])
+        if not vim_houses:
+            continue
+
+        for jai in jai_periods:
+            jai_start = date.fromisoformat(str(jai["start_date"])[:10])
+            jai_end = date.fromisoformat(str(jai["end_date"])[:10])
+            jai_sign = jai["planet_or_sign"]
+            jai_house = sign_to_house.get(jai_sign)
+
+            if not jai_house:
+                continue
+
+            # Check overlap
+            overlap_start = max(vim_start, jai_start)
+            overlap_end = min(vim_end, jai_end)
+
+            if overlap_start >= overlap_end:
+                continue
+
+            # Skip overlaps entirely in the future
+            if overlap_start > today:
+                continue
+
+            # Check if the Jaimini house matches any Vimsottari house
+            if jai_house in vim_houses:
+                # Calculate age during this period
+                age_start = overlap_start.year - bd.year
+                age_end = overlap_end.year - bd.year
+
+                # Skip childhood (before age 16)
+                if age_end < 16:
+                    continue
+
+                overlap_years = (overlap_end - overlap_start).days / 365.25
+
+                convergences.append({
+                    "house": jai_house,
+                    "vim_planet": vim_planet,
+                    "jai_sign": jai_sign,
+                    "start_year": max(overlap_start.year, bd.year + 16),
+                    "end_year": min(overlap_end.year, today.year),
+                    "age_start": max(age_start, 16),
+                    "age_end": min(age_end, today.year - bd.year),
+                    "overlap_years": overlap_years,
+                    "theme": HOUSE_THEMES.get(jai_house, ("unknown", ""))[0],
+                    "chapter": CHAPTER_NAMES.get(jai_house, "A turning point"),
+                    "question": HOUSE_QUESTIONS.get(jai_house, "Did something significant happen in this period?"),
+                    "meaning": HOUSE_MEANING.get(jai_house, "This was part of the pattern leading to now."),
+                })
+
+    if not convergences:
+        return ""
+
+    # ── Sort by recency and significance, take top 3 ─────────────
+    # Prefer: recent, longer overlap, transformation houses (7,8,10)
+    priority_houses = {8: 3, 7: 2, 10: 2, 6: 1, 1: 1}
+    convergences.sort(
+        key=lambda c: (
+            -priority_houses.get(c["house"], 0),  # priority houses first
+            -c["overlap_years"],                    # longer overlap = more significant
+            -c["start_year"],                       # more recent first
+        )
+    )
+
+    # Deduplicate by house (don't show two events for the same house)
+    seen_houses = set()
+    unique = []
+    for c in convergences:
+        if c["house"] not in seen_houses:
+            seen_houses.add(c["house"])
+            unique.append(c)
+    
+    top_3 = unique[:3]
+    # Sort chronologically for presentation
+    top_3.sort(key=lambda c: c["start_year"])
+
+    # ── Build context block ──────────────────────────────────────
+    lines = ["── PAST EVENT PROOF (for Signal 2 — The Proof) ──"]
+    lines.append("These are convergence points where TWO independent dasha systems")
+    lines.append("activated the SAME house at the SAME time. Use these as proof events.")
+    lines.append("For each event: ASK the user if it happened (question format),")
+    lines.append("then CONNECT it to the arc — explain WHY it happened in their life story.")
+    lines.append("The final event should connect all threads to the PRESENT moment.")
+    lines.append("")
+
+    for i, c in enumerate(top_3):
+        event_num = i + 1
+        lines.append(f"PROOF EVENT {event_num}:")
+        lines.append(f"  Period: {c['start_year']}–{c['end_year']} (age {c['age_start']}–{c['age_end']})")
+        lines.append(f"  Chapter name: {c['chapter']}")
+        lines.append(f"  House: {c['house']} ({HOUSE_THEMES[c['house']][1]})")
+        lines.append(f"  Vimsottari: {c['vim_planet']} MD (rules house {c['house']})")
+        lines.append(f"  Jaimini: {c['jai_sign']} (= house {c['house']} from lagna)")
+        lines.append(f"  Convergence: BOTH systems activated house {c['house']} simultaneously")
+        lines.append(f"  Question to ask: {c['question']}")
+        lines.append(f"  Why it happened: {c['meaning']}")
+        lines.append("")
+
+    lines.append("FINAL THREAD (after the 3 proof events):")
+    lines.append("Connect all three events to the present. The user should feel that")
+    lines.append("every chapter — the break, the reckoning, the fight — led directly")
+    lines.append("to what they are doing right now. The present is not accidental.")
+    lines.append("")
+
+    return "\n".join(lines)
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Context builder — temporal grounding + chart facts
 # ─────────────────────────────────────────────────────────────────────────────
@@ -251,6 +539,8 @@ def _build_welcome_context(
     age:           Optional[int],
     country_code:  Optional[str],
     birth_date:    Optional[str] = None,
+    chart_id:      Optional[str] = None,
+    supabase=None,
 ) -> str:
     # ── Age intelligence (Sprint W) ───────────────────────────────
     if birth_date:
@@ -281,6 +571,15 @@ def _build_welcome_context(
                     f"Tell the user what this house unlocks and what to start building toward now."
                 )
             umra_block = "Upcoming age activations:\n" + "\n".join(umra_lines)
+
+    # ── Convergence proof (past events) ────────────────────────
+    proof_block = ""
+    if chart_id and supabase and birth_date and current_age and current_age > 25:
+        try:
+            proof_block = _build_convergence_proof(chart_id, chart_data, birth_date, supabase)
+        except Exception as e:
+            print(f"[welcome] Convergence proof failed (non-fatal): {e}")
+            proof_block = ""
 
     # ── Dasha — future transitions only ──────────────────────────
     dasha_text = current_dasha or ""
@@ -372,12 +671,17 @@ def _build_welcome_context(
         lines.append(f"Country: {country_code}")
     lines.append("")
 
+    # Proof block (past events convergence)
+    if proof_block:
+        lines.append(proof_block)
+        lines.append("")
+
     # Final instruction
     age_note = f"someone who is currently {current_age} years old" if current_age else "an adult"
     lines.append(
         f"Generate three WOW signals for {age_note}. "
         f"Signal 1 must be about identity/character ONLY — no events. "
-        f"Signal 2 must name the life chapter and include a specific future date. "
+        f"Signal 2 must use the PROOF EVENTS from context — ask if each happened, then connect to the arc. "
         f"Signal 3 must name a domain and a 60-90 day watch window. "
         f"All content must be age-appropriate. All dates must be in the future."
     )
@@ -395,7 +699,7 @@ async def _call_claude(context: str, claude_client) -> dict:
         # Interpolate age into system prompt
         response = await claude_client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=800,
+            max_tokens=1200,
             system=WELCOME_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": context}],
         )
@@ -452,10 +756,9 @@ def _fallback_signal() -> dict:
             "body": "Your birth chart reveals a specific pattern in how you process decisions and relationships. Ask Antar any question to explore what your chart says about your life right now.",
         },
         "signal_2": {
-            "type": "chapter",
-            "headline": "New Chapter Ahead",
-            "body": "You are entering a period of transition. The next several months bring a decision point that will shape the direction ahead. Ask Antar about a specific area of your life to get precise timing.",
-            "timing": "",
+            "type": "proof",
+            "events": [],
+            "thread": "Your chart has a clear pattern across the last two decades. Ask Antar a question to see how it connects to what is coming next.",
         },
         "signal_3": {
             "type": "signal",
