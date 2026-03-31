@@ -18,6 +18,11 @@ import logging
 import os
 from datetime import datetime, timezone
 from typing import Optional
+from antar_engine.age_utils import (
+    calculate_current_age, get_floor_age,
+    filter_umra_activations, filter_future_dasha_transitions,
+    format_timing_pill,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -36,6 +41,14 @@ RULES:
 - ALWAYS start with the user's first name if provided e.g. 'Ramandeep, your chart shows...'
 - If no name provided, start directly with the insight
 - Do NOT say "Welcome to Antar" or any generic greeting
+
+AGE RULES — CRITICAL:
+- The user's current age and temporal floor are in the context — read them first
+- NEVER reference themes, events, or life stages from before the floor age
+- All timing references must be FUTURE dates — never past
+- Career signals for 55+ = authority, legacy, succession — NOT starting out
+- Relationship signals for 60+ = depth, companionship — NOT first relationship
+- Never reference childhood, teenage years, or early adulthood for users over 40
 
 The goal: in 3 sentences, make them feel that Antar sees them specifically — 
 not a sun sign, not a generic reading, but their exact life situation right now.
@@ -129,45 +142,80 @@ def _build_welcome_context(
     current_dasha: Optional[str],
     age:           Optional[int],
     country_code:  Optional[str],
+    birth_date:    Optional[str] = None,
 ) -> str:
-    name_line = f"User's name: {first_name}" if first_name else "User's name: not provided"
-    age_line  = f"Age: {age}" if age else ""
-    country_line = f"Country: {country_code}" if country_code else ""
+    # ── Age intelligence (Sprint W) ───────────────────────────────
+    if birth_date:
+        current_age = calculate_current_age(birth_date[:10])
+    elif age:
+        current_age = age
+    else:
+        current_age = None
 
-    # Extract key chart facts
-    planets = chart_data.get("planets", {})
-    sun_sign  = planets.get("Sun",  {}).get("sign", "")
-    mars_sign = planets.get("Mars", {}).get("sign", "")
+    floor_age = get_floor_age(current_age) if current_age else None
 
-    # Get top yoga if available
-    yogas = chart_data.get("yogas", [])
-    top_yoga = yogas[0].get("name", "") if yogas else ""
+    umra_block = ""
+    if current_age:
+        umra_items = filter_umra_activations(current_age, max_upcoming=2)
+        if umra_items:
+            umra_lines = [
+                f"  House {u['house']} (age {u['activation_age']}): {u['theme']}"
+                for u in umra_items
+            ]
+            umra_block = "Upcoming age activations:\n" + "\n".join(umra_lines)
 
-    # Get current dasha
+    # ── Dasha — future transitions only ──────────────────────────
     dasha_text = current_dasha or ""
+    future_transition = ""
     if not dasha_text and dashas:
         vim = dashas.get("vimsottari", [])
         if vim:
             first = vim[0]
-            lord = first.get("lord_or_sign") or first.get("planet_or_sign", "")
-            dasha_text = lord
+            dasha_text = first.get("lord_or_sign") or first.get("planet_or_sign", "")
 
-    lines = [
-        name_line,
-        f"Rising sign (Lagna): {lagna or 'unknown'}",
-        f"Moon sign: {moon_sign or 'unknown'}",
-        f"Sun sign: {sun_sign}",
-        f"Current planetary period: {dasha_text}",
-    ]
-    if age_line:    lines.append(age_line)
-    if country_line: lines.append(country_line)
+    raw_ts = []
+    for d in dashas.get("vimsottari", []) if dashas else []:
+        if d.get("end_date"):
+            raw_ts.append({
+                "planet": d.get("lord_or_sign") or d.get("planet_or_sign", ""),
+                "end_date": d["end_date"],
+            })
+    future_ts = filter_future_dasha_transitions(raw_ts)
+    if future_ts:
+        future_transition = f"Current period ends: {format_timing_pill(future_ts[0]['end_date'])}"
+
+    # ── Chart facts ───────────────────────────────────────────────
+    planets   = chart_data.get("planets", {})
+    sun_sign  = planets.get("Sun",  {}).get("sign", "")
+    mars_sign = planets.get("Mars", {}).get("sign", "")
+    yogas     = chart_data.get("yogas", [])
+    top_yoga  = yogas[0].get("name", "") if yogas else ""
+
+    # ── Assemble — temporal grounding first ───────────────────────
+    lines = []
+    if current_age and floor_age:
+        lines.append(f"TEMPORAL GROUNDING: This user is {current_age} years old.")
+        lines.append(f"Temporal floor: never reference themes or events from before age {floor_age}.")
+        lines.append(f"Today: {datetime.now().strftime('%B %d, %Y')}")
+        lines.append("")
+
+    if first_name:    lines.append(f"User's name: {first_name}")
+    if country_code:  lines.append(f"Country: {country_code}")
+    lines.append(f"Rising sign (Lagna): {lagna or 'unknown'}")
+    lines.append(f"Moon sign: {moon_sign or 'unknown'}")
+    lines.append(f"Sun sign: {sun_sign}")
+    lines.append(f"Current planetary period: {dasha_text}")
+    if future_transition: lines.append(future_transition)
     if top_yoga:    lines.append(f"Strongest yoga in chart: {top_yoga}")
     if mars_sign:   lines.append(f"Mars in: {mars_sign}")
+    if umra_block:  lines.append(umra_block)
 
+    age_note = f"someone who is currently {current_age} years old." if current_age else "an adult."
     lines.append(
         "\nGenerate a welcome signal that makes this person feel immediately understood. "
         "Reference their rising sign and current planetary period specifically. "
-        "Tell them what chapter of life they are in and what it means for right now."
+        "Tell them what chapter of life they are in and what it means for right now. "
+        "All content must be appropriate for " + age_note
     )
 
     return "\n".join(lines)

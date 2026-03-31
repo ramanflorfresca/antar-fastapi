@@ -2665,6 +2665,14 @@ async def create_chart(
             _current_dasha = _d.get("lord") or _d.get("lord_or_sign") or _d.get("planet_or_sign", "")
 
         # Fire and forget — don't block chart creation response
+        # Sprint W: calculate age from birth_date so welcome signal is age-aware
+        _birth_date_str = getattr(request, "birth_date", "") or ""
+        try:
+            from antar_engine.age_utils import calculate_current_age as _calc_age
+            _welcome_age = _calc_age(str(_birth_date_str)[:10]) if _birth_date_str else None
+        except Exception:
+            _welcome_age = None
+
         _asyncio.create_task(generate_welcome_signal(
             chart_id=chart_id,
             chart_data=chart_data,
@@ -2673,7 +2681,8 @@ async def create_chart(
             lagna=_lagna_sign,
             moon_sign=_moon_sign,
             current_dasha=_current_dasha,
-            age=None,
+            age=_welcome_age,
+            birth_date=_birth_date_str,
             country_code=getattr(request, "birth_country", "") or "",
             supabase=supabase,
             claude_client=claude_client,
@@ -5464,6 +5473,13 @@ async def get_welcome(chart_id: str):
         except Exception:
             pass
 
+        _bd = str(chart_record.get("birth_date", "") or "")[:10]
+        try:
+            from antar_engine.age_utils import calculate_current_age as _ca
+            _sync_age = _ca(_bd) if _bd else None
+        except Exception:
+            _sync_age = None
+
         result = await generate_welcome_signal(
             chart_id=chart_id,
             chart_data=chart_data,
@@ -5472,7 +5488,8 @@ async def get_welcome(chart_id: str):
             lagna=chart_record.get("lagna_sign", "") or chart_data.get("lagna", {}).get("sign", ""),
             moon_sign=chart_record.get("moon_sign", "") or planets.get("Moon", {}).get("sign", ""),
             current_dasha=_current_dasha,
-            age=None,
+            age=_sync_age,
+            birth_date=_bd,
             country_code=chart_record.get("current_country") or chart_record.get("country_code", ""),
             supabase=supabase,
             claude_client=claude_client,
