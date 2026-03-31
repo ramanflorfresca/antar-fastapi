@@ -235,9 +235,14 @@ def _detect_unresolved(
     # Find all domains related to current concern
     related_domains = _get_related_domains(current_concern)
 
+    seen_ids = set()
     for pred in predictions:
         if pred.get("fulfillment_status") != "inferred_unresolved":
             continue
+        pred_id = pred.get("id")
+        if pred_id in seen_ids:
+            continue
+        seen_ids.add(pred_id)
 
         pred_domains  = pred.get("all_domains") or []
         pred_concern  = pred.get("concern", "")
@@ -270,7 +275,7 @@ def _build_memory_block(
     if not predictions:
         return ""
 
-    lines = ["PATTERN MEMORY — What Antar has told this person before:"]
+    lines = ["PATTERN MEMORY — What Antar has told this person before:\nINSTRUCTION: You MUST reference at least one past prediction explicitly in your response. Use phrases like 'Previously I told you...', 'Last month I advised...', 'Following up on my earlier reading...'."]
 
     # Flag the unresolved case first if present
     if unresolved:
