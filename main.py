@@ -1499,6 +1499,18 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             yogas=chart_data.get("yogas", []),
             divisional_charts=chart_data.get("divisional_charts", {}),
         )
+
+        # --- LAYER 2.5: JAIMINI CHARA DASHA ---
+        try:
+            _jaimini_block = format_jaimini_context_from_stored(chart_data)
+            if _jaimini_block:
+                _full_context += _jaimini_block
+            _concern = getattr(request, 'concern', '') or getattr(request, 'question', '') or ''
+            _jaimini_conv = score_jaimini_convergence(chart_data, _concern)
+            if _jaimini_conv:
+                _full_context += "\n" + _jaimini_conv + "\n"
+        except Exception as _je:
+            print(f"Jaimini context failed (non-blocking): {_je}")
         print(f"[predict] Full context: {len(_full_context)} chars")
     except Exception as _ctx_e:
         import traceback
@@ -2615,6 +2627,27 @@ async def create_chart(
     }
     try:
         supabase.table("charts").insert(chart_row).execute()
+
+        # --- Jaimini v2: Compute and store Chara Dasha ---
+        try:
+            _lagna_idx_j = constants.SIGNS.index(lagna_sign) if isinstance(lagna_sign, str) else int(lagna_sign)
+            _planets_for_jaimini = {}
+            for pname, pdata in chart_data.get("planets", {}).items():
+                if isinstance(pdata, dict):
+                    _planets_for_jaimini[pname] = pdata
+            _d9_data = chart_data.get("divisional_charts", {}).get("D9", {}).get("planets", {})
+            if not _d9_data:
+                _d9_data = chart_data.get("d9_planets", {})
+            build_and_store_jaimini(
+                chart_id=chart_id,
+                lagna_sign=_lagna_idx_j,
+                planets_dict=_planets_for_jaimini,
+                d9_planets_dict=_d9_data if _d9_data else _planets_for_jaimini,
+                birth_date_str=str(birth_date)[:10],
+                supabase_client=supabase,
+            )
+        except Exception as _je:
+            print(f"Jaimini v2 store failed (non-blocking): {_je}")
 
         # Save yogas to separate table for queryability
         detected_yogas = chart_data.get("yogas", [])
@@ -3898,6 +3931,23 @@ async def ask_prashna(request: PrashnaRequest):
         }).execute()
     except Exception:
         pass
+
+
+        # --- Jaimini Triple-Lock ---
+        try:
+            _q_map = {"marriage":"marriage","love":"marriage","relationship":"marriage",
+                      "investment":"investment","wealth":"investment","money":"investment",
+                      "lawsuit":"lawsuit","legal":"lawsuit","court":"lawsuit",
+                      "abroad":"foreign","travel":"foreign","visa":"foreign"}
+            _q_text = str(getattr(request, "question", "")).lower()
+            _q_type = next((v for k,v in _q_map.items() if k in _q_text), None)
+            if _q_type:
+                _jc = jaimini_prashna_check(chart_data, _q_type, 0)
+                if _jc.get("jaimini_verdict"):
+                    result["jaimini_confirms"] = True
+                    result["jaimini_reasons"] = _jc.get("reasons", [])
+        except Exception:
+            pass
 
     return {
         "question":      request.question,
@@ -5504,20 +5554,11 @@ async def get_welcome(chart_id: str):
         except Exception:
             _sync_age = None
 
-        result = await generate_welcome_signal(
-            chart_id=chart_id,
-            chart_data=chart_data,
-            dashas={},
-            first_name=chart_record.get("first_name", ""),
-            lagna=chart_record.get("lagna_sign", "") or chart_data.get("lagna", {}).get("sign", ""),
-            moon_sign=chart_record.get("moon_sign", "") or planets.get("Moon", {}).get("sign", ""),
-            current_dasha=_current_dasha,
-            age=_sync_age,
-            birth_date=_bd,
-            country_code=chart_record.get("current_country") or chart_record.get("country_code", ""),
-            supabase=supabase,
-            claude_client=claude_client,
-        )
+        result = await generate_welcome_signal_v2(
+                chart_data=_chart_row,
+                birth_date=_chart_row.get("birth_date"),
+                anthropic_client=claude_client,
+            )
         return result
     except HTTPException:
         raise
