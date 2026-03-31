@@ -1227,7 +1227,12 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         if _cs_block:
             print(f"[predict] C4 common sense — {len(_cs_block)} chars")
 
-    # Sprint D: Replace full DKP block with domain-focused note in prompt
+    except Exception as _cs_err:
+        print(f"[predict] C4 common sense failed (non-fatal): {_cs_err}")
+        _cs_block = ""
+    # ── end C4 ───────────────────────────────────────────────────
+
+    # Sprint D: domain-focused DKP note
     try:
         from antar_engine.desh_kal_patra import get_domain_dkp_note
         _domain_dkp = get_domain_dkp_note(concern, dkp_context, country_code or "")
@@ -1235,10 +1240,6 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             dkp_block = (dkp_block or "") + f"\n\n{_domain_dkp}"
     except Exception as _ddkp_err:
         print(f"[predict] domain DKP note failed (non-fatal): {_ddkp_err}")
-    except Exception as _cs_err:
-        print(f"[predict] C4 common sense failed (non-fatal): {_cs_err}")
-        _cs_block = ""
-    # ── end C4 ───────────────────────────────────────────────────
 
     # Concern detection
     concern = _detect_concern(request.question)
