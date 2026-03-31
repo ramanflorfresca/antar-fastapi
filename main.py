@@ -118,9 +118,12 @@ from antar_engine.vedic_enrichment import build_enrichment_context_v2, get_sade_
 # Claude client for high-quality predictions
 try:
     import anthropic as _anthropic
-    claude_client = _anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-    _CLAUDE_AVAILABLE = bool(os.getenv("ANTHROPIC_API_KEY"))
-except Exception:
+    _anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+    claude_client = _anthropic.AsyncAnthropic(api_key=_anthropic_key)
+    _CLAUDE_AVAILABLE = bool(_anthropic_key)
+    print(f"[startup] Claude client initialized OK — key prefix: {(_anthropic_key or '')[:12]}")
+except Exception as _ce:
+    print(f"[startup] Claude client FAILED: {type(_ce).__name__}: {_ce}")
     claude_client = None
     _CLAUDE_AVAILABLE = False
 
