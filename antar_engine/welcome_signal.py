@@ -185,6 +185,9 @@ async def _call_claude(context: str, claude_client) -> dict:
         return json.loads(text.strip())
 
     except Exception as e:
+        import traceback
+        print(f"[welcome] Claude call FAILED: {type(e).__name__}: {e}")
+        print(f"[welcome] Traceback: {traceback.format_exc()}")
         logger.error(f"[welcome] Claude call failed: {e}")
         return _fallback_signal()
 
