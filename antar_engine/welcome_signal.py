@@ -320,12 +320,6 @@ def _build_welcome_context(
     if current_age and floor_age:
         lines.append(f"TEMPORAL GROUNDING — READ THIS FIRST:")
         if birth_date:
-            _bd_month = datetime.strptime(birth_date[:10], "%Y-%m-%d").strftime("%B %Y")
-            _next_bday_year = datetime.now().year if (datetime.now().month, datetime.now().day) < (int(birth_date[5:7]), int(birth_date[8:10])) else datetime.now().year + 1
-            _turning = current_age + 1
-            lines.append(f"This user is {current_age} years old (turning {_turning} in {datetime.strptime(birth_date[:10], "%Y-%m-%d").strftime("%B")} {_next_bday_year}).")
-        else:
-            if birth_date:
             _bday_month = datetime.strptime(birth_date[:10], "%Y-%m-%d").strftime("%B")
             _turning = current_age + 1
             lines.append(f"This user is {current_age} years old (turning {_turning} in {_bday_month}).")
