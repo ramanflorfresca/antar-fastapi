@@ -1525,10 +1525,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     for _block in [_memory_block, _diagnostic_block, _cs_block]:
         if not _block:
             continue
-        if _full_context:
-            _full_context += f"\n\n{_block}"
-        else:
-            prompt += f"\n\n{_block}"
+        prompt += f"\n\n{_block}"
     # ── end C3+C4 injection ───────────────────────────────────────
 
     _using_master = _full_context and len(_full_context) > 500
