@@ -92,6 +92,15 @@ async def generate_welcome_signal(
     # Call Claude
     result = await _call_claude(context, claude_client)
 
+    # Inject first_name into output regardless of what Claude returned
+    if first_name and result:
+        headline = result.get("headline", "")
+        summary  = result.get("summary", "")
+        if headline and not headline.startswith(first_name):
+            result["headline"] = f"{first_name}, {headline[0].lower()}{headline[1:]}"
+        if summary and not summary.startswith(first_name):
+            result["summary"] = f"{first_name}, {summary[0].lower()}{summary[1:]}"
+
     # Save to DB
     try:
         row = {

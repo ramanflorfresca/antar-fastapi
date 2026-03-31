@@ -95,6 +95,16 @@ async def generate_weekly_briefing(
     result["week_start"] = week_start.isoformat()
     result["week_of"]    = week_start.strftime("%B %d, %Y")
 
+    # Inject first_name into weekly_focus
+    if first_name and result.get("weekly_focus"):
+        wf = result["weekly_focus"]
+        if not wf.startswith(first_name):
+            result["weekly_focus"] = f"{first_name}, {wf[0].lower()}{wf[1:]}"
+    if first_name and result.get("one_action"):
+        oa = result["one_action"]
+        if not oa.startswith(first_name):
+            result["one_action"] = oa  # action stays verb-first
+
     # Save to cache
     try:
         supabase.table(BRIEFING_TABLE).upsert({

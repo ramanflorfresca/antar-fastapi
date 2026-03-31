@@ -98,6 +98,16 @@ async def generate_monthly_deepdive(
     result["chart_id"]  = chart_id
     result["month_key"] = month_key
 
+    # Inject first_name into overview
+    if first_name and result.get("overview"):
+        ov = result["overview"]
+        if not ov.startswith(first_name):
+            result["overview"] = f"{first_name}, {ov[0].lower()}{ov[1:]}"
+    if first_name and result.get("month_theme"):
+        mt = result["month_theme"]
+        if not mt.startswith(first_name):
+            result["month_theme"] = f"{first_name}: {mt}"  
+
     # Save to cache
     try:
         supabase.table(DEEPDIVE_TABLE).upsert({

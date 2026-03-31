@@ -110,6 +110,16 @@ async def generate_annual_plan(
     result["chart_id"] = chart_id
     result["year_key"] = year_key
 
+    # Inject first_name into year_summary
+    if first_name and result.get("year_summary"):
+        ys = result["year_summary"]
+        if not ys.startswith(first_name):
+            result["year_summary"] = f"{first_name}, {ys[0].lower()}{ys[1:]}"
+    if first_name and result.get("year_theme"):
+        yt = result["year_theme"]
+        if not yt.startswith(first_name):
+            result["year_theme"] = f"{first_name}: {yt}"  
+
     # Save to cache
     try:
         supabase.table(ANNUAL_TABLE).upsert({
