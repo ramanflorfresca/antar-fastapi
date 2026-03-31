@@ -1226,6 +1226,15 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         )
         if _cs_block:
             print(f"[predict] C4 common sense — {len(_cs_block)} chars")
+
+    # Sprint D: Replace full DKP block with domain-focused note in prompt
+    try:
+        from antar_engine.desh_kal_patra import get_domain_dkp_note
+        _domain_dkp = get_domain_dkp_note(concern, dkp_context, country_code or "")
+        if _domain_dkp:
+            dkp_block = (dkp_block or "") + f"\n\n{_domain_dkp}"
+    except Exception as _ddkp_err:
+        print(f"[predict] domain DKP note failed (non-fatal): {_ddkp_err}")
     except Exception as _cs_err:
         print(f"[predict] C4 common sense failed (non-fatal): {_cs_err}")
         _cs_block = ""
@@ -1541,7 +1550,14 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             pass
         prompt += "\n\nCRITICAL: Do NOT use 'YOUR SIGNAL RIGHT NOW' or 'THE PATTERN THAT\'S ACTIVE' as headers. Answer the question directly in the first sentence."
 
-        _master_system = (
+        # Sprint D: Use domain-specific system prompt as system_override
+        try:
+            from antar_engine.concern_router import build_concern_system_prompt
+            _domain_system = build_concern_system_prompt(concern)
+        except Exception:
+            _domain_system = ""
+
+        _master_system = _domain_system if _domain_system else (
             "You are Antar — a precise Vedic astrology AI. "
             "Answer directly and specifically using the data provided. "
             "Reference specific planets, houses, yogas, and timing. "
@@ -1556,9 +1572,16 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
 
 
     else:
+        # Sprint D: domain system prompt for non-master path too
+        try:
+            from antar_engine.concern_router import build_concern_system_prompt
+            _domain_system_fallback = build_concern_system_prompt(concern)
+        except Exception:
+            _domain_system_fallback = ""
         prediction_text, tokens_used = await call_llm_claude(
             prompt,
             history=request.conversation_history or [],
+            system_override=_domain_system_fallback or "",
         )
 
     print(f"[predict] LLM response len={len(prediction_text) if prediction_text else 0} concern={concern}")

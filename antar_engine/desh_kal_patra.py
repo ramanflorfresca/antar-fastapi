@@ -373,3 +373,72 @@ async def refresh_all_country_contexts(supabase, deepseek_client) -> None:
             logger.warning(f"[DKP cron] Failed {code}: {e}")
 
     logger.info(f"[DKP cron] Done — {refreshed} refreshed, {failed} failed")
+
+
+# ── Domain-aware DKP summary ──────────────────────────────────────────────────
+
+def get_domain_dkp_note(
+    concern: str,
+    context_block: str,
+    country_code: str,
+) -> str:
+    """
+    Extract the most relevant part of the DKP context block for the given domain.
+    Returns a focused one-paragraph note instead of the full block.
+    """
+    if not context_block:
+        return ""
+
+    lines      = context_block.split("\n")
+    lower_block = context_block.lower()
+
+    if concern in ("career", "business", "funding"):
+        relevant = [l for l in lines if any(
+            w in l.lower() for w in [
+                "growing", "contracting", "sector", "employment",
+                "expansion", "contraction", "gdp", "job"
+            ]
+        )]
+        if relevant:
+            return f"MARKET CONTEXT ({country_code}): " + " ".join(relevant[:3])
+
+    if concern == "wealth":
+        relevant = [l for l in lines if any(
+            w in l.lower() for w in [
+                "inflation", "gdp", "economic climate", "expansion",
+                "contraction", "currency", "stable"
+            ]
+        )]
+        if relevant:
+            return f"ECONOMIC CONTEXT ({country_code}): " + " ".join(relevant[:3])
+
+    if concern in ("foreign", "travel"):
+        relevant = [l for l in lines if any(
+            w in l.lower() for w in ["emigration", "immigration", "visa", "currency"]
+        )]
+        if relevant:
+            return f"MIGRATION CONTEXT ({country_code}): " + " ".join(relevant[:3])
+
+    if concern == "legal":
+        relevant = [l for l in lines if any(
+            w in l.lower() for w in ["legal", "stability", "geopolitical", "currency"]
+        )]
+        if relevant:
+            return f"LEGAL ENVIRONMENT ({country_code}): " + " ".join(relevant[:2])
+
+    if concern == "property":
+        relevant = [l for l in lines if any(
+            w in l.lower() for w in [
+                "property", "real estate", "expansion", "contraction",
+                "inflation", "gdp"
+            ]
+        )]
+        if relevant:
+            return f"PROPERTY MARKET ({country_code}): " + " ".join(relevant[:2])
+
+    # Default — return the economic climate line only
+    for line in lines:
+        if "economic climate" in line.lower():
+            return f"ECONOMIC CONTEXT ({country_code}): {line.strip()}"
+
+    return ""
