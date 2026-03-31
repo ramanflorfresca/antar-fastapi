@@ -5426,6 +5426,17 @@ async def get_pattern_summary(chart_id: str):
 
 
 # ── Sprint E: Welcome signal ──────────────────────────────────────────────────
+@app.get("/api/v1/debug/claude-status")
+async def debug_claude_status():
+    """Debug endpoint — remove after fixing Sprint E."""
+    return {
+        "claude_client_is_none": claude_client is None,
+        "claude_client_type": str(type(claude_client)),
+        "anthropic_key_set": bool(os.getenv("ANTHROPIC_API_KEY")),
+        "anthropic_key_prefix": (os.getenv("ANTHROPIC_API_KEY") or "")[:12],
+    }
+
+
 @app.get("/api/v1/welcome/{chart_id}")
 async def get_welcome(chart_id: str):
     """
