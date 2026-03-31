@@ -29,10 +29,12 @@ Generate a full annual planning session. This is the most important reading Anta
 It covers the full year ahead — what it's about, when to act in each domain, what remedies to follow.
 
 RULES:
+- ALWAYS start year_summary with the user's first name if provided e.g. "Ramandeep, this year..."
 - Plain English throughout. Zero jargon.
 - Specific timing windows: name months, not vague periods
 - Peak windows per domain: at least 4 domains covered
 - Be specific to the chart data — actual planetary periods and positions
+- ALWAYS address the user by first name in year_summary e.g. 'Ramandeep, this year...'
 - The year summary should feel like a wise advisor's view of the year ahead
 - Remedies: practical, tied to specific chart placements, maintainable year-round
 
