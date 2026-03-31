@@ -26,6 +26,7 @@ from antar_engine.country_context import get_country_context
 from antar_engine.plain_english import generate_plain_english
 from antar_engine.desh_kal_patra import get_dkp_context
 from antar_engine.pattern_memory import build_pattern_memory
+from antar_engine.common_sense import build_common_sense_block
 
 from antar_engine.predictions import (
     build_layered_predictions,
@@ -1207,6 +1208,26 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         _memory = {}
     # ── end C3 ───────────────────────────────────────────────────
 
+    # ── C4: Common Sense Layer ───────────────────────────────────
+    _cs_block = ""
+    try:
+        _cs_block = build_common_sense_block(
+            age=getattr(patra, "age", None),
+            life_stage=getattr(patra, "life_stage_name", None),
+            concern=concern,
+            country_code=country_code,
+            marital_status=user_profile.get("marital_status"),
+            children_status=user_profile.get("children_status"),
+            dkp_context=dkp_context,
+            memory_result=_memory,
+        )
+        if _cs_block:
+            print(f"[predict] C4 common sense — {len(_cs_block)} chars")
+    except Exception as _cs_err:
+        print(f"[predict] C4 common sense failed (non-fatal): {_cs_err}")
+        _cs_block = ""
+    # ── end C4 ───────────────────────────────────────────────────
+
     # Concern detection
     concern = _detect_concern(request.question)
 
@@ -1494,19 +1515,18 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
 
     # ── LLM CALL — passes conversation history for multi-turn context ──
     # Use different system prompt for master context vs template
-    # ── C3: Append memory + diagnostic blocks to prompt ─────────
+    # ── C3 + C4: Append memory, diagnostic, and common sense to prompt ──
     _memory_block     = (_memory or {}).get("memory_block", "")
     _diagnostic_block = (_memory or {}).get("diagnostic_block", "")
 
-    if _memory_block and _full_context:
-        _full_context += f"\n\n{_memory_block}"
-    if _diagnostic_block and _full_context:
-        _full_context += f"\n\n{_diagnostic_block}"
-    if _memory_block and not _full_context:
-        prompt += f"\n\n{_memory_block}"
-    if _diagnostic_block and not _full_context:
-        prompt += f"\n\n{_diagnostic_block}"
-    # ── end C3 memory injection ───────────────────────────────────
+    for _block in [_memory_block, _diagnostic_block, _cs_block]:
+        if not _block:
+            continue
+        if _full_context:
+            _full_context += f"\n\n{_block}"
+        else:
+            prompt += f"\n\n{_block}"
+    # ── end C3+C4 injection ───────────────────────────────────────
 
     _using_master = _full_context and len(_full_context) > 500
     print(f"[predict] using_master={_using_master} prompt_len={len(prompt)}")
