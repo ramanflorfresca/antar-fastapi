@@ -267,10 +267,19 @@ def _build_welcome_context(
     if current_age:
         umra_items = filter_umra_activations(current_age, max_upcoming=2)
         if umra_items:
-            umra_lines = [
-                f"  House {u['house']} (age {u['activation_age']}): {u['theme']}"
-                for u in umra_items
-            ]
+            umra_lines = []
+            for u in umra_items:
+                years_away = u['activation_age'] - current_age
+                if years_away <= 0:
+                    distance = "currently active"
+                elif years_away == 1:
+                    distance = "activates next year"
+                else:
+                    distance = f"activates in {years_away} years"
+                umra_lines.append(
+                    f"  House {u['house']} (age {u['activation_age']}, {distance}): {u['theme']}. "
+                    f"Tell the user what this house unlocks and what to start building toward now."
+                )
             umra_block = "Upcoming age activations:\n" + "\n".join(umra_lines)
 
     # ── Dasha — future transitions only ──────────────────────────
@@ -310,7 +319,18 @@ def _build_welcome_context(
     # Temporal grounding — must be the first thing Claude sees
     if current_age and floor_age:
         lines.append(f"TEMPORAL GROUNDING — READ THIS FIRST:")
-        lines.append(f"This user is {current_age} years old.")
+        if birth_date:
+            _bd_month = datetime.strptime(birth_date[:10], "%Y-%m-%d").strftime("%B %Y")
+            _next_bday_year = datetime.now().year if (datetime.now().month, datetime.now().day) < (int(birth_date[5:7]), int(birth_date[8:10])) else datetime.now().year + 1
+            _turning = current_age + 1
+            lines.append(f"This user is {current_age} years old (turning {_turning} in {datetime.strptime(birth_date[:10], "%Y-%m-%d").strftime("%B")} {_next_bday_year}).")
+        else:
+            if birth_date:
+            _bday_month = datetime.strptime(birth_date[:10], "%Y-%m-%d").strftime("%B")
+            _turning = current_age + 1
+            lines.append(f"This user is {current_age} years old (turning {_turning} in {_bday_month}).")
+        else:
+            lines.append(f"This user is {current_age} years old.")
         lines.append(f"Temporal floor: NEVER reference themes or events from before age {floor_age}.")
         lines.append(f"Today: {datetime.now().strftime('%B %d, %Y')}")
         lines.append("")
