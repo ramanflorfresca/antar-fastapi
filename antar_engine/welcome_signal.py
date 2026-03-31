@@ -67,17 +67,18 @@ Return ONLY this JSON:
 
 
 async def generate_welcome_signal(
-    chart_id:    str,
-    chart_data:  dict,
-    dashas:      dict,
-    first_name:  Optional[str],
-    lagna:       Optional[str],
-    moon_sign:   Optional[str],
+    chart_id:     str,
+    chart_data:   dict,
+    dashas:       dict,
+    first_name:   Optional[str],
+    lagna:        Optional[str],
+    moon_sign:    Optional[str],
     current_dasha: Optional[str],
-    age:         Optional[int],
+    age:          Optional[int],
     country_code: Optional[str],
     supabase,
     claude_client,
+    birth_date:   Optional[str] = None,
 ) -> dict:
     """
     Generate and save the welcome signal for a new chart.
@@ -99,7 +100,8 @@ async def generate_welcome_signal(
     # Build the context block for Claude
     context = _build_welcome_context(
         chart_data, dashas, first_name, lagna,
-        moon_sign, current_dasha, age, country_code
+        moon_sign, current_dasha, age, country_code,
+        birth_date=birth_date,
     )
 
     # Call Claude
@@ -227,7 +229,7 @@ async def _call_claude(context: str, claude_client) -> dict:
 
     try:
         response = await claude_client.messages.create(
-            model="claude-sonnet-4-5",
+            model="claude-sonnet-4-6",
             max_tokens=500,
             system=WELCOME_SYSTEM_PROMPT,
             messages=[{"role": "user", "content": context}]
