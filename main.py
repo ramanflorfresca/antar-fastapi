@@ -2256,6 +2256,11 @@ class ChartCreateRequest(BaseModel):
     first_name:     Optional[str]  = None
     gender:         Optional[str]  = None
     language:       Optional[str]  = "en"
+    # Residence — where the person LIVES NOW (not birth location)
+    # Used for DKP, foreign signal framing, astrocartography
+    current_city:    Optional[str]  = None   # city of current residence
+    current_country: Optional[str]  = None   # ISO country code of residence
+                                              # defaults to birth_country if not provided
 
 class ChartCreateResponse(BaseModel):
     chart_id:       str
@@ -2543,7 +2548,7 @@ async def create_chart(
         "longitude":           lng,
         "gender":          getattr(request, "gender", "") or "",
         "current_city":    getattr(request, "current_city", "") or "",
-        "current_country": getattr(request, "current_country", "") or "",
+        "current_country": getattr(request, "current_country", "") or request.birth_country or "",
         "timezone_offset":     _offset,
         "country_code":        request.birth_country,
         "chart_data":          {
