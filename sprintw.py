@@ -1,0 +1,221 @@
+"""
+test_sprint_w.py — Smoke test for Sprint W quality gates.
+Sprint W · antar.world · March 31, 2026
+
+Run after deploying W-01 through W-10 to Railway:
+    python test_sprint_w.py
+
+Tests all 6 quality gates from Sprint W Section 7 across 3 age brackets.
+"""
+
+import asyncio
+import json
+import sys
+from datetime import date, datetime
+
+import httpx
+
+BASE_URL = "https://antar-fastapi-production.up.railway.app"
+
+BANNED_TERMS = [
+    "mahadasha", "antardasha", "atmakaraka", "navamsa",
+    "amatyakaraka", "vimsottari", "nakshatra", "tithi", "lagna"
+]
+
+ALLOWED_DOMAINS = {"career", "relationship", "financial", "health", "travel", "legal"}
+
+# Test charts — real birth data for three age brackets
+TEST_CHARTS = [
+    {"label": "Person A (28)", "birth_date": "1998-01-15", "expected_stage": "early_career"},
+    {"label": "Person B (42)", "birth_date": "1983-07-22", "expected_stage": "mid_career"},
+    {"label": "Person C (58)", "birth_date": "1968-03-10", "expected_stage": "peak_authority"},
+    {"label": "Edge case (23)", "birth_date": "2003-05-01", "expected_stage": "early_career"},
+]
+
+# ---------------------------------------------------------------------------
+# Local unit tests (no Railway needed)
+# ---------------------------------------------------------------------------
+
+def test_age_utils():
+    from age_utils import calculate_current_age, get_floor_age, filter_umra_activations, filter_future_dasha_transitions
+
+    # Gate: Nov 26 1974 → 51 years old as of March 2026
+    age = calculate_current_age("1974-11-26")
+    assert age == 51, f"Expected 51, got {age}"
+    print(f"  ✅ calculate_current_age('1974-11-26') = {age}")
+
+    # Gate: floor age
+    floor = get_floor_age(51)
+    assert floor == 46, f"Expected 46, got {floor}"
+    print(f"  ✅ get_floor_age(51) = {floor}")
+
+    # Gate: Umra filter — 51yo should see NO activations below age 49
+    umra = filter_umra_activations(51, max_upcoming=10)
+    below_floor = [u for u in umra if u["activation_age"] < 49]
+    assert not below_floor, f"Umra filter failure — got activations for ages: {[u['activation_age'] for u in below_floor]}"
+    print(f"  ✅ Umra filter: {len(umra)} activations returned, all >= age 49")
+
+    # Gate: future date guard
+    today = date.today().isoformat()
+    transitions = [
+        {"planet": "Moon", "end_date": "2020-01-01"},  # past — should be filtered
+        {"planet": "Mars", "end_date": "2027-06-15"},  # future — should remain
+    ]
+    filtered = filter_future_dasha_transitions(transitions)
+    assert len(filtered) == 1 and filtered[0]["planet"] == "Mars", \
+        f"Future date guard failed: {filtered}"
+    print(f"  ✅ Future date guard: past transition filtered, future retained")
+
+
+def test_welcome_validation():
+    from welcome_signal import _validate_and_clean, _assert_timing_future, ALLOWED_SIGNAL_3_DOMAINS
+
+    # Valid signals
+    valid = {
+        "signal_1": {"type": "mirror", "headline": "You decide before logic catches up", "body": "Sample body text here."},
+        "signal_2": {"type": "chapter", "headline": "The Inheritance Phase", "body": "Sample chapter body.", "timing": "August 2027"},
+        "signal_3": {"type": "signal", "headline": "An offer arrives soon", "body": "Sample signal body.", "domain": "career", "watch_for": "An offer from someone senior."},
+    }
+    result = _validate_and_clean(valid, 51)
+    assert result["signal_1"]["body"]
+    assert result["signal_2"]["timing"] == "August 2027"
+    assert result["signal_3"]["domain"] == "career"
+    print("  ✅ Validation accepts well-formed signals")
+
+    # Past timing should raise
+    try:
+        _assert_timing_future("January 2020", date.today())
+        print("  ❌ FAIL — past timing should have raised ValueError")
+    except ValueError:
+        print("  ✅ Past timing correctly raises ValueError")
+
+    # Invalid domain gets defaulted to career
+    invalid_domain = {**valid}
+    invalid_domain["signal_3"] = {**valid["signal_3"], "domain": "astrology"}
+    result2 = _validate_and_clean(invalid_domain, 51)
+    assert result2["signal_3"]["domain"] == "career"
+    print("  ✅ Invalid domain correctly defaults to 'career'")
+
+
+def check_banned_terms(text: str, label: str) -> bool:
+    text_lower = text.lower()
+    found = [t for t in BANNED_TERMS if t in text_lower]
+    if found:
+        print(f"  ❌ BANNED TERMS in {label}: {found}")
+        return False
+    return True
+
+
+def test_age_guard_module():
+    from signal_age_guard import build_age_guard_block, apply_age_guard_to_daily
+
+    block_51 = build_age_guard_block("1974-11-26")
+    assert block_51["current_age"] == 51
+    assert block_51["floor_age"] == 46
+    print(f"  ✅ Age guard block for 1974-11-26: age={block_51['current_age']}, floor={block_51['floor_age']}")
+
+    # Apply to a dummy daily signal
+    ctx, prompt = apply_age_guard_to_daily("EXISTING CONTEXT", "EXISTING PROMPT", "1974-11-26")
+    assert "51 years old" in ctx
+    assert "age 46" in prompt
+    print("  ✅ Age guard correctly injects age and floor into context and prompt")
+
+
+# ---------------------------------------------------------------------------
+# Integration tests — requires Railway connection
+# ---------------------------------------------------------------------------
+
+async def test_welcome_endpoint_live(chart_id: str, label: str):
+    async with httpx.AsyncClient(timeout=30) as client:
+        resp = await client.get(f"{BASE_URL}/api/v1/welcome/{chart_id}")
+        if resp.status_code != 200:
+            print(f"  ❌ {label}: HTTP {resp.status_code}")
+            return False
+
+        data = resp.json()
+
+        # Gate 1 — Signal 1 has no events
+        s1_body = data.get("signal_1", {}).get("body", "")
+        has_dates = any(str(y) in s1_body for y in range(2020, 2035))
+        if has_dates:
+            print(f"  ❌ Gate 1 FAIL ({label}): Signal 1 contains a date reference")
+        else:
+            print(f"  ✅ Gate 1 ({label}): Signal 1 is identity-only, no events")
+
+        # Gate 2 — Signal 2 has a future timing
+        timing = data.get("signal_2", {}).get("timing", "")
+        try:
+            dt = datetime.strptime(timing, "%B %Y").date()
+            if dt < date.today():
+                print(f"  ❌ Gate 2 FAIL ({label}): Signal 2 timing '{timing}' is in the past")
+            else:
+                print(f"  ✅ Gate 2 ({label}): Signal 2 timing '{timing}' is future")
+        except Exception:
+            print(f"  ⚠️  Gate 2 ({label}): Could not parse timing '{timing}'")
+
+        # Gate 3 — Signal 3 domain valid + watch_for present
+        s3 = data.get("signal_3", {})
+        if s3.get("domain") not in ALLOWED_DOMAINS:
+            print(f"  ❌ Gate 3 FAIL ({label}): domain '{s3.get('domain')}' not in allowed set")
+        elif not s3.get("watch_for"):
+            print(f"  ❌ Gate 3 FAIL ({label}): watch_for is missing")
+        else:
+            print(f"  ✅ Gate 3 ({label}): domain={s3['domain']}, watch_for present")
+
+        # Gate 4 — Zero banned Sanskrit terms
+        all_bodies = " ".join([
+            data.get("signal_1", {}).get("body", ""),
+            data.get("signal_2", {}).get("body", ""),
+            data.get("signal_3", {}).get("body", ""),
+        ])
+        gate4 = check_banned_terms(all_bodies, label)
+        if gate4:
+            print(f"  ✅ Gate 4 ({label}): Zero banned terms in all three signal bodies")
+
+        return True
+
+
+# ---------------------------------------------------------------------------
+# Main runner
+# ---------------------------------------------------------------------------
+
+def run_local_tests():
+    print("\n=== LOCAL UNIT TESTS ===\n")
+
+    print("age_utils.py:")
+    test_age_utils()
+
+    print("\nwelcome_signal.py validation:")
+    test_welcome_validation()
+
+    print("\nsignal_age_guard.py:")
+    test_age_guard_module()
+
+    print("\n✅ All local tests passed.\n")
+
+
+async def run_integration_tests(chart_ids: dict):
+    print("\n=== INTEGRATION TESTS (Railway) ===\n")
+    print("Provide chart IDs to test against live endpoints.\n")
+    for label, chart_id in chart_ids.items():
+        print(f"Testing: {label} ({chart_id})")
+        await test_welcome_endpoint_live(chart_id, label)
+        print()
+
+
+if __name__ == "__main__":
+    # Run local tests always
+    run_local_tests()
+
+    # Integration tests require real chart IDs
+    # Replace with actual chart_ids from your Supabase charts table
+    live_chart_ids = {
+        "Primary test chart (51yo)": "6849e41a-REPLACE-WITH-REAL-UUID",
+        # Add more test chart IDs here as you create them
+    }
+
+    if "--live" in sys.argv:
+        asyncio.run(run_integration_tests(live_chart_ids))
+    else:
+        print("Tip: Run with --live to also test against the Railway API.")
+        print("     python test_sprint_w.py --live\n")

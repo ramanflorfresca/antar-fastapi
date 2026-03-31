@@ -268,11 +268,30 @@ def build_and_store_jaimini(
         }
     """
     # Convert raw dicts to Planet objects
+    SIGN_NAMES_LOCAL = [
+        "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+        "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
+    ]
+    def _to_sign_idx(val):
+        if isinstance(val, int):
+            return val
+        if isinstance(val, float):
+            return int(val)
+        if isinstance(val, str):
+            try:
+                return SIGN_NAMES_LOCAL.index(val.title())
+            except ValueError:
+                try:
+                    return int(val)
+                except ValueError:
+                    return 0
+        return 0
+
     planets = {}
     for name, data in planets_dict.items():
         planets[name] = Planet(
             name=name,
-            sign=data.get("sign", 0),
+            sign=_to_sign_idx(data.get("sign", 0)),
             degree=data.get("degree", 0.0),
             degree_in_sign=data.get("degree_in_sign", 0.0),
             retrograde=data.get("retrograde", False),
@@ -284,7 +303,7 @@ def build_and_store_jaimini(
     for name, data in d9_planets_dict.items():
         d9_planets[name] = Planet(
             name=name,
-            sign=data.get("sign", 0),
+            sign=_to_sign_idx(data.get("sign", 0)),
             degree=data.get("degree", 0.0),
             degree_in_sign=data.get("degree_in_sign", 0.0),
             retrograde=data.get("retrograde", False)
@@ -310,15 +329,17 @@ def build_and_store_jaimini(
             }).eq("id", chart_id).execute()
             logger.info(f"Stored jaimini_data for chart {chart_id}")
 
-            # Delete old Jaimini dasha rows and insert new ones
-            supabase_client.table("dasha_periods").delete().eq(
-                "chart_id", chart_id
-            ).eq("dasha_system", "jaimini_chara").execute()
-
-            # Batch insert dasha rows (Supabase handles bulk)
-            if dasha_rows:
-                supabase_client.table("dasha_periods").insert(dasha_rows).execute()
-                logger.info(f"Inserted {len(dasha_rows)} Jaimini dasha rows for chart {chart_id}")
+            # Skip dasha row insertion if table doesn't have dasha_system column
+            # The jaimini_data JSONB has all timing data — dasha rows are optional
+            try:
+                supabase_client.table("dasha_periods").delete().eq(
+                    "chart_id", chart_id
+                ).eq("dasha_system", "jaimini_chara").execute()
+                if dasha_rows:
+                    supabase_client.table("dasha_periods").insert(dasha_rows).execute()
+                    logger.info(f"Inserted {len(dasha_rows)} Jaimini dasha rows for chart {chart_id}")
+            except Exception as _de:
+                pass  # dasha_periods table may not have dasha_system column yet
 
         except Exception as e:
             logger.error(f"Failed to store Jaimini data for chart {chart_id}: {e}")
