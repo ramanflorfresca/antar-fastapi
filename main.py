@@ -5786,3 +5786,134 @@ async def get_annual_plan(chart_id: str, refresh: bool = False):
         print(f"[annual-plan] error: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate annual plan")
 
+
+
+
+# ═══════════════════════════════════════════════════════════════
+# SPRINT P — PRACTICE ENGINE ENDPOINTS (auto-patched 2026-03-31)
+# ═══════════════════════════════════════════════════════════════
+
+from antar_engine.practice_engine import generate_practice_schedule, format_practice_for_predict_prompt
+from pydantic import BaseModel as _PracticeBaseModel
+
+class _PracticeCompleteReq(_PracticeBaseModel):
+    practice_id: str
+    user_note: str = None
+
+@app.get("/api/v1/practices/{chart_id}/schedule")
+async def get_practice_schedule_endpoint(chart_id: str, refresh: bool = False):
+    try:
+        from datetime import date as _d, timedelta as _td
+        _today = _d.today()
+        _week_of = _today - _td(days=_today.weekday())
+        if not refresh:
+            _cache = supabase.table("practice_schedule_cache").select("schedule_data").eq("chart_id", chart_id).eq("week_of", _week_of.isoformat()).execute()
+            if _cache.data and len(_cache.data) > 0:
+                _sched = _cache.data[0]["schedule_data"]
+                _streak = await _practice_get_streak(chart_id)
+                _sched["streak_data"] = _streak
+                return {"status": "ok", "source": "cache", "schedule": _sched}
+        _chart = supabase.table("charts").select("chart_data, jaimini_data, lal_kitab_data, current_country, birth_date").eq("id", chart_id).single().execute()
+        if not _chart.data:
+            return {"status": "error", "message": "Chart not found"}
+        _c = _chart.data
+        _streak = await _practice_get_streak(chart_id)
+        _sched = generate_practice_schedule(
+            chart_data=_c.get("chart_data") or {},
+            jaimini_data=_c.get("jaimini_data") or {},
+            lal_kitab_data=_c.get("lal_kitab_data") or {},
+            current_country=_c.get("current_country", "US"),
+            birth_date=_c.get("birth_date"),
+            streak_data=_streak,
+        )
+        try:
+            supabase.table("practice_schedule_cache").upsert({"chart_id": chart_id, "week_of": _week_of.isoformat(), "cache_key": _sched.get("cache_key", ""), "schedule_data": _sched}, on_conflict="chart_id,week_of").execute()
+        except Exception:
+            pass
+        return {"status": "ok", "source": "generated", "schedule": _sched}
+    except Exception as e:
+        print(f"[PRACTICE] Schedule error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/v1/practices/{chart_id}/complete")
+async def complete_practice_endpoint(chart_id: str, req: _PracticeCompleteReq):
+    try:
+        from datetime import datetime as _dt, date as _d, timedelta as _td
+        _now = _dt.utcnow()
+        _streak = await _practice_calc_streak(chart_id, _d.today())
+        _planet = "Unknown"
+        _ptype = "remedy"
+        _planets = ["sun","moon","mars","mercury","jupiter","venus","saturn","rahu","ketu"]
+        _types = ["convergence","awakening","remedy","rin_clearing","mantra"]
+        for _p in req.practice_id.lower().split("_"):
+            if _p in _planets: _planet = _p.capitalize()
+            if _p in _types: _ptype = _p
+        supabase.table("practice_log").insert({"chart_id": chart_id, "practice_id": req.practice_id, "planet": _planet, "practice_type": _ptype, "completed_at": _now.isoformat(), "streak_count": _streak + 1, "user_note": req.user_note}).execute()
+        _new = _streak + 1
+        if _new == 7: _msg = "7-day streak unlocked! You earned a free Deep Dive Location Audit."
+        elif _new == 21: _msg = "21-day cycle complete. Your energy pattern has shifted."
+        elif _new >= 3: _msg = f"{_new}-day streak! Consistency is building momentum."
+        else: _msg = "Practice logged. Every day counts."
+        return {"status": "ok", "streak_count": _new, "message": _msg}
+    except Exception as e:
+        print(f"[PRACTICE] Complete error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/v1/practices/{chart_id}/streak")
+async def get_practice_streak_endpoint(chart_id: str):
+    try:
+        from datetime import date as _d, timedelta as _td
+        _today = _d.today()
+        _30ago = _today - _td(days=30)
+        _log = supabase.table("practice_log").select("practice_id, practice_type, completed_at, streak_count, user_note, energy_label").eq("chart_id", chart_id).gte("created_at", _30ago.isoformat()).order("completed_at", desc=True).execute()
+        _completions = _log.data or []
+        _current = await _practice_calc_streak(chart_id, _today)
+        _longest = max([c.get("streak_count", 0) for c in _completions], default=0)
+        _longest = max(_longest, _current)
+        _total = len([c for c in _completions if c.get("completed_at")])
+        _cal = {}
+        for c in _completions:
+            if c.get("completed_at"):
+                _cal[c["completed_at"][:10]] = {"practice_id": c.get("practice_id"), "practice_type": c.get("practice_type"), "note": c.get("user_note")}
+        return {"status": "ok", "chart_id": chart_id, "current_streak": _current, "longest_streak": _longest, "total_completed": _total, "completion_rate": round(_total / 30 * 100) if _total else 0, "calendar": _cal, "history": _completions[:20]}
+    except Exception as e:
+        print(f"[PRACTICE] Streak error: {e}")
+        return {"status": "error", "message": str(e)}
+
+async def _practice_calc_streak(chart_id: str, today) -> int:
+    try:
+        from datetime import timedelta as _td
+        _60ago = today - _td(days=60)
+        _log = supabase.table("practice_log").select("completed_at").eq("chart_id", chart_id).not_.is_("completed_at", "null").gte("completed_at", _60ago.isoformat()).order("completed_at", desc=True).execute()
+        if not _log.data: return 0
+        _dates = set()
+        for r in _log.data:
+            if r.get("completed_at"): _dates.add(r["completed_at"][:10])
+        _streak = 0
+        _check = today
+        if _check.isoformat() not in _dates:
+            _check = today - _td(days=1)
+            if _check.isoformat() not in _dates: return 0
+        while _check.isoformat() in _dates:
+            _streak += 1
+            _check -= _td(days=1)
+        return _streak
+    except Exception:
+        return 0
+
+async def _practice_get_streak(chart_id: str) -> dict:
+    from datetime import date as _d
+    _current = await _practice_calc_streak(chart_id, _d.today())
+    try:
+        _max = supabase.table("practice_log").select("streak_count").eq("chart_id", chart_id).order("streak_count", desc=True).limit(1).execute()
+        _longest = _max.data[0]["streak_count"] if _max.data else 0
+    except Exception:
+        _longest = 0
+    try:
+        _cnt = supabase.table("practice_log").select("id", count="exact").eq("chart_id", chart_id).not_.is_("completed_at", "null").execute()
+        _total = _cnt.count or 0
+    except Exception:
+        _total = 0
+    return {"current": max(_current, 0), "longest": max(_longest, _current), "total_completed": _total}
+
+# ═══ END SPRINT P ENDPOINTS ═══
