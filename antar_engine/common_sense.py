@@ -164,6 +164,8 @@ def build_common_sense_block(
     children_status:Optional[str],
     dkp_context:    Optional[str],
     memory_result:  Optional[dict],
+    birth_country:  Optional[str] = None,
+    current_country: Optional[str] = None,
 ) -> str:
     """
     Build the Common Sense instruction block for Claude.

@@ -1158,7 +1158,8 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     transit_summary = transits.summarize_transits(_raw_transits)
 
     # Country context — static cultural layer (always available)
-    country_code = chart_record.get("country_code")
+    # C2: Use current residence country for DKP, not birth country
+    country_code = chart_record.get("current_country") or chart_record.get("country_code")
     country_context = get_country_context(country_code) if country_code else ""
 
     # Timing
@@ -1220,6 +1221,8 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             children_status=user_profile.get("children_status"),
             dkp_context=dkp_context,
             memory_result=_memory,
+            birth_country=chart_record.get("country_code"),
+            current_country=chart_record.get("current_country"),
         )
         if _cs_block:
             print(f"[predict] C4 common sense — {len(_cs_block)} chars")
@@ -1239,7 +1242,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         "health_status":    chart_record.get("health_status", "excellent"),
         "financial_status": chart_record.get("financial_status", "stable"),
         "birth_country":    chart_record.get("country_code", ""),
-        "current_country":  chart_record.get("country_code", ""),
+        "current_country":  chart_record.get("current_country") or chart_record.get("country_code", ""),
         "countries_lived":  chart_record.get("countries_lived", []),
     }
     patra = build_patra_context(
@@ -2721,7 +2724,7 @@ async def get_career_reading(
         "career_stage":     chart_record.get("career_stage", "mid_career"),
         "financial_status": chart_record.get("financial_status", "stable"),
         "birth_country":    chart_record.get("country_code", ""),
-        "current_country":  chart_record.get("country_code", ""),
+        "current_country":  chart_record.get("current_country") or chart_record.get("country_code", ""),
     }
     patra = build_patra_context(
         birth_date=chart_record["birth_date"],
@@ -3017,7 +3020,7 @@ async def chapter_arc_endpoint(
         "health_status":    chart_record.get("health_status", "excellent"),
         "financial_status": chart_record.get("financial_status", "stable"),
         "birth_country":    chart_record.get("country_code", ""),
-        "current_country":  chart_record.get("country_code", ""),
+        "current_country":  chart_record.get("current_country") or chart_record.get("country_code", ""),
         "countries_lived":  chart_record.get("countries_lived", []),
     }
     patra = build_patra_context(
