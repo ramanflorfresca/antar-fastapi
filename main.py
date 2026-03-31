@@ -5444,14 +5444,31 @@ async def get_welcome(chart_id: str):
         chart_record = chart_res.data[0]
         chart_data   = chart_record.get("chart_data", {})
         planets      = chart_data.get("planets", {})
+        # Get current dasha from dasha_periods table
+        _current_dasha = ""
+        try:
+            from datetime import date
+            _dasha_res = supabase.table("dasha_periods") \
+                .select("planet_or_sign, start_date, end_date") \
+                .eq("chart_id", chart_id) \
+                .eq("system", "vimsottari") \
+                .eq("level", 1) \
+                .lte("start_date", str(date.today())) \
+                .gte("end_date", str(date.today())) \
+                .execute()
+            if _dasha_res.data:
+                _current_dasha = _dasha_res.data[0].get("planet_or_sign", "")
+        except Exception:
+            pass
+
         result = await generate_welcome_signal(
             chart_id=chart_id,
             chart_data=chart_data,
             dashas={},
             first_name=chart_record.get("first_name", ""),
-            lagna=chart_data.get("lagna", {}).get("sign", ""),
-            moon_sign=planets.get("Moon", {}).get("sign", ""),
-            current_dasha=chart_record.get("current_dasha", ""),
+            lagna=chart_record.get("lagna_sign", "") or chart_data.get("lagna", {}).get("sign", ""),
+            moon_sign=chart_record.get("moon_sign", "") or planets.get("Moon", {}).get("sign", ""),
+            current_dasha=_current_dasha,
             age=None,
             country_code=chart_record.get("current_country") or chart_record.get("country_code", ""),
             supabase=supabase,
@@ -5496,14 +5513,31 @@ async def get_weekly_briefing(chart_id: str, refresh: bool = False):
             except Exception:
                 pass
 
+
+        # Fetch current dasha from dasha_periods
+        _current_dasha = ""
+        try:
+            from datetime import date as _date
+            _dr = supabase.table("dasha_periods") \
+                .select("planet_or_sign") \
+                .eq("chart_id", chart_id) \
+                .eq("system", "vimsottari") \
+                .eq("level", 1) \
+                .lte("start_date", str(_date.today())) \
+                .gte("end_date", str(_date.today())) \
+                .limit(1).execute()
+            if _dr.data:
+                _current_dasha = _dr.data[0].get("planet_or_sign", "")
+        except Exception:
+            pass
         result = await generate_weekly_briefing(
             chart_id=chart_id,
             chart_data=chart_data,
             dashas={},
             first_name=chart_record.get("first_name", ""),
-            lagna=chart_data.get("lagna", {}).get("sign", ""),
-            moon_sign=planets.get("Moon", {}).get("sign", ""),
-            current_dasha=chart_record.get("current_dasha", ""),
+            lagna=chart_record.get("lagna_sign", "") or chart_data.get("lagna", {}).get("sign", ""),
+            moon_sign=chart_record.get("moon_sign", "") or planets.get("Moon", {}).get("sign", ""),
+            current_dasha=_current_dasha,
             age=None,
             country_code=country_code,
             dkp_context=dkp_ctx,
@@ -5541,14 +5575,31 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False):
         except Exception:
             pass
 
+
+        # Fetch current dasha from dasha_periods
+        _current_dasha = ""
+        try:
+            from datetime import date as _date
+            _dr = supabase.table("dasha_periods") \
+                .select("planet_or_sign") \
+                .eq("chart_id", chart_id) \
+                .eq("system", "vimsottari") \
+                .eq("level", 1) \
+                .lte("start_date", str(_date.today())) \
+                .gte("end_date", str(_date.today())) \
+                .limit(1).execute()
+            if _dr.data:
+                _current_dasha = _dr.data[0].get("planet_or_sign", "")
+        except Exception:
+            pass
         result = await generate_monthly_deepdive(
             chart_id=chart_id,
             chart_data=chart_data,
             dashas={},
             first_name=chart_record.get("first_name", ""),
-            lagna=chart_data.get("lagna", {}).get("sign", ""),
-            moon_sign=chart_data.get("planets", {}).get("Moon", {}).get("sign", ""),
-            current_dasha=chart_record.get("current_dasha", ""),
+            lagna=chart_record.get("lagna_sign", "") or chart_data.get("lagna", {}).get("sign", ""),
+            moon_sign=chart_record.get("moon_sign", "") or chart_data.get("planets", {}).get("Moon", {}).get("sign", ""),
+            current_dasha=_current_dasha,
             age=None,
             country_code=chart_record.get("current_country") or chart_record.get("country_code", ""),
             lk_context=lk_ctx,
@@ -5599,14 +5650,31 @@ async def get_annual_plan(chart_id: str, refresh: bool = False):
         except Exception:
             pass
 
+
+        # Fetch current dasha from dasha_periods
+        _current_dasha = ""
+        try:
+            from datetime import date as _date
+            _dr = supabase.table("dasha_periods") \
+                .select("planet_or_sign") \
+                .eq("chart_id", chart_id) \
+                .eq("system", "vimsottari") \
+                .eq("level", 1) \
+                .lte("start_date", str(_date.today())) \
+                .gte("end_date", str(_date.today())) \
+                .limit(1).execute()
+            if _dr.data:
+                _current_dasha = _dr.data[0].get("planet_or_sign", "")
+        except Exception:
+            pass
         result = await generate_annual_plan(
             chart_id=chart_id,
             chart_data=chart_data,
             dashas={},
             first_name=chart_record.get("first_name", ""),
-            lagna=chart_data.get("lagna", {}).get("sign", ""),
-            moon_sign=chart_data.get("planets", {}).get("Moon", {}).get("sign", ""),
-            current_dasha=chart_record.get("current_dasha", ""),
+            lagna=chart_record.get("lagna_sign", "") or chart_data.get("lagna", {}).get("sign", ""),
+            moon_sign=chart_record.get("moon_sign", "") or chart_data.get("planets", {}).get("Moon", {}).get("sign", ""),
+            current_dasha=_current_dasha,
             birth_date=chart_record.get("birth_date", ""),
             age=None,
             country_code=country_code,
