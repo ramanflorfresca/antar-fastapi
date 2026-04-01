@@ -5794,6 +5794,13 @@ async def get_annual_plan(chart_id: str, refresh: bool = False):
 # ═══════════════════════════════════════════════════════════════
 
 from antar_engine.practice_engine import generate_practice_schedule, format_practice_for_predict_prompt
+import json as _pjson
+def _safe_jsonb(v):
+    if isinstance(v, str):
+        try: return _pjson.loads(v)
+        except: return {}
+    return v if isinstance(v, dict) else {}
+
 from pydantic import BaseModel as _PracticeBaseModel
 
 class _PracticeCompleteReq(_PracticeBaseModel):
