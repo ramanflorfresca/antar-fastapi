@@ -3882,6 +3882,7 @@ async def ask_prashna(request: PrashnaRequest):
     """
     import traceback
     import logging
+    from fastapi.responses import JSONResponse
     logger = logging.getLogger('antar.prashna')
     from datetime import datetime, timezone
 
@@ -3919,7 +3920,7 @@ async def ask_prashna(request: PrashnaRequest):
 
         # ─── 2. Fetch Chart Data ───
         chart_row = supabase.table("charts") \
-            .select("chart_data, jaimini_data, lal_kitab_data, current_dasha, first_name, current_country, lagna_sign, latitude, longitude") \
+            .select("chart_data, jaimini_data, lal_kitab_data, first_name, current_country, lagna_sign, latitude, longitude") \
             .eq("chart_id", chart_id) \
             .single() \
             .execute()
