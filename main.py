@@ -3881,6 +3881,8 @@ async def ask_prashna(request: PrashnaRequest):
     Python calculates ALL facts. Claude only explains in plain English.
     """
     import traceback
+    import logging
+    logger = logging.getLogger('antar.prashna')
     from datetime import datetime, timezone
 
     try:
