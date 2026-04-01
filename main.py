@@ -3921,7 +3921,7 @@ async def ask_prashna(request: PrashnaRequest):
         # ─── 2. Fetch Chart Data ───
         chart_row = supabase.table("charts") \
             .select("chart_data, jaimini_data, lal_kitab_data, first_name, current_country, lagna_sign, latitude, longitude") \
-            .eq("chart_id", chart_id) \
+            .eq("id", chart_id) \
             .single() \
             .execute()
 
@@ -3930,7 +3930,18 @@ async def ask_prashna(request: PrashnaRequest):
 
         chart_data = chart_row.data
         jaimini_data = chart_data.get("jaimini_data")
-        natal_dasha = chart_data.get("current_dasha", "unknown")
+        # current_dasha not a column — get from jaimini_data.current_md
+        _jd_raw = chart_data.get("jaimini_data", {})
+        if isinstance(_jd_raw, str):
+            try:
+                _jd_raw = json.loads(_jd_raw)
+            except Exception:
+                _jd_raw = {}
+        if isinstance(_jd_raw, dict):
+            _cur_md = _jd_raw.get("current_md", {})
+            natal_dasha = _cur_md.get("lord", "unknown") if isinstance(_cur_md, dict) else "unknown"
+        else:
+            natal_dasha = "unknown"
         first_name = chart_data.get("first_name", "User")
         current_country = chart_data.get("current_country", "US")
 
