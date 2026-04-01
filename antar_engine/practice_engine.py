@@ -19,6 +19,17 @@ from typing import Optional
 import json
 import hashlib
 
+def _safe_json(data):
+    """Parse JSONB that Supabase returns as string."""
+    if data is None: return {}
+    if isinstance(data, str):
+        try: return json.loads(data)
+        except: return {}
+    if isinstance(data, (dict, list)): return data
+    return {}
+
+
+
 
 # ════════════════════════════════════════════
 # 1. PLANET → PLAIN ENGLISH MAPPING
@@ -338,6 +349,14 @@ def generate_practice_schedule(
     today = date.today()
 
     # ── Extract key data from stored JSONB ──
+    # Hotfix: Supabase JSONB may arrive as string
+    chart_data = _safe_json(chart_data)
+    jaimini_data = _safe_json(jaimini_data)
+    lal_kitab_data = _safe_json(lal_kitab_data)
+    if isinstance(streak_data, str):
+        try: streak_data = json.loads(streak_data)
+        except: streak_data = None
+
     planets = _extract_planets(chart_data)
     lagna = _extract_lagna(chart_data)
     karakas = _extract_karakas(jaimini_data)
@@ -779,24 +798,28 @@ def _extract_planets(chart_data):
     """Extract planet positions from chart_data JSONB."""
     if not chart_data:
         return {}
+    if isinstance(chart_data, str): chart_data = _safe_json(chart_data)
     return chart_data.get("planets", chart_data.get("planet_positions", {}))
 
 
 def _extract_lagna(chart_data):
     if not chart_data:
         return "Aries"
+    if isinstance(chart_data, str): chart_data = _safe_json(chart_data)
     return chart_data.get("lagna", chart_data.get("ascendant", {}).get("sign", "Aries"))
 
 
 def _extract_karakas(jaimini_data):
     if not jaimini_data:
         return []
+    if isinstance(jaimini_data, str): jaimini_data = _safe_json(jaimini_data)
     return jaimini_data.get("karakas", jaimini_data.get("chara_karakas", []))
 
 
 def _extract_current_dasha(jaimini_data):
     if not jaimini_data:
         return None
+    if isinstance(jaimini_data, str): jaimini_data = _safe_json(jaimini_data)
     dashas = jaimini_data.get("chara_dasha", jaimini_data.get("dasha_periods", []))
     for d in dashas:
         if d.get("active") or d.get("is_current"):
@@ -807,30 +830,35 @@ def _extract_current_dasha(jaimini_data):
 def _extract_varshphal(lk_data):
     if not lk_data:
         return None
+    if isinstance(lk_data, str): lk_data = _safe_json(lk_data)
     return lk_data.get("varshphal", lk_data.get("current_varshphal"))
 
 
 def _extract_sleeping_planets(lk_data):
     if not lk_data:
         return []
+    if isinstance(lk_data, str): lk_data = _safe_json(lk_data)
     return lk_data.get("sleeping_planets", lk_data.get("sleeping", []))
 
 
 def _extract_rin(lk_data):
     if not lk_data:
         return []
+    if isinstance(lk_data, str): lk_data = _safe_json(lk_data)
     return lk_data.get("rin_debts", lk_data.get("karmic_debts", lk_data.get("rin", [])))
 
 
 def _extract_enemy_houses(lk_data):
     if not lk_data:
         return []
+    if isinstance(lk_data, str): lk_data = _safe_json(lk_data)
     return lk_data.get("enemy_houses", [])
 
 
 def _extract_masik_phal(lk_data):
     if not lk_data:
         return None
+    if isinstance(lk_data, str): lk_data = _safe_json(lk_data)
     return lk_data.get("masik_phal", lk_data.get("monthly"))
 
 
