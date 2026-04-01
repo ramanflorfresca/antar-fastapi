@@ -4983,7 +4983,18 @@ async def get_dashboard(chart_id: str):
     Parallel fetches for speed.
     """
     try:
-        return await _get_dashboard_inner(chart_id)
+        # ── Wire 5: Inject jaimini + lal_kitab into dashboard response ──
+        _w5_result = await _get_dashboard_inner(chart_id)
+        if isinstance(_w5_result, dict):
+            try:
+                _w5_chart = supabase.table('charts').select('jaimini_data, lal_kitab_data').eq('id', chart_id).single().execute()
+                _w5_row = _w5_chart.data if _w5_chart and _w5_chart.data else {}
+                _w5_result['jaimini'] = _safe_jsonb(_w5_row.get('jaimini_data', {}))
+                _w5_result['lal_kitab'] = _safe_jsonb(_w5_row.get('lal_kitab_data', {}))
+            except Exception:
+                _w5_result.setdefault('jaimini', {})
+                _w5_result.setdefault('lal_kitab', {})
+        return _w5_result
     except Exception as e:
         import traceback
         raise HTTPException(500, f"Dashboard error: {str(e)} | {traceback.format_exc()[-300:]}")
