@@ -3930,18 +3930,26 @@ async def ask_prashna(request: PrashnaRequest):
 
         chart_data = chart_row.data
         jaimini_data = chart_data.get("jaimini_data")
-        # current_dasha not a column — get from jaimini_data.current_md
-        _jd_raw = chart_data.get("jaimini_data", {})
-        if isinstance(_jd_raw, str):
-            try:
-                _jd_raw = json.loads(_jd_raw)
-            except Exception:
-                _jd_raw = {}
-        if isinstance(_jd_raw, dict):
-            _cur_md = _jd_raw.get("current_md", {})
-            natal_dasha = _cur_md.get("lord", "unknown") if isinstance(_cur_md, dict) else "unknown"
-        else:
-            natal_dasha = "unknown"
+        # Get current dasha from dasha_periods table (Vimsottari MD + AD)
+        natal_dasha = "unknown"
+        try:
+            _dasha_rows = supabase.table("dasha_periods") \
+                .select("planet_or_sign, system, type, level") \
+                .eq("chart_id", chart_id) \
+                .eq("system", "vimsottari") \
+                .lte("start_date", datetime.now(timezone.utc).isoformat()) \
+                .gte("end_date", datetime.now(timezone.utc).isoformat()) \
+                .order("level") \
+                .execute()
+            if _dasha_rows.data:
+                _md = next((r["planet_or_sign"] for r in _dasha_rows.data if r.get("level") == 1), None)
+                _ad = next((r["planet_or_sign"] for r in _dasha_rows.data if r.get("level") == 2), None)
+                if _md and _ad:
+                    natal_dasha = f"{_md}-{_ad}"
+                elif _md:
+                    natal_dasha = _md
+        except Exception as _de:
+            logger.warning(f"Dasha lookup failed (non-blocking): {_de}")
         first_name = chart_data.get("first_name", "User")
         current_country = chart_data.get("current_country", "US")
 
