@@ -5161,6 +5161,9 @@ async def _get_dashboard_inner(chart_id: str):
         "pred_limit":    3 if plan == "free" else 999,
         "compat_used":   usage.get("compat_count",0),
         "compat_limit":  1 if plan == "free" else (10 if plan == "seeker" else 999),
+
+        # Section 9: Locale
+        "current_country": chart_record.get("current_country", chart_record.get("country_code", "")),
     }
 
 
