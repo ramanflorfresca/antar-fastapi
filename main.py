@@ -1761,6 +1761,12 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         except Exception as e:
             print(f"Passive patra update error: {e}")
 
+    # ── Normalize confidence to string ──
+    if _pe and _pe.get("confidence"):
+        _conf = _pe["confidence"]
+        if isinstance(_conf, (int, float)):
+            _pe["confidence"] = "high" if _conf >= 0.7 else ("medium" if _conf >= 0.4 else "low")
+
     return PredictResponse(
         prediction=prediction_text,
         confidence=confidence,
