@@ -795,31 +795,42 @@ def _build_how_text(planet, what, locale):
 # ════════════════════════════════════════════
 
 def _extract_planets(chart_data):
-    """Extract planet positions from chart_data JSONB."""
+    """Extract planet positions from chart_data or lal_kitab_data JSONB."""
     if not chart_data:
         return {}
     if isinstance(chart_data, str): chart_data = _safe_json(chart_data)
-    return chart_data.get("planets", chart_data.get("planet_positions", {}))
+    p = chart_data.get("planets", chart_data.get("planet_positions", {}))
+    if p:
+        return p
+    np = chart_data.get("natal_planets", {})
+    if np:
+        return np
+    return {}
 
 
 def _extract_lagna(chart_data):
     if not chart_data:
         return "Aries"
     if isinstance(chart_data, str): chart_data = _safe_json(chart_data)
-    return chart_data.get("lagna", chart_data.get("ascendant", {}).get("sign", "Aries"))
+    return chart_data.get("lagna", chart_data.get("lagna_sign", chart_data.get("ascendant", {}).get("sign", "Aries")))
 
 
 def _extract_karakas(jaimini_data):
     if not jaimini_data:
         return []
-    if isinstance(jaimini_data, str): jaimini_data = _safe_json(jaimini_data)
     return jaimini_data.get("karakas", jaimini_data.get("chara_karakas", []))
 
 
 def _extract_current_dasha(jaimini_data):
+    """Extract current Mahadasha. Structure: {current_md: {lord, sign_name, ...}}"""
     if not jaimini_data:
         return None
     if isinstance(jaimini_data, str): jaimini_data = _safe_json(jaimini_data)
+    if isinstance(jaimini_data, list):
+        return None
+    md = jaimini_data.get("current_md")
+    if md and isinstance(md, dict):
+        return md
     dashas = jaimini_data.get("chara_dasha", jaimini_data.get("dasha_periods", []))
     for d in dashas:
         if d.get("active") or d.get("is_current"):
@@ -828,38 +839,112 @@ def _extract_current_dasha(jaimini_data):
 
 
 def _extract_varshphal(lk_data):
+    """Compute varshphal from stored placements if not pre-computed."""
     if not lk_data:
         return None
     if isinstance(lk_data, str): lk_data = _safe_json(lk_data)
-    return lk_data.get("varshphal", lk_data.get("current_varshphal"))
+    if isinstance(lk_data, list): return None
+    v = lk_data.get("varshphal", lk_data.get("current_varshphal"))
+    if v:
+        return v
+    placements = lk_data.get("placements", {})
+    if not placements:
+        return None
+    year_lord = None
+    annual_placements = {}
+    for planet, lk_house in placements.items():
+        annual_placements[planet] = lk_house
+        if lk_house == 1:
+            year_lord = planet
+    if not year_lord:
+        for planet, lk_house in placements.items():
+            if lk_house == 10:
+                year_lord = planet
+                break
+    return {"year_lord": year_lord, "annual_placements": annual_placements}
 
 
 def _extract_sleeping_planets(lk_data):
+    """Compute sleeping planets from LK placements. Sleeping = in dusthana (6,8,12)."""
     if not lk_data:
         return []
     if isinstance(lk_data, str): lk_data = _safe_json(lk_data)
-    return lk_data.get("sleeping_planets", lk_data.get("sleeping", []))
+    if isinstance(lk_data, list): return []
+    sp = lk_data.get("sleeping_planets", lk_data.get("sleeping", []))
+    if sp:
+        return sp
+    placements = lk_data.get("placements", {})
+    if not placements:
+        return []
+    DUSTHANA = {6, 8, 12}
+    BENEFICS = {"Jupiter", "Venus", "Mercury", "Moon"}
+    benefic_houses = set()
+    for planet, house in placements.items():
+        if planet in BENEFICS:
+            benefic_houses.add(house)
+    sleeping = []
+    for planet, house in placements.items():
+        if house in DUSTHANA:
+            has_support = house in benefic_houses and planet not in BENEFICS
+            if not has_support:
+                sleeping.append({"planet": planet, "house": house, "reason": f"In LK house {house} with no benefic support"})
+    return sleeping
 
 
 def _extract_rin(lk_data):
+    """Compute Rin (karmic debts) from LK placements."""
     if not lk_data:
         return []
     if isinstance(lk_data, str): lk_data = _safe_json(lk_data)
-    return lk_data.get("rin_debts", lk_data.get("karmic_debts", lk_data.get("rin", [])))
+    if isinstance(lk_data, list): return []
+    r = lk_data.get("rin_debts", lk_data.get("karmic_debts", lk_data.get("rin", [])))
+    if r:
+        return r
+    placements = lk_data.get("placements", {})
+    if not placements:
+        return []
+    debts = []
+    RIN_RULES = [
+        ("Sun", {6, 12}, "father_debt"),
+        ("Moon", {6, 8, 12}, "mother_debt"),
+        ("Jupiter", {6, 8, 12}, "guru_debt"),
+        ("Venus", {6, 8}, "spouse_debt"),
+        ("Saturn", {1, 8}, "self_debt"),
+    ]
+    for planet, bad_houses, debt_type in RIN_RULES:
+        lk_house = placements.get(planet)
+        if lk_house and lk_house in bad_houses:
+            debts.append({"type": debt_type, "planet": planet, "house": lk_house})
+    return debts
 
 
 def _extract_enemy_houses(lk_data):
     if not lk_data:
         return []
-    if isinstance(lk_data, str): lk_data = _safe_json(lk_data)
     return lk_data.get("enemy_houses", [])
 
 
 def _extract_masik_phal(lk_data):
+    """Extract or compute monthly activation from LK data."""
     if not lk_data:
         return None
     if isinstance(lk_data, str): lk_data = _safe_json(lk_data)
-    return lk_data.get("masik_phal", lk_data.get("monthly"))
+    if isinstance(lk_data, list): return None
+    mp = lk_data.get("masik_phal", lk_data.get("monthly"))
+    if mp:
+        return mp
+    placements = lk_data.get("placements", {})
+    if not placements:
+        return None
+    month = date.today().month
+    active_planet = None
+    for planet, house in placements.items():
+        if house == month or house == (month % 12) + 1:
+            active_planet = planet
+            break
+    if active_planet:
+        return {"active_planet": active_planet, "month": date.today().strftime("%B")}
+    return None
 
 
 def _calculate_age(birth_date_str):
@@ -932,9 +1017,10 @@ def format_practice_for_predict_prompt(schedule: dict) -> str:
 
 if __name__ == "__main__":
     # Test with Ramandeep's mock data
-    test_chart = {"planets": {"Sun": {"sign": "Scorpio"}, "Moon": {"sign": "Pisces"}, "Mars": {"sign": "Sagittarius"}, "Saturn": {"sign": "Cancer"}, "Jupiter": {"sign": "Pisces"}, "Venus": {"sign": "Scorpio"}, "Mercury": {"sign": "Libra"}, "Rahu": {"sign": "Scorpio"}, "Ketu": {"sign": "Taurus"}}, "lagna": "Capricorn"}
-    test_jaimini = {"karakas": [{"karaka": "AK", "planet": "Mars", "sign_name": "Sagittarius"}, {"karaka": "AmK", "planet": "Saturn", "sign_name": "Cancer"}, {"karaka": "DK", "planet": "Sun", "sign_name": "Scorpio"}, {"karaka": "BK", "planet": "Mercury", "sign_name": "Libra"}, {"karaka": "MK", "planet": "Venus", "sign_name": "Scorpio"}, {"karaka": "PK", "planet": "Jupiter", "sign_name": "Pisces"}, {"karaka": "GK", "planet": "Moon", "sign_name": "Pisces"}], "chara_dasha": [{"sign_name": "Aries", "lord": "Mars", "years": 8, "start": "2024-11-25", "end": "2032-11-25", "active": True}]}
-    test_lk = {"varshphal": {"year_lord": "Saturn", "annual_placements": {"Saturn": 10, "Sun": 1, "Jupiter": 3}}, "sleeping_planets": [{"planet": "Jupiter", "house": 3, "reason": "In dusthana with no benefic support"}], "rin_debts": [{"type": "guru_debt", "planet": "Jupiter", "house": 6}], "masik_phal": {"active_planet": "Saturn", "month": "April"}}
+    # Ramandeep's ACTUAL data from Supabase
+    test_chart = {"natal_planets": {"Sun": {"sign": "Scorpio", "house": 11}, "Moon": {"sign": "Pisces", "house": 3}, "Mars": {"sign": "Libra", "house": 10}, "Saturn": {"sign": "Gemini", "house": 6}, "Jupiter": {"sign": "Aquarius", "house": 2}, "Venus": {"sign": "Scorpio", "house": 11}, "Mercury": {"sign": "Libra", "house": 10}, "Rahu": {"sign": "Scorpio", "house": 11}, "Ketu": {"sign": "Taurus", "house": 5}}, "lagna_sign": "Capricorn"}
+    test_jaimini = {"karakas": [{"karaka": "AK", "planet": "Sun"}, {"karaka": "AmK", "planet": "Moon"}, {"karaka": "BK", "planet": "Mars"}, {"karaka": "MK", "planet": "Mercury"}, {"karaka": "PK", "planet": "Jupiter"}, {"karaka": "GK", "planet": "Venus"}, {"karaka": "DK", "planet": "Saturn"}], "current_md": {"lord": "Venus", "sign_name": "Taurus"}, "current_ad": {"lord": "Mercury", "sign_name": "Virgo"}}
+    test_lk = {"placements": {"Sun": 8, "Ketu": 11, "Mars": 6, "Moon": 4, "Rahu": 8, "Venus": 8, "Saturn": 7, "Jupiter": 9, "Mercury": 6}, "natal_planets": {"Sun": {"sign": "Scorpio", "house": 11}}, "age": 51, "lagna_sign": "Capricorn"}
 
     result = generate_practice_schedule(
         chart_data=test_chart,
