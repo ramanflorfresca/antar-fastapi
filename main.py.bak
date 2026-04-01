@@ -23,6 +23,15 @@ from antar_engine import transits, divisional, timing_engine, nation_engine, rem
 from antar_engine.country_context import get_country_context
 
 # New modules
+from antar_engine.plain_english import generate_plain_english
+from antar_engine.desh_kal_patra import get_dkp_context
+from antar_engine.pattern_memory import build_pattern_memory
+from antar_engine.common_sense import build_common_sense_block
+from antar_engine.welcome_signal import generate_welcome_signal, get_welcome_signal
+from antar_engine.weekly_briefing import generate_weekly_briefing
+from antar_engine.monthly_deepdive import generate_monthly_deepdive
+from antar_engine.annual_planning import generate_annual_plan
+
 from antar_engine.predictions import (
     build_layered_predictions,
     predictions_to_context_block,
@@ -103,15 +112,35 @@ from antar_engine.lal_kitab_db import (
 from antar_engine.lal_kitab_charts import LalKitabChartGenerator
 from antar_engine.vedic_enrichment import build_enrichment_context_v2, get_sade_sati_phase
 
+# --- Jaimini Engine v2.0 (Sprint A refactored) ---
+try:
+    from antar_engine.jaimini_lk_bridge import format_bridge_from_stored
+    from antar_engine.jaimini_integration import (
+        format_jaimini_context_from_stored,
+        score_jaimini_convergence,
+        build_and_store_jaimini,
+        jaimini_prashna_check,
+    )
+    from antar_engine.welcome_signal_v2 import (
+        generate_welcome_signal_v2,
+    )
+except ImportError as e:
+    import logging
+    logging.warning(f'Jaimini v2 imports failed: {e}')
+
+
 
 # ── Clients ──────────────────────────────────────────────────────────────────
 
 # Claude client for high-quality predictions
 try:
     import anthropic as _anthropic
-    claude_client = _anthropic.AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-    _CLAUDE_AVAILABLE = bool(os.getenv("ANTHROPIC_API_KEY"))
-except Exception:
+    _anthropic_key = os.getenv("ANTHROPIC_API_KEY")
+    claude_client = _anthropic.AsyncAnthropic(api_key=_anthropic_key)
+    _CLAUDE_AVAILABLE = bool(_anthropic_key)
+    print(f"[startup] Claude client initialized OK — key prefix: {(_anthropic_key or '')[:12]}")
+except Exception as _ce:
+    print(f"[startup] Claude client FAILED: {type(_ce).__name__}: {_ce}")
     claude_client = None
     _CLAUDE_AVAILABLE = False
 
@@ -614,6 +643,12 @@ class PredictResponse(BaseModel):
     chapter_arc:            Optional[Dict] = None
     conversation_id:        Optional[str]  = None   # returned so frontend stores and re-sends it
     message_id:             Optional[str]  = None   # DB id of the assistant message row
+    plain_summary:          Optional[str]  = None
+    action_item:            Optional[str]  = None
+    signal_line:            Optional[str]  = None
+    timing_window:          Optional[str]  = None
+    all_domains:            List[str]      = Field(default_factory=list)
+    signal_confidence:      Optional[str]  = None
 
 class ChartResponse(BaseModel):
     id: str
@@ -1054,26 +1089,12 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
 
     # Persistent rate limiting — DB-backed, survives redeploys
     if request.chart_id:
-        from antar_engine.subscription_engine import check_limit, get_what_youre_missing, increment_usage
-        limit_check = check_limit(request.chart_id, "pred", supabase)
-        if not limit_check["allowed"]:
-            missing = get_what_youre_missing(request.chart_id, supabase)
-            raise HTTPException(
-                status_code=429,
-                detail={
-                    "error":       "monthly_limit_reached",
-                    "used":        limit_check["used"],
-                    "limit":       limit_check["limit"],
-                    "hook_lines":  missing["hook_lines"],
-                    "plans":       missing["plans"],
-                    "upgrade_url": "https://antar.world/upgrade",
-                }
-            )
-        # Increment usage counter
-        increment_usage(request.chart_id, "pred", supabase)
+        from antar_engine.subscription_engine import increment_usage
+        # LIMITS DISABLED — free launch (re-enable post-PMF)
+        # increment_usage(request.chart_id, "pred", supabase)
 
-    # Guest rate limiting — 3 predictions per month
-    if not user_id:
+    # Guest rate limiting DISABLED — free launch
+    if False:  # LIMIT DISABLED — was: if not user_id:
         if not check_guest_rate_limit(request.chart_id, limit=3):
             usage = get_guest_usage(request.chart_id)
             raise HTTPException(
@@ -1160,22 +1181,89 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     )
     transit_summary = transits.summarize_transits(_raw_transits)
 
-    # Country context
-    country_code = chart_record.get("country_code")
+    # Country context — static cultural layer (always available)
+    # C2: Use current residence country for DKP, not birth country
+    country_code = chart_record.get("current_country") or chart_record.get("country_code")
     country_context = get_country_context(country_code) if country_code else ""
 
     # Timing
     timing_text = timing_engine.timing_insights(chart_data, dashas_response)
 
-    # Nation insight
+    # ── C2: Desh Kal Patra — real-world economic context ──────────
+    dkp_context  = ""
     nation_insight = ""
     if country_code:
+        try:
+            from antar_engine.country_context import COUNTRY_CONTEXT
+            _country_name = COUNTRY_CONTEXT.get(country_code, {}).get("name", country_code)
+            dkp_context = await get_dkp_context(
+                country_code=country_code,
+                country_name=_country_name,
+                supabase=supabase,
+                deepseek_client=deepseek_client,
+            )
+            print(f"[predict] DKP loaded for {country_code} ({len(dkp_context)} chars)")
+        except Exception as e:
+            print(f"[predict] DKP failed (non-fatal): {e}")
+
+        # Nation astrological insight (existing — keep as fallback)
         try:
             nation_insight = nation_engine.get_nation_insight(
                 country_code, supabase, deepseek_client, language
             )
         except Exception as e:
             print(f"Nation insight error: {e}")
+    # ── end C2 ───────────────────────────────────────────────────
+
+    # ── C3: Pattern Memory — Layer 7 ─────────────────────────────
+    _memory = {}
+    try:
+        _memory = build_pattern_memory(
+            chart_id=request.chart_id,
+            current_concern=concern,
+            current_question=request.question,
+            supabase=supabase,
+        )
+        if _memory.get("diagnostic_mode"):
+            print(f"[predict] C3 DIAGNOSTIC MODE — unresolved {concern} case detected")
+        elif _memory.get("memory_block"):
+            print(f"[predict] C3 memory loaded — {len(_memory['past_predictions'])} past predictions")
+    except Exception as _mem_err:
+        print(f"[predict] C3 pattern memory failed (non-fatal): {_mem_err}")
+        _memory = {}
+    # ── end C3 ───────────────────────────────────────────────────
+
+    # ── C4: Common Sense Layer ───────────────────────────────────
+    _cs_block = ""
+    try:
+        _cs_block = build_common_sense_block(
+            age=getattr(patra, "age", None),
+            life_stage=getattr(patra, "life_stage_name", None),
+            concern=concern,
+            country_code=country_code,
+            marital_status=user_profile.get("marital_status"),
+            children_status=user_profile.get("children_status"),
+            dkp_context=dkp_context,
+            memory_result=_memory,
+            birth_country=chart_record.get("country_code"),
+            current_country=chart_record.get("current_country"),
+        )
+        if _cs_block:
+            print(f"[predict] C4 common sense — {len(_cs_block)} chars")
+
+    except Exception as _cs_err:
+        print(f"[predict] C4 common sense failed (non-fatal): {_cs_err}")
+        _cs_block = ""
+    # ── end C4 ───────────────────────────────────────────────────
+
+    # Sprint D: domain-focused DKP note
+    try:
+        from antar_engine.desh_kal_patra import get_domain_dkp_note
+        _domain_dkp = get_domain_dkp_note(concern, dkp_context, country_code or "")
+        if _domain_dkp:
+            dkp_block = (dkp_block or "") + f"\n\n{_domain_dkp}"
+    except Exception as _ddkp_err:
+        print(f"[predict] domain DKP note failed (non-fatal): {_ddkp_err}")
 
     # Concern detection
     concern = _detect_concern(request.question)
@@ -1188,7 +1276,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         "health_status":    chart_record.get("health_status", "excellent"),
         "financial_status": chart_record.get("financial_status", "stable"),
         "birth_country":    chart_record.get("country_code", ""),
-        "current_country":  chart_record.get("country_code", ""),
+        "current_country":  chart_record.get("current_country") or chart_record.get("country_code", ""),
         "countries_lived":  chart_record.get("countries_lived", []),
     }
     patra = build_patra_context(
@@ -1352,6 +1440,9 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
 
     # ── DKP SYNTHESIS ─────────────────────────────────────────────
     dkp_block = build_desh_kaal_patra_block(desh, patra, predictions)
+    # C2: Append real-world economic context to existing dkp_block
+    if dkp_context:
+        dkp_block = (dkp_block or "") + "\n\n" + dkp_context
 
     # ── REMEDIES ──────────────────────────────────────────────────
     karakas_list = get_all_karakas(chart_data)
@@ -1409,6 +1500,26 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             yogas=chart_data.get("yogas", []),
             divisional_charts=chart_data.get("divisional_charts", {}),
         )
+
+        # --- LAYER 2.5: JAIMINI CHARA DASHA ---
+        try:
+            _jaimini_block = format_jaimini_context_from_stored(chart_data)
+            if _jaimini_block:
+                _full_context += _jaimini_block
+            _concern = getattr(request, 'concern', '') or getattr(request, 'question', '') or ''
+            _jaimini_conv = score_jaimini_convergence(chart_data, _concern)
+            if _jaimini_conv:
+                _full_context += "\n" + _jaimini_conv + "\n"
+        except Exception as _je:
+            print(f"Jaimini context failed (non-blocking): {_je}")
+
+        # --- LAYER 3.5: JAIMINI → LK BRIDGE ---
+        try:
+            _bridge_block = format_bridge_from_stored(chart_data)
+            if _bridge_block:
+                _full_context += _bridge_block
+        except Exception as _be:
+            print(f"Bridge context failed (non-blocking): {_be}")
         print(f"[predict] Full context: {len(_full_context)} chars")
     except Exception as _ctx_e:
         import traceback
@@ -1461,6 +1572,16 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
 
     # ── LLM CALL — passes conversation history for multi-turn context ──
     # Use different system prompt for master context vs template
+    # ── C3 + C4: Append memory, diagnostic, and common sense to prompt ──
+    _memory_block     = (_memory or {}).get("memory_block", "")
+    _diagnostic_block = (_memory or {}).get("diagnostic_block", "")
+
+    for _block in [_memory_block, _diagnostic_block, _cs_block]:
+        if not _block:
+            continue
+        prompt += f"\n\n{_block}"
+    # ── end C3+C4 injection ───────────────────────────────────────
+
     _using_master = _full_context and len(_full_context) > 500
     print(f"[predict] using_master={_using_master} prompt_len={len(prompt)}")
 
@@ -1474,7 +1595,14 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             pass
         prompt += "\n\nCRITICAL: Do NOT use 'YOUR SIGNAL RIGHT NOW' or 'THE PATTERN THAT\'S ACTIVE' as headers. Answer the question directly in the first sentence."
 
-        _master_system = (
+        # Sprint D: Use domain-specific system prompt as system_override
+        try:
+            from antar_engine.concern_router import build_concern_system_prompt
+            _domain_system = build_concern_system_prompt(concern)
+        except Exception:
+            _domain_system = ""
+
+        _master_system = _domain_system if _domain_system else (
             "You are Antar — a precise Vedic astrology AI. "
             "Answer directly and specifically using the data provided. "
             "Reference specific planets, houses, yogas, and timing. "
@@ -1489,12 +1617,38 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
 
 
     else:
+        # Sprint D: domain system prompt for non-master path too
+        try:
+            from antar_engine.concern_router import build_concern_system_prompt
+            _domain_system_fallback = build_concern_system_prompt(concern)
+        except Exception:
+            _domain_system_fallback = ""
         prediction_text, tokens_used = await call_llm_claude(
             prompt,
             history=request.conversation_history or [],
+            system_override=_domain_system_fallback or "",
         )
 
     print(f"[predict] LLM response len={len(prediction_text) if prediction_text else 0} concern={concern}")
+    # ── C1: Plain English post-processing ────────────────────────
+    _pe = None
+    try:
+        _pe = await generate_plain_english(
+            raw_prediction=prediction_text or "",
+            chart_context={
+                "lagna":   chart_record.get("lagna_sign"),
+                "dasha":   chart_record.get("current_dasha"),
+                "age":     getattr(patra, "age", None),
+                "country": chart_record.get("birth_country"),
+                "concern": concern,
+            },
+        )
+        print(f"[predict] plain_english ok — signal='{(_pe or {}).get('signal_line','')[:60]}'")
+    except Exception as _pe_err:
+        print(f"[predict] plain_english failed (non-fatal): {_pe_err}")
+        _pe = None
+    # ── end C1 ───────────────────────────────────────────────────
+
     confidence = predictions["highest_confidence"] or 0.75
     factors = [
         f"Layer 1: Dasha timing ({len(predictions['layer_1'])} signals)",
@@ -1523,8 +1677,14 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             "created_at":  "now()",
             "tokens_used": tokens_used,
             "model":       "deepseek-chat",
-            "chart_id":    chart_id,
-            "concern":     concern,
+            "chart_id":          request.chart_id,
+            "concern":           concern,
+            "plain_summary":     _pe.get("plain_summary")   if _pe else None,
+            "action_item":       _pe.get("action_item")     if _pe else None,
+            "signal_line":       _pe.get("signal_line")     if _pe else None,
+            "timing_window":     _pe.get("timing_window")   if _pe else None,
+            "signal_confidence": _pe.get("confidence")      if _pe else None,
+            "all_domains":       _pe.get("all_domains")     if _pe else [],
         }).execute()
 
         # ── Prediction tracking hook ──────────────────────────────
@@ -1621,6 +1781,12 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         chapter_arc=chapter_arc_data,
         conversation_id=saved_conv_id,
         message_id=saved_msg_id,
+        plain_summary=_pe.get("plain_summary") if _pe else None,
+        action_item=_pe.get("action_item") if _pe else None,
+        signal_line=_pe.get("signal_line") if _pe else None,
+        timing_window=_pe.get("timing_window") if _pe else None,
+        all_domains=_pe.get("all_domains") if _pe else [],
+        signal_confidence=_pe.get("confidence") if _pe else None,
     )
 
 # ── Conversations ─────────────────────────────────────────────────────────────
@@ -2155,6 +2321,11 @@ class ChartCreateRequest(BaseModel):
     first_name:     Optional[str]  = None
     gender:         Optional[str]  = None
     language:       Optional[str]  = "en"
+    # Residence — where the person LIVES NOW (not birth location)
+    # Used for DKP, foreign signal framing, astrocartography
+    current_city:    Optional[str]  = None   # city of current residence
+    current_country: Optional[str]  = None   # ISO country code of residence
+                                              # defaults to birth_country if not provided
 
 class ChartCreateResponse(BaseModel):
     chart_id:       str
@@ -2435,16 +2606,24 @@ async def create_chart(
     chart_row = {
         "id":                  chart_id,
         "user_id":             user_id,
-        "first_name":          getattr(request, "first_name", "") or "",
+        "first_name":          getattr(request, "first_name", None) or getattr(request, "name", None) or "",
         "birth_date":          request.birth_date,
         "birth_time":          request.birth_time,
         "latitude":            lat,
         "longitude":           lng,
         "gender":          getattr(request, "gender", "") or "",
         "current_city":    getattr(request, "current_city", "") or "",
-        "current_country": getattr(request, "current_country", "") or "",
+        "current_country": getattr(request, "current_country", "") or request.birth_country or "",
         "timezone_offset":     _offset,
         "country_code":        request.birth_country,
+        "birth_city":      request.birth_city,
+        "birth_country":   request.birth_country,
+        "name":            getattr(request, "name", None) or getattr(request, "first_name", None) or "",
+        "display_name":    (getattr(request, "first_name", None) or getattr(request, "name", None) or "").split()[0] if (getattr(request, "first_name", None) or getattr(request, "name", None)) else "",
+        "lagna_sign":      chart_data.get("lagna", {}).get("sign", ""),
+        "moon_sign":       chart_data.get("planets", {}).get("Moon", {}).get("sign", ""),
+        "moon_nakshatra":  chart_data.get("planets", {}).get("Moon", {}).get("nakshatra", ""),
+        "sun_sign":        chart_data.get("planets", {}).get("Sun", {}).get("sign", ""),
         "chart_data":          {
             **chart_data,
             "divisional_charts": chart_data.get("divisional_charts", {}),
@@ -2457,6 +2636,27 @@ async def create_chart(
     }
     try:
         supabase.table("charts").insert(chart_row).execute()
+
+        # --- Jaimini v2: Compute and store Chara Dasha ---
+        try:
+            _lagna_idx_j = constants.SIGNS.index(lagna_sign) if isinstance(lagna_sign, str) else int(lagna_sign)
+            _planets_for_jaimini = {}
+            for pname, pdata in chart_data.get("planets", {}).items():
+                if isinstance(pdata, dict):
+                    _planets_for_jaimini[pname] = pdata
+            _d9_data = chart_data.get("divisional_charts", {}).get("D9", {}).get("planets", {})
+            if not _d9_data:
+                _d9_data = chart_data.get("d9_planets", {})
+            build_and_store_jaimini(
+                chart_id=chart_id,
+                lagna_sign=_lagna_idx_j,
+                planets_dict=_planets_for_jaimini,
+                d9_planets_dict=_d9_data if _d9_data else _planets_for_jaimini,
+                birth_date_str=str(birth_date)[:10],
+                supabase_client=supabase,
+            )
+        except Exception as _je:
+            print(f"Jaimini v2 store failed (non-blocking): {_je}")
 
         # Save yogas to separate table for queryability
         detected_yogas = chart_data.get("yogas", [])
@@ -2517,6 +2717,46 @@ async def create_chart(
         except Exception as e:
             print(f"[dasha_insert] FAILED: {e}")
             print(f"[dasha_insert] First row was: {dasha_rows[0] if dasha_rows else 'empty'}")
+
+    # ── Sprint E: Generate welcome signal in background ─────────
+    try:
+        import asyncio as _asyncio
+        _first_name = getattr(request, "first_name", "") or getattr(request, "name", "") or ""
+        _lagna_sign = chart_data.get("lagna", {}).get("sign", "")
+        _moon_sign  = chart_data.get("planets", {}).get("Moon", {}).get("sign", "")
+        _current_dasha = ""
+        _vim = vim_dashas or []
+        if _vim:
+            _d = _vim[0]
+            _current_dasha = _d.get("lord") or _d.get("lord_or_sign") or _d.get("planet_or_sign", "")
+
+        # Fire and forget — don't block chart creation response
+        # Sprint W: calculate age from birth_date so welcome signal is age-aware
+        _birth_date_str = getattr(request, "birth_date", "") or ""
+        try:
+            from antar_engine.age_utils import calculate_current_age as _calc_age
+            _welcome_age = _calc_age(str(_birth_date_str)[:10]) if _birth_date_str else None
+        except Exception:
+            _welcome_age = None
+
+        _asyncio.create_task(generate_welcome_signal(
+            chart_id=chart_id,
+            chart_data=chart_data,
+            dashas={"vimsottari": vim_dashas or []},
+            first_name=_first_name,
+            lagna=_lagna_sign,
+            moon_sign=_moon_sign,
+            current_dasha=_current_dasha,
+            age=_welcome_age,
+            birth_date=_birth_date_str,
+            country_code=getattr(request, "birth_country", "") or "",
+            supabase=supabase,
+            claude_client=claude_client,
+        ))
+        print(f"[chart/create] Welcome signal task fired for {chart_id[:8]}")
+    except Exception as _we:
+        print(f"[chart/create] Welcome signal task failed (non-fatal): {_we}")
+    # ── end Sprint E welcome ─────────────────────────────────────
 
     lk_data = None
     try:
@@ -2623,7 +2863,7 @@ async def get_career_reading(
         "career_stage":     chart_record.get("career_stage", "mid_career"),
         "financial_status": chart_record.get("financial_status", "stable"),
         "birth_country":    chart_record.get("country_code", ""),
-        "current_country":  chart_record.get("country_code", ""),
+        "current_country":  chart_record.get("current_country") or chart_record.get("country_code", ""),
     }
     patra = build_patra_context(
         birth_date=chart_record["birth_date"],
@@ -2919,7 +3159,7 @@ async def chapter_arc_endpoint(
         "health_status":    chart_record.get("health_status", "excellent"),
         "financial_status": chart_record.get("financial_status", "stable"),
         "birth_country":    chart_record.get("country_code", ""),
-        "current_country":  chart_record.get("country_code", ""),
+        "current_country":  chart_record.get("current_country") or chart_record.get("country_code", ""),
         "countries_lived":  chart_record.get("countries_lived", []),
     }
     patra = build_patra_context(
@@ -3700,6 +3940,23 @@ async def ask_prashna(request: PrashnaRequest):
         }).execute()
     except Exception:
         pass
+
+
+        # --- Jaimini Triple-Lock ---
+        try:
+            _q_map = {"marriage":"marriage","love":"marriage","relationship":"marriage",
+                      "investment":"investment","wealth":"investment","money":"investment",
+                      "lawsuit":"lawsuit","legal":"lawsuit","court":"lawsuit",
+                      "abroad":"foreign","travel":"foreign","visa":"foreign"}
+            _q_text = str(getattr(request, "question", "")).lower()
+            _q_type = next((v for k,v in _q_map.items() if k in _q_text), None)
+            if _q_type:
+                _jc = jaimini_prashna_check(chart_data, _q_type, 0)
+                if _jc.get("jaimini_verdict"):
+                    result["jaimini_confirms"] = True
+                    result["jaimini_reasons"] = _jc.get("reasons", [])
+        except Exception:
+            pass
 
     return {
         "question":      request.question,
@@ -4726,6 +4983,19 @@ async def get_dashboard(chart_id: str):
     Parallel fetches for speed.
     """
     try:
+
+        # ── Wire 5: Inject jaimini + lal_kitab into dashboard response ──
+        try:
+            _w5_chart = supabase.table('charts').select('jaimini_data, lal_kitab_data').eq('id', chart_id).single().execute()
+            _w5_row = _w5_chart.data if _w5_chart and _w5_chart.data else {}
+            _w5_jaimini = _safe_jsonb(_w5_row.get('jaimini_data', {}))
+            _w5_lk = _safe_jsonb(_w5_row.get('lal_kitab_data', {}))
+        except Exception:
+            _w5_jaimini = {}
+            _w5_lk = {}
+        if isinstance(await, dict):
+            await['jaimini'] = _w5_jaimini
+            await['lal_kitab'] = _w5_lk
         return await _get_dashboard_inner(chart_id)
     except Exception as e:
         import traceback
@@ -5106,3 +5376,564 @@ async def generate_life_report(chart_id: str):
     )
 
 
+# ── C1: Prediction history endpoint ──────────────────────────────────────────
+@app.get("/api/v1/predictions/{chart_id}")
+async def get_prediction_history(chart_id: str, limit: int = 20):
+    """Last N predictions for a chart with plain English output. Sprint C1-03."""
+    try:
+        result = supabase.table("predictions") \
+            .select(
+                "id, created_at, query, concern, "
+                "plain_summary, action_item, signal_line, "
+                "timing_window, signal_confidence, all_domains"
+            ) \
+            .eq("chart_id", chart_id) \
+            .order("created_at", desc=True) \
+            .limit(min(limit, 50)) \
+            .execute()
+        predictions = result.data or []
+        return {"predictions": predictions, "total": len(predictions)}
+    except Exception as e:
+        print(f"[predictions] error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch prediction history")
+
+
+# ── C1: Domain signals endpoint ───────────────────────────────────────────────
+@app.get("/api/v1/domain-signals/{chart_id}")
+async def get_domain_signals(chart_id: str):
+    """One signal_line per life domain from most recent prediction. Sprint C1-04."""
+    domains = [
+        "career", "wealth", "love", "children", "health", "foreign",
+        "legal", "business", "loans", "property", "education", "luck",
+        "travel", "spirituality", "father", "mother", "siblings",
+        "enemies", "general"
+    ]
+    try:
+        result = supabase.table("predictions") \
+            .select("id, concern, signal_line, signal_confidence, timing_window, all_domains, created_at") \
+            .eq("chart_id", chart_id) \
+            .not_.is_("signal_line", "null") \
+            .order("created_at", desc=True) \
+            .limit(100) \
+            .execute()
+        predictions = result.data or []
+        signals = {}
+        for domain in domains:
+            for pred in predictions:
+                pred_domains = pred.get("all_domains") or []
+                if domain in pred_domains or domain == pred.get("concern"):
+                    signals[domain] = {
+                        "signal_line":   pred.get("signal_line"),
+                        "confidence":    pred.get("signal_confidence"),
+                        "timing_window": pred.get("timing_window"),
+                        "prediction_id": pred.get("id"),
+                        "created_at":    pred.get("created_at"),
+                    }
+                    break
+        return {
+            "signals":      signals,
+            "last_updated": datetime.now(timezone.utc).isoformat(),
+        }
+    except Exception as e:
+        print(f"[domain-signals] error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch domain signals")
+
+
+# ── C3: Rate a prediction ─────────────────────────────────────────────────────
+@app.post("/api/v1/predictions/{prediction_id}/rate")
+async def rate_prediction(prediction_id: str, body: dict):
+    """
+    User rates whether a prediction came true.
+    Body: { "rating": 1 }  — 1 = accurate, 0 = did not happen
+    Sprint C3.
+    """
+    rating = body.get("rating")
+    if rating not in (0, 1):
+        raise HTTPException(status_code=400, detail="rating must be 0 or 1")
+    try:
+        result = supabase.table("predictions") \
+            .update({"accuracy_rating": rating}) \
+            .eq("id", prediction_id) \
+            .execute()
+        if not result.data:
+            raise HTTPException(status_code=404, detail="Prediction not found")
+        return {"success": True, "prediction_id": prediction_id, "rating": rating}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[rate] error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save rating")
+
+
+# ── C3: Pattern summary for a chart ──────────────────────────────────────────
+@app.get("/api/v1/patterns/{chart_id}")
+async def get_pattern_summary(chart_id: str):
+    """
+    Returns pattern memory analysis for a chart:
+    - Recurring themes
+    - Unresolved cases
+    - Accuracy summary
+    - All past predictions with fulfillment status
+    Sprint C3.
+    """
+    from antar_engine.pattern_memory import build_pattern_memory, _fetch_predictions, _infer_fulfillment, _detect_themes, _accuracy_summary
+
+    try:
+        past = _fetch_predictions(chart_id, supabase)
+        if not past:
+            return {
+                "chart_id":         chart_id,
+                "total_predictions": 0,
+                "recurring_themes":  [],
+                "unresolved_cases":  [],
+                "accuracy_summary":  "",
+                "predictions":       [],
+            }
+
+        past = _infer_fulfillment(past)
+
+        unresolved = [
+            p for p in past
+            if p.get("fulfillment_status") == "inferred_unresolved"
+        ]
+        themes      = _detect_themes(past)
+        acc_summary = _accuracy_summary(past)
+
+        return {
+            "chart_id":          chart_id,
+            "total_predictions": len(past),
+            "recurring_themes":  themes,
+            "unresolved_cases":  [
+                {
+                    "id":           p.get("id"),
+                    "concern":      p.get("concern"),
+                    "signal_line":  p.get("signal_line"),
+                    "timing_window":p.get("timing_window"),
+                    "created_at":   p.get("created_at"),
+                }
+                for p in unresolved
+            ],
+            "accuracy_summary":  acc_summary,
+            "predictions":       [
+                {
+                    "id":               p.get("id"),
+                    "created_at":       p.get("created_at"),
+                    "concern":          p.get("concern"),
+                    "signal_line":      p.get("signal_line"),
+                    "timing_window":    p.get("timing_window"),
+                    "fulfillment_status": p.get("fulfillment_status"),
+                    "accuracy_rating":  p.get("accuracy_rating"),
+                }
+                for p in past
+            ],
+        }
+
+    except Exception as e:
+        print(f"[patterns] error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch pattern summary")
+
+
+# ── Sprint E: Welcome signal ──────────────────────────────────────────────────
+@app.get("/api/v1/welcome/{chart_id}")
+async def get_welcome(chart_id: str):
+    """
+    Returns the welcome signal for a chart.
+    Generated automatically after chart creation.
+    Sprint E.
+    """
+    try:
+        signal = get_welcome_signal(chart_id, supabase)
+        if signal:
+            return signal
+        # Not ready yet — generate now synchronously
+        chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+        if not chart_res.data:
+            raise HTTPException(status_code=404, detail="Chart not found")
+        chart_record = chart_res.data[0]
+        chart_data   = chart_record.get("chart_data", {})
+        planets      = chart_data.get("planets", {})
+        # Get current dasha from dasha_periods table
+        _current_dasha = ""
+        try:
+            from datetime import date
+            _dasha_res = supabase.table("dasha_periods") \
+                .select("planet_or_sign, start_date, end_date") \
+                .eq("chart_id", chart_id) \
+                .eq("system", "vimsottari") \
+                .eq("level", 1) \
+                .lte("start_date", str(date.today())) \
+                .gte("end_date", str(date.today())) \
+                .execute()
+            if _dasha_res.data:
+                _current_dasha = _dasha_res.data[0].get("planet_or_sign", "")
+        except Exception:
+            pass
+
+        _bd = str(chart_record.get("birth_date", "") or "")[:10]
+        try:
+            from antar_engine.age_utils import calculate_current_age as _ca
+            _sync_age = _ca(_bd) if _bd else None
+        except Exception:
+            _sync_age = None
+
+        result = await generate_welcome_signal_v2(
+                chart_data=_chart_row,
+                birth_date=_chart_row.get("birth_date"),
+                anthropic_client=claude_client,
+            )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[welcome] error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate welcome signal")
+
+
+# ── Sprint E: Weekly briefing ─────────────────────────────────────────────────
+@app.get("/api/v1/weekly-briefing/{chart_id}")
+async def get_weekly_briefing(chart_id: str, refresh: bool = False):
+    """
+    Returns the weekly briefing for the current week.
+    Auto-generated every Monday. Sprint E.
+    """
+    try:
+        chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+        if not chart_res.data:
+            raise HTTPException(status_code=404, detail="Chart not found")
+        chart_record = chart_res.data[0]
+        chart_data   = chart_record.get("chart_data", {})
+        planets      = chart_data.get("planets", {})
+
+        # Get DKP context
+        dkp_ctx = ""
+        country_code = chart_record.get("current_country") or chart_record.get("country_code", "")
+        if country_code:
+            try:
+                from antar_engine.country_context import COUNTRY_CONTEXT
+                _name = COUNTRY_CONTEXT.get(country_code, {}).get("name", country_code)
+                dkp_ctx = await get_dkp_context(
+                    country_code=country_code,
+                    country_name=_name,
+                    supabase=supabase,
+                    deepseek_client=deepseek_client,
+                )
+            except Exception:
+                pass
+
+
+        # Fetch current dasha from dasha_periods
+        _current_dasha = ""
+        try:
+            from datetime import date as _date
+            _dr = supabase.table("dasha_periods") \
+                .select("planet_or_sign") \
+                .eq("chart_id", chart_id) \
+                .eq("system", "vimsottari") \
+                .eq("level", 1) \
+                .lte("start_date", str(_date.today())) \
+                .gte("end_date", str(_date.today())) \
+                .limit(1).execute()
+            if _dr.data:
+                _current_dasha = _dr.data[0].get("planet_or_sign", "")
+        except Exception:
+            pass
+        result = await generate_weekly_briefing(
+            chart_id=chart_id,
+            chart_data=chart_data,
+            dashas={},
+            first_name=chart_record.get("first_name", ""),
+            lagna=chart_record.get("lagna_sign", "") or chart_data.get("lagna", {}).get("sign", ""),
+            moon_sign=chart_record.get("moon_sign", "") or planets.get("Moon", {}).get("sign", ""),
+            current_dasha=_current_dasha,
+            age=None,
+            country_code=country_code,
+            dkp_context=dkp_ctx,
+            supabase=supabase,
+            claude_client=claude_client,
+            force_refresh=refresh,
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[weekly-briefing] error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate weekly briefing")
+
+
+# ── Sprint E: Monthly deep-dive ───────────────────────────────────────────────
+@app.get("/api/v1/monthly-deepdive/{chart_id}")
+async def get_monthly_deepdive(chart_id: str, refresh: bool = False):
+    """
+    Returns the monthly deep-dive for the current month.
+    Auto-generated on the 1st. Sprint E.
+    """
+    try:
+        chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+        if not chart_res.data:
+            raise HTTPException(status_code=404, detail="Chart not found")
+        chart_record = chart_res.data[0]
+        chart_data   = chart_record.get("chart_data", {})
+
+        # Get LK context if available
+        lk_ctx = ""
+        try:
+            from antar_engine.lal_kitab_db import format_lk_context_from_stored
+            lk_ctx = format_lk_context_from_stored(chart_record) or ""
+        except Exception:
+            pass
+
+
+        # Fetch current dasha from dasha_periods
+        _current_dasha = ""
+        try:
+            from datetime import date as _date
+            _dr = supabase.table("dasha_periods") \
+                .select("planet_or_sign") \
+                .eq("chart_id", chart_id) \
+                .eq("system", "vimsottari") \
+                .eq("level", 1) \
+                .lte("start_date", str(_date.today())) \
+                .gte("end_date", str(_date.today())) \
+                .limit(1).execute()
+            if _dr.data:
+                _current_dasha = _dr.data[0].get("planet_or_sign", "")
+        except Exception:
+            pass
+        result = await generate_monthly_deepdive(
+            chart_id=chart_id,
+            chart_data=chart_data,
+            dashas={},
+            first_name=chart_record.get("first_name", ""),
+            lagna=chart_record.get("lagna_sign", "") or chart_data.get("lagna", {}).get("sign", ""),
+            moon_sign=chart_record.get("moon_sign", "") or chart_data.get("planets", {}).get("Moon", {}).get("sign", ""),
+            current_dasha=_current_dasha,
+            age=None,
+            country_code=chart_record.get("current_country") or chart_record.get("country_code", ""),
+            lk_context=lk_ctx,
+            supabase=supabase,
+            claude_client=claude_client,
+            force_refresh=refresh,
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[monthly-deepdive] error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate monthly deep-dive")
+
+
+# ── Sprint E: Annual plan ─────────────────────────────────────────────────────
+@app.get("/api/v1/annual-plan/{chart_id}")
+async def get_annual_plan(chart_id: str, refresh: bool = False):
+    """
+    Returns the annual plan for the current year.
+    Auto-generated on birthday and January 1st. Sprint E.
+    """
+    try:
+        chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+        if not chart_res.data:
+            raise HTTPException(status_code=404, detail="Chart not found")
+        chart_record = chart_res.data[0]
+        chart_data   = chart_record.get("chart_data", {})
+
+        # Get DKP and LK context
+        dkp_ctx = ""
+        lk_ctx  = ""
+        country_code = chart_record.get("current_country") or chart_record.get("country_code", "")
+        try:
+            from antar_engine.country_context import COUNTRY_CONTEXT
+            _name = COUNTRY_CONTEXT.get(country_code, {}).get("name", country_code)
+            dkp_ctx = await get_dkp_context(
+                country_code=country_code,
+                country_name=_name,
+                supabase=supabase,
+                deepseek_client=deepseek_client,
+            )
+        except Exception:
+            pass
+        try:
+            from antar_engine.lal_kitab_db import format_lk_context_from_stored
+            lk_ctx = format_lk_context_from_stored(chart_record) or ""
+        except Exception:
+            pass
+
+
+
+        # Fetch current dasha from dasha_periods
+        _current_dasha = ""
+        try:
+            from datetime import date as _date
+            _dr = supabase.table("dasha_periods") \
+                .select("planet_or_sign") \
+                .eq("chart_id", chart_id) \
+                .eq("system", "vimsottari") \
+                .eq("level", 1) \
+                .lte("start_date", str(_date.today())) \
+                .gte("end_date", str(_date.today())) \
+                .limit(1).execute()
+            if _dr.data:
+                _current_dasha = _dr.data[0].get("planet_or_sign", "")
+        except Exception:
+            pass
+        result = await generate_annual_plan(
+            chart_id=chart_id,
+            chart_data=chart_data,
+            dashas={},
+            first_name=chart_record.get("first_name", ""),
+            lagna=chart_record.get("lagna_sign", "") or chart_data.get("lagna", {}).get("sign", ""),
+            moon_sign=chart_record.get("moon_sign", "") or chart_data.get("planets", {}).get("Moon", {}).get("sign", ""),
+            current_dasha=_current_dasha,
+            birth_date=chart_record.get("birth_date", ""),
+            age=None,
+            country_code=country_code,
+            dkp_context=dkp_ctx,
+            lk_context=lk_ctx,
+            supabase=supabase,
+            claude_client=claude_client,
+            force_refresh=refresh,
+        )
+        return result
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[annual-plan] error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate annual plan")
+
+
+
+
+# ═══════════════════════════════════════════════════════════════
+# SPRINT P — PRACTICE ENGINE ENDPOINTS (auto-patched 2026-03-31)
+# ═══════════════════════════════════════════════════════════════
+
+from antar_engine.practice_engine import generate_practice_schedule, format_practice_for_predict_prompt
+import json as _pjson
+def _safe_jsonb(v):
+    if isinstance(v, str):
+        try: return _pjson.loads(v)
+        except: return {}
+    return v if isinstance(v, dict) else {}
+
+from pydantic import BaseModel as _PracticeBaseModel
+
+class _PracticeCompleteReq(_PracticeBaseModel):
+    practice_id: str
+    user_note: str = None
+
+@app.get("/api/v1/practices/{chart_id}/schedule")
+async def get_practice_schedule_endpoint(chart_id: str, refresh: bool = False):
+    try:
+        from datetime import date as _d, timedelta as _td
+        _today = _d.today()
+        _week_of = _today - _td(days=_today.weekday())
+        if not refresh:
+            _cache = supabase.table("practice_schedule_cache").select("schedule_data").eq("chart_id", chart_id).eq("week_of", _week_of.isoformat()).execute()
+            if _cache.data and len(_cache.data) > 0:
+                _sched = _cache.data[0]["schedule_data"]
+                _streak = await _practice_get_streak(chart_id)
+                _sched["streak_data"] = _streak
+                return {"status": "ok", "source": "cache", "schedule": _sched}
+        _chart = supabase.table("charts").select("chart_data, jaimini_data, lal_kitab_data, current_country, birth_date").eq("id", chart_id).single().execute()
+        if not _chart.data:
+            return {"status": "error", "message": "Chart not found"}
+        _c = _chart.data
+        _streak = await _practice_get_streak(chart_id)
+        _sched = generate_practice_schedule(
+            chart_data=_safe_jsonb(_c.get("chart_data")),
+            jaimini_data=_safe_jsonb(_c.get("jaimini_data")),
+            lal_kitab_data=_safe_jsonb(_c.get("lal_kitab_data")),
+            current_country=_c.get("current_country", "US"),
+            birth_date=_c.get("birth_date"),
+            streak_data=_streak,
+        )
+        try:
+            supabase.table("practice_schedule_cache").upsert({"chart_id": chart_id, "week_of": _week_of.isoformat(), "cache_key": _sched.get("cache_key", ""), "schedule_data": _sched}, on_conflict="chart_id,week_of").execute()
+        except Exception:
+            pass
+        return {"status": "ok", "source": "generated", "schedule": _sched}
+    except Exception as e:
+        print(f"[PRACTICE] Schedule error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.post("/api/v1/practices/{chart_id}/complete")
+async def complete_practice_endpoint(chart_id: str, req: _PracticeCompleteReq):
+    try:
+        from datetime import datetime as _dt, date as _d, timedelta as _td
+        _now = _dt.utcnow()
+        _streak = await _practice_calc_streak(chart_id, _d.today())
+        _planet = "Unknown"
+        _ptype = "remedy"
+        _planets = ["sun","moon","mars","mercury","jupiter","venus","saturn","rahu","ketu"]
+        _types = ["convergence","awakening","remedy","rin_clearing","mantra"]
+        for _p in req.practice_id.lower().split("_"):
+            if _p in _planets: _planet = _p.capitalize()
+            if _p in _types: _ptype = _p
+        supabase.table("practice_log").insert({"chart_id": chart_id, "practice_id": req.practice_id, "planet": _planet, "practice_type": _ptype, "completed_at": _now.isoformat(), "streak_count": _streak + 1, "user_note": req.user_note}).execute()
+        _new = _streak + 1
+        if _new == 7: _msg = "7-day streak unlocked! You earned a free Deep Dive Location Audit."
+        elif _new == 21: _msg = "21-day cycle complete. Your energy pattern has shifted."
+        elif _new >= 3: _msg = f"{_new}-day streak! Consistency is building momentum."
+        else: _msg = "Practice logged. Every day counts."
+        return {"status": "ok", "streak_count": _new, "message": _msg}
+    except Exception as e:
+        print(f"[PRACTICE] Complete error: {e}")
+        return {"status": "error", "message": str(e)}
+
+@app.get("/api/v1/practices/{chart_id}/streak")
+async def get_practice_streak_endpoint(chart_id: str):
+    try:
+        from datetime import date as _d, timedelta as _td
+        _today = _d.today()
+        _30ago = _today - _td(days=30)
+        _log = supabase.table("practice_log").select("practice_id, practice_type, completed_at, streak_count, user_note, energy_label").eq("chart_id", chart_id).gte("created_at", _30ago.isoformat()).order("completed_at", desc=True).execute()
+        _completions = _log.data or []
+        _current = await _practice_calc_streak(chart_id, _today)
+        _longest = max([c.get("streak_count", 0) for c in _completions], default=0)
+        _longest = max(_longest, _current)
+        _total = len([c for c in _completions if c.get("completed_at")])
+        _cal = {}
+        for c in _completions:
+            if c.get("completed_at"):
+                _cal[c["completed_at"][:10]] = {"practice_id": c.get("practice_id"), "practice_type": c.get("practice_type"), "note": c.get("user_note")}
+        return {"status": "ok", "chart_id": chart_id, "current_streak": _current, "longest_streak": _longest, "total_completed": _total, "completion_rate": round(_total / 30 * 100) if _total else 0, "calendar": _cal, "history": _completions[:20]}
+    except Exception as e:
+        print(f"[PRACTICE] Streak error: {e}")
+        return {"status": "error", "message": str(e)}
+
+async def _practice_calc_streak(chart_id: str, today) -> int:
+    try:
+        from datetime import timedelta as _td
+        _60ago = today - _td(days=60)
+        _log = supabase.table("practice_log").select("completed_at").eq("chart_id", chart_id).not_.is_("completed_at", "null").gte("completed_at", _60ago.isoformat()).order("completed_at", desc=True).execute()
+        if not _log.data: return 0
+        _dates = set()
+        for r in _log.data:
+            if r.get("completed_at"): _dates.add(r["completed_at"][:10])
+        _streak = 0
+        _check = today
+        if _check.isoformat() not in _dates:
+            _check = today - _td(days=1)
+            if _check.isoformat() not in _dates: return 0
+        while _check.isoformat() in _dates:
+            _streak += 1
+            _check -= _td(days=1)
+        return _streak
+    except Exception:
+        return 0
+
+async def _practice_get_streak(chart_id: str) -> dict:
+    from datetime import date as _d
+    _current = await _practice_calc_streak(chart_id, _d.today())
+    try:
+        _max = supabase.table("practice_log").select("streak_count").eq("chart_id", chart_id).order("streak_count", desc=True).limit(1).execute()
+        _longest = _max.data[0]["streak_count"] if _max.data else 0
+    except Exception:
+        _longest = 0
+    try:
+        _cnt = supabase.table("practice_log").select("id", count="exact").eq("chart_id", chart_id).not_.is_("completed_at", "null").execute()
+        _total = _cnt.count or 0
+    except Exception:
+        _total = 0
+    return {"current": max(_current, 0), "longest": max(_longest, _current), "total_completed": _total}
+
+# ═══ END SPRINT P ENDPOINTS ═══

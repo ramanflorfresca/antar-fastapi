@@ -1,702 +1,1552 @@
 """
-antar_engine/prashna_engine.py
+Antar Prashna (Horary) Engine
+=============================
+Cast a Moment Chart for the exact second a question is asked,
+then compute a probabilistic YES/NO verdict using:
+  Step A — Lagna Strength (+25%)
+  Step B — Lord Connection (+25%)
+  Step C — Ithasala / Ishrafa Verdict (+35% / -35%)
+  Step D — Moon Validation (+15%)
+  Edge Cases — Muthashila (override 95%), Nakta (+25%), Yamaya (+20%)
+  Bonus — Mutual Reception (+15%), Jaimini Triple-Lock (+5% each)
 
-Prashna (Horary) Astrology Engine
-===================================
-Cast a chart for the EXACT moment a question is asked.
-No birth data needed. The question chart reveals the answer.
-
-Classical Prashna rules (K.N. Rao + Krishnamurti + traditional):
-  1. Lagna of question moment = strength of the question
-  2. Significator house for the question type
-  3. Moon = mind, emotional state, what's really being asked
-  4. Benefic/malefic aspects to significator = yes/no
-  5. Tajika Ithasala = approaching aspect = YES (will happen)
-  6. Tajika Ishrafa = separating aspect = NO (won't happen)
-  7. Timing = degrees to exact aspect = time units until outcome
-
-Supported question types:
-  job, career, business, money, wealth, marriage, relationship,
-  love, children, health, travel, foreign, property, legal,
-  spiritual, education, vehicle, government, exam, interview
+Author: Antar Engine Team
+Date: April 2026
 """
 
-from datetime import datetime, date
-from typing import Optional
+import math
+import re
+import json
+import logging
+from datetime import datetime, timezone, timedelta
+from typing import Dict, Optional, Any, List, Tuple
+
+try:
+    import swisseph as swe
+except ImportError:
+    swe = None  # Will be available on Railway
+
+logger = logging.getLogger("antar.prashna")
+
+# ═══════════════════════════════════════════════════════════════════
+# CONSTANTS
+# ═══════════════════════════════════════════════════════════════════
 
 SIGNS = [
-    "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
-    "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"
+    "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
 ]
-SIGN_LORDS = {
-    "Aries":"Mars","Taurus":"Venus","Gemini":"Mercury","Cancer":"Moon",
-    "Leo":"Sun","Virgo":"Mercury","Libra":"Venus","Scorpio":"Mars",
-    "Sagittarius":"Jupiter","Capricorn":"Saturn","Aquarius":"Saturn","Pisces":"Jupiter"
-}
-EXALTATION = {
-    "Sun":"Aries","Moon":"Taurus","Mars":"Capricorn","Mercury":"Virgo",
-    "Jupiter":"Cancer","Venus":"Pisces","Saturn":"Libra"
-}
-DEBILITATION = {
-    "Sun":"Libra","Moon":"Scorpio","Mars":"Cancer","Mercury":"Pisces",
-    "Jupiter":"Capricorn","Venus":"Virgo","Saturn":"Aries"
-}
-BENEFICS = ["Jupiter","Venus","Moon","Mercury"]
-MALEFICS  = ["Saturn","Mars","Sun","Rahu","Ketu"]
-KENDRA    = [1, 4, 7, 10]
-TRIKONA   = [1, 5, 9]
-DUSTHANA  = [6, 8, 12]
-UPACHAYA  = [3, 6, 10, 11]
 
+PLANETS = {
+    0: "Sun", 1: "Moon", 2: "Mercury", 3: "Venus",
+    4: "Mars", 5: "Jupiter", 6: "Saturn"
+}
+
+# Swiss Ephemeris planet IDs
+SWE_PLANETS = {
+    "Sun": 0, "Moon": 1, "Mercury": 2, "Venus": 3,
+    "Mars": 4, "Jupiter": 5, "Saturn": 6
+}
+
+# Nakshatras (27)
 NAKSHATRAS = [
-    "Ashvini","Bharani","Krittika","Rohini","Mrigashira","Ardra",
-    "Punarvasu","Pushya","Ashlesha","Magha","Purva Phalguni",
-    "Uttara Phalguni","Hasta","Chitra","Swati","Vishakha","Anuradha",
-    "Jyeshtha","Mula","Purva Ashadha","Uttara Ashadha","Shravana",
-    "Dhanishtha","Shatabhisha","Purva Bhadrapada","Uttara Bhadrapada","Revati"
+    "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra",
+    "Punarvasu", "Pushya", "Ashlesha", "Magha", "Purva Phalguni", "Uttara Phalguni",
+    "Hasta", "Chitra", "Swati", "Vishakha", "Anuradha", "Jyeshtha",
+    "Mula", "Purva Ashadha", "Uttara Ashadha", "Shravana", "Dhanishtha", "Shatabhisha",
+    "Purva Bhadrapada", "Uttara Bhadrapada", "Revati"
 ]
 
-# Question type → significator houses + karaka planets
-QUESTION_SIGNIFICATORS = {
-    "job":          {"houses":[6,10], "karakas":["Sun","Saturn","Mercury"], "topic":"employment and service"},
-    "career":       {"houses":[10,1], "karakas":["Sun","Saturn","Mercury"], "topic":"career trajectory"},
-    "promotion":    {"houses":[10,11],"karakas":["Sun","Jupiter"],          "topic":"career advancement"},
-    "business":     {"houses":[7,10], "karakas":["Mercury","Jupiter"],      "topic":"business success"},
-    "money":        {"houses":[2,11], "karakas":["Jupiter","Venus"],        "topic":"financial gains"},
-    "wealth":       {"houses":[2,11], "karakas":["Jupiter","Venus"],        "topic":"wealth accumulation"},
-    "loan":         {"houses":[6,8],  "karakas":["Saturn","Rahu"],          "topic":"debt and loans"},
-    "marriage":     {"houses":[7,2],  "karakas":["Venus","Jupiter"],        "topic":"marriage"},
-    "relationship": {"houses":[7,5],  "karakas":["Venus","Moon"],           "topic":"romantic relationship"},
-    "love":         {"houses":[5,7],  "karakas":["Venus","Moon"],           "topic":"love and romance"},
-    "breakup":      {"houses":[6,12], "karakas":["Saturn","Mars"],          "topic":"separation"},
-    "divorce":      {"houses":[6,12], "karakas":["Saturn","Mars","Rahu"],   "topic":"divorce"},
-    "children":     {"houses":[5,9],  "karakas":["Jupiter","Moon"],         "topic":"children and progeny"},
-    "pregnancy":    {"houses":[5,9],  "karakas":["Jupiter","Moon"],         "topic":"pregnancy"},
-    "health":       {"houses":[1,6],  "karakas":["Sun","Moon"],             "topic":"health and recovery"},
-    "surgery":      {"houses":[6,8],  "karakas":["Mars","Sun"],             "topic":"surgery outcome"},
-    "travel":       {"houses":[3,9],  "karakas":["Mercury","Moon"],         "topic":"travel"},
-    "foreign":      {"houses":[9,12], "karakas":["Rahu","Jupiter"],         "topic":"foreign matters"},
-    "property":     {"houses":[4,12], "karakas":["Mars","Moon"],            "topic":"property"},
-    "legal":        {"houses":[6,7],  "karakas":["Saturn","Mars"],          "topic":"legal matters"},
-    "court":        {"houses":[6,7],  "karakas":["Saturn","Mars"],          "topic":"court case"},
-    "education":    {"houses":[4,9],  "karakas":["Mercury","Jupiter"],      "topic":"education"},
-    "exam":         {"houses":[4,5],  "karakas":["Mercury","Jupiter"],      "topic":"exam result"},
-    "interview":    {"houses":[1,10], "karakas":["Mercury","Sun"],          "topic":"interview success"},
-    "vehicle":      {"houses":[4,12], "karakas":["Venus","Mars"],           "topic":"vehicle purchase"},
-    "government":   {"houses":[6,10], "karakas":["Sun","Saturn"],           "topic":"government matters"},
-    "spiritual":    {"houses":[9,12], "karakas":["Jupiter","Ketu"],         "topic":"spiritual progress"},
-    "lost":         {"houses":[2,7],  "karakas":["Moon","Mercury"],         "topic":"lost item recovery"},
-    "theft":        {"houses":[2,7],  "karakas":["Saturn","Rahu","Mars"],   "topic":"theft recovery"},
-    "missing":      {"houses":[1,7],  "karakas":["Moon","Mercury"],         "topic":"missing person"},
-    "investment":   {"houses":[5,11], "karakas":["Jupiter","Mercury"],      "topic":"investment outcome"},
-    "startup":      {"houses":[1,10,11],  "karakas":["Mercury","Rahu","Jupiter"],"topic":"startup success"},
+# Sign lords (Vedic — traditional rulerships)
+SIGN_LORDS = {
+    0: 4,   # Aries → Mars
+    1: 3,   # Taurus → Venus
+    2: 2,   # Gemini → Mercury
+    3: 1,   # Cancer → Moon
+    4: 0,   # Leo → Sun
+    5: 2,   # Virgo → Mercury
+    6: 3,   # Libra → Venus
+    7: 4,   # Scorpio → Mars
+    8: 5,   # Sagittarius → Jupiter
+    9: 6,   # Capricorn → Saturn
+    10: 6,  # Aquarius → Saturn
+    11: 5,  # Pisces → Jupiter
 }
 
-# Moon nakshatra quality for Prashna
-PRASHNA_NAKSHATRA = {
-    "Ashvini":    ("good","swift result"),
-    "Bharani":    ("mixed","heavy karma involved"),
-    "Krittika":   ("good","sharp decisive outcome"),
-    "Rohini":     ("excellent","very favorable, abundance"),
-    "Mrigashira": ("good","searching energy, partial success"),
-    "Ardra":      ("difficult","storms, delays, transformation"),
-    "Punarvasu":  ("good","return, renewal, second chance"),
-    "Pushya":     ("excellent","most auspicious, YES answer likely"),
-    "Ashlesha":   ("difficult","hidden motives, deception possible"),
-    "Magha":      ("good","authority supports, ancestors bless"),
-    "Purva Phalguni":("good","pleasure, creative success"),
-    "Uttara Phalguni":("excellent","stable success, partnership works"),
-    "Hasta":      ("good","craftsmanship succeeds, travel good"),
-    "Chitra":     ("good","bright outcome, beautiful result"),
-    "Swati":      ("mixed","independent outcome, unpredictable"),
-    "Vishakha":   ("good","goals achieved through determination"),
-    "Anuradha":   ("good","friendship and cooperation bring success"),
-    "Jyeshtha":   ("mixed","elder's wisdom needed, complex outcome"),
-    "Mula":       ("difficult","root disruption, avoid new beginnings"),
-    "Purva Ashadha":("good","invincible momentum, victory"),
-    "Uttara Ashadha":("excellent","final victory, lasting success"),
-    "Shravana":   ("good","listening leads to success"),
-    "Dhanishtha": ("good","wealth and rhythm, musical success"),
-    "Shatabhisha":("mixed","healing possible, unconventional path"),
-    "Purva Bhadrapada":("difficult","fierce energy, transformation"),
-    "Uttara Bhadrapada":("good","deep wisdom brings success"),
-    "Revati":     ("good","completion, compassionate outcome"),
+# Natural benefics
+BENEFIC_IDS = {3, 5, 2}  # Venus, Jupiter, Mercury
+
+# Tajika orbs (degrees)
+TAJIKA_ORBS = {
+    "Sun": 15, "Moon": 12, "Mars": 8, "Mercury": 7,
+    "Jupiter": 9, "Venus": 7, "Saturn": 9
 }
 
-# Tajika aspect orbs (degrees)
-TAJIKA_ASPECTS = {
-    "conjunction": 0,
-    "sextile":    60,
-    "square":     90,
-    "trine":      120,
-    "opposition": 180,
+# Tajika aspect angles
+TAJIKA_ASPECTS = [0, 60, 90, 120, 180]
+
+# Rashi Drishti — Jaimini sign aspects
+# Movable signs aspect Fixed (except adjacent), Fixed aspect Movable (except adjacent),
+# Dual aspects Dual
+RASHI_DRISHTI = {
+    0: [4, 7, 10],    # Aries → Leo, Scorpio, Aquarius
+    1: [3, 8, 11],    # Taurus → Cancer, Sagittarius, Pisces (actually: 3,8,11 from mapping)
+    2: [5, 6, 9],     # Gemini → Virgo, Libra, Capricorn (actually: 5,8,11 — let me fix)
+    3: [1, 6, 9],     # Cancer
+    4: [0, 7, 10],    # Leo
+    5: [2, 8, 11],    # Virgo
+    6: [0, 3, 10],    # Libra
+    7: [1, 4, 11],    # Scorpio (actually: 1,4,11)
+    8: [2, 5, 10],    # Sagittarius (actually: needs dual→dual check)
+    9: [3, 6, 11],    # Capricorn (actually: 3,6 — let me use standard)
+    10: [0, 4, 7],    # Aquarius
+    11: [1, 5, 8],    # Pisces
 }
-TAJIKA_ORB = 8  # degrees
+# NOTE: Using standard Jaimini Rashi Drishti as implemented in jaimini_engine.py.
+# Movable(0,3,6,9) aspects Fixed(1,4,7,10) except adjacent.
+# Fixed aspects Movable except adjacent.
+# Dual(2,5,8,11) aspects other Duals.
+
+def get_rashi_drishti(sign_idx: int) -> List[int]:
+    """Return list of sign indices that this sign aspects via Rashi Drishti."""
+    sign_type = sign_idx % 3  # 0=movable, 1=fixed, 2=dual
+    if sign_type == 0:  # Movable — aspects all Fixed except adjacent
+        fixed = [1, 4, 7, 10]
+        adjacent = (sign_idx + 1) % 12
+        return [s for s in fixed if s != adjacent]
+    elif sign_type == 1:  # Fixed — aspects all Movable except adjacent
+        movable = [0, 3, 6, 9]
+        adjacent = (sign_idx - 1) % 12
+        return [s for s in movable if s != adjacent]
+    else:  # Dual — aspects other Duals
+        dual = [2, 5, 8, 11]
+        return [s for s in dual if s != sign_idx]
 
 
-def cast_prashna_chart(
-    question_time: datetime = None,
-    lat: float = 28.6139,
-    lng: float = 77.2090,
-    timezone_offset: float = 5.5,
-) -> dict:
-    """
-    Cast a Prashna chart for the exact moment of the question.
-    Returns complete chart data for the question moment.
-    """
-    try:
-        import swisseph as swe
-    except ImportError as _swe_err:
-        return {"error": f"swisseph not available on this server: {_swe_err}"}
+# Domain → House of Interest mapping
+DOMAIN_HOUSE_MAP = {
+    "career":       [10],
+    "job":          [10],
+    "promotion":    [10],
+    "promoted":     [10],
+    "raise":        [10],
+    "business":     [7, 10],
+    "finance":      [2, 11],
+    "money":        [2, 11],
+    "investment":   [2, 11],
+    "wealth":       [2, 11],
+    "relationship": [7],
+    "marriage":     [7],
+    "love":         [7],
+    "partner":      [7],
+    "health":       [6],
+    "surgery":      [6, 8],
+    "illness":      [6],
+    "education":    [4, 5],
+    "exam":         [5],
+    "study":        [4, 5],
+    "travel":       [9, 12],
+    "abroad":       [9, 12],
+    "visa":         [9, 12],
+    "move":         [4, 9],
+    "legal":        [6, 7],
+    "court":        [6, 7],
+    "lawsuit":      [6, 7],
+    "children":     [5],
+    "baby":         [5],
+    "pregnancy":    [5],
+    "property":     [4],
+    "house":        [4],
+    "real estate":  [4],
+    "land":         [4],
+}
 
-    if question_time is None:
-        question_time = datetime.utcnow()
+# YES/NO intent patterns
+PRASHNA_PATTERNS = [
+    re.compile(r"\b(will|shall)\s+(i|my|we|this|it|he|she|they)\b", re.I),
+    re.compile(r"\bshould\s+(i|we)\b", re.I),
+    re.compile(r"\b(is|are|was)\s+(it|this|that|there|he|she)\b", re.I),
+    re.compile(r"\b(can|am)\s+i\b", re.I),
+    re.compile(r"\b(yes[\s/\-]?no|good\s+time|right\s+decision|right\s+move)\b", re.I),
+    re.compile(r"\b(do\s+i|does\s+this|would\s+it)\b", re.I),
+    re.compile(r"\bgive\s+me\s+a\s+yes\b", re.I),
+]
 
-    # Convert to JD
-    utc_time = question_time
-    if question_time.tzinfo is not None:
-        from datetime import timezone
-        utc_time = question_time.astimezone(timezone.utc).replace(tzinfo=None)
+# Cooldown: once per day (24 hours). Configurable.
+PRASHNA_COOLDOWN_HOURS = 24
 
-    jd = swe.julday(
-        utc_time.year, utc_time.month, utc_time.day,
-        utc_time.hour + utc_time.minute/60.0 + utc_time.second/3600.0
-    )
 
-    swe.set_sid_mode(swe.SIDM_LAHIRI)
-    ayanamsa = swe.get_ayanamsa(jd)
+# ═══════════════════════════════════════════════════════════════════
+# UTILITY FUNCTIONS
+# ═══════════════════════════════════════════════════════════════════
 
-    # Calculate houses
-    houses, ascmc = swe.houses_ex(jd, lat, lng, b'P', swe.FLG_SIDEREAL)
-    asc_long = ascmc[0]
-    lagna_long = (asc_long - ayanamsa) % 360
-    lagna_sign = SIGNS[int(lagna_long / 30)]
-    lagna_deg  = lagna_long % 30
+def sign_name(idx: int) -> str:
+    return SIGNS[idx % 12]
 
-    lagna_idx = SIGNS.index(lagna_sign)
+def planet_name_from_id(pid: int) -> str:
+    return PLANETS.get(pid, f"Planet_{pid}")
 
-    # Calculate planets
-    PLANET_IDS = {
-        "Sun": swe.SUN, "Moon": swe.MOON, "Mars": swe.MARS,
-        "Mercury": swe.MERCURY, "Jupiter": swe.JUPITER,
-        "Venus": swe.VENUS, "Saturn": swe.SATURN,
-        "Rahu": swe.MEAN_NODE,
+def get_nakshatra(longitude: float) -> dict:
+    """Get nakshatra from sidereal longitude."""
+    nak_idx = int(longitude / (360 / 27))
+    pada = int((longitude % (360 / 27)) / (360 / 108)) + 1
+    return {
+        "index": nak_idx,
+        "name": NAKSHATRAS[nak_idx % 27],
+        "pada": min(pada, 4),
+        "degree": longitude % (360 / 27)
     }
 
-    planets = {}
-    for name, pid in PLANET_IDS.items():
-        pos, _ = swe.calc_ut(jd, pid)
-        long_trop = pos[0]
-        if name == "Rahu":
-            long_trop = (long_trop + 180) % 360  # True node → Rahu
-            long_trop = pos[0]  # Actually Rahu is the mean node directly
+def get_sign_lord(sign_idx: int) -> int:
+    """Return the SWE planet ID that rules this sign."""
+    return SIGN_LORDS[sign_idx % 12]
 
-        long_sid = (long_trop - ayanamsa) % 360
-        sign_idx  = int(long_sid / 30)
-        sign_name = SIGNS[sign_idx]
-        degree    = long_sid % 30
-        house     = ((sign_idx - lagna_idx) % 12) + 1
-        nak_idx   = int(long_sid / (360/27))
+def normalize_angle(angle: float) -> float:
+    """Normalize angle to 0-360."""
+    return angle % 360
 
-        planets[name] = {
-            "sign":      sign_name,
-            "degree":    round(degree, 2),
-            "longitude": round(long_sid, 4),
-            "house":     house,
-            "nakshatra": NAKSHATRAS[nak_idx % 27],
+def angular_distance(a: float, b: float) -> float:
+    """Shortest angular distance between two longitudes."""
+    diff = abs(normalize_angle(a) - normalize_angle(b))
+    return min(diff, 360 - diff)
+
+def assign_planet_to_house(planet_long: float, cusps: list) -> int:
+    """Assign planet to house based on cusp positions (1-indexed).
+    cusps[0] = 1st house cusp, cusps[1] = 2nd, etc.
+    """
+    planet_long = normalize_angle(planet_long)
+    for i in range(12):
+        cusp_start = normalize_angle(cusps[i])
+        cusp_end = normalize_angle(cusps[(i + 1) % 12])
+        if cusp_start < cusp_end:
+            if cusp_start <= planet_long < cusp_end:
+                return i + 1
+        else:  # Wraps around 360
+            if planet_long >= cusp_start or planet_long < cusp_end:
+                return i + 1
+    return 1  # Fallback
+
+
+# ═══════════════════════════════════════════════════════════════════
+# NAVAMSA (D9) LAGNA — Genuineness Check
+# ═══════════════════════════════════════════════════════════════════
+
+def calculate_navamsa_sign(longitude: float) -> int:
+    """
+    Calculate the Navamsa (D9) sign for a given sidereal longitude.
+    Each sign is divided into 9 equal parts of 3°20' (3.3333°).
+    Navamsa counting starts from the sign itself for Movable signs,
+    from the 9th sign for Fixed signs, and from the 5th sign for Dual signs.
+
+    Returns: sign index 0-11
+    """
+    sign_idx = int(longitude / 30) % 12
+    degree_in_sign = longitude % 30
+    navamsa_pada = int(degree_in_sign / (30 / 9))  # 0-8 within the sign
+
+    # Starting point depends on sign type (Movable/Fixed/Dual)
+    sign_type = sign_idx % 3
+    if sign_type == 0:    # Movable (Aries, Cancer, Libra, Capricorn) — start from itself
+        start = sign_idx
+    elif sign_type == 1:  # Fixed (Taurus, Leo, Scorpio, Aquarius) — start from 9th
+        start = (sign_idx + 8) % 12
+    else:                 # Dual (Gemini, Virgo, Sagittarius, Pisces) — start from 5th
+        start = (sign_idx + 4) % 12
+
+    navamsa_sign = (start + navamsa_pada) % 12
+    return navamsa_sign
+
+
+def check_navamsa_genuineness(chart: dict) -> dict:
+    """
+    Check if the Prashna question is "Genuine" or "Fruitless" using the Navamsa Lagna.
+
+    Rules (Tajika school):
+    1. If the D1 Lagna lord and the D9 Lagna lord are the same or friendly → Genuine.
+    2. If the D9 Lagna falls in a Dusthana (6, 8, 12) from the D1 Lagna → Fruitless suspicion.
+    3. If Moon's Navamsa is in a Kendra (1, 4, 7, 10) from the Navamsa Lagna → Genuine.
+
+    Returns:
+        {"genuine": bool, "navamsa_lagna_sign": int, "reason": str, "penalty": int}
+    """
+    lagna_lon = chart.get("lagna", 0)
+    lagna_sign = chart.get("lagna_sign", 0)
+
+    # Calculate Navamsa Lagna
+    nav_lagna_sign = calculate_navamsa_sign(lagna_lon)
+
+    # Calculate Moon's Navamsa
+    moon = chart["planets"].get(1)
+    moon_nav_sign = calculate_navamsa_sign(moon["longitude"]) if moon else None
+
+    # Check 1: D9 Lagna lord vs D1 Lagna lord relationship
+    d1_lord = get_sign_lord(lagna_sign)
+    d9_lord = get_sign_lord(nav_lagna_sign)
+
+    # Natural friendships (simplified Vedic friendship table)
+    FRIENDSHIPS = {
+        0: {1, 4, 5},       # Sun friends: Moon, Mars, Jupiter
+        1: {0, 2},           # Moon friends: Sun, Mercury
+        2: {0, 3},           # Mercury friends: Sun, Venus
+        3: {2, 6},           # Venus friends: Mercury, Saturn
+        4: {0, 1, 5},        # Mars friends: Sun, Moon, Jupiter
+        5: {0, 1, 4},        # Jupiter friends: Sun, Moon, Mars
+        6: {2, 3},           # Saturn friends: Mercury, Venus
+    }
+
+    same_or_friendly = (d1_lord == d9_lord) or (d9_lord in FRIENDSHIPS.get(d1_lord, set()))
+
+    # Check 2: D9 Lagna distance from D1 Lagna
+    dist_d9_from_d1 = (nav_lagna_sign - lagna_sign) % 12
+    dusthana_from_d1 = dist_d9_from_d1 in [5, 7, 11]  # 6th(idx5), 8th(idx7), 12th(idx11)
+
+    # Check 3: Moon's Navamsa in Kendra from Navamsa Lagna
+    moon_nav_kendra = False
+    if moon_nav_sign is not None:
+        moon_dist = (moon_nav_sign - nav_lagna_sign) % 12
+        moon_nav_kendra = moon_dist in [0, 3, 6, 9]  # 1st, 4th, 7th, 10th
+
+    # Determine genuineness
+    genuine = True
+    penalty = 0
+    reasons = []
+
+    if dusthana_from_d1 and not same_or_friendly:
+        genuine = False
+        penalty = -10
+        reasons.append("Navamsa Lagna falls in a difficult position from the Ascendant — question may lack focus")
+    elif same_or_friendly:
+        reasons.append("Ascendant lords aligned — the question is well-timed")
+    else:
+        reasons.append("Navamsa Lagna neutral — question is valid")
+
+    if moon_nav_kendra:
+        genuine = True  # Moon in Kendra overrides dusthana concern
+        reasons.append("Moon's deeper position confirms sincerity")
+        if penalty < 0:
+            penalty = -5  # Reduce penalty but don't eliminate
+
+    return {
+        "genuine": genuine,
+        "navamsa_lagna_sign": nav_lagna_sign,
+        "navamsa_lagna_name": sign_name(nav_lagna_sign),
+        "moon_navamsa_sign": moon_nav_sign,
+        "moon_navamsa_name": sign_name(moon_nav_sign) if moon_nav_sign is not None else None,
+        "d1_lord": planet_name_from_id(d1_lord),
+        "d9_lord": planet_name_from_id(d9_lord),
+        "lords_aligned": same_or_friendly,
+        "moon_nav_kendra": moon_nav_kendra,
+        "reason": ". ".join(reasons),
+        "penalty": penalty,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# VOID OF COURSE MOON
+# ═══════════════════════════════════════════════════════════════════
+
+def check_void_of_course(chart: dict) -> dict:
+    """
+    Check if the Moon is Void of Course — i.e., the Moon will NOT complete
+    any major Tajika aspect (conjunction, sextile, square, trine, opposition)
+    with any planet before it leaves its current sign.
+
+    A Void Moon means the question's energy won't connect to any outcome.
+    Events stall, decisions fizzle. This is a hard penalty on YES verdicts.
+
+    Logic:
+    1. Get Moon's current longitude and sign.
+    2. Calculate how many degrees remain before Moon enters the next sign.
+    3. For each other planet, check if the Moon will form any Tajika aspect
+       (within orb) before leaving the sign.
+    4. If NO aspects are found → Moon is Void of Course.
+
+    Returns:
+        {"void_of_course": bool, "penalty": int, "reason": str,
+         "degrees_remaining": float, "next_aspect": dict or None}
+    """
+    moon = chart["planets"].get(1)
+    if not moon:
+        return {"void_of_course": False, "penalty": 0, "reason": "Moon data unavailable"}
+
+    moon_lon = moon["longitude"]
+    moon_sign = moon["sign"]
+    moon_speed = moon["daily_speed"]
+    degree_in_sign = moon_lon % 30
+    degrees_to_sign_end = 30 - degree_in_sign
+
+    # If Moon is retrograde (very rare but possible), skip VoC check
+    if moon_speed <= 0:
+        return {
+            "void_of_course": False,
+            "penalty": 0,
+            "reason": "Moon is retrograde — Void of Course check not applicable",
+            "degrees_remaining": degrees_to_sign_end,
+            "next_aspect": None,
         }
 
-    # Ketu = opposite of Rahu
-    rahu_long = planets["Rahu"]["longitude"]
-    ketu_long = (rahu_long + 180) % 360
-    ketu_sign_idx = int(ketu_long / 30)
-    planets["Ketu"] = {
-        "sign":      SIGNS[ketu_sign_idx],
-        "degree":    round(ketu_long % 30, 2),
-        "longitude": round(ketu_long, 4),
-        "house":     ((ketu_sign_idx - lagna_idx) % 12) + 1,
-        "nakshatra": NAKSHATRAS[int(ketu_long/(360/27)) % 27],
-    }
+    # Check every planet for upcoming aspects
+    moon_orb = TAJIKA_ORBS["Moon"]
+    closest_aspect = None
+    closest_distance = 999
 
-    # Moon nakshatra
-    moon_nak  = planets["Moon"]["nakshatra"]
-    nak_quality, nak_desc = PRASHNA_NAKSHATRA.get(moon_nak, ("mixed","moderate"))
+    for pid, pdata in chart["planets"].items():
+        if pid == 1:  # Skip Moon itself
+            continue
+
+        planet_lon = pdata["longitude"]
+        planet_name = pdata["name"]
+        planet_orb = TAJIKA_ORBS.get(planet_name, 9)
+        combined_orb = (moon_orb + planet_orb) / 2
+
+        for aspect_angle in TAJIKA_ASPECTS:
+            # Where the Moon needs to be for this aspect
+            target_1 = normalize_angle(planet_lon + aspect_angle)
+            target_2 = normalize_angle(planet_lon - aspect_angle)
+
+            for target in [target_1, target_2]:
+                # Only count if target is in the Moon's current sign
+                target_sign = int(target / 30) % 12
+                if target_sign != moon_sign:
+                    continue
+
+                # How far must the Moon travel (forward) to reach this target?
+                forward_to_target = (target - moon_lon) % 360
+
+                # Must be reachable before sign boundary AND within orb approach
+                if 0 < forward_to_target <= degrees_to_sign_end:
+                    if forward_to_target < closest_distance:
+                        closest_distance = forward_to_target
+                        closest_aspect = {
+                            "planet": planet_name,
+                            "aspect": aspect_angle,
+                            "degrees_away": round(forward_to_target, 2),
+                        }
+
+    if closest_aspect is None:
+        # Moon makes NO aspects before leaving its sign → Void of Course
+        return {
+            "void_of_course": True,
+            "penalty": -15,
+            "reason": f"Moon makes no further connections before leaving {sign_name(moon_sign)} — energy dissipates, outcomes stall",
+            "degrees_remaining": round(degrees_to_sign_end, 2),
+            "next_aspect": None,
+        }
+    else:
+        return {
+            "void_of_course": False,
+            "penalty": 0,
+            "reason": f"Moon will connect with {closest_aspect['planet']} ({closest_aspect['aspect']}° aspect) in {closest_aspect['degrees_away']:.1f}° — question has momentum",
+            "degrees_remaining": round(degrees_to_sign_end, 2),
+            "next_aspect": closest_aspect,
+        }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# STEP 0: CAST THE MOMENT CHART
+# ═══════════════════════════════════════════════════════════════════
+
+def cast_prashna_chart(lat: float, lng: float, timestamp: datetime) -> dict:
+    """
+    Cast a full Prashna (Horary) chart for the exact moment of inquiry.
+
+    Args:
+        lat: User's current latitude
+        lng: User's current longitude
+        timestamp: Exact moment of the question (UTC)
+
+    Returns:
+        dict with lagna, cusps, planets (positions + speeds + houses)
+    """
+    if swe is None:
+        raise ImportError("swisseph not installed — cannot cast chart")
+
+    # Set sidereal mode (Lahiri ayanamsha)
+    swe.set_sid_mode(swe.SIDM_LAHIRI)
+
+    # Convert to Julian Day
+    hour_decimal = timestamp.hour + timestamp.minute / 60.0 + timestamp.second / 3600.0
+    jd = swe.julday(timestamp.year, timestamp.month, timestamp.day, hour_decimal)
+
+    # Calculate house cusps (Placidus)
+    cusps_tuple, asc_mc = swe.houses_ex(jd, lat, lng, b'P', swe.FLG_SIDEREAL)
+    cusps = list(cusps_tuple)  # 12 cusps
+    prashna_lagna = asc_mc[0]  # Ascendant degree (sidereal)
+    lagna_sign = int(prashna_lagna / 30)
+    lagna_degree = prashna_lagna % 30
+
+    # Calculate planetary positions
+    SWE_IDS = [swe.SUN, swe.MOON, swe.MERCURY, swe.VENUS, swe.MARS, swe.JUPITER, swe.SATURN]
+    planets = {}
+
+    for p_id in SWE_IDS:
+        result = swe.calc_ut(jd, p_id, swe.FLG_SIDEREAL | swe.FLG_SPEED)
+        # result is a tuple: ((longitude, latitude, distance, speed_long, ...), return_flag)
+        lon = result[0]
+        longitude = lon[0]
+        daily_speed = lon[3]
+        sign_idx = int(longitude / 30)
+        degree_in_sign = longitude % 30
+        house = assign_planet_to_house(longitude, cusps)
+        nak = get_nakshatra(longitude)
+
+        planets[p_id] = {
+            "id": p_id,
+            "name": planet_name_from_id(p_id),
+            "longitude": round(longitude, 4),
+            "sign": sign_idx,
+            "sign_name": sign_name(sign_idx),
+            "degree_in_sign": round(degree_in_sign, 4),
+            "daily_speed": round(daily_speed, 6),
+            "retrograde": daily_speed < 0,
+            "house": house,
+            "nakshatra": nak["name"],
+            "nakshatra_pada": nak["pada"],
+        }
+
+    # Also compute Rahu/Ketu (mean node)
+    rahu_result = swe.calc_ut(jd, swe.MEAN_NODE, swe.FLG_SIDEREAL | swe.FLG_SPEED)
+    rahu_lon = rahu_result[0][0]
+    ketu_lon = normalize_angle(rahu_lon + 180)
+
+    moon_data = planets[swe.MOON]
+    moon_nak = get_nakshatra(moon_data["longitude"])
+
+    # Navamsa (D9) Lagna for genuineness check
+    nav_lagna_sign = calculate_navamsa_sign(prashna_lagna)
 
     return {
-        "question_time": question_time.isoformat(),
-        "jd":            jd,
-        "lagna":         {"sign": lagna_sign, "degree": round(lagna_deg, 2)},
-        "lagna_lord":    SIGN_LORDS.get(lagna_sign, ""),
-        "planets":       planets,
-        "moon_nakshatra": moon_nak,
-        "moon_nak_quality": nak_quality,
-        "moon_nak_desc":    nak_desc,
-        "lat":           lat,
-        "lng":           lng,
+        "timestamp": timestamp.isoformat(),
+        "lat": lat,
+        "lng": lng,
+        "jd": round(jd, 6),
+        "lagna": round(prashna_lagna, 4),
+        "lagna_sign": lagna_sign,
+        "lagna_sign_name": sign_name(lagna_sign),
+        "lagna_degree": round(lagna_degree, 4),
+        "lagna_nakshatra": get_nakshatra(prashna_lagna)["name"],
+        "navamsa_lagna_sign": nav_lagna_sign,
+        "navamsa_lagna_name": sign_name(nav_lagna_sign),
+        "cusps": [round(c, 4) for c in cusps],
+        "planets": planets,
+        "rahu_longitude": round(rahu_lon, 4),
+        "ketu_longitude": round(ketu_lon, 4),
+        "moon_nakshatra": moon_nak["name"],
+        "moon_house": moon_data["house"],
     }
 
 
-def detect_question_type(question: str) -> tuple:
-    """Detect what type of question is being asked."""
+# ═══════════════════════════════════════════════════════════════════
+# DOMAIN DETECTION & ROUTING
+# ═══════════════════════════════════════════════════════════════════
+
+def detect_prashna_intent(question: str) -> bool:
+    """Check if the question has Yes/No intent."""
+    for pattern in PRASHNA_PATTERNS:
+        if pattern.search(question):
+            return True
+    return False
+
+def detect_domain(question: str) -> Tuple[str, List[int]]:
+    """
+    Detect the life domain from the question and return the house(s) of interest.
+    Returns: (domain_name, [house_numbers])
+    """
     q_lower = question.lower()
 
-    KEYWORDS = {
-        "job":        ["job","employment","hired","get hired","job offer"],
-        "career":     ["career","profession","path","calling"],
-        "promotion":  ["promotion","promoted","raise","increment","senior"],
-        "business":   ["business","company","startup","venture","enterprise"],
-        "money":      ["money","salary","income","earn","financial"],
-        "wealth":     ["wealth","rich","billionaire","wealthy","affluent"],
-        "loan":       ["loan","debt","borrow","repay","emi","credit"],
-        "marriage":   ["marry","marriage","wedding","spouse","husband","wife"],
-        "relationship":["relationship","partner","girlfriend","boyfriend","dating"],
-        "love":       ["love","romance","romantic","fall in love","soulmate"],
-        "breakup":    ["breakup","break up","separate","split","end relationship"],
-        "divorce":    ["divorce","separated","divorce"],
-        "children":   ["children","child","baby","conceive","parent"],
-        "pregnancy":  ["pregnant","pregnancy","conceive","ivf","fertility"],
-        "health":     ["health","illness","sick","disease","recover","cure"],
-        "surgery":    ["surgery","operation","hospital","procedure"],
-        "travel":     ["travel","trip","journey","visit","go to"],
-        "foreign":    ["abroad","foreign","immigration","visa","overseas","move"],
-        "property":   ["property","house","flat","apartment","buy home","land"],
-        "legal":      ["legal","lawyer","case","court","lawsuit","dispute"],
-        "court":      ["court","judge","hearing","verdict","trial"],
-        "education":  ["education","study","course","degree","university","college"],
-        "exam":       ["exam","test","result","pass","fail","score"],
-        "interview":  ["interview","selection","placement","offer letter"],
-        "vehicle":    ["car","vehicle","bike","motorcycle","buy car"],
-        "government": ["government","ias","ips","civil service","government job"],
-        "spiritual":  ["spiritual","meditation","moksha","enlightenment","guru"],
-        "investment": ["invest","investment","stock","share","mutual fund","crypto"],
-        "startup":    ["startup","fundraise","investor","pitch","funding","seed"],
-        "lost":       ["lost","missing item","where is","find"],
-        "theft":      ["stolen","theft","robbery","burglar"],
-    }
+    # Check each domain keyword
+    for keyword, houses in DOMAIN_HOUSE_MAP.items():
+        if keyword in q_lower:
+            return keyword, houses
 
-    scores = {}
-    for qtype, keywords in KEYWORDS.items():
-        score = sum(1 for kw in keywords if kw in q_lower)
-        if score > 0:
-            scores[qtype] = score
+    # Broader pattern matching
+    if any(w in q_lower for w in ["raise", "boss", "resign", "hired", "fired", "interview"]):
+        return "career", [10]
+    if any(w in q_lower for w in ["marry", "divorce", "engaged", "dating", "girlfriend", "boyfriend", "wife", "husband"]):
+        return "relationship", [7]
+    if any(w in q_lower for w in ["buy", "sell", "stock", "crypto", "deal", "profit", "loss"]):
+        return "finance", [2, 11]
+    if any(w in q_lower for w in ["sick", "doctor", "hospital", "medicine", "recover"]):
+        return "health", [6]
+    if any(w in q_lower for w in ["pregnant", "conceive", "child", "kid", "son", "daughter"]):
+        return "children", [5]
+    if any(w in q_lower for w in ["passport", "migrate", "immigration", "relocate", "foreign"]):
+        return "travel", [9, 12]
+    if any(w in q_lower for w in ["degree", "admission", "university", "school", "test"]):
+        return "education", [4, 5]
 
-    if not scores:
-        return "career", QUESTION_SIGNIFICATORS["career"]
-
-    best = max(scores, key=scores.get)
-    return best, QUESTION_SIGNIFICATORS.get(best, QUESTION_SIGNIFICATORS["career"])
+    # Default: 10th house (general success)
+    return "general", [10]
 
 
-def analyze_tajika_aspects(planets: dict, sig_house: int, lagna_idx: int) -> dict:
+# ═══════════════════════════════════════════════════════════════════
+# STEP A: LAGNA STRENGTH (+25%)
+# ═══════════════════════════════════════════════════════════════════
+
+def check_lagna_strength(chart: dict) -> dict:
     """
-    Tajika aspect analysis — approaching vs separating.
-    Ithasala (approaching) = YES, will happen
-    Ishrafa (separating) = NO, won't happen
-    Musaripha = transfer of light = through a third party
+    Check if a natural benefic (Jupiter, Venus, Mercury) is in the 1st house
+    or aspects the Lagna sign via Rashi Drishti.
+    Returns: {"score": 0 or 25, "reason": str}
     """
-    # Get significator sign
-    sig_sign_idx = (lagna_idx + sig_house - 1) % 12
+    lagna_sign = chart["lagna_sign"]
+    planets = chart["planets"]
 
-    # Find planets in or aspecting the significator house
-    sig_planets = [p for p, d in planets.items()
-                   if d.get("house") == sig_house]
+    for pid, pdata in planets.items():
+        p_name = pdata["name"]
+        if pid not in BENEFIC_IDS:
+            continue
 
-    # Find approaching aspects (Ithasala)
-    ithasala = []
-    ishrafa  = []
+        # Check if in 1st house
+        if pdata["house"] == 1:
+            return {
+                "score": 25,
+                "reason": f"{p_name} is in the 1st house — strong environment for success"
+            }
 
-    for p1_name, p1_data in planets.items():
-        for p2_name, p2_data in planets.items():
-            if p1_name >= p2_name:
-                continue
+        # Check Rashi Drishti to lagna sign
+        aspected_signs = get_rashi_drishti(pdata["sign"])
+        if lagna_sign in aspected_signs:
+            return {
+                "score": 25,
+                "reason": f"{p_name} aspects the Lagna from {pdata['sign_name']} — supportive energy"
+            }
 
-            p1_long = p1_data.get("longitude", 0)
-            p2_long = p2_data.get("longitude", 0)
+    # Also check waxing Moon (benefic when waxing)
+    moon = planets.get(1)  # swe.MOON = 1
+    sun = planets.get(0)   # swe.SUN = 0
+    if moon and sun:
+        moon_sun_dist = (moon["longitude"] - sun["longitude"]) % 360
+        if moon_sun_dist < 180:  # Waxing
+            if moon["house"] == 1:
+                return {
+                    "score": 25,
+                    "reason": "Waxing Moon in the 1st house — favorable mental environment"
+                }
 
-            diff = abs(p1_long - p2_long) % 360
-            if diff > 180:
-                diff = 360 - diff
+    return {"score": 0, "reason": "No benefic influence on the Lagna"}
 
-            # Check each Tajika aspect
-            for asp_name, asp_deg in TAJIKA_ASPECTS.items():
-                orb = abs(diff - asp_deg)
-                if orb <= TAJIKA_ORB:
-                    # Is it applying (approaching) or separating?
-                    # Slower planet catching faster = applying
-                    # If p1 is faster and moving away = separating
-                    is_applying = orb < 3  # within 3° = very close, applying
 
-                    entry = {
-                        "planet1":   p1_name,
-                        "planet2":   p2_name,
-                        "aspect":    asp_name,
-                        "orb":       round(orb, 2),
-                        "applying":  is_applying,
-                        "quality":   "benefic" if (p1_name in BENEFICS and p2_name in BENEFICS) else
-                                     "malefic" if (p1_name in MALEFICS and p2_name in MALEFICS) else
-                                     "mixed",
+# ═══════════════════════════════════════════════════════════════════
+# STEP B: LORD CONNECTION (+25%)
+# ═══════════════════════════════════════════════════════════════════
+
+def check_lord_connection(chart: dict, houses_of_interest: List[int]) -> dict:
+    """
+    Check if Lord of 1st house and Lord of the house of interest are
+    in mutual aspect or Trikona (1-5-9) relationship.
+    """
+    lagna_sign = chart["lagna_sign"]
+    lord_1_id = get_sign_lord(lagna_sign)
+    planets = chart["planets"]
+
+    if lord_1_id not in planets:
+        return {"score": 0, "reason": "Cannot determine Lord of 1st house"}
+
+    lord_1_data = planets[lord_1_id]
+    lord_1_sign = lord_1_data["sign"]
+
+    best_result = {"score": 0, "reason": "No connection between querent and goal"}
+
+    for house_num in houses_of_interest:
+        # Get the sign on the cusp of the house of interest
+        cusp_long = chart["cusps"][house_num - 1]
+        house_sign = int(cusp_long / 30) % 12
+        lord_x_id = get_sign_lord(house_sign)
+
+        if lord_x_id not in planets:
+            continue
+
+        lord_x_data = planets[lord_x_id]
+        lord_x_sign = lord_x_data["sign"]
+
+        # Same sign (conjunction)
+        if lord_1_sign == lord_x_sign:
+            return {
+                "score": 25,
+                "reason": f"Lords of 1st and {house_num}th house are conjunct in {sign_name(lord_1_sign)} — strong connection",
+                "house": house_num,
+                "lord_1": lord_1_data["name"],
+                "lord_x": lord_x_data["name"],
+            }
+
+        # Trikona (1-5-9 relationship)
+        dist = (lord_x_sign - lord_1_sign) % 12
+        if dist in [0, 4, 8] or (12 - dist) in [4, 8]:
+            return {
+                "score": 25,
+                "reason": f"Lords are in Trikona — harmonious flow between querent and goal",
+                "house": house_num,
+                "lord_1": lord_1_data["name"],
+                "lord_x": lord_x_data["name"],
+            }
+
+        # Mutual aspect (7th from each other)
+        if dist == 6:
+            return {
+                "score": 25,
+                "reason": f"Lords in mutual 7th aspect — direct confrontation leading to resolution",
+                "house": house_num,
+                "lord_1": lord_1_data["name"],
+                "lord_x": lord_x_data["name"],
+            }
+
+        # Rashi Drishti
+        if lord_x_sign in get_rashi_drishti(lord_1_sign):
+            best_result = {
+                "score": 25,
+                "reason": f"Lords connected via Rashi Drishti — indirect but present connection",
+                "house": house_num,
+                "lord_1": lord_1_data["name"],
+                "lord_x": lord_x_data["name"],
+            }
+
+    return best_result
+
+
+# ═══════════════════════════════════════════════════════════════════
+# STEP C: ITHASALA YOGA — THE VERDICT ENGINE (+35% / -35%)
+# ═══════════════════════════════════════════════════════════════════
+
+def check_ithasala(chart: dict, planet_a_id: int, planet_b_id: int) -> dict:
+    """
+    Check Ithasala (Applying) or Ishrafa (Separating) between two planets.
+    The faster planet must be behind the slower one and moving toward it.
+
+    Returns:
+        {"type": "ithasala"|"ishrafa"|"neutral",
+         "score": +35 or -35 or 0,
+         "aspect": angle or None,
+         "reason": str}
+    """
+    planets = chart["planets"]
+
+    if planet_a_id not in planets or planet_b_id not in planets:
+        return {"type": "neutral", "score": 0, "aspect": None, "reason": "Planet not found"}
+
+    pa = planets[planet_a_id]
+    pb = planets[planet_b_id]
+
+    # Determine faster planet by actual daily speed
+    if abs(pa["daily_speed"]) > abs(pb["daily_speed"]):
+        faster, slower = pa, pb
+    else:
+        faster, slower = pb, pa
+
+    # Retrograde check — if faster planet is retrograde, Ithasala breaks
+    if faster["retrograde"]:
+        return {
+            "type": "ishrafa",
+            "score": -35,
+            "aspect": None,
+            "reason": f"{faster['name']} is retrograde — moving away from completion",
+            "faster": faster["name"],
+            "slower": slower["name"],
+        }
+
+    faster_name = faster["name"]
+    slower_name = slower["name"]
+    faster_orb = TAJIKA_ORBS.get(faster_name, 9)
+    slower_orb = TAJIKA_ORBS.get(slower_name, 9)
+    combined_orb = (faster_orb + slower_orb) / 2
+
+    faster_lon = faster["longitude"]
+    slower_lon = slower["longitude"]
+
+    # Check each Tajika aspect angle
+    for aspect_angle in TAJIKA_ASPECTS:
+        # Where the faster planet needs to be for this aspect
+        target_lon = normalize_angle(slower_lon - aspect_angle)
+        alt_target = normalize_angle(slower_lon + aspect_angle)
+
+        for target in [target_lon, alt_target]:
+            dist = angular_distance(faster_lon, target)
+            if dist <= combined_orb:
+                # Within orb — is it applying or separating?
+                # Applying: faster planet's longitude < target (it hasn't reached the aspect yet)
+                # We check if the faster planet will reach the target by moving forward
+                forward_dist = (target - faster_lon) % 360
+                if forward_dist <= combined_orb and faster["daily_speed"] > 0:
+                    # Applying aspect
+                    return {
+                        "type": "ithasala",
+                        "score": 35,
+                        "aspect": aspect_angle,
+                        "reason": f"{faster_name} is applying toward {slower_name} ({aspect_angle}° aspect) — event is moving toward completion",
+                        "faster": faster_name,
+                        "slower": slower_name,
+                        "orb": round(dist, 2),
+                    }
+                else:
+                    # Separating aspect
+                    return {
+                        "type": "ishrafa",
+                        "score": -35,
+                        "aspect": aspect_angle,
+                        "reason": f"{faster_name} is separating from {slower_name} — the opportunity window has passed",
+                        "faster": faster_name,
+                        "slower": slower_name,
+                        "orb": round(dist, 2),
                     }
 
-                    if is_applying:
-                        ithasala.append(entry)
-                    else:
-                        ishrafa.append(entry)
-
     return {
-        "ithasala":     ithasala[:5],
-        "ishrafa":      ishrafa[:5],
-        "sig_planets":  sig_planets,
-        "applying_count": len(ithasala),
-        "separating_count": len(ishrafa),
+        "type": "neutral",
+        "score": 0,
+        "aspect": None,
+        "reason": f"No Tajika aspect between {faster_name} and {slower_name} within orb",
+        "faster": faster_name,
+        "slower": slower_name,
     }
 
 
-def calculate_prashna_answer(
-    prashna_chart: dict,
-    question_type: str,
-    significator: dict,
-    natal_chart: dict = None,
+def check_ithasala_for_houses(chart: dict, houses_of_interest: List[int]) -> dict:
+    """Run Ithasala check between Lord of 1st and Lord of house(s) of interest."""
+    lagna_sign = chart["lagna_sign"]
+    lord_1_id = get_sign_lord(lagna_sign)
+
+    best_result = {"type": "neutral", "score": 0, "aspect": None, "reason": "No connection"}
+
+    for house_num in houses_of_interest:
+        cusp_long = chart["cusps"][house_num - 1]
+        house_sign = int(cusp_long / 30) % 12
+        lord_x_id = get_sign_lord(house_sign)
+
+        if lord_1_id == lord_x_id:
+            # Same lord rules both houses — inherent connection
+            return {
+                "type": "ithasala",
+                "score": 35,
+                "aspect": 0,
+                "reason": "Same planet rules both the querent and the goal — inherent alignment",
+                "lord_1": planet_name_from_id(lord_1_id),
+                "lord_x": planet_name_from_id(lord_x_id),
+                "house": house_num,
+            }
+
+        result = check_ithasala(chart, lord_1_id, lord_x_id)
+        result["house"] = house_num
+        result["lord_1"] = planet_name_from_id(lord_1_id)
+        result["lord_x"] = planet_name_from_id(lord_x_id)
+
+        # Priority: ithasala > ishrafa > neutral
+        # An ithasala always wins. An ishrafa beats neutral (it's a definitive answer).
+        if result["type"] == "ithasala":
+            return result  # Best possible — return immediately
+        if result["type"] == "ishrafa" and best_result["type"] == "neutral":
+            best_result = result  # Ishrafa is definitive — better than "no data"
+        elif result["score"] > best_result.get("score", -999):
+            best_result = result
+
+    return best_result
+
+
+# ═══════════════════════════════════════════════════════════════════
+# STEP D: MOON VALIDATION (+15%)
+# ═══════════════════════════════════════════════════════════════════
+
+def check_moon_validation(chart: dict) -> dict:
+    """
+    Moon in Upachaya houses (3, 6, 10, 11) = growth/success energy (+15%).
+    Also checks waxing/waning and void-of-course.
+    """
+    moon = chart["planets"].get(1)  # swe.MOON = 1
+    if not moon:
+        return {"score": 0, "reason": "Moon data not available"}
+
+    moon_house = moon["house"]
+    UPACHAYA = [3, 6, 10, 11]
+
+    result = {
+        "moon_house": moon_house,
+        "moon_sign": moon["sign_name"],
+        "moon_nakshatra": moon["nakshatra"],
+    }
+
+    if moon_house in UPACHAYA:
+        result["score"] = 15
+        result["reason"] = f"Moon in {moon_house}th house (Upachaya) — growth energy supports the question"
+    else:
+        result["score"] = 0
+        house_quality = "angular" if moon_house in [1, 4, 7, 10] else "succedent" if moon_house in [2, 5, 8, 11] else "cadent"
+        result["reason"] = f"Moon in {moon_house}th house ({house_quality}) — neutral for this inquiry"
+
+    # Waxing/Waning check
+    sun = chart["planets"].get(0)
+    if sun and moon:
+        moon_sun_dist = (moon["longitude"] - sun["longitude"]) % 360
+        result["waxing"] = moon_sun_dist < 180
+        if result["waxing"]:
+            result["reason"] += ". Waxing Moon adds optimism."
+
+    return result
+
+
+# ═══════════════════════════════════════════════════════════════════
+# EDGE CASES: MUTHASHILA, NAKTA, YAMAYA
+# ═══════════════════════════════════════════════════════════════════
+
+def check_muthashila(chart: dict, lord_1_id: int, lord_x_id: int) -> Optional[dict]:
+    """
+    Muthashila: Significators within 1° of exact aspect.
+    Event is imminent. Overrides to 95%+.
+    """
+    planets = chart["planets"]
+    if lord_1_id not in planets or lord_x_id not in planets:
+        return None
+
+    p1 = planets[lord_1_id]
+    px = planets[lord_x_id]
+    diff = angular_distance(p1["longitude"], px["longitude"])
+
+    for angle in TAJIKA_ASPECTS:
+        dist_to_exact = abs(diff - angle)
+        if dist_to_exact < 1.0:
+            return {
+                "yoga": "muthashila",
+                "score": 95,
+                "reason": f"{p1['name']} and {px['name']} are within {dist_to_exact:.2f}° of exact {angle}° aspect — event is imminent",
+                "override": True,
+            }
+    return None
+
+
+def check_nakta(chart: dict, lord_1_id: int, lord_x_id: int) -> Optional[dict]:
+    """
+    Nakta: No direct Ithasala, but Moon bridges both significators.
+    YES through a third party / mediator.
+    """
+    moon_id = 1  # swe.MOON
+
+    if lord_1_id == moon_id or lord_x_id == moon_id:
+        return None  # Moon is already a significator
+
+    bridge_to_1 = check_ithasala(chart, moon_id, lord_1_id)
+    bridge_to_x = check_ithasala(chart, moon_id, lord_x_id)
+
+    if bridge_to_1["type"] == "ithasala" and bridge_to_x["type"] == "ithasala":
+        return {
+            "yoga": "nakta",
+            "score": 25,
+            "reason": "Moon bridges both significators — success through a third party or mediator",
+        }
+    return None
+
+
+def check_yamaya(chart: dict, lord_1_id: int, lord_x_id: int) -> Optional[dict]:
+    """
+    Yamaya: A slower planet (Jupiter/Saturn) receives aspect from both significators.
+    YES through authority or institutional support.
+    """
+    SLOW_PLANETS = [5, 6]  # Jupiter, Saturn
+
+    for slow_id in SLOW_PLANETS:
+        if slow_id == lord_1_id or slow_id == lord_x_id:
+            continue
+
+        recv_1 = check_ithasala(chart, lord_1_id, slow_id)
+        recv_x = check_ithasala(chart, lord_x_id, slow_id)
+
+        if recv_1["type"] == "ithasala" and recv_x["type"] == "ithasala":
+            slow_name = planet_name_from_id(slow_id)
+            return {
+                "yoga": "yamaya",
+                "score": 20,
+                "reason": f"{slow_name} receives energy from both significators — success through authority or institutional support",
+            }
+    return None
+
+
+def check_edge_yogas(chart: dict, lord_1_id: int, lord_x_id: int) -> Optional[dict]:
+    """Run all three edge-case yoga checks. Returns the first match or None."""
+    # Priority: Muthashila > Nakta > Yamaya
+    result = check_muthashila(chart, lord_1_id, lord_x_id)
+    if result:
+        return result
+
+    result = check_nakta(chart, lord_1_id, lord_x_id)
+    if result:
+        return result
+
+    result = check_yamaya(chart, lord_1_id, lord_x_id)
+    if result:
+        return result
+
+    return None
+
+
+# ═══════════════════════════════════════════════════════════════════
+# BONUS: MUTUAL RECEPTION (+15%)
+# ═══════════════════════════════════════════════════════════════════
+
+def check_mutual_reception(chart: dict, lord_1_id: int, lord_x_id: int) -> dict:
+    """
+    Mutual Reception: Two planets in each other's signs.
+    Example: Mars in Sagittarius + Jupiter in Aries.
+    """
+    planets = chart["planets"]
+    if lord_1_id not in planets or lord_x_id not in planets:
+        return {"score": 0, "found": False}
+
+    p1 = planets[lord_1_id]
+    px = planets[lord_x_id]
+
+    # Lord of p1's sign is lord_x, and lord of px's sign is lord_1
+    lord_of_p1_sign = get_sign_lord(p1["sign"])
+    lord_of_px_sign = get_sign_lord(px["sign"])
+
+    if lord_of_p1_sign == lord_x_id and lord_of_px_sign == lord_1_id:
+        return {
+            "score": 15,
+            "found": True,
+            "reason": f"{p1['name']} and {px['name']} are in mutual reception — they exchange energy and support each other",
+        }
+
+    return {"score": 0, "found": False}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# REMEDY: WEAKEST PLANET
+# ═══════════════════════════════════════════════════════════════════
+
+def find_weakest_planet(chart: dict) -> dict:
+    """
+    Find the weakest planet in the Prashna chart for remedy suggestion.
+    Weakness = retrograde, in enemy sign, in 6/8/12 houses, lowest speed.
+    """
+    planets = chart["planets"]
+    weakness_scores = {}
+
+    for pid, pdata in planets.items():
+        score = 0
+        reasons = []
+
+        # Retrograde
+        if pdata["retrograde"]:
+            score += 3
+            reasons.append("retrograde")
+
+        # In dusthana houses (6, 8, 12)
+        if pdata["house"] in [6, 8, 12]:
+            score += 2
+            reasons.append(f"in {pdata['house']}th house")
+
+        # Low daily speed (relative to its normal speed)
+        if abs(pdata["daily_speed"]) < 0.1:
+            score += 1
+            reasons.append("slow-moving")
+
+        weakness_scores[pid] = {"score": score, "reasons": reasons, "name": pdata["name"]}
+
+    # Find the weakest
+    weakest_id = max(weakness_scores, key=lambda k: weakness_scores[k]["score"])
+    weakest = weakness_scores[weakest_id]
+
+    return {
+        "planet_id": weakest_id,
+        "planet": weakest["name"],
+        "weakness_score": weakest["score"],
+        "reasons": weakest["reasons"],
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MASTER SCORE: COMBINE ALL STEPS
+# ═══════════════════════════════════════════════════════════════════
+
+def compute_prashna_verdict(
+    chart: dict,
+    question: str,
+    jaimini_data: Optional[dict] = None,
+    natal_dasha: Optional[str] = None,
 ) -> dict:
     """
-    Core Prashna analysis — produces YES/NO/MAYBE + timing + explanation.
+    Master scoring function. Combines all 4 steps + edge cases + bonuses.
 
-    Rules applied:
-    1. Lagna strength
-    2. Moon quality (nakshatra + house)
-    3. Significator house condition
-    4. Karaka planet strength
-    5. Tajika aspects
-    6. Benefic/malefic balance
-    7. Hora (planetary hour at question time)
+    Args:
+        chart: Output of cast_prashna_chart()
+        question: The user's question
+        jaimini_data: Stored jaimini_data JSONB from charts table (for triple-lock)
+        natal_dasha: Current dasha string e.g. "Mars-Moon"
+
+    Returns:
+        Complete verdict dict ready for Claude to explain.
     """
-    planets   = prashna_chart.get("planets", {})
-    lagna     = prashna_chart.get("lagna", {})
-    lagna_sign= lagna.get("sign", "Aries")
-    lagna_lord= prashna_chart.get("lagna_lord", "")
-    lagna_idx = SIGNS.index(lagna_sign) if lagna_sign in SIGNS else 0
+    # Detect domain
+    domain, houses = detect_domain(question)
 
-    moon_nak_quality = prashna_chart.get("moon_nak_quality", "mixed")
-    moon_h   = planets.get("Moon", {}).get("house", 0)
-    moon_sign= planets.get("Moon", {}).get("sign", "")
+    # Determine significators
+    lagna_sign = chart["lagna_sign"]
+    lord_1_id = get_sign_lord(lagna_sign)
 
-    sig_houses  = significator.get("houses", [10])
-    sig_karakas = significator.get("karakas", ["Sun"])
-    sig_house   = sig_houses[0]
+    # Primary house of interest (use first in list)
+    primary_house = houses[0]
+    cusp_long = chart["cusps"][primary_house - 1]
+    house_sign = int(cusp_long / 30) % 12
+    lord_x_id = get_sign_lord(house_sign)
 
-    # Positive and negative indicators
-    yes_factors = []
-    no_factors  = []
-    score       = 50  # start neutral
+    # ─── Step A: Lagna Strength ───
+    step_a = check_lagna_strength(chart)
 
-    # 1. LAGNA STRENGTH
-    lagna_lord_h = planets.get(lagna_lord, {}).get("house", 0)
-    if lagna_lord_h in KENDRA + TRIKONA:
-        yes_factors.append(f"Lagna lord {lagna_lord} in house {lagna_lord_h} — question has strong foundation")
-        score += 10
-    elif lagna_lord_h in DUSTHANA:
-        no_factors.append(f"Lagna lord {lagna_lord} in house {lagna_lord_h} — question faces obstacles")
-        score -= 10
+    # ─── Step B: Lord Connection ───
+    step_b = check_lord_connection(chart, houses)
 
-    lagna_planets = [p for p,d in planets.items() if d.get("house")==1]
-    if any(p in BENEFICS for p in lagna_planets):
-        yes_factors.append(f"Benefic in lagna — favorable first impression, matter proceeds well")
-        score += 10
-    if any(p in MALEFICS for p in lagna_planets):
-        no_factors.append(f"Malefic in lagna — obstacles and delays in the matter")
-        score -= 10
+    # ─── Step C: Ithasala ───
+    step_c = check_ithasala_for_houses(chart, houses)
 
-    # 2. MOON QUALITY
-    if moon_nak_quality == "excellent":
-        yes_factors.append(f"Moon in excellent nakshatra ({prashna_chart.get('moon_nakshatra')}) — very favorable for this question")
-        score += 20
-    elif moon_nak_quality == "good":
-        yes_factors.append(f"Moon in good nakshatra ({prashna_chart.get('moon_nakshatra')}) — positive energy for this matter")
-        score += 10
-    elif moon_nak_quality == "difficult":
-        no_factors.append(f"Moon in difficult nakshatra ({prashna_chart.get('moon_nakshatra')}) — timing is challenging")
-        score -= 15
+    # ─── Step D: Moon Validation ───
+    step_d = check_moon_validation(chart)
 
-    if moon_h in KENDRA + TRIKONA:
-        yes_factors.append(f"Moon in angular/trinal house {moon_h} — emotional alignment with outcome")
-        score += 10
-    elif moon_h in DUSTHANA:
-        no_factors.append(f"Moon in house {moon_h} — emotional anxiety around this matter, clarity lacking")
-        score -= 10
+    # ─── Step D+: Void of Course Moon ───
+    voc = check_void_of_course(chart)
 
-    # 3. SIGNIFICATOR HOUSE
-    planets_in_sig = [p for p,d in planets.items() if d.get("house")==sig_house]
-    if any(p in BENEFICS for p in planets_in_sig):
-        yes_factors.append(f"Benefic planet in house {sig_house} (significator) — matter is supported")
-        score += 15
-    if any(p in MALEFICS for p in planets_in_sig):
-        no_factors.append(f"Malefic in house {sig_house} — significator house under pressure")
-        score -= 10
+    # ─── Navamsa Genuineness Check ───
+    genuineness = check_navamsa_genuineness(chart)
 
-    # 4. KARAKA STRENGTH
-    for karaka in sig_karakas[:2]:
-        k_house = planets.get(karaka, {}).get("house", 0)
-        k_sign  = planets.get(karaka, {}).get("sign", "")
-        if k_house in KENDRA + TRIKONA:
-            yes_factors.append(f"Karaka {karaka} in house {k_house} — karaka strong, supports positive outcome")
-            score += 12
-        if k_sign == EXALTATION.get(karaka):
-            yes_factors.append(f"Karaka {karaka} exalted in {k_sign} — exceptionally powerful, YES strongly indicated")
-            score += 20
-        if k_sign == DEBILITATION.get(karaka):
-            no_factors.append(f"Karaka {karaka} debilitated in {k_sign} — karaka weak, delays or denial")
-            score -= 15
-        if k_house in DUSTHANA:
-            no_factors.append(f"Karaka {karaka} in house {k_house} — karaka in difficulty, obstacles")
-            score -= 10
+    # ─── Edge Cases (only if Ithasala is neutral or negative) ───
+    edge_yoga = None
+    if step_c["type"] != "ithasala":
+        edge_yoga = check_edge_yogas(chart, lord_1_id, lord_x_id)
 
-    # 5. TAJIKA ASPECTS
-    tajika = analyze_tajika_aspects(planets, sig_house, lagna_idx)
-    if tajika["applying_count"] > tajika["separating_count"]:
-        yes_factors.append(f"Tajika Ithasala — {tajika['applying_count']} approaching aspects — matter is moving toward completion")
-        score += 15
-    elif tajika["separating_count"] > tajika["applying_count"]:
-        no_factors.append(f"Tajika Ishrafa — aspects separating — matter is moving away, timing off")
-        score -= 10
+    # ─── Mutual Reception Bonus ───
+    mutual_rec = check_mutual_reception(chart, lord_1_id, lord_x_id)
 
-    # 6. JUPITER OVERALL
-    jup_h = planets.get("Jupiter", {}).get("house", 0)
-    if jup_h in KENDRA + TRIKONA:
-        yes_factors.append(f"Jupiter in house {jup_h} — divine blessing on the matter")
-        score += 10
+    # ─── Compute Base Score ───
+    base_score = step_a["score"] + step_b["score"] + step_c["score"] + step_d["score"]
 
-    # 7. RAHU/KETU FACTOR
-    rahu_h = planets.get("Rahu", {}).get("house", 0)
-    if rahu_h == sig_house:
-        no_factors.append(f"Rahu in significator house {sig_house} — unconventional or delayed outcome")
-        score -= 5
+    # Add mutual reception bonus
+    if mutual_rec["found"]:
+        base_score += mutual_rec["score"]
 
-    # VERDICT
-    score = min(95, max(10, score))
+    # Edge yoga handling
+    if edge_yoga:
+        if edge_yoga.get("override"):
+            # Muthashila overrides everything
+            base_score = edge_yoga["score"]
+        else:
+            # Nakta/Yamaya add to base (but only if base isn't already highly positive)
+            if base_score < 70:
+                base_score += edge_yoga["score"]
 
-    if score >= 75:
+    # ─── Jaimini Triple-Lock Bonus ───
+    jaimini_locks = {"vimsottari": False, "chara_dasha": False, "arudha": False}
+    jaimini_bonus = 0
+
+    if jaimini_data:
+        try:
+            jaimini_locks = _check_jaimini_triple_lock(jaimini_data, domain, houses)
+            lock_count = sum(1 for v in jaimini_locks.values() if v)
+            jaimini_bonus = lock_count * 5  # +5% per lock
+            base_score += jaimini_bonus
+        except Exception as e:
+            logger.warning(f"Jaimini triple-lock check failed: {e}")
+
+    # ─── Void of Course Moon Penalty ───
+    # If Moon is VoC, a YES verdict will stall. Apply hard penalty.
+    if voc["void_of_course"]:
+        base_score += voc["penalty"]  # -15
+
+    # ─── Navamsa Genuineness Penalty ───
+    # If the question is flagged as potentially fruitless, reduce score.
+    if genuineness["penalty"] < 0:
+        base_score += genuineness["penalty"]  # -5 or -10
+
+    # ─── Clamp Score ───
+    final_score = max(0, min(100, base_score))
+
+    # ─── Determine Verdict ───
+    if final_score >= 85:
+        verdict = "STRONG YES"
+        label = "High Confidence"
+    elif final_score >= 65:
         verdict = "YES"
-        confidence = "high"
-        explanation = "Multiple strong positive indicators align. The matter will proceed favorably."
-    elif score >= 60:
-        verdict = "YES — with effort"
-        confidence = "moderate"
-        explanation = "Positive outcome likely but requires active effort and patience."
-    elif score >= 45:
-        verdict = "UNCERTAIN"
-        confidence = "low"
-        explanation = "Mixed indicators — the outcome depends on actions taken in the coming weeks."
-    elif score >= 30:
-        verdict = "DELAY"
-        confidence = "moderate"
-        explanation = "Matter will happen but not immediately. Timing needs adjustment."
+        label = "Favorable"
+    elif final_score >= 40:
+        verdict = "CAUTIOUS YES"
+        label = "Moderate"
+    elif final_score >= 15:
+        verdict = "UNLIKELY"
+        label = "Low Confidence"
+    elif final_score > 0:
+        verdict = "NO"
+        label = "Not Supported"
     else:
-        verdict = "NOT NOW"
-        confidence = "high"
-        explanation = "Current conditions are not favorable. Wait for a better planetary period."
+        verdict = "STRONG NO"
+        label = "Opportunity Passed"
 
-    # TIMING ESTIMATE
-    timing = _estimate_prashna_timing(planets, sig_house, score, question_type)
+    # ─── Timing Estimate ───
+    timing = _estimate_timing(chart, step_c, edge_yoga)
 
-    # REMEDY
-    remedy = _prashna_remedy(question_type, sig_karakas, no_factors)
+    # ─── Weakest Planet for Remedy ───
+    weakest = find_weakest_planet(chart)
 
     return {
-        "verdict":      verdict,
-        "confidence":   confidence,
-        "score":        score,
-        "explanation":  explanation,
-        "yes_factors":  yes_factors,
-        "no_factors":   no_factors,
-        "timing":       timing,
-        "tajika":       tajika,
-        "remedy":       remedy,
-        "moon_quality": moon_nak_quality,
-        "question_type": question_type,
-        "significator_house": sig_house,
+        "verdict": verdict,
+        "score": final_score,
+        "label": label,
+        "domain": domain,
+        "house_of_interest": primary_house,
+        "breakdown": {
+            "lagna_strength": step_a,
+            "lord_connection": step_b,
+            "ithasala": step_c,
+            "moon_validation": step_d,
+            "void_of_course": voc,
+            "navamsa_genuineness": genuineness,
+            "mutual_reception": mutual_rec,
+            "edge_yoga": edge_yoga,
+            "jaimini_locks": jaimini_locks,
+            "jaimini_bonus": jaimini_bonus,
+        },
+        "timing": timing,
+        "prashna_chart": {
+            "lagna_sign": chart["lagna_sign_name"],
+            "lagna_degree": chart["lagna_degree"],
+            "moon_nakshatra": chart["moon_nakshatra"],
+            "moon_house": chart["moon_house"],
+            "significator_1": {
+                "planet": planet_name_from_id(lord_1_id),
+                "house": chart["planets"][lord_1_id]["house"] if lord_1_id in chart["planets"] else None,
+                "sign": chart["planets"][lord_1_id]["sign_name"] if lord_1_id in chart["planets"] else None,
+            },
+            "significator_x": {
+                "planet": planet_name_from_id(lord_x_id),
+                "house": chart["planets"][lord_x_id]["house"] if lord_x_id in chart["planets"] else None,
+                "sign": chart["planets"][lord_x_id]["sign_name"] if lord_x_id in chart["planets"] else None,
+            },
+        },
+        "weakest_planet": weakest,
+        "natal_context": {
+            "dasha": natal_dasha or "unknown",
+            "domain_supported": bool(jaimini_bonus > 0),
+        },
     }
 
 
-def _estimate_prashna_timing(
-    planets: dict, sig_house: int, score: int, question_type: str
-) -> str:
-    """Estimate timing of outcome from planetary positions."""
-    moon_h = planets.get("Moon", {}).get("house", 0)
-    moon_sign = planets.get("Moon", {}).get("sign", "")
+# ═══════════════════════════════════════════════════════════════════
+# JAIMINI TRIPLE-LOCK (Wire 4)
+# ═══════════════════════════════════════════════════════════════════
 
-    MOVABLE = ["Aries","Cancer","Libra","Capricorn"]
-    FIXED   = ["Taurus","Leo","Scorpio","Aquarius"]
-    DUAL    = ["Gemini","Virgo","Sagittarius","Pisces"]
+def _check_jaimini_triple_lock(jaimini_data: dict, domain: str, houses: List[int]) -> dict:
+    """
+    Check the 3 Jaimini locks using stored jaimini_data from the charts table.
 
-    if score >= 70:
-        if moon_sign in MOVABLE:
-            return "Soon — within weeks (movable sign Moon suggests swift movement)"
-        elif moon_sign in FIXED:
-            return "Slowly but surely — 3-6 months (fixed sign Moon indicates steady progress)"
+    Lock 1 — Vimsottari: Is current dasha lord supportive?
+    Lock 2 — Chara Dasha: Does current sign-dasha aspect relevant karaka?
+    Lock 3 — Arudha: Is current sign-dasha favorable from AL?
+    """
+    locks = {"vimsottari": False, "chara_dasha": False, "arudha": False}
+
+    # Parse jaimini_data (might be string or dict)
+    if isinstance(jaimini_data, str):
+        try:
+            jaimini_data = json.loads(jaimini_data)
+        except:
+            return locks
+
+    # Lock 1: Vimsottari — check if current dasha lord is a natural significator for the domain
+    current_md = jaimini_data.get("current_mahadasha", {})
+    if current_md:
+        md_lord = current_md.get("lord", "").lower()
+        # Map domain to planets that naturally support it
+        domain_supportive_planets = {
+            "career": ["sun", "saturn", "mars", "jupiter"],
+            "job": ["sun", "saturn", "mars", "jupiter"],
+            "promotion": ["sun", "jupiter", "mars"],
+            "promoted": ["sun", "jupiter", "mars"],
+            "finance": ["jupiter", "venus", "mercury"],
+            "money": ["jupiter", "venus", "mercury"],
+            "investment": ["jupiter", "mercury", "saturn"],
+            "wealth": ["jupiter", "venus"],
+            "relationship": ["venus", "moon", "jupiter"],
+            "marriage": ["venus", "jupiter"],
+            "love": ["venus", "moon"],
+            "health": ["sun", "mars"],
+            "education": ["jupiter", "mercury"],
+            "travel": ["moon", "jupiter", "rahu"],
+            "children": ["jupiter"],
+            "property": ["mars", "saturn", "venus"],
+            "legal": ["jupiter", "saturn"],
+        }
+        supportive = domain_supportive_planets.get(domain, ["jupiter", "sun"])
+        locks["vimsottari"] = md_lord in supportive
+
+    # Lock 2: Chara Dasha — does current sign aspect the relevant karaka?
+    current_chara = jaimini_data.get("current_chara_dasha", {})
+    karakas = jaimini_data.get("karakas", {})
+    if current_chara and karakas:
+        dasha_sign_idx = current_chara.get("sign_index")
+        # Map domain to karaka
+        domain_karaka_map = {
+            "career": "AmK", "job": "AmK", "promotion": "AmK",
+            "relationship": "DK", "marriage": "DK", "love": "DK",
+            "children": "PK", "baby": "PK",
+            "health": "GK", "illness": "GK",
+        }
+        target_karaka = domain_karaka_map.get(domain, "AmK")
+        karaka_sign = karakas.get(target_karaka, {}).get("sign_index")
+
+        if dasha_sign_idx is not None and karaka_sign is not None:
+            drishti = get_rashi_drishti(dasha_sign_idx)
+            if karaka_sign in drishti or karaka_sign == dasha_sign_idx:
+                locks["chara_dasha"] = True
+
+    # Lock 3: Arudha — is dasha sign favorable from AL?
+    al = jaimini_data.get("arudha_lagna", {})
+    if al and current_chara:
+        al_sign = al.get("sign_index")
+        dasha_sign_idx = current_chara.get("sign_index")
+        if al_sign is not None and dasha_sign_idx is not None:
+            dist_from_al = (dasha_sign_idx - al_sign) % 12
+            favorable = [0, 1, 3, 4, 6, 8, 9, 10]  # 1,2,4,5,7,9,10,11 (0-indexed distances)
+            locks["arudha"] = dist_from_al in favorable
+
+    return locks
+
+
+# ═══════════════════════════════════════════════════════════════════
+# TIMING ESTIMATE
+# ═══════════════════════════════════════════════════════════════════
+
+def _estimate_timing(chart: dict, ithasala_result: dict, edge_yoga: Optional[dict]) -> str:
+    """
+    Estimate when the event will manifest based on Ithasala orb distance.
+    Closer orb = sooner. Wider orb = longer.
+    """
+    if edge_yoga and edge_yoga.get("yoga") == "muthashila":
+        return "Within days — this is imminent"
+
+    if ithasala_result.get("type") == "ithasala":
+        orb = ithasala_result.get("orb", 5)
+        if orb < 2:
+            return "Within the next week"
+        elif orb < 5:
+            return "Within the next 2-3 weeks"
+        elif orb < 8:
+            return "Within the next 1-2 months"
         else:
-            return "2-4 months (dual sign Moon — moderate pace, some back and forth)"
-    elif score >= 50:
-        if moon_sign in MOVABLE:
-            return "1-3 months with effort required"
-        elif moon_sign in FIXED:
-            return "6-12 months — patience is essential"
-        else:
-            return "3-6 months — fluctuating progress"
+            return "Within the next 3-6 months"
+
+    if ithasala_result.get("type") == "ishrafa":
+        return "The window may have passed — review within 2 weeks"
+
+    return "Timing unclear — reassess when conditions shift"
+
+
+# ═══════════════════════════════════════════════════════════════════
+# PROMPT BUILDER FOR CLAUDE
+# ═══════════════════════════════════════════════════════════════════
+
+def build_prashna_prompt(verdict_data: dict, question: str, user_name: str = "User",
+                          locale: str = "global") -> str:
+    """
+    Build the system prompt for Claude to explain the pre-calculated verdict
+    in plain English. Claude does NOT compute — it only explains.
+    """
+    v = verdict_data
+    bd = v["breakdown"]
+    pc = v["prashna_chart"]
+
+    prompt = f"""You are Antar, an executive life advisor. The user asked a Yes/No question and the Prashna (Horary) engine has ALREADY calculated the verdict. Your job is to EXPLAIN the result in plain English. Do NOT compute anything. Use ONLY the facts below.
+
+USER: {user_name}
+QUESTION: {question}
+
+═══ PRE-CALCULATED VERDICT ═══
+VERDICT: {v['verdict']}
+SCORE: {v['score']}%
+LABEL: {v['label']}
+DOMAIN: {v['domain']}
+TIMING: {v['timing']}
+
+═══ PRASHNA CHART (cast at the moment of the question) ═══
+Lagna (Ascendant): {pc['lagna_sign']} at {pc['lagna_degree']:.1f}°
+Moon Nakshatra: {pc['moon_nakshatra']}
+Moon House: {pc['moon_house']}th
+Significator 1 (You): {pc['significator_1']['planet']} in {pc['significator_1']['sign']} ({pc['significator_1']['house']}th house)
+Significator 2 (Goal): {pc['significator_x']['planet']} in {pc['significator_x']['sign']} ({pc['significator_x']['house']}th house)
+
+═══ SCORING BREAKDOWN ═══
+Step A — Environment: {bd['lagna_strength']['score']}% — {bd['lagna_strength']['reason']}
+Step B — Connection: {bd['lord_connection']['score']}% — {bd['lord_connection']['reason']}
+Step C — Momentum: {bd['ithasala']['score']}% ({bd['ithasala']['type']}) — {bd['ithasala']['reason']}
+Step D — Intuition: {bd['moon_validation']['score']}% — {bd['moon_validation']['reason']}
+"""
+
+    # Void of Course Moon
+    voc = bd.get("void_of_course", {})
+    if voc.get("void_of_course"):
+        prompt += f"⚠ VOID OF COURSE MOON: {voc['reason']} (penalty: {voc['penalty']}%)\n"
+    elif voc.get("next_aspect"):
+        prompt += f"Moon Momentum: {voc['reason']}\n"
+
+    # Navamsa Genuineness
+    genuineness = bd.get("navamsa_genuineness", {})
+    if genuineness.get("penalty", 0) < 0:
+        prompt += f"⚠ GENUINENESS FLAG: {genuineness['reason']} (penalty: {genuineness['penalty']}%)\n"
+    elif genuineness.get("genuine"):
+        prompt += f"Question Validity: {genuineness['reason']}\n"
+
+    if bd.get("edge_yoga"):
+        ey = bd["edge_yoga"]
+        prompt += f"Edge Case: {ey['yoga'].title()} — {ey['reason']}\n"
+
+    if bd.get("mutual_reception", {}).get("found"):
+        prompt += f"Bonus: Mutual Reception — {bd['mutual_reception']['reason']}\n"
+
+    locks = bd.get("jaimini_locks", {})
+    lock_count = sum(1 for v_l in locks.values() if v_l)
+    if lock_count > 0:
+        prompt += f"Jaimini Triple-Lock: {lock_count}/3 passed (+{v['breakdown']['jaimini_bonus']}% bonus)\n"
+
+    # Natal context
+    nc = v.get("natal_context", {})
+    prompt += f"\n═══ NATAL CONTEXT ═══\nCurrent Life Chapter: {nc.get('dasha', 'unknown')}\n"
+
+    # Remedy
+    wp = v.get("weakest_planet", {})
+    prompt += f"\n═══ REMEDY TARGET ═══\nWeakest planet in this chart: {wp.get('planet', 'unknown')}\nWeakness: {', '.join(wp.get('reasons', []))}\n"
+
+    # Instructions
+    is_india = locale.lower() in ["in", "india"]
+
+    prompt += f"""
+═══ YOUR INSTRUCTIONS ═══
+1. Start with the verdict as a single decisive sentence.
+2. Explain WHY in 2-3 sentences using the breakdown above. Reference the momentum (Ithasala) result specifically.
+3. Give the timing window.
+4. End with ONE specific action the user should take this week.
+5. Keep it under 150 words total.
+6. ZERO astrological jargon — no Sanskrit terms, no house numbers, no planet names.
+7. Write as a confident executive advisor, not an astrologer.
+"""
+
+    if is_india:
+        prompt += "8. For the remedy, suggest a specific ritual practice (e.g., 'Donate mustard oil on Saturday').\n"
     else:
-        return "Timing unclear — not favorable in near term. Revisit in 3-6 months."
-
-
-def _prashna_remedy(question_type: str, karakas: list, no_factors: list) -> str:
-    """Specific Prashna remedy based on question type and weak factors."""
-    REMEDIES = {
-        "job":        "Offer water to Sun at sunrise for 11 days. Visit Hanuman temple on Tuesday.",
-        "career":     "Chant Sun mantra (Om Suryaya Namah) 108 times daily. Keep workplace clean.",
-        "business":   "Offer green items to Mercury on Wednesday. Keep Saraswati image at workplace.",
-        "money":      "Offer yellow sweets to Jupiter on Thursday. Keep silver coin in wallet.",
-        "marriage":   "Offer white flowers to Venus on Friday. Fast on Fridays for 7 weeks.",
-        "relationship":"Venus remedy: Keep rose quartz. Offer perfume to Venus on Friday.",
-        "children":   "Jupiter remedy: Offer yellow sweets Thursday. Keep baby elephant figurine.",
-        "health":     "Sun remedy: Sunrise water offering. Moon remedy: Milk to Shiva on Monday.",
-        "travel":     "Mercury remedy: Donate green items Wednesday. Chant Ganesh mantra before travel.",
-        "foreign":    "Rahu remedy: Feed crows. Keep elephant. Donate on Saturdays.",
-        "property":   "Mars remedy: Visit Hanuman temple Tuesday. Donate land or plants.",
-        "legal":      "Saturn remedy: Serve poor Saturday. Jupiter remedy: Donate to education.",
-        "education":  "Mercury + Jupiter remedy: Donate books. Study under a pipal tree.",
-        "investment": "Jupiter remedy: Thursday yellow sweets. Keep account books clean.",
-        "startup":    "Mercury (communication) + Jupiter (expansion): Combined remedies active.",
-    }
-
-    base = REMEDIES.get(question_type, f"Strengthen {karakas[0] if karakas else 'key planet'} through its natural remedy.")
-
-    if no_factors:
-        base += " Additionally: address the obstacles identified in the analysis."
-
-    return base
-
-
-def run_prashna(
-    question: str,
-    lat: float = 28.6139,
-    lng: float = 77.2090,
-    question_time: datetime = None,
-    natal_chart: dict = None,
-) -> dict:
-    """
-    Complete Prashna analysis for a question asked right now.
-    Main entry point.
-    """
-    if question_time is None:
-        question_time = datetime.utcnow()
-
-    # Cast prashna chart
-    prashna_chart = cast_prashna_chart(
-        question_time=question_time,
-        lat=lat, lng=lng,
-    )
-
-    if prashna_chart.get("error"):
-        return {"error": prashna_chart["error"], "verdict": "UNAVAILABLE", "confidence": "none"}
-
-    # Detect question type
-    q_type, significator = detect_question_type(question)
-
-    # Analyze
-    analysis = calculate_prashna_answer(
-        prashna_chart=prashna_chart,
-        question_type=q_type,
-        significator=significator,
-        natal_chart=natal_chart,
-    )
-
-    # Build LLM prompt for narrative answer
-    llm_prompt = build_prashna_llm_prompt(
-        question=question,
-        prashna_chart=prashna_chart,
-        analysis=analysis,
-        q_type=q_type,
-        significator=significator,
-    )
-
-    return {
-        "question":       question,
-        "question_type":  q_type,
-        "question_topic": significator.get("topic",""),
-        "asked_at":       question_time.isoformat(),
-        "prashna_chart":  prashna_chart,
-        "analysis":       analysis,
-        "verdict":        analysis["verdict"],
-        "confidence":     analysis["confidence"],
-        "score":          analysis["score"],
-        "timing":         analysis["timing"],
-        "yes_factors":    analysis["yes_factors"],
-        "no_factors":     analysis["no_factors"],
-        "remedy":         analysis["remedy"],
-        "llm_prompt":     llm_prompt,
-        "lagna":          prashna_chart["lagna"],
-        "moon_nakshatra": prashna_chart["moon_nakshatra"],
-        "moon_quality":   prashna_chart["moon_nak_quality"],
-    }
-
-
-def build_prashna_llm_prompt(
-    question: str,
-    prashna_chart: dict,
-    analysis: dict,
-    q_type: str,
-    significator: dict,
-) -> str:
-    """Build the LLM prompt for Prashna narrative response."""
-    planets = prashna_chart.get("planets", {})
-    lagna   = prashna_chart.get("lagna", {})
-
-    yes_str = "\n".join(f"  + {f}" for f in analysis["yes_factors"][:4])
-    no_str  = "\n".join(f"  - {f}" for f in analysis["no_factors"][:3])
-
-    system = """You are Antar — a precise Vedic astrology AI answering a Prashna (horary) question.
-CRITICAL RULES:
-- Never use Sanskrit terms (no Ithasala, Ishrafa, Dusthana, Karaka)
-- Answer in plain psychological and practical language
-- Lead with the VERDICT — be direct
-- Explain WHY in plain English
-- Give specific timing if favorable
-- Give ONE specific remedy at the end
-- Keep under 200 words total
-- Sound like a wise mentor, not a textbook"""
-
-    moon_data  = planets.get('Moon', {})
-    moon_sign  = moon_data.get('sign','')
-    moon_house = moon_data.get('house','')
-
-    prompt = f"""PRASHNA QUESTION: "{question}"
-QUESTION TYPE: {q_type} — {significator.get('topic','')}
-
-PRASHNA CHART:
-  Lagna: {lagna.get('sign','')} at {lagna.get('degree','')}°
-  Moon: {moon_sign} in {prashna_chart.get('moon_nakshatra','')} (house {moon_house})
-  Moon quality: {prashna_chart.get('moon_nak_quality','')} — {prashna_chart.get('moon_nak_desc','')}
-
-PYTHON ENGINE VERDICT: {analysis['verdict']} (score: {analysis['score']}/100, confidence: {analysis['confidence']})
-TIMING: {analysis['timing']}
-
-SUPPORTING FACTORS (favorable):
-{yes_str if yes_str else '  None significant'}
-
-CHALLENGING FACTORS:
-{no_str if no_str else '  None significant'}
-
-REMEDY: {analysis['remedy']}
-
-Generate a Prashna answer using this structure:
-
-**The Answer**
-[1-2 sentences — direct verdict in plain language. "{analysis['verdict']}" means what practically?]
-
-**Why**
-[2-3 sentences — explain the key factors in plain psychological language. Never say "Dusthana" — say "challenging position". Never say "Karaka" — say "key planet for this matter".]
-
-**When**
-[1-2 sentences — timing estimate in plain language]
-
-**What to do**
-[1 sentence — the specific remedy translated into plain action]"""
+        prompt += "8. For the remedy, suggest a specific energy practice (e.g., 'Express gratitude to a mentor this week').\n"
 
     return prompt
+
+
+# ═══════════════════════════════════════════════════════════════════
+# COOLDOWN CHECK
+# ═══════════════════════════════════════════════════════════════════
+
+def check_cooldown(last_prashna_time: Optional[str], cooldown_hours: int = PRASHNA_COOLDOWN_HOURS) -> dict:
+    """
+    Check if the user is still in cooldown from their last Prashna question.
+
+    Args:
+        last_prashna_time: ISO 8601 timestamp of last question, or None
+        cooldown_hours: Hours between allowed questions (default 24)
+
+    Returns:
+        {"allowed": bool, "remaining_seconds": int, "cooldown_until": str or None}
+    """
+    if not last_prashna_time:
+        return {"allowed": True, "remaining_seconds": 0, "cooldown_until": None}
+
+    try:
+        if isinstance(last_prashna_time, str):
+            last_time = datetime.fromisoformat(last_prashna_time.replace("Z", "+00:00"))
+        else:
+            last_time = last_prashna_time
+
+        if last_time.tzinfo is None:
+            last_time = last_time.replace(tzinfo=timezone.utc)
+
+        now = datetime.now(timezone.utc)
+        cooldown_end = last_time + timedelta(hours=cooldown_hours)
+        remaining = (cooldown_end - now).total_seconds()
+
+        if remaining > 0:
+            return {
+                "allowed": False,
+                "remaining_seconds": int(remaining),
+                "cooldown_until": cooldown_end.isoformat(),
+                "message": _format_cooldown_message(int(remaining)),
+            }
+        else:
+            return {"allowed": True, "remaining_seconds": 0, "cooldown_until": None}
+
+    except Exception as e:
+        logger.warning(f"Cooldown check error: {e}")
+        return {"allowed": True, "remaining_seconds": 0, "cooldown_until": None}
+
+
+def _format_cooldown_message(seconds: int) -> str:
+    """Format remaining cooldown into a human-readable message."""
+    hours = seconds // 3600
+    minutes = (seconds % 3600) // 60
+
+    if hours > 0:
+        return f"Your next Oracle question opens in {hours}h {minutes}m. Each question captures a unique moment — let this one settle first."
+    elif minutes > 0:
+        return f"Your next Oracle question opens in {minutes} minutes."
+    else:
+        return "Your Oracle is almost ready."
+
+
+# ═══════════════════════════════════════════════════════════════════
+# MAIN ENTRY POINT (for /prashna endpoint in main.py)
+# ═══════════════════════════════════════════════════════════════════
+
+def run_prashna_engine(
+    question: str,
+    lat: float,
+    lng: float,
+    timestamp: Optional[datetime] = None,
+    jaimini_data: Optional[dict] = None,
+    natal_dasha: Optional[str] = None,
+    user_name: str = "User",
+    locale: str = "global",
+) -> dict:
+    """
+    Full Prashna pipeline:
+    1. Cast Moment Chart
+    2. Detect domain
+    3. Run 4-step scoring + edge cases
+    4. Build Claude prompt
+    5. Return everything
+
+    This is what main.py calls. Claude call happens in main.py after this returns.
+    """
+    if timestamp is None:
+        timestamp = datetime.now(timezone.utc)
+
+    # Step 0: Cast the chart
+    chart = cast_prashna_chart(lat, lng, timestamp)
+
+    # Steps A-D + edge cases + score
+    verdict_data = compute_prashna_verdict(
+        chart=chart,
+        question=question,
+        jaimini_data=jaimini_data,
+        natal_dasha=natal_dasha,
+    )
+
+    # Build prompt for Claude
+    claude_prompt = build_prashna_prompt(
+        verdict_data=verdict_data,
+        question=question,
+        user_name=user_name,
+        locale=locale,
+    )
+
+    # Cooldown timestamp for response
+    cooldown_until = (timestamp + timedelta(hours=PRASHNA_COOLDOWN_HOURS)).isoformat()
+
+    return {
+        "verdict": verdict_data["verdict"],
+        "score": verdict_data["score"],
+        "label": verdict_data["label"],
+        "domain": verdict_data["domain"],
+        "timing": verdict_data["timing"],
+        "breakdown": verdict_data["breakdown"],
+        "prashna_chart": verdict_data["prashna_chart"],
+        "weakest_planet": verdict_data["weakest_planet"],
+        "natal_context": verdict_data["natal_context"],
+        "cooldown_until": cooldown_until,
+        "claude_prompt": claude_prompt,
+        "full_chart": chart,  # For logging / debug
+    }

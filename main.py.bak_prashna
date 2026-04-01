@@ -120,12 +120,6 @@ try:
         score_jaimini_convergence,
         build_and_store_jaimini,
         jaimini_prashna_check,
-from antar_engine.prashna_engine import (
-    run_prashna_engine,
-    check_cooldown,
-    detect_prashna_intent,
-    PRASHNA_COOLDOWN_HOURS,
-)
     )
     from antar_engine.welcome_signal_v2 import (
         generate_welcome_signal_v2,
@@ -3876,220 +3870,117 @@ class PrashnaRequest(BaseModel):
 @app.post("/api/v1/prashna")
 async def ask_prashna(request: PrashnaRequest):
     """
-    Prashna (Horary) Oracle — real-time YES/NO verdict engine.
-    Uses Ithasala (Tajika) + 4-step scoring + Navamsa genuineness + VoC Moon.
-    Python calculates ALL facts. Claude only explains in plain English.
+    Prashna (Horary) — answer any question using the chart
+    cast for the EXACT moment the question is asked.
+    No birth data needed. Question moment IS the chart.
     """
-    import traceback
-    from datetime import datetime, timezone
-
-    try:
-        chart_id = request.chart_id
-        question = (request.question or "").strip()
-
-        if not question:
-            return JSONResponse(status_code=400, content={"error": "Question is required"})
-
-        # ─── 1. Cooldown Check (24h between questions) ───
+    # Get natal chart if chart_id provided (for additional context)
+    natal_chart = None
+    if request.chart_id:
         try:
-            last_prashna = supabase.table("prashna_log") \
-                .select("created_at") \
-                .eq("chart_id", chart_id) \
-                .order("created_at", desc=True) \
-                .limit(1) \
-                .execute()
-
-            last_time = None
-            if last_prashna.data and len(last_prashna.data) > 0:
-                last_time = last_prashna.data[0].get("created_at")
-
-            cooldown = check_cooldown(last_time, cooldown_hours=PRASHNA_COOLDOWN_HOURS)
-
-            if not cooldown["allowed"]:
-                return JSONResponse(status_code=429, content={
-                    "error": "cooldown",
-                    "message": cooldown.get("message", "Please wait before asking another question."),
-                    "cooldown_until": cooldown.get("cooldown_until"),
-                    "remaining_seconds": cooldown.get("remaining_seconds", 0),
-                })
-        except Exception as e:
-            logger.warning(f"Cooldown check failed (table may not exist): {e}")
-
-        # ─── 2. Fetch Chart Data ───
-        chart_row = supabase.table("charts") \
-            .select("chart_data, jaimini_data, lal_kitab_data, current_dasha, first_name, current_country, lagna_sign, latitude, longitude") \
-            .eq("chart_id", chart_id) \
-            .single() \
-            .execute()
-
-        if not chart_row.data:
-            return JSONResponse(status_code=404, content={"error": "Chart not found"})
-
-        chart_data = chart_row.data
-        jaimini_data = chart_data.get("jaimini_data")
-        natal_dasha = chart_data.get("current_dasha", "unknown")
-        first_name = chart_data.get("first_name", "User")
-        current_country = chart_data.get("current_country", "US")
-
-        if isinstance(jaimini_data, str):
-            try:
-                jaimini_data = json.loads(jaimini_data)
-            except Exception:
-                jaimini_data = None
-
-        # ─── 3. Coordinates: request > chart > default ───
-        lat = request.lat
-        lng = request.lng
-        if not lat or lat == 28.6139:
-            lat = chart_data.get("latitude") or 40.8215
-        if not lng or lng == 77.2090:
-            lng = chart_data.get("longitude") or -73.9876
-
-        # ─── 4. Run Prashna Engine (Ithasala + 4-step scoring) ───
-        timestamp = datetime.now(timezone.utc)
-        locale = "IN" if current_country and current_country.upper() in ["IN", "INDIA"] else "global"
-
-        engine_result = run_prashna_engine(
-            question=question,
-            lat=lat,
-            lng=lng,
-            timestamp=timestamp,
-            jaimini_data=jaimini_data,
-            natal_dasha=natal_dasha,
-            user_name=first_name or "User",
-            locale=locale,
-        )
-
-        # ─── 5. Call Claude to explain the verdict ───
-        explanation = ""
-        try:
-            result_tuple = await call_llm(
-                prompt=question,
-                system_override=engine_result["claude_prompt"],
-            )
-            explanation = result_tuple[0] if isinstance(result_tuple, tuple) else result_tuple
-        except Exception as claude_err:
-            logger.error(f"Claude call failed for prashna: {claude_err}")
-            bd = engine_result["breakdown"]
-            explanation = (
-                f"{engine_result['verdict']} ({engine_result['score']}%). "
-                f"{bd['ithasala'].get('reason', '')}. "
-                f"Timing: {engine_result['timing']}."
-            )
-
-        # ─── 6. Remedy Card ───
-        wp = engine_result.get("weakest_planet", {})
-        if locale == "IN":
-            _rem_map = {
-                "Sun": "Offer water to the Sun at sunrise. Donate wheat on Sundays.",
-                "Moon": "Wear white on Mondays. Keep a silver item with you.",
-                "Mercury": "Feed green vegetables to a cow. Donate on Wednesdays.",
-                "Venus": "Donate white clothes on Fridays. Offer white flowers.",
-                "Mars": "Donate red lentils on Tuesdays. Serve with physical effort.",
-                "Jupiter": "Donate yellow items on Thursdays. Respect your teachers.",
-                "Saturn": "Donate mustard oil on Saturdays. Serve the elderly.",
-            }
-        else:
-            _rem_map = {
-                "Sun": "Express confidence in one decision today. Lead from the front.",
-                "Moon": "Practice emotional grounding — 5 minutes of stillness before any big call.",
-                "Mercury": "Write your intention down. Clarity comes through articulation.",
-                "Venus": "Express appreciation to someone who supports you this week.",
-                "Mars": "Channel energy into physical action — exercise before the decision.",
-                "Jupiter": "Express gratitude to a mentor or teacher this week.",
-                "Saturn": "Commit to one disciplined action. Follow through completely.",
-            }
-        remedy = {
-            "planet": wp.get("planet", "Saturn"),
-            "practice": _rem_map.get(wp.get("planet", "Saturn"), "Take one deliberate action this week."),
-            "why": f"{wp.get('planet', 'Saturn')} needs strengthening — {', '.join(wp.get('reasons', ['general']))}",
-        }
-
-        # ─── 7. Log to prashna_log ───
-        try:
-            supabase.table("prashna_log").insert({
-                "chart_id": chart_id,
-                "question": question,
-                "domain": engine_result.get("domain"),
-                "verdict": engine_result["verdict"],
-                "score": engine_result["score"],
-                "label": engine_result["label"],
-                "timing": engine_result["timing"],
-                "explanation": explanation,
-                "breakdown": json.dumps(engine_result["breakdown"], default=str),
-                "prashna_chart": json.dumps(engine_result["prashna_chart"], default=str),
-                "weakest_planet": wp.get("planet"),
-                "cooldown_until": engine_result["cooldown_until"],
-            }).execute()
-        except Exception as log_err:
-            logger.warning(f"Failed to log prashna (non-blocking): {log_err}")
-
-        # ─── 8. Also save to legacy prashna_readings for backward compat ───
-        try:
-            supabase.table("prashna_readings").insert({
-                "chart_id":      chart_id,
-                "question":      question,
-                "question_type": engine_result.get("domain", "general"),
-                "verdict":       engine_result["verdict"],
-                "score":         engine_result["score"],
-                "confidence":    engine_result["label"],
-                "timing":        engine_result["timing"],
-                "narrative":     explanation,
-                "prashna_data":  {
-                    "prashna_chart":  engine_result["prashna_chart"],
-                    "lagna":          engine_result["prashna_chart"].get("lagna_sign"),
-                    "moon_nakshatra": engine_result["prashna_chart"].get("moon_nakshatra"),
-                    "yes_factors":    [],
-                    "no_factors":     [],
-                },
-            }).execute()
+            res = supabase.table("charts").select(
+                "chart_data,latitude,longitude"
+            ).eq("id", request.chart_id).execute()
+            if res.data:
+                natal_chart = res.data[0]["chart_data"]
+                if not request.lat or request.lat == 28.6139:
+                    request.lat = res.data[0].get("latitude", 28.6139) or 28.6139
+                if not request.lng or request.lng == 77.2090:
+                    request.lng = res.data[0].get("longitude", 77.2090) or 77.2090
         except Exception:
             pass
 
-        # ─── 9. Return Response ───
-        return {
-            "verdict":       engine_result["verdict"],
-            "score":         engine_result["score"],
-            "label":         engine_result["label"],
-            "confidence":    engine_result["label"],
-            "domain":        engine_result["domain"],
-            "timing":        engine_result["timing"],
-            "explanation":   explanation,
-            "narrative":     explanation,
-            "remedy":        remedy,
-            "breakdown": {
-                "lagna_strength":   engine_result["breakdown"]["lagna_strength"]["score"],
-                "lord_connection":  engine_result["breakdown"]["lord_connection"]["score"],
-                "ithasala": {
-                    "type":   engine_result["breakdown"]["ithasala"]["type"],
-                    "score":  engine_result["breakdown"]["ithasala"]["score"],
-                    "aspect": engine_result["breakdown"]["ithasala"].get("aspect"),
-                },
-                "moon_validation":  engine_result["breakdown"]["moon_validation"]["score"],
-                "void_of_course":   engine_result["breakdown"].get("void_of_course", {}).get("void_of_course", False),
-                "navamsa_genuine":  engine_result["breakdown"].get("navamsa_genuineness", {}).get("genuine", True),
-                "mutual_reception": engine_result["breakdown"]["mutual_reception"].get("found", False),
-                "edge_yoga":        engine_result["breakdown"]["edge_yoga"]["yoga"] if engine_result["breakdown"].get("edge_yoga") else None,
-                "jaimini_locks":    engine_result["breakdown"]["jaimini_locks"],
-            },
-            "prashna_chart":  engine_result["prashna_chart"],
-            "cooldown_until": engine_result["cooldown_until"],
-            "natal_context":  engine_result["natal_context"],
-            # Legacy fields for backward compatibility
-            "question_type":  engine_result.get("domain", "general"),
-            "lagna":          engine_result["prashna_chart"].get("lagna_sign"),
-            "moon_nakshatra": engine_result["prashna_chart"].get("moon_nakshatra"),
-            "yes_factors":    [],
-            "no_factors":     [],
-            "analysis":       {"explanation": explanation},
-        }
+    # Run Prashna
+    from antar_engine.prashna_engine import run_prashna
+    result = run_prashna(
+        question=request.question,
+        lat=request.lat or 28.6139,
+        lng=request.lng or 77.2090,
+        natal_chart=natal_chart,
+    )
 
-    except Exception as e:
-        logger.error(f"Prashna engine error: {traceback.format_exc()}")
-        return JSONResponse(status_code=500, content={
-            "error": "Prashna engine failed",
-            "detail": str(e),
-        })
+    if result.get("error"):
+        raise HTTPException(500, f"Prashna error: {result['error']}")
+
+    # Generate LLM narrative answer
+    narrative = ""
+    if request.generate_answer:
+        try:
+            llm_prompt = result.get("llm_prompt","")
+            system_prompt = (
+                "You are Antar — a precise Vedic astrology AI. "
+                "Answer Prashna questions in plain psychological language. "
+                "Never use Sanskrit terms. Be direct, specific, under 200 words. "
+                "Lead with the verdict. Sound like a wise mentor."
+            )
+            result_tuple = await call_llm(
+                prompt=llm_prompt,
+                system_override=system_prompt,
+            )
+            narrative = result_tuple[0] if isinstance(result_tuple, tuple) else result_tuple
+        except Exception as _le:
+            narrative = (
+                f"**The Answer**\n{result['verdict']} — {result['analysis']['explanation']}\n\n"
+                f"**Timing**\n{result['timing']}\n\n"
+                f"**What to do**\n{result['remedy']}"
+            )
+
+    # Save to DB
+    try:
+        supabase.table("prashna_readings").insert({
+            "chart_id":      request.chart_id,
+            "question":      request.question,
+            "question_type": result["question_type"],
+            "verdict":       result["verdict"],
+            "score":         result["score"],
+            "confidence":    result["confidence"],
+            "timing":        result["timing"],
+            "narrative":     narrative,
+            "prashna_data":  {
+                "prashna_chart":  result["prashna_chart"],
+                "lagna":          result["lagna"],
+                "moon_nakshatra": result["moon_nakshatra"],
+                "yes_factors":    result["yes_factors"],
+                "no_factors":     result["no_factors"],
+            },
+        }).execute()
+    except Exception:
+        pass
+
+
+        # --- Jaimini Triple-Lock ---
+        try:
+            _q_map = {"marriage":"marriage","love":"marriage","relationship":"marriage",
+                      "investment":"investment","wealth":"investment","money":"investment",
+                      "lawsuit":"lawsuit","legal":"lawsuit","court":"lawsuit",
+                      "abroad":"foreign","travel":"foreign","visa":"foreign"}
+            _q_text = str(getattr(request, "question", "")).lower()
+            _q_type = next((v for k,v in _q_map.items() if k in _q_text), None)
+            if _q_type:
+                _jc = jaimini_prashna_check(chart_data, _q_type, 0)
+                if _jc.get("jaimini_verdict"):
+                    result["jaimini_confirms"] = True
+                    result["jaimini_reasons"] = _jc.get("reasons", [])
+        except Exception:
+            pass
+
+    return {
+        "question":      request.question,
+        "verdict":       result["verdict"],
+        "confidence":    result["confidence"],
+        "score":         result["score"],
+        "timing":        result["timing"],
+        "narrative":     narrative,
+        "moon_nakshatra":result["moon_nakshatra"],
+        "moon_quality":  result["moon_quality"],
+        "yes_factors":   result["yes_factors"][:3],
+        "no_factors":    result["no_factors"][:3],
+        "remedy":        result["remedy"],
+        "lagna":         result["lagna"],
+        "question_type": result["question_type"],
+    }
+
+
 
 
 class PrashnaFollowupRequest(BaseModel):
