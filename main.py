@@ -5005,7 +5005,7 @@ async def _get_dashboard_inner(chart_id: str):
 
     # Load chart
     chart_res = supabase.table("charts").select(
-        "first_name,lagna_sign,lagna_degree,birth_date,gender,"
+        "first_name,lagna_sign,lagna_degree,birth_date,gender,current_country,country_code,"
         "moon_sign,moon_nakshatra,sun_sign"
     ).eq("id", chart_id).execute()
 
@@ -5163,7 +5163,7 @@ async def _get_dashboard_inner(chart_id: str):
         "compat_limit":  1 if plan == "free" else (10 if plan == "seeker" else 999),
 
         # Section 9: Locale
-        "current_country": chart_record.get("current_country", chart_record.get("country_code", "")),
+        "current_country": row.get("current_country", row.get("country_code", "")),
     }
 
 
