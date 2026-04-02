@@ -13,110 +13,68 @@ from datetime import datetime, timezone, timedelta
 # Set these after creating products in Stripe/Razorpay dashboards
 
 # ══════════════════════════════════════════════════════════════════
-# STRIPE PRICES — Global country-aware routing
-# Strategy: Price below Spotify in every market
-# Research: Spotify, Netflix, Co-Star, Headspace, Calm benchmarks
+# STRIPE PRICES — Country-aware routing
+# Strategy: Price below Spotify in every LATAM market
 # ══════════════════════════════════════════════════════════════════
 
-# USD default (US and any country without specific pricing)
+# USD (default — US, CA, Global)
 STRIPE_PRICES = {
     "seeker_monthly":    os.getenv("STRIPE_PRICE_SEEKER_MONTHLY", ""),
     "seeker_annual":     os.getenv("STRIPE_PRICE_SEEKER_ANNUAL", ""),
     "navigator_monthly": os.getenv("STRIPE_PRICE_NAVIGATOR_MONTHLY", ""),
 }
 
-# Country-specific Stripe Price IDs
-# Set these in Railway env vars after creating prices in Stripe Dashboard
+# Country-specific Stripe Price IDs (set in Railway env vars)
 STRIPE_PRICES_BY_COUNTRY = {
-    # ── LATAM (local currency) ────────────────────────────────────
-    "CO": {  # Colombia — COP (Spotify = COP 18,500)
+    "CO": {  # Colombia — COP (below Spotify $18,500 COP)
         "seeker_monthly":    os.getenv("STRIPE_PRICE_SEEKER_MONTHLY_COP", ""),
         "seeker_annual":     os.getenv("STRIPE_PRICE_SEEKER_ANNUAL_COP", ""),
         "navigator_monthly": os.getenv("STRIPE_PRICE_NAVIGATOR_MONTHLY_COP", ""),
     },
-    "MX": {  # Mexico — MXN (Spotify = MXN 139)
+    "MX": {  # Mexico — MXN (half of Spotify $139 MXN)
         "seeker_monthly":    os.getenv("STRIPE_PRICE_SEEKER_MONTHLY_MXN", ""),
         "seeker_annual":     os.getenv("STRIPE_PRICE_SEEKER_ANNUAL_MXN", ""),
         "navigator_monthly": os.getenv("STRIPE_PRICE_NAVIGATOR_MONTHLY_MXN", ""),
     },
-    "BR": {  # Brazil — BRL (Spotify = BRL 16.90)
+    "BR": {  # Brazil — BRL (impulse buy pricing)
         "seeker_monthly":    os.getenv("STRIPE_PRICE_SEEKER_MONTHLY_BRL", ""),
         "seeker_annual":     os.getenv("STRIPE_PRICE_SEEKER_ANNUAL_BRL", ""),
         "navigator_monthly": os.getenv("STRIPE_PRICE_NAVIGATOR_MONTHLY_BRL", ""),
     },
-    "AR": {  # Argentina — ARS (Spotify = ARS 3,299)
+    "AR": {  # Argentina — ARS (below Spotify $3,299 ARS)
         "seeker_monthly":    os.getenv("STRIPE_PRICE_SEEKER_MONTHLY_ARS", ""),
         "seeker_annual":     os.getenv("STRIPE_PRICE_SEEKER_ANNUAL_ARS", ""),
         "navigator_monthly": os.getenv("STRIPE_PRICE_NAVIGATOR_MONTHLY_ARS", ""),
     },
-    "PE": {  # Peru — PEN (Spotify = PEN 22.90)
-        "seeker_monthly":    os.getenv("STRIPE_PRICE_SEEKER_MONTHLY_PEN", ""),
-        "seeker_annual":     os.getenv("STRIPE_PRICE_SEEKER_ANNUAL_PEN", ""),
-        "navigator_monthly": os.getenv("STRIPE_PRICE_NAVIGATOR_MONTHLY_PEN", ""),
-    },
-    "CL": {  # Chile — CLP (Spotify = CLP 6,290)
-        "seeker_monthly":    os.getenv("STRIPE_PRICE_SEEKER_MONTHLY_CLP", ""),
-        "seeker_annual":     os.getenv("STRIPE_PRICE_SEEKER_ANNUAL_CLP", ""),
-        "navigator_monthly": os.getenv("STRIPE_PRICE_NAVIGATOR_MONTHLY_CLP", ""),
-    },
-    # ── Canada ────────────────────────────────────────────────────
-    "CA": {  # Canada — CAD (Spotify = CAD 16.99)
-        "seeker_monthly":    os.getenv("STRIPE_PRICE_SEEKER_MONTHLY_CAD", ""),
-        "seeker_annual":     os.getenv("STRIPE_PRICE_SEEKER_ANNUAL_CAD", ""),
-        "navigator_monthly": os.getenv("STRIPE_PRICE_NAVIGATOR_MONTHLY_CAD", ""),
-    },
 }
 
-# Currency map
-COUNTRY_CURRENCY = {
-    "CO": "cop", "MX": "mxn", "BR": "brl", "AR": "ars",
-    "PE": "pen", "CL": "clp", "CA": "cad", "IN": "inr",
-    "US": "usd", "GB": "gbp",
-    # USD-priced LATAM countries (no local currency in Stripe)
-    "PA": "usd", "EC": "usd", "UY": "usd", "CR": "usd",
-    "GT": "usd", "BO": "usd", "PY": "usd", "DO": "usd",
-    "HN": "usd", "SV": "usd", "NI": "usd", "VE": "usd",
-}
-
-# Fallback amounts — used when no Stripe Price ID is configured
-# Stripe expects amounts in smallest currency unit (cents, centavos, paise)
+# Fallback amounts — used ONLY when no Stripe Price ID is configured
+# These create prices on-the-fly via Stripe price_data
 PLAN_AMOUNTS_BY_COUNTRY = {
-    # ── Local currency countries (amounts in smallest unit) ──
-    "CO": {"seeker_monthly": 1490000, "seeker_annual": 14900000, "navigator_monthly": 2990000, "currency": "cop"},
-    "MX": {"seeker_monthly": 7900, "seeker_annual": 79000, "navigator_monthly": 14900, "currency": "mxn"},
-    "BR": {"seeker_monthly": 1990, "seeker_annual": 19900, "navigator_monthly": 3990, "currency": "brl"},
-    "AR": {"seeker_monthly": 299000, "seeker_annual": 2990000, "navigator_monthly": 599000, "currency": "ars"},
-    "PE": {"seeker_monthly": 1490, "seeker_annual": 14900, "navigator_monthly": 2990, "currency": "pen"},
-    "CL": {"seeker_monthly": 399000, "seeker_annual": 3990000, "navigator_monthly": 799000, "currency": "clp"},
-    "CA": {"seeker_monthly": 1299, "seeker_annual": 12900, "navigator_monthly": 2499, "currency": "cad"},
-    # ── USD-priced LATAM (discounted from US price) ──
-    "PA": {"seeker_monthly": 499, "seeker_annual": 4900, "navigator_monthly": 999, "currency": "usd"},
-    "EC": {"seeker_monthly": 499, "seeker_annual": 4900, "navigator_monthly": 999, "currency": "usd"},
-    "CR": {"seeker_monthly": 499, "seeker_annual": 4900, "navigator_monthly": 999, "currency": "usd"},
-    "DO": {"seeker_monthly": 499, "seeker_annual": 4900, "navigator_monthly": 999, "currency": "usd"},
-    "UY": {"seeker_monthly": 699, "seeker_annual": 6900, "navigator_monthly": 1399, "currency": "usd"},
-    "GT": {"seeker_monthly": 399, "seeker_annual": 3900, "navigator_monthly": 799, "currency": "usd"},
-    "BO": {"seeker_monthly": 399, "seeker_annual": 3900, "navigator_monthly": 799, "currency": "usd"},
-    "PY": {"seeker_monthly": 399, "seeker_annual": 3900, "navigator_monthly": 799, "currency": "usd"},
-    "HN": {"seeker_monthly": 399, "seeker_annual": 3900, "navigator_monthly": 799, "currency": "usd"},
-    "SV": {"seeker_monthly": 399, "seeker_annual": 3900, "navigator_monthly": 799, "currency": "usd"},
-    "NI": {"seeker_monthly": 399, "seeker_annual": 3900, "navigator_monthly": 799, "currency": "usd"},
-    "VE": {"seeker_monthly": 399, "seeker_annual": 3900, "navigator_monthly": 799, "currency": "usd"},
+    "CO": {  # Colombia — amounts in centavos (COP has no decimals, multiply by 100 for Stripe)
+        "seeker_monthly": 1490000, "seeker_annual": 14900000, "navigator_monthly": 2990000,
+        "currency": "cop",
+    },
+    "MX": {  # Mexico — amounts in centavos
+        "seeker_monthly": 7900, "seeker_annual": 79000, "navigator_monthly": 14900,
+        "currency": "mxn",
+    },
+    "BR": {  # Brazil — amounts in centavos
+        "seeker_monthly": 1990, "seeker_annual": 19900, "navigator_monthly": 3990,
+        "currency": "brl",
+    },
+    "AR": {  # Argentina — amounts in centavos
+        "seeker_monthly": 299000, "seeker_annual": 2990000, "navigator_monthly": 599000,
+        "currency": "ars",
+    },
 }
 
+# Currency map for country → currency code
+COUNTRY_CURRENCY = {
+    "CO": "cop", "MX": "mxn", "BR": "brl", "AR": "ars", "IN": "inr",
+    "US": "usd", "CA": "usd", "GB": "gbp",
+}
 
-def get_stripe_price_for_country(plan_key: str, country_code: str = "US") -> tuple:
-    """
-    Get the right Stripe Price ID and currency based on plan and country.
-    Returns (price_id, currency).
-    Priority: country-specific Price ID > USD Price ID > empty (triggers fallback)
-    """
-    country_prices = STRIPE_PRICES_BY_COUNTRY.get(country_code, {})
-    price_id = country_prices.get(plan_key, "")
-    if price_id:
-        return price_id, COUNTRY_CURRENCY.get(country_code, "usd")
-    price_id = STRIPE_PRICES.get(plan_key, "")
-    return price_id, "usd"
 
 def get_stripe_price_for_country(plan_key: str, country_code: str = "US") -> tuple:
     """
@@ -165,14 +123,17 @@ def create_stripe_checkout(
     country_code: str = "US",
 ) -> dict:
     """
-    Create Stripe checkout session with global country-aware pricing.
+    Create Stripe checkout session with country-aware pricing.
     
-    17 countries supported:
-      US/CA: USD/CAD — standard pricing
-      CO/MX/BR/AR/PE/CL: local currency — below Spotify
-      PA/EC/CR/DO/UY/GT/BO/PY/HN/SV/NI/VE: USD discounted
+    Pricing strategy (below Spotify in every market):
+      CO: $14,900 COP/mo  (Spotify = $18,500)
+      MX: $79 MXN/mo      (Spotify = $139)
+      BR: R$19.90/mo       (impulse buy)
+      AR: $2,990 ARS/mo    (Spotify = $3,299)
+      US: $9.99 USD/mo     (Co-Star = $9)
     
-    Uses automatic_payment_methods for PSE, Nequi, OXXO, PIX, SPEI.
+    Uses automatic_payment_methods to show PSE, Nequi, OXXO, PIX
+    based on currency — no code needed, just Stripe Dashboard toggles.
     """
     try:
         import stripe
@@ -181,7 +142,7 @@ def create_stripe_checkout(
         price_id, currency = get_stripe_price_for_country(plan_key, country_code)
 
         if not price_id:
-            # No pre-created Price — build on the fly from fallback amounts
+            # No pre-created Price ID — build price on the fly
             country_amounts = PLAN_AMOUNTS_BY_COUNTRY.get(country_code, {})
             if country_amounts:
                 amount = country_amounts.get(plan_key, 999)
@@ -214,6 +175,7 @@ def create_stripe_checkout(
                 automatic_payment_methods={"enabled": True},
             )
         else:
+            # Pre-created Price ID exists — use it directly
             session = stripe.checkout.Session.create(
                 line_items=[{"price": price_id, "quantity": 1}],
                 mode="subscription",
@@ -223,6 +185,7 @@ def create_stripe_checkout(
                 metadata={"chart_id": chart_id, "plan": plan_key, "country": country_code},
                 automatic_payment_methods={"enabled": True},
             )
+
         return {
             "provider":    "stripe",
             "checkout_url": session.url,

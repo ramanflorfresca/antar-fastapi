@@ -1,0 +1,217 @@
+"""
+antar_engine/payment_engine.py
+
+Stripe + Razorpay payment handling.
+Detects provider by country and creates checkout sessions.
+"""
+
+import os
+from datetime import datetime, timezone, timedelta
+
+
+# ── Plan price IDs ────────────────────────────────────────────────
+# Set these after creating products in Stripe/Razorpay dashboards
+
+STRIPE_PRICES = {
+    "seeker_monthly":  os.getenv("STRIPE_PRICE_SEEKER_MONTHLY", ""),
+    "seeker_annual":   os.getenv("STRIPE_PRICE_SEEKER_ANNUAL", ""),
+    "navigator_monthly": os.getenv("STRIPE_PRICE_NAVIGATOR_MONTHLY", ""),
+}
+
+RAZORPAY_PLANS = {
+    "seeker_monthly":  os.getenv("RAZORPAY_PLAN_SEEKER_MONTHLY", ""),
+    "seeker_annual":   os.getenv("RAZORPAY_PLAN_SEEKER_ANNUAL", ""),
+    "navigator_monthly": os.getenv("RAZORPAY_PLAN_NAVIGATOR_MONTHLY", ""),
+}
+
+PLAN_AMOUNTS_INR = {
+    "seeker_monthly":    39900,   # ₹399 in paise
+    "seeker_annual":     299900,  # ₹2999 in paise
+    "navigator_monthly": 149900,  # ₹1499 in paise
+}
+
+PLAN_AMOUNTS_USD = {
+    "seeker_monthly":    999,     # $4.99 in cents
+    "seeker_annual":     3900,    # $39 in cents
+    "navigator_monthly": 1999,    # $19.99 in cents
+}
+
+
+def create_stripe_checkout(
+    chart_id: str,
+    plan_key: str,
+    success_url: str,
+    cancel_url: str,
+) -> dict:
+    """Create Stripe checkout session."""
+    try:
+        import stripe
+        stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+
+        price_id = STRIPE_PRICES.get(plan_key, "")
+
+        # If no price ID configured yet — create one-time payment
+        if not price_id:
+            amount = PLAN_AMOUNTS_USD.get(plan_key, 499)
+            plan_name = plan_key.replace("_", " ").title()
+            session = stripe.checkout.Session.create(
+                payment_method_types=["card"],
+                line_items=[{
+                    "price_data": {
+                        "currency":     "usd",
+                        "unit_amount":  amount,
+                        "product_data": {
+                            "name":        f"Antar {plan_name}",
+                            "description": "Vedic astrology life navigation",
+                        },
+                        "recurring": {"interval": "month"} if "monthly" in plan_key else None,
+                    },
+                    "quantity": 1,
+                }],
+                mode="subscription" if "monthly" in plan_key or "annual" in plan_key else "payment",
+                success_url=success_url + "?session_id={CHECKOUT_SESSION_ID}",
+                cancel_url=cancel_url,
+                client_reference_id=chart_id,
+                metadata={"chart_id": chart_id, "plan": plan_key},
+            )
+        else:
+            session = stripe.checkout.Session.create(
+                payment_method_types=["card"],
+                line_items=[{"price": price_id, "quantity": 1}],
+                mode="subscription",
+                success_url=success_url + "?session_id={CHECKOUT_SESSION_ID}",
+                cancel_url=cancel_url,
+                client_reference_id=chart_id,
+                metadata={"chart_id": chart_id, "plan": plan_key},
+            )
+
+        return {
+            "provider":    "stripe",
+            "checkout_url": session.url,
+            "session_id":  session.id,
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def verify_stripe_session(session_id: str) -> dict:
+    """Verify a completed Stripe checkout session."""
+    try:
+        import stripe
+        stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+        session = stripe.checkout.Session.retrieve(session_id)
+
+        if session.payment_status in ("paid", "no_payment_required"):
+            chart_id = session.client_reference_id or                        session.metadata.get("chart_id", "")
+            plan_key = session.metadata.get("plan", "seeker_monthly")
+            plan     = plan_key.split("_")[0]  # "seeker" or "navigator"
+            sub_id   = session.subscription or session.payment_intent or ""
+            period_end = (
+                datetime.now(timezone.utc) + timedelta(days=30)
+            ).isoformat()
+            return {
+                "verified":   True,
+                "chart_id":   chart_id,
+                "plan":       plan,
+                "sub_id":     str(sub_id),
+                "period_end": period_end,
+            }
+        return {"verified": False, "status": session.payment_status}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def create_razorpay_order(
+    chart_id: str,
+    plan_key: str,
+) -> dict:
+    """Create Razorpay order for Indian payments."""
+    try:
+        import razorpay
+        client = razorpay.Client(
+            auth=(
+                os.getenv("RAZORPAY_KEY_ID", ""),
+                os.getenv("RAZORPAY_KEY_SECRET", ""),
+            )
+        )
+
+        amount   = PLAN_AMOUNTS_INR.get(plan_key, 39900)
+        plan_name = plan_key.replace("_", " ").title()
+
+        # Try subscription plan first
+        plan_id = RAZORPAY_PLANS.get(plan_key, "")
+        if plan_id:
+            sub = client.subscription.create({
+                "plan_id":         plan_id,
+                "total_count":     12,
+                "quantity":        1,
+                "notes":           {"chart_id": chart_id, "plan": plan_key},
+            })
+            return {
+                "provider":       "razorpay",
+                "subscription_id": sub["id"],
+                "key_id":         os.getenv("RAZORPAY_KEY_ID", ""),
+                "amount":         amount,
+                "currency":       "INR",
+                "plan_name":      f"Antar {plan_name}",
+                "chart_id":       chart_id,
+                "plan_key":       plan_key,
+            }
+        else:
+            # One-time order fallback
+            order = client.order.create({
+                "amount":   amount,
+                "currency": "INR",
+                "notes":    {"chart_id": chart_id, "plan": plan_key},
+            })
+            return {
+                "provider":  "razorpay",
+                "order_id":  order["id"],
+                "key_id":    os.getenv("RAZORPAY_KEY_ID", ""),
+                "amount":    amount,
+                "currency":  "INR",
+                "plan_name": f"Antar {plan_name}",
+                "chart_id":  chart_id,
+                "plan_key":  plan_key,
+            }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def verify_razorpay_payment(
+    payment_id: str,
+    order_id: str,
+    signature: str,
+    chart_id: str,
+    plan_key: str,
+) -> dict:
+    """Verify Razorpay payment signature."""
+    try:
+        import razorpay, hmac, hashlib
+        client = razorpay.Client(
+            auth=(
+                os.getenv("RAZORPAY_KEY_ID", ""),
+                os.getenv("RAZORPAY_KEY_SECRET", ""),
+            )
+        )
+
+        # Verify signature
+        secret  = os.getenv("RAZORPAY_KEY_SECRET", "").encode()
+        message = f"{order_id}|{payment_id}".encode()
+        digest  = hmac.new(secret, message, hashlib.sha256).hexdigest()
+
+        if digest == signature:
+            plan       = plan_key.split("_")[0]
+            period_end = (
+                datetime.now(timezone.utc) + timedelta(days=30)
+            ).isoformat()
+            return {
+                "verified":   True,
+                "chart_id":   chart_id,
+                "plan":       plan,
+                "sub_id":     payment_id,
+                "period_end": period_end,
+            }
+        return {"verified": False, "reason": "signature_mismatch"}
+    except Exception as e:
+        return {"error": str(e)}

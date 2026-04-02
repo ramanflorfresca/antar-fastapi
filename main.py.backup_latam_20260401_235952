@@ -4731,9 +4731,7 @@ async def create_stripe_checkout_session(request: dict):
     if not chart_id:
         raise HTTPException(400, "chart_id required")
 
-    # Sprint L: Country-aware pricing — pass country for LATAM local currency
-    country_code = request.get("current_country", "US")
-    result = create_stripe_checkout(chart_id, plan_key, success_url, cancel_url, country_code=country_code)
+    result = create_stripe_checkout(chart_id, plan_key, success_url, cancel_url)
     if result.get("error"):
         raise HTTPException(500, f"Stripe error: {result['error']}")
     return result
