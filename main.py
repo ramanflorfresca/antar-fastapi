@@ -1619,6 +1619,14 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             "Lead with the actual answer in the first sentence. "
             "Never start responses with template headers like 'YOUR SIGNAL RIGHT NOW'."
         )
+        # --- Sprint L: Language injection ---
+        from language_utils import build_language_instruction, resolve_language
+        _lang = resolve_language({"language": getattr(request, "language", None)}, chart_record)
+        _lang_block = build_language_instruction(_lang)
+        if _lang_block:
+            _master_system = _lang_block + _master_system
+            print(f"[predict] Language injection: {_lang}")
+        # --- end Sprint L ---
         prediction_text, tokens_used = await call_llm_claude(
             prompt,
             history=request.conversation_history or [],
@@ -1633,6 +1641,26 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             _domain_system_fallback = build_concern_system_prompt(concern)
         except Exception:
             _domain_system_fallback = ""
+        # --- Sprint L: Language injection (fallback path) ---
+        if '_lang_block' not in dir() or not _lang_block:
+            from language_utils import build_language_instruction, resolve_language
+            _lang = resolve_language({"language": getattr(request, "language", None)}, chart_record)
+            _lang_block = build_language_instruction(_lang)
+        if _lang_block and _domain_system_fallback:
+            _domain_system_fallback = _lang_block + _domain_system_fallback
+        elif _lang_block:
+            _domain_system_fallback = _lang_block
+        # --- end Sprint L ---
+        # --- Sprint L: Language injection (fallback path) ---
+        if '_lang_block' not in dir() or not _lang_block:
+            from language_utils import build_language_instruction, resolve_language
+            _lang = resolve_language({"language": request.language}, chart_record)
+            _lang_block = build_language_instruction(_lang)
+        if _lang_block and _domain_system_fallback:
+            _domain_system_fallback = _lang_block + _domain_system_fallback
+        elif _lang_block:
+            _domain_system_fallback = _lang_block
+        # --- end Sprint L ---
         prediction_text, tokens_used = await call_llm_claude(
             prompt,
             history=request.conversation_history or [],
