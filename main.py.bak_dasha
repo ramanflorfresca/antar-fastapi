@@ -50,10 +50,6 @@ load_dotenv(override=False)
 # ── Email via Resend ──────────────────────────────────────────────────────────
 import httpx as _httpx
 
-# --- Language Utils (Sprint L — Language Preferences) ---
-from language_utils import build_language_instruction, resolve_language, resolve_language_from_query
-
-
 RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
 RESEND_FROM    = os.getenv("RESEND_FROM_EMAIL", "antar@antar.world")
 
@@ -3934,26 +3930,18 @@ async def ask_prashna(request: PrashnaRequest):
 
         chart_data = chart_row.data
         jaimini_data = chart_data.get("jaimini_data")
-        # Get current dasha from dasha_periods table (Vimsottari MD + AD)
-        natal_dasha = "unknown"
-        try:
-            _dasha_rows = supabase.table("dasha_periods") \
-                .select("planet_or_sign, system, type, level") \
-                .eq("chart_id", chart_id) \
-                .eq("system", "vimsottari") \
-                .lte("start_date", datetime.now(timezone.utc).isoformat()) \
-                .gte("end_date", datetime.now(timezone.utc).isoformat()) \
-                .order("level") \
-                .execute()
-            if _dasha_rows.data:
-                _md = next((r["planet_or_sign"] for r in _dasha_rows.data if r.get("level") == 1), None)
-                _ad = next((r["planet_or_sign"] for r in _dasha_rows.data if r.get("level") == 2), None)
-                if _md and _ad:
-                    natal_dasha = f"{_md}-{_ad}"
-                elif _md:
-                    natal_dasha = _md
-        except Exception as _de:
-            logger.warning(f"Dasha lookup failed (non-blocking): {_de}")
+        # current_dasha not a column — get from jaimini_data.current_md
+        _jd_raw = chart_data.get("jaimini_data", {})
+        if isinstance(_jd_raw, str):
+            try:
+                _jd_raw = json.loads(_jd_raw)
+            except Exception:
+                _jd_raw = {}
+        if isinstance(_jd_raw, dict):
+            _cur_md = _jd_raw.get("current_md", {})
+            natal_dasha = _cur_md.get("lord", "unknown") if isinstance(_cur_md, dict) else "unknown"
+        else:
+            natal_dasha = "unknown"
         first_name = chart_data.get("first_name", "User")
         current_country = chart_data.get("current_country", "US")
 
@@ -5373,88 +5361,6 @@ async def link_chart_to_google(request: dict):
         "action":   "linked",
         "message":  "Chart saved to your Google account",
     }
-
-
-
-# ═══════════════════════════════════════════════════════════════════
-# USER PREFERENCES — Language + Remedy Style (Sprint L)
-# ═══════════════════════════════════════════════════════════════════
-
-@app.post("/api/v1/chart/update-preferences")
-async def update_preferences(request: Request):
-    """
-    Update user preferences: language and/or remedy_style.
-    Called from frontend profile/settings page.
-    Fire-and-forget from frontend — no blocking UI.
-    """
-    try:
-        body = await request.json()
-        chart_id = body.get("chart_id")
-
-        if not chart_id:
-            return JSONResponse(
-                status_code=400,
-                content={"error": "chart_id is required"}
-            )
-
-        # Validate language
-        valid_languages = {"en", "hi", "hinglish", "es", "pt"}
-        language = body.get("language")
-        if language and language not in valid_languages:
-            return JSONResponse(
-                status_code=400,
-                content={"error": f"Invalid language. Must be one of: {', '.join(sorted(valid_languages))}"}
-            )
-
-        # Validate remedy_style
-        remedy_style = body.get("remedy_style")
-        if remedy_style is not None and remedy_style not in {"traditional", "secular"}:
-            return JSONResponse(
-                status_code=400,
-                content={"error": "Invalid remedy_style. Must be 'traditional' or 'secular'."}
-            )
-
-        # Build update dict — only include fields that were sent
-        updates = {}
-        if language:
-            updates["language"] = language
-        if "remedy_style" in body:
-            updates["remedy_style"] = remedy_style
-
-        if not updates:
-            return {"status": "ok", "message": "No changes"}
-
-        # Update Supabase
-        supabase.table("charts").update(updates).eq("id", chart_id).execute()
-
-        # If language changed, clear caches so content regenerates in new language
-        if language:
-            try:
-                supabase.table("practice_schedule_cache").delete().eq("chart_id", chart_id).execute()
-            except Exception:
-                pass
-            try:
-                supabase.table("welcome_signals").delete().eq("chart_id", chart_id).execute()
-            except Exception:
-                pass
-            try:
-                supabase.table("weekly_briefings").delete().eq("chart_id", chart_id).execute()
-            except Exception:
-                pass
-            try:
-                supabase.table("monthly_deepdives").delete().eq("chart_id", chart_id).execute()
-            except Exception:
-                pass
-
-        logger.info(f"Preferences updated for {chart_id}: {updates}")
-        return {"status": "ok", "updated": updates}
-
-    except Exception as e:
-        logger.error(f"update-preferences failed: {e}")
-        return JSONResponse(
-            status_code=500,
-            content={"error": "Failed to update preferences"}
-        )
 
 
 @app.get("/api/v1/auth/restore/{google_id}")

@@ -28,13 +28,6 @@ except ImportError:
 
 logger = logging.getLogger("antar.prashna")
 
-# --- Language Utils (Sprint L) ---
-try:
-    from language_utils import build_language_instruction
-except ImportError:
-    def build_language_instruction(lang="en"): return ""  # fallback
-
-
 # ═══════════════════════════════════════════════════════════════════
 # CONSTANTS
 # ═══════════════════════════════════════════════════════════════════
@@ -1344,7 +1337,7 @@ def _estimate_timing(chart: dict, ithasala_result: dict, edge_yoga: Optional[dic
 # ═══════════════════════════════════════════════════════════════════
 
 def build_prashna_prompt(verdict_data: dict, question: str, user_name: str = "User",
-                          locale: str = "global", language: str = "en") -> str:
+                          locale: str = "global") -> str:
     """
     Build the system prompt for Claude to explain the pre-calculated verdict
     in plain English. Claude does NOT compute — it only explains.
@@ -1432,10 +1425,6 @@ Step D — Intuition: {bd['moon_validation']['score']}% — {bd['moon_validation
     else:
         prompt += "8. For the remedy, suggest a specific energy practice (e.g., 'Express gratitude to a mentor this week').\n"
 
-    # --- Language injection (Sprint L) ---
-    lang_block = build_language_instruction(language)
-    prompt = lang_block + prompt
-
     return prompt
 
 
@@ -1511,7 +1500,6 @@ def run_prashna_engine(
     natal_dasha: Optional[str] = None,
     user_name: str = "User",
     locale: str = "global",
-    language: str = "en",
 ) -> dict:
     """
     Full Prashna pipeline:
@@ -1543,7 +1531,6 @@ def run_prashna_engine(
         question=question,
         user_name=user_name,
         locale=locale,
-        language=language,
     )
 
     # Cooldown timestamp for response
