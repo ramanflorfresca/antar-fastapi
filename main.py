@@ -5382,6 +5382,8 @@ async def link_chart_to_google(request: dict):
 
 @app.post("/api/v1/chart/update-preferences")
 async def update_preferences(request: Request):
+    import logging; logger = logging.getLogger("antar.preferences")
+    from fastapi.responses import JSONResponse
     """
     Update user preferences: language and/or remedy_style.
     Called from frontend profile/settings page.
