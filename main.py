@@ -45,6 +45,81 @@ try:
 except ImportError:
     pass
 
+
+# ── DOMAIN AUDIT RULES (Sprint D) ────────────────────────────────
+# Injected into the /predict system prompt based on detected concern.
+DOMAIN_AUDIT_RULES = {
+    "finance": """
+DOMAIN AUDIT — FUNDING / CAPITAL / FINANCE:
+You MUST check these specific chart elements and report findings:
+
+1. PRIMARY CHECK — 8th House (other peoples money, funding, loans):
+   - Who is the 8th House Lord? What house is it sitting in?
+   - Is any planet currently transiting the 8th house?
+   - Is the 8th house activated in the current Antardasha?
+
+2. GAINS CHECK — 11th House (income, gains, fulfillment of desires):
+   - Who is the 11th House Lord? What house is it sitting in?
+   - Is the 11th house activated in the current dasha period?
+   - Any benefic aspects on 11th house?
+
+3. WEALTH CHECK — 2nd House (accumulated wealth, cash flow):
+   - Who is the 2nd House Lord? Status — strong, weak, combust?
+   - Any Dhana Yogas (wealth combinations) active?
+
+4. CAREER DIVISIONAL — D-10 (Dashamsha):
+   - Are the Artha houses (2, 6, 10) in D-10 supported?
+   - Is the D-10 lagna lord strong?
+
+5. JAIMINI CHECK:
+   - Where is Amatyakaraka (career significator) placed?
+   - Is Amatyakaraka in 6/8/12 from current Jaimini Chara Dasha sign?
+   - If yes = CAREER ENERGY MISALIGNED — report this.
+
+6. LAL KITAB CHECK:
+   - Are 8th or 11th houses Sleeping per Lal Kitab?
+   - If sleeping = BLOCKAGE — report what remedy awakens it.
+   - What does the Varshphal show for wealth houses?
+   - Does Muntha or Year Lord occupy 2nd, 8th, or 11th house?
+
+7. TIMING VERDICT:
+   - 8th+11th both supported = funding ACTIVE, give specific month
+   - 8th inactive + Varshphal neutral = funding BLOCKED, say when it unblocks
+   - 11th active + 8th weak = revenue yes, outside capital no
+   - AmK in 6/8/12 from dasha = realign positioning first
+   DO NOT give vague answers. Give a VERDICT based on the data.
+""",
+    "career": """
+DOMAIN AUDIT — CAREER / BUSINESS / PROFESSIONAL:
+Check: 10th House lord and placement, D-10 lagna lord strength, Amatyakaraka position,
+6th house (competition), Sun strength, current dasha lord relationship to 10th,
+Lal Kitab sleeping planets in 10th, Varshphal year lord in career houses.
+Give specific timing for career activation.
+""",
+    "love": """
+DOMAIN AUDIT — LOVE / MARRIAGE / RELATIONSHIP:
+Check: 7th House lord and placement, D-9 (Navamsha) 7th house and Venus,
+Darakaraka planet and placement, Upapada Lagna sign and lord,
+current dasha relationship to 7th house. Give specific timing.
+""",
+    "health": """
+DOMAIN AUDIT — HEALTH:
+Check: Lagna lord strength (vitality), 6th house (disease), 8th house (chronic),
+Sun and Mars strength, current dasha lord natural signification,
+age-specific Umra vulnerabilities, Lal Kitab sleeping planets in 1/6/8.
+""",
+    "general": """
+DOMAIN AUDIT — GENERAL:
+Scan ALL major houses. Find the ONE area with highest activation in current dasha.
+Check D-10 for career, D-9 for relationships, D-2 for wealth.
+Find the sharpest signal and go deep on that single area.
+""",
+}
+DOMAIN_AUDIT_RULES["wealth"] = DOMAIN_AUDIT_RULES["finance"]
+DOMAIN_AUDIT_RULES["funding"] = DOMAIN_AUDIT_RULES["finance"]
+DOMAIN_AUDIT_RULES["business"] = DOMAIN_AUDIT_RULES["career"]
+DOMAIN_AUDIT_RULES["startup"] = DOMAIN_AUDIT_RULES["finance"]
+
 load_dotenv(override=False)
 
 # ── Email via Resend ──────────────────────────────────────────────────────────
@@ -900,6 +975,24 @@ CORE RULES:
 8. Keep responses under 300 words unless the question requires depth
 9. End every prediction with one action the person can take TODAY
 10. Never give medical, financial, or legal advice
+
+ASTROLOGER FIRST, COACH SECOND:
+You are a Vedic astrologer first and a life coach second. When chart data shows
+specific house activations, dasha triggers, and divisional chart positions — USE THEM.
+Do not default to psychology or motivation when the chart gives you specific data.
+
+When a DOMAIN AUDIT section is included in the context, you MUST:
+1. Check every item listed in the audit
+2. Report what you found in the chart data for each check
+3. Form a VERDICT based on what is active vs blocked
+4. Give specific timing based on dasha transitions or transit activations
+5. Only THEN give the human advice based on your findings
+
+The chart data is NOT decoration. It is the primary source of your answer.
+If the 8th house lord is sitting in the 3rd house, say so and explain what it means.
+If the 11th house is activated by the current dasha, say so and give the timing.
+Never skip chart data to give generic coaching.
+
 """
 
 
@@ -1593,6 +1686,14 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             continue
         prompt += f"\n\n{_block}"
     # ── end C3+C4 injection ───────────────────────────────────────
+
+
+    # ── Domain Audit Rules (Sprint D) ────────────────────────────
+    _domain_rules = DOMAIN_AUDIT_RULES.get(concern, DOMAIN_AUDIT_RULES.get("general", ""))
+    if _domain_rules:
+        prompt += f"\n\n{_domain_rules}"
+        print(f"[predict] Domain audit rules injected for concern={concern}")
+
 
     _using_master = _full_context and len(_full_context) > 500
     print(f"[predict] using_master={_using_master} prompt_len={len(prompt)}")
