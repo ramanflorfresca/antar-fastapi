@@ -141,6 +141,7 @@ async def generate_welcome_signal(
     supabase,
     claude_client,
     birth_date:    Optional[str] = None,
+    birth_date=None,
 ) -> dict:
     """
     Generate and save the 3-signal welcome for a new chart.
