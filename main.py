@@ -1868,7 +1868,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     # ── Domain Audit Rules (Sprint D) ────────────────────────────
     _domain_rules = DOMAIN_AUDIT_RULES.get(concern, DOMAIN_AUDIT_RULES.get("general", ""))
     if _domain_rules:
-        prompt += "\n\n" + _domain_rules + "\n\n" + DOMAIN_BRIDGE_INSTRUCTION
+        prompt = "\n\n" + _domain_rules + "\n\n" + DOMAIN_BRIDGE_INSTRUCTION + "\n\n" + prompt
         print(f"[predict] Domain audit rules injected for concern={concern}")
 
     _using_master = _full_context and len(_full_context) > 500
