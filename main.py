@@ -1227,6 +1227,27 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             print(f"Nation insight error: {e}")
     # ── end C2 ───────────────────────────────────────────────────
 
+    # ── Concern detection (must come before C3 and C4) ────────
+    concern = _detect_concern(request.question)
+
+    # ── PATRA (must come before C4) ──────────────────────────────
+    user_profile = {
+        "marital_status":   chart_record.get("marital_status", "unknown"),
+        "children_status":  chart_record.get("children_status", "no_children_unsure"),
+        "career_stage":     chart_record.get("career_stage", "mid_career"),
+        "health_status":    chart_record.get("health_status", "excellent"),
+        "financial_status": chart_record.get("financial_status", "stable"),
+        "birth_country":    chart_record.get("country_code", ""),
+        "current_country":  chart_record.get("current_country") or chart_record.get("country_code", ""),
+        "countries_lived":  chart_record.get("countries_lived", []),
+    }
+    patra = build_patra_context(
+        birth_date=chart_record["birth_date"],
+        user_profile=user_profile,
+        primary_concern=concern,
+    )
+    patra_context = patra_to_context_block(patra)
+
     # ── C3: Pattern Memory — Layer 7 ─────────────────────────────
     _memory = {}
     try:
@@ -1276,27 +1297,6 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             dkp_block = (dkp_block or "") + f"\n\n{_domain_dkp}"
     except Exception as _ddkp_err:
         print(f"[predict] domain DKP note failed (non-fatal): {_ddkp_err}")
-
-    # Concern detection
-    concern = _detect_concern(request.question)
-
-    # ── PATRA ──────────────────────────────────────────────────────
-    user_profile = {
-        "marital_status":   chart_record.get("marital_status", "unknown"),
-        "children_status":  chart_record.get("children_status", "no_children_unsure"),
-        "career_stage":     chart_record.get("career_stage", "mid_career"),
-        "health_status":    chart_record.get("health_status", "excellent"),
-        "financial_status": chart_record.get("financial_status", "stable"),
-        "birth_country":    chart_record.get("country_code", ""),
-        "current_country":  chart_record.get("current_country") or chart_record.get("country_code", ""),
-        "countries_lived":  chart_record.get("countries_lived", []),
-    }
-    patra = build_patra_context(
-        birth_date=chart_record["birth_date"],
-        user_profile=user_profile,
-        primary_concern=concern,
-    )
-    patra_context = patra_to_context_block(patra)
 
     # ── LIFE QUESTION ENGINE ───────────────────────────────────────
     life_question_context = ""
