@@ -3111,6 +3111,9 @@ RESPONSE RULES — CRITICAL:
 2. NEVER end your response with a follow-up question like "Want me to look at a specific timeframe?" or "Should I explore what to focus on?" or "Would you like to know more?" The user asks the questions. You provide answers.
 3. When the timing of an event is months or years away: Name the date clearly. Explain what to do BETWEEN NOW AND THEN. Frame the interim as PREPARATION, not waiting. The user should feel they have agency and a clear path. Never say "unfortunately you will have to wait."
 4. End with a clear, specific, actionable recommendation. One thing. This week. Verb-first.
+
+5. When the chart shows a long cycle (10+ years), show the user the NEXT checkpoint (1-3 years), not the full runway. Never say "19-year period" or mention dates more than 5 years away. Frame it as phases: pressure phase → relief phase → growth phase. The user needs to see the next hill, not the entire mountain range.
+
 Respond in {locale.language}."""
 
     narrative, _ = await call_llm(prompt)
