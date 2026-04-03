@@ -182,7 +182,7 @@ def create_stripe_checkout(
                 cancel_url=cancel_url,
                 client_reference_id=chart_id,
                 metadata={"chart_id": chart_id, "plan": plan_key, "country": country_code},
-                automatic_payment_methods={"enabled": True},
+                payment_method_types=["card"],
             )
         else:
             session = stripe.checkout.Session.create(
@@ -192,7 +192,7 @@ def create_stripe_checkout(
                 cancel_url=cancel_url,
                 client_reference_id=chart_id,
                 metadata={"chart_id": chart_id, "plan": plan_key, "country": country_code},
-                automatic_payment_methods={"enabled": True},
+                payment_method_types=["card"],
             )
         return {
             "provider":    "stripe",
