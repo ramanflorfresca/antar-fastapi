@@ -2667,6 +2667,7 @@ class ChartCreateResponse(BaseModel):
     birth_lng:      float
     timezone:       str
     message:        str
+    signup_intent:  Optional[Dict[str, Any]] = None
 
 CITY_COORDS_LOOKUP = {
     "mumbai":(19.0760,72.8777,"Asia/Kolkata"),
@@ -3128,6 +3129,32 @@ async def create_chart(
     planets = chart_data["planets"]
     ak, amk = _ak_amk(planets)
 
+
+    # -- Telepathic Onboarding: Prashna-Intent Sensor --
+    _signup_intent = None
+    try:
+        from antar_engine.prashna_intent import detect_signup_intent
+        from datetime import datetime as _dt_tele, timezone as _tz_tele
+        _signup_intent = detect_signup_intent(
+            birth_lagna=chart_data["lagna"]["sign"],
+            signup_timestamp=_dt_tele.now(_tz_tele.utc),
+            signup_lat=float(lat),
+            signup_lng=float(lng),
+            first_name=getattr(request, "first_name", "") or "",
+        )
+        if _signup_intent and "error" not in _signup_intent:
+            print(f"[chart/create] Telepathic intent: house={_signup_intent.get(chr(39)+intent_house+chr(39))}, domain={_signup_intent.get(chr(39)+domain+chr(39))}")
+            try:
+                supabase.table("charts").update({"signup_intent": _signup_intent}).eq("id", chart_id).execute()
+            except Exception:
+                pass
+        else:
+            _signup_intent = None
+    except Exception as _intent_err:
+        print(f"[chart/create] Intent detection failed (non-fatal): {_intent_err}")
+        _signup_intent = None
+    # -- end Telepathic Onboarding --
+
     return ChartCreateResponse(
         chart_id=chart_id,
         lagna=chart_data["lagna"]["sign"],
@@ -3140,6 +3167,7 @@ async def create_chart(
         birth_city=request.birth_city,
         birth_lat=lat, birth_lng=lng, timezone=timezone,
         message="Chart created successfully",
+        signup_intent=_signup_intent,
     )
 
 # ══════════════════════════════════════════════════════════════════════════════
