@@ -3143,7 +3143,7 @@ async def create_chart(
             first_name=getattr(request, "first_name", "") or "",
         )
         if _signup_intent and "error" not in _signup_intent:
-            print(f"[chart/create] Telepathic intent: house={_signup_intent.get(chr(39)+intent_house+chr(39))}, domain={_signup_intent.get(chr(39)+domain+chr(39))}")
+            print(f"[chart/create] Telepathic intent: house={_signup_intent.get('intent_house')}, domain={_signup_intent.get('domain')}")
             try:
                 supabase.table("charts").update({"signup_intent": _signup_intent}).eq("id", chart_id).execute()
             except Exception:
