@@ -45,82 +45,276 @@ try:
 except ImportError:
     pass
 
+load_dotenv(override=False)
 
-# ── DOMAIN AUDIT RULES (Sprint D) ────────────────────────────────
-# Injected into the /predict system prompt based on detected concern.
+# ══════════════════════════════════════════════════════════════════
+# DOMAIN AUDIT RULES (Sprint D) - Complete
+# Injected into /predict system prompt based on detected concern.
+# Forces Claude to check SPECIFIC houses and divisional charts.
+# ══════════════════════════════════════════════════════════════════
+
 DOMAIN_AUDIT_RULES = {
-    "finance": """
-DOMAIN AUDIT — FUNDING / CAPITAL / FINANCE:
-You MUST check these specific chart elements and report findings:
 
-1. PRIMARY CHECK — 8th House (other peoples money, funding, loans):
-   - Who is the 8th House Lord? What house is it sitting in?
-   - Is any planet currently transiting the 8th house?
-   - Is the 8th house activated in the current Antardasha?
+    "finance": (
+        "DOMAIN AUDIT - FUNDING / CAPITAL / FINANCE:\n"
+        "You MUST check these specific chart elements and report findings:\n\n"
+        "1. PRIMARY CHECK - 8th House (other people's money, funding, loans):\n"
+        "   - Who is the 8th House Lord? What house is it sitting in?\n"
+        "   - Is any planet currently transiting the 8th house?\n"
+        "   - Is the 8th house activated in the current Antardasha?\n\n"
+        "2. GAINS CHECK - 11th House (income, gains, fulfillment of desires):\n"
+        "   - Who is the 11th House Lord? What house is it sitting in?\n"
+        "   - Is the 11th house activated in the current dasha period?\n"
+        "   - Any benefic aspects on 11th house?\n\n"
+        "3. WEALTH CHECK - 2nd House (accumulated wealth, cash flow):\n"
+        "   - Who is the 2nd House Lord? Status - strong, weak, combust?\n"
+        "   - Any Dhana Yogas (wealth combinations) active?\n\n"
+        "4. CAREER DIVISIONAL - D-10 (Dashamsha):\n"
+        "   - Are the Artha houses (2, 6, 10) in D-10 supported?\n"
+        "   - Is the D-10 lagna lord strong?\n\n"
+        "5. JAIMINI CHECK:\n"
+        "   - Where is Amatyakaraka (career significator) placed?\n"
+        "   - Is Amatyakaraka in 6/8/12 from current Jaimini Chara Dasha sign?\n"
+        "   - If yes = CAREER ENERGY MISALIGNED - report this.\n\n"
+        "6. LAL KITAB CHECK:\n"
+        "   - Are 8th or 11th houses Sleeping per Lal Kitab?\n"
+        "   - If sleeping = BLOCKAGE - report what remedy awakens it.\n"
+        "   - What does the Varshphal show for wealth houses?\n"
+        "   - Does Muntha or Year Lord occupy 2nd, 8th, or 11th house?\n\n"
+        "7. TIMING VERDICT:\n"
+        "   - 8th+11th both supported = funding ACTIVE, give specific month\n"
+        "   - 8th inactive + Varshphal neutral = funding BLOCKED, say when it unblocks\n"
+        "   - 11th active + 8th weak = revenue yes, outside capital no\n"
+        "   - AmK in 6/8/12 from dasha = realign positioning first\n"
+        "   DO NOT give vague answers. Give a VERDICT based on the data."
+    ),
 
-2. GAINS CHECK — 11th House (income, gains, fulfillment of desires):
-   - Who is the 11th House Lord? What house is it sitting in?
-   - Is the 11th house activated in the current dasha period?
-   - Any benefic aspects on 11th house?
+    "career": (
+        "DOMAIN AUDIT - CAREER / BUSINESS / PROFESSIONAL:\n"
+        "Check: 10th House lord and placement, D-10 lagna lord strength,\n"
+        "Amatyakaraka position, 6th house (competition), Sun strength,\n"
+        "current dasha lord relationship to 10th, Lal Kitab sleeping planets in 10th,\n"
+        "Varshphal year lord in career houses. Give specific timing for career activation."
+    ),
 
-3. WEALTH CHECK — 2nd House (accumulated wealth, cash flow):
-   - Who is the 2nd House Lord? Status — strong, weak, combust?
-   - Any Dhana Yogas (wealth combinations) active?
+    "foreign": (
+        "DOMAIN AUDIT - FOREIGN SETTLEMENT AND TRAVEL:\n"
+        "PROTOCOL: VELOCITY AUDIT\n\n"
+        "1. 4th HOUSE (Home) INTEGRITY:\n"
+        "   - Is the 4th Lord in the 6th, 8th, or 12th house?\n"
+        "   - Is it afflicted by Rahu or Saturn?\n"
+        "   - Affliction = weakening of ties to birthplace.\n\n"
+        "2. 12th HOUSE (Foreign Residence) ACTIVATION:\n"
+        "   - Is the 12th Lord active in the current Vimsottari Dasha?\n"
+        "   - Any connection between 9th Lord (long travel) and 12th Lord?\n\n"
+        "3. RAHU/MOON ALIGNMENT:\n"
+        "   - Is Rahu or Moon in 7th, 9th, or 12th house?\n\n"
+        "4. VERDICT:\n"
+        "   - 4th stable + 12th dormant = STAY\n"
+        "   - 4th afflicted + 12th/9th active = FLIGHT PATH CLEAR\n"
+        "   Give specific month when the travel/settlement window opens."
+    ),
 
-4. CAREER DIVISIONAL — D-10 (Dashamsha):
-   - Are the Artha houses (2, 6, 10) in D-10 supported?
-   - Is the D-10 lagna lord strong?
+    "relationship": (
+        "DOMAIN AUDIT - RELATIONSHIP AND MARRIAGE:\n"
+        "PROTOCOL: D-9 ENGINE DIAGNOSTIC\n\n"
+        "1. D-1 BASELINE: 7th House Lord current strength and transit position.\n\n"
+        "2. D-9 (Navamsha) AUDIT:\n"
+        "   - Compare D-1 7th Lord position in D-9 chart.\n"
+        "   - If it falls in D-9 6th, 8th, or 12th = INTERNAL FRICTION.\n\n"
+        "3. VENUS/JUPITER STATUS:\n"
+        "   - Venus (for men) or Jupiter (for women) - combust? Under Saturn aspect?\n\n"
+        "4. DARAKARAKA: Which planet? Where placed? Strength?\n\n"
+        "5. UPAPADA LAGNA: Sign, lord, planets there.\n\n"
+        "6. VERDICT:\n"
+        "   Do not predict love. Predict SYNC QUALITY.\n"
+        "   e.g. 7th House active but D-9 Engine in recovery = delays until [Date]."
+    ),
 
-5. JAIMINI CHECK:
-   - Where is Amatyakaraka (career significator) placed?
-   - Is Amatyakaraka in 6/8/12 from current Jaimini Chara Dasha sign?
-   - If yes = CAREER ENERGY MISALIGNED — report this.
+    "entrepreneurship": (
+        "DOMAIN AUDIT - NEW BUSINESS / ENTREPRENEURSHIP:\n"
+        "PROTOCOL: INDEPENDENCE AUDIT\n\n"
+        "1. D-10: Is the 1st House (self-reliance) stronger than 7th (partnership)?\n\n"
+        "2. ARTHA TRIAD: Scan 2nd, 6th, 10th houses in D-10 for Rahu or Mars.\n\n"
+        "3. JAIMINI: Is Amatyakaraka in a sign currently undergoing Chara Dasha?\n\n"
+        "4. VERDICT:\n"
+        "   - D-10 1st Lord weak = STAY IN EMPLOYMENT\n"
+        "   - 7th/10th Lords converging in Dasha = LAUNCH WINDOW OPEN\n"
+        "   Give specific month for the launch window."
+    ),
 
-6. LAL KITAB CHECK:
-   - Are 8th or 11th houses Sleeping per Lal Kitab?
-   - If sleeping = BLOCKAGE — report what remedy awakens it.
-   - What does the Varshphal show for wealth houses?
-   - Does Muntha or Year Lord occupy 2nd, 8th, or 11th house?
+    "job_change": (
+        "DOMAIN AUDIT - JOB CHANGE AND PROMOTION:\n"
+        "PROTOCOL: VERTICAL RISE AUDIT\n\n"
+        "1. 6th vs 10th BALANCE: 6th House (daily service) vs 10th House (authority).\n\n"
+        "2. D-10 VITALS: Is current Antardasha lord well-placed in D-10?\n"
+        "   If in 3rd, 6th, 10th, or 11th from D-10 Lagna = PROMOTION/GAIN.\n\n"
+        "3. SATURN/SUN TRANSIT:\n"
+        "   - Saturn hitting 10th = heavy workload\n"
+        "   - Sun hitting 10th = recognition\n\n"
+        "4. VERDICT:\n"
+        "   Give specific date for vertical move window.\n"
+        "   Until then specify steady cruise or preparation mode."
+    ),
 
-7. TIMING VERDICT:
-   - 8th+11th both supported = funding ACTIVE, give specific month
-   - 8th inactive + Varshphal neutral = funding BLOCKED, say when it unblocks
-   - 11th active + 8th weak = revenue yes, outside capital no
-   - AmK in 6/8/12 from dasha = realign positioning first
-   DO NOT give vague answers. Give a VERDICT based on the data.
-""",
-    "career": """
-DOMAIN AUDIT — CAREER / BUSINESS / PROFESSIONAL:
-Check: 10th House lord and placement, D-10 lagna lord strength, Amatyakaraka position,
-6th house (competition), Sun strength, current dasha lord relationship to 10th,
-Lal Kitab sleeping planets in 10th, Varshphal year lord in career houses.
-Give specific timing for career activation.
-""",
-    "love": """
-DOMAIN AUDIT — LOVE / MARRIAGE / RELATIONSHIP:
-Check: 7th House lord and placement, D-9 (Navamsha) 7th house and Venus,
-Darakaraka planet and placement, Upapada Lagna sign and lord,
-current dasha relationship to 7th house. Give specific timing.
-""",
-    "health": """
-DOMAIN AUDIT — HEALTH:
-Check: Lagna lord strength (vitality), 6th house (disease), 8th house (chronic),
-Sun and Mars strength, current dasha lord natural signification,
-age-specific Umra vulnerabilities, Lal Kitab sleeping planets in 1/6/8.
-""",
-    "general": """
-DOMAIN AUDIT — GENERAL:
-Scan ALL major houses. Find the ONE area with highest activation in current dasha.
-Check D-10 for career, D-9 for relationships, D-2 for wealth.
-Find the sharpest signal and go deep on that single area.
-""",
+    "property": (
+        "DOMAIN AUDIT - CHANGE OF RESIDENCE / PROPERTY:\n"
+        "PROTOCOL: D-4 LOCATION SENSOR\n\n"
+        "1. 3rd/4th HOUSE TRIGGER: Connection between 3rd Lord and 4th Lord.\n\n"
+        "2. D-4 (Chaturthamsa) AUDIT: Is D-1 4th Lord in a movable sign in D-4?\n\n"
+        "3. MARS/SATURN TRANSIT: Mars or Saturn hitting 4th house?\n\n"
+        "4. VERDICT:\n"
+        "   Give specific month when location sensor is triggered.\n"
+        "   Specify upgrade vs relocation vs avoid fixed commitments."
+    ),
+
+    "legal": (
+        "DOMAIN AUDIT - LEGAL, DISPUTES AND COMPETITION:\n"
+        "PROTOCOL: VICTORY SENSOR (6th HOUSE)\n\n"
+        "1. 6th HOUSE AUDIT:\n"
+        "   - Check strength of 6th Lord. Is it in 6th, 8th, or 12th?\n"
+        "   - Placement in 8/12 suggests winning through loss or hidden settlements.\n\n"
+        "2. MARS/SATURN INFLUENCE:\n"
+        "   - Is Mars (victory) or Saturn (justice/delay) aspecting the 6th house?\n\n"
+        "3. D-6 (Shashtamsa) CHECK:\n"
+        "   - 6th Lord exalted in D-6 = VICTORY THROUGH STRATEGY.\n\n"
+        "4. VERDICT:\n"
+        "   Give specific date when settlement signal activates.\n"
+        "   If Saturn aspect active = delays until Saturn releases."
+    ),
+
+    "health_audit": (
+        "DOMAIN AUDIT - HEALTH AND VITALITY:\n"
+        "PROTOCOL: ENGINE COOLING AUDIT\n\n"
+        "1. LAGNA LORD STATUS:\n"
+        "   - Is 1st Lord currently combust or in a Maraka house (2nd/7th)?\n\n"
+        "2. 8th HOUSE CHECK:\n"
+        "   - Is current Antardasha lord placed in the 8th house?\n"
+        "   - 8th house activation = internal maintenance required.\n\n"
+        "3. SUN/MOON VITALS:\n"
+        "   - Sun (physical energy) and Moon (mental clarity) under Rahu/Ketu pressure?\n\n"
+        "4. VERDICT:\n"
+        "   If Lagna lord weak + 8th active = low-vitality window until [Date].\n"
+        "   Specify what to avoid during this cycle. Give date when vitality returns."
+    ),
+
+    "real_estate_audit": (
+        "DOMAIN AUDIT - REAL ESTATE AND FIXED ASSETS:\n"
+        "PROTOCOL: ASSET ACQUISITION SENSOR\n\n"
+        "1. 4th HOUSE INTEGRITY: Is 4th Lord connected to 11th or 2nd Lord?\n\n"
+        "2. MARS STATUS: Strength check. Retrograde = construction delays.\n\n"
+        "3. D-4 ENGINE: 4th Lord of D-1 in D-4 Upachaya (3,6,10,11) = GROWTH.\n\n"
+        "4. VERDICT:\n"
+        "   - Connected + Mars strong = PURCHASE WINDOW OPEN\n"
+        "   - Friction + Mars weak = window CLOSED until [Date]"
+    ),
+
+    "children": (
+        "DOMAIN AUDIT - CHILDREN AND CREATIVITY:\n"
+        "PROTOCOL: LEGACY/PROGENY AUDIT\n\n"
+        "1. 5th HOUSE: Lord in fertile sign (Water/Earth) or dry (Fire/Air)?\n\n"
+        "2. D-7 (Saptamsha): Check Jupiter and 9th Lord alignment in D-7.\n\n"
+        "3. JUPITER TRANSIT: In 1st, 5th, or 9th house = GREEN LIGHT.\n\n"
+        "4. VERDICT:\n"
+        "   Jupiter in 1/5/9 + 5th fertile + D-7 supported = FERTILE WINDOW.\n"
+        "   Give specific month when creation window peaks."
+    ),
+
+    "health": (
+        "DOMAIN AUDIT - HEALTH:\n"
+        "Check: Lagna lord strength (vitality), 6th house (disease), 8th house (chronic),\n"
+        "Sun and Mars strength, current dasha lord natural signification,\n"
+        "age-specific Umra vulnerabilities, Lal Kitab sleeping planets in 1/6/8."
+    ),
+
+    "general": (
+        "DOMAIN AUDIT - GENERAL:\n"
+        "Scan ALL major houses. Find the ONE area with highest activation in current dasha.\n"
+        "Check D-10 for career, D-9 for relationships, D-2 for wealth.\n"
+        "Find the sharpest signal and go deep on that single area."
+    ),
 }
+
+# Domain aliases
 DOMAIN_AUDIT_RULES["wealth"] = DOMAIN_AUDIT_RULES["finance"]
 DOMAIN_AUDIT_RULES["funding"] = DOMAIN_AUDIT_RULES["finance"]
 DOMAIN_AUDIT_RULES["business"] = DOMAIN_AUDIT_RULES["career"]
 DOMAIN_AUDIT_RULES["startup"] = DOMAIN_AUDIT_RULES["finance"]
+DOMAIN_AUDIT_RULES["travel"] = DOMAIN_AUDIT_RULES["foreign"]
+DOMAIN_AUDIT_RULES["abroad"] = DOMAIN_AUDIT_RULES["foreign"]
+DOMAIN_AUDIT_RULES["immigration"] = DOMAIN_AUDIT_RULES["foreign"]
+DOMAIN_AUDIT_RULES["marriage"] = DOMAIN_AUDIT_RULES["relationship"]
+DOMAIN_AUDIT_RULES["love"] = DOMAIN_AUDIT_RULES["relationship"]
+DOMAIN_AUDIT_RULES["promotion"] = DOMAIN_AUDIT_RULES["job_change"]
+DOMAIN_AUDIT_RULES["job"] = DOMAIN_AUDIT_RULES["job_change"]
+DOMAIN_AUDIT_RULES["house"] = DOMAIN_AUDIT_RULES["property"]
+DOMAIN_AUDIT_RULES["relocation"] = DOMAIN_AUDIT_RULES["property"]
+DOMAIN_AUDIT_RULES["dispute"] = DOMAIN_AUDIT_RULES["legal"]
+DOMAIN_AUDIT_RULES["court"] = DOMAIN_AUDIT_RULES["legal"]
+DOMAIN_AUDIT_RULES["competition"] = DOMAIN_AUDIT_RULES["legal"]
+DOMAIN_AUDIT_RULES["fertility"] = DOMAIN_AUDIT_RULES["children"]
+DOMAIN_AUDIT_RULES["creativity"] = DOMAIN_AUDIT_RULES["children"]
+DOMAIN_AUDIT_RULES["pregnancy"] = DOMAIN_AUDIT_RULES["children"]
 
-load_dotenv(override=False)
+# ── COMPATIBILITY AUDIT RULES ─────────────────────────────────────
+COMPATIBILITY_AUDIT_RULES = {
+
+    "business_partnership": (
+        "COMPATIBILITY AUDIT - STARTUP AND BUSINESS PARTNERSHIP:\n"
+        "PROTOCOL: CONVERGENCE AUDIT (D-1 and D-10)\n\n"
+        "1. DASHA ALIGNMENT:\n"
+        "   - Do both partners have 10th or 11th House activation in next 24 months?\n"
+        "   - If Partner A is in Growth dasha but Partner B is in Loss/8th dasha = bleed.\n\n"
+        "2. 7th HOUSE LINK:\n"
+        "   - Does Partner A 7th Lord sit in a friendly house in Partner B chart?\n\n"
+        "3. D-10 POWER:\n"
+        "   - Sun/Mars strength = CEO. Saturn/Mercury = Operations.\n"
+        "   - If roles complement = Functional Sync HIGH.\n\n"
+        "4. VERDICT:\n"
+        "   Report Operational Sync percentage. Flag timing mismatches with specific quarter."
+    ),
+
+    "romantic": (
+        "COMPATIBILITY AUDIT - ROMANTIC AND MARRIAGE SYNC:\n"
+        "PROTOCOL: VITALITY AND VIBE SYNC (D-1 and D-9)\n\n"
+        "1. MOON/MIND SYNC: Moon signs in 6/8 or 12/2 = communication friction.\n\n"
+        "2. D-9 ENGINE MATCH:\n"
+        "   - 7th Lord of Partner A in Partner B D-9 hitting Lagna or 5/9 = deep.\n\n"
+        "3. MARS/VENUS BATTERY: Manglik imbalance check.\n\n"
+        "4. VERDICT:\n"
+        "   Report Emotional Sync, Structural Sync (D-9), Engine Compatibility.\n"
+        "   Never use soulmate. Use Operational Alignment."
+    ),
+
+    "investor": (
+        "COMPATIBILITY AUDIT - INVESTOR / FUNDING SYNC:\n"
+        "PROTOCOL: CAPITAL FLOW AUDIT (8th and 11th)\n\n"
+        "1. 8th HOUSE BRIDGE: Investor 11th Lord aspects Founder 8th House = green light.\n\n"
+        "2. AUTHORITY CONFLICT: Two Sun-dominant charts = cockpit collision.\n\n"
+        "3. EXIT TIMING: Investor gains cycle align with Founder peak valuation?\n\n"
+        "4. VERDICT:\n"
+        "   Report Capital Flow, Authority Sync, Exit Alignment.\n"
+        "   If conflict = specify year and recommend legal buffer."
+    ),
+}
+
+# ── BRIDGE INSTRUCTION (applies to ALL domains) ──────────────────
+DOMAIN_BRIDGE_INSTRUCTION = (
+    "STRICT RULE ON THE BRIDGE:\n"
+    "If ANY domain audit shows a BLOCKED signal, you MUST provide a Bridge Action "
+    "that the user can take TODAY to prepare for the future window. "
+    "Do not leave the user with a dead-end No. "
+    "Give them a System Calibration task.\n\n"
+    "Example: User asks Can I start a business now?\n"
+    "Audit shows D-10 weak until late 2026.\n"
+    "You say: The Business Launch Signal is blocked until Sept 2026.\n"
+    "YOUR MOVE: Use this maintenance chapter to learn a specific skill "
+    "or secure your personal savings so you have fuel when the road clears.\n\n"
+    "This turns bad news into strategic delay. "
+    "That is what a high-performance user pays for."
+)
+
+
 
 # ── Email via Resend ──────────────────────────────────────────────────────────
 import httpx as _httpx
@@ -975,24 +1169,7 @@ CORE RULES:
 8. Keep responses under 300 words unless the question requires depth
 9. End every prediction with one action the person can take TODAY
 10. Never give medical, financial, or legal advice
-
-ASTROLOGER FIRST, COACH SECOND:
-You are a Vedic astrologer first and a life coach second. When chart data shows
-specific house activations, dasha triggers, and divisional chart positions — USE THEM.
-Do not default to psychology or motivation when the chart gives you specific data.
-
-When a DOMAIN AUDIT section is included in the context, you MUST:
-1. Check every item listed in the audit
-2. Report what you found in the chart data for each check
-3. Form a VERDICT based on what is active vs blocked
-4. Give specific timing based on dasha transitions or transit activations
-5. Only THEN give the human advice based on your findings
-
-The chart data is NOT decoration. It is the primary source of your answer.
-If the 8th house lord is sitting in the 3rd house, say so and explain what it means.
-If the 11th house is activated by the current dasha, say so and give the timing.
-Never skip chart data to give generic coaching.
-
+\n\nASTROLOGER FIRST, COACH SECOND:\nYou are a Vedic astrologer first and a life coach second. When chart data shows specific house activations, dasha triggers, and divisional chart positions - USE THEM. Do not default to psychology or motivation when the chart gives you specific data.\n\nWhen a DOMAIN AUDIT section is included in the context, you MUST:\n1. Check every item listed in the audit\n2. Report what you found in the chart data for each check\n3. Form a VERDICT based on what is active vs blocked\n4. Give specific timing based on dasha transitions or transit activations\n5. Only THEN give the human advice based on your findings\n\nThe chart data is NOT decoration. It is the primary source of your answer. If the 8th house lord is sitting in the 3rd house, say so and explain what it means. Never skip chart data to give generic coaching.
 """
 
 
@@ -1691,9 +1868,8 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     # ── Domain Audit Rules (Sprint D) ────────────────────────────
     _domain_rules = DOMAIN_AUDIT_RULES.get(concern, DOMAIN_AUDIT_RULES.get("general", ""))
     if _domain_rules:
-        prompt += f"\n\n{_domain_rules}"
+        prompt += "\n\n" + _domain_rules + "\n\n" + DOMAIN_BRIDGE_INSTRUCTION
         print(f"[predict] Domain audit rules injected for concern={concern}")
-
 
     _using_master = _full_context and len(_full_context) > 500
     print(f"[predict] using_master={_using_master} prompt_len={len(prompt)}")
