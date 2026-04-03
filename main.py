@@ -3104,6 +3104,13 @@ City reading data:
 Keep it to 3-4 sentences. Be specific — name the energy, not the planet.
 What does this city activate? What opportunities? What watch-outs?
 End with: should they visit, move, or avoid this city right now?
+
+
+RESPONSE RULES — CRITICAL:
+1. Answer the user's question completely. Then stop.
+2. NEVER end your response with a follow-up question like "Want me to look at a specific timeframe?" or "Should I explore what to focus on?" or "Would you like to know more?" The user asks the questions. You provide answers.
+3. When the timing of an event is months or years away: Name the date clearly. Explain what to do BETWEEN NOW AND THEN. Frame the interim as PREPARATION, not waiting. The user should feel they have agency and a clear path. Never say "unfortunately you will have to wait."
+4. End with a clear, specific, actionable recommendation. One thing. This week. Verb-first.
 Respond in {locale.language}."""
 
     narrative, _ = await call_llm(prompt)
@@ -4774,30 +4781,109 @@ async def verify_stripe_payment(request: dict):
 
 @app.post("/api/v1/payments/stripe/webhook")
 async def handle_stripe_webhook(request: Request):
-    """Stripe webhook — auto-renew subscriptions."""
+    """Stripe webhook — handles all subscription lifecycle events."""
     import json
     from antar_engine.subscription_engine import activate_subscription
     body = await request.body()
     try:
         event = json.loads(body)
-        if event["type"] in ("checkout.session.completed",
-                             "invoice.payment_succeeded"):
-            session  = event["data"]["object"]
-            chart_id = (session.get("client_reference_id") or
-                        session.get("metadata", {}).get("chart_id", ""))
-            sub_id   = (session.get("subscription") or
-                        session.get("payment_intent", ""))
-            plan_key = session.get("metadata", {}).get("plan", "seeker_monthly")
-            plan     = plan_key.split("_")[0]
+        event_type = event["type"]
+        obj = event["data"]["object"]
+
+        # ── NEW SUBSCRIPTION or PAYMENT COMPLETED ──
+        if event_type in ("checkout.session.completed", "customer.subscription.created"):
+            chart_id = (obj.get("client_reference_id") or
+                        obj.get("metadata", {}).get("chart_id", ""))
+            sub_id = (obj.get("subscription") or obj.get("id", ""))
+            plan_key = obj.get("metadata", {}).get("plan", "seeker_monthly")
+            plan = plan_key.split("_")[0]
             if chart_id:
-                period_end = (
-                    datetime.now(timezone.utc) + timedelta(days=32)
-                ).isoformat()
+                days = 366 if "annual" in plan_key or "yearly" in plan_key else 32
+                period_end = (datetime.now(timezone.utc) + timedelta(days=days)).isoformat()
                 activate_subscription(
                     chart_id=chart_id, plan=plan,
                     provider="stripe", provider_sub_id=str(sub_id),
                     period_end_iso=period_end, sb=supabase,
                 )
+                print(f"[stripe webhook] Activated {plan} for {chart_id} (period: {days}d)")
+
+        # ── SUBSCRIPTION UPDATED (plan change: monthly↔yearly, upgrade/downgrade) ──
+        elif event_type == "customer.subscription.updated":
+            chart_id = obj.get("metadata", {}).get("chart_id", "")
+            sub_id = obj.get("id", "")
+            # Get the new plan from the subscription items
+            items = obj.get("items", {}).get("data", [])
+            plan_key = obj.get("metadata", {}).get("plan", "")
+            plan = plan_key.split("_")[0] if plan_key else ""
+            # Check if subscription is still active
+            status = obj.get("status", "")
+            if chart_id and status in ("active", "trialing"):
+                current_period_end = obj.get("current_period_end")
+                if current_period_end:
+                    from datetime import datetime as _dt
+                    period_end = _dt.utcfromtimestamp(current_period_end).isoformat()
+                else:
+                    period_end = (datetime.now(timezone.utc) + timedelta(days=32)).isoformat()
+                if plan:
+                    activate_subscription(
+                        chart_id=chart_id, plan=plan,
+                        provider="stripe", provider_sub_id=str(sub_id),
+                        period_end_iso=period_end, sb=supabase,
+                    )
+                    print(f"[stripe webhook] Updated {chart_id} to {plan} (period_end: {period_end})")
+            elif chart_id and status in ("canceled", "unpaid", "past_due"):
+                supabase.table("subscriptions").update({
+                    "plan": "free", "is_paid": False,
+                }).eq("chart_id", chart_id).execute()
+                print(f"[stripe webhook] Downgraded {chart_id} to free (status: {status})")
+
+        # ── SUBSCRIPTION CANCELLED ──
+        elif event_type == "customer.subscription.deleted":
+            chart_id = obj.get("metadata", {}).get("chart_id", "")
+            if chart_id:
+                supabase.table("subscriptions").update({
+                    "plan": "free", "is_paid": False, "period_end": None,
+                }).eq("chart_id", chart_id).execute()
+                print(f"[stripe webhook] Cancelled {chart_id} → free")
+
+        # ── RECURRING PAYMENT SUCCEEDED ──
+        elif event_type == "invoice.payment_succeeded":
+            sub_id = obj.get("subscription", "")
+            chart_id = obj.get("subscription_details", {}).get("metadata", {}).get("chart_id", "")
+            # Also check lines for metadata
+            if not chart_id:
+                lines = obj.get("lines", {}).get("data", [])
+                for line in lines:
+                    chart_id = line.get("metadata", {}).get("chart_id", "")
+                    if chart_id:
+                        break
+            if chart_id and sub_id:
+                # Extend period
+                period_end = obj.get("period_end")
+                if period_end:
+                    from datetime import datetime as _dt
+                    period_end_iso = _dt.utcfromtimestamp(period_end).isoformat()
+                else:
+                    period_end_iso = (datetime.now(timezone.utc) + timedelta(days=32)).isoformat()
+                supabase.table("subscriptions").update({
+                    "period_end": period_end_iso, "is_paid": True,
+                }).eq("chart_id", chart_id).execute()
+                print(f"[stripe webhook] Renewed {chart_id} (next: {period_end_iso})")
+
+        # ── PAYMENT FAILED ──
+        elif event_type == "invoice.payment_failed":
+            chart_id = obj.get("subscription_details", {}).get("metadata", {}).get("chart_id", "")
+            attempt = obj.get("attempt_count", 0)
+            if chart_id:
+                # After 3 failed attempts, Stripe cancels automatically
+                # For now just log it — Stripe sends the user an email
+                print(f"[stripe webhook] Payment failed for {chart_id} (attempt {attempt})")
+                if attempt >= 3:
+                    supabase.table("subscriptions").update({
+                        "plan": "free", "is_paid": False,
+                    }).eq("chart_id", chart_id).execute()
+                    print(f"[stripe webhook] Downgraded {chart_id} after {attempt} failed payments")
+
         return {"received": True}
     except Exception as e:
         raise HTTPException(400, str(e))
