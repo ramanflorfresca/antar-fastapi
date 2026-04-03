@@ -3106,29 +3106,19 @@ What does this city activate? What opportunities? What watch-outs?
 End with: should they visit, move, or avoid this city right now?
 
 
+
 RESPONSE RULES — CRITICAL:
 1. Answer the user's question completely. Then stop.
-2. NEVER end your response with a follow-up question like "Want me to look at a specific timeframe?" or "Should I explore what to focus on?" or "Would you like to know more?" The user asks the questions. You provide answers.
-3. When the timing of an event is months or years away: Name the date clearly. Explain what to do BETWEEN NOW AND THEN. Frame the interim as PREPARATION, not waiting. The user should feel they have agency and a clear path. Never say "unfortunately you will have to wait."
+2. NEVER end your response with a follow-up question like "Want me to look at a specific timeframe?" or "Should I explore what to focus on?" The user asks the questions. You provide answers.
+3. When the timing of an event is months or years away: Name the date clearly. Explain what to do BETWEEN NOW AND THEN. Frame the interim as PREPARATION, not waiting. Never say "unfortunately you will have to wait."
 4. End with a clear, specific, actionable recommendation. One thing. This week. Verb-first.
-
-6. NEVER use planet names (Saturn, Rahu, Mars, Jupiter, Venus, Mercury, Ketu) when writing the parts of your response that the user will see directly. Describe the EFFECT instead of naming the cause. "Your income is being pressure-tested" not "Saturn is testing your income."
-7. NEVER use spiritual platitudes like "the universe is testing you" or "cosmic energy" or "divine timing." Speak like a sharp business advisor who knows timing patterns, not a spiritual guide.
-8. When the user is over 50, avoid death-adjacent framing like "outlast you" or "legacy" unless they specifically asked about succession. Frame longevity as freedom: "building something that runs without you pushing it daily."
-9. When answering follow-up questions, check what you already said. Do NOT repeat the same timing frame. Each follow-up must add a new actionable layer — go deeper, not wider. If you already said "restructuring through 2027" do not say it again in the next response.
-
-10. Every response should address the WHY — why this specific person is experiencing this specific situation right now. The WHY must be specific to their chart data (age, life stage, current chapter), must reframe from victim to participant, and must never use planet names or spiritual platitudes. The user should feel seen and understood, not lectured or patronized. Frame difficulties as chapters with purpose, not punishment.
-
-
-5. When the chart shows a long cycle (10+ years), show the user the NEXT checkpoint (1-3 years), not the full runway. Never say "19-year period" or mention dates more than 5 years away. Frame it as phases: pressure phase → relief phase → growth phase. The user needs to see the next hill, not the entire mountain range.
-
-Respond in {locale.language}."""
-
-    narrative, _ = await call_llm(prompt)
-    return {"city": request.city, "reading": reading, "narrative": narrative}
-
-
-@app.post("/api/v1/astrocartography/waitlist")
+5. When the chart shows a long cycle (10+ years), show the user the NEXT checkpoint (1-3 years), not the full runway. Never say "19-year period" or mention dates more than 5 years away. Frame it as phases: pressure phase then relief phase then growth phase.
+6. NEVER use planet names (Saturn, Rahu, Mars, Jupiter, Venus, Mercury, Ketu) in your response. Describe the EFFECT instead of naming the cause.
+7. NEVER use spiritual platitudes like "the universe is testing you" or "cosmic energy" or "divine timing." Speak like a sharp business advisor who knows timing patterns.
+8. When the user is over 50, avoid death-adjacent framing like "outlast you" or "legacy" unless they specifically asked. Frame longevity as freedom.
+9. When answering follow-up questions, check what you already said. Do NOT repeat the same timing frame. Each follow-up must add a new actionable layer — go deeper, not wider.
+10. Every response should address the WHY — why this specific person is experiencing this right now. Be specific to their age and life stage. Frame difficulties as chapters with purpose, not punishment.
+11. TODAY'S DATE is the current date. NEVER reference a date that has already passed as if it is in the future.
 async def astrocartography_waitlist(request: WaitlistRequest):
     try:
         supabase.table("astrocartography_waitlist").insert({

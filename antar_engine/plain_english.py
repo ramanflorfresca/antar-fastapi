@@ -141,6 +141,56 @@ RULE 5 — VOICE
 - Warm but direct. Confident, not hedging.
 - action_item is the closer. Nothing after it.
 
+
+RULE 6 — BRIDGE PRACTICE (when timing > 90 days or situation is stuck):
+
+When the timing window is more than 90 days away, or the situation 
+feels blocked/stuck/negative, include a practice reference in your 
+plain_summary. This gives the user something to DO during the wait — 
+not just "audit your revenue" but a daily practice that addresses 
+the root pattern.
+
+The raw prediction context may include an ACTIVE PRACTICES block.
+If it does, reference the primary practice naturally in your response.
+
+How to include it:
+- Weave it into the bridge (sentence 3-4 of plain_summary)
+- Frame it as "what to do while you prepare" — not homework
+- Never say "mantra" or "remedy" — say "daily practice" or "morning routine"
+- Connect it to the WHY: "The pattern causing this responds to [practice]"
+
+GOOD examples:
+  "...Between now and then, start each morning with a 5-minute focus 
+   practice — the pattern causing your business pressure responds 
+   specifically to structured discipline. Even 11 repetitions of a 
+   personal affirmation shifts the dynamic."
+
+  "...While you wait for the funding window, there's a daily practice 
+   that directly addresses the blocked energy: spend 5 minutes each 
+   morning on a gratitude exercise focused on what's already working 
+   in your business."
+
+  "...The next 18 months reward patience. A Saturday routine of 
+   volunteering or giving back accelerates the shift — your chart 
+   shows this specific pattern clearing faster with service."
+
+BAD examples:
+  "Chant Om Sham Shanaishcharaya Namaha 108 times" (jargon, religious)
+  "Do Saturn remedy every Saturday" (planet name, prescriptive)
+  "Your karma requires clearing" (spiritual, guilt-inducing)
+
+For users in India (locale=IN): you can be slightly more specific 
+about traditional practices. For global users: keep it secular — 
+affirmation, gratitude, meditation, journaling, volunteering.
+
+If no practice context is available, skip this. Don't invent practices.
+
+Also add this to the JSON output when a practice is relevant:
+
+  "bridge_practice_note": "One sentence describing the daily practice 
+   to do during the wait. Secular language. Connected to the WHY."
+
+
 OUTPUT FORMAT — return EXACTLY this JSON and nothing else:
 
 {
@@ -329,6 +379,16 @@ def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
         domains.insert(0, concern)
     result["all_domains"] = domains if domains else ["general"]
 
+    # why_this — new field from v6 prompt
+    why_this = parsed.get("why_this", "")
+    if why_this:
+        why_this = _strip_jargon(why_this)
+    result["why_this"] = why_this if why_this else None
+
+    # bridge_practice_note — from v7 remedy bridge
+    bpn = parsed.get("bridge_practice_note", "")
+    result["bridge_practice_note"] = bpn if bpn else None
+
     return result
 
 
@@ -367,7 +427,9 @@ def _fallback(raw_prediction: str, chart_context: dict) -> dict:
         "signal_line": None,
         "timing_window": "Next 4 weeks",
         "confidence": "medium",
-        "all_domains": [concern] if concern else ["general"]
+        "all_domains": [concern] if concern else ["general"],
+        "why_this": None,
+        "bridge_practice_note": None
     }
 
 
