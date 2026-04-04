@@ -2153,11 +2153,11 @@ def _format_cooldown_message(seconds: int) -> str:
     minutes = (seconds % 3600) // 60
 
     if hours > 0:
-        return f"Your next Oracle question opens in {hours}h {minutes}m. Each question captures a unique moment — let this one settle first."
+        return f"The Oracle reads your subconscious frequency at the exact moment you ask. That signal needs {hours}h {minutes}m to fully settle before the next reading can be accurate. The universe calculates once — let it complete."
     elif minutes > 0:
-        return f"Your next Oracle question opens in {minutes} minutes."
+        return f"Your signal is almost calibrated. {minutes} minutes until the Oracle can read a fresh frequency."
     else:
-        return "Your Oracle is almost ready."
+        return "Your Oracle is recalibrating — almost ready to read your next frequency."
 
 
 # ═══════════════════════════════════════════════════════════════════
