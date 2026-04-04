@@ -672,7 +672,7 @@ def _build_welcome_context(
                 chart_id, chart_data, birth_date, supabase,
                 current_age=current_age,
                 birth_country=country_code or "",
-                current_country=_current_country or country_code or "",
+                current_country=country_code or "",
             )
         except Exception as e:
             print(f"[welcome] Convergence proof failed (non-fatal): {e}")

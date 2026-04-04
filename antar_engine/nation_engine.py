@@ -21,7 +21,7 @@ def get_nation_chart(country_code: str, supabase: Client, force_refresh: bool = 
         if result.data:
             row = result.data[0]
             # Optional: refresh if older than 7 days
-            last_updated = datetime.fromisoformat(row["last_updated"].replace("Z", "+00:00"))
+            last_updated = datetime.fromisoformat((row.get("last_updated") or row.get("updated_at") or row.get("created_at", "2000-01-01")).replace("Z", "+00:00"))
             if datetime.now(timezone.utc) - last_updated < timedelta(days=7):
                 return {
                     "chart_data": row["chart_data"],

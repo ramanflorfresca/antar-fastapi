@@ -3128,7 +3128,7 @@ async def create_chart(
 
         # --- Jaimini v2: Compute and store Chara Dasha ---
         try:
-            _lagna_idx_j = constants.SIGNS.index(lagna_sign) if isinstance(lagna_sign, str) else int(lagna_sign)
+            _lagna_idx_j = constants.SIGNS.index(_lagna_sign) if isinstance(_lagna_sign, str) else int(_lagna_sign)
             _planets_for_jaimini = {}
             for pname, pdata in chart_data.get("planets", {}).items():
                 if isinstance(pdata, dict):
