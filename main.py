@@ -938,6 +938,8 @@ class PredictResponse(BaseModel):
     signal_confidence:      Optional[str]  = None
     why_this:               Optional[str]  = None
     bridge_practice_note:   Optional[str]  = None
+    contradiction_detected: Optional[bool] = False
+    oracle_context:         Optional[Dict] = None
 
 class ChartResponse(BaseModel):
     id: str
@@ -1385,6 +1387,106 @@ async def get_chart(chart_id: str):
 
 # ── Predict ───────────────────────────────────────────────────────────────────
 
+
+# ═══════════════════════════════════════════════════════════════
+# SPRINT E2: CONTRADICTION RESOLUTION
+# ═══════════════════════════════════════════════════════════════
+
+def _domains_overlap(predict_domain: str, prashna_domain: str) -> bool:
+    """E2: Check if two domain strings refer to the same life area."""
+    if not predict_domain or not prashna_domain:
+        return False
+    pd = predict_domain.lower().strip()
+    pr = prashna_domain.lower().strip()
+    if pd == pr:
+        return True
+    DOMAIN_GROUPS = {
+        "career": {"career", "job", "promotion", "business", "promoted", "raise",
+                   "interview", "hired", "fired", "resign", "boss", "work"},
+        "finance": {"finance", "money", "investment", "wealth", "funding", "fund",
+                    "loan", "equity", "investor", "series", "profit", "loss",
+                    "stock", "crypto", "deal", "buy", "sell"},
+        "relationship": {"relationship", "marriage", "love", "partner", "divorce",
+                         "dating", "girlfriend", "boyfriend", "wife", "husband",
+                         "engaged", "marry"},
+        "legal": {"legal", "court", "lawsuit", "case", "judge", "litigation"},
+        "health": {"health", "surgery", "illness", "sick", "doctor", "hospital",
+                   "medicine", "recover", "disease"},
+        "children": {"children", "child", "pregnant", "conceive", "kid", "son",
+                     "daughter", "baby", "fertility"},
+        "travel": {"travel", "foreign", "relocation", "immigration", "migrate",
+                   "passport", "visa", "abroad", "relocate"},
+        "education": {"education", "degree", "admission", "university", "school",
+                      "exam", "test", "study"},
+    }
+    for group_name, keywords in DOMAIN_GROUPS.items():
+        if pd in keywords and pr in keywords:
+            return True
+    return False
+
+
+def get_recent_prashna_for_domain(chart_id: str, domain: str, hours: int = 72):
+    """E2: Check if user asked the Oracle about this domain in the last N hours."""
+    try:
+        _cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
+        _result = supabase.table("prashna_log") \
+            .select("verdict, score, timing, domain, question, created_at") \
+            .eq("chart_id", chart_id) \
+            .gte("created_at", _cutoff) \
+            .order("created_at", desc=True) \
+            .limit(5) \
+            .execute()
+        if not _result.data:
+            return None
+        for _row in _result.data:
+            _pr_domain = _row.get("domain", "")
+            if _domains_overlap(domain, _pr_domain):
+                _hours_ago = (
+                    datetime.now(timezone.utc) -
+                    datetime.fromisoformat(_row["created_at"].replace("Z", "+00:00"))
+                ).total_seconds() / 3600
+                return {
+                    "verdict": _row.get("verdict", ""),
+                    "score": _row.get("score", 0),
+                    "timing": _row.get("timing", ""),
+                    "domain": _pr_domain,
+                    "question": _row.get("question", ""),
+                    "hours_ago": round(_hours_ago, 1),
+                }
+        return None
+    except Exception as _e2_err:
+        print(f"[E2] get_recent_prashna_for_domain failed: {_e2_err}")
+        return None
+
+
+def build_contradiction_context(recent_prashna: dict) -> str:
+    """E2: Build prompt block telling Claude about a recent Oracle reading on the same domain."""
+    return f"""
+\u2550\u2550\u2550 RECENT ORACLE READING (same domain) \u2550\u2550\u2550
+The user asked the Horary Oracle about this topic {recent_prashna['hours_ago']} hours ago.
+Oracle verdict: {recent_prashna['verdict']} ({recent_prashna['score']}%)
+Oracle timing: {recent_prashna['timing']}
+Oracle domain: {recent_prashna['domain']}
+Oracle question: \"{recent_prashna['question']}\"
+
+IF your birth chart analysis contradicts the Oracle verdict:
+- Explain that the birth chart shows STRUCTURAL timing (long-term patterns, dasha periods, slow transits)
+- The Oracle shows TACTICAL momentum (the energy at the exact moment they asked)
+- When they disagree, the timing is usually the real signal
+- Birth chart = when the foundation is ready. Oracle = when the door opens.
+- THE MOVE should account for both: prepare now (Oracle), don't overcommit yet (birth chart)
+- Frame it as: \"Two lenses, same question \u2014 here's what each one sees.\"
+
+IF your birth chart analysis AGREES with the Oracle verdict:
+- Note the convergence: \"Both your birth chart and the Oracle point the same direction.\"
+- This increases confidence. Say so.
+
+DO NOT ignore the Oracle reading. DO NOT pretend it doesn't exist.
+Acknowledge it explicitly and explain the difference.
+\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
+"""
+
+
 @app.post("/api/v1/predict", response_model=PredictResponse)
 async def predict(request: PredictRequest, authorization: Optional[str] = Header(None)):
     user_id = None
@@ -1586,6 +1688,31 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         print(f"[predict] C4 common sense failed (non-fatal): {_cs_err}")
         _cs_block = ""
     # ── end C4 ───────────────────────────────────────────────────
+
+    # ── E2: Contradiction Resolution ─────────────────────────────
+    _contradiction_detected = False
+    _oracle_context = None
+    try:
+        _recent_prashna = get_recent_prashna_for_domain(request.chart_id, concern, hours=72)
+        if _recent_prashna:
+            _contradiction_block = build_contradiction_context(_recent_prashna)
+            # Will be prepended to prompt later via extra blocks
+            _contradiction_detected = True
+            _oracle_context = {
+                "verdict": _recent_prashna["verdict"],
+                "score": _recent_prashna["score"],
+                "timing": _recent_prashna["timing"],
+                "domain": _recent_prashna["domain"],
+                "hours_ago": _recent_prashna["hours_ago"],
+            }
+            print(f"[E2] Contradiction context injected domain={concern} "
+                  f"oracle={_recent_prashna['verdict']} hours_ago={_recent_prashna['hours_ago']}")
+        else:
+            _contradiction_block = ""
+    except Exception as _e2_wire_err:
+        print(f"[E2] Contradiction check failed (non-fatal): {_e2_wire_err}")
+        _contradiction_block = ""
+    # ── end E2 ───────────────────────────────────────────────────
 
     # Sprint D: domain-focused DKP note
     try:
@@ -1873,6 +2000,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         ("enrichment",   enrichment_context),
         ("sade_sati",    sade_sati_context),
         ("life_question",life_question_context),
+        ("e2_contradiction", _contradiction_block if '_contradiction_block' in dir() else ""),
     ]:
         try:
             if _extra_block:
@@ -2140,6 +2268,8 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         signal_confidence=_pe.get("confidence") if _pe else None,
         why_this=_pe.get("why_this") if _pe else None,
         bridge_practice_note=_pe.get("bridge_practice_note") if _pe else None,
+        contradiction_detected=_contradiction_detected if '_contradiction_detected' in dir() else False,
+        oracle_context=_oracle_context if '_oracle_context' in dir() else None,
     )
 
 # ── Conversations ─────────────────────────────────────────────────────────────
