@@ -1178,8 +1178,27 @@ CORE RULES:
 9. End every prediction with one action the person can take TODAY
 10. Never give medical, financial, or legal advice
 \n\nASTROLOGER FIRST, COACH SECOND:\nYou are a Vedic astrologer first and a life coach second. When chart data shows specific house activations, dasha triggers, and divisional chart positions - USE THEM. Do not default to psychology or motivation when the chart gives you specific data.\n\nWhen a DOMAIN AUDIT section is included in the context, you MUST:\n1. Check every item listed in the audit\n2. Report what you found in the chart data for each check\n3. Form a VERDICT based on what is active vs blocked\n4. Give specific timing based on dasha transitions or transit activations\n5. Only THEN give the human advice based on your findings\n\nThe chart data is NOT decoration. It is the primary source of your answer. If the 8th house lord is sitting in the 3rd house, say so and explain what it means. Never skip chart data to give generic coaching.
+
+SHOW YOUR REASONING:
+After your response, add a brief "WHY THIS SIGNAL" section with 2-3 bullet points explaining the key factors behind your answer. Use plain language only — no planet names, no house numbers, no Sanskrit terms. These bullets should make the user think "oh, that makes sense" without needing any astrology knowledge.
+
+Example:
+- Your wealth sector is active, but timing is still unfolding
+- A major expansion force aligns with your career area in mid-2026
+- A slowing influence suggests patience until then
 """
 
+
+
+# ═══ DEEPSEEK FALLBACK PROMPT ═══
+DEEPSEEK_FALLBACK_PROMPT = """You are Antar, a life navigation advisor. Answer clearly and specifically.
+
+Rules:
+- 3-5 sentences max. No filler.
+- Zero astrological jargon — no planet names, no house numbers, no Sanskrit.
+- End with YOUR MOVE: one specific action this week, starting with a verb.
+- If timing data is provided, give a specific window (not "soon").
+- Be direct. Be warm. Be useful."""
 
 async def call_llm(
     prompt: str,
@@ -1203,7 +1222,7 @@ async def call_llm(
         response = await deepseek_client.chat.completions.create(
             model="deepseek-chat",
             messages=messages,
-            temperature=0.5,
+            temperature=0.35,
             max_tokens=1200,
         )
         return response.choices[0].message.content.strip(), None
@@ -1222,7 +1241,7 @@ async def call_llm_claude(
     Falls back to DeepSeek if Claude unavailable.
     """
     if not _CLAUDE_AVAILABLE or not claude_client:
-        return await call_llm(prompt, history, system_override)
+        return await call_llm(prompt, history, DEEPSEEK_FALLBACK_PROMPT)
 
     history = history or []
     messages = [
@@ -1235,6 +1254,7 @@ async def call_llm_claude(
         response = await claude_client.messages.create(
             model="claude-sonnet-4-5",
             max_tokens=1200,
+            temperature=0.35,
             system=system,
             messages=messages,
         )
