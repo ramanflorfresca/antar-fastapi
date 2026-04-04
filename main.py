@@ -4371,7 +4371,7 @@ async def ask_prashna(request: PrashnaRequest):
             timestamp=timestamp,
             jaimini_data=jaimini_data,
             natal_dasha=natal_dasha,
-            natal_chart_data=chart_row.get("chart_data") if chart_row else None,
+            natal_chart_data=chart_data.get("chart_data") if chart_data else None,
             user_name=first_name or "User",
             locale=locale,
         )
