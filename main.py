@@ -4377,16 +4377,15 @@ async def ask_prashna(request: PrashnaRequest):
         )
 
         # ─── 5. Call Claude to explain the verdict ───
-        explanation = ""
-        try:
-            result_tuple = await call_llm(
-                prompt=question,
-
         # Append emotional tone to prashna prompt
         _prashna_prompt = engine_result.get("claude_prompt", "")
         if _prashna_emotion_block:
             _prashna_prompt += _prashna_emotion_block
 
+        explanation = ""
+        try:
+            result_tuple = await call_llm(
+                prompt=question,
                 system_override=_prashna_prompt,
             )
             explanation = result_tuple[0] if isinstance(result_tuple, tuple) else result_tuple
