@@ -1625,7 +1625,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
                 country_code, supabase, deepseek_client, language
             )
         except Exception as e:
-            print(f"Nation insight error: {e}")
+            print(f"[predict] Nation insight error (non-fatal): {type(e).__name__}: {e}")
     # ── end C2 ───────────────────────────────────────────────────
 
     # ── Concern detection (must come before C3 and C4) ────────
@@ -1715,6 +1715,8 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         _contradiction_block = ""
     # ── end E2 ───────────────────────────────────────────────────
 
+    # Initialize dkp_block if not yet defined (defined later in DKP section ~line 1880)
+    dkp_block = dkp_block if "dkp_block" in locals() else ""
     # Sprint D: domain-focused DKP note
     try:
         from antar_engine.desh_kal_patra import get_domain_dkp_note
@@ -1945,6 +1947,9 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             if _jaimini_block:
                 _full_context += _jaimini_block
             _concern = getattr(request, 'concern', '') or getattr(request, 'question', '') or ''
+# Ensure chart_data has 'id' for jaimini lookups
+            if "id" not in chart_data:
+                chart_data["id"] = request.chart_id
             _jaimini_conv = score_jaimini_convergence(chart_data, _concern)
             if _jaimini_conv:
                 _full_context += "\n" + _jaimini_conv + "\n"
