@@ -4442,7 +4442,7 @@ async def ask_prashna(request: PrashnaRequest):
 
         # ─── 2. Fetch Chart Data ───
         chart_row = supabase.table("charts") \
-            .select("chart_data, jaimini_data, lal_kitab_data, first_name, current_country, lagna_sign, latitude, longitude") \
+            .select("user_id, chart_data, jaimini_data, lal_kitab_data, first_name, current_country, lagna_sign, latitude, longitude") \
             .eq("id", chart_id) \
             .single() \
             .execute()
@@ -4582,6 +4582,85 @@ async def ask_prashna(request: PrashnaRequest):
             }).execute()
         except Exception as log_err:
             logger.warning(f"Failed to log prashna (non-blocking): {log_err}")
+
+        # ─── 7b. Save to messages table (persistent chat history) ───
+        try:
+            _prashna_user_id = chart_data.get("user_id") or chart_id
+            # Find or create a conversation for this chart's oracle questions
+            _oracle_conv = supabase.table("conversations") \
+                .select("id") \
+                .eq("chart_id", chart_id) \
+                .eq("concern", "oracle") \
+                .order("created_at", desc=True) \
+                .limit(1) \
+                .execute()
+
+            if _oracle_conv.data:
+                _oracle_conv_id = _oracle_conv.data[0]["id"]
+                supabase.table("conversations").update({
+                    "preview": f"Oracle: {engine_result['verdict']} ({engine_result['score']}%)",
+                    "last_message_at": datetime.now(timezone.utc).isoformat(),
+                }).eq("id", _oracle_conv_id).execute()
+            else:
+                _new_conv = supabase.table("conversations").insert({
+                    "user_id": _prashna_user_id,
+                    "chart_id": chart_id,
+                    "title": "Prashna Oracle",
+                    "preview": f"Oracle: {engine_result['verdict']} ({engine_result['score']}%)",
+                    "concern": "oracle",
+                }).execute()
+                _oracle_conv_id = _new_conv.data[0]["id"]
+
+            # Get next sequence number
+            _seq_res = supabase.table("messages") \
+                .select("sequence_number") \
+                .eq("conversation_id", _oracle_conv_id) \
+                .order("sequence_number", desc=True) \
+                .limit(1) \
+                .execute()
+            _last_seq = _seq_res.data[0]["sequence_number"] if _seq_res.data else 0
+
+            # User question message
+            supabase.table("messages").insert({
+                "conversation_id": _oracle_conv_id,
+                "user_id": _prashna_user_id,
+                "role": "user",
+                "sequence_number": _last_seq + 1,
+                "content": question,
+                "concern": engine_result.get("domain", "general"),
+            }).execute()
+
+            # Oracle verdict message
+            _verdict_content = (
+                f"[ORACLE VERDICT] {engine_result['verdict']} ({engine_result['score']}%)\n"
+                f"Domain: {engine_result['domain']}\n"
+                f"Timing: {engine_result['timing']}\n\n"
+                f"{explanation}\n\n"
+                f"Remedy: {remedy.get('practice', '')}"
+            )
+            supabase.table("messages").insert({
+                "conversation_id": _oracle_conv_id,
+                "user_id": _prashna_user_id,
+                "role": "assistant",
+                "sequence_number": _last_seq + 2,
+                "content": _verdict_content,
+                "concern": engine_result.get("domain", "general"),
+                "confidence": engine_result["score"] / 100.0,
+                "full_response": {
+                    "type": "prashna_verdict",
+                    "verdict": engine_result["verdict"],
+                    "score": engine_result["score"],
+                    "domain": engine_result["domain"],
+                    "timing": engine_result["timing"],
+                    "proof_bars": engine_result.get("proof_bars"),
+                    "domain_audit": engine_result.get("domain_audit"),
+                    "cooldown_until": engine_result.get("cooldown_until"),
+                },
+            }).execute()
+
+            print(f"[prashna] Saved to messages table conv={_oracle_conv_id}")
+        except Exception as _msg_err:
+            print(f"[prashna] Messages save failed (non-fatal): {_msg_err}")
 
         # ─── 8. Also save to legacy prashna_readings for backward compat ───
         try:
