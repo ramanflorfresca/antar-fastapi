@@ -131,7 +131,7 @@ def build_emotional_prompt_block(tone: str, time_mod: str) -> str:
 # ── Constants ────────────────────────────────────────────────────────────────
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-MODEL = "claude-sonnet-4-20250514"
+MODEL = "claude-haiku-4-5-20251001"
 MAX_TOKENS = 1000
 
 BANNED_TERMS = [
