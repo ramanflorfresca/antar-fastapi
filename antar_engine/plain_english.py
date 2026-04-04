@@ -229,8 +229,23 @@ and nobody would notice, you failed.
 
 RULE 4 — BANNED CONTENT
 
-NEVER use in plain_summary or action_item:
-- Planet names: Saturn, Rahu, Mars, Jupiter, Venus, Mercury, Ketu
+NEVER use raw planet names in plain_summary or action_item.
+Instead, use these ENERGY TRANSLATIONS:
+- Rahu → "Ambition Engine" or "Ambition cycle"
+- Ketu → "Extraction Phase"
+- Saturn → "Structural Load" or "Structure cycle"
+- Jupiter → "Growth Signal" or "Growth cycle"
+- Mars → "Execution Force" or "Execution cycle"
+- Venus → "Magnetism Node" or "Magnetism cycle"
+- Mercury → "Communication Stream"
+- Sun → "Power Source" or "Authority cycle"
+- Moon → "Mental Current" or "Emotional cycle"
+
+Example: Instead of "Your Rahu-Saturn period runs until 2028"
+Write: "You are in a high-stakes Ambition cycle meeting a Structural load — building infrastructure, not harvesting yet."
+
+ALSO NEVER use in plain_summary or action_item:
+- Raw planet names: Saturn, Rahu, Mars, Jupiter, Venus, Mercury, Ketu
 - Astro terms: Mahadasha, Antardasha, Atmakaraka, Navamsa, dasha, 
   yoga (astrological), house, transit, aspect, conjunction, retrograde
 - Platitudes: "the universe is testing", "cosmic energy", "divine timing",
@@ -639,12 +654,70 @@ def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
     return result
 
 
+# ═══ ENERGY TRANSLATION MAP ═══
+# Replaces planet names with energy frequencies in user-facing text
+ENERGY_MAP = {
+    "rahu":    "your Ambition Engine",
+    "ketu":    "your Extraction Phase",
+    "saturn":  "your Structural Load",
+    "jupiter": "your Growth Signal",
+    "mars":    "your Execution Force",
+    "venus":   "your Magnetism Node",
+    "mercury": "your Communication Stream",
+    "sun":     "your Power Source",
+    "moon":    "your Mental Current",
+}
+
+# Dasha/period translations
+PERIOD_MAP = {
+    "rahu period":    "Ambition cycle",
+    "rahu-saturn":    "Ambition-meets-Structure phase",
+    "rahu-jupiter":   "Ambition-meets-Growth phase",
+    "rahu-mercury":   "Ambition-meets-Communication phase",
+    "rahu-venus":     "Ambition-meets-Magnetism phase",
+    "rahu-mars":      "Ambition-meets-Execution phase",
+    "rahu-moon":      "Ambition-meets-Emotional phase",
+    "rahu-sun":       "Ambition-meets-Authority phase",
+    "rahu-ketu":      "Ambition-meets-Extraction phase",
+    "saturn period":  "Structure cycle",
+    "jupiter period": "Growth cycle",
+    "mars period":    "Execution cycle",
+    "venus period":   "Magnetism cycle",
+    "mercury period": "Communication cycle",
+    "sun period":     "Authority cycle",
+    "moon period":    "Emotional cycle",
+    "ketu period":    "Extraction cycle",
+    "mars-moon":      "Execution-meets-Emotional phase",
+    "mars-saturn":    "Execution-meets-Structure phase",
+    "mars-jupiter":   "Execution-meets-Growth phase",
+    "mars-venus":     "Execution-meets-Magnetism phase",
+    "mars-mercury":   "Execution-meets-Communication phase",
+    "mars-rahu":      "Execution-meets-Ambition phase",
+    "mars-sun":       "Execution-meets-Authority phase",
+    "mars-ketu":      "Execution-meets-Extraction phase",
+}
+
 def _strip_jargon(text: str) -> str:
-    """Remove banned Sanskrit/astrology terms from text."""
+    """Replace planet names with energy frequencies and remove banned terms."""
+    # Step 1: Replace dasha/period combinations first (longer matches first)
+    for period_term, energy_label in sorted(PERIOD_MAP.items(), key=lambda x: -len(x[0])):
+        pattern = re.compile(r'\b' + re.escape(period_term) + r'\b', re.IGNORECASE)
+        text = pattern.sub(energy_label, text)
+
+    # Step 2: Replace standalone planet names with energy translations
+    for planet, energy in ENERGY_MAP.items():
+        pattern = re.compile(r'\b' + re.escape(planet) + r'\b', re.IGNORECASE)
+        text = pattern.sub(energy, text)
+
+    # Step 3: Remove remaining banned Sanskrit terms
     for term in BANNED_TERMS:
-        # Case-insensitive whole-word replacement
         pattern = re.compile(r'\b' + re.escape(term) + r'\b', re.IGNORECASE)
-        text = pattern.sub("[planetary cycle]", text)
+        text = pattern.sub("", text)
+
+    # Clean up double spaces and orphaned punctuation
+    text = re.sub(r'  +', ' ', text)
+    text = re.sub(r' ,', ',', text)
+    text = re.sub(r' \.', '.', text)
     return text.strip()
 
 
