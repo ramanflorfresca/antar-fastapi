@@ -370,6 +370,120 @@ DEFAULT_AUDIT_CONFIG = {
     "rules": [],
 }
 
+
+# ═══ E1: EMOTIONAL INTELLIGENCE LAYER ═══
+# Detects emotional state from question text and adapts Claude's tone.
+# Does NOT change the verdict or score — only the delivery.
+
+EMOTIONAL_KEYWORDS = {
+    "desperate": [
+        "ever find", "never find", "always alone", "no one", "give up", "hopeless",
+        "scared", "afraid", "terrified", "panic", "anxiety", "depressed",
+        "crying", "broken", "lost everything", "stuck forever", "worth it",
+        "will i ever", "am i doomed", "no hope", "cant take", "falling apart",
+        "will things ever", "is there any hope", "feel so alone",
+    ],
+    "hopeful": [
+        "finally", "dream come true", "hoping", "praying", "please tell me",
+        "is there a chance", "possible", "one day", "meant to be", "destiny",
+        "will my luck", "turning point", "light at the end", "things looking up",
+    ],
+    "angry": [
+        "unfair", "betrayed", "cheated", "lied to", "robbed", "screwed",
+        "revenge", "justice", "punish", "how dare", "sick of", "fed up",
+        "they ruined", "backstabbed", "stolen from me",
+    ],
+}
+
+# Business phrases that contain emotional words but aren't emotional
+EMOTION_EXCLUSIONS = [
+    "dying to close", "killing it", "crushing it", "scared money",
+    "afraid of missing", "lost opportunity", "broken deal",
+]
+
+
+def detect_emotional_tone(question: str) -> str:
+    """
+    Detect emotional state from question text.
+    Returns: "desperate" | "hopeful" | "angry" | "neutral"
+
+    Checks exclusions first to avoid false positives on business jargon.
+    """
+    q = question.lower()
+
+    # Check exclusions — business phrases that look emotional but aren't
+    for exclusion in EMOTION_EXCLUSIONS:
+        if exclusion in q:
+            return "neutral"
+
+    # Check emotional keywords
+    for tone, keywords in EMOTIONAL_KEYWORDS.items():
+        if any(kw in q for kw in keywords):
+            return tone
+
+    return "neutral"
+
+
+def get_time_modifier(hour_utc: int) -> str:
+    """
+    Detect late-night queries (0-5 AM UTC).
+    Returns: "late_night" | "normal"
+
+    Late-night questions get warmer tone — someone reaching out at 2am
+    is probably anxious or can't sleep.
+    """
+    if 0 <= hour_utc < 6:
+        return "late_night"
+    return "normal"
+
+
+def build_emotional_prompt_block(tone: str, time_mod: str) -> str:
+    """
+    Build the prompt injection block for Claude based on detected emotion.
+    Returns empty string for neutral tone (no injection needed).
+    """
+    blocks = []
+
+    if tone == "desperate":
+        blocks.append(
+            "EMOTIONAL CONTEXT: The user is in emotional distress. "
+            "Lead with acknowledgment — one sentence that shows you hear them. "
+            "Use softer language: 'the energy suggests' instead of 'the verdict is'. "
+            "If the answer is difficult, frame it as 'not yet' rather than 'no'. "
+            "End with grounding: a concrete small step they can take TODAY. "
+            "Never dismiss their feelings. Never use platitudes. "
+            "The verdict doesn't change — only the delivery."
+        )
+    elif tone == "hopeful":
+        blocks.append(
+            "EMOTIONAL CONTEXT: The user is carrying hope. Honor it. "
+            "Don't inflate expectations but don't crush them either. "
+            "If the verdict is negative, frame it as timing — 'the window isn't open yet' "
+            "rather than a flat no. End with what they CAN do now to prepare. "
+            "Match their energy without overpromising."
+        )
+    elif tone == "angry":
+        blocks.append(
+            "EMOTIONAL CONTEXT: The user is angry. Don't match the energy. "
+            "Don't dismiss it either. Validate the feeling in ONE sentence, "
+            "then pivot to what the data actually shows. "
+            "Frame THE MOVE as reclaiming power and clarity, not seeking revenge. "
+            "Be direct, not clinical."
+        )
+
+    if time_mod == "late_night":
+        blocks.append(
+            "TIME CONTEXT: The user is reaching out late at night. "
+            "This suggests urgency or insomnia. Be warm but grounding. "
+            "Keep it concise — they need clarity, not a lecture. "
+            "Don't add more to worry about."
+        )
+
+    if blocks:
+        return "\n\n" + "\n".join(blocks) + "\n"
+    return ""
+
+
 BIRTH_POWER_HOUSES = {
     "career": 10, "job": 10, "promotion": 10, "business": 10,
     "finance": 2, "money": 2, "investment": 8, "wealth": 2,
@@ -1964,6 +2078,10 @@ Intuition: {bd['moon_validation']['score']}% — {bd['moon_validation']['reason'
 5. End with ONE specific action — THE MOVE — the user should take this week.
 6. Keep it under 150 words total.
 7. ZERO astrological jargon — no Sanskrit terms, no house numbers, no planet names.
+
+9. If an EMOTIONAL CONTEXT block appears above, follow its tone instructions.
+   The verdict and data are unchanged — only adjust how you deliver them.
+10. If a TIME CONTEXT block appears above, adjust warmth accordingly.
 8. Write as a confident executive advisor, not an astrologer.
 """
 

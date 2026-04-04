@@ -400,6 +400,14 @@ try:
         detect_prashna_intent,
         PRASHNA_COOLDOWN_HOURS,
     )
+
+    # ═══ E1: EMOTIONAL INTELLIGENCE LAYER ═══
+    from antar_engine.prashna_engine import (
+        detect_emotional_tone,
+        get_time_modifier,
+        build_emotional_prompt_block,
+    )
+
     from antar_engine.welcome_signal_v2 import (
         generate_welcome_signal_v2,
     )
@@ -4330,6 +4338,12 @@ async def ask_prashna(request: PrashnaRequest):
         timestamp = datetime.now(timezone.utc)
         locale = "IN" if current_country and current_country.upper() in ["IN", "INDIA"] else "global"
 
+
+        # ═══ E1: Emotional tone for Prashna ═══
+        _prashna_emotion = detect_emotional_tone(question) if 'detect_emotional_tone' in dir() else "neutral"
+        _prashna_time = get_time_modifier(datetime.now(timezone.utc).hour) if 'get_time_modifier' in dir() else "normal"
+        _prashna_emotion_block = build_emotional_prompt_block(_prashna_emotion, _prashna_time) if 'build_emotional_prompt_block' in dir() else ""
+
         engine_result = run_prashna_engine(
             question=question,
             lat=lat,
@@ -4347,7 +4361,13 @@ async def ask_prashna(request: PrashnaRequest):
         try:
             result_tuple = await call_llm(
                 prompt=question,
-                system_override=engine_result["claude_prompt"],
+
+        # Append emotional tone to prashna prompt
+        _prashna_prompt = engine_result.get("claude_prompt", "")
+        if _prashna_emotion_block:
+            _prashna_prompt += _prashna_emotion_block
+
+                system_override=_prashna_prompt,
             )
             explanation = result_tuple[0] if isinstance(result_tuple, tuple) else result_tuple
         except Exception as claude_err:
