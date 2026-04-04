@@ -4506,6 +4506,9 @@ async def ask_prashna(request: PrashnaRequest):
             "yes_factors":    [],
             "no_factors":     [],
             "analysis":       {"explanation": explanation},
+            "proof_bars":     engine_result.get("proof_bars"),
+            "domain_audit":   engine_result.get("domain_audit"),
+            "confluence":     engine_result.get("confluence"),
         }
 
     except Exception as e:
