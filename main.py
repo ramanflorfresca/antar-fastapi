@@ -1942,14 +1942,13 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         )
 
         # --- LAYER 2.5: JAIMINI CHARA DASHA ---
+        if "id" not in chart_data:
+            chart_data["id"] = request.chart_id
         try:
             _jaimini_block = format_jaimini_context_from_stored(chart_data)
             if _jaimini_block:
                 _full_context += _jaimini_block
             _concern = getattr(request, 'concern', '') or getattr(request, 'question', '') or ''
-# Ensure chart_data has 'id' for jaimini lookups
-            if "id" not in chart_data:
-                chart_data["id"] = request.chart_id
             _jaimini_conv = score_jaimini_convergence(chart_data, _concern)
             if _jaimini_conv:
                 _full_context += "\n" + _jaimini_conv + "\n"
