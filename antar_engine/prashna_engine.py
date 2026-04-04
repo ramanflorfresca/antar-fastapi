@@ -182,6 +182,208 @@ PRASHNA_PATTERNS = [
 # Cooldown: once per day (24 hours). Configurable.
 PRASHNA_COOLDOWN_HOURS = 24
 
+# ═══ PRASHNA V2: DOMAIN INTELLIGENCE PATCH ═══
+# Added: Domain Audit, Proof Bars, Intent-Birth Sync
+
+# Exaltation signs (sign index where planet is exalted)
+EXALTATION_SIGNS = {
+    0: 0,   # Sun → Aries
+    1: 1,   # Moon → Taurus
+    2: 5,   # Mercury → Virgo
+    3: 11,  # Venus → Pisces
+    4: 9,   # Mars → Capricorn
+    5: 3,   # Jupiter → Cancer
+    6: 6,   # Saturn → Libra
+}
+
+DEBILITATION_SIGNS = {k: (v + 6) % 12 for k, v in EXALTATION_SIGNS.items()}
+
+COMBUSTION_ORB = 8.0
+ANGLE_HOUSES = [1, 4, 7, 10]
+
+# Domain → Audit Configuration (4 core domains from spec)
+DOMAIN_AUDIT_CONFIG = {
+    "finance": {
+        "primary_house": 8, "secondary_house": 11,
+        "label": "CAPITAL AUDIT",
+        "house_label": "Other People\'s Money · Liquid Gains",
+        "rules": [
+            {"check": "retrograde_lord", "house": 8, "penalty": -20,
+             "message": "Terms will be renegotiated at the 11th hour. Watch the fine print."},
+            {"check": "combust_lord", "house": 8, "penalty": -30,
+             "message": "Funding source is burnt out or lacks the actual liquidity they claim."},
+            {"check": "exalted_lord", "house": 8, "bonus": 15,
+             "message": "Capital is high-quality — investor brings more than just cash."},
+        ],
+    },
+    "investment": {
+        "primary_house": 8, "secondary_house": 11,
+        "label": "CAPITAL AUDIT",
+        "house_label": "Other People\'s Money · Liquid Gains",
+        "rules": [
+            {"check": "retrograde_lord", "house": 8, "penalty": -20,
+             "message": "Terms will be renegotiated. Watch the fine print."},
+            {"check": "combust_lord", "house": 8, "penalty": -30,
+             "message": "Funding source lacks actual liquidity."},
+            {"check": "exalted_lord", "house": 8, "bonus": 15,
+             "message": "Capital is high-quality — investor brings more than cash."},
+        ],
+    },
+    "money": {
+        "primary_house": 2, "secondary_house": 11,
+        "label": "CAPITAL AUDIT",
+        "house_label": "Personal Wealth · Liquid Gains",
+        "rules": [
+            {"check": "retrograde_lord", "house": 2, "penalty": -20,
+             "message": "Income flow is delayed or terms will shift."},
+            {"check": "exalted_lord", "house": 2, "bonus": 15,
+             "message": "Strong earning potential — money comes with authority."},
+        ],
+    },
+    "wealth": {
+        "primary_house": 2, "secondary_house": 11,
+        "label": "CAPITAL AUDIT",
+        "house_label": "Personal Wealth · Liquid Gains",
+        "rules": [
+            {"check": "retrograde_lord", "house": 2, "penalty": -20,
+             "message": "Income flow delayed."},
+            {"check": "exalted_lord", "house": 2, "bonus": 15,
+             "message": "Strong earning energy."},
+        ],
+    },
+    "career": {
+        "primary_house": 10, "secondary_house": 6,
+        "label": "POWER AUDIT",
+        "house_label": "Status & Rank · Competition",
+        "rules": [
+            {"check": "lagna_connection", "house": 10, "bonus": 25,
+             "message": "You are the natural choice. The role is seeking you."},
+            {"check": "sixth_pressure", "house": 10, "penalty": -15,
+             "message": "Competition is too high. Even with a yes, expect internal politics."},
+            {"check": "saturn_aspect", "house": 10, "delay_days": 30,
+             "message": "A yes, but the administrative paperwork will crawl. Don\'t resign yet."},
+        ],
+    },
+    "job": {
+        "primary_house": 10, "secondary_house": 6,
+        "label": "POWER AUDIT",
+        "house_label": "Status & Rank · Competition",
+        "rules": [
+            {"check": "lagna_connection", "house": 10, "bonus": 25,
+             "message": "You are the natural choice. The job is seeking you."},
+            {"check": "sixth_pressure", "house": 10, "penalty": -15,
+             "message": "Competition is high. Expect internal resistance."},
+            {"check": "saturn_aspect", "house": 10, "delay_days": 30,
+             "message": "Administrative paperwork will crawl. Don\'t resign yet."},
+        ],
+    },
+    "promotion": {
+        "primary_house": 10, "secondary_house": 6,
+        "label": "POWER AUDIT",
+        "house_label": "Status & Rank · Competition",
+        "rules": [
+            {"check": "lagna_connection", "house": 10, "bonus": 25,
+             "message": "You are the natural choice for this elevation."},
+            {"check": "sixth_pressure", "house": 10, "penalty": -15,
+             "message": "Someone else is also being considered. Brace for competition."},
+        ],
+    },
+    "relationship": {
+        "primary_house": 7, "secondary_house": 12,
+        "label": "SYNC AUDIT",
+        "house_label": "The Partner · Distance & Exit",
+        "rules": [
+            {"check": "twelfth_house_leak", "house": 7, "penalty": -40,
+             "message": "The partner is emotionally or physically checked out. They are looking for the exit."},
+            {"check": "stationary_lord", "house": 7, "verdict_override": "UNCERTAIN",
+             "message": "The partner is paralyzed. They cannot make a decision right now. Re-calculate in 72 hours."},
+            {"check": "venus_angle", "bonus": 20,
+             "message": "There is still surface harmony to work with. A yes is sustainable."},
+        ],
+    },
+    "marriage": {
+        "primary_house": 7, "secondary_house": 12,
+        "label": "SYNC AUDIT",
+        "house_label": "The Partner · Distance & Exit",
+        "rules": [
+            {"check": "twelfth_house_leak", "house": 7, "penalty": -40,
+             "message": "The other person is emotionally checked out."},
+            {"check": "stationary_lord", "house": 7, "verdict_override": "UNCERTAIN",
+             "message": "They cannot commit right now. Revisit in 72 hours."},
+            {"check": "venus_angle", "bonus": 20,
+             "message": "Surface harmony exists. The connection can be rebuilt."},
+        ],
+    },
+    "love": {
+        "primary_house": 7, "secondary_house": 12,
+        "label": "SYNC AUDIT",
+        "house_label": "The Partner · Distance & Exit",
+        "rules": [
+            {"check": "twelfth_house_leak", "house": 7, "penalty": -40,
+             "message": "The other person is emotionally distant."},
+            {"check": "venus_angle", "bonus": 20,
+             "message": "Attraction is still active. The connection has life."},
+        ],
+    },
+    "legal": {
+        "primary_house": 6, "secondary_house": 7,
+        "label": "CONFLICT AUDIT",
+        "house_label": "The Opponent · The Court",
+        "rules": [
+            {"check": "retrograde_opponent", "house": 6, "bonus": 25,
+             "message": "The opponent is losing their nerve or their evidence is faulty. They will settle."},
+            {"check": "mars_aspect_sixth", "severity": "aggression",
+             "message": "This will not be a quiet settlement. Expect a scorched-earth battle."},
+            {"check": "seventh_lord_strength", "house": 7,
+             "message_strong": "The system will work as intended. No backdoor deals.",
+             "message_weak": "The arbitrator or judge may be compromised or distracted."},
+        ],
+    },
+    "lawsuit": {
+        "primary_house": 6, "secondary_house": 7,
+        "label": "CONFLICT AUDIT",
+        "house_label": "The Opponent · The Court",
+        "rules": [
+            {"check": "retrograde_opponent", "house": 6, "bonus": 25,
+             "message": "The opponent\'s case has weaknesses. They will settle."},
+            {"check": "mars_aspect_sixth", "severity": "aggression",
+             "message": "This will escalate. Prepare for a prolonged fight."},
+        ],
+    },
+    "court": {
+        "primary_house": 6, "secondary_house": 7,
+        "label": "CONFLICT AUDIT",
+        "house_label": "The Opponent · The Court",
+        "rules": [
+            {"check": "retrograde_opponent", "house": 6, "bonus": 25,
+             "message": "The other side\'s position is weakening."},
+            {"check": "seventh_lord_strength", "house": 7,
+             "message_strong": "Fair outcome expected.",
+             "message_weak": "Process may be biased or slow."},
+        ],
+    },
+}
+
+DEFAULT_AUDIT_CONFIG = {
+    "primary_house": 10, "secondary_house": 1,
+    "label": "GENERAL AUDIT", "house_label": "Status · Self",
+    "rules": [],
+}
+
+BIRTH_POWER_HOUSES = {
+    "career": 10, "job": 10, "promotion": 10, "business": 10,
+    "finance": 2, "money": 2, "investment": 8, "wealth": 2,
+    "relationship": 7, "marriage": 7, "love": 5, "partner": 7,
+    "health": 6, "surgery": 8, "illness": 6,
+    "education": 5, "exam": 5, "study": 4,
+    "travel": 9, "abroad": 9, "visa": 9,
+    "legal": 6, "court": 7, "lawsuit": 6,
+    "children": 5, "baby": 5, "pregnancy": 5,
+    "property": 4, "house": 4, "land": 4,
+    "general": 10,
+}
+
+
 
 # ═══════════════════════════════════════════════════════════════════
 # UTILITY FUNCTIONS
@@ -1060,23 +1262,351 @@ def find_weakest_planet(chart: dict) -> dict:
 # MASTER SCORE: COMBINE ALL STEPS
 # ═══════════════════════════════════════════════════════════════════
 
+
+
+# ═══════════════════════════════════════════════════════════════════
+# DOMAIN AUDIT — Planet Condition Helpers
+# ═══════════════════════════════════════════════════════════════════
+
+def _is_combust(chart: dict, planet_id: int) -> bool:
+    if planet_id == 0:
+        return False
+    planets = chart["planets"]
+    if planet_id not in planets or 0 not in planets:
+        return False
+    return angular_distance(planets[0]["longitude"], planets[planet_id]["longitude"]) <= COMBUSTION_ORB
+
+
+def _is_exalted(chart: dict, planet_id: int) -> bool:
+    planets = chart["planets"]
+    if planet_id not in planets:
+        return False
+    return planets[planet_id]["sign"] == EXALTATION_SIGNS.get(planet_id, -1)
+
+
+def _is_debilitated(chart: dict, planet_id: int) -> bool:
+    planets = chart["planets"]
+    if planet_id not in planets:
+        return False
+    return planets[planet_id]["sign"] == DEBILITATION_SIGNS.get(planet_id, -1)
+
+
+def _is_retrograde_check(chart: dict, planet_id: int) -> bool:
+    if planet_id in [0, 1]:
+        return False
+    planets = chart["planets"]
+    if planet_id not in planets:
+        return False
+    return planets[planet_id]["retrograde"]
+
+
+def _is_stationary(chart: dict, planet_id: int) -> bool:
+    if planet_id in [0, 1]:
+        return False
+    planets = chart["planets"]
+    if planet_id not in planets:
+        return False
+    speed = abs(planets[planet_id]["daily_speed"])
+    threshold = 0.1 if planet_id in [2, 3] else 0.05
+    return speed < threshold
+
+
+def _get_house_lord_id(chart: dict, house_num: int) -> int:
+    cusp_long = chart["cusps"][house_num - 1]
+    house_sign = int(cusp_long / 30) % 12
+    return get_sign_lord(house_sign)
+
+
+def _planet_aspects_house(chart: dict, planet_id: int, target_house: int) -> bool:
+    planets = chart["planets"]
+    if planet_id not in planets:
+        return False
+    p_lon = planets[planet_id]["longitude"]
+    cusp_lon = chart["cusps"][target_house - 1]
+    dist = angular_distance(p_lon, cusp_lon)
+    for angle in TAJIKA_ASPECTS:
+        if abs(dist - angle) < 10:
+            return True
+    return False
+
+
+def _planet_strength_score(chart: dict, planet_id: int) -> int:
+    planets = chart["planets"]
+    if planet_id not in planets:
+        return 0
+    p = planets[planet_id]
+    score = 50
+    if _is_exalted(chart, planet_id):
+        score += 30
+    if _is_debilitated(chart, planet_id):
+        score -= 30
+    if p["retrograde"]:
+        score -= 15
+    if _is_combust(chart, planet_id):
+        score -= 20
+    if p["house"] in ANGLE_HOUSES:
+        score += 10
+    if p["house"] in [6, 8, 12]:
+        score -= 10
+    return max(0, min(100, score))
+
+
+# ═══════════════════════════════════════════════════════════════════
+# DOMAIN AUDIT ENGINE
+# ═══════════════════════════════════════════════════════════════════
+
+def run_domain_audit(chart: dict, domain: str, houses: list) -> dict:
+    config = DOMAIN_AUDIT_CONFIG.get(domain, DEFAULT_AUDIT_CONFIG)
+    primary_house = config["primary_house"]
+    secondary_house = config["secondary_house"]
+
+    flags = []
+    audit_bonuses = []
+    net_adjustment = 0
+    hard_truth = None
+    delay_days = None
+    verdict_override = None
+
+    planets = chart["planets"]
+    sixth_lord_id = _get_house_lord_id(chart, 6)
+    seventh_lord_id = _get_house_lord_id(chart, 7)
+    tenth_lord_id = _get_house_lord_id(chart, 10)
+
+    for rule in config.get("rules", []):
+        check = rule["check"]
+
+        if check == "retrograde_lord":
+            h = rule.get("house", primary_house)
+            lord_id = _get_house_lord_id(chart, h)
+            if _is_retrograde_check(chart, lord_id):
+                pen = rule.get("penalty", -20)
+                flags.append({"type": "RETROGRADE_LORD", "severity": "warning", "penalty": pen,
+                              "message": rule["message"], "planet": planet_name_from_id(lord_id), "house": h})
+                net_adjustment += pen
+                if not hard_truth:
+                    hard_truth = rule["message"]
+
+        elif check == "combust_lord":
+            h = rule.get("house", primary_house)
+            lord_id = _get_house_lord_id(chart, h)
+            if _is_combust(chart, lord_id):
+                pen = rule.get("penalty", -30)
+                flags.append({"type": "COMBUST_LORD", "severity": "danger", "penalty": pen,
+                              "message": rule["message"], "planet": planet_name_from_id(lord_id), "house": h})
+                net_adjustment += pen
+                if not hard_truth:
+                    hard_truth = rule["message"]
+
+        elif check == "exalted_lord":
+            h = rule.get("house", primary_house)
+            lord_id = _get_house_lord_id(chart, h)
+            if _is_exalted(chart, lord_id):
+                bon = rule.get("bonus", 15)
+                audit_bonuses.append({"type": "EXALTED_LORD", "bonus": bon,
+                                      "message": rule["message"], "planet": planet_name_from_id(lord_id), "house": h})
+                net_adjustment += bon
+
+        elif check == "lagna_connection":
+            if tenth_lord_id in planets and planets[tenth_lord_id]["house"] == 1:
+                bon = rule.get("bonus", 25)
+                audit_bonuses.append({"type": "LAGNA_CONNECTION", "bonus": bon,
+                                      "message": rule["message"], "planet": planet_name_from_id(tenth_lord_id)})
+                net_adjustment += bon
+
+        elif check == "sixth_pressure":
+            if _planet_strength_score(chart, sixth_lord_id) > _planet_strength_score(chart, tenth_lord_id):
+                pen = rule.get("penalty", -15)
+                flags.append({"type": "SIXTH_PRESSURE", "severity": "warning", "penalty": pen,
+                              "message": rule["message"]})
+                net_adjustment += pen
+                if not hard_truth:
+                    hard_truth = rule["message"]
+
+        elif check == "saturn_aspect":
+            saturn_id = 6
+            if saturn_id in planets and tenth_lord_id in planets:
+                dist = angular_distance(planets[saturn_id]["longitude"], planets[tenth_lord_id]["longitude"])
+                for angle in TAJIKA_ASPECTS:
+                    if abs(dist - angle) < TAJIKA_ORBS.get("Saturn", 9):
+                        d = rule.get("delay_days", 30)
+                        flags.append({"type": "SATURN_DELAY", "severity": "caution", "penalty": 0,
+                                      "message": rule["message"], "delay_days": d})
+                        delay_days = d
+                        break
+
+        elif check == "twelfth_house_leak":
+            if seventh_lord_id in planets and planets[seventh_lord_id]["house"] == 12:
+                pen = rule.get("penalty", -40)
+                flags.append({"type": "12TH_HOUSE_LEAK", "severity": "danger", "penalty": pen,
+                              "message": rule["message"]})
+                net_adjustment += pen
+                hard_truth = rule["message"]
+
+        elif check == "stationary_lord":
+            h = rule.get("house", 7)
+            lord_id = _get_house_lord_id(chart, h)
+            if _is_stationary(chart, lord_id):
+                verdict_override = rule.get("verdict_override", "UNCERTAIN")
+                flags.append({"type": "STATIONARY_LORD", "severity": "warning", "penalty": 0,
+                              "message": rule["message"]})
+                hard_truth = rule["message"]
+
+        elif check == "venus_angle":
+            venus_id = 3
+            if venus_id in planets and planets[venus_id]["house"] in ANGLE_HOUSES:
+                bon = rule.get("bonus", 20)
+                audit_bonuses.append({"type": "VENUS_ANGLE", "bonus": bon, "message": rule["message"]})
+                net_adjustment += bon
+
+        elif check == "retrograde_opponent":
+            if _is_retrograde_check(chart, sixth_lord_id):
+                bon = rule.get("bonus", 25)
+                audit_bonuses.append({"type": "RETROGRADE_OPPONENT", "bonus": bon, "message": rule["message"]})
+                net_adjustment += bon
+
+        elif check == "mars_aspect_sixth":
+            mars_id = 4
+            if _planet_aspects_house(chart, mars_id, 6):
+                flags.append({"type": "MARS_AGGRESSION", "severity": "aggression", "penalty": 0,
+                              "message": rule["message"]})
+
+        elif check == "seventh_lord_strength":
+            strength = _planet_strength_score(chart, seventh_lord_id)
+            if strength >= 50:
+                audit_bonuses.append({"type": "FAIR_JUDGE", "bonus": 0,
+                                      "message": rule.get("message_strong", "Fair process expected.")})
+            else:
+                flags.append({"type": "WEAK_JUDGE", "severity": "warning", "penalty": 0,
+                              "message": rule.get("message_weak", "Process may be compromised.")})
+
+    return {
+        "domain_type": domain, "primary_house": primary_house, "secondary_house": secondary_house,
+        "label": config["label"], "house_label": config["house_label"],
+        "flags": flags, "bonuses": audit_bonuses, "net_adjustment": net_adjustment,
+        "hard_truth": hard_truth, "delay_days": delay_days, "verdict_override": verdict_override,
+    }
+
+
+# ═══════════════════════════════════════════════════════════════════
+# PROOF BARS
+# ═══════════════════════════════════════════════════════════════════
+
+def build_proof_bars(step_a, step_c, edge_yoga, jaimini_locks, jaimini_bonus):
+    if step_a["score"] >= 25:
+        command = {"value": 88, "label": "HIGH", "detail": "You are driving the narrative"}
+    else:
+        command = {"value": 35, "label": "LOW", "detail": "Environment is not fully aligned"}
+
+    if step_c.get("type") == "ithasala":
+        orb = step_c.get("orb", 5)
+        if orb < 2:
+            handshake = {"value": 92, "label": "LOCKED", "detail": "Converging — near completion"}
+        elif orb < 5:
+            handshake = {"value": 72, "label": "APPLYING", "detail": "Converging — not yet locked"}
+        else:
+            handshake = {"value": 55, "label": "APPROACHING", "detail": "Momentum building — wide orb"}
+    elif step_c.get("type") == "ishrafa":
+        handshake = {"value": 15, "label": "SEPARATING", "detail": "Window is closing — momentum lost"}
+    else:
+        handshake = {"value": 30, "label": "PENDING", "detail": "No active convergence detected"}
+
+    if edge_yoga:
+        yoga = edge_yoga.get("yoga", "")
+        if yoga == "muthashila":
+            broker = {"value": 95, "label": "OVERRIDE", "detail": "Imminent completion — barriers cleared"}
+        elif yoga == "nakta":
+            broker = {"value": 65, "label": "ACTIVE", "detail": "Third party bridging the gap"}
+        elif yoga == "yamaya":
+            broker = {"value": 55, "label": "ACTIVE", "detail": "Authority or institution providing support"}
+        else:
+            broker = {"value": 0, "label": "NONE", "detail": "No intermediary override detected"}
+    else:
+        broker = {"value": 0, "label": "NONE", "detail": "No intermediary override detected"}
+
+    lock_count = sum(1 for v in jaimini_locks.values() if v)
+    if lock_count == 3:
+        alignment = {"value": 95, "label": "LOCKED", "detail": "All 3 confirmation engines agree"}
+    elif lock_count == 2:
+        alignment = {"value": 72, "label": "PARTIAL", "detail": "2 of 3 confirmation engines agree"}
+    elif lock_count == 1:
+        alignment = {"value": 40, "label": "WEAK", "detail": "Only 1 confirmation engine agrees"}
+    else:
+        alignment = {"value": 15, "label": "NONE", "detail": "No confirmation from backup engines"}
+
+    return {"command": command, "handshake": handshake, "broker": broker, "alignment": alignment}
+
+
+# ═══════════════════════════════════════════════════════════════════
+# INTENT-BIRTH SYNC
+# ═══════════════════════════════════════════════════════════════════
+
+def check_intent_birth_sync(chart, domain, natal_chart_data=None):
+    prashna_lagna_sign = chart["lagna_sign"]
+    prashna_lagna_name = chart["lagna_sign_name"]
+    power_house_num = BIRTH_POWER_HOUSES.get(domain, 10)
+
+    result = {
+        "prashna_lagna": prashna_lagna_name,
+        "birth_power_house": f"{power_house_num}H",
+        "sync_detected": False,
+        "intensity_multiplier": 1.0,
+        "message": "",
+    }
+
+    if natal_chart_data:
+        try:
+            natal_cusps = natal_chart_data.get("cusps", [])
+            if natal_cusps and len(natal_cusps) >= power_house_num:
+                natal_house_sign = int(natal_cusps[power_house_num - 1] / 30) % 12
+                if prashna_lagna_sign == natal_house_sign:
+                    result["sync_detected"] = True
+                    result["intensity_multiplier"] = 1.4
+                    result["message"] = (
+                        f"Your moment chart\'s ascendant ({prashna_lagna_name}) matches your birth chart\'s "
+                        f"{power_house_num}th house sign — strong confluence. This question hits at the core."
+                    )
+                elif natal_house_sign in get_rashi_drishti(prashna_lagna_sign):
+                    result["sync_detected"] = True
+                    result["intensity_multiplier"] = 1.2
+                    result["message"] = (
+                        f"Your moment chart aspects your birth chart\'s {power_house_num}th house — "
+                        f"the question connects to your deeper pattern."
+                    )
+        except Exception as e:
+            logger.warning(f"Intent-birth sync error: {e}")
+    else:
+        natural_sign = (power_house_num - 1) % 12
+        if prashna_lagna_sign == natural_sign:
+            result["sync_detected"] = True
+            result["intensity_multiplier"] = 1.3
+            result["message"] = (
+                f"Your moment chart\'s ascendant ({prashna_lagna_name}) naturally governs the "
+                f"{power_house_num}th house domain — this question carries extra weight."
+            )
+        elif natural_sign in get_rashi_drishti(prashna_lagna_sign):
+            result["sync_detected"] = True
+            result["intensity_multiplier"] = 1.15
+            result["message"] = (
+                f"Your moment chart\'s ascendant ({prashna_lagna_name}) aspects the "
+                f"{power_house_num}th house domain — supporting connection detected."
+            )
+
+    return result
+
+
+
 def compute_prashna_verdict(
     chart: dict,
     question: str,
     jaimini_data: Optional[dict] = None,
     natal_dasha: Optional[str] = None,
+    natal_chart_data: Optional[dict] = None,
 ) -> dict:
     """
-    Master scoring function. Combines all 4 steps + edge cases + bonuses.
-
-    Args:
-        chart: Output of cast_prashna_chart()
-        question: The user's question
-        jaimini_data: Stored jaimini_data JSONB from charts table (for triple-lock)
-        natal_dasha: Current dasha string e.g. "Mars-Moon"
-
-    Returns:
-        Complete verdict dict ready for Claude to explain.
+    Master scoring function v2.
+    Same Steps A-D + edge cases + bonuses as before.
+    NEW: domain_audit, proof_bars, confluence added after base scoring.
+    NEW param: natal_chart_data for intent-birth sync.
     """
     # Detect domain
     domain, houses = detect_domain(question)
@@ -1084,8 +1614,6 @@ def compute_prashna_verdict(
     # Determine significators
     lagna_sign = chart["lagna_sign"]
     lord_1_id = get_sign_lord(lagna_sign)
-
-    # Primary house of interest (use first in list)
     primary_house = houses[0]
     cusp_long = chart["cusps"][primary_house - 1]
     house_sign = int(cusp_long / 30) % 12
@@ -1103,12 +1631,6 @@ def compute_prashna_verdict(
     # ─── Step D: Moon Validation ───
     step_d = check_moon_validation(chart)
 
-    # ─── Step D+: Void of Course Moon ───
-    voc = check_void_of_course(chart)
-
-    # ─── Navamsa Genuineness Check ───
-    genuineness = check_navamsa_genuineness(chart)
-
     # ─── Edge Cases (only if Ithasala is neutral or negative) ───
     edge_yoga = None
     if step_c["type"] != "ithasala":
@@ -1120,17 +1642,13 @@ def compute_prashna_verdict(
     # ─── Compute Base Score ───
     base_score = step_a["score"] + step_b["score"] + step_c["score"] + step_d["score"]
 
-    # Add mutual reception bonus
     if mutual_rec["found"]:
         base_score += mutual_rec["score"]
 
-    # Edge yoga handling
     if edge_yoga:
         if edge_yoga.get("override"):
-            # Muthashila overrides everything
             base_score = edge_yoga["score"]
         else:
-            # Nakta/Yamaya add to base (but only if base isn't already highly positive)
             if base_score < 70:
                 base_score += edge_yoga["score"]
 
@@ -1142,26 +1660,29 @@ def compute_prashna_verdict(
         try:
             jaimini_locks = _check_jaimini_triple_lock(jaimini_data, domain, houses)
             lock_count = sum(1 for v in jaimini_locks.values() if v)
-            jaimini_bonus = lock_count * 5  # +5% per lock
+            jaimini_bonus = lock_count * 5
             base_score += jaimini_bonus
         except Exception as e:
             logger.warning(f"Jaimini triple-lock check failed: {e}")
 
-    # ─── Void of Course Moon Penalty ───
-    # If Moon is VoC, a YES verdict will stall. Apply hard penalty.
-    if voc["void_of_course"]:
-        base_score += voc["penalty"]  # -15
+    # ═══ NEW: Domain Audit ═══
+    domain_audit = run_domain_audit(chart, domain, houses)
+    base_score += domain_audit["net_adjustment"]
 
-    # ─── Navamsa Genuineness Penalty ───
-    # If the question is flagged as potentially fruitless, reduce score.
-    if genuineness["penalty"] < 0:
-        base_score += genuineness["penalty"]  # -5 or -10
+    # ═══ NEW: Intent-Birth Sync ═══
+    confluence = check_intent_birth_sync(chart, domain, natal_chart_data)
+    if confluence["sync_detected"] and base_score > 0:
+        base_score = min(int(base_score * confluence["intensity_multiplier"]), 100)
 
     # ─── Clamp Score ───
     final_score = max(0, min(100, base_score))
 
     # ─── Determine Verdict ───
-    if final_score >= 85:
+    if domain_audit.get("verdict_override"):
+        verdict = domain_audit["verdict_override"]
+        label = "Decision Paralysis"
+        final_score = max(final_score, 30)
+    elif final_score >= 85:
         verdict = "STRONG YES"
         label = "High Confidence"
     elif final_score >= 65:
@@ -1182,9 +1703,14 @@ def compute_prashna_verdict(
 
     # ─── Timing Estimate ───
     timing = _estimate_timing(chart, step_c, edge_yoga)
+    if domain_audit.get("delay_days"):
+        timing += f" (expect +{domain_audit['delay_days']} day administrative delay)"
 
     # ─── Weakest Planet for Remedy ───
     weakest = find_weakest_planet(chart)
+
+    # ═══ NEW: Proof Bars ═══
+    proof_bars = build_proof_bars(step_a, step_c, edge_yoga, jaimini_locks, jaimini_bonus)
 
     return {
         "verdict": verdict,
@@ -1197,8 +1723,6 @@ def compute_prashna_verdict(
             "lord_connection": step_b,
             "ithasala": step_c,
             "moon_validation": step_d,
-            "void_of_course": voc,
-            "navamsa_genuineness": genuineness,
             "mutual_reception": mutual_rec,
             "edge_yoga": edge_yoga,
             "jaimini_locks": jaimini_locks,
@@ -1226,7 +1750,11 @@ def compute_prashna_verdict(
             "dasha": natal_dasha or "unknown",
             "domain_supported": bool(jaimini_bonus > 0),
         },
+        "proof_bars": proof_bars,
+        "domain_audit": domain_audit,
+        "confluence": confluence,
     }
+
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1343,12 +1871,10 @@ def _estimate_timing(chart: dict, ithasala_result: dict, edge_yoga: Optional[dic
 # PROMPT BUILDER FOR CLAUDE
 # ═══════════════════════════════════════════════════════════════════
 
+
 def build_prashna_prompt(verdict_data: dict, question: str, user_name: str = "User",
-                          locale: str = "global", language: str = "en") -> str:
-    """
-    Build the system prompt for Claude to explain the pre-calculated verdict
-    in plain English. Claude does NOT compute — it only explains.
-    """
+                          locale: str = "global") -> str:
+    """Build Claude prompt with domain audit, proof bars, and confluence data."""
     v = verdict_data
     bd = v["breakdown"]
     pc = v["prashna_chart"]
@@ -1365,78 +1891,89 @@ LABEL: {v['label']}
 DOMAIN: {v['domain']}
 TIMING: {v['timing']}
 
-═══ PRASHNA CHART (cast at the moment of the question) ═══
-Lagna (Ascendant): {pc['lagna_sign']} at {pc['lagna_degree']:.1f}°
+═══ PROOF BARS ═══"""
+
+    pb = v.get("proof_bars", {})
+    for bar_name in ["command", "handshake", "broker", "alignment"]:
+        bar = pb.get(bar_name, {})
+        prompt += f"\n[{bar_name.upper()}]: {bar.get('label', 'N/A')} — {bar.get('detail', '')}"
+
+    prompt += f"""
+
+═══ PRASHNA CHART ═══
+Lagna: {pc['lagna_sign']} at {pc['lagna_degree']:.1f}°
 Moon Nakshatra: {pc['moon_nakshatra']}
 Moon House: {pc['moon_house']}th
 Significator 1 (You): {pc['significator_1']['planet']} in {pc['significator_1']['sign']} ({pc['significator_1']['house']}th house)
 Significator 2 (Goal): {pc['significator_x']['planet']} in {pc['significator_x']['sign']} ({pc['significator_x']['house']}th house)
 
 ═══ SCORING BREAKDOWN ═══
-Step A — Environment: {bd['lagna_strength']['score']}% — {bd['lagna_strength']['reason']}
-Step B — Connection: {bd['lord_connection']['score']}% — {bd['lord_connection']['reason']}
-Step C — Momentum: {bd['ithasala']['score']}% ({bd['ithasala']['type']}) — {bd['ithasala']['reason']}
-Step D — Intuition: {bd['moon_validation']['score']}% — {bd['moon_validation']['reason']}
-"""
-
-    # Void of Course Moon
-    voc = bd.get("void_of_course", {})
-    if voc.get("void_of_course"):
-        prompt += f"⚠ VOID OF COURSE MOON: {voc['reason']} (penalty: {voc['penalty']}%)\n"
-    elif voc.get("next_aspect"):
-        prompt += f"Moon Momentum: {voc['reason']}\n"
-
-    # Navamsa Genuineness
-    genuineness = bd.get("navamsa_genuineness", {})
-    if genuineness.get("penalty", 0) < 0:
-        prompt += f"⚠ GENUINENESS FLAG: {genuineness['reason']} (penalty: {genuineness['penalty']}%)\n"
-    elif genuineness.get("genuine"):
-        prompt += f"Question Validity: {genuineness['reason']}\n"
+Environment: {bd['lagna_strength']['score']}% — {bd['lagna_strength']['reason']}
+Connection: {bd['lord_connection']['score']}% — {bd['lord_connection']['reason']}
+Momentum: {bd['ithasala']['score']}% ({bd['ithasala']['type']}) — {bd['ithasala']['reason']}
+Intuition: {bd['moon_validation']['score']}% — {bd['moon_validation']['reason']}"""
 
     if bd.get("edge_yoga"):
         ey = bd["edge_yoga"]
-        prompt += f"Edge Case: {ey['yoga'].title()} — {ey['reason']}\n"
+        prompt += f"\nEdge Case: {ey['yoga'].title()} — {ey['reason']}"
 
     if bd.get("mutual_reception", {}).get("found"):
-        prompt += f"Bonus: Mutual Reception — {bd['mutual_reception']['reason']}\n"
+        prompt += f"\nBonus: Mutual Reception — {bd['mutual_reception']['reason']}"
 
     locks = bd.get("jaimini_locks", {})
     lock_count = sum(1 for v_l in locks.values() if v_l)
     if lock_count > 0:
-        prompt += f"Jaimini Triple-Lock: {lock_count}/3 passed (+{v['breakdown']['jaimini_bonus']}% bonus)\n"
+        prompt += f"\nJaimini Triple-Lock: {lock_count}/3 passed (+{bd.get('jaimini_bonus', 0)}% bonus)"
 
-    # Natal context
+    da = v.get("domain_audit", {})
+    if da.get("flags") or da.get("bonuses") or da.get("hard_truth"):
+        prompt += f"\n\n═══ DOMAIN AUDIT: {da.get('label', 'GENERAL')} ═══"
+        for flag in da.get("flags", []):
+            prompt += f"\n⚠ {flag['type']}: {flag['message']}"
+            if flag.get("penalty"):
+                prompt += f" (penalty: {flag['penalty']}%)"
+        for bonus in da.get("bonuses", []):
+            prompt += f"\n✓ {bonus['type']}: {bonus['message']}"
+            if bonus.get("bonus"):
+                prompt += f" (bonus: +{bonus['bonus']}%)"
+        if da.get("hard_truth"):
+            prompt += f"\nTHE HARD TRUTH: {da['hard_truth']}"
+        if da.get("delay_days"):
+            prompt += f"\nEXPECTED DELAY: +{da['delay_days']} days"
+        prompt += f"\nNet domain adjustment: {da.get('net_adjustment', 0)}%"
+
+    conf = v.get("confluence", {})
+    if conf.get("sync_detected"):
+        prompt += f"\n\n═══ CONFLUENCE ═══\n{conf['message']}\nIntensity: {conf['intensity_multiplier']}x"
+
     nc = v.get("natal_context", {})
-    prompt += f"\n═══ NATAL CONTEXT ═══\nCurrent Life Chapter: {nc.get('dasha', 'unknown')}\n"
+    prompt += f"\n\n═══ NATAL CONTEXT ═══\nCurrent Life Chapter: {nc.get('dasha', 'unknown')}"
 
-    # Remedy
     wp = v.get("weakest_planet", {})
-    prompt += f"\n═══ REMEDY TARGET ═══\nWeakest planet in this chart: {wp.get('planet', 'unknown')}\nWeakness: {', '.join(wp.get('reasons', []))}\n"
+    prompt += f"\n\n═══ REMEDY TARGET ═══\nWeakest planet: {wp.get('planet', 'unknown')}\nWeakness: {', '.join(wp.get('reasons', []))}"
 
-    # Instructions
     is_india = locale.lower() in ["in", "india"]
 
     prompt += f"""
+
 ═══ YOUR INSTRUCTIONS ═══
 1. Start with the verdict as a single decisive sentence.
-2. Explain WHY in 2-3 sentences using the breakdown above. Reference the momentum (Ithasala) result specifically.
-3. Give the timing window.
-4. End with ONE specific action the user should take this week.
-5. Keep it under 150 words total.
-6. ZERO astrological jargon — no Sanskrit terms, no house numbers, no planet names.
-7. Write as a confident executive advisor, not an astrologer.
+2. Explain WHY in 2-3 sentences using the breakdown above. Reference the momentum result and domain audit findings.
+3. If there is a HARD TRUTH from the domain audit, state it directly. No softening.
+4. Give the timing window.
+5. End with ONE specific action — THE MOVE — the user should take this week.
+6. Keep it under 150 words total.
+7. ZERO astrological jargon — no Sanskrit terms, no house numbers, no planet names.
+8. Write as a confident executive advisor, not an astrologer.
 """
 
     if is_india:
-        prompt += "8. For the remedy, suggest a specific ritual practice (e.g., 'Donate mustard oil on Saturday').\n"
+        prompt += "9. For the remedy, suggest a specific ritual practice.\n"
     else:
-        prompt += "8. For the remedy, suggest a specific energy practice (e.g., 'Express gratitude to a mentor this week').\n"
-
-    # --- Language injection (Sprint L) ---
-    lang_block = build_language_instruction(language)
-    prompt = lang_block + prompt
+        prompt += "9. For the remedy, suggest a specific energy practice.\n"
 
     return prompt
+
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1502,6 +2039,7 @@ def _format_cooldown_message(seconds: int) -> str:
 # MAIN ENTRY POINT (for /prashna endpoint in main.py)
 # ═══════════════════════════════════════════════════════════════════
 
+
 def run_prashna_engine(
     question: str,
     lat: float,
@@ -1509,45 +2047,36 @@ def run_prashna_engine(
     timestamp: Optional[datetime] = None,
     jaimini_data: Optional[dict] = None,
     natal_dasha: Optional[str] = None,
+    natal_chart_data: Optional[dict] = None,
     user_name: str = "User",
     locale: str = "global",
-    language: str = "en",
 ) -> dict:
     """
-    Full Prashna pipeline:
-    1. Cast Moment Chart
-    2. Detect domain
-    3. Run 4-step scoring + edge cases
-    4. Build Claude prompt
-    5. Return everything
-
-    This is what main.py calls. Claude call happens in main.py after this returns.
+    Full Prashna pipeline v2.
+    Same as before + natal_chart_data param + proof_bars/domain_audit/confluence in output.
+    Cooldown: 4 hours (was 24).
     """
     if timestamp is None:
         timestamp = datetime.now(timezone.utc)
 
-    # Step 0: Cast the chart
     chart = cast_prashna_chart(lat, lng, timestamp)
 
-    # Steps A-D + edge cases + score
     verdict_data = compute_prashna_verdict(
         chart=chart,
         question=question,
         jaimini_data=jaimini_data,
         natal_dasha=natal_dasha,
+        natal_chart_data=natal_chart_data,
     )
 
-    # Build prompt for Claude
     claude_prompt = build_prashna_prompt(
         verdict_data=verdict_data,
         question=question,
         user_name=user_name,
         locale=locale,
-        language=language,
     )
 
-    # Cooldown timestamp for response
-    cooldown_until = (timestamp + timedelta(hours=PRASHNA_COOLDOWN_HOURS)).isoformat()
+    cooldown_until = (timestamp + timedelta(hours=4)).isoformat()
 
     return {
         "verdict": verdict_data["verdict"],
@@ -1561,5 +2090,9 @@ def run_prashna_engine(
         "natal_context": verdict_data["natal_context"],
         "cooldown_until": cooldown_until,
         "claude_prompt": claude_prompt,
-        "full_chart": chart,  # For logging / debug
+        "full_chart": chart,
+        "proof_bars": verdict_data["proof_bars"],
+        "domain_audit": verdict_data["domain_audit"],
+        "confluence": verdict_data["confluence"],
     }
+

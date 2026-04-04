@@ -4337,6 +4337,7 @@ async def ask_prashna(request: PrashnaRequest):
             timestamp=timestamp,
             jaimini_data=jaimini_data,
             natal_dasha=natal_dasha,
+            natal_chart_data=chart_row.get("chart_data") if chart_row else None,
             user_name=first_name or "User",
             locale=locale,
         )
@@ -4401,6 +4402,9 @@ async def ask_prashna(request: PrashnaRequest):
                 "prashna_chart": json.dumps(engine_result["prashna_chart"], default=str),
                 "weakest_planet": wp.get("planet"),
                 "cooldown_until": engine_result["cooldown_until"],
+                "proof_bars": engine_result.get("proof_bars"),
+                "domain_audit": engine_result.get("domain_audit"),
+                "confluence": engine_result.get("confluence"),,
             }).execute()
         except Exception as log_err:
             logger.warning(f"Failed to log prashna (non-blocking): {log_err}")
