@@ -6499,8 +6499,8 @@ async def get_welcome(chart_id: str):
             _sync_age = None
 
         result = await generate_welcome_signal_v2(
-                chart_data=_chart_row,
-                birth_date=_chart_row.get("birth_date"),
+                chart_data=chart_record,
+                birth_date=_bd,
                 anthropic_client=claude_client,
             )
         return result
