@@ -4443,7 +4443,7 @@ async def ask_prashna(request: PrashnaRequest):
                 "cooldown_until": engine_result["cooldown_until"],
                 "proof_bars": engine_result.get("proof_bars"),
                 "domain_audit": engine_result.get("domain_audit"),
-                "confluence": engine_result.get("confluence"),,
+                "confluence": engine_result.get("confluence"),
             }).execute()
         except Exception as log_err:
             logger.warning(f"Failed to log prashna (non-blocking): {log_err}")
