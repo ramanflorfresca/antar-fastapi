@@ -306,7 +306,7 @@ def _get_arudha_lagnas(jd):
     result = {"AL": None, "UL": None, "KL": None}
 
     # Try direct keys
-    for key in ["AL", "al", "arudha_lagna", "arudha"]:
+    for key in ["arudha_lagna", "arudha", "AL", "al"]:
         v = jd.get(key)
         if v:
             if isinstance(v, str):
@@ -317,7 +317,7 @@ def _get_arudha_lagnas(jd):
                 result["AL"] = _si(v.get("sign", v.get("sign_name", "")))
             break
 
-    for key in ["UL", "ul", "upapada_lagna", "upapada"]:
+    for key in ["upapada_lagna", "upapada", "UL", "ul"]:
         v = jd.get(key)
         if v:
             if isinstance(v, str):
@@ -328,7 +328,7 @@ def _get_arudha_lagnas(jd):
                 result["UL"] = _si(v.get("sign", v.get("sign_name", "")))
             break
 
-    for key in ["KL", "kl", "karakamsa", "karakamsha"]:
+    for key in ["karakamsa", "karakamsha", "KL", "kl"]:
         v = jd.get(key)
         if v:
             if isinstance(v, str):
@@ -347,7 +347,7 @@ def _get_chara_dasha(jd):
     jd = _sj(jd)
     result = {"md_sign": None, "ad_sign": None, "md_sign_name": "", "ad_sign_name": ""}
 
-    cd_data = jd.get("chara_dasha", jd.get("charaDasha", jd.get("current_chara_dasha", {})))
+    cd_data = jd  # current_md and current_ad are at root level of jaimini_data
 
     if isinstance(cd_data, dict):
         # Direct current period
@@ -791,11 +791,32 @@ def _score_traffic(cd, h, transits=None):
 # ═══════════════════════════════════════════════════════════════════
 
 def _score_annual(cd, h, lk=None):
-    """Check Varshphal year lord and Muntha position."""
+    """Check annual placements and Varshphal data."""
     sc=0; factors=[]
     lk=_sj(lk) if lk else {}
 
+    # Try standard varshphal keys first
     varsh=lk.get("varshphal",lk.get("varshaphal",lk.get("annual",{})))
+
+    # If no varshphal dict, check for "placements" (LK annual house positions)
+    placements = lk.get("placements", {})
+    if placements and not varsh:
+        # placements = {planet: annual_house_number}
+        # Check if any planet's annual house matches this instrument's house
+        hl = _hl(cd, h)  # lord of this house
+        for planet, annual_house in placements.items():
+            if isinstance(annual_house, int) and annual_house == h:
+                en = ENERGY.get(planet, planet)
+                sc += 8
+                factors.append(en + " placed in this instrument for the year — annual activation")
+            # If the house lord is placed in a strong annual house
+            if planet.lower() == hl.lower() and isinstance(annual_house, int):
+                if annual_house in [1, 4, 7, 10]:
+                    sc += 10
+                    factors.append(en + " (instrument lord) in angular annual house — strong yearly position")
+                elif annual_house in [6, 8, 12]:
+                    sc -= 8
+                    factors.append(en + " (instrument lord) in dusthana annual house — yearly pressure")
     if isinstance(varsh,dict):
         year_lord=varsh.get("year_lord",varsh.get("yearLord",""))
         muntha_house=varsh.get("muntha_house",varsh.get("muntha",0))
