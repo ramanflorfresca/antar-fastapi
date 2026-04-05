@@ -133,8 +133,25 @@ def _sj(d):
     return d if isinstance(d,dict) else {}
 
 def _si(n):
-    if isinstance(n,int): return n%12
-    return SIGNS.index(n) if isinstance(n,str) and n in SIGNS else 0
+    if isinstance(n, int): return n % 12
+    if isinstance(n, float): return int(n) % 12
+    if isinstance(n, str) and n in SIGNS: return SIGNS.index(n)
+    if isinstance(n, str):
+        # Try case-insensitive match
+        nl = n.lower().strip()
+        for i, s in enumerate(SIGNS):
+            if s.lower() == nl:
+                return i
+        # Try parsing as number
+        try:
+            return int(n) % 12
+        except (ValueError, TypeError):
+            pass
+    if isinstance(n, dict):
+        # Handle {"sign": 9} or {"sign_name": "Capricorn"} or {"sign": "Capricorn"}
+        v = n.get("sign", n.get("sign_name", n.get("sign_idx", n.get("index", 0))))
+        return _si(v)
+    return 0
 
 def _fp(cd,nm):
     for pid,pd in cd.get("planets",{}).items():
@@ -143,7 +160,11 @@ def _fp(cd,nm):
 
 def _hl(cd,h):
     lg=cd.get("lagna_sign",cd.get("lagna",0))
+    if isinstance(lg,dict):
+        lg = lg.get("sign", lg.get("sign_name", lg.get("index", 0)))
     if isinstance(lg,str): lg=_si(lg)
+    if isinstance(lg,float): lg=int(lg)
+    if not isinstance(lg,int): lg=0
     return SIGN_LORD_NAMES.get((lg+h-1)%12,"Saturn")
 
 def _exalt(pd):
@@ -228,8 +249,12 @@ def _rashi_drishti(sign_idx):
 
 def _sign_aspects_house(sign_idx, house_num, natal_lagna):
     """Does this sign (by Rashi Drishti) aspect the given house?"""
+    if isinstance(natal_lagna, dict):
+        natal_lagna = natal_lagna.get("sign", natal_lagna.get("sign_name", 0))
     if isinstance(natal_lagna, str):
         natal_lagna = _si(natal_lagna)
+    if not isinstance(natal_lagna, int):
+        natal_lagna = 0
     target_sign = (natal_lagna + house_num - 1) % 12
     return target_sign in _rashi_drishti(sign_idx)
 
@@ -380,8 +405,12 @@ def _get_chara_dasha(jd):
 
 def _jaimini_house_from_sign(sign_idx, natal_lagna):
     """Convert a sign index to house number relative to natal lagna."""
+    if isinstance(natal_lagna, dict):
+        natal_lagna = natal_lagna.get("sign", natal_lagna.get("sign_name", 0))
     if isinstance(natal_lagna, str):
         natal_lagna = _si(natal_lagna)
+    if not isinstance(natal_lagna, int):
+        natal_lagna = 0
     return ((sign_idx - natal_lagna) % 12) + 1
 
 
@@ -559,7 +588,8 @@ def _score_blueprint(cd, h, jd=None):
 
     # Arudha Lagna checks for blueprint
     arudhas=_get_arudha_lagnas(jd)
-    lagna_idx=_si(cd.get("lagna_sign",cd.get("lagna",0)))
+    lagna_raw=cd.get("lagna_sign",cd.get("lagna",0))
+    lagna_idx=_si(lagna_raw)
     if arudhas.get("AL") is not None:
         al=arudhas["AL"]; al_house=((al-lagna_idx)%12)+1
         # Benefics in 11th from AL = wealth through networks (permanent trait)
