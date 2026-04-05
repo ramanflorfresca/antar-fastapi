@@ -266,9 +266,7 @@ def _check_argala(cd, house_num):
     5th house = secondary argala, obstructed by 9th.
     Returns net support count.
     """
-    lg = cd.get("lagna_sign", cd.get("lagna", 0))
-    if isinstance(lg, str):
-        lg = _si(lg)
+    lg = _si(cd.get("lagna_sign", cd.get("lagna", 0)))
 
     support = 0
     obstruct = 0
@@ -434,9 +432,7 @@ def _score_jaimini_predictive(cd, h, jd):
     if not jd_data:
         return sc, factors
 
-    lg = cd.get("lagna_sign", cd.get("lagna", 0))
-    if isinstance(lg, str):
-        lg = _si(lg)
+    lg = _si(cd.get("lagna_sign", cd.get("lagna", 0)))
 
     kr = _karakas(jd)
     chara = _get_chara_dasha(jd)
@@ -761,8 +757,7 @@ def _score_traffic(cd, h, transits=None):
         return 0, ["Live transit data not available"]
 
     sc=0; factors=[]
-    lg=cd.get("lagna_sign",cd.get("lagna",0))
-    if isinstance(lg,str): lg=_si(lg)
+    lg=_si(cd.get("lagna_sign",cd.get("lagna",0)))
 
     for pname, tdata in transits.items():
         tsign=tdata.get("sign",0)
