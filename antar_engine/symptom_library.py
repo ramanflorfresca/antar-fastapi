@@ -709,10 +709,10 @@ def _score_clock(cd, h, current_dasha, lk=None):
             natal_p = lk.get("natal_planets", {})
             if not natal_p:
                 natal_p = {}
-                for _pid, _pd in cd.get("planets", {}).items():
-                    if isinstance(_pd, dict) and _pd.get("name"):
-                        _sn = SIGNS[_pd.get("sign", 0)] if isinstance(_pd.get("sign"), int) else str(_pd.get("sign", ""))
-                        natal_p[_pd["name"]] = {"house": _pd.get("house", 0), "sign": _sn}
+                for _lpid, _lpd in cd.get("planets", {}).items():
+                    if isinstance(_lpd, dict) and _lpd.get("name"):
+                        _sn = SIGNS[_lpd.get("sign", 0)] if isinstance(_lpd.get("sign"), int) else str(_lpd.get("sign", ""))
+                        natal_p[_lpd["name"]] = {"house": _lpd.get("house", 0), "sign": _sn}
             if natal_p:
                 _lagna = cd.get("lagna_sign", "Aries")
                 if isinstance(_lagna, (dict, int)):
@@ -743,10 +743,10 @@ def _score_clock(cd, h, current_dasha, lk=None):
             natal_p = lk.get("natal_planets", {})
             if not natal_p:
                 natal_p = {}
-                for _pid, _pd in cd.get("planets", {}).items():
-                    if isinstance(_pd, dict) and _pd.get("name"):
-                        _sn = SIGNS[_pd.get("sign", 0)] if isinstance(_pd.get("sign"), int) else str(_pd.get("sign", ""))
-                        natal_p[_pd["name"]] = {"house": _pd.get("house", 0), "sign": _sn}
+                for _lpid, _lpd in cd.get("planets", {}).items():
+                    if isinstance(_lpd, dict) and _lpd.get("name"):
+                        _sn = SIGNS[_lpd.get("sign", 0)] if isinstance(_lpd.get("sign"), int) else str(_lpd.get("sign", ""))
+                        natal_p[_lpd["name"]] = {"house": _lpd.get("house", 0), "sign": _sn}
             if natal_p:
                 _rin = calculate_comprehensive_rin(natal_p)
                 if isinstance(_rin, list):
