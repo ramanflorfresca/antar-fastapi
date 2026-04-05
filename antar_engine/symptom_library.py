@@ -22,6 +22,14 @@ from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
+# Import LK advanced functions for on-the-fly computation
+try:
+    from antar_engine.lal_kitab_advanced import detect_sleeping_planets, detect_enemy_houses, calculate_comprehensive_rin
+    HAS_LK_ADVANCED = True
+except ImportError:
+    HAS_LK_ADVANCED = False
+
+
 try:
     import swisseph as swe
     HAS_SWE = True
@@ -695,6 +703,31 @@ def _score_clock(cd, h, current_dasha, lk=None):
             if planet and planet.lower()==hl.lower():
                 sc-=20; factors.append(ENERGY.get(planet,planet)+" is SLEEPING — power OFF for this instrument")
 
+    # On-the-fly LK computation when stored data is missing
+    if not sleeping and HAS_LK_ADVANCED:
+        try:
+            natal_p = lk.get("natal_planets", {})
+            if not natal_p:
+                natal_p = {}
+                for _pid, _pd in cd.get("planets", {}).items():
+                    if isinstance(_pd, dict) and _pd.get("name"):
+                        _sn = SIGNS[_pd.get("sign", 0)] if isinstance(_pd.get("sign"), int) else str(_pd.get("sign", ""))
+                        natal_p[_pd["name"]] = {"house": _pd.get("house", 0), "sign": _sn}
+            if natal_p:
+                _lagna = cd.get("lagna_sign", "Aries")
+                if isinstance(_lagna, (dict, int)):
+                    _lagna = SIGNS[_si(_lagna)]
+                _sleeping = detect_sleeping_planets(natal_p, _lagna)
+                if isinstance(_sleeping, list):
+                    for _sp in _sleeping:
+                        _spn = _sp.get("planet", "") if isinstance(_sp, dict) else str(_sp)
+                        if _spn and _spn.lower() == hl.lower():
+                            sc -= 20
+                            factors.append(ENERGY.get(_spn, _spn) + " is SLEEPING (computed) — power OFF")
+        except Exception:
+            pass
+
+
     # LK Rin (karmic debt) check
     rin=lk.get("rin_debts",lk.get("rin",lk.get("advanced",{}).get("rin",lk.get("advanced",{}).get("comprehensive_rin",[]))))
     if isinstance(rin,list):
@@ -703,6 +736,29 @@ def _score_clock(cd, h, current_dasha, lk=None):
                 dp=debt.get("planet","")
                 if dp and dp.lower()==hl.lower():
                     sc-=15; factors.append("Karmic debt (Rin) on "+ENERGY.get(dp,dp)+" — pattern loop draining this instrument")
+
+    # On-the-fly Rin computation when stored data is missing
+    if not rin and HAS_LK_ADVANCED:
+        try:
+            natal_p = lk.get("natal_planets", {})
+            if not natal_p:
+                natal_p = {}
+                for _pid, _pd in cd.get("planets", {}).items():
+                    if isinstance(_pd, dict) and _pd.get("name"):
+                        _sn = SIGNS[_pd.get("sign", 0)] if isinstance(_pd.get("sign"), int) else str(_pd.get("sign", ""))
+                        natal_p[_pd["name"]] = {"house": _pd.get("house", 0), "sign": _sn}
+            if natal_p:
+                _rin = calculate_comprehensive_rin(natal_p)
+                if isinstance(_rin, list):
+                    for _debt in _rin[:3]:
+                        if isinstance(_debt, dict):
+                            _dp = _debt.get("planet", "")
+                            if _dp and _dp.lower() == hl.lower():
+                                sc -= 15
+                                factors.append("Rin (computed) on " + ENERGY.get(_dp, _dp) + " — karmic pattern active")
+        except Exception:
+            pass
+
 
     return sc, factors
 
@@ -811,12 +867,13 @@ def _score_annual(cd, h, lk=None):
                 factors.append(en + " placed in this instrument for the year — annual activation")
             # If the house lord is placed in a strong annual house
             if planet.lower() == hl.lower() and isinstance(annual_house, int):
+                en2 = ENERGY.get(planet, planet)
                 if annual_house in [1, 4, 7, 10]:
                     sc += 10
-                    factors.append(en + " (instrument lord) in angular annual house — strong yearly position")
+                    factors.append(en2 + " (instrument lord) in angular annual house — strong yearly position")
                 elif annual_house in [6, 8, 12]:
                     sc -= 8
-                    factors.append(en + " (instrument lord) in dusthana annual house — yearly pressure")
+                    factors.append(en2 + " (instrument lord) in dusthana annual house — yearly pressure")
     if isinstance(varsh,dict):
         year_lord=varsh.get("year_lord",varsh.get("yearLord",""))
         muntha_house=varsh.get("muntha_house",varsh.get("muntha",0))

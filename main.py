@@ -5101,8 +5101,26 @@ async def get_executive_summary(chart_id: str):
         if not cr.data:
             return {"error": "Chart not found"}
         cd = cr.data.get("chart_data", {})
+        if isinstance(cd, str):
+            try:
+                import json as _jjson
+                cd = _jjson.loads(cd)
+            except:
+                cd = {}
         jd = cr.data.get("jaimini_data", {})
+        if isinstance(jd, str):
+            try:
+                import json as _jjson
+                jd = _jjson.loads(jd)
+            except:
+                jd = {}
         lk = cr.data.get("lal_kitab_data", {})
+        if isinstance(lk, str):
+            try:
+                import json as _jjson
+                lk = _jjson.loads(lk)
+            except:
+                lk = {}
         now_str = _exdt.utcnow().isoformat()
         dr = supabase.table("dasha_periods").select("planet_or_sign, level, end_date").eq("chart_id", chart_id).eq("system", "vimsottari").lte("start_date", now_str).gte("end_date", now_str).order("level").execute()
         dasha_list = dr.data if dr.data else []

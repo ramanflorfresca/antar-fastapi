@@ -1,97 +1,135 @@
 """
-patch_exec_simple.py
-Adds the executive-summary endpoint to main.py safely.
+patch_jsonb_keys.py — Fix 3 JSONB key mismatches in symptom_library.py
 
-Usage: python patch_exec_simple.py
+Problem: The stored jaimini_data and lal_kitab_data use different keys
+than what the diagnostic engine expects.
+
+Actual stored format:
+  jaimini_data.current_md = {sign: 1, sign_name: "Taurus", ...}
+  jaimini_data.current_ad = {sign: 5, sign_name: "Virgo", ...}
+  jaimini_data.arudha_lagna = {sign: 7, sign_name: "Scorpio"}
+  jaimini_data.upapada_lagna = {sign: 0, sign_name: "Aries"}
+  jaimini_data.karakamsa = {sign: 7, sign_name: "Scorpio"}
+  lal_kitab_data has NO varshphal/sleeping_planets/rin keys
+
+Run: python patch_jsonb_keys.py
 """
-import os
-import shutil
+import re
 
-def main():
-    target = "main.py"
-    backup = "main.py.bak_exec_simple"
-    
-    if not os.path.exists(target):
-        print("ERROR: main.py not found. Run from project root.")
-        return
-    
-    # Read current file
-    with open(target, "r") as f:
-        content = f.read()
-    
-    # Check if already added
-    if "executive-summary" in content:
-        print("executive-summary endpoint already exists. Nothing to do.")
-        return
-    
-    # Backup
-    shutil.copy2(target, backup)
-    print("Backed up to " + backup)
-    
-    # The endpoint code to insert
-    # Using plain string concatenation to avoid any escaping issues
-    endpoint = []
-    endpoint.append("")
-    endpoint.append("")
-    endpoint.append("# --- EXECUTIVE SUMMARY ENDPOINT (auto-inserted) ---")
-    endpoint.append("@app.get(\"/api/v1/executive-summary/{chart_id}\")")
-    endpoint.append("async def get_executive_summary(chart_id: str):")
-    endpoint.append("    try:")
-    endpoint.append("        from antar_engine.symptom_library import build_executive_summary")
-    endpoint.append("        from datetime import datetime as _exdt")
-    endpoint.append("        cr = supabase.table(\"charts\").select(\"chart_data, jaimini_data, lal_kitab_data\").eq(\"id\", chart_id).single().execute()")
-    endpoint.append("        if not cr.data:")
-    endpoint.append("            return {\"error\": \"Chart not found\"}")
-    endpoint.append("        cd = cr.data.get(\"chart_data\", {})")
-    endpoint.append("        jd = cr.data.get(\"jaimini_data\", {})")
-    endpoint.append("        lk = cr.data.get(\"lal_kitab_data\", {})")
-    endpoint.append("        now_str = _exdt.utcnow().isoformat()")
-    endpoint.append("        dr = supabase.table(\"dasha_periods\").select(\"planet_or_sign, level, end_date\").eq(\"chart_id\", chart_id).eq(\"system\", \"vimsottari\").lte(\"start_date\", now_str).gte(\"end_date\", now_str).order(\"level\").execute()")
-    endpoint.append("        dasha_list = dr.data if dr.data else []")
-    endpoint.append("        current_dasha = \"\"")
-    endpoint.append("        md_row = None")
-    endpoint.append("        ad_row = None")
-    endpoint.append("        for d in dasha_list:")
-    endpoint.append("            if d.get(\"level\") == 1:")
-    endpoint.append("                md_row = d")
-    endpoint.append("            if d.get(\"level\") == 2:")
-    endpoint.append("                ad_row = d")
-    endpoint.append("        if md_row:")
-    endpoint.append("            current_dasha = md_row[\"planet_or_sign\"].strip()")
-    endpoint.append("            if ad_row:")
-    endpoint.append("                current_dasha = current_dasha + \"-\" + ad_row[\"planet_or_sign\"].strip()")
-    endpoint.append("        result = build_executive_summary(cd, jd, lk, current_dasha, dasha_list)")
-    endpoint.append("        return result")
-    endpoint.append("    except Exception as e:")
-    endpoint.append("        import traceback")
-    endpoint.append("        traceback.print_exc()")
-    endpoint.append("        return {\"error\": str(e)}")
-    endpoint.append("# --- END EXECUTIVE SUMMARY ENDPOINT ---")
-    endpoint.append("")
-    
-    endpoint_text = "\n".join(endpoint)
-    
-    # Strategy: find "if __name__" and insert before it
-    marker = 'if __name__'
-    idx = content.find(marker)
-    
-    if idx > 0:
-        content = content[:idx] + endpoint_text + "\n\n" + content[idx:]
-        print("Inserted before 'if __name__'")
+TARGET = "antar_engine/symptom_library.py"
+
+def patch():
+    with open(TARGET, "r") as f:
+        lines = f.readlines()
+
+    content = "".join(lines)
+    changes = 0
+
+    # ═══════════════════════════════════════════════════════
+    # FIX 1: _get_chara_dasha() — read current_md/current_ad
+    # directly from jaimini_data root, not from chara_dasha sub-key
+    # ═══════════════════════════════════════════════════════
+
+    old_chara = 'cd_data = jd.get("chara_dasha", jd.get("charaDasha", jd.get("current_chara_dasha", {})))'
+    new_chara = 'cd_data = jd  # current_md and current_ad are at root level of jaimini_data'
+
+    if old_chara in content:
+        content = content.replace(old_chara, new_chara, 1)
+        changes += 1
+        print("FIX 1: _get_chara_dasha — reading current_md/current_ad from root")
     else:
-        # No if __name__ block, just append to end
-        content = content + endpoint_text
-        print("Appended to end of file")
-    
-    # Write
-    with open(target, "w") as f:
-        f.write(content)
-    
-    print("Done. Endpoint added.")
-    print("")
-    print("Deploy:")
-    print("  git add -A && git commit -m 'feat: executive-summary endpoint' && git push")
+        print("FIX 1: Pattern not found (may already be fixed)")
 
+    # ═══════════════════════════════════════════════════════
+    # FIX 2: _get_arudha_lagnas() — the stored keys are
+    # arudha_lagna, upapada_lagna, karakamsa (already tried)
+    # but values are dicts like {sign: 7, sign_name: "Scorpio"}
+    # The _si() function should handle this, but let's also
+    # add the direct sign extraction for safety
+    # ═══════════════════════════════════════════════════════
+
+    # This should already work since _si() handles dicts now.
+    # But let's verify the key order is correct by checking
+    # that "arudha_lagna" is tried BEFORE "al"
+    
+    old_al_order = '''    for key in ["AL", "al", "arudha_lagna", "arudha"]:'''
+    new_al_order = '''    for key in ["arudha_lagna", "arudha", "AL", "al"]:'''
+    if old_al_order in content:
+        content = content.replace(old_al_order, new_al_order, 1)
+        changes += 1
+        print("FIX 2a: AL key order — arudha_lagna first")
+
+    old_ul_order = '''    for key in ["UL", "ul", "upapada_lagna", "upapada"]:'''
+    new_ul_order = '''    for key in ["upapada_lagna", "upapada", "UL", "ul"]:'''
+    if old_ul_order in content:
+        content = content.replace(old_ul_order, new_ul_order, 1)
+        changes += 1
+        print("FIX 2b: UL key order — upapada_lagna first")
+
+    old_kl_order = '''    for key in ["KL", "kl", "karakamsa", "karakamsha"]:'''
+    new_kl_order = '''    for key in ["karakamsa", "karakamsha", "KL", "kl"]:'''
+    if old_kl_order in content:
+        content = content.replace(old_kl_order, new_kl_order, 1)
+        changes += 1
+        print("FIX 2c: KL key order — karakamsa first")
+
+    # ═══════════════════════════════════════════════════════
+    # FIX 3: _score_annual() — lal_kitab_data has NO varshphal
+    # key. Instead it has "placements" (annual house positions).
+    # We need to read placements to determine which houses
+    # are activated this year.
+    # ═══════════════════════════════════════════════════════
+
+    # Find and replace the _score_annual function body
+    old_annual_start = '''def _score_annual(cd, h, lk=None):
+    """Check Varshphal year lord and Muntha position."""
+    sc=0; factors=[]
+    lk=_sj(lk) if lk else {}
+
+    varsh=lk.get("varshphal",lk.get("varshaphal",lk.get("annual",{})))'''
+
+    new_annual_start = '''def _score_annual(cd, h, lk=None):
+    """Check annual placements and Varshphal data."""
+    sc=0; factors=[]
+    lk=_sj(lk) if lk else {}
+
+    # Try standard varshphal keys first
+    varsh=lk.get("varshphal",lk.get("varshaphal",lk.get("annual",{})))
+
+    # If no varshphal dict, check for "placements" (LK annual house positions)
+    placements = lk.get("placements", {})
+    if placements and not varsh:
+        # placements = {planet: annual_house_number}
+        # Check if any planet's annual house matches this instrument's house
+        hl = _hl(cd, h)  # lord of this house
+        for planet, annual_house in placements.items():
+            if isinstance(annual_house, int) and annual_house == h:
+                en = ENERGY.get(planet, planet)
+                sc += 8
+                factors.append(en + " placed in this instrument for the year — annual activation")
+            # If the house lord is placed in a strong annual house
+            if planet.lower() == hl.lower() and isinstance(annual_house, int):
+                if annual_house in [1, 4, 7, 10]:
+                    sc += 10
+                    factors.append(en + " (instrument lord) in angular annual house — strong yearly position")
+                elif annual_house in [6, 8, 12]:
+                    sc -= 8
+                    factors.append(en + " (instrument lord) in dusthana annual house — yearly pressure")'''
+
+    if old_annual_start in content:
+        content = content.replace(old_annual_start, new_annual_start, 1)
+        changes += 1
+        print("FIX 3: _score_annual — reads 'placements' when no varshphal key exists")
+    else:
+        print("FIX 3: Pattern not found (check manually)")
+
+    # Write
+    with open(TARGET, "w") as f:
+        f.write(content)
+
+    print(f"\nDone. {changes} changes applied to {TARGET}")
+    if changes > 0:
+        print("Deploy: git add -A && git commit -m 'fix: JSONB key alignment for jaimini + lal kitab' && git push")
 
 if __name__ == "__main__":
-    main()
+    patch()
