@@ -12,8 +12,6 @@ import logging
 import re
 from typing import Optional
 import httpx
-from antar_engine.symptom_library import build_diagnostic_prompt_block, get_domain_vocabulary, get_primary_symptom
-
 
 logger = logging.getLogger(__name__)
 
@@ -451,20 +449,6 @@ The tone block adjusts HOW you deliver the answer, not WHAT the answer is.
 The verdict, data, and timing are unchanged. Only the voice shifts.
 {emotional_tone_block}
 
-Rule 12: VERDICT-FIRST AND DOMAIN VOICE.
-Every response MUST begin with a verdict header line: "✦ VERDICT: [ACTION]. [DIRECTIVE]."
-Examples:
-- "✦ VERDICT: HIBERNATE. External capital is offline until Q2 2027."
-- "✦ VERDICT: EXECUTE NOW. Your authority window closes in 3 weeks."
-- "✦ VERDICT: RECALIBRATE. Partnership alignment is drifting."
-- "✦ VERDICT: HOLD POSITION. Career friction will clear after March 2028."
-The verdict must use the user's domain language — not astrology. If they ask about money, use Runway, Overhead, Burn Rate. If about career, use Authority, Leverage, Positioning. If about relationships, use Alignment, Sync, Convergence. If about health, use Vitals, Reserves, Recovery.
-Match the user's register: if they use CEO language, respond like a Chairman. If they use relationship language, respond like a Conflict Mediator. If they use health language, respond like an Executive Physician.
-
-Rule 13: BEDSIDE MANNER GUARDRAIL.
-Never present a planet or house as the cause. Present the "Energy Disruption" as the cause. Use the jargon of the user's specific domain (Finance/Career/Love/Health) to explain both the problem and the cure. The user should feel like they are receiving a strategic briefing, not a horoscope reading.
-
-
 A prediction without a move is entertainment.
 A move without a prediction is advice.
 Antar is the intersection of both.
@@ -734,11 +718,6 @@ def _strip_jargon(text: str) -> str:
     text = re.sub(r'  +', ' ', text)
     text = re.sub(r' ,', ',', text)
     text = re.sub(r' \.', '.', text)
-    # Strip house number references (e.g., "10th house", "8th house lord")
-    import re as _re
-    result = _re.sub(r'\b\d{1,2}(?:st|nd|rd|th)\s+house\s*(?:lord)?', '', result)
-    result = _re.sub(r'\bhouse\s+\d{1,2}\b', '', result)
-
     return text.strip()
 
 

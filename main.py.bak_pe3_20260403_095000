@@ -5,7 +5,6 @@
 import os
 import uuid
 from contextlib import asynccontextmanager
-import json
 from datetime import datetime, date, timedelta, timezone
 from typing import Optional, List, Dict, Any
 
@@ -47,275 +46,6 @@ except ImportError:
     pass
 
 load_dotenv(override=False)
-
-# ══════════════════════════════════════════════════════════════════
-# DOMAIN AUDIT RULES (Sprint D) - Complete
-# Injected into /predict system prompt based on detected concern.
-# Forces Claude to check SPECIFIC houses and divisional charts.
-# ══════════════════════════════════════════════════════════════════
-
-DOMAIN_AUDIT_RULES = {
-
-    "finance": (
-        "DOMAIN AUDIT - FUNDING / CAPITAL / FINANCE:\n"
-        "You MUST check these specific chart elements and report findings:\n\n"
-        "1. PRIMARY CHECK - 8th House (other people's money, funding, loans):\n"
-        "   - Who is the 8th House Lord? What house is it sitting in?\n"
-        "   - Is any planet currently transiting the 8th house?\n"
-        "   - Is the 8th house activated in the current Antardasha?\n\n"
-        "2. GAINS CHECK - 11th House (income, gains, fulfillment of desires):\n"
-        "   - Who is the 11th House Lord? What house is it sitting in?\n"
-        "   - Is the 11th house activated in the current dasha period?\n"
-        "   - Any benefic aspects on 11th house?\n\n"
-        "3. WEALTH CHECK - 2nd House (accumulated wealth, cash flow):\n"
-        "   - Who is the 2nd House Lord? Status - strong, weak, combust?\n"
-        "   - Any Dhana Yogas (wealth combinations) active?\n\n"
-        "4. CAREER DIVISIONAL - D-10 (Dashamsha):\n"
-        "   - Are the Artha houses (2, 6, 10) in D-10 supported?\n"
-        "   - Is the D-10 lagna lord strong?\n\n"
-        "5. JAIMINI CHECK:\n"
-        "   - Where is Amatyakaraka (career significator) placed?\n"
-        "   - Is Amatyakaraka in 6/8/12 from current Jaimini Chara Dasha sign?\n"
-        "   - If yes = CAREER ENERGY MISALIGNED - report this.\n\n"
-        "6. LAL KITAB CHECK:\n"
-        "   - Are 8th or 11th houses Sleeping per Lal Kitab?\n"
-        "   - If sleeping = BLOCKAGE - report what remedy awakens it.\n"
-        "   - What does the Varshphal show for wealth houses?\n"
-        "   - Does Muntha or Year Lord occupy 2nd, 8th, or 11th house?\n\n"
-        "7. TIMING VERDICT:\n"
-        "   - 8th+11th both supported = funding ACTIVE, give specific month\n"
-        "   - 8th inactive + Varshphal neutral = funding BLOCKED, say when it unblocks\n"
-        "   - 11th active + 8th weak = revenue yes, outside capital no\n"
-        "   - AmK in 6/8/12 from dasha = realign positioning first\n"
-        "   DO NOT give vague answers. Give a VERDICT based on the data."
-    ),
-
-    "career": (
-        "DOMAIN AUDIT - CAREER / BUSINESS / PROFESSIONAL:\n"
-        "Check: 10th House lord and placement, D-10 lagna lord strength,\n"
-        "Amatyakaraka position, 6th house (competition), Sun strength,\n"
-        "current dasha lord relationship to 10th, Lal Kitab sleeping planets in 10th,\n"
-        "Varshphal year lord in career houses. Give specific timing for career activation."
-    ),
-
-    "foreign": (
-        "DOMAIN AUDIT - FOREIGN SETTLEMENT AND TRAVEL:\n"
-        "PROTOCOL: VELOCITY AUDIT\n\n"
-        "1. 4th HOUSE (Home) INTEGRITY:\n"
-        "   - Is the 4th Lord in the 6th, 8th, or 12th house?\n"
-        "   - Is it afflicted by Rahu or Saturn?\n"
-        "   - Affliction = weakening of ties to birthplace.\n\n"
-        "2. 12th HOUSE (Foreign Residence) ACTIVATION:\n"
-        "   - Is the 12th Lord active in the current Vimsottari Dasha?\n"
-        "   - Any connection between 9th Lord (long travel) and 12th Lord?\n\n"
-        "3. RAHU/MOON ALIGNMENT:\n"
-        "   - Is Rahu or Moon in 7th, 9th, or 12th house?\n\n"
-        "4. VERDICT:\n"
-        "   - 4th stable + 12th dormant = STAY\n"
-        "   - 4th afflicted + 12th/9th active = FLIGHT PATH CLEAR\n"
-        "   Give specific month when the travel/settlement window opens."
-    ),
-
-    "relationship": (
-        "DOMAIN AUDIT - RELATIONSHIP AND MARRIAGE:\n"
-        "PROTOCOL: D-9 ENGINE DIAGNOSTIC\n\n"
-        "1. D-1 BASELINE: 7th House Lord current strength and transit position.\n\n"
-        "2. D-9 (Navamsha) AUDIT:\n"
-        "   - Compare D-1 7th Lord position in D-9 chart.\n"
-        "   - If it falls in D-9 6th, 8th, or 12th = INTERNAL FRICTION.\n\n"
-        "3. VENUS/JUPITER STATUS:\n"
-        "   - Venus (for men) or Jupiter (for women) - combust? Under Saturn aspect?\n\n"
-        "4. DARAKARAKA: Which planet? Where placed? Strength?\n\n"
-        "5. UPAPADA LAGNA: Sign, lord, planets there.\n\n"
-        "6. VERDICT:\n"
-        "   Do not predict love. Predict SYNC QUALITY.\n"
-        "   e.g. 7th House active but D-9 Engine in recovery = delays until [Date]."
-    ),
-
-    "entrepreneurship": (
-        "DOMAIN AUDIT - NEW BUSINESS / ENTREPRENEURSHIP:\n"
-        "PROTOCOL: INDEPENDENCE AUDIT\n\n"
-        "1. D-10: Is the 1st House (self-reliance) stronger than 7th (partnership)?\n\n"
-        "2. ARTHA TRIAD: Scan 2nd, 6th, 10th houses in D-10 for Rahu or Mars.\n\n"
-        "3. JAIMINI: Is Amatyakaraka in a sign currently undergoing Chara Dasha?\n\n"
-        "4. VERDICT:\n"
-        "   - D-10 1st Lord weak = STAY IN EMPLOYMENT\n"
-        "   - 7th/10th Lords converging in Dasha = LAUNCH WINDOW OPEN\n"
-        "   Give specific month for the launch window."
-    ),
-
-    "job_change": (
-        "DOMAIN AUDIT - JOB CHANGE AND PROMOTION:\n"
-        "PROTOCOL: VERTICAL RISE AUDIT\n\n"
-        "1. 6th vs 10th BALANCE: 6th House (daily service) vs 10th House (authority).\n\n"
-        "2. D-10 VITALS: Is current Antardasha lord well-placed in D-10?\n"
-        "   If in 3rd, 6th, 10th, or 11th from D-10 Lagna = PROMOTION/GAIN.\n\n"
-        "3. SATURN/SUN TRANSIT:\n"
-        "   - Saturn hitting 10th = heavy workload\n"
-        "   - Sun hitting 10th = recognition\n\n"
-        "4. VERDICT:\n"
-        "   Give specific date for vertical move window.\n"
-        "   Until then specify steady cruise or preparation mode."
-    ),
-
-    "property": (
-        "DOMAIN AUDIT - CHANGE OF RESIDENCE / PROPERTY:\n"
-        "PROTOCOL: D-4 LOCATION SENSOR\n\n"
-        "1. 3rd/4th HOUSE TRIGGER: Connection between 3rd Lord and 4th Lord.\n\n"
-        "2. D-4 (Chaturthamsa) AUDIT: Is D-1 4th Lord in a movable sign in D-4?\n\n"
-        "3. MARS/SATURN TRANSIT: Mars or Saturn hitting 4th house?\n\n"
-        "4. VERDICT:\n"
-        "   Give specific month when location sensor is triggered.\n"
-        "   Specify upgrade vs relocation vs avoid fixed commitments."
-    ),
-
-    "legal": (
-        "DOMAIN AUDIT - LEGAL, DISPUTES AND COMPETITION:\n"
-        "PROTOCOL: VICTORY SENSOR (6th HOUSE)\n\n"
-        "1. 6th HOUSE AUDIT:\n"
-        "   - Check strength of 6th Lord. Is it in 6th, 8th, or 12th?\n"
-        "   - Placement in 8/12 suggests winning through loss or hidden settlements.\n\n"
-        "2. MARS/SATURN INFLUENCE:\n"
-        "   - Is Mars (victory) or Saturn (justice/delay) aspecting the 6th house?\n\n"
-        "3. D-6 (Shashtamsa) CHECK:\n"
-        "   - 6th Lord exalted in D-6 = VICTORY THROUGH STRATEGY.\n\n"
-        "4. VERDICT:\n"
-        "   Give specific date when settlement signal activates.\n"
-        "   If Saturn aspect active = delays until Saturn releases."
-    ),
-
-    "health_audit": (
-        "DOMAIN AUDIT - HEALTH AND VITALITY:\n"
-        "PROTOCOL: ENGINE COOLING AUDIT\n\n"
-        "1. LAGNA LORD STATUS:\n"
-        "   - Is 1st Lord currently combust or in a Maraka house (2nd/7th)?\n\n"
-        "2. 8th HOUSE CHECK:\n"
-        "   - Is current Antardasha lord placed in the 8th house?\n"
-        "   - 8th house activation = internal maintenance required.\n\n"
-        "3. SUN/MOON VITALS:\n"
-        "   - Sun (physical energy) and Moon (mental clarity) under Rahu/Ketu pressure?\n\n"
-        "4. VERDICT:\n"
-        "   If Lagna lord weak + 8th active = low-vitality window until [Date].\n"
-        "   Specify what to avoid during this cycle. Give date when vitality returns."
-    ),
-
-    "real_estate_audit": (
-        "DOMAIN AUDIT - REAL ESTATE AND FIXED ASSETS:\n"
-        "PROTOCOL: ASSET ACQUISITION SENSOR\n\n"
-        "1. 4th HOUSE INTEGRITY: Is 4th Lord connected to 11th or 2nd Lord?\n\n"
-        "2. MARS STATUS: Strength check. Retrograde = construction delays.\n\n"
-        "3. D-4 ENGINE: 4th Lord of D-1 in D-4 Upachaya (3,6,10,11) = GROWTH.\n\n"
-        "4. VERDICT:\n"
-        "   - Connected + Mars strong = PURCHASE WINDOW OPEN\n"
-        "   - Friction + Mars weak = window CLOSED until [Date]"
-    ),
-
-    "children": (
-        "DOMAIN AUDIT - CHILDREN AND CREATIVITY:\n"
-        "PROTOCOL: LEGACY/PROGENY AUDIT\n\n"
-        "1. 5th HOUSE: Lord in fertile sign (Water/Earth) or dry (Fire/Air)?\n\n"
-        "2. D-7 (Saptamsha): Check Jupiter and 9th Lord alignment in D-7.\n\n"
-        "3. JUPITER TRANSIT: In 1st, 5th, or 9th house = GREEN LIGHT.\n\n"
-        "4. VERDICT:\n"
-        "   Jupiter in 1/5/9 + 5th fertile + D-7 supported = FERTILE WINDOW.\n"
-        "   Give specific month when creation window peaks."
-    ),
-
-    "health": (
-        "DOMAIN AUDIT - HEALTH:\n"
-        "Check: Lagna lord strength (vitality), 6th house (disease), 8th house (chronic),\n"
-        "Sun and Mars strength, current dasha lord natural signification,\n"
-        "age-specific Umra vulnerabilities, Lal Kitab sleeping planets in 1/6/8."
-    ),
-
-    "general": (
-        "DOMAIN AUDIT - GENERAL:\n"
-        "Scan ALL major houses. Find the ONE area with highest activation in current dasha.\n"
-        "Check D-10 for career, D-9 for relationships, D-2 for wealth.\n"
-        "Find the sharpest signal and go deep on that single area."
-    ),
-}
-
-# Domain aliases
-DOMAIN_AUDIT_RULES["wealth"] = DOMAIN_AUDIT_RULES["finance"]
-DOMAIN_AUDIT_RULES["funding"] = DOMAIN_AUDIT_RULES["finance"]
-DOMAIN_AUDIT_RULES["business"] = DOMAIN_AUDIT_RULES["career"]
-DOMAIN_AUDIT_RULES["startup"] = DOMAIN_AUDIT_RULES["finance"]
-DOMAIN_AUDIT_RULES["travel"] = DOMAIN_AUDIT_RULES["foreign"]
-DOMAIN_AUDIT_RULES["abroad"] = DOMAIN_AUDIT_RULES["foreign"]
-DOMAIN_AUDIT_RULES["immigration"] = DOMAIN_AUDIT_RULES["foreign"]
-DOMAIN_AUDIT_RULES["marriage"] = DOMAIN_AUDIT_RULES["relationship"]
-DOMAIN_AUDIT_RULES["love"] = DOMAIN_AUDIT_RULES["relationship"]
-DOMAIN_AUDIT_RULES["promotion"] = DOMAIN_AUDIT_RULES["job_change"]
-DOMAIN_AUDIT_RULES["job"] = DOMAIN_AUDIT_RULES["job_change"]
-DOMAIN_AUDIT_RULES["house"] = DOMAIN_AUDIT_RULES["property"]
-DOMAIN_AUDIT_RULES["relocation"] = DOMAIN_AUDIT_RULES["property"]
-DOMAIN_AUDIT_RULES["dispute"] = DOMAIN_AUDIT_RULES["legal"]
-DOMAIN_AUDIT_RULES["court"] = DOMAIN_AUDIT_RULES["legal"]
-DOMAIN_AUDIT_RULES["competition"] = DOMAIN_AUDIT_RULES["legal"]
-DOMAIN_AUDIT_RULES["fertility"] = DOMAIN_AUDIT_RULES["children"]
-DOMAIN_AUDIT_RULES["creativity"] = DOMAIN_AUDIT_RULES["children"]
-DOMAIN_AUDIT_RULES["pregnancy"] = DOMAIN_AUDIT_RULES["children"]
-
-# ── COMPATIBILITY AUDIT RULES ─────────────────────────────────────
-COMPATIBILITY_AUDIT_RULES = {
-
-    "business_partnership": (
-        "COMPATIBILITY AUDIT - STARTUP AND BUSINESS PARTNERSHIP:\n"
-        "PROTOCOL: CONVERGENCE AUDIT (D-1 and D-10)\n\n"
-        "1. DASHA ALIGNMENT:\n"
-        "   - Do both partners have 10th or 11th House activation in next 24 months?\n"
-        "   - If Partner A is in Growth dasha but Partner B is in Loss/8th dasha = bleed.\n\n"
-        "2. 7th HOUSE LINK:\n"
-        "   - Does Partner A 7th Lord sit in a friendly house in Partner B chart?\n\n"
-        "3. D-10 POWER:\n"
-        "   - Sun/Mars strength = CEO. Saturn/Mercury = Operations.\n"
-        "   - If roles complement = Functional Sync HIGH.\n\n"
-        "4. VERDICT:\n"
-        "   Report Operational Sync percentage. Flag timing mismatches with specific quarter."
-    ),
-
-    "romantic": (
-        "COMPATIBILITY AUDIT - ROMANTIC AND MARRIAGE SYNC:\n"
-        "PROTOCOL: VITALITY AND VIBE SYNC (D-1 and D-9)\n\n"
-        "1. MOON/MIND SYNC: Moon signs in 6/8 or 12/2 = communication friction.\n\n"
-        "2. D-9 ENGINE MATCH:\n"
-        "   - 7th Lord of Partner A in Partner B D-9 hitting Lagna or 5/9 = deep.\n\n"
-        "3. MARS/VENUS BATTERY: Manglik imbalance check.\n\n"
-        "4. VERDICT:\n"
-        "   Report Emotional Sync, Structural Sync (D-9), Engine Compatibility.\n"
-        "   Never use soulmate. Use Operational Alignment."
-    ),
-
-    "investor": (
-        "COMPATIBILITY AUDIT - INVESTOR / FUNDING SYNC:\n"
-        "PROTOCOL: CAPITAL FLOW AUDIT (8th and 11th)\n\n"
-        "1. 8th HOUSE BRIDGE: Investor 11th Lord aspects Founder 8th House = green light.\n\n"
-        "2. AUTHORITY CONFLICT: Two Sun-dominant charts = cockpit collision.\n\n"
-        "3. EXIT TIMING: Investor gains cycle align with Founder peak valuation?\n\n"
-        "4. VERDICT:\n"
-        "   Report Capital Flow, Authority Sync, Exit Alignment.\n"
-        "   If conflict = specify year and recommend legal buffer."
-    ),
-}
-
-# ── BRIDGE INSTRUCTION (applies to ALL domains) ──────────────────
-DOMAIN_BRIDGE_INSTRUCTION = (
-    "STRICT RULE ON THE BRIDGE:\n"
-    "If ANY domain audit shows a BLOCKED signal, you MUST provide a Bridge Action "
-    "that the user can take TODAY to prepare for the future window. "
-    "Do not leave the user with a dead-end No. "
-    "Give them a System Calibration task.\n\n"
-    "Example: User asks Can I start a business now?\n"
-    "Audit shows D-10 weak until late 2026.\n"
-    "You say: The Business Launch Signal is blocked until Sept 2026.\n"
-    "YOUR MOVE: Use this maintenance chapter to learn a specific skill "
-    "or secure your personal savings so you have fuel when the road clears.\n\n"
-    "This turns bad news into strategic delay. "
-    "That is what a high-performance user pays for."
-)
-
-
 
 # ── Email via Resend ──────────────────────────────────────────────────────────
 import httpx as _httpx
@@ -401,14 +131,6 @@ try:
         detect_prashna_intent,
         PRASHNA_COOLDOWN_HOURS,
     )
-
-    # ═══ E1: EMOTIONAL INTELLIGENCE LAYER ═══
-    from antar_engine.prashna_engine import (
-        detect_emotional_tone,
-        get_time_modifier,
-        build_emotional_prompt_block,
-    )
-
     from antar_engine.welcome_signal_v2 import (
         generate_welcome_signal_v2,
     )
@@ -937,10 +659,6 @@ class PredictResponse(BaseModel):
     timing_window:          Optional[str]  = None
     all_domains:            List[str]      = Field(default_factory=list)
     signal_confidence:      Optional[str]  = None
-    why_this:               Optional[str]  = None
-    bridge_practice_note:   Optional[str]  = None
-    contradiction_detected: Optional[bool] = False
-    oracle_context:         Optional[Dict] = None
 
 class ChartResponse(BaseModel):
     id: str
@@ -1180,28 +898,8 @@ CORE RULES:
 8. Keep responses under 300 words unless the question requires depth
 9. End every prediction with one action the person can take TODAY
 10. Never give medical, financial, or legal advice
-\n\nASTROLOGER FIRST, COACH SECOND:\nYou are a Vedic astrologer first and a life coach second. When chart data shows specific house activations, dasha triggers, and divisional chart positions - USE THEM. Do not default to psychology or motivation when the chart gives you specific data.\n\nWhen a DOMAIN AUDIT section is included in the context, you MUST:\n1. Check every item listed in the audit\n2. Report what you found in the chart data for each check\n3. Form a VERDICT based on what is active vs blocked\n4. Give specific timing based on dasha transitions or transit activations\n5. Only THEN give the human advice based on your findings\n\nThe chart data is NOT decoration. It is the primary source of your answer. If the 8th house lord is sitting in the 3rd house, say so and explain what it means. Never skip chart data to give generic coaching.
-
-SHOW YOUR REASONING:
-After your response, add a brief "WHY THIS SIGNAL" section with 2-3 bullet points explaining the key factors behind your answer. Use plain language only — no planet names, no house numbers, no Sanskrit terms. These bullets should make the user think "oh, that makes sense" without needing any astrology knowledge.
-
-Example:
-- Your wealth sector is active, but timing is still unfolding
-- A major expansion force aligns with your career area in mid-2026
-- A slowing influence suggests patience until then
 """
 
-
-
-# ═══ DEEPSEEK FALLBACK PROMPT ═══
-DEEPSEEK_FALLBACK_PROMPT = """You are Antar, a life navigation advisor. Answer clearly and specifically.
-
-Rules:
-- 3-5 sentences max. No filler.
-- Zero astrological jargon — no planet names, no house numbers, no Sanskrit.
-- End with YOUR MOVE: one specific action this week, starting with a verb.
-- If timing data is provided, give a specific window (not "soon").
-- Be direct. Be warm. Be useful."""
 
 async def call_llm(
     prompt: str,
@@ -1225,7 +923,7 @@ async def call_llm(
         response = await deepseek_client.chat.completions.create(
             model="deepseek-chat",
             messages=messages,
-            temperature=0.35,
+            temperature=0.5,
             max_tokens=1200,
         )
         return response.choices[0].message.content.strip(), None
@@ -1244,7 +942,7 @@ async def call_llm_claude(
     Falls back to DeepSeek if Claude unavailable.
     """
     if not _CLAUDE_AVAILABLE or not claude_client:
-        return await call_llm(prompt, history, DEEPSEEK_FALLBACK_PROMPT)
+        return await call_llm(prompt, history, system_override)
 
     history = history or []
     messages = [
@@ -1257,7 +955,6 @@ async def call_llm_claude(
         response = await claude_client.messages.create(
             model="claude-sonnet-4-5",
             max_tokens=1200,
-            temperature=0.35,
             system=system,
             messages=messages,
         )
@@ -1387,106 +1084,6 @@ async def get_chart(chart_id: str):
     return response_dict
 
 # ── Predict ───────────────────────────────────────────────────────────────────
-
-
-# ═══════════════════════════════════════════════════════════════
-# SPRINT E2: CONTRADICTION RESOLUTION
-# ═══════════════════════════════════════════════════════════════
-
-def _domains_overlap(predict_domain: str, prashna_domain: str) -> bool:
-    """E2: Check if two domain strings refer to the same life area."""
-    if not predict_domain or not prashna_domain:
-        return False
-    pd = predict_domain.lower().strip()
-    pr = prashna_domain.lower().strip()
-    if pd == pr:
-        return True
-    DOMAIN_GROUPS = {
-        "career": {"career", "job", "promotion", "business", "promoted", "raise",
-                   "interview", "hired", "fired", "resign", "boss", "work"},
-        "finance": {"finance", "money", "investment", "wealth", "funding", "fund",
-                    "loan", "equity", "investor", "series", "profit", "loss",
-                    "stock", "crypto", "deal", "buy", "sell"},
-        "relationship": {"relationship", "marriage", "love", "partner", "divorce",
-                         "dating", "girlfriend", "boyfriend", "wife", "husband",
-                         "engaged", "marry"},
-        "legal": {"legal", "court", "lawsuit", "case", "judge", "litigation"},
-        "health": {"health", "surgery", "illness", "sick", "doctor", "hospital",
-                   "medicine", "recover", "disease"},
-        "children": {"children", "child", "pregnant", "conceive", "kid", "son",
-                     "daughter", "baby", "fertility"},
-        "travel": {"travel", "foreign", "relocation", "immigration", "migrate",
-                   "passport", "visa", "abroad", "relocate"},
-        "education": {"education", "degree", "admission", "university", "school",
-                      "exam", "test", "study"},
-    }
-    for group_name, keywords in DOMAIN_GROUPS.items():
-        if pd in keywords and pr in keywords:
-            return True
-    return False
-
-
-def get_recent_prashna_for_domain(chart_id: str, domain: str, hours: int = 72):
-    """E2: Check if user asked the Oracle about this domain in the last N hours."""
-    try:
-        _cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
-        _result = supabase.table("prashna_log") \
-            .select("verdict, score, timing, domain, question, created_at") \
-            .eq("chart_id", chart_id) \
-            .gte("created_at", _cutoff) \
-            .order("created_at", desc=True) \
-            .limit(5) \
-            .execute()
-        if not _result.data:
-            return None
-        for _row in _result.data:
-            _pr_domain = _row.get("domain", "")
-            if _domains_overlap(domain, _pr_domain):
-                _hours_ago = (
-                    datetime.now(timezone.utc) -
-                    datetime.fromisoformat(_row["created_at"].replace("Z", "+00:00"))
-                ).total_seconds() / 3600
-                return {
-                    "verdict": _row.get("verdict", ""),
-                    "score": _row.get("score", 0),
-                    "timing": _row.get("timing", ""),
-                    "domain": _pr_domain,
-                    "question": _row.get("question", ""),
-                    "hours_ago": round(_hours_ago, 1),
-                }
-        return None
-    except Exception as _e2_err:
-        print(f"[E2] get_recent_prashna_for_domain failed: {_e2_err}")
-        return None
-
-
-def build_contradiction_context(recent_prashna: dict) -> str:
-    """E2: Build prompt block telling Claude about a recent Oracle reading on the same domain."""
-    return f"""
-\u2550\u2550\u2550 RECENT ORACLE READING (same domain) \u2550\u2550\u2550
-The user asked the Horary Oracle about this topic {recent_prashna['hours_ago']} hours ago.
-Oracle verdict: {recent_prashna['verdict']} ({recent_prashna['score']}%)
-Oracle timing: {recent_prashna['timing']}
-Oracle domain: {recent_prashna['domain']}
-Oracle question: \"{recent_prashna['question']}\"
-
-IF your birth chart analysis contradicts the Oracle verdict:
-- Explain that the birth chart shows STRUCTURAL timing (long-term patterns, dasha periods, slow transits)
-- The Oracle shows TACTICAL momentum (the energy at the exact moment they asked)
-- When they disagree, the timing is usually the real signal
-- Birth chart = when the foundation is ready. Oracle = when the door opens.
-- THE MOVE should account for both: prepare now (Oracle), don't overcommit yet (birth chart)
-- Frame it as: \"Two lenses, same question \u2014 here's what each one sees.\"
-
-IF your birth chart analysis AGREES with the Oracle verdict:
-- Note the convergence: \"Both your birth chart and the Oracle point the same direction.\"
-- This increases confidence. Say so.
-
-DO NOT ignore the Oracle reading. DO NOT pretend it doesn't exist.
-Acknowledge it explicitly and explain the difference.
-\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550\u2550
-"""
-
 
 @app.post("/api/v1/predict", response_model=PredictResponse)
 async def predict(request: PredictRequest, authorization: Optional[str] = Header(None)):
@@ -1625,29 +1222,8 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
                 country_code, supabase, deepseek_client, language
             )
         except Exception as e:
-            print(f"[predict] Nation insight error (non-fatal): {type(e).__name__}: {e}")
+            print(f"Nation insight error: {e}")
     # ── end C2 ───────────────────────────────────────────────────
-
-    # ── Concern detection (must come before C3 and C4) ────────
-    concern = _detect_concern(request.question)
-
-    # ── PATRA (must come before C4) ──────────────────────────────
-    user_profile = {
-        "marital_status":   chart_record.get("marital_status", "unknown"),
-        "children_status":  chart_record.get("children_status", "no_children_unsure"),
-        "career_stage":     chart_record.get("career_stage", "mid_career"),
-        "health_status":    chart_record.get("health_status", "excellent"),
-        "financial_status": chart_record.get("financial_status", "stable"),
-        "birth_country":    chart_record.get("country_code", ""),
-        "current_country":  chart_record.get("current_country") or chart_record.get("country_code", ""),
-        "countries_lived":  chart_record.get("countries_lived", []),
-    }
-    patra = build_patra_context(
-        birth_date=chart_record["birth_date"],
-        user_profile=user_profile,
-        primary_concern=concern,
-    )
-    patra_context = patra_to_context_block(patra)
 
     # ── C3: Pattern Memory — Layer 7 ─────────────────────────────
     _memory = {}
@@ -1690,33 +1266,6 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         _cs_block = ""
     # ── end C4 ───────────────────────────────────────────────────
 
-    # ── E2: Contradiction Resolution ─────────────────────────────
-    _contradiction_detected = False
-    _oracle_context = None
-    try:
-        _recent_prashna = get_recent_prashna_for_domain(request.chart_id, concern, hours=72)
-        if _recent_prashna:
-            _contradiction_block = build_contradiction_context(_recent_prashna)
-            # Will be prepended to prompt later via extra blocks
-            _contradiction_detected = True
-            _oracle_context = {
-                "verdict": _recent_prashna["verdict"],
-                "score": _recent_prashna["score"],
-                "timing": _recent_prashna["timing"],
-                "domain": _recent_prashna["domain"],
-                "hours_ago": _recent_prashna["hours_ago"],
-            }
-            print(f"[E2] Contradiction context injected domain={concern} "
-                  f"oracle={_recent_prashna['verdict']} hours_ago={_recent_prashna['hours_ago']}")
-        else:
-            _contradiction_block = ""
-    except Exception as _e2_wire_err:
-        print(f"[E2] Contradiction check failed (non-fatal): {_e2_wire_err}")
-        _contradiction_block = ""
-    # ── end E2 ───────────────────────────────────────────────────
-
-    # Initialize dkp_block if not yet defined (defined later in DKP section ~line 1880)
-    dkp_block = dkp_block if "dkp_block" in locals() else ""
     # Sprint D: domain-focused DKP note
     try:
         from antar_engine.desh_kal_patra import get_domain_dkp_note
@@ -1726,23 +1275,26 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     except Exception as _ddkp_err:
         print(f"[predict] domain DKP note failed (non-fatal): {_ddkp_err}")
 
-    # --- DIAGNOSTIC PRE-SCAN (Sprint 1.2) ---
-    diagnostic_block = ""
-    try:
-        if chart_data and isinstance(chart_data, dict):
-            diagnostic_block = build_diagnostic_prompt_block(
-                chart_data,
-                request.question if hasattr(request, 'question') else "",
-                concern if 'concern' in dir() else None
-            )
-            if diagnostic_block:
-                # Will be injected into prompt via extra context
-                pass
-    except Exception as e:
-        logger.warning(f"Diagnostic pre-scan failed: {e}")
-        diagnostic_block = ""
-    # --- END DIAGNOSTIC PRE-SCAN ---
+    # Concern detection
+    concern = _detect_concern(request.question)
 
+    # ── PATRA ──────────────────────────────────────────────────────
+    user_profile = {
+        "marital_status":   chart_record.get("marital_status", "unknown"),
+        "children_status":  chart_record.get("children_status", "no_children_unsure"),
+        "career_stage":     chart_record.get("career_stage", "mid_career"),
+        "health_status":    chart_record.get("health_status", "excellent"),
+        "financial_status": chart_record.get("financial_status", "stable"),
+        "birth_country":    chart_record.get("country_code", ""),
+        "current_country":  chart_record.get("current_country") or chart_record.get("country_code", ""),
+        "countries_lived":  chart_record.get("countries_lived", []),
+    }
+    patra = build_patra_context(
+        birth_date=chart_record["birth_date"],
+        user_profile=user_profile,
+        primary_concern=concern,
+    )
+    patra_context = patra_to_context_block(patra)
 
     # ── LIFE QUESTION ENGINE ───────────────────────────────────────
     life_question_context = ""
@@ -1960,8 +1512,6 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         )
 
         # --- LAYER 2.5: JAIMINI CHARA DASHA ---
-        if "id" not in chart_data:
-            chart_data["id"] = request.chart_id
         try:
             _jaimini_block = format_jaimini_context_from_stored(chart_data)
             if _jaimini_block:
@@ -2023,7 +1573,6 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         ("enrichment",   enrichment_context),
         ("sade_sati",    sade_sati_context),
         ("life_question",life_question_context),
-        ("e2_contradiction", _contradiction_block if '_contradiction_block' in dir() else ""),
     ]:
         try:
             if _extra_block:
@@ -2042,13 +1591,6 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             continue
         prompt += f"\n\n{_block}"
     # ── end C3+C4 injection ───────────────────────────────────────
-
-
-    # ── Domain Audit Rules (Sprint D) ────────────────────────────
-    _domain_rules = DOMAIN_AUDIT_RULES.get(concern, DOMAIN_AUDIT_RULES.get("general", ""))
-    if _domain_rules:
-        prompt = "\n\n" + _domain_rules + "\n\n" + DOMAIN_BRIDGE_INSTRUCTION + "\n\n" + prompt
-        print(f"[predict] Domain audit rules injected for concern={concern}")
 
     _using_master = _full_context and len(_full_context) > 500
     print(f"[predict] using_master={_using_master} prompt_len={len(prompt)}")
@@ -2137,9 +1679,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
                 "age":     getattr(patra, "age", None),
                 "country": chart_record.get("birth_country"),
                 "concern": concern,
-            
-        'chart_data': chart_data,
-    },
+            },
         )
         print(f"[predict] plain_english ok — signal='{(_pe or {}).get('signal_line','')[:60]}'")
     except Exception as _pe_err:
@@ -2291,10 +1831,6 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         timing_window=_pe.get("timing_window") if _pe else None,
         all_domains=_pe.get("all_domains") if _pe else [],
         signal_confidence=_pe.get("confidence") if _pe else None,
-        why_this=_pe.get("why_this") if _pe else None,
-        bridge_practice_note=_pe.get("bridge_practice_note") if _pe else None,
-        contradiction_detected=_contradiction_detected if '_contradiction_detected' in dir() else False,
-        oracle_context=_oracle_context if '_oracle_context' in dir() else None,
     )
 
 # ── Conversations ─────────────────────────────────────────────────────────────
@@ -2850,7 +2386,6 @@ class ChartCreateResponse(BaseModel):
     birth_lng:      float
     timezone:       str
     message:        str
-    signup_intent:  Optional[Dict[str, Any]] = None
 
 CITY_COORDS_LOOKUP = {
     "mumbai":(19.0760,72.8777,"Asia/Kolkata"),
@@ -3148,7 +2683,7 @@ async def create_chart(
 
         # --- Jaimini v2: Compute and store Chara Dasha ---
         try:
-            _lagna_idx_j = constants.SIGNS.index(_lagna_sign) if isinstance(_lagna_sign, str) else int(_lagna_sign)
+            _lagna_idx_j = constants.SIGNS.index(lagna_sign) if isinstance(lagna_sign, str) else int(lagna_sign)
             _planets_for_jaimini = {}
             for pname, pdata in chart_data.get("planets", {}).items():
                 if isinstance(pdata, dict):
@@ -3312,32 +2847,6 @@ async def create_chart(
     planets = chart_data["planets"]
     ak, amk = _ak_amk(planets)
 
-
-    # -- Telepathic Onboarding: Prashna-Intent Sensor --
-    _signup_intent = None
-    try:
-        from antar_engine.prashna_intent import detect_signup_intent
-        from datetime import datetime as _dt_tele, timezone as _tz_tele
-        _signup_intent = detect_signup_intent(
-            birth_lagna=chart_data["lagna"]["sign"],
-            signup_timestamp=_dt_tele.now(_tz_tele.utc),
-            signup_lat=float(lat),
-            signup_lng=float(lng),
-            first_name=getattr(request, "first_name", "") or "",
-        )
-        if _signup_intent and "error" not in _signup_intent:
-            print(f"[chart/create] Telepathic intent: house={_signup_intent.get('intent_house')}, domain={_signup_intent.get('domain')}")
-            try:
-                supabase.table("charts").update({"signup_intent": _signup_intent}).eq("id", chart_id).execute()
-            except Exception:
-                pass
-        else:
-            _signup_intent = None
-    except Exception as _intent_err:
-        print(f"[chart/create] Intent detection failed (non-fatal): {_intent_err}")
-        _signup_intent = None
-    # -- end Telepathic Onboarding --
-
     return ChartCreateResponse(
         chart_id=chart_id,
         lagna=chart_data["lagna"]["sign"],
@@ -3350,7 +2859,6 @@ async def create_chart(
         birth_city=request.birth_city,
         birth_lat=lat, birth_lng=lng, timezone=timezone,
         message="Chart created successfully",
-        signup_intent=_signup_intent,
     )
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -3603,17 +3111,6 @@ RESPONSE RULES — CRITICAL:
 2. NEVER end your response with a follow-up question like "Want me to look at a specific timeframe?" or "Should I explore what to focus on?" or "Would you like to know more?" The user asks the questions. You provide answers.
 3. When the timing of an event is months or years away: Name the date clearly. Explain what to do BETWEEN NOW AND THEN. Frame the interim as PREPARATION, not waiting. The user should feel they have agency and a clear path. Never say "unfortunately you will have to wait."
 4. End with a clear, specific, actionable recommendation. One thing. This week. Verb-first.
-
-6. NEVER use planet names (Saturn, Rahu, Mars, Jupiter, Venus, Mercury, Ketu) when writing the parts of your response that the user will see directly. Describe the EFFECT instead of naming the cause. "Your income is being pressure-tested" not "Saturn is testing your income."
-7. NEVER use spiritual platitudes like "the universe is testing you" or "cosmic energy" or "divine timing." Speak like a sharp business advisor who knows timing patterns, not a spiritual guide.
-8. When the user is over 50, avoid death-adjacent framing like "outlast you" or "legacy" unless they specifically asked about succession. Frame longevity as freedom: "building something that runs without you pushing it daily."
-9. When answering follow-up questions, check what you already said. Do NOT repeat the same timing frame. Each follow-up must add a new actionable layer — go deeper, not wider. If you already said "restructuring through 2027" do not say it again in the next response.
-
-10. Every response should address the WHY — why this specific person is experiencing this specific situation right now. The WHY must be specific to their chart data (age, life stage, current chapter), must reframe from victim to participant, and must never use planet names or spiritual platitudes. The user should feel seen and understood, not lectured or patronized. Frame difficulties as chapters with purpose, not punishment.
-
-
-5. When the chart shows a long cycle (10+ years), show the user the NEXT checkpoint (1-3 years), not the full runway. Never say "19-year period" or mention dates more than 5 years away. Frame it as phases: pressure phase → relief phase → growth phase. The user needs to see the next hill, not the entire mountain range.
-
 Respond in {locale.language}."""
 
     narrative, _ = await call_llm(prompt)
@@ -4462,7 +3959,7 @@ async def ask_prashna(request: PrashnaRequest):
 
         # ─── 2. Fetch Chart Data ───
         chart_row = supabase.table("charts") \
-            .select("user_id, chart_data, jaimini_data, lal_kitab_data, first_name, current_country, lagna_sign, latitude, longitude") \
+            .select("chart_data, jaimini_data, lal_kitab_data, first_name, current_country, lagna_sign, latitude, longitude") \
             .eq("id", chart_id) \
             .single() \
             .execute()
@@ -4513,12 +4010,6 @@ async def ask_prashna(request: PrashnaRequest):
         timestamp = datetime.now(timezone.utc)
         locale = "IN" if current_country and current_country.upper() in ["IN", "INDIA"] else "global"
 
-
-        # ═══ E1: Emotional tone for Prashna ═══
-        _prashna_emotion = detect_emotional_tone(question) if 'detect_emotional_tone' in dir() else "neutral"
-        _prashna_time = get_time_modifier(datetime.now(timezone.utc).hour) if 'get_time_modifier' in dir() else "normal"
-        _prashna_emotion_block = build_emotional_prompt_block(_prashna_emotion, _prashna_time) if 'build_emotional_prompt_block' in dir() else ""
-
         engine_result = run_prashna_engine(
             question=question,
             lat=lat,
@@ -4526,22 +4017,16 @@ async def ask_prashna(request: PrashnaRequest):
             timestamp=timestamp,
             jaimini_data=jaimini_data,
             natal_dasha=natal_dasha,
-            natal_chart_data=chart_data.get("chart_data") if chart_data else None,
             user_name=first_name or "User",
             locale=locale,
         )
 
         # ─── 5. Call Claude to explain the verdict ───
-        # Append emotional tone to prashna prompt
-        _prashna_prompt = engine_result.get("claude_prompt", "")
-        if _prashna_emotion_block:
-            _prashna_prompt += _prashna_emotion_block
-
         explanation = ""
         try:
             result_tuple = await call_llm(
                 prompt=question,
-                system_override=_prashna_prompt,
+                system_override=engine_result["claude_prompt"],
             )
             explanation = result_tuple[0] if isinstance(result_tuple, tuple) else result_tuple
         except Exception as claude_err:
@@ -4596,91 +4081,9 @@ async def ask_prashna(request: PrashnaRequest):
                 "prashna_chart": json.dumps(engine_result["prashna_chart"], default=str),
                 "weakest_planet": wp.get("planet"),
                 "cooldown_until": engine_result["cooldown_until"],
-                "proof_bars": engine_result.get("proof_bars"),
-                "domain_audit": engine_result.get("domain_audit"),
-                "confluence": engine_result.get("confluence"),
             }).execute()
         except Exception as log_err:
             logger.warning(f"Failed to log prashna (non-blocking): {log_err}")
-
-        # ─── 7b. Save to messages table (persistent chat history) ───
-        try:
-            _prashna_user_id = chart_data.get("user_id") or chart_id
-            # Find or create a conversation for this chart's oracle questions
-            _oracle_conv = supabase.table("conversations") \
-                .select("id") \
-                .eq("chart_id", chart_id) \
-                .eq("concern", "oracle") \
-                .order("created_at", desc=True) \
-                .limit(1) \
-                .execute()
-
-            if _oracle_conv.data:
-                _oracle_conv_id = _oracle_conv.data[0]["id"]
-                supabase.table("conversations").update({
-                    "preview": f"Oracle: {engine_result['verdict']} ({engine_result['score']}%)",
-                    "last_message_at": datetime.now(timezone.utc).isoformat(),
-                }).eq("id", _oracle_conv_id).execute()
-            else:
-                _new_conv = supabase.table("conversations").insert({
-                    "user_id": _prashna_user_id,
-                    "chart_id": chart_id,
-                    "title": "Prashna Oracle",
-                    "preview": f"Oracle: {engine_result['verdict']} ({engine_result['score']}%)",
-                    "concern": "oracle",
-                }).execute()
-                _oracle_conv_id = _new_conv.data[0]["id"]
-
-            # Get next sequence number
-            _seq_res = supabase.table("messages") \
-                .select("sequence_number") \
-                .eq("conversation_id", _oracle_conv_id) \
-                .order("sequence_number", desc=True) \
-                .limit(1) \
-                .execute()
-            _last_seq = _seq_res.data[0]["sequence_number"] if _seq_res.data else 0
-
-            # User question message
-            supabase.table("messages").insert({
-                "conversation_id": _oracle_conv_id,
-                "user_id": _prashna_user_id,
-                "role": "user",
-                "sequence_number": _last_seq + 1,
-                "content": question,
-                "concern": engine_result.get("domain", "general"),
-            }).execute()
-
-            # Oracle verdict message
-            _verdict_content = (
-                f"[ORACLE VERDICT] {engine_result['verdict']} ({engine_result['score']}%)\n"
-                f"Domain: {engine_result['domain']}\n"
-                f"Timing: {engine_result['timing']}\n\n"
-                f"{explanation}\n\n"
-                f"Remedy: {remedy.get('practice', '')}"
-            )
-            supabase.table("messages").insert({
-                "conversation_id": _oracle_conv_id,
-                "user_id": _prashna_user_id,
-                "role": "assistant",
-                "sequence_number": _last_seq + 2,
-                "content": _verdict_content,
-                "concern": engine_result.get("domain", "general"),
-                "confidence": engine_result["score"] / 100.0,
-                "full_response": {
-                    "type": "prashna_verdict",
-                    "verdict": engine_result["verdict"],
-                    "score": engine_result["score"],
-                    "domain": engine_result["domain"],
-                    "timing": engine_result["timing"],
-                    "proof_bars": engine_result.get("proof_bars"),
-                    "domain_audit": engine_result.get("domain_audit"),
-                    "cooldown_until": engine_result.get("cooldown_until"),
-                },
-            }).execute()
-
-            print(f"[prashna] Saved to messages table conv={_oracle_conv_id}")
-        except Exception as _msg_err:
-            print(f"[prashna] Messages save failed (non-fatal): {_msg_err}")
 
         # ─── 8. Also save to legacy prashna_readings for backward compat ───
         try:
@@ -4740,9 +4143,6 @@ async def ask_prashna(request: PrashnaRequest):
             "yes_factors":    [],
             "no_factors":     [],
             "analysis":       {"explanation": explanation},
-            "proof_bars":     engine_result.get("proof_bars"),
-            "domain_audit":   engine_result.get("domain_audit"),
-            "confluence":     engine_result.get("confluence"),
         }
 
     except Exception as e:
@@ -6519,8 +5919,8 @@ async def get_welcome(chart_id: str):
             _sync_age = None
 
         result = await generate_welcome_signal_v2(
-                chart_data=chart_record,
-                birth_date=_bd,
+                chart_data=_chart_row,
+                birth_date=_chart_row.get("birth_date"),
                 anthropic_client=claude_client,
             )
         return result
@@ -6757,8 +6157,6 @@ def _safe_jsonb(v):
     return v if isinstance(v, dict) else {}
 
 from pydantic import BaseModel as _PracticeBaseModel
-from antar_engine.symptom_library import scan_chart_symptoms, get_domain_status, build_diagnostic_prompt_block, get_primary_symptom, get_domain_vocabulary
-from antar_engine.verification_engine import generate_verification_queue, calculate_precision_score, get_verification_data
 
 class _PracticeCompleteReq(_PracticeBaseModel):
     practice_id: str
@@ -6881,92 +6279,3 @@ async def _practice_get_streak(chart_id: str) -> dict:
     return {"current": max(_current, 0), "longest": max(_longest, _current), "total_completed": _total}
 
 # ═══ END SPRINT P ENDPOINTS ═══
-
-
-# ═══════════════════════════════════════════════════════════════
-# VERIFICATION QUEUE — Sprint 1.4
-# Generates binary verification questions from dasha history
-# Powers the Precision Score gamification loop
-# ═══════════════════════════════════════════════════════════════
-
-@app.get("/api/v1/verification/{chart_id}")
-async def get_verification(chart_id: str):
-    """
-    Returns verification queue + precision score.
-    Frontend uses this for the interactive Level Ring / SYSTEM AUDIT drawer.
-    """
-    try:
-        data = await get_verification_data(chart_id, supabase)
-        return data
-    except Exception as e:
-        logger.error(f"Verification endpoint failed: {e}")
-        return {
-            "verification_queue": [],
-            "precision_score": {"level": 1, "level_display": "1", "total_rated": 0, "accuracy_pct": 0, "next_level_in": 2, "max_level": 10},
-            "has_pending": False,
-            "message": "Verification data unavailable.",
-        }
-
-
-
-# ═══════════════════════════════════════════════════════════════
-# DASHBOARD STATUS — Sprint 1.2
-# Returns live sensor data with active symptoms for each domain
-# Powers the "Flight Deck" dashboard view
-# ═══════════════════════════════════════════════════════════════
-
-@app.get("/api/v1/dashboard-status/{chart_id}")
-async def get_dashboard_status(chart_id: str):
-    """
-    Returns the diagnostic status for all 4 domains + precision score.
-    Used by the frontend Status tab to show AUTHORITY ENGINE: HIGH FRICTION etc.
-    """
-    try:
-        # Load chart data
-        chart_result = supabase.table("charts").select("chart_data").eq("id", chart_id).single().execute()
-        if not chart_result.data:
-            return {"error": "Chart not found"}, 404
-        
-        chart_data = chart_result.data.get("chart_data", {})
-        
-        # Get domain status from symptom library
-        domain_status = get_domain_status(chart_data)
-        
-        # Get precision score
-        precision = await calculate_precision_score(chart_id, supabase)
-        
-        # Get all active symptoms
-        all_symptoms = scan_chart_symptoms(chart_data)
-        
-        return {
-            "domains": {
-                "career": {
-                    "label": "AUTHORITY ENGINE",
-                    **domain_status.get("career", {}),
-                },
-                "wealth": {
-                    "label": "CAPITAL RUNWAY",
-                    **domain_status.get("wealth", {}),
-                },
-                "relationship": {
-                    "label": "ALLIANCE SYNC",
-                    **domain_status.get("relationship", {}),
-                },
-                "health": {
-                    "label": "SYSTEM VITALS",
-                    **domain_status.get("health", {}),
-                },
-            },
-            "precision_score": precision,
-            "total_active_symptoms": len(all_symptoms),
-            "critical_symptoms": [s for s in all_symptoms if s["verdict"] in ("HIBERNATE", "RETREAT AND RESET", "PLUG THE LEAK", "RECOVERY MODE")],
-        }
-    except Exception as e:
-        logger.error(f"Dashboard status failed: {e}")
-        return {
-            "domains": {},
-            "precision_score": {"level": 1, "total_rated": 0},
-            "total_active_symptoms": 0,
-            "critical_symptoms": [],
-        }
-
