@@ -5089,44 +5089,6 @@ async def get_transit_alerts_endpoint(chart_id: str = None, request: dict = {}):
         raise HTTPException(500, f"Transit alerts error: {e}")
 
 
-
-
-# --- EXECUTIVE SUMMARY ENDPOINT (auto-inserted) ---
-@app.get("/api/v1/executive-summary/{chart_id}")
-async def get_executive_summary(chart_id: str):
-    try:
-        from antar_engine.symptom_library import build_executive_summary
-        from datetime import datetime as _exdt
-        cr = supabase.table("charts").select("chart_data, jaimini_data, lal_kitab_data").eq("id", chart_id).single().execute()
-        if not cr.data:
-            return {"error": "Chart not found"}
-        cd = cr.data.get("chart_data", {})
-        jd = cr.data.get("jaimini_data", {})
-        lk = cr.data.get("lal_kitab_data", {})
-        now_str = _exdt.utcnow().isoformat()
-        dr = supabase.table("dasha_periods").select("planet_or_sign, level, end_date").eq("chart_id", chart_id).eq("system", "vimsottari").lte("start_date", now_str).gte("end_date", now_str).order("level").execute()
-        dasha_list = dr.data if dr.data else []
-        current_dasha = ""
-        md_row = None
-        ad_row = None
-        for d in dasha_list:
-            if d.get("level") == 1:
-                md_row = d
-            if d.get("level") == 2:
-                ad_row = d
-        if md_row:
-            current_dasha = md_row["planet_or_sign"].strip()
-            if ad_row:
-                current_dasha = current_dasha + "-" + ad_row["planet_or_sign"].strip()
-        result = build_executive_summary(cd, jd, lk, current_dasha, dasha_list)
-        return result
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        return {"error": str(e)}
-# --- END EXECUTIVE SUMMARY ENDPOINT ---
-
-
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000)

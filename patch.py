@@ -1,96 +1,97 @@
-#!/usr/bin/env python3
 """
-PATCH: Fix dkp_block scoping + jaimini chart_id
-Run: python patch_bugs.py
+patch_exec_simple.py
+Adds the executive-summary endpoint to main.py safely.
 
-Bug 1: dkp_block used at line ~1723 before defined at line ~1880
-Bug 3: jaimini_integration gets chart_data without 'id' key
+Usage: python patch_exec_simple.py
 """
-
+import os
 import shutil
-from pathlib import Path
-import sys
 
-MAIN = Path("main.py")
-if not MAIN.exists():
-    print("ERROR: main.py not found"); sys.exit(1)
-
-backup = MAIN.with_suffix(".py.bak_bugs")
-shutil.copy2(MAIN, backup)
-print(f"✅ Backup: {backup}")
-
-code = MAIN.read_text()
-
-# ═══════════════════════════════════════════════════════════════
-# BUG 1: dkp_block scoping — used before defined
-# ═══════════════════════════════════════════════════════════════
-LANDMARK_BUG1 = "    # Sprint D: domain-focused DKP note"
-
-if 'dkp_block = dkp_block if "dkp_block" in locals()' in code:
-    print("⏭️  Bug 1 already fixed — skipping")
-else:
-    if LANDMARK_BUG1 not in code:
-        print("ERROR: Cannot find dkp_block landmark")
-        sys.exit(1)
+def main():
+    target = "main.py"
+    backup = "main.py.bak_exec_simple"
     
-    FIX_BUG1 = '''    # Initialize dkp_block if not yet defined (defined later in DKP section ~line 1880)
-    dkp_block = dkp_block if "dkp_block" in locals() else ""
-    # Sprint D: domain-focused DKP note'''
+    if not os.path.exists(target):
+        print("ERROR: main.py not found. Run from project root.")
+        return
     
-    code = code.replace(LANDMARK_BUG1, FIX_BUG1, 1)
-    print("✅ Bug 1 fixed: dkp_block initialized before first use")
-
-# ═══════════════════════════════════════════════════════════════
-# BUG 2: Nation insight 'last_updated' — needs investigation
-# The error is inside nation_engine.get_nation_insight()
-# For now, make the error message more useful
-# ═══════════════════════════════════════════════════════════════
-LANDMARK_BUG2_OLD = '            print(f"Nation insight error: {e}")'
-
-if 'Nation insight error (non-fatal)' in code:
-    print("⏭️  Bug 2 already patched — skipping")
-else:
-    if LANDMARK_BUG2_OLD in code:
-        FIX_BUG2 = '            print(f"[predict] Nation insight error (non-fatal): {type(e).__name__}: {e}")'
-        code = code.replace(LANDMARK_BUG2_OLD, FIX_BUG2, 1)
-        print("✅ Bug 2: Improved nation insight error logging")
+    # Read current file
+    with open(target, "r") as f:
+        content = f.read()
+    
+    # Check if already added
+    if "executive-summary" in content:
+        print("executive-summary endpoint already exists. Nothing to do.")
+        return
+    
+    # Backup
+    shutil.copy2(target, backup)
+    print("Backed up to " + backup)
+    
+    # The endpoint code to insert
+    # Using plain string concatenation to avoid any escaping issues
+    endpoint = []
+    endpoint.append("")
+    endpoint.append("")
+    endpoint.append("# --- EXECUTIVE SUMMARY ENDPOINT (auto-inserted) ---")
+    endpoint.append("@app.get(\"/api/v1/executive-summary/{chart_id}\")")
+    endpoint.append("async def get_executive_summary(chart_id: str):")
+    endpoint.append("    try:")
+    endpoint.append("        from antar_engine.symptom_library import build_executive_summary")
+    endpoint.append("        from datetime import datetime as _exdt")
+    endpoint.append("        cr = supabase.table(\"charts\").select(\"chart_data, jaimini_data, lal_kitab_data\").eq(\"id\", chart_id).single().execute()")
+    endpoint.append("        if not cr.data:")
+    endpoint.append("            return {\"error\": \"Chart not found\"}")
+    endpoint.append("        cd = cr.data.get(\"chart_data\", {})")
+    endpoint.append("        jd = cr.data.get(\"jaimini_data\", {})")
+    endpoint.append("        lk = cr.data.get(\"lal_kitab_data\", {})")
+    endpoint.append("        now_str = _exdt.utcnow().isoformat()")
+    endpoint.append("        dr = supabase.table(\"dasha_periods\").select(\"planet_or_sign, level, end_date\").eq(\"chart_id\", chart_id).eq(\"system\", \"vimsottari\").lte(\"start_date\", now_str).gte(\"end_date\", now_str).order(\"level\").execute()")
+    endpoint.append("        dasha_list = dr.data if dr.data else []")
+    endpoint.append("        current_dasha = \"\"")
+    endpoint.append("        md_row = None")
+    endpoint.append("        ad_row = None")
+    endpoint.append("        for d in dasha_list:")
+    endpoint.append("            if d.get(\"level\") == 1:")
+    endpoint.append("                md_row = d")
+    endpoint.append("            if d.get(\"level\") == 2:")
+    endpoint.append("                ad_row = d")
+    endpoint.append("        if md_row:")
+    endpoint.append("            current_dasha = md_row[\"planet_or_sign\"].strip()")
+    endpoint.append("            if ad_row:")
+    endpoint.append("                current_dasha = current_dasha + \"-\" + ad_row[\"planet_or_sign\"].strip()")
+    endpoint.append("        result = build_executive_summary(cd, jd, lk, current_dasha, dasha_list)")
+    endpoint.append("        return result")
+    endpoint.append("    except Exception as e:")
+    endpoint.append("        import traceback")
+    endpoint.append("        traceback.print_exc()")
+    endpoint.append("        return {\"error\": str(e)}")
+    endpoint.append("# --- END EXECUTIVE SUMMARY ENDPOINT ---")
+    endpoint.append("")
+    
+    endpoint_text = "\n".join(endpoint)
+    
+    # Strategy: find "if __name__" and insert before it
+    marker = 'if __name__'
+    idx = content.find(marker)
+    
+    if idx > 0:
+        content = content[:idx] + endpoint_text + "\n\n" + content[idx:]
+        print("Inserted before 'if __name__'")
     else:
-        print("⏭️  Bug 2 landmark not found — skipping")
+        # No if __name__ block, just append to end
+        content = content + endpoint_text
+        print("Appended to end of file")
+    
+    # Write
+    with open(target, "w") as f:
+        f.write(content)
+    
+    print("Done. Endpoint added.")
+    print("")
+    print("Deploy:")
+    print("  git add -A && git commit -m 'feat: executive-summary endpoint' && git push")
 
-# ═══════════════════════════════════════════════════════════════
-# BUG 3: Jaimini gets chart_data without 'id' key
-# Fix: inject chart_id into chart_data before jaimini calls
-# ═══════════════════════════════════════════════════════════════
-# Find where chart_data is built/extracted and ensure 'id' is present
-LANDMARK_BUG3 = "No jaimini_data found for chart"
 
-# This is in jaimini_integration.py, not main.py
-# The fix is to ensure chart_data has 'id' when passed to jaimini functions
-# Find where jaimini is called in main.py
-JAIMINI_CALL = "score_jaimini_convergence(chart_data, _concern)"
-
-if 'chart_data["id"] = ' in code or 'chart_data.get("id")' in code.split(JAIMINI_CALL)[0][-200:] if JAIMINI_CALL in code else False:
-    print("⏭️  Bug 3 already fixed — skipping")
-else:
-    if JAIMINI_CALL in code:
-        FIX_BUG3 = '''# Ensure chart_data has 'id' for jaimini lookups
-            if "id" not in chart_data:
-                chart_data["id"] = request.chart_id
-            _jaimini_conv = score_jaimini_convergence(chart_data, _concern)'''
-        
-        OLD_BUG3 = "            _jaimini_conv = score_jaimini_convergence(chart_data, _concern)"
-        code = code.replace(OLD_BUG3, FIX_BUG3, 1)
-        print("✅ Bug 3 fixed: chart_data['id'] set before jaimini call")
-    else:
-        print("⏭️  Bug 3 jaimini call not found — skipping")
-
-# ═══════════════════════════════════════════════════════════════
-# WRITE
-# ═══════════════════════════════════════════════════════════════
-MAIN.write_text(code)
-print(f"\n✅ ALL PATCHES APPLIED — main.py updated")
-print(f"   Backup at: {backup}")
-print(f"\n📋 Next steps:")
-print(f"   1. git add main.py && git commit -m 'fix: dkp_block scoping + jaimini chart_id + nation insight logging'")
-print(f"   2. git push")
-print(f"   3. Check Railway logs — all 3 errors should be gone")
+if __name__ == "__main__":
+    main()
