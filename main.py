@@ -2231,6 +2231,7 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
                 "country": chart_record.get("birth_country"),
                 "concern": concern,
                 "chart_data": chart_data,
+                "language": getattr(request, "language", "en"),
             },
         )
         print(f"[predict] plain_english ok — signal='{(_pe or {}).get('signal_line','')[:60]}'")

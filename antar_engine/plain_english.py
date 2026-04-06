@@ -522,6 +522,31 @@ async def generate_plain_english(
         return _fallback(raw_prediction, chart_context)
 
     user_message = _build_user_message(raw_prediction, chart_context, lk_context)
+    
+    # LANGUAGE LOCK — match user's question language
+    _lang = (chart_context or {}).get("language", "en")
+    if _lang and _lang.lower() in ("es", "spanish", "español"):
+        user_message = (
+            "CRITICAL: Respond in Spanish (español). All fields in the JSON output "
+            "(plain_summary, action_item, signal_line, timing_window, why_this) "
+            "MUST be written in Spanish. Do not translate to English.\n\n"
+            + user_message
+        )
+    elif _lang and _lang.lower() in ("pt", "portuguese", "português"):
+        user_message = (
+            "CRITICAL: Respond in Portuguese. All JSON fields in Portuguese only.\n\n"
+            + user_message
+        )
+    elif _lang and _lang.lower() in ("fr", "french", "français"):
+        user_message = (
+            "CRITICAL: Respond in French. All JSON fields in French only.\n\n"
+            + user_message
+        )
+    elif _lang and _lang.lower() in ("hi", "hindi"):
+        user_message = (
+            "CRITICAL: Respond in Hindi. All JSON fields in Hindi only.\n\n"
+            + user_message
+        )
 
     try:
         async with httpx.AsyncClient(timeout=30.0) as client:
