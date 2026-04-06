@@ -682,6 +682,34 @@ def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
         domains.insert(0, concern)
     result["all_domains"] = domains if domains else ["general"]
 
+    # PROBABILITY ENFORCEMENT — inject if user asked "will I" and Claude forgot
+    _raw_q = (chart_context or {}).get("question", "") or (chart_context or {}).get("concern", "")
+    _raw_q_lower = str(_raw_q).lower()
+    _will_triggers = ["will i", "will my", "will this", "what are my chances",
+                      "is it possible", "can i ever", "am i going to", "chances of",
+                      "voy a", "cuales son mis", "es posible", "puedo",
+                      "probability", "likelihood", "odds"]
+    _is_probability_q = any(t in _raw_q_lower for t in _will_triggers)
+
+    if _is_probability_q:
+        _summary = (result.get("plain_summary") or "") + " " + (result.get("signal_line") or "")
+        _has_pct = any(c in _summary for c in ["%", "percent", "por ciento"])
+        if not _has_pct:
+            # Claude forgot — inject computed probability based on confidence
+            _conf = result.get("confidence", "medium")
+            if isinstance(_conf, str):
+                _pct_map = {"very high": 78, "high": 65, "medium": 50, "low": 32, "very low": 20}
+                _pct = _pct_map.get(_conf.lower(), 50)
+            elif isinstance(_conf, (int, float)):
+                _pct = int(float(_conf) * 100) if _conf <= 1 else int(_conf)
+            else:
+                _pct = 50
+            # Prepend to plain_summary
+            if result.get("plain_summary"):
+                result["plain_summary"] = f"PROBABILITY: {_pct}%. " + result["plain_summary"]
+            if result.get("signal_line") and "%" not in result["signal_line"]:
+                result["signal_line"] = f"{_pct}% — " + result["signal_line"]
+
     # why_this — new field from v6 prompt
     why_this = parsed.get("why_this", "")
     if why_this:

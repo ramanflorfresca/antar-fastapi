@@ -702,9 +702,22 @@ def _build_weekly_plan(convergence, primary_planet, locale, today):
 
 
 def _build_chakra_map(karakas, sleeping, convergence):
-    """Map Jaimini Karakas to Chakras with status."""
+    """Map Jaimini Karakas to Chakras with status. Falls back to default map when karakas empty."""
     chakra_list = []
     sleeping_planets = [s.get("planet") for s in (sleeping or [])]
+
+    # FALLBACK: If no karakas (jaimini_data missing), build default from natal planets
+    if not karakas or len(karakas) == 0:
+        default_karaka_map = [
+            {"karaka": "AK", "planet": "Sun"},
+            {"karaka": "AmK", "planet": "Moon"},
+            {"karaka": "BK", "planet": "Mars"},
+            {"karaka": "MK", "planet": "Mercury"},
+            {"karaka": "PK", "planet": "Jupiter"},
+            {"karaka": "GK", "planet": "Venus"},
+            {"karaka": "DK", "planet": "Saturn"},
+        ]
+        karakas = default_karaka_map
 
     for k in (karakas or []):
         karaka_code = k.get("karaka", "")

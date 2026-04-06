@@ -1037,8 +1037,29 @@ def scan_all_instruments(cd, jd=None, lk=None, current_dasha=None, transits=None
 # WEALTH BLUEPRINT (headline card)
 # ═══════════════════════════════════════════════════════════════════
 
-def calculate_wealth_blueprint(cd, jd=None):
+def calculate_wealth_blueprint(cd, jd=None, stored_yogas=None):
     cd=_sj(cd); yogas=[]
+    
+    # FIRST: Read pre-detected yogas from chart_data or stored_yogas list
+    # These were computed by the full yoga engine at chart creation
+    _wealth_yoga_names = ["dhana", "lakshmi", "kubera", "hamsa", "ruchaka", "bhadra", "sasha", "malavya", "budhaditya", "gajakesari", "neecha bhanga raja", "panch maha", "viparita raja", "vesi", "vasi", "ubhayachari", "amala"]
+    
+    _stored = stored_yogas or cd.get("yogas", [])
+    if isinstance(_stored, list):
+        for _y in _stored:
+            if isinstance(_y, dict):
+                _yname = (_y.get("name") or _y.get("yoga_name") or "").lower()
+                _ydesc = _y.get("description") or _y.get("desc") or _y.get("effect") or ""
+                _strength = (_y.get("strength") or "").lower()
+                # Include all wealth-related yogas + any "strong" or "exceptional" yogas
+                if any(w in _yname for w in _wealth_yoga_names) or _strength in ("strong", "exceptional", "peak"):
+                    yogas.append({
+                        "name": _y.get("name") or _y.get("yoga_name") or "Yoga",
+                        "desc": _ydesc[:80] if _ydesc else "Wealth-aligned combination active",
+                        "strength": _strength or "active"
+                    })
+    
+    # THEN: Add computed yogas from house lord connections (additive)
     if _lc(cd,2,11): yogas.append({"name":"Wealth-Gains Axis","desc":"Earning and gains structurally linked"})
     if _lc(cd,1,2): yogas.append({"name":"Self-Made Wealth","desc":"Identity tied to wealth creation"})
     if _lc(cd,5,9): yogas.append({"name":"Fortune Convergence","desc":"Intelligence and luck aligned"})
@@ -1057,13 +1078,71 @@ def calculate_wealth_blueprint(cd, jd=None):
         ad=_fp(cd,amk)
         if _strong(ad): amk_st="PEAK"; yogas.append({"name":"Career Significator Peak","desc":ENERGY.get(amk,amk)+" at maximum"})
         elif ad: amk_st="ACTIVE"
+    # STELLIUM DETECTION — 3+ planets in wealth/career houses
+    _house_counts = {}
+    for _pn, _pd in cd.get("planets", {}).items():
+        if isinstance(_pd, dict):
+            _h = _pd.get("house", 0)
+            if _h in [1, 2, 5, 9, 10, 11]:
+                _house_counts[_h] = _house_counts.get(_h, 0) + 1
+
+    _stellium_house_names = {
+        1: "Identity Stellium", 2: "Wealth Stellium", 5: "Intelligence Stellium",
+        9: "Fortune Stellium", 10: "Authority Stellium", 11: "Gains Stellium"
+    }
+    _stellium_score = 0
+    for _h, _count in _house_counts.items():
+        if _count >= 3:
+            yogas.append({
+                "name": _stellium_house_names.get(_h, f"Stellium H{_h}"),
+                "desc": f"{_count} planets concentrated — major activation point",
+                "strength": "exceptional"
+            })
+            _stellium_score += 3
+        elif _count == 2:
+            _stellium_score += 1
+
+    # MODERN RAHU INTERPRETATION — Rahu in upachaya = amplifier
+    _rahu = _fp(cd, "Rahu")
+    if _rahu and _rahu.get("house") in [3, 6, 10, 11]:
+        yogas.append({
+            "name": "Rahu Amplification Pattern",
+            "desc": f"Unconventional gains through Rahu in upachaya house {_rahu.get('house')}",
+            "strength": "strong"
+        })
+        _stellium_score += 2
+
+    # Exalted or own-sign planets
+    _exalt_signs = {"Sun": 0, "Moon": 1, "Mars": 9, "Mercury": 5, "Jupiter": 3, "Venus": 11, "Saturn": 6}
+    _own_signs = {"Sun": [4], "Moon": [3], "Mars": [0, 7], "Mercury": [2, 5], "Jupiter": [8, 11], "Venus": [1, 6], "Saturn": [9, 10]}
+    for _pn, _pd in cd.get("planets", {}).items():
+        if isinstance(_pd, dict):
+            _sign = _pd.get("sign")
+            if isinstance(_sign, int):
+                if _exalt_signs.get(_pn) == _sign:
+                    yogas.append({"name": f"{ENERGY.get(_pn, _pn)} Exalted", "desc": "Maximum strength position", "strength": "peak"})
+                    _stellium_score += 2
+                elif _sign in _own_signs.get(_pn, []):
+                    yogas.append({"name": f"{ENERGY.get(_pn, _pn)} in Own Domain", "desc": "Structural strength", "strength": "strong"})
+                    _stellium_score += 1
+
     yc=len(yogas)
-    if yc>=5: tier,cap="UNICORN BLUEPRINT","$1B+"
-    elif yc>=3: tier,cap="HIGH-GROWTH BLUEPRINT","$100M+"
-    elif yc>=2: tier,cap="GROWTH BLUEPRINT","$10M+"
-    elif yc>=1: tier,cap="STANDARD BLUEPRINT","$1M+"
-    else: tier,cap="EMERGING BLUEPRINT","Developing"
-    return {"tier":tier,"capacity":cap,"verified":yc>=1,"yoga_count":yc,"yogas":yogas,"amk_status":amk_st,"amk_planet":amk}
+    # Total weighted score
+    _total_score = yc + _stellium_score
+
+    if _total_score >= 10: tier,cap="UNICORN BLUEPRINT","$1B+ potential"
+    elif _total_score >= 7: tier,cap="HIGH-GROWTH BLUEPRINT","$100M+ potential"
+    elif _total_score >= 5: tier,cap="GROWTH BLUEPRINT","$10M+ potential"
+    elif _total_score >= 3: tier,cap="STANDARD BLUEPRINT","$1M+ potential"
+    elif _total_score >= 1: tier,cap="DEVELOPING BLUEPRINT","Building"
+    else: tier,cap="EMERGING BLUEPRINT","Early phase"
+
+    return {
+        "tier":tier, "capacity":cap, "verified":yc>=1,
+        "yoga_count":yc, "yogas":yogas[:12],
+        "amk_status":amk_st, "amk_planet":amk,
+        "total_score": _total_score, "stellium_bonus": _stellium_score
+    }
 
 
 # ═══════════════════════════════════════════════════════════════════
