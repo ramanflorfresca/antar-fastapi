@@ -2049,6 +2049,20 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
 
     # ── Domain Audit Rules (Sprint D) ────────────────────────────
     _domain_rules = DOMAIN_AUDIT_RULES.get(concern, DOMAIN_AUDIT_RULES.get("general", ""))
+    # HARD JARGON CONSTRAINT — prepended to EVERY prompt
+    _hard_constraint = """
+ABSOLUTE RULES (violating these rules means the response is rejected):
+1. NEVER use planet names (Jupiter, Saturn, Mars, Venus, Mercury, Sun, Moon, Rahu, Ketu). Use ONLY: Growth Amplifier, Structural Load, Action Drive, Magnetism Field, Processing Speed, Authority Signal, Emotional Radar, Ambition Engine, Intuition Compass.
+2. NEVER use house numbers (1st house, 2nd house, 10th house). Use ONLY instrument labels: System Vitals, Capital Reserves, Action Capacity, Real Estate Radar, Creation Engine, Conflict Shield, Alliance Sync, Capital Runway, Fortune Vector, Authority Engine, Revenue Pipeline, Global Vector.
+3. NEVER use Sanskrit terms (Yoga, Dasha, Nakshatra, Lagna, Rashi, Karaka, Amatyakaraka, Atmakaraka, Bhava, Graha, Navamsa, D9, D10, D1, Budhaditya, Muhurta, Panchami).
+4. NEVER reference chart divisions or technical astrology concepts.
+5. The current year is 2026, NOT 2025. Today is """ + __import__('datetime').datetime.utcnow().strftime("%B %d, %Y") + """.
+6. Answer the user's QUESTION directly. Do not explain astrological mechanics.
+7. Use business/strategic language: positioning, leverage, runway, capacity, friction, momentum.
+8. End with THE MOVE — one specific action for this week.
+"""
+    prompt = _hard_constraint + "\n\n" + prompt
+
     if _domain_rules:
         prompt = "\n\n" + _domain_rules + "\n\n" + DOMAIN_BRIDGE_INSTRUCTION + "\n\n" + prompt
         print(f"[predict] Domain audit rules injected for concern={concern}")
