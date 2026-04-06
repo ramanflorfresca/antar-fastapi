@@ -2109,6 +2109,33 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
 19. If you write more than 150 words, you have FAILED. Cut it down.
 
 20. The founder reads on a phone in 20 seconds. Optimize for SCAN, not READ.
+
+21. HEADLINE RULE — ONE answer only. If the user asks "which of A, B, or C", the headline picks the WINNER in 8 words or less.
+    GOOD: "Consulting wins. Real estate is backup."
+    BAD: "Consulting pays now; real estate closes in 60 days; AI is 2027-2028 build."
+
+22. NO COMPOUND SENTENCES IN THE HEADLINE. One subject. One verb. One verdict.
+
+23. WHEN COMPARING OPTIONS, give a score for each:
+    OPTION A (Consulting): 80% — immediate cash, zero risk
+    OPTION B (Real Estate): 60% — closing window, execute by date
+    OPTION C (AI Startup): 20% — wrong timing, defer
+
+24. LANGUAGE LOCK: If language="es", the entire response is in Spanish. Including:
+    - signal_line (in Spanish)
+    - plain_summary (in Spanish)
+    - action_item (in Spanish)
+    - timing_window (in Spanish)
+    Plain_english.py post-processing must NOT translate back to English.
+
+25. NO ASTROLOGY METAPHORS. Banned:
+    - "Magnetism Field transits Authority Engine"
+    - "Capital Reserves under pressure"
+    - "Action Drive sub-cycle"
+    Replace with plain business language:
+    - "Your visibility is peaking"
+    - "Cash flow tight until June"
+    - "Execution velocity high through May"
 """
     prompt = _hard_constraint + "\n\n" + prompt
 
