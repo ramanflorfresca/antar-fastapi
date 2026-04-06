@@ -2060,6 +2060,20 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
 6. Answer the user's QUESTION directly. Do not explain astrological mechanics.
 7. Use business/strategic language: positioning, leverage, runway, capacity, friction, momentum.
 8. End with THE MOVE — one specific action for this week.
+9. RESPONSE FORMAT — STRICT. Total response under 200 words.
+10. STRUCTURE (mandatory):
+    Line 1: ✦ VERDICT: [ACTION VERB]. [Direct call in 8 words or less]
+    Line 2-3: One short paragraph (2-3 sentences max) explaining WHY using business language.
+    Line 4: PROBABILITY: XX% (only if user asks chances/will/likelihood)
+    Line 5-7: YOUR MOVE — three numbered actions:
+        1. [Specific action for THIS week]
+        2. [Specific action for next 2 weeks]
+        3. [Specific action for next 30 days]
+    Line 8: TIMING: [When the window opens/closes]
+11. NO POETIC LANGUAGE. NO METAPHORS. NO "your visibility is real but...". 
+12. NO MARKDOWN HEADERS (## or ###). NO LONG ESSAYS. Founders read in 30 seconds.
+13. If user asks "will I", "what are my chances", "is it possible" — LEAD with PROBABILITY: XX%.
+14. Treat the user like a busy founder/executive. They need answers, not analysis.
 """
     prompt = _hard_constraint + "\n\n" + prompt
 
