@@ -5093,6 +5093,49 @@ async def get_transit_alerts_endpoint(chart_id: str = None, request: dict = {}):
 
 
 
+
+
+# --- JAIMINI BACKFILL ENDPOINT ---
+@app.get("/api/v1/backfill-jaimini/{chart_id}")
+async def backfill_jaimini(chart_id: str):
+    try:
+        from antar_engine.jaimini_engine import build_and_store_jaimini
+        cr = supabase.table("charts").select("chart_data, lagna_sign").eq("id", chart_id).single().execute()
+        if not cr.data:
+            return {"error": "Chart not found"}
+        cd = cr.data.get("chart_data", {})
+        if isinstance(cd, str):
+            import json as _bjson
+            cd = _bjson.loads(cd)
+        _lagna = cd.get("lagna_sign", cd.get("lagna", 0))
+        if isinstance(_lagna, str):
+            _signs = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo","Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"]
+            _lagna = _signs.index(_lagna) if _lagna in _signs else 0
+        elif isinstance(_lagna, dict):
+            _lagna = _lagna.get("sign", 0)
+        _planets = {}
+        for pid, pd in cd.get("planets", {}).items():
+            if isinstance(pd, dict):
+                _planets[pid] = pd
+        _d9 = cd.get("divisional_charts", {}).get("D9", {}).get("planets", {})
+        if not _d9:
+            _d9 = cd.get("d9_planets", {})
+        _bd = cr.data.get("birth_date", cd.get("birth_date", "1990-01-01"))
+        build_and_store_jaimini(
+            chart_id=chart_id,
+            lagna_sign=_lagna,
+            planets_dict=_planets,
+            d9_planets_dict=_d9 if _d9 else _planets,
+            birth_date_str=str(_bd)[:10],
+            supabase_client=supabase,
+        )
+        return {"status": "ok", "message": "Jaimini data backfilled for " + chart_id}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return {"error": str(e)}
+# --- END JAIMINI BACKFILL ---
+
 # --- EXECUTIVE SUMMARY ENDPOINT (auto-inserted) ---
 @app.get("/api/v1/executive-summary/{chart_id}")
 async def get_executive_summary(chart_id: str):
