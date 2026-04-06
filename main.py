@@ -2041,6 +2041,9 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         if not _block:
             continue
         prompt += f"\n\n{_block}"
+    # Inject the diagnostic pre-scan block (Sprint 1.2)
+    if diagnostic_block:
+        prompt += f"\n\n{diagnostic_block}"
     # ── end C3+C4 injection ───────────────────────────────────────
 
 
@@ -2137,9 +2140,8 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
                 "age":     getattr(patra, "age", None),
                 "country": chart_record.get("birth_country"),
                 "concern": concern,
-            
-        'chart_data': chart_data,
-    },
+                "chart_data": chart_data,
+            },
         )
         print(f"[predict] plain_english ok — signal='{(_pe or {}).get('signal_line','')[:60]}'")
     except Exception as _pe_err:
