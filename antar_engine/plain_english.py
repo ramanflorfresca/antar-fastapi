@@ -736,8 +736,8 @@ def _strip_jargon(text: str) -> str:
     text = re.sub(r' \.', '.', text)
     # Strip house number references (e.g., "10th house", "8th house lord")
     import re as _re
-    result = _re.sub(r'\b\d{1,2}(?:st|nd|rd|th)\s+house\s*(?:lord)?', '', result)
-    result = _re.sub(r'\bhouse\s+\d{1,2}\b', '', result)
+    text = _re.sub(r'\b\d{1,2}(?:st|nd|rd|th)\s+house\s*(?:lord)?', '', text)
+    text = _re.sub(r'\bhouse\s+\d{1,2}\b', '', text)
 
     return text.strip()
 
