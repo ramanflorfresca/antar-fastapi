@@ -1537,6 +1537,126 @@ def build_dkp_block(chart_data: dict, user_profile: dict = None) -> str:
     return "\n" + "\n".join(lines) + "\n"
 
 
+
+# ═══════════════════════════════════════════════════════════════════
+# DIVISIONAL CHART CONTEXT BUILDER — Sprint Apr7 Step 4
+# Computes D-2, D-9, D-12, D-60 and formats them for Claude prompt
+# Python computes state. Claude reads patterns.
+# ═══════════════════════════════════════════════════════════════════
+
+def build_divisional_block(chart_data: dict) -> str:
+    """
+    Computes D-2 (Hora), D-9 (Navamsa), D-12 (Dwadashamsha), D-60 (Shashtiamsha)
+    from chart_data and returns a formatted block for injection into Claude prompt.
+
+    Claude already knows how to interpret these charts — we just need to give it the data.
+    """
+    try:
+        from antar_engine.divisional_charts import (
+            calculate_d2_hora,
+            calculate_all_divisional_charts,
+        )
+
+        planets = chart_data.get("planets", {})
+        lagna   = chart_data.get("lagna", {})
+        if isinstance(lagna, dict):
+            lagna_long = (
+                lagna.get("longitude") or
+                lagna.get("degree") or
+                lagna.get("lagna_longitude") or
+                0.0
+            )
+        else:
+            lagna_long = 0.0
+
+        if not planets or not lagna_long:
+            return ""
+
+        all_charts = calculate_all_divisional_charts(planets, lagna_long)
+        d2         = calculate_d2_hora(planets, lagna_long)
+
+        lines = ["\nDIVISIONAL CHARTS (for pattern analysis):"]
+
+        # ── D-2 Hora ──────────────────────────────────────────────
+        sun_hora  = d2.get("sun_hora_planets", [])
+        moon_hora = d2.get("moon_hora_planets", [])
+        lagna_hora = d2.get("lagna", "")
+        lines.append(f"D-2 (Hora — wealth type):")
+        lines.append(f"  Lagna hora: {lagna_hora} ({'self-made/authority wealth' if lagna_hora == 'Leo' else 'public/venture/foreign wealth'})")
+        if sun_hora:
+            lines.append(f"  Sun hora planets: {', '.join(sun_hora)}")
+        if moon_hora:
+            lines.append(f"  Moon hora planets: {', '.join(moon_hora)}")
+
+        # ── D-9 Navamsa ───────────────────────────────────────────
+        d9 = all_charts.get("d9", {})
+        d9_planets = d9.get("planets", {})
+        d9_lagna   = d9.get("lagna", "")
+        if d9_planets:
+            lines.append(f"D-9 (Navamsa — soul dharma, validates D-1 potential):")
+            lines.append(f"  Lagna: {d9_lagna}")
+            for pname in ["Sun", "Moon", "Jupiter", "Venus", "Saturn", "Mars", "Rahu", "Mercury"]:
+                pd = d9_planets.get(pname, {})
+                if pd:
+                    lines.append(f"  {pname}: {pd.get('sign','')} H{pd.get('house','')}")
+
+        # ── D-12 Dwadashamsha ─────────────────────────────────────
+        d12 = all_charts.get("d12", {})
+        d12_planets = d12.get("planets", {})
+        d12_lagna   = d12.get("lagna", "")
+        if d12_planets:
+            lines.append(f"D-12 (Dwadashamsha — foreign connections, past life roots):")
+            lines.append(f"  Lagna: {d12_lagna}")
+            # Show planets in water/foreign signs (Cancer, Scorpio, Pisces)
+            foreign_signs = {"Cancer", "Scorpio", "Pisces"}
+            foreign_planets = []
+            for pname, pd in d12_planets.items():
+                sign = pd.get("sign", "")
+                if sign in foreign_signs:
+                    foreign_planets.append(f"{pname}({sign})")
+            if foreign_planets:
+                lines.append(f"  Planets in foreign/water signs: {', '.join(foreign_planets)}")
+            else:
+                for pname in ["Sun", "Jupiter", "Venus", "Moon", "Rahu"]:
+                    pd = d12_planets.get(pname, {})
+                    if pd:
+                        lines.append(f"  {pname}: {pd.get('sign','')} H{pd.get('house','')}")
+
+        # ── D-10 Dashamsha ────────────────────────────────────────
+        d10 = all_charts.get("d10", {})
+        d10_planets = d10.get("planets", {})
+        d10_lagna   = d10.get("lagna", "")
+        if d10_planets:
+            lines.append(f"D-10 (Dashamsha — career dharma, public role):")
+            lines.append(f"  Lagna: {d10_lagna}")
+            for pname in ["Sun", "Mars", "Saturn", "Jupiter", "Rahu"]:
+                pd = d10_planets.get(pname, {})
+                if pd:
+                    lines.append(f"  {pname}: {pd.get('sign','')} H{pd.get('house','')}")
+
+        # ── D-60 Shashtiamsha ─────────────────────────────────────
+        d60 = all_charts.get("d60", {})
+        d60_planets = d60.get("planets", {})
+        d60_lagna   = d60.get("lagna", "")
+        if d60_planets:
+            lines.append(f"D-60 (Shashtiamsha — past life karma, deepest potential):")
+            lines.append(f"  Lagna: {d60_lagna}")
+            for pname in ["Sun", "Moon", "Jupiter", "Mars", "Rahu", "Ketu"]:
+                pd = d60_planets.get(pname, {})
+                if pd:
+                    lines.append(f"  {pname}: {pd.get('sign','')} H{pd.get('house','')}")
+
+        if len(lines) <= 1:
+            return ""
+
+        return "\n".join(lines) + "\n"
+
+    except Exception as _e:
+        import logging
+        logging.getLogger("antar").warning(f"Divisional block failed (non-critical): {_e}")
+        return ""
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
@@ -1988,6 +2108,18 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         logger.warning(f"DKP context injection failed (non-critical): {_dkpe}")
         dkp_block = ""
     # --- END DKP CONTEXT BLOCKS ---
+    # --- DIVISIONAL CHARTS INJECTION (Sprint Apr7 Step 4) ---
+    divisional_block = ""
+    try:
+        if chart_data and isinstance(chart_data, dict) and chart_data.get("planets"):
+            divisional_block = build_divisional_block(chart_data)
+            if divisional_block:
+                logger.info("Divisional charts block computed and ready")
+    except Exception as _dive:
+        logger.warning(f"Divisional block computation failed (non-critical): {_dive}")
+        divisional_block = ""
+    # --- END DIVISIONAL CHARTS INJECTION ---
+
 
 
 
@@ -2260,6 +2392,8 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             desh_context=desh_context,
             dkp_block=dkp_block,
             funding_summary=_funding_summary,
+        
+        divisional_block=divisional_block,
         )
 
     for _extra_name, _extra_block in [

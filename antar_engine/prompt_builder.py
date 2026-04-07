@@ -498,6 +498,7 @@ def build_predict_prompt(
     funding_summary: dict = None,
     predictions_obj: dict = None,
     full_context: str = "",
+    divisional_block: str = "",
 ) -> str:
 
     # Use full astrological context if provided
@@ -574,6 +575,7 @@ Cultural context: {country_context}
 National energy: {nation_insight}
 User life events (personal mirroring):
 {events_text or "None logged yet."}
+{divisional_block}
 === END LIFE DATA ===
 
 {patra_context}
