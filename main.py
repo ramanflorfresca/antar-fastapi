@@ -2507,6 +2507,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
                 _tr_actual = _tr_raw
             else:
                 _tr_actual = {}
+            print(f"[transit-lang] _tr_raw type={type(_tr_raw).__name__} len={len(_tr_raw) if _tr_raw else 0}")
             print(f"[transit-lang] transit planets: {list(_tr_actual.keys())[:5]}")
             if _tr_actual:
                 _transit_list = []
