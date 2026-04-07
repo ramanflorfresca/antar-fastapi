@@ -581,8 +581,8 @@ async def generate_welcome_signal_v2(
             logger.error("No Anthropic client provided")
             return _fallback_response(chart_id)
 
-        response = anthropic_client.messages.create(
-            model="claude-sonnet-4-6",
+        response = await anthropic_client.messages.create(
+            model="claude-sonnet-4-5-20250929",
             max_tokens=1200,
             messages=[{"role": "user", "content": "Generate the three welcome signals now."}],
             system=system_prompt,
