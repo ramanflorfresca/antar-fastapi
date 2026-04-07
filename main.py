@@ -7355,6 +7355,35 @@ async def get_verification(chart_id: str):
 # Powers the "Flight Deck" dashboard view
 # ═══════════════════════════════════════════════════════════════
 
+
+# ═══════════════════════════════════════════════════════════════════
+# CLIENT ERROR LOGGING
+# Frontend posts JS crashes here → visible in Railway logs
+# grep: [CLIENT_ERROR]
+# ═══════════════════════════════════════════════════════════════════
+
+class ClientErrorRequest(BaseModel):
+    msg: str = ""
+    src: str = ""
+    line: int = 0
+    col: int = 0
+    stack: str = ""
+    chart_id: str = ""
+    url: str = ""
+    user_agent: str = ""
+
+@app.post("/api/v1/client-error")
+async def log_client_error(payload: ClientErrorRequest):
+    logger.error(
+        f"[CLIENT_ERROR] chart={payload.chart_id or 'unknown'} "
+        f"url={payload.url} "
+        f"msg={payload.msg} "
+        f"src={payload.src}:{payload.line}:{payload.col} "
+        f"stack={payload.stack[:500] if payload.stack else ''}"
+    )
+    return {"ok": True}
+
+
 @app.get("/api/v1/dashboard-status/{chart_id}")
 async def get_dashboard_status(chart_id: str):
     """
