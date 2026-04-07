@@ -18,6 +18,14 @@ SIGN_LORDS = {
     "Sagittarius":"Jupiter","Capricorn":"Saturn","Aquarius":"Saturn","Pisces":"Jupiter"
 }
 
+NAKSHATRAS = [
+    "Ashwini","Bharani","Krittika","Rohini","Mrigashira","Ardra",
+    "Punarvasu","Pushya","Ashlesha","Magha","Purva Phalguni","Uttara Phalguni",
+    "Hasta","Chitra","Swati","Vishakha","Anuradha","Jyeshtha",
+    "Mula","Purva Ashadha","Uttara Ashadha","Shravana","Dhanishtha",
+    "Shatabhisha","Purva Bhadrapada","Uttara Bhadrapada","Revati"
+]
+
 # Orb for considering a transit active (in degrees)
 TRANSIT_ORBS = {
     "Sun":     3.0,
@@ -109,6 +117,10 @@ def calculate_current_transits(natal_chart: dict) -> dict:
             sign       = SIGNS[sign_idx]
             degree     = sidereal_long % 30
             house      = ((sign_idx - lagna_idx) % 12) + 1
+            nak_idx    = int(sidereal_long / (360 / 27))
+            if nak_idx >= 27:
+                nak_idx = 26
+            nakshatra  = NAKSHATRAS[nak_idx]
 
             # Compare with natal position
             natal_data  = natal_planets.get(planet, {})
@@ -125,8 +137,11 @@ def calculate_current_transits(natal_chart: dict) -> dict:
             current_transits.append({
                 "planet":               planet,
                 "current_sign":         sign,
+                "sign":                 sign,
                 "current_house":        house,
+                "house":                house,
                 "current_degree":       round(degree, 2),
+                "nakshatra":            nakshatra,
                 "natal_sign":           natal_sign,
                 "natal_house":          natal_house,
                 "transit_over_natal":   transit_over_natal,
