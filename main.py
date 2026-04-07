@@ -1360,6 +1360,183 @@ async def save_conversation_turn(
 
 # ── Health ────────────────────────────────────────────────────────────────────
 
+
+# ═══════════════════════════════════════════════════════════════════
+# DKP CONTEXT BUILDER — Sprint Apr7 Step 3
+# Desha-Kala-Patra: the real Antar moat
+# Python extracts state. Claude reads context. DKP makes it personal.
+# ═══════════════════════════════════════════════════════════════════
+
+def build_dkp_block(chart_data: dict, user_profile: dict = None) -> str:
+    """
+    Builds a DESHA / KALA / PATRA context block for injection into Claude prompt.
+
+    chart_data : the full chart dict from Supabase (includes natal_planets, dasha, etc.)
+    user_profile: optional extra dict with country, city, profession, role, ventures
+                  Pulled from the predict request body if present.
+    """
+    cd = chart_data or {}
+    up = user_profile or {}
+
+    lines = []
+
+    # ─── DESHA (Place / Geographic + Cultural Context) ───────────
+    country = (
+        up.get("country") or
+        cd.get("country") or
+        cd.get("birth_country") or
+        cd.get("desh_context", {}).get("country") if isinstance(cd.get("desh_context"), dict) else None or
+        ""
+    )
+    city = (
+        up.get("city") or
+        cd.get("city") or
+        cd.get("birth_city") or
+        ""
+    )
+    language = up.get("language") or cd.get("preferred_language") or ""
+    profession = (
+        up.get("profession") or
+        cd.get("profession") or
+        up.get("role") or
+        cd.get("role") or
+        ""
+    )
+
+    desha_lines = []
+    if city and country:
+        desha_lines.append(f"  Location: {city}, {country}")
+    elif country:
+        desha_lines.append(f"  Location: {country}")
+    elif city:
+        desha_lines.append(f"  Location: {city}")
+
+    # Market context from country
+    MARKET_MAP = {
+        "colombia": "LATAM founder economy, Spanish-speaking, 2.2M MSME market, AI growth active",
+        "mexico": "LATAM founder economy, Spanish-speaking, large SME market, nearshoring boom",
+        "brazil": "LATAM largest market, Portuguese-speaking, fintech and agri dominant",
+        "india": "Emerging tech hub, English + Hindi, startup ecosystem, 1.4B consumer base",
+        "usa": "Mature VC market, English, global distribution, high competition",
+        "united states": "Mature VC market, English, global distribution, high competition",
+        "uae": "Gulf hub, English + Arabic, zero-tax jurisdiction, global capital flows",
+        "uk": "European gateway, English, fintech and creative industries",
+        "germany": "Engineered economy, German + English, B2B dominant, EU market access",
+        "spain": "Southern European hub, Spanish, access to EU and LATAM dual markets",
+        "argentina": "Volatile economy, high talent density, dollarized mindset, export-oriented",
+        "peru": "Andean economy, Spanish, mining + services, growing startup scene",
+    }
+    country_lower = (country or "").lower().strip()
+    market_ctx = MARKET_MAP.get(country_lower, "")
+    if market_ctx:
+        desha_lines.append(f"  Market: {market_ctx}")
+    if language:
+        desha_lines.append(f"  Language: {language}")
+
+    if desha_lines:
+        lines.append("DESHA (Place context):")
+        lines.extend(desha_lines)
+
+    # ─── KALA (Time / Era + Life Stage Context) ──────────────────
+    current_year = datetime.now().year
+    current_month = datetime.now().strftime("%B")
+
+    birth_year = None
+    birth_date = cd.get("birth_date") or up.get("birth_date")
+    if birth_date:
+        try:
+            birth_year = int(str(birth_date)[:4])
+        except Exception:
+            pass
+    age = (current_year - birth_year) if birth_year else None
+
+    # Vimsottari dasha
+    vd_md = cd.get("mahadasha") or cd.get("current_mahadasha") or ""
+    vd_ad = cd.get("antardasha") or cd.get("current_antardasha") or ""
+    dasha_str = ""
+    if vd_md and vd_ad:
+        dasha_str = f"{vd_md}-{vd_ad} dasha"
+    elif vd_md:
+        dasha_str = f"{vd_md} Mahadasha"
+
+    # Next major transition from dasha_periods if present
+    next_transition = ""
+    dp = cd.get("dasha_periods") or []
+    if dp and isinstance(dp, list) and len(dp) > 1:
+        try:
+            # Find the current period and grab the next one
+            for i, period in enumerate(dp):
+                end = period.get("end_date") or period.get("end") or ""
+                if end and str(end) > str(datetime.now().date()):
+                    if i + 1 < len(dp):
+                        nxt = dp[i + 1]
+                        nxt_md = nxt.get("mahadasha") or nxt.get("planet") or ""
+                        nxt_start = nxt.get("start_date") or nxt.get("start") or ""
+                        if nxt_md and nxt_start:
+                            next_transition = f"{nxt_md} MD starts {nxt_start}"
+                    break
+        except Exception:
+            pass
+
+    # Life stage
+    life_stage = ""
+    if age:
+        if age < 25:
+            life_stage = "early building phase"
+        elif age < 35:
+            life_stage = "peak momentum phase"
+        elif age < 45:
+            life_stage = "consolidation and leadership phase"
+        elif age < 55:
+            life_stage = "legacy building phase"
+        else:
+            life_stage = "senior wisdom phase"
+
+    kala_lines = [f"  Year: {current_year} ({current_month})"]
+    if age:
+        kala_lines.append(f"  Age: {age}{', ' + life_stage if life_stage else ''}")
+    if dasha_str:
+        kala_lines.append(f"  Current dasha: {dasha_str}")
+    if next_transition:
+        kala_lines.append(f"  Next transition: {next_transition}")
+
+    if kala_lines:
+        lines.append("KALA (Time context):")
+        lines.extend(kala_lines)
+
+    # ─── PATRA (Vessel / Who The Person Actually Is) ─────────────
+    ventures = (
+        up.get("ventures") or
+        up.get("active_ventures") or
+        cd.get("ventures") or
+        cd.get("active_ventures") or
+        []
+    )
+    focus = up.get("current_focus") or cd.get("current_focus") or ""
+    relationships = up.get("relationships") or cd.get("relationships") or ""
+
+    patra_lines = []
+    if profession:
+        patra_lines.append(f"  Role: {profession}")
+    if isinstance(ventures, list) and ventures:
+        patra_lines.append(f"  Active ventures: {', '.join(str(v) for v in ventures[:4])}")
+    elif isinstance(ventures, str) and ventures:
+        patra_lines.append(f"  Active ventures: {ventures}")
+    if focus:
+        patra_lines.append(f"  Current focus: {focus}")
+    if relationships:
+        patra_lines.append(f"  Relationships: {relationships}")
+
+    if patra_lines:
+        lines.append("PATRA (Person context):")
+        lines.extend(patra_lines)
+
+    if not lines:
+        return ""
+
+    return "\n" + "\n".join(lines) + "\n"
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
@@ -1742,6 +1919,77 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         logger.warning(f"Diagnostic pre-scan failed: {e}")
         diagnostic_block = ""
     # --- END DIAGNOSTIC PRE-SCAN ---
+
+    # --- SYSTEM STATE INJECTION (Sprint Apr7 Step 2) ---
+    system_state_block = ""
+    try:
+        from antar_engine.executive_dashboard import get_instrument_scores
+        from antar_engine.lal_kitab_advanced import get_lk_state
+
+        instr = get_instrument_scores(chart_data) if chart_data else {}
+        lk_state = get_lk_state(chart_data) if chart_data else {}
+
+        lines = ["\nCURRENT SYSTEM STATE:"]
+
+        # 12 instrument gauges — top 6 by score
+        if instr:
+            sorted_instr = sorted(instr.items(), key=lambda x: x[1].get("score", 0), reverse=True)
+            for name, val in sorted_instr[:6]:
+                score = val.get("score", 0)
+                status = val.get("status", "")
+                lock = val.get("lock_level", "")
+                lock_str = f" — {lock}" if lock else ""
+                lines.append(f"  {name}: {status} ({score}/100){lock_str}")
+
+        # Lal Kitab sleeping planets and active Rin debts
+        sleeping = lk_state.get("sleeping_planets", [])
+        rins = lk_state.get("active_rins", [])
+        if sleeping or rins:
+            lines.append("KARMIC STATE (Lal Kitab):")
+            for sp in sleeping[:3]:
+                planet = sp.get("planet", sp) if isinstance(sp, dict) else sp
+                reason = sp.get("reason", "") if isinstance(sp, dict) else ""
+                reason_str = f" — {reason}" if reason else ""
+                lines.append(f"  Sleeping {planet}{reason_str}")
+            for rin in rins[:2]:
+                rin_type = rin.get("type", rin) if isinstance(rin, dict) else rin
+                effect = rin.get("effect", "") if isinstance(rin, dict) else ""
+                effect_str = f" — affects {effect}" if effect else ""
+                lines.append(f"  Active Rin: {rin_type}{effect_str}")
+
+        if len(lines) > 1:
+            system_state_block = "\n".join(lines) + "\n"
+            extra_blocks.append(system_state_block)
+            logger.info("System state block injected into prompt")
+    except Exception as _sse:
+        logger.warning(f"System state injection failed (non-critical): {_sse}")
+        system_state_block = ""
+    # --- END SYSTEM STATE INJECTION ---
+
+    # --- DKP CONTEXT BLOCKS (Sprint Apr7 Step 3) ---
+    dkp_block = ""
+    try:
+        # Pull user_profile from the request if present
+        _up = {}
+        if hasattr(request, "user_profile") and request.user_profile:
+            _up = request.user_profile if isinstance(request.user_profile, dict) else {}
+        # Also accept flat fields on the request body
+        for _f in ("country", "city", "language", "profession", "role",
+                   "ventures", "current_focus", "birth_date"):
+            val = getattr(request, _f, None)
+            if val and _f not in _up:
+                _up[_f] = val
+
+        dkp_block = build_dkp_block(chart_data, _up)
+        if dkp_block:
+            extra_blocks.append(dkp_block)
+            logger.info("DKP context block injected into prompt")
+    except Exception as _dkpe:
+        logger.warning(f"DKP context injection failed (non-critical): {_dkpe}")
+        dkp_block = ""
+    # --- END DKP CONTEXT BLOCKS ---
+
+
 
 
     # ── LIFE QUESTION ENGINE ───────────────────────────────────────
