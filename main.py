@@ -5229,8 +5229,6 @@ async def compatibility_start(request: CompatibilityStartRequest):
         _arch_a = get_or_compute_archetype(request.chart_id_a, chart_a, supabase)
         _arch_b = get_or_compute_archetype(chart_id_b, chart_b, supabase)
         if _arch_a and _arch_b:
-            print(f"[synastry-debug] arch_a: {_arch_a.get('name')} field={_arch_a.get('dominant_field')} mode={_arch_a.get('dominant_mode')}")
-            print(f"[synastry-debug] arch_b: {_arch_b.get('name')} field={_arch_b.get('dominant_field')} mode={_arch_b.get('dominant_mode')}")
             _field_mode_layer = compute_field_mode_synastry(_arch_a, _arch_b, name_a, request.name_b)
             print(f"[compat] Synastry: {_arch_a.get('name')} + {_arch_b.get('name')} = {_field_mode_layer.get('verdict')} field={_field_mode_layer.get('field_dynamic')} mode={_field_mode_layer.get('mode_dynamic')}")
             # Save to session
