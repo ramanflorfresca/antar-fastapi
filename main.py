@@ -7987,7 +7987,7 @@ def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: 
         if not best:
             return None
 
-        inst_name = best.get("name", "").upper()
+        inst_name = best.get("label", best.get("name", "")).upper()
         status = best.get("signal_status", "ACTIVE")
         sig_score = best.get("signal_score", 0)
         strength = "PEAK" if status == "PEAK" else "ACTIVE"
