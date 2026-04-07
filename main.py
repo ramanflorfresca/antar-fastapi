@@ -2117,46 +2117,60 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     # --- SYSTEM STATE INJECTION (Sprint Apr7 Step 2) ---
     system_state_block = ""
     try:
-        from antar_engine.executive_dashboard import get_instrument_scores
-        from antar_engine.lal_kitab_advanced import get_lk_state
+        import logging as _ss_log
+        _ssl = _ss_log.getLogger("antar.system_state")
 
-        instr = get_instrument_scores(chart_data) if chart_data else {}
-        lk_state = get_lk_state(chart_data) if chart_data else {}
+        # Pull instrument scores from executive_dashboard if available
+        instr = {}
+        try:
+            from antar_engine.executive_dashboard import get_instrument_scores
+            instr = get_instrument_scores(chart_data) if chart_data else {}
+        except Exception as _ie:
+            _ssl.debug(f"Instrument scores unavailable: {_ie}")
+
+        # Pull LK sleeping/rin state
+        lk_state = {}
+        try:
+            from antar_engine.lal_kitab_advanced import get_lk_state
+            lk_state = get_lk_state(chart_data) if chart_data else {}
+        except Exception as _lke:
+            _ssl.debug(f"LK state unavailable: {_lke}")
 
         lines = ["\nCURRENT SYSTEM STATE:"]
 
-        # 12 instrument gauges — top 6 by score
+        # Top 6 instrument gauges by score
         if instr:
             sorted_instr = sorted(instr.items(), key=lambda x: x[1].get("score", 0), reverse=True)
             for name, val in sorted_instr[:6]:
-                score = val.get("score", 0)
-                status = val.get("status", "")
-                lock = val.get("lock_level", "")
-                lock_str = f" — {lock}" if lock else ""
-                lines.append(f"  {name}: {status} ({score}/100){lock_str}")
+                _score  = val.get("score", 0)
+                _status = val.get("status", "")
+                _lock   = val.get("lock_level", "")
+                _lock_str = f" — {_lock}" if _lock else ""
+                lines.append(f"  {name}: {_status} ({_score}/100){_lock_str}")
 
         # Lal Kitab sleeping planets and active Rin debts
-        sleeping = lk_state.get("sleeping_planets", [])
-        rins = lk_state.get("active_rins", [])
+        sleeping = lk_state.get("sleeping_planets", []) if lk_state else []
+        rins     = lk_state.get("active_rins", []) if lk_state else []
         if sleeping or rins:
             lines.append("KARMIC STATE (Lal Kitab):")
             for sp in sleeping[:3]:
-                planet = sp.get("planet", sp) if isinstance(sp, dict) else sp
-                reason = sp.get("reason", "") if isinstance(sp, dict) else ""
-                reason_str = f" — {reason}" if reason else ""
-                lines.append(f"  Sleeping {planet}{reason_str}")
+                _planet    = sp.get("planet", sp) if isinstance(sp, dict) else sp
+                _reason    = sp.get("reason", "") if isinstance(sp, dict) else ""
+                _reason_str = f" — {_reason}" if _reason else ""
+                lines.append(f"  Sleeping {_planet}{_reason_str}")
             for rin in rins[:2]:
-                rin_type = rin.get("type", rin) if isinstance(rin, dict) else rin
-                effect = rin.get("effect", "") if isinstance(rin, dict) else ""
-                effect_str = f" — affects {effect}" if effect else ""
-                lines.append(f"  Active Rin: {rin_type}{effect_str}")
+                _rin_type  = rin.get("type", rin) if isinstance(rin, dict) else rin
+                _effect    = rin.get("effect", "") if isinstance(rin, dict) else ""
+                _effect_str = f" — affects {_effect}" if _effect else ""
+                lines.append(f"  Active Rin: {_rin_type}{_effect_str}")
 
         if len(lines) > 1:
             system_state_block = "\n".join(lines) + "\n"
             extra_blocks.append(system_state_block)
-            logger.info("System state block injected into prompt")
+            _ssl.info("System state block injected into prompt")
     except Exception as _sse:
-        logger.warning(f"System state injection failed (non-critical): {_sse}")
+        import logging as _fb_log
+        _fb_log.getLogger("antar").warning(f"System state injection failed (non-critical): {_sse}")
         system_state_block = ""
     # --- END SYSTEM STATE INJECTION ---
 
