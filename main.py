@@ -7930,15 +7930,20 @@ def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: 
     5. Return event_signal dict or None
     """
     try:
-        # Load executive summary
-        exec_data = chart_data.get("executive_summary")
-        if not exec_data:
-            try:
-                from antar_engine.executive_dashboard import build_executive_summary
-                exec_data = build_executive_summary(chart_data, supabase)
-            except Exception as ex:
-                print(f"[daily-week] Could not load executive summary: {ex}")
+        # Load executive summary via internal API call
+        import httpx
+        try:
+            _exec_url = f"http://localhost:8080/api/v1/executive-summary/{chart_id}"
+            _exec_resp = httpx.get(_exec_url, timeout=10)
+            exec_data = _exec_resp.json() if _exec_resp.status_code == 200 else None
+            if exec_data:
+                print(f"[daily-week] Executive summary loaded — {len(exec_data.get('instruments',[]))} instruments")
+            else:
+                print(f"[daily-week] Executive summary returned {_exec_resp.status_code}")
                 return None
+        except Exception as ex:
+            print(f"[daily-week] Could not load executive summary: {ex}")
+            return None
 
         instruments = exec_data.get("instruments", [])
         if not instruments:
