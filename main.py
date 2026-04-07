@@ -2513,9 +2513,9 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
                     if isinstance(_tdata, dict):
                         _transit_list.append({
                             "planet": _planet,
-                            "nakshatra": _tdata.get("nakshatra", ""),
-                            "sign": _tdata.get("sign", ""),
-                            "house": _tdata.get("house", 0),
+                            "nakshatra": _tdata.get("nakshatra", "") or _tdata.get("nakshatra_name", ""),
+                            "sign": _tdata.get("sign", "") or _tdata.get("transit_sign", ""),
+                            "house": _tdata.get("house", 0) or _tdata.get("transit_house", 0),
                         })
                 _natal_planets = {}
                 _raw_planets = chart_data.get("planets", {})

@@ -105,8 +105,12 @@ def calculate_transits(natal_chart, target_date=None, ayanamsa_mode=1):
         transits.append({
             'planet': planet,
             'transit_sign': constants.SIGNS[cur['sign_index']],
+            'sign': constants.SIGNS[cur['sign_index']],
             'transit_degree': cur['degree'],
             'transit_house': transit_house,
+            'house': transit_house,
+            'nakshatra': cur.get('nakshatra', ''),
+            'nakshatra_lord': cur.get('nakshatra_lord', ''),
             'natal_sign': natal['sign'],
             'natal_degree': natal['degree'],
             'conjunct_natal': is_conjunct_natal,
