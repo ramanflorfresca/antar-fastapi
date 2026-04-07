@@ -2877,7 +2877,21 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
     - "Cash flow tight until June"
     - "Execution velocity high through May"
 """
-    prompt = _hard_constraint + "\n\n" + prompt
+    # Symptom mode uses its own format — skip hard constraint (which enforces VERDICT format)
+    if _question_mode != "symptom":
+        prompt = _hard_constraint + "\n\n" + prompt
+    else:
+        # Symptom mode: inject jargon rules only (no planet/Sanskrit names) but not format rules
+        _jargon_only = """ABSOLUTE RULES (no exceptions):
+1. NEVER use planet names. Use: Growth Amplifier, Structural Load, Action Drive, Magnetism Field, Processing Speed, Authority Signal, Emotional Radar, Ambition Engine, Intuition Compass.
+2. NEVER use house numbers. Use instrument labels: System Vitals, Capital Reserves, Action Capacity, Alliance Sync, Capital Runway, Fortune Vector, Authority Engine, Revenue Pipeline, Global Vector.
+3. NEVER use Sanskrit terms (Dasha, Nakshatra, Lagna, Yoga, Rashi, etc).
+4. The current year is 2026. Today is """ + __import__('datetime').datetime.utcnow().strftime("%B %d, %Y") + """.
+5. Use business language only: positioning, leverage, runway, capacity, friction, momentum.
+6. Follow the DIAGNOSTIC FORMAT exactly as instructed — do not switch to VERDICT format.
+"""
+        prompt = _jargon_only + "\n\n" + prompt
+        print(f"[predict] Symptom mode — diagnostic format active (hard constraint bypassed)")
 
     if _domain_rules:
         prompt = "\n\n" + _domain_rules + "\n\n" + DOMAIN_BRIDGE_INSTRUCTION + "\n\n" + prompt
