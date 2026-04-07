@@ -2174,13 +2174,14 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         except Exception as e:
             print(f"[predict] DKP failed (non-fatal): {e}")
 
-        # Nation astrological insight (existing — keep as fallback)
-        try:
-            nation_insight = nation_engine.get_nation_insight(
-                country_code, supabase, deepseek_client, language
-            )
-        except Exception as e:
-            print(f"[predict] Nation insight error (non-fatal): {type(e).__name__}: {e}")
+        # Nation astrological insight — DISABLED (nation chart dasha broken, DKP covers this)
+        # Restore when nation chart computation is fixed
+        # try:
+        #     nation_insight = nation_engine.get_nation_insight(
+        #         country_code, supabase, deepseek_client, language
+        #     )
+        # except Exception as e:
+        #     print(f"[predict] Nation insight error (non-fatal): {type(e).__name__}: {e}")
     # ── end C2 ───────────────────────────────────────────────────
 
     # ── Concern detection (must come before C3 and C4) ────────
