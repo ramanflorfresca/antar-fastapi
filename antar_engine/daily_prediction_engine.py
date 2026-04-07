@@ -1,473 +1,376 @@
 """
-antar_engine/daily_prediction_engine.py
+daily_prediction_engine.py — 7-Day Daily Signal Generator
+Antar Intelligence Platform
 
-Daily signal engine — generates a rich daily reading that includes:
-1. Today's planetary hour and its effect
-2. Active transits hitting natal chart today
-3. Dasha sub-period activation
-4. WOW moment detection (rare planetary events today)
-5. Ayurveda daily tip based on Moon nakshatra
-6. Lal Kitab daily remedy
-7. Auspicious timing windows today
+Generates per-day Moon + Mercury signals for a 7-day window.
+Personalized via user's natal Moon sign.
+
+Data used (ONLY):
+  - Moon nakshatra, sign, degree for each target date
+  - Mercury sign for each target date
+  - User natal Moon sign (from chart)
+  - Weekday + tithi
+
+Data NOT used:
+  - House positions
+  - Dasha periods
+  - Divisional charts
+  - Aspects / conjunctions
+
+Called by: GET /api/v1/daily-week/{chart_id}
 """
 
-from datetime import datetime, date, timedelta
-import os
-import json
+from datetime import datetime, timedelta, timezone
+from typing import Optional
+import logging
 
-SIGNS = [
-    "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
-    "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"
+logger = logging.getLogger(__name__)
+
+# ──────────────────────────────────────────────
+# Constants
+# ──────────────────────────────────────────────
+
+NAKSHATRAS = [
+    "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra",
+    "Punarvasu", "Pushya", "Ashlesha", "Magha", "Purva Phalguni",
+    "Uttara Phalguni", "Hasta", "Chitra", "Swati", "Vishakha", "Anuradha",
+    "Jyeshtha", "Mula", "Purva Ashadha", "Uttara Ashadha", "Shravana",
+    "Dhanishta", "Shatabhisha", "Purva Bhadrapada", "Uttara Bhadrapada", "Revati"
 ]
 
-SIGN_LORDS = {
-    "Aries":"Mars","Taurus":"Venus","Gemini":"Mercury","Cancer":"Moon",
-    "Leo":"Sun","Virgo":"Mercury","Libra":"Venus","Scorpio":"Mars",
-    "Sagittarius":"Jupiter","Capricorn":"Saturn","Aquarius":"Saturn","Pisces":"Jupiter"
+SIGNS = [
+    "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+    "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"
+]
+
+# Nakshatra energy profiles — action-friendly language only
+NAKSHATRA_PROFILES = {
+    "Ashwini":           {"energy": "swift, initiating",      "aligned": ["starting projects", "health actions", "speed decisions"],   "friction": ["long-term planning", "slow negotiations"]},
+    "Bharani":           {"energy": "intense, transformative", "aligned": ["difficult conversations", "ending cycles", "financial moves"], "friction": ["new beginnings", "light social events"]},
+    "Krittika":          {"energy": "sharp, decisive",         "aligned": ["cutting losses", "clarity conversations", "editing work"],   "friction": ["diplomacy", "compromise situations"]},
+    "Rohini":            {"energy": "creative, nurturing",     "aligned": ["creative work", "relationship building", "financial planning"], "friction": ["confrontation", "endings"]},
+    "Mrigashira":        {"energy": "searching, curious",      "aligned": ["research", "exploration", "new contacts"],                   "friction": ["commitment decisions", "finalizing"]},
+    "Ardra":             {"energy": "stormy, transformative",  "aligned": ["problem-solving", "technical work", "breakthrough thinking"], "friction": ["partnerships", "public appearances"]},
+    "Punarvasu":         {"energy": "expansive, restoring",    "aligned": ["recovery", "travel", "relaunching stalled projects"],        "friction": ["intense focus", "confrontation"]},
+    "Pushya":            {"energy": "nurturing, auspicious",   "aligned": ["investments", "long-term planning", "team building"],        "friction": ["risky moves", "speculation"]},
+    "Ashlesha":          {"energy": "penetrating, strategic",  "aligned": ["negotiation", "research", "uncovering hidden info"],        "friction": ["trust-building", "openness"]},
+    "Magha":             {"energy": "authoritative, regal",    "aligned": ["leadership actions", "presentations", "legacy work"],        "friction": ["collaboration", "blending in"]},
+    "Purva Phalguni":    {"energy": "creative, pleasure-seeking", "aligned": ["client entertainment", "creative projects", "partnerships"], "friction": ["solo deep work", "financial discipline"]},
+    "Uttara Phalguni":   {"energy": "steady, establishing",    "aligned": ["contracts", "long-term agreements", "institutional work"],   "friction": ["speculation", "rapid pivots"]},
+    "Hasta":             {"energy": "skilled, precise",        "aligned": ["detailed work", "craftsmanship", "healing actions"],         "friction": ["big-picture strategy", "delegation"]},
+    "Chitra":            {"energy": "creative, brilliant",     "aligned": ["design", "presentations", "brand work", "pitches"],         "friction": ["routine work", "slow processes"]},
+    "Swati":             {"energy": "independent, adaptable",  "aligned": ["networking", "flexibility", "trading"],                     "friction": ["fixed commitments", "confrontation"]},
+    "Vishakha":          {"energy": "goal-oriented, intense",  "aligned": ["goal-setting", "competitive moves", "ambition-driven work"], "friction": ["rest", "casual socializing"]},
+    "Anuradha":          {"energy": "devoted, disciplined",    "aligned": ["team loyalty", "friendship", "structured work"],            "friction": ["isolation", "self-promotion"]},
+    "Jyeshtha":          {"energy": "commanding, protective",  "aligned": ["authority decisions", "crisis management", "protection"],   "friction": ["partnership building", "softness"]},
+    "Mula":              {"energy": "uprooting, investigative","aligned": ["root-cause analysis", "endings", "philosophy"],             "friction": ["stability", "new launches"]},
+    "Purva Ashadha":     {"energy": "invincible, persuasive",  "aligned": ["pitching", "persuasion", "travel"],                        "friction": ["accepting defeat", "slowing down"]},
+    "Uttara Ashadha":    {"energy": "victorious, ethical",     "aligned": ["finalizing wins", "integrity-based decisions", "launches"], "friction": ["compromise", "grey areas"]},
+    "Shravana":          {"energy": "listening, connecting",   "aligned": ["mentorship", "learning", "advisory conversations"],        "friction": ["speaking over others", "impulsive action"]},
+    "Dhanishta":         {"energy": "abundant, musical",       "aligned": ["wealth moves", "group leadership", "bold action"],         "friction": ["isolation", "detail work"]},
+    "Shatabhisha":       {"energy": "healing, mysterious",     "aligned": ["research", "solo work", "unconventional approaches"],      "friction": ["public-facing work", "partnerships"]},
+    "Purva Bhadrapada":  {"energy": "fierce, transformative",  "aligned": ["high-stakes decisions", "intense focus", "transitions"],   "friction": ["patience", "slow work"]},
+    "Uttara Bhadrapada": {"energy": "stable, wise",            "aligned": ["teaching", "long-term planning", "settling matters"],      "friction": ["fast pivots", "speculation"]},
+    "Revati":            {"energy": "compassionate, completing","aligned": ["closing cycles", "charitable work", "spiritual clarity"],  "friction": ["new ventures", "competitive pressure"]},
 }
 
-# Planetary hours — sequence from sunrise
-# Each day starts with its day lord
-# Sequence: Sun, Venus, Mercury, Moon, Saturn, Jupiter, Mars (repeating)
-PLANETARY_HOUR_SEQUENCE = ["Sun","Venus","Mercury","Moon","Saturn","Jupiter","Mars"]
-
-DAY_LORD = {
-    0: "Moon",    # Monday
-    1: "Mars",    # Tuesday
-    2: "Mercury", # Wednesday
-    3: "Jupiter", # Thursday
-    4: "Venus",   # Friday
-    5: "Saturn",  # Saturday
-    6: "Sun",     # Sunday
+# Moon-sign friction map: certain transit signs create friction with certain natal signs
+# Key = natal moon sign, Value = transit signs that create friction
+MOON_FRICTION_MAP = {
+    "Aries":       ["Cancer", "Capricorn"],
+    "Taurus":      ["Leo", "Aquarius"],
+    "Gemini":      ["Virgo", "Pisces"],
+    "Cancer":      ["Aries", "Libra"],
+    "Leo":         ["Taurus", "Scorpio"],
+    "Virgo":       ["Gemini", "Sagittarius"],
+    "Libra":       ["Cancer", "Capricorn"],
+    "Scorpio":     ["Leo", "Aquarius"],
+    "Sagittarius": ["Virgo", "Pisces"],
+    "Capricorn":   ["Aries", "Libra"],
+    "Aquarius":    ["Taurus", "Scorpio"],
+    "Pisces":      ["Gemini", "Sagittarius"],
 }
 
-MOON_NAKSHATRA_TIPS = {
-    "Ashvini":         {"energy":"high initiative", "dosha":"Vata", "tip":"Start new projects today. Avoid scattered energy.", "food":"light grains, ginger tea"},
-    "Bharani":         {"energy":"intense creation", "dosha":"Pitta", "tip":"Channel intensity into creative work.", "food":"cooling foods, coconut water"},
-    "Krittika":        {"energy":"sharp focus", "dosha":"Pitta", "tip":"Excellent for precision work and decisions.", "food":"avoid spicy food today"},
-    "Rohini":          {"energy":"abundance", "dosha":"Kapha", "tip":"Perfect for business and relationship nurturing.", "food":"dairy, rice, sweet items"},
-    "Mrigashira":      {"energy":"curious seeking", "dosha":"Vata", "tip":"Research and learning favored today.", "food":"warm herbal teas, nuts"},
-    "Ardra":           {"energy":"transformative storm", "dosha":"Vata", "tip":"Expect changes. Stay grounded.", "food":"warm cooked food only"},
-    "Punarvasu":       {"energy":"renewal", "dosha":"Vata", "tip":"Return to basics. Rest and restore.", "food":"light nourishing food"},
-    "Pushya":          {"energy":"nourishing", "dosha":"Kapha", "tip":"Best nakshatra for starting anything sacred.", "food":"milk, ghee, traditional foods"},
-    "Ashlesha":        {"energy":"penetrating", "dosha":"Kapha", "tip":"Avoid new beginnings. Good for research.", "food":"detoxifying foods"},
-    "Magha":           {"energy":"royal authority", "dosha":"Kapha", "tip":"Assert your authority with grace.", "food":"nutritious, quality food"},
-    "Purva Phalguni":  {"energy":"pleasure seeking", "dosha":"Pitta", "tip":"Enjoy beauty and creativity.", "food":"sweet fruits, rose water"},
-    "Uttara Phalguni": {"energy":"stable foundation", "dosha":"Pitta", "tip":"Excellent for contracts and commitments.", "food":"balanced wholesome meal"},
-    "Hasta":           {"energy":"craftsmanship", "dosha":"Vata", "tip":"Hands-on work produces excellent results.", "food":"light salads, fresh juice"},
-    "Chitra":          {"energy":"creation", "dosha":"Pitta", "tip":"Beautify your environment and work.", "food":"colorful fresh foods"},
-    "Swati":           {"energy":"independent movement", "dosha":"Vata", "tip":"Go with the flow. Avoid forcing outcomes.", "food":"vata-pacifying warm foods"},
-    "Vishakha":        {"energy":"purposeful striving", "dosha":"Pitta", "tip":"Set clear goals. Push toward them.", "food":"cooling pitta foods"},
-    "Anuradha":        {"energy":"devoted friendship", "dosha":"Pitta", "tip":"Strengthen relationships and alliances.", "food":"moderate balanced meals"},
-    "Jyeshtha":        {"energy":"protective leadership", "dosha":"Vata", "tip":"Take charge. Protect those in your care.", "food":"warm root vegetables"},
-    "Mula":            {"energy":"root investigation", "dosha":"Vata", "tip":"Go to the root of any issue.", "food":"grounding root vegetables"},
-    "Purva Ashadha":   {"energy":"invincible momentum", "dosha":"Pitta", "tip":"Your convictions carry you forward.", "food":"cooling hydrating foods"},
-    "Uttara Ashadha":  {"energy":"final victory", "dosha":"Pitta", "tip":"Complete what you started.", "food":"wholesome balanced"},
-    "Shravana":        {"energy":"deep listening", "dosha":"Kapha", "tip":"Listen more than you speak today.", "food":"traditional nourishing foods"},
-    "Dhanishtha":      {"energy":"rhythmic abundance", "dosha":"Pitta", "tip":"Music and rhythm improve everything today.", "food":"iron-rich foods"},
-    "Shatabhisha":     {"energy":"healing solitude", "dosha":"Vata", "tip":"Solo work and healing are favored.", "food":"herbal medicines, water"},
-    "Purva Bhadrapada":{"energy":"fierce transformation", "dosha":"Pitta", "tip":"Deep change is happening. Trust it.", "food":"sattvic pure foods"},
-    "Uttara Bhadrapada":{"energy":"deep wisdom", "dosha":"Kapha", "tip":"Contemplation and wisdom work best.", "food":"nourishing kapha foods"},
-    "Revati":          {"energy":"compassionate completion", "dosha":"Kapha", "tip":"Complete cycles with love.", "food":"gentle easily digestible"},
-}
-
-PLANET_ENERGY_TODAY = {
-    "Sun":     "Authority, clarity, and leadership energy is heightened",
-    "Moon":    "Emotional intelligence and public connection are amplified",
-    "Mars":    "Action, courage, and physical energy peak today",
-    "Mercury": "Communication, deals, and analytical thinking are sharp",
-    "Jupiter": "Expansion, wisdom, and generosity flow easily",
-    "Venus":   "Beauty, love, and creative expression are heightened",
-    "Saturn":  "Discipline, responsibility, and long-term thinking prevail",
-    "Rahu":    "Foreign connections and unconventional opportunities emerge",
-    "Ketu":    "Spiritual insights and detachment bring clarity",
-}
-
-WOW_DAILY_TRIGGERS = {
-    "moon_conjunct_jupiter": {
-        "name": "Moon meets Jupiter today",
-        "wow":  "This is a Gajakesari moment — rare alignment of mind and wisdom. Decisions made today carry unusual fortune. Trust your gut on big matters.",
-        "rarity": "uncommon",
-    },
-    "moon_in_pushya": {
-        "name": "Moon in Pushya Nakshatra",
-        "wow":  "Pushya is the most auspicious nakshatra for beginnings. If you start something today — a business, a journey, a commitment — it carries divine blessing.",
-        "rarity": "monthly",
-    },
-    "jupiter_transit_change": {
-        "name": "Jupiter changing signs",
-        "wow":  "Jupiter moves to a new sign — a major 12-month cycle shift begins. The area of life Jupiter is entering gets a year of expansion and opportunity.",
-        "rarity": "annual",
-    },
-    "moon_on_natal_sun": {
-        "name": "Moon activating your Sun today",
-        "wow":  "The Moon is transiting your natal Sun's position — your identity, authority, and public presence are spotlit today. Be visible. Lead.",
-        "rarity": "monthly",
-    },
-    "moon_on_natal_moon": {
-        "name": "Moon returns to natal Moon",
-        "wow":  "Monthly Moon return — your emotional intelligence peaks. Intuition is at maximum. Trust what you feel today over what you think.",
-        "rarity": "monthly",
-    },
-    "moon_on_natal_jupiter": {
-        "name": "Moon activating your Jupiter today",
-        "wow":  "Fortune is spotlit. What you reach for today has an extra blessing on it. Good day for important asks, launches, and financial decisions.",
-        "rarity": "monthly",
-    },
-    "full_moon": {
-        "name": "Full Moon — Purnima",
-        "wow":  "Emotions peak, manifestations complete, and the month's energy comes to a head. What did you set in motion at the New Moon? It reaches fullness now.",
-        "rarity": "monthly",
-    },
-    "new_moon": {
-        "name": "New Moon — Amavasya",
-        "wow":  "The darkest moment before the new cycle. Perfect for internal work, ancestor prayers, and setting intentions for the coming month.",
-        "rarity": "monthly",
-    },
+# Weekday energy overlays
+WEEKDAY_OVERLAY = {
+    "Monday":    {"boost": "emotional intelligence, intuition", "caution": "logic-heavy analysis"},
+    "Tuesday":   {"boost": "courage, direct action, confrontation", "caution": "diplomacy"},
+    "Wednesday": {"boost": "communication, negotiation, writing", "caution": "emotional decisions"},
+    "Thursday":  {"boost": "expansion, learning, authority", "caution": "details, contracts"},
+    "Friday":    {"boost": "relationships, creativity, partnerships", "caution": "solo competitive work"},
+    "Saturday":  {"boost": "discipline, structure, long-term planning", "caution": "spontaneity"},
+    "Sunday":    {"boost": "vitality, leadership, visibility", "caution": "rest (if needed)"},
 }
 
 
-def get_current_moon_nakshatra(natal_chart: dict = None) -> tuple:
-    """Get current Moon nakshatra from Swiss Ephemeris."""
+# ──────────────────────────────────────────────
+# Core Ephemeris Functions
+# ──────────────────────────────────────────────
+
+def get_planet_sign_for_date(target_date: datetime, planet_id: int) -> str:
+    """Compute sidereal sign of a planet for a given date."""
     try:
         import swisseph as swe
         swe.set_sid_mode(swe.SIDM_LAHIRI)
-        now = datetime.utcnow()
-        jd  = swe.julday(now.year, now.month, now.day,
-                          now.hour + now.minute/60.0)
-        pos, _ = swe.calc_ut(jd, swe.MOON)
-        ayanamsa    = swe.get_ayanamsa(jd)
-        sidereal    = (pos[0] - ayanamsa) % 360
-
-        NAKSHATRAS = [
-            "Ashvini","Bharani","Krittika","Rohini","Mrigashira","Ardra",
-            "Punarvasu","Pushya","Ashlesha","Magha","Purva Phalguni","Uttara Phalguni",
-            "Hasta","Chitra","Swati","Vishakha","Anuradha","Jyeshtha",
-            "Mula","Purva Ashadha","Uttara Ashadha","Shravana","Dhanishtha",
-            "Shatabhisha","Purva Bhadrapada","Uttara Bhadrapada","Revati",
-        ]
-
-        nak_idx  = int(sidereal / (360/27))
-        nak_name = NAKSHATRAS[nak_idx % 27]
-        moon_sign= SIGNS[int(sidereal / 30)]
-        return nak_name, moon_sign, round(sidereal % 30, 2)
+        jd = swe.julday(target_date.year, target_date.month, target_date.day, 12.0)
+        pos, _ = swe.calc_ut(jd, planet_id)
+        ayanamsa = swe.get_ayanamsa(jd)
+        sidereal = (pos[0] - ayanamsa) % 360
+        return SIGNS[int(sidereal / 30)]
     except Exception as e:
-        return "Rohini", "Taurus", 0.0
+        logger.warning(f"get_planet_sign_for_date failed for planet {planet_id}: {e}")
+        return "Unknown"
 
 
-def get_todays_planetary_hour() -> dict:
-    """Calculate current planetary hour."""
-    now     = datetime.now()
-    weekday = now.weekday()
-    day_lord= DAY_LORD[weekday]
-
-    # Find position in hour sequence starting from day lord
-    day_lord_idx = PLANETARY_HOUR_SEQUENCE.index(day_lord)
-    hour_of_day  = now.hour  # 0-23
-
-    # Each day has 24 planetary hours
-    current_hour_lord_idx = (day_lord_idx + hour_of_day) % 7
-    current_hour_lord = PLANETARY_HOUR_SEQUENCE[current_hour_lord_idx]
-
-    return {
-        "day_lord":          day_lord,
-        "current_hour_lord": current_hour_lord,
-        "hour_energy":       PLANET_ENERGY_TODAY.get(current_hour_lord, ""),
-        "best_activity": {
-            "Sun":     "authority decisions, career moves, meetings with seniors",
-            "Moon":    "emotional conversations, public work, family matters",
-            "Mars":    "physical work, gym, courage-requiring tasks",
-            "Mercury": "emails, contracts, negotiations, study",
-            "Jupiter": "teaching, learning, financial planning, spiritual practice",
-            "Venus":   "creative work, relationships, beauty, pleasure",
-            "Saturn":  "systematic work, long-term planning, discipline",
-        }.get(current_hour_lord, "general work"),
-    }
-
-
-def detect_daily_wow(natal_chart: dict, current_moon_nak: str,
-                     current_moon_sign: str) -> list:
-    """Detect WOW moments active today."""
-    wow_today = []
-    now       = datetime.utcnow()
-    planets   = natal_chart.get("planets", {})
-
-    # Moon in Pushya
-    if current_moon_nak == "Pushya":
-        wow_today.append(WOW_DAILY_TRIGGERS["moon_in_pushya"])
-
-    # Moon return to natal positions
-    natal_moon_sign = planets.get("Moon", {}).get("sign","")
-    if current_moon_sign == natal_moon_sign:
-        wow_today.append(WOW_DAILY_TRIGGERS["moon_on_natal_moon"])
-
-    natal_sun_sign = planets.get("Sun", {}).get("sign","")
-    if current_moon_sign == natal_sun_sign:
-        wow_today.append(WOW_DAILY_TRIGGERS["moon_on_natal_sun"])
-
-    natal_jup_sign = planets.get("Jupiter", {}).get("sign","")
-    if current_moon_sign == natal_jup_sign:
-        wow_today.append(WOW_DAILY_TRIGGERS["moon_on_natal_jupiter"])
-
-    # Full/New Moon check
+def get_moon_data_for_date(target_date: datetime) -> dict:
+    """
+    Returns Moon nakshatra, sign, and degree for a given date.
+    Computed at noon UTC for that date.
+    """
     try:
         import swisseph as swe
-        jd = swe.julday(now.year, now.month, now.day, now.hour)
-        sun_pos,  _ = swe.calc_ut(jd, swe.SUN)
-        moon_pos, _ = swe.calc_ut(jd, swe.MOON)
-        diff = abs(moon_pos[0] - sun_pos[0]) % 360
-        if diff > 180: diff = 360 - diff
-        if diff < 12:
-            wow_today.append(WOW_DAILY_TRIGGERS["new_moon"])
-        elif abs(diff - 180) < 12:
-            wow_today.append(WOW_DAILY_TRIGGERS["full_moon"])
-    except Exception:
-        pass
-
-    return wow_today[:3]  # max 3 WOW moments per day
-
-
-def build_daily_prediction_prompt(
-    natal_chart: dict,
-    dashas: dict,
-    birth_date: str,
-    first_name: str = "",
-    gender: str = "",
-    current_md_lord: str = "",
-    current_ad_lord: str = "",
-    concern: str = "general",
-) -> str:
-    """
-    Build the complete daily prediction context for LLM.
-    Includes WOW moments, planetary hours, Moon nakshatra, and dasha.
-    """
-    now     = datetime.now()
-    weekday = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"][now.weekday()]
-    date_str= now.strftime("%B %d, %Y")
-
-    moon_nak, moon_sign, moon_deg = get_current_moon_nakshatra(natal_chart)
-    planetary_hour = get_todays_planetary_hour()
-    wow_today      = detect_daily_wow(natal_chart, moon_nak, moon_sign)
-    nak_data       = MOON_NAKSHATRA_TIPS.get(moon_nak, {})
-
-    # Current dasha context
-    dasha_str = f"{current_md_lord}-{current_ad_lord}" if current_ad_lord else current_md_lord
-
-    # Age and life stage
-    try:
-        age = (date.today() - date.fromisoformat(birth_date[:10])).days // 365
-    except Exception:
-        age = 35
-
-    name = first_name or "Explorer"
-
-    wow_block = ""
-    if wow_today:
-        wow_block = "\n⭐ TODAY'S WOW MOMENTS:\n"
-        for w in wow_today:
-            wow_block += f"  {w['name']}: {w['wow']}\n"
-
-    prompt = f"""You are Antar — a precise Vedic astrology AI.
-Generate TODAY'S DAILY SIGNAL for {name}, age {age}.
-
-TODAY: {weekday}, {date_str}
-
-COSMIC WEATHER TODAY:
-  Moon: {moon_sign} ({moon_nak} nakshatra, {moon_deg}°)
-  Moon nakshatra energy: {nak_data.get('energy','')}
-  Dosha activated: {nak_data.get('dosha','')}
-  Ayurveda tip: {nak_data.get('tip','')}
-  Food recommendation: {nak_data.get('food','')}
-
-PLANETARY HOUR NOW:
-  Day lord: {planetary_hour['day_lord']}
-  Current hour lord: {planetary_hour['current_hour_lord']}
-  Hour energy: {planetary_hour['hour_energy']}
-  Best for: {planetary_hour['best_activity']}
-{wow_block}
-NATAL CHART CONTEXT:
-  Lagna: {natal_chart.get('lagna', {}).get('sign', '') if isinstance(natal_chart.get('lagna'), dict) else ''}
-  Moon: {natal_chart.get('planets', {}).get('Moon', {}).get('sign', '')} in {natal_chart.get('planets', {}).get('Moon', {}).get('nakshatra', '')}
-  Active Dasha: {dasha_str}
-  Atmakaraka: {natal_chart.get('atmakaraka','')}
-
-GENERATE A DAILY SIGNAL with these exact sections:
-
-**YOUR SIGNAL RIGHT NOW**
-[2 sentences — what is the dominant energy today for THIS person based on their natal chart + today's cosmic weather. Make it specific to their Moon nakshatra and current dasha. Do NOT be generic.]
-
-**THE PATTERN THAT'S ACTIVE**
-[2 sentences — how does today's energy interact with their current dasha period. What theme is being amplified?]
-
-**TODAY'S WOW** (only include if wow_today has items)
-[1-2 sentences — explain the WOW moment in plain language. Make it feel special and rare.]
-
-**YOUR MOVE TODAY**
-[Exactly 2 lines:]
-Start: [one specific action to take today]
-Slow down on: [one specific thing to avoid today]
-
-**AYURVEDA TODAY**
-[1 sentence — the specific food or practice for today's Moon nakshatra energy]
-
-**TODAY'S REMEDY**
-[1 Lal Kitab or planetary remedy specific to their current dasha lord]
-
-Rules:
-- NO generic horoscope language
-- Reference the specific nakshatra ({moon_nak}) by name
-- Reference their current dasha ({dasha_str}) specifically
-- Keep total under 250 words
-- Make {name} feel seen — not like one of millions
-"""
-    return prompt
-
-
-async def generate_daily_signal(
-    natal_chart: dict,
-    dashas: dict,
-    birth_date: str,
-    chart_id: str,
-    first_name: str = "",
-    gender: str = "",
-    language: str = "en",
-) -> dict:
-    """
-    Generate and cache daily signal.
-    Checks if today's signal already exists in DB before calling LLM.
-    """
-    import openai
-    from supabase import create_client
-
-    today = date.today().isoformat()
-
-    try:
-        sb = create_client(
-            os.getenv("SUPABASE_URL"),
-            os.getenv("SUPABASE_SERVICE_ROLE_KEY"),
-        )
-
-        # Check cache — don't regenerate if already done today
-        cached = sb.table("daily_signals").select("*").eq(
-            "chart_id", chart_id
-        ).eq("signal_date", today).execute()
-
-        if cached.data:
-            return cached.data[0]
-    except Exception:
-        sb = None
-
-    # Get current dasha
-    now = datetime.utcnow()
-    current_md = current_ad = ""
-    for row in dashas.get("vimsottari", []):
-        level = row.get("level") or row.get("type","")
-        try:
-            sd = datetime.strptime(str(row.get("start_date",""))[:10],"%Y-%m-%d")
-            ed = datetime.strptime(str(row.get("end_date",""))[:10],"%Y-%m-%d")
-            if sd <= now <= ed:
-                lord = row.get("lord_or_sign") or row.get("planet_or_sign","")
-                if level == "mahadasha":   current_md = lord
-                elif level == "antardasha": current_ad = lord
-        except Exception:
-            pass
-
-    # Build prompt
-    prompt = build_daily_prediction_prompt(
-        natal_chart=natal_chart, dashas=dashas,
-        birth_date=birth_date, first_name=first_name,
-        gender=gender, current_md_lord=current_md,
-        current_ad_lord=current_ad,
-    )
-
-    # Call LLM
-    system_prompt = (
-        "You are Antar — a precise Vedic astrology AI. "
-        "Generate daily signals that feel personal and specific — never generic. "
-        "Reference the exact nakshatra, dasha period, and natal chart provided. "
-        "Be direct and concrete. Maximum 250 words total."
-    )
-
-    try:
-        client = openai.AsyncOpenAI(
-            api_key=os.getenv("DEEPSEEK_API_KEY"),
-            base_url="https://api.deepseek.com/v1",
-        )
-        resp = await client.chat.completions.create(
-            model="deepseek-chat",
-            messages=[
-                {"role":"system","content":system_prompt},
-                {"role":"user","content":prompt},
-            ],
-            temperature=0.4,
-            max_tokens=600,
-            timeout=30,
-        )
-        signal_text = resp.choices[0].message.content.strip()
+        swe.set_sid_mode(swe.SIDM_LAHIRI)
+        jd = swe.julday(target_date.year, target_date.month, target_date.day, 12.0)
+        pos, _ = swe.calc_ut(jd, swe.MOON)
+        ayanamsa = swe.get_ayanamsa(jd)
+        sidereal = (pos[0] - ayanamsa) % 360
+        nak_idx = int(sidereal / (360 / 27))
+        nak_name = NAKSHATRAS[nak_idx % 27]
+        moon_sign = SIGNS[int(sidereal / 30)]
+        degree = round(sidereal % 30, 2)
+        return {
+            "nakshatra": nak_name,
+            "sign": moon_sign,
+            "degree": degree,
+            "sidereal_longitude": round(sidereal, 4)
+        }
     except Exception as e:
-        signal_text = f"Daily signal unavailable: {e}"
+        logger.error(f"get_moon_data_for_date failed for {target_date}: {e}")
+        return {"nakshatra": "Unknown", "sign": "Unknown", "degree": 0.0, "sidereal_longitude": 0.0}
 
-    # Detect WOW
-    moon_nak, moon_sign, _ = get_current_moon_nakshatra(natal_chart)
-    wow_today = detect_daily_wow(natal_chart, moon_nak, moon_sign)
-    planetary_hour = get_todays_planetary_hour()
 
-    # Build dasha-specific remedy (separate from day-lord mantra)
-    dasha_lord = current_md or current_ad or ""
-    dasha_remedy_obj = {}
-    if dasha_lord:
-        try:
-            from antar_engine.prompt_builder import SOUND_ALTERNATIVES
-            sound = SOUND_ALTERNATIVES.get(dasha_lord, {})
-            natal_planets = natal_chart.get("planets", {}) if natal_chart else {}
-            dl_data  = natal_planets.get(dasha_lord, {})
-            dl_sign  = dl_data.get("sign","")
-            dl_house = dl_data.get("house", 0)
-            DEBIL = {
-                "Sun":"Libra","Moon":"Scorpio","Mars":"Cancer",
-                "Mercury":"Pisces","Jupiter":"Capricorn",
-                "Venus":"Virgo","Saturn":"Aries"
-            }
-            is_weak = dl_sign == DEBIL.get(dasha_lord,"")
-            dasha_remedy_obj = {
-                "planet":    dasha_lord,
-                "sign":      dl_sign,
-                "house":     dl_house,
-                "is_weak":   is_weak,
-                "diagnosis": (
-                    f"Your {dasha_lord} chapter is active"
-                    + (f" — {dasha_lord} is weakened in {dl_sign}, needs recalibration" if is_weak
-                       else f" — {dasha_lord} in {dl_sign} (house {dl_house})")
-                ),
-                "mantra":    sound.get("mantra",""),
-                "buddhist":  sound.get("buddhist",""),
-                "universal": sound.get("universal",""),
-            }
-        except Exception:
-            pass
+def get_tithi(target_date: datetime) -> str:
+    """Compute approximate tithi (lunar day 1-30) for a date."""
+    try:
+        import swisseph as swe
+        swe.set_sid_mode(swe.SIDM_LAHIRI)
+        jd = swe.julday(target_date.year, target_date.month, target_date.day, 12.0)
+        moon_pos, _ = swe.calc_ut(jd, swe.MOON)
+        sun_pos, _ = swe.calc_ut(jd, swe.SUN)
+        diff = (moon_pos[0] - sun_pos[0]) % 360
+        tithi_num = int(diff / 12) + 1
+        TITHIS = [
+            "New Moon", "2nd", "3rd", "4th", "5th", "6th", "7th",
+            "8th (Half Moon)", "9th", "10th", "11th (Ekadashi)", "12th",
+            "13th", "14th", "Full Moon",
+            "16th", "17th", "18th", "19th", "20th", "21st",
+            "22nd (Half Moon)", "23rd", "24th", "25th (Ekadashi)", "26th",
+            "27th", "28th", "29th", "30th"
+        ]
+        return TITHIS[(tithi_num - 1) % 30]
+    except Exception as e:
+        logger.warning(f"get_tithi failed: {e}")
+        return "Unknown"
 
-    result = {
-        "chart_id":       chart_id,
-        "signal_date":    today,
-        "signal_text":    signal_text,
-        "moon_nakshatra": moon_nak,
-        "moon_sign":      moon_sign,
-        "day_lord":       planetary_hour["day_lord"],
-        "hour_lord":      planetary_hour["current_hour_lord"],
-        "wow_today":      json.dumps(wow_today),
-        "has_wow":        len(wow_today) > 0,
-        "dasha_string":   f"{current_md}-{current_ad}" if current_ad else current_md,
-        "ayurveda_tip":   MOON_NAKSHATRA_TIPS.get(moon_nak,{}).get("tip",""),
-        "food_today":     MOON_NAKSHATRA_TIPS.get(moon_nak,{}).get("food",""),
-        "dasha_remedy":   dasha_remedy_obj,
+
+# ──────────────────────────────────────────────
+# Signal Builder
+# ──────────────────────────────────────────────
+
+def _score_day(moon_sign: str, natal_moon_sign: str, nakshatra: str, weekday: str) -> tuple:
+    """
+    Returns (score: int, is_friction: bool)
+    score 0–10, higher = more aligned
+    """
+    score = 5  # neutral baseline
+
+    # Nakshatra alignment: high-energy nakshatras boost score
+    high_energy = {"Rohini", "Pushya", "Uttara Phalguni", "Uttara Ashadha",
+                   "Chitra", "Dhanishta", "Magha", "Punarvasu"}
+    friction_nakshatras = {"Ardra", "Ashlesha", "Jyeshtha", "Mula",
+                           "Purva Bhadrapada", "Bharani"}
+    if nakshatra in high_energy:
+        score += 2
+    elif nakshatra in friction_nakshatras:
+        score -= 2
+
+    # Moon transit vs natal moon friction
+    friction_signs = MOON_FRICTION_MAP.get(natal_moon_sign, [])
+    if moon_sign in friction_signs:
+        score -= 2
+    elif moon_sign == natal_moon_sign:
+        score += 1  # Moon returns to natal sign — emotional clarity
+
+    # Weekday boosts
+    power_days = {"Thursday", "Sunday"}
+    if weekday in power_days:
+        score += 1
+
+    score = max(0, min(10, score))
+    is_friction = score < 4
+
+    return score, is_friction
+
+
+def _build_signal_text(
+    nakshatra: str,
+    moon_sign: str,
+    mercury_sign: str,
+    natal_moon_sign: str,
+    weekday: str,
+    score: int,
+    is_friction: bool
+) -> dict:
+    """Build the signal, aligned_for, friction_for, move, and wow fields."""
+
+    profile = NAKSHATRA_PROFILES.get(nakshatra, {
+        "energy": "variable", "aligned": ["flexible work"], "friction": ["rigid planning"]
+    })
+    day_overlay = WEEKDAY_OVERLAY.get(weekday, {})
+    friction_signs = MOON_FRICTION_MAP.get(natal_moon_sign, [])
+
+    aligned = profile.get("aligned", [])[:3]
+    friction = profile.get("friction", [])[:2]
+
+    # Mercury modifier: if Mercury is in a communication-friendly sign, boost that
+    mercury_comm_signs = {"Gemini", "Virgo", "Aquarius", "Libra"}
+    mercury_note = None
+    if mercury_sign in mercury_comm_signs:
+        mercury_note = "Communication and negotiation carry extra weight today."
+
+    # Build 2-sentence signal
+    if is_friction:
+        signal = (
+            f"The energy today creates internal friction — best used for inner work, "
+            f"review, and preparation rather than launching or confronting. "
+            f"{weekday}'s overlay favors {day_overlay.get('boost', 'steady progress')} "
+            f"but the Moon's position slows outer momentum."
+        )
+        move = (
+            f"Use today to audit, review, or strengthen one thing already in motion. "
+            f"Hold new launches until energy lifts."
+        )
+    else:
+        signal = (
+            f"The energy today is {profile['energy']} — lean into it. "
+            f"{weekday} amplifies {day_overlay.get('boost', 'focused effort')}, "
+            f"making this a good window for {aligned[0] if aligned else 'action'}."
+        )
+        move = (
+            f"Take one concrete step today in: {', '.join(aligned[:2])}. "
+            f"Avoid: {', '.join(friction[:1])}."
+        )
+
+    # WOW: special alignment notes
+    wow = None
+    if moon_sign == natal_moon_sign:
+        wow = "Moon returns to your natal sign today — emotional clarity peaks. Trust your instincts."
+    elif nakshatra in {"Pushya", "Rohini", "Uttara Phalguni"}:
+        wow = f"{nakshatra} is one of the most auspicious nakshatras. Major decisions made today carry positive momentum."
+    elif nakshatra == "Mula":
+        wow = "Mula energy cuts to the root. Any investigation or deep audit today will reveal what's been hidden."
+    elif mercury_note:
+        wow = mercury_note
+
+    return {
+        "energy": profile["energy"],
+        "aligned_for": aligned,
+        "friction_for": friction,
+        "signal": signal,
+        "move": move,
+        "wow": wow,
+        "score": score,
     }
 
-    # Cache in DB
-    try:
-        if sb:
-            sb.table("daily_signals").upsert(result,
-                on_conflict="chart_id,signal_date").execute()
-    except Exception:
-        pass
 
-    return result
+# ──────────────────────────────────────────────
+# Main 7-Day Generator
+# ──────────────────────────────────────────────
+
+def generate_weekly_signals(natal_moon_sign: str, start_date: Optional[datetime] = None) -> list:
+    """
+    Generate 7-day daily signal array.
+
+    Args:
+        natal_moon_sign: User's natal Moon sign (e.g., "Scorpio")
+        start_date: First day of the 7-day window (defaults to today UTC)
+
+    Returns:
+        List of 7 daily signal dicts
+    """
+    if start_date is None:
+        start_date = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
+        )
+
+    results = []
+
+    try:
+        import swisseph as swe
+        MERCURY = swe.MERCURY
+    except ImportError:
+        logger.error("swisseph not available")
+        MERCURY = 2  # fallback constant
+
+    for i in range(7):
+        target_date = start_date + timedelta(days=i)
+        weekday = target_date.strftime("%A")
+        date_str = target_date.strftime("%Y-%m-%d")
+
+        # Compute Moon data
+        moon_data = get_moon_data_for_date(target_date)
+        nakshatra = moon_data["nakshatra"]
+        moon_sign = moon_data["sign"]
+
+        # Compute Mercury sign
+        mercury_sign = get_planet_sign_for_date(target_date, 2)  # swe.MERCURY = 2
+
+        # Compute tithi
+        tithi = get_tithi(target_date)
+
+        # Score the day
+        score, is_friction = _score_day(moon_sign, natal_moon_sign, nakshatra, weekday)
+
+        # Build signal
+        signal_data = _build_signal_text(
+            nakshatra=nakshatra,
+            moon_sign=moon_sign,
+            mercury_sign=mercury_sign,
+            natal_moon_sign=natal_moon_sign,
+            weekday=weekday,
+            score=score,
+            is_friction=is_friction
+        )
+
+        day_result = {
+            "date": date_str,
+            "day": weekday,
+            "moon_nakshatra": nakshatra,
+            "moon_sign": moon_sign,
+            "moon_degree": moon_data["degree"],
+            "mercury_sign": mercury_sign,
+            "tithi": tithi,
+            "energy": signal_data["energy"],
+            "aligned_for": signal_data["aligned_for"],
+            "friction_for": signal_data["friction_for"],
+            "signal": signal_data["signal"],
+            "move": signal_data["move"],
+            "wow": signal_data["wow"],
+            "score": score,
+            "is_friction_day": is_friction,
+        }
+
+        results.append(day_result)
+        logger.info(f"[daily-week] {date_str} {weekday}: {nakshatra} in {moon_sign} | score={score}")
+
+    return results
+
+
+# ──────────────────────────────────────────────
+# Standalone test
+# ──────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import json
+    signals = generate_weekly_signals(natal_moon_sign="Scorpio")
+    print(json.dumps(signals, indent=2))

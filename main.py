@@ -2522,7 +2522,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         if "id" not in chart_data:
             chart_data["id"] = request.chart_id
         try:
-            _vim_md = dashas.get("vimsottari", [{}])[0].get("lord_or_sign", "") if dashas else ""
+            _vim_md = dashas_response.get("vimsottari", [{}])[0].get("lord_or_sign", "") if dashas_response else ""
             _use_jaimini = _vimsottari_is_ambiguous(chart_data, _vim_md, request.question)
 
             if _use_jaimini:
@@ -5863,6 +5863,62 @@ async def get_executive_summary(chart_id: str):
         return {"error": str(e)}
 # --- END EXECUTIVE SUMMARY ENDPOINT ---
 
+
+
+# ═══════════════════════════════════════════════════════════════════
+# GET /api/v1/daily-week/{chart_id}  — 7-Day Daily Signal Engine
+# ═══════════════════════════════════════════════════════════════════
+
+@app.get("/api/v1/daily-week/{chart_id}")
+async def get_daily_week(chart_id: str):
+    """
+    Returns 7-day daily signal array starting from today (UTC).
+    Data used: Moon nakshatra/sign, Mercury sign, natal Moon sign only.
+    """
+    try:
+        # 1. Fetch chart from Supabase
+        chart_resp = supabase.table("charts").select("*").eq("id", chart_id).single().execute()
+        if not chart_resp.data:
+            raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+
+        chart_data = chart_resp.data
+
+        # 2. Extract natal Moon sign
+        #    Moon is stored in chart_data["planets"] as a list of planet dicts
+        #    or in chart_data["chart_data"]["planets"] depending on schema
+        natal_moon_sign = "Aries"  # safe default
+
+        planets = None
+        raw = chart_data.get("chart_data") or chart_data
+        if isinstance(raw, dict):
+            planets = raw.get("planets") or raw.get("planet_positions")
+
+        if planets:
+            for p in planets:
+                if isinstance(p, dict):
+                    name = p.get("name", "").lower() or p.get("planet", "").lower()
+                    if name == "moon":
+                        natal_moon_sign = p.get("sign") or p.get("rashi") or "Aries"
+                        break
+
+        logger.info(f"[daily-week] chart={chart_id} natal_moon={natal_moon_sign}")
+
+        # 3. Generate signals
+        from antar_engine.daily_prediction_engine import generate_weekly_signals
+        signals = generate_weekly_signals(natal_moon_sign=natal_moon_sign)
+
+        return {
+            "chart_id": chart_id,
+            "natal_moon_sign": natal_moon_sign,
+            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "days": signals
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"[daily-week] Error for chart {chart_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Daily week generation failed: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn
