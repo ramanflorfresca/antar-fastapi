@@ -61,11 +61,22 @@ def get_nation_chart(country_code: str, supabase: Client, force_refresh: bool = 
     def _safe(obj):
         return _json.loads(_json.dumps(obj, default=str))
 
+    # Extract dasha fields for real columns
+    _vim_list = vim.get("mahadashas", vim) if isinstance(vim, dict) else []
+    _curr_md = ""
+    _curr_ad = ""
+    if isinstance(_vim_list, list) and _vim_list:
+        _curr_md = str(_vim_list[0].get("lord_or_sign", ""))
+        _ads = _vim_list[0].get("antardashas", [])
+        if _ads:
+            _curr_ad = str(_ads[0].get("lord_or_sign", ""))
+
     supabase.table(NATION_CHARTS_TABLE).upsert({
         "country_code": country_code,
         "chart_data": _safe(chart_data),
-        "dashas": _safe(vim),
-        "last_updated": datetime.now(timezone.utc).isoformat()
+        "current_mahadasha": _curr_md,
+        "current_antardasha": _curr_ad,
+        "last_calculated": datetime.now(timezone.utc).isoformat()
     }).execute()
 
     return cache_data
