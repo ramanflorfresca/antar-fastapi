@@ -56,11 +56,15 @@ def get_nation_chart(country_code: str, supabase: Client, force_refresh: bool = 
         "dashas": vim  # contains mahadashas and antardashas
     }
 
-    # Upsert into cache
+    # Upsert into cache — serialize datetimes before insert
+    import json as _json
+    def _safe(obj):
+        return _json.loads(_json.dumps(obj, default=str))
+
     supabase.table(NATION_CHARTS_TABLE).upsert({
         "country_code": country_code,
-        "chart_data": chart_data,
-        "dashas": vim,
+        "chart_data": _safe(chart_data),
+        "dashas": _safe(vim),
         "last_updated": datetime.now(timezone.utc).isoformat()
     }).execute()
 
