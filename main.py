@@ -7813,6 +7813,72 @@ WEEKDAY_CONTEXT = {
 }
 
 
+# Country ISO → UTC offset map for daily-week start date
+_COUNTRY_TZ_OFFSETS = {
+    # USA — use Eastern as default (most populous timezone)
+    "US": -5,
+    # LATAM
+    "CO": -5,   # Colombia
+    "BR": -3,   # Brazil (Brasília)
+    "AR": -3,   # Argentina
+    "MX": -6,   # Mexico (Central — Mexico City)
+    "PE": -5,   # Peru
+    "CL": -4,   # Chile
+    "PA": -5,   # Panama
+    "EC": -5,   # Ecuador
+    "BO": -4,   # Bolivia
+    "PY": -4,   # Paraguay
+    "UY": -3,   # Uruguay
+    "VE": -4,   # Venezuela
+    "GT": -6,   # Guatemala
+    "HN": -6,   # Honduras
+    "SV": -6,   # El Salvador
+    "NI": -6,   # Nicaragua
+    "CR": -6,   # Costa Rica
+    "DO": -4,   # Dominican Republic
+    "CU": -5,   # Cuba
+    # Europe
+    "GB": 0,
+    "DE": 1,
+    "FR": 1,
+    "ES": 1,
+    "IT": 1,
+    "NL": 1,
+    "PT": 0,
+    # Asia / Middle East
+    "IN": 5,    # India (+5:30 — use 5)
+    "AE": 4,    # UAE
+    "SG": 8,    # Singapore
+    "JP": 9,    # Japan
+    "AU": 10,   # Australia (AEST)
+    # Africa
+    "ZA": 2,    # South Africa
+    "KE": 3,    # Kenya
+    "NG": 1,    # Nigeria
+    # Default
+    "DEFAULT": 0,
+}
+
+def _get_local_start_date(tz_offset: int = None, current_country: str = None):
+    """
+    Returns today's date in the user's local timezone.
+    Priority: explicit tz_offset > country lookup > UTC
+    """
+    from datetime import datetime, timedelta, timezone
+    if tz_offset is None and current_country:
+        tz_offset = _COUNTRY_TZ_OFFSETS.get(
+            (current_country or "").upper(),
+            _COUNTRY_TZ_OFFSETS["DEFAULT"]
+        )
+    if tz_offset is None:
+        tz_offset = 0
+    # Clamp to valid range
+    tz_offset = max(-12, min(14, tz_offset))
+    local_now = datetime.now(timezone.utc) + timedelta(hours=tz_offset)
+    return local_now.replace(hour=0, minute=0, second=0, microsecond=0, tzinfo=None)
+
+
+
 def _compute_user_age(birth_date_str: str) -> int:
     """Compute age from birth_date string YYYY-MM-DD."""
     try:
@@ -8115,6 +8181,84 @@ async def get_daily_week(chart_id: str):
         return {
             "chart_id": chart_id,
             "natal_moon_sign": natal_moon_sign,
+            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "days": signals
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[daily-week] Error for chart {chart_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Daily week generation failed: {str(e)}")
+
+
+# ═══════════════════════════════════════════════════════════════════
+# GET /api/v1/daily-week/{chart_id}  — 7-Day Daily Signal Engine
+# Timezone-aware: pass ?tz_offset=-5 or auto-detected from country
+# ═══════════════════════════════════════════════════════════════════
+
+@app.get("/api/v1/daily-week/{chart_id}")
+async def get_daily_week(chart_id: str, tz_offset: float = None):
+    """
+    Returns 7-day daily signal array starting from TODAY in user's local timezone.
+    
+    Args:
+        tz_offset: UTC offset in hours (e.g. -5 for Colombia/EST, -3 for Brazil)
+                   If not provided, auto-detected from chart's current_country.
+    
+    WOW event signal fires for today when executive summary shows PEAK/ACTIVE instrument.
+    """
+    try:
+        # 1. Fetch chart
+        chart_resp = supabase.table("charts").select("*").eq("id", chart_id).single().execute()
+        if not chart_resp.data:
+            raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+        chart_data = chart_resp.data
+
+        # 2. Extract natal Moon sign
+        natal_moon_sign = "Aries"
+        planets = None
+        raw = chart_data.get("chart_data") or chart_data
+        if isinstance(raw, dict):
+            planets = raw.get("planets") or raw.get("planet_positions")
+        if planets:
+            for p in planets:
+                if isinstance(p, dict):
+                    name = p.get("name", "").lower() or p.get("planet", "").lower()
+                    if name == "moon":
+                        natal_moon_sign = p.get("sign") or p.get("rashi") or "Aries"
+                        break
+
+        # 3. Compute local start date
+        current_country = chart_data.get("current_country") or chart_data.get("birth_country") or ""
+        start_date = _get_local_start_date(
+            tz_offset=int(tz_offset) if tz_offset is not None else None,
+            current_country=current_country
+        )
+        effective_offset = int(tz_offset) if tz_offset is not None else _COUNTRY_TZ_OFFSETS.get(
+            current_country.upper(), 0
+        )
+
+        print(f"[daily-week] chart={chart_id} natal_moon={natal_moon_sign} country={current_country} tz={effective_offset:+d} start={start_date.date()}")
+
+        # 4. Generate 7-day signals from local start date
+        from antar_engine.daily_prediction_engine import generate_weekly_signals
+        signals = generate_weekly_signals(natal_moon_sign=natal_moon_sign, start_date=start_date)
+
+        # 5. Get WOW event signal for TODAY only
+        today_nakshatra = signals[0].get("moon_nakshatra", "Unknown") if signals else "Unknown"
+        today_weekday = signals[0].get("day", "Monday") if signals else "Monday"
+        wow_signal = _get_wow_signal_for_chart(chart_id, chart_data, today_nakshatra, today_weekday)
+
+        # 6. Attach WOW to today only
+        for i, day in enumerate(signals):
+            day["event_signal"] = wow_signal if i == 0 else None
+
+        return {
+            "chart_id": chart_id,
+            "natal_moon_sign": natal_moon_sign,
+            "timezone_offset": effective_offset,
+            "local_date": start_date.strftime("%Y-%m-%d"),
             "generated_at": datetime.utcnow().isoformat() + "Z",
             "days": signals
         }
