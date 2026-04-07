@@ -9477,6 +9477,186 @@ def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: 
 # GET /api/v1/daily-week/{chart_id}  — 7-Day Daily Signal Engine
 # ═══════════════════════════════════════════════════════════════════
 
+@app.get("/api/v1/hora/{chart_id}")
+async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
+    """
+    Kala Hora — Planetary Hour Timing Engine.
+    Returns current hora + upcoming N horas with FIELD×MODE guidance.
+    Includes WOW convergence if daily signal is available.
+    """
+    from antar_engine.hora_engine import get_hora_schedule, get_next_power_hora
+
+    # Fetch chart for lat/lng and archetype
+    chart_res = supabase.table("charts").select(
+        "latitude, longitude, current_country, character_archetype"
+    ).eq("id", chart_id).single().execute()
+
+    if not chart_res.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+
+    row = chart_res.data
+    lat = row.get("latitude") or 4.7110    # default Bogotá
+    lng = row.get("longitude") or -74.0721
+
+    # Auto-detect tz_offset from country if not provided
+    if tz_offset is None:
+        country = row.get("current_country", "")
+        from main import _COUNTRY_TZ_OFFSETS
+        tz_offset = _COUNTRY_TZ_OFFSETS.get(country, 0)
+
+    # Get daily field + friction from daily signal (non-fatal)
+    daily_field = None
+    is_friction_day = False
+    try:
+        arch = row.get("character_archetype") or {}
+        daily_field = arch.get("dominant_field")
+
+        # Check today's daily signal for friction
+        from antar_engine.daily_prediction_engine import generate_weekly_signals
+        _signals = generate_weekly_signals(chart_id, supabase, tz_offset=tz_offset)
+        if _signals:
+            is_friction_day = _signals[0].get("is_friction_day", False)
+    except Exception as _de:
+        pass  # non-fatal — hora works without daily integration
+
+    result = get_hora_schedule(
+        lat=lat,
+        lng=lng,
+        tz_offset=tz_offset,
+        n_horas=n,
+        daily_field=daily_field,
+        is_friction_day=is_friction_day,
+    )
+
+    # Add next power hora for friction days
+    if is_friction_day and daily_field and result.get("upcoming_horas"):
+        result["next_power_hora"] = get_next_power_hora(
+            result["upcoming_horas"], daily_field
+        )
+
+    return result
+
+
+@app.get("/api/v1/hora/{chart_id}")
+async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
+    """
+    Kala Hora — Planetary Hour Timing Engine.
+    Returns current hora + upcoming N horas with FIELD×MODE guidance.
+    Includes WOW convergence if daily signal is available.
+    """
+    from antar_engine.hora_engine import get_hora_schedule, get_next_power_hora
+
+    # Fetch chart for lat/lng and archetype
+    chart_res = supabase.table("charts").select(
+        "latitude, longitude, current_country, character_archetype"
+    ).eq("id", chart_id).single().execute()
+
+    if not chart_res.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+
+    row = chart_res.data
+    lat = row.get("latitude") or 4.7110    # default Bogotá
+    lng = row.get("longitude") or -74.0721
+
+    # Auto-detect tz_offset from country if not provided
+    if tz_offset is None:
+        country = row.get("current_country", "")
+        from main import _COUNTRY_TZ_OFFSETS
+        tz_offset = _COUNTRY_TZ_OFFSETS.get(country, 0)
+
+    # Get daily field + friction from daily signal (non-fatal)
+    daily_field = None
+    is_friction_day = False
+    try:
+        arch = row.get("character_archetype") or {}
+        daily_field = arch.get("dominant_field")
+
+        # Check today's daily signal for friction
+        from antar_engine.daily_prediction_engine import generate_weekly_signals
+        _signals = generate_weekly_signals(chart_id, supabase, tz_offset=tz_offset)
+        if _signals:
+            is_friction_day = _signals[0].get("is_friction_day", False)
+    except Exception as _de:
+        pass  # non-fatal — hora works without daily integration
+
+    result = get_hora_schedule(
+        lat=lat,
+        lng=lng,
+        tz_offset=tz_offset,
+        n_horas=n,
+        daily_field=daily_field,
+        is_friction_day=is_friction_day,
+    )
+
+    # Add next power hora for friction days
+    if is_friction_day and daily_field and result.get("upcoming_horas"):
+        result["next_power_hora"] = get_next_power_hora(
+            result["upcoming_horas"], daily_field
+        )
+
+    return result
+
+
+@app.get("/api/v1/hora/{chart_id}")
+async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
+    """
+    Kala Hora — Planetary Hour Timing Engine.
+    Returns current hora + upcoming N horas with FIELD×MODE guidance.
+    Includes WOW convergence if daily signal is available.
+    """
+    from antar_engine.hora_engine import get_hora_schedule, get_next_power_hora
+
+    # Fetch chart for lat/lng and archetype
+    chart_res = supabase.table("charts").select(
+        "latitude, longitude, current_country, character_archetype"
+    ).eq("id", chart_id).single().execute()
+
+    if not chart_res.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+
+    row = chart_res.data
+    lat = row.get("latitude") or 4.7110    # default Bogotá
+    lng = row.get("longitude") or -74.0721
+
+    # Auto-detect tz_offset from country if not provided
+    if tz_offset is None:
+        country = row.get("current_country", "")
+        from main import _COUNTRY_TZ_OFFSETS
+        tz_offset = _COUNTRY_TZ_OFFSETS.get(country, 0)
+
+    # Get daily field + friction from daily signal (non-fatal)
+    daily_field = None
+    is_friction_day = False
+    try:
+        arch = row.get("character_archetype") or {}
+        daily_field = arch.get("dominant_field")
+
+        # Check today's daily signal for friction
+        from antar_engine.daily_prediction_engine import generate_weekly_signals
+        _signals = generate_weekly_signals(chart_id, supabase, tz_offset=tz_offset)
+        if _signals:
+            is_friction_day = _signals[0].get("is_friction_day", False)
+    except Exception as _de:
+        pass  # non-fatal — hora works without daily integration
+
+    result = get_hora_schedule(
+        lat=lat,
+        lng=lng,
+        tz_offset=tz_offset,
+        n_horas=n,
+        daily_field=daily_field,
+        is_friction_day=is_friction_day,
+    )
+
+    # Add next power hora for friction days
+    if is_friction_day and daily_field and result.get("upcoming_horas"):
+        result["next_power_hora"] = get_next_power_hora(
+            result["upcoming_horas"], daily_field
+        )
+
+    return result
+
+
 @app.get("/api/v1/daily-week/{chart_id}")
 async def get_daily_week(chart_id: str):
     """
