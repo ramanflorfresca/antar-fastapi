@@ -21,6 +21,7 @@ from openai import AsyncOpenAI
 from antar_engine import chart, vimsottari, jaimini, ashtottari, utils, constants
 from antar_engine.karakas import psychological_profile, get_all_karakas
 from antar_engine import transits, divisional, timing_engine, nation_engine, remedy_selector
+from antar_engine.natal_signatures import ensure_signatures, build_signature_context_block, compute_natal_signatures, derive_archetype
 from antar_engine.country_context import get_country_context
 
 # New modules
@@ -2553,6 +2554,16 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             chart_data.get("lagna", {}).get("sign", "") if isinstance(chart_data.get("lagna"), dict) else "",
         )
         # ── QUESTION MODE ROUTING — Sprint Apr7 ──────────────────────
+        # ── Natal Signatures + Archetype (lazy compute / backfill) ──
+        try:
+            _planet_sigs, _char_archetype = ensure_signatures(
+                request.chart_id, chart_data, supabase
+            )
+            _signature_block = build_signature_context_block(_planet_sigs, _char_archetype)
+        except Exception as _sig_e:
+            print(f"[predict] Signatures non-fatal error: {_sig_e}")
+            _planet_sigs, _char_archetype, _signature_block = {}, {}, ""
+
         _question_mode = _classify_question_mode(request.question)
         print(f"[predict] Question mode: {_question_mode} for: {request.question[:60]}")
 
@@ -2672,6 +2683,10 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             _full_context += "\n" + divisional_block
         if diagnostic_block and diagnostic_block not in _full_context:
             _full_context += "\n" + diagnostic_block
+        # Inject natal signature + archetype block
+        if _signature_block and _signature_block not in _full_context:
+            _full_context += "\n\n" + _signature_block
+            print(f"[predict] Natal signature block injected — {_char_archetype.get('name','?')}")
         # --- END INJECT ---
         print(f"[predict] Full context: {len(_full_context)} chars")
     except Exception as _ctx_e:
@@ -4190,6 +4205,18 @@ async def create_chart(
         print(f"[chart/create] Intent detection failed (non-fatal): {_intent_err}")
         _signup_intent = None
     # -- end Telepathic Onboarding --
+
+    # ── Compute natal signatures at chart creation ──────────────────
+    try:
+        _new_sigs      = compute_natal_signatures(chart_data)
+        _new_archetype = derive_archetype(_new_sigs)
+        supabase.table("charts").update({
+            "planet_signatures":   _new_sigs,
+            "character_archetype": _new_archetype,
+        }).eq("id", chart_id).execute()
+        print(f"[chart/create] Signatures stored — {_new_archetype.get('name','?')}")
+    except Exception as _sig_create_e:
+        print(f"[chart/create] Signatures non-fatal: {_sig_create_e}")
 
     return ChartCreateResponse(
         chart_id=chart_id,
