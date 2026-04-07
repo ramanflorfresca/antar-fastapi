@@ -1249,7 +1249,7 @@ async def call_llm_claude(
     Used for: plain English summaries, career/wealth predictions, Prashna verdicts.
     Falls back to DeepSeek if Claude unavailable.
     """
-    if not _CLAUDE_AVAILABLE or not claude_client:
+    if True:  # TEMP: force DeepSeek for comparison test
         return await call_llm(prompt, history, DEEPSEEK_FALLBACK_PROMPT)
 
     history = history or []
