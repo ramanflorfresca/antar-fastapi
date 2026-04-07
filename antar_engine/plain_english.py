@@ -551,7 +551,7 @@ OUTPUT FORMAT — return EXACTLY this JSON and nothing else:
 
 {
   "why_this": "ONE sentence. Why THIS person at THIS age is experiencing this. Specific, not generic. Reframes from victim to participant.",
-  "plain_summary": "3-4 sentences following WHY then WHAT then WHEN then BRIDGE. Sentence 1 MUST be the WHY. No jargon. No planet names. No cycles over 5 years. No past dates.",
+  "plain_summary": "The 4-layer format below. Use \n\n between layers. No planet names. No astrology terms. No cycles over 5 years. No past dates.\n\n✦ VERDICT: [one action verb + directive. Max 12 words.]\n\nEVIDENCE: [2-3 sentences. What the pattern shows in plain business/life language. No astrology. Just: your wealth flows through X not Y. Your execution capacity is dormant until Z. Your window opens August 2026.]\n\nTRANSLATION: [2-3 sentences. Apply DKP — mention their location, role, ventures by name if known. Make it specific to THIS person not a generic chart reading.]\n\nLAL KITAB ACTION: [1-2 sentences. ONLY include if question asks what to do or how to fix something. ONE behavioral action — secular, practical, specific. Skip this layer entirely for timing or life-path questions.]\n\nTHE MOVE: [One specific action + date. Verb-first. This week or within 30 days.]",
   "action_item": "ONE specific action for THIS WEEK. Verb-first. Must be DIFFERENT from previous turns. Gets more specific with each follow-up.",
   "signal_line": "The headline. Under 15 words. Core timing truth.",
   "timing_window": "Specific. Two-phase windows OK. Can show full range here.",
@@ -561,11 +561,14 @@ OUTPUT FORMAT — return EXACTLY this JSON and nothing else:
 
 SELF-CHECK (verify before returning):
 
-- Does sentence 1 of plain_summary explain WHY this person specifically?
+- Does plain_summary start with ✦ VERDICT:?
+- Does plain_summary have EVIDENCE: and TRANSLATION: sections?
+- LAL KITAB ACTION included only if question asks for action/advice?
+- Does TRANSLATION mention the person's specific context (location, role, ventures)?
 - Would a 57-year-old businessman feel seen — not lectured?
 - No planet names anywhere in plain_summary or action_item?
-- No cycles longer than 5 years mentioned in plain_summary?
-- No dates before April 03, 2026?
+- No cycles longer than 5 years mentioned?
+- No dates before April 07, 2026?
 - No trailing question at the end?
 - If this is a follow-up: is this response DIFFERENT from the previous one?
 - Action item — could I do this literally this week?
