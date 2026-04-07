@@ -2499,9 +2499,16 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         # Transit behavioral translation — plain English for Claude
         try:
             # _tr_data is a wrapper — actual transits are in current_transits key
-            _tr_actual = _tr_data.get("current_transits", _tr_data) if isinstance(_tr_data, dict) else {}
+            _tr_raw = _tr_data.get("current_transits", _tr_data) if isinstance(_tr_data, dict) else _tr_data
+            # Normalize: could be list [{planet:..}] or dict {planet:{..}}
+            if isinstance(_tr_raw, list):
+                _tr_actual = {t["planet"]: t for t in _tr_raw if isinstance(t, dict) and "planet" in t}
+            elif isinstance(_tr_raw, dict):
+                _tr_actual = _tr_raw
+            else:
+                _tr_actual = {}
             print(f"[transit-lang] transit planets: {list(_tr_actual.keys())[:5]}")
-            if _tr_actual and isinstance(_tr_actual, dict):
+            if _tr_actual:
                 _transit_list = []
                 for _planet, _tdata in _tr_actual.items():
                     if isinstance(_tdata, dict):
