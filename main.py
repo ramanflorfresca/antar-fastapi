@@ -8434,10 +8434,11 @@ def build_transit_behavioral_block(
         if t.get("planet") in PRIORITY_PLANETS else 99
     )[:max_transits]
 
+    print(f"[transit-lang] first transit keys: {list(sorted_transits[0].keys()) if sorted_transits else []}")
     transit_contexts = []
     for t in sorted_transits:
         trans_planet = t.get("planet", "")
-        trans_nak = t.get("nakshatra", "")
+        trans_nak = t.get("nakshatra", "") or t.get("nak", "") or t.get("nakshatra_name", "")
         trans_sign = t.get("sign", "")
 
         # Find closest natal planet (house match or aspect)
