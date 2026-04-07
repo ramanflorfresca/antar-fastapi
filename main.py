@@ -2693,13 +2693,13 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             _vim_md = dashas_response.get("vimsottari", [{}])[0].get("lord_or_sign", "") if dashas_response else ""
             _use_jaimini = _vimsottari_is_ambiguous(chart_data, _vim_md, request.question)
 
-            if _use_jaimini:
+            if _use_jaimini and chart_record.get("jaimini_data"):
                 _full_context += "\n[JAIMINI TIE-BREAKER — Vimsottari signal is ambiguous or timing-specific]\n"
-                _jaimini_block = format_jaimini_context_from_stored(chart_data)
+                _jaimini_block = format_jaimini_context_from_stored(chart_record)
                 if _jaimini_block:
                     _full_context += _jaimini_block
                 _concern = getattr(request, 'concern', '') or getattr(request, 'question', '') or ''
-                _jaimini_conv = score_jaimini_convergence(chart_data, _concern)
+                _jaimini_conv = score_jaimini_convergence(chart_record, _concern)
                 if _jaimini_conv:
                     _full_context += "\n" + _jaimini_conv + "\n"
                 # Bridge only fires with Jaimini
