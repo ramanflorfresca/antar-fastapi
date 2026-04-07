@@ -5222,16 +5222,37 @@ async def compatibility_start(request: CompatibilityStartRequest):
     except Exception as _se:
         print(f"[compat] session save error (non-fatal): {_se}")
 
+    # ── FIELD×MODE Synastry Layer ────────────────────────────────────────────
+    _field_mode_layer = {}
+    try:
+        from antar_engine.synastry_engine import compute_field_mode_synastry, get_or_compute_archetype
+        _arch_a = get_or_compute_archetype(request.chart_id_a, chart_a, supabase)
+        _arch_b = get_or_compute_archetype(chart_id_b, chart_b, supabase)
+        if _arch_a and _arch_b:
+            _field_mode_layer = compute_field_mode_synastry(_arch_a, _arch_b, name_a, request.name_b)
+            print(f"[compat] Synastry: {_arch_a.get('name')} + {_arch_b.get('name')} = {_field_mode_layer.get('verdict')}")
+            # Save to session
+            try:
+                supabase.table("compatibility_sessions").update({
+                    "field_mode_synastry": _field_mode_layer
+                }).eq("id", session_id).execute()
+            except Exception as _sye:
+                print(f"[compat] synastry save error (non-fatal): {_sye}")
+    except Exception as _fe:
+        print(f"[compat] synastry layer error (non-fatal): {_fe}")
+    # ── end synastry ──────────────────────────────────────────────────────────
+
     return {
-        "session_id":     session_id,
-        "layer":          1,
-        "chart_id_b":     chart_id_b,
-        "analysis":       layer1,
-        "has_time_a":     has_time_a,
-        "has_time_b":     has_time_b,
-        "confidence_pct": 90 if (has_time_a and has_time_b) else 65,
-        "next_question":  "Would you like to analyze startup or business alignment?",
-        "can_continue":   True,
+        "session_id":       session_id,
+        "layer":            1,
+        "chart_id_b":       chart_id_b,
+        "analysis":         layer1,
+        "has_time_a":       has_time_a,
+        "has_time_b":       has_time_b,
+        "confidence_pct":   90 if (has_time_a and has_time_b) else 65,
+        "next_question":    "Would you like to analyze startup or business alignment?",
+        "can_continue":     True,
+        "field_mode_layer": _field_mode_layer or None,
     }
 
 
