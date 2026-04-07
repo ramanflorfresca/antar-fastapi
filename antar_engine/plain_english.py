@@ -551,7 +551,7 @@ OUTPUT FORMAT — return EXACTLY this JSON and nothing else:
 
 {
   "why_this": "ONE sentence. Why THIS person at THIS age is experiencing this. Specific, not generic. Reframes from victim to participant.",
-  "plain_summary": "The 4-layer format below. Use \n\n between layers. No planet names. No astrology terms. No cycles over 5 years. No past dates.\n\n✦ VERDICT: [one action verb + directive. Max 12 words.]\n\nEVIDENCE: [2-3 sentences. What the pattern shows in plain business/life language. No astrology. Just: your wealth flows through X not Y. Your execution capacity is dormant until Z. Your window opens August 2026.]\n\nTRANSLATION: [2-3 sentences. Apply DKP — mention their location, role, ventures by name if known. Make it specific to THIS person not a generic chart reading.]\n\nLAL KITAB ACTION: [1-2 sentences. ONLY include if question asks what to do or how to fix something. ONE behavioral action — secular, practical, specific. Skip this layer entirely for timing or life-path questions.]\n\nTHE MOVE: [One specific action + date. Verb-first. This week or within 30 days.]",
+  "plain_summary": "IMPORTANT: This is a JSON string value. Use the literal text \\n\\n between sections — do NOT output actual newline characters. Format: ✦ VERDICT: [action. directive. max 12 words.] \\n\\n EVIDENCE: [2-3 sentences in plain language. No astrology terms. Your wealth flows through X not Y. Window opens August 2026.] \\n\\n TRANSLATION: [2-3 sentences. Mention their specific location, role, ventures by name. Make it personal.] \\n\\n LAL KITAB ACTION: [1-2 sentences. ONLY if action question. Behavioral, secular, specific. Skip entirely for timing/life-path questions.] \\n\\n THE MOVE: [One action + date. Verb-first.]",
   "action_item": "ONE specific action for THIS WEEK. Verb-first. Must be DIFFERENT from previous turns. Gets more specific with each follow-up.",
   "signal_line": "The headline. Under 15 words. Core timing truth.",
   "timing_window": "Specific. Two-phase windows OK. Can show full range here.",
@@ -686,7 +686,7 @@ def _build_user_message(raw_prediction: str, chart_context: dict, lk_context: Op
 
 
 def _parse_json(text: str) -> dict:
-    """Extract JSON from Claude response, handles markdown fences."""
+    """Extract JSON from Claude response, handles markdown fences and multiline values."""
     text = text.strip()
 
     # Strip markdown fences if present
@@ -698,16 +698,61 @@ def _parse_json(text: str) -> dict:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        # Try to find JSON object within the text
-        match = re.search(r'\{.*\}', text, re.DOTALL)
-        if match:
+        pass
+
+    # Try to find JSON object within the text
+    match = re.search(r'\{.*\}', text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group())
+        except json.JSONDecodeError:
+            # Try sanitizing literal newlines inside string values
+            sanitized = _sanitize_json_newlines(match.group())
             try:
-                return json.loads(match.group())
+                return json.loads(sanitized)
             except json.JSONDecodeError:
                 pass
 
+    # Last resort: try sanitizing the full text
+    sanitized = _sanitize_json_newlines(text)
+    try:
+        return json.loads(sanitized)
+    except json.JSONDecodeError:
+        pass
+
     logger.warning("plain_english: could not parse JSON from Claude response")
     return {}
+
+
+def _sanitize_json_newlines(text: str) -> str:
+    """
+    Replace literal newlines inside JSON string values with \\n.
+    Handles cases where Claude outputs real newlines instead of \\n in strings.
+    """
+    import re as _re
+    result = []
+    in_string = False
+    escape_next = False
+    for i, ch in enumerate(text):
+        if escape_next:
+            result.append(ch)
+            escape_next = False
+            continue
+        if ch == '\\' and in_string:
+            escape_next = True
+            result.append(ch)
+            continue
+        if ch == '"':
+            in_string = not in_string
+            result.append(ch)
+            continue
+        if in_string and ch == '\n':
+            result.append('\\n')
+            continue
+        if in_string and ch == '\r':
+            continue
+        result.append(ch)
+    return ''.join(result)
 
 
 def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
