@@ -2495,6 +2495,41 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         else:
             _tr_data = calculate_current_transits(chart_data)
             print("[predict] Full transits loaded — timing question")
+
+        # Transit behavioral translation — plain English for Claude
+        try:
+            if transits_data and isinstance(transits_data, dict):
+                _transit_list = []
+                for _planet, _tdata in transits_data.items():
+                    if isinstance(_tdata, dict):
+                        _transit_list.append({
+                            "planet": _planet,
+                            "nakshatra": _tdata.get("nakshatra", ""),
+                            "sign": _tdata.get("sign", ""),
+                            "house": _tdata.get("house", 0),
+                        })
+                _natal_planets = {}
+                _raw_planets = chart_data.get("planets", {})
+                if isinstance(_raw_planets, dict):
+                    for _pname, _pdata in _raw_planets.items():
+                        if isinstance(_pdata, dict):
+                            _natal_planets[_pname] = {
+                                "nakshatra": _pdata.get("nakshatra", ""),
+                                "sign": _pdata.get("sign", ""),
+                                "house": _pdata.get("house", 0),
+                            }
+                _user_prof = {
+                    "first_name": chart_data.get("first_name") or chart_data.get("name", ""),
+                    "current_country": chart_data.get("current_country", ""),
+                }
+                _transit_block = build_transit_behavioral_block(
+                    _transit_list, _natal_planets, _user_prof
+                )
+                if _transit_block:
+                    _full_context += _transit_block
+                    print(f"[predict] Transit behavioral block injected ({len(_transit_block)} chars)")
+        except Exception as _tbe:
+            print(f"[predict] Transit behavioral translation failed (non-fatal): {_tbe}")
         # ── END QUESTION MODE ROUTING ─────────────────────────────
 
         _chart_rec = supabase.table("charts").select("birth_date,gender,name").eq("id", request.chart_id).execute()
@@ -8190,6 +8225,332 @@ _NAK_TO_FIELD = {
     "Purva Bhadrapada": "EDGE", "Uttara Bhadrapada": "DEPTH", "Revati": "COMPLETION",
 }
 
+
+# ═══════════════════════════════════════════════════════════════════
+# TRANSIT LANGUAGE ENGINE
+# Translates raw transit data into behavioral plain English
+# Using FIELD×MODE matrix intersection system
+# ═══════════════════════════════════════════════════════════════════
+
+# Planet → what force it represents (plain language)
+_PLANET_FORCE = {
+    "Sun":     "a visibility and authority force",
+    "Moon":    "an emotional and intuitive signal",
+    "Mercury": "a communication and information force",
+    "Venus":   "a relationship and value signal",
+    "Mars":    "an action and conflict force",
+    "Jupiter": "an expansion and opportunity force",
+    "Saturn":  "a structural pressure and discipline force",
+    "Rahu":    "an ambition and disruption force",
+    "Ketu":    "a release and detachment signal",
+}
+
+# Planet → what life area it governs when transiting (plain language)
+_PLANET_DOMAIN = {
+    "Sun":     "your visibility, reputation, and authority",
+    "Moon":    "your emotional state, home, and daily rhythm",
+    "Mercury": "your communications, decisions, and information flow",
+    "Venus":   "your relationships, finances, and creative work",
+    "Mars":    "your energy, ambition, and conflicts",
+    "Jupiter": "your growth, opportunities, and belief systems",
+    "Saturn":  "your career structure, discipline, and long-term foundations",
+    "Rahu":    "your ambitions, obsessions, and foreign connections",
+    "Ketu":    "your detachments, spirituality, and past patterns",
+}
+
+# FIELD → what life texture it represents (plain language)
+_FIELD_TEXTURE = {
+    "IGNITION":   "new beginnings and starting energy",
+    "THRESHOLD":  "transitions and crossing points",
+    "PRECISION":  "accuracy, detail, and surgical decisions",
+    "GROWTH":     "expansion, nurturing, and development",
+    "DISCOVERY":  "searching, curiosity, and finding hidden things",
+    "STORM":      "disruption, transformation, and clearing",
+    "RECOVERY":   "healing, rebuilding, and restoration",
+    "ANCHOR":     "stability, security, and foundational needs",
+    "STRATEGY":   "planning, tactics, and calculated moves",
+    "COMMAND":    "authority, legacy, and leadership presence",
+    "MAGNETISM":  "attraction, charisma, and drawing things in",
+    "FOUNDATION": "long-term building and structural integrity",
+    "EXECUTION":  "hands-on action and skilled delivery",
+    "DESIGN":     "creative vision and pattern recognition",
+    "ADAPTATION": "flexibility, pivoting, and flow",
+    "AMBITION":   "goal pursuit and upward movement",
+    "ALLIANCE":   "partnerships, loyalty, and collective power",
+    "AUTHORITY":  "seniority, command, and elder wisdom",
+    "ROOT":       "origins, core motivations, and deep patterns",
+    "MOMENTUM":   "unstoppable forward movement and timing",
+    "VICTORY":    "completion, triumph, and final results",
+    "SIGNAL":     "listening, receiving, and transmitting",
+    "ABUNDANCE":  "wealth, generosity, and overflow",
+    "CLARITY":    "seeing through confusion and gaining insight",
+    "EDGE":       "intensity, sharpness, and going to extremes",
+    "DEPTH":      "profound understanding and going beneath surfaces",
+    "COMPLETION": "endings, closure, and returning to source",
+}
+
+# MODE → how the force is delivered (plain language)
+_MODE_DELIVERY = {
+    "DRIVE":     "directly and forcefully",
+    "BUILD":     "steadily and with patience",
+    "CONNECT":   "through relationships and communication",
+    "PROTECT":   "defensively and with caution",
+    "LEAD":      "through authority and visibility",
+    "REFINE":    "through precision and improvement",
+    "BALANCE":   "through fairness and equilibrium",
+    "PENETRATE": "deeply and without surface compromise",
+    "EXPAND":    "broadly and with optimism",
+    "STRUCTURE": "systematically and with discipline",
+    "DISRUPT":   "unexpectedly and unconventionally",
+    "DISSOLVE":  "gradually and by releasing resistance",
+}
+
+# Planet pair → interaction type when transiting planet meets natal planet
+_PLANET_INTERACTION = {
+    ("Saturn", "Moon"):   "structural pressure on emotional security",
+    ("Saturn", "Sun"):    "authority being tested by discipline",
+    ("Saturn", "Mars"):   "ambition meeting resistance",
+    ("Saturn", "Venus"):  "relationships being tested for depth",
+    ("Saturn", "Mercury"):"communication becoming more careful",
+    ("Saturn", "Jupiter"):"expansion being disciplined",
+    ("Jupiter", "Moon"):  "emotional expansion and optimism",
+    ("Jupiter", "Sun"):   "authority and visibility amplified",
+    ("Jupiter", "Mars"):  "action and ambition supercharged",
+    ("Jupiter", "Venus"): "relationships and finances expanding",
+    ("Jupiter", "Saturn"):"structure meeting opportunity",
+    ("Mars", "Sun"):      "energy and drive amplified",
+    ("Mars", "Moon"):     "emotional intensity and conflict energy",
+    ("Mars", "Venus"):    "desire and action in relationships",
+    ("Mars", "Mercury"):  "sharp, aggressive communication",
+    ("Rahu", "Moon"):     "obsession disrupting emotional patterns",
+    ("Rahu", "Sun"):      "ambition disrupting identity",
+    ("Rahu", "Venus"):    "desire and obsession in relationships",
+    ("Ketu", "Moon"):     "detachment from emotional patterns",
+    ("Ketu", "Sun"):      "releasing ego and identity",
+    ("Venus", "Moon"):    "harmony and beauty entering daily life",
+    ("Venus", "Mars"):    "desire and creativity activated",
+    ("Mercury", "Moon"):  "mental activity affecting emotional state",
+    ("Mercury", "Mars"):  "sharp thinking and quick decisions",
+    ("Sun", "Moon"):      "public and private life in tension",
+    ("Sun", "Saturn"):    "visibility meeting structure",
+    ("Moon", "Sun"):      "emotional needs affecting public role",
+}
+
+
+def _get_transit_plain_context(
+    transiting_planet: str,
+    transiting_nakshatra: str,
+    transiting_sign: str,
+    natal_planet: str,
+    natal_nakshatra: str,
+    natal_sign: str,
+) -> dict:
+    """
+    Layer 1+2: Compute the plain-language context for a transit event.
+    Returns structured dict for Claude to narrate from.
+    """
+    # Get FIELD×MODE for both transiting and natal
+    trans_field = _NAK_TO_FIELD.get(transiting_nakshatra, "SIGNAL")
+    trans_mode = _SIGN_TO_MODE.get(transiting_sign, "CONNECT")
+    natal_field = _NAK_TO_FIELD.get(natal_nakshatra, "ANCHOR")
+    natal_mode = _SIGN_TO_MODE.get(natal_sign, "PROTECT")
+
+    # Look up action signatures
+    trans_sig = _FIELD_MODE_MATRIX.get((trans_field, trans_mode), ("read signal", "Stay alert."))
+    natal_sig = _FIELD_MODE_MATRIX.get((natal_field, natal_mode), ("hold steady", "Maintain your position."))
+
+    # Plain language components
+    planet_force = _PLANET_FORCE.get(transiting_planet, "a planetary force")
+    planet_domain = _PLANET_DOMAIN.get(transiting_planet, "your life circumstances")
+    trans_texture = _FIELD_TEXTURE.get(trans_field, "change")
+    trans_delivery = _MODE_DELIVERY.get(trans_mode, "steadily")
+    natal_texture = _FIELD_TEXTURE.get(natal_field, "stability")
+    interaction = _PLANET_INTERACTION.get(
+        (transiting_planet, natal_planet),
+        f"{transiting_planet} energy meeting your {natal_planet} patterns"
+    )
+
+    return {
+        "transiting_planet": transiting_planet,
+        "natal_planet": natal_planet,
+        "trans_field": trans_field,
+        "trans_mode": trans_mode,
+        "natal_field": natal_field,
+        "natal_mode": natal_mode,
+        "trans_action": trans_sig[0].upper(),
+        "natal_action": natal_sig[0].upper(),
+        "planet_force": planet_force,
+        "planet_domain": planet_domain,
+        "trans_texture": trans_texture,
+        "trans_delivery": trans_delivery,
+        "natal_texture": natal_texture,
+        "interaction": interaction,
+    }
+
+
+def build_transit_behavioral_block(
+    transits: list,
+    natal_planets: dict,
+    user_profile: dict,
+    max_transits: int = 3,
+) -> str:
+    """
+    Build a plain-English behavioral transit block for the predict prompt.
+    
+    Args:
+        transits: List of active transit dicts with planet, nakshatra, sign, house
+        natal_planets: Dict of natal planet data {name: {nakshatra, sign, house}}
+        user_profile: Dict with first_name, age, current_country, profession
+        max_transits: Max number of transits to translate (keep prompt lean)
+    
+    Returns:
+        Plain-English transit block string for injection into predict prompt
+    """
+    if not transits:
+        return ""
+
+    try:
+        import anthropic as _anth
+        _sync_client = _anth.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+    except Exception:
+        return _build_transit_block_fallback(transits, natal_planets)
+
+    # Priority: Saturn, Jupiter, Rahu first (most impactful)
+    PRIORITY_PLANETS = ["Saturn", "Rahu", "Jupiter", "Mars", "Sun", "Venus", "Mercury", "Moon", "Ketu"]
+    sorted_transits = sorted(
+        transits,
+        key=lambda t: PRIORITY_PLANETS.index(t.get("planet", "Moon"))
+        if t.get("planet") in PRIORITY_PLANETS else 99
+    )[:max_transits]
+
+    transit_contexts = []
+    for t in sorted_transits:
+        trans_planet = t.get("planet", "")
+        trans_nak = t.get("nakshatra", "")
+        trans_sign = t.get("sign", "")
+
+        # Find closest natal planet (house match or aspect)
+        natal_planet_name = t.get("natal_planet") or _find_natal_planet_for_transit(
+            t.get("house", 1), natal_planets
+        )
+        natal_data = natal_planets.get(natal_planet_name, {})
+        natal_nak = natal_data.get("nakshatra", "Pushya")
+        natal_sign = natal_data.get("sign", "Cancer")
+
+        if trans_planet and trans_nak:
+            ctx = _get_transit_plain_context(
+                trans_planet, trans_nak, trans_sign,
+                natal_planet_name, natal_nak, natal_sign
+            )
+            transit_contexts.append(ctx)
+
+    if not transit_contexts:
+        return ""
+
+    # Build prompt for Claude
+    user_name = user_profile.get("first_name") or user_profile.get("name") or "the user"
+    user_age = user_profile.get("age") or user_profile.get("user_age") or ""
+    user_country = user_profile.get("current_country") or user_profile.get("country") or ""
+
+    transit_descriptions = []
+    for ctx in transit_contexts:
+        transit_descriptions.append(
+            f"- {ctx['transiting_planet']} in {ctx['trans_field']}×{ctx['trans_mode']} "
+            f"({ctx['trans_action']}) hitting natal {ctx['natal_planet']} "
+            f"in {ctx['natal_field']}×{ctx['natal_mode']} ({ctx['natal_action']})
+"
+            f"  Interaction: {ctx['interaction']}
+"
+            f"  Force: {ctx['planet_force']} arriving {ctx['trans_delivery']} "
+            f"into {ctx['natal_texture']}"
+        )
+
+    prompt = f"""You are translating astrological transit data into behavioral plain English for a life intelligence app.
+
+USER: {user_name}, {user_age}, in {user_country}
+
+ACTIVE TRANSITS:
+{chr(10).join(transit_descriptions)}
+
+For each transit, write exactly 3 lines:
+WHAT: What kind of force or event is arriving (no astrology terms)
+WHERE: Which area of their life it hits (career/money/relationships/health/decisions)
+DO: One specific behavioral move they should take
+
+Rules:
+- No planet names visible to user
+- No nakshatra names visible to user  
+- No "transit" or "aspect" language
+- Plain English only — like a trusted advisor who happens to know the patterns
+- Each DO must be specific and actionable, not general attitude
+- If friction: acknowledge it, show how to work with it
+- If opportunity: show exactly how to capture it
+- Maximum 15 words per line
+
+Format each transit as:
+TRANSIT [N]:
+WHAT: [one line]
+WHERE: [one line]  
+DO: [one line]
+
+Output all {len(transit_contexts)} transit(s) in this format. Nothing else."""
+
+    try:
+        response = _sync_client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=300,
+            temperature=0.3,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        raw = response.content[0].text.strip()
+        print(f"[transit-lang] Generated plain-English block for {len(transit_contexts)} transit(s)")
+        return f"\n[BEHAVIORAL TRANSIT CONTEXT]\n{raw}\n"
+    except Exception as e:
+        print(f"[transit-lang] Claude call failed: {e}")
+        return _build_transit_block_fallback(transits, natal_planets)
+
+
+def _find_natal_planet_for_transit(house: int, natal_planets: dict) -> str:
+    """Find the most relevant natal planet for a transit house."""
+    HOUSE_PLANET_MAP = {
+        1: "Sun", 2: "Venus", 3: "Mercury", 4: "Moon",
+        5: "Jupiter", 6: "Mars", 7: "Venus", 8: "Saturn",
+        9: "Jupiter", 10: "Sun", 11: "Jupiter", 12: "Saturn"
+    }
+    return HOUSE_PLANET_MAP.get(house, "Moon")
+
+
+def _build_transit_block_fallback(transits: list, natal_planets: dict) -> str:
+    """Fallback: build plain-English block without Claude."""
+    lines = ["\n[CURRENT ENERGY PATTERNS]"]
+    for t in transits[:3]:
+        planet = t.get("planet", "")
+        house = t.get("house", 0)
+        force = _PLANET_FORCE.get(planet, "a planetary force")
+        domain_map = {
+            1: "your identity and presence",
+            2: "your finances and values",
+            3: "your communications and short trips",
+            4: "your home and emotional foundation",
+            5: "your creative work and children",
+            6: "your health and daily work",
+            7: "your partnerships and relationships",
+            8: "your shared resources and transformation",
+            9: "your beliefs and long-distance matters",
+            10: "your career and public reputation",
+            11: "your network and future goals",
+            12: "your inner world and hidden matters",
+        }
+        domain = domain_map.get(house, "your circumstances")
+        nak = t.get("nakshatra", "")
+        trans_field = _NAK_TO_FIELD.get(nak, "SIGNAL")
+        trans_sign = t.get("sign", "")
+        trans_mode = _SIGN_TO_MODE.get(trans_sign, "CONNECT")
+        sig = _FIELD_MODE_MATRIX.get((trans_field, trans_mode), ("read signal", "Stay alert."))
+        lines.append(f"- {force} is active in {domain}: {sig[1]}")
+    return "\n".join(lines) + "\n"
+
+
 def _get_action_signature(nakshatra: str, moon_sign: str) -> dict:
     """
     Layer 1 + 2: Compute MODE × FIELD action signature.
@@ -8636,6 +8997,12 @@ def _get_wow_signal_for_chart_v2(
         if not sd_fires and not instrument_fires:
             print(f"[daily-week] v2 WOW skipped — score={today_score} z={sd.get('z_score',0):.1f} no instrument")
             return None
+
+        # Skip LOW confidence signals — not worth showing
+        if not instrument_fires or (best_inst and best_inst.get("signal_status") not in ("PEAK", "ACTIVE")):
+            if sd.get("confidence") == "LOW":
+                print(f"[daily-week] v2 WOW skipped — LOW confidence only")
+                return None
 
         inst_name = best_inst.get("label", "").upper() if best_inst else sig.get("field") + " ENGINE"
         inst_score = best_inst.get("signal_score", 0) if best_inst else today_score * 10
