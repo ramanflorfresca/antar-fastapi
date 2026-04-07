@@ -52,67 +52,88 @@ DAY_LORD = {
 
 HORA_GUIDANCE = {
     "Sun": {
-        "window":      "AUTHORITY WINDOW",
-        "field":       "COMMAND",
-        "mode":        "DRIVE",
-        "action":      "High-status meetings, leadership decisions, visibility moves",
-        "go_dark":     False,
-        "emoji":       "☀️",
-        "color":       "#F59E0B",  # amber
+        "window":        "AUTHORITY WINDOW",
+        "field":         "COMMAND",
+        "mode":          "DRIVE",
+        "action":        "High-status meetings, leadership decisions, visibility moves",
+        "plain_active":  "Your command window is open. Send that proposal. Make the decision. Have the high-stakes conversation.",
+        "plain_next":    "Authority window opening soon. Wrap up what you're doing and prepare your most important move.",
+        "plain_dark":    "You're feeling commanding right now — but this is a friction day. High risk of coming across too hard. Wait.",
+        "go_dark":       False,
+        "emoji":         "☀️",
+        "color":         "#F59E0B",
     },
     "Venus": {
-        "window":      "MAGNETISM WINDOW",
-        "field":       "ALLIANCE",
-        "mode":        "BALANCE",
-        "action":      "Relationship building, design, negotiation, creative work",
-        "go_dark":     False,
-        "emoji":       "✦",
-        "color":       "#EC4899",  # pink
+        "window":        "MAGNETISM WINDOW",
+        "field":         "ALLIANCE",
+        "mode":          "BALANCE",
+        "action":        "Relationship building, design, negotiation, creative work",
+        "plain_active":  "Good time for relationship work, casual conversations, creative thinking. Don't force decisions — connect instead.",
+        "plain_next":    "Magnetism window opening soon. Good for a dinner conversation, a warm follow-up, or creative work.",
+        "plain_dark":    "Friction day. Even though this is a warm window, don't start new relationships or negotiations today.",
+        "go_dark":       False,
+        "emoji":         "✦",
+        "color":         "#EC4899",
     },
     "Mercury": {
-        "window":      "CONNECT WINDOW",
-        "field":       "ALLIANCE",
-        "mode":        "CONNECT",
-        "action":      "Emails, pitches, calls, rapid communication, coding",
-        "go_dark":     False,
-        "emoji":       "⚡",
-        "color":       "#00BFA5",  # teal
+        "window":        "CONNECT WINDOW",
+        "field":         "ALLIANCE",
+        "mode":          "CONNECT",
+        "action":        "Emails, pitches, calls, rapid communication, coding",
+        "plain_active":  "Best window for follow-up emails, WhatsApp replies, pitches, and fast communication. Clear your inbox.",
+        "plain_next":    "Connect window opening soon. Queue your emails and messages to send then.",
+        "plain_dark":    "Friction day. Communicate only what's necessary. Avoid sending anything that requires a nuanced read.",
+        "go_dark":       False,
+        "emoji":         "⚡",
+        "color":         "#00BFA5",
     },
     "Moon": {
-        "window":      "REFLECT WINDOW",
-        "field":       "NURTURE",
-        "mode":        "BALANCE",
-        "action":      "Intuition, planning, emotional check-ins, research",
-        "go_dark":     False,
-        "emoji":       "◐",
-        "color":       "#8B5CF6",  # purple
+        "window":        "REFLECT WINDOW",
+        "field":         "NURTURE",
+        "mode":          "BALANCE",
+        "action":        "Intuition, planning, emotional check-ins, research",
+        "plain_active":  "Wind down. Journal, plan tomorrow, let your intuition surface. Don't pitch anyone right now.",
+        "plain_next":    "Reflect window opening soon. Good time to review, not decide.",
+        "plain_dark":    "Friction day plus Moon hora — emotions run high. Avoid conversations that could spiral.",
+        "go_dark":       False,
+        "emoji":         "◐",
+        "color":         "#8B5CF6",
     },
     "Saturn": {
-        "window":      "STRUCTURE WINDOW",
-        "field":       "DEPTH",
-        "mode":        "PENETRATE",
-        "action":      "Deep work, auditing, admin, long-form writing, systems",
-        "go_dark":     False,
-        "emoji":       "⬡",
-        "color":       "#64748B",  # slate
+        "window":        "STRUCTURE WINDOW",
+        "field":         "DEPTH",
+        "mode":          "PENETRATE",
+        "action":        "Deep work, auditing, admin, long-form writing, systems",
+        "plain_active":  "Deep work only. Admin, reading, solo focus tasks. Don't try to connect with people — go internal.",
+        "plain_next":    "Structure window opening soon. Block distractions and prepare for focused solo work.",
+        "plain_dark":    "Friction day plus Saturn hora — heaviest combination. Essential tasks only. Rest if you can.",
+        "go_dark":       False,
+        "emoji":         "⬡",
+        "color":         "#64748B",
     },
     "Jupiter": {
-        "window":      "EXPANSION WINDOW",
-        "field":       "EXPANSION",
-        "mode":        "EXPAND",
-        "action":      "Strategy, big-picture planning, mentorship, learning",
-        "go_dark":     False,
-        "emoji":       "⬆",
-        "color":       "#3B82F6",  # blue
+        "window":        "EXPANSION WINDOW",
+        "field":         "EXPANSION",
+        "mode":          "EXPAND",
+        "action":        "Strategy, big-picture planning, mentorship, learning",
+        "plain_active":  "Think big. Strategy sessions, long-term planning, mentorship conversations. This is your clearest thinking window.",
+        "plain_next":    "Expansion window opening soon. Save your most important strategic thinking for then.",
+        "plain_dark":    "Even on a friction day, Jupiter hora is your safest window. Use it for planning, not action.",
+        "go_dark":       False,
+        "emoji":         "⬆",
+        "color":         "#3B82F6",
     },
     "Mars": {
-        "window":      "DRIVE WINDOW",
-        "field":       "COMMAND",
-        "mode":        "DRIVE",
-        "action":      "High-intensity execution, gym, confrontations, cold calls",
-        "go_dark":     False,
-        "emoji":       "▲",
-        "color":       "#EF4444",  # red
+        "window":        "DRIVE WINDOW",
+        "field":         "COMMAND",
+        "mode":          "DRIVE",
+        "action":        "High-intensity execution, gym, confrontations, cold calls",
+        "plain_active":  "High energy, high intensity. Good for the gym, cold calls, or pushing through a hard task. Channel it or it channels you.",
+        "plain_next":    "Drive window opening soon. Good for physical activity or high-intensity work sprints.",
+        "plain_dark":    "Friction day plus Mars hora — highest conflict risk of the day. Go dark. Postpone any confrontational conversations.",
+        "go_dark":       False,
+        "emoji":         "▲",
+        "color":         "#EF4444",
     },
 }
 
@@ -208,6 +229,7 @@ def _build_hora_grid(
     sunset: datetime,
     next_sunrise: datetime,
     start_index: int,
+    is_friction: bool = False,
 ) -> List[Dict]:
     """
     Build full 24-hora grid for one day.
@@ -227,7 +249,7 @@ def _build_hora_grid(
         start = sunrise + timedelta(seconds=i * day_hora_secs)
         end   = sunrise + timedelta(seconds=(i + 1) * day_hora_secs)
         ruler = CHALDEAN[idx % 7]
-        horas.append(_make_hora(start, end, ruler, is_day=True))
+        horas.append(_make_hora(start, end, ruler, is_day=True, is_friction=is_friction))
         idx += 1
 
     # 12 night horas
@@ -235,16 +257,17 @@ def _build_hora_grid(
         start = sunset + timedelta(seconds=i * night_hora_secs)
         end   = sunset + timedelta(seconds=(i + 1) * night_hora_secs)
         ruler = CHALDEAN[idx % 7]
-        horas.append(_make_hora(start, end, ruler, is_day=False))
+        horas.append(_make_hora(start, end, ruler, is_day=False, is_friction=is_friction))
         idx += 1
 
     return horas
 
 
-def _make_hora(start: datetime, end: datetime, ruler: str, is_day: bool) -> Dict:
+def _make_hora(start: datetime, end: datetime, ruler: str, is_day: bool, is_friction: bool = False) -> Dict:
     """Build a single hora dict."""
     guidance = HORA_GUIDANCE.get(ruler, {})
     duration_mins = int((end - start).total_seconds() / 60)
+    plain = guidance.get("plain_dark") if is_friction else guidance.get("plain_active", "")
     return {
         "ruler":          ruler,
         "start_utc":      start.isoformat(),
@@ -255,7 +278,8 @@ def _make_hora(start: datetime, end: datetime, ruler: str, is_day: bool) -> Dict
         "field":          guidance.get("field", ""),
         "mode":           guidance.get("mode", ""),
         "action":         guidance.get("action", ""),
-        "go_dark":        guidance.get("go_dark", False),
+        "plain_message":  plain,
+        "go_dark":        is_friction and ruler == "Mars",
         "emoji":          guidance.get("emoji", ""),
         "color":          guidance.get("color", "#64748B"),
     }
@@ -290,10 +314,11 @@ def _check_wow_convergence(
             "message": f"Your {daily_field} field is amplified by {hora_ruler} hora. Act now — this window closes in {{duration}} minutes.",
         }
     elif is_friction_day:
+        next_safe = matching_horas[0] if matching_horas else "Jupiter"
         return {
             "type":    "FRICTION",
             "label":   "↓ FRICTION ACTIVE",
-            "message": f"Friction day. Low-stakes tasks only. Wait for {matching_horas[0] if matching_horas else 'Jupiter'} hora.",
+            "message": f"Friction day. Low-stakes tasks only. Wait for {next_safe} hora for your best window.",
         }
     else:
         return {
@@ -351,7 +376,7 @@ def get_hora_schedule(
     start_idx = _get_hora_start_index(day_lord)
 
     # Build full 24-hora grid
-    horas = _build_hora_grid(sunrise, sunset, next_sunrise, start_idx)
+    horas = _build_hora_grid(sunrise, sunset, next_sunrise, start_idx, is_friction=is_friction_day)
 
     # Find current hora
     current_hora = None
@@ -381,7 +406,7 @@ def get_hora_schedule(
         t_weekday = (weekday + 1) % 7
         t_lord = DAY_LORD[t_weekday]
         t_start_idx = _get_hora_start_index(t_lord)
-        tomorrow_horas = _build_hora_grid(t_sunrise, t_sunset, t_next_sunrise, t_start_idx)
+        tomorrow_horas = _build_hora_grid(t_sunrise, t_sunset, t_next_sunrise, t_start_idx, is_friction=False)
         needed = n_horas - len(upcoming)
         upcoming.extend(tomorrow_horas[:needed])
 
