@@ -2110,7 +2110,8 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
                 # Will be injected into prompt via extra context
                 pass
     except Exception as e:
-        logger.warning(f"Diagnostic pre-scan failed: {e}")
+        import logging as _diag_log
+        _diag_log.getLogger("antar").warning(f"Diagnostic pre-scan failed: {e}")
         diagnostic_block = ""
     # --- END DIAGNOSTIC PRE-SCAN ---
 
@@ -2166,8 +2167,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
 
         if len(lines) > 1:
             system_state_block = "\n".join(lines) + "\n"
-            extra_blocks.append(system_state_block)
-            _ssl.info("System state block injected into prompt")
+            _ssl.info("System state block ready for injection")
     except Exception as _sse:
         import logging as _fb_log
         _fb_log.getLogger("antar").warning(f"System state injection failed (non-critical): {_sse}")
@@ -2190,10 +2190,11 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
 
         dkp_block = build_dkp_block(chart_data, _up)
         if dkp_block:
-            extra_blocks.append(dkp_block)
-            logger.info("DKP context block injected into prompt")
+            import logging as _dkp_log
+            _dkp_log.getLogger("antar").info("DKP context block ready for injection")
     except Exception as _dkpe:
-        logger.warning(f"DKP context injection failed (non-critical): {_dkpe}")
+        import logging as _dkp_log2
+        _dkp_log2.getLogger("antar").warning(f"DKP context injection failed (non-critical): {_dkpe}")
         dkp_block = ""
     # --- END DKP CONTEXT BLOCKS ---
     # --- DIVISIONAL CHARTS INJECTION (Sprint Apr7 Step 4) ---
@@ -2202,7 +2203,8 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         if chart_data and isinstance(chart_data, dict) and chart_data.get("planets"):
             divisional_block = build_divisional_block(chart_data)
             if divisional_block:
-                logger.info("Divisional charts block computed and ready")
+                import logging as _div_log
+                _div_log.getLogger("antar").info("Divisional charts block computed and ready")
     except Exception as _dive:
         logger.warning(f"Divisional block computation failed (non-critical): {_dive}")
         divisional_block = ""
@@ -2457,6 +2459,16 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
                 print(f"[predict] Jaimini SKIPPED — Vimsottari MD={_vim_md} is clear")
         except Exception as _je:
             print(f"Jaimini context failed (non-blocking): {_je}")
+        # --- INJECT STEP 2+3 BLOCKS INTO FULL CONTEXT ---
+        if system_state_block:
+            _full_context += "\n" + system_state_block
+        if dkp_block and dkp_block not in _full_context:
+            _full_context += "\n" + dkp_block
+        if divisional_block and divisional_block not in _full_context:
+            _full_context += "\n" + divisional_block
+        if diagnostic_block and diagnostic_block not in _full_context:
+            _full_context += "\n" + diagnostic_block
+        # --- END INJECT ---
         print(f"[predict] Full context: {len(_full_context)} chars")
     except Exception as _ctx_e:
         import traceback
