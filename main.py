@@ -890,6 +890,12 @@ class PredictRequest(BaseModel):
         None,
         description="UUID of existing conversation. Null = create new."
     )
+    # DKP context fields — Desha, Kala, Patra
+    country:              Optional[str] = Field(None, description="User's current country (Desha)")
+    city:                 Optional[str] = Field(None, description="User's current city (Desha)")
+    profession:           Optional[str] = Field(None, description="User's profession/role (Patra)")
+    ventures:             Optional[List[str]] = Field(None, description="Active ventures (Patra)")
+    current_focus:        Optional[str] = Field(None, description="What the user is working on (Patra)")
 
 class DashaPeriodOut(BaseModel):
     lord_or_sign: str
