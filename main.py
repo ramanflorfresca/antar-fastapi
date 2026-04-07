@@ -4035,7 +4035,7 @@ async def create_chart(
         "longitude":           lng,
         "gender":          getattr(request, "gender", "") or "",
         "current_city":    getattr(request, "current_city", "") or "",
-        "current_country": getattr(request, "current_country", "") or request.birth_country or "",
+        "current_country": getattr(request, "current_country", "") or "",
         "timezone_offset":     _offset,
         "country_code":        request.birth_country,
         "birth_city":      request.birth_city,
@@ -5418,7 +5418,7 @@ async def ask_prashna(request: PrashnaRequest):
         except Exception as _de:
             logger.warning(f"Dasha lookup failed (non-blocking): {_de}")
         first_name = chart_data.get("first_name", "User")
-        current_country = chart_data.get("current_country", "US")
+        current_country = chart_data.get("current_country") or chart_data.get("country_code") or ""
 
         if isinstance(jaimini_data, str):
             try:
