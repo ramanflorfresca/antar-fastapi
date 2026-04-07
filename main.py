@@ -7930,17 +7930,35 @@ def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: 
     5. Return event_signal dict or None
     """
     try:
-        # Load executive summary via internal API call
-        import httpx
+        # Load executive summary directly (no HTTP — avoids async deadlock)
         try:
-            _exec_url = f"http://localhost:8080/api/v1/executive-summary/{chart_id}"
-            _exec_resp = httpx.get(_exec_url, timeout=10)
-            exec_data = _exec_resp.json() if _exec_resp.status_code == 200 else None
-            if exec_data:
-                print(f"[daily-week] Executive summary loaded — {len(exec_data.get('instruments',[]))} instruments")
-            else:
-                print(f"[daily-week] Executive summary returned {_exec_resp.status_code}")
+            from antar_engine.symptom_library import build_executive_summary
+            from datetime import datetime as _exdt
+            import json as _jjson
+            _cr = supabase.table("charts").select("chart_data, jaimini_data, lal_kitab_data").eq("id", chart_id).single().execute()
+            if not _cr.data:
                 return None
+            _cd = _cr.data.get("chart_data", {})
+            if isinstance(_cd, str):
+                try: _cd = _jjson.loads(_cd)
+                except: _cd = {}
+            _jd = _cr.data.get("jaimini_data", {})
+            if isinstance(_jd, str):
+                try: _jd = _jjson.loads(_jd)
+                except: _jd = {}
+            _lk = _cr.data.get("lal_kitab_data", {})
+            if isinstance(_lk, str):
+                try: _lk = _jjson.loads(_lk)
+                except: _lk = {}
+            _now = _exdt.utcnow().isoformat()
+            _dr = supabase.table("dasha_periods").select("planet_or_sign, level, end_date").eq("chart_id", chart_id).eq("system", "vimsottari").lte("start_date", _now).gte("end_date", _now).order("level").execute()
+            _dasha_list = _dr.data if _dr.data else []
+            _current_dasha = ""
+            for _d in _dasha_list:
+                if _d.get("level") == 1: _current_dasha = _d["planet_or_sign"].strip()
+                if _d.get("level") == 2: _current_dasha += "-" + _d["planet_or_sign"].strip()
+            exec_data = build_executive_summary(_cd, _jd, _lk, _current_dasha, _dasha_list)
+            print(f"[daily-week] Executive summary loaded — {len(exec_data.get('instruments',[]))} instruments")
         except Exception as ex:
             print(f"[daily-week] Could not load executive summary: {ex}")
             return None
