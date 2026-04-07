@@ -2803,14 +2803,19 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
         _pe = await generate_plain_english(
             raw_prediction=prediction_text or "",
             chart_context={
-                "lagna":   chart_record.get("lagna_sign"),
-                "dasha":   chart_record.get("current_dasha"),
-                "age":     getattr(patra, "age", None),
-                "country": chart_record.get("birth_country"),
-                "concern": concern,
+                "lagna":      chart_record.get("lagna_sign"),
+                "dasha":      chart_record.get("current_dasha"),
+                "age":        getattr(patra, "age", None),
+                "country":    getattr(request, "country", None) or chart_record.get("birth_country"),
+                "city":       getattr(request, "city", None) or "",
+                "profession": getattr(request, "profession", None) or "",
+                "ventures":   getattr(request, "ventures", None) or [],
+                "concern":    concern,
                 "chart_data": chart_data,
-                "language": getattr(request, "language", "en"),
+                "language":   getattr(request, "language", "en"),
+                "question":   request.question,
             },
+            lk_context=lk_context or "",
         )
         print(f"[predict] plain_english ok — signal='{(_pe or {}).get('signal_line','')[:60]}'")
     except Exception as _pe_err:
