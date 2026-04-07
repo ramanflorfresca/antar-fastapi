@@ -1560,12 +1560,15 @@ def build_divisional_block(chart_data: dict) -> str:
         planets = chart_data.get("planets", {})
         lagna   = chart_data.get("lagna", {})
         if isinstance(lagna, dict):
-            lagna_long = (
-                lagna.get("longitude") or
-                lagna.get("degree") or
-                lagna.get("lagna_longitude") or
-                0.0
-            )
+            # Prefer stored longitude; otherwise reconstruct from sign_index + degree
+            lagna_long = lagna.get("longitude") or lagna.get("lagna_longitude") or 0.0
+            if not lagna_long:
+                sign_idx = lagna.get("sign_index")
+                degree   = lagna.get("degree", 0.0)
+                if sign_idx is not None:
+                    lagna_long = float(sign_idx) * 30.0 + float(degree)
+                else:
+                    lagna_long = float(degree)
         else:
             lagna_long = 0.0
 
