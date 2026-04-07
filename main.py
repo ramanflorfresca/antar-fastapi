@@ -948,6 +948,7 @@ class PredictResponse(BaseModel):
     bridge_practice_note:   Optional[str]  = None
     contradiction_detected: Optional[bool] = False
     oracle_context:         Optional[Dict] = None
+    archetype_name:         Optional[str]  = None
 
 class ChartResponse(BaseModel):
     id: str
@@ -3192,7 +3193,11 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
         chapter_arc=chapter_arc_data,
         conversation_id=saved_conv_id,
         message_id=saved_msg_id,
-        plain_summary=_pe.get("plain_summary") if _pe else None,
+        plain_summary=(
+            f"[{_char_archetype.get('name')}] " + _pe.get("plain_summary")
+            if _pe and _pe.get("plain_summary") and '_char_archetype' in dir() and _char_archetype and _char_archetype.get("name")
+            else (_pe.get("plain_summary") if _pe else None)
+        ),
         action_item=_pe.get("action_item") if _pe else None,
         signal_line=_pe.get("signal_line") if _pe else None,
         timing_window=_pe.get("timing_window") if _pe else None,
@@ -3202,6 +3207,7 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
         bridge_practice_note=_pe.get("bridge_practice_note") if _pe else None,
         contradiction_detected=_contradiction_detected if '_contradiction_detected' in dir() else False,
         oracle_context=_oracle_context if '_oracle_context' in dir() else None,
+        archetype_name=_char_archetype.get("name") if '_char_archetype' in dir() and _char_archetype else None,
     )
 
 # ── Conversations ─────────────────────────────────────────────────────────────
