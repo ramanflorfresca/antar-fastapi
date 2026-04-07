@@ -8455,12 +8455,7 @@ def build_transit_behavioral_block(
     transit_descriptions = []
     for ctx in transit_contexts:
         transit_descriptions.append(
-            f"- {ctx['transiting_planet']} in {ctx['trans_field']}×{ctx['trans_mode']} "
-            f"({ctx['trans_action']}) hitting natal {ctx['natal_planet']} "
-            f"in {ctx['natal_field']}×{ctx['natal_mode']} ({ctx['natal_action']})
-"
-            f"  Interaction: {ctx['interaction']}
-"
+            f"- {ctx['transiting_planet']} in {ctx['trans_field']} x {ctx['trans_mode']} ({ctx['trans_action']}) hitting natal {ctx['natal_planet']} in {ctx['natal_field']} x {ctx['natal_mode']} ({ctx['natal_action']}) | {ctx['interaction']}"
             f"  Force: {ctx['planet_force']} arriving {ctx['trans_delivery']} "
             f"into {ctx['natal_texture']}"
         )
