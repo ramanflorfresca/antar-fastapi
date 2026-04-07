@@ -7781,9 +7781,7 @@ async def get_dashboard_status(chart_id: str):
             "critical_symptoms": [],
         }
 
-# ═══════════════════════════════════════════════════════════════════
-# WOW EVENT SIGNAL — Daily prediction convergence layer
-# Fires only when executive summary shows PEAK or ACTIVE instrument
+
 # ═══════════════════════════════════════════════════════════════════
 
 # Instrument name → domain category → hint template
@@ -7921,6 +7919,324 @@ async def get_daily_week(chart_id: str):
                 day["event_signal"] = wow_signal
             else:
                 day["event_signal"] = None
+
+        return {
+            "chart_id": chart_id,
+            "natal_moon_sign": natal_moon_sign,
+            "generated_at": datetime.utcnow().isoformat() + "Z",
+            "days": signals
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[daily-week] Error for chart {chart_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Daily week generation failed: {str(e)}")
+
+# ═══════════════════════════════════════════════════════════════════
+# WOW EVENT SIGNAL — Hybrid Python + Claude layer
+# Python detects convergence. Claude narrates the hint.
+# Fires only when signal_status == PEAK or ACTIVE
+# Cached 24hrs in charts.daily_wow_cache to avoid repeat Claude calls
+# ═══════════════════════════════════════════════════════════════════
+
+# Base templates per instrument — sent to Claude as the narrative seed
+_WOW_BASE_TEMPLATES = {
+    "AUTHORITY ENGINE":  ("recognition",  "A decision-maker notices your work today."),
+    "REVENUE PIPELINE":  ("finance",      "An unexpected financial opening surfaces today."),
+    "ALLIANCE SYNC":     ("relationship", "Someone significant re-enters your orbit today."),
+    "CAPITAL RUNWAY":    ("finance",      "A money-related signal surfaces today."),
+    "CREATION ENGINE":   ("opportunity",  "An unexpected creative or strategic opening appears today."),
+    "CONFLICT SHIELD":   ("warning",      "Something that needs attention surfaces today."),
+    "REAL ESTATE RADAR": ("movement",     "A change in your physical environment comes into focus today."),
+    "FORTUNE VECTOR":    ("opportunity",  "An opening arrives from an unexpected direction today."),
+    "GLOBAL VECTOR":     ("movement",     "A foreign connection or opportunity surfaces today."),
+    "CAPITAL RESERVES":  ("finance",      "A financial pattern becomes clear today."),
+    "SYSTEM VITALS":     ("health",       "Your energy signals something important today."),
+    "ACTION CAPACITY":   ("decision",     "You will be asked to make a call you weren't expecting today."),
+}
+
+_STATUS_THRESHOLD = {"PEAK": 2, "ACTIVE": 1}
+
+WEEKDAY_CONTEXT = {
+    "Monday":    "a Monday — unexpected signals often arrive as the week kicks off",
+    "Tuesday":   "a Tuesday — action-oriented energy, direct moves get noticed",
+    "Wednesday": "a Wednesday — communication is amplified, messages carry weight",
+    "Thursday":  "a Thursday — expansion energy, meetings and offers feel larger",
+    "Friday":    "a Friday — relationship energy peaks, people reach out before the weekend",
+    "Saturday":  "a Saturday — surprising for a weekend, which makes it more significant",
+    "Sunday":    "a Sunday — rare for something professional to surface, which makes it meaningful",
+}
+
+
+def _compute_user_age(birth_date_str: str) -> int:
+    """Compute age from birth_date string YYYY-MM-DD."""
+    try:
+        from datetime import datetime
+        bd = datetime.strptime(birth_date_str[:10], "%Y-%m-%d")
+        today = datetime.utcnow()
+        return today.year - bd.year - ((today.month, today.day) < (bd.month, bd.day))
+    except Exception:
+        return 0
+
+
+def _get_wow_cache(chart_id: str, instrument_name: str) -> dict:
+    """Check if we have a cached WOW hint for this chart+instrument from today."""
+    try:
+        from datetime import datetime
+        today_str = datetime.utcnow().strftime("%Y-%m-%d")
+        result = supabase.table("charts").select("daily_wow_cache").eq("id", chart_id).single().execute()
+        cache = result.data.get("daily_wow_cache") if result.data else None
+        if cache and isinstance(cache, dict):
+            if cache.get("date") == today_str and cache.get("instrument") == instrument_name:
+                print(f"[daily-week] WOW cache HIT for {chart_id} — {instrument_name}")
+                return cache
+    except Exception as e:
+        print(f"[daily-week] WOW cache read failed (non-fatal): {e}")
+    return {}
+
+
+def _save_wow_cache(chart_id: str, instrument_name: str, wow_data: dict):
+    """Save WOW hint to Supabase cache."""
+    try:
+        from datetime import datetime
+        cache_payload = {
+            "date": datetime.utcnow().strftime("%Y-%m-%d"),
+            "instrument": instrument_name,
+            **wow_data
+        }
+        supabase.table("charts").update(
+            {"daily_wow_cache": cache_payload}
+        ).eq("id", chart_id).execute()
+        print(f"[daily-week] WOW cache SAVED for {chart_id}")
+    except Exception as e:
+        print(f"[daily-week] WOW cache save failed (non-fatal): {e}")
+
+
+def _call_claude_wow_hint(
+    base_template: str,
+    category: str,
+    instrument_name: str,
+    user_first_name: str,
+    user_age: int,
+    current_country: str,
+    birth_city: str,
+    gender: str,
+    nakshatra: str,
+    weekday: str,
+    signal_score: float,
+    strength: str,
+) -> str:
+    """
+    Call Claude to write ONE personalized WOW sentence.
+    Claude narrates — it does not reason or explain.
+    """
+    try:
+        weekday_ctx = WEEKDAY_CONTEXT.get(weekday, f"a {weekday}")
+        strength_note = "exceptionally strong" if strength == "PEAK" else "clearly active"
+
+        prompt = f"""You are writing a single-sentence daily signal hint for a life intelligence app.
+
+USER PROFILE:
+- Name: {user_first_name}
+- Age: {user_age}
+- Location: {current_country}
+- Born in: {birth_city}
+- Gender: {gender}
+
+TODAY'S SIGNAL:
+- Instrument: {instrument_name} (score: {signal_score}/100, strength: {strength_note})
+- Category: {category}
+- Base template: "{base_template}"
+- Today is {weekday_ctx}
+- Astrological quality today: {nakshatra} energy — precise, commanding, strategic
+
+YOUR TASK:
+Rewrite the base template as ONE sentence that feels personally relevant to this user.
+- Use their location and life context naturally (not as a label)
+- Reference the day of the week to make it feel live and real
+- Keep it as a HINT — specific enough to be noticed, vague enough to apply
+- No astrology terms. No planet names. No nakshatra names.
+- Maximum 25 words.
+- Do NOT start with "Today" — vary the opening.
+- Output ONLY the single sentence. Nothing else."""
+
+        response = anthropic_client.messages.create(
+            model="claude-sonnet-4-20250514",
+            max_tokens=60,
+            temperature=0.7,
+            messages=[{"role": "user", "content": prompt}]
+        )
+        hint = response.content[0].text.strip().strip('"').strip("'")
+        print(f"[daily-week] Claude WOW hint generated: {hint[:80]}...")
+        return hint
+
+    except Exception as e:
+        print(f"[daily-week] Claude WOW call failed (non-fatal): {e}")
+        return base_template  # fallback to hardcoded template
+
+
+def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: str, weekday: str) -> dict:
+    """
+    Main WOW signal builder.
+    1. Load executive summary
+    2. Find highest-status instrument (PEAK > ACTIVE)
+    3. Check 24hr cache
+    4. If no cache: call Claude for personalized hint
+    5. Return event_signal dict or None
+    """
+    try:
+        # Load executive summary
+        exec_data = chart_data.get("executive_summary")
+        if not exec_data:
+            try:
+                from antar_engine.executive_dashboard import build_executive_summary
+                exec_data = build_executive_summary(chart_data, supabase)
+            except Exception as ex:
+                print(f"[daily-week] Could not load executive summary: {ex}")
+                return None
+
+        instruments = exec_data.get("instruments", [])
+        if not instruments:
+            return None
+
+        # Find highest-status instrument (PEAK first, then ACTIVE)
+        best = None
+        best_priority = 0
+        for inst in instruments:
+            status = inst.get("signal_status", "")
+            priority = _STATUS_THRESHOLD.get(status, 0)
+            sig_score = inst.get("signal_score", 0)
+            if priority > best_priority or (priority == best_priority and sig_score > (best.get("signal_score", 0) if best else 0)):
+                if priority > 0:
+                    best = inst
+                    best_priority = priority
+
+        if not best:
+            return None
+
+        inst_name = best.get("name", "").upper()
+        status = best.get("signal_status", "ACTIVE")
+        sig_score = best.get("signal_score", 0)
+        strength = "PEAK" if status == "PEAK" else "ACTIVE"
+
+        # Match to base template
+        template_data = None
+        for key, val in _WOW_BASE_TEMPLATES.items():
+            if key in inst_name or inst_name in key:
+                template_data = val
+                break
+        if not template_data:
+            template_data = ("opportunity", "An unexpected signal surfaces today.")
+
+        category, base_template = template_data
+
+        # Check cache first
+        cached = _get_wow_cache(chart_id, inst_name)
+        if cached.get("hint"):
+            return {
+                "fires": True,
+                "strength": cached.get("strength", strength),
+                "category": cached.get("category", category),
+                "instrument": inst_name,
+                "signal_score": sig_score,
+                "hint": cached["hint"],
+                "follow_up": "If something happens today in this area — ask Antar about it.",
+                "cached": True,
+            }
+
+        # Extract user profile
+        user_first_name = chart_data.get("first_name") or chart_data.get("name") or "you"
+        birth_date = chart_data.get("birth_date") or chart_data.get("dob") or ""
+        user_age = _compute_user_age(birth_date) if birth_date else 0
+        current_country = chart_data.get("current_country") or chart_data.get("birth_country") or ""
+        birth_city = chart_data.get("birth_city") or ""
+        gender = chart_data.get("gender") or ""
+
+        # Call Claude for personalized hint
+        hint = _call_claude_wow_hint(
+            base_template=base_template,
+            category=category,
+            instrument_name=inst_name,
+            user_first_name=user_first_name,
+            user_age=user_age,
+            current_country=current_country,
+            birth_city=birth_city,
+            gender=gender,
+            nakshatra=today_nakshatra,
+            weekday=weekday,
+            signal_score=sig_score,
+            strength=strength,
+        )
+
+        wow_result = {
+            "fires": True,
+            "strength": strength,
+            "category": category,
+            "instrument": inst_name,
+            "signal_score": sig_score,
+            "hint": hint,
+            "follow_up": "If something happens today in this area — ask Antar about it.",
+            "cached": False,
+        }
+
+        # Save to cache
+        _save_wow_cache(chart_id, inst_name, wow_result)
+
+        return wow_result
+
+    except Exception as e:
+        print(f"[daily-week] WOW signal failed (non-fatal): {e}")
+        return None
+
+
+# ═══════════════════════════════════════════════════════════════════
+# GET /api/v1/daily-week/{chart_id}  — 7-Day Daily Signal Engine
+# ═══════════════════════════════════════════════════════════════════
+
+@app.get("/api/v1/daily-week/{chart_id}")
+async def get_daily_week(chart_id: str):
+    """
+    Returns 7-day daily signal array.
+    Today: Python energy forecast + Claude-personalized WOW hint (if PEAK/ACTIVE)
+    Days 2-7: Python energy forecast only
+    WOW hint cached 24hrs in charts.daily_wow_cache
+    """
+    try:
+        # 1. Fetch chart
+        chart_resp = supabase.table("charts").select("*").eq("id", chart_id).single().execute()
+        if not chart_resp.data:
+            raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
+        chart_data = chart_resp.data
+
+        # 2. Extract natal Moon sign
+        natal_moon_sign = "Aries"
+        planets = None
+        raw = chart_data.get("chart_data") or chart_data
+        if isinstance(raw, dict):
+            planets = raw.get("planets") or raw.get("planet_positions")
+        if planets:
+            for p in planets:
+                if isinstance(p, dict):
+                    name = p.get("name", "").lower() or p.get("planet", "").lower()
+                    if name == "moon":
+                        natal_moon_sign = p.get("sign") or p.get("rashi") or "Aries"
+                        break
+
+        print(f"[daily-week] chart={chart_id} natal_moon={natal_moon_sign}")
+
+        # 3. Generate 7-day Python signals
+        from antar_engine.daily_prediction_engine import generate_weekly_signals
+        signals = generate_weekly_signals(natal_moon_sign=natal_moon_sign)
+
+        # 4. Get WOW event signal for TODAY only
+        today_nakshatra = signals[0].get("moon_nakshatra", "Unknown") if signals else "Unknown"
+        today_weekday = signals[0].get("day", "Monday") if signals else "Monday"
+        wow_signal = _get_wow_signal_for_chart(chart_id, chart_data, today_nakshatra, today_weekday)
+
+        # 5. Attach WOW to today only
+        for i, day in enumerate(signals):
+            day["event_signal"] = wow_signal if i == 0 else None
 
         return {
             "chart_id": chart_id,
