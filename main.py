@@ -5901,7 +5901,7 @@ async def get_daily_week(chart_id: str):
                         natal_moon_sign = p.get("sign") or p.get("rashi") or "Aries"
                         break
 
-        logger.info(f"[daily-week] chart={chart_id} natal_moon={natal_moon_sign}")
+        print(f"[daily-week] chart={chart_id} natal_moon={natal_moon_sign}")
 
         # 3. Generate signals
         from antar_engine.daily_prediction_engine import generate_weekly_signals
@@ -5917,7 +5917,7 @@ async def get_daily_week(chart_id: str):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"[daily-week] Error for chart {chart_id}: {e}", exc_info=True)
+        print(f"[daily-week] Error for chart {chart_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=f"Daily week generation failed: {str(e)}")
 
 if __name__ == "__main__":
