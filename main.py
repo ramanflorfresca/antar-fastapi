@@ -2947,11 +2947,17 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
             if _pcache.data:
                 _psched = _pcache.data[0]["schedule_data"]
             else:
+                # Fetch jaimini + lk data needed by practice engine
+                _pr = supabase.table("charts").select(
+                    "jaimini_data, lal_kitab_data, current_country, birth_date"
+                ).eq("id", request.chart_id).single().execute()
+                _pr_row = _pr.data or {}
                 _psched = generate_practice_schedule(
-                    chart_id=request.chart_id,
                     chart_data=chart_data,
-                    dashas=dashas_response,
-                    supabase=supabase,
+                    jaimini_data=_pr_row.get("jaimini_data") or {},
+                    lal_kitab_data=_pr_row.get("lal_kitab_data") or {},
+                    current_country=_pr_row.get("current_country") or "US",
+                    birth_date=str(_pr_row.get("birth_date") or ""),
                 )
             _practice_block = format_practice_for_predict_prompt(_psched)
             if _practice_block:
