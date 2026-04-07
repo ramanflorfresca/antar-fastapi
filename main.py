@@ -7905,7 +7905,9 @@ Rewrite the base template as ONE sentence that feels personally relevant to this
 - Do NOT start with "Today" — vary the opening.
 - Output ONLY the single sentence. Nothing else."""
 
-        response = anthropic_client.messages.create(
+        import anthropic as _anth
+        _sync_client = _anth.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        response = _sync_client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=60,
             temperature=0.7,
