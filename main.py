@@ -1882,6 +1882,48 @@ async def health():
 
 # ── Chart ─────────────────────────────────────────────────────────────────────
 
+@app.get("/api/v1/chart/{chart_id}/signature")
+async def get_chart_signature(chart_id: str, authorization: Optional[str] = Header(None)):
+    """
+    Returns natal planet signatures + character archetype for Blueprint tab.
+    Computes and stores on first call if not already cached.
+    """
+    try:
+        row = supabase.table("charts")             .select("planet_signatures,character_archetype,planets,lagna,first_name,name")             .eq("id", chart_id)             .single()             .execute()
+
+        if not row.data:
+            return {"error": "Chart not found"}
+
+        planet_sigs  = row.data.get("planet_signatures")
+        char_arch    = row.data.get("character_archetype")
+
+        # Lazy compute if missing
+        if not planet_sigs or not char_arch:
+            chart_data = {
+                "planets": row.data.get("planets", {}),
+                "lagna":   row.data.get("lagna", {}),
+            }
+            planet_sigs  = compute_natal_signatures(chart_data)
+            char_arch    = derive_archetype(planet_sigs)
+            supabase.table("charts").update({
+                "planet_signatures":   planet_sigs,
+                "character_archetype": char_arch,
+            }).eq("id", chart_id).execute()
+
+        first_name = row.data.get("first_name") or row.data.get("name", "")
+
+        return {
+            "chart_id":            chart_id,
+            "first_name":          first_name,
+            "planet_signatures":   planet_sigs,
+            "character_archetype": char_arch,
+        }
+
+    except Exception as e:
+        print(f"[signature] Error for {chart_id}: {e}")
+        return {"error": str(e)}
+
+
 @app.get("/api/v1/chart/{chart_id}", response_model=ChartResponse)
 async def get_chart(chart_id: str):
     result = supabase.table("charts").select("*").eq("id", chart_id).execute()
