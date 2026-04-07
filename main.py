@@ -2932,6 +2932,35 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
     - "Cash flow tight until June"
     - "Execution velocity high through May"
 """
+    # ── Symptom → Practice Bridge ────────────────────────────────────────────
+    if _question_mode == "symptom":
+        try:
+            from antar_engine.practice_engine import generate_practice_schedule, format_practice_for_predict_prompt
+            from datetime import date as _date
+            _week_of = _date.today() - __import__('datetime').timedelta(days=_date.today().weekday())
+            # Try cache first
+            _pcache = supabase.table("practice_schedule_cache") \
+                .select("schedule_data") \
+                .eq("chart_id", request.chart_id) \
+                .eq("week_of", _week_of.isoformat()) \
+                .execute()
+            if _pcache.data:
+                _psched = _pcache.data[0]["schedule_data"]
+            else:
+                _psched = generate_practice_schedule(
+                    chart_id=request.chart_id,
+                    chart_data=chart_data,
+                    dashas=dashas_response,
+                    supabase=supabase,
+                )
+            _practice_block = format_practice_for_predict_prompt(_psched)
+            if _practice_block:
+                _full_context += "\n\n" + _practice_block
+                print(f"[predict] Symptom→Practice bridge injected ({len(_practice_block)} chars)")
+        except Exception as _pbe:
+            print(f"[predict] Practice bridge error (non-fatal): {_pbe}")
+    # ── end practice bridge ───────────────────────────────────────────────────
+
     # Symptom mode uses its own format — skip hard constraint (which enforces VERDICT format)
     if _question_mode != "symptom":
         prompt = _hard_constraint + "\n\n" + prompt
