@@ -2507,8 +2507,6 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
                 _tr_actual = _tr_raw
             else:
                 _tr_actual = {}
-            print(f"[transit-lang] _tr_raw type={type(_tr_raw).__name__} len={len(_tr_raw) if _tr_raw else 0}")
-            print(f"[transit-lang] transit planets: {list(_tr_actual.keys())[:5]}")
             if _tr_actual:
                 _transit_list = []
                 for _planet, _tdata in _tr_actual.items():
@@ -8434,7 +8432,6 @@ def build_transit_behavioral_block(
         if t.get("planet") in PRIORITY_PLANETS else 99
     )[:max_transits]
 
-    print(f"[transit-lang] first transit keys: {list(sorted_transits[0].keys()) if sorted_transits else []}")
     transit_contexts = []
     for t in sorted_transits:
         trans_planet = t.get("planet", "")
