@@ -7374,13 +7374,21 @@ class ClientErrorRequest(BaseModel):
 
 @app.post("/api/v1/client-error")
 async def log_client_error(payload: ClientErrorRequest):
-    logger.error(
-        f"[CLIENT_ERROR] chart={payload.chart_id or 'unknown'} "
-        f"url={payload.url} "
-        f"msg={payload.msg} "
-        f"src={payload.src}:{payload.line}:{payload.col} "
-        f"stack={payload.stack[:500] if payload.stack else ''}"
-    )
+    import logging as _logging
+    _log = _logging.getLogger("antar.client")
+    try:
+        _log.error(
+            "[CLIENT_ERROR] chart=%s url=%s msg=%s src=%s:%s:%s stack=%s",
+            payload.chart_id or "unknown",
+            payload.url or "",
+            payload.msg or "",
+            payload.src or "",
+            payload.line or 0,
+            payload.col or 0,
+            (payload.stack or "")[:500],
+        )
+    except Exception as _e:
+        print(f"[CLIENT_ERROR] logging failed: {_e}")
     return {"ok": True}
 
 
