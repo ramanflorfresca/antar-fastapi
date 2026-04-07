@@ -1731,6 +1731,76 @@ def _vimsottari_is_ambiguous(chart_data: dict, current_md: str, question: str) -
     return False  # default: Vimsottari is clear
 
 
+
+# ═══════════════════════════════════════════════════════════════════
+# QUESTION MODE CLASSIFIER — Sprint Apr7
+# Routes questions to the correct layer stack.
+# Per spec: dashas load the gun, transits pull the trigger.
+# ═══════════════════════════════════════════════════════════════════
+
+def _classify_question_mode(question: str) -> str:
+    """
+    Returns one of:
+      "life_path" — D-1, D-2, D-9, D-10 only. No transits.
+      "timing"    — Vimsottari + relevant transits ± Jaimini
+      "daily"     — Moon + Mercury transits only
+
+    Life-path: career direction, wealth type, marriage potential,
+               relocation, life purpose, karma, billionaire potential
+    Timing: when will X happen, funding window, launch date, sign date
+    Daily: should I reply, today's energy, meeting outcome, this week
+    """
+    q = (question or "").lower().strip()
+
+    # Daily mode keywords — short-term, day/week level
+    DAILY_KW = [
+        "today", "tonight", "tomorrow", "this morning", "this afternoon",
+        "this evening", "right now", "should i reply", "should i respond",
+        "should i send", "this meeting", "this call", "this week",
+        "should i email", "should i message", "should i text",
+        "how will today", "how will this meeting", "how will this call",
+        "will they respond", "will he respond", "will she respond",
+        "what time", "which day", "best day to",
+    ]
+    if any(kw in q for kw in DAILY_KW):
+        return "daily"
+
+    # Timing mode keywords — medium-term event triggers
+    TIMING_KW = [
+        "when will", "when does", "when should", "when can",
+        "how long until", "how soon", "what month", "what year",
+        "which month", "which quarter", "will it happen",
+        "will i get", "will they sign", "will the deal",
+        "will my funding", "will i close", "will i raise",
+        "funding window", "launch date", "sign date", "close date",
+        "april", "may", "june", "july", "august", "september",
+        "october", "november", "december", "january", "february", "march",
+        "2026", "2027", "2028", "next month", "next quarter", "next year",
+        "timing", "window", "deadline", "by when", "exact date",
+        "specific date", "will this customer", "will this client",
+        "should i hire now", "should i launch now", "should i raise now",
+    ]
+    if any(kw in q for kw in TIMING_KW):
+        return "timing"
+
+    # Life-path mode — everything else
+    # Explicitly life-path keywords (to be safe)
+    LIFEPATH_KW = [
+        "what career", "which career", "what should i do with my life",
+        "wealth potential", "billionaire", "life purpose", "life path",
+        "should i relocate", "should i move to", "best country",
+        "marriage potential", "will i get married", "soul purpose",
+        "what am i here for", "past life", "karma", "dharma",
+        "what type of wealth", "wealth type", "my potential",
+        "what is my", "who am i", "what kind of",
+    ]
+    if any(kw in q for kw in LIFEPATH_KW):
+        return "life_path"
+
+    # Default: timing (most questions are about when/whether something happens)
+    return "timing"
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
