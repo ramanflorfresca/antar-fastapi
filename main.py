@@ -2498,9 +2498,9 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
 
         # Transit behavioral translation — plain English for Claude
         try:
-            if current_transits and isinstance(current_transits, dict):
+            if _tr_data and isinstance(_tr_data, dict):
                 _transit_list = []
-                for _planet, _tdata in current_transits.items():
+                for _planet, _tdata in _tr_data.items():
                     if isinstance(_tdata, dict):
                         _transit_list.append({
                             "planet": _planet,
