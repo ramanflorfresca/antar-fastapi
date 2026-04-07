@@ -1889,7 +1889,7 @@ async def get_chart_signature(chart_id: str, authorization: Optional[str] = Head
     Computes and stores on first call if not already cached.
     """
     try:
-        row = supabase.table("charts")             .select("planet_signatures,character_archetype,planets,lagna,first_name,name")             .eq("id", chart_id)             .single()             .execute()
+        row = supabase.table("charts")             .select("planet_signatures,character_archetype,chart_data,first_name,name")             .eq("id", chart_id)             .single()             .execute()
 
         if not row.data:
             return {"error": "Chart not found"}
@@ -1899,10 +1899,7 @@ async def get_chart_signature(chart_id: str, authorization: Optional[str] = Head
 
         # Lazy compute if missing
         if not planet_sigs or not char_arch:
-            chart_data = {
-                "planets": row.data.get("planets", {}),
-                "lagna":   row.data.get("lagna", {}),
-            }
+            chart_data = row.data.get("chart_data") or {}
             planet_sigs  = compute_natal_signatures(chart_data)
             char_arch    = derive_archetype(planet_sigs)
             supabase.table("charts").update({
