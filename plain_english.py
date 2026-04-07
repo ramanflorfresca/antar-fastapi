@@ -259,7 +259,14 @@ def _starts_with_verb(text: str) -> bool:
         "send", "call", "meet", "review", "prepare", "apply", "move",
         "take", "make", "set", "build", "create", "ask", "tell", "check",
         "sign", "delay", "prioritize", "reconnect", "spend", "save",
-        "consult", "confirm", "submit", "pause", "launch", "complete"
+        "consult", "confirm", "submit", "pause", "launch", "complete",
+        "list", "identify", "choose", "name", "document", "block", "cut",
+        "close", "define", "draft", "run", "open", "track", "use", "find",
+        "pick", "book", "test", "share", "post", "publish", "hire", "fire",
+        "delegate", "eliminate", "reduce", "increase", "commit", "decide",
+        "execute", "finalize", "present", "pitch", "follow", "update",
+        "contact", "negotiate", "protect", "secure", "activate", "drop",
+        "add", "remove", "replace", "fix", "push", "pull", "ship", "deploy"
     ]
     first_word = text.split()[0].lower() if text else ""
     return first_word in common_verbs
