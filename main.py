@@ -2479,7 +2479,24 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             chart_data.get("planets", {}),
             chart_data.get("lagna", {}).get("sign", "") if isinstance(chart_data.get("lagna"), dict) else "",
         )
-        _tr_data = calculate_current_transits(chart_data)
+        # ── QUESTION MODE ROUTING — Sprint Apr7 ──────────────────────
+        _question_mode = _classify_question_mode(request.question)
+        print(f"[predict] Question mode: {_question_mode} for: {request.question[:60]}")
+
+        if _question_mode == "life_path":
+            _tr_data = {}
+            print("[predict] Transits SKIPPED — life-path question")
+        elif _question_mode == "daily":
+            _tr_data_full = calculate_current_transits(chart_data)
+            _tr_data = {k: v for k, v in (_tr_data_full or {}).items()
+                        if any(p in str(k) for p in ["Moon", "Mercury"])
+                        } if isinstance(_tr_data_full, dict) else _tr_data_full
+            print("[predict] Transits filtered to Moon+Mercury — daily question")
+        else:
+            _tr_data = calculate_current_transits(chart_data)
+            print("[predict] Full transits loaded — timing question")
+        # ── END QUESTION MODE ROUTING ─────────────────────────────
+
         _chart_rec = supabase.table("charts").select("birth_date,gender,name").eq("id", request.chart_id).execute()
         _birth_dt  = _chart_rec.data[0].get("birth_date", "") if _chart_rec.data else ""
         _gender_v  = _chart_rec.data[0].get("gender", "") if _chart_rec.data else ""
