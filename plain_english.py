@@ -124,7 +124,14 @@ async def generate_plain_english(
                 raw_text += block.get("text", "")
 
         parsed = _parse_json(raw_text)
+        if not parsed:
+            logger.warning("plain_english: empty parse — using fallback")
+            return _fallback(raw_prediction, chart_context)
         validated = _validate_and_clean(parsed, chart_context)
+        # If plain_summary still None after validate, use fallback
+        if not validated.get("plain_summary"):
+            logger.warning("plain_english: plain_summary null after validate — using fallback")
+            return _fallback(raw_prediction, chart_context)
         return validated
 
     except httpx.HTTPStatusError as e:
