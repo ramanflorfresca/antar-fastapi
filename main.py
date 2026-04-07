@@ -3015,6 +3015,7 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
             "model":       "deepseek-chat",
             "chart_id":          request.chart_id,
             "concern":           concern,
+            "question_mode":     _question_mode if '_question_mode' in dir() else None,
             "plain_summary":     _pe.get("plain_summary")   if _pe else None,
             "action_item":       _pe.get("action_item")     if _pe else None,
             "signal_line":       _pe.get("signal_line")     if _pe else None,
