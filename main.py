@@ -1738,6 +1738,57 @@ def _vimsottari_is_ambiguous(chart_data: dict, current_md: str, question: str) -
 # Per spec: dashas load the gun, transits pull the trigger.
 # ═══════════════════════════════════════════════════════════════════
 
+# Maps symptom category keywords → instrument domain for diagnostic prompt
+SYMPTOM_DOMAIN_MAP = {
+    # keyword fragment → (instrument, backup_instrument)
+    "losing clients":       ("Authority Engine",   "Alliance Sync"),
+    "losing money":         ("Capital Reserves",   "Capital Runway"),
+    "losing opportunities": ("Fortune Vector",     "Authority Engine"),
+    "losing friends":       ("Alliance Sync",      "Emotional Radar"),
+    "losing temper":        ("System Vitals",      "Emotional Radar"),
+    "losing focus":         ("Processing Speed",   "System Vitals"),
+    "stuck":                ("System Vitals",      "Action Capacity"),
+    "money":                ("Capital Reserves",   "Capital Runway"),
+    "clients":              ("Authority Engine",   "Alliance Sync"),
+    "deals":                ("Alliance Sync",      "Authority Engine"),
+    "relationship":         ("Alliance Sync",      "Emotional Radar"),
+    "partner":              ("Alliance Sync",      "Emotional Radar"),
+    "career":               ("Authority Engine",   "Fortune Vector"),
+    "purpose":              ("Fortune Vector",     "Authority Engine"),
+    "purpose":              ("Fortune Vector",     "Authority Engine"),
+    "identity":             ("System Vitals",      "Fortune Vector"),
+    "fire":                 ("Action Capacity",    "System Vitals"),
+    "spark":                ("Creation Engine",    "System Vitals"),
+    "impostor":             ("Authority Engine",   "System Vitals"),
+    "fraud":                ("Authority Engine",   "System Vitals"),
+    "timing":               ("Fortune Vector",     "Action Capacity"),
+    "window":               ("Fortune Vector",     "Action Capacity"),
+    "drained":              ("System Vitals",      "Emotional Radar"),
+    "blocked":              ("System Vitals",      "Action Capacity"),
+    "trapped":              ("System Vitals",      "Fortune Vector"),
+    "sleep":                ("System Vitals",      "Emotional Radar"),
+    "body":                 ("System Vitals",      "Emotional Radar"),
+    "decision":             ("Processing Speed",   "Fortune Vector"),
+    "choose":               ("Processing Speed",   "Alliance Sync"),
+    "sabotage":             ("Action Capacity",    "System Vitals"),
+    "betrayed":             ("Alliance Sync",      "Conflict Shield"),
+    "overlooked":           ("Authority Engine",   "Revenue Pipeline"),
+    "invisible":            ("Authority Engine",   "Alliance Sync"),
+    "lonely":               ("Alliance Sync",      "Emotional Radar"),
+    "ending":               ("Fortune Vector",     "System Vitals"),
+    "waiting":              ("Fortune Vector",     "Action Capacity"),
+    "tested":               ("Structural Load",    "System Vitals"),
+    "punished":             ("Structural Load",    "Fortune Vector"),
+}
+
+def _get_symptom_domain(question: str) -> tuple:
+    """Return (primary_instrument, secondary_instrument) for a symptom question."""
+    q = question.lower()
+    for kw, domains in SYMPTOM_DOMAIN_MAP.items():
+        if kw in q:
+            return domains
+    return ("System Vitals", "Fortune Vector")  # default
+
 def _classify_question_mode(question: str) -> str:
     """
     Returns one of:
@@ -1796,6 +1847,28 @@ def _classify_question_mode(question: str) -> str:
     ]
     if any(kw in q for kw in LIFEPATH_KW):
         return "life_path"
+
+    # Symptom mode — user describing a pattern, block, or recurring problem
+    SYMPTOM_KW = [
+        "i keep ", "i keep losing", "i keep failing", "i keep getting",
+        "i always ", "i always end up", "i always lose", "i always fail",
+        "i feel stuck", "i feel blocked", "i feel like i'm going in circles",
+        "nothing is working", "nothing works", "nothing seems to work",
+        "every time i", "every time i try", "every time i get close",
+        "something feels off", "something is off", "something is wrong",
+        "why do i always", "why does this keep", "why can't i",
+        "i can't seem to", "i can't close", "i can't get",
+        "i struggle with", "i've been struggling", "i keep struggling",
+        "pattern in my", "i notice a pattern", "repeating pattern",
+        "it's been months", "it's been years", "for months now",
+        "i'm stuck", "i've been stuck", "feels like a wall",
+        "money keeps", "clients keep", "relationships keep",
+        "deals keep falling", "opportunities keep", "people keep leaving",
+        "i attract", "i keep attracting", "why do i attract",
+        "blocked", "blockage", "obstacle", "resistance",
+    ]
+    if any(kw in q for kw in SYMPTOM_KW):
+        return "symptom"
 
     # Default: timing (most questions are about when/whether something happens)
     return "timing"
@@ -2609,9 +2682,54 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             print(f"[predict] first dasha row keys: {list(dashas_response[0].keys()) if isinstance(dashas_response[0],dict) else type(dashas_response[0])}")
         print(f"[predict] Traceback: {traceback.format_exc()}")
 
+    # Diagnostic mode instruction — fires when user describes a symptom
+    _symptom_instruction = ""
+    if _question_mode == "symptom":
+        _primary_domain, _secondary_domain = _get_symptom_domain(request.question)
+        _symptom_instruction = f"""
+DIAGNOSTIC MODE — USER DESCRIBED A SYMPTOM, NOT A QUESTION.
+Primary instrument under investigation: {_primary_domain}
+Secondary instrument: {_secondary_domain}
+
+Follow this EXACT diagnostic sequence — do not skip steps:
+
+STEP 1 — SCAN: Confirm which instruments this symptom maps to.
+  Primary: {_primary_domain} | Secondary: {_secondary_domain}
+  Look at what's happening in these domains in the chart context above.
+
+STEP 2 — DIAGNOSE: Answer these 4 questions from the chart data:
+  1. Is the instrument ({_primary_domain}) natally stressed or strong?
+  2. What is the current dasha lord — is it a friend or enemy of this instrument?
+  3. Is any current transit adding friction to {_primary_domain} right now?
+  4. NATAL or ACTIVATION? Natal = this pattern has always existed. Activation = started in last 6-18 months due to dasha/transit shift.
+
+STEP 3 — PRESCRIBE: One intervention based on diagnosis.
+  If NATAL pattern: "This is a hardwired configuration. The leverage point is [specific action]."
+  If ACTIVATION: "This is temporary. It lifts on [specific date] when [dasha/transit shifts]. Until then: [specific action]."
+  NEVER say "things will improve" without a date or mechanism.
+
+MANDATORY RESPONSE FORMAT:
+✦ PATTERN IDENTIFIED: [What is actually happening — 10 words max, business language]
+
+CAUSE: [2 sentences. Is this natal or activation? Which instrument + why.]
+
+DIAGNOSIS: [{_primary_domain} is [under pressure / blocked / misfiring] because [specific chart reason].]
+
+THE MOVE: [One action addressing the ROOT cause, not the surface symptom.]
+
+LIFTS: [Specific date or condition when this pattern eases — or "permanent configuration, here's the workaround"]
+
+CRITICAL RULES:
+- Natal vs Activation distinction is MANDATORY — user needs to know if this is forever or temporary
+- Never give generic "work on yourself" advice — every line must reference chart data
+- No Sanskrit, no house numbers, no planet names — instrument labels only
+- Under 150 words total
+"""
+
     if _full_context and len(_full_context) > 500:
         print(f"[predict] Using master context ({len(_full_context)} chars) concern={concern}")
-        prompt = _full_context + f"\n\nQUESTION: {request.question}\nCONCERN: {concern}\n\nAnswer the question directly, referencing specific planets, houses, yogas, and dasha periods from the context above. No generic advice."
+        _question_instruction = _symptom_instruction if _symptom_instruction else "Answer the question directly, referencing specific planets, houses, yogas, and dasha periods from the context above. No generic advice."
+        prompt = _full_context + f"\n\nQUESTION: {request.question}\nCONCERN: {concern}\n\n{_question_instruction}"
     else:
         print(f"[predict] Master context empty — falling back to build_predict_prompt")
         prompt = build_predict_prompt(
