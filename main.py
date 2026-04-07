@@ -7963,7 +7963,12 @@ def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: 
             print(f"[daily-week] Could not load executive summary: {ex}")
             return None
 
-        instruments = exec_data.get("instruments", [])
+        instruments_raw = exec_data.get("instruments", {})
+        # instruments is a dict keyed by name — convert to list of values
+        if isinstance(instruments_raw, dict):
+            instruments = list(instruments_raw.values())
+        else:
+            instruments = instruments_raw
         if not instruments:
             return None
 
