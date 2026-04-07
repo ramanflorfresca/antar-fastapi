@@ -1666,6 +1666,71 @@ def build_divisional_block(chart_data: dict) -> str:
         return ""
 
 
+
+# ═══════════════════════════════════════════════════════════════════
+# JAIMINI TIE-BREAKER GATE — Sprint Apr7
+# Jaimini fires ONLY when Vimsottari is ambiguous.
+# Per spec: simple astrology that is used > complex astrology ignored.
+# ═══════════════════════════════════════════════════════════════════
+
+def _vimsottari_is_ambiguous(chart_data: dict, current_md: str, question: str) -> bool:
+    """
+    Returns True if Vimsottari gives unclear signal → use Jaimini as tie-breaker.
+    Returns False if Vimsottari is clear → skip Jaimini entirely.
+    """
+    # Timing-specific questions always benefit from Jaimini
+    timing_keywords = [
+        "when", "date", "exactly", "sign", "close", "launch", "april", "may",
+        "june", "july", "august", "september", "october", "november", "december",
+        "january", "february", "march", "week", "day", "tomorrow", "tonight",
+        "specific", "precise", "timing", "window closes", "deadline"
+    ]
+    q_lower = (question or "").lower()
+    if any(kw in q_lower for kw in timing_keywords):
+        return True  # timing question → use Jaimini
+
+    if not current_md or not chart_data:
+        return False  # no data → skip Jaimini
+
+    planets = chart_data.get("planets", {})
+    md_planet = planets.get(current_md, {})
+    if not md_planet:
+        return False
+
+    md_house = md_planet.get("house", 0)
+    md_sign_idx = md_planet.get("sign_index", -1)
+
+    # Strong positions — Vimsottari is clear, skip Jaimini
+    KENDRA   = {1, 4, 7, 10}
+    UPACHAYA = {3, 6, 10, 11}
+    EXALT    = {"Sun": 0, "Moon": 1, "Mars": 9, "Mercury": 5,
+                "Jupiter": 3, "Venus": 11, "Saturn": 6}
+    OWN      = {"Sun": [4], "Moon": [3], "Mars": [0,7], "Mercury": [2,5],
+                "Jupiter": [8,11], "Venus": [1,6], "Saturn": [9,10]}
+
+    is_exalted  = EXALT.get(current_md) == md_sign_idx
+    is_own_sign = md_sign_idx in OWN.get(current_md, [])
+    is_kendra   = md_house in KENDRA
+    is_upachaya = md_house in UPACHAYA
+
+    if is_exalted or is_own_sign:
+        return False  # clearly strong — Vimsottari is sufficient
+
+    if is_kendra and not (md_house in {6, 8, 12}):
+        return False  # angular and not dusthana — clear enough
+
+    # Dusthana without dignity — ambiguous
+    DUSTHANA = {6, 8, 12}
+    if md_house in DUSTHANA and not is_exalted and not is_own_sign:
+        return True
+
+    # Neutral houses (2, 3, 5, 9, 11) with no special dignity — ambiguous
+    if md_house not in KENDRA and md_house not in DUSTHANA:
+        return True
+
+    return False  # default: Vimsottari is clear
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
@@ -2348,27 +2413,36 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             divisional_charts=chart_data.get("divisional_charts", {}),
         )
 
-        # --- LAYER 2.5: JAIMINI CHARA DASHA ---
+        # --- LAYER 2.5: JAIMINI CHARA DASHA (tie-breaker only) ---
+        # Per spec: Jaimini fires ONLY when Vimsottari is ambiguous.
+        # For 80% of questions, Vimsottari + divisional charts is sufficient.
         if "id" not in chart_data:
             chart_data["id"] = request.chart_id
         try:
-            _jaimini_block = format_jaimini_context_from_stored(chart_data)
-            if _jaimini_block:
-                _full_context += _jaimini_block
-            _concern = getattr(request, 'concern', '') or getattr(request, 'question', '') or ''
-            _jaimini_conv = score_jaimini_convergence(chart_data, _concern)
-            if _jaimini_conv:
-                _full_context += "\n" + _jaimini_conv + "\n"
+            _vim_md = dashas.get("vimsottari", [{}])[0].get("lord_or_sign", "") if dashas else ""
+            _use_jaimini = _vimsottari_is_ambiguous(chart_data, _vim_md, request.question)
+
+            if _use_jaimini:
+                _full_context += "\n[JAIMINI TIE-BREAKER — Vimsottari signal is ambiguous or timing-specific]\n"
+                _jaimini_block = format_jaimini_context_from_stored(chart_data)
+                if _jaimini_block:
+                    _full_context += _jaimini_block
+                _concern = getattr(request, 'concern', '') or getattr(request, 'question', '') or ''
+                _jaimini_conv = score_jaimini_convergence(chart_data, _concern)
+                if _jaimini_conv:
+                    _full_context += "\n" + _jaimini_conv + "\n"
+                # Bridge only fires with Jaimini
+                try:
+                    _bridge_block = format_bridge_from_stored(chart_data)
+                    if _bridge_block:
+                        _full_context += _bridge_block
+                except Exception as _be:
+                    print(f"Bridge context failed (non-blocking): {_be}")
+                print(f"[predict] Jaimini TIE-BREAKER fired for MD={_vim_md}")
+            else:
+                print(f"[predict] Jaimini SKIPPED — Vimsottari MD={_vim_md} is clear")
         except Exception as _je:
             print(f"Jaimini context failed (non-blocking): {_je}")
-
-        # --- LAYER 3.5: JAIMINI → LK BRIDGE ---
-        try:
-            _bridge_block = format_bridge_from_stored(chart_data)
-            if _bridge_block:
-                _full_context += _bridge_block
-        except Exception as _be:
-            print(f"Bridge context failed (non-blocking): {_be}")
         print(f"[predict] Full context: {len(_full_context)} chars")
     except Exception as _ctx_e:
         import traceback
