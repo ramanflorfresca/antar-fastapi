@@ -25,40 +25,42 @@ logger = logging.getLogger(__name__)
 # ═══════════════════════════════════════════════════════════════════
 
 FIELD_FAMILY = {
-    # AUTHORITY family — leadership, command, visibility
+    # COMMAND family — leadership, authority, victory, strategy
     "AUTHORITY":   "COMMAND",
+    "VICTORY":     "COMMAND",
+    "STRATEGY":    "COMMAND",
     "SIGNAL":      "COMMAND",
     "FOUNDATION":  "COMMAND",
-    "STRUCTURE":   "COMMAND",
+    "EXECUTION":   "COMMAND",
+    "MOMENTUM":    "COMMAND",
 
-    # ALLIANCE family — connection, brokering, networks
+    # ALLIANCE family — connection, brokering, networks, adaptation
     "ALLIANCE":    "ALLIANCE",
+    "ADAPTATION":  "ALLIANCE",
+    "ANCHOR":      "ALLIANCE",
     "BRIDGE":      "ALLIANCE",
-    "NETWORK":     "ALLIANCE",
-    "CHANNEL":     "ALLIANCE",
 
-    # SPARK family — ignition, creativity, disruption
-    "SPARK":       "SPARK",
-    "FLAME":       "SPARK",
-    "IGNITION":    "SPARK",
-    "CATALYST":    "SPARK",
+    # SPARK family — ignition, discovery, disruption, storm
+    "STORM":       "SPARK",
+    "DISCOVERY":   "SPARK",
+    "THRESHOLD":   "SPARK",
+    "SIGNAL":      "SPARK",
 
-    # DEPTH family — investigation, precision, mastery
+    # DEPTH family — completion, recovery, precision
+    "COMPLETION":  "DEPTH",
+    "RECOVERY":    "DEPTH",
     "DEPTH":       "DEPTH",
-    "PRECISION":   "DEPTH",
-    "MASTERY":     "DEPTH",
     "ARCHIVE":     "DEPTH",
 
-    # NURTURE family — care, growth, sustenance
+    # NURTURE family — care, growth, abundance
     "NURTURE":     "NURTURE",
     "GROWTH":      "NURTURE",
+    "ABUNDANCE":   "NURTURE",
     "HARVEST":     "NURTURE",
-    "FLOW":        "NURTURE",
 
-    # EXPANSION family — vision, philosophy, scale
+    # EXPANSION family — vision, scale
     "EXPANSION":   "EXPANSION",
     "VISION":      "EXPANSION",
-    "HORIZON":     "EXPANSION",
     "BROADCAST":   "EXPANSION",
 }
 
@@ -67,20 +69,26 @@ FIELD_FAMILY = {
 # ═══════════════════════════════════════════════════════════════════
 
 MODE_FAMILY = {
-    # DRIVE — action, force, initiation
-    "IGNITE":      "DRIVE",
-    "PUSH":        "DRIVE",
+    # DRIVE — action, force, initiation, disruption, building
+    "DRIVE":       "DRIVE",
+    "DISRUPT":     "DRIVE",
+    "BUILD":       "DRIVE",
     "LAUNCH":      "DRIVE",
+    "PUSH":        "DRIVE",
 
-    # PENETRATE — depth, precision, investigation
+    # PENETRATE — depth, structure, dissolution, seeking
     "PENETRATE":   "PENETRATE",
+    "STRUCTURE":   "PENETRATE",
+    "DISSOLVE":    "PENETRATE",
+    "SEEK":        "PENETRATE",
     "HOLD":        "PENETRATE",
-    "ANCHOR":      "PENETRATE",
 
-    # BALANCE — harmony, mediation, adaptation
+    # BALANCE — harmony, connection, refinement, protection
     "BALANCE":     "BALANCE",
-    "ADAPT":       "BALANCE",
+    "CONNECT":     "BALANCE",
     "REFINE":      "BALANCE",
+    "PROTECT":     "BALANCE",
+    "ADAPT":       "BALANCE",
 
     # EXPAND — vision, scale, distribution
     "EXPAND":      "EXPAND",
@@ -96,32 +104,31 @@ MODE_FAMILY = {
 
 FIELD_PAIRING = {
     # Same family
-    ("COMMAND",    "COMMAND"):    {"dynamic": "resonance",     "label": "DUAL COMMAND",      "description": "Two authority centers — powerful but needs clear lanes"},
     ("ALLIANCE",   "ALLIANCE"):  {"dynamic": "resonance",     "label": "NETWORK FUSION",    "description": "Double broker energy — unmatched reach when aligned"},
-    ("SPARK",      "SPARK"):     {"dynamic": "resonance",     "label": "DUAL IGNITION",     "description": "Explosive creative energy — needs grounding or burns fast"},
+    ("COMMAND",    "COMMAND"):   {"dynamic": "resonance",     "label": "DUAL COMMAND",      "description": "Two authority centers — powerful but needs clear lanes"},
     ("DEPTH",      "DEPTH"):     {"dynamic": "resonance",     "label": "DUAL DEPTH",        "description": "Deep mastery pairing — slow but extraordinarily precise"},
-    ("NURTURE",    "NURTURE"):   {"dynamic": "resonance",     "label": "DUAL NURTURE",      "description": "High care, high sustainability — can lack urgency"},
     ("EXPANSION",  "EXPANSION"): {"dynamic": "resonance",     "label": "DUAL VISION",       "description": "Both think in decades — execution gap is the risk"},
+    ("NURTURE",    "NURTURE"):   {"dynamic": "resonance",     "label": "DUAL NURTURE",      "description": "High care, high sustainability — can lack urgency"},
+    ("SPARK",      "SPARK"):     {"dynamic": "resonance",     "label": "DUAL IGNITION",     "description": "Explosive creative energy — needs grounding or burns fast"},
 
-    # Complementary pairings
-    ("COMMAND",    "ALLIANCE"):  {"dynamic": "complementary", "label": "AUTHORITY + REACH", "description": "One commands, one connects — high-leverage partnership"},
-    ("COMMAND",    "SPARK"):     {"dynamic": "complementary", "label": "COMMAND + IGNITION","description": "Authority with fire — builds fast, lands hard"},
-    ("COMMAND",    "EXPANSION"): {"dynamic": "complementary", "label": "AUTHORITY + VISION","description": "One sets direction, one sees the horizon — strong founder pair"},
-    ("ALLIANCE",   "SPARK"):     {"dynamic": "complementary", "label": "BROKER + CATALYST", "description": "One opens doors, one lights the room — natural deal team"},
+    # Complementary — keys sorted alphabetically
+    ("ALLIANCE",   "COMMAND"):   {"dynamic": "complementary", "label": "AUTHORITY + REACH", "description": "One commands, one connects — high-leverage partnership"},
     ("ALLIANCE",   "EXPANSION"): {"dynamic": "complementary", "label": "NETWORK + VISION",  "description": "Relationships meet scale — built for platform plays"},
-    ("SPARK",      "DEPTH"):     {"dynamic": "complementary", "label": "IGNITION + MASTERY","description": "Creativity backed by precision — rare and potent combination"},
+    ("ALLIANCE",   "SPARK"):     {"dynamic": "complementary", "label": "BROKER + CATALYST", "description": "One opens doors, one lights the room — natural deal team"},
+    ("COMMAND",    "EXPANSION"): {"dynamic": "complementary", "label": "AUTHORITY + VISION","description": "One sets direction, one sees the horizon — strong founder pair"},
+    ("COMMAND",    "SPARK"):     {"dynamic": "complementary", "label": "COMMAND + IGNITION","description": "Authority with fire — builds fast, lands hard"},
+    ("COMMAND",    "NURTURE"):   {"dynamic": "complementary", "label": "CARE + AUTHORITY",  "description": "One builds loyalty, one drives results — strong operator pair"},
     ("DEPTH",      "EXPANSION"): {"dynamic": "complementary", "label": "MASTERY + SCALE",   "description": "Deep expertise meets wide vision — category-defining pair"},
-    ("NURTURE",    "COMMAND"):   {"dynamic": "complementary", "label": "CARE + AUTHORITY",  "description": "One builds loyalty, one drives results — strong operator pair"},
-    ("NURTURE",    "EXPANSION"): {"dynamic": "complementary", "label": "ROOTS + WINGS",     "description": "Sustainability meets ambition — builds to last"},
+    ("DEPTH",      "SPARK"):     {"dynamic": "complementary", "label": "IGNITION + MASTERY","description": "Creativity backed by precision — rare and potent combination"},
+    ("EXPANSION",  "NURTURE"):   {"dynamic": "complementary", "label": "ROOTS + WINGS",     "description": "Sustainability meets ambition — builds to last"},
 
-    # Tension pairings
-    ("COMMAND",    "DEPTH"):     {"dynamic": "tension",       "label": "SPEED VS PRECISION","description": "Authority wants fast decisions; depth needs full data — productive friction"},
-    ("COMMAND",    "NURTURE"):   {"dynamic": "tension",       "label": "DRIVE VS CARE",     "description": "Results vs relationships — needs conscious navigation"},
+    # Tension — keys sorted alphabetically
     ("ALLIANCE",   "DEPTH"):     {"dynamic": "tension",       "label": "NETWORK VS MASTERY","description": "Breadth meets depth — different operating rhythms"},
     ("ALLIANCE",   "NURTURE"):   {"dynamic": "tension",       "label": "CONNECT VS SUSTAIN","description": "Expansion instinct vs consolidation instinct — manageable"},
-    ("SPARK",      "NURTURE"):   {"dynamic": "tension",       "label": "IGNITION VS GROWTH","description": "Disruption meets sustainability — creative tension"},
-    ("SPARK",      "EXPANSION"): {"dynamic": "tension",       "label": "FIRE VS SCALE",     "description": "Both want big — execution rhythm differs"},
+    ("COMMAND",    "DEPTH"):     {"dynamic": "tension",       "label": "SPEED VS PRECISION","description": "Authority wants fast decisions; depth needs full data — productive friction"},
     ("DEPTH",      "NURTURE"):   {"dynamic": "tension",       "label": "PRECISION VS FLOW", "description": "Analysis vs intuition — can balance if roles are clear"},
+    ("EXPANSION",  "SPARK"):     {"dynamic": "tension",       "label": "FIRE VS SCALE",     "description": "Both want big — execution rhythm differs"},
+    ("NURTURE",    "SPARK"):     {"dynamic": "tension",       "label": "IGNITION VS GROWTH","description": "Disruption meets sustainability — creative tension"},
 }
 
 # ═══════════════════════════════════════════════════════════════════
@@ -129,116 +136,123 @@ FIELD_PAIRING = {
 # ═══════════════════════════════════════════════════════════════════
 
 MODE_PAIRING = {
-    # Same family
+    # Same family (already symmetric)
     ("DRIVE",      "DRIVE"):     {"dynamic": "amplified",     "label": "DUAL DRIVE",        "description": "High velocity — watch for burnout or collision"},
-    ("PENETRATE",  "PENETRATE"): {"dynamic": "amplified",     "label": "DUAL DEPTH",        "description": "Both go deep — extraordinary focus, slow start"},
     ("BALANCE",    "BALANCE"):   {"dynamic": "amplified",     "label": "DUAL HARMONY",      "description": "Smooth operations — may avoid necessary conflict"},
     ("EXPAND",     "EXPAND"):    {"dynamic": "amplified",     "label": "DUAL EXPANSION",    "description": "Big thinking — needs someone to execute"},
+    ("PENETRATE",  "PENETRATE"): {"dynamic": "amplified",     "label": "DUAL DEPTH",        "description": "Both go deep — extraordinary focus, slow start"},
 
-    # Complementary
-    ("DRIVE",      "BALANCE"):   {"dynamic": "complementary", "label": "FORCE + FINESSE",   "description": "Action meets diplomacy — strong negotiation pair"},
+    # Complementary — keys sorted alphabetically
+    ("BALANCE",    "DRIVE"):     {"dynamic": "complementary", "label": "FORCE + FINESSE",   "description": "Action meets diplomacy — strong negotiation pair"},
     ("DRIVE",      "EXPAND"):    {"dynamic": "complementary", "label": "PUSH + SCALE",      "description": "Execution meets vision — natural growth engine"},
-    ("PENETRATE",  "EXPAND"):    {"dynamic": "complementary", "label": "DEPTH + REACH",     "description": "Deep insight at scale — rare operating combination"},
-    ("PENETRATE",  "BALANCE"):   {"dynamic": "complementary", "label": "PRECISION + FLOW",  "description": "Analysis balanced by harmony — strong decision pair"},
+    ("BALANCE",    "PENETRATE"): {"dynamic": "complementary", "label": "PRECISION + FLOW",  "description": "Analysis balanced by harmony — strong decision pair"},
+    ("EXPAND",     "PENETRATE"): {"dynamic": "complementary", "label": "DEPTH + REACH",     "description": "Deep insight at scale — rare operating combination"},
     ("BALANCE",    "EXPAND"):    {"dynamic": "complementary", "label": "HARMONY + SCALE",   "description": "Sustainable growth — builds without breaking"},
 
-    # Tension
+    # Tension — keys sorted alphabetically
     ("DRIVE",      "PENETRATE"): {"dynamic": "tension",       "label": "SPEED VS DEPTH",    "description": "One moves fast, one goes deep — needs role clarity"},
     ("EXPAND",     "PENETRATE"): {"dynamic": "tension",       "label": "SCALE VS DETAIL",   "description": "Big picture vs granular — productive if respected"},
 }
 
-# ═══════════════════════════════════════════════════════════════════
-# ARCHETYPE PAIRING NAMES
+
 # Famous archetype combos get a named pairing
 # ═══════════════════════════════════════════════════════════════════
 
 ARCHETYPE_PAIRINGS = {
-    # ── BROKER pairings ───────────────────────────────────────────
-    ("THE BROKER",      "THE CATALYST"):    ("THE DEALMAKERS",         "Selling the future. One opens doors. One lights fires."),
-    ("THE BROKER",      "THE COMMANDER"):   ("THE EXECUTIVE DEAL",     "Mandate plus transaction. Authority meets reach."),
-    ("THE BROKER",      "THE MEDIATOR"):    ("THE NETWORK PAIR",       "Two connectors — unmatched relational range."),
-    ("THE BROKER",      "THE FOUNDER"):     ("THE DEALMAKERS",         "Selling the future. Best for fundraising and high-stakes sales."),
-    ("THE BROKER",      "THE OPERATOR"):    ("THE TREASURY",           "Wealth movement meets execution. High financial intelligence."),
-    ("THE BROKER",      "THE MULTIPLIER"):  ("THE MULTIPLIER DEAL",    "One finds the deal, one scales the asset."),
-    ("THE BROKER",      "THE SURGEON"):     ("THE PRECISION + REACH",  "Deep expertise, wide network — formidable."),
-    ("THE BROKER",      "THE GUARDIAN"):    ("THE RELIABLE CLOSE",     "One protects the relationship, one closes it."),
-    ("THE BROKER",      "THE REBEL"):       ("THE WILD CARD DEAL",     "Unconventional transaction. High risk, high reward."),
-    ("THE BROKER",      "THE NETWORKER"):   ("THE MULTIPLIER",         "Access meets transaction. One opens doors, one closes them."),
-    ("THE BROKER",      "THE AMPLIFIER"):   ("THE CLOSING PAIR",       "Charm closes the deal. High-ticket sales synergy."),
-    ("THE BROKER",      "THE ENGINE"):      ("THE DEAL ENGINE",        "One structures the deal, one powers execution."),
+    # ── BROKER (114 charts — most common) ────────────────────────
+    ("THE BROKER",      "THE MEDIATOR"):    ("THE NETWORK PAIR",        "Two connectors — unmatched relational range."),
+    ("THE BROKER",      "THE GUARDIAN"):    ("THE RELIABLE CLOSE",      "One protects the relationship, one closes it."),
+    ("THE BROKER",      "THE CATALYST"):    ("THE DEALMAKERS",          "Selling the future. One opens doors. One lights fires."),
+    ("THE BROKER",      "THE REBEL"):       ("THE WILD CARD DEAL",      "Unconventional transaction. High risk, high reward."),
+    ("THE BROKER",      "THE CRAFTSMAN"):   ("THE PRECISION + REACH",   "Deep expertise, wide network — formidable."),
+    ("THE BROKER",      "THE CHAMPION"):    ("THE CLOSING PAIR",        "Drive meets transaction. Nothing stays open long."),
+    ("THE BROKER",      "THE FINISHER"):    ("THE DEAL ENGINE",         "One structures, one completes. High execution synergy."),
+    ("THE BROKER",      "THE NETWORKER"):   ("THE MULTIPLIER",          "Access meets transaction. One opens doors, one closes them."),
+    ("THE BROKER",      "THE COMMANDER"):   ("THE EXECUTIVE DEAL",      "Mandate plus reach — authority that moves markets."),
+    ("THE BROKER",      "THE OPERATOR"):    ("THE TREASURY",            "Wealth movement meets execution. High financial intelligence."),
+    ("THE BROKER",      "THE FORGER"):      ("THE BUILDER DEAL",        "One builds the asset, one monetizes it."),
+    ("THE BROKER",      "THE PATRON"):      ("THE SPONSOR PAIR",        "Capital meets connection — high-leverage backing."),
+    ("THE BROKER",      "THE HAND"):        ("THE OPERATOR PAIR",       "One brokers, one delivers. Clean division of labor."),
+    ("THE BROKER",      "THE MULTIPLIER"):  ("THE SCALE DEAL",          "One finds the deal, one scales the asset."),
+    ("THE BROKER",      "THE BEDROCK"):     ("THE STABLE CLOSE",        "Reliability backs the transaction. Trust is the asset."),
+    ("THE BROKER",      "THE AMPLIFIER"):   ("THE SIGNAL PAIR",         "Reach meets broadcast. Information moves fast."),
+    ("THE BROKER",      "THE SCOUT"):       ("THE DISCOVERY DEAL",      "One finds the opportunity, one closes it."),
+    ("THE BROKER",      "THE ACCELERATOR"): ("THE FAST CLOSE",          "Speed meets transaction. Built for rapid deals."),
+    ("THE BROKER",      "THE ENGINE"):      ("THE POWER DEAL",          "One generates, one distributes. Sustained output."),
+    ("THE BROKER",      "THE HEALER"):      ("THE TRUST PAIR",          "One restores, one connects. High relational capital."),
 
-    # ── COMMANDER / AUTHORITY pairings ───────────────────────────
-    ("THE COMMANDER",   "THE CATALYST"):    ("THE STRIKE FORCE",       "Command and ignition — moves fast and hard."),
-    ("THE COMMANDER",   "THE GUARDIAN"):    ("THE FORTRESS PAIR",      "Authority and protection — built to last."),
-    ("THE COMMANDER",   "THE FOUNDER"):     ("THE COMMAND CENTER",     "Both want control. Works when domains are separated."),
-    ("THE COMMANDER",   "THE OPERATOR"):    ("THE HIERARCHY",          "Chain of command is clear. Works in mature organizations."),
-    ("THE COMMANDER",   "THE MULTIPLIER"):  ("THE CROWN",              "Power plus scale. High-status, high-impact pairing."),
-    ("THE COMMANDER",   "THE MEDIATOR"):    ("THE DIPLOMAT + FORCE",   "Soft power backed by hard authority."),
-    ("THE COMMANDER",   "THE REBEL"):       ("THE COUP",               "Inevitable friction unless one bends. High tension."),
-    ("THE COMMANDER",   "THE NETWORKER"):   ("THE POWER BROKER",       "Access to power. One knows everyone, one commands respect."),
-    ("THE COMMANDER",   "THE AMPLIFIER"):   ("THE CROWN",              "Power plus charm. High-status pairing."),
-    ("THE COMMANDER",   "THE SURGEON"):     ("THE GATEKEEPER",         "Tension between precision and mandate. Works if Authority trusts."),
+    # ── MEDIATOR (14 charts) ──────────────────────────────────────
+    ("THE MEDIATOR",    "THE GUARDIAN"):    ("THE HARMONY PAIR",        "Care plus diplomacy — high relational intelligence."),
+    ("THE MEDIATOR",    "THE CATALYST"):    ("THE REACTION",            "Raw energy refined into connection."),
+    ("THE MEDIATOR",    "THE REBEL"):       ("THE CHESS PLAYERS",       "One challenges the rules, one navigates them."),
+    ("THE MEDIATOR",    "THE CRAFTSMAN"):   ("THE PRECISION PAIR",      "Harmony meets mastery — smooth and exact."),
+    ("THE MEDIATOR",    "THE CHAMPION"):    ("THE DIPLOMAT + DRIVE",    "Soft power backed by hard momentum."),
+    ("THE MEDIATOR",    "THE FINISHER"):    ("THE RESOLUTION PAIR",     "One mediates, one closes. Conflict becomes completion."),
+    ("THE MEDIATOR",    "THE NETWORKER"):   ("THE CONNECTOR PAIR",      "Double connection energy — unmatched relational range."),
+    ("THE MEDIATOR",    "THE COMMANDER"):   ("THE DIPLOMAT + FORCE",    "Soft power backed by hard authority."),
+    ("THE MEDIATOR",    "THE OPERATOR"):    ("THE COMFORT PAIR",        "Stability plus diplomacy. Great for client operations."),
 
-    # ── CATALYST pairings ────────────────────────────────────────
-    ("THE CATALYST",    "THE GUARDIAN"):    ("THE BUILDER PAIR",       "One starts fires. One keeps them burning."),
-    ("THE CATALYST",    "THE FOUNDER"):     ("THE ECHO CHAMBER",       "Both dream. Execution gap risk. Needs a Steward to ground it."),
-    ("THE CATALYST",    "THE OPERATOR"):    ("THE CONTROLLED BURN",    "Disruption with a safety net. One breaks, one fixes."),
-    ("THE CATALYST",    "THE MULTIPLIER"):  ("THE SCALE PAIR",         "Fast growth that actually sticks."),
-    ("THE CATALYST",    "THE MEDIATOR"):    ("THE REACTION",           "Raw energy refined into connection. Creative and relational."),
-    ("THE CATALYST",    "THE REBEL"):       ("THE SUPERNOVA",          "High heat, high chaos. Brilliant for 0-to-1, risky for scale."),
-    ("THE CATALYST",    "THE NETWORKER"):   ("THE VIRAL PAIR",         "Ideas that spread instantly. High-energy growth."),
-    ("THE CATALYST",    "THE AMPLIFIER"):   ("THE ATTRACTION",         "Ideas plus charm. High-influence fundraising."),
-    ("THE CATALYST",    "THE SURGEON"):     ("THE PRECISION IGNITION", "Creativity backed by precision — rare and potent."),
-    ("THE CATALYST",    "THE ENGINE"):      ("THE LAUNCHER",           "One ignites, one sustains. Classic start-and-build duo."),
+    # ── GUARDIAN (11 charts) ──────────────────────────────────────
+    ("THE GUARDIAN",    "THE CATALYST"):    ("THE BUILDER PAIR",        "One starts fires. One keeps them burning."),
+    ("THE GUARDIAN",    "THE REBEL"):       ("THE TENSION PAIR",        "One protects, one disrupts. Constant negotiation."),
+    ("THE GUARDIAN",    "THE CRAFTSMAN"):   ("THE FOUNDATION PAIR",     "Protection meets precision — nothing breaks here."),
+    ("THE GUARDIAN",    "THE CHAMPION"):    ("THE FORTRESS PAIR",       "Authority and drive — built to last."),
+    ("THE GUARDIAN",    "THE COMMANDER"):   ("THE COMMAND + SHIELD",    "Force backed by protection. Durable power."),
+    ("THE GUARDIAN",    "THE OPERATOR"):    ("THE TRADITIONAL POWER",   "Classic hierarchy. Works in legacy organizations."),
+    ("THE GUARDIAN",    "THE NETWORKER"):   ("THE TRUSTED HUB",         "Access plus reliability — high-trust network."),
 
-    # ── FOUNDER / VISIONARY pairings ─────────────────────────────
-    ("THE FOUNDER",     "THE OPERATOR"):    ("THE EXECUTION PAIR",     "Vision meets systems — the classic startup duo."),
-    ("THE FOUNDER",     "THE MULTIPLIER"):  ("THE SCALE PAIR",         "What one builds, the other multiplies."),
-    ("THE FOUNDER",     "THE SURGEON"):     ("THE INVENTION",          "One sees the future, one builds it. Founder + CTO."),
-    ("THE FOUNDER",     "THE GUARDIAN"):    ("THE ROOTS + WINGS",      "Sustainability meets ambition — builds to last."),
-    ("THE FOUNDER",     "THE NETWORKER"):   ("THE SIGNAL",             "One sees the future, the other tells everyone about it."),
-    ("THE FOUNDER",     "THE AMPLIFIER"):   ("THE MIRROR PAIR",        "Both attract. High external focus, low internal execution."),
-    ("THE FOUNDER",     "THE REBEL"):       ("THE REVOLUTION",         "Change at any cost. Great for transformation, risky for stability."),
+    # ── CATALYST (6 charts) ───────────────────────────────────────
+    ("THE CATALYST",    "THE REBEL"):       ("THE SUPERNOVA",           "High heat, high chaos. Brilliant for 0-to-1."),
+    ("THE CATALYST",    "THE CRAFTSMAN"):   ("THE PRECISION IGNITION",  "Creativity backed by precision — rare and potent."),
+    ("THE CATALYST",    "THE CHAMPION"):    ("THE STRIKE FORCE",        "Ignition plus drive — moves fast and hard."),
+    ("THE CATALYST",    "THE COMMANDER"):   ("THE COMMAND + FIRE",      "Authority plus ignition — nothing stays still."),
+    ("THE CATALYST",    "THE OPERATOR"):    ("THE CONTROLLED BURN",     "Disruption with a safety net. One breaks, one fixes."),
+    ("THE CATALYST",    "THE NETWORKER"):   ("THE VIRAL PAIR",          "Ideas that spread instantly. High-energy growth."),
 
-    # ── OPERATOR / STEWARD pairings ──────────────────────────────
-    ("THE OPERATOR",    "THE MULTIPLIER"):  ("THE EMPIRE",             "Built for the long haul. Absolute stability and operational excellence."),
-    ("THE OPERATOR",    "THE SURGEON"):     ("THE OPTIMIZER",          "One refines, one stabilizes. Operational excellence."),
-    ("THE OPERATOR",    "THE NETWORKER"):   ("THE RELIABLE HUB",       "One builds the system, one activates the channels."),
-    ("THE OPERATOR",    "THE GUARDIAN"):    ("THE TRADITIONAL POWER",  "Classic hierarchy. Works well in legacy organizations."),
-    ("THE OPERATOR",    "THE AMPLIFIER"):   ("THE COMFORT PAIR",       "Stability plus charm. Great for client-facing operations."),
-    ("THE OPERATOR",    "THE REBEL"):       ("THE CONTROLLED BURN",    "Disruption with a safety net. One breaks, one fixes."),
-    ("THE OPERATOR",    "THE ENGINE"):      ("THE PRECISION PAIR",     "Hyper-optimized. Great for R&D or complex engineering."),
+    # ── REBEL (5 charts) ─────────────────────────────────────────
+    ("THE REBEL",       "THE CRAFTSMAN"):   ("THE DISRUPTOR",           "Breaking old systems with surgical intent."),
+    ("THE REBEL",       "THE CHAMPION"):    ("THE CHAOS AGENTS",        "Unpredictable force. Great for launching."),
+    ("THE REBEL",       "THE COMMANDER"):   ("THE COUP",                "Inevitable friction unless one bends."),
+    ("THE REBEL",       "THE OPERATOR"):    ("THE WILD ENGINE",         "Raw disruption meets systems — explosive."),
 
-    # ── MULTIPLIER pairings ──────────────────────────────────────
-    ("THE MULTIPLIER",  "THE SURGEON"):     ("THE VALUE EXTRACTOR",    "One finds the deal, one optimizes the asset. PE energy."),
-    ("THE MULTIPLIER",  "THE NETWORKER"):   ("THE ENGINE",             "Structure meets access. One builds, one distributes."),
-    ("THE MULTIPLIER",  "THE AMPLIFIER"):   ("THE INFLUENCE PAIR",     "Charisma squared. High social capital."),
-    ("THE MULTIPLIER",  "THE REBEL"):       ("THE DISRUPTOR",          "Breaking old systems to build the new. Best for pivot moments."),
+    # ── CRAFTSMAN (5 charts) ──────────────────────────────────────
+    ("THE CRAFTSMAN",   "THE CHAMPION"):    ("THE EXECUTION PAIR",      "Precision meets drive. Built to deliver."),
+    ("THE CRAFTSMAN",   "THE COMMANDER"):   ("THE GATEKEEPER",          "Mastery backed by authority. High-standard pair."),
+    ("THE CRAFTSMAN",   "THE OPERATOR"):    ("THE OPTIMIZER",           "One refines, one stabilizes. Operational excellence."),
+    ("THE CRAFTSMAN",   "THE FINISHER"):    ("THE COMPLETION PAIR",     "Both finish what others start. Nothing left undone."),
 
-    # ── MEDIATOR pairings ────────────────────────────────────────
-    ("THE MEDIATOR",    "THE GUARDIAN"):    ("THE HARMONY PAIR",       "Care plus diplomacy — high relational intelligence."),
-    ("THE MEDIATOR",    "THE NETWORKER"):   ("THE CONNECTOR PAIR",     "Double connection energy — unmatched reach when aligned."),
-    ("THE MEDIATOR",    "THE REBEL"):       ("THE CHESS PLAYERS",      "Strategic tension. One challenges the rules, one navigates them."),
+    # ── CHAMPION (5 charts) ───────────────────────────────────────
+    ("THE CHAMPION",    "THE COMMANDER"):   ("THE POWER PAIR",          "Two forces of authority — define lanes or collide."),
+    ("THE CHAMPION",    "THE OPERATOR"):    ("THE DRIVE + SYSTEMS",     "Momentum meets structure. Scales well."),
+    ("THE CHAMPION",    "THE FINISHER"):    ("THE CLOSER PAIR",         "Both drive to completion. High output."),
 
-    # ── SURGEON / PRECISION pairings ─────────────────────────────
-    ("THE SURGEON",     "THE NETWORKER"):   ("THE IDEA AMPLIFIER",     "One creates, one distributes. High synergy for tech."),
-    ("THE SURGEON",     "THE GUARDIAN"):    ("THE BLUEPRINT",          "Planning meets precision — the ultimate detail pair."),
-    ("THE SURGEON",     "THE REBEL"):       ("THE PRECISION DISRUPTOR","Breaking with surgical intent. Deliberate destruction."),
-    ("THE SURGEON",     "THE AMPLIFIER"):   ("THE POLISHED INVENTION", "One builds, one sells. Great for product-led companies."),
+    # ── FINISHER (5 charts) ───────────────────────────────────────
+    ("THE FINISHER",    "THE COMMANDER"):   ("THE MANDATE CLOSE",       "Authority plus completion — decisive and final."),
+    ("THE FINISHER",    "THE OPERATOR"):    ("THE EMPIRE",              "Built for the long haul. Stability and completion."),
+    ("THE FINISHER",    "THE NETWORKER"):   ("THE RELIABLE HUB",        "One builds systems, one activates channels."),
 
-    # ── NETWORKER pairings ───────────────────────────────────────
-    ("THE NETWORKER",   "THE GUARDIAN"):    ("THE TRUSTED HUB",        "Access plus reliability — high-trust relationship network."),
-    ("THE NETWORKER",   "THE REBEL"):       ("THE CHAOS AGENTS",       "Unpredictable. Great for launching, dangerous for operating."),
-    ("THE NETWORKER",   "THE AMPLIFIER"):   ("THE INFLUENCE PAIR",     "Charisma squared. High social capital, low operational focus."),
+    # ── COMMANDER (4 charts) ─────────────────────────────────────
+    ("THE COMMANDER",   "THE OPERATOR"):    ("THE HIERARCHY",           "Chain of command clear. Works in mature organizations."),
+    ("THE COMMANDER",   "THE NETWORKER"):   ("THE POWER BROKER",        "Access to power. One knows everyone, one commands."),
+    ("THE COMMANDER",   "THE MULTIPLIER"):  ("THE CROWN",               "Power plus scale. High-status, high-impact."),
 
-    # ── GUARDIAN pairings ────────────────────────────────────────
-    ("THE GUARDIAN",    "THE REBEL"):       ("THE TENSION PAIR",       "One protects, one disrupts. Constant negotiation required."),
-    ("THE GUARDIAN",    "THE AMPLIFIER"):   ("THE COMFORT PAIR",       "Warmth plus visibility. Great for community-driven brands."),
+    # ── OPERATOR (4 charts) ──────────────────────────────────────
+    ("THE OPERATOR",    "THE MULTIPLIER"):  ("THE SCALE PAIR",          "Systems meet multiplication. Built for growth."),
+    ("THE OPERATOR",    "THE NETWORKER"):   ("THE ENGINE PAIR",         "Structure meets access. One builds, one distributes."),
 
-    # ── REBEL pairings ───────────────────────────────────────────
-    ("THE REBEL",       "THE AMPLIFIER"):   ("THE SEDUCTIVE REBEL",    "Charm plus disruption. High influence, low predictability."),
-    ("THE REBEL",       "THE ENGINE"):      ("THE WILD ENGINE",        "Raw force meets disruption — explosive but hard to steer."),
+    # ── FORGER (3 charts) ────────────────────────────────────────
+    ("THE FORGER",      "THE CHAMPION"):    ("THE IRON PAIR",           "Both forge under pressure. Extraordinary resilience."),
+    ("THE FORGER",      "THE COMMANDER"):   ("THE FOUNDRY",             "Authority shapes raw material into legacy."),
+
+    # ── MULTIPLIER (2 charts) ────────────────────────────────────
+    ("THE MULTIPLIER",  "THE NETWORKER"):   ("THE AMPLIFIER PAIR",      "One creates scale, one activates reach."),
+
+    # ── PATRON (2 charts) ────────────────────────────────────────
+    ("THE PATRON",      "THE CATALYST"):    ("THE SPONSOR + SPARK",     "Capital meets ignition. High-leverage backing."),
+    ("THE PATRON",      "THE FOUNDER"):     ("THE BACKING PAIR",        "Vision funded. One sees it, one backs it."),
 }
+
+
 
 # ═══════════════════════════════════════════════════════════════════
 # SYNASTRY SCORE CONTRIBUTION
@@ -304,10 +318,11 @@ def compute_field_mode_synastry(
 
     arch_name_a = archetype_a.get("name", "UNKNOWN")
     arch_name_b = archetype_b.get("name", "UNKNOWN")
-    field_a = archetype_a.get("field", "")
-    mode_a  = archetype_a.get("mode", "")
-    field_b = archetype_b.get("field", "")
-    mode_b  = archetype_b.get("mode", "")
+    # DB stores as dominant_field / dominant_mode
+    field_a = archetype_a.get("dominant_field") or archetype_a.get("field", "")
+    mode_a  = archetype_a.get("dominant_mode")  or archetype_a.get("mode", "")
+    field_b = archetype_b.get("dominant_field") or archetype_b.get("field", "")
+    mode_b  = archetype_b.get("dominant_mode")  or archetype_b.get("mode", "")
 
     # Get family groupings
     field_fam_a = FIELD_FAMILY.get(field_a, field_a)
@@ -377,7 +392,7 @@ def compute_field_mode_synastry(
 
 def _normalize_key(a: str, b: str) -> tuple:
     """Return tuple in alphabetical order for symmetric lookup."""
-    return tuple(sorted([a, b]))
+    return (min(a, b), max(a, b))
 
 
 def _compute_verdict(
@@ -413,6 +428,14 @@ def _compute_verdict(
     elif combo in [("tension", "tension")]:
         verdict = "FRICTION PAIR"
         detail = f"{field_desc}. {mode_desc}. High friction — can work with clear roles and mutual respect."
+
+    elif combo in [("tension", "neutral"), ("neutral", "tension")]:
+        verdict = "MIXED SIGNALS"
+        detail = f"{field_desc}. Execution styles differ — define lanes early."
+
+    elif combo in [("neutral", "neutral")]:
+        verdict = "INDEPENDENT PAIR"
+        detail = f"Distinct operating domains — independent strengths. Coordination is the key variable."
 
     else:
         verdict = "NEUTRAL PAIRING"
