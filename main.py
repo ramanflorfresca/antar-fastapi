@@ -1291,6 +1291,9 @@ async def call_llm_claude(
         )
         text = response.content[0].text.strip()
         tokens = response.usage.output_tokens
+        _cache_r = getattr(response.usage, 'cache_read_input_tokens', 0) or 0
+        _cache_w = getattr(response.usage, 'cache_creation_input_tokens', 0) or 0
+        print(f"[claude] cache_hit={_cache_r} cache_write={_cache_w} output={tokens}")
         return text, tokens
     except Exception as e:
         print(f"[claude] error, falling back to DeepSeek: {e}")
