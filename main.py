@@ -1375,122 +1375,6 @@ async def save_conversation_turn(
 # Python extracts state. Claude reads context. DKP makes it personal.
 # ═══════════════════════════════════════════════════════════════════
 
-def _get_astrocarto_desha_lines(chart_id: str, chart_data: dict, current_city: str = None) -> list:
-    """
-    Returns 1-3 lines of astrocartography context for the DKP DESHA block.
-    Fast — uses cached astrocartography_data from Supabase if available,
-    otherwise skips silently (non-blocking).
-    """
-    try:
-        from antar_engine.astrocartography import (
-            get_city_line_data_for_chart,
-            get_best_cities_for_concern,
-            get_current_location_reading,
-            PLANET_LINE_MEANINGS,
-        )
-        import swisseph as swe
-        from datetime import datetime, timezone
-
-        # Get birth JD
-        birth_date = chart_data.get("birth_date")
-        birth_time = chart_data.get("birth_time", "00:00:00")
-        if not birth_date:
-            return []
-
-        dt_str  = f"{birth_date}T{birth_time}"
-        birth_dt = datetime.fromisoformat(dt_str)
-        hour_decimal = birth_dt.hour + birth_dt.minute / 60.0 + birth_dt.second / 3600.0
-        birth_jd = swe.julday(birth_dt.year, birth_dt.month, birth_dt.day, hour_decimal)
-
-        # Check cached data first
-        cached = chart_data.get("astrocartography_data")
-        if cached and isinstance(cached, dict) and cached.get("city_line_data"):
-            city_line_data = cached["city_line_data"]
-        else:
-            # Compute fresh (2-4s) — only if not cached
-            city_line_data = get_city_line_data_for_chart(birth_jd)
-
-        # Load dashas
-        try:
-            dashas = get_dashas_for_chart(chart_id)
-        except Exception:
-            dashas = {}
-
-        result_lines = []
-
-        # ── Current city verdict ──────────────────────────────────
-        city_name = current_city or chart_data.get("birth_city") or ""
-        if city_name:
-            city_lines = city_line_data.get(city_name, {})
-            current_reading = get_current_location_reading(
-                city=city_name,
-                planet_lines=city_lines,
-                dashas=dashas,
-            )
-            active = current_reading.get("active_lines", [])
-            if active:
-                top = active[0]
-                planet = top["planet"]
-                line_type = top["line_type"]
-                theme = PLANET_LINE_MEANINGS.get(planet, {}).get(line_type, {}).get("theme", "")
-                strength_pct = int(top["strength"] * 100)
-                dasha_note = ""
-                if top.get("dasha_amp", {}).get("amplified"):
-                    dasha_note = f" [AMPLIFIED — {top['dasha_amp']['reason']}]"
-                result_lines.append(
-                    f"  Current city ({city_name}): {planet} {line_type} line active "
-                    f"({strength_pct}%) — {theme}{dasha_note}"
-                )
-            else:
-                result_lines.append(
-                    f"  Current city ({city_name}): NEUTRAL — no strong planetary lines active here"
-                )
-
-        # ── Top amplified cities across concerns ──────────────────
-        # Find cities with SOON/NOW urgency across career + money + growth
-        amplified_cities = {}
-        for concern in ["career", "money", "growth"]:
-            top_cities = get_best_cities_for_concern(
-                concern=concern,
-                city_line_data=city_line_data,
-                dashas=dashas,
-                limit=3,
-            )
-            for c in top_cities:
-                if c.get("urgency") in ("NOW", "SOON") and c.get("is_amplified"):
-                    key = c["city"]
-                    if key not in amplified_cities:
-                        amplified_cities[key] = c
-
-        if amplified_cities:
-            # Group by planet+line
-            by_line = {}
-            for city, data in amplified_cities.items():
-                line_key = f"{data['planet']} {data['line_type']}"
-                if line_key not in by_line:
-                    by_line[line_key] = []
-                by_line[line_key].append(city)
-
-            for line_key, cities in list(by_line.items())[:2]:
-                cities_str = ", ".join(cities[:3])
-                # Find window from first city's data
-                sample = amplified_cities[cities[0]]
-                window = sample.get("window", "")
-                urgency = sample.get("urgency", "")
-                urgency_label = "Opening soon" if urgency == "SOON" else "Active now"
-                result_lines.append(
-                    f"  {urgency_label}: {line_key} line → {cities_str}"
-                    + (f" (until {window})" if window else "")
-                )
-
-        return result_lines
-
-    except Exception as e:
-        # Never block predict — silently skip
-        print(f"[dkp_astrocarto] non-fatal: {e}")
-        return []
-
-
 def build_dkp_block(chart_data: dict, user_profile: dict = None) -> str:
     """
     Builds a DESHA / KALA / PATRA context block for injection into Claude prompt.
@@ -1560,18 +1444,6 @@ def build_dkp_block(chart_data: dict, user_profile: dict = None) -> str:
     if desha_lines:
         lines.append("DESHA (Place context):")
         lines.extend(desha_lines)
-
-    # ── Astrocartography lines (injected into DESHA) ──────────────
-    chart_id_for_astro = cd.get("id") or cd.get("chart_id") or ""
-    current_city_for_astro = up.get("city") or cd.get("city") or cd.get("birth_city") or ""
-    if chart_id_for_astro:
-        try:
-            astro_lines = _get_astrocarto_desha_lines(
-                chart_id_for_astro, cd, current_city_for_astro
-            )
-            lines.extend(astro_lines)
-        except Exception:
-            pass  # Never block predict
 
     # ─── KALA (Time / Era + Life Stage Context) ──────────────────
     current_year = datetime.now().year
@@ -4722,118 +4594,6 @@ async def astrocartography_waitlist(request: WaitlistRequest):
         print(f"Waitlist insert error: {e}")
     return {"status": "added", "message": "You are on the list. We will notify you when your city map is ready."}
 
-# ── Real Astrocartography — Swiss Ephemeris MC/ASC line computation ───────────
-
-@app.get("/api/v1/astrocartography/{chart_id}")
-async def get_astrocartography(
-    chart_id: str,
-    concern: str = "growth",
-    current_city: str = None,
-    limit: int = 5,
-):
-    """
-    Real astrocartography — Swiss Ephemeris MC/ASC line computation.
-    Returns top cities for the given concern, scored against the birth chart.
-    concern: career | love | money | growth | health | happiness | education | spirituality | home
-    """
-    try:
-        from antar_engine.astrocartography import (
-            get_city_line_data_for_chart,
-            get_best_cities_for_concern,
-            get_current_location_reading,
-        )
-
-        # Load chart
-        chart_resp = supabase.table("charts").select("*").eq("id", chart_id).single().execute()
-        if not chart_resp.data:
-            raise HTTPException(status_code=404, detail="Chart not found")
-        chart = chart_resp.data
-
-        # Get birth JD — chart stores birth_date + birth_time separately
-        birth_date = chart.get("birth_date")
-        birth_time = chart.get("birth_time", "00:00:00")
-        if not birth_date:
-            raise HTTPException(status_code=400, detail="Chart missing birth_date")
-
-        import swisseph as swe
-        from datetime import datetime, timezone
-
-        dt_str = f"{birth_date}T{birth_time}"
-        birth_dt = datetime.fromisoformat(dt_str)
-        # birth_date/time are stored as local time — treat as UTC for JD computation
-        # (consistent with how other engines handle it in this codebase)
-        hour_decimal = (
-            birth_dt.hour
-            + birth_dt.minute / 60.0
-            + birth_dt.second / 3600.0
-        )
-        birth_jd = swe.julday(
-            birth_dt.year,
-            birth_dt.month,
-            birth_dt.day,
-            hour_decimal,
-        )
-
-        print(f"[astrocartography] chart={chart_id} birth_jd={birth_jd:.4f} concern={concern}")
-
-        # Compute real city scores (~2-4s first call, cached after)
-        city_line_data = get_city_line_data_for_chart(birth_jd)
-        print(f"[astrocartography] scored {len(city_line_data)} cities")
-
-        # Dashas for dasha-amplification layer — load from dashas table
-        try:
-            dashas = get_dashas_for_chart(chart_id)
-        except Exception as dasha_err:
-            print(f"[astrocartography] dasha load failed (non-fatal): {dasha_err}")
-            dashas = {}
-
-        # Top cities for concern
-        top_cities = get_best_cities_for_concern(
-            concern=concern,
-            city_line_data=city_line_data,
-            dashas=dashas,
-            current_country=chart.get("birth_country"),
-            limit=limit,
-        )
-
-        # Current city reading
-        current_city_name = current_city or chart.get("birth_city") or "Unknown"
-        current_city_lines = city_line_data.get(current_city_name, {})
-        current_reading = get_current_location_reading(
-            city=current_city_name,
-            planet_lines=current_city_lines,
-            dashas=dashas,
-        )
-
-        # Cache in Supabase (non-fatal if fails)
-        try:
-            supabase.table("charts").update({
-                "astrocartography_data": {
-                    "birth_jd":   birth_jd,
-                    "concern":    concern,
-                    "top_cities": [c["city"] for c in top_cities],
-                }
-            }).eq("id", chart_id).execute()
-        except Exception as cache_err:
-            print(f"[astrocartography] cache write non-fatal: {cache_err}")
-
-        return {
-            "chart_id":             chart_id,
-            "concern":              concern,
-            "current_city":         current_reading,
-            "top_cities":           top_cities,
-            "total_cities_scored":  len(city_line_data),
-            "birth_jd":             birth_jd,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        import traceback
-        print(f"[astrocartography] error: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 # ══════════════════════════════════════════════════════════════════════════════
 # CHAKRA ENDPOINT
 # ══════════════════════════════════════════════════════════════════════════════
@@ -5347,6 +5107,114 @@ class CompatibilityContinueRequest(BaseModel):
     product_context: Optional[str]  = None
 
 
+def _compute_dasha_compatibility_score(dashas_a: dict, dashas_b: dict) -> dict:
+    """
+    Scores how aligned two people's current dasha periods are.
+
+    Logic:
+    - Both in expansive dashas (Jupiter, Rahu, Venus, Sun) → high score
+    - One in contracting dasha (Saturn, Ketu, Mars) → moderate
+    - Both in contracting dashas → low score
+    - Dasha periods ending soon (< 2 years) → timing urgency flag
+
+    Returns:
+    {
+        "score": int (0-100),
+        "label": str,
+        "window": str,
+        "urgency": str,
+        "detail": str,
+    }
+    """
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+
+    EXPANSIVE = {"Jupiter", "Rahu", "Venus", "Sun", "Moon"}
+    CONTRACTING = {"Saturn", "Ketu", "Mars"}
+
+    def get_current_md(dashas: dict) -> dict:
+        periods = dashas.get("vimsottari", [])
+        for p in periods:
+            try:
+                start = datetime.fromisoformat(str(p.get("start",""))[:10])
+                end   = datetime.fromisoformat(str(p.get("end",""))[:10])
+                if start.date() <= now.date() <= end.date():
+                    return p
+            except Exception:
+                pass
+        return periods[0] if periods else {}
+
+    md_a = get_current_md(dashas_a)
+    md_b = get_current_md(dashas_b)
+
+    lord_a = md_a.get("lord_or_sign", "") or md_a.get("planet_or_sign", "")
+    lord_b = md_b.get("lord_or_sign", "") or md_b.get("planet_or_sign", "")
+    end_a  = md_a.get("end", "")
+    end_b  = md_b.get("end", "")
+
+    # Score based on dasha quality combination
+    a_expansive = lord_a in EXPANSIVE
+    b_expansive = lord_b in EXPANSIVE
+    a_contract  = lord_a in CONTRACTING
+    b_contract  = lord_b in CONTRACTING
+
+    if a_expansive and b_expansive:
+        score = 88
+        label = "PEAK ALIGNMENT"
+        detail = f"Both operating in expansive cycles — growth comes naturally together."
+    elif a_expansive and b_contract:
+        score = 62
+        label = "ASYMMETRIC TIMING"
+        detail = f"Different energy levels — one expanding while the other consolidates."
+    elif a_contract and b_expansive:
+        score = 62
+        label = "ASYMMETRIC TIMING"
+        detail = f"Different energy levels — one consolidating while the other expands."
+    elif a_contract and b_contract:
+        score = 45
+        label = "CONSOLIDATION PHASE"
+        detail = f"Both in consolidating cycles — this is a building period, not a launching one."
+    else:
+        score = 72
+        label = "STABLE ALIGNMENT"
+        detail = f"Neutral timing — neither strongly amplified nor blocked."
+
+    # Check timing window — how long does current alignment last?
+    try:
+        end_dt_a = datetime.fromisoformat(str(end_a)[:10]) if end_a else None
+        end_dt_b = datetime.fromisoformat(str(end_b)[:10]) if end_b else None
+        ends = [d for d in [end_dt_a, end_dt_b] if d]
+        earliest_end = min(ends) if ends else None
+        if earliest_end:
+            months_left = max(0, (earliest_end.year - now.year) * 12 + (earliest_end.month - now.month))
+            if months_left <= 6:
+                window = f"Window closing in {months_left} months"
+                urgency = "NOW"
+            elif months_left <= 18:
+                window = f"Window open ~{months_left} months"
+                urgency = "SOON"
+            else:
+                years_left = round(months_left / 12, 1)
+                window = f"Window open ~{years_left} years"
+                urgency = "STABLE"
+        else:
+            window = "Timing window unknown"
+            urgency = "NEUTRAL"
+    except Exception:
+        window = ""
+        urgency = "NEUTRAL"
+
+    return {
+        "score":   score,
+        "label":   label,
+        "window":  window,
+        "urgency": urgency,
+        "detail":  detail,
+        "lord_a":  lord_a,
+        "lord_b":  lord_b,
+    }
+
+
 @app.post("/api/v1/compatibility/start")
 async def compatibility_start(request: CompatibilityStartRequest):
     from antar_engine.compatibility_session_engine import (
@@ -5518,6 +5386,30 @@ async def compatibility_start(request: CompatibilityStartRequest):
         print(f"[compat] synastry layer error (non-fatal): {_fe}")
     # ── end synastry ──────────────────────────────────────────────────────────
 
+    # ── Structured score breakdown ───────────────────────────────────────────
+    _overall_score     = extracted_score or 72
+    _personality_score = min(100, int((_field_mode_layer.get("score_contribution", 15) / 20) * 100)) if _field_mode_layer else 70
+    _dasha_scores      = _compute_dasha_compatibility_score(dashas_a, dashas_b)
+    _dasha_score       = _dasha_scores["score"]
+
+    # Weighted overall: 50% natal/personality + 30% dasha + 20% field_mode
+    _weighted_overall = int(
+        (_overall_score * 0.5) +
+        (_dasha_score   * 0.3) +
+        (_personality_score * 0.2)
+    )
+
+    _score_breakdown = {
+        "overall":     _weighted_overall,
+        "personality": _overall_score,
+        "dasha":       _dasha_score,
+        "field_mode":  _personality_score,
+        "dasha_label":  _dasha_scores["label"],
+        "dasha_window": _dasha_scores["window"],
+        "dasha_urgency": _dasha_scores["urgency"],
+        "dasha_detail": _dasha_scores["detail"],
+    }
+
     return {
         "session_id":       session_id,
         "layer":            1,
@@ -5529,6 +5421,7 @@ async def compatibility_start(request: CompatibilityStartRequest):
         "next_question":    "Would you like to analyze startup or business alignment?",
         "can_continue":     True,
         "field_mode_layer": _field_mode_layer or None,
+        "score_breakdown":  _score_breakdown,
     }
 
 
