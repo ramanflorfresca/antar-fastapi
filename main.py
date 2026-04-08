@@ -4652,8 +4652,12 @@ async def get_astrocartography(
         city_line_data = get_city_line_data_for_chart(birth_jd)
         print(f"[astrocartography] scored {len(city_line_data)} cities")
 
-        # Dashas for dasha-amplification layer
-        dashas = chart.get("dashas", {}) or {}
+        # Dashas for dasha-amplification layer — load from dashas table
+        try:
+            dashas = get_dashas_for_chart(chart_id)
+        except Exception as dasha_err:
+            print(f"[astrocartography] dasha load failed (non-fatal): {dasha_err}")
+            dashas = {}
 
         # Top cities for concern
         top_cities = get_best_cities_for_concern(
