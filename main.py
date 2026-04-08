@@ -4621,26 +4621,28 @@ async def get_astrocartography(
             raise HTTPException(status_code=404, detail="Chart not found")
         chart = chart_resp.data
 
-        # Get birth JD from birth_datetime
-        birth_dt = chart.get("birth_datetime")
-        if not birth_dt:
-            raise HTTPException(status_code=400, detail="Chart missing birth_datetime")
+        # Get birth JD — chart stores birth_date + birth_time separately
+        birth_date = chart.get("birth_date")
+        birth_time = chart.get("birth_time", "00:00:00")
+        if not birth_date:
+            raise HTTPException(status_code=400, detail="Chart missing birth_date")
 
         import swisseph as swe
         from datetime import datetime, timezone
 
-        if isinstance(birth_dt, str):
-            birth_dt = datetime.fromisoformat(birth_dt.replace("Z", "+00:00"))
-        birth_dt_utc = birth_dt.astimezone(timezone.utc)
+        dt_str = f"{birth_date}T{birth_time}"
+        birth_dt = datetime.fromisoformat(dt_str)
+        # birth_date/time are stored as local time — treat as UTC for JD computation
+        # (consistent with how other engines handle it in this codebase)
         hour_decimal = (
-            birth_dt_utc.hour
-            + birth_dt_utc.minute / 60.0
-            + birth_dt_utc.second / 3600.0
+            birth_dt.hour
+            + birth_dt.minute / 60.0
+            + birth_dt.second / 3600.0
         )
         birth_jd = swe.julday(
-            birth_dt_utc.year,
-            birth_dt_utc.month,
-            birth_dt_utc.day,
+            birth_dt.year,
+            birth_dt.month,
+            birth_dt.day,
             hour_decimal,
         )
 
