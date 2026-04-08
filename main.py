@@ -371,6 +371,7 @@ from antar_engine.divisional_career import build_career_analysis, career_analysi
 from antar_engine.astrocartography import (
     get_best_cities_for_concern, get_current_location_reading,
     build_astrocartography_prompt, CITY_LINE_DATA,
+    get_city_line_data_for_chart, score_cities_for_chart,
 )
 from antar_engine.yoga_engine import detect_yogas_for_question
 from antar_engine.d_charts_calculator import get_all_d_charts
@@ -4658,9 +4659,13 @@ async def astrocartography_best_cities(
         primary_concern=request.concern,
     )
 
+    # Compute live planetary lines from birth JD, or fall back to hardcoded
+    _birth_jd = chart_data.get("birth_jd")
+    _city_line_data = get_city_line_data_for_chart(_birth_jd) if _birth_jd else CITY_LINE_DATA
+
     top_cities = get_best_cities_for_concern(
         concern=request.concern,
-        city_line_data=CITY_LINE_DATA,
+        city_line_data=_city_line_data,
         dashas=dashas,
         patra=patra,
     )
@@ -4689,13 +4694,11 @@ async def astrocartography_best_cities(
     )
     narrative, _ = await call_llm(prompt)
 
+    # Cache the computed city_line_data in charts.astrocartography_data
     try:
-        supabase.table("astrocartography_readings").upsert({
-            "chart_id":   request.chart_id,
-            "top_cities": top_cities,
-            "narrative":  narrative,
-            "created_at": "now()",
-        }).execute()
+        supabase.table("charts").update({
+            "astrocartography_data": _city_line_data
+        }).eq("id", request.chart_id).execute()
     except Exception as e:
         print(f"Astro cache error: {e}")
 
@@ -4767,38 +4770,45 @@ Respond in {locale.language}."""
 async def get_astrocartography(chart_id: str, concern: str = "career", limit: int = 5):
     """GET endpoint for astrocartography — returns cached or computes on-the-fly."""
     try:
-        chart_res = supabase.table("charts").select("*").eq("id", chart_id).single().execute()
+        chart_res = supabase.table("charts").select(
+            "chart_data, astrocartography_data, birth_date, current_country"
+        ).eq("id", chart_id).single().execute()
         if not chart_res.data:
             raise HTTPException(404, "Chart not found")
         chart_record = chart_res.data
-        chart_data = chart_record.get("chart_data", {})
+        chart_data = chart_record.get("chart_data") or {}
         if isinstance(chart_data, str):
             import json as _acjson
             chart_data = _acjson.loads(chart_data)
 
-        # Check for cached reading first
-        try:
-            cached = supabase.table("astrocartography_readings") \
-                .select("top_cities, narrative") \
-                .eq("chart_id", chart_id) \
-                .order("created_at", desc=True).limit(1).execute()
-            if cached.data:
-                c = cached.data[0]
-                return {
-                    "chart_id": chart_id,
-                    "concern": concern,
-                    "top_cities": (c.get("top_cities") or [])[:limit],
-                    "narrative": c.get("narrative", ""),
-                    "status": "cached",
-                }
-        except Exception:
-            pass  # table may not exist or be empty — compute fresh
+        # 1. Try cached astrocartography_data first
+        city_line_data = chart_record.get("astrocartography_data")
+        if isinstance(city_line_data, str):
+            import json as _acjson2
+            city_line_data = _acjson2.loads(city_line_data)
+        status = "cached" if city_line_data else "computed"
 
-        # Compute on-the-fly
+        # 2. If no cache, compute on-the-fly from birth_jd
+        if not city_line_data:
+            _birth_jd = chart_data.get("birth_jd")
+            if _birth_jd:
+                city_line_data = score_cities_for_chart(_birth_jd)
+                # Cache it for next time
+                try:
+                    supabase.table("charts").update({
+                        "astrocartography_data": city_line_data
+                    }).eq("id", chart_id).execute()
+                    print(f"[astrocartography] Computed and cached for {chart_id}")
+                except Exception as _ce:
+                    print(f"[astrocartography] Cache store failed: {_ce}")
+            else:
+                city_line_data = CITY_LINE_DATA  # fallback to hardcoded
+
+        # 3. Score cities for the requested concern
         dashas = get_dashas_for_chart(chart_id)
         top_cities = get_best_cities_for_concern(
             concern=concern,
-            city_line_data=CITY_LINE_DATA,
+            city_line_data=city_line_data,
             dashas=dashas,
         )
 
@@ -4806,20 +4816,19 @@ async def get_astrocartography(chart_id: str, concern: str = "career", limit: in
             "chart_id": chart_id,
             "concern": concern,
             "top_cities": (top_cities or [])[:limit],
-            "narrative": "",
-            "current_city": chart_record.get("current_country", ""),
-            "status": "computed",
+            "current_country": chart_record.get("current_country", ""),
+            "status": status,
         }
     except HTTPException:
         raise
     except Exception as e:
         print(f"[astrocartography GET] Error for {chart_id}: {e}")
+        import traceback; traceback.print_exc()
         return {
             "chart_id": chart_id,
             "concern": concern,
-            "current_city": None,
             "top_cities": [],
-            "status": "computing",
+            "status": "error",
             "message": "Astrocartography is being computed for your chart.",
         }
 
