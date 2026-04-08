@@ -2157,6 +2157,63 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     # Timing
     timing_text = timing_engine.timing_insights(chart_data, dashas_response)
 
+    # ── Connection context — inject if question mentions a known person ──────
+    _connection_context = ""
+    try:
+        _conn_res = supabase.table("chart_connections").select("*") \
+            .eq("chart_id_a", request.chart_id) \
+            .order("updated_at", desc=True) \
+            .execute()
+
+        _connections = _conn_res.data or []
+        _question_lower = (request.question or "").lower()
+
+        # Find matching connection by name mention in question
+        _matched_conn = None
+        for _conn in _connections:
+            _other_name = (_conn.get("name_b") or "").lower()
+            if _other_name and _other_name in _question_lower:
+                _matched_conn = _conn
+                break
+
+        # If no name match, use most recent connection if question implies relationship
+        RELATION_KEYWORDS = [
+            "partner", "cofounder", "co-founder", "colleague", "friend",
+            "investor", "hire", "team", "relationship", "together",
+            "they", "he", "she", "them", "their", "our", "we",
+        ]
+        if not _matched_conn and _connections:
+            if any(kw in _question_lower for kw in RELATION_KEYWORDS):
+                _matched_conn = _connections[0]
+
+        if _matched_conn:
+            _other_name   = _matched_conn.get("name_b", "this person")
+            _compat_type  = _matched_conn.get("compat_type", "")
+            _score        = _matched_conn.get("overall_score", 0)
+            _pairing      = _matched_conn.get("pairing_name", "")
+            _verdict      = _matched_conn.get("verdict", "")
+            _summary      = _matched_conn.get("analysis_summary", "")[:400]
+            _fm           = _matched_conn.get("field_mode_layer", {}) or {}
+            _sb           = _matched_conn.get("score_breakdown", {}) or {}
+
+            _connection_context = f"""
+ACTIVE CONNECTION CONTEXT — {_other_name.upper()} ({_compat_type.upper()}):
+Compatibility score: {_score}/100
+Pairing archetype: {_pairing} — {_verdict}
+Field dynamic: {_fm.get('field_label','')} ({_fm.get('field_dynamic','')})
+Mode dynamic: {_fm.get('mode_label','')} ({_fm.get('mode_dynamic','')})
+Dasha alignment: {_sb.get('dasha_label','')} — {_sb.get('dasha_window','')}
+Analysis summary: {_summary}
+
+When answering questions about {_other_name}, use this compatibility context.
+Translate all astrological factors into plain energy language — no planet names, no house numbers.
+Answer specifically about {_other_name}'s strengths/weaknesses for the question asked.
+"""
+            print(f"[predict] Connection context injected — {_other_name} ({_compat_type})")
+
+    except Exception as _ce:
+        print(f"[predict] Connection context non-fatal: {_ce}")
+
     # ── C2: Desh Kal Patra — real-world economic context ──────────
     dkp_context  = ""
     nation_insight = ""
@@ -2556,6 +2613,11 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     # C2: Append real-world economic context to existing dkp_block
     if dkp_context:
         dkp_block = (dkp_block or "") + "\n\n" + dkp_context
+
+    # Append connection context if a matching person was found
+    if _connection_context:
+        dkp_block = (dkp_block or "") + "\n\n" + _connection_context
+        print(f"[predict] Connection context appended to DKP block")
 
     # ── REMEDIES ──────────────────────────────────────────────────
     karakas_list = get_all_karakas(chart_data)
@@ -5437,6 +5499,42 @@ async def compatibility_start(request: CompatibilityStartRequest):
         "score_c_label":  _type_labels["score_c_label"],
         "compat_type":    request.compatibility_type,
     }
+
+    # ── Auto-save connection ─────────────────────────────────────────────────
+    try:
+        _analysis_summary = layer1[:600].strip() if layer1 else ""
+        # Upsert — same pair + type = update, new pair = insert
+        _existing_conn = supabase.table("chart_connections").select("id") \
+            .eq("chart_id_a", request.chart_id_a) \
+            .eq("chart_id_b", chart_id_b) \
+            .eq("compat_type", request.compatibility_type) \
+            .execute()
+
+        _conn_data = {
+            "chart_id_a":      request.chart_id_a,
+            "chart_id_b":      chart_id_b,
+            "name_a":          name_a,
+            "name_b":          request.name_b,
+            "compat_type":     request.compatibility_type,
+            "session_id":      session_id,
+            "overall_score":   _score_breakdown.get("overall", 0),
+            "pairing_name":    _field_mode_layer.get("pairing_name", "") if _field_mode_layer else "",
+            "verdict":         _field_mode_layer.get("verdict", "") if _field_mode_layer else "",
+            "analysis_summary": _analysis_summary,
+            "score_breakdown": _score_breakdown,
+            "field_mode_layer": _field_mode_layer or {},
+            "updated_at":      "now()",
+        }
+
+        if _existing_conn.data:
+            supabase.table("chart_connections").update(_conn_data) \
+                .eq("id", _existing_conn.data[0]["id"]).execute()
+            print(f"[connections] Updated connection: {name_a} × {request.name_b} ({request.compatibility_type})")
+        else:
+            supabase.table("chart_connections").insert(_conn_data).execute()
+            print(f"[connections] Saved connection: {name_a} × {request.name_b} ({request.compatibility_type})")
+    except Exception as _conn_err:
+        print(f"[connections] Auto-save non-fatal: {_conn_err}")
 
     return {
         "session_id":       session_id,
@@ -10063,4 +10161,62 @@ async def get_daily_week(chart_id: str, tz_offset: float = None):
     except Exception as e:
         print(f"[daily-week] Error for chart {chart_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Daily week generation failed: {str(e)}")
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CONNECTIONS — Saved compatibility relationships for Ask Antar context
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/v1/connections/{chart_id}")
+async def get_connections(chart_id: str):
+    """
+    Returns all saved connections for a chart.
+    Connections are auto-created after every compatibility reading.
+    Used by Ask Antar to inject relationship context into predictions.
+    """
+    try:
+        res = supabase.table("chart_connections").select("*") \
+            .eq("chart_id_a", chart_id) \
+            .order("updated_at", desc=True) \
+            .execute()
+
+        connections = []
+        for row in (res.data or []):
+            connections.append({
+                "id":             row["id"],
+                "chart_id_b":     row["chart_id_b"],
+                "name_b":         row.get("name_b", ""),
+                "compat_type":    row.get("compat_type", ""),
+                "overall_score":  row.get("overall_score", 0),
+                "pairing_name":   row.get("pairing_name", ""),
+                "verdict":        row.get("verdict", ""),
+                "analysis_summary": row.get("analysis_summary", ""),
+                "score_breakdown":  row.get("score_breakdown", {}),
+                "field_mode_layer": row.get("field_mode_layer", {}),
+                "updated_at":     row.get("updated_at", ""),
+            })
+
+        return {
+            "chart_id":    chart_id,
+            "connections": connections,
+            "total":       len(connections),
+        }
+
+    except Exception as e:
+        print(f"[connections] GET error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/v1/connections/{chart_id}/{connection_id}")
+async def delete_connection(chart_id: str, connection_id: str):
+    """Remove a saved connection."""
+    try:
+        supabase.table("chart_connections").delete() \
+            .eq("id", connection_id) \
+            .eq("chart_id_a", chart_id) \
+            .execute()
+        return {"success": True, "deleted": connection_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
