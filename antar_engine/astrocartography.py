@@ -796,6 +796,314 @@ def get_best_cities_for_concern(
     return recommendations[:limit]
 
 
+
+# ── Real Astrocartography Computation Engine ─────────────────────────────────
+# Replaces hardcoded CITY_LINE_DATA with Swiss Ephemeris MC/ASC line computation.
+#
+# HOW MC LINES WORK:
+#   A planet's MC line passes through every longitude where that planet is
+#   exactly on the local Midheaven (i.e., its ecliptic longitude = local MC).
+#   MC = RAMC converted to ecliptic. We scan longitudes -180→+180 and find
+#   where the planet's longitude matches the local MC.
+#
+# HOW ASC LINES WORK:
+#   A planet's ASC line passes through every location where the planet is
+#   exactly rising on the horizon. ASC lines are curves (not vertical), as
+#   they depend on both longitude AND latitude.
+#
+# IMPLEMENTATION:
+#   We use swe.houses_ex() at each grid point to get local ASC/MC,
+#   then compare planet positions to find line crossings.
+# ─────────────────────────────────────────────────────────────────────────────
+
+import math
+
+try:
+    import swisseph as swe
+    _SWE_AVAILABLE = True
+except ImportError:
+    _SWE_AVAILABLE = False
+
+# Planet IDs → name mapping (matching codebase convention)
+_PLANET_IDS = {
+    "Sun":     0,   # swe.SUN
+    "Moon":    1,   # swe.MOON
+    "Mercury": 2,   # swe.MERCURY
+    "Venus":   3,   # swe.VENUS
+    "Mars":    4,   # swe.MARS
+    "Jupiter": 5,   # swe.JUPITER
+    "Saturn":  6,   # swe.SATURN
+    "Rahu":    11,  # swe.MEAN_NODE (North Node)
+    "Ketu":    -1,  # Computed as Rahu + 180
+}
+
+# Orb in degrees — city is "on a line" if within this distance
+_MC_ORB_DEG  = 2.0   # MC lines: tighter (longitude-only check)
+_ASC_ORB_DEG = 3.0   # ASC lines: wider (curved, latitude-sensitive)
+
+# Longitude scan step (degrees). 0.5 = ~55km resolution at equator.
+_SCAN_STEP = 0.5
+
+
+def _normalize_lon(lon: float) -> float:
+    """Normalize ecliptic longitude to 0-360."""
+    return lon % 360.0
+
+
+def _angular_diff(a: float, b: float) -> float:
+    """Shortest angular distance between two ecliptic longitudes (0-360)."""
+    diff = abs(a - b) % 360.0
+    return diff if diff <= 180.0 else 360.0 - diff
+
+
+def compute_planetary_lines(birth_jd: float) -> dict:
+    """
+    Compute MC and ASC crossing longitudes for each planet given a birth Julian Day.
+
+    Returns dict:
+    {
+        "Sun":     {"MC": [lon1, lon2, ...], "ASC": [lon1, lon2, ...]},
+        "Moon":    {"MC": [...], "ASC": [...]},
+        ...
+        "Rahu":    {"MC": [...], "ASC": [...]},
+        "Ketu":    {"MC": [...], "ASC": [...]},
+    }
+
+    MC longitudes: geographic longitudes where planet is on Midheaven
+    ASC longitudes: geographic longitudes where planet is rising (at equator lat)
+    """
+    if not _SWE_AVAILABLE:
+        return {}
+
+    swe.set_sid_mode(swe.SIDM_LAHIRI)
+    flags = swe.FLG_SIDEREAL | swe.FLG_SPEED
+
+    # Get sidereal planet positions at birth
+    planet_lons = {}
+    for name, pid in _PLANET_IDS.items():
+        if name == "Ketu":
+            rahu_lon = planet_lons.get("Rahu")
+            if rahu_lon is not None:
+                planet_lons["Ketu"] = _normalize_lon(rahu_lon + 180.0)
+        else:
+            result = swe.calc_ut(birth_jd, pid, flags)
+            planet_lons[name] = _normalize_lon(result[0][0])
+
+    # ── MC Line computation ──────────────────────────────────────────────────
+    # At each geographic longitude, RAMC = sidereal time ≈ birth RAMC + geo_lon
+    # We compute the local MC (in ecliptic) and find where planet_lon ≈ MC_lon.
+    #
+    # swe.houses_ex with lat=0 gives us MC without ASC distortion.
+    # We scan geo_lon -180 to +180, get local_mc, compare to planet_lon.
+
+    mc_lines = {name: [] for name in _PLANET_IDS}
+
+    # Use a reference latitude (0° = equator) for MC scanning
+    # MC longitude is latitude-independent (MC only shifts with geo longitude)
+    ref_lat = 0.0
+    prev_diffs = {}
+
+    lon_range = [i * _SCAN_STEP - 180.0 for i in range(int(360.0 / _SCAN_STEP) + 1)]
+
+    for geo_lon in lon_range:
+        try:
+            cusps, ascmc = swe.houses_ex(birth_jd, ref_lat, geo_lon, b'P', swe.FLG_SIDEREAL)
+        except Exception:
+            continue
+
+        local_mc = _normalize_lon(ascmc[1])  # ascmc[1] = MC
+
+        for name in _PLANET_IDS:
+            planet_lon = planet_lons.get(name)
+            if planet_lon is None:
+                continue
+
+            diff = _angular_diff(local_mc, planet_lon)
+
+            # Sign change in diff → we crossed the line
+            prev = prev_diffs.get(name)
+            if prev is not None and prev > _MC_ORB_DEG and diff <= _MC_ORB_DEG:
+                mc_lines[name].append(round(geo_lon, 1))
+            elif diff <= _MC_ORB_DEG * 0.5:
+                # Very close — record if not already near a recorded point
+                existing = mc_lines[name]
+                if not existing or abs(existing[-1] - geo_lon) > 5.0:
+                    mc_lines[name].append(round(geo_lon, 1))
+
+            prev_diffs[name] = diff
+
+    # ── ASC Line computation ─────────────────────────────────────────────────
+    # ASC depends on both geo_lon and geo_lat. Lines are curves, not vertical.
+    # We sample a latitude grid (-60 to +70) and for each lat, scan longitudes.
+    # We find where the local ASC (ecliptic) matches the planet longitude.
+    #
+    # For city scoring we use a simpler approach: compute ASC at each city's
+    # actual lat/lon and check orb directly (done in score_cities_for_chart).
+    # Here we just return empty lists — ASC is computed per-city in scoring.
+
+    asc_lines = {name: [] for name in _PLANET_IDS}
+
+    return {
+        name: {
+            "MC":  mc_lines.get(name, []),
+            "ASC": asc_lines.get(name, []),
+        }
+        for name in _PLANET_IDS
+    }
+
+
+def score_cities_for_chart(birth_jd: float, cities: list | None = None) -> dict:
+    """
+    Score a list of cities against the birth chart's planetary lines.
+
+    For each city, computes:
+    - MC line proximity: how close the city's longitude is to each planet's MC line
+    - ASC line proximity: compute local ASC at city lat/lon, compare to planet lon
+
+    Args:
+        birth_jd:  Julian Day of birth (float)
+        cities:    List of (name, lat, lon, region) tuples.
+                   Defaults to ASTROCARTO_CITIES master list.
+
+    Returns:
+        city_line_data dict in the same format as the old hardcoded CITY_LINE_DATA:
+        {
+            "Tokyo, Japan": {
+                "Saturn": {"MC": 0.87, "ASC": 0.0},
+                "Mercury": {"ASC": 0.73},
+            },
+            ...
+        }
+        Strength is 0.0 to 1.0 — 1.0 = planet exactly on the line.
+    """
+    if not _SWE_AVAILABLE:
+        return CITY_LINE_DATA  # fallback to hardcoded
+
+    try:
+        from antar_engine.astrocarto_cities import ASTROCARTO_CITIES
+    except ImportError:
+        ASTROCARTO_CITIES = []
+
+    if cities is None:
+        cities = ASTROCARTO_CITIES
+
+    if not cities:
+        return CITY_LINE_DATA  # fallback
+
+    swe.set_sid_mode(swe.SIDM_LAHIRI)
+    flags = swe.FLG_SIDEREAL | swe.FLG_SPEED
+
+    # Get planet positions once
+    planet_lons = {}
+    for name, pid in _PLANET_IDS.items():
+        if name == "Ketu":
+            rahu = planet_lons.get("Rahu")
+            if rahu is not None:
+                planet_lons["Ketu"] = _normalize_lon(rahu + 180.0)
+        else:
+            try:
+                result = swe.calc_ut(birth_jd, pid, flags)
+                planet_lons[name] = _normalize_lon(result[0][0])
+            except Exception:
+                pass
+
+    # Precompute MC crossing longitudes (fast - latitude-independent)
+    mc_crossings = compute_planetary_lines(birth_jd)
+
+    city_line_data = {}
+
+    for city_name, city_lat, city_lon, _region in cities:
+        city_scores = {}
+
+        for name, planet_lon in planet_lons.items():
+            scores = {}
+
+            # ── MC Score ──────────────────────────────────────────────────
+            # Find nearest MC crossing longitude for this planet
+            mc_lons = mc_crossings.get(name, {}).get("MC", [])
+            if mc_lons:
+                # Find closest crossing to this city's longitude
+                min_mc_diff = min(_angular_diff_geo(city_lon, mc_lon) for mc_lon in mc_lons)
+                if min_mc_diff <= _MC_ORB_DEG * 3:  # within 3x orb = worth including
+                    # Strength: 1.0 at exact, 0.0 at 3x orb
+                    strength = max(0.0, 1.0 - (min_mc_diff / (_MC_ORB_DEG * 3)))
+                    if strength >= 0.4:
+                        scores["MC"] = round(strength, 3)
+
+            # ── ASC Score ─────────────────────────────────────────────────
+            # Compute local ASC at city lat/lon, compare to planet lon
+            try:
+                cusps, ascmc = swe.houses_ex(
+                    birth_jd, city_lat, city_lon, b'P', swe.FLG_SIDEREAL
+                )
+                local_asc = _normalize_lon(ascmc[0])  # ascmc[0] = ASC
+                asc_diff = _angular_diff(local_asc, planet_lon)
+
+                if asc_diff <= _ASC_ORB_DEG * 3:
+                    strength = max(0.0, 1.0 - (asc_diff / (_ASC_ORB_DEG * 3)))
+                    if strength >= 0.4:
+                        scores["ASC"] = round(strength, 3)
+
+                # ── DC Score (opposite of ASC) ────────────────────────────
+                local_dc = _normalize_lon(local_asc + 180.0)
+                dc_diff = _angular_diff(local_dc, planet_lon)
+                if dc_diff <= _ASC_ORB_DEG * 3:
+                    strength = max(0.0, 1.0 - (dc_diff / (_ASC_ORB_DEG * 3)))
+                    if strength >= 0.4:
+                        scores["DC"] = round(strength, 3)
+
+                # ── IC Score (opposite of MC) ─────────────────────────────
+                local_ic = _normalize_lon(ascmc[1] + 180.0)  # ascmc[1] = MC, IC = MC+180
+                ic_diff = _angular_diff(local_ic, planet_lon)
+                if ic_diff <= _MC_ORB_DEG * 3:
+                    strength = max(0.0, 1.0 - (ic_diff / (_MC_ORB_DEG * 3)))
+                    if strength >= 0.4:
+                        scores["IC"] = round(strength, 3)
+
+            except Exception:
+                pass
+
+            if scores:
+                city_scores[name] = scores
+
+        if city_scores:
+            city_line_data[city_name] = city_scores
+
+    return city_line_data
+
+
+def _angular_diff_geo(lon_a: float, lon_b: float) -> float:
+    """
+    Geographic longitude difference (not ecliptic).
+    Both in -180 to +180 range.
+    """
+    diff = abs(lon_a - lon_b)
+    return diff if diff <= 180.0 else 360.0 - diff
+
+
+def get_city_line_data_for_chart(birth_jd: float, cache: dict | None = None) -> dict:
+    """
+    Main entry point. Returns city_line_data dict for a given birth JD.
+    Optionally accepts a cache dict for storing results between calls.
+
+    Usage:
+        city_data = get_city_line_data_for_chart(birth_jd)
+        cities = get_best_cities_for_concern("career", city_data, dashas, patra)
+    """
+    if cache is not None:
+        cache_key = f"astrocarto_{round(birth_jd, 4)}"
+        if cache_key in cache:
+            return cache[cache_key]
+
+    result = score_cities_for_chart(birth_jd)
+
+    if cache is not None:
+        cache[cache_key] = result
+
+    return result
+
+
+
 # ── Prompt builder for astrocartography LLM response ─────────────────────────
 
 def build_astrocartography_prompt(
