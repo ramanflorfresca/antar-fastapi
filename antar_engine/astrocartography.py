@@ -41,6 +41,125 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 
+# ── Planet & Line Translation Layer ─────────────────────────────────────────
+# No planet names or astrological jargon in user-facing output.
+# Everything translates to energy language with Antar voice.
+
+PLANET_ENERGY = {
+    "Sun":     {
+        "name":   "Fame & Authority",
+        "effect": "Recognition finds you here. Doors open before you knock.",
+        "city_pull": "Your reputation builds without effort. The right people notice you automatically.",
+    },
+    "Moon":    {
+        "name":   "Belonging & Flow",
+        "effect": "You feel at home instantly. People trust you naturally.",
+        "city_pull": "Connections form without forcing. The city pulls the right relationships toward you.",
+    },
+    "Mars":    {
+        "name":   "Drive & Momentum",
+        "effect": "Energy doubles here. Action produces double the results.",
+        "city_pull": "Effort 50%, results 100%. The city amplifies everything you push toward.",
+    },
+    "Mercury": {
+        "name":   "Commerce & Networks",
+        "effect": "Deals close faster. The right people appear at the right time.",
+        "city_pull": "Information flows to you. Opportunities arrive through conversation and connection.",
+    },
+    "Jupiter": {
+        "name":   "Abundance & Growth",
+        "effect": "Opportunities arrive without chasing. Effort 50%, results 100%.",
+        "city_pull": "The city does half the work. Growth happens almost automatically here.",
+    },
+    "Venus":   {
+        "name":   "Love, Beauty & Luxury",
+        "effect": "Attraction is effortless here. The good life comes to you.",
+        "city_pull": "Quality enters your life automatically — people, experiences, and resources.",
+    },
+    "Saturn":  {
+        "name":   "Mastery & Legacy",
+        "effect": "The work you do here lasts. Slow burn, permanent results.",
+        "city_pull": "What you build here cannot be taken away. Results compound over decades.",
+    },
+    "Rahu":    {
+        "name":   "Disruption & Ambition",
+        "effect": "This city accelerates destiny. Things move fast — almost too fast.",
+        "city_pull": "Opportunities arrive without chasing. The city pulls your biggest ambitions into reality.",
+    },
+    "Ketu":    {
+        "name":   "Depth & Liberation",
+        "effect": "The noise drops away here. Clarity arrives without seeking.",
+        "city_pull": "Answers come to you. The city strips away what no longer serves.",
+    },
+}
+
+LINE_TYPE_ENERGY = {
+    "MC": {
+        "name":  "Career Peak Zone",
+        "desc":  "Where your professional life reaches maximum power",
+    },
+    "AC": {
+        "name":  "Presence Zone",
+        "desc":  "Where your energy and personality are most amplified",
+    },
+    "DC": {
+        "name":  "Partnership Zone",
+        "desc":  "Where the right people are drawn into your life",
+    },
+    "IC": {
+        "name":  "Roots Zone",
+        "desc":  "Where you feel most grounded and at home",
+    },
+}
+
+
+def translate_planet(planet: str) -> str:
+    """Return energy name for a planet. E.g. 'Rahu' → 'Disruption & Ambition'"""
+    return PLANET_ENERGY.get(planet, {}).get("name", planet)
+
+
+def translate_line(line_type: str) -> str:
+    """Return zone name for a line type. E.g. 'MC' → 'Career Peak Zone'"""
+    return LINE_TYPE_ENERGY.get(line_type, {}).get("name", line_type)
+
+
+def translate_city_effect(planet: str, line_type: str) -> str:
+    """
+    Return the full Antar-voice city effect string.
+    E.g. 'Rahu' + 'MC' →
+    'Career Peak Zone — Disruption & Ambition energy active.
+     Opportunities arrive without chasing. The city pulls your biggest ambitions into reality.'
+    """
+    p = PLANET_ENERGY.get(planet, {})
+    l = LINE_TYPE_ENERGY.get(line_type, {})
+    energy_name = p.get("name", planet)
+    zone_name   = l.get("name", line_type)
+    city_pull   = p.get("city_pull", p.get("effect", ""))
+    return f"{zone_name} — {energy_name} energy active. {city_pull}"
+
+
+def translate_dasha_note(planet: str, note: str) -> str:
+    """
+    Replace planet name in dasha note with energy name.
+    'Your Rahu mahadasha opens 2026-08' →
+    'Your Disruption & Ambition cycle opens 2026-08'
+    """
+    if not note:
+        return note
+    energy_name = translate_planet(planet)
+    # Replace all known planet name variants
+    result = note
+    for p_name in PLANET_ENERGY.keys():
+        result = result.replace(f"Your {p_name} mahadasha", f"Your {translate_planet(p_name)} cycle")
+        result = result.replace(f"Your {p_name} period", f"Your {translate_planet(p_name)} cycle")
+        result = result.replace(f"{p_name} is your", f"{translate_planet(p_name)} is your")
+        result = result.replace(f"You are IN your {p_name}", f"You are in your {translate_planet(p_name)}")
+        result = result.replace(p_name + " MD", translate_planet(p_name) + " cycle")
+        result = result.replace(p_name + " mahadasha", translate_planet(p_name) + " cycle")
+    return result
+
+
+
 # ── What each planet × line means ────────────────────────────────────────────
 
 PLANET_LINE_MEANINGS = {
@@ -734,6 +853,9 @@ def get_current_location_reading(
                     "planet":      planet,
                     "line_type":   line_type,
                     "strength":    strength,
+                    "energy_name": translate_planet(planet),
+                    "zone_name":   translate_line(line_type),
+                    "city_effect": translate_city_effect(planet, line_type),
                     "theme":       meaning.get("theme", ""),
                     "energy":      meaning.get("energy", ""),
                     "caution":     meaning.get("caution", ""),
@@ -833,21 +955,28 @@ def get_best_cities_for_concern(
                     f"this window is open {best_line['dasha_amp']['window']}"
                 )
 
+            _planet    = best_line["planet"]
+            _line_type = best_line["line_type"]
             recommendations.append({
-                "city":         city,
-                "base_score":   city_score,
-                "concern":      concern,
-                "planet":       best_line["planet"],
-                "line_type":    best_line["line_type"],
-                "theme":        best_line["theme"],
-                "energy":       best_line["energy"],
-                "caution":      best_line["caution"],
-                "dasha_note":   dasha_note,
-                "is_amplified": best_line["dasha_amp"]["amplified"],
-                "urgency":      best_line["dasha_amp"]["urgency"],
-                "window":       best_line["dasha_amp"]["window"],
-                "life_areas":   list(set(life_areas)),
-                "matched_lines": matched_lines,
+                "city":           city,
+                "base_score":     city_score,
+                "concern":        concern,
+                "planet":         _planet,
+                "line_type":      _line_type,
+                # ── Translated user-facing fields ──
+                "energy_name":    translate_planet(_planet),
+                "zone_name":      translate_line(_line_type),
+                "city_effect":    translate_city_effect(_planet, _line_type),
+                "dasha_note":     translate_dasha_note(_planet, dasha_note),
+                # ── Legacy fields (kept for internal use) ──
+                "theme":          best_line["theme"],
+                "energy":         best_line["energy"],
+                "caution":        best_line["caution"],
+                "is_amplified":   best_line["dasha_amp"]["amplified"],
+                "urgency":        best_line["dasha_amp"]["urgency"],
+                "window":         best_line["dasha_amp"]["window"],
+                "life_areas":     list(set(life_areas)),
+                "matched_lines":  matched_lines,
             })
 
     # Apply patra filter
