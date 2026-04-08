@@ -3053,11 +3053,21 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
             print(f"[predict] Practice bridge error (non-fatal): {_pbe}")
     # ── end practice bridge ───────────────────────────────────────────────────
 
-    # Symptom mode uses its own format — skip hard constraint (which enforces VERDICT format)
-    if _question_mode != "symptom":
-        prompt = _hard_constraint + "\n\n" + prompt
-    else:
-        # Symptom mode: inject jargon rules only (no planet/Sanskrit names) but not format rules
+    # Jargon-only constraint — prepended to ALL modes (format rules live in system prompt)
+    _today_str = __import__('datetime').datetime.utcnow().strftime("%B %d, %Y")
+    _jargon_only = (
+        "ABSOLUTE RULES (no exceptions):\n"
+        "1. NEVER use planet names. Use: Growth Amplifier, Structural Load, Action Drive, "
+        "Magnetism Field, Processing Speed, Authority Signal, Emotional Radar, Ambition Engine, Intuition Compass.\n"
+        "2. NEVER use house numbers. Use instrument labels: System Vitals, Capital Reserves, "
+        "Action Capacity, Alliance Sync, Capital Runway, Fortune Vector, Authority Engine, Revenue Pipeline, Global Vector.\n"
+        "3. NEVER use Sanskrit terms (Dasha, Nakshatra, Lagna, Yoga, Rashi, etc).\n"
+        f"4. Today is {_today_str}. The current year is 2026.\n"
+        "5. Answer the QUESTION directly. Lead with VERDICT in first sentence.\n"
+        "6. THE MOVE at the end — one specific action for this week."
+    )
+    prompt = _jargon_only + "\n\n" + prompt
+    if False:  # dead code block — keeps old symptom path reference intact
         _jargon_only = """ABSOLUTE RULES (no exceptions):
 1. NEVER use planet names. Use: Growth Amplifier, Structural Load, Action Drive, Magnetism Field, Processing Speed, Authority Signal, Emotional Radar, Ambition Engine, Intuition Compass.
 2. NEVER use house numbers. Use instrument labels: System Vitals, Capital Reserves, Action Capacity, Alliance Sync, Capital Runway, Fortune Vector, Authority Engine, Revenue Pipeline, Global Vector.
@@ -3093,13 +3103,20 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
         except Exception:
             _domain_system = ""
 
-        _master_system = _domain_system if _domain_system else (
-            "You are Antar — a precise Vedic astrology AI. "
-            "Answer directly and specifically using the data provided. "
-            "Reference specific planets, houses, yogas, and timing. "
-            "Lead with the actual answer in the first sentence. "
-            "Never start responses with template headers like 'YOUR SIGNAL RIGHT NOW'."
+        _format_rules = (
+            "RESPONSE FORMAT (always follow):\n"
+            "Line 1: ✦ VERDICT: [ACTION VERB]. [Direct call in 8 words or less]\n"
+            "Lines 2-3: 2-3 sentences WHY in business language (no astrology jargon).\n"
+            "Lines 4-6: YOUR MOVE — three numbered actions (this week / next 2 weeks / next 30 days).\n"
+            "Line 7: TIMING: [exact window].\n"
+            "TOTAL: under 150 words. No markdown headers. No poetic language.\n"
+            "If user asks will/chances/probability: lead with PROBABILITY: XX%.\n"
         )
+        _master_system = (_domain_system if _domain_system else (
+            "You are Antar — a precise Vedic astrology AI. "
+            "Answer directly using the data provided. "
+            "Lead with the actual answer in the first sentence. "
+        )) + "\n\n" + _format_rules
         # --- Sprint L: Language injection ---
         from language_utils import build_language_instruction, resolve_language
         _lang = resolve_language({"language": getattr(request, "language", None)}, chart_record)
