@@ -213,7 +213,7 @@ def build_complete_context(
         "remedy", "remedies", "karma", "luck", "lal kitab", "weak", "strengthen",
     ]) or question_mode in ("remedy", "spiritual")
     _include_umra         = any(kw in _q_lower for kw in ["age activation", "umra", "life milestone"])
-    _include_masik        = question_mode == "daily" or "this month" in _q_lower or "this week" in _q_lower
+    _include_masik        = question_mode != "daily" and ("this month" in _q_lower or "this week" in _q_lower)
     _include_teva         = any(kw in _q_lower for kw in ["this year", "annual", "yearly", "2026", "2027"])
     _include_narayana     = any(kw in _q_lower for kw in ["narayana", "sign dasha", "rashi dasha"])
     _include_rare_divs    = any(kw in _q_lower for kw in [
