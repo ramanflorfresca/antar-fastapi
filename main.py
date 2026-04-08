@@ -4275,6 +4275,30 @@ async def create_chart(
         except Exception as _je:
             print(f"Jaimini v2 store failed (non-blocking): {_je}")
 
+        # Backfill advanced LK data (sleeping planets + Rin)
+        try:
+            from antar_engine.lal_kitab_advanced import detect_sleeping_planets, calculate_comprehensive_rin
+            _lk_stored = supabase.table("charts").select("lal_kitab_data").eq("id", chart_id).single().execute()
+            _lk_data = _lk_stored.data.get("lal_kitab_data") or {}
+            if isinstance(_lk_data, str):
+                import json as _lkjson
+                _lk_data = _lkjson.loads(_lk_data)
+
+            # Compute advanced fields
+            _planets_for_lk = chart_data.get("planets", {})
+            _sleeping = detect_sleeping_planets(_planets_for_lk)
+            _rin = calculate_comprehensive_rin(_planets_for_lk)
+
+            # Store under 'advanced' key
+            _lk_data["advanced"] = {
+                "sleeping_planets": _sleeping,
+                "rin_debts": _rin,
+            }
+            supabase.table("charts").update({"lal_kitab_data": _lk_data}).eq("id", chart_id).execute()
+            print(f"[chart/create] LK advanced stored — {len(_sleeping)} sleeping, {len(_rin)} rin")
+        except Exception as _lke:
+            print(f"[chart/create] LK advanced store failed (non-blocking): {_lke}")
+
         # Save yogas to separate table for queryability
         detected_yogas = chart_data.get("yogas", [])
         if detected_yogas:

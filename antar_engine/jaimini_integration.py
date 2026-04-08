@@ -325,7 +325,7 @@ def build_and_store_jaimini(
         try:
             # Update charts table with jaimini_data JSONB
             supabase_client.table("charts").update({
-                "jaimini_data": json.dumps(jaimini_data)
+                "jaimini_data": jaimini_data
             }).eq("id", chart_id).execute()
             logger.info(f"Stored jaimini_data for chart {chart_id}")
 
