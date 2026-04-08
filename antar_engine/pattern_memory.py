@@ -270,61 +270,58 @@ def _build_memory_block(
     unresolved: Optional[dict]
 ) -> str:
     """
-    Build the PATTERN MEMORY block appended to the /predict system prompt.
+    Build the PATTERN MEMORY block — semantic compression.
+    Sends only signal_line + action_item per prediction (~200 tokens total).
+    Full plain_summary is NOT sent — too expensive for marginal gain.
     """
     if not predictions:
         return ""
 
-    lines = ["PATTERN MEMORY — What Antar has told this person before:\nINSTRUCTION: You MUST reference at least one past prediction explicitly in your response. Use phrases like 'Previously I told you...', 'Last month I advised...', 'Following up on my earlier reading...'."]
+    lines = [
+        "PATTERN MEMORY — Recent signals for continuity:",
+        "INSTRUCTION: If relevant, briefly reference a past signal with 'Previously I told you...'"
+    ]
 
-    # Flag the unresolved case first if present
+    # Unresolved case — keep this, it's critical for diagnostic mode
     if unresolved:
-        tw       = unresolved.get("timing_window", "")
-        concern  = unresolved.get("concern", "")
-        signal   = unresolved.get("signal_line", "") or unresolved.get("plain_summary", "")[:80]
-        created  = _format_age(unresolved.get("created_at"))
+        tw      = unresolved.get("timing_window", "")
+        concern = unresolved.get("concern", "")
+        signal  = unresolved.get("signal_line", "") or ""
+        created = _format_age(unresolved.get("created_at"))
         lines.append(
-            f"\n⚠ UNRESOLVED CASE — {concern.upper()} ({created}):\n"
-            f'  Previous signal: "{signal}"\n'
-            f"  Timing window stated: {tw} — THIS WINDOW HAS PASSED\n"
-            f"  Status: User is asking about this again → window did not close as predicted"
+            f"⚠ UNRESOLVED ({concern}, {created}): \"{signal}\" "
+            f"— window {tw} has passed, outcome unclear"
         )
 
-    # Recent predictions
-    lines.append("\nRECENT PREDICTIONS:")
+    # Semantic compression — signal + action only, no full summary
     shown = 0
     for pred in predictions:
-        if shown >= 8:
+        if shown >= 3:
             break
         if pred is unresolved:
             shown += 1
-            continue  # already shown above
+            continue
 
-        concern   = pred.get("concern", "general")
-        signal    = pred.get("signal_line", "") or (pred.get("plain_summary", "") or "")[:80]
-        created   = _format_age(pred.get("created_at"))
-        status    = pred.get("fulfillment_status", "pending")
-        rating    = pred.get("accuracy_rating")
-        accuracy  = (
-            " ✓ confirmed" if rating == 1
-            else " ✗ did not happen" if rating == 0
-            else " ⏳ pending" if status == "pending"
-            else " ⚠ unresolved"
-        )
+        concern     = pred.get("concern", "general")
+        signal      = (pred.get("signal_line") or "").strip()
+        action      = (pred.get("action_item") or "").strip()
+        created     = _format_age(pred.get("created_at"))
+        rating      = pred.get("accuracy_rating")
+        status_icon = "✓" if rating == 1 else "✗" if rating == 0 else "⏳"
 
-        if signal:
-            lines.append(f"  {created} ({concern}): \"{signal}\"{accuracy}")
+        # Skip if no signal
+        if not signal:
             shown += 1
+            continue
 
-    # Recurring themes
-    themes = _detect_themes(predictions)
-    if themes:
-        lines.append(f"\nRECURRING THEMES: {', '.join(themes)}")
+        # Truncate action to 60 chars max
+        action_short = (action[:60] + "...") if len(action) > 60 else action
 
-    # Accuracy summary
-    acc_summary = _accuracy_summary(predictions)
-    if acc_summary:
-        lines.append(f"ACCURACY SO FAR: {acc_summary}")
+        entry = f"• {created} ({concern}) {status_icon}: \"{signal}\""
+        if action_short:
+            entry += f" → {action_short}"
+        lines.append(entry)
+        shown += 1
 
     return "\n".join(lines)
 
