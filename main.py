@@ -4660,7 +4660,7 @@ async def astrocartography_best_cities(
 
     top_cities = get_best_cities_for_concern(
         concern=request.concern,
-        chart_data=chart_data,
+        city_line_data=CITY_LINE_DATA,
         dashas=dashas,
         patra=patra,
     )
@@ -4799,7 +4799,7 @@ async def get_astrocartography(chart_id: str, concern: str = "career", limit: in
         dashas = get_dashas_for_chart(chart_id)
         top_cities = get_best_cities_for_concern(
             concern=concern,
-            chart_data=chart_data,
+            city_line_data=CITY_LINE_DATA,
             dashas=dashas,
         )
 
