@@ -4764,6 +4764,67 @@ Respond in {locale.language}."""
     return {"city": request.city, "reading": reading, "narrative": narrative}
 
 
+@app.get("/api/v1/astrocartography/{chart_id}")
+async def get_astrocartography(chart_id: str, concern: str = "career", limit: int = 5):
+    """GET endpoint for astrocartography — returns cached or computes on-the-fly."""
+    try:
+        chart_res = supabase.table("charts").select("*").eq("id", chart_id).single().execute()
+        if not chart_res.data:
+            raise HTTPException(404, "Chart not found")
+        chart_record = chart_res.data
+        chart_data = chart_record.get("chart_data", {})
+        if isinstance(chart_data, str):
+            import json as _acjson
+            chart_data = _acjson.loads(chart_data)
+
+        # Check for cached reading first
+        try:
+            cached = supabase.table("astrocartography_readings") \
+                .select("top_cities, narrative, concern") \
+                .eq("chart_id", chart_id).eq("concern", concern) \
+                .order("created_at", desc=True).limit(1).execute()
+            if cached.data:
+                c = cached.data[0]
+                return {
+                    "chart_id": chart_id,
+                    "concern": concern,
+                    "top_cities": (c.get("top_cities") or [])[:limit],
+                    "narrative": c.get("narrative", ""),
+                    "status": "cached",
+                }
+        except Exception:
+            pass  # table may not exist or be empty — compute fresh
+
+        # Compute on-the-fly
+        dashas = get_dashas_for_chart(chart_id)
+        top_cities = get_best_cities_for_concern(
+            concern=concern,
+            chart_data=chart_data,
+            dashas=dashas,
+        )
+
+        return {
+            "chart_id": chart_id,
+            "concern": concern,
+            "top_cities": (top_cities or [])[:limit],
+            "narrative": "",
+            "current_city": chart_record.get("current_country", ""),
+            "status": "computed",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[astrocartography GET] Error for {chart_id}: {e}")
+        return {
+            "chart_id": chart_id,
+            "concern": concern,
+            "current_city": None,
+            "top_cities": [],
+            "status": "computing",
+            "message": "Astrocartography is being computed for your chart.",
+        }
+
+
 @app.post("/api/v1/astrocartography/waitlist")
 async def astrocartography_waitlist(request: WaitlistRequest):
     try:
@@ -6332,7 +6393,17 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}):
         return result
     except HTTPException: raise
     except Exception as e:
-        raise HTTPException(500, f"Daily signal error: {e}")
+        print(f"[daily-signal] Error for chart {cid}: {e}")
+        import traceback; traceback.print_exc()
+        return {
+            "status": "error",
+            "chart_id": cid,
+            "signal_text": "Your signal is being computed. Check back in a moment.",
+            "field": None,
+            "friction": None,
+            "panchanga": {},
+            "error": str(e),
+        }
 
 
 # ── MUHURTA ───────────────────────────────────────────────────────
