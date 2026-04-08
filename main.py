@@ -4594,6 +4594,112 @@ async def astrocartography_waitlist(request: WaitlistRequest):
         print(f"Waitlist insert error: {e}")
     return {"status": "added", "message": "You are on the list. We will notify you when your city map is ready."}
 
+# ── Real Astrocartography — Swiss Ephemeris MC/ASC line computation ───────────
+
+@app.get("/api/v1/astrocartography/{chart_id}")
+async def get_astrocartography(
+    chart_id: str,
+    concern: str = "growth",
+    current_city: str = None,
+    limit: int = 5,
+):
+    """
+    Real astrocartography — Swiss Ephemeris MC/ASC line computation.
+    Returns top cities for the given concern, scored against the birth chart.
+    concern: career | love | money | growth | health | happiness | education | spirituality | home
+    """
+    try:
+        from antar_engine.astrocartography import (
+            get_city_line_data_for_chart,
+            get_best_cities_for_concern,
+            get_current_location_reading,
+        )
+
+        # Load chart
+        chart_resp = supabase.table("charts").select("*").eq("id", chart_id).single().execute()
+        if not chart_resp.data:
+            raise HTTPException(status_code=404, detail="Chart not found")
+        chart = chart_resp.data
+
+        # Get birth JD from birth_datetime
+        birth_dt = chart.get("birth_datetime")
+        if not birth_dt:
+            raise HTTPException(status_code=400, detail="Chart missing birth_datetime")
+
+        import swisseph as swe
+        from datetime import datetime, timezone
+
+        if isinstance(birth_dt, str):
+            birth_dt = datetime.fromisoformat(birth_dt.replace("Z", "+00:00"))
+        birth_dt_utc = birth_dt.astimezone(timezone.utc)
+        hour_decimal = (
+            birth_dt_utc.hour
+            + birth_dt_utc.minute / 60.0
+            + birth_dt_utc.second / 3600.0
+        )
+        birth_jd = swe.julday(
+            birth_dt_utc.year,
+            birth_dt_utc.month,
+            birth_dt_utc.day,
+            hour_decimal,
+        )
+
+        print(f"[astrocartography] chart={chart_id} birth_jd={birth_jd:.4f} concern={concern}")
+
+        # Compute real city scores (~2-4s first call, cached after)
+        city_line_data = get_city_line_data_for_chart(birth_jd)
+        print(f"[astrocartography] scored {len(city_line_data)} cities")
+
+        # Dashas for dasha-amplification layer
+        dashas = chart.get("dashas", {}) or {}
+
+        # Top cities for concern
+        top_cities = get_best_cities_for_concern(
+            concern=concern,
+            city_line_data=city_line_data,
+            dashas=dashas,
+            current_country=chart.get("birth_country"),
+            limit=limit,
+        )
+
+        # Current city reading
+        current_city_name = current_city or chart.get("birth_city") or "Unknown"
+        current_city_lines = city_line_data.get(current_city_name, {})
+        current_reading = get_current_location_reading(
+            city=current_city_name,
+            planet_lines=current_city_lines,
+            dashas=dashas,
+        )
+
+        # Cache in Supabase (non-fatal if fails)
+        try:
+            supabase.table("charts").update({
+                "astrocartography_data": {
+                    "birth_jd":   birth_jd,
+                    "concern":    concern,
+                    "top_cities": [c["city"] for c in top_cities],
+                }
+            }).eq("id", chart_id).execute()
+        except Exception as cache_err:
+            print(f"[astrocartography] cache write non-fatal: {cache_err}")
+
+        return {
+            "chart_id":             chart_id,
+            "concern":              concern,
+            "current_city":         current_reading,
+            "top_cities":           top_cities,
+            "total_cities_scored":  len(city_line_data),
+            "birth_jd":             birth_jd,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        print(f"[astrocartography] error: {e}\n{traceback.format_exc()}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # CHAKRA ENDPOINT
 # ══════════════════════════════════════════════════════════════════════════════
