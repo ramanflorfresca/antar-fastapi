@@ -2873,22 +2873,42 @@ CRITICAL RULES:
         divisional_block=divisional_block,
         )
 
-    for _extra_name, _extra_block in [
-        ("rarity",       rarity_context),
-        ("windows",      windows_context),
-        ("chakra",       chakra_context),
-        ("arc",          arc_context),
-        ("lk",           lk_context),
-        ("enrichment",   enrichment_context),
-        ("sade_sati",    sade_sati_context),
-        ("life_question",life_question_context),
-        ("e2_contradiction", _contradiction_block if '_contradiction_block' in dir() else ""),
-    ]:
+    # ── Question-mode gating for extra blocks ────────────────────
+    _q_low = (request.question or "").lower()
+    _is_health_spiritual = concern in ("health","spiritual","wellness") or any(
+        kw in _q_low for kw in ["health","chakra","spiritual","energy","body","soul"]
+    )
+    _is_remedy_lk = any(kw in _q_low for kw in [
+        "remedy","remedies","lal kitab","karma","luck","fix","help","weak"
+    ]) or _question_mode in ("remedy","spiritual")
+    _is_enrichment = concern in ("career","wealth","money","timing","relationship") or _question_mode in ("timing","career","wealth")
+    _is_life_path  = _question_mode == "life_path" or any(kw in _q_low for kw in [
+        "purpose","mission","destiny","why am i","life path","soul"
+    ])
+
+    _gated_extra_blocks = [
+        ("rarity",       rarity_context,       True),
+        ("windows",      windows_context,       True),
+        ("arc",          arc_context,           True),
+        ("chakra",       chakra_context,        _is_health_spiritual),
+        ("lk",           lk_context,            _is_remedy_lk),
+        ("enrichment",   enrichment_context,    _is_enrichment),
+        ("sade_sati",    sade_sati_context,     bool(sade_sati_context)),
+        ("life_question",life_question_context, _is_life_path),
+        ("e2_contradiction", _contradiction_block if '_contradiction_block' in dir() else "", True),
+    ]
+
+    _extra_total = 0
+    for _extra_name, _extra_block, _include in _gated_extra_blocks:
         try:
-            if _extra_block:
+            if _extra_block and _include:
                 prompt += f"\n\n{_extra_block}"
+                _extra_total += len(_extra_block)
+            elif _extra_block and not _include:
+                pass  # Gated out
         except Exception as _eb_e:
             print(f"[predict] extra_block {_extra_name} error: {_eb_e}")
+    print(f"[predict] Extra blocks injected: {_extra_total} chars")
 
     # ── LLM CALL — passes conversation history for multi-turn context ──
     # Use different system prompt for master context vs template
@@ -2907,7 +2927,9 @@ CRITICAL RULES:
 
 
     # ── Domain Audit Rules (Sprint D) ────────────────────────────
-    _domain_rules = DOMAIN_AUDIT_RULES.get(concern, DOMAIN_AUDIT_RULES.get("general", ""))
+    _domain_rules_full = DOMAIN_AUDIT_RULES.get(concern, DOMAIN_AUDIT_RULES.get("general", ""))
+    # Truncate domain audit to first 800 chars — rules are repetitive after that
+    _domain_rules = _domain_rules_full[:800] if len(_domain_rules_full) > 800 else _domain_rules_full
     # HARD JARGON CONSTRAINT — prepended to EVERY prompt
     _hard_constraint = """
 ABSOLUTE RULES (violating these rules means the response is rejected):
