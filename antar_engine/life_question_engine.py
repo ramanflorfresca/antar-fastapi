@@ -363,7 +363,8 @@ def build_life_question_context(
         f"═══ END {domain.upper()} ANALYSIS ═══",
     ]
 
-    return "\n".join(lines)
+    result = "\n".join(lines)
+    return result[:1500] if len(result) > 1500 else result
 
 
 # ── Convenience: get structured data (not just text) ─────────────────────────
