@@ -1261,13 +1261,33 @@ async def call_llm_claude(
     ]
     system = system_override if system_override else SYSTEM_PROMPT
 
+    # KV Cache: split static (cacheable) vs dynamic tail
+    _SPLIT = "## LIVE DATA"
+    if _SPLIT in system:
+        _static_part, _dynamic_part = system.split(_SPLIT, 1)
+        _dynamic_part = _SPLIT + _dynamic_part
+    else:
+        _static_part = system
+        _dynamic_part = ""
+
+    _system_blocks = [
+        {
+            "type": "text",
+            "text": _static_part,
+            "cache_control": {"type": "ephemeral"}
+        }
+    ]
+    if _dynamic_part:
+        _system_blocks.append({"type": "text", "text": _dynamic_part})
+
     try:
         response = await claude_client.messages.create(
             model="claude-sonnet-4-5",
             max_tokens=1200,
             temperature=0.35,
-            system=system,
+            system=_system_blocks,
             messages=messages,
+            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"}
         )
         text = response.content[0].text.strip()
         tokens = response.usage.output_tokens
