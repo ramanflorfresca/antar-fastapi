@@ -483,6 +483,59 @@ CITY_LINE_DATA = {
 
 # ── Dasha amplification ───────────────────────────────────────────────────────
 
+def _find_current_dasha_period(periods: list) -> dict:
+    """
+    Find the currently active dasha period by comparing start/end dates to today.
+    Falls back to first period if none found.
+    """
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+
+    for period in periods:
+        start_str = period.get("start", "")
+        end_str   = period.get("end", "")
+        if not start_str or not end_str:
+            continue
+        try:
+            start = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
+            end   = datetime.fromisoformat(end_str.replace("Z", "+00:00"))
+            if start <= now <= end:
+                return period
+        except Exception:
+            continue
+
+    return periods[0] if periods else {}
+
+
+def _find_next_dasha_periods(periods: list, current: dict) -> list:
+    """
+    Return up to 3 periods that start after the current one ends.
+    """
+    current_end = current.get("end", "")
+    if not current_end:
+        return []
+
+    from datetime import datetime, timezone
+    try:
+        current_end_dt = datetime.fromisoformat(current_end.replace("Z", "+00:00"))
+    except Exception:
+        return []
+
+    upcoming = []
+    for period in periods:
+        start_str = period.get("start", "")
+        if not start_str:
+            continue
+        try:
+            start = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
+            if start >= current_end_dt:
+                upcoming.append(period)
+        except Exception:
+            continue
+
+    return upcoming[:3]
+
+
 def get_dasha_amplification(planet: str, dashas: dict) -> dict:
     """
     Returns how much the current dasha amplifies this planet's lines.
@@ -499,9 +552,13 @@ def get_dasha_amplification(planet: str, dashas: dict) -> dict:
         "urgency": str,        # "NOW" | "SOON" | "BUILDING"
     }
     """
-    vim_dasha = dashas.get("vimsottari", [{}])[0]
-    vim_antardasha = dashas.get("vimsottari", [{}, {}])[1] if len(dashas.get("vimsottari", [])) > 1 else {}
+    all_vim   = dashas.get("vimsottari", [])
     jai_dasha = dashas.get("jaimini", [{}])[0]
+
+    # Find current mahadasha by date (not by list position)
+    vim_dasha      = _find_current_dasha_period(all_vim) if all_vim else {}
+    upcoming       = _find_next_dasha_periods(all_vim, vim_dasha)
+    vim_antardasha = upcoming[0] if upcoming else {}
 
     vim_lord = vim_dasha.get("lord_or_sign", "")
     vim_ad   = vim_antardasha.get("lord_or_sign", "")
