@@ -169,16 +169,85 @@ Explicitly state this limitation in your response — do not pretend to have ful
 Be clear: "Based on available data (birth time not provided for X)..."
 """
 
-    type_instructions = {
-        "relationship": "Focus on: emotional compatibility, communication styles, long-term harmony, values alignment, physical/energetic chemistry, and potential friction points in a romantic partnership.",
-        "business": "Focus on: complementary skills, communication styles, trust and ethics alignment, financial decision-making compatibility, stress response under pressure, and long-term business trajectory.",
-        "cofounder": "Focus on: role complementarity (who is the visionary vs executor), communication under pressure, financial risk tolerance alignment, long-term commitment signals in the charts, and specific dasha windows where the partnership peaks or risks diverging.",
-    }.get(compat_type, "Focus on both personal and professional compatibility.")
+    # ── Type-specific scoring instructions ───────────────────────────────────
+    TYPE_CONFIG = {
+        "relationship": {
+            "focus_planets": "Moon, Venus, Jupiter, 7th house lord",
+            "score_weights": "Emotional resonance 35% + 7th house compatibility 25% + Venus harmony 20% + Dasha alignment 20%",
+            "key_questions": [
+                "Do their Moon signs create emotional harmony or friction?",
+                "Does Venus in either chart aspect the other's ASC or Moon?",
+                "Are their 7th house lords compatible?",
+                "Are they in dashas that support love/partnership (Venus, Moon, Jupiter)?",
+                "What is the long-term emotional sustainability?",
+            ],
+            "extra_sections": f"""
+## Emotional Chemistry
+[How do their Moon signs and Venus placements interact? Is there natural attraction and emotional safety?]
+[Reference specific Moon signs, Venus positions, and nakshatra compatibility]
+
+## Long-term Harmony
+[Will daily life together feel easy or draining? Reference Moon/4th house/Saturn interactions]
+
+## The Love Window
+[Are their current dashas supportive of deepening this relationship? When is the peak period?]""",
+            "score_note": "Score 90-100: Deep soul alignment. 75-89: Strong with conscious effort. 60-74: Compatible but requires work. Below 60: Fundamentally different rhythms.",
+        },
+        "business": {
+            "focus_planets": "Mercury, Jupiter, Saturn, 10th house lord, 11th house lord",
+            "score_weights": "Communication + deal-making (Mercury) 30% + Growth alignment (Jupiter/11th) 25% + Trust + structure (Saturn) 25% + Dasha timing 20%",
+            "key_questions": [
+                "Are their Mercury placements compatible for communication and deal-making?",
+                "Do their 10th houses show complementary professional authority?",
+                "Does their 11th house (gains/networks) align?",
+                "Are they in career/money dashas (Sun, Mercury, Jupiter, Saturn)?",
+                "Can they trust each other under financial pressure?",
+            ],
+            "extra_sections": f"""
+## Communication & Deal-Making
+[How do their Mercury and Saturn placements interact? Will they negotiate well or talk past each other?]
+
+## Financial Compatibility
+[Do their 2nd and 11th house lords align? Who manages money, who generates it?]
+
+## Business Runway
+[How many years of aligned business dashas do they share? When does the window close?]""",
+            "score_note": "Score 85-100: Natural business alliance. 70-84: Strong with clear role definition. 55-69: Possible but needs structure. Below 55: Misaligned incentives.",
+        },
+        "cofounder": {
+            "focus_planets": "Atmakaraka, Saturn, Rahu, Mercury, 10th house, FIELD×MODE operating rhythm",
+            "score_weights": "Operating rhythm fit (FIELD×MODE) 30% + Dasha runway alignment 30% + Business factors (Mercury/10th/11th) 25% + Personal trust (Moon/7th) 15%",
+            "key_questions": [
+                "Are their Atmakarakas compatible — do their souls want the same thing?",
+                "Does one chart show visionary leadership (Sun/Jupiter dominant) while the other shows execution (Mars/Saturn dominant)?",
+                "How long is their shared dasha runway — do they have 5+ years of aligned periods?",
+                "Does Rahu in either chart point toward ambition that conflicts with the other?",
+                "Can Saturn in both charts sustain a long-term commitment?",
+            ],
+            "extra_sections": f"""
+## Role Architecture
+[Who is the Visionary (Sun/Jupiter/Rahu dominant)? Who is the Operator (Mars/Saturn/Mercury dominant)?]
+[This must be specific — name the role each person is built for based on their chart]
+
+## Cofounder Runway
+[How many years of aligned dasha periods do they share? What happens post-2026? Post-2028?]
+[This is critical for cofounder relationships — be specific about timeline]
+
+## Mission Alignment
+[Do their Atmakarakas point in the same direction? Are their souls building toward compatible futures?]
+
+## The 5-Year Test
+[Will this partnership survive the first major dasha transition? Name the exact year and what shifts]""",
+            "score_note": "Score 85-100: Rare cofounder alignment — build without hesitation. 70-84: Strong fit with clear equity + role structure. 55-69: Possible but high maintenance. Below 55: Different chapters, different missions.",
+        },
+    }
+
+    cfg = TYPE_CONFIG.get(compat_type, TYPE_CONFIG["cofounder"])
 
     return f"""You are a master Vedic astrologer with 30 years of experience advising entrepreneurs and couples.
 
 You are analyzing compatibility between {name_a} and {name_b}.
-Compatibility type requested: {compat_type.upper()}
+Compatibility type: {compat_type.upper()}
 
 {brief_a}
 
@@ -186,38 +255,39 @@ Compatibility type requested: {compat_type.upper()}
 
 {confidence_note}
 
-ANALYSIS INSTRUCTIONS:
-{type_instructions}
+SCORING FOCUS FOR {compat_type.upper()}:
+Key planets/houses: {cfg['focus_planets']}
+Score weights: {cfg['score_weights']}
+
+Key questions to answer:
+{chr(10).join(f"- {q}" for q in cfg['key_questions'])}
 
 Use ONLY the data provided above. Never invent planetary positions.
 
 OUTPUT FORMAT (respond in this exact structure):
 
 ## Compatibility Overview
-[2-3 sentence summary of the overall energy between these two people]
+[2-3 sentence summary of the overall energy between these two people for {compat_type}]
 
 **Overall score: X/100**
-[One line explaining what drives this score]
+[One line explaining what drives this score for {compat_type}]
+{cfg['score_note']}
 
 ## What Works — Strengths
-[3-4 specific strengths grounded in actual planetary data above]
-Each strength must reference specific planets, signs, or dasha periods from the briefs.
+[3-4 specific strengths grounded in actual planetary data]
+Each strength MUST reference specific planets, signs, houses, or dasha periods.
+{cfg['extra_sections']}
 
-## Watch Points — Growth Areas  
+## Watch Points — Growth Areas
 [2-3 specific friction areas with actionable framing]
 Never say "this will fail" — frame as "this requires conscious attention"
 
-## Role Clarity
-{name_a}: [specific role this chart is built for]
-{name_b}: [specific role this chart is built for]
-[One line on how these roles complement or compete]
-
 ## Timing — Key Windows
 [2-3 specific timing insights based on both dasha timelines]
-e.g. "Both enter expansion dashas in 2026 — this is the window to build together"
+Be specific: exact years, which dasha period, what it means for this {compat_type} context.
 
 ## The Core Question
-[One honest, direct paragraph: given all of this, what is the fundamental nature of this partnership? Will they grow together or have different paths?]
+[One honest, direct paragraph: given all of this, what is the fundamental nature of this {compat_type} partnership?]
 
 After your analysis, end with exactly this line:
 ---

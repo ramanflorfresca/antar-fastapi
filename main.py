@@ -5399,15 +5399,42 @@ async def compatibility_start(request: CompatibilityStartRequest):
         (_personality_score * 0.2)
     )
 
+    # Type-specific score labels
+    _type_labels = {
+        "relationship": {
+            "score_a_label": "Emotional Resonance",
+            "score_b_label": "Timing Alignment",
+            "score_c_label": "Dynamic Fit",
+        },
+        "business": {
+            "score_a_label": "Strategic Fit",
+            "score_b_label": "Timing Alignment",
+            "score_c_label": "Communication Match",
+        },
+        "cofounder": {
+            "score_a_label": "Role Fit",
+            "score_b_label": "Runway Alignment",
+            "score_c_label": "Operating Rhythm",
+        },
+    }.get(request.compatibility_type, {
+        "score_a_label": "Personality Match",
+        "score_b_label": "Timing Alignment",
+        "score_c_label": "Dynamic Fit",
+    })
+
     _score_breakdown = {
-        "overall":     _weighted_overall,
-        "personality": _overall_score,
-        "dasha":       _dasha_score,
-        "field_mode":  _personality_score,
-        "dasha_label":  _dasha_scores["label"],
-        "dasha_window": _dasha_scores["window"],
-        "dasha_urgency": _dasha_scores["urgency"],
-        "dasha_detail": _dasha_scores["detail"],
+        "overall":        _weighted_overall,
+        "personality":    _overall_score,
+        "dasha":          _dasha_score,
+        "field_mode":     _personality_score,
+        "dasha_label":    _dasha_scores["label"],
+        "dasha_window":   _dasha_scores["window"],
+        "dasha_urgency":  _dasha_scores["urgency"],
+        "dasha_detail":   _dasha_scores["detail"],
+        "score_a_label":  _type_labels["score_a_label"],
+        "score_b_label":  _type_labels["score_b_label"],
+        "score_c_label":  _type_labels["score_c_label"],
+        "compat_type":    request.compatibility_type,
     }
 
     return {
