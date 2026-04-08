@@ -1375,6 +1375,122 @@ async def save_conversation_turn(
 # Python extracts state. Claude reads context. DKP makes it personal.
 # ═══════════════════════════════════════════════════════════════════
 
+def _get_astrocarto_desha_lines(chart_id: str, chart_data: dict, current_city: str = None) -> list:
+    """
+    Returns 1-3 lines of astrocartography context for the DKP DESHA block.
+    Fast — uses cached astrocartography_data from Supabase if available,
+    otherwise skips silently (non-blocking).
+    """
+    try:
+        from antar_engine.astrocartography import (
+            get_city_line_data_for_chart,
+            get_best_cities_for_concern,
+            get_current_location_reading,
+            PLANET_LINE_MEANINGS,
+        )
+        import swisseph as swe
+        from datetime import datetime, timezone
+
+        # Get birth JD
+        birth_date = chart_data.get("birth_date")
+        birth_time = chart_data.get("birth_time", "00:00:00")
+        if not birth_date:
+            return []
+
+        dt_str  = f"{birth_date}T{birth_time}"
+        birth_dt = datetime.fromisoformat(dt_str)
+        hour_decimal = birth_dt.hour + birth_dt.minute / 60.0 + birth_dt.second / 3600.0
+        birth_jd = swe.julday(birth_dt.year, birth_dt.month, birth_dt.day, hour_decimal)
+
+        # Check cached data first
+        cached = chart_data.get("astrocartography_data")
+        if cached and isinstance(cached, dict) and cached.get("city_line_data"):
+            city_line_data = cached["city_line_data"]
+        else:
+            # Compute fresh (2-4s) — only if not cached
+            city_line_data = get_city_line_data_for_chart(birth_jd)
+
+        # Load dashas
+        try:
+            dashas = get_dashas_for_chart(chart_id)
+        except Exception:
+            dashas = {}
+
+        result_lines = []
+
+        # ── Current city verdict ──────────────────────────────────
+        city_name = current_city or chart_data.get("birth_city") or ""
+        if city_name:
+            city_lines = city_line_data.get(city_name, {})
+            current_reading = get_current_location_reading(
+                city=city_name,
+                planet_lines=city_lines,
+                dashas=dashas,
+            )
+            active = current_reading.get("active_lines", [])
+            if active:
+                top = active[0]
+                planet = top["planet"]
+                line_type = top["line_type"]
+                theme = PLANET_LINE_MEANINGS.get(planet, {}).get(line_type, {}).get("theme", "")
+                strength_pct = int(top["strength"] * 100)
+                dasha_note = ""
+                if top.get("dasha_amp", {}).get("amplified"):
+                    dasha_note = f" [AMPLIFIED — {top['dasha_amp']['reason']}]"
+                result_lines.append(
+                    f"  Current city ({city_name}): {planet} {line_type} line active "
+                    f"({strength_pct}%) — {theme}{dasha_note}"
+                )
+            else:
+                result_lines.append(
+                    f"  Current city ({city_name}): NEUTRAL — no strong planetary lines active here"
+                )
+
+        # ── Top amplified cities across concerns ──────────────────
+        # Find cities with SOON/NOW urgency across career + money + growth
+        amplified_cities = {}
+        for concern in ["career", "money", "growth"]:
+            top_cities = get_best_cities_for_concern(
+                concern=concern,
+                city_line_data=city_line_data,
+                dashas=dashas,
+                limit=3,
+            )
+            for c in top_cities:
+                if c.get("urgency") in ("NOW", "SOON") and c.get("is_amplified"):
+                    key = c["city"]
+                    if key not in amplified_cities:
+                        amplified_cities[key] = c
+
+        if amplified_cities:
+            # Group by planet+line
+            by_line = {}
+            for city, data in amplified_cities.items():
+                line_key = f"{data['planet']} {data['line_type']}"
+                if line_key not in by_line:
+                    by_line[line_key] = []
+                by_line[line_key].append(city)
+
+            for line_key, cities in list(by_line.items())[:2]:
+                cities_str = ", ".join(cities[:3])
+                # Find window from first city's data
+                sample = amplified_cities[cities[0]]
+                window = sample.get("window", "")
+                urgency = sample.get("urgency", "")
+                urgency_label = "Opening soon" if urgency == "SOON" else "Active now"
+                result_lines.append(
+                    f"  {urgency_label}: {line_key} line → {cities_str}"
+                    + (f" (until {window})" if window else "")
+                )
+
+        return result_lines
+
+    except Exception as e:
+        # Never block predict — silently skip
+        print(f"[dkp_astrocarto] non-fatal: {e}")
+        return []
+
+
 def build_dkp_block(chart_data: dict, user_profile: dict = None) -> str:
     """
     Builds a DESHA / KALA / PATRA context block for injection into Claude prompt.
@@ -1444,6 +1560,18 @@ def build_dkp_block(chart_data: dict, user_profile: dict = None) -> str:
     if desha_lines:
         lines.append("DESHA (Place context):")
         lines.extend(desha_lines)
+
+    # ── Astrocartography lines (injected into DESHA) ──────────────
+    chart_id_for_astro = cd.get("id") or cd.get("chart_id") or ""
+    current_city_for_astro = up.get("city") or cd.get("city") or cd.get("birth_city") or ""
+    if chart_id_for_astro:
+        try:
+            astro_lines = _get_astrocarto_desha_lines(
+                chart_id_for_astro, cd, current_city_for_astro
+            )
+            lines.extend(astro_lines)
+        except Exception:
+            pass  # Never block predict
 
     # ─── KALA (Time / Era + Life Stage Context) ──────────────────
     current_year = datetime.now().year
