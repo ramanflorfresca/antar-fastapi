@@ -509,13 +509,14 @@ def _find_current_dasha_period(periods: list) -> dict:
 
 def _find_next_dasha_periods(periods: list, current: dict) -> list:
     """
-    Return up to 3 periods that start after the current one ends.
+    Return up to 3 periods that start after the current one ends AND are in the future.
     """
     current_end = current.get("end", "")
     if not current_end:
         return []
 
     from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
     try:
         current_end_dt = datetime.fromisoformat(current_end.replace("Z", "+00:00"))
     except Exception:
@@ -528,7 +529,8 @@ def _find_next_dasha_periods(periods: list, current: dict) -> list:
             continue
         try:
             start = datetime.fromisoformat(start_str.replace("Z", "+00:00"))
-            if start >= current_end_dt:
+            # Must start after current period ends AND must be in the future
+            if start >= current_end_dt and start >= now:
                 upcoming.append(period)
         except Exception:
             continue
@@ -574,15 +576,16 @@ def get_dasha_amplification(planet: str, dashas: dict) -> dict:
             "urgency":    "NOW",
         }
 
-    # Strong match: planet = antardasha
+    # Strong match: planet = next mahadasha (coming soon)
     if vim_ad == planet:
-        ad_end = vim_antardasha.get("end", "")
+        ad_start = vim_antardasha.get("start", "")
+        ad_end   = vim_antardasha.get("end", "")
         return {
             "amplified":  True,
             "multiplier": 1.5,
-            "reason":     f"{planet} is your active sub-period right now",
-            "window":     f"until {ad_end[:7] if ad_end else 'sub-period ends'}",
-            "urgency":    "NOW",
+            "reason":     f"Your {planet} mahadasha opens {ad_start[:7] if ad_start else 'soon'}",
+            "window":     f"until {ad_end[:7] if ad_end else 'period ends'}",
+            "urgency":    "SOON",
         }
 
     # Next dasha: planet coming soon
