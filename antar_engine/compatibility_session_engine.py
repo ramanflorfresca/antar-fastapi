@@ -77,37 +77,131 @@ def _current_md(dashas: dict) -> tuple:
     return "unknown", "", ""
 
 
+def _get_house_lord(lagna_sign: str, house_num: int) -> str:
+    """Returns the lord of a given house from the lagna sign."""
+    SIGN_ORDER = [
+        "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
+        "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"
+    ]
+    try:
+        lagna_idx = SIGN_ORDER.index(lagna_sign)
+        house_sign_idx = (lagna_idx + house_num - 1) % 12
+        house_sign = SIGN_ORDER[house_sign_idx]
+        return SIGN_LORDS.get(house_sign, "?")
+    except Exception:
+        return "?"
+
+
+def _get_darakaraka(planets: dict) -> str:
+    """
+    Darakaraka (DK) = planet with the lowest degree in the chart.
+    Represents the spouse/partner significator in Jaimini.
+    Excludes Rahu and Ketu.
+    """
+    eligible = {
+        p: d for p, d in planets.items()
+        if p not in ("Rahu", "Ketu") and isinstance(d, dict) and d.get("degree") is not None
+    }
+    if not eligible:
+        return "?"
+    dk = min(eligible.items(), key=lambda x: x[1].get("degree", 360))
+    return dk[0]
+
+
+def _get_upapada_lagna(planets: dict, lagna_sign: str) -> str:
+    """
+    Upapada Lagna (UL) — Jaimini marriage significator.
+    Simplified: 12th lord's sign + that many signs from 12th house.
+    Returns the UL sign name.
+    """
+    try:
+        SIGN_ORDER = [
+            "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
+            "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"
+        ]
+        lagna_idx   = SIGN_ORDER.index(lagna_sign)
+        house12_idx = (lagna_idx + 11) % 12
+        house12_sign = SIGN_ORDER[house12_idx]
+        lord_12 = SIGN_LORDS.get(house12_sign, "")
+        lord_planet = planets.get(lord_12, {})
+        lord_sign   = lord_planet.get("sign", "")
+        if lord_sign not in SIGN_ORDER:
+            return "?"
+        lord_idx    = SIGN_ORDER.index(lord_sign)
+        # Count from 12th house sign to lord's sign
+        count = (lord_idx - house12_idx) % 12 + 1
+        ul_idx = (lord_idx + count - 1) % 12
+        return SIGN_ORDER[ul_idx]
+    except Exception:
+        return "?"
+
+
 def build_person_brief(
     name: str,
     chart_data: dict,
     dashas: dict,
     birth_date: str,
     has_birth_time: bool = True,
+    compat_type: str = "cofounder",
 ) -> str:
-    """Build a compact astrological brief for one person."""
-    age     = _age(birth_date)
-    lagna   = chart_data.get("lagna", {})
+    """
+    Build a compact astrological brief for one person.
+    Includes type-specific factors:
+    - relationship: UL, DK, D9, 7th/8th/12th house lords
+    - business: 6th/10th/11th house lords, D10
+    - cofounder: AK, Rahu/Ketu axis, Saturn, all business factors
+    """
+    age        = _age(birth_date)
+    lagna      = chart_data.get("lagna", {})
     lagna_sign = lagna.get("sign","unknown") if isinstance(lagna, dict) else str(lagna)
-    planets = chart_data.get("planets", {})
-    yogas   = chart_data.get("yogas", [])
-    atma    = chart_data.get("atmakaraka","")
-    divs    = chart_data.get("divisional_charts", {})
+    planets    = chart_data.get("planets", {})
+    yogas      = chart_data.get("yogas", [])
+    atma       = chart_data.get("atmakaraka","")
+    divs       = chart_data.get("divisional_charts", {})
+    jaimini    = chart_data.get("jaimini_data", {}) or {}
 
     md_lord, md_start, md_end = _current_md(dashas)
 
-    moon = planets.get("Moon", {})
+    moon      = planets.get("Moon", {})
     moon_sign = moon.get("sign","")
     moon_nak  = moon.get("nakshatra","")
+    venus     = planets.get("Venus", {})
+    saturn    = planets.get("Saturn", {})
+    rahu      = planets.get("Rahu", {})
+    ketu      = planets.get("Ketu", {})
+    mercury   = planets.get("Mercury", {})
+    jupiter   = planets.get("Jupiter", {})
 
-    # D10 career picture
-    d10 = divs.get("d10", {})
+    # D10 career chart
+    d10       = divs.get("d10", {})
     d10_lagna = d10.get("lagna","?")
     d10_sun   = d10.get("planets",{}).get("Sun",{}).get("house","?")
+
+    # D9 marriage chart
+    d9        = divs.get("d9", {})
+    d9_lagna  = d9.get("lagna","?")
+    d9_venus  = d9.get("planets",{}).get("Venus",{}).get("sign","?")
+    d9_moon   = d9.get("planets",{}).get("Moon",{}).get("sign","?")
+
+    # House lords
+    lord_7  = _get_house_lord(lagna_sign, 7)
+    lord_8  = _get_house_lord(lagna_sign, 8)
+    lord_10 = _get_house_lord(lagna_sign, 10)
+    lord_11 = _get_house_lord(lagna_sign, 11)
+    lord_6  = _get_house_lord(lagna_sign, 6)
+    lord_3  = _get_house_lord(lagna_sign, 3)
+    lord_12 = _get_house_lord(lagna_sign, 12)
+
+    # Jaimini significators
+    dk  = jaimini.get("darakaraka") or _get_darakaraka(planets)
+    ul  = jaimini.get("upapada_lagna") or (
+        _get_upapada_lagna(planets, lagna_sign) if has_birth_time else "?"
+    )
 
     # Role from atmakaraka
     role = ROLE_MAP.get(atma, "Versatile contributor")
 
-    confidence = "FULL ANALYSIS" if has_birth_time else "PARTIAL ANALYSIS (no birth time — lagna/houses estimated)"
+    confidence = "FULL ANALYSIS" if has_birth_time else "PARTIAL ANALYSIS (no birth time)"
 
     lines = [
         f"=== {name.upper()} ({confidence}) ===",
@@ -117,7 +211,7 @@ def build_person_brief(
     if has_birth_time:
         lines.append(f"Lagna: {lagna_sign} | Moon: {moon_sign} ({moon_nak})")
     else:
-        lines.append(f"Moon: {moon_sign} ({moon_nak}) — birth time unknown, lagna not available")
+        lines.append(f"Moon: {moon_sign} ({moon_nak}) — birth time unknown")
 
     lines += [
         f"Atmakaraka (soul planet): {atma} — {PLANET_DOMAIN.get(atma,'')}",
@@ -125,21 +219,76 @@ def build_person_brief(
         f"Current chapter: {md_lord} Mahadasha ({md_start}–{md_end})",
     ]
 
-    if has_birth_time:
-        lines.append(f"Career chart (D10): Lagna={d10_lagna}, Sun in house {d10_sun}")
-
-    # Key planets
+    # ── Core planets (all types) ──────────────────────────────────────────────
     lines.append("Key planets:")
-    for p in ["Sun","Moon","Mars","Mercury","Jupiter","Saturn","Rahu"]:
-        pd = planets.get(p,{})
+    for p in ["Sun","Moon","Mars","Mercury","Jupiter","Saturn","Rahu","Ketu"]:
+        pd   = planets.get(p, {})
         sign = pd.get("sign","")
         house = pd.get("house","?") if has_birth_time else "?"
-        lines.append(f"  {p}: {sign}" + (f" house {house}" if has_birth_time else ""))
+        deg  = pd.get("degree")
+        deg_str = f" {deg:.1f}°" if deg is not None else ""
+        lines.append(f"  {p}: {sign}" + (f" house {house}" if has_birth_time else "") + deg_str)
 
-    # Strong yogas
-    strong = [y for y in yogas if y.get("strength")=="strong"]
+    # ── RELATIONSHIP-specific factors ─────────────────────────────────────────
+    if compat_type == "relationship":
+        lines.append("── RELATIONSHIP FACTORS ──")
+        lines.append(f"  7th house lord: {lord_7} ({planets.get(lord_7,{}).get('sign','')} house {planets.get(lord_7,{}).get('house','?') if has_birth_time else '?'})")
+        lines.append(f"  8th house lord: {lord_8} (shared resources, intimacy, transformation)")
+        lines.append(f"  12th house lord: {lord_12} (bedroom, foreign partnerships, dissolution)")
+        lines.append(f"  Venus: {venus.get('sign','')} house {venus.get('house','?') if has_birth_time else '?'} — love, attraction, harmony")
+        lines.append(f"  Darakaraka (spouse significator): {dk}")
+        if has_birth_time:
+            lines.append(f"  Upapada Lagna (marriage axis): {ul}")
+            lines.append(f"  D9 (Navamsa marriage chart): Lagna={d9_lagna}, Venus={d9_venus}, Moon={d9_moon}")
+
+    # ── BUSINESS-specific factors ─────────────────────────────────────────────
+    elif compat_type == "business":
+        lines.append("── BUSINESS FACTORS ──")
+        lines.append(f"  10th house lord: {lord_10} ({planets.get(lord_10,{}).get('sign','')} house {planets.get(lord_10,{}).get('house','?') if has_birth_time else '?'}) — career authority")
+        lines.append(f"  11th house lord: {lord_11} ({planets.get(lord_11,{}).get('sign','')} house {planets.get(lord_11,{}).get('house','?') if has_birth_time else '?'}) — gains, networks")
+        lines.append(f"  6th house lord: {lord_6} — daily operations, service orientation")
+        lines.append(f"  3rd house lord: {lord_3} — communication, daily operations")
+        lines.append(f"  Mercury: {mercury.get('sign','')} house {mercury.get('house','?') if has_birth_time else '?'} — deals, negotiation, commerce")
+        lines.append(f"  Jupiter: {jupiter.get('sign','')} house {jupiter.get('house','?') if has_birth_time else '?'} — growth, wisdom, abundance")
+        if has_birth_time:
+            lines.append(f"  D10 (Dasamsa career chart): Lagna={d10_lagna}, Sun in house {d10_sun}")
+
+    # ── COFOUNDER-specific factors ────────────────────────────────────────────
+    elif compat_type == "cofounder":
+        lines.append("── COFOUNDER FACTORS ──")
+        lines.append(f"  Atmakaraka (soul mission): {atma} — {PLANET_DOMAIN.get(atma,'')}")
+        lines.append(f"  Saturn: {saturn.get('sign','')} house {saturn.get('house','?') if has_birth_time else '?'} — long-term commitment, staying power")
+        lines.append(f"  Rahu: {rahu.get('sign','')} house {rahu.get('house','?') if has_birth_time else '?'} — ambition, disruption appetite")
+        lines.append(f"  Ketu: {ketu.get('sign','')} house {ketu.get('house','?') if has_birth_time else '?'} — past expertise, detachment")
+        lines.append(f"  10th house lord: {lord_10} — career authority and public role")
+        lines.append(f"  11th house lord: {lord_11} — gains, networks, alliances")
+        lines.append(f"  Mercury: {mercury.get('sign','')} house {mercury.get('house','?') if has_birth_time else '?'} — communication under pressure")
+        if has_birth_time:
+            lines.append(f"  D10 (career chart): Lagna={d10_lagna}, Sun in house {d10_sun}")
+            lines.append(f"  Darakaraka: {dk} — partnership significator")
+
+    # ── Strong yogas (all types) ──────────────────────────────────────────────
+    strong = [y for y in yogas if y.get("strength") == "strong"]
     if strong:
-        lines.append("Strong yogas: " + ", ".join(y["name"] for y in strong))
+        lines.append("Strong yogas: " + ", ".join(y["name"] for y in strong[:5]))
+
+    # ── Dasha timeline (all types) ────────────────────────────────────────────
+    lines.append("Upcoming dasha transitions:")
+    now_dt = __import__("datetime").datetime.utcnow()
+    count = 0
+    for row in dashas.get("vimsottari", []):
+        try:
+            sd = _parse_dt(row.get("start_date") or row.get("start",""))
+            ed = _parse_dt(row.get("end_date")   or row.get("end",""))
+            lord = row.get("lord_or_sign") or row.get("planet_or_sign","")
+            level = row.get("level") or row.get("type","")
+            if level != "mahadasha" and level != 1:
+                continue
+            if ed > now_dt and count < 3:
+                lines.append(f"  {lord} MD: {sd.year}–{ed.year}")
+                count += 1
+        except Exception:
+            pass
 
     return "\n".join(lines)
 

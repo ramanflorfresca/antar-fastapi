@@ -5328,10 +5328,11 @@ async def compatibility_start(request: CompatibilityStartRequest):
         }).execute()
         dashas_b = {}
 
-    brief_a = build_person_brief(name_a, chart_a, dashas_a, birth_a, has_time_a)
+    _compat_type = request.compatibility_type or "cofounder"
+    brief_a = build_person_brief(name_a, chart_a, dashas_a, birth_a, has_time_a, _compat_type)
     brief_b = build_person_brief(request.name_b, chart_b, dashas_b,
                                   birth_b if request.chart_id_b else request.birth_date_b,
-                                  has_time_b)
+                                  has_time_b, _compat_type)
 
     layer1 = await run_layer1_llm(
         brief_a=brief_a, brief_b=brief_b,
