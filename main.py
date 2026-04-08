@@ -4692,7 +4692,6 @@ async def astrocartography_best_cities(
     try:
         supabase.table("astrocartography_readings").upsert({
             "chart_id":   request.chart_id,
-            "concern":    request.concern,
             "top_cities": top_cities,
             "narrative":  narrative,
             "created_at": "now()",
@@ -4780,8 +4779,8 @@ async def get_astrocartography(chart_id: str, concern: str = "career", limit: in
         # Check for cached reading first
         try:
             cached = supabase.table("astrocartography_readings") \
-                .select("top_cities, narrative, concern") \
-                .eq("chart_id", chart_id).eq("concern", concern) \
+                .select("top_cities, narrative") \
+                .eq("chart_id", chart_id) \
                 .order("created_at", desc=True).limit(1).execute()
             if cached.data:
                 c = cached.data[0]
