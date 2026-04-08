@@ -4770,9 +4770,15 @@ Respond in {locale.language}."""
 async def get_astrocartography(chart_id: str, concern: str = "career", limit: int = 5):
     """GET endpoint for astrocartography — returns cached or computes on-the-fly."""
     try:
-        chart_res = supabase.table("charts").select(
-            "chart_data, astrocartography_data, birth_date, current_country"
-        ).eq("id", chart_id).single().execute()
+        # astrocartography_data column may not exist yet — fall back gracefully
+        try:
+            chart_res = supabase.table("charts").select(
+                "chart_data, astrocartography_data, birth_date, current_country"
+            ).eq("id", chart_id).single().execute()
+        except Exception:
+            chart_res = supabase.table("charts").select(
+                "chart_data, birth_date, current_country"
+            ).eq("id", chart_id).single().execute()
         if not chart_res.data:
             raise HTTPException(404, "Chart not found")
         chart_record = chart_res.data
