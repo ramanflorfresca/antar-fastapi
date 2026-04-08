@@ -2745,6 +2745,7 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
             transit_data=_tr_data,
             yogas=chart_data.get("yogas", []),
             divisional_charts=chart_data.get("divisional_charts", {}),
+            question_mode=_question_mode,
         )
 
         # --- LAYER 2.5: JAIMINI CHARA DASHA (tie-breaker only) ---
@@ -3497,7 +3498,7 @@ async def monthly_briefing(
     life_events = []
     if user_id:
         ev = supabase.table("life_events").select("event_date, event_type, description") \
-            .eq("user_id", user_id).order("event_date", desc=True).limit(20).execute()
+            .eq("user_id", user_id).order("event_date", desc=True).limit(3).execute()
         life_events = ev.data
 
     locale     = get_locale_from_request(

@@ -199,12 +199,30 @@ def build_complete_context(
     lk_analysis:     dict = None,
     yogas:           list = None,
     divisional_charts: dict = None,
+    question_mode:     str  = "general",
 ) -> str:
     """
     Build the complete astrological context for LLM.
     This is the single source of truth that prevents hallucination.
     The LLM is explicitly told: ONLY use what is provided here.
+    question_mode gates expensive optional blocks for performance.
     """
+    # ── Question-mode keyword classifier ─────────────────────────────────────
+    _q_lower = (question or "").lower()
+    _include_lk_advanced  = any(kw in _q_lower for kw in [
+        "remedy", "remedies", "karma", "luck", "lal kitab", "weak", "strengthen",
+    ]) or question_mode in ("remedy", "spiritual")
+    _include_umra         = any(kw in _q_lower for kw in ["age activation", "umra", "life milestone"])
+    _include_masik        = question_mode == "daily" or "this month" in _q_lower or "this week" in _q_lower
+    _include_teva         = any(kw in _q_lower for kw in ["this year", "annual", "yearly", "2026", "2027"])
+    _include_narayana     = any(kw in _q_lower for kw in ["narayana", "sign dasha", "rashi dasha"])
+    _include_rare_divs    = any(kw in _q_lower for kw in [
+        "soul", "karma", "past life", "spiritual", "purpose", "mission", "destiny",
+    ])
+    _include_jaimini_full = any(kw in _q_lower for kw in [
+        "soul", "mission", "jaimini", "chara", "spiritual", "purpose",
+    ]) or question_mode in ("spiritual", "life_path")
+    print(f"[ctx_builder] mode={question_mode} lk={_include_lk_advanced} teva={_include_teva} masik={_include_masik} rare_divs={_include_rare_divs}")
     age        = calculate_age(birth_date)
     life_stage = get_life_stage(age)
     now        = datetime.utcnow()
@@ -409,10 +427,10 @@ WEALTH ANALYSIS CONTEXT:
 """
 
     # ── Full context assembly ─────────────────────────────────────
-    # Build advanced LK block
+    # Build advanced LK block (gated)
     _lk_advanced_block = ""
     try:
-        if _LK_ADV_AVAILABLE:
+        if _LK_ADV_AVAILABLE and _include_lk_advanced:
             _lk_advanced_block = build_lk_advanced_context(
                 planets=planets,
                 lagna_sign=lagna_sign,
@@ -426,7 +444,7 @@ WEALTH ANALYSIS CONTEXT:
         # Umra age activation
     _umra_block = ""
     try:
-        if _UMRA_AVAILABLE:
+        if _UMRA_AVAILABLE and _include_umra:
             _umra_block = build_umra_context_block(birth_date, planets)
     except Exception as _ue:
         print(f"[umra] error (non-fatal): {_ue}")
@@ -434,7 +452,7 @@ WEALTH ANALYSIS CONTEXT:
     # Masik Phal monthly chart
     _masik_block = ""
     try:
-        if _MASIK_AVAILABLE:
+        if _MASIK_AVAILABLE and _include_masik:
             _masik_block = build_masik_context_block(birth_date, planets)
     except Exception as _me:
         print(f"[masik] error (non-fatal): {_me}")
@@ -442,7 +460,7 @@ WEALTH ANALYSIS CONTEXT:
     # Teva annual transit table
     _teva_block = ""
     try:
-        if _TEVA_AVAILABLE and transit_data:
+        if _TEVA_AVAILABLE and transit_data and _include_teva:
             _teva_block = build_teva_context_block(transit_data)
     except Exception as _te:
         print(f"[teva] error (non-fatal): {_te}")
@@ -458,13 +476,14 @@ WEALTH ANALYSIS CONTEXT:
     # Build Narayana Dasha block
     _narayana_block = ""
     try:
-        from antar_engine.narayana_dasha import (
-            calculate_narayana_dasha, build_narayana_context_block,
-            get_current_narayana_period
-        )
-        _narayana = calculate_narayana_dasha(chart_data, chart_data.get("birth_jd",0))
-        _narayana_block = build_narayana_context_block(chart_data, _narayana,
-                            yogas=yogas)
+        if _include_narayana:
+            from antar_engine.narayana_dasha import (
+                calculate_narayana_dasha, build_narayana_context_block,
+                get_current_narayana_period
+            )
+            _narayana = calculate_narayana_dasha(chart_data, chart_data.get("birth_jd",0))
+            _narayana_block = build_narayana_context_block(chart_data, _narayana,
+                                yogas=yogas)
     except Exception as _nde:
         print(f"[narayana_context] error (non-fatal): {_nde}")
 
@@ -515,7 +534,8 @@ WEALTH ANALYSIS CONTEXT:
 
     trans_block = transits_prompt_block(transit_data) if transit_data else "Transit data not available"
 
-    _d60      = divisional_charts.get('d60', {})
+    # Rare divisional charts — only load for soul/karma/spiritual queries
+    _d60      = divisional_charts.get('d60', {}) if _include_rare_divs else {}
     _d24      = divisional_charts.get('d24', {})
     _d30      = divisional_charts.get('d30', {})
     _d16      = divisional_charts.get('d16', {})
