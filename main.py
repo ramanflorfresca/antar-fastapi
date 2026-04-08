@@ -9516,6 +9516,7 @@ def _call_claude_wow_hint(
     weekday: str,
     signal_score: float,
     strength: str,
+    language: str = "en",
 ) -> str:
     """
     Call Claude to write ONE personalized WOW sentence.
@@ -9549,6 +9550,8 @@ Rewrite the base template as ONE sentence that feels personally relevant to this
 - No astrology terms. No planet names. No nakshatra names.
 - Maximum 25 words.
 - Do NOT start with "Today" — vary the opening.
+- Never use double articles. Never write "the your", "a the", "the the", or "but the your". Proofread before returning.
+- {f'Write the entire response in {language}.' if language != 'en' else 'Write in English.'}
 - Output ONLY the single sentence. Nothing else."""
 
         import anthropic as _anth
@@ -9584,6 +9587,7 @@ def _call_claude_wow_hint_v2(
     instrument_name: str,
     signal_score: float,
     instrument_strength: str,
+    language: str = "en",
 ) -> str:
     """
     Layer 3: Claude judge — friction-aware narration from matrix action signature.
@@ -9642,9 +9646,11 @@ CONFIDENCE: {sd_confidence}
 RULES:
 - Maximum 25 words
 - No astrology terms. No planet names. No nakshatra names. No "FIELD" or "MODE" labels.
-- Do NOT start with "Today" 
+- Do NOT start with "Today"
 - Write as if you know something they don't — a hint, not a prediction
 - Use their professional/geographic context naturally
+- Never use double articles. Never write "the your", "a the", "the the", or "but the your". Proofread before returning.
+- {f'Write the entire response in {language}.' if language != 'en' else 'Write in English.'}
 - Output ONLY the single sentence. Nothing else."""
 
         import anthropic as _anth
@@ -9674,6 +9680,7 @@ def _get_wow_signal_for_chart_v2(
     is_friction: bool,
     all_scores: list,
     weekday: str,
+    language: str = "en",
 ) -> dict:
     """
     Full WOW signal pipeline v2:
@@ -9808,6 +9815,7 @@ def _get_wow_signal_for_chart_v2(
             instrument_name=inst_name,
             signal_score=inst_score,
             instrument_strength=inst_strength,
+            language=language,
         )
 
         result = {
@@ -9850,7 +9858,7 @@ def _map_instrument_to_category(inst_name: str) -> str:
     return "opportunity"
 
 
-def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: str, weekday: str) -> dict:
+def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: str, weekday: str, language: str = "en") -> dict:
     """
     Main WOW signal builder.
     1. Load executive summary
@@ -9969,6 +9977,7 @@ def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: 
             weekday=weekday,
             signal_score=sig_score,
             strength=strength,
+            language=language,
         )
 
         wow_result = {
@@ -10237,12 +10246,15 @@ async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
 
 
 @app.get("/api/v1/daily-week/{chart_id}")
-async def get_daily_week(chart_id: str):
+async def get_daily_week(chart_id: str, language: str = "en"):
     """
     Returns 7-day daily signal array.
     Today: Python energy forecast + Claude-personalized WOW hint (if PEAK/ACTIVE)
     Days 2-7: Python energy forecast only
     WOW hint cached 24hrs in charts.daily_wow_cache
+
+    Args:
+        language: Language code (e.g. "en", "es", "hi"). Default "en".
     """
     try:
         # 1. Fetch chart
@@ -10289,6 +10301,7 @@ async def get_daily_week(chart_id: str):
             is_friction=today_is_friction,
             all_scores=all_scores,
             weekday=today_weekday,
+            language=language,
         )
 
         # 5. Attach WOW to today only
@@ -10298,6 +10311,7 @@ async def get_daily_week(chart_id: str):
         return {
             "chart_id": chart_id,
             "natal_moon_sign": natal_moon_sign,
+            "language": language,
             "generated_at": datetime.utcnow().isoformat() + "Z",
             "days": signals
         }
@@ -10315,14 +10329,15 @@ async def get_daily_week(chart_id: str):
 # ═══════════════════════════════════════════════════════════════════
 
 @app.get("/api/v1/daily-week/{chart_id}")
-async def get_daily_week(chart_id: str, tz_offset: float = None):
+async def get_daily_week(chart_id: str, tz_offset: float = None, language: str = "en"):
     """
     Returns 7-day daily signal array starting from TODAY in user's local timezone.
-    
+
     Args:
         tz_offset: UTC offset in hours (e.g. -5 for Colombia/EST, -3 for Brazil)
                    If not provided, auto-detected from chart's current_country.
-    
+        language: Language code (e.g. "en", "es", "hi"). Default "en".
+
     WOW event signal fires for today when executive summary shows PEAK/ACTIVE instrument.
     """
     try:
@@ -10365,7 +10380,7 @@ async def get_daily_week(chart_id: str, tz_offset: float = None):
         # 5. Get WOW event signal for TODAY only
         today_nakshatra = signals[0].get("moon_nakshatra", "Unknown") if signals else "Unknown"
         today_weekday = signals[0].get("day", "Monday") if signals else "Monday"
-        wow_signal = _get_wow_signal_for_chart(chart_id, chart_data, today_nakshatra, today_weekday)
+        wow_signal = _get_wow_signal_for_chart(chart_id, chart_data, today_nakshatra, today_weekday, language=language)
 
         # 6. Attach WOW to today only
         for i, day in enumerate(signals):
@@ -10374,6 +10389,7 @@ async def get_daily_week(chart_id: str, tz_offset: float = None):
         return {
             "chart_id": chart_id,
             "natal_moon_sign": natal_moon_sign,
+            "language": language,
             "timezone_offset": effective_offset,
             "local_date": start_date.strftime("%Y-%m-%d"),
             "generated_at": datetime.utcnow().isoformat() + "Z",
