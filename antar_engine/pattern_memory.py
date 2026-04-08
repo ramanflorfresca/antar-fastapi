@@ -24,7 +24,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # How many past predictions to load into memory
-MEMORY_LIMIT = 20
+MEMORY_LIMIT = 3
 
 # Domains that are considered the "same" for diagnostic detection
 DOMAIN_GROUPS = {
