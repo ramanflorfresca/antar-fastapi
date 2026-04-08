@@ -588,16 +588,16 @@ def get_dasha_amplification(planet: str, dashas: dict) -> dict:
             "urgency":    "SOON",
         }
 
-    # Next dasha: planet coming soon
-    upcoming = dashas.get("vimsottari", [])[1:4]
-    for i, period in enumerate(upcoming):
+    # Next dasha: planet coming soon — use pre-filtered future-only list
+    for i, period in enumerate(upcoming[:3]):
         if period.get("lord_or_sign") == planet:
             start = period.get("start", "")
+            end   = period.get("end", "")
             return {
                 "amplified":  True,
                 "multiplier": 1.2,
-                "reason":     f"Your {planet} period is approaching",
-                "window":     f"starting {start[:7] if start else 'soon'}",
+                "reason":     f"Your {planet} mahadasha opens {start[:7] if start else 'soon'}",
+                "window":     f"until {end[:7] if end else 'period ends'}",
                 "urgency":    "SOON" if i == 0 else "BUILDING",
             }
 
