@@ -3673,6 +3673,34 @@ async def fulfill_prediction(
 
 # ── Life Events ───────────────────────────────────────────────────────────────
 
+@app.get("/api/v1/user/profile")
+async def get_user_profile(request: Request):
+    """User profile — called by frontend Profile page. Returns language + chart basics."""
+    try:
+        chart_id = request.query_params.get("chart_id")
+        if not chart_id:
+            return {"language": "en", "career_stage": None, "relationship_stage": None}
+        result = supabase.table("charts").select(
+            "id, first_name, lagna, moon_sign, current_country, language"
+        ).eq("id", chart_id).single().execute()
+        if not result.data:
+            return {"language": "en", "career_stage": None, "relationship_stage": None}
+        chart = result.data
+        return {
+            "chart_id": chart_id,
+            "first_name": chart.get("first_name", ""),
+            "language": chart.get("language", "en"),
+            "lagna": chart.get("lagna", ""),
+            "moon_sign": chart.get("moon_sign", ""),
+            "current_country": chart.get("current_country", ""),
+            "career_stage": None,
+            "relationship_stage": None,
+            "remedy_style": "secular",
+        }
+    except Exception as e:
+        print(f"[user/profile] {e}")
+        return {"language": "en", "career_stage": None, "relationship_stage": None}
+
 @app.post("/api/v1/user/life-events", response_model=LifeEventOut, status_code=201)
 async def create_life_event(event: LifeEventCreate, authorization: str = Header(...)):
     user_id = verify_token(authorization)
@@ -4221,6 +4249,12 @@ async def create_chart(
         supabase.table("charts").insert(chart_row).execute()
 
         # --- Jaimini v2: Compute and store Chara Dasha ---
+        _jaimini_bd = (
+            getattr(locals().get('req'), 'birth_date', None)
+            or locals().get('birth_date')
+            or locals().get('_bd')
+            or ''
+        )
         try:
             _lagna_idx_j = constants.SIGNS.index(_lagna_sign) if isinstance(_lagna_sign, str) else int(_lagna_sign)
             _planets_for_jaimini = {}
@@ -4235,7 +4269,7 @@ async def create_chart(
                 lagna_sign=_lagna_idx_j,
                 planets_dict=_planets_for_jaimini,
                 d9_planets_dict=_d9_data if _d9_data else _planets_for_jaimini,
-                birth_date_str=str(birth_date)[:10],
+                birth_date_str=str(_jaimini_bd)[:10],
                 supabase_client=supabase,
             )
         except Exception as _je:
@@ -7919,6 +7953,24 @@ async def get_welcome(chart_id: str):
             _sync_age = _ca(_bd) if _bd else None
         except Exception:
             _sync_age = None
+
+        # Guard: new chart may still be computing — return generating status
+        if not chart_data or not isinstance(chart_data, dict):
+            return {
+                "status": "generating",
+                "chart_id": chart_id,
+                "signal_1": None,
+                "signal_2": None,
+                "signal_3": None,
+            }
+        if chart_data.get("lagna") is None and chart_data.get("lagna_sign") is None:
+            return {
+                "status": "generating",
+                "chart_id": chart_id,
+                "signal_1": None,
+                "signal_2": None,
+                "signal_3": None,
+            }
 
         result = await generate_welcome_signal_v2(
                 chart_data=chart_record,
