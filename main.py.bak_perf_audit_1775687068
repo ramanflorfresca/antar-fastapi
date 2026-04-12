@@ -371,6 +371,7 @@ from antar_engine.divisional_career import build_career_analysis, career_analysi
 from antar_engine.astrocartography import (
     get_best_cities_for_concern, get_current_location_reading,
     build_astrocartography_prompt, CITY_LINE_DATA,
+    get_city_line_data_for_chart, score_cities_for_chart,
 )
 from antar_engine.yoga_engine import detect_yogas_for_question
 from antar_engine.d_charts_calculator import get_all_d_charts
@@ -1261,16 +1262,39 @@ async def call_llm_claude(
     ]
     system = system_override if system_override else SYSTEM_PROMPT
 
+    # KV Cache: split static (cacheable) vs dynamic tail
+    _SPLIT = "## LIVE DATA"
+    if _SPLIT in system:
+        _static_part, _dynamic_part = system.split(_SPLIT, 1)
+        _dynamic_part = _SPLIT + _dynamic_part
+    else:
+        _static_part = system
+        _dynamic_part = ""
+
+    _system_blocks = [
+        {
+            "type": "text",
+            "text": _static_part,
+            "cache_control": {"type": "ephemeral"}
+        }
+    ]
+    if _dynamic_part:
+        _system_blocks.append({"type": "text", "text": _dynamic_part})
+
     try:
         response = await claude_client.messages.create(
             model="claude-sonnet-4-5",
             max_tokens=1200,
             temperature=0.35,
-            system=system,
+            system=_system_blocks,
             messages=messages,
+            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"}
         )
         text = response.content[0].text.strip()
         tokens = response.usage.output_tokens
+        _cache_r = getattr(response.usage, 'cache_read_input_tokens', 0) or 0
+        _cache_w = getattr(response.usage, 'cache_creation_input_tokens', 0) or 0
+        print(f"[claude] cache_hit={_cache_r} cache_write={_cache_w} output={tokens}")
         return text, tokens
     except Exception as e:
         print(f"[claude] error, falling back to DeepSeek: {e}")
@@ -2157,6 +2181,63 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     # Timing
     timing_text = timing_engine.timing_insights(chart_data, dashas_response)
 
+    # ── Connection context — inject if question mentions a known person ──────
+    _connection_context = ""
+    try:
+        _conn_res = supabase.table("chart_connections").select("*") \
+            .eq("chart_id_a", request.chart_id) \
+            .order("updated_at", desc=True) \
+            .execute()
+
+        _connections = _conn_res.data or []
+        _question_lower = (request.question or "").lower()
+
+        # Find matching connection by name mention in question
+        _matched_conn = None
+        for _conn in _connections:
+            _other_name = (_conn.get("name_b") or "").lower()
+            if _other_name and _other_name in _question_lower:
+                _matched_conn = _conn
+                break
+
+        # If no name match, use most recent connection if question implies relationship
+        RELATION_KEYWORDS = [
+            "partner", "cofounder", "co-founder", "colleague", "friend",
+            "investor", "hire", "team", "relationship", "together",
+            "they", "he", "she", "them", "their", "our", "we",
+        ]
+        if not _matched_conn and _connections:
+            if any(kw in _question_lower for kw in RELATION_KEYWORDS):
+                _matched_conn = _connections[0]
+
+        if _matched_conn:
+            _other_name   = _matched_conn.get("name_b", "this person")
+            _compat_type  = _matched_conn.get("compat_type", "")
+            _score        = _matched_conn.get("overall_score", 0)
+            _pairing      = _matched_conn.get("pairing_name", "")
+            _verdict      = _matched_conn.get("verdict", "")
+            _summary      = _matched_conn.get("analysis_summary", "")[:400]
+            _fm           = _matched_conn.get("field_mode_layer", {}) or {}
+            _sb           = _matched_conn.get("score_breakdown", {}) or {}
+
+            _connection_context = f"""
+ACTIVE CONNECTION CONTEXT — {_other_name.upper()} ({_compat_type.upper()}):
+Compatibility score: {_score}/100
+Pairing archetype: {_pairing} — {_verdict}
+Field dynamic: {_fm.get('field_label','')} ({_fm.get('field_dynamic','')})
+Mode dynamic: {_fm.get('mode_label','')} ({_fm.get('mode_dynamic','')})
+Dasha alignment: {_sb.get('dasha_label','')} — {_sb.get('dasha_window','')}
+Analysis summary: {_summary}
+
+When answering questions about {_other_name}, use this compatibility context.
+Translate all astrological factors into plain energy language — no planet names, no house numbers.
+Answer specifically about {_other_name}'s strengths/weaknesses for the question asked.
+"""
+            print(f"[predict] Connection context injected — {_other_name} ({_compat_type})")
+
+    except Exception as _ce:
+        print(f"[predict] Connection context non-fatal: {_ce}")
+
     # ── C2: Desh Kal Patra — real-world economic context ──────────
     dkp_context  = ""
     nation_insight = ""
@@ -2557,6 +2638,11 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     if dkp_context:
         dkp_block = (dkp_block or "") + "\n\n" + dkp_context
 
+    # Append connection context if a matching person was found
+    if _connection_context:
+        dkp_block = (dkp_block or "") + "\n\n" + _connection_context
+        print(f"[predict] Connection context appended to DKP block")
+
     # ── REMEDIES ──────────────────────────────────────────────────
     karakas_list = get_all_karakas(chart_data)
     user_age = patra.age
@@ -2683,6 +2769,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
             transit_data=_tr_data,
             yogas=chart_data.get("yogas", []),
             divisional_charts=chart_data.get("divisional_charts", {}),
+            question_mode=_question_mode,
         )
 
         # --- LAYER 2.5: JAIMINI CHARA DASHA (tie-breaker only) ---
@@ -2810,22 +2897,42 @@ CRITICAL RULES:
         divisional_block=divisional_block,
         )
 
-    for _extra_name, _extra_block in [
-        ("rarity",       rarity_context),
-        ("windows",      windows_context),
-        ("chakra",       chakra_context),
-        ("arc",          arc_context),
-        ("lk",           lk_context),
-        ("enrichment",   enrichment_context),
-        ("sade_sati",    sade_sati_context),
-        ("life_question",life_question_context),
-        ("e2_contradiction", _contradiction_block if '_contradiction_block' in dir() else ""),
-    ]:
+    # ── Question-mode gating for extra blocks ────────────────────
+    _q_low = (request.question or "").lower()
+    _is_health_spiritual = concern in ("health","spiritual","wellness") or any(
+        kw in _q_low for kw in ["health","chakra","spiritual","energy","body","soul"]
+    )
+    _is_remedy_lk = any(kw in _q_low for kw in [
+        "remedy","remedies","lal kitab","karma","luck","fix","help","weak"
+    ]) or _question_mode in ("remedy","spiritual")
+    _is_enrichment = concern in ("career","wealth","money","timing","relationship") or _question_mode in ("timing","career","wealth")
+    _is_life_path  = _question_mode == "life_path" or any(kw in _q_low for kw in [
+        "purpose","mission","destiny","why am i","life path","soul"
+    ])
+
+    _gated_extra_blocks = [
+        ("rarity",       rarity_context,       True),
+        ("windows",      windows_context,       True),
+        ("arc",          arc_context,           True),
+        ("chakra",       chakra_context,        _is_health_spiritual),
+        ("lk",           lk_context,            _is_remedy_lk),
+        ("enrichment",   enrichment_context,    _is_enrichment),
+        ("sade_sati",    sade_sati_context,     bool(sade_sati_context)),
+        ("life_question",life_question_context, _is_life_path),
+        ("e2_contradiction", _contradiction_block if '_contradiction_block' in dir() else "", True),
+    ]
+
+    _extra_total = 0
+    for _extra_name, _extra_block, _include in _gated_extra_blocks:
         try:
-            if _extra_block:
+            if _extra_block and _include:
                 prompt += f"\n\n{_extra_block}"
+                _extra_total += len(_extra_block)
+            elif _extra_block and not _include:
+                pass  # Gated out
         except Exception as _eb_e:
             print(f"[predict] extra_block {_extra_name} error: {_eb_e}")
+    print(f"[predict] Extra blocks injected: {_extra_total} chars")
 
     # ── LLM CALL — passes conversation history for multi-turn context ──
     # Use different system prompt for master context vs template
@@ -2844,7 +2951,9 @@ CRITICAL RULES:
 
 
     # ── Domain Audit Rules (Sprint D) ────────────────────────────
-    _domain_rules = DOMAIN_AUDIT_RULES.get(concern, DOMAIN_AUDIT_RULES.get("general", ""))
+    _domain_rules_full = DOMAIN_AUDIT_RULES.get(concern, DOMAIN_AUDIT_RULES.get("general", ""))
+    # Truncate domain audit to first 800 chars — rules are repetitive after that
+    _domain_rules = _domain_rules_full[:800] if len(_domain_rules_full) > 800 else _domain_rules_full
     # HARD JARGON CONSTRAINT — prepended to EVERY prompt
     _hard_constraint = """
 ABSOLUTE RULES (violating these rules means the response is rejected):
@@ -2968,11 +3077,21 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
             print(f"[predict] Practice bridge error (non-fatal): {_pbe}")
     # ── end practice bridge ───────────────────────────────────────────────────
 
-    # Symptom mode uses its own format — skip hard constraint (which enforces VERDICT format)
-    if _question_mode != "symptom":
-        prompt = _hard_constraint + "\n\n" + prompt
-    else:
-        # Symptom mode: inject jargon rules only (no planet/Sanskrit names) but not format rules
+    # Jargon-only constraint — prepended to ALL modes (format rules live in system prompt)
+    _today_str = __import__('datetime').datetime.utcnow().strftime("%B %d, %Y")
+    _jargon_only = (
+        "ABSOLUTE RULES (no exceptions):\n"
+        "1. NEVER use planet names. Use: Growth Amplifier, Structural Load, Action Drive, "
+        "Magnetism Field, Processing Speed, Authority Signal, Emotional Radar, Ambition Engine, Intuition Compass.\n"
+        "2. NEVER use house numbers. Use instrument labels: System Vitals, Capital Reserves, "
+        "Action Capacity, Alliance Sync, Capital Runway, Fortune Vector, Authority Engine, Revenue Pipeline, Global Vector.\n"
+        "3. NEVER use Sanskrit terms (Dasha, Nakshatra, Lagna, Yoga, Rashi, etc).\n"
+        f"4. Today is {_today_str}. The current year is 2026.\n"
+        "5. Answer the QUESTION directly. Lead with VERDICT in first sentence.\n"
+        "6. THE MOVE at the end — one specific action for this week."
+    )
+    prompt = _jargon_only + "\n\n" + prompt
+    if False:  # dead code block — keeps old symptom path reference intact
         _jargon_only = """ABSOLUTE RULES (no exceptions):
 1. NEVER use planet names. Use: Growth Amplifier, Structural Load, Action Drive, Magnetism Field, Processing Speed, Authority Signal, Emotional Radar, Ambition Engine, Intuition Compass.
 2. NEVER use house numbers. Use instrument labels: System Vitals, Capital Reserves, Action Capacity, Alliance Sync, Capital Runway, Fortune Vector, Authority Engine, Revenue Pipeline, Global Vector.
@@ -3008,13 +3127,20 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
         except Exception:
             _domain_system = ""
 
-        _master_system = _domain_system if _domain_system else (
-            "You are Antar — a precise Vedic astrology AI. "
-            "Answer directly and specifically using the data provided. "
-            "Reference specific planets, houses, yogas, and timing. "
-            "Lead with the actual answer in the first sentence. "
-            "Never start responses with template headers like 'YOUR SIGNAL RIGHT NOW'."
+        _format_rules = (
+            "RESPONSE FORMAT (always follow):\n"
+            "Line 1: ✦ VERDICT: [ACTION VERB]. [Direct call in 8 words or less]\n"
+            "Lines 2-3: 2-3 sentences WHY in business language (no astrology jargon).\n"
+            "Lines 4-6: YOUR MOVE — three numbered actions (this week / next 2 weeks / next 30 days).\n"
+            "Line 7: TIMING: [exact window].\n"
+            "TOTAL: under 150 words. No markdown headers. No poetic language.\n"
+            "If user asks will/chances/probability: lead with PROBABILITY: XX%.\n"
         )
+        _master_system = (_domain_system if _domain_system else (
+            "You are Antar — a precise Vedic astrology AI. "
+            "Answer directly using the data provided. "
+            "Lead with the actual answer in the first sentence. "
+        )) + "\n\n" + _format_rules
         # --- Sprint L: Language injection ---
         from language_utils import build_language_instruction, resolve_language
         _lang = resolve_language({"language": getattr(request, "language", None)}, chart_record)
@@ -3435,7 +3561,7 @@ async def monthly_briefing(
     life_events = []
     if user_id:
         ev = supabase.table("life_events").select("event_date, event_type, description") \
-            .eq("user_id", user_id).order("event_date", desc=True).limit(20).execute()
+            .eq("user_id", user_id).order("event_date", desc=True).limit(3).execute()
         life_events = ev.data
 
     locale     = get_locale_from_request(
@@ -3547,6 +3673,34 @@ async def fulfill_prediction(
     }
 
 # ── Life Events ───────────────────────────────────────────────────────────────
+
+@app.get("/api/v1/user/profile")
+async def get_user_profile(request: Request):
+    """User profile — called by frontend Profile page. Returns language + chart basics."""
+    try:
+        chart_id = request.query_params.get("chart_id")
+        if not chart_id:
+            return {"language": "en", "career_stage": None, "relationship_stage": None}
+        result = supabase.table("charts").select(
+            "id, first_name, lagna, moon_sign, current_country, language"
+        ).eq("id", chart_id).single().execute()
+        if not result.data:
+            return {"language": "en", "career_stage": None, "relationship_stage": None}
+        chart = result.data
+        return {
+            "chart_id": chart_id,
+            "first_name": chart.get("first_name", ""),
+            "language": chart.get("language", "en"),
+            "lagna": chart.get("lagna", ""),
+            "moon_sign": chart.get("moon_sign", ""),
+            "current_country": chart.get("current_country", ""),
+            "career_stage": None,
+            "relationship_stage": None,
+            "remedy_style": "secular",
+        }
+    except Exception as e:
+        print(f"[user/profile] {e}")
+        return {"language": "en", "career_stage": None, "relationship_stage": None}
 
 @app.post("/api/v1/user/life-events", response_model=LifeEventOut, status_code=201)
 async def create_life_event(event: LifeEventCreate, authorization: str = Header(...)):
@@ -4096,6 +4250,12 @@ async def create_chart(
         supabase.table("charts").insert(chart_row).execute()
 
         # --- Jaimini v2: Compute and store Chara Dasha ---
+        _jaimini_bd = (
+            getattr(locals().get('req'), 'birth_date', None)
+            or locals().get('birth_date')
+            or locals().get('_bd')
+            or ''
+        )
         try:
             _lagna_idx_j = constants.SIGNS.index(_lagna_sign) if isinstance(_lagna_sign, str) else int(_lagna_sign)
             _planets_for_jaimini = {}
@@ -4110,11 +4270,35 @@ async def create_chart(
                 lagna_sign=_lagna_idx_j,
                 planets_dict=_planets_for_jaimini,
                 d9_planets_dict=_d9_data if _d9_data else _planets_for_jaimini,
-                birth_date_str=str(birth_date)[:10],
+                birth_date_str=str(_jaimini_bd)[:10],
                 supabase_client=supabase,
             )
         except Exception as _je:
             print(f"Jaimini v2 store failed (non-blocking): {_je}")
+
+        # Backfill advanced LK data (sleeping planets + Rin)
+        try:
+            from antar_engine.lal_kitab_advanced import detect_sleeping_planets, calculate_comprehensive_rin
+            _lk_stored = supabase.table("charts").select("lal_kitab_data").eq("id", chart_id).single().execute()
+            _lk_data = _lk_stored.data.get("lal_kitab_data") or {}
+            if isinstance(_lk_data, str):
+                import json as _lkjson
+                _lk_data = _lkjson.loads(_lk_data)
+
+            # Compute advanced fields
+            _planets_for_lk = chart_data.get("planets", {})
+            _sleeping = detect_sleeping_planets(_planets_for_lk)
+            _rin = calculate_comprehensive_rin(_planets_for_lk)
+
+            # Store under 'advanced' key
+            _lk_data["advanced"] = {
+                "sleeping_planets": _sleeping,
+                "rin_debts": _rin,
+            }
+            supabase.table("charts").update({"lal_kitab_data": _lk_data}).eq("id", chart_id).execute()
+            print(f"[chart/create] LK advanced stored — {len(_sleeping)} sleeping, {len(_rin)} rin")
+        except Exception as _lke:
+            print(f"[chart/create] LK advanced store failed (non-blocking): {_lke}")
 
         # Save yogas to separate table for queryability
         detected_yogas = chart_data.get("yogas", [])
@@ -4475,9 +4659,13 @@ async def astrocartography_best_cities(
         primary_concern=request.concern,
     )
 
+    # Compute live planetary lines from birth JD, or fall back to hardcoded
+    _birth_jd = chart_data.get("birth_jd")
+    _city_line_data = get_city_line_data_for_chart(_birth_jd) if _birth_jd else CITY_LINE_DATA
+
     top_cities = get_best_cities_for_concern(
         concern=request.concern,
-        chart_data=chart_data,
+        city_line_data=_city_line_data,
         dashas=dashas,
         patra=patra,
     )
@@ -4506,14 +4694,11 @@ async def astrocartography_best_cities(
     )
     narrative, _ = await call_llm(prompt)
 
+    # Cache the computed city_line_data in charts.astrocartography_data
     try:
-        supabase.table("astrocartography_readings").upsert({
-            "chart_id":   request.chart_id,
-            "concern":    request.concern,
-            "top_cities": top_cities,
-            "narrative":  narrative,
-            "created_at": "now()",
-        }).execute()
+        supabase.table("charts").update({
+            "astrocartography_data": _city_line_data
+        }).eq("id", request.chart_id).execute()
     except Exception as e:
         print(f"Astro cache error: {e}")
 
@@ -4581,6 +4766,79 @@ Respond in {locale.language}."""
     return {"city": request.city, "reading": reading, "narrative": narrative}
 
 
+@app.get("/api/v1/astrocartography/{chart_id}")
+async def get_astrocartography(chart_id: str, concern: str = "career", limit: int = 5):
+    """GET endpoint for astrocartography — returns cached or computes on-the-fly."""
+    try:
+        # astrocartography_data column may not exist yet — fall back gracefully
+        try:
+            chart_res = supabase.table("charts").select(
+                "chart_data, astrocartography_data, birth_date, current_country"
+            ).eq("id", chart_id).single().execute()
+        except Exception:
+            chart_res = supabase.table("charts").select(
+                "chart_data, birth_date, current_country"
+            ).eq("id", chart_id).single().execute()
+        if not chart_res.data:
+            raise HTTPException(404, "Chart not found")
+        chart_record = chart_res.data
+        chart_data = chart_record.get("chart_data") or {}
+        if isinstance(chart_data, str):
+            import json as _acjson
+            chart_data = _acjson.loads(chart_data)
+
+        # 1. Try cached astrocartography_data first
+        city_line_data = chart_record.get("astrocartography_data")
+        if isinstance(city_line_data, str):
+            import json as _acjson2
+            city_line_data = _acjson2.loads(city_line_data)
+        status = "cached" if city_line_data else "computed"
+
+        # 2. If no cache, compute on-the-fly from birth_jd
+        if not city_line_data:
+            _birth_jd = chart_data.get("birth_jd")
+            if _birth_jd:
+                city_line_data = score_cities_for_chart(_birth_jd)
+                # Cache it for next time
+                try:
+                    supabase.table("charts").update({
+                        "astrocartography_data": city_line_data
+                    }).eq("id", chart_id).execute()
+                    print(f"[astrocartography] Computed and cached for {chart_id}")
+                except Exception as _ce:
+                    print(f"[astrocartography] Cache store failed: {_ce}")
+            else:
+                city_line_data = CITY_LINE_DATA  # fallback to hardcoded
+
+        # 3. Score cities for the requested concern
+        dashas = get_dashas_for_chart(chart_id)
+        top_cities = get_best_cities_for_concern(
+            concern=concern,
+            city_line_data=city_line_data,
+            dashas=dashas,
+        )
+
+        return {
+            "chart_id": chart_id,
+            "concern": concern,
+            "top_cities": (top_cities or [])[:limit],
+            "current_country": chart_record.get("current_country", ""),
+            "status": status,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[astrocartography GET] Error for {chart_id}: {e}")
+        import traceback; traceback.print_exc()
+        return {
+            "chart_id": chart_id,
+            "concern": concern,
+            "top_cities": [],
+            "status": "error",
+            "message": "Astrocartography is being computed for your chart.",
+        }
+
+
 @app.post("/api/v1/astrocartography/waitlist")
 async def astrocartography_waitlist(request: WaitlistRequest):
     try:
@@ -4593,114 +4851,6 @@ async def astrocartography_waitlist(request: WaitlistRequest):
     except Exception as e:
         print(f"Waitlist insert error: {e}")
     return {"status": "added", "message": "You are on the list. We will notify you when your city map is ready."}
-
-# ── Real Astrocartography — Swiss Ephemeris MC/ASC line computation ───────────
-
-@app.get("/api/v1/astrocartography/{chart_id}")
-async def get_astrocartography(
-    chart_id: str,
-    concern: str = "growth",
-    current_city: str = None,
-    limit: int = 5,
-):
-    """
-    Real astrocartography — Swiss Ephemeris MC/ASC line computation.
-    Returns top cities for the given concern, scored against the birth chart.
-    concern: career | love | money | growth | health | happiness | education | spirituality | home
-    """
-    try:
-        from antar_engine.astrocartography import (
-            get_city_line_data_for_chart,
-            get_best_cities_for_concern,
-            get_current_location_reading,
-        )
-
-        # Load chart
-        chart_resp = supabase.table("charts").select("*").eq("id", chart_id).single().execute()
-        if not chart_resp.data:
-            raise HTTPException(status_code=404, detail="Chart not found")
-        chart = chart_resp.data
-
-        # Get birth JD — chart stores birth_date + birth_time separately
-        birth_date = chart.get("birth_date")
-        birth_time = chart.get("birth_time", "00:00:00")
-        if not birth_date:
-            raise HTTPException(status_code=400, detail="Chart missing birth_date")
-
-        import swisseph as swe
-        from datetime import datetime, timezone
-
-        dt_str = f"{birth_date}T{birth_time}"
-        birth_dt = datetime.fromisoformat(dt_str)
-        # birth_date/time are stored as local time — treat as UTC for JD computation
-        # (consistent with how other engines handle it in this codebase)
-        hour_decimal = (
-            birth_dt.hour
-            + birth_dt.minute / 60.0
-            + birth_dt.second / 3600.0
-        )
-        birth_jd = swe.julday(
-            birth_dt.year,
-            birth_dt.month,
-            birth_dt.day,
-            hour_decimal,
-        )
-
-        print(f"[astrocartography] chart={chart_id} birth_jd={birth_jd:.4f} concern={concern}")
-
-        # Compute real city scores (~2-4s first call, cached after)
-        city_line_data = get_city_line_data_for_chart(birth_jd)
-        print(f"[astrocartography] scored {len(city_line_data)} cities")
-
-        # Dashas for dasha-amplification layer
-        dashas = chart.get("dashas", {}) or {}
-
-        # Top cities for concern
-        top_cities = get_best_cities_for_concern(
-            concern=concern,
-            city_line_data=city_line_data,
-            dashas=dashas,
-            current_country=chart.get("birth_country"),
-            limit=limit,
-        )
-
-        # Current city reading
-        current_city_name = current_city or chart.get("birth_city") or "Unknown"
-        current_city_lines = city_line_data.get(current_city_name, {})
-        current_reading = get_current_location_reading(
-            city=current_city_name,
-            planet_lines=current_city_lines,
-            dashas=dashas,
-        )
-
-        # Cache in Supabase (non-fatal if fails)
-        try:
-            supabase.table("charts").update({
-                "astrocartography_data": {
-                    "birth_jd":   birth_jd,
-                    "concern":    concern,
-                    "top_cities": [c["city"] for c in top_cities],
-                }
-            }).eq("id", chart_id).execute()
-        except Exception as cache_err:
-            print(f"[astrocartography] cache write non-fatal: {cache_err}")
-
-        return {
-            "chart_id":             chart_id,
-            "concern":              concern,
-            "current_city":         current_reading,
-            "top_cities":           top_cities,
-            "total_cities_scored":  len(city_line_data),
-            "birth_jd":             birth_jd,
-        }
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        import traceback
-        print(f"[astrocartography] error: {e}\n{traceback.format_exc()}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 
 # ══════════════════════════════════════════════════════════════════════════════
 # CHAKRA ENDPOINT
@@ -5215,6 +5365,114 @@ class CompatibilityContinueRequest(BaseModel):
     product_context: Optional[str]  = None
 
 
+def _compute_dasha_compatibility_score(dashas_a: dict, dashas_b: dict) -> dict:
+    """
+    Scores how aligned two people's current dasha periods are.
+
+    Logic:
+    - Both in expansive dashas (Jupiter, Rahu, Venus, Sun) → high score
+    - One in contracting dasha (Saturn, Ketu, Mars) → moderate
+    - Both in contracting dashas → low score
+    - Dasha periods ending soon (< 2 years) → timing urgency flag
+
+    Returns:
+    {
+        "score": int (0-100),
+        "label": str,
+        "window": str,
+        "urgency": str,
+        "detail": str,
+    }
+    """
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc)
+
+    EXPANSIVE = {"Jupiter", "Rahu", "Venus", "Sun", "Moon"}
+    CONTRACTING = {"Saturn", "Ketu", "Mars"}
+
+    def get_current_md(dashas: dict) -> dict:
+        periods = dashas.get("vimsottari", [])
+        for p in periods:
+            try:
+                start = datetime.fromisoformat(str(p.get("start",""))[:10])
+                end   = datetime.fromisoformat(str(p.get("end",""))[:10])
+                if start.date() <= now.date() <= end.date():
+                    return p
+            except Exception:
+                pass
+        return periods[0] if periods else {}
+
+    md_a = get_current_md(dashas_a)
+    md_b = get_current_md(dashas_b)
+
+    lord_a = md_a.get("lord_or_sign", "") or md_a.get("planet_or_sign", "")
+    lord_b = md_b.get("lord_or_sign", "") or md_b.get("planet_or_sign", "")
+    end_a  = md_a.get("end", "")
+    end_b  = md_b.get("end", "")
+
+    # Score based on dasha quality combination
+    a_expansive = lord_a in EXPANSIVE
+    b_expansive = lord_b in EXPANSIVE
+    a_contract  = lord_a in CONTRACTING
+    b_contract  = lord_b in CONTRACTING
+
+    if a_expansive and b_expansive:
+        score = 88
+        label = "PEAK ALIGNMENT"
+        detail = f"Both operating in expansive cycles — growth comes naturally together."
+    elif a_expansive and b_contract:
+        score = 62
+        label = "ASYMMETRIC TIMING"
+        detail = f"Different energy levels — one expanding while the other consolidates."
+    elif a_contract and b_expansive:
+        score = 62
+        label = "ASYMMETRIC TIMING"
+        detail = f"Different energy levels — one consolidating while the other expands."
+    elif a_contract and b_contract:
+        score = 45
+        label = "CONSOLIDATION PHASE"
+        detail = f"Both in consolidating cycles — this is a building period, not a launching one."
+    else:
+        score = 72
+        label = "STABLE ALIGNMENT"
+        detail = f"Neutral timing — neither strongly amplified nor blocked."
+
+    # Check timing window — how long does current alignment last?
+    try:
+        end_dt_a = datetime.fromisoformat(str(end_a)[:10]) if end_a else None
+        end_dt_b = datetime.fromisoformat(str(end_b)[:10]) if end_b else None
+        ends = [d for d in [end_dt_a, end_dt_b] if d]
+        earliest_end = min(ends) if ends else None
+        if earliest_end:
+            months_left = max(0, (earliest_end.year - now.year) * 12 + (earliest_end.month - now.month))
+            if months_left <= 6:
+                window = f"Window closing in {months_left} months"
+                urgency = "NOW"
+            elif months_left <= 18:
+                window = f"Window open ~{months_left} months"
+                urgency = "SOON"
+            else:
+                years_left = round(months_left / 12, 1)
+                window = f"Window open ~{years_left} years"
+                urgency = "STABLE"
+        else:
+            window = "Timing window unknown"
+            urgency = "NEUTRAL"
+    except Exception:
+        window = ""
+        urgency = "NEUTRAL"
+
+    return {
+        "score":   score,
+        "label":   label,
+        "window":  window,
+        "urgency": urgency,
+        "detail":  detail,
+        "lord_a":  lord_a,
+        "lord_b":  lord_b,
+    }
+
+
 @app.post("/api/v1/compatibility/start")
 async def compatibility_start(request: CompatibilityStartRequest):
     from antar_engine.compatibility_session_engine import (
@@ -5328,10 +5586,11 @@ async def compatibility_start(request: CompatibilityStartRequest):
         }).execute()
         dashas_b = {}
 
-    brief_a = build_person_brief(name_a, chart_a, dashas_a, birth_a, has_time_a)
+    _compat_type = request.compatibility_type or "cofounder"
+    brief_a = build_person_brief(name_a, chart_a, dashas_a, birth_a, has_time_a, _compat_type)
     brief_b = build_person_brief(request.name_b, chart_b, dashas_b,
                                   birth_b if request.chart_id_b else request.birth_date_b,
-                                  has_time_b)
+                                  has_time_b, _compat_type)
 
     layer1 = await run_layer1_llm(
         brief_a=brief_a, brief_b=brief_b,
@@ -5386,6 +5645,93 @@ async def compatibility_start(request: CompatibilityStartRequest):
         print(f"[compat] synastry layer error (non-fatal): {_fe}")
     # ── end synastry ──────────────────────────────────────────────────────────
 
+    # ── Structured score breakdown ───────────────────────────────────────────
+    _overall_score     = extracted_score or 72
+    _personality_score = min(100, int((_field_mode_layer.get("score_contribution", 15) / 20) * 100)) if _field_mode_layer else 70
+    _dasha_scores      = _compute_dasha_compatibility_score(dashas_a, dashas_b)
+    _dasha_score       = _dasha_scores["score"]
+
+    # Weighted overall: 50% natal/personality + 30% dasha + 20% field_mode
+    _weighted_overall = int(
+        (_overall_score * 0.5) +
+        (_dasha_score   * 0.3) +
+        (_personality_score * 0.2)
+    )
+
+    # Type-specific score labels
+    _type_labels = {
+        "relationship": {
+            "score_a_label": "Emotional Resonance",
+            "score_b_label": "Timing Alignment",
+            "score_c_label": "Dynamic Fit",
+        },
+        "business": {
+            "score_a_label": "Strategic Fit",
+            "score_b_label": "Timing Alignment",
+            "score_c_label": "Communication Match",
+        },
+        "cofounder": {
+            "score_a_label": "Role Fit",
+            "score_b_label": "Runway Alignment",
+            "score_c_label": "Operating Rhythm",
+        },
+    }.get(request.compatibility_type, {
+        "score_a_label": "Personality Match",
+        "score_b_label": "Timing Alignment",
+        "score_c_label": "Dynamic Fit",
+    })
+
+    _score_breakdown = {
+        "overall":        _weighted_overall,
+        "personality":    _overall_score,
+        "dasha":          _dasha_score,
+        "field_mode":     _personality_score,
+        "dasha_label":    _dasha_scores["label"],
+        "dasha_window":   _dasha_scores["window"],
+        "dasha_urgency":  _dasha_scores["urgency"],
+        "dasha_detail":   _dasha_scores["detail"],
+        "score_a_label":  _type_labels["score_a_label"],
+        "score_b_label":  _type_labels["score_b_label"],
+        "score_c_label":  _type_labels["score_c_label"],
+        "compat_type":    request.compatibility_type,
+    }
+
+    # ── Auto-save connection ─────────────────────────────────────────────────
+    try:
+        _analysis_summary = layer1[:600].strip() if layer1 else ""
+        # Upsert — same pair + type = update, new pair = insert
+        _existing_conn = supabase.table("chart_connections").select("id") \
+            .eq("chart_id_a", request.chart_id_a) \
+            .eq("chart_id_b", chart_id_b) \
+            .eq("compat_type", request.compatibility_type) \
+            .execute()
+
+        _conn_data = {
+            "chart_id_a":      request.chart_id_a,
+            "chart_id_b":      chart_id_b,
+            "name_a":          name_a,
+            "name_b":          request.name_b,
+            "compat_type":     request.compatibility_type,
+            "session_id":      session_id,
+            "overall_score":   _score_breakdown.get("overall", 0),
+            "pairing_name":    _field_mode_layer.get("pairing_name", "") if _field_mode_layer else "",
+            "verdict":         _field_mode_layer.get("verdict", "") if _field_mode_layer else "",
+            "analysis_summary": _analysis_summary,
+            "score_breakdown": _score_breakdown,
+            "field_mode_layer": _field_mode_layer or {},
+            "updated_at":      "now()",
+        }
+
+        if _existing_conn.data:
+            supabase.table("chart_connections").update(_conn_data) \
+                .eq("id", _existing_conn.data[0]["id"]).execute()
+            print(f"[connections] Updated connection: {name_a} × {request.name_b} ({request.compatibility_type})")
+        else:
+            supabase.table("chart_connections").insert(_conn_data).execute()
+            print(f"[connections] Saved connection: {name_a} × {request.name_b} ({request.compatibility_type})")
+    except Exception as _conn_err:
+        print(f"[connections] Auto-save non-fatal: {_conn_err}")
+
     return {
         "session_id":       session_id,
         "layer":            1,
@@ -5397,6 +5743,7 @@ async def compatibility_start(request: CompatibilityStartRequest):
         "next_question":    "Would you like to analyze startup or business alignment?",
         "can_continue":     True,
         "field_mode_layer": _field_mode_layer or None,
+        "score_breakdown":  _score_breakdown,
     }
 
 
@@ -6060,7 +6407,17 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}):
         return result
     except HTTPException: raise
     except Exception as e:
-        raise HTTPException(500, f"Daily signal error: {e}")
+        print(f"[daily-signal] Error for chart {cid}: {e}")
+        import traceback; traceback.print_exc()
+        return {
+            "status": "error",
+            "chart_id": cid,
+            "signal_text": "Your signal is being computed. Check back in a moment.",
+            "field": None,
+            "friction": None,
+            "panchanga": {},
+            "error": str(e),
+        }
 
 
 # ── MUHURTA ───────────────────────────────────────────────────────
@@ -7706,6 +8063,24 @@ async def get_welcome(chart_id: str):
         except Exception:
             _sync_age = None
 
+        # Guard: new chart may still be computing — return generating status
+        if not chart_data or not isinstance(chart_data, dict):
+            return {
+                "status": "generating",
+                "chart_id": chart_id,
+                "signal_1": None,
+                "signal_2": None,
+                "signal_3": None,
+            }
+        if chart_data.get("lagna") is None and chart_data.get("lagna_sign") is None:
+            return {
+                "status": "generating",
+                "chart_id": chart_id,
+                "signal_1": None,
+                "signal_2": None,
+                "signal_3": None,
+            }
+
         result = await generate_welcome_signal_v2(
                 chart_data=chart_record,
                 birth_date=_bd,
@@ -9141,6 +9516,7 @@ def _call_claude_wow_hint(
     weekday: str,
     signal_score: float,
     strength: str,
+    language: str = "en",
 ) -> str:
     """
     Call Claude to write ONE personalized WOW sentence.
@@ -9174,6 +9550,8 @@ Rewrite the base template as ONE sentence that feels personally relevant to this
 - No astrology terms. No planet names. No nakshatra names.
 - Maximum 25 words.
 - Do NOT start with "Today" — vary the opening.
+- Never use double articles. Never write "the your", "a the", "the the", or "but the your". Proofread before returning.
+- {f'Write the entire response in {language}.' if language != 'en' else 'Write in English.'}
 - Output ONLY the single sentence. Nothing else."""
 
         import anthropic as _anth
@@ -9209,6 +9587,7 @@ def _call_claude_wow_hint_v2(
     instrument_name: str,
     signal_score: float,
     instrument_strength: str,
+    language: str = "en",
 ) -> str:
     """
     Layer 3: Claude judge — friction-aware narration from matrix action signature.
@@ -9267,9 +9646,11 @@ CONFIDENCE: {sd_confidence}
 RULES:
 - Maximum 25 words
 - No astrology terms. No planet names. No nakshatra names. No "FIELD" or "MODE" labels.
-- Do NOT start with "Today" 
+- Do NOT start with "Today"
 - Write as if you know something they don't — a hint, not a prediction
 - Use their professional/geographic context naturally
+- Never use double articles. Never write "the your", "a the", "the the", or "but the your". Proofread before returning.
+- {f'Write the entire response in {language}.' if language != 'en' else 'Write in English.'}
 - Output ONLY the single sentence. Nothing else."""
 
         import anthropic as _anth
@@ -9299,6 +9680,7 @@ def _get_wow_signal_for_chart_v2(
     is_friction: bool,
     all_scores: list,
     weekday: str,
+    language: str = "en",
 ) -> dict:
     """
     Full WOW signal pipeline v2:
@@ -9433,6 +9815,7 @@ def _get_wow_signal_for_chart_v2(
             instrument_name=inst_name,
             signal_score=inst_score,
             instrument_strength=inst_strength,
+            language=language,
         )
 
         result = {
@@ -9475,7 +9858,7 @@ def _map_instrument_to_category(inst_name: str) -> str:
     return "opportunity"
 
 
-def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: str, weekday: str) -> dict:
+def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: str, weekday: str, language: str = "en") -> dict:
     """
     Main WOW signal builder.
     1. Load executive summary
@@ -9594,6 +9977,7 @@ def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: 
             weekday=weekday,
             signal_score=sig_score,
             strength=strength,
+            language=language,
         )
 
         wow_result = {
@@ -9862,12 +10246,15 @@ async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
 
 
 @app.get("/api/v1/daily-week/{chart_id}")
-async def get_daily_week(chart_id: str):
+async def get_daily_week(chart_id: str, language: str = "en"):
     """
     Returns 7-day daily signal array.
     Today: Python energy forecast + Claude-personalized WOW hint (if PEAK/ACTIVE)
     Days 2-7: Python energy forecast only
     WOW hint cached 24hrs in charts.daily_wow_cache
+
+    Args:
+        language: Language code (e.g. "en", "es", "hi"). Default "en".
     """
     try:
         # 1. Fetch chart
@@ -9914,6 +10301,7 @@ async def get_daily_week(chart_id: str):
             is_friction=today_is_friction,
             all_scores=all_scores,
             weekday=today_weekday,
+            language=language,
         )
 
         # 5. Attach WOW to today only
@@ -9923,6 +10311,7 @@ async def get_daily_week(chart_id: str):
         return {
             "chart_id": chart_id,
             "natal_moon_sign": natal_moon_sign,
+            "language": language,
             "generated_at": datetime.utcnow().isoformat() + "Z",
             "days": signals
         }
@@ -9940,14 +10329,15 @@ async def get_daily_week(chart_id: str):
 # ═══════════════════════════════════════════════════════════════════
 
 @app.get("/api/v1/daily-week/{chart_id}")
-async def get_daily_week(chart_id: str, tz_offset: float = None):
+async def get_daily_week(chart_id: str, tz_offset: float = None, language: str = "en"):
     """
     Returns 7-day daily signal array starting from TODAY in user's local timezone.
-    
+
     Args:
         tz_offset: UTC offset in hours (e.g. -5 for Colombia/EST, -3 for Brazil)
                    If not provided, auto-detected from chart's current_country.
-    
+        language: Language code (e.g. "en", "es", "hi"). Default "en".
+
     WOW event signal fires for today when executive summary shows PEAK/ACTIVE instrument.
     """
     try:
@@ -9990,7 +10380,7 @@ async def get_daily_week(chart_id: str, tz_offset: float = None):
         # 5. Get WOW event signal for TODAY only
         today_nakshatra = signals[0].get("moon_nakshatra", "Unknown") if signals else "Unknown"
         today_weekday = signals[0].get("day", "Monday") if signals else "Monday"
-        wow_signal = _get_wow_signal_for_chart(chart_id, chart_data, today_nakshatra, today_weekday)
+        wow_signal = _get_wow_signal_for_chart(chart_id, chart_data, today_nakshatra, today_weekday, language=language)
 
         # 6. Attach WOW to today only
         for i, day in enumerate(signals):
@@ -9999,6 +10389,7 @@ async def get_daily_week(chart_id: str, tz_offset: float = None):
         return {
             "chart_id": chart_id,
             "natal_moon_sign": natal_moon_sign,
+            "language": language,
             "timezone_offset": effective_offset,
             "local_date": start_date.strftime("%Y-%m-%d"),
             "generated_at": datetime.utcnow().isoformat() + "Z",
@@ -10010,4 +10401,62 @@ async def get_daily_week(chart_id: str, tz_offset: float = None):
     except Exception as e:
         print(f"[daily-week] Error for chart {chart_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Daily week generation failed: {str(e)}")
+
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CONNECTIONS — Saved compatibility relationships for Ask Antar context
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/v1/connections/{chart_id}")
+async def get_connections(chart_id: str):
+    """
+    Returns all saved connections for a chart.
+    Connections are auto-created after every compatibility reading.
+    Used by Ask Antar to inject relationship context into predictions.
+    """
+    try:
+        res = supabase.table("chart_connections").select("*") \
+            .eq("chart_id_a", chart_id) \
+            .order("updated_at", desc=True) \
+            .execute()
+
+        connections = []
+        for row in (res.data or []):
+            connections.append({
+                "id":             row["id"],
+                "chart_id_b":     row["chart_id_b"],
+                "name_b":         row.get("name_b", ""),
+                "compat_type":    row.get("compat_type", ""),
+                "overall_score":  row.get("overall_score", 0),
+                "pairing_name":   row.get("pairing_name", ""),
+                "verdict":        row.get("verdict", ""),
+                "analysis_summary": row.get("analysis_summary", ""),
+                "score_breakdown":  row.get("score_breakdown", {}),
+                "field_mode_layer": row.get("field_mode_layer", {}),
+                "updated_at":     row.get("updated_at", ""),
+            })
+
+        return {
+            "chart_id":    chart_id,
+            "connections": connections,
+            "total":       len(connections),
+        }
+
+    except Exception as e:
+        print(f"[connections] GET error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/v1/connections/{chart_id}/{connection_id}")
+async def delete_connection(chart_id: str, connection_id: str):
+    """Remove a saved connection."""
+    try:
+        supabase.table("chart_connections").delete() \
+            .eq("id", connection_id) \
+            .eq("chart_id_a", chart_id) \
+            .execute()
+        return {"success": True, "deleted": connection_id}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 

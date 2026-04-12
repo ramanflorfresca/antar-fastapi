@@ -31,6 +31,20 @@ def _safe_json(data):
 
 
 
+# Planetary sound frequencies (Hz) — same vibrational energy as beej mantras
+PLANET_FREQUENCIES_MAP = {
+    "Sun": 126.22, "Moon": 210.42, "Mars": 144.72, "Mercury": 141.27,
+    "Jupiter": 183.58, "Venus": 221.23, "Saturn": 147.85,
+    "Rahu": 432.00, "Ketu": 136.10,
+}
+
+# Traditional mantra repetition counts per planet
+PLANET_COUNTS_MAP = {
+    "Sun": 7, "Moon": 11, "Mars": 7, "Mercury": 9,
+    "Jupiter": 11, "Venus": 11, "Saturn": 11, "Rahu": 18, "Ketu": 7,
+}
+
+
 # ════════════════════════════════════════════
 # 1. PLANET → PLAIN ENGLISH MAPPING
 # ════════════════════════════════════════════
@@ -251,6 +265,7 @@ class MantraCard:
     count: int               # repetition count
     time_suggestion: str     # "morning, especially Saturday"
     locale: str              # "IN" or "GLOBAL"
+    frequency_hz: float = 136.10   # planetary frequency in Hz
 
 @dataclass
 class PracticeCard:
@@ -267,6 +282,8 @@ class PracticeCard:
     convergence_score: float # 0.0–1.0, higher = more systems agree
     color: str               # hex color for UI
     chakra: str              # "Solar Plexus" — for UI energy display
+    frequency_hz: float = 136.10   # planetary frequency in Hz
+    mantra_count: int = 11         # repetition count
 
 @dataclass
 class SleepingAlert:
@@ -552,6 +569,8 @@ def _build_primary_practice(planet, convergence, sleeping, locale):
         convergence_score=conv["score"],
         color=info["color"],
         chakra=info["chakra"],
+        frequency_hz=PLANET_FREQUENCIES_MAP.get(planet, 136.10),
+        mantra_count=PLANET_COUNTS_MAP.get(planet, 11),
     )
 
 
@@ -598,6 +617,8 @@ def _build_supporting_practices(convergence, primary_planet, sleeping, locale):
             convergence_score=data["score"],
             color=info["color"],
             chakra=info["chakra"],
+            frequency_hz=PLANET_FREQUENCIES_MAP.get(planet, 136.10),
+            mantra_count=PLANET_COUNTS_MAP.get(planet, 11),
         ))
 
     return supporting
@@ -624,6 +645,7 @@ def _build_mantra_card(planet, locale):
         count=m["count"],
         time_suggestion=m["time"],
         locale=locale,
+        frequency_hz=PLANET_FREQUENCIES_MAP.get(planet, 136.10),
     )
 
 
@@ -831,7 +853,34 @@ def _extract_lagna(chart_data):
 def _extract_karakas(jaimini_data):
     if not jaimini_data:
         return []
-    return jaimini_data.get("karakas", jaimini_data.get("chara_karakas", []))
+    karakas = (
+        jaimini_data.get("karakas") or
+        jaimini_data.get("chara_karakas") or
+        jaimini_data.get("karaka_assignments") or
+        []
+    )
+    # Normalize: if it's a dict (key=karaka, val=planet or dict), convert to list format
+    if isinstance(karakas, dict):
+        _norm_list = []
+        for k, v in karakas.items():
+            planet = v.get("planet") if isinstance(v, dict) else str(v) if v else None
+            if planet:
+                _norm_list.append({"karaka": k, "planet": planet})
+        karakas = _norm_list
+    # Normalize: values inside list entries may be dicts like {"planet": "Mars"}
+    if karakas and isinstance(karakas, list) and len(karakas) > 0:
+        if isinstance(karakas[0], dict) and "planet" in karakas[0]:
+            pass  # already correct format
+        elif isinstance(karakas[0], dict):
+            # Try to normalize unknown dict shape
+            _norm_list = []
+            for entry in karakas:
+                planet = entry.get("planet") or entry.get("name") or None
+                karaka = entry.get("karaka") or entry.get("role") or ""
+                if planet:
+                    _norm_list.append({"karaka": karaka, "planet": planet})
+            karakas = _norm_list
+    return karakas
 
 
 def _extract_current_dasha(jaimini_data):
@@ -857,8 +906,21 @@ def _extract_varshphal(lk_data):
         return None
     if isinstance(lk_data, str): lk_data = _safe_json(lk_data)
     if isinstance(lk_data, list): return None
-    v = lk_data.get("varshphal", lk_data.get("current_varshphal"))
+    v = (
+        lk_data.get("varshphal") or
+        lk_data.get("varshphal_data") or
+        (lk_data.get("advanced") or {}).get("varshphal") or
+        lk_data.get("current_varshphal")
+    )
     if v:
+        # Also normalize year_lord lookup
+        if isinstance(v, dict) and not v.get("year_lord"):
+            v["year_lord"] = (
+                v.get("lord") or
+                v.get("year_planet") or
+                lk_data.get("year_lord") or
+                None
+            )
         return v
     placements = lk_data.get("placements", {})
     if not placements:
@@ -883,7 +945,16 @@ def _extract_sleeping_planets(lk_data):
         return []
     if isinstance(lk_data, str): lk_data = _safe_json(lk_data)
     if isinstance(lk_data, list): return []
-    sp = lk_data.get("sleeping_planets", lk_data.get("sleeping", []))
+    sp = (
+        lk_data.get("sleeping_planets") or
+        lk_data.get("sleeping") or
+        (lk_data.get("advanced") or {}).get("sleeping_planets") or
+        (lk_data.get("advanced") or {}).get("sleeping") or
+        []
+    )
+    # Normalize: some entries are strings not dicts
+    if sp and isinstance(sp[0], str):
+        sp = [{"planet": p, "house": 0, "effect": "blocked"} for p in sp]
     if sp:
         return sp
     placements = lk_data.get("placements", {})
@@ -910,7 +981,14 @@ def _extract_rin(lk_data):
         return []
     if isinstance(lk_data, str): lk_data = _safe_json(lk_data)
     if isinstance(lk_data, list): return []
-    r = lk_data.get("rin_debts", lk_data.get("karmic_debts", lk_data.get("rin", [])))
+    r = (
+        lk_data.get("rin_debts") or
+        lk_data.get("rin") or
+        (lk_data.get("advanced") or {}).get("rin_debts") or
+        (lk_data.get("advanced") or {}).get("rin") or
+        (lk_data.get("advanced") or {}).get("karmic_debts") or
+        []
+    )
     if r:
         return r
     placements = lk_data.get("placements", {})

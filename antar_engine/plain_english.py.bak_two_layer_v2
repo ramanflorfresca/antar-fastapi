@@ -462,114 +462,18 @@ The verdict must use the user's domain language — not astrology. If they ask a
 Match the user's register: if they use CEO language, respond like a Chairman. If they use relationship language, respond like a Conflict Mediator. If they use health language, respond like an Executive Physician.
 
 Rule 13: BEDSIDE MANNER GUARDRAIL.
-Never present a planet or house as the cause. Present the "pattern" or "timing" as the cause. Use the jargon of the user's specific domain (Finance/Career/Love/Health) to explain both the problem and the cure.
+Never present a planet or house as the cause. Present the "Energy Disruption" as the cause. Use the jargon of the user's specific domain (Finance/Career/Love/Health) to explain both the problem and the cure. The user should feel like they are receiving a strategic briefing, not a horoscope reading.
 
-Rule 14: TWO-LAYER RESPONSE FORMAT (MANDATORY).
-Every substantive response MUST have two layers. No exceptions.
-
-LAYER 1 — EVIDENCE (2-3 sentences max):
-  Describe the strategic pattern using plain business/life language.
-  No house numbers. No translated planet names. No "energy" terms.
-  Just the truth about timing, location, and conditions.
-  GOOD: "Your wealth is anchored in foreign ventures, not local deals.
-         Your execution capacity is dormant until mid-2026.
-         Your funding window opens August 2026."
-  BAD: "Your 11th house wealth concentration..." (astrology)
-  BAD: "Your Ambition Engine is active..." (translated astrology)
-
-LAYER 2 — DKP TRANSLATION (2-3 sentences max):
-  Translate Layer 1 into THIS person's specific situation.
-  Apply Desha (location/market), Kala (age/stage), Patra (role/ventures).
-  End with THE MOVE — one specific action with a date.
-
-FORMAT:
-✦ VERDICT: [ACTION]. [DIRECTIVE].
-
-EVIDENCE: [Layer 1 — 2-3 sentences, zero astrology]
-
-TRANSLATION: [Layer 2 — 2-3 sentences with DKP context]
-
-THE MOVE: [One specific action + date]
-
-Rule 15: LAL KITAB INTEGRATION (MANDATORY for action questions).
-When the user asks "what should I do" or the prediction has a clear action gap,
-add a LAL KITAB ACTION layer between TRANSLATION and THE MOVE.
-
-LAL KITAB ACTION (1-2 sentences):
-  ONE specific behavioral or practical action that breaks the pattern.
-  Must sound like strategic advice — not a remedy, not a ritual.
-  No mantras. No colors. No gems. No feeding animals (unless secular).
-  Just "do this specific thing" with a clear "why."
-
-  GOOD: "Your pattern clears faster when you delegate execution. The specific block
-         is in the sales function — hire one person before April 20."
-  GOOD: "The timing block is in your morning routine. Start your day with the hardest
-         task first for the next 21 days."
-  GOOD: "Your wealth pattern responds to visibility. Post weekly on LinkedIn about
-         your journey — consistency matters more than polish."
-  BAD: "Feed crows on Saturday" (ritual, not actionable advice)
-  BAD: "Chant this mantra" (religious, not secular)
-  BAD: "Wear yellow on Thursdays" (astrological remedy)
-
-  The LAL KITAB ACTION must be:
-  - Secular (works for any religion or none)
-  - Practical (can be done today with zero cost)
-  - Behavioral (changes what the user DOES, not what they believe)
-  - Specific (not "be more positive" — that's vague)
-
-  If no Lal Kitab data is available for this specific pattern, skip this layer.
-  Do not invent remedies.
-
-Rule 16: CONTEXT MODES — Three modes, three data sets, no mixing.
-
-MODE 1 — LIFE-PATH (what career, wealth type, life purpose, dharma)
-  Data needed: D-1, D-2, D-9, D-10, D-60, Vimshottari dasha
-  Data NOT needed: transit_data, Jaimini, daily transits
-  Question triggers: "what career", "wealth potential", "life purpose", "should I start this venture"
-
-MODE 2 — TIMING (when will X happen, funding window, partnership timing)
-  Data needed: D-1, D-2, D-10, Vimshottari dasha, transit_data (Jupiter/Saturn/Rahu only)
-  Data NOT needed: D-9, D-60, daily transits
-  Jaimini: ONLY if Vimshottari is ambiguous (confidence < 70%)
-  Question triggers: "when will", "how long until", "what month", "funding window"
-
-MODE 3 — DAILY (should I reply to email, is today good for meeting)
-  Data needed: Moon transit + Mercury transit only
-  Data NOT needed: D-1, D-2, D-9, D-10, D-60, Vimshottari, Jaimini, Jupiter/Saturn/Rahu transits
-  Question triggers: "today", "tomorrow", "this meeting", "reply to email", "call him back"
-
-Each mode must use its own data set.
-Never mix data across modes. Daily questions never need dashas.
-Life-path questions never need transits.
-Timing questions get Jaimini only when Vimshottari is ambiguous.
 
 A prediction without a move is entertainment.
 A move without a prediction is advice.
 Antar is the intersection of both.
 
-OUTPUT 
-TIMING DIRECTION RULE — READ THIS BEFORE WRITING plain_summary:
-
-Step 1: Read the raw prediction and identify the timing verdict.
-  - Is the window OPEN/ACTIVE/PEAK? → summary must reflect opportunity
-  - Is the window CLOSING/ENDING soon? → summary must convey urgency to act NOW
-  - Is the window BLOCKED/FRICTION/AVOID? → summary must convey caution or patience
-  - Is the window BUILDING/PREPARING? → summary must reflect momentum not yet arrived
-
-Step 2: Write plain_summary consistent with that verdict.
-  WRONG: Raw prediction says "funding window closes April–July" → summary says "your funding energy is active now"
-  RIGHT: Raw prediction says "funding window closes April–July" → summary says "the next 3 months are a friction period for raising capital — focus on revenue instead"
-
-  WRONG: Raw prediction says "career peak window through June" → summary says "this is a challenging time for career moves"
-  RIGHT: Raw prediction says "career peak window through June" → summary says "your career energy is at peak strength now — this is the window to move"
-
-Step 3: Check timing_window field. If plain_summary contradicts it, rewrite plain_summary.
-
-FORMAT — return EXACTLY this JSON and nothing else:
+OUTPUT FORMAT — return EXACTLY this JSON and nothing else:
 
 {
   "why_this": "ONE sentence. Why THIS person at THIS age is experiencing this. Specific, not generic. Reframes from victim to participant.",
-  "plain_summary": "IMPORTANT: This is a JSON string value. Use the literal text \\n\\n between sections — do NOT output actual newline characters. Format: ✦ VERDICT: [action. directive. max 12 words.] \\n\\n EVIDENCE: [2-3 sentences in plain language. No astrology terms. Your wealth flows through X not Y. Window opens August 2026.] \\n\\n TRANSLATION: [2-3 sentences. Mention their specific location, role, ventures by name. Make it personal.] \\n\\n LAL KITAB ACTION: [1-2 sentences. ONLY if action question. Behavioral, secular, specific. Skip entirely for timing/life-path questions.] \\n\\n THE MOVE: [One action + date. Verb-first.]",
+  "plain_summary": "3-4 sentences following WHY then WHAT then WHEN then BRIDGE. Sentence 1 MUST be the WHY. No jargon. No planet names. No cycles over 5 years. No past dates.",
   "action_item": "ONE specific action for THIS WEEK. Verb-first. Must be DIFFERENT from previous turns. Gets more specific with each follow-up.",
   "signal_line": "The headline. Under 15 words. Core timing truth.",
   "timing_window": "Specific. Two-phase windows OK. Can show full range here.",
@@ -579,14 +483,11 @@ FORMAT — return EXACTLY this JSON and nothing else:
 
 SELF-CHECK (verify before returning):
 
-- Does plain_summary start with ✦ VERDICT:?
-- Does plain_summary have EVIDENCE: and TRANSLATION: sections?
-- LAL KITAB ACTION included only if question asks for action/advice?
-- Does TRANSLATION mention the person's specific context (location, role, ventures)?
+- Does sentence 1 of plain_summary explain WHY this person specifically?
 - Would a 57-year-old businessman feel seen — not lectured?
 - No planet names anywhere in plain_summary or action_item?
-- No cycles longer than 5 years mentioned?
-- No dates before April 07, 2026?
+- No cycles longer than 5 years mentioned in plain_summary?
+- No dates before April 03, 2026?
 - No trailing question at the end?
 - If this is a follow-up: is this response DIFFERENT from the previous one?
 - Action item — could I do this literally this week?
@@ -704,7 +605,7 @@ def _build_user_message(raw_prediction: str, chart_context: dict, lk_context: Op
 
 
 def _parse_json(text: str) -> dict:
-    """Extract JSON from Claude response, handles markdown fences and multiline values."""
+    """Extract JSON from Claude response, handles markdown fences."""
     text = text.strip()
 
     # Strip markdown fences if present
@@ -716,61 +617,16 @@ def _parse_json(text: str) -> dict:
     try:
         return json.loads(text)
     except json.JSONDecodeError:
-        pass
-
-    # Try to find JSON object within the text
-    match = re.search(r'\{.*\}', text, re.DOTALL)
-    if match:
-        try:
-            return json.loads(match.group())
-        except json.JSONDecodeError:
-            # Try sanitizing literal newlines inside string values
-            sanitized = _sanitize_json_newlines(match.group())
+        # Try to find JSON object within the text
+        match = re.search(r'\{.*\}', text, re.DOTALL)
+        if match:
             try:
-                return json.loads(sanitized)
+                return json.loads(match.group())
             except json.JSONDecodeError:
                 pass
 
-    # Last resort: try sanitizing the full text
-    sanitized = _sanitize_json_newlines(text)
-    try:
-        return json.loads(sanitized)
-    except json.JSONDecodeError:
-        pass
-
     logger.warning("plain_english: could not parse JSON from Claude response")
     return {}
-
-
-def _sanitize_json_newlines(text: str) -> str:
-    """
-    Replace literal newlines inside JSON string values with \\n.
-    Handles cases where Claude outputs real newlines instead of \\n in strings.
-    """
-    import re as _re
-    result = []
-    in_string = False
-    escape_next = False
-    for i, ch in enumerate(text):
-        if escape_next:
-            result.append(ch)
-            escape_next = False
-            continue
-        if ch == '\\' and in_string:
-            escape_next = True
-            result.append(ch)
-            continue
-        if ch == '"':
-            in_string = not in_string
-            result.append(ch)
-            continue
-        if in_string and ch == '\n':
-            result.append('\\n')
-            continue
-        if in_string and ch == '\r':
-            continue
-        result.append(ch)
-    return ''.join(result)
 
 
 def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
@@ -863,38 +719,6 @@ def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
     # bridge_practice_note — from v7 remedy bridge
     bpn = parsed.get("bridge_practice_note", "")
     result["bridge_practice_note"] = bpn if bpn else None
-
-    # --- TIMING CONTRADICTION CHECK ---
-    # Detect if plain_summary contradicts timing_window and log a warning
-    try:
-        _summary = result.get("plain_summary", "").lower()
-        _timing = result.get("timing_window", "").lower()
-        _friction_words = {"close", "closing", "block", "blocked", "friction", "avoid",
-                           "caution", "wait", "delay", "difficult", "challenging", "not now"}
-        _positive_words = {"strong", "peak", "active", "open", "opportunity", "best time",
-                           "favorable", "window is open", "act now", "move now"}
-        _timing_has_friction = any(w in _timing for w in _friction_words)
-        _summary_has_positive = any(w in _summary for w in _positive_words)
-        _timing_has_positive = any(w in _timing for w in _positive_words)
-        _summary_has_friction = any(w in _summary for w in _friction_words)
-        if _timing_has_friction and _summary_has_positive:
-            import logging
-            logging.getLogger("plain_english").warning(
-                f"TIMING CONTRADICTION DETECTED: timing_window='{result.get('timing_window')}' "
-                f"but plain_summary has positive framing. Chart may receive wrong signal. "
-                f"Summary: '{result.get('plain_summary', '')[:100]}'"
-            )
-        elif _timing_has_positive and _summary_has_friction:
-            import logging
-            logging.getLogger("plain_english").warning(
-                f"TIMING CONTRADICTION DETECTED: timing_window='{result.get('timing_window')}' "
-                f"but plain_summary has friction framing. "
-                f"Summary: '{result.get('plain_summary', '')[:100]}'"
-            )
-    except Exception:
-        pass  # Never crash the prediction over a logging check
-    # --- END TIMING CONTRADICTION CHECK ---
-
 
     return result
 

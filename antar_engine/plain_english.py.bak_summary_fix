@@ -547,25 +547,7 @@ A prediction without a move is entertainment.
 A move without a prediction is advice.
 Antar is the intersection of both.
 
-OUTPUT 
-TIMING DIRECTION RULE — READ THIS BEFORE WRITING plain_summary:
-
-Step 1: Read the raw prediction and identify the timing verdict.
-  - Is the window OPEN/ACTIVE/PEAK? → summary must reflect opportunity
-  - Is the window CLOSING/ENDING soon? → summary must convey urgency to act NOW
-  - Is the window BLOCKED/FRICTION/AVOID? → summary must convey caution or patience
-  - Is the window BUILDING/PREPARING? → summary must reflect momentum not yet arrived
-
-Step 2: Write plain_summary consistent with that verdict.
-  WRONG: Raw prediction says "funding window closes April–July" → summary says "your funding energy is active now"
-  RIGHT: Raw prediction says "funding window closes April–July" → summary says "the next 3 months are a friction period for raising capital — focus on revenue instead"
-
-  WRONG: Raw prediction says "career peak window through June" → summary says "this is a challenging time for career moves"
-  RIGHT: Raw prediction says "career peak window through June" → summary says "your career energy is at peak strength now — this is the window to move"
-
-Step 3: Check timing_window field. If plain_summary contradicts it, rewrite plain_summary.
-
-FORMAT — return EXACTLY this JSON and nothing else:
+OUTPUT FORMAT — return EXACTLY this JSON and nothing else:
 
 {
   "why_this": "ONE sentence. Why THIS person at THIS age is experiencing this. Specific, not generic. Reframes from victim to participant.",
@@ -863,38 +845,6 @@ def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
     # bridge_practice_note — from v7 remedy bridge
     bpn = parsed.get("bridge_practice_note", "")
     result["bridge_practice_note"] = bpn if bpn else None
-
-    # --- TIMING CONTRADICTION CHECK ---
-    # Detect if plain_summary contradicts timing_window and log a warning
-    try:
-        _summary = result.get("plain_summary", "").lower()
-        _timing = result.get("timing_window", "").lower()
-        _friction_words = {"close", "closing", "block", "blocked", "friction", "avoid",
-                           "caution", "wait", "delay", "difficult", "challenging", "not now"}
-        _positive_words = {"strong", "peak", "active", "open", "opportunity", "best time",
-                           "favorable", "window is open", "act now", "move now"}
-        _timing_has_friction = any(w in _timing for w in _friction_words)
-        _summary_has_positive = any(w in _summary for w in _positive_words)
-        _timing_has_positive = any(w in _timing for w in _positive_words)
-        _summary_has_friction = any(w in _summary for w in _friction_words)
-        if _timing_has_friction and _summary_has_positive:
-            import logging
-            logging.getLogger("plain_english").warning(
-                f"TIMING CONTRADICTION DETECTED: timing_window='{result.get('timing_window')}' "
-                f"but plain_summary has positive framing. Chart may receive wrong signal. "
-                f"Summary: '{result.get('plain_summary', '')[:100]}'"
-            )
-        elif _timing_has_positive and _summary_has_friction:
-            import logging
-            logging.getLogger("plain_english").warning(
-                f"TIMING CONTRADICTION DETECTED: timing_window='{result.get('timing_window')}' "
-                f"but plain_summary has friction framing. "
-                f"Summary: '{result.get('plain_summary', '')[:100]}'"
-            )
-    except Exception:
-        pass  # Never crash the prediction over a logging check
-    # --- END TIMING CONTRADICTION CHECK ---
-
 
     return result
 

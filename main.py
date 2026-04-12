@@ -2742,7 +2742,7 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
                     "first_name": chart_data.get("first_name") or chart_data.get("name", ""),
                     "current_country": chart_data.get("current_country", ""),
                 }
-                _transit_block = build_transit_behavioral_block(
+                _transit_block = await build_transit_behavioral_block(
                     _transit_list, _natal_planets, _user_prof
                 )
                 if _transit_block:
@@ -9142,7 +9142,7 @@ def _get_transit_plain_context(
     }
 
 
-def build_transit_behavioral_block(
+async def build_transit_behavioral_block(
     transits: list,
     natal_planets: dict,
     user_profile: dict,
@@ -9150,23 +9150,20 @@ def build_transit_behavioral_block(
 ) -> str:
     """
     Build a plain-English behavioral transit block for the predict prompt.
-    
+
     Args:
         transits: List of active transit dicts with planet, nakshatra, sign, house
         natal_planets: Dict of natal planet data {name: {nakshatra, sign, house}}
         user_profile: Dict with first_name, age, current_country, profession
         max_transits: Max number of transits to translate (keep prompt lean)
-    
+
     Returns:
         Plain-English transit block string for injection into predict prompt
     """
     if not transits:
         return ""
 
-    try:
-        import anthropic as _anth
-        _sync_client = _anth.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-    except Exception:
+    if not claude_client:
         return _build_transit_block_fallback(transits, natal_planets)
 
     # Priority: Saturn, Jupiter, Rahu first (most impactful)
@@ -9245,7 +9242,7 @@ DO: [one line]
 Output all {len(transit_contexts)} transit(s) in this format. Nothing else."""
 
     try:
-        response = _sync_client.messages.create(
+        response = await claude_client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=300,
             temperature=0.3,
@@ -9503,7 +9500,7 @@ def _save_wow_cache(chart_id: str, instrument_name: str, wow_data: dict):
         print(f"[daily-week] WOW cache save failed (non-fatal): {e}")
 
 
-def _call_claude_wow_hint(
+async def _call_claude_wow_hint(
     base_template: str,
     category: str,
     instrument_name: str,
@@ -9554,9 +9551,10 @@ Rewrite the base template as ONE sentence that feels personally relevant to this
 - {f'Write the entire response in {language}.' if language != 'en' else 'Write in English.'}
 - Output ONLY the single sentence. Nothing else."""
 
-        import anthropic as _anth
-        _sync_client = _anth.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        response = _sync_client.messages.create(
+        if not claude_client:
+            return base_template
+
+        response = await claude_client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=60,
             temperature=0.7,
@@ -9572,7 +9570,7 @@ Rewrite the base template as ONE sentence that feels personally relevant to this
 
 
 
-def _call_claude_wow_hint_v2(
+async def _call_claude_wow_hint_v2(
     action_signature: dict,
     is_friction: bool,
     score: int,
@@ -9591,7 +9589,7 @@ def _call_claude_wow_hint_v2(
 ) -> str:
     """
     Layer 3: Claude judge — friction-aware narration from matrix action signature.
-    
+
     Sends: action phrase + friction context + user profile + confidence
     Gets back: ONE sentence that reads like a trailer, not a prediction.
     """
@@ -9653,9 +9651,10 @@ RULES:
 - {f'Write the entire response in {language}.' if language != 'en' else 'Write in English.'}
 - Output ONLY the single sentence. Nothing else."""
 
-        import anthropic as _anth
-        _sync_client = _anth.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        response = _sync_client.messages.create(
+        if not claude_client:
+            return action_signature.get("description", "Stay alert to what arrives today.")
+
+        response = await claude_client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=60,
             temperature=0.75,
@@ -9671,7 +9670,7 @@ RULES:
 
 
 
-def _get_wow_signal_for_chart_v2(
+async def _get_wow_signal_for_chart_v2(
     chart_id: str,
     chart_data: dict,
     today_nakshatra: str,
@@ -9800,7 +9799,7 @@ def _get_wow_signal_for_chart_v2(
         gender = chart_data.get("gender") or ""
 
         # Claude Layer 3
-        hint = _call_claude_wow_hint_v2(
+        hint = await _call_claude_wow_hint_v2(
             action_signature=sig,
             is_friction=is_friction,
             score=today_score,
@@ -9858,7 +9857,7 @@ def _map_instrument_to_category(inst_name: str) -> str:
     return "opportunity"
 
 
-def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: str, weekday: str, language: str = "en") -> dict:
+async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: str, weekday: str, language: str = "en") -> dict:
     """
     Main WOW signal builder.
     1. Load executive summary
@@ -9964,7 +9963,7 @@ def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: 
         gender = chart_data.get("gender") or ""
 
         # Call Claude for personalized hint
-        hint = _call_claude_wow_hint(
+        hint = await _call_claude_wow_hint(
             base_template=base_template,
             category=category,
             instrument_name=inst_name,
@@ -10292,7 +10291,7 @@ async def get_daily_week(chart_id: str, language: str = "en"):
         today_weekday = today_data.get("day", "Monday")
         all_scores = [d.get("score", 5) for d in signals]
 
-        wow_signal = _get_wow_signal_for_chart_v2(
+        wow_signal = await _get_wow_signal_for_chart_v2(
             chart_id=chart_id,
             chart_data=chart_data,
             today_nakshatra=today_nakshatra,
@@ -10380,7 +10379,7 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
         # 5. Get WOW event signal for TODAY only
         today_nakshatra = signals[0].get("moon_nakshatra", "Unknown") if signals else "Unknown"
         today_weekday = signals[0].get("day", "Monday") if signals else "Monday"
-        wow_signal = _get_wow_signal_for_chart(chart_id, chart_data, today_nakshatra, today_weekday, language=language)
+        wow_signal = await _get_wow_signal_for_chart(chart_id, chart_data, today_nakshatra, today_weekday, language=language)
 
         # 6. Attach WOW to today only
         for i, day in enumerate(signals):
