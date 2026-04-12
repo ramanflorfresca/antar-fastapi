@@ -44,6 +44,174 @@ PLANET_COUNTS_MAP = {
     "Jupiter": 11, "Venus": 11, "Saturn": 11, "Rahu": 18, "Ketu": 7,
 }
 
+# ─── Planet Practice Metadata (LK tradition + plain language framing) ───────
+PLANET_PRACTICE_META = {
+    "Sun": {
+        "why": "Your sense of identity and self-worth is the energy being worked on right now. This practice builds the internal confidence that makes external recognition possible.",
+        "why_science": "Repetitive intention-setting at the same time daily recalibrates your reticular activating system — the brain's filter that decides what opportunities to notice.",
+        "why_india": "The Sun governs Atma (soul) and Ahamkara (ego-self). When Sun energy is blocked, recognition and authority become effortful. The mantra re-attunes your energy field to solar frequency.",
+        "duration_days": 7,
+        "duration_label": "7 days",
+        "duration_reason": "7 mirrors the solar weekly cycle. One full week resets the pattern.",
+        "best_day": "Sunday",
+        "best_time": "sunrise, facing east",
+        "sessions_per_week": 7,
+        "count": 7,
+        "completion_milestone": "After 7 days, notice whether opportunities for visibility feel more natural.",
+        "ongoing": False,
+        "streak_type": "daily",
+    },
+    "Moon": {
+        "why": "Your emotional processing patterns are being recalibrated. This practice creates a pause between feeling and reacting — giving you clarity instead of reactivity.",
+        "why_science": "The Moon's cycle directly affects human fluid systems and sleep rhythms. Consistent evening practice syncs your nervous system to a calmer biological rhythm.",
+        "why_india": "The Moon governs Manas (mind) and emotional memory. Blocked Moon energy creates anxiety, over-attachment, and sleep issues. The mantra clears the emotional field.",
+        "duration_days": 11,
+        "duration_label": "11 days",
+        "duration_reason": "11 is the number of emotional completion in Vedic numerology. One cycle of the Moon's emotional arc.",
+        "best_day": "Monday",
+        "best_time": "evening, before sleep",
+        "sessions_per_week": 7,
+        "count": 11,
+        "completion_milestone": "After 11 days, emotional decisions should feel less reactive and more grounded.",
+        "ongoing": False,
+        "streak_type": "daily",
+    },
+    "Mars": {
+        "why": "Your action energy and drive need direction right now. This practice channels aggression and impatience into decisive, purposeful movement instead of scattered effort.",
+        "why_science": "High-intensity breath patterns (like Kapalabhati) activate the sympathetic nervous system constructively — releasing accumulated stress hormones without aggression.",
+        "why_india": "Mars governs Shakti (vital force) and the capacity to execute. Afflicted Mars creates accidents, conflicts, and wasted energy. The mantra redirects this force.",
+        "duration_days": 49,
+        "duration_label": "7 Tuesdays",
+        "duration_reason": "Mars energy requires 7 consecutive Tuesday cycles to fully redirect. Tuesday is Mars's day — the energy is most receptive.",
+        "best_day": "Tuesday",
+        "best_time": "morning, after exercise",
+        "sessions_per_week": 1,
+        "count": 7,
+        "completion_milestone": "After 7 Tuesdays, notice whether impulsive decisions have decreased.",
+        "ongoing": False,
+        "streak_type": "weekly_tuesday",
+    },
+    "Mercury": {
+        "why": "Your communication clarity and analytical precision are the focus right now. This practice sharpens how you express ideas and reduces overthinking loops.",
+        "why_science": "Vocal repetition of structured sound patterns activates Broca's area and the prefrontal cortex simultaneously — literally training clearer thinking and expression.",
+        "why_india": "Mercury governs Buddhi (intellect) and Vak (speech). Weak Mercury causes miscommunication, contracts gone wrong, and scattered thinking. The mantra restores precision.",
+        "duration_days": 9,
+        "duration_label": "9 days",
+        "duration_reason": "9 completes a Mercury cognitive cycle. Enough repetition to build a new communication habit.",
+        "best_day": "Wednesday",
+        "best_time": "morning, before important conversations",
+        "sessions_per_week": 7,
+        "count": 9,
+        "completion_milestone": "After 9 days, notice whether your communication feels more precise and less anxious.",
+        "ongoing": False,
+        "streak_type": "daily",
+    },
+    "Jupiter": {
+        "why": "Your capacity for growth, wisdom, and expansion is being activated. This practice opens you to learning and opportunities that your current beliefs might be filtering out.",
+        "why_science": "21 days is the neurological minimum to form a new cognitive habit. Gratitude and expansion practices literally rewire the brain's default mode network toward opportunity-seeking.",
+        "why_india": "Jupiter governs Dharma (life purpose) and Guru (wisdom transmission). Weak Jupiter closes the mind to growth and creates arrogance or missed opportunities. The mantra restores receptivity.",
+        "duration_days": 21,
+        "duration_label": "21 days",
+        "duration_reason": "21 days (3 lunar weeks) is the minimum for Jupiter to shift a belief pattern. Jupiter is the slowest-moving benefic and requires sustained intention.",
+        "best_day": "Thursday",
+        "best_time": "morning, ideally before learning something new",
+        "sessions_per_week": 7,
+        "count": 11,
+        "completion_milestone": "After 21 days, notice whether mentors, teachers, or growth opportunities appear more readily.",
+        "ongoing": True,
+        "streak_type": "daily",
+    },
+    "Venus": {
+        "why": "Your relationship patterns and creative expression are the focus. This practice softens defensiveness and opens you to giving and receiving more freely.",
+        "why_science": "Loving-kindness practices (the emotional equivalent of Venus remedies) measurably increase oxytocin, reduce cortisol, and improve relationship satisfaction within 21 days.",
+        "why_india": "Venus governs Kama (desire, beauty, relationships). Afflicted Venus creates relationship dissatisfaction, financial over-indulgence, and blocked creativity. The mantra restores flow.",
+        "duration_days": 21,
+        "duration_label": "21 days",
+        "duration_reason": "Venus rules 21-day relationship cycles. 21 days is enough to shift a core relationship pattern.",
+        "best_day": "Friday",
+        "best_time": "evening, in a calm space",
+        "sessions_per_week": 7,
+        "count": 11,
+        "completion_milestone": "After 21 days, notice whether your key relationships feel more fluid and less effortful.",
+        "ongoing": True,
+        "streak_type": "daily",
+    },
+    "Saturn": {
+        "why": "Your relationship with discipline, long-term thinking, and karmic patterns is being worked on. This practice builds the tolerance for delay that turns ambition into lasting results.",
+        "why_science": "40 days is the clinical minimum for breaking a deeply ingrained behavioral pattern (used in addiction recovery, habit formation research). Saturn rules exactly this kind of structural change.",
+        "why_india": "Saturn governs Karma (cause and effect) and Tapas (discipline through endurance). Saturn only responds to sustained effort — there are no shortcuts. The mantra activates patience as a strategic tool.",
+        "duration_days": 40,
+        "duration_label": "40 days",
+        "duration_reason": "40 days is Saturn's minimum commitment cycle. Saturn governs long-term structures and only shifts through demonstrated sustained discipline.",
+        "best_day": "Saturday",
+        "best_time": "early morning, before the day begins",
+        "sessions_per_week": 7,
+        "count": 11,
+        "completion_milestone": "After 40 days, notice whether patience in key situations has increased and whether chronic delays are easing.",
+        "ongoing": True,
+        "streak_type": "daily",
+    },
+    "Rahu": {
+        "why": "Your relationship with obsession, ambition, and unconventional paths is being recalibrated. This practice helps you use disruptive energy constructively instead of compulsively.",
+        "why_science": "18 days of consistent mindfulness around a specific pattern is enough to create metacognitive awareness — the ability to observe your own obsessive tendencies without being controlled by them.",
+        "why_india": "Rahu governs Maya (illusion) and worldly obsession. Rahu energy amplifies whatever it touches — this practice channels that amplification toward chosen goals rather than unconscious patterns.",
+        "duration_days": 18,
+        "duration_label": "18 days",
+        "duration_reason": "18 is Rahu's nodal completion number. 18 consecutive days creates one full Rahu micro-cycle.",
+        "best_day": "Saturday",
+        "best_time": "before sunset",
+        "sessions_per_week": 7,
+        "count": 18,
+        "completion_milestone": "After 18 days, notice whether obsessive thought loops around one particular desire have softened.",
+        "ongoing": False,
+        "streak_type": "daily",
+    },
+    "Ketu": {
+        "why": "Your capacity for release, detachment, and trusting your intuition is being developed. This practice helps you let go of outcomes that are blocking your next chapter.",
+        "why_science": "Detachment practices activate the default mode network differently than goal-focused thinking — they increase insight and creativity by reducing cognitive fixation.",
+        "why_india": "Ketu governs Moksha (liberation) and past-life wisdom. Ketu energy creates confusion when resisted but clarity when surrendered to. The mantra activates the wisdom side of Ketu.",
+        "duration_days": 7,
+        "duration_label": "7 days",
+        "duration_reason": "Ketu works in 7-day release cycles. One week of consistent practice completes one detachment arc.",
+        "best_day": "Saturday",
+        "best_time": "evening or before sleep",
+        "sessions_per_week": 7,
+        "count": 7,
+        "completion_milestone": "After 7 days, notice whether one thing you have been holding onto feels lighter.",
+        "ongoing": False,
+        "streak_type": "daily",
+    },
+}
+# Remedy duration logic based on Lal Kitab house affliction type
+REMEDY_DURATION_RULES = {
+    "sleeping_planet": {
+        "duration_days": 21,
+        "duration_label": "21 days",
+        "reason": "A sleeping planet needs 21 days of consistent activation to wake up. Think of it as physical therapy for an underused muscle — skipping days resets the progress.",
+        "frequency": "daily",
+    },
+    "rin_clearing": {
+        "duration_days": 40,
+        "duration_label": "40 days without interruption",
+        "reason": "Karmic patterns took years to form. 40 uninterrupted days is the minimum to interrupt the cycle. Even one missed day traditionally requires restarting — not as punishment, but because the pattern needs continuous counter-pressure.",
+        "frequency": "daily",
+        "warning": "Do not break the streak. If you miss a day, restart from day 1.",
+    },
+    "convergence": {
+        "duration_days": 21,
+        "duration_label": "21 days",
+        "reason": "When multiple timing systems point to the same planet, 21 days of practice synchronizes your actions with the active energy window.",
+        "frequency": "daily",
+    },
+    "weekly": {
+        "duration_days": 49,
+        "duration_label": "7 weeks",
+        "reason": "Some planetary energies only open on specific days of the week. 7 consecutive weeks on the right day completes one full planetary cycle.",
+        "frequency": "weekly",
+    },
+}
+
+
 
 # ════════════════════════════════════════════
 # 1. PLANET → PLAIN ENGLISH MAPPING
@@ -266,6 +434,14 @@ class MantraCard:
     time_suggestion: str     # "morning, especially Saturday"
     locale: str              # "IN" or "GLOBAL"
     frequency_hz: float = 136.10   # planetary frequency in Hz
+    # Mantra meta — WHY + duration
+    mantra_why: str = ""
+    mantra_duration_days: int = 21
+    mantra_duration_label: str = "21 days"
+    mantra_duration_reason: str = ""
+    mantra_best_time: str = "morning"
+    mantra_completion_milestone: str = ""
+    mantra_streak_type: str = "daily"
 
 @dataclass
 class PracticeCard:
@@ -284,6 +460,17 @@ class PracticeCard:
     chakra: str              # "Solar Plexus" — for UI energy display
     frequency_hz: float = 136.10   # planetary frequency in Hz
     mantra_count: int = 11         # repetition count
+    # Practice meta — WHY + duration + counter
+    practice_why: str = ""
+    practice_why_science: str = ""
+    duration_days: int = 21
+    duration_label: str = "21 days"
+    duration_reason: str = ""
+    best_day: str = ""
+    best_time: str = "morning"
+    completion_milestone: str = ""
+    streak_type: str = "daily"
+    is_ongoing: bool = False
 
 @dataclass
 class SleepingAlert:
@@ -293,6 +480,12 @@ class SleepingAlert:
     domain: str
     color: str
     duration: str            # "21 days"
+    remedy_why: str = ""
+    remedy_why_science: str = ""
+    duration_days: int = 21
+    duration_label: str = "21 days"
+    duration_reason: str = ""
+    streak_warning: str = ""
 
 @dataclass
 class RinCard:
@@ -301,6 +494,12 @@ class RinCard:
     clearing_practice: str   # locale-gated action
     duration: str            # "21 days"
     domain: str
+    remedy_why: str = ""
+    remedy_why_science: str = ""
+    duration_days: int = 40
+    duration_label: str = "40 days without interruption"
+    duration_reason: str = ""
+    streak_warning: str = ""
 
 @dataclass
 class DayPlan:
@@ -571,6 +770,19 @@ def _build_primary_practice(planet, convergence, sleeping, locale):
         chakra=info["chakra"],
         frequency_hz=PLANET_FREQUENCIES_MAP.get(planet, 136.10),
         mantra_count=PLANET_COUNTS_MAP.get(planet, 11),
+        # Practice meta — WHY + duration + counter
+        practice_why=PLANET_PRACTICE_META.get(planet, {}).get(
+            "why_india" if locale == "IN" else "why", ""
+        ),
+        practice_why_science=PLANET_PRACTICE_META.get(planet, {}).get("why_science", ""),
+        duration_days=PLANET_PRACTICE_META.get(planet, {}).get("duration_days", 21),
+        duration_label=PLANET_PRACTICE_META.get(planet, {}).get("duration_label", "21 days"),
+        duration_reason=PLANET_PRACTICE_META.get(planet, {}).get("duration_reason", ""),
+        best_day=PLANET_PRACTICE_META.get(planet, {}).get("best_day", ""),
+        best_time=PLANET_PRACTICE_META.get(planet, {}).get("best_time", "morning"),
+        completion_milestone=PLANET_PRACTICE_META.get(planet, {}).get("completion_milestone", ""),
+        streak_type=PLANET_PRACTICE_META.get(planet, {}).get("streak_type", "daily"),
+        is_ongoing=PLANET_PRACTICE_META.get(planet, {}).get("ongoing", False),
     )
 
 
@@ -646,6 +858,16 @@ def _build_mantra_card(planet, locale):
         time_suggestion=m["time"],
         locale=locale,
         frequency_hz=PLANET_FREQUENCIES_MAP.get(planet, 136.10),
+        # Mantra meta — WHY + duration
+        mantra_why=PLANET_PRACTICE_META.get(planet, {}).get(
+            "why_india" if locale == "IN" else "why", ""
+        ),
+        mantra_duration_days=PLANET_PRACTICE_META.get(planet, {}).get("duration_days", 21),
+        mantra_duration_label=PLANET_PRACTICE_META.get(planet, {}).get("duration_label", "21 days"),
+        mantra_duration_reason=PLANET_PRACTICE_META.get(planet, {}).get("duration_reason", ""),
+        mantra_best_time=PLANET_PRACTICE_META.get(planet, {}).get("best_time", "morning"),
+        mantra_completion_milestone=PLANET_PRACTICE_META.get(planet, {}).get("completion_milestone", ""),
+        mantra_streak_type=PLANET_PRACTICE_META.get(planet, {}).get("streak_type", "daily"),
     )
 
 
@@ -663,6 +885,12 @@ def _build_sleeping_alerts(sleeping, locale):
             domain=info["domain"],
             color=info["color"],
             duration="21 days",
+            remedy_why=f"Your {info['label']} energy is currently dormant in your chart. This means opportunities in this area pass by unnoticed — not because they don't exist, but because the channel to receive them is blocked. This practice activates the channel.",
+            remedy_why_science="Consistent behavioral repetition in a specific domain (service, gratitude, creativity) activates neural pathways associated with that domain — literally making your brain more receptive to related opportunities.",
+            duration_days=REMEDY_DURATION_RULES["sleeping_planet"]["duration_days"],
+            duration_label=REMEDY_DURATION_RULES["sleeping_planet"]["duration_label"],
+            duration_reason=REMEDY_DURATION_RULES["sleeping_planet"]["reason"],
+            streak_warning="Consistency matters. Skipping days slows the activation process.",
         ))
     return alerts
 
@@ -679,6 +907,12 @@ def _build_rin_cards(rin_debts, locale):
             clearing_practice=clearing[locale],
             duration=clearing["duration"],
             domain="spiritual",
+            remedy_why="A repeating pattern has been detected in this area of your life — the same situation keeps showing up in different forms. This isn't bad luck. It's a signal that a particular response pattern needs to change. This practice is the counter-pattern.",
+            remedy_why_science="Repeating life patterns often trace to unconscious behavioral loops — responses that once protected you but now create the exact problems you're trying to avoid. Consistent counter-behavior for 40 days interrupts the loop at the neurological level.",
+            duration_days=REMEDY_DURATION_RULES["rin_clearing"]["duration_days"],
+            duration_label=REMEDY_DURATION_RULES["rin_clearing"]["duration_label"],
+            duration_reason=REMEDY_DURATION_RULES["rin_clearing"]["reason"],
+            streak_warning=REMEDY_DURATION_RULES["rin_clearing"]["warning"],
         ))
     return cards
 

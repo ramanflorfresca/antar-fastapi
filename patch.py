@@ -1,68 +1,140 @@
 """
-patch_domain_signals_plain_english.py — Fix domain-signals returning raw jargon
+patch_practice_why_duration.py — Sprint S6: Practice Engine Enhancement
 
-THE BUG:
-  GET /api/v1/domain-signals/{chart_id} returns signal_line values that contain
-  raw astrological computation text:
-    "sign aspects Karakamsa — Soul purpose resonance"
-    "Structural Load (instrument lord) in dusthana annual house — yearly pressure"
+WHAT THIS PATCHES:
+  antar_engine/practice_engine.py
 
-  These are stored directly from Jaimini/Parashari computation output without
-  going through plain_english.py. They surface in the Dashboard area cards.
+THREE FIXES:
 
-THE FIX:
-  In main.py, the domain-signals endpoint reads signal_line from the predictions
-  table. The predictions table signal_line IS processed through plain_english.py —
-  so the fix is to ensure domain-signals reads from predictions.signal_line
-  (the plain English version) and NOT from any raw computation field.
+1. JSONB KEY FALLBACKS — sleeping_planets and rin_debts are stored under
+   the 'advanced' key in lal_kitab_data but the engine looks at top level.
+   Adds fallback: lk.get("advanced", {}).get("sleeping_planets") etc.
 
-  Additionally, add a jargon filter as a safety net: if a stored signal_line
-  still contains jargon patterns, replace with a safe fallback prompt.
+2. frequency_hz — Add frequency_hz to primary_practice and mantra_of_the_day
+   dicts so frontend doesn't fall back to hardcoded values.
 
-Run: python patch_domain_signals_plain_english.py
-Backs up to: main.py.bak_domain_signals
+3. WHY + DURATION fields — Add practice_why, duration_days, duration_label,
+   best_day, best_time, completion_milestone to primary_practice dict.
+   Add mantra_why, mantra_duration_label, mantra_best_time to mantra dict.
+   These power the WHY expansion card in the frontend.
+
+Run: python patch_practice_why_duration.py
+Backs up to: antar_engine/practice_engine.py.bak_why_duration
 """
 
 import os
 import re
 import shutil
 
-TARGET = "main.py"
-BACKUP = "main.py.bak_domain_signals"
+TARGET = "antar_engine/practice_engine.py"
+BACKUP = TARGET + ".bak_why_duration"
 
-# Jargon patterns that should never appear in user-facing signal_line
-JARGON_PATTERNS = [
-    "karakamsa", "dusthana", "mahadasha", "antardasha", "instrument lord",
-    "sign aspects", "soul purpose resonance", "chara dasha",
-    "power off", "sleeping", "structural load", "MC line", "ASC line",
-    "lord in", "bhava", "navamsa", "atmakaraka", "amatyakaraka",
-    "upapada", "arudha", "varshphal", "masik",
-]
+# Planet frequency map (Hz) for Web Audio API
+PLANET_FREQUENCIES = {
+    "Sun":     126.22,
+    "Moon":    210.42,
+    "Mars":    144.72,
+    "Mercury": 141.27,
+    "Jupiter": 183.58,
+    "Venus":   221.23,
+    "Saturn":  147.85,
+    "Rahu":    170.00,
+    "Ketu":    136.10,
+}
 
-JARGON_FILTER_FN = '''
-def _is_jargon(text: str) -> bool:
-    """Return True if text contains raw astrological computation language."""
-    if not text:
-        return True
-    text_lower = text.lower()
-    jargon = [
-        "karakamsa", "dusthana", "mahadasha", "antardasha", "instrument lord",
-        "sign aspects", "soul purpose resonance", "chara dasha",
-        "power off", "sleeping", "structural load",
-        "lord in", "bhava", "navamsa", "atmakaraka", "amatyakaraka",
-        "upapada", "arudha", "varshphal", "masik",
-    ]
-    return any(j in text_lower for j in jargon)
-
-def _safe_signal_line(signal_line: str, domain: str, language: str = "en") -> str:
-    """Return signal_line if clean, otherwise return a safe ask-Antar prompt."""
-    if _is_jargon(signal_line):
-        if language == "es":
-            return f"Pregunta a Antar sobre tu señal de {domain} esta semana."
-        return f"Ask Antar about your {domain} signal this week."
-    return signal_line
-
-'''
+# WHY explanations per planet — plain English, no jargon
+PLANET_WHY = {
+    "Sun": {
+        "why": "Your identity and confidence energy needs strengthening right now. This practice directly activates your leadership capacity.",
+        "why_science": "Consistent morning sun exposure regulates cortisol rhythms, which directly affects confidence, decision-making clarity, and executive presence.",
+        "duration_days": 21,
+        "duration_label": "21 days",
+        "duration_reason": "21 days is the minimum cycle for neurological habit formation and measurable energy shift.",
+        "best_day": "Sunday",
+        "best_time": "Sunrise, facing east",
+        "completion_milestone": "Watch for: increased clarity in decisions, others responding to you with more respect.",
+    },
+    "Moon": {
+        "why": "Your emotional processing and intuition channel is overloaded. This practice clears the backlog so your instincts work clearly again.",
+        "why_science": "Rhythmic breathing and water-based practices activate the parasympathetic nervous system, reducing cortisol and improving emotional regulation.",
+        "duration_days": 21,
+        "duration_label": "21 days",
+        "duration_reason": "Emotional patterns shift on 21-day cycles aligned with lunar rhythm.",
+        "best_day": "Monday",
+        "best_time": "Evening, before sleep",
+        "completion_milestone": "Watch for: better sleep, clearer emotional responses, reduced reactivity.",
+    },
+    "Mars": {
+        "why": "Your execution and initiative energy is either blocked or misdirected. This practice channels it productively.",
+        "why_science": "Physical movement and structured challenge release stored adrenaline and build the neural pathways for decisive action.",
+        "duration_days": 21,
+        "duration_label": "21 days",
+        "duration_reason": "Motor patterns and action habits require 21 days of consistent reinforcement.",
+        "best_day": "Tuesday",
+        "best_time": "Morning, before 10am",
+        "completion_milestone": "Watch for: less procrastination, faster decisions, physical energy increasing.",
+    },
+    "Mercury": {
+        "why": "Your communication and analytical clarity is foggy right now. This practice sharpens it.",
+        "why_science": "Writing and structured verbal practice strengthen prefrontal cortex connections, improving working memory and articulation.",
+        "duration_days": 21,
+        "duration_label": "21 days",
+        "duration_reason": "Cognitive clarity builds in 3-week cycles of consistent practice.",
+        "best_day": "Wednesday",
+        "best_time": "Before 10am",
+        "completion_milestone": "Watch for: ideas flowing more easily, conversations landing better, writing feeling clearer.",
+    },
+    "Jupiter": {
+        "why": "Your growth, wisdom and opportunity-recognition channel needs activation. This opens it.",
+        "why_science": "Gratitude and generosity practices activate the reward system in ways that broaden cognitive scope — literally helping you see more options.",
+        "duration_days": 21,
+        "duration_label": "21 days",
+        "duration_reason": "Perspective shifts require 21 days of consistent reframing practice.",
+        "best_day": "Thursday",
+        "best_time": "Morning",
+        "completion_milestone": "Watch for: new opportunities appearing, people offering help unprompted, feeling more optimistic.",
+    },
+    "Venus": {
+        "why": "Your relationship and collaboration energy needs harmonising. This practice restores it.",
+        "why_science": "Aesthetic and sensory practices activate the ventral vagal system — the biological basis for safe social connection and trust.",
+        "duration_days": 21,
+        "duration_label": "21 days",
+        "duration_reason": "Relationship patterns shift on 21-day cycles of consistent practice.",
+        "best_day": "Friday",
+        "best_time": "Evening",
+        "completion_milestone": "Watch for: relationships feeling less effortful, creative energy returning, financial flow improving.",
+    },
+    "Saturn": {
+        "why": "Your discipline, structure and long-term focus energy is under pressure. This practice stabilises it.",
+        "why_science": "Service and structured discipline practices activate delayed-reward circuits — the biological basis for long-term planning and resilience.",
+        "duration_days": 40,
+        "duration_label": "40 days",
+        "duration_reason": "Saturn patterns operate on longer cycles. 40 days is the traditional threshold for structural habit change.",
+        "best_day": "Saturday",
+        "best_time": "Early morning, before sunrise",
+        "completion_milestone": "Watch for: less resistance to difficult tasks, structures in life feeling more stable, long-term clarity improving.",
+    },
+    "Rahu": {
+        "why": "Your amplification and ambition energy is either stuck or overdriving. This practice channels it toward real growth.",
+        "why_science": "Novelty-seeking with structured outcomes activates dopamine pathways productively rather than through compulsive behaviour.",
+        "duration_days": 18,
+        "duration_label": "18 days",
+        "duration_reason": "Rahu operates on 18-year cycles. 18 days activates the micro-cycle within it.",
+        "best_day": "Saturday",
+        "best_time": "Dusk",
+        "completion_milestone": "Watch for: obsessive thoughts reducing, clearer ambition direction, less distraction.",
+    },
+    "Ketu": {
+        "why": "Your detachment, intuition and past-pattern release channel needs clearing. This practice completes old cycles.",
+        "why_science": "Meditation and release practices activate the default mode network — the brain's system for integrating past experience and releasing what's no longer needed.",
+        "duration_days": 18,
+        "duration_label": "18 days",
+        "duration_reason": "Ketu patterns release on 18-day micro-cycles.",
+        "best_day": "Tuesday or Saturday",
+        "best_time": "Before sleep",
+        "completion_milestone": "Watch for: old anxieties losing their grip, spiritual clarity increasing, less attachment to outcomes.",
+    },
+}
 
 
 def patch():
@@ -79,110 +151,251 @@ def patch():
     changes_made = 0
 
     # ═══════════════════════════════════════════════════════════════
-    # PATCH 1: Add _is_jargon() and _safe_signal_line() helper functions
+    # PATCH 1: Add PLANET_FREQUENCIES and PLANET_WHY dicts at top of file
     # ═══════════════════════════════════════════════════════════════
 
-    if "_is_jargon" not in content:
-        # Find a good insertion point — after imports, before first route
-        # Look for the first @app. route definition
-        route_match = re.search(r"\n@app\.", content)
-        if route_match:
-            insert_pos = route_match.start()
-            content = content[:insert_pos] + "\n" + JARGON_FILTER_FN + content[insert_pos:]
-            print("✓ Added _is_jargon() and _safe_signal_line() helper functions")
+    if "PLANET_FREQUENCIES" not in content:
+        freq_block = '''
+# ─── Planet Frequencies (Hz) for Web Audio API ───────────────────────────────
+PLANET_FREQUENCIES = {
+    "Sun": 126.22, "Moon": 210.42, "Mars": 144.72, "Mercury": 141.27,
+    "Jupiter": 183.58, "Venus": 221.23, "Saturn": 147.85,
+    "Rahu": 170.00, "Ketu": 136.10,
+}
+
+# ─── Planet WHY explanations (plain English) ─────────────────────────────────
+PLANET_WHY = {
+    "Sun":     {"why": "Your identity and confidence energy needs strengthening right now.",
+                "why_science": "Morning sun exposure regulates cortisol, directly affecting confidence and decision clarity.",
+                "duration_days": 21, "duration_label": "21 days",
+                "duration_reason": "21 days is the minimum for neurological habit formation.",
+                "best_day": "Sunday", "best_time": "Sunrise, facing east",
+                "completion_milestone": "Watch for: clearer decisions, others responding with more respect."},
+    "Moon":    {"why": "Your emotional processing channel is overloaded. This clears the backlog.",
+                "why_science": "Breathing and water practices activate the parasympathetic nervous system.",
+                "duration_days": 21, "duration_label": "21 days",
+                "duration_reason": "Emotional patterns shift on 21-day lunar-aligned cycles.",
+                "best_day": "Monday", "best_time": "Evening, before sleep",
+                "completion_milestone": "Watch for: better sleep, clearer emotional responses."},
+    "Mars":    {"why": "Your execution energy is blocked or misdirected. This channels it productively.",
+                "why_science": "Physical movement releases stored adrenaline and builds decisive action pathways.",
+                "duration_days": 21, "duration_label": "21 days",
+                "duration_reason": "Action habits require 21 days of consistent reinforcement.",
+                "best_day": "Tuesday", "best_time": "Morning, before 10am",
+                "completion_milestone": "Watch for: less procrastination, faster decisions."},
+    "Mercury": {"why": "Your communication and analytical clarity is foggy. This sharpens it.",
+                "why_science": "Writing and verbal practice strengthen prefrontal connections, improving articulation.",
+                "duration_days": 21, "duration_label": "21 days",
+                "duration_reason": "Cognitive clarity builds in 3-week cycles.",
+                "best_day": "Wednesday", "best_time": "Before 10am",
+                "completion_milestone": "Watch for: ideas flowing more easily, conversations landing better."},
+    "Jupiter": {"why": "Your growth and opportunity-recognition channel needs activation.",
+                "why_science": "Gratitude practices broaden cognitive scope — literally helping you see more options.",
+                "duration_days": 21, "duration_label": "21 days",
+                "duration_reason": "Perspective shifts require 21 days of consistent reframing.",
+                "best_day": "Thursday", "best_time": "Morning",
+                "completion_milestone": "Watch for: new opportunities appearing, people offering help unprompted."},
+    "Venus":   {"why": "Your relationship and collaboration energy needs harmonising.",
+                "why_science": "Aesthetic practices activate the ventral vagal system — the basis for safe social connection.",
+                "duration_days": 21, "duration_label": "21 days",
+                "duration_reason": "Relationship patterns shift on 21-day cycles.",
+                "best_day": "Friday", "best_time": "Evening",
+                "completion_milestone": "Watch for: relationships feeling less effortful, creative energy returning."},
+    "Saturn":  {"why": "Your discipline and long-term focus energy is under pressure. This stabilises it.",
+                "why_science": "Service practices activate delayed-reward circuits — the basis for resilience.",
+                "duration_days": 40, "duration_label": "40 days",
+                "duration_reason": "Saturn patterns require 40 days for structural habit change.",
+                "best_day": "Saturday", "best_time": "Early morning, before sunrise",
+                "completion_milestone": "Watch for: less resistance to difficult tasks, structures feeling more stable."},
+    "Rahu":    {"why": "Your amplification energy is stuck or overdriving. This channels it toward real growth.",
+                "why_science": "Novelty-seeking with structure activates dopamine pathways productively.",
+                "duration_days": 18, "duration_label": "18 days",
+                "duration_reason": "Rahu operates on 18-year cycles. 18 days activates the micro-cycle.",
+                "best_day": "Saturday", "best_time": "Dusk",
+                "completion_milestone": "Watch for: obsessive thoughts reducing, clearer ambition direction."},
+    "Ketu":    {"why": "Your intuition and past-pattern release channel needs clearing.",
+                "why_science": "Meditation activates the default mode network for integrating and releasing past experience.",
+                "duration_days": 18, "duration_label": "18 days",
+                "duration_reason": "Ketu patterns release on 18-day micro-cycles.",
+                "best_day": "Tuesday or Saturday", "best_time": "Before sleep",
+                "completion_milestone": "Watch for: old anxieties losing grip, less attachment to outcomes."},
+}
+
+'''
+        # Insert after the last import line
+        import_pattern = r"(^(?:from|import)\s+.+$)"
+        matches = list(re.finditer(import_pattern, content, re.MULTILINE))
+        if matches:
+            insert_pos = matches[-1].end()
+            content = content[:insert_pos] + "\n" + freq_block + content[insert_pos:]
+            print("✓ Added PLANET_FREQUENCIES and PLANET_WHY dicts")
             changes_made += 1
         else:
-            print("⚠ Could not find insertion point for helper functions")
-            print("  Manually add the following functions before the first @app route:")
-            print(JARGON_FILTER_FN)
+            content = freq_block + content
+            print("✓ Added PLANET_FREQUENCIES and PLANET_WHY dicts (at top)")
+            changes_made += 1
     else:
-        print("⊘ _is_jargon() already exists")
+        print("⊘ PLANET_FREQUENCIES already exists")
 
     # ═══════════════════════════════════════════════════════════════
-    # PATCH 2: Find domain-signals endpoint and add safety filter on signal_line
+    # PATCH 2: Add frequency_hz to primary_practice dict
     # ═══════════════════════════════════════════════════════════════
 
-    # The domain-signals endpoint returns a dict of domains with signal_line values
-    # We need to wrap each signal_line with _safe_signal_line()
-
-    # Look for the domain-signals endpoint
-    domain_signals_patterns = [
-        r'(@app\.get\s*\(\s*["\'].*domain-signals.*["\'])',
-        r'(domain.signals|domain_signals)',
-    ]
-
-    endpoint_found = False
-    for pattern in domain_signals_patterns:
-        if re.search(pattern, content, re.IGNORECASE):
-            endpoint_found = True
-            break
-
-    if endpoint_found:
-        # Look for where signal_line is assembled into the response dict
-        # Common patterns: "signal_line": row["signal_line"] or similar
-        signal_line_patterns = [
-            r'(["\']signal_line["\']:\s*)(row\[["\']signal_line["\']\])',
-            r'(["\']signal_line["\']:\s*)(pred\[["\']signal_line["\']\])',
-            r'(["\']signal_line["\']:\s*)(result\[["\']signal_line["\']\])',
-            r'(["\']signal_line["\']:\s*)(p\[["\']signal_line["\']\])',
-            r'(["\']signal_line["\']:\s*)(item\[["\']signal_line["\']\])',
+    if '"frequency_hz"' not in content and "'frequency_hz'" not in content:
+        # Find where primary_practice dict is built — look for convergence_score key
+        # which is always in the primary_practice dict
+        patterns_to_find = [
+            '"convergence_score": ',
+            "'convergence_score': ",
         ]
-
-        patched_signal = False
-        for pattern in signal_line_patterns:
-            matches = list(re.finditer(pattern, content))
-            if matches:
-                # Replace each match with the safe version
-                # We need to work backwards to preserve positions
-                for match in reversed(matches):
-                    old = match.group(0)
-                    key_part = match.group(1)
-                    value_part = match.group(2)
-                    new = f'{key_part}_safe_signal_line({value_part}, domain, language)'
-                    content = content[:match.start()] + new + content[match.end():]
-                print(f"✓ Wrapped signal_line values with _safe_signal_line() ({len(matches)} locations)")
+        for p in patterns_to_find:
+            idx = content.find(p)
+            if idx > 0:
+                # Find the end of this key-value line
+                line_end = content.find("\n", idx)
+                # Add frequency_hz after convergence_score line
+                freq_addition = '\n            "frequency_hz": PLANET_FREQUENCIES.get(planet, 136.10),'
+                content = content[:line_end] + freq_addition + content[line_end:]
+                print("✓ Added frequency_hz to primary_practice dict")
                 changes_made += 1
-                patched_signal = True
                 break
-
-        if not patched_signal:
-            print("⚠ Could not auto-patch signal_line in domain-signals endpoint")
-            print("  Manual fix: find the domain-signals endpoint in main.py")
-            print("  Wherever you build the response dict with 'signal_line': <value>,")
-            print("  wrap the value: 'signal_line': _safe_signal_line(<value>, domain, language)")
-    else:
-        print("⚠ Could not find domain-signals endpoint in main.py")
-        print("  Search for 'domain-signals' or 'domain_signals' and add the filter manually")
-
-    # ═══════════════════════════════════════════════════════════════
-    # PATCH 3: Also filter signal_line in the dashboard endpoint response
-    # ═══════════════════════════════════════════════════════════════
-
-    # The dashboard endpoint also surfaces domain signal_lines
-    # Look for dashboard endpoint and apply same filter
-    dashboard_match = re.search(r'@app\.get\s*\(\s*["\'].*dashboard.*["\']', content, re.IGNORECASE)
-
-    if dashboard_match:
-        # Find signal_line usage after dashboard endpoint
-        dashboard_start = dashboard_match.start()
-        # Look for the next endpoint after dashboard
-        next_endpoint = re.search(r'\n@app\.', content[dashboard_start + 10:])
-        dashboard_end = dashboard_start + 10 + (next_endpoint.start() if next_endpoint else len(content))
-        dashboard_section = content[dashboard_start:dashboard_end]
-
-        if "signal_line" in dashboard_section and "_safe_signal_line" not in dashboard_section:
-            print("⚠ Dashboard endpoint also has signal_line — consider applying same filter")
-            print("  Find the dashboard endpoint and wrap any signal_line values with _safe_signal_line()")
         else:
-            print("⊘ Dashboard signal_line already safe or not found")
+            print("⚠ Could not find convergence_score in primary_practice dict")
+            print("  Manually add: '\"frequency_hz\": PLANET_FREQUENCIES.get(planet, 136.10)'")
+    else:
+        print("⊘ frequency_hz already exists")
+
+    # ═══════════════════════════════════════════════════════════════
+    # PATCH 3: Add frequency_hz to mantra_of_the_day dict
+    # ═══════════════════════════════════════════════════════════════
+
+    # Find mantra_of_the_day dict — look for mantra_text key
+    mantra_freq_marker = "mantra_of_the_day"
+    if mantra_freq_marker in content:
+        # Find "count": in the mantra dict context
+        mantra_idx = content.find(mantra_freq_marker)
+        count_idx = content.find('"count":', mantra_idx)
+        if count_idx > 0 and count_idx - mantra_idx < 2000:
+            line_end = content.find("\n", count_idx)
+            if "frequency_hz" not in content[mantra_idx:mantra_idx + 2000]:
+                freq_line = '\n            "frequency_hz": PLANET_FREQUENCIES.get(planet, 136.10),'
+                content = content[:line_end] + freq_line + content[line_end:]
+                print("✓ Added frequency_hz to mantra_of_the_day dict")
+                changes_made += 1
+            else:
+                print("⊘ mantra frequency_hz already exists")
+        else:
+            print("⚠ Could not find 'count' in mantra_of_the_day context")
+    else:
+        print("⚠ mantra_of_the_day not found in file")
+
+    # ═══════════════════════════════════════════════════════════════
+    # PATCH 4: Add WHY + duration fields to primary_practice dict
+    # ═══════════════════════════════════════════════════════════════
+
+    if "practice_why" not in content:
+        # Find the primary_practice dict assembly — look for "color": key
+        color_pattern = r'"color":\s*practice_color'
+        color_match = re.search(color_pattern, content)
+
+        if not color_match:
+            # Try alternative patterns
+            color_pattern2 = r'"color":\s*[A-Z_a-z]'
+            color_match = re.search(color_pattern2, content)
+
+        if color_match:
+            line_end = content.find("\n", color_match.end())
+            why_block = '''
+            "practice_why": PLANET_WHY.get(planet, {}).get("why", ""),
+            "practice_why_science": PLANET_WHY.get(planet, {}).get("why_science", ""),
+            "duration_days": PLANET_WHY.get(planet, {}).get("duration_days", 21),
+            "duration_label": PLANET_WHY.get(planet, {}).get("duration_label", "21 days"),
+            "duration_reason": PLANET_WHY.get(planet, {}).get("duration_reason", ""),
+            "best_day": PLANET_WHY.get(planet, {}).get("best_day", ""),
+            "best_time": PLANET_WHY.get(planet, {}).get("best_time", ""),
+            "completion_milestone": PLANET_WHY.get(planet, {}).get("completion_milestone", ""),'''
+            content = content[:line_end] + why_block + content[line_end:]
+            print("✓ Added practice_why + duration fields to primary_practice dict")
+            changes_made += 1
+        else:
+            print("⚠ Could not find primary_practice dict assembly point")
+            print("  Manually add PLANET_WHY.get(planet, {}).get('why', '') fields")
+    else:
+        print("⊘ practice_why fields already exist")
+
+    # ═══════════════════════════════════════════════════════════════
+    # PATCH 5: Add JSONB key fallbacks for sleeping_planets and rin_debts
+    # ═══════════════════════════════════════════════════════════════
+
+    if 'lk.get("advanced")' not in content and "lk.get('advanced')" not in content:
+        # Find where sleeping_planets is extracted
+        sleeping_patterns = [
+            'lk.get("sleeping_planets"',
+            "lk.get('sleeping_planets'",
+            'lk_data.get("sleeping_planets"',
+        ]
+        for sp in sleeping_patterns:
+            idx = content.find(sp)
+            if idx > 0:
+                line_start = content.rfind("\n", 0, idx) + 1
+                line_end = content.find("\n", idx)
+                old_line = content[line_start:line_end]
+                # Replace with a fallback that checks 'advanced' key too
+                indent = len(old_line) - len(old_line.lstrip())
+                spaces = " " * indent
+                new_line = old_line.replace(
+                    sp,
+                    sp.replace(
+                        'lk.get("sleeping_planets"',
+                        '(lk.get("advanced") or lk).get("sleeping_planets"'
+                    ).replace(
+                        "lk.get('sleeping_planets'",
+                        "(lk.get('advanced') or lk).get('sleeping_planets'"
+                    ).replace(
+                        'lk_data.get("sleeping_planets"',
+                        '(lk_data.get("advanced") or lk_data).get("sleeping_planets"'
+                    )
+                )
+                if new_line != old_line:
+                    content = content[:line_start] + new_line + content[line_end:]
+                    print("✓ Added 'advanced' key fallback for sleeping_planets")
+                    changes_made += 1
+                    break
+
+        # Same for rin_debts
+        rin_patterns = [
+            'lk.get("rin_debts"',
+            "lk.get('rin_debts'",
+            'lk_data.get("rin_debts"',
+        ]
+        for rp in rin_patterns:
+            idx = content.find(rp)
+            if idx > 0:
+                line_start = content.rfind("\n", 0, idx) + 1
+                line_end = content.find("\n", idx)
+                old_line = content[line_start:line_end]
+                new_line = old_line.replace(rp, rp.replace(
+                    'lk.get("rin_debts"', '(lk.get("advanced") or lk).get("rin_debts"'
+                ).replace(
+                    "lk.get('rin_debts'", "(lk.get('advanced') or lk).get('rin_debts'"
+                ).replace(
+                    'lk_data.get("rin_debts"', '(lk_data.get("advanced") or lk_data).get("rin_debts"'
+                ))
+                if new_line != old_line:
+                    content = content[:line_start] + new_line + content[line_end:]
+                    print("✓ Added 'advanced' key fallback for rin_debts")
+                    changes_made += 1
+                    break
+    else:
+        print("⊘ JSONB advanced key fallbacks already exist")
 
     # ═══════════════════════════════════════════════════════════════
     # WRITE
     # ═══════════════════════════════════════════════════════════════
 
     if changes_made == 0:
-        print("\n⚠ No automatic changes applied.")
-        print("  The domain-signals endpoint structure may differ from expected.")
+        print("\n⚠ No changes applied automatically.")
+        print("  The file structure may differ from expected.")
         print_manual_instructions()
         return False
 
@@ -194,46 +407,42 @@ def patch():
     print(f"\n  SYNTAX CHECK:")
     print(f"  python3 -c \"import ast; ast.parse(open('{TARGET}').read()); print('Syntax OK')\"")
     print(f"\n  DEPLOY:")
-    print(f"  git add -A && git commit -m 'fix: filter jargon from domain-signals signal_line' && git push")
+    print(f"  git add -A && git commit -m 'feat: practice WHY + duration + frequency_hz (S6)' && git push")
     print(f"\n  VERIFY:")
-    print(f"  curl https://antar-fastapi-production.up.railway.app/api/v1/domain-signals/de02bb52-d43a-4b09-be25-b45a07bfbf8a")
-    print(f"  Check: no 'karakamsa', 'dusthana', 'Mahadasha' in any signal_line value")
-
+    print(f"  curl '.../practices/de02bb52.../schedule?refresh=true' | python3 -m json.tool | grep -E 'frequency_hz|practice_why|duration_label'")
     return True
 
 
 def print_manual_instructions():
     print("""
 ═══════════════════════════════════════════════════════════════
-MANUAL FIX (if auto-patch failed)
+MANUAL EDITS (if auto-patch failed)
 ═══════════════════════════════════════════════════════════════
 
-1. Open main.py
+1. Add PLANET_FREQUENCIES dict near the top of practice_engine.py:
+   PLANET_FREQUENCIES = {
+     "Sun": 126.22, "Moon": 210.42, "Mars": 144.72, "Mercury": 141.27,
+     "Jupiter": 183.58, "Venus": 221.23, "Saturn": 147.85,
+     "Rahu": 170.00, "Ketu": 136.10,
+   }
 
-2. Add these two functions before the first @app route:
+2. In the primary_practice dict, add:
+   "frequency_hz": PLANET_FREQUENCIES.get(planet, 136.10),
+   "practice_why": PLANET_WHY.get(planet, {}).get("why", ""),
+   "duration_label": PLANET_WHY.get(planet, {}).get("duration_label", "21 days"),
+   "best_day": PLANET_WHY.get(planet, {}).get("best_day", ""),
+   "best_time": PLANET_WHY.get(planet, {}).get("best_time", ""),
+   "completion_milestone": PLANET_WHY.get(planet, {}).get("completion_milestone", ""),
 
-def _is_jargon(text: str) -> bool:
-    if not text:
-        return True
-    text_lower = text.lower()
-    jargon = ["karakamsa","dusthana","mahadasha","antardasha",
-              "instrument lord","sign aspects","soul purpose resonance",
-              "chara dasha","power off","sleeping","structural load",
-              "lord in","bhava","navamsa","atmakaraka","amatyakaraka"]
-    return any(j in text_lower for j in jargon)
+3. In the mantra_of_the_day dict, add:
+   "frequency_hz": PLANET_FREQUENCIES.get(planet, 136.10),
 
-def _safe_signal_line(signal_line: str, domain: str, language: str = "en") -> str:
-    if _is_jargon(signal_line):
-        if language == "es":
-            return f"Pregunta a Antar sobre tu señal de {domain} esta semana."
-        return f"Ask Antar about your {domain} signal this week."
-    return signal_line
+4. For sleeping_planets extraction, add 'advanced' key fallback:
+   Change: lk.get("sleeping_planets", [])
+   To:     (lk.get("advanced") or lk).get("sleeping_planets", [])
 
-3. Find the GET /api/v1/domain-signals endpoint.
-   Wherever it builds the response dict with "signal_line": <value>,
-   wrap it: "signal_line": _safe_signal_line(<value>, domain, language)
-
-4. Syntax check, commit, push.
+   Change: lk.get("rin_debts", [])
+   To:     (lk.get("advanced") or lk).get("rin_debts", [])
 ═══════════════════════════════════════════════════════════════
 """)
 
@@ -241,7 +450,6 @@ def _safe_signal_line(signal_line: str, domain: str, language: str = "en") -> st
 if __name__ == "__main__":
     success = patch()
     if success:
-        # Quick syntax check
         try:
             import ast
             with open(TARGET) as f:
@@ -249,4 +457,4 @@ if __name__ == "__main__":
             print("✓ Syntax OK")
         except SyntaxError as e:
             print(f"✗ SYNTAX ERROR: {e}")
-            print(f"  Restore with: cp {BACKUP} {TARGET}")
+            print(f"  Restore: cp {BACKUP} {TARGET}")

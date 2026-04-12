@@ -1180,7 +1180,7 @@ def _extract_sleeping_planets(lk_data):
     if isinstance(lk_data, str): lk_data = _safe_json(lk_data)
     if isinstance(lk_data, list): return []
     sp = (
-        lk_data.get("sleeping_planets") or
+        (lk_data.get("advanced") or lk_data).get("sleeping_planets") or
         lk_data.get("sleeping") or
         (lk_data.get("advanced") or {}).get("sleeping_planets") or
         (lk_data.get("advanced") or {}).get("sleeping") or
@@ -1216,7 +1216,7 @@ def _extract_rin(lk_data):
     if isinstance(lk_data, str): lk_data = _safe_json(lk_data)
     if isinstance(lk_data, list): return []
     r = (
-        lk_data.get("rin_debts") or
+        (lk_data.get("advanced") or lk_data).get("rin_debts") or
         lk_data.get("rin") or
         (lk_data.get("advanced") or {}).get("rin_debts") or
         (lk_data.get("advanced") or {}).get("rin") or
