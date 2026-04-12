@@ -1,460 +1,336 @@
+#!/usr/bin/env python3
 """
-patch_practice_why_duration.py — Sprint S6: Practice Engine Enhancement
+patch_panchang_daily.py
 
-WHAT THIS PATCHES:
-  antar_engine/practice_engine.py
+Adds Panchang (5 daily elements) to the daily-week prediction context.
+This is what makes Today predictions actually daily instead of weekly.
 
-THREE FIXES:
+Panchang = Tithi + Vara + Nakshatra + Yoga + Karana
+These change every ~12-27 hours and give the true quality of each day.
 
-1. JSONB KEY FALLBACKS — sleeping_planets and rin_debts are stored under
-   the 'advanced' key in lal_kitab_data but the engine looks at top level.
-   Adds fallback: lk.get("advanced", {}).get("sleeping_planets") etc.
+Also adds Chandra Bala (Moon's strength relative to natal Moon)
+and current dasha lord transit position.
 
-2. frequency_hz — Add frequency_hz to primary_practice and mantra_of_the_day
-   dicts so frontend doesn't fall back to hardcoded values.
-
-3. WHY + DURATION fields — Add practice_why, duration_days, duration_label,
-   best_day, best_time, completion_milestone to primary_practice dict.
-   Add mantra_why, mantra_duration_label, mantra_best_time to mantra dict.
-   These power the WHY expansion card in the frontend.
-
-Run: python patch_practice_why_duration.py
-Backs up to: antar_engine/practice_engine.py.bak_why_duration
+Run: python patch_panchang_daily.py
 """
 
-import os
-import re
 import shutil
 
-TARGET = "antar_engine/practice_engine.py"
-BACKUP = TARGET + ".bak_why_duration"
+TARGET = "antar_engine/daily_prediction_engine.py"
+BACKUP = "antar_engine/daily_prediction_engine.py.bak_panchang"
 
-# Planet frequency map (Hz) for Web Audio API
-PLANET_FREQUENCIES = {
-    "Sun":     126.22,
-    "Moon":    210.42,
-    "Mars":    144.72,
-    "Mercury": 141.27,
-    "Jupiter": 183.58,
-    "Venus":   221.23,
-    "Saturn":  147.85,
-    "Rahu":    170.00,
-    "Ketu":    136.10,
-}
+with open(TARGET, "r") as f:
+    content = f.read()
 
-# WHY explanations per planet — plain English, no jargon
-PLANET_WHY = {
-    "Sun": {
-        "why": "Your identity and confidence energy needs strengthening right now. This practice directly activates your leadership capacity.",
-        "why_science": "Consistent morning sun exposure regulates cortisol rhythms, which directly affects confidence, decision-making clarity, and executive presence.",
-        "duration_days": 21,
-        "duration_label": "21 days",
-        "duration_reason": "21 days is the minimum cycle for neurological habit formation and measurable energy shift.",
-        "best_day": "Sunday",
-        "best_time": "Sunrise, facing east",
-        "completion_milestone": "Watch for: increased clarity in decisions, others responding to you with more respect.",
-    },
-    "Moon": {
-        "why": "Your emotional processing and intuition channel is overloaded. This practice clears the backlog so your instincts work clearly again.",
-        "why_science": "Rhythmic breathing and water-based practices activate the parasympathetic nervous system, reducing cortisol and improving emotional regulation.",
-        "duration_days": 21,
-        "duration_label": "21 days",
-        "duration_reason": "Emotional patterns shift on 21-day cycles aligned with lunar rhythm.",
-        "best_day": "Monday",
-        "best_time": "Evening, before sleep",
-        "completion_milestone": "Watch for: better sleep, clearer emotional responses, reduced reactivity.",
-    },
-    "Mars": {
-        "why": "Your execution and initiative energy is either blocked or misdirected. This practice channels it productively.",
-        "why_science": "Physical movement and structured challenge release stored adrenaline and build the neural pathways for decisive action.",
-        "duration_days": 21,
-        "duration_label": "21 days",
-        "duration_reason": "Motor patterns and action habits require 21 days of consistent reinforcement.",
-        "best_day": "Tuesday",
-        "best_time": "Morning, before 10am",
-        "completion_milestone": "Watch for: less procrastination, faster decisions, physical energy increasing.",
-    },
-    "Mercury": {
-        "why": "Your communication and analytical clarity is foggy right now. This practice sharpens it.",
-        "why_science": "Writing and structured verbal practice strengthen prefrontal cortex connections, improving working memory and articulation.",
-        "duration_days": 21,
-        "duration_label": "21 days",
-        "duration_reason": "Cognitive clarity builds in 3-week cycles of consistent practice.",
-        "best_day": "Wednesday",
-        "best_time": "Before 10am",
-        "completion_milestone": "Watch for: ideas flowing more easily, conversations landing better, writing feeling clearer.",
-    },
-    "Jupiter": {
-        "why": "Your growth, wisdom and opportunity-recognition channel needs activation. This opens it.",
-        "why_science": "Gratitude and generosity practices activate the reward system in ways that broaden cognitive scope — literally helping you see more options.",
-        "duration_days": 21,
-        "duration_label": "21 days",
-        "duration_reason": "Perspective shifts require 21 days of consistent reframing practice.",
-        "best_day": "Thursday",
-        "best_time": "Morning",
-        "completion_milestone": "Watch for: new opportunities appearing, people offering help unprompted, feeling more optimistic.",
-    },
-    "Venus": {
-        "why": "Your relationship and collaboration energy needs harmonising. This practice restores it.",
-        "why_science": "Aesthetic and sensory practices activate the ventral vagal system — the biological basis for safe social connection and trust.",
-        "duration_days": 21,
-        "duration_label": "21 days",
-        "duration_reason": "Relationship patterns shift on 21-day cycles of consistent practice.",
-        "best_day": "Friday",
-        "best_time": "Evening",
-        "completion_milestone": "Watch for: relationships feeling less effortful, creative energy returning, financial flow improving.",
-    },
-    "Saturn": {
-        "why": "Your discipline, structure and long-term focus energy is under pressure. This practice stabilises it.",
-        "why_science": "Service and structured discipline practices activate delayed-reward circuits — the biological basis for long-term planning and resilience.",
-        "duration_days": 40,
-        "duration_label": "40 days",
-        "duration_reason": "Saturn patterns operate on longer cycles. 40 days is the traditional threshold for structural habit change.",
-        "best_day": "Saturday",
-        "best_time": "Early morning, before sunrise",
-        "completion_milestone": "Watch for: less resistance to difficult tasks, structures in life feeling more stable, long-term clarity improving.",
-    },
-    "Rahu": {
-        "why": "Your amplification and ambition energy is either stuck or overdriving. This practice channels it toward real growth.",
-        "why_science": "Novelty-seeking with structured outcomes activates dopamine pathways productively rather than through compulsive behaviour.",
-        "duration_days": 18,
-        "duration_label": "18 days",
-        "duration_reason": "Rahu operates on 18-year cycles. 18 days activates the micro-cycle within it.",
-        "best_day": "Saturday",
-        "best_time": "Dusk",
-        "completion_milestone": "Watch for: obsessive thoughts reducing, clearer ambition direction, less distraction.",
-    },
-    "Ketu": {
-        "why": "Your detachment, intuition and past-pattern release channel needs clearing. This practice completes old cycles.",
-        "why_science": "Meditation and release practices activate the default mode network — the brain's system for integrating past experience and releasing what's no longer needed.",
-        "duration_days": 18,
-        "duration_label": "18 days",
-        "duration_reason": "Ketu patterns release on 18-day micro-cycles.",
-        "best_day": "Tuesday or Saturday",
-        "best_time": "Before sleep",
-        "completion_milestone": "Watch for: old anxieties losing their grip, spiritual clarity increasing, less attachment to outcomes.",
-    },
-}
+shutil.copy(TARGET, BACKUP)
+print(f"Backup: {BACKUP}")
+
+# ── PATCH 1: Add Panchang calculator ──────────────────────────────────────
+
+PANCHANG_FUNCTION = '''
+
+def calculate_panchang(dt_utc, lat: float, lon: float) -> dict:
+    """
+    Calculate the 5 daily Panchang elements for a given datetime + location.
+    
+    Returns:
+        tithi: lunar day (1-30), name, quality
+        vara: weekday lord and themes
+        nakshatra: Moon's star, deity, quality, do/don't
+        yoga: Sun+Moon yoga name and quality
+        karana: half-tithi, quality
+        chandra_rashi: Moon's current sign
+    """
+    import swisseph as swe
+    from datetime import timezone
+
+    # Convert to Julian Day
+    jd = swe.julday(
+        dt_utc.year, dt_utc.month, dt_utc.day,
+        dt_utc.hour + dt_utc.minute/60.0 + dt_utc.second/3600.0
+    )
+
+    # Get Sun and Moon longitudes
+    sun_lon = swe.calc_ut(jd, swe.SUN)[0][0]
+    moon_lon = swe.calc_ut(jd, swe.MOON)[0][0]
+
+    # ── Tithi ──────────────────────────────────────────────────────
+    tithi_deg = (moon_lon - sun_lon) % 360
+    tithi_num = int(tithi_deg / 12) + 1  # 1-30
+
+    TITHI_NAMES = [
+        "Pratipada","Dvitiya","Tritiya","Chaturthi","Panchami",
+        "Shashthi","Saptami","Ashtami","Navami","Dashami",
+        "Ekadashi","Dwadashi","Trayodashi","Chaturdashi","Purnima",
+        "Pratipada","Dvitiya","Tritiya","Chaturthi","Panchami",
+        "Shashthi","Saptami","Ashtami","Navami","Dashami",
+        "Ekadashi","Dwadashi","Trayodashi","Chaturdashi","Amavasya"
+    ]
+    TITHI_QUALITY = {
+        1:"neutral", 2:"auspicious", 3:"auspicious", 4:"mixed",
+        5:"auspicious", 6:"mixed", 7:"auspicious", 8:"mixed",
+        9:"mixed", 10:"auspicious", 11:"auspicious", 12:"auspicious",
+        13:"mixed", 14:"inauspicious", 15:"auspicious",
+        16:"neutral", 17:"auspicious", 18:"auspicious", 19:"mixed",
+        20:"auspicious", 21:"mixed", 22:"auspicious", 23:"mixed",
+        24:"mixed", 25:"auspicious", 26:"auspicious", 27:"auspicious",
+        28:"mixed", 29:"inauspicious", 30:"inauspicious"
+    }
+
+    tithi = {
+        "number": tithi_num,
+        "name": TITHI_NAMES[tithi_num - 1],
+        "quality": TITHI_QUALITY.get(tithi_num, "neutral"),
+        "paksha": "Shukla" if tithi_num <= 15 else "Krishna",
+    }
+
+    # ── Vara (weekday) ─────────────────────────────────────────────
+    weekday = dt_utc.weekday()  # 0=Mon, 6=Sun
+    VARA = [
+        {"lord":"Moon",    "name":"Monday",    "themes":"Emotions, home, mother, mind, water",
+         "good_for":"Emotional conversations, family matters, intuitive decisions",
+         "avoid":"Major business moves, confrontation"},
+        {"lord":"Mars",    "name":"Tuesday",   "themes":"Action, courage, energy, competition",
+         "good_for":"Bold moves, physical activity, negotiations, new initiatives",
+         "avoid":"Emotional decisions, overspending"},
+        {"lord":"Mercury", "name":"Wednesday", "themes":"Communication, intellect, trade, travel",
+         "good_for":"Writing, contracts, learning, networking, short trips",
+         "avoid":"Major financial commitments"},
+        {"lord":"Jupiter", "name":"Thursday",  "themes":"Wisdom, expansion, teachers, wealth",
+         "good_for":"Education, spiritual practice, seeking guidance, investments",
+         "avoid":"Arguments, harsh speech"},
+        {"lord":"Venus",   "name":"Friday",    "themes":"Love, beauty, pleasure, creativity, wealth",
+         "good_for":"Relationships, creative work, luxury, social events",
+         "avoid":"Starting confrontational matters"},
+        {"lord":"Saturn",  "name":"Saturday",  "themes":"Structure, discipline, karma, endurance",
+         "good_for":"Long-term planning, hard work, resolving old matters",
+         "avoid":"Starting new ventures, celebrations"},
+        {"lord":"Sun",     "name":"Sunday",    "themes":"Vitality, authority, father, leadership, visibility",
+         "good_for":"Career moves, leadership, visibility, government matters",
+         "avoid":"Starting new relationships"},
+    ]
+    vara = VARA[weekday]
+
+    # ── Nakshatra (Moon's star) ────────────────────────────────────
+    nakshatra_num = int(moon_lon / (360/27))  # 0-26
+    NAKSHATRAS = [
+        {"name":"Ashwini","deity":"Ashwins","quality":"swift","good_for":"Starting new things, medical matters, travel"},
+        {"name":"Bharani","deity":"Yama","quality":"fierce","good_for":"Completing difficult tasks, transformation"},
+        {"name":"Krittika","deity":"Agni","quality":"mixed","good_for":"Cooking, purification, sharp actions"},
+        {"name":"Rohini","deity":"Brahma","quality":"fixed","good_for":"Agriculture, building, sensual pleasures, stability"},
+        {"name":"Mrigashira","deity":"Soma","quality":"soft","good_for":"Searching, exploration, gentle activities"},
+        {"name":"Ardra","deity":"Rudra","quality":"sharp","good_for":"Cutting through obstacles, research, destructive work"},
+        {"name":"Punarvasu","deity":"Aditi","quality":"moveable","good_for":"Return journeys, renewals, buying/selling"},
+        {"name":"Pushya","deity":"Brihaspati","quality":"auspicious","good_for":"Almost everything — most auspicious nakshatra"},
+        {"name":"Ashlesha","deity":"Naga","quality":"sharp","good_for":"Occult matters, research, medicine"},
+        {"name":"Magha","deity":"Pitrs","quality":"fierce","good_for":"Honoring ancestors, authority matters, father-related"},
+        {"name":"Purva Phalguni","deity":"Bhaga","quality":"fierce","good_for":"Creativity, pleasure, relaxation"},
+        {"name":"Uttara Phalguni","deity":"Aryaman","quality":"fixed","good_for":"Friendships, contracts, getting favors"},
+        {"name":"Hasta","deity":"Savitar","quality":"swift","good_for":"Crafts, healing, stealing — quick activities"},
+        {"name":"Chitra","deity":"Vishwakarma","quality":"soft","good_for":"Art, architecture, wearing new clothes"},
+        {"name":"Swati","deity":"Vayu","quality":"moveable","good_for":"Business, trade, learning, independence"},
+        {"name":"Vishakha","deity":"Indra-Agni","quality":"mixed","good_for":"Achieving goals, political matters"},
+        {"name":"Anuradha","deity":"Mitra","quality":"soft","good_for":"Friendships, devotion, group activities"},
+        {"name":"Jyeshtha","deity":"Indra","quality":"sharp","good_for":"Leadership, authority, competitive situations"},
+        {"name":"Mula","deity":"Nirriti","quality":"sharp","good_for":"Research, getting to root causes, medicine"},
+        {"name":"Purva Ashadha","deity":"Apas","quality":"fierce","good_for":"Water activities, purification, travel"},
+        {"name":"Uttara Ashadha","deity":"Vishwadevas","quality":"fixed","good_for":"Long-term projects, victory, stability"},
+        {"name":"Shravana","deity":"Vishnu","quality":"moveable","good_for":"Learning, listening, travel, communication"},
+        {"name":"Dhanishta","deity":"Ashta Vasus","quality":"moveable","good_for":"Music, wealth, community activities"},
+        {"name":"Shatabhisha","deity":"Varuna","quality":"moveable","good_for":"Healing, occult, isolation, research"},
+        {"name":"Purva Bhadrapada","deity":"Ajaikapada","quality":"fierce","good_for":"Intensity, transformation, occult"},
+        {"name":"Uttara Bhadrapada","deity":"Ahirbudhnya","quality":"fixed","good_for":"Stability, depth, spiritual practice"},
+        {"name":"Revati","deity":"Pushan","quality":"soft","good_for":"Completion, travel, nourishment, spiritual practice"},
+    ]
+    nakshatra = NAKSHATRAS[nakshatra_num]
+    nakshatra["number"] = nakshatra_num + 1
+    nakshatra["moon_lon"] = round(moon_lon, 2)
+
+    # ── Yoga (Sun + Moon combined) ─────────────────────────────────
+    yoga_deg = (sun_lon + moon_lon) % 360
+    yoga_num = int(yoga_deg / (360/27))
+    YOGAS = [
+        ("Vishkambha","mixed"),("Priti","auspicious"),("Ayushman","auspicious"),
+        ("Saubhagya","auspicious"),("Shobhana","auspicious"),("Atiganda","inauspicious"),
+        ("Sukarma","auspicious"),("Dhriti","auspicious"),("Shoola","inauspicious"),
+        ("Ganda","inauspicious"),("Vriddhi","auspicious"),("Dhruva","auspicious"),
+        ("Vyaghata","inauspicious"),("Harshana","auspicious"),("Vajra","mixed"),
+        ("Siddhi","auspicious"),("Vyatipata","inauspicious"),("Variyan","mixed"),
+        ("Parigha","inauspicious"),("Shiva","auspicious"),("Siddha","auspicious"),
+        ("Sadhya","auspicious"),("Shubha","auspicious"),("Shukla","auspicious"),
+        ("Brahma","auspicious"),("Mahendra","auspicious"),("Vaidhriti","inauspicious"),
+    ]
+    yoga_name, yoga_quality = YOGAS[yoga_num]
+    yoga = {"number": yoga_num+1, "name": yoga_name, "quality": yoga_quality}
+
+    # ── Karana (half-tithi) ────────────────────────────────────────
+    karana_num = int(tithi_deg / 6) % 11
+    KARANAS = [
+        ("Bava","auspicious"),("Balava","auspicious"),("Kaulava","auspicious"),
+        ("Taitila","auspicious"),("Garaja","mixed"),("Vanija","auspicious"),
+        ("Vishti","inauspicious"),("Shakuni","mixed"),("Chatushpada","mixed"),
+        ("Naga","mixed"),("Kimstughna","mixed"),
+    ]
+    karana_name, karana_quality = KARANAS[karana_num]
+    karana = {"name": karana_name, "quality": karana_quality}
+
+    # ── Moon sign (Chandra Rashi) ──────────────────────────────────
+    moon_sign_num = int(moon_lon / 30)
+    SIGNS = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo",
+             "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"]
+    moon_sign = SIGNS[moon_sign_num]
+
+    # ── Overall day quality from Panchang ─────────────────────────
+    qualities = [
+        tithi["quality"], yoga["quality"], karana["quality"]
+    ]
+    auspicious_count = qualities.count("auspicious")
+    inauspicious_count = qualities.count("inauspicious")
+
+    if inauspicious_count >= 2:
+        panchang_quality = "challenging"
+    elif auspicious_count >= 2:
+        panchang_quality = "favorable"
+    else:
+        panchang_quality = "mixed"
+
+    return {
+        "tithi": tithi,
+        "vara": vara,
+        "nakshatra": nakshatra,
+        "yoga": yoga,
+        "karana": karana,
+        "moon_sign": moon_sign,
+        "panchang_quality": panchang_quality,
+        "summary": (
+            f"{vara['name']}, {nakshatra['name']} nakshatra, "
+            f"{tithi['name']} tithi ({tithi['quality']}), "
+            f"{yoga_name} yoga ({yoga_quality})"
+        )
+    }
 
 
-def patch():
-    if not os.path.exists(TARGET):
-        print(f"ERROR: {TARGET} not found. Run from ~/antarai project root.")
-        return False
+def get_chandra_bala(natal_moon_sign: str, current_moon_sign: str) -> dict:
+    """
+    Calculate Moon's strength relative to natal Moon position.
+    Chandra Bala = strength of transit Moon from natal Moon.
+    
+    Houses 1,3,6,7,10,11 from natal Moon = beneficial
+    Houses 4,8,12 from natal Moon = Chandrashtama (inauspicious ~2.5 days)
+    """
+    SIGNS = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo",
+             "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"]
+    
+    try:
+        natal_idx = SIGNS.index(natal_moon_sign)
+        current_idx = SIGNS.index(current_moon_sign)
+    except ValueError:
+        return {"strength": "neutral", "house_from_moon": 0}
 
-    shutil.copy2(TARGET, BACKUP)
-    print(f"✓ Backed up to {BACKUP}")
+    house_from_moon = ((current_idx - natal_idx) % 12) + 1
 
-    with open(TARGET, "r") as f:
-        content = f.read()
+    STRENGTH = {
+        1:"favorable", 2:"neutral", 3:"favorable", 4:"unfavorable",
+        5:"neutral", 6:"favorable", 7:"favorable", 8:"unfavorable",
+        9:"neutral", 10:"favorable", 11:"favorable", 12:"unfavorable"
+    }
 
-    changes_made = 0
+    strength = STRENGTH.get(house_from_moon, "neutral")
+    is_chandrashtama = house_from_moon in [4, 8, 12]
 
-    # ═══════════════════════════════════════════════════════════════
-    # PATCH 1: Add PLANET_FREQUENCIES and PLANET_WHY dicts at top of file
-    # ═══════════════════════════════════════════════════════════════
-
-    if "PLANET_FREQUENCIES" not in content:
-        freq_block = '''
-# ─── Planet Frequencies (Hz) for Web Audio API ───────────────────────────────
-PLANET_FREQUENCIES = {
-    "Sun": 126.22, "Moon": 210.42, "Mars": 144.72, "Mercury": 141.27,
-    "Jupiter": 183.58, "Venus": 221.23, "Saturn": 147.85,
-    "Rahu": 170.00, "Ketu": 136.10,
-}
-
-# ─── Planet WHY explanations (plain English) ─────────────────────────────────
-PLANET_WHY = {
-    "Sun":     {"why": "Your identity and confidence energy needs strengthening right now.",
-                "why_science": "Morning sun exposure regulates cortisol, directly affecting confidence and decision clarity.",
-                "duration_days": 21, "duration_label": "21 days",
-                "duration_reason": "21 days is the minimum for neurological habit formation.",
-                "best_day": "Sunday", "best_time": "Sunrise, facing east",
-                "completion_milestone": "Watch for: clearer decisions, others responding with more respect."},
-    "Moon":    {"why": "Your emotional processing channel is overloaded. This clears the backlog.",
-                "why_science": "Breathing and water practices activate the parasympathetic nervous system.",
-                "duration_days": 21, "duration_label": "21 days",
-                "duration_reason": "Emotional patterns shift on 21-day lunar-aligned cycles.",
-                "best_day": "Monday", "best_time": "Evening, before sleep",
-                "completion_milestone": "Watch for: better sleep, clearer emotional responses."},
-    "Mars":    {"why": "Your execution energy is blocked or misdirected. This channels it productively.",
-                "why_science": "Physical movement releases stored adrenaline and builds decisive action pathways.",
-                "duration_days": 21, "duration_label": "21 days",
-                "duration_reason": "Action habits require 21 days of consistent reinforcement.",
-                "best_day": "Tuesday", "best_time": "Morning, before 10am",
-                "completion_milestone": "Watch for: less procrastination, faster decisions."},
-    "Mercury": {"why": "Your communication and analytical clarity is foggy. This sharpens it.",
-                "why_science": "Writing and verbal practice strengthen prefrontal connections, improving articulation.",
-                "duration_days": 21, "duration_label": "21 days",
-                "duration_reason": "Cognitive clarity builds in 3-week cycles.",
-                "best_day": "Wednesday", "best_time": "Before 10am",
-                "completion_milestone": "Watch for: ideas flowing more easily, conversations landing better."},
-    "Jupiter": {"why": "Your growth and opportunity-recognition channel needs activation.",
-                "why_science": "Gratitude practices broaden cognitive scope — literally helping you see more options.",
-                "duration_days": 21, "duration_label": "21 days",
-                "duration_reason": "Perspective shifts require 21 days of consistent reframing.",
-                "best_day": "Thursday", "best_time": "Morning",
-                "completion_milestone": "Watch for: new opportunities appearing, people offering help unprompted."},
-    "Venus":   {"why": "Your relationship and collaboration energy needs harmonising.",
-                "why_science": "Aesthetic practices activate the ventral vagal system — the basis for safe social connection.",
-                "duration_days": 21, "duration_label": "21 days",
-                "duration_reason": "Relationship patterns shift on 21-day cycles.",
-                "best_day": "Friday", "best_time": "Evening",
-                "completion_milestone": "Watch for: relationships feeling less effortful, creative energy returning."},
-    "Saturn":  {"why": "Your discipline and long-term focus energy is under pressure. This stabilises it.",
-                "why_science": "Service practices activate delayed-reward circuits — the basis for resilience.",
-                "duration_days": 40, "duration_label": "40 days",
-                "duration_reason": "Saturn patterns require 40 days for structural habit change.",
-                "best_day": "Saturday", "best_time": "Early morning, before sunrise",
-                "completion_milestone": "Watch for: less resistance to difficult tasks, structures feeling more stable."},
-    "Rahu":    {"why": "Your amplification energy is stuck or overdriving. This channels it toward real growth.",
-                "why_science": "Novelty-seeking with structure activates dopamine pathways productively.",
-                "duration_days": 18, "duration_label": "18 days",
-                "duration_reason": "Rahu operates on 18-year cycles. 18 days activates the micro-cycle.",
-                "best_day": "Saturday", "best_time": "Dusk",
-                "completion_milestone": "Watch for: obsessive thoughts reducing, clearer ambition direction."},
-    "Ketu":    {"why": "Your intuition and past-pattern release channel needs clearing.",
-                "why_science": "Meditation activates the default mode network for integrating and releasing past experience.",
-                "duration_days": 18, "duration_label": "18 days",
-                "duration_reason": "Ketu patterns release on 18-day micro-cycles.",
-                "best_day": "Tuesday or Saturday", "best_time": "Before sleep",
-                "completion_milestone": "Watch for: old anxieties losing grip, less attachment to outcomes."},
-}
-
+    return {
+        "strength": strength,
+        "house_from_moon": house_from_moon,
+        "is_chandrashtama": is_chandrashtama,
+        "plain": (
+            "Moon transiting unfavorably from your natal Moon — be careful with decisions today. Avoid starting new things." 
+            if is_chandrashtama else
+            "Moon well-placed from your natal Moon — your instincts are reliable today."
+            if strength == "favorable" else
+            "Moon in neutral position from natal Moon."
+        )
+    }
 '''
-        # Insert after the last import line
-        import_pattern = r"(^(?:from|import)\s+.+$)"
-        matches = list(re.finditer(import_pattern, content, re.MULTILINE))
-        if matches:
-            insert_pos = matches[-1].end()
-            content = content[:insert_pos] + "\n" + freq_block + content[insert_pos:]
-            print("✓ Added PLANET_FREQUENCIES and PLANET_WHY dicts")
-            changes_made += 1
-        else:
-            content = freq_block + content
-            print("✓ Added PLANET_FREQUENCIES and PLANET_WHY dicts (at top)")
-            changes_made += 1
+
+# Insert after imports in daily_prediction_engine.py
+if "def calculate_panchang" not in content:
+    # Find first function definition to insert before
+    import re
+    match = re.search(r'^def \w+', content, re.MULTILINE)
+    if match:
+        insert_pos = match.start()
+        content = content[:insert_pos] + PANCHANG_FUNCTION + "\n\n" + content[insert_pos:]
+        print("✅ Inserted calculate_panchang() and get_chandra_bala()")
     else:
-        print("⊘ PLANET_FREQUENCIES already exists")
+        content = content + "\n\n" + PANCHANG_FUNCTION
+        print("✅ Appended calculate_panchang() and get_chandra_bala()")
+else:
+    print("ℹ️  calculate_panchang() already exists — skipping")
 
-    # ═══════════════════════════════════════════════════════════════
-    # PATCH 2: Add frequency_hz to primary_practice dict
-    # ═══════════════════════════════════════════════════════════════
+# ── PATCH 2: Add Panchang to daily prediction context ─────────────────────
 
-    if '"frequency_hz"' not in content and "'frequency_hz'" not in content:
-        # Find where primary_practice dict is built — look for convergence_score key
-        # which is always in the primary_practice dict
-        patterns_to_find = [
-            '"convergence_score": ',
-            "'convergence_score': ",
-        ]
-        for p in patterns_to_find:
-            idx = content.find(p)
-            if idx > 0:
-                # Find the end of this key-value line
-                line_end = content.find("\n", idx)
-                # Add frequency_hz after convergence_score line
-                freq_addition = '\n            "frequency_hz": PLANET_FREQUENCIES.get(planet, 136.10),'
-                content = content[:line_end] + freq_addition + content[line_end:]
-                print("✓ Added frequency_hz to primary_practice dict")
-                changes_made += 1
-                break
-        else:
-            print("⚠ Could not find convergence_score in primary_practice dict")
-            print("  Manually add: '\"frequency_hz\": PLANET_FREQUENCIES.get(planet, 136.10)'")
-    else:
-        print("⊘ frequency_hz already exists")
-
-    # ═══════════════════════════════════════════════════════════════
-    # PATCH 3: Add frequency_hz to mantra_of_the_day dict
-    # ═══════════════════════════════════════════════════════════════
-
-    # Find mantra_of_the_day dict — look for mantra_text key
-    mantra_freq_marker = "mantra_of_the_day"
-    if mantra_freq_marker in content:
-        # Find "count": in the mantra dict context
-        mantra_idx = content.find(mantra_freq_marker)
-        count_idx = content.find('"count":', mantra_idx)
-        if count_idx > 0 and count_idx - mantra_idx < 2000:
-            line_end = content.find("\n", count_idx)
-            if "frequency_hz" not in content[mantra_idx:mantra_idx + 2000]:
-                freq_line = '\n            "frequency_hz": PLANET_FREQUENCIES.get(planet, 136.10),'
-                content = content[:line_end] + freq_line + content[line_end:]
-                print("✓ Added frequency_hz to mantra_of_the_day dict")
-                changes_made += 1
-            else:
-                print("⊘ mantra frequency_hz already exists")
-        else:
-            print("⚠ Could not find 'count' in mantra_of_the_day context")
-    else:
-        print("⚠ mantra_of_the_day not found in file")
-
-    # ═══════════════════════════════════════════════════════════════
-    # PATCH 4: Add WHY + duration fields to primary_practice dict
-    # ═══════════════════════════════════════════════════════════════
-
-    if "practice_why" not in content:
-        # Find the primary_practice dict assembly — look for "color": key
-        color_pattern = r'"color":\s*practice_color'
-        color_match = re.search(color_pattern, content)
-
-        if not color_match:
-            # Try alternative patterns
-            color_pattern2 = r'"color":\s*[A-Z_a-z]'
-            color_match = re.search(color_pattern2, content)
-
-        if color_match:
-            line_end = content.find("\n", color_match.end())
-            why_block = '''
-            "practice_why": PLANET_WHY.get(planet, {}).get("why", ""),
-            "practice_why_science": PLANET_WHY.get(planet, {}).get("why_science", ""),
-            "duration_days": PLANET_WHY.get(planet, {}).get("duration_days", 21),
-            "duration_label": PLANET_WHY.get(planet, {}).get("duration_label", "21 days"),
-            "duration_reason": PLANET_WHY.get(planet, {}).get("duration_reason", ""),
-            "best_day": PLANET_WHY.get(planet, {}).get("best_day", ""),
-            "best_time": PLANET_WHY.get(planet, {}).get("best_time", ""),
-            "completion_milestone": PLANET_WHY.get(planet, {}).get("completion_milestone", ""),'''
-            content = content[:line_end] + why_block + content[line_end:]
-            print("✓ Added practice_why + duration fields to primary_practice dict")
-            changes_made += 1
-        else:
-            print("⚠ Could not find primary_practice dict assembly point")
-            print("  Manually add PLANET_WHY.get(planet, {}).get('why', '') fields")
-    else:
-        print("⊘ practice_why fields already exist")
-
-    # ═══════════════════════════════════════════════════════════════
-    # PATCH 5: Add JSONB key fallbacks for sleeping_planets and rin_debts
-    # ═══════════════════════════════════════════════════════════════
-
-    if 'lk.get("advanced")' not in content and "lk.get('advanced')" not in content:
-        # Find where sleeping_planets is extracted
-        sleeping_patterns = [
-            'lk.get("sleeping_planets"',
-            "lk.get('sleeping_planets'",
-            'lk_data.get("sleeping_planets"',
-        ]
-        for sp in sleeping_patterns:
-            idx = content.find(sp)
-            if idx > 0:
-                line_start = content.rfind("\n", 0, idx) + 1
-                line_end = content.find("\n", idx)
-                old_line = content[line_start:line_end]
-                # Replace with a fallback that checks 'advanced' key too
-                indent = len(old_line) - len(old_line.lstrip())
-                spaces = " " * indent
-                new_line = old_line.replace(
-                    sp,
-                    sp.replace(
-                        'lk.get("sleeping_planets"',
-                        '(lk.get("advanced") or lk).get("sleeping_planets"'
-                    ).replace(
-                        "lk.get('sleeping_planets'",
-                        "(lk.get('advanced') or lk).get('sleeping_planets'"
-                    ).replace(
-                        'lk_data.get("sleeping_planets"',
-                        '(lk_data.get("advanced") or lk_data).get("sleeping_planets"'
-                    )
+PANCHANG_CONTEXT_INJECTION = '''
+    # ── Add Panchang context ──────────────────────────────────────────
+    try:
+        from datetime import datetime, timezone
+        now_utc = datetime.now(timezone.utc)
+        
+        # Get chart location for accurate Panchang
+        birth_lat = chart_data.get("birth_lat", 28.6)  # Default Delhi
+        birth_lon = chart_data.get("birth_lon", 77.2)
+        
+        panchang = calculate_panchang(now_utc, birth_lat, birth_lon)
+        
+        # Get Chandra Bala
+        natal_moon = chart_data.get("moon_sign", "")
+        current_moon = panchang.get("moon_sign", "")
+        chandra_bala = get_chandra_bala(natal_moon, current_moon)
+        
+        # Add to prediction context
+        if "panchang" not in context_parts:
+            context_parts["panchang"] = {
+                "today": panchang,
+                "chandra_bala": chandra_bala,
+                "plain_summary": (
+                    f"TODAY'S PANCHANG: {panchang['summary']}. "
+                    f"Moon in {panchang['moon_sign']}. "
+                    f"Overall quality: {panchang['panchang_quality']}. "
+                    f"Chandra Bala: {chandra_bala['strength']} "
+                    f"(house {chandra_bala['house_from_moon']} from natal Moon). "
+                    f"{chandra_bala['plain']}"
                 )
-                if new_line != old_line:
-                    content = content[:line_start] + new_line + content[line_end:]
-                    print("✓ Added 'advanced' key fallback for sleeping_planets")
-                    changes_made += 1
-                    break
+            }
+    except Exception as e:
+        print(f"Panchang calculation error: {e}")
+    # ── End Panchang ──────────────────────────────────────────────────
+'''
 
-        # Same for rin_debts
-        rin_patterns = [
-            'lk.get("rin_debts"',
-            "lk.get('rin_debts'",
-            'lk_data.get("rin_debts"',
-        ]
-        for rp in rin_patterns:
-            idx = content.find(rp)
-            if idx > 0:
-                line_start = content.rfind("\n", 0, idx) + 1
-                line_end = content.find("\n", idx)
-                old_line = content[line_start:line_end]
-                new_line = old_line.replace(rp, rp.replace(
-                    'lk.get("rin_debts"', '(lk.get("advanced") or lk).get("rin_debts"'
-                ).replace(
-                    "lk.get('rin_debts'", "(lk.get('advanced') or lk).get('rin_debts'"
-                ).replace(
-                    'lk_data.get("rin_debts"', '(lk_data.get("advanced") or lk_data).get("rin_debts"'
-                ))
-                if new_line != old_line:
-                    content = content[:line_start] + new_line + content[line_end:]
-                    print("✓ Added 'advanced' key fallback for rin_debts")
-                    changes_made += 1
-                    break
+# Find where daily context is assembled and add Panchang
+if "panchang" not in content.lower():
+    # Try to find context assembly
+    if "context_parts" in content:
+        # Find a good insertion point near context assembly
+        insert_marker = "context_parts["
+        idx = content.find(insert_marker)
+        if idx > 0:
+            # Find the end of the context_parts block
+            line_end = content.find("\n\n", idx)
+            if line_end > 0:
+                content = content[:line_end] + "\n" + PANCHANG_CONTEXT_INJECTION + content[line_end:]
+                print("✅ Added Panchang to daily context")
     else:
-        print("⊘ JSONB advanced key fallbacks already exist")
+        print("⚠️  Could not find context assembly — add Panchang context manually")
+        print("    Call calculate_panchang() and add result to your LLM context")
 
-    # ═══════════════════════════════════════════════════════════════
-    # WRITE
-    # ═══════════════════════════════════════════════════════════════
+# ── Write file ─────────────────────────────────────────────────────────────
+with open(TARGET, "w") as f:
+    f.write(content)
 
-    if changes_made == 0:
-        print("\n⚠ No changes applied automatically.")
-        print("  The file structure may differ from expected.")
-        print_manual_instructions()
-        return False
-
-    with open(TARGET, "w") as f:
-        f.write(content)
-
-    print(f"\n✓ {changes_made} change(s) applied to {TARGET}")
-    print(f"  Backup: {BACKUP}")
-    print(f"\n  SYNTAX CHECK:")
-    print(f"  python3 -c \"import ast; ast.parse(open('{TARGET}').read()); print('Syntax OK')\"")
-    print(f"\n  DEPLOY:")
-    print(f"  git add -A && git commit -m 'feat: practice WHY + duration + frequency_hz (S6)' && git push")
-    print(f"\n  VERIFY:")
-    print(f"  curl '.../practices/de02bb52.../schedule?refresh=true' | python3 -m json.tool | grep -E 'frequency_hz|practice_why|duration_label'")
-    return True
-
-
-def print_manual_instructions():
-    print("""
-═══════════════════════════════════════════════════════════════
-MANUAL EDITS (if auto-patch failed)
-═══════════════════════════════════════════════════════════════
-
-1. Add PLANET_FREQUENCIES dict near the top of practice_engine.py:
-   PLANET_FREQUENCIES = {
-     "Sun": 126.22, "Moon": 210.42, "Mars": 144.72, "Mercury": 141.27,
-     "Jupiter": 183.58, "Venus": 221.23, "Saturn": 147.85,
-     "Rahu": 170.00, "Ketu": 136.10,
-   }
-
-2. In the primary_practice dict, add:
-   "frequency_hz": PLANET_FREQUENCIES.get(planet, 136.10),
-   "practice_why": PLANET_WHY.get(planet, {}).get("why", ""),
-   "duration_label": PLANET_WHY.get(planet, {}).get("duration_label", "21 days"),
-   "best_day": PLANET_WHY.get(planet, {}).get("best_day", ""),
-   "best_time": PLANET_WHY.get(planet, {}).get("best_time", ""),
-   "completion_milestone": PLANET_WHY.get(planet, {}).get("completion_milestone", ""),
-
-3. In the mantra_of_the_day dict, add:
-   "frequency_hz": PLANET_FREQUENCIES.get(planet, 136.10),
-
-4. For sleeping_planets extraction, add 'advanced' key fallback:
-   Change: lk.get("sleeping_planets", [])
-   To:     (lk.get("advanced") or lk).get("sleeping_planets", [])
-
-   Change: lk.get("rin_debts", [])
-   To:     (lk.get("advanced") or lk).get("rin_debts", [])
-═══════════════════════════════════════════════════════════════
-""")
-
-
-if __name__ == "__main__":
-    success = patch()
-    if success:
-        try:
-            import ast
-            with open(TARGET) as f:
-                ast.parse(f.read())
-            print("✓ Syntax OK")
-        except SyntaxError as e:
-            print(f"✗ SYNTAX ERROR: {e}")
-            print(f"  Restore: cp {BACKUP} {TARGET}")
+print("\n✅ Patch complete")
+print("Verify:")
+print("python3 -c \"import ast; ast.parse(open('antar_engine/daily_prediction_engine.py').read()); print('OK')\"")
+print("git add -A && git commit -m 'feat: panchang + chandra bala in daily predictions' && git push")
+print()
+print("Test:")
+print("curl -s 'https://antar-fastapi-production.up.railway.app/api/v1/daily-week/de02bb52-d43a-4b09-be25-b45a07bfbf8a?language=es' \\")
+print("  | python3 -m json.tool | grep -A 10 'panchang'")
