@@ -1900,30 +1900,6 @@ def _classify_question_mode(question: str) -> str:
     return "timing"
 
 
-
-def _is_jargon(text: str) -> bool:
-    """Return True if text contains raw astrological computation language."""
-    if not text:
-        return True
-    text_lower = text.lower()
-    jargon = [
-        "karakamsa", "dusthana", "mahadasha", "antardasha", "instrument lord",
-        "sign aspects", "soul purpose resonance", "chara dasha",
-        "power off", "sleeping", "structural load",
-        "lord in", "bhava", "navamsa", "atmakaraka", "amatyakaraka",
-        "upapada", "arudha", "varshphal", "masik",
-    ]
-    return any(j in text_lower for j in jargon)
-
-def _safe_signal_line(signal_line: str, domain: str, language: str = "en") -> str:
-    """Return signal_line if clean, otherwise return a safe ask-Antar prompt."""
-    if _is_jargon(signal_line):
-        if language == "es":
-            return f"Pregunta a Antar sobre tu señal de {domain} esta semana."
-        return f"Ask Antar about your {domain} signal this week."
-    return signal_line
-
-
 @app.get("/health")
 async def health():
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}

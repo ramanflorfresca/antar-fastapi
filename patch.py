@@ -1,42 +1,68 @@
 """
-patch_plain_summary_fix.py — Sprint S3-B1: Fix plain_summary timing inversion
+patch_domain_signals_plain_english.py — Fix domain-signals returning raw jargon
 
 THE BUG:
-  plain_english.py's generate_plain_english() makes a second Claude call to compress
-  the raw prediction into a structured JSON. The prompt instructions for plain_summary
-  tell Claude to write "what is happening right now" — but give no instruction to
-  PRESERVE the timing direction from the raw prediction.
+  GET /api/v1/domain-signals/{chart_id} returns signal_line values that contain
+  raw astrological computation text:
+    "sign aspects Karakamsa — Soul purpose resonance"
+    "Structural Load (instrument lord) in dusthana annual house — yearly pressure"
 
-  Result: Claude sometimes inverts the signal. If the raw prediction says
-  "funding window CLOSES April–July", plain_summary may write
-  "your funding window is active now" — the exact opposite.
+  These are stored directly from Jaimini/Parashari computation output without
+  going through plain_english.py. They surface in the Dashboard area cards.
 
 THE FIX:
-  1. Strengthen the plain_summary instruction to explicitly say:
-     "MUST preserve the core timing verdict — if the prediction says a window
-      is CLOSING or BLOCKED, the summary must say that too. Never reframe
-      a warning as an opportunity."
+  In main.py, the domain-signals endpoint reads signal_line from the predictions
+  table. The predictions table signal_line IS processed through plain_english.py —
+  so the fix is to ensure domain-signals reads from predictions.signal_line
+  (the plain English version) and NOT from any raw computation field.
 
-  2. Add a TIMING SIGNAL EXTRACTION step: Claude must first identify the
-     timing verdict from the raw prediction (OPEN / CLOSING / BLOCKED / BUILDING)
-     and then write the summary consistent with that verdict.
+  Additionally, add a jargon filter as a safety net: if a stored signal_line
+  still contains jargon patterns, replace with a safe fallback prompt.
 
-  3. Add a hard contradiction check instruction: "If your plain_summary contradicts
-     the timing_window field, you have made an error. Rewrite."
-
-  4. Add a post-parse validation in Python: check if plain_summary contains
-     positive framing when timing_window contains friction keywords, and log a warning.
-
-Run: python patch_plain_summary_fix.py
-Backs up to: antar_engine/plain_english.py.bak_summary_fix
+Run: python patch_domain_signals_plain_english.py
+Backs up to: main.py.bak_domain_signals
 """
 
 import os
 import re
 import shutil
 
-TARGET = "antar_engine/plain_english.py"
-BACKUP = TARGET + ".bak_summary_fix"
+TARGET = "main.py"
+BACKUP = "main.py.bak_domain_signals"
+
+# Jargon patterns that should never appear in user-facing signal_line
+JARGON_PATTERNS = [
+    "karakamsa", "dusthana", "mahadasha", "antardasha", "instrument lord",
+    "sign aspects", "soul purpose resonance", "chara dasha",
+    "power off", "sleeping", "structural load", "MC line", "ASC line",
+    "lord in", "bhava", "navamsa", "atmakaraka", "amatyakaraka",
+    "upapada", "arudha", "varshphal", "masik",
+]
+
+JARGON_FILTER_FN = '''
+def _is_jargon(text: str) -> bool:
+    """Return True if text contains raw astrological computation language."""
+    if not text:
+        return True
+    text_lower = text.lower()
+    jargon = [
+        "karakamsa", "dusthana", "mahadasha", "antardasha", "instrument lord",
+        "sign aspects", "soul purpose resonance", "chara dasha",
+        "power off", "sleeping", "structural load",
+        "lord in", "bhava", "navamsa", "atmakaraka", "amatyakaraka",
+        "upapada", "arudha", "varshphal", "masik",
+    ]
+    return any(j in text_lower for j in jargon)
+
+def _safe_signal_line(signal_line: str, domain: str, language: str = "en") -> str:
+    """Return signal_line if clean, otherwise return a safe ask-Antar prompt."""
+    if _is_jargon(signal_line):
+        if language == "es":
+            return f"Pregunta a Antar sobre tu señal de {domain} esta semana."
+        return f"Ask Antar about your {domain} signal this week."
+    return signal_line
+
+'''
 
 
 def patch():
@@ -50,195 +76,113 @@ def patch():
     with open(TARGET, "r") as f:
         content = f.read()
 
-    original_content = content
     changes_made = 0
 
     # ═══════════════════════════════════════════════════════════════
-    # PATCH 1: Strengthen the plain_summary instruction in the system prompt
+    # PATCH 1: Add _is_jargon() and _safe_signal_line() helper functions
     # ═══════════════════════════════════════════════════════════════
 
-    # The current instruction is:
-    #   "plain_summary": "2-3 sentences. What is happening in their life right now. No jargon."
-    # OR (after doctor mode patch):
-    #   "plain_summary": "2-3 sentences. What is happening in their life right now. No jargon. Lead with the conclusion, not the cause."
-    #
-    # We replace the plain_summary line in the JSON FORMAT block with a stronger version.
-
-    old_summary_v1 = '"plain_summary": "2-3 sentences. What is happening in their life right now. No jargon."'
-    old_summary_v2 = '"plain_summary": "2-3 sentences. What is happening in their life right now. No jargon. Lead with the conclusion, not the cause."'
-
-    new_summary = (
-        '"plain_summary": "2-3 sentences. What is happening in their life right now. '
-        'CRITICAL: You MUST preserve the core timing verdict from the raw prediction. '
-        'If the raw prediction says a window is CLOSING, BLOCKED, or a period of FRICTION, '
-        'your summary must say that too — never reframe a warning as an opportunity. '
-        'If the raw prediction says a window is OPEN or BUILDING, reflect that. '
-        'The summary must AGREE with timing_window. If they contradict, rewrite the summary. '
-        'No jargon. Lead with the conclusion."'
-    )
-
-    if old_summary_v2 in content:
-        content = content.replace(old_summary_v2, new_summary, 1)
-        print("✓ Replaced plain_summary instruction (v2 — doctor mode version)")
-        changes_made += 1
-    elif old_summary_v1 in content:
-        content = content.replace(old_summary_v1, new_summary, 1)
-        print("✓ Replaced plain_summary instruction (v1 — original version)")
-        changes_made += 1
-    else:
-        # Try a looser match in case formatting differs
-        pattern = r'"plain_summary":\s*"2-3 sentences\.[^"]*"'
-        match = re.search(pattern, content)
-        if match:
-            content = content[:match.start()] + new_summary + content[match.end():]
-            print("✓ Replaced plain_summary instruction (regex match)")
+    if "_is_jargon" not in content:
+        # Find a good insertion point — after imports, before first route
+        # Look for the first @app. route definition
+        route_match = re.search(r"\n@app\.", content)
+        if route_match:
+            insert_pos = route_match.start()
+            content = content[:insert_pos] + "\n" + JARGON_FILTER_FN + content[insert_pos:]
+            print("✓ Added _is_jargon() and _safe_signal_line() helper functions")
             changes_made += 1
         else:
-            print("⚠ Could not find plain_summary instruction — manual edit needed")
-            print("  Look for the JSON FORMAT block in the system prompt")
-            print("  Find the plain_summary line and add the CRITICAL timing preservation instruction")
-
-    # ═══════════════════════════════════════════════════════════════
-    # PATCH 2: Add TIMING DIRECTION RULE near the other rules
-    # ═══════════════════════════════════════════════════════════════
-
-    timing_rule_marker = "TIMING DIRECTION RULE"
-
-    if timing_rule_marker not in content:
-        timing_rule = """
-TIMING DIRECTION RULE — READ THIS BEFORE WRITING plain_summary:
-
-Step 1: Read the raw prediction and identify the timing verdict.
-  - Is the window OPEN/ACTIVE/PEAK? → summary must reflect opportunity
-  - Is the window CLOSING/ENDING soon? → summary must convey urgency to act NOW
-  - Is the window BLOCKED/FRICTION/AVOID? → summary must convey caution or patience
-  - Is the window BUILDING/PREPARING? → summary must reflect momentum not yet arrived
-
-Step 2: Write plain_summary consistent with that verdict.
-  WRONG: Raw prediction says "funding window closes April–July" → summary says "your funding energy is active now"
-  RIGHT: Raw prediction says "funding window closes April–July" → summary says "the next 3 months are a friction period for raising capital — focus on revenue instead"
-
-  WRONG: Raw prediction says "career peak window through June" → summary says "this is a challenging time for career moves"
-  RIGHT: Raw prediction says "career peak window through June" → summary says "your career energy is at peak strength now — this is the window to move"
-
-Step 3: Check timing_window field. If plain_summary contradicts it, rewrite plain_summary.
-
-"""
-        # Find the best insertion point — just before "TASK:" or "FORMAT —" in the system prompt
-        # Try to insert before the FORMAT block
-        insert_markers = ["FORMAT —", "FORMAT:", "TASK:", "You must return EXACTLY"]
-        inserted = False
-        for marker in insert_markers:
-            idx = content.find(marker)
-            if idx > 0:
-                # Check we're inside the system prompt string (between quotes or triple quotes)
-                content = content[:idx] + timing_rule + content[idx:]
-                print(f"✓ Added TIMING DIRECTION RULE before '{marker}'")
-                changes_made += 1
-                inserted = True
-                break
-
-        if not inserted:
-            print("⚠ Could not find insertion point for TIMING DIRECTION RULE")
-            print("  Manually add this rule to the system prompt in generate_plain_english()")
-            print("  before the FORMAT / TASK section:")
-            print(timing_rule)
+            print("⚠ Could not find insertion point for helper functions")
+            print("  Manually add the following functions before the first @app route:")
+            print(JARGON_FILTER_FN)
     else:
-        print("⊘ TIMING DIRECTION RULE already exists")
+        print("⊘ _is_jargon() already exists")
 
     # ═══════════════════════════════════════════════════════════════
-    # PATCH 3: Add Python-level contradiction check after parsing
+    # PATCH 2: Find domain-signals endpoint and add safety filter on signal_line
     # ═══════════════════════════════════════════════════════════════
 
-    contradiction_marker = "# --- TIMING CONTRADICTION CHECK ---"
+    # The domain-signals endpoint returns a dict of domains with signal_line values
+    # We need to wrap each signal_line with _safe_signal_line()
 
-    if contradiction_marker not in content:
-        contradiction_check = '''
-    # --- TIMING CONTRADICTION CHECK ---
-    # Detect if plain_summary contradicts timing_window and log a warning
-    try:
-        _summary = result.get("plain_summary", "").lower()
-        _timing = result.get("timing_window", "").lower()
-        _friction_words = {"close", "closing", "block", "blocked", "friction", "avoid",
-                           "caution", "wait", "delay", "difficult", "challenging", "not now"}
-        _positive_words = {"strong", "peak", "active", "open", "opportunity", "best time",
-                           "favorable", "window is open", "act now", "move now"}
-        _timing_has_friction = any(w in _timing for w in _friction_words)
-        _summary_has_positive = any(w in _summary for w in _positive_words)
-        _timing_has_positive = any(w in _timing for w in _positive_words)
-        _summary_has_friction = any(w in _summary for w in _friction_words)
-        if _timing_has_friction and _summary_has_positive:
-            import logging
-            logging.getLogger("plain_english").warning(
-                f"TIMING CONTRADICTION DETECTED: timing_window='{result.get('timing_window')}' "
-                f"but plain_summary has positive framing. Chart may receive wrong signal. "
-                f"Summary: '{result.get('plain_summary', '')[:100]}'"
-            )
-        elif _timing_has_positive and _summary_has_friction:
-            import logging
-            logging.getLogger("plain_english").warning(
-                f"TIMING CONTRADICTION DETECTED: timing_window='{result.get('timing_window')}' "
-                f"but plain_summary has friction framing. "
-                f"Summary: '{result.get('plain_summary', '')[:100]}'"
-            )
-    except Exception:
-        pass  # Never crash the prediction over a logging check
-    # --- END TIMING CONTRADICTION CHECK ---
-'''
-        # Find where the result dict is returned from generate_plain_english
-        # Look for "return result" or "return pe" or "return {"
-        # Insert the check BEFORE the return statement
+    # Look for the domain-signals endpoint
+    domain_signals_patterns = [
+        r'(@app\.get\s*\(\s*["\'].*domain-signals.*["\'])',
+        r'(domain.signals|domain_signals)',
+    ]
 
-        return_patterns = [
-            r"(\n\s+return\s+result\s*\n)",
-            r"(\n\s+return\s+pe\s*\n)",
-            r"(\n\s+return\s+\{\s*\n)",
-            r"(\n\s+return\s+parsed\s*\n)",
-            r"(\n\s+return\s+data\s*\n)",
+    endpoint_found = False
+    for pattern in domain_signals_patterns:
+        if re.search(pattern, content, re.IGNORECASE):
+            endpoint_found = True
+            break
+
+    if endpoint_found:
+        # Look for where signal_line is assembled into the response dict
+        # Common patterns: "signal_line": row["signal_line"] or similar
+        signal_line_patterns = [
+            r'(["\']signal_line["\']:\s*)(row\[["\']signal_line["\']\])',
+            r'(["\']signal_line["\']:\s*)(pred\[["\']signal_line["\']\])',
+            r'(["\']signal_line["\']:\s*)(result\[["\']signal_line["\']\])',
+            r'(["\']signal_line["\']:\s*)(p\[["\']signal_line["\']\])',
+            r'(["\']signal_line["\']:\s*)(item\[["\']signal_line["\']\])',
         ]
 
-        inserted = False
-        for pattern in return_patterns:
-            match = re.search(pattern, content)
-            if match:
-                insert_pos = match.start()
-                content = content[:insert_pos] + "\n" + contradiction_check + content[insert_pos:]
-                print("✓ Added Python-level timing contradiction check before return")
+        patched_signal = False
+        for pattern in signal_line_patterns:
+            matches = list(re.finditer(pattern, content))
+            if matches:
+                # Replace each match with the safe version
+                # We need to work backwards to preserve positions
+                for match in reversed(matches):
+                    old = match.group(0)
+                    key_part = match.group(1)
+                    value_part = match.group(2)
+                    new = f'{key_part}_safe_signal_line({value_part}, domain, language)'
+                    content = content[:match.start()] + new + content[match.end():]
+                print(f"✓ Wrapped signal_line values with _safe_signal_line() ({len(matches)} locations)")
                 changes_made += 1
-                inserted = True
+                patched_signal = True
                 break
 
-        if not inserted:
-            # Try a simpler approach — find the last return in generate_plain_english
-            # by looking for the function and finding its return
-            fn_match = re.search(r"async\s+def\s+generate_plain_english", content)
-            if fn_match:
-                fn_start = fn_match.start()
-                # Find the last return after the function definition
-                returns = list(re.finditer(r"\n(\s+)return\s+", content[fn_start:]))
-                if returns:
-                    last_return = returns[-1]
-                    insert_pos = fn_start + last_return.start()
-                    content = content[:insert_pos] + "\n" + contradiction_check + content[insert_pos:]
-                    print("✓ Added timing contradiction check (last return in function)")
-                    changes_made += 1
-                    inserted = True
-
-            if not inserted:
-                print("⚠ Could not auto-insert contradiction check")
-                print("  Manually add the following block before the 'return result' in generate_plain_english():")
-                print(contradiction_check)
+        if not patched_signal:
+            print("⚠ Could not auto-patch signal_line in domain-signals endpoint")
+            print("  Manual fix: find the domain-signals endpoint in main.py")
+            print("  Wherever you build the response dict with 'signal_line': <value>,")
+            print("  wrap the value: 'signal_line': _safe_signal_line(<value>, domain, language)")
     else:
-        print("⊘ Timing contradiction check already exists")
+        print("⚠ Could not find domain-signals endpoint in main.py")
+        print("  Search for 'domain-signals' or 'domain_signals' and add the filter manually")
 
     # ═══════════════════════════════════════════════════════════════
-    # WRITE or ABORT
+    # PATCH 3: Also filter signal_line in the dashboard endpoint response
+    # ═══════════════════════════════════════════════════════════════
+
+    # The dashboard endpoint also surfaces domain signal_lines
+    # Look for dashboard endpoint and apply same filter
+    dashboard_match = re.search(r'@app\.get\s*\(\s*["\'].*dashboard.*["\']', content, re.IGNORECASE)
+
+    if dashboard_match:
+        # Find signal_line usage after dashboard endpoint
+        dashboard_start = dashboard_match.start()
+        # Look for the next endpoint after dashboard
+        next_endpoint = re.search(r'\n@app\.', content[dashboard_start + 10:])
+        dashboard_end = dashboard_start + 10 + (next_endpoint.start() if next_endpoint else len(content))
+        dashboard_section = content[dashboard_start:dashboard_end]
+
+        if "signal_line" in dashboard_section and "_safe_signal_line" not in dashboard_section:
+            print("⚠ Dashboard endpoint also has signal_line — consider applying same filter")
+            print("  Find the dashboard endpoint and wrap any signal_line values with _safe_signal_line()")
+        else:
+            print("⊘ Dashboard signal_line already safe or not found")
+
+    # ═══════════════════════════════════════════════════════════════
+    # WRITE
     # ═══════════════════════════════════════════════════════════════
 
     if changes_made == 0:
-        print("\n⚠ No changes were applied automatically.")
-        print("  The file structure may differ from expected.")
-        print("  See MANUAL EDITS NEEDED below.")
+        print("\n⚠ No automatic changes applied.")
+        print("  The domain-signals endpoint structure may differ from expected.")
         print_manual_instructions()
         return False
 
@@ -246,119 +190,63 @@ Step 3: Check timing_window field. If plain_summary contradicts it, rewrite plai
         f.write(content)
 
     print(f"\n✓ {changes_made} change(s) applied to {TARGET}")
-    print(f"  Backup saved to {BACKUP}")
-    print(f"\n  NEXT STEPS:")
-    print(f"  1. Review the patch: diff {BACKUP} {TARGET}")
-    print(f"  2. Check syntax: python3 -c \"import ast; ast.parse(open('{TARGET}').read()); print('Syntax OK')\"")
-    print(f"  3. Deploy: git add -A && git commit -m 'fix: plain_summary timing inversion bug (S3-B1)' && git push")
-    print(f"  4. Test: curl POST /api/v1/predict with chart_id de02bb52...")
-    print(f"     Compare plain_summary vs timing_window — they must agree on direction")
-    print(f"  5. Watch Railway logs for 'TIMING CONTRADICTION DETECTED' warnings")
-    print(f"     If you see them after deploy, the bug persists in edge cases")
+    print(f"  Backup: {BACKUP}")
+    print(f"\n  SYNTAX CHECK:")
+    print(f"  python3 -c \"import ast; ast.parse(open('{TARGET}').read()); print('Syntax OK')\"")
+    print(f"\n  DEPLOY:")
+    print(f"  git add -A && git commit -m 'fix: filter jargon from domain-signals signal_line' && git push")
+    print(f"\n  VERIFY:")
+    print(f"  curl https://antar-fastapi-production.up.railway.app/api/v1/domain-signals/de02bb52-d43a-4b09-be25-b45a07bfbf8a")
+    print(f"  Check: no 'karakamsa', 'dusthana', 'Mahadasha' in any signal_line value")
 
     return True
 
 
 def print_manual_instructions():
-    """Print what to do if auto-patch fails."""
     print("""
 ═══════════════════════════════════════════════════════════════
-MANUAL EDIT INSTRUCTIONS (if auto-patch failed)
+MANUAL FIX (if auto-patch failed)
 ═══════════════════════════════════════════════════════════════
 
-Open: antar_engine/plain_english.py
+1. Open main.py
 
-EDIT 1 — Find the plain_summary line in the FORMAT block (inside the system prompt).
-It currently says something like:
-  "plain_summary": "2-3 sentences. What is happening in their life right now. No jargon."
+2. Add these two functions before the first @app route:
 
-Replace with:
-  "plain_summary": "2-3 sentences. What is happening in their life right now.
-  CRITICAL: You MUST preserve the core timing verdict from the raw prediction.
-  If the raw prediction says a window is CLOSING, BLOCKED, or a period of FRICTION,
-  your summary must say that too — never reframe a warning as an opportunity.
-  If the raw prediction says a window is OPEN or BUILDING, reflect that.
-  The summary must AGREE with timing_window. If they contradict, rewrite. No jargon."
+def _is_jargon(text: str) -> bool:
+    if not text:
+        return True
+    text_lower = text.lower()
+    jargon = ["karakamsa","dusthana","mahadasha","antardasha",
+              "instrument lord","sign aspects","soul purpose resonance",
+              "chara dasha","power off","sleeping","structural load",
+              "lord in","bhava","navamsa","atmakaraka","amatyakaraka"]
+    return any(j in text_lower for j in jargon)
 
-EDIT 2 — Find the system prompt string (the long string passed as "content" to the
-Claude API call in generate_plain_english). Before the FORMAT or TASK section, add:
+def _safe_signal_line(signal_line: str, domain: str, language: str = "en") -> str:
+    if _is_jargon(signal_line):
+        if language == "es":
+            return f"Pregunta a Antar sobre tu señal de {domain} esta semana."
+        return f"Ask Antar about your {domain} signal this week."
+    return signal_line
 
-  TIMING DIRECTION RULE:
-  Before writing plain_summary, identify whether the raw prediction's timing is:
-  OPEN/ACTIVE → summary reflects opportunity
-  CLOSING/ENDING → summary conveys urgency to act now or that window is closing
-  BLOCKED/FRICTION → summary conveys caution or patience required
-  BUILDING → summary reflects momentum not yet arrived
-  Then write plain_summary consistent with that direction.
-  plain_summary must NEVER contradict timing_window.
+3. Find the GET /api/v1/domain-signals endpoint.
+   Wherever it builds the response dict with "signal_line": <value>,
+   wrap it: "signal_line": _safe_signal_line(<value>, domain, language)
 
-EDIT 3 — Find the return statement at the end of generate_plain_english() and add
-this Python check just before it:
-
-  # Timing contradiction check
-  try:
-      _summary = result.get("plain_summary", "").lower()
-      _timing = result.get("timing_window", "").lower()
-      if any(w in _timing for w in ["close","block","friction","avoid"]) and \\
-         any(w in _summary for w in ["strong","peak","active","open","opportunity"]):
-          import logging
-          logging.getLogger("plain_english").warning(
-              f"TIMING CONTRADICTION: timing={result.get('timing_window')} "
-              f"but summary has positive framing: {result.get('plain_summary','')[:80]}"
-          )
-  except Exception:
-      pass
-
+4. Syntax check, commit, push.
 ═══════════════════════════════════════════════════════════════
 """)
 
 
-def verify_patch():
-    """Quick check that the key strings are present after patching."""
-    if not os.path.exists(TARGET):
-        print("ERROR: Target file not found")
-        return
-
-    with open(TARGET, "r") as f:
-        content = f.read()
-
-    checks = [
-        ("CRITICAL: You MUST preserve the core timing verdict", "plain_summary instruction strengthened"),
-        ("TIMING DIRECTION RULE", "timing direction rule added"),
-        ("TIMING CONTRADICTION CHECK", "contradiction check added"),
-    ]
-
-    print("\n── Verification ──")
-    all_pass = True
-    for check_str, label in checks:
-        found = check_str in content
-        status = "✓" if found else "✗"
-        print(f"  {status} {label}")
-        if not found:
-            all_pass = False
-
-    # Syntax check
-    try:
-        import ast
-        ast.parse(content)
-        print("  ✓ Python syntax valid")
-    except SyntaxError as e:
-        print(f"  ✗ SYNTAX ERROR: {e}")
-        print(f"    Run: python3 -c \"import ast; ast.parse(open('{TARGET}').read())\"")
-        all_pass = False
-
-    if all_pass:
-        print("\n✓ All checks passed. Ready to deploy.")
-    else:
-        print(f"\n⚠ Some checks failed. Review {TARGET} before deploying.")
-        print(f"  Backup is at {BACKUP} if you need to restore.")
-
-
 if __name__ == "__main__":
-    import sys
-    if len(sys.argv) > 1 and sys.argv[1] == "--verify":
-        verify_patch()
-    else:
-        success = patch()
-        if success:
-            verify_patch()
+    success = patch()
+    if success:
+        # Quick syntax check
+        try:
+            import ast
+            with open(TARGET) as f:
+                ast.parse(f.read())
+            print("✓ Syntax OK")
+        except SyntaxError as e:
+            print(f"✗ SYNTAX ERROR: {e}")
+            print(f"  Restore with: cp {BACKUP} {TARGET}")
