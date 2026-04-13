@@ -6953,6 +6953,31 @@ async def get_executive_summary(chart_id: str, language: str = "es"):
                 current_dasha = current_dasha + "-" + ad_row["planet_or_sign"].strip()
         result = build_executive_summary(cd, jd, lk, current_dasha, dasha_list)
         instruments = result.get("instruments", {})
+        # Translate symptom text to plain language
+        if language == "es":
+            for k, inst in instruments.items():
+                inst["symptom_plain"] = _translate_instrument_symptom_es(
+                    inst.get("symptom",""), inst.get("signal_status",""), inst.get("name","")
+                )
+                # Also translate instrument name to Spanish
+                ES_NAMES = {
+                    "Marriage & Partners": "Socios y Alianzas",
+                    "Income & Network": "Ingresos y Red",
+                    "Home & Property": "Hogar y Propiedad",
+                    "Career & Status": "Carrera y Autoridad",
+                    "Children & Intelligence": "Creatividad e Inteligencia",
+                    "Wealth & Savings": "Riqueza y Ahorros",
+                    "Enemies & Legal": "Retos y Legal",
+                    "Funding & Transformation": "Transformacion",
+                    "Health & Identity": "Salud e Identidad",
+                    "Fortune & Expansion": "Suerte y Expansion",
+                    "Spirituality & Loss": "Espiritualidad",
+                    "Courage & Initiative": "Valentia e Iniciativa",
+                }
+                if inst.get("name") in ES_NAMES:
+                    inst["name_es"] = ES_NAMES[inst["name"]]
+                else:
+                    inst["name_es"] = inst.get("name", k)
         result["plain_signal"] = _build_plain_dashboard_signal(instruments, language)
         return result
     except Exception as e:
@@ -8653,6 +8678,47 @@ from antar_engine.verification_engine import generate_verification_queue, calcul
 class _PracticeCompleteReq(_PracticeBaseModel):
     practice_id: str
     user_note: str = None
+
+
+def _translate_instrument_symptom_es(symptom, status, area_name):
+    """Convert internal symptom jargon to plain Spanish."""
+    if not symptom or not isinstance(symptom, str): 
+        return _default_symptom_es(status, area_name)
+    
+    # Strip internal jargon patterns entirely
+    import re
+    # Remove "X (instrument lord) in dusthana annual house — ..." patterns
+    cleaned = re.sub(r'[A-Z][a-z]+ [A-Z][a-z]+\s*\(instrument lord\)[^.]*\.?\s*', '', symptom)
+    # Remove "X transiting through this instrument — ..." patterns  
+    cleaned = re.sub(r'[A-Z][a-z]+ [A-Z][a-z]+\s*transiting through[^.]*\.?\s*', '', cleaned)
+    # Remove "Processing Speed", "Action Drive", "Magnetism Field", "Intuition Compass" etc.
+    for jargon in ["Processing Speed", "Action Drive", "Magnetism Field", "Intuition Compass",
+                   "Ambition Engine", "Structural Load", "Fortune Vector", "Authority Signal",
+                   "instrument lord", "dusthana", "Argala", "unobstructed interventions",
+                   "PRESSURE", "ACTIVE"]:
+        cleaned = cleaned.replace(jargon, "")
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip(" .,—-")
+    
+    # If nothing meaningful remains, use status-based default
+    if len(cleaned) < 10:
+        return _default_symptom_es(status, area_name)
+    return cleaned
+
+def _default_symptom_es(status, area_name):
+    """Plain Spanish description based on status."""
+    name = area_name.lower() if area_name else "esta area"
+    status = (status or "").upper()
+    if status == "FRICTION":
+        return f"Esta area necesita tu atencion ahora. Actua con cuidado."
+    elif status == "ACTIVE":
+        return f"Energia abierta. Buen momento para avanzar en {name}."
+    elif status == "PEAK":
+        return f"En su mejor momento. Prioriza {name} esta semana."
+    elif status == "PREPARING":
+        return f"Se esta preparando. La energia de {name} se abrira pronto."
+    else:
+        return f"Sin actividad significativa en {name} ahora."
+
 
 def _translate_practice_schedule_es(sched):
     if not sched or not isinstance(sched, dict): return sched
