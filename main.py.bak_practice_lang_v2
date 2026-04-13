@@ -8853,8 +8853,7 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
                     else:
                         result = _translated
 
-                if language == "es": _sched = _translate_practice_schedule_es(_sched)
-        return {"status": "ok", "source": "cache", "schedule": _sched}
+                return {"status": "ok", "source": "cache", "schedule": _sched}
         _chart = supabase.table("charts").select("chart_data, jaimini_data, lal_kitab_data, current_country, birth_date").eq("id", chart_id).single().execute()
         if not _chart.data:
             return {"status": "error", "message": "Chart not found"}
@@ -8872,7 +8871,6 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
             supabase.table("practice_schedule_cache").upsert({"chart_id": chart_id, "week_of": _week_of.isoformat(), "cache_key": _sched.get("cache_key", ""), "schedule_data": _sched}, on_conflict="chart_id,week_of").execute()
         except Exception:
             pass
-        if language == "es": _sched = _translate_practice_schedule_es(_sched)
         return {"status": "ok", "source": "generated", "schedule": _sched}
     except Exception as e:
         print(f"[PRACTICE] Schedule error: {e}")
