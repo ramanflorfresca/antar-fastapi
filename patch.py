@@ -1,374 +1,162 @@
 #!/usr/bin/env python3
 """
-patch_executive_summary_plain.py
-Adds plain-language translation layer to /api/v1/executive-summary/{chart_id}
-Translates 12-channel instrument scores into simple human dashboard signal.
-
-Run: python patch_executive_summary_plain.py
+patch_exec_return.py
+Targeted fix: replaces `return result` in get_executive_summary with
+a version that adds plain_signal and language param.
+Run from ~/antarai: python patch_exec_return.py
 """
-
-import re, shutil, os
+import shutil, os, ast
 
 TARGET = os.path.expanduser("~/antarai/main.py")
-BACKUP = TARGET + ".bak_exec_plain"
-
+BACKUP = TARGET + ".bak_exec_return"
 shutil.copy2(TARGET, BACKUP)
-print(f"✅ Backed up to {BACKUP}")
 
 with open(TARGET, "r") as f:
     src = f.read()
 
-# ── The plain-language translation function to inject ─────────────────────────
-TRANSLATION_FUNC = '''
-# ─── Plain language translation for executive-summary dashboard signal ───────
+# ── Fix 1: Add language param to function signature ──────────────────────────
+OLD_SIG = 'async def get_executive_summary(chart_id: str):'
+NEW_SIG = 'async def get_executive_summary(chart_id: str, language: str = "es"):'
 
-_INSTRUMENT_TO_DOMAIN = {
-    "SYSTEM_VITALS":      "salud",
-    "CAPITAL_RESERVES":   "finanzas",
-    "ACTION_CAPACITY":    "accion",
-    "REAL_ESTATE_RADAR":  "hogar",
-    "CREATION_ENGINE":    "creatividad",
-    "CONFLICT_SHIELD":    "conflictos",
-    "ALLIANCE_SYNC":      "relaciones",
-    "CAPITAL_RUNWAY":     "transformacion",
-    "FORTUNE_VECTOR":     "oportunidad",
-    "AUTHORITY_ENGINE":   "carrera",
-    "REVENUE_PIPELINE":   "ingresos",
-    "GLOBAL_VECTOR":      "viajes",
-}
+if OLD_SIG in src:
+    src = src.replace(OLD_SIG, NEW_SIG)
+    print("✅ Added language param to signature")
+elif NEW_SIG in src:
+    print("✅ language param already present")
+else:
+    print("⚠️  Could not find signature — check manually")
 
-_DOMAIN_NAMES_ES = {
-    "carrera":        "Carrera",
-    "ingresos":       "Ingresos",
-    "relaciones":     "Relaciones",
-    "finanzas":       "Finanzas",
-    "salud":          "Salud y energía",
-    "accion":         "Iniciativa",
-    "hogar":          "Hogar y raíces",
-    "creatividad":    "Creatividad",
-    "conflictos":     "Manejo de conflictos",
-    "transformacion": "Transformación",
-    "oportunidad":    "Oportunidad",
-    "viajes":         "Viajes y expansión",
-}
+# ── Fix 2: Replace `return result` with enriched return ──────────────────────
+# The exact lines are:
+#   result = build_executive_summary(cd, jd, lk, current_dasha, dasha_list)
+#   return result
 
-_STATUS_TO_ES = {
-    "ACTIVE":    "activo",
-    "PREPARING": "preparando",
-    "FRICTION":  "bajo presión",
-    "PEAK":      "en su mejor momento",
-    "DORMANT":   "dormido",
-}
+OLD_RETURN = '''        result = build_executive_summary(cd, jd, lk, current_dasha, dasha_list)
+        return result'''
 
-def _build_plain_dashboard_signal(instruments: list, language: str = "es") -> dict:
-    """
-    Takes raw 12-instrument list from executive-summary.
-    Returns a simple dict for the dashboard hero card.
-    
-    Output:
-    {
-      "focus_area": "Carrera",
-      "focus_status": "activo",
-      "focus_message": "Tu energía de carrera está activa. Es buen momento para avanzar.",
-      "caution_area": "Finanzas",
-      "caution_message": "Las finanzas están bajo presión esta semana. Evita decisiones grandes.",
-      "open_window": "Ingresos",
-      "open_window_message": "Una oportunidad de ingresos se está preparando. Mantente atento.",
-      "do_this": "Avanza en el proyecto de carrera que has pospuesto.",
-      "avoid_this": "Evita compromisos financieros grandes esta semana.",
-      "urgency": "medium"
+NEW_RETURN = '''        result = build_executive_summary(cd, jd, lk, current_dasha, dasha_list)
+        instruments = result.get("instruments", {})
+        result["plain_signal"] = _build_plain_dashboard_signal(instruments, language)
+        return result'''
+
+if OLD_RETURN in src:
+    src = src.replace(OLD_RETURN, NEW_RETURN)
+    print("✅ plain_signal injected into return")
+else:
+    print("❌ Could not find exact return block. Trying looser match...")
+    # Try with different whitespace
+    import re
+    pattern = r'(        result = build_executive_summary\([^)]+\)\n)(        return result)'
+    replacement = r'\1        instruments = result.get("instruments", {})\n        result["plain_signal"] = _build_plain_dashboard_signal(instruments, language)\n        return result'
+    new_src, n = re.subn(pattern, replacement, src)
+    if n:
+        src = new_src
+        print(f"✅ plain_signal injected via regex ({n} match)")
+    else:
+        print("❌ FAILED. Print context around line 7035:")
+        lines = src.split('\n')
+        for i in range(7030, 7042):
+            print(f"  {i}: {repr(lines[i])}")
+        exit(1)
+
+# ── Fix 3: Replace the OLD _build_plain_dashboard_signal (list-based) ────────
+# with the new dict-based version if needed
+if "Takes raw 12-instrument list" in src:
+    print("⚠️  Old list-based _build_plain_dashboard_signal still present")
+    print("   Replacing with dict-based version...")
+
+    OLD_FUNC_START = "def _build_plain_dashboard_signal(instruments: list"
+    NEW_FUNC = '''def _build_plain_dashboard_signal(instruments, language="es"):
+    """Dict-based: instruments keyed by slug (vitals, reserves, action...)"""
+    _NAMES_ES = {
+        "vitals": "Salud y Energia", "reserves": "Ahorros y Riqueza",
+        "action": "Valentia e Iniciativa", "real_estate": "Hogar y Raices",
+        "creation": "Creatividad y Proyectos", "conflict": "Retos y Legal",
+        "alliance": "Socios y Alianzas", "runway": "Transformacion",
+        "fortune": "Oportunidad y Suerte", "authority": "Carrera y Autoridad",
+        "revenue": "Ingresos y Negocios", "global_vec": "Viajes y Expansion",
+        "global": "Viajes y Expansion",
     }
-    """
     if not instruments:
-        return _default_signal(language)
-
-    # Sort by score descending
-    scored = sorted(instruments, key=lambda x: x.get("score", 0), reverse=True)
-    
-    # Find top ACTIVE/PEAK instrument (the focus)
-    focus = None
-    for inst in scored:
-        status = inst.get("status", "").upper()
-        if status in ("ACTIVE", "PEAK"):
-            focus = inst
-            break
-    
-    # Find top FRICTION instrument (the caution)
-    caution = None
-    for inst in scored:
-        status = inst.get("status", "").upper()
-        if status == "FRICTION":
-            caution = inst
-            break
-    
-    # Find top PREPARING instrument (the opportunity)
-    window = None
-    for inst in scored:
-        status = inst.get("status", "").upper()
-        if status == "PREPARING" and inst != focus and inst != caution:
-            window = inst
-            break
-
-    def get_domain_name(inst):
-        raw = inst.get("name", "").upper().replace(" ", "_")
-        domain_key = _INSTRUMENT_TO_DOMAIN.get(raw, "general")
-        return _DOMAIN_NAMES_ES.get(domain_key, raw.replace("_", " ").title())
-
-    def get_status_es(inst):
-        raw = inst.get("status", "").upper()
-        return _STATUS_TO_ES.get(raw, raw.lower())
-
+        return {"focus_area": "Energia general", "focus_message": "Tu senal se esta calculando.", "do_this": "Mantente en tu rutina hoy.", "caution_area": None, "caution_message": None, "avoid_this": None, "open_window": None, "open_window_message": None, "urgency": "low"}
+    # Normalize: handle both dict and list
+    if isinstance(instruments, dict):
+        items = [(k, float(v.get("signal_score") or v.get("blueprint_score") or 0), (v.get("signal_status") or v.get("verdict") or "DORMANT").upper()) for k, v in instruments.items()]
+    else:
+        items = [(v.get("name","x"), float(v.get("signal_score") or v.get("blueprint_score") or 0), (v.get("signal_status") or v.get("verdict") or "DORMANT").upper()) for v in instruments]
+    items.sort(key=lambda x: x[1], reverse=True)
+    def nme(k): return _NAMES_ES.get(k, k.replace("_"," ").title())
+    focus_key = next((k for k,s,st in items if st in ("ACTIVE","PEAK")), items[0][0] if items else None)
+    caution_key = next((k for k,s,st in items if st == "FRICTION"), None)
+    window_key = next((k for k,s,st in items if st == "PREPARING" and k != focus_key), None)
+    top = items[0][1] if items else 0
+    urgency = "high" if (caution_key and top > 65) else "medium" if caution_key else "low"
+    focus_st = next((st for k,s,st in items if k == focus_key), "ACTIVE")
+    st_map = {"ACTIVE":"activa","PEAK":"en su mejor momento","PREPARING":"preparandose","FRICTION":"bajo presion","DORMANT":"dormida","POSITION":"preparandose"}
     if language == "es":
-        result = {}
-        
-        if focus:
-            area = get_domain_name(focus)
-            status_es = get_status_es(focus)
-            result["focus_area"] = area
-            result["focus_status"] = status_es
-            result["focus_message"] = f"Tu energía de {area.lower()} está {status_es}. Buen momento para avanzar."
-            result["do_this"] = f"Pon atención activa a {area.lower()} esta semana."
-        else:
-            result["focus_area"] = "Energía general"
-            result["focus_status"] = "preparando"
-            result["focus_message"] = "Tu energía está en fase de preparación. Consolida antes de expandir."
-            result["do_this"] = "Consolida lo que ya tienes. No inicies nuevos proyectos esta semana."
-
-        if caution:
-            area = get_domain_name(caution)
-            result["caution_area"] = area
-            result["caution_message"] = f"{area} está bajo presión. Actúa con cuidado."
-            result["avoid_this"] = f"Evita decisiones grandes relacionadas con {area.lower()} esta semana."
-        else:
-            result["caution_area"] = None
-            result["caution_message"] = None
-            result["avoid_this"] = None
-
-        if window:
-            area = get_domain_name(window)
-            result["open_window"] = area
-            result["open_window_message"] = f"Una oportunidad de {area.lower()} se está abriendo. Mantente atento."
-        else:
-            result["open_window"] = None
-            result["open_window_message"] = None
-
-        # Urgency based on friction presence and top score
-        top_score = scored[0].get("score", 0) if scored else 0
-        if caution and top_score > 65:
-            result["urgency"] = "high"
-        elif caution or top_score > 55:
-            result["urgency"] = "medium"
-        else:
-            result["urgency"] = "low"
-
-        return result
-    
-    else:  # English fallback
-        result = {}
-        if focus:
-            area = get_domain_name(focus)
-            result["focus_area"] = area
-            result["focus_message"] = f"Your {area.lower()} energy is active. Good time to move forward."
-            result["do_this"] = f"Give active attention to {area.lower()} this week."
-        else:
-            result["focus_area"] = "General energy"
-            result["focus_message"] = "Your energy is in a preparation phase. Consolidate before expanding."
-            result["do_this"] = "Consolidate what you have. Don't start new projects this week."
-
-        if caution:
-            area = get_domain_name(caution)
-            result["caution_area"] = area
-            result["caution_message"] = f"{area} is under pressure. Act carefully."
-            result["avoid_this"] = f"Avoid major {area.lower()} decisions this week."
-        else:
-            result["caution_area"] = None
-            result["caution_message"] = None
-            result["avoid_this"] = None
-
-        if window:
-            area = get_domain_name(window)
-            result["open_window"] = area
-            result["open_window_message"] = f"A {area.lower()} opportunity is opening. Stay alert."
-        else:
-            result["open_window"] = None
-            result["open_window_message"] = None
-
-        top_score = scored[0].get("score", 0) if scored else 0
-        result["urgency"] = "high" if (caution and top_score > 65) else "medium" if caution else "low"
-        return result
-
-
-def _default_signal(language: str = "es") -> dict:
-    if language == "es":
+        fname = nme(focus_key) if focus_key else "Energia general"
+        flabel = st_map.get(focus_st, "activa")
+        suffix = " Es buen momento para avanzar." if focus_st in ("ACTIVE","PEAK") else " Se esta preparando." if focus_st=="PREPARING" else ""
         return {
-            "focus_area": "Energía general",
-            "focus_status": "calculando",
-            "focus_message": "Tu señal se está calculando. Vuelve en unos minutos.",
-            "do_this": "Mantén tu rutina habitual hoy.",
-            "caution_area": None,
-            "caution_message": None,
-            "avoid_this": None,
-            "open_window": None,
-            "open_window_message": None,
-            "urgency": "low"
+            "focus_area": fname, "focus_status": flabel,
+            "focus_message": f"Tu energia de {fname.lower()} esta {flabel}.{suffix}",
+            "do_this": f"Pon atencion activa a {fname.lower()} esta semana.",
+            "caution_area": nme(caution_key) if caution_key else None,
+            "caution_message": f"{nme(caution_key)} esta bajo presion ahora." if caution_key else None,
+            "avoid_this": f"Evita decisiones en {nme(caution_key).lower()} esta semana." if caution_key else None,
+            "open_window": nme(window_key) if window_key else None,
+            "open_window_message": f"Una oportunidad en {nme(window_key).lower()} se esta preparando." if window_key else None,
+            "urgency": urgency,
         }
+    fname = focus_key.replace("_"," ").title() if focus_key else "General energy"
     return {
-        "focus_area": "General energy",
-        "focus_status": "calculating",
-        "focus_message": "Your signal is being calculated. Check back in a few minutes.",
-        "do_this": "Maintain your usual routine today.",
-        "caution_area": None,
-        "caution_message": None,
-        "avoid_this": None,
-        "open_window": None,
-        "open_window_message": None,
-        "urgency": "low"
+        "focus_area": fname,
+        "focus_message": f"Your {fname.lower()} energy is active. Good time to move forward.",
+        "do_this": f"Give active attention to {fname.lower()} this week.",
+        "caution_area": caution_key if caution_key else None,
+        "caution_message": f"{caution_key} is under pressure." if caution_key else None,
+        "avoid_this": f"Avoid major {caution_key} decisions this week." if caution_key else None,
+        "open_window": window_key if window_key else None,
+        "open_window_message": f"A {window_key} opportunity is opening." if window_key else None,
+        "urgency": urgency,
     }
 '''
-
-# ── Inject the translation function before the executive-summary route ────────
-ANCHOR = '@app.get("/api/v1/executive-summary/{chart_id}")'
-ALT_ANCHOR = "async def executive_summary"
-
-if ANCHOR in src:
-    insert_before = ANCHOR
-elif ALT_ANCHOR in src:
-    insert_before = ALT_ANCHOR
-else:
-    print("❌ Could not find executive-summary route anchor. Searching...")
-    # Try to find any reference
-    matches = [line for line in src.split('\n') if 'executive' in line.lower()]
-    print("Found lines with 'executive':")
-    for m in matches[:10]:
-        print(f"  {m}")
-    print("Manual insertion required.")
-    exit(1)
-
-if "_build_plain_dashboard_signal" in src:
-    print("⚠️  Translation function already exists — skipping injection")
-else:
-    src = src.replace(insert_before, TRANSLATION_FUNC + "\n" + insert_before)
-    print("✅ Translation function injected")
-
-# ── Patch the executive-summary return to include plain_signal ────────────────
-# Find the return statement in executive-summary and add plain_signal to it
-
-# Pattern: look for the return dict in executive-summary
-RETURN_PATTERN = r'(return\s*\{[^}]*"instruments"\s*:\s*instruments[^}]*\})'
-
-def add_plain_signal_to_return(match):
-    old_return = match.group(0)
-    if "plain_signal" in old_return:
-        return old_return  # already patched
-    # Add plain_signal before the closing brace
-    new_return = old_return.rstrip("}")
-    new_return += ',\n        "plain_signal": _build_plain_dashboard_signal(instruments, language)\n    }'
-    return new_return
-
-new_src, count = re.subn(RETURN_PATTERN, add_plain_signal_to_return, src, flags=re.DOTALL)
-
-if count == 0:
-    print("⚠️  Could not auto-patch return statement — adding manual hook")
-    # Simpler approach: find the executive-summary function and patch its return
-    # Look for return {...} near the executive-summary route
-    SIMPLE_ANCHOR = '"blueprint_score"'
-    if SIMPLE_ANCHOR in src:
-        # Find the return containing blueprint_score and add plain_signal
-        src_lines = src.split('\n')
-        patched_lines = []
-        i = 0
-        patched = False
-        while i < len(src_lines):
-            line = src_lines[i]
-            if '"blueprint_score"' in line and not patched:
-                # Look for the closing of this return dict
-                patched_lines.append(line)
-                # Scan forward to find closing brace of this return
-                depth = 0
-                j = i + 1
-                inserted = False
-                while j < len(src_lines):
-                    l = src_lines[j]
-                    depth += l.count('{') - l.count('}')
-                    if not inserted and '"instruments"' in l:
-                        patched_lines.append(l)
-                        # Insert after instruments line
-                        indent = len(l) - len(l.lstrip())
-                        patched_lines.append(' ' * indent + '"plain_signal": _build_plain_dashboard_signal(instruments, language),')
-                        inserted = True
-                        j += 1
-                        continue
-                    patched_lines.append(l)
-                    if depth < 0:
-                        break
-                    j += 1
-                i = j + 1
-                patched = True
-                continue
-            patched_lines.append(line)
-            i += 1
-        
-        if patched:
-            new_src = '\n'.join(patched_lines)
-            print("✅ plain_signal added via line-scan method")
+    # Find the old function and replace it entirely
+    # Locate start
+    func_idx = src.find(OLD_FUNC_START)
+    if func_idx >= 0:
+        # Find the def line start
+        line_start = src.rfind('\n', 0, func_idx) + 1
+        # Find end of function: next top-level def or class
+        import re
+        end_match = re.search(r'\ndef [a-zA-Z_]|\n@app\.', src[func_idx:])
+        if end_match:
+            func_end = func_idx + end_match.start()
+            src = src[:line_start] + NEW_FUNC + '\n' + src[func_end:]
+            print("✅ Old list-based function replaced with dict-based version")
         else:
-            new_src = src
-            print("❌ Could not patch return — manual edit needed (see instructions below)")
+            print("⚠️  Could not find end of old function")
     else:
-        new_src = src
-        print("❌ Could not find 'blueprint_score' anchor — manual edit needed")
-else:
-    print(f"✅ Return statement patched ({count} location(s))")
-
-# ── Also add `language` param to executive-summary if not present ─────────────
-if 'language: str = "es"' not in new_src and "executive-summary" in new_src:
-    new_src = re.sub(
-        r'(async def executive_summary\([^)]*chart_id[^)]*)\)',
-        r'\1, language: str = "es")',
-        new_src
-    )
-    print("✅ Added language param to executive-summary")
+        print("⚠️  Could not locate old function start")
 
 # ── Write and verify ──────────────────────────────────────────────────────────
 with open(TARGET, "w") as f:
-    f.write(new_src)
+    f.write(src)
 
-import ast
+import ast as _ast
 try:
-    ast.parse(new_src)
+    _ast.parse(src)
     print("✅ Syntax OK")
 except SyntaxError as e:
     print(f"❌ Syntax error: {e}")
-    print("Restoring backup...")
     shutil.copy2(BACKUP, TARGET)
-    print("Backup restored. Manual edit required.")
+    print("Backup restored.")
     exit(1)
 
 print("""
-✅ PATCH COMPLETE
+DONE. Now run:
+  git add -A && git commit -m "feat: plain_signal in executive-summary" && git push
 
-What was added:
-- _build_plain_dashboard_signal() function
-- plain_signal field in executive-summary response
-
-New response shape:
-{
-  ...existing fields...,
-  "plain_signal": {
-    "focus_area": "Carrera",
-    "focus_message": "Tu energía de carrera está activa. Buen momento para avanzar.",
-    "do_this": "Pon atención activa a carrera esta semana.",
-    "caution_area": "Finanzas",
-    "caution_message": "Finanzas está bajo presión. Actúa con cuidado.",
-    "avoid_this": "Evita decisiones grandes relacionadas con finanzas esta semana.",
-    "open_window": "Ingresos",
-    "open_window_message": "Una oportunidad de ingresos se está abriendo.",
-    "urgency": "medium"
-  }
-}
-
-NEXT STEPS:
-1. git add -A && git commit -m "feat: plain_signal in executive-summary" && git push
-2. Test: curl https://antar-fastapi-production.up.railway.app/api/v1/executive-summary/de02bb52-d43a-4b09-be25-b45a07bfbf8a?language=es | python3 -m json.tool | grep -A 20 plain_signal
-3. Send LOVABLE_Dashboard_PlainSignal.md to Lovable
+Verify after ~60s:
+  curl -s "https://antar-fastapi-production.up.railway.app/api/v1/executive-summary/de02bb52-d43a-4b09-be25-b45a07bfbf8a?language=es" | python3 -c "import sys,json; d=json.load(sys.stdin); print(json.dumps(d.get('plain_signal'), indent=2, ensure_ascii=False))"
 """)

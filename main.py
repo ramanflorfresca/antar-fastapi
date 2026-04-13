@@ -6824,142 +6824,60 @@ _STATUS_TO_ES = {
     "DORMANT":   "dormido",
 }
 
-def _build_plain_dashboard_signal(instruments: list, language: str = "es") -> dict:
-    """
-    Takes raw 12-instrument list from executive-summary.
-    Returns a simple dict for the dashboard hero card.
-    
-    Output:
-    {
-      "focus_area": "Carrera",
-      "focus_status": "activo",
-      "focus_message": "Tu energía de carrera está activa. Es buen momento para avanzar.",
-      "caution_area": "Finanzas",
-      "caution_message": "Las finanzas están bajo presión esta semana. Evita decisiones grandes.",
-      "open_window": "Ingresos",
-      "open_window_message": "Una oportunidad de ingresos se está preparando. Mantente atento.",
-      "do_this": "Avanza en el proyecto de carrera que has pospuesto.",
-      "avoid_this": "Evita compromisos financieros grandes esta semana.",
-      "urgency": "medium"
+def _build_plain_dashboard_signal(instruments, language="es"):
+    """Dict-based: instruments keyed by slug (vitals, reserves, action...)"""
+    _NAMES_ES = {
+        "vitals": "Salud y Energia", "reserves": "Ahorros y Riqueza",
+        "action": "Valentia e Iniciativa", "real_estate": "Hogar y Raices",
+        "creation": "Creatividad y Proyectos", "conflict": "Retos y Legal",
+        "alliance": "Socios y Alianzas", "runway": "Transformacion",
+        "fortune": "Oportunidad y Suerte", "authority": "Carrera y Autoridad",
+        "revenue": "Ingresos y Negocios", "global_vec": "Viajes y Expansion",
+        "global": "Viajes y Expansion",
     }
-    """
     if not instruments:
-        return _default_signal(language)
-
-    # Sort by score descending
-    scored = sorted(instruments, key=lambda x: x.get("score", 0), reverse=True)
-    
-    # Find top ACTIVE/PEAK instrument (the focus)
-    focus = None
-    for inst in scored:
-        status = inst.get("status", "").upper()
-        if status in ("ACTIVE", "PEAK"):
-            focus = inst
-            break
-    
-    # Find top FRICTION instrument (the caution)
-    caution = None
-    for inst in scored:
-        status = inst.get("status", "").upper()
-        if status == "FRICTION":
-            caution = inst
-            break
-    
-    # Find top PREPARING instrument (the opportunity)
-    window = None
-    for inst in scored:
-        status = inst.get("status", "").upper()
-        if status == "PREPARING" and inst != focus and inst != caution:
-            window = inst
-            break
-
-    def get_domain_name(inst):
-        raw = inst.get("name", "").upper().replace(" ", "_")
-        domain_key = _INSTRUMENT_TO_DOMAIN.get(raw, "general")
-        return _DOMAIN_NAMES_ES.get(domain_key, raw.replace("_", " ").title())
-
-    def get_status_es(inst):
-        raw = inst.get("status", "").upper()
-        return _STATUS_TO_ES.get(raw, raw.lower())
-
+        return {"focus_area": "Energia general", "focus_message": "Tu senal se esta calculando.", "do_this": "Mantente en tu rutina hoy.", "caution_area": None, "caution_message": None, "avoid_this": None, "open_window": None, "open_window_message": None, "urgency": "low"}
+    # Normalize: handle both dict and list
+    if isinstance(instruments, dict):
+        items = [(k, float(v.get("signal_score") or v.get("blueprint_score") or 0), (v.get("signal_status") or v.get("verdict") or "DORMANT").upper()) for k, v in instruments.items()]
+    else:
+        items = [(v.get("name","x"), float(v.get("signal_score") or v.get("blueprint_score") or 0), (v.get("signal_status") or v.get("verdict") or "DORMANT").upper()) for v in instruments]
+    items.sort(key=lambda x: x[1], reverse=True)
+    def nme(k): return _NAMES_ES.get(k, k.replace("_"," ").title())
+    focus_key = next((k for k,s,st in items if st in ("ACTIVE","PEAK")), items[0][0] if items else None)
+    caution_key = next((k for k,s,st in items if st == "FRICTION"), None)
+    window_key = next((k for k,s,st in items if st == "PREPARING" and k != focus_key), None)
+    top = items[0][1] if items else 0
+    urgency = "high" if (caution_key and top > 65) else "medium" if caution_key else "low"
+    focus_st = next((st for k,s,st in items if k == focus_key), "ACTIVE")
+    st_map = {"ACTIVE":"activa","PEAK":"en su mejor momento","PREPARING":"preparandose","FRICTION":"bajo presion","DORMANT":"dormida","POSITION":"preparandose"}
     if language == "es":
-        result = {}
-        
-        if focus:
-            area = get_domain_name(focus)
-            status_es = get_status_es(focus)
-            result["focus_area"] = area
-            result["focus_status"] = status_es
-            result["focus_message"] = f"Tu energía de {area.lower()} está {status_es}. Buen momento para avanzar."
-            result["do_this"] = f"Pon atención activa a {area.lower()} esta semana."
-        else:
-            result["focus_area"] = "Energía general"
-            result["focus_status"] = "preparando"
-            result["focus_message"] = "Tu energía está en fase de preparación. Consolida antes de expandir."
-            result["do_this"] = "Consolida lo que ya tienes. No inicies nuevos proyectos esta semana."
-
-        if caution:
-            area = get_domain_name(caution)
-            result["caution_area"] = area
-            result["caution_message"] = f"{area} está bajo presión. Actúa con cuidado."
-            result["avoid_this"] = f"Evita decisiones grandes relacionadas con {area.lower()} esta semana."
-        else:
-            result["caution_area"] = None
-            result["caution_message"] = None
-            result["avoid_this"] = None
-
-        if window:
-            area = get_domain_name(window)
-            result["open_window"] = area
-            result["open_window_message"] = f"Una oportunidad de {area.lower()} se está abriendo. Mantente atento."
-        else:
-            result["open_window"] = None
-            result["open_window_message"] = None
-
-        # Urgency based on friction presence and top score
-        top_score = scored[0].get("score", 0) if scored else 0
-        if caution and top_score > 65:
-            result["urgency"] = "high"
-        elif caution or top_score > 55:
-            result["urgency"] = "medium"
-        else:
-            result["urgency"] = "low"
-
-        return result
-    
-    else:  # English fallback
-        result = {}
-        if focus:
-            area = get_domain_name(focus)
-            result["focus_area"] = area
-            result["focus_message"] = f"Your {area.lower()} energy is active. Good time to move forward."
-            result["do_this"] = f"Give active attention to {area.lower()} this week."
-        else:
-            result["focus_area"] = "General energy"
-            result["focus_message"] = "Your energy is in a preparation phase. Consolidate before expanding."
-            result["do_this"] = "Consolidate what you have. Don't start new projects this week."
-
-        if caution:
-            area = get_domain_name(caution)
-            result["caution_area"] = area
-            result["caution_message"] = f"{area} is under pressure. Act carefully."
-            result["avoid_this"] = f"Avoid major {area.lower()} decisions this week."
-        else:
-            result["caution_area"] = None
-            result["caution_message"] = None
-            result["avoid_this"] = None
-
-        if window:
-            area = get_domain_name(window)
-            result["open_window"] = area
-            result["open_window_message"] = f"A {area.lower()} opportunity is opening. Stay alert."
-        else:
-            result["open_window"] = None
-            result["open_window_message"] = None
-
-        top_score = scored[0].get("score", 0) if scored else 0
-        result["urgency"] = "high" if (caution and top_score > 65) else "medium" if caution else "low"
-        return result
+        fname = nme(focus_key) if focus_key else "Energia general"
+        flabel = st_map.get(focus_st, "activa")
+        suffix = " Es buen momento para avanzar." if focus_st in ("ACTIVE","PEAK") else " Se esta preparando." if focus_st=="PREPARING" else ""
+        return {
+            "focus_area": fname, "focus_status": flabel,
+            "focus_message": f"Tu energia de {fname.lower()} esta {flabel}.{suffix}",
+            "do_this": f"Pon atencion activa a {fname.lower()} esta semana.",
+            "caution_area": nme(caution_key) if caution_key else None,
+            "caution_message": f"{nme(caution_key)} esta bajo presion ahora." if caution_key else None,
+            "avoid_this": f"Evita decisiones en {nme(caution_key).lower()} esta semana." if caution_key else None,
+            "open_window": nme(window_key) if window_key else None,
+            "open_window_message": f"Una oportunidad en {nme(window_key).lower()} se esta preparando." if window_key else None,
+            "urgency": urgency,
+        }
+    fname = focus_key.replace("_"," ").title() if focus_key else "General energy"
+    return {
+        "focus_area": fname,
+        "focus_message": f"Your {fname.lower()} energy is active. Good time to move forward.",
+        "do_this": f"Give active attention to {fname.lower()} this week.",
+        "caution_area": caution_key if caution_key else None,
+        "caution_message": f"{caution_key} is under pressure." if caution_key else None,
+        "avoid_this": f"Avoid major {caution_key} decisions this week." if caution_key else None,
+        "open_window": window_key if window_key else None,
+        "open_window_message": f"A {window_key} opportunity is opening." if window_key else None,
+        "urgency": urgency,
+    }
 
 
 def _default_signal(language: str = "es") -> dict:
@@ -6990,7 +6908,7 @@ def _default_signal(language: str = "es") -> dict:
     }
 
 @app.get("/api/v1/executive-summary/{chart_id}")
-async def get_executive_summary(chart_id: str):
+async def get_executive_summary(chart_id: str, language: str = "es"):
     try:
         from antar_engine.symptom_library import build_executive_summary
         from datetime import datetime as _exdt
@@ -7034,6 +6952,8 @@ async def get_executive_summary(chart_id: str):
             if ad_row:
                 current_dasha = current_dasha + "-" + ad_row["planet_or_sign"].strip()
         result = build_executive_summary(cd, jd, lk, current_dasha, dasha_list)
+        instruments = result.get("instruments", {})
+        result["plain_signal"] = _build_plain_dashboard_signal(instruments, language)
         return result
     except Exception as e:
         import traceback
