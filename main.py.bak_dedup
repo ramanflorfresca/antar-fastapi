@@ -11142,9 +11142,6 @@ async def get_daily_week(chart_id: str, language: str = "en"):
         for i, day in enumerate(signals):
             day["event_signal"] = wow_signal if i == 0 else None
 
-        if language == "es":
-            signals = _translate_daily_signals_es(signals)
-
         return {
             "chart_id": chart_id,
             "natal_moon_sign": natal_moon_sign,

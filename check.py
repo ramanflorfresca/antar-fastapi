@@ -4,13 +4,12 @@ TARGET = os.path.expanduser("~/antarai/main.py")
 with open(TARGET) as f:
     lines = f.readlines()
 
-# Find daily-week route and function
-for i,l in enumerate(lines):
-    if 'daily-week' in l and ('app.get' in l or 'async def' in l):
-        print(f"{i+1}: {l.rstrip()}")
+# Show context around line 11382
+print("=== Around line 11382 (translate call) ===")
+for i in range(11375, 11400):
+    print(f"{i+1}: {lines[i].rstrip()}")
 
 print()
-# Find where signal and move fields are set
-for i,l in enumerate(lines):
-    if ('"signal"' in l or '"move"' in l or '"aligned_for"' in l) and ('=' in l or ':' in l):
-        print(f"{i+1}: {l.rstrip()[:120]}")
+print("=== Around line 11060 (return statement) ===")  
+for i in range(11055, 11085):
+    print(f"{i+1}: {lines[i].rstrip()}")
