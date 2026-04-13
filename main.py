@@ -8655,7 +8655,7 @@ class _PracticeCompleteReq(_PracticeBaseModel):
     user_note: str = None
 
 @app.get("/api/v1/practices/{chart_id}/schedule")
-async def get_practice_schedule_endpoint(chart_id: str, refresh: bool = False):
+async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", refresh: bool = False):
     try:
         from datetime import date as _d, timedelta as _td
         _today = _d.today()
