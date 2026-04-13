@@ -8654,6 +8654,43 @@ class _PracticeCompleteReq(_PracticeBaseModel):
     practice_id: str
     user_note: str = None
 
+def _translate_practice_schedule_es(sched):
+    if not sched or not isinstance(sched, dict): return sched
+    import copy; s = copy.deepcopy(sched)
+    L = {"Love & Creativity":"Amor y Creatividad","Communication & Clarity":"Comunicacion y Claridad","Career & Authority":"Carrera y Autoridad","Health & Vitality":"Salud y Vitalidad","Wealth & Resources":"Riqueza y Recursos","Courage & Initiative":"Valentia e Iniciativa","Wisdom & Expansion":"Sabiduria y Expansion","Relationships & Harmony":"Relaciones y Armonia","Discipline & Structure":"Disciplina y Estructura","Transformation":"Transformacion"}
+    TM = {"morning":"manana","evening":"tarde/noche","morning or evening":"manana o tarde/noche","evening, in a calm space":"tarde/noche en espacio tranquilo","morning, before important conversations":"manana antes de conversaciones importantes","morning, before meetings or writing":"manana antes de reuniones"}
+    DY = {"Monday":"Lunes","Tuesday":"Martes","Wednesday":"Miercoles","Thursday":"Jueves","Friday":"Viernes","Saturday":"Sabado","Sunday":"Domingo"}
+    TX = {"Your ability to attract":"Tu capacidad de atraer","love, beauty, resources":"amor belleza recursos","Create something beautiful this week":"Crea algo hermoso esta semana","Take yourself somewhere aesthetically inspiring":"Ve a un lugar que inspire belleza","Wear white on Friday":"Viste de blanco el viernes","Your communication and analytical abilities are foggy":"Tu capacidad de comunicacion esta nublada","Strong alignment:":"Fuerte alineacion:","indicators confirm your":"indicadores confirman que tu energia de","energy is the focus right now":"es el enfoque ahora","I attract love, beauty, and creative abundance":"Atraigo amor belleza y abundancia creativa","I am disciplined, patient, and build things that last":"Soy disciplinado/a paciente y construyo cosas que duran"}
+    def t(v):
+        if not v or not isinstance(v,str): return v
+        for a,b in {**L,**TX}.items(): v=v.replace(a,b)
+        return v
+    def tp(p):
+        if not p: return p
+        if "energy_label" in p: p["energy_label"]=L.get(p["energy_label"],p["energy_label"])
+        if "best_time" in p: p["best_time"]=TM.get(p["best_time"],p["best_time"])
+        if "best_day" in p: p["best_day"]=DY.get(p["best_day"],p["best_day"])
+        if "day" in p: p["day"]=DY.get(p["day"],p["day"])
+        for f in ("why","what","how","practice_why","practice_why_science","duration_reason","completion_milestone"):
+            if f in p: p[f]=t(p[f])
+        return p
+    if "primary_practice" in s: tp(s["primary_practice"])
+    if "supporting_practices" in s: [tp(p) for p in s["supporting_practices"]]
+    if "mantra_of_the_day" in s:
+        m=s["mantra_of_the_day"]
+        if "energy_label" in m: m["energy_label"]=L.get(m["energy_label"],m["energy_label"])
+        if "affirmation" in m: m["affirmation"]=TX.get(m.get("affirmation",""),m.get("affirmation",""))
+        if "mantra_best_time" in m: m["mantra_best_time"]=TM.get(m["mantra_best_time"],m["mantra_best_time"])
+    if "convergence_summary" in s:
+        cs=s["convergence_summary"]
+        for a,b in {**L,**TX}.items(): cs=cs.replace(a,b)
+        s["convergence_summary"]=cs
+    if "weekly_plan" in s:
+        for d in s["weekly_plan"]:
+            if "energy_label" in d: d["energy_label"]=L.get(d["energy_label"],d["energy_label"])
+            if "day_name" in d: d["day_name"]=DY.get(d["day_name"],d["day_name"])
+    return s
+
 @app.get("/api/v1/practices/{chart_id}/schedule")
 async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", refresh: bool = False):
     try:
