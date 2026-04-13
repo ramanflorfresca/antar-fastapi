@@ -10681,8 +10681,136 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
 # GET /api/v1/daily-week/{chart_id}  — 7-Day Daily Signal Engine
 # ═══════════════════════════════════════════════════════════════════
 
+
+# ============================================================
+# HORA SPANISH TRANSLATION
+# ============================================================
+
+_HORA_WINDOW_ES = {
+    "EXPANSION WINDOW": "VENTANA DE EXPANSIÓN",
+    "DRIVE WINDOW": "VENTANA DE IMPULSO",
+    "AUTHORITY WINDOW": "VENTANA DE AUTORIDAD",
+    "LOVE WINDOW": "VENTANA DE AMOR",
+    "ATTRACTION WINDOW": "VENTANA DE ATRACCIÓN",
+    "REFLECTION WINDOW": "VENTANA DE REFLEXIÓN",
+    "DISCIPLINE WINDOW": "VENTANA DE DISCIPLINA",
+    "STRUCTURE WINDOW": "VENTANA DE ESTRUCTURA",
+    "COMMUNICATION WINDOW": "VENTANA DE COMUNICACIÓN",
+    "SHADOW WINDOW": "VENTANA DE SOMBRA",
+    "DISSOLUTION WINDOW": "VENTANA DE DISOLUCIÓN",
+}
+
+_HORA_FIELD_ES = {
+    "EXPANSION": "EXPANSIÓN",
+    "COMMAND": "MANDO",
+    "CONNECTION": "CONEXIÓN",
+    "ATTRACTION": "ATRACCIÓN",
+    "REFLECTION": "REFLEXIÓN",
+    "DISCIPLINE": "DISCIPLINA",
+    "STRUCTURE": "ESTRUCTURA",
+    "COMMUNICATION": "COMUNICACIÓN",
+    "SHADOW": "SOMBRA",
+}
+
+_HORA_MODE_ES = {
+    "EXPAND": "EXPANDIR",
+    "DRIVE": "IMPULSAR",
+    "ATTRACT": "ATRAER",
+    "REFLECT": "REFLEJAR",
+    "STRUCTURE": "ESTRUCTURAR",
+    "CONNECT": "CONECTAR",
+    "DISSOLVE": "DISOLVER",
+}
+
+_HORA_BY_RULER_ES = {
+    "Jupiter": {
+        "action": "Estrategia, planificación a largo plazo, mentoría, aprendizaje",
+        "plain_message": "Piensa en grande. Sesiones de estrategia, planificación a largo plazo, conversaciones de mentoría. Esta es tu ventana de pensamiento más claro.",
+    },
+    "Mars": {
+        "action": "Ejecución de alta intensidad, gimnasio, confrontaciones, llamadas en frío",
+        "plain_message": "Alta energía, alta intensidad. Buena para el gimnasio, llamadas en frío, o empujar una tarea difícil. Canalízala o te canaliza a ti.",
+    },
+    "Sun": {
+        "action": "Reuniones de alto nivel, decisiones de liderazgo, movimientos de visibilidad",
+        "plain_message": "Tu ventana de mando está abierta. Envía esa propuesta. Toma la decisión. Ten la conversación de alto riesgo.",
+    },
+    "Venus": {
+        "action": "Relaciones, negociación, acuerdos, trabajo creativo, cerrar con calidez",
+        "plain_message": "Ventana de atracción. Buena para relaciones, negociación con calidez, trabajo creativo, cerrar con encanto en vez de presión.",
+    },
+    "Saturn": {
+        "action": "Trabajo profundo, disciplina, documentación, auditoría, compromisos a largo plazo",
+        "plain_message": "Ventana de estructura. Trabajo profundo, documentación, decisiones serias. Lento pero sólido — lo que construyas aquí dura.",
+    },
+    "Mercury": {
+        "action": "Escritura, análisis, correos, llamadas, negociación, aprendizaje rápido",
+        "plain_message": "Ventana de comunicación. Escribe el correo, haz la llamada, analiza los datos. Tu mente está ágil — úsala.",
+    },
+    "Moon": {
+        "action": "Reflexión, descanso, planificar mañana, trabajo emocional, familia",
+        "plain_message": "Baja la intensidad. Reflexiona, planea mañana, conversa con la familia. Ventana suave — no fuerces decisiones grandes.",
+    },
+    "Rahu": {
+        "action": "Movimientos no convencionales, tecnología, apuestas calculadas",
+        "plain_message": "Ventana de ruptura. Buena para movimientos no convencionales y tecnología — pero verifica dos veces antes de firmar.",
+    },
+    "Ketu": {
+        "action": "Soltar, meditar, revisión, cierre de ciclos — NO inicies nada nuevo",
+        "plain_message": "Ventana de disolución. No inicies nada nuevo. Buena para soltar, meditar, cerrar ciclos pendientes.",
+    },
+}
+
+
+def _translate_hora_entry_es(h: dict) -> dict:
+    """Translate a single hora dict in-place (returns same dict)."""
+    if not isinstance(h, dict):
+        return h
+
+    # Window label
+    if h.get("window") in _HORA_WINDOW_ES:
+        h["window"] = _HORA_WINDOW_ES[h["window"]]
+
+    # Field / mode
+    if h.get("field") in _HORA_FIELD_ES:
+        h["field"] = _HORA_FIELD_ES[h["field"]]
+    if h.get("mode") in _HORA_MODE_ES:
+        h["mode"] = _HORA_MODE_ES[h["mode"]]
+
+    # Action + plain_message — key off ruler (always English from engine)
+    ruler = h.get("ruler")
+    if ruler and ruler in _HORA_BY_RULER_ES:
+        tr = _HORA_BY_RULER_ES[ruler]
+        h["action"] = tr["action"]
+        h["plain_message"] = tr["plain_message"]
+
+    return h
+
+
+def _translate_hora_es(result: dict) -> dict:
+    """Apply Spanish translation to full hora response dict."""
+    if not isinstance(result, dict):
+        return result
+
+    if result.get("current_hora"):
+        result["current_hora"] = _translate_hora_entry_es(result["current_hora"])
+
+    if isinstance(result.get("upcoming_horas"), list):
+        result["upcoming_horas"] = [
+            _translate_hora_entry_es(h) for h in result["upcoming_horas"]
+        ]
+
+    if result.get("next_power_hora"):
+        result["next_power_hora"] = _translate_hora_entry_es(result["next_power_hora"])
+
+    return result
+
+# ============================================================
+# END HORA SPANISH TRANSLATION
+# ============================================================
+
 @app.get("/api/v1/hora/{chart_id}")
-async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
+async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8, language: Optional[str] = "en"):
     """
     Kala Hora — Planetary Hour Timing Engine.
     Returns current hora + upcoming N horas with FIELD×MODE guidance.
@@ -10737,6 +10865,10 @@ async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
         result["next_power_hora"] = get_next_power_hora(
             result["upcoming_horas"], daily_field
         )
+
+    # Spanish translation layer
+    if (language or "en").lower() == "es":
+        result = _translate_hora_es(result)
 
     return result
 
