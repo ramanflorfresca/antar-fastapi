@@ -3400,10 +3400,19 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
                 _h_full = _hl.md5(_ms_full.encode()).hexdigest()[:8]
                 _h_static = _hl.md5(_ms_static.encode()).hexdigest()[:8]
                 print(f"[kv-debug] full_hash={_h_full} static_hash={_h_static} static_len={len(_ms_static)}")
-                print(f"[kv-debug] static_HEAD: {_ms_static[:200]!r}")
-                print(f"[kv-debug] static_TAIL: {_ms_static[-300:]!r}")
-                print(f"[kv-debug] user_prompt_HEAD: {prompt[:200]!r}")
-                print(f"[kv-debug] user_prompt_TAIL: {prompt[-300:]!r}")
+
+                # Chunk-hash: split static into 5 equal parts and hash each
+                _slen = len(_ms_static)
+                _n_chunks = 5
+                _chunk_size = _slen // _n_chunks
+                for _i in range(_n_chunks):
+                    _start = _i * _chunk_size
+                    _end = _slen if _i == _n_chunks - 1 else (_i + 1) * _chunk_size
+                    _chunk = _ms_static[_start:_end]
+                    _ch = _hl.md5(_chunk.encode()).hexdigest()[:8]
+                    # Print hash + last 80 chars of chunk for context
+                    _tail80 = _chunk[-80:].replace("\n", "\\n")
+                    print(f"[kv-chunk] {_i+1}/5 [{_start:5d}-{_end:5d}] hash={_ch} tail80={_tail80!r}")
             except Exception as _kvde:
                 print(f"[kv-debug] error: {_kvde}")
             # === END KV CACHE DEBUG ===
