@@ -3442,7 +3442,9 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
                         "signal_line": _parsed.get("signal_line", ""),
                         "action_item": _parsed.get("action_item", ""),
                         "timing_window": _parsed.get("timing_window", ""),
-                        "confidence": _parsed.get("confidence", ""),
+                        "confidence": {"high": 0.85, "medium": 0.65, "low": 0.45}.get(
+                        str(_parsed.get("confidence", "medium")).lower(), 0.65),
+                    "confidence_label": _parsed.get("confidence", "medium"),
                         "domain": concern,
                         "language": _lang if "_lang" in dir() else language,
                         "why_this": _parsed.get("why_this", ""),
@@ -3451,20 +3453,31 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
                 except Exception as _save_e:
                     print(f"[json-v2] chat_messages save failed (non-fatal): {_save_e}")
 
+                # Map confidence string -> float for PredictResponse model
+                _conf_map = {"high": 0.85, "medium": 0.65, "low": 0.45}
+                _conf_str = str(_parsed.get("confidence", "medium")).lower()
+                _conf_float = _conf_map.get(_conf_str, 0.65)
+                _pred_text = (
+                    _parsed.get("verdict", "") + " " + _parsed.get("plain_summary", "")
+                ).strip()
+                _factors = [str(x) for x in _parsed.get("layers_used", [])]
+
                 return {
-                    "plain_summary": _parsed.get("plain_summary", ""),
-                    "signal_line": _parsed.get("signal_line", ""),
-                    "action_item": _parsed.get("action_item", ""),
-                    "timing_window": _parsed.get("timing_window", ""),
-                    "confidence": _parsed.get("confidence", ""),
-                    "verdict": _parsed.get("verdict", ""),
-                    "why_this": _parsed.get("why_this", ""),
-                    "layers_used": _parsed.get("layers_used", []),
+                    # Required fields (PredictResponse model)
+                    "prediction":   _pred_text,
+                    "confidence":   _conf_float,
+                    "factors":      _factors,
+                    # Optional structured fields for frontend
+                    "plain_summary":        _parsed.get("plain_summary", ""),
+                    "signal_line":          _parsed.get("signal_line", ""),
+                    "action_item":          _parsed.get("action_item", ""),
+                    "timing_window":        _parsed.get("timing_window", ""),
+                    "why_this":             _parsed.get("why_this", ""),
                     "bridge_practice_note": _parsed.get("bridge_practice_note", ""),
-                    "prediction": (_parsed.get("verdict","") + " " + _parsed.get("plain_summary","")).strip(),
-                    "factors": _parsed.get("layers_used", []),
-                    "context_path": "json-v2",
-                    "tokens_used": _json_tokens,
+                    "signal_confidence":    _conf_str,
+                    "rarity_signals":       [],
+                    "precision_windows":    [],
+                    "all_domains":          [],
                 }
             except Exception as _json_e:
                 import traceback
