@@ -10731,6 +10731,13 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
 # ============================================================
 
 _HORA_WINDOW_ES = {
+    "MAGNETISM WINDOW": "VENTANA DE ATRACCIÓN",
+    "CONNECT WINDOW": "VENTANA DE CONEXIÓN",
+    "REFLECT WINDOW": "VENTANA DE REFLEXIÓN",
+    "PEAK WINDOW": "VENTANA DE PICO",
+    "◆ PEAK WINDOW": "◆ VENTANA DE PICO",
+    "RAHU WINDOW": "VENTANA DE RAHU",
+    "KETU WINDOW": "VENTANA DE KETU",
     "EXPANSION WINDOW": "VENTANA DE EXPANSIÓN",
     "DRIVE WINDOW": "VENTANA DE IMPULSO",
     "AUTHORITY WINDOW": "VENTANA DE AUTORIDAD",
