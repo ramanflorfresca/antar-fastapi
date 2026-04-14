@@ -179,7 +179,6 @@ Respond with a JSON object only. No markdown, no prose outside the JSON.
 
 Language: respond in the language specified in the live.language field.
 If language is "es": all fields except layers_used must be in Spanish.
-"""
 
 ## CRITICAL EXAMPLES — AD SELECTION FOR CHILDREN
 
@@ -201,3 +200,27 @@ EXAMPLE 3 — Sequential second child:
   Second child = ~2 years later = 2003
   Next AD after Mercury = Ketu AD (Jun 2002 - Aug 2003)
   → Second child window = Jun 2002 - Aug 2003
+
+## CONCRETE EXAMPLES — DO NOT DEVIATE FROM THESE PATTERNS
+
+CAPRICORN LAGNA CHILDREN (Venus MD 1983-2003):
+  Venus is BOTH the MD planet AND the 5H lord.
+  This does NOT prevent children from occurring in Venus MD.
+  First child window = Venus-Mercury AD (Mercury rules 9H = dharma/children).
+  If Venus MD contains Mercury AD around birth_year+25, that IS the first child window.
+  DO NOT skip Venus MD and jump to future dashas for children.
+  DO NOT say "no past dasha window for first child" when Venus MD is present.
+
+CANCER LAGNA DAUGHTER (Jupiter MD):
+  Jupiter-Venus AD = Venus is karaka of female children. ALWAYS check this AD first.
+  The daughter is born WITHIN the Jupiter-Venus AD window from the dasha sequence.
+  DO NOT pick Jupiter-Mars AD for a daughter born in 2023.
+  Jupiter-Venus AD in the provided sequence = Sep 2020 to May 2023.
+
+DIVORCE TIMING (Capricorn lagna):
+  Marriage occurred in Venus-Saturn AD (Jun 1996 - Aug 1999).
+  Therefore divorce eligible range = 2001 to 2024.
+  Moon MD (2009-2019) + Saturn AD (Nov 2013 - Jun 2015) = divorce window.
+  DO NOT say "marriage year unknown" — derive it from Venus-Saturn AD.
+  State: divorce occurred in 2014 within Moon-Saturn AD.
+"""
