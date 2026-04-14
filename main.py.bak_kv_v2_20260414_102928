@@ -3375,14 +3375,11 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
         # the user prompt below.
         _cacheable_context = _full_context if _full_context else ""
         if _cacheable_context:
-            # NOTE: _full_context already contains the canonical "## LIVE DATA"
-            # marker (placed correctly by chart_context_builder.py after the
-            # static Vedic rules block). Do NOT add a second marker here —
-            # call_llm_claude splits on the first occurrence.
             _master_system = (
                 _master_system
-                + "\n\n=== CHART CONTEXT ===\n"
+                + "\n\n=== CHART CONTEXT (stable) ===\n"
                 + _cacheable_context
+                + "\n\n## LIVE DATA\n"
             )
             # Strip _full_context from the user prompt — it now lives in system
             # The user prompt becomes just question + concern + instruction

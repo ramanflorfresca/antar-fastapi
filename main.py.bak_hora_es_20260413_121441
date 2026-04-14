@@ -2947,11 +2947,8 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
                     _transit_list, _natal_planets, _user_prof
                 )
                 if _transit_block:
-                    # === TRANSIT ORDER FIX ===
-                    # Don't += into _full_context here — build_complete_context()
-                    # below will overwrite it. Stash instead, append after.
-                    _pending_transit_block = _transit_block
-                    print(f"[predict] Transit behavioral block stashed ({len(_transit_block)} chars)")
+                    _full_context += _transit_block
+                    print(f"[predict] Transit behavioral block injected ({len(_transit_block)} chars)")
         except Exception as _tbe:
             print(f"[predict] Transit behavioral translation failed (non-fatal): {_tbe}")
         # ── END QUESTION MODE ROUTING ─────────────────────────────
@@ -3020,18 +3017,6 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
             _full_context += "\n\n" + _signature_block
             print(f"[predict] Natal signature block injected — {_char_archetype.get('name','?')}")
         # --- END INJECT ---
-        # === TRANSIT ORDER FIX (continued) ===
-        # Re-append the stashed transit block now that build_complete_context
-        # is done. This recovers the ~7s of Swiss Ephemeris work that was
-        # being thrown away.
-        try:
-            _ptb = locals().get("_pending_transit_block")
-            if _ptb:
-                _full_context += "\n\n" + _ptb
-                print(f"[predict] Transit behavioral block re-appended ({len(_ptb)} chars)")
-        except Exception as _tbe2:
-            print(f"[predict] Transit re-append failed (non-fatal): {_tbe2}")
-        # === END TRANSIT ORDER FIX ===
         print(f"[predict] Full context: {len(_full_context)} chars")
     except Exception as _ctx_e:
         import traceback
@@ -3365,50 +3350,6 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
             _master_system = _lang_block + _master_system
             print(f"[predict] Language injection: {_lang}")
         # --- end Sprint L ---
-
-        # === KV CACHE FIX ===
-        # Move _full_context into the system block (cacheable region) instead
-        # of leaving it glued to the user prompt. Insert ## LIVE DATA marker
-        # so call_llm_claude splits cached static block from per-call dynamic.
-        # _full_context is mostly stable per chart (natal sig, DKP, Jaimini,
-        # divisional charts, diagnostic). Anything dynamic per call stays in
-        # the user prompt below.
-        _cacheable_context = _full_context if _full_context else ""
-        if _cacheable_context:
-            # NOTE: _full_context already contains the canonical "## LIVE DATA"
-            # marker (placed correctly by chart_context_builder.py after the
-            # static Vedic rules block). Do NOT add a second marker here —
-            # call_llm_claude splits on the first occurrence.
-            _master_system = (
-                _master_system
-                + "\n\n=== CHART CONTEXT ===\n"
-                + _cacheable_context
-            )
-            # Strip _full_context from the user prompt — it now lives in system
-            # The user prompt becomes just question + concern + instruction
-            _user_only_prompt = prompt
-            if _full_context and _full_context in _user_only_prompt:
-                _user_only_prompt = _user_only_prompt.replace(_full_context, "", 1).lstrip()
-            prompt = _user_only_prompt
-            print(f"[predict] KV cache: system={len(_master_system)} chars, user_prompt={len(prompt)} chars")
-
-            # === KV CACHE DEBUG (TEMPORARY) ===
-            try:
-                import hashlib as _hl
-                _ms_full = _master_system
-                _ms_static = _ms_full.split("## LIVE DATA")[0] if "## LIVE DATA" in _ms_full else _ms_full
-                _h_full = _hl.md5(_ms_full.encode()).hexdigest()[:8]
-                _h_static = _hl.md5(_ms_static.encode()).hexdigest()[:8]
-                print(f"[kv-debug] full_hash={_h_full} static_hash={_h_static} static_len={len(_ms_static)}")
-                print(f"[kv-debug] static_HEAD: {_ms_static[:200]!r}")
-                print(f"[kv-debug] static_TAIL: {_ms_static[-300:]!r}")
-                print(f"[kv-debug] user_prompt_HEAD: {prompt[:200]!r}")
-                print(f"[kv-debug] user_prompt_TAIL: {prompt[-300:]!r}")
-            except Exception as _kvde:
-                print(f"[kv-debug] error: {_kvde}")
-            # === END KV CACHE DEBUG ===
-        # === END KV CACHE FIX ===
-
         prediction_text, tokens_used = await call_llm_claude(
             prompt,
             history=request.conversation_history or [],
@@ -10740,136 +10681,8 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
 # GET /api/v1/daily-week/{chart_id}  — 7-Day Daily Signal Engine
 # ═══════════════════════════════════════════════════════════════════
 
-
-# ============================================================
-# HORA SPANISH TRANSLATION
-# ============================================================
-
-_HORA_WINDOW_ES = {
-    "EXPANSION WINDOW": "VENTANA DE EXPANSIÓN",
-    "DRIVE WINDOW": "VENTANA DE IMPULSO",
-    "AUTHORITY WINDOW": "VENTANA DE AUTORIDAD",
-    "LOVE WINDOW": "VENTANA DE AMOR",
-    "ATTRACTION WINDOW": "VENTANA DE ATRACCIÓN",
-    "REFLECTION WINDOW": "VENTANA DE REFLEXIÓN",
-    "DISCIPLINE WINDOW": "VENTANA DE DISCIPLINA",
-    "STRUCTURE WINDOW": "VENTANA DE ESTRUCTURA",
-    "COMMUNICATION WINDOW": "VENTANA DE COMUNICACIÓN",
-    "SHADOW WINDOW": "VENTANA DE SOMBRA",
-    "DISSOLUTION WINDOW": "VENTANA DE DISOLUCIÓN",
-}
-
-_HORA_FIELD_ES = {
-    "EXPANSION": "EXPANSIÓN",
-    "COMMAND": "MANDO",
-    "CONNECTION": "CONEXIÓN",
-    "ATTRACTION": "ATRACCIÓN",
-    "REFLECTION": "REFLEXIÓN",
-    "DISCIPLINE": "DISCIPLINA",
-    "STRUCTURE": "ESTRUCTURA",
-    "COMMUNICATION": "COMUNICACIÓN",
-    "SHADOW": "SOMBRA",
-}
-
-_HORA_MODE_ES = {
-    "EXPAND": "EXPANDIR",
-    "DRIVE": "IMPULSAR",
-    "ATTRACT": "ATRAER",
-    "REFLECT": "REFLEJAR",
-    "STRUCTURE": "ESTRUCTURAR",
-    "CONNECT": "CONECTAR",
-    "DISSOLVE": "DISOLVER",
-}
-
-_HORA_BY_RULER_ES = {
-    "Jupiter": {
-        "action": "Estrategia, planificación a largo plazo, mentoría, aprendizaje",
-        "plain_message": "Piensa en grande. Sesiones de estrategia, planificación a largo plazo, conversaciones de mentoría. Esta es tu ventana de pensamiento más claro.",
-    },
-    "Mars": {
-        "action": "Ejecución de alta intensidad, gimnasio, confrontaciones, llamadas en frío",
-        "plain_message": "Alta energía, alta intensidad. Buena para el gimnasio, llamadas en frío, o empujar una tarea difícil. Canalízala o te canaliza a ti.",
-    },
-    "Sun": {
-        "action": "Reuniones de alto nivel, decisiones de liderazgo, movimientos de visibilidad",
-        "plain_message": "Tu ventana de mando está abierta. Envía esa propuesta. Toma la decisión. Ten la conversación de alto riesgo.",
-    },
-    "Venus": {
-        "action": "Relaciones, negociación, acuerdos, trabajo creativo, cerrar con calidez",
-        "plain_message": "Ventana de atracción. Buena para relaciones, negociación con calidez, trabajo creativo, cerrar con encanto en vez de presión.",
-    },
-    "Saturn": {
-        "action": "Trabajo profundo, disciplina, documentación, auditoría, compromisos a largo plazo",
-        "plain_message": "Ventana de estructura. Trabajo profundo, documentación, decisiones serias. Lento pero sólido — lo que construyas aquí dura.",
-    },
-    "Mercury": {
-        "action": "Escritura, análisis, correos, llamadas, negociación, aprendizaje rápido",
-        "plain_message": "Ventana de comunicación. Escribe el correo, haz la llamada, analiza los datos. Tu mente está ágil — úsala.",
-    },
-    "Moon": {
-        "action": "Reflexión, descanso, planificar mañana, trabajo emocional, familia",
-        "plain_message": "Baja la intensidad. Reflexiona, planea mañana, conversa con la familia. Ventana suave — no fuerces decisiones grandes.",
-    },
-    "Rahu": {
-        "action": "Movimientos no convencionales, tecnología, apuestas calculadas",
-        "plain_message": "Ventana de ruptura. Buena para movimientos no convencionales y tecnología — pero verifica dos veces antes de firmar.",
-    },
-    "Ketu": {
-        "action": "Soltar, meditar, revisión, cierre de ciclos — NO inicies nada nuevo",
-        "plain_message": "Ventana de disolución. No inicies nada nuevo. Buena para soltar, meditar, cerrar ciclos pendientes.",
-    },
-}
-
-
-def _translate_hora_entry_es(h: dict) -> dict:
-    """Translate a single hora dict in-place (returns same dict)."""
-    if not isinstance(h, dict):
-        return h
-
-    # Window label
-    if h.get("window") in _HORA_WINDOW_ES:
-        h["window"] = _HORA_WINDOW_ES[h["window"]]
-
-    # Field / mode
-    if h.get("field") in _HORA_FIELD_ES:
-        h["field"] = _HORA_FIELD_ES[h["field"]]
-    if h.get("mode") in _HORA_MODE_ES:
-        h["mode"] = _HORA_MODE_ES[h["mode"]]
-
-    # Action + plain_message — key off ruler (always English from engine)
-    ruler = h.get("ruler")
-    if ruler and ruler in _HORA_BY_RULER_ES:
-        tr = _HORA_BY_RULER_ES[ruler]
-        h["action"] = tr["action"]
-        h["plain_message"] = tr["plain_message"]
-
-    return h
-
-
-def _translate_hora_es(result: dict) -> dict:
-    """Apply Spanish translation to full hora response dict."""
-    if not isinstance(result, dict):
-        return result
-
-    if result.get("current_hora"):
-        result["current_hora"] = _translate_hora_entry_es(result["current_hora"])
-
-    if isinstance(result.get("upcoming_horas"), list):
-        result["upcoming_horas"] = [
-            _translate_hora_entry_es(h) for h in result["upcoming_horas"]
-        ]
-
-    if result.get("next_power_hora"):
-        result["next_power_hora"] = _translate_hora_entry_es(result["next_power_hora"])
-
-    return result
-
-# ============================================================
-# END HORA SPANISH TRANSLATION
-# ============================================================
-
 @app.get("/api/v1/hora/{chart_id}")
-async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8, language: Optional[str] = "en"):
+async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
     """
     Kala Hora — Planetary Hour Timing Engine.
     Returns current hora + upcoming N horas with FIELD×MODE guidance.
@@ -10924,10 +10737,6 @@ async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8, l
         result["next_power_hora"] = get_next_power_hora(
             result["upcoming_horas"], daily_field
         )
-
-    # Spanish translation layer
-    if (language or "en").lower() == "es":
-        result = _translate_hora_es(result)
 
     return result
 
