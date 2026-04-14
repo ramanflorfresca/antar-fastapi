@@ -3569,96 +3569,100 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
                 )
                 from antar_engine.predict_system_prompt_v2 import PREDICT_SYSTEM_PROMPT_V2
 
-                # Detect past-tense questions — need historical dasha context
-                _past_keywords = [
-                    "when did", "when was", "what year", "which year",
-                    "when did i", "when were", "what happened",
-                    "cuándo", "cuando", "qué año", "que año",
-                    "married", "born", "moved", "divorced", "divorce",
-                    "child", "children", "hijo", "hija", "matrimonio",
-                ]
-                _is_past_question = any(
-                    kw in request.question.lower()
-                    for kw in _past_keywords
-                )
-
                 _json_ctx = await build_chart_context_json(
                     chart_id=request.chart_id,
                     question=request.question,
                     concern=concern,
-                    language=request.language if hasattr(request, "language") else "en",
+                    language=_lang if "_lang" in dir() else language,
                     supabase=supabase,
                 )
 
-                # For past-event questions, inject full historical MD sequence
-                if _is_past_question:
+                # ── PAST EVENT HISTORICAL DASHA INJECTION ─────────────────
+                _past_keywords = [
+                    "when did", "when was", "what year", "which year",
+                    "when did i", "when were", "what happened", "how old",
+                    "married", "marriage", "wedding",
+                    "born", "birth", "child", "children", "son", "daughter",
+                    "moved", "relocat", "immigrat", "america", "foreign",
+                    "divorc", "separat", "ended", "split",
+                    "cuándo", "cuando", "qué año", "que año",
+                    "casé", "matrimonio", "boda", "nació", "hijo", "hija",
+                    "mudé", "emigr", "divorcié", "separé", "terminó",
+                ]
+                _is_past_q = any(kw in request.question.lower() for kw in _past_keywords)
+
+                if _is_past_q:
                     try:
-                        _hist_rows = supabase.table("dasha_periods") \
-                            .select("planet_or_sign,start_date,end_date,level,metadata") \
+                        _hist = supabase.table("dasha_periods") \
+                            .select("planet_or_sign,start_date,end_date,level,type,metadata,sequence") \
                             .eq("chart_id", request.chart_id) \
                             .eq("system", "vimsottari") \
-                            .order("start_date") \
+                            .order("sequence") \
                             .execute()
 
-                        _md_rows = [
-                            r for r in _hist_rows.data
-                            if r.get("level") == 1 or
-                               str(r.get("level","")).lower() in ("mahadasha","md","1")
-                        ]
-                        _ad_rows = [
-                            r for r in _hist_rows.data
-                            if r.get("level") == 2 or
-                               str(r.get("level","")).lower() in ("antardasha","ad","2")
-                        ]
+                        _mds, _ads = [], []
+                        for _row in _hist.data:
+                            _lv = _row.get("level")
+                            _tp = str(_row.get("type","")).lower()
+                            if _lv == 1 or _tp in ("mahadasha","md","1"):
+                                _mds.append(_row)
+                            elif _lv == 2 or _tp in ("antardasha","ad","2"):
+                                _ads.append(_row)
 
-                        # Build MD sequence string
-                        _md_lines = []
-                        for row in _md_rows:
-                            planet = row.get("planet_or_sign","")
-                            start  = str(row.get("start_date",""))[:10]
-                            end    = str(row.get("end_date",""))[:10]
-                            _md_lines.append(f"  {planet} MD: {start} → {end}")
+                        try:
+                            _bd_row = supabase.table("charts") \
+                                .select("birth_date,chart_data") \
+                                .eq("id", request.chart_id) \
+                                .single().execute()
+                            _birth_year = int(str(_bd_row.data.get("birth_date","1974"))[:4])
+                            _lagna_sign = (_bd_row.data.get("chart_data") or {}) \
+                                .get("lagna", {}).get("sign", "unknown")
+                        except Exception:
+                            _birth_year = 1974
+                            _lagna_sign = "unknown"
 
-                        # Build AD dict grouped by parent MD
-                        _ad_by_parent = {}
-                        for row in _ad_rows:
-                            parent = (row.get("metadata") or {}).get("parent_lord","")
-                            if parent not in _ad_by_parent:
-                                _ad_by_parent[parent] = []
-                            planet = row.get("planet_or_sign","")
-                            start  = str(row.get("start_date",""))[:10]
-                            end    = str(row.get("end_date",""))[:10]
-                            _ad_by_parent[parent].append(f"{planet} AD: {start} → {end}")
+                        _tl = "\n\n## HISTORICAL VIMSOTTARI DASHA SEQUENCE\n"
+                        _tl += f"Birth year: {_birth_year} | Lagna: {_lagna_sign}\n\n"
+                        _tl += "MAHADASHAS:\n"
+                        for _r in _mds:
+                            _p = _r.get("planet_or_sign","")
+                            _s = str(_r.get("start_date",""))[:10]
+                            _e = str(_r.get("end_date",""))[:10]
+                            _tl += f"  {_p} MD: {_s} to {_e}\n"
 
-                        _hist_block = "\n\n## HISTORICAL VIMSOTTARI DASHA SEQUENCE\n"
-                        _hist_block += "Mahadashas (MD):\n"
-                        _hist_block += "\n".join(_md_lines)
-                        _hist_block += "\n\nAnterdashas (AD) by MD:\n"
-                        for md_planet, ads in _ad_by_parent.items():
-                            _hist_block += f"\n{md_planet} MD:\n"
-                            for ad in ads:
-                                _hist_block += f"  {ad}\n"
+                        _ads_by_md = {}
+                        for _r in _ads:
+                            _parent = (_r.get("metadata") or {}).get("parent_lord","?")
+                            if _parent not in _ads_by_md:
+                                _ads_by_md[_parent] = []
+                            _p = _r.get("planet_or_sign","")
+                            _s = str(_r.get("start_date",""))[:10]
+                            _e = str(_r.get("end_date",""))[:10]
+                            _ads_by_md[_parent].append(f"    {_p} AD: {_s} to {_e}")
 
-                        _hist_block += """
-## PAST EVENT PREDICTION RULES
-When asked about PAST events (marriage, children, relocation, divorce):
-1. Find the approximate year range using the person's birth year + typical life stage age
-2. Look up which MD+AD was active in that year range from the sequence above
-3. Confirm the AD planet supports the event via classical house rules:
-   - Marriage: 7H lord AD, Venus AD, or Saturn AD (formal commitment)
-   - Foreign move: Rahu AD or 12H lord AD
-   - First child: 5H lord AD or Jupiter AD
-   - Second child: AD after first child, 9H lord AD
-   - Divorce: Saturn AD during 7H lord MD
-4. State the predicted year as a specific year, not a future window
-5. NEVER predict past events as future events
+                        _tl += "\nANTARDASHAS BY MD:\n"
+                        for _md_p, _ad_lines in _ads_by_md.items():
+                            _tl += f"  {_md_p} MD:\n" + "\n".join(_ad_lines) + "\n"
+
+                        _tl += f"""
+## ELIGIBLE YEAR RANGES (birth year = {_birth_year})
+  Marriage eligible:          {_birth_year+20} to {_birth_year+35}
+  First child eligible:       {_birth_year+22} to {_birth_year+37} (must be after marriage)
+  Second child:               first_child_year + 1 to + 4
+  Foreign relocation:         {_birth_year+15} to {_birth_year+45}
+  Divorce:                    marriage_year + 5 to + 25
+
+Apply the classical AD priority rules from the system prompt.
+State a specific year. Never predict past events as future windows.
 """
-                        # Append historical context to live block
                         if isinstance(_json_ctx, dict):
-                            _json_ctx["_historical_dasha"] = _hist_block
-                        print(f"[json-v2] Historical dasha injected — {len(_md_lines)} MDs, {len(_ad_rows)} ADs")
-                    except Exception as _hist_e:
-                        print(f"[json-v2] Historical dasha injection failed (non-fatal): {_hist_e}")
+                            _json_ctx["_historical_dasha"] = _tl
+                        print(f"[json-v2] Past event: {len(_mds)} MDs, {len(_ads)} ADs, birth={_birth_year}, lagna={_lagna_sign}")
+
+                    except Exception as _he:
+                        print(f"[json-v2] Historical dasha failed (non-fatal): {_he}")
+                # ── END PAST EVENT INJECTION ──────────────────────────────
+
                 _static_json = chart_static_to_json(_json_ctx)
                 _live_json   = live_to_json(_json_ctx)
 
@@ -3718,7 +3722,7 @@ When asked about PAST events (marriage, children, relocation, divorce):
                         str(_parsed.get("confidence", "medium")).lower(), 0.65),
                     "confidence_label": _parsed.get("confidence", "medium"),
                         "domain": concern,
-                        "language": request.language if hasattr(request, "language") else "en",
+                        "language": _lang if "_lang" in dir() else language,
                         "why_this": _parsed.get("why_this", ""),
                         "bridge_practice_note": _parsed.get("bridge_practice_note", ""),
                     }).execute()
@@ -3750,7 +3754,6 @@ When asked about PAST events (marriage, children, relocation, divorce):
                     "rarity_signals":       [],
                     "precision_windows":    [],
                     "all_domains":          [],
-                    "context_path":         "json",
                 }
             except Exception as _json_e:
                 import traceback

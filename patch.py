@@ -1,219 +1,256 @@
 #!/usr/bin/env python3
 """
-patch_json_path_fix.py
-=======================
-Fixes two bugs in the JSON path (/predict with use_json_context=True):
-
-BUG 1: context_path missing from return dict
-  — Response always shows context_path=null
-  — Fix: add "context_path": "json" to return dict
-
-BUG 2: _lang variable check is fragile
-  — "_lang" in dir() checks module scope, not local scope
-  — Fix: use request.language directly
-
-BUG 3: Historical dasha context missing
-  — build_chart_context_json only fetches current/upcoming dashas
-  — For past event questions, Claude needs full historical MD sequence
-  — Fix: inject full vimsottari MD sequence into live block
-
-USAGE:
-  cd ~/antarai && source venv311/bin/activate
-  python patch_json_path_fix.py
-  python3 -c "import ast; ast.parse(open('main.py').read()); print('OK')"
-  git add -A && git commit -m "fix: JSON path context_path + historical dasha context" && git push
+patch_past_predictions_accuracy.py
+All 5 event types covered. Lagna-aware rules.
 """
-
-import sys, ast, re
+import sys, ast
 from pathlib import Path
 
+PAST_EVENT_RULES = '''
+## PAST EVENT TIMING — CLASSICAL VIMSOTTARI RULES
 
-def main():
-    if not Path("main.py").exists():
-        print("❌ Run from ~/antarai/"); sys.exit(1)
+When a question asks about a PAST event, follow these steps exactly.
 
-    content = Path("main.py").read_text(encoding="utf-8")
+### STEP 1: Establish eligible year range using birth year + age
 
-    # ----------------------------------------------------------------
-    # FIX 1: Add context_path to JSON path return dict
-    # ----------------------------------------------------------------
-    old1 = '''                return {
-                    # Required fields (PredictResponse model)
-                    "prediction":   _pred_text,
-                    "confidence":   _conf_float,
-                    "factors":      _factors,
-                    # Optional structured fields for frontend
-                    "plain_summary":        _parsed.get("plain_summary", ""),
-                    "signal_line":          _parsed.get("signal_line", ""),
-                    "action_item":          _parsed.get("action_item", ""),
-                    "timing_window":        _parsed.get("timing_window", ""),
-                    "why_this":             _parsed.get("why_this", ""),
-                    "bridge_practice_note": _parsed.get("bridge_practice_note", ""),
-                    "signal_confidence":    _conf_str,
-                    "rarity_signals":       [],
-                    "precision_windows":    [],
-                    "all_domains":          [],
-                }'''
+  Marriage (age 20-35):           birth_year+20 to birth_year+35
+  First child (age 22-37):        birth_year+22 to birth_year+37 AND after marriage
+  Second child:                   first_child_year+1 to first_child_year+4
+  Foreign relocation (age 15-45): birth_year+15 to birth_year+45
+  Divorce:                        marriage_year+5 to marriage_year+25
 
-    new1 = '''                return {
-                    # Required fields (PredictResponse model)
-                    "prediction":   _pred_text,
-                    "confidence":   _conf_float,
-                    "factors":      _factors,
-                    # Optional structured fields for frontend
-                    "plain_summary":        _parsed.get("plain_summary", ""),
-                    "signal_line":          _parsed.get("signal_line", ""),
-                    "action_item":          _parsed.get("action_item", ""),
-                    "timing_window":        _parsed.get("timing_window", ""),
-                    "why_this":             _parsed.get("why_this", ""),
-                    "bridge_practice_note": _parsed.get("bridge_practice_note", ""),
-                    "signal_confidence":    _conf_str,
-                    "rarity_signals":       [],
-                    "precision_windows":    [],
-                    "all_domains":          [],
-                    "context_path":         "json",
-                }'''
+ELIMINATE any MD or AD window outside the eligible range.
 
-    if old1 in content:
-        content = content.replace(old1, new1, 1)
-        print("✅ Fix 1: context_path added to JSON path return dict")
-    else:
-        print("⚠️  Fix 1: pattern not found — check manually")
+### STEP 2: Find which MD covers the eligible year range
 
-    # ----------------------------------------------------------------
-    # FIX 2: Fix _lang variable check
-    # ----------------------------------------------------------------
-    old2 = '"language": _lang if "_lang" in dir() else language,'
-    new2 = '"language": request.language if hasattr(request, "language") else "en",'
+### STEP 3: Within that MD, apply AD priority rules
 
-    if old2 in content:
-        # Replace both occurrences (save to chat_messages has same pattern)
-        content = content.replace(old2, new2)
-        print("✅ Fix 2: _lang variable check fixed")
-    else:
-        print("⚠️  Fix 2: _lang pattern not found — may already be fixed")
+MARRIAGE:
+  1. Saturn AD = formal legal union, ceremony, registration. STRONGEST.
+  2. Moon AD = emotional commitment (strongest if Moon rules 7H).
+  3. Jupiter AD = dharmic marriage through family/wisdom.
+  4. Venus AD = romance (weaker when Venus is already the MD planet).
+  5. Rahu AD = unconventional romance BEGINS but rarely formalizes immediately.
+  RULE: If both Rahu AD and Saturn AD are in range, CHOOSE Saturn AD for formal marriage.
 
-    # ----------------------------------------------------------------
-    # FIX 3: Inject historical dasha context for past-event questions
-    # Detect past tense questions and add full MD sequence to live block
-    # ----------------------------------------------------------------
-    old3 = '''                _json_ctx = await build_chart_context_json(
-                    chart_id=request.chart_id,
-                    question=request.question,
-                    concern=concern,
-                    language=_lang if "_lang" in dir() else language,
-                    supabase=supabase,
-                )'''
+FOREIGN RELOCATION:
+  1. Rahu AD = unconventional foreign move, often permanent. STRONGEST.
+  2. 12H lord AD (varies by lagna) = foreign through opportunity.
+  3. Jupiter AD = foreign for education/wisdom.
+  RULE: Rahu AD is almost always the primary trigger for permanent foreign relocation.
 
-    new3 = '''                # Detect past-tense questions — need historical dasha context
+FIRST CHILD:
+  1. Jupiter AD = natural karaka for children. STRONGEST.
+  2. 5H lord AD (varies by lagna) = house of children.
+  3. Mercury AD = 9H lord for many lagnas (luck/dharma/children). Strong.
+  4. Moon AD = nurturing period. Moderate.
+  RULE: First child MUST come AFTER marriage. Eliminate any AD before marriage AD.
+  RULE: If Venus is MD planet, look for Jupiter AD or Mercury AD (9H lord) within Venus MD.
+
+SECOND CHILD:
+  1. AD immediately following first child AD (sequential, ~2 years later).
+  2. Ketu AD = completion of karma, often brings second child.
+  3. Mercury AD = 9H lord (classical 2nd child house).
+  RULE: Find which AD is active ~2 years after the first child year.
+
+DIVORCE / SEPARATION:
+  1. Saturn AD during 7H lord MD = TEXTBOOK divorce. Moon MD + Saturn AD
+     for Capricorn lagna (Moon = 7H lord). STRONGEST.
+  2. Ketu AD = spiritual detachment, separation.
+  3. Rahu AD = sudden/foreign element causing separation.
+  RULE: Saturn AD during the 7H lord mahadasha is the most classical divorce signature.
+
+### STEP 4: House lords by lagna
+
+  Lagna      | 5H (children) | 7H (marriage) | 12H (foreign)
+  -----------|---------------|---------------|---------------
+  Aries      | Sun           | Venus         | Jupiter
+  Taurus     | Mercury       | Mars          | Mars
+  Gemini     | Venus         | Jupiter       | Venus
+  Cancer     | Mars          | Saturn        | Mercury
+  Leo        | Jupiter       | Saturn        | Moon
+  Virgo      | Saturn        | Jupiter       | Sun
+  Libra      | Saturn        | Mars          | Mercury
+  Scorpio    | Jupiter       | Venus         | Jupiter
+  Sagittarius| Mars          | Mercury       | Mars
+  Capricorn  | Venus         | Moon          | Jupiter
+  Aquarius   | Mercury       | Moon          | Saturn
+  Pisces     | Moon          | Mercury       | Saturn
+
+### STEP 5: State a specific year
+
+  Give a SINGLE most likely year within the AD window.
+  Use the middle of the AD window as the starting point.
+  Example: Saturn AD = Jun 1996 - Aug 1999 → state "1997 or 1998"
+
+### CRITICAL: NEVER predict past events as future events
+
+  If a clear past dasha window exists, state when it OCCURRED.
+  Do NOT say "this hasn't happened yet" or redirect to future dashas.
+  The person is asking about something that ALREADY HAPPENED.
+  If uncertain between two windows, give BOTH with reasoning.
+'''
+
+HIST_INJECTION = '''
+                # ── PAST EVENT HISTORICAL DASHA INJECTION ─────────────────
                 _past_keywords = [
                     "when did", "when was", "what year", "which year",
-                    "when did i", "when were", "what happened",
+                    "when did i", "when were", "what happened", "how old",
+                    "married", "marriage", "wedding",
+                    "born", "birth", "child", "children", "son", "daughter",
+                    "moved", "relocat", "immigrat", "america", "foreign",
+                    "divorc", "separat", "ended", "split",
                     "cuándo", "cuando", "qué año", "que año",
-                    "married", "born", "moved", "divorced", "divorce",
-                    "child", "children", "hijo", "hija", "matrimonio",
+                    "casé", "matrimonio", "boda", "nació", "hijo", "hija",
+                    "mudé", "emigr", "divorcié", "separé", "terminó",
                 ]
-                _is_past_question = any(
-                    kw in request.question.lower()
-                    for kw in _past_keywords
-                )
+                _is_past_q = any(kw in request.question.lower() for kw in _past_keywords)
 
-                _json_ctx = await build_chart_context_json(
-                    chart_id=request.chart_id,
-                    question=request.question,
-                    concern=concern,
-                    language=request.language if hasattr(request, "language") else "en",
-                    supabase=supabase,
-                )
-
-                # For past-event questions, inject full historical MD sequence
-                if _is_past_question:
+                if _is_past_q:
                     try:
-                        _hist_rows = supabase.table("dasha_periods") \\
-                            .select("planet_or_sign,start_date,end_date,level,metadata") \\
+                        _hist = supabase.table("dasha_periods") \\
+                            .select("planet_or_sign,start_date,end_date,level,type,metadata,sequence") \\
                             .eq("chart_id", request.chart_id) \\
                             .eq("system", "vimsottari") \\
-                            .order("start_date") \\
+                            .order("sequence") \\
                             .execute()
 
-                        _md_rows = [
-                            r for r in _hist_rows.data
-                            if r.get("level") == 1 or
-                               str(r.get("level","")).lower() in ("mahadasha","md","1")
-                        ]
-                        _ad_rows = [
-                            r for r in _hist_rows.data
-                            if r.get("level") == 2 or
-                               str(r.get("level","")).lower() in ("antardasha","ad","2")
-                        ]
+                        _mds, _ads = [], []
+                        for _row in _hist.data:
+                            _lv = _row.get("level")
+                            _tp = str(_row.get("type","")).lower()
+                            if _lv == 1 or _tp in ("mahadasha","md","1"):
+                                _mds.append(_row)
+                            elif _lv == 2 or _tp in ("antardasha","ad","2"):
+                                _ads.append(_row)
 
-                        # Build MD sequence string
-                        _md_lines = []
-                        for row in _md_rows:
-                            planet = row.get("planet_or_sign","")
-                            start  = str(row.get("start_date",""))[:10]
-                            end    = str(row.get("end_date",""))[:10]
-                            _md_lines.append(f"  {planet} MD: {start} → {end}")
+                        try:
+                            _bd_row = supabase.table("charts") \\
+                                .select("birth_date,chart_data") \\
+                                .eq("id", request.chart_id) \\
+                                .single().execute()
+                            _birth_year = int(str(_bd_row.data.get("birth_date","1974"))[:4])
+                            _lagna_sign = (_bd_row.data.get("chart_data") or {}) \\
+                                .get("lagna", {}).get("sign", "unknown")
+                        except Exception:
+                            _birth_year = 1974
+                            _lagna_sign = "unknown"
 
-                        # Build AD dict grouped by parent MD
-                        _ad_by_parent = {}
-                        for row in _ad_rows:
-                            parent = (row.get("metadata") or {}).get("parent_lord","")
-                            if parent not in _ad_by_parent:
-                                _ad_by_parent[parent] = []
-                            planet = row.get("planet_or_sign","")
-                            start  = str(row.get("start_date",""))[:10]
-                            end    = str(row.get("end_date",""))[:10]
-                            _ad_by_parent[parent].append(f"{planet} AD: {start} → {end}")
+                        _tl = "\\n\\n## HISTORICAL VIMSOTTARI DASHA SEQUENCE\\n"
+                        _tl += f"Birth year: {_birth_year} | Lagna: {_lagna_sign}\\n\\n"
+                        _tl += "MAHADASHAS:\\n"
+                        for _r in _mds:
+                            _p = _r.get("planet_or_sign","")
+                            _s = str(_r.get("start_date",""))[:10]
+                            _e = str(_r.get("end_date",""))[:10]
+                            _tl += f"  {_p} MD: {_s} to {_e}\\n"
 
-                        _hist_block = "\\n\\n## HISTORICAL VIMSOTTARI DASHA SEQUENCE\\n"
-                        _hist_block += "Mahadashas (MD):\\n"
-                        _hist_block += "\\n".join(_md_lines)
-                        _hist_block += "\\n\\nAnterdashas (AD) by MD:\\n"
-                        for md_planet, ads in _ad_by_parent.items():
-                            _hist_block += f"\\n{md_planet} MD:\\n"
-                            for ad in ads:
-                                _hist_block += f"  {ad}\\n"
+                        _ads_by_md = {}
+                        for _r in _ads:
+                            _parent = (_r.get("metadata") or {}).get("parent_lord","?")
+                            if _parent not in _ads_by_md:
+                                _ads_by_md[_parent] = []
+                            _p = _r.get("planet_or_sign","")
+                            _s = str(_r.get("start_date",""))[:10]
+                            _e = str(_r.get("end_date",""))[:10]
+                            _ads_by_md[_parent].append(f"    {_p} AD: {_s} to {_e}")
 
-                        _hist_block += """
-## PAST EVENT PREDICTION RULES
-When asked about PAST events (marriage, children, relocation, divorce):
-1. Find the approximate year range using the person's birth year + typical life stage age
-2. Look up which MD+AD was active in that year range from the sequence above
-3. Confirm the AD planet supports the event via classical house rules:
-   - Marriage: 7H lord AD, Venus AD, or Saturn AD (formal commitment)
-   - Foreign move: Rahu AD or 12H lord AD
-   - First child: 5H lord AD or Jupiter AD
-   - Second child: AD after first child, 9H lord AD
-   - Divorce: Saturn AD during 7H lord MD
-4. State the predicted year as a specific year, not a future window
-5. NEVER predict past events as future events
+                        _tl += "\\nANTARDASHAS BY MD:\\n"
+                        for _md_p, _ad_lines in _ads_by_md.items():
+                            _tl += f"  {_md_p} MD:\\n" + "\\n".join(_ad_lines) + "\\n"
+
+                        _tl += f"""
+## ELIGIBLE YEAR RANGES (birth year = {_birth_year})
+  Marriage eligible:          {_birth_year+20} to {_birth_year+35}
+  First child eligible:       {_birth_year+22} to {_birth_year+37} (must be after marriage)
+  Second child:               first_child_year + 1 to + 4
+  Foreign relocation:         {_birth_year+15} to {_birth_year+45}
+  Divorce:                    marriage_year + 5 to + 25
+
+Apply the classical AD priority rules from the system prompt.
+State a specific year. Never predict past events as future windows.
 """
-                        # Append historical context to live block
                         if isinstance(_json_ctx, dict):
-                            _json_ctx["_historical_dasha"] = _hist_block
-                        print(f"[json-v2] Historical dasha injected — {len(_md_lines)} MDs, {len(_ad_rows)} ADs")
-                    except Exception as _hist_e:
-                        print(f"[json-v2] Historical dasha injection failed (non-fatal): {_hist_e}")'''
+                            _json_ctx["_historical_dasha"] = _tl
+                        print(f"[json-v2] Past event: {len(_mds)} MDs, {len(_ads)} ADs, birth={_birth_year}, lagna={_lagna_sign}")
 
-    if old3 in content:
-        content = content.replace(old3, new3, 1)
-        print("✅ Fix 3: Historical dasha context injection added")
-    else:
-        print("⚠️  Fix 3: build_chart_context_json pattern not found — check manually")
+                    except Exception as _he:
+                        print(f"[json-v2] Historical dasha failed (non-fatal): {_he}")
+                # ── END PAST EVENT INJECTION ──────────────────────────────
+'''
 
-    # ----------------------------------------------------------------
-    # FIX 4: Include historical dasha in system prompt when available
-    # ----------------------------------------------------------------
-    old4 = '''                _json_system = (
-                    PREDICT_SYSTEM_PROMPT_V2
-                    + "\\n\\n## CHART DATA (JSON)\\n"
-                    + _static_json
-                    + "\\n\\n## LIVE DATA\\n"
-                    + _live_json
-                )'''
 
-    new4 = '''                _hist_suffix = _json_ctx.get("_historical_dasha", "") if isinstance(_json_ctx, dict) else ""
+def patch_system_prompt():
+    path = Path("antar_engine/predict_system_prompt_v2.py")
+    if not path.exists():
+        print("❌ predict_system_prompt_v2.py not found"); return False
+
+    content = path.read_text(encoding="utf-8")
+
+    # Remove old version if exists
+    if "PAST EVENT TIMING" in content:
+        start = content.find("## PAST EVENT TIMING")
+        markers = ["## OUTPUT FORMAT", "## RESPONSE FORMAT", "YOUR MOVE", "ANTAR voice"]
+        end = len(content)
+        for m in markers:
+            idx = content.find(m, start + 100)
+            if 0 < idx < end:
+                end = idx
+                break
+        content = content[:start] + content[end:]
+        print("ℹ️  Removed old past event rules")
+
+    landmarks = ["## OUTPUT FORMAT", "## RESPONSE FORMAT", "YOUR MOVE", 'ANTAR voice', '"""']
+    inserted = False
+    for lm in landmarks:
+        if lm in content:
+            content = content.replace(lm, PAST_EVENT_RULES + "\n" + lm, 1)
+            inserted = True
+            print(f"✅ Past event rules injected before: {lm[:40]}")
+            break
+
+    if not inserted:
+        idx = content.rfind('"""')
+        content = content[:idx] + PAST_EVENT_RULES + '\n"""'
+        print("✅ Past event rules appended")
+
+    try:
+        ast.parse(content)
+    except SyntaxError as e:
+        print(f"❌ Syntax error: {e}"); return False
+
+    path.write_text(content, encoding="utf-8")
+    return True
+
+
+def patch_main():
+    path = Path("main.py")
+    if not path.exists():
+        print("❌ Run from ~/antarai/"); return False
+
+    content = path.read_text(encoding="utf-8")
+
+    # Remove all old injection blocks
+    for start_m, end_m in [
+        ("                # ── PAST EVENT HISTORICAL DASHA INJECTION", "                # ── END PAST EVENT INJECTION"),
+        ("                # ── IMPROVED HISTORICAL DASHA INJECTION", "                # ── END HISTORICAL DASHA INJECTION"),
+        ("                # Detect past-tense questions", "                print(f\"[json-v2] JSON path activated"),
+    ]:
+        if start_m in content and end_m in content:
+            si = content.find(start_m)
+            ei = content.find(end_m, si) + len(end_m) + 1
+            content = content[:si] + content[ei:]
+            print(f"ℹ️  Removed: {start_m[:50]}")
+
+    landmark = "                _static_json = chart_static_to_json(_json_ctx)"
+    if landmark not in content:
+        print("❌ Landmark not found"); return False
+
+    content = content.replace(landmark, HIST_INJECTION + "\n" + landmark, 1)
+    print("✅ Historical dasha injection added")
+
+    # Fix _json_system
+    new_sys = '''                _hist_suffix = _json_ctx.get("_historical_dasha", "") if isinstance(_json_ctx, dict) else ""
                 _json_system = (
                     PREDICT_SYSTEM_PROMPT_V2
                     + "\\n\\n## CHART DATA (JSON)\\n"
@@ -223,27 +260,67 @@ When asked about PAST events (marriage, children, relocation, divorce):
                     + (_hist_suffix if _hist_suffix else "")
                 )'''
 
-    if old4 in content:
-        content = content.replace(old4, new4, 1)
-        print("✅ Fix 4: Historical dasha included in system prompt")
-    else:
-        print("⚠️  Fix 4: _json_system pattern not found — check manually")
+    for old in [
+        '''                _hist_suffix = ""
+                if isinstance(_json_ctx, dict) and _json_ctx.get("_historical_dasha"):
+                    _hist_suffix = _json_ctx["_historical_dasha"]
+                _json_system = (
+                    PREDICT_SYSTEM_PROMPT_V2
+                    + "\\n\\n## CHART DATA (JSON)\\n"
+                    + _static_json
+                    + "\\n\\n## LIVE DATA\\n"
+                    + _live_json
+                    + (_hist_suffix if _hist_suffix else "")
+                )''',
+        '''                _json_system = (
+                    PREDICT_SYSTEM_PROMPT_V2
+                    + "\\n\\n## CHART DATA (JSON)\\n"
+                    + _static_json
+                    + "\\n\\n## LIVE DATA\\n"
+                    + _live_json
+                    + (_hist_suffix if _hist_suffix else "")
+                )''',
+        '''                _json_system = (
+                    PREDICT_SYSTEM_PROMPT_V2
+                    + "\\n\\n## CHART DATA (JSON)\\n"
+                    + _static_json
+                    + "\\n\\n## LIVE DATA\\n"
+                    + _live_json
+                )''',
+    ]:
+        if old in content:
+            content = content.replace(old, new_sys, 1)
+            print("✅ _json_system updated with hist_suffix")
+            break
 
-    # Validate
     try:
         ast.parse(content)
-        print("✅ syntax OK")
+        print("✅ main.py syntax OK")
     except SyntaxError as e:
-        print(f"❌ Syntax error: {e}")
-        sys.exit(1)
+        print(f"❌ {e}"); return False
 
-    Path("main.py").write_text(content, encoding="utf-8")
-    print("\ngit add -A && git commit -m 'fix: JSON path context_path + historical dasha for past questions' && git push")
-    print("\nTest after deploy:")
-    print("""  curl -s -X POST "https://antar-fastapi-production.up.railway.app/api/v1/predict" \\
-    -H "Content-Type: application/json" \\
-    -d '{"chart_id":"de02bb52-d43a-4b09-be25-b45a07bfbf8a","question":"when did I get married","language":"en","use_json_context":true}' \\
-    | python3 -c "import sys,json; d=json.load(sys.stdin); print('PATH:', d.get('context_path')); print('TIMING:', d.get('timing_window')); print(d.get('plain_summary','')[:200])" """)
+    path.write_text(content, encoding="utf-8")
+    return True
+
+
+def main():
+    print("=" * 60)
+    print("PAST PREDICTIONS PATCH — ALL 5 EVENT TYPES")
+    print("=" * 60)
+    ok1 = patch_system_prompt()
+    print()
+    ok2 = patch_main()
+    print()
+    if ok1 and ok2:
+        print("✅ Done. Deploy:")
+        print("  git add -A && git commit -m 'fix: past predictions all 5 event types' && git push")
+        print()
+        print("Then test:")
+        print("  python3 /tmp/test_blind_claude.py")
+        print()
+        print("Expected: 60%+ (3-4 of 6 correct)")
+    else:
+        sys.exit(1)
 
 
 if __name__ == "__main__":
