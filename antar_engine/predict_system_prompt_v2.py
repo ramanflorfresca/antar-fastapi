@@ -180,3 +180,24 @@ Respond with a JSON object only. No markdown, no prose outside the JSON.
 Language: respond in the language specified in the live.language field.
 If language is "es": all fields except layers_used must be in Spanish.
 """
+
+## CRITICAL EXAMPLES — AD SELECTION FOR CHILDREN
+
+EXAMPLE 1 (Capricorn lagna, Venus MD):
+  Venus MD runs 1983-2003. 5H lord = Venus (already the MD).
+  For first child in Venus MD: look for Mercury AD (9H lord = luck/dharma)
+  Mercury AD within Venus MD = Aug 1999 - Jun 2002
+  → First child window = 1999-2002
+
+EXAMPLE 2 (Cancer lagna, Jupiter MD):
+  Jupiter MD runs 2012-2028.
+  5H lord = Mars. Venus = karaka of female children.
+  Jupiter-Venus AD = Sep 2020 - May 2023
+  → Daughter born in Jupiter-Venus AD, likely near END of AD = 2022-2023
+  → DO NOT pick Jupiter-Mars AD for female children — pick Jupiter-Venus AD
+
+EXAMPLE 3 — Sequential second child:
+  If first child born 2001 (Venus-Mercury AD Aug 1999 - Jun 2002)
+  Second child = ~2 years later = 2003
+  Next AD after Mercury = Ketu AD (Jun 2002 - Aug 2003)
+  → Second child window = Jun 2002 - Aug 2003
