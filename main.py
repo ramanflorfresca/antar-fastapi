@@ -3388,6 +3388,22 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
                 _user_only_prompt = _user_only_prompt.replace(_full_context, "", 1).lstrip()
             prompt = _user_only_prompt
             print(f"[predict] KV cache: system={len(_master_system)} chars, user_prompt={len(prompt)} chars")
+
+            # === KV CACHE DEBUG (TEMPORARY) ===
+            try:
+                import hashlib as _hl
+                _ms_full = _master_system
+                _ms_static = _ms_full.split("## LIVE DATA")[0] if "## LIVE DATA" in _ms_full else _ms_full
+                _h_full = _hl.md5(_ms_full.encode()).hexdigest()[:8]
+                _h_static = _hl.md5(_ms_static.encode()).hexdigest()[:8]
+                print(f"[kv-debug] full_hash={_h_full} static_hash={_h_static} static_len={len(_ms_static)}")
+                print(f"[kv-debug] static_HEAD: {_ms_static[:200]!r}")
+                print(f"[kv-debug] static_TAIL: {_ms_static[-300:]!r}")
+                print(f"[kv-debug] user_prompt_HEAD: {prompt[:200]!r}")
+                print(f"[kv-debug] user_prompt_TAIL: {prompt[-300:]!r}")
+            except Exception as _kvde:
+                print(f"[kv-debug] error: {_kvde}")
+            # === END KV CACHE DEBUG ===
         # === END KV CACHE FIX ===
 
         prediction_text, tokens_used = await call_llm_claude(
