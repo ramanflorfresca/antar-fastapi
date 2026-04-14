@@ -3600,6 +3600,20 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
                 _is_past_q = any(kw in request.question.lower() for kw in _past_keywords)
 
                 if _is_past_q:
+                    # Run Python DashaEventMapper — compute windows deterministically
+                    try:
+                        from antar_engine.dasha_event_mapper import map_all_events, format_for_prompt
+                        _mapper_results = map_all_events(
+                            birth_year=_birth_year,
+                            lagna=_lagna_sign,
+                            ads=_ads,
+                        )
+                        _mapper_block = format_for_prompt(_mapper_results)
+                        _tl += _mapper_block
+                        print(f"[json-v2] DashaEventMapper: {sum(1 for v in _mapper_results.values() if v)}/5 events computed")
+                    except Exception as _me:
+                        print(f"[json-v2] DashaEventMapper failed (non-fatal): {_me}")
+                if _is_past_q:
                     try:
                         _hist = supabase.table("dasha_periods") \
                             .select("planet_or_sign,start_date,end_date,level,type,metadata,sequence") \

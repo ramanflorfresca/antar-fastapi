@@ -1,145 +1,114 @@
 {
-  "question": "When will my cash flow problem get resolved?",
-  "concern": "finance",
-  "today": "2026-04-14",
+  "person": "Raman",
+  "birth_date": "1974-11-26",
+  "birth_time": "morning (approximate)",
+  "birth_place": "India",
 
-  "chart": {
-    "lagna": {
-      "sign": "Capricorn",
-      "sign_index": 9,
-      "degree": 24.69
-    },
+  "d1_chart": {
+    "lagna": "Capricorn",
+    "lagna_degree": 24.69,
     "planets": {
-      "Sun":     { "sign": "Scorpio",     "sign_index": 7,  "house": 11, "degree": 10.1,  "nakshatra": "Anuradha" },
-      "Moon":    { "sign": "Pisces",      "sign_index": 11, "house": 3,  "degree": 5.2,   "nakshatra": "Uttara Bhadrapada" },
-      "Mars":    { "sign": "Libra",       "sign_index": 6,  "house": 10, "degree": 14.3,  "nakshatra": "Swati" },
-      "Mercury": { "sign": "Libra",       "sign_index": 6,  "house": 10, "degree": 8.7,   "nakshatra": "Chitra" },
-      "Jupiter": { "sign": "Aquarius",    "sign_index": 10, "house": 2,  "degree": 22.5,  "nakshatra": "Purva Bhadrapada" },
-      "Venus":   { "sign": "Scorpio",     "sign_index": 7,  "house": 11, "degree": 3.8,   "nakshatra": "Vishakha" },
-      "Saturn":  { "sign": "Capricorn",   "sign_index": 9,  "house": 1,  "degree": 12.5,  "nakshatra": "Shravana" },
-      "Rahu":    { "sign": "Aries",       "sign_index": 0,  "house": 4,  "degree": 18.3,  "nakshatra": "Bharani" },
-      "Ketu":    { "sign": "Libra",       "sign_index": 6,  "house": 10, "degree": 18.3,  "nakshatra": "Swati" }
+      "Sun":     {"sign": "Scorpio",    "house": 11, "degree": 10.5,  "nakshatra": "Anuradha"},
+      "Moon":    {"sign": "Pisces",     "house": 3,  "degree": 16.2,  "nakshatra": "Uttara Bhadrapada"},
+      "Mars":    {"sign": "Libra",      "house": 10, "degree": 12.8,  "nakshatra": "Swati"},
+      "Mercury": {"sign": "Libra",      "house": 10, "degree": 8.3,   "nakshatra": "Chitra"},
+      "Jupiter": {"sign": "Aquarius",   "house": 2,  "degree": 22.1,  "nakshatra": "Purva Bhadrapada"},
+      "Venus":   {"sign": "Scorpio",    "house": 11, "degree": 4.7,   "nakshatra": "Vishakha"},
+      "Saturn":  {"sign": "Capricorn",  "house": 1,  "degree": 19.4,  "nakshatra": "Shravana"},
+      "Rahu":    {"sign": "Aries",      "house": 4,  "degree": 11.6,  "nakshatra": "Bharani"},
+      "Ketu":    {"sign": "Libra",      "house": 10, "degree": 11.6,  "nakshatra": "Swati"}
     },
     "house_lords": {
-      "1":  { "lord": "Saturn" },
-      "2":  { "lord": "Saturn" },
-      "3":  { "lord": "Jupiter" },
-      "4":  { "lord": "Mars" },
-      "5":  { "lord": "Venus" },
-      "6":  { "lord": "Mercury" },
-      "7":  { "lord": "Moon" },
-      "8":  { "lord": "Sun" },
-      "9":  { "lord": "Mercury" },
-      "10": { "lord": "Venus" },
-      "11": { "lord": "Jupiter" },
-      "12": { "lord": "Jupiter" }
+      "1H_lord": "Saturn (in 1H — own sign, strong)",
+      "2H_lord": "Saturn (in 1H)",
+      "3H_lord": "Jupiter (in 2H)",
+      "4H_lord": "Mars (in 10H)",
+      "5H_lord": "Venus (in 11H) — house of children and romance",
+      "6H_lord": "Mercury (in 10H)",
+      "7H_lord": "Moon (in 3H) — house of marriage and partnerships",
+      "8H_lord": "Sun (in 11H)",
+      "9H_lord": "Mercury (in 10H) — house of luck, dharma, progeny",
+      "10H_lord": "Venus (in 11H)",
+      "11H_lord": "Jupiter (in 2H)",
+      "12H_lord": "Jupiter (in 2H) — house of foreign lands"
     },
-    "atmakaraka": "Saturn",
-    "divisional_charts": {
-      "d1": {
-        "lagna": "Capricorn",
-        "note": "same as natal — included for completeness"
-      },
-      "d2": {
-        "lagna": "Capricorn",
-        "meaning": "D2 Hora — wealth channel. Sun hora = self-made, Moon hora = public/inherited",
-        "planets": {
-          "Jupiter": { "sign": "Cancer",      "house": 7,  "sign_lord": "Moon",    "hora": "Moon" },
-          "Sun":     { "sign": "Leo",          "house": 8,  "sign_lord": "Sun",     "hora": "Sun" },
-          "Venus":   { "sign": "Leo",          "house": 8,  "sign_lord": "Sun",     "hora": "Sun" },
-          "Saturn":  { "sign": "Capricorn",    "house": 1,  "sign_lord": "Saturn",  "hora": "Sun" },
-          "Mars":    { "sign": "Scorpio",      "house": 11, "sign_lord": "Mars",    "hora": "Moon" },
-          "Mercury": { "sign": "Virgo",        "house": 9,  "sign_lord": "Mercury", "hora": "Moon" },
-          "Moon":    { "sign": "Cancer",       "house": 7,  "sign_lord": "Moon",    "hora": "Moon" },
-          "Rahu":    { "sign": "Leo",          "house": 8,  "sign_lord": "Sun",     "hora": "Sun" },
-          "Ketu":    { "sign": "Aquarius",     "house": 2,  "sign_lord": "Saturn",  "hora": "Sun" }
-        }
-      },
-      "d9": {
-        "lagna": "Leo",
-        "lagna_index": 4,
-        "meaning": "Navamsa — soul, dharma, marriage, deeper nature",
-        "planets": {
-          "Sun":     { "sign": "Libra",      "house": 3,  "sign_lord": "Venus" },
-          "Moon":    { "sign": "Scorpio",    "house": 4,  "sign_lord": "Mars" },
-          "Mars":    { "sign": "Taurus",     "house": 10, "sign_lord": "Venus" },
-          "Mercury": { "sign": "Virgo",      "house": 2,  "sign_lord": "Mercury" },
-          "Jupiter": { "sign": "Pisces",     "house": 8,  "sign_lord": "Jupiter" },
-          "Venus":   { "sign": "Sagittarius","house": 5,  "sign_lord": "Jupiter" },
-          "Saturn":  { "sign": "Capricorn",  "house": 6,  "sign_lord": "Saturn" },
-          "Rahu":    { "sign": "Sagittarius","house": 5,  "sign_lord": "Jupiter" },
-          "Ketu":    { "sign": "Gemini",     "house": 11, "sign_lord": "Mercury" }
-        }
-      },
-      "d10": {
-        "lagna": "Virgo",
-        "lagna_index": 5,
-        "meaning": "Dasamsa — career, authority, public role",
-        "planets": {
-          "Sun":     { "sign": "Cancer",     "house": 11, "sign_lord": "Moon" },
-          "Moon":    { "sign": "Scorpio",    "house": 3,  "sign_lord": "Mars" },
-          "Mars":    { "sign": "Libra",      "house": 2,  "sign_lord": "Venus" },
-          "Mercury": { "sign": "Libra",      "house": 2,  "sign_lord": "Venus" },
-          "Jupiter": { "sign": "Pisces",     "house": 7,  "sign_lord": "Jupiter" },
-          "Venus":   { "sign": "Scorpio",    "house": 3,  "sign_lord": "Mars" },
-          "Saturn":  { "sign": "Capricorn",  "house": 5,  "sign_lord": "Saturn" },
-          "Rahu":    { "sign": "Aries",      "house": 8,  "sign_lord": "Mars" },
-          "Ketu":    { "sign": "Libra",      "house": 2,  "sign_lord": "Venus" }
-        }
-      }
+    "key_yogas": [
+      "Dhana Yoga: Jupiter in 2H + Venus (5L) in 11H",
+      "Raja Yoga potential: Mars (4L+11L) in 10H with Mercury (6L+9L)",
+      "Saturn AK (Atmakaraka) in 1H own sign"
+    ]
+  },
+
+  "d9_navamsa": {
+    "note": "D9 shows deeper dharma, marriage quality, and soul purpose",
+    "lagna": "Leo",
+    "planets": {
+      "Sun":     {"sign": "Gemini",     "house": 11},
+      "Moon":    {"sign": "Scorpio",    "house": 4},
+      "Mars":    {"sign": "Cancer",     "house": 12},
+      "Mercury": {"sign": "Scorpio",    "house": 4},
+      "Jupiter": {"sign": "Pisces",     "house": 8},
+      "Venus":   {"sign": "Scorpio",    "house": 4},
+      "Saturn":  {"sign": "Gemini",     "house": 11},
+      "Rahu":    {"sign": "Aquarius",   "house": 7},
+      "Ketu":    {"sign": "Leo",        "house": 1}
     }
   },
 
-  "dashas": {
-    "vimsottari": {
-      "current_MD": { "planet": "Mars",    "started": "2019-08-13", "ends": "2026-08-13" },
-      "current_AD": { "planet": "Moon",    "started": "2026-01-12", "ends": "2026-08-13" },
-      "next_MD":    { "planet": "Rahu",    "starts":  "2026-08-13", "ends": "2044-08-13" },
-      "next_MD_2":  { "planet": "Jupiter", "starts":  "2044-08-13", "ends": "2060-08-13" }
-    },
-    "jaimini_chara": {
-      "current_MD": { "sign": "Taurus",  "started": "2023-11-26", "ends": "2029-11-26" },
-      "note": "Taurus is 5H from Capricorn lagna — investments, creativity, speculation"
-    },
-    "ashtottari": {
-      "current_MD": { "planet": "Venus",  "started": "2011-09-16", "ends": "2032-09-16" },
-      "current_AD": { "planet": "Venus",  "started": "2022-11-24", "ends": "2026-07-07" }
-    }
-  },
+  "vimsottari_mahadashas": [
+    {"MD": "Mercury", "start": "1974-11-26", "end": "1976-08-13", "duration": "1.7 yrs"},
+    {"MD": "Ketu",    "start": "1976-08-13", "end": "1983-08-13", "duration": "7 yrs"},
+    {"MD": "Venus",   "start": "1983-08-13", "end": "2003-08-13", "duration": "20 yrs"},
+    {"MD": "Sun",     "start": "2003-08-13", "end": "2009-08-13", "duration": "6 yrs"},
+    {"MD": "Moon",    "start": "2009-08-13", "end": "2019-08-13", "duration": "10 yrs"},
+    {"MD": "Mars",    "start": "2019-08-13", "end": "2026-08-13", "duration": "7 yrs"},
+    {"MD": "Rahu",    "start": "2026-08-13", "end": "2044-08-13", "duration": "18 yrs"},
+    {"MD": "Jupiter", "start": "2044-08-13", "end": "2060-08-13", "duration": "16 yrs"},
+    {"MD": "Saturn",  "start": "2060-08-13", "end": "2079-08-13", "duration": "19 yrs"}
+  ],
 
-  "lal_kitab": {
-    "lagna_sign": "Capricorn",
-    "sleeping_planets": [],
-    "note": "No sleeping planets — all house significations are active"
-  },
+  "venus_md_antardashas": [
+    {"MD": "Venus", "AD": "Venus",   "start": "1983-08-13", "end": "1986-12-12"},
+    {"MD": "Venus", "AD": "Sun",     "start": "1986-12-12", "end": "1987-12-12"},
+    {"MD": "Venus", "AD": "Moon",    "start": "1987-12-12", "end": "1989-08-12"},
+    {"MD": "Venus", "AD": "Mars",    "start": "1989-08-12", "end": "1990-10-12"},
+    {"MD": "Venus", "AD": "Rahu",    "start": "1990-10-12", "end": "1993-10-12"},
+    {"MD": "Venus", "AD": "Jupiter", "start": "1993-10-12", "end": "1996-06-12"},
+    {"MD": "Venus", "AD": "Saturn",  "start": "1996-06-12", "end": "1999-08-13"},
+    {"MD": "Venus", "AD": "Mercury", "start": "1999-08-13", "end": "2002-06-13"},
+    {"MD": "Venus", "AD": "Ketu",    "start": "2002-06-13", "end": "2003-08-13"}
+  ],
 
-  "jaimini": {
-    "karakas": [
-      { "planet": "Saturn",  "karaka": "AK",  "role": "Atmakaraka — soul significator" },
-      { "planet": "Mars",    "karaka": "AmK", "role": "Amatyakaraka — career significator" },
-      { "planet": "Jupiter", "karaka": "BK",  "role": "Bhratrukaraka — siblings/counsel" },
-      { "planet": "Sun",     "karaka": "MK",  "role": "Matrakaraka — mother/mind" },
-      { "planet": "Venus",   "karaka": "PuK", "role": "Putrakaraka — children/creativity" },
-      { "planet": "Moon",    "karaka": "GnK", "role": "Gnatikaraka — competition/enemies" },
-      { "planet": "Mercury", "karaka": "DK",  "role": "Darakaraka — spouse/partnerships" }
-    ],
-    "arudha_lagna": { "sign": "Aries", "house": 4, "note": "Public image/perception house" }
-  },
+  "sun_md_antardashas": [
+    {"MD": "Sun", "AD": "Sun",     "start": "2003-08-13", "end": "2004-01-01"},
+    {"MD": "Sun", "AD": "Moon",    "start": "2004-01-01", "end": "2004-08-01"},
+    {"MD": "Sun", "AD": "Mars",    "start": "2004-08-01", "end": "2005-01-01"},
+    {"MD": "Sun", "AD": "Rahu",    "start": "2005-01-01", "end": "2005-11-01"},
+    {"MD": "Sun", "AD": "Jupiter", "start": "2005-11-01", "end": "2006-08-01"},
+    {"MD": "Sun", "AD": "Saturn",  "start": "2006-08-01", "end": "2007-08-01"},
+    {"MD": "Sun", "AD": "Mercury", "start": "2007-08-01", "end": "2008-06-01"},
+    {"MD": "Sun", "AD": "Ketu",    "start": "2008-06-01", "end": "2008-11-01"},
+    {"MD": "Sun", "AD": "Venus",   "start": "2008-11-01", "end": "2009-08-13"}
+  ],
 
-  "varshphal": {
-    "running_year": 52,
-    "note": "Year 52 Varshphal — include if you have the annual chart house destinations"
-  },
+  "moon_md_antardashas": [
+    {"MD": "Moon", "AD": "Moon",    "start": "2009-08-13", "end": "2010-06-13"},
+    {"MD": "Moon", "AD": "Mars",    "start": "2010-06-13", "end": "2011-01-12"},
+    {"MD": "Moon", "AD": "Rahu",    "start": "2011-01-12", "end": "2012-07-13"},
+    {"MD": "Moon", "AD": "Jupiter", "start": "2012-07-13", "end": "2013-11-12"},
+    {"MD": "Moon", "AD": "Saturn",  "start": "2013-11-12", "end": "2015-06-13"},
+    {"MD": "Moon", "AD": "Mercury", "start": "2015-06-13", "end": "2016-11-11"},
+    {"MD": "Moon", "AD": "Ketu",    "start": "2016-11-11", "end": "2017-06-12"},
+    {"MD": "Moon", "AD": "Venus",   "start": "2017-06-12", "end": "2019-02-11"},
+    {"MD": "Moon", "AD": "Sun",     "start": "2019-02-11", "end": "2019-08-13"}
+  ],
 
-  "dkp_context": {
-    "age": 51,
-    "life_stage": "consolidation",
-    "current_country": "US",
-    "birth_country": "IN",
-    "career_stage": "founder",
-    "archetype": "THE BROKER — closes deals others can't, works through relationships and networks",
-    "financial_status": "under_pressure"
-  },
-
-  "system_prompt": "You are a Vedic astrology prediction engine. Apply the following frameworks to the chart data and answer the question with a specific, falsifiable prediction.\n\nFRAMEWORKS TO APPLY IN ORDER:\n\n1. PARASHARI RULES\n   - Identify 2H lord (wealth accumulation), 11H lord (income/gains), 6H (debt/expenses)\n   - Check if 2H/11H lords are strong, well-placed, or under affliction\n   - Identify any wealth yogas (e.g. Dhana yoga = 2H and 11H lords conjunct/aspecting)\n   - Check 8H for sudden gains/losses\n\n2. VIMSOTTARI DASHA TIMING\n   - Current MD planet: what house does it rule? Where does it sit natally?\n   - Current AD planet: what does it activate?\n   - Next MD: what does it promise for the question domain?\n   - Does the MD/AD combination support or block wealth/finance?\n\n3. JAIMINI FOR EVENTS\n   - Current Jaimini Chara MD sign: which house is it from lagna?\n   - What does that sign/house signify for finances?\n   - Does Atmakaraka (AK) or Amatyakaraka (AmK) connect to wealth houses?\n   - Check Arudha Lagna for public/visible financial status\n\n4. LAL KITAB SLEEPING PLANETS\n   - Are any planets sleeping (blocking their house significations)?\n   - If yes: the dasha window is blocked even if timing looks good\n   - If no sleeping planets block 2H/11H: window is open\n\n5. CONVERGENCE CHECK\n   - Do Vimsottari + Jaimini + D2 Hora all point same direction?\n   - HIGH confidence = 3/3 agree\n   - MEDIUM = 2/3 agree\n   - LOW = only 1 layer supports\n\nOUTPUT FORMAT (respond in this exact JSON structure):\n{\n  \"event_window\": \"exact date range when cash flow resolves\",\n  \"confidence\": \"high|medium|low\",\n  \"primary_trigger\": \"which MD/AD transition causes the shift\",\n  \"house_analysis\": {\n    \"2H_status\": \"...\",\n    \"11H_status\": \"...\",\n    \"6H_status\": \"...\"\n  },\n  \"parashari_verdict\": \"what the natal chart says about wealth potential\",\n  \"vimsottari_verdict\": \"what the current/upcoming dasha says\",\n  \"jaimini_verdict\": \"what Jaimini Chara dasha confirms or contradicts\",\n  \"lk_verdict\": \"sleeping planet status and what it means\",\n  \"convergence\": \"do the layers agree? state which ones and how\",\n  \"plain_summary\": \"2-3 sentences in plain English. WHY first. No jargon.\",\n  \"action_this_week\": \"one specific action\"\n}"
+  "questions": [
+    "Based on this chart and dasha sequence, give me a DATE RANGE (not exact date) for when this person most likely got married.",
+    "Give me a DATE RANGE for when the first child was born.",
+    "Give me a DATE RANGE for when the second child was born.",
+    "Give me a DATE RANGE for when this person relocated to a foreign country.",
+    "Give me a DATE RANGE for when a major relationship ended (divorce or separation).",
+    "For each answer: state which MD + AD was active, which house/lord triggered it, and your confidence level (high/medium/low)."
+  ]
 }
