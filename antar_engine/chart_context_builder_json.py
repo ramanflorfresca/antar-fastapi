@@ -118,12 +118,14 @@ def _fetch_dashas(chart_id: str, supabase) -> Dict[str, Any]:
                 elif lv == 3 and current_pd is None:
                     current_pd = {"planet": planet, "start": start, "end": end}
 
-        # Upcoming MDs
+        # Upcoming MDs — use >= so same-day transitions (end==start) are included
         if current_md:
             for row in sys_rows:
                 if _level_int(row) == 1:
                     start = str(row.get("start_date", ""))[:10]
-                    if start > current_md["end"]:
+                    # >= catches same-day handoff (e.g. Mars ends Aug 13, Rahu starts Aug 13)
+                    # but skip the current MD itself
+                    if start >= current_md["end"] and start != current_md["start"]:
                         upcoming_md.append({
                             "planet": row.get("planet_or_sign", ""),
                             "start": start,
