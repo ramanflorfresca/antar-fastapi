@@ -1,88 +1,41 @@
 """
 antar_engine/chart_schema.py
 ============================
-Canonical chart data schema for Antar.
+Canonical chart data schema for Antar — built against the REAL Supabase schema.
 
-CANONICAL CONVENTIONS (enforced by this module):
-  - Divisional chart keys: lowercase  →  d1, d2, d9, d10  (NOT D1, D9, D10)
-  - Sign indices: integers 0-11       →  0=Aries … 11=Pisces
-  - Degrees: floats                   →  23.47  (NOT "23.47" string)
-  - Planet names: Title-case strings  →  "Sun", "Moon", "Rahu", "Ketu"
+REAL SCHEMA (confirmed Apr 14 2026 against production):
+  chart_data (JSONB column on `charts` table):
+    .lagna                  {sign: "Capricorn", degree: float, sign_index: int}
+    .planets                {PlanetName: {sign: str, house: int, degree: float,
+                                          sign_index: int, nakshatra: str, ...}}
+    .divisional_charts      {d1..d60: {lagna: "SignName", meaning: str,
+                                       planets: {PlanetName: {sign: str, house: int,
+                                                              sign_lord: str}},
+                                       lagna_lord: str}}
+    .yogas                  [...]
+    .house_lords            {...}
+    .house_analysis         {...}
+    .birth_jd               float
+    .atmakaraka             str
 
-ENTRY POINTS:
-  normalize_chart_data(raw)           →  canonical ChartData dict
-  get_divisional(cd, key)             →  safe read, accepts "d9" or "D9"
+  Separate columns on `charts` table (NOT inside chart_data):
+    .lal_kitab_data         JSONB
+    .jaimini_data           JSONB
+    .lagna_sign             str  (e.g. "Capricorn")
+    .lagna_degree           float
 
-Place this file at  ~/antarai/antar_engine/chart_schema.py
+  Separate table:
+    `dasha_periods`         (not `dashas`)
+
+CANONICAL CONVENTIONS:
+  - Divisional chart keys: lowercase  ->  d1, d9, d10  (already correct in prod)
+  - Sign names: Title-case strings    ->  "Aries", "Capricorn" (preserved as-is)
+  - Sign indices: integers 0-11       ->  sign_index field where present
+  - Planet names: Title-case          ->  "Sun", "Moon", "Rahu"
 """
 
 from __future__ import annotations
-from typing import Any, Dict, List, Optional, Tuple, TypedDict
-
-# ---------------------------------------------------------------------------
-# 1. TypedDict shapes (documentation + IDE support, NOT runtime enforcement)
-# ---------------------------------------------------------------------------
-
-class PlanetPosition(TypedDict, total=False):
-    sign: int          # 0-11 integer
-    sign_name: str     # "Aries", "Taurus" … canonical
-    degree: float      # 0.0 - 29.999
-    house: int         # 1-12
-    retrograde: bool
-    nakshatra: str
-    nakshatra_pada: int
-
-
-class DivisionalChart(TypedDict, total=False):
-    lagna: int                          # sign index 0-11
-    lagna_name: str
-    planets: Dict[str, PlanetPosition]  # keyed by planet name (Title-case)
-
-
-class DashaEntry(TypedDict, total=False):
-    planet: str
-    start: str   # ISO date string "YYYY-MM-DD"
-    end: str
-    sub_dashas: List[Dict[str, Any]]
-
-
-class JaiminiKaraka(TypedDict, total=False):
-    planet: str
-    karaka: str   # "AK", "AmK", "BK", "MK", "PuK", "GnK", "DK"
-    degree: float
-
-
-class JaiminiData(TypedDict, total=False):
-    karakas: List[JaiminiKaraka]
-    arudha_lagna: Dict[str, Any]
-    upapada_lagna: Dict[str, Any]
-    karakamsa: Dict[str, Any]
-    predictions: List[Dict[str, Any]]
-
-
-class DKPContext(TypedDict, total=False):
-    desha: Dict[str, Any]   # place / culture
-    kala: Dict[str, Any]    # era / life stage (age as integer years)
-    patra: Dict[str, Any]   # person / role / industry
-
-
-class ChartData(TypedDict, total=False):
-    natal: Dict[str, Any]
-    divisional_charts: Dict[str, DivisionalChart]   # keys: d1, d2, d9 … (lowercase)
-    dashas: Dict[str, Any]
-    lal_kitab: Dict[str, Any]
-    lal_kitab_advanced: Dict[str, Any]
-    varshphal: Dict[str, Any]
-    jaimini: JaiminiData
-    dkp_context: DKPContext
-    natal_signature: Dict[str, Any]
-    archetype: Dict[str, Any]
-    yogas: List[Dict[str, Any]]
-
-
-# ---------------------------------------------------------------------------
-# 2. Constants
-# ---------------------------------------------------------------------------
+from typing import Any, Dict, List, Optional
 
 SIGN_NAMES = [
     "Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
@@ -91,349 +44,253 @@ SIGN_NAMES = [
 
 SIGN_NAME_TO_INDEX: Dict[str, int] = {n.lower(): i for i, n in enumerate(SIGN_NAMES)}
 
-PLANET_CANONICAL = {
+PLANET_CANONICAL: Dict[str, str] = {
     "sun": "Sun", "moon": "Moon", "mars": "Mars", "mercury": "Mercury",
     "jupiter": "Jupiter", "venus": "Venus", "saturn": "Saturn",
     "rahu": "Rahu", "ketu": "Ketu",
     "ascendant": "Ascendant", "asc": "Ascendant",
+    "uranus": "Uranus", "neptune": "Neptune", "pluto": "Pluto",
 }
 
-# All divisional chart key aliases → canonical lowercase key
 _DIV_KEY_ALIASES: Dict[str, str] = {}
-for _n in range(1, 25):
-    _DIV_KEY_ALIASES[f"d{_n}"] = f"d{_n}"    # already canonical
-    _DIV_KEY_ALIASES[f"D{_n}"] = f"d{_n}"    # uppercase → canonical
+for _n in range(1, 61):
+    _DIV_KEY_ALIASES[f"d{_n}"] = f"d{_n}"
+    _DIV_KEY_ALIASES[f"D{_n}"] = f"d{_n}"
 
 
-# ---------------------------------------------------------------------------
-# 3. Low-level coercion helpers
-# ---------------------------------------------------------------------------
-
-def _to_int_sign(value: Any) -> Optional[int]:
-    """Convert sign value to integer 0-11.  Accepts int, str name, str number."""
-    if value is None:
-        return None
-    if isinstance(value, int):
-        return value if 0 <= value <= 11 else None
-    if isinstance(value, float):
-        v = int(value)
-        return v if 0 <= v <= 11 else None
-    if isinstance(value, str):
-        # Try numeric string first
-        try:
-            v = int(float(value))
-            return v if 0 <= v <= 11 else None
-        except ValueError:
-            pass
-        # Try sign name
-        return SIGN_NAME_TO_INDEX.get(value.strip().lower())
+def sign_name_to_index(name: Any) -> Optional[int]:
+    if isinstance(name, int) and 0 <= name <= 11:
+        return name
+    if isinstance(name, str):
+        return SIGN_NAME_TO_INDEX.get(name.strip().lower())
     return None
 
 
-def _to_float(value: Any) -> Optional[float]:
-    """Coerce to float, return None on failure."""
-    if value is None:
-        return None
-    try:
-        return float(value)
-    except (ValueError, TypeError):
-        return None
+def sign_index_to_name(idx: Any) -> Optional[str]:
+    if isinstance(idx, int) and 0 <= idx <= 11:
+        return SIGN_NAMES[idx]
+    return None
 
 
-def _to_bool(value: Any) -> bool:
-    if isinstance(value, bool):
-        return value
-    if isinstance(value, str):
-        return value.lower() in ("true", "1", "yes", "t")
-    if isinstance(value, (int, float)):
-        return bool(value)
-    return False
-
-
-def _canonical_planet_name(name: Any) -> str:
-    """Return Title-case canonical planet name."""
+def canonical_planet_name(name: Any) -> str:
     if not isinstance(name, str):
         return str(name)
     return PLANET_CANONICAL.get(name.strip().lower(), name.strip().title())
 
 
-# ---------------------------------------------------------------------------
-# 4. Planet position normalizer
-# ---------------------------------------------------------------------------
+def _normalize_lagna(raw: Any) -> Dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {}
+    out = dict(raw)
+    if "sign_index" in out:
+        try:
+            out["sign_index"] = int(out["sign_index"])
+        except (ValueError, TypeError):
+            pass
+    elif "sign" in out:
+        idx = sign_name_to_index(out["sign"])
+        if idx is not None:
+            out["sign_index"] = idx
+    if "sign" in out and isinstance(out["sign"], str):
+        out["sign"] = out["sign"].strip().title()
+    return out
 
-def _normalize_planet(raw: Any) -> Dict[str, Any]:
-    """Normalize a single planet position dict."""
+
+def _normalize_natal_planet(raw: Any) -> Dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {}
+    out = dict(raw)
+    if "sign_index" in out:
+        try:
+            out["sign_index"] = int(out["sign_index"])
+        except (ValueError, TypeError):
+            pass
+    elif "sign" in out:
+        idx = sign_name_to_index(out["sign"])
+        if idx is not None:
+            out["sign_index"] = idx
+    if "sign" in out and isinstance(out["sign"], str):
+        out["sign"] = out["sign"].strip().title()
+    return out
+
+
+def _normalize_div_planet(raw: Any) -> Dict[str, Any]:
+    if not isinstance(raw, dict):
+        return {}
+    out = dict(raw)
+    if "sign" in out and isinstance(out["sign"], str):
+        out["sign"] = out["sign"].strip().title()
+    if "sign" in out and "sign_index" not in out:
+        idx = sign_name_to_index(out["sign"])
+        if idx is not None:
+            out["sign_index"] = idx
+    return out
+
+
+def _normalize_divisional_chart(raw: Any) -> Dict[str, Any]:
     if not isinstance(raw, dict):
         return {}
     out: Dict[str, Any] = {}
 
-    sign_raw = raw["sign"] if "sign" in raw else (raw["sign_index"] if "sign_index" in raw else raw.get("rasi"))
-    sign_idx = _to_int_sign(sign_raw)
-    if sign_idx is not None:
-        out["sign"] = sign_idx
-        out["sign_name"] = SIGN_NAMES[sign_idx]
-    elif isinstance(sign_raw, str) and sign_raw.strip():
-        # Preserve unknown string (will be flagged by validator)
-        out["sign_name"] = sign_raw.strip().title()
+    lagna_raw = raw.get("lagna")
+    if isinstance(lagna_raw, str):
+        out["lagna"] = lagna_raw.strip().title()
+        idx = sign_name_to_index(lagna_raw)
+        if idx is not None:
+            out["lagna_index"] = idx
+    elif isinstance(lagna_raw, int) and 0 <= lagna_raw <= 11:
+        out["lagna_index"] = lagna_raw
+        out["lagna"] = SIGN_NAMES[lagna_raw]
 
-    _deg_raw = raw["degree"] if "degree" in raw else (raw["degrees"] if "degrees" in raw else raw.get("deg"))
-    deg = _to_float(_deg_raw)
-    if deg is not None:
-        out["degree"] = deg
+    for field in ("meaning", "lagna_lord"):
+        if field in raw:
+            out[field] = raw[field]
 
-    house = raw["house"] if "house" in raw else raw.get("bhava")
-    if house is not None:
-        try:
-            out["house"] = int(house)
-        except (ValueError, TypeError):
-            pass
+    planets_raw = raw.get("planets") or {}
+    if isinstance(planets_raw, dict):
+        out["planets"] = {
+            canonical_planet_name(k): _normalize_div_planet(v)
+            for k, v in planets_raw.items()
+        }
+    elif isinstance(planets_raw, list):
+        pd: Dict[str, Any] = {}
+        for p in planets_raw:
+            if isinstance(p, dict):
+                name = canonical_planet_name(p.get("name") or p.get("planet", "Unknown"))
+                pd[name] = _normalize_div_planet(p)
+        out["planets"] = pd
 
-    if "retrograde" in raw:
-        out["retrograde"] = _to_bool(raw["retrograde"])
+    for k, v in raw.items():
+        if k not in ("lagna", "meaning", "lagna_lord", "planets"):
+            out[k] = v
 
-    for field in ("nakshatra", "nakshatra_pada", "lord", "sub_lord"):
+    return out
+
+
+def normalize_chart_data(raw: Any) -> Dict[str, Any]:
+    """
+    Normalize chart_data JSONB from the charts table.
+    Accepts real production shape, returns canonical dict for JSON context builder.
+    Does NOT touch lal_kitab_data or jaimini_data (separate columns).
+    """
+    if not isinstance(raw, dict):
+        return {}
+
+    out: Dict[str, Any] = {}
+
+    if "lagna" in raw:
+        out["lagna"] = _normalize_lagna(raw["lagna"])
+
+    planets_raw = raw.get("planets") or {}
+    if isinstance(planets_raw, dict):
+        out["planets"] = {
+            canonical_planet_name(k): _normalize_natal_planet(v)
+            for k, v in planets_raw.items()
+        }
+
+    div_raw = raw.get("divisional_charts") or {}
+    if isinstance(div_raw, dict):
+        canonical_div: Dict[str, Any] = {}
+        for key, val in div_raw.items():
+            canonical_key = _DIV_KEY_ALIASES.get(key, key.lower())
+            canonical_div[canonical_key] = _normalize_divisional_chart(val)
+        out["divisional_charts"] = canonical_div
+
+    for field in ("yogas", "house_lords", "house_analysis", "birth_jd",
+                  "atmakaraka", "yogas_prompt_block", "lagna_sign",
+                  "lagna_degree", "house_cusps", "ayanamsa"):
         if field in raw:
             out[field] = raw[field]
 
     return out
 
 
-# ---------------------------------------------------------------------------
-# 5. Divisional chart normalizer
-# ---------------------------------------------------------------------------
-
-def _normalize_divisional_chart(raw: Any) -> Dict[str, Any]:
-    """Normalize one divisional chart (e.g. D9 → d9 canonical shape)."""
-    if not isinstance(raw, dict):
-        return {}
-    out: Dict[str, Any] = {}
-
-    # Lagna — explicit key check so lagna=0 (Aries) isn't treated as missing
-    _lagna_key = next((k for k in ("lagna", "ascendant", "asc") if k in raw), None)
-    lagna_raw = raw[_lagna_key] if _lagna_key else None
-    if isinstance(lagna_raw, dict):
-        _lsign = lagna_raw.get("sign") if "sign" in lagna_raw else lagna_raw.get("sign_index")
-        sign_idx = _to_int_sign(_lsign)
-        if sign_idx is not None:
-            out["lagna"] = sign_idx
-            out["lagna_name"] = SIGN_NAMES[sign_idx]
-    else:
-        sign_idx = _to_int_sign(lagna_raw)
-        if sign_idx is not None:
-            out["lagna"] = sign_idx
-            out["lagna_name"] = SIGN_NAMES[sign_idx]
-
-    # Planets
-    planets_raw = raw.get("planets") or raw.get("planet_positions") or {}
-    if isinstance(planets_raw, dict):
-        out["planets"] = {
-            _canonical_planet_name(k): _normalize_planet(v)
-            for k, v in planets_raw.items()
-        }
-    elif isinstance(planets_raw, list):
-        # Some legacy formats store planets as a list with a "name" field
-        planets_dict: Dict[str, Any] = {}
-        for p in planets_raw:
-            if isinstance(p, dict):
-                name = _canonical_planet_name(p.get("name") or p.get("planet", "Unknown"))
-                planets_dict[name] = _normalize_planet(p)
-        if planets_dict:
-            out["planets"] = planets_dict
-
-    # Pass through any extra keys (don't destroy data)
-    for k, v in raw.items():
-        if k not in ("lagna", "ascendant", "asc", "planets", "planet_positions"):
-            out[k] = v
-
-    return out
-
-
-# ---------------------------------------------------------------------------
-# 6. Top-level normalize_chart_data
-# ---------------------------------------------------------------------------
-
-def normalize_chart_data(raw: Any) -> Dict[str, Any]:
-    """
-    Accept chart data in ANY legacy format and return canonical ChartData dict.
-
-    Handles:
-      - Uppercase divisional keys  (D9 → d9, D10 → d10)
-      - String sign indices        ("5" → 5)
-      - Sign name strings          ("Virgo" → 5)
-      - Float sign indices         (5.0 → 5)
-      - Planet lists vs dicts
-      - Missing divisional_charts  (empty dict returned, validator will flag)
-
-    Does NOT:
-      - Recompute any astrological values
-      - Drop unknown keys (they pass through so data is never silently lost)
-    """
-    if not isinstance(raw, dict):
-        return {}
-
-    out: Dict[str, Any] = {}
-
-    # --- natal -----------------------------------------------------------
-    natal = raw.get("natal") or raw.get("natal_chart") or raw.get("d1_chart") or {}
-    if isinstance(natal, dict):
-        out["natal"] = _normalize_divisional_chart(natal)
-
-    # --- divisional_charts -----------------------------------------------
-    div_raw = raw.get("divisional_charts") or raw.get("divisional") or {}
-    canonical_div: Dict[str, Any] = {}
-    if isinstance(div_raw, dict):
-        for key, val in div_raw.items():
-            canonical_key = _DIV_KEY_ALIASES.get(key, key.lower())
-            canonical_div[canonical_key] = _normalize_divisional_chart(val)
-    out["divisional_charts"] = canonical_div
-
-    # --- dashas ----------------------------------------------------------
-    dashas = raw.get("dashas") or raw.get("dasha") or {}
-    if isinstance(dashas, dict):
-        out["dashas"] = dashas   # structure varies by engine; pass through
-
-    # --- lal_kitab -------------------------------------------------------
-    for lk_key in ("lal_kitab", "lal_kitab_basic"):
-        if lk_key in raw:
-            out["lal_kitab"] = raw[lk_key]
-            break
-
-    if "lal_kitab_advanced" in raw:
-        out["lal_kitab_advanced"] = raw["lal_kitab_advanced"]
-
-    # --- varshphal -------------------------------------------------------
-    for vk in ("varshphal", "varshaphal", "annual_chart"):
-        if vk in raw:
-            out["varshphal"] = raw[vk]
-            break
-
-    # --- jaimini ---------------------------------------------------------
-    _jaimini_key = "jaimini" if "jaimini" in raw else ("jaimini_data" if "jaimini_data" in raw else None)
-    if _jaimini_key:
-        jaimini = raw[_jaimini_key]
-        if isinstance(jaimini, dict):
-            out["jaimini"] = jaimini   # validated separately
-
-    # --- dkp_context -----------------------------------------------------
-    _dkp_key = "dkp_context" if "dkp_context" in raw else ("dkp" if "dkp" in raw else None)
-    dkp = raw[_dkp_key] if _dkp_key else None
-    if isinstance(dkp, dict):
-        # Enforce kala.age as integer (strip days/hours/microseconds)
-        if "kala" in dkp and isinstance(dkp["kala"], dict):
-            kala = dict(dkp["kala"])
-            age_raw = kala.get("age") or kala.get("age_years")
-            if age_raw is not None:
-                try:
-                    kala["age"] = int(float(str(age_raw).split(".")[0]))
-                except (ValueError, TypeError):
-                    pass
-            dkp = {**dkp, "kala": kala}
-        out["dkp_context"] = dkp
-
-    # --- natal_signature, archetype, yogas --------------------------------
-    for passthrough in ("natal_signature", "archetype", "yogas",
-                        "chakra_map", "lk_sleeping_planets"):
-        if passthrough in raw:
-            out[passthrough] = raw[passthrough]
-
-    return out
-
-
-# ---------------------------------------------------------------------------
-# 7. Safe divisional chart reader (accepts either case)
-# ---------------------------------------------------------------------------
-
 def get_divisional(chart_data: Dict[str, Any], key: str) -> Dict[str, Any]:
-    """
-    Safe read of a divisional chart.  Accepts 'd9' or 'D9'.
-    Always returns a dict (empty if not found).
-    After normalize_chart_data() all keys should be lowercase; this helper
-    is a safety net for code that hasn't been updated yet.
-    """
+    """Safe read of a divisional chart. Accepts 'd9' or 'D9'. Returns {} if missing."""
     divs = chart_data.get("divisional_charts") or {}
     canonical = _DIV_KEY_ALIASES.get(key, key.lower())
     return divs.get(canonical) or divs.get(key) or {}
 
 
-# ---------------------------------------------------------------------------
-# 8. Unit tests  (run:  python -m antar_engine.chart_schema)
-# ---------------------------------------------------------------------------
-
 def _run_tests() -> None:
-    import json
+    print("Running chart_schema unit tests (real schema)...\n")
 
-    print("Running chart_schema unit tests…\n")
-    errors: List[str] = []
-
-    # --- Test 1: uppercase D9 → d9 ---
-    raw1 = {
+    real_shape = {
+        "lagna": {"sign": "Capricorn", "degree": 24.69, "sign_index": 9},
+        "planets": {
+            "Sun": {"sign": "Scorpio", "house": 11, "degree": 10.1,
+                    "sign_index": 7, "nakshatra": "Anuradha", "nakshatra_lord": "Saturn"}
+        },
         "divisional_charts": {
-            "D9": {"lagna": 3, "planets": {"sun": {"sign": 5, "degree": 14.3, "house": 3}}},
-            "D10": {"lagna": "Capricorn"},
-        }
+            "d1": {"lagna": "Capricorn", "meaning": "D1", "planets": {
+                "Sun": {"sign": "Scorpio", "house": 11, "sign_lord": "Mars"}
+            }},
+            "d9": {"lagna": "Leo", "meaning": "Navamsa", "planets": {
+                "Sun": {"sign": "Libra", "house": 3, "sign_lord": "Venus"}
+            }},
+        },
+        "yogas": [],
     }
-    cd1 = normalize_chart_data(raw1)
-    assert "d9" in cd1["divisional_charts"], "FAIL: D9 not normalised to d9"
-    assert "D9" not in cd1["divisional_charts"], "FAIL: D9 key still present"
-    assert "d10" in cd1["divisional_charts"], "FAIL: D10 not normalised to d10"
-    assert cd1["divisional_charts"]["d9"]["lagna"] == 3, "FAIL: d9 lagna wrong"
-    assert cd1["divisional_charts"]["d9"]["planets"]["Sun"]["degree"] == 14.3, "FAIL: Sun degree"
-    assert cd1["divisional_charts"]["d10"]["lagna"] == 9, "FAIL: Capricorn not → 9"
-    print("✅ Test 1: uppercase D9/D10 → lowercase d9/d10")
+    cd = normalize_chart_data(real_shape)
+    assert cd["lagna"]["sign_index"] == 9
+    assert cd["lagna"]["sign"] == "Capricorn"
+    assert cd["planets"]["Sun"]["sign_index"] == 7
+    assert "d1" in cd["divisional_charts"]
+    assert "d9" in cd["divisional_charts"]
+    assert cd["divisional_charts"]["d9"]["lagna"] == "Leo"
+    assert cd["divisional_charts"]["d9"]["lagna_index"] == 4
+    assert cd["divisional_charts"]["d9"]["planets"]["Sun"]["sign_index"] == 6
+    print("✅ Test 1: real production shape normalizes correctly")
 
-    # --- Test 2: string sign index ---
-    raw2 = {"divisional_charts": {"d1": {"lagna": "8"}}}
+    raw2 = {"divisional_charts": {
+        "D9": {"lagna": "Leo", "planets": {}},
+        "D10": {"lagna": "Capricorn", "planets": {}},
+    }}
     cd2 = normalize_chart_data(raw2)
-    assert cd2["divisional_charts"]["d1"]["lagna"] == 8, "FAIL: string sign index"
-    assert cd2["divisional_charts"]["d1"]["lagna_name"] == "Sagittarius"
-    print("✅ Test 2: string sign index '8' → 8 (Sagittarius)")
+    assert "d9" in cd2["divisional_charts"]
+    assert "D9" not in cd2["divisional_charts"]
+    assert "d10" in cd2["divisional_charts"]
+    print("✅ Test 2: uppercase D9/D10 -> lowercase d9/d10")
 
-    # --- Test 3: sign name string ---
-    raw3 = {"divisional_charts": {"d9": {"lagna": "Virgo", "planets": {}}}}
+    raw3 = {"lagna": {"sign": "Aries", "degree": 5.0}}
     cd3 = normalize_chart_data(raw3)
-    assert cd3["divisional_charts"]["d9"]["lagna"] == 5, "FAIL: Virgo → 5"
-    print("✅ Test 3: sign name 'Virgo' → 5")
+    assert cd3["lagna"]["sign_index"] == 0
+    print("✅ Test 3: lagna sign_index computed from name when missing")
 
-    # --- Test 4: planet list format ---
-    raw4 = {"divisional_charts": {"d1": {"lagna": 0, "planets": [
-        {"name": "moon", "sign": 2, "degree": 7.1, "house": 3},
-        {"name": "saturn", "sign": "Aquarius", "degree": 22.0, "retrograde": True},
-    ]}}}
+    raw4 = {"divisional_charts": {"d9": {"lagna": "Virgo", "planets": {}}}}
     cd4 = normalize_chart_data(raw4)
-    planets4 = cd4["divisional_charts"]["d1"]["planets"]
-    assert "Moon" in planets4, "FAIL: moon not → Moon"
-    assert "Saturn" in planets4, "FAIL: saturn not → Saturn"
-    assert planets4["Saturn"]["sign"] == 10, "FAIL: Aquarius → 10"
-    assert planets4["Saturn"]["retrograde"] is True, "FAIL: retrograde"
-    print("✅ Test 4: planet list with mixed sign formats")
+    assert cd4["divisional_charts"]["d9"]["lagna_index"] == 5
+    print("✅ Test 4: divisional chart lagna_index added from sign name")
 
-    # --- Test 5: get_divisional helper ---
-    assert get_divisional(cd1, "D9") == get_divisional(cd1, "d9"), "FAIL: get_divisional case"
-    assert get_divisional(cd1, "d99") == {}, "FAIL: missing key should return {}"
-    print("✅ Test 5: get_divisional accepts D9 or d9")
+    raw5 = {"divisional_charts": {"d9": {"lagna": "Leo", "planets": {
+        "moon": {"sign": "Taurus", "house": 2, "sign_lord": "Venus"}
+    }}}}
+    cd5 = normalize_chart_data(raw5)
+    moon = cd5["divisional_charts"]["d9"]["planets"]["Moon"]
+    assert moon["sign_index"] == 1
+    assert moon["sign"] == "Taurus"
+    print("✅ Test 5: sign_index added to divisional planets, Moon canonicalized")
 
-    # --- Test 6: kala.age stripped to integer ---
-    raw6 = {"dkp_context": {"kala": {"age": "38.7", "life_stage": "mid"}}}
-    cd6 = normalize_chart_data(raw6)
-    assert cd6["dkp_context"]["kala"]["age"] == 38, "FAIL: age not stripped to int"
-    print("✅ Test 6: kala.age '38.7' → 38 (integer)")
+    assert get_divisional(cd2, "D9") == get_divisional(cd2, "d9")
+    assert get_divisional(cd2, "d99") == {}
+    print("✅ Test 6: get_divisional accepts D9 or d9, returns {} for missing")
 
-    # --- Test 7: unknown keys pass through ---
-    raw7 = {"custom_field": "keep_me", "divisional_charts": {}}
+    raw7 = {"divisional_charts": {
+        "d1": {"lagna": "Aries", "planets": {}, "extra": "preserved"}
+    }}
     cd7 = normalize_chart_data(raw7)
-    # custom_field is not a known key so it won't be in output (by design — only known top-level keys)
-    # But unknown keys inside sub-dicts should pass through
-    raw7b = {"divisional_charts": {"d1": {"lagna": 1, "extra_data": "preserved"}}}
-    cd7b = normalize_chart_data(raw7b)
-    assert cd7b["divisional_charts"]["d1"].get("extra_data") == "preserved", "FAIL: extra keys dropped"
+    assert cd7["divisional_charts"]["d1"]["extra"] == "preserved"
     print("✅ Test 7: unknown keys inside sub-dicts preserved")
 
-    # --- Test 8: lal_kitab key aliases ---
-    raw8 = {"lal_kitab_basic": {"planets": {}}, "lal_kitab_advanced": {"sleeping": []}}
+    raw8 = {"divisional_charts": {"d1": {"lagna": "Aries", "planets": {
+        "sun": {"sign": "Leo", "house": 1},
+        "MOON": {"sign": "Cancer", "house": 4},
+    }}}}
     cd8 = normalize_chart_data(raw8)
-    assert "lal_kitab" in cd8, "FAIL: lal_kitab_basic not aliased"
-    assert "lal_kitab_advanced" in cd8, "FAIL: lal_kitab_advanced missing"
-    print("✅ Test 8: lal_kitab_basic aliased to lal_kitab")
+    planets8 = cd8["divisional_charts"]["d1"]["planets"]
+    assert "Sun" in planets8
+    assert "Moon" in planets8
+    print("✅ Test 8: planet names canonicalized to Title-case")
 
     print("\n✅ All tests passed.")
 
