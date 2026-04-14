@@ -898,6 +898,7 @@ class PredictRequest(BaseModel):
     profession:           Optional[str] = Field(None, description="User's profession/role (Patra)")
     ventures:             Optional[List[str]] = Field(None, description="Active ventures (Patra)")
     current_focus:        Optional[str] = Field(None, description="What the user is working on (Patra)")
+    use_json_context:     bool = Field(False, description="Use JSON context path (Phase 4 A/B flag)")
 
 class DashaPeriodOut(BaseModel):
     lord_or_sign: str
@@ -3366,6 +3367,111 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
             print(f"[predict] Language injection: {_lang}")
         # --- end Sprint L ---
 
+
+        # ================================================================
+        # JSON PATH (use_json_context=True) — Phase 4 JSON-first refactor
+        # ================================================================
+        if getattr(request, "use_json_context", False):
+            try:
+                print(f"[json-v2] JSON path activated for chart {request.chart_id}")
+                from antar_engine.chart_context_builder_json import (
+                    build_chart_context_json,
+                    chart_static_to_json,
+                    live_to_json,
+                    estimate_token_count,
+                )
+                from antar_engine.predict_system_prompt_v2 import PREDICT_SYSTEM_PROMPT_V2
+
+                _json_ctx = await build_chart_context_json(
+                    chart_id=request.chart_id,
+                    question=request.question,
+                    concern=concern,
+                    language=_lang if "_lang" in dir() else language,
+                    supabase=supabase,
+                )
+                _static_json = chart_static_to_json(_json_ctx)
+                _live_json   = live_to_json(_json_ctx)
+
+                # System prompt = framework (cached) + static chart JSON (cached)
+                # ## LIVE DATA marker = split point for KV cache
+                _json_system = (
+                    PREDICT_SYSTEM_PROMPT_V2
+                    + "\n\n## CHART DATA (JSON)\n"
+                    + _static_json
+                    + "\n\n## LIVE DATA\n"
+                    + _live_json
+                )
+
+                # User message = just the question
+                _json_user_prompt = (
+                    f"Question: {request.question}\n"
+                    f"Domain: {concern}\n"
+                    "Respond with a JSON object exactly as specified in the output format."
+                )
+
+                print(f"[json-v2] system={len(_json_system)} chars "
+                      f"(~{estimate_token_count(_json_system)} tokens), "
+                      f"user={len(_json_user_prompt)} chars")
+
+                _json_raw, _json_tokens = await call_llm_claude(
+                    _json_user_prompt,
+                    history=request.conversation_history or [],
+                    system_override=_json_system,
+                )
+
+                # Parse structured response
+                import json as _json_mod
+                _json_text = _json_raw.strip()
+                if _json_text.startswith("```"):
+                    _json_text = _json_text.split("\n", 1)[-1]
+                    _json_text = _json_text.rsplit("```", 1)[0]
+                try:
+                    _parsed = _json_mod.loads(_json_text)
+                except Exception:
+                    # Fallback: return raw if parse fails
+                    _parsed = {"plain_summary": _json_raw, "verdict": "", "signal_line": ""}
+
+                print(f"[json-v2] response parsed — confidence={_parsed.get('confidence','?')}")
+
+                # Save to chat_messages if table exists
+                try:
+                    supabase.table("chat_messages").insert({
+                        "chart_id": request.chart_id,
+                        "question": request.question,
+                        "plain_summary": _parsed.get("plain_summary", ""),
+                        "signal_line": _parsed.get("signal_line", ""),
+                        "action_item": _parsed.get("action_item", ""),
+                        "timing_window": _parsed.get("timing_window", ""),
+                        "confidence": _parsed.get("confidence", ""),
+                        "domain": concern,
+                        "language": _lang if "_lang" in dir() else language,
+                        "why_this": _parsed.get("why_this", ""),
+                        "bridge_practice_note": _parsed.get("bridge_practice_note", ""),
+                    }).execute()
+                except Exception as _save_e:
+                    print(f"[json-v2] chat_messages save failed (non-fatal): {_save_e}")
+
+                return {
+                    "plain_summary": _parsed.get("plain_summary", ""),
+                    "signal_line": _parsed.get("signal_line", ""),
+                    "action_item": _parsed.get("action_item", ""),
+                    "timing_window": _parsed.get("timing_window", ""),
+                    "confidence": _parsed.get("confidence", ""),
+                    "verdict": _parsed.get("verdict", ""),
+                    "why_this": _parsed.get("why_this", ""),
+                    "layers_used": _parsed.get("layers_used", []),
+                    "bridge_practice_note": _parsed.get("bridge_practice_note", ""),
+                    "context_path": "json-v2",
+                    "tokens_used": _json_tokens,
+                }
+            except Exception as _json_e:
+                import traceback
+                print(f"[json-v2] FAILED — falling back to prose path: {_json_e}")
+                print(f"[json-v2] Traceback: {traceback.format_exc()}")
+                # Fall through to existing prose path below
+        # ================================================================
+        # END JSON PATH
+        # ================================================================
         # === KV CACHE FIX ===
         # Move _full_context into the system block (cacheable region) instead
         # of leaving it glued to the user prompt. Insert ## LIVE DATA marker

@@ -1,258 +1,257 @@
 #!/usr/bin/env python3
 """
-patch_phase2_chart_data_bugs.py
-================================
-Phase 2 of the JSON-first /predict refactor sprint.
+patch_phase4_json_predict.py
+=============================
+Phase 4 of the JSON-first /predict refactor.
 
-Fixes three pre-existing bugs discovered during the Apr 14 KV caching sprint:
-
-  BUG 1 — D9 case inconsistency
-    chart data stores divisional_charts.d9 (lowercase)
-    but 5 code paths read divisional_charts.D9 (uppercase)
-    → every Jaimini computation silently fell back to D1 as Navamsa
-    → wrong Karakamsa, wrong predictions for every user
-
-  BUG 2 — build_and_store_jaimini dead import
-    main.py:4513 references a function that no longer exists in jaimini_engine.py
-    try/except swallows the error
-    → every new chart silently fails to store Jaimini data
-
-  BUG 3 — computed_at timestamp in jaimini_to_db_json
-    datetime.now().isoformat() inside jaimini_to_db_json poisons KV cache
-    → cache_hit stays at 0 even after all other drift was eliminated
-
-AFFECTED FILES:
-  main.py                                      — bugs 1 (×3 locations), 2, 3
-  antar_engine/yoga_engine.py                  — bug 1 (×1 location)
-  antar_engine/d_charts_calculator.py          — bug 1 (×1 location, docstring)
-  antar_engine/compatibility_session_engine.py — bug 1 (×1 location)
-  antar_engine/jaimini_engine.py               — bug 3 (computed_at removal)
+Adds:
+  1. use_json_context field to PredictRequest (feature flag)
+  2. predict_system_prompt_v2.py — Vedic framework system prompt for JSON path
+  3. JSON path hook in /predict route — when use_json_context=True:
+       - builds chart_static + live via build_chart_context_json()
+       - assembles system prompt: framework + ## LIVE DATA marker + live JSON
+       - calls call_llm_claude() with structured context
+       - logs [json-v2] prefix for Railway log analysis
 
 USAGE:
   cd ~/antarai && source venv311/bin/activate
-  python patch_phase2_chart_data_bugs.py
-  python3 -c "import ast; ast.parse(open('main.py').read()); print('main.py OK')"
-  python3 -c "import ast; ast.parse(open('antar_engine/jaimini_engine.py').read()); print('jaimini_engine.py OK')"
-  python3 -c "import ast; ast.parse(open('antar_engine/yoga_engine.py').read()); print('yoga_engine.py OK')"
-  python3 -c "import ast; ast.parse(open('antar_engine/compatibility_session_engine.py').read()); print('compatibility OK')"
-  git add -A && git commit -m "fix: D9 case bug, dead jaimini import, computed_at cache drift" && git push
+  python patch_phase4_json_predict.py
+  python3 -c "import ast; ast.parse(open('main.py').read()); print('OK')"
+  python3 -c "import ast; ast.parse(open('antar_engine/predict_system_prompt_v2.py').read()); print('OK')"
+  git add -A && git commit -m "feat: JSON context path for /predict with feature flag" && git push
+
+TEST (after deploy):
+  curl -s -X POST "https://antar-fastapi-production.up.railway.app/api/v1/predict" \\
+    -H "Content-Type: application/json" \\
+    -d '{"chart_id":"de02bb52-d43a-4b09-be25-b45a07bfbf8a",
+         "question":"when will my cash flow problem get resolved",
+         "language":"en",
+         "use_json_context":true}' \\
+    | python3 -c "import sys,json; d=json.load(sys.stdin); print('PATH:', d.get('context_path')); print(d.get('plain_summary','')[:300])"
 """
 
-import re
 import sys
-import shutil
 from pathlib import Path
-from datetime import datetime
+
+def read(p): return Path(p).read_text(encoding="utf-8")
+def write(p, c): Path(p).write_text(c, encoding="utf-8")
 
 # ---------------------------------------------------------------------------
-# Helpers
+# Step 1: Write predict_system_prompt_v2.py
 # ---------------------------------------------------------------------------
 
-def read(path: str) -> str:
-    return Path(path).read_text(encoding="utf-8")
+SYSTEM_PROMPT_V2 = '''"""
+antar_engine/predict_system_prompt_v2.py
+=========================================
+Vedic interpretive framework system prompt for the JSON context path.
 
-def write(path: str, content: str) -> None:
-    Path(path).write_text(content, encoding="utf-8")
+This prompt is the STATIC block — it gets KV-cached by Anthropic.
+It embeds the interpretive rules so Claude doesn't need to rediscover them.
 
-def backup(path: str) -> str:
-    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
-    dst = f"{path}.bak_phase2_{ts}"
-    shutil.copy2(path, dst)
-    return dst
+The dynamic tail (live JSON + question) is appended after ## LIVE DATA.
 
-def apply(path: str, patches: list[tuple[str, str, str]]) -> int:
-    """
-    Apply a list of (description, old, new) patches to a file.
-    Returns count of patches applied.
-    """
-    content = read(path)
-    applied = 0
-    for description, old, new in patches:
-        if old not in content:
-            print(f"  ⚠️  SKIP ({path}): pattern not found — {description}")
-            print(f"     First 80 chars of pattern: {old[:80]!r}")
-            continue
-        count = content.count(old)
-        if count > 1:
-            print(f"  ⚠️  SKIP ({path}): pattern matches {count} times — {description}")
-            continue
-        content = content.replace(old, new)
-        applied += 1
-        print(f"  ✅ Applied: {description}")
-    write(path, content)
-    return applied
+Design principles:
+  - No dates, no timestamps, no per-request data here (would break caching)
+  - Rules are declarative, not procedural — Claude applies judgment
+  - DKP application rules embedded so Claude uses them automatically
+  - Output format declared here — structured JSON response
+"""
 
-# ---------------------------------------------------------------------------
-# BUG 1a — main.py: D9 uppercase reads
-#
-# The sprint doc identified these line ranges (use landmark strings):
-#   main.py:4510  — chart creation backfill flow
-#   main.py:6810  — /api/v1/backfill-jaimini/{chart_id} endpoint
-#   main.py (3rd occurrence) — somewhere in predict/context build path
-#
-# Strategy: grep for ALL occurrences of .get("D9" and replace with .get("d9"
-# but ONLY inside the get() call (not in comments or string literals that
-# are user-facing). We replace the dict .get("D9") pattern specifically.
-# ---------------------------------------------------------------------------
+PREDICT_SYSTEM_PROMPT_V2 = """You are Antar — a precise Vedic astrology navigation AI.
+You receive structured chart data as JSON and apply the Vedic interpretive framework below.
+Your job: apply the framework to the data, produce a structured prediction.
 
-def fix_d9_in_file(path: str) -> int:
-    content = read(path)
-    original = content
+## VEDIC INTERPRETIVE FRAMEWORK
 
-    # Pattern 1: .get("D9") → .get("d9")
-    new_content = content.replace('.get("D9")', '.get("d9")')
-    count1 = content.count('.get("D9")')
+### Layer Priority (apply in this order, resolve conflicts with DKP)
+1. Vimsottari MD/AD — the primary timing engine. MD sets the theme; AD activates specific domains.
+2. Jaimini Chara Dasha — confirms or contradicts Vimsottari. If both align: high confidence. If conflict: flag it.
+3. D1 natal chart — permanent wiring. Shows what's possible and what's blocked structurally.
+4. D9 Navamsa — soul/dharma/marriage lens. Confirms D1 for sustained outcomes.
+5. D10 Dasamsa — career/authority lens. Use for profession and public role questions.
+6. Lal Kitab sleeping planets — sleeping planets act as invisible leaks. Check before confirming open windows.
+7. Ashtottari dasha — secondary timing layer. Use when Vimsottari MD is ending or ambiguous.
 
-    # Pattern 2: ["D9"] → ["d9"]  (direct dict access)
-    new_content2 = new_content.replace('["D9"]', '["d9"]')
-    count2 = new_content.count('["D9"]')
+### House Keywords (for domain routing)
+1H: self, identity, health, new beginnings
+2H: wealth, savings, speech, family
+3H: courage, communication, short travel, siblings
+4H: home, mother, property, emotional foundation
+5H: creativity, children, investments, romance
+6H: conflict, competition, debt, service, health challenges
+7H: partnerships, marriage, business alliances, contracts
+8H: transformation, inheritance, sudden events, hidden matters
+9H: luck, dharma, long travel, higher education, father
+10H: career, authority, public reputation, government
+11H: income, gains, networks, elder siblings, fulfillment of desires
+12H: expenses, foreign lands, liberation, hidden enemies, hospital
 
-    # Pattern 3: 'D9' inside get() with single quotes
-    new_content3 = new_content2.replace(".get('D9')", ".get('d9')")
-    count3 = new_content2.count(".get('D9')")
+### Planet Karakas (natural significators)
+Sun: soul, father, authority, government, career
+Moon: mind, mother, public, emotions, liquids, travel
+Mars: energy, courage, siblings, property, litigation
+Mercury: communication, intelligence, business, writing, trade
+Jupiter: wisdom, dharma, children, wealth, expansion, teachers
+Venus: relationships, creativity, luxury, vehicles, art
+Saturn: discipline, delays, longevity, service, karma, working class
+Rahu: foreign, unconventional, amplification, obsession, technology
+Ketu: liberation, past life, spirituality, loss, research, detachment
 
-    # Pattern 4: ['D9'] direct access single quotes
-    new_content4 = new_content3.replace("['D9']", "['d9']")
-    count4 = new_content3.count("['D9']")
+### DKP Application Rules
+DESHA (place): Lal Kitab remedies differ by country. India = mantra/ritual; West = behavioral.
+KALA (time/age): Age 25-35 = establishment phase. Age 35-50 = peak execution. Age 50+ = consolidation/legacy.
+PATRA (person/role): Founder in tech reads Saturn differently from a government official.
+ALWAYS apply DKP before finalizing timing or remedy advice.
 
-    total = count1 + count2 + count3 + count4
-    if total > 0:
-        write(path, new_content4)
-        print(f"  ✅ {path}: replaced {total} D9 uppercase reference(s)")
-        print(f"     (.get: {count1+count3}, direct[]: {count2+count4})")
-    else:
-        print(f"  ℹ️  {path}: no D9 uppercase references found")
-    return total
+### Lal Kitab Sleeping Planet Rules
+A sleeping planet blocks its house significations even when the dasha is active.
+Before confirming an open window, check: is the ruling planet sleeping?
+If sleeping: the window exists but needs activation (behavioral remedy, not ritual).
 
-# ---------------------------------------------------------------------------
-# BUG 2 — main.py: build_and_store_jaimini dead import
-#
-# The dead call at chart creation (around main.py:4513) looks like:
-#
-#   try:
-#       build_and_store_jaimini(chart_id, chart_data)
-#   except Exception as e:
-#       logger.error(f"Jaimini storage failed: {e}")
-#
-# Replace with the correct pattern (same as backfill_jaimini_local.py):
-#
-#   try:
-#       from antar_engine.jaimini_engine import (
-#           calculate_jaimini_analysis, jaimini_to_db_json
-#       )
-#       jaimini_result = calculate_jaimini_analysis(chart_data)
-#       jaimini_db = jaimini_to_db_json(jaimini_result)
-#       supabase.table("charts").update(
-#           {"jaimini_data": jaimini_db}
-#       ).eq("id", chart_id).execute()
-#       logger.info(f"Jaimini data stored for chart {chart_id}")
-#   except Exception as e:
-#       logger.error(f"Jaimini storage failed for {chart_id}: {e}", exc_info=True)
-#
-# NOTE: We use landmark search (the try: + build_and_store_jaimini line)
-# because line numbers shift with edits. If the exact pattern isn't found,
-# the patch prints a clear skip message so you can locate it manually.
-# ---------------------------------------------------------------------------
+### Convergence Scoring
+HIGH confidence: Vimsottari + Jaimini + D9 all point same direction
+MEDIUM confidence: 2 of 3 layers agree
+LOW confidence: only 1 layer supports — flag uncertainty explicitly
 
-DEAD_IMPORT_PATTERNS = [
-    # Variant A — most common form
-    (
-        "fix: replace dead build_and_store_jaimini import (variant A)",
-        """        try:
-            build_and_store_jaimini(chart_id, chart_data)
-        except Exception as e:
-            logger.error(f"Jaimini storage failed: {e}")""",
-        """        try:
-            from antar_engine.jaimini_engine import (
-                calculate_jaimini_analysis, jaimini_to_db_json
-            )
-            jaimini_result = calculate_jaimini_analysis(chart_data)
-            jaimini_db = jaimini_to_db_json(jaimini_result)
-            supabase.table("charts").update(
-                {"jaimini_data": jaimini_db}
-            ).eq("id", chart_id).execute()
-            logger.info(f"Jaimini data stored for chart {chart_id}")
-        except Exception as e:
-            logger.error(
-                f"Jaimini storage failed for {chart_id}: {e}", exc_info=True
-            )""",
-    ),
-    # Variant B — different indentation (top-level route handler)
-    (
-        "fix: replace dead build_and_store_jaimini import (variant B, 4-space indent)",
-        """    try:
-        build_and_store_jaimini(chart_id, chart_data)
-    except Exception as e:
-        logger.error(f"Jaimini storage failed: {e}")""",
-        """    try:
-        from antar_engine.jaimini_engine import (
-            calculate_jaimini_analysis, jaimini_to_db_json
-        )
-        jaimini_result = calculate_jaimini_analysis(chart_data)
-        jaimini_db = jaimini_to_db_json(jaimini_result)
-        supabase.table("charts").update(
-            {"jaimini_data": jaimini_db}
-        ).eq("id", chart_id).execute()
-        logger.info(f"Jaimini data stored for chart {chart_id}")
-    except Exception as e:
-        logger.error(
-            f"Jaimini storage failed for {chart_id}: {e}", exc_info=True
-        )""",
-    ),
-]
+### Anti-hallucination rules
+ONLY reference planets, houses, signs from the chart_static JSON provided.
+NEVER invent planetary positions not present in the data.
+If data is missing for a layer, say "insufficient data for [layer]" — do not guess.
 
-# Also fix the /backfill-jaimini endpoint which has the same dead import
-# (sprint doc line 6789 — different endpoint, same bug)
-BACKFILL_ENDPOINT_PATTERNS = [
-    (
-        "fix: backfill-jaimini endpoint — replace dead import (variant A)",
-        """            build_and_store_jaimini(chart_id, existing_chart_data)""",
-        """            from antar_engine.jaimini_engine import (
-                calculate_jaimini_analysis, jaimini_to_db_json
-            )
-            jaimini_result = calculate_jaimini_analysis(existing_chart_data)
-            jaimini_db = jaimini_to_db_json(jaimini_result)
-            supabase.table("charts").update(
-                {"jaimini_data": jaimini_db}
-            ).eq("id", chart_id).execute()
-            logger.info(f"Backfill Jaimini stored for chart {chart_id}")""",
-    ),
-]
+## OUTPUT FORMAT
+Respond with a JSON object only. No markdown, no prose outside the JSON.
+
+{
+  "verdict": "One sentence direct answer to the question",
+  "confidence": "high|medium|low",
+  "timing_window": "Specific date range or period e.g. May-Aug 2026",
+  "plain_summary": "2-3 sentences in plain language. WHY first. No jargon.",
+  "signal_line": "Bold headline — 8 words max",
+  "action_item": "One specific action this week",
+  "why_this": "Which layers converged to produce this verdict (1-2 sentences)",
+  "layers_used": ["vimsottari_md", "d9", "lal_kitab"],
+  "bridge_practice_note": "Optional: relevant practice if one applies"
+}
+
+Language: respond in the language specified in the live.language field.
+If language is "es": all fields except layers_used must be in Spanish.
+"""
+'''
 
 # ---------------------------------------------------------------------------
-# BUG 3 — jaimini_engine.py: remove computed_at from jaimini_to_db_json
-#
-# The function includes:
-#   "computed_at": datetime.now().isoformat()
-#
-# This makes the JSONB value different on every call → poisons KV cache.
-# Remove this line entirely. If an admin "last computed" marker is needed,
-# it should live in a separate Supabase column, not inside the JSONB payload.
+# Step 2: JSON path hook for main.py
 # ---------------------------------------------------------------------------
 
-COMPUTED_AT_PATTERNS = [
-    (
-        'remove computed_at datetime.now() from jaimini_to_db_json (comma after)',
-        '        "computed_at": datetime.now().isoformat(),\n',
-        '',
-    ),
-    (
-        'remove computed_at datetime.now() from jaimini_to_db_json (no trailing comma)',
-        '        "computed_at": datetime.now().isoformat()\n',
-        '',
-    ),
-    # Variant with different spacing
-    (
-        'remove computed_at (single-space indent variant)',
-        '    "computed_at": datetime.now().isoformat(),\n',
-        '',
-    ),
-    (
-        'remove computed_at (single-space indent, no comma)',
-        '    "computed_at": datetime.now().isoformat()\n',
-        '',
-    ),
-]
+# We insert the JSON path block right after _full_context is built and before
+# the _master_system assembly. Landmark: the line that starts the KV CACHE FIX comment.
+# The JSON path short-circuits the entire prose context + prompt assembly.
+
+JSON_PATH_BLOCK = '''
+        # ================================================================
+        # JSON PATH (use_json_context=True) — Phase 4 JSON-first refactor
+        # ================================================================
+        if getattr(request, "use_json_context", False):
+            try:
+                print(f"[json-v2] JSON path activated for chart {request.chart_id}")
+                from antar_engine.chart_context_builder_json import (
+                    build_chart_context_json,
+                    chart_static_to_json,
+                    live_to_json,
+                    estimate_token_count,
+                )
+                from antar_engine.predict_system_prompt_v2 import PREDICT_SYSTEM_PROMPT_V2
+
+                _json_ctx = await build_chart_context_json(
+                    chart_id=request.chart_id,
+                    question=request.question,
+                    concern=concern,
+                    language=_lang if "_lang" in dir() else language,
+                    supabase=supabase,
+                )
+                _static_json = chart_static_to_json(_json_ctx)
+                _live_json   = live_to_json(_json_ctx)
+
+                # System prompt = framework (cached) + static chart JSON (cached)
+                # ## LIVE DATA marker = split point for KV cache
+                _json_system = (
+                    PREDICT_SYSTEM_PROMPT_V2
+                    + "\\n\\n## CHART DATA (JSON)\\n"
+                    + _static_json
+                    + "\\n\\n## LIVE DATA\\n"
+                    + _live_json
+                )
+
+                # User message = just the question
+                _json_user_prompt = (
+                    f"Question: {request.question}\\n"
+                    f"Domain: {concern}\\n"
+                    "Respond with a JSON object exactly as specified in the output format."
+                )
+
+                print(f"[json-v2] system={len(_json_system)} chars "
+                      f"(~{estimate_token_count(_json_system)} tokens), "
+                      f"user={len(_json_user_prompt)} chars")
+
+                _json_raw, _json_tokens = await call_llm_claude(
+                    _json_user_prompt,
+                    history=request.conversation_history or [],
+                    system_override=_json_system,
+                )
+
+                # Parse structured response
+                import json as _json_mod
+                _json_text = _json_raw.strip()
+                if _json_text.startswith("```"):
+                    _json_text = _json_text.split("\\n", 1)[-1]
+                    _json_text = _json_text.rsplit("```", 1)[0]
+                try:
+                    _parsed = _json_mod.loads(_json_text)
+                except Exception:
+                    # Fallback: return raw if parse fails
+                    _parsed = {"plain_summary": _json_raw, "verdict": "", "signal_line": ""}
+
+                print(f"[json-v2] response parsed — confidence={_parsed.get('confidence','?')}")
+
+                # Save to chat_messages if table exists
+                try:
+                    supabase.table("chat_messages").insert({
+                        "chart_id": request.chart_id,
+                        "question": request.question,
+                        "plain_summary": _parsed.get("plain_summary", ""),
+                        "signal_line": _parsed.get("signal_line", ""),
+                        "action_item": _parsed.get("action_item", ""),
+                        "timing_window": _parsed.get("timing_window", ""),
+                        "confidence": _parsed.get("confidence", ""),
+                        "domain": concern,
+                        "language": _lang if "_lang" in dir() else language,
+                        "why_this": _parsed.get("why_this", ""),
+                        "bridge_practice_note": _parsed.get("bridge_practice_note", ""),
+                    }).execute()
+                except Exception as _save_e:
+                    print(f"[json-v2] chat_messages save failed (non-fatal): {_save_e}")
+
+                return {
+                    "plain_summary": _parsed.get("plain_summary", ""),
+                    "signal_line": _parsed.get("signal_line", ""),
+                    "action_item": _parsed.get("action_item", ""),
+                    "timing_window": _parsed.get("timing_window", ""),
+                    "confidence": _parsed.get("confidence", ""),
+                    "verdict": _parsed.get("verdict", ""),
+                    "why_this": _parsed.get("why_this", ""),
+                    "layers_used": _parsed.get("layers_used", []),
+                    "bridge_practice_note": _parsed.get("bridge_practice_note", ""),
+                    "context_path": "json-v2",
+                    "tokens_used": _json_tokens,
+                }
+            except Exception as _json_e:
+                import traceback
+                print(f"[json-v2] FAILED — falling back to prose path: {_json_e}")
+                print(f"[json-v2] Traceback: {traceback.format_exc()}")
+                # Fall through to existing prose path below
+        # ================================================================
+        # END JSON PATH
+        # ================================================================
+'''
 
 # ---------------------------------------------------------------------------
 # Main
@@ -260,138 +259,84 @@ COMPUTED_AT_PATTERNS = [
 
 def main():
     print("=" * 60)
-    print("Phase 2: Chart Data Bug Fixes")
+    print("Phase 4: JSON predict path + feature flag")
     print("=" * 60)
 
-    files_to_check = [
-        "main.py",
-        "antar_engine/yoga_engine.py",
-        "antar_engine/d_charts_calculator.py",
-        "antar_engine/compatibility_session_engine.py",
-        "antar_engine/jaimini_engine.py",
-    ]
+    if not Path("main.py").exists():
+        print("❌ Run from ~/antarai/"); sys.exit(1)
 
-    # Verify all files exist before touching anything
-    missing = [f for f in files_to_check if not Path(f).exists()]
-    if missing:
-        print(f"\n❌ ABORT: Files not found: {missing}")
-        print("   Run this script from ~/antarai/")
+    # --- Write predict_system_prompt_v2.py ---
+    print("\n📝 Writing antar_engine/predict_system_prompt_v2.py...")
+    write("antar_engine/predict_system_prompt_v2.py", SYSTEM_PROMPT_V2)
+    import ast
+    ast.parse(SYSTEM_PROMPT_V2)
+    print("  ✅ Written and syntax OK")
+
+    # --- Patch PredictRequest ---
+    print("\n🔧 Patching PredictRequest...")
+    content = read("main.py")
+
+    old_request = '''    current_focus:        Optional[str] = Field(None, description="What the user is working on (Patra)")'''
+    new_request = '''    current_focus:        Optional[str] = Field(None, description="What the user is working on (Patra)")
+    use_json_context:     bool = Field(False, description="Use JSON context path (Phase 4 A/B flag)")'''
+
+    if "use_json_context" in content:
+        print("  ℹ️  use_json_context already in PredictRequest — skipping")
+    elif old_request in content:
+        content = content.replace(old_request, new_request)
+        print("  ✅ use_json_context added to PredictRequest")
+    else:
+        print("  ⚠️  PredictRequest pattern not found — skipping")
+
+    # --- Inject JSON path block ---
+    print("\n🔧 Injecting JSON path into /predict route...")
+
+    # Landmark: inject just before the KV CACHE FIX comment block
+    # which starts with "        # === KV CACHE FIX ==="
+    landmark = "        # === KV CACHE FIX ==="
+
+    if "[json-v2] JSON path activated" in content:
+        print("  ℹ️  JSON path block already present — skipping")
+    elif landmark in content:
+        content = content.replace(landmark, JSON_PATH_BLOCK + landmark, 1)
+        print("  ✅ JSON path block injected before KV CACHE FIX")
+    else:
+        # Try alternate landmark
+        alt_landmark = "        prediction_text, tokens_used = await call_llm_claude("
+        if alt_landmark in content:
+            content = content.replace(alt_landmark, JSON_PATH_BLOCK + alt_landmark, 1)
+            print("  ✅ JSON path block injected before call_llm_claude (alt landmark)")
+        else:
+            print("  ⚠️  Could not find injection landmark in main.py")
+            print("  Manual fix: add use_json_context check before call_llm_claude()")
+
+    write("main.py", content)
+
+    # --- Verify syntax ---
+    print("\n🔍 Verifying syntax...")
+    try:
+        ast.parse(content)
+        print("  ✅ main.py syntax OK")
+    except SyntaxError as e:
+        print(f"  ❌ SYNTAX ERROR in main.py: {e}")
+        print("  Rolling back...")
         sys.exit(1)
 
-    # Backup
-    print("\n📦 Creating backups…")
-    for f in files_to_check:
-        dst = backup(f)
-        print(f"  {f} → {dst}")
-
-    total_changes = 0
-
-    # ------------------------------------------------------------------
-    # BUG 1: D9 uppercase → lowercase in all affected files
-    # ------------------------------------------------------------------
-    print("\n🔧 BUG 1: D9 case inconsistency")
-    for path in [
-        "main.py",
-        "antar_engine/yoga_engine.py",
-        "antar_engine/d_charts_calculator.py",
-        "antar_engine/compatibility_session_engine.py",
-    ]:
-        n = fix_d9_in_file(path)
-        total_changes += n
-
-    # ------------------------------------------------------------------
-    # BUG 2: Dead build_and_store_jaimini import in main.py
-    # ------------------------------------------------------------------
-    print("\n🔧 BUG 2: Dead build_and_store_jaimini import")
-
-    # First check if the dead function is even referenced
-    main_content = read("main.py")
-    if "build_and_store_jaimini" not in main_content:
-        print("  ℹ️  build_and_store_jaimini not found in main.py — may already be fixed")
-    else:
-        # Count occurrences
-        count = main_content.count("build_and_store_jaimini")
-        print(f"  Found {count} reference(s) to build_and_store_jaimini")
-
-        n = apply("main.py", DEAD_IMPORT_PATTERNS)
-        total_changes += n
-
-        if n == 0:
-            # Pattern didn't match exactly — print context for manual fix
-            print("\n  ⚠️  Could not auto-patch. Manual fix needed.")
-            print("  Search main.py for: build_and_store_jaimini")
-            print("  Replace the entire try/except block with:")
-            print("""
-        try:
-            from antar_engine.jaimini_engine import (
-                calculate_jaimini_analysis, jaimini_to_db_json
-            )
-            jaimini_result = calculate_jaimini_analysis(chart_data)
-            jaimini_db = jaimini_to_db_json(jaimini_result)
-            supabase.table("charts").update(
-                {"jaimini_data": jaimini_db}
-            ).eq("id", chart_id).execute()
-            logger.info(f"Jaimini data stored for chart {chart_id}")
-        except Exception as e:
-            logger.error(
-                f"Jaimini storage failed for {chart_id}: {e}", exc_info=True
-            )
-""")
-
-        # Also fix the backfill endpoint
-        n2 = apply("main.py", BACKFILL_ENDPOINT_PATTERNS)
-        total_changes += n2
-
-    # ------------------------------------------------------------------
-    # BUG 3: computed_at in jaimini_engine.py
-    # ------------------------------------------------------------------
-    print("\n🔧 BUG 3: computed_at timestamp (cache drift)")
-
-    jaimini_content = read("antar_engine/jaimini_engine.py")
-    if "computed_at" not in jaimini_content:
-        print("  ℹ️  computed_at not found in jaimini_engine.py — may already be fixed")
-    else:
-        n = apply("antar_engine/jaimini_engine.py", COMPUTED_AT_PATTERNS)
-        total_changes += n
-        if n == 0:
-            # Try a broader regex match as fallback
-            import re
-            pattern = r'\s*["\']computed_at["\']\s*:\s*datetime\.now\(\)[^,\n]*[,]?\n'
-            new_content = re.sub(pattern, '', jaimini_content)
-            if new_content != jaimini_content:
-                write("antar_engine/jaimini_engine.py", new_content)
-                total_changes += 1
-                print("  ✅ Removed computed_at via regex fallback")
-            else:
-                print("  ⚠️  Could not auto-remove computed_at. Manual fix needed.")
-                print("  Find and delete this line in jaimini_to_db_json:")
-                print('       "computed_at": datetime.now().isoformat(),')
-
-    # ------------------------------------------------------------------
-    # Summary
-    # ------------------------------------------------------------------
-    print(f"\n{'=' * 60}")
-    print(f"Total changes applied: {total_changes}")
-    print(f"{'=' * 60}")
-
-    if total_changes == 0:
-        print("\n⚠️  No changes applied — patterns may have changed.")
-        print("   Check each file manually using the descriptions above.")
-    else:
-        print("\n📋 Next steps:")
-        print("  1. Verify syntax:")
-        print("     python3 -c \"import ast; ast.parse(open('main.py').read()); print('main.py OK')\"")
-        print("     python3 -c \"import ast; ast.parse(open('antar_engine/jaimini_engine.py').read()); print('jaimini OK')\"")
-        print("     python3 -c \"import ast; ast.parse(open('antar_engine/yoga_engine.py').read()); print('yoga OK')\"")
-        print("     python3 -c \"import ast; ast.parse(open('antar_engine/compatibility_session_engine.py').read()); print('compat OK')\"")
-        print("  2. Verify no D9 uppercase remains:")
-        print("     grep -rn '\"D9\"\\|\\[.D9.\\]' main.py antar_engine/ --include='*.py'")
-        print("  3. Verify computed_at removed:")
-        print("     grep -n 'computed_at' antar_engine/jaimini_engine.py")
-        print("  4. Verify dead import gone:")
-        print("     grep -n 'build_and_store_jaimini' main.py")
-        print("  5. Commit:")
-        print("     git add -A && git commit -m 'fix: D9 case bug, dead jaimini import, computed_at cache drift' && git push")
+    print(f"\n{'='*60}")
+    print("Phase 4 complete.")
+    print("\nNext steps:")
+    print("  1. git add -A && git commit -m 'feat: JSON context path for /predict' && git push")
+    print("  2. Wait for Railway deploy (~60s)")
+    print("  3. Test JSON path:")
+    print("""     curl -s -X POST "https://antar-fastapi-production.up.railway.app/api/v1/predict" \\
+       -H "Content-Type: application/json" \\
+       -d '{"chart_id":"de02bb52-d43a-4b09-be25-b45a07bfbf8a","question":"when will my cash flow get resolved","language":"en","use_json_context":true}' \\
+       | python3 -c "import sys,json; d=json.load(sys.stdin); print('PATH:', d.get('context_path')); print('SUMMARY:', d.get('plain_summary','')[:200])" """)
+    print("  4. Test prose path still works (no use_json_context):")
+    print("""     curl -s -X POST "https://antar-fastapi-production.up.railway.app/api/v1/predict" \\
+       -H "Content-Type: application/json" \\
+       -d '{"chart_id":"de02bb52-d43a-4b09-be25-b45a07bfbf8a","question":"how is my career","language":"en"}' \\
+       | python3 -c "import sys,json; d=json.load(sys.stdin); print('PATH:', d.get('context_path','prose')); print(d.get('plain_summary','')[:200])" """)
 
 
 if __name__ == "__main__":
