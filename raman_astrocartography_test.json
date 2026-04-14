@@ -1,0 +1,154 @@
+{
+  "question": "Which city gives me the best potential for startup growth and wealth creation? I am open to LATAM and globally.",
+  "secondary_question": "Which city would maximize my potential to build a billionaire-level outcome?",
+  "today": "2026-04-14",
+
+  "person": {
+    "name": "Raman",
+    "archetype": "THE BROKER — closes deals others can't, works through relationships and networks",
+    "age": 51,
+    "life_stage": "consolidation",
+    "birth_country": "India",
+    "current_country": "US",
+    "career_stage": "founder",
+    "financial_status": "under_pressure"
+  },
+
+  "natal_chart": {
+    "lagna": {"sign": "Capricorn", "sign_index": 9, "degree": 24.69},
+    "atmakaraka": "Saturn",
+    "planets": {
+      "Sun":     {"sign": "Scorpio",   "house": 11, "sign_index": 7,  "nakshatra": "Anuradha",           "note": "11H = income, networks, gains"},
+      "Moon":    {"sign": "Pisces",    "house": 3,  "sign_index": 11, "nakshatra": "Uttara Bhadrapada",  "note": "3H = courage, communication"},
+      "Mars":    {"sign": "Libra",     "house": 10, "sign_index": 6,  "nakshatra": "Swati",              "note": "10H = career, authority — also rules 4H+11H"},
+      "Mercury": {"sign": "Libra",     "house": 10, "sign_index": 6,  "nakshatra": "Chitra",             "note": "10H = career, rules 6H+9H"},
+      "Jupiter": {"sign": "Aquarius",  "house": 2,  "sign_index": 10, "nakshatra": "Purva Bhadrapada",   "note": "2H = wealth accumulation — rules 3H+12H"},
+      "Venus":   {"sign": "Scorpio",   "house": 11, "sign_index": 7,  "nakshatra": "Vishakha",           "note": "11H = income — rules 5H+10H"},
+      "Saturn":  {"sign": "Capricorn", "house": 1,  "sign_index": 9,  "nakshatra": "Shravana",           "note": "1H = self/lagna — rules 1H+2H, AK"},
+      "Rahu":    {"sign": "Aries",     "house": 4,  "sign_index": 0,  "nakshatra": "Bharani",            "note": "4H = home/roots — but Rahu amplifies wherever it sits"},
+      "Ketu":    {"sign": "Libra",     "house": 10, "sign_index": 6,  "nakshatra": "Swati",              "note": "10H = career — past-life skills"}
+    },
+    "key_yogas": [
+      {"name": "Dhana Yoga", "description": "Jupiter in 2H + Venus (5L) in 11H — wealth through creative partnerships"},
+      {"name": "Raja Yoga potential", "description": "Mars (4L+11L) in 10H with Mercury (6L+9L) — career effort converts to authority"},
+      {"name": "Saturn AK in 1H", "description": "Atmakaraka in lagna — soul purpose expressed through identity/discipline"}
+    ]
+  },
+
+  "dashas": {
+    "vimsottari": {
+      "current_MD": {"planet": "Mars",  "ends": "2026-08-13", "note": "Mars rules 4H+11H, sits in 10H — career pressure, income blocked"},
+      "current_AD": {"planet": "Moon",  "ends": "2026-08-13", "note": "Moon rules 7H, sits in 3H — communication, negotiation window"},
+      "next_MD":    {"planet": "Rahu",  "starts": "2026-08-13", "ends": "2044-08-13", "note": "Rahu in 4H natally, but amplifies 11H through Scorpio stellium connection"},
+      "next_MD_2":  {"planet": "Jupiter", "starts": "2044-08-13", "note": "Jupiter in 2H — wealth accumulation phase"}
+    },
+    "jaimini_chara": {
+      "current_MD": {"sign": "Taurus", "ends": "2029-11-26", "note": "Taurus = 5H from Capricorn lagna — investments, speculation, creative income"},
+      "next_MD":    {"sign": "Aries",  "starts": "2029-11-26", "note": "Aries = 4H — home, property, inner foundation"}
+    },
+    "ashtottari": {
+      "current_MD": {"planet": "Venus", "ends": "2032-09-16", "note": "Venus in 11H — income through relationships"},
+      "current_AD": {"planet": "Venus", "ends": "2026-07-07"}
+    }
+  },
+
+  "astrocartography_data": {
+    "note": "City-keyed scores. Each planet shows its strongest line type and strength (0-1). Only lines above threshold are stored.",
+
+    "LATAM_cities": {
+      "Monterrey, Mexico": {
+        "Sun":     {"IC": 0.977},
+        "Jupiter": {"DC": 0.533}
+      },
+      "Mexico City, Mexico": {
+        "Sun":     {"IC": 0.790},
+        "Jupiter": {"DC": 0.524}
+      },
+      "Guadalajara, Mexico": {
+        "Sun":     {"IC": 0.540}
+      },
+      "Buenos Aires, Argentina": {},
+      "Montevideo, Uruguay": {},
+      "Asuncion, Paraguay": {}
+    },
+
+    "US_cities": {
+      "Houston, USA": {
+        "Ketu":    {"MC": 0.978},
+        "Venus":   {"IC": 0.987},
+        "Rahu":    {"IC": 0.690},
+        "Jupiter": {"DC": 0.906}
+      },
+      "Austin, USA": {
+        "Sun":     {"IC": 0.570},
+        "Ketu":    {"MC": 0.627},
+        "Venus":   {"IC": 0.614},
+        "Jupiter": {"DC": 0.876}
+      },
+      "Denver, USA": {
+        "Jupiter": {"DC": 0.430}
+      },
+      "Phoenix, USA": {
+        "Mars":    {"IC": 0.564},
+        "Mercury": {"IC": 0.713}
+      },
+      "Las Vegas, USA": {
+        "Mars":    {"IC": 0.931},
+        "Mercury": {"IC": 0.783}
+      },
+      "Los Angeles, USA": {
+        "Mars":    {"IC": 0.417}
+      }
+    },
+
+    "Europe_cities": {
+      "London, UK": {
+        "Mars":    {"ASC": 0.925},
+        "Mercury": {"ASC": 0.976},
+        "Jupiter": {"IC": 0.739}
+      },
+      "Rome, Italy": {},
+      "Madrid, Spain": {},
+      "Paris, France": {},
+      "Berlin, Germany": {}
+    },
+
+    "Asia_cities": {
+      "Delhi, India": {},
+      "Jaipur, India": {},
+      "Bangalore, India": {},
+      "Tokyo, Japan": {},
+      "Dubai": {}
+    }
+  },
+
+  "line_type_meanings": {
+    "MC":  "Midheaven line — career, authority, public recognition, reputation. Planet energy expressed PUBLICLY.",
+    "IC":  "Imum Coeli line — home, roots, private life, inner foundation, hidden wealth. Planet energy expressed PRIVATELY/INTERNALLY.",
+    "ASC": "Ascendant line — personality, physical vitality, how others perceive you. Planet energy on your IDENTITY.",
+    "DC":  "Descendant line — partnerships, marriage, business alliances, investors. Planet energy through OTHERS."
+  },
+
+  "planet_astrocartography_meanings": {
+    "Jupiter_MC":  "Public expansion, authority, investors come to you, institutional recognition",
+    "Jupiter_ASC": "Personal luck, optimism, people see you as wise — great for fundraising meetings",
+    "Jupiter_DC":  "Investors and partners find you, alliances form naturally",
+    "Jupiter_IC":  "Private wealth accumulation, family fortune, inner growth",
+    "Venus_MC":    "Public creative success, luxury brand, artistic authority",
+    "Venus_IC":    "Private wealth through assets, creative work behind the scenes",
+    "Venus_DC":    "High-value partnerships, beautiful alliances",
+    "Mercury_ASC": "You communicate brilliantly, deals flow, your words land perfectly",
+    "Mercury_MC":  "Public intellectual authority, media presence, thought leadership",
+    "Rahu_ASC":    "You become a disruptive force publicly, unconventional power",
+    "Rahu_MC":     "Public disruption, foreign capital, billionaire-track unconventional wealth",
+    "Rahu_IC":     "Private unconventional wealth, hidden foreign income, internal transformation",
+    "Sun_MC":      "Authority peak, government contracts, public leadership",
+    "Sun_IC":      "Private confidence, inner authority, family legacy",
+    "Saturn_MC":   "Disciplined public authority, long-term institutional backing",
+    "Ketu_MC":     "Past-life mastery visible publicly, spiritual authority, detachment from ego",
+    "Mars_ASC":    "Physical energy peak, competitive edge, warrior identity",
+    "Mars_IC":     "Private drive, property energy, home as power base"
+  },
+
+  "system_prompt": "You are a Vedic astrocartography expert. Apply the following frameworks to determine the best cities for this person.\n\nFRAMEWORKS TO APPLY:\n\n1. DASHA-LOCATION ALIGNMENT (most important)\n   The current dasha planet's line at a location amplifies that dasha's energy.\n   - Current MD: Mars (ends Aug 2026) — Mars IC or ASC lines = physical energy + property\n   - Next MD: Rahu (Aug 2026-2044) — Rahu MC or ASC lines = billionaire track; Rahu IC = private unconventional wealth\n   - Current jaimini MD: Taurus (5H investments) — Venus or Jupiter lines amplify this\n   Rule: A city where the NEXT dasha planet has a strong line is MORE valuable than a city where the CURRENT dasha planet has a strong line, because you're choosing a location for the next 18 years, not just now.\n\n2. WEALTH YOGA ACTIVATION\n   This person has a Dhana Yoga (Jupiter 2H + Venus 11H).\n   A city that activates BOTH Jupiter and Venus lines simultaneously = Dhana Yoga amplified = compounding wealth effect.\n   Check: does any city have both Jupiter AND Venus lines?\n\n3. INTENT MAPPING\n   For STARTUP GROWTH:\n     Priority lines: Jupiter DC (investors), Mercury ASC (deals), Rahu ASC/MC (disruption), Sun MC (authority)\n   For BILLIONAIRE POTENTIAL:\n     Priority lines: Rahu MC (unconventional public wealth), Jupiter MC (institutional wealth), Sun MC (authority peak)\n     Secondary: Jupiter ASC (luck + wisdom visible), Venus DC (high-value alliances)\n   For WEALTH ACCUMULATION:\n     Priority lines: Jupiter IC (private wealth), Venus IC (asset accumulation), Saturn MC (long-term institutional)\n\n4. WHAT'S MISSING IN THE DATA\n   Be honest about gaps. If no city shows Rahu MC or Jupiter MC (billionaire lines), say so clearly.\n   Explain what type of city/location WOULD have those lines if we computed them globally.\n\n5. ASTROCARTOGRAPHY LOGIC GAPS\n   Current data only stores city-point scores. True astrocartography uses LINE paths across the globe.\n   A planetary line runs as a continuous path — if you're within ~500km of a line, you get the effect.\n   The current city scores are approximations. What astrological logic would improve this?\n   What is missing from this approach that a classical Jyotish astrocartographer would use?\n\nOUTPUT FORMAT (respond in this exact JSON structure):\n{\n  \"startup_recommendation\": {\n    \"top_cities\": [\n      {\"city\": \"...\", \"rank\": 1, \"why\": \"...\", \"dasha_alignment\": \"...\", \"window\": \"...\"}\n    ],\n    \"best_window\": \"when to be in these cities\",\n    \"move\": \"specific action\"\n  },\n  \"billionaire_recommendation\": {\n    \"top_cities\": [...],\n    \"missing_lines\": \"what lines are absent from the data and what they would mean\",\n    \"honest_assessment\": \"does this chart + location data support billionaire timing?\"\n  },\n  \"dhana_yoga_cities\": \"which cities activate both Jupiter and Venus simultaneously\",\n  \"dasha_location_convergence\": {\n    \"now_mars_md\": \"best city for Mars MD (current, until Aug 2026)\",\n    \"next_rahu_md\": \"best city for Rahu MD (Aug 2026-2044) — most important\",\n    \"next_jupiter_md\": \"best city for Jupiter MD (2044+) — long-term legacy\"\n  },\n  \"what_is_missing\": \"what classical Jyotish astrocartography would add that this city-score approach is missing\",\n  \"plain_summary\": \"3-4 sentences. Where should this person be and when?\"\n}"
+}
