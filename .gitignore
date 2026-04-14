@@ -37,3 +37,5 @@ tools/
 .env
 llm_comarison.py
 /tmp/llm_comparison_*
+main.py.bak_*
+antar_engine/chart_context_builder.py.bak_*
