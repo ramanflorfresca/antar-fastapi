@@ -3392,7 +3392,7 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
             prompt = _user_only_prompt
             print(f"[predict] KV cache: system={len(_master_system)} chars, user_prompt={len(prompt)} chars")
 
-            # === KV CACHE DEBUG (TEMPORARY) ===
+            # === KV CACHE DEBUG v3 (TEMPORARY) ===
             try:
                 import hashlib as _hl
                 _ms_full = _master_system
@@ -3401,18 +3401,15 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
                 _h_static = _hl.md5(_ms_static.encode()).hexdigest()[:8]
                 print(f"[kv-debug] full_hash={_h_full} static_hash={_h_static} static_len={len(_ms_static)}")
 
-                # Chunk-hash: split static into 5 equal parts and hash each
-                _slen = len(_ms_static)
-                _n_chunks = 5
-                _chunk_size = _slen // _n_chunks
-                for _i in range(_n_chunks):
-                    _start = _i * _chunk_size
-                    _end = _slen if _i == _n_chunks - 1 else (_i + 1) * _chunk_size
-                    _chunk = _ms_static[_start:_end]
-                    _ch = _hl.md5(_chunk.encode()).hexdigest()[:8]
-                    # Print hash + last 80 chars of chunk for context
-                    _tail80 = _chunk[-80:].replace("\n", "\\n")
-                    print(f"[kv-chunk] {_i+1}/5 [{_start:5d}-{_end:5d}] hash={_ch} tail80={_tail80!r}")
+                # Line-level: hash each non-empty line and print idx + len + hash + first40
+                _lines = _ms_static.split("\n")
+                for _li, _line in enumerate(_lines):
+                    _stripped = _line.strip()
+                    if not _stripped:
+                        continue
+                    _lh = _hl.md5(_line.encode()).hexdigest()[:6]
+                    _first40 = _line[:40].replace("\t", " ")
+                    print(f"[kv-line] {_li:4d} len={len(_line):4d} hash={_lh} | {_first40}")
             except Exception as _kvde:
                 print(f"[kv-debug] error: {_kvde}")
             # === END KV CACHE DEBUG ===
