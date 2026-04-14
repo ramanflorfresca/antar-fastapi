@@ -3559,6 +3559,14 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
         # JSON PATH (use_json_context=True) — Phase 4 JSON-first refactor
         # ================================================================
         if getattr(request, "use_json_context", False):
+            # For past-event questions: clear prose context so it doesn't
+            # contaminate Claude's reasoning. JSON path provides all needed context.
+            _past_kw = ["when did","when was","what year","married","born","child",
+                        "son","daughter","moved","divorc","america","foreign",
+                        "cuándo","cuando","nació","hijo","hija","casé","mudé"]
+            if any(kw in request.question.lower() for kw in _past_kw):
+                _full_context = ""
+                print(f"[json-v2] Past question detected — cleared prose context")
             try:
                 print(f"[json-v2] JSON path activated for chart {request.chart_id}")
                 from antar_engine.chart_context_builder_json import (
