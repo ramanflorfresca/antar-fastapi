@@ -3569,24 +3569,109 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
                 )
                 from antar_engine.predict_system_prompt_v2 import PREDICT_SYSTEM_PROMPT_V2
 
+                # Detect past-tense questions — need historical dasha context
+                _past_keywords = [
+                    "when did", "when was", "what year", "which year",
+                    "when did i", "when were", "what happened",
+                    "cuándo", "cuando", "qué año", "que año",
+                    "married", "born", "moved", "divorced", "divorce",
+                    "child", "children", "hijo", "hija", "matrimonio",
+                ]
+                _is_past_question = any(
+                    kw in request.question.lower()
+                    for kw in _past_keywords
+                )
+
                 _json_ctx = await build_chart_context_json(
                     chart_id=request.chart_id,
                     question=request.question,
                     concern=concern,
-                    language=_lang if "_lang" in dir() else language,
+                    language=request.language if hasattr(request, "language") else "en",
                     supabase=supabase,
                 )
+
+                # For past-event questions, inject full historical MD sequence
+                if _is_past_question:
+                    try:
+                        _hist_rows = supabase.table("dasha_periods") \
+                            .select("planet_or_sign,start_date,end_date,level,metadata") \
+                            .eq("chart_id", request.chart_id) \
+                            .eq("system", "vimsottari") \
+                            .order("start_date") \
+                            .execute()
+
+                        _md_rows = [
+                            r for r in _hist_rows.data
+                            if r.get("level") == 1 or
+                               str(r.get("level","")).lower() in ("mahadasha","md","1")
+                        ]
+                        _ad_rows = [
+                            r for r in _hist_rows.data
+                            if r.get("level") == 2 or
+                               str(r.get("level","")).lower() in ("antardasha","ad","2")
+                        ]
+
+                        # Build MD sequence string
+                        _md_lines = []
+                        for row in _md_rows:
+                            planet = row.get("planet_or_sign","")
+                            start  = str(row.get("start_date",""))[:10]
+                            end    = str(row.get("end_date",""))[:10]
+                            _md_lines.append(f"  {planet} MD: {start} → {end}")
+
+                        # Build AD dict grouped by parent MD
+                        _ad_by_parent = {}
+                        for row in _ad_rows:
+                            parent = (row.get("metadata") or {}).get("parent_lord","")
+                            if parent not in _ad_by_parent:
+                                _ad_by_parent[parent] = []
+                            planet = row.get("planet_or_sign","")
+                            start  = str(row.get("start_date",""))[:10]
+                            end    = str(row.get("end_date",""))[:10]
+                            _ad_by_parent[parent].append(f"{planet} AD: {start} → {end}")
+
+                        _hist_block = "\n\n## HISTORICAL VIMSOTTARI DASHA SEQUENCE\n"
+                        _hist_block += "Mahadashas (MD):\n"
+                        _hist_block += "\n".join(_md_lines)
+                        _hist_block += "\n\nAnterdashas (AD) by MD:\n"
+                        for md_planet, ads in _ad_by_parent.items():
+                            _hist_block += f"\n{md_planet} MD:\n"
+                            for ad in ads:
+                                _hist_block += f"  {ad}\n"
+
+                        _hist_block += """
+## PAST EVENT PREDICTION RULES
+When asked about PAST events (marriage, children, relocation, divorce):
+1. Find the approximate year range using the person's birth year + typical life stage age
+2. Look up which MD+AD was active in that year range from the sequence above
+3. Confirm the AD planet supports the event via classical house rules:
+   - Marriage: 7H lord AD, Venus AD, or Saturn AD (formal commitment)
+   - Foreign move: Rahu AD or 12H lord AD
+   - First child: 5H lord AD or Jupiter AD
+   - Second child: AD after first child, 9H lord AD
+   - Divorce: Saturn AD during 7H lord MD
+4. State the predicted year as a specific year, not a future window
+5. NEVER predict past events as future events
+"""
+                        # Append historical context to live block
+                        if isinstance(_json_ctx, dict):
+                            _json_ctx["_historical_dasha"] = _hist_block
+                        print(f"[json-v2] Historical dasha injected — {len(_md_lines)} MDs, {len(_ad_rows)} ADs")
+                    except Exception as _hist_e:
+                        print(f"[json-v2] Historical dasha injection failed (non-fatal): {_hist_e}")
                 _static_json = chart_static_to_json(_json_ctx)
                 _live_json   = live_to_json(_json_ctx)
 
                 # System prompt = framework (cached) + static chart JSON (cached)
                 # ## LIVE DATA marker = split point for KV cache
+                _hist_suffix = _json_ctx.get("_historical_dasha", "") if isinstance(_json_ctx, dict) else ""
                 _json_system = (
                     PREDICT_SYSTEM_PROMPT_V2
                     + "\n\n## CHART DATA (JSON)\n"
                     + _static_json
                     + "\n\n## LIVE DATA\n"
                     + _live_json
+                    + (_hist_suffix if _hist_suffix else "")
                 )
 
                 # User message = just the question
@@ -3633,7 +3718,7 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
                         str(_parsed.get("confidence", "medium")).lower(), 0.65),
                     "confidence_label": _parsed.get("confidence", "medium"),
                         "domain": concern,
-                        "language": _lang if "_lang" in dir() else language,
+                        "language": request.language if hasattr(request, "language") else "en",
                         "why_this": _parsed.get("why_this", ""),
                         "bridge_practice_note": _parsed.get("bridge_practice_note", ""),
                     }).execute()
@@ -3665,6 +3750,7 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
                     "rarity_signals":       [],
                     "precision_windows":    [],
                     "all_domains":          [],
+                    "context_path":         "json",
                 }
             except Exception as _json_e:
                 import traceback

@@ -99,6 +99,14 @@ def _fetch_dashas(chart_id: str, supabase) -> Dict[str, Any]:
             if isinstance(lv, int):
                 return lv
             if isinstance(tp, str):
+                # Real DB uses: "mahadasha" and "antardasha"
+                tp_lower = tp.lower()
+                if tp_lower in ("mahadasha", "md"):
+                    return 1
+                if tp_lower in ("antardasha", "ad"):
+                    return 2
+                if tp_lower in ("pratyantardasha", "pd"):
+                    return 3
                 return {"MD": 1, "AD": 2, "PD": 3}.get(tp.upper(), 1)
             return 1
 

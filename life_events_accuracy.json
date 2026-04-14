@@ -1,0 +1,200 @@
+{
+  "ran_at": "2026-04-14T15:16:29.760598",
+  "summary": {
+    "total": 7,
+    "exact_year_pct": 0.0,
+    "within_1yr_pct": 0.0,
+    "within_2yr_pct": 0.0
+  },
+  "results": [
+    {
+      "id": "R01",
+      "chart_id": "de02bb52-d43a-4b09-be25-b45a07bfbf8a",
+      "question": "When did I get married? What period in my chart shows marriage activation?",
+      "language": "en",
+      "concern": "relationships",
+      "plain_summary": "Your DKP context shows marital status as unknown, and your chart structure indicates marriage has not yet occurred. The 7th lord Moon is in the 3rd house (courage/initiative required), and DK Saturn sits in 6th (obstacles/delays). Marriage activation begins when Rahu MD starts in August 2026, but the strongest window opens during Rahu-Venus period (2029-2032) when both relationship significators align.",
+      "timing_window": "2029-2032 (Rahu-Venus AD)",
+      "why_this": "Vimsottari shows Mars MD ending Aug 2026 (Mars in 10th = career focus, not marriage). Rahu MD (2026-2044) brings the foreign/unconventional element needed to activate 7H themes. Jaimini Taurus MD (2023-2029) is ruled by Venus (relationships) but lacks the intensity to overcome Saturn's 6H delay pattern. D9 shows Venus in 4H Scorpio (deep emotional foundation needed first) and DK Saturn in 10H (marriage tied to career stability). Convergence point: Rahu-Venus AD when transit Jupiter aspects 7H from Gemini.",
+      "signal_line": "Marriage window opens 2029-2032, not yet occurred",
+      "context_path": null,
+      "error": null,
+      "actual_date": "1998-01-12",
+      "actual_label": "Raman civil marriage",
+      "scoring": {
+        "score": 0,
+        "label": "\u274c Off by 28 years (closest: 2026)",
+        "actual_year": 1998,
+        "actual_month": 1,
+        "years_in_pred": [
+          2026,
+          2029
+        ],
+        "exact_year_hit": false
+      }
+    },
+    {
+      "id": "R02",
+      "chart_id": "de02bb52-d43a-4b09-be25-b45a07bfbf8a",
+      "question": "What year and period does my chart show for marriage or major relationship commitment?",
+      "language": "en",
+      "concern": "relationships",
+      "plain_summary": "Your chart shows a powerful convergence for partnership starting August 2026 when you enter Rahu mahadasha. Rahu sits in your 7th house (marriage) in D9 and rules your 11th house (fulfillment of desires) in D1. The current Mars dasha ends August 2026 \u2014 Mars has been blocking partnership (10th lord in 10th = career focus). Jaimini Taurus dasha (running until Nov 2029) supports this: Taurus is your 5th house (romance) and its lord Venus is your 7th lord (marriage). All three timing systems point to the same 18-month window.",
+      "timing_window": "August 2026 - March 2028 (peak: October 2026 - February 2027)",
+      "why_this": "Vimsottari shows Mars MD ending (career-focused blockage) and Rahu MD beginning (Rahu in 7th house of D9 = marriage activation). Jaimini Taurus MD confirms (5th house romance, ruled by Venus your 7th lord). D9 shows Rahu-Ketu axis on 5th-11th (romance-gains) supporting partnership manifestation. No sleeping planets blocking this window.",
+      "signal_line": "Partnership window opens August 2026 \u2014 Rahu activates marriage",
+      "context_path": null,
+      "error": null,
+      "actual_date": "1998-12-25",
+      "actual_label": "Raman Indian wedding",
+      "scoring": {
+        "score": 0,
+        "label": "\u274c Off by 28 years (closest: 2026)",
+        "actual_year": 1998,
+        "actual_month": 12,
+        "years_in_pred": [
+          2026,
+          2027,
+          2028,
+          2029
+        ],
+        "exact_year_hit": false
+      }
+    },
+    {
+      "id": "R03",
+      "chart_id": "de02bb52-d43a-4b09-be25-b45a07bfbf8a",
+      "question": "When does my chart show a major relocation or move to a foreign country?",
+      "language": "en",
+      "concern": "general",
+      "plain_summary": "You're entering an 18-year Rahu mahadasha in August 2026 \u2014 Rahu is the primary karaka for foreign lands and unconventional moves. Your Rahu sits in the 11th house (fulfillment of desires, networks) in Scorpio, a sign of transformation. In Jaimini, you're in Taurus MD until 2029, and Taurus is your 5th house \u2014 creative risk-taking and new ventures. The convergence of Vimsottari Rahu MD + Jaimini support + D9 placement (Rahu in 5th house of dharmic risk) creates a clear foreign relocation signature. No sleeping planets block this window.",
+      "timing_window": "August 2026 - June 2028 (peak: 2027)",
+      "why_this": "Vimsottari Rahu MD (Aug 2026-2044) is the engine \u2014 Rahu = foreign/unconventional. Jaimini Taurus MD (until Nov 2029) supports new ventures and risk-taking (5th house theme). D9 shows Rahu in 5th house (Sagittarius) \u2014 dharmic expansion through foreign experience. All three layers converge on foreign movement starting August 2026.",
+      "signal_line": "Rahu opens the foreign door in August 2026",
+      "context_path": null,
+      "error": null,
+      "actual_date": "1992-05-17",
+      "actual_label": "Raman moved to America",
+      "scoring": {
+        "score": 0,
+        "label": "\u274c Off by 34 years (closest: 2026)",
+        "actual_year": 1992,
+        "actual_month": 5,
+        "years_in_pred": [
+          2026,
+          2027,
+          2028,
+          2029
+        ],
+        "exact_year_hit": false
+      }
+    },
+    {
+      "id": "R04",
+      "chart_id": "de02bb52-d43a-4b09-be25-b45a07bfbf8a",
+      "question": "When did I have my first child? What period in my chart shows childbirth?",
+      "language": "en",
+      "concern": "general",
+      "plain_summary": "Your natal chart shows Jupiter (natural significator of children) in the 2nd house, not the 5th house of children. The 5th lord Venus sits in the 11th house with Rahu, creating desire but also disruption. Your D7 (children chart) shows Jupiter in the 6th house (conflict/obstacles) and 5th lord Mars also in the 5th but with challenging aspects. Your DKP context confirms 'no_children_unsure' status at age 51. No past dasha period aligns with childbirth \u2014 Mars MD (2019-2026) focuses on career (10th house Mars), not progeny.",
+      "timing_window": "No childbirth event has occurred based on chart structure",
+      "why_this": "D1 shows 5th lord Venus afflicted by Rahu in 11th house. D7 (progeny chart) shows Jupiter (children karaka) in 6th house of obstacles. D9 shows Jupiter in 7th (partnerships) not 5th. Vimsottari Mars MD (2019-2026) activates 10th house career themes, not 5th house children. Jaimini Taurus MD (2023-2029) rules 5th house but shows no activation yet. All layers converge: no childbirth event in past.",
+      "signal_line": "No childbirth event visible in your chart history",
+      "context_path": null,
+      "error": null,
+      "actual_date": "2001-11-08",
+      "actual_label": "Raman first son born",
+      "scoring": {
+        "score": 0,
+        "label": "\u274c Off by 18 years (closest: 2019)",
+        "actual_year": 2001,
+        "actual_month": 11,
+        "years_in_pred": [
+          2019,
+          2026
+        ],
+        "exact_year_hit": false
+      }
+    },
+    {
+      "id": "R05",
+      "chart_id": "de02bb52-d43a-4b09-be25-b45a07bfbf8a",
+      "question": "When did I have children? What years does my chart show for birth of children?",
+      "language": "en",
+      "concern": "general",
+      "plain_summary": "Your D7 (children chart) shows 5th lord Mars in own sign Aries \u2014 structurally strong for children, but delayed. Jupiter (karaka for children) is in 6th house of D7 (obstacles). You're currently in Mars MD (ends Aug 2026) which doesn't favor children. The real window opens when Rahu MD begins (Aug 2026-Aug 2044), especially during Venus AD (2027-2029) when 5th house activation peaks. Your DKP context shows 'no_children_unsure' at age 51 \u2014 this aligns with the chart showing late or no biological children in the past.",
+      "timing_window": "2027-2029 (primary), 2044-2050 (secondary)",
+      "why_this": "Vimsottari shows Mars MD (2019-2026) was NOT a children period \u2014 Mars rules 4th/11th, not 5th. Rahu MD (2026-2044) activates 5th house via aspect and Venus AD (2027-2029) directly rules your 5th house (Taurus). D7 confirms: 5th lord Mars is strong but Jupiter (PK = children karaka) sits in 6th (delay/obstacle). Jaimini Taurus MD (2023-2029) also supports this timing. All three layers converge on 2027-2029 as the first major window.",
+      "signal_line": "Children window opens 2027 \u2014 not in the past",
+      "context_path": null,
+      "error": null,
+      "actual_date": "2003-10-13",
+      "actual_label": "Raman second son born",
+      "scoring": {
+        "score": 0,
+        "label": "\u274c Off by 23 years (closest: 2026)",
+        "actual_year": 2003,
+        "actual_month": 10,
+        "years_in_pred": [
+          2026,
+          2027,
+          2029
+        ],
+        "exact_year_hit": false
+      }
+    },
+    {
+      "id": "R06",
+      "chart_id": "de02bb52-d43a-4b09-be25-b45a07bfbf8a",
+      "question": "When does my chart show a major relationship ending or divorce?",
+      "language": "en",
+      "concern": "relationships",
+      "plain_summary": "Three timing layers converge on this period. Mars mahadasha (your 7th lord of partnerships) ends in August 2026, triggering relationship conclusions. Moon antardasha (your emotional foundation) runs through August 2026, bringing emotional clarity about what no longer works. Jaimini Taurus dasha (through November 2029) activates your 5th house from lagna \u2014 the house of emotional fulfillment and romantic choices \u2014 forcing a reckoning about whether current partnerships serve your deeper needs. The transition from Mars MD to Rahu MD in August 2026 is the critical pivot point.",
+      "timing_window": "May 2026 - August 2027 (peak: August 2026 - February 2027)",
+      "why_this": "Vimsottari shows Mars MD (7th lord) ending exactly when Moon AD peaks emotional awareness. Jaimini Taurus dasha activates romance/choice axis through 2029. D9 navamsa shows Moon in 8th (transformation of emotional bonds) and Venus in 4th (home/foundation shifts). All three layers point to relationship transformation in this 16-month window, with August 2026 as the structural breaking point.",
+      "signal_line": "Partnership contracts expire August 2026 \u2014 choose renewal or release",
+      "context_path": null,
+      "error": null,
+      "actual_date": "2014-09-14",
+      "actual_label": "Raman divorce",
+      "scoring": {
+        "score": 0,
+        "label": "\u274c Off by 12 years (closest: 2026)",
+        "actual_year": 2014,
+        "actual_month": 9,
+        "years_in_pred": [
+          2026,
+          2027,
+          2029
+        ],
+        "exact_year_hit": false
+      }
+    },
+    {
+      "id": "A01",
+      "chart_id": "6ec6311c-d46e-4e97-a46c-859882071971",
+      "question": "When did I have a child or when does my chart show childbirth?",
+      "language": "es",
+      "concern": "general",
+      "plain_summary": "No hay marcadores de un hijo ya nacido. Tu Jupiter MD (hasta oct 2028) gobierna tu casa 5 (hijos) y est\u00e1 en tu ascendente \u2014 esto favorece hijos. El per\u00edodo m\u00e1s fuerte es Jupiter-Marte AD (jun 2026-may 2027), porque Marte gobierna tu casa 5 en D9 (carta del alma). Actualmente est\u00e1s en Jupiter-Marte AD. La ventana est\u00e1 abierta AHORA.",
+      "timing_window": "Junio 2026 - Octubre 2027",
+      "why_this": "Jupiter MD gobierna tu casa 5 natal (hijos). Marte AD gobierna casa 5 en D9 (carta del alma/matrimonio). D7 (carta de hijos) muestra Jupiter fuerte en ascendente. Tres capas convergen: timing Vimsottari + D9 + D7.",
+      "signal_line": "Ventana de fertilidad abierta: pr\u00f3ximos 18 meses",
+      "context_path": null,
+      "error": null,
+      "actual_date": "2023-04-10",
+      "actual_label": "Andres daughter born",
+      "scoring": {
+        "score": 0,
+        "label": "\u274c Off by 3 years (closest: 2026)",
+        "actual_year": 2023,
+        "actual_month": 4,
+        "years_in_pred": [
+          2026,
+          2027,
+          2028
+        ],
+        "exact_year_hit": false
+      }
+    }
+  ]
+}

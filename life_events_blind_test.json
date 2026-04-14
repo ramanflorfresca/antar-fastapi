@@ -1,0 +1,117 @@
+{
+  "task": "Using ONLY the birth chart and Vimsottari dasha sequence below, predict when each life event most likely occurred. No hints are provided — derive everything from classical Parashari rules.",
+
+  "person": {
+    "name": "Person A",
+    "birth_date": "1974-11-26",
+    "lagna": "Capricorn",
+    "birth_place": "India"
+  },
+
+  "natal_planets": {
+    "Sun":     {"sign": "Scorpio",   "house": 11, "nakshatra": "Anuradha"},
+    "Moon":    {"sign": "Pisces",    "house": 3,  "nakshatra": "Uttara Bhadrapada"},
+    "Mars":    {"sign": "Libra",     "house": 10, "nakshatra": "Swati"},
+    "Mercury": {"sign": "Libra",     "house": 10, "nakshatra": "Chitra"},
+    "Jupiter": {"sign": "Aquarius",  "house": 2,  "nakshatra": "Purva Bhadrapada"},
+    "Venus":   {"sign": "Scorpio",   "house": 11, "nakshatra": "Vishakha"},
+    "Saturn":  {"sign": "Capricorn", "house": 1,  "nakshatra": "Shravana"},
+    "Rahu":    {"sign": "Aries",     "house": 4},
+    "Ketu":    {"sign": "Libra",     "house": 10}
+  },
+
+  "vimsottari_dasha_sequence": [
+    {"MD": "Mercury", "start": "1974-11-26", "end": "1976-08-13"},
+    {"MD": "Ketu",    "start": "1976-08-13", "end": "1983-08-13"},
+    {"MD": "Venus",   "start": "1983-08-13", "end": "2003-08-13",
+     "antardashas": [
+       {"AD": "Venus",   "start": "1983-08-13", "end": "1986-12-12"},
+       {"AD": "Sun",     "start": "1986-12-12", "end": "1987-12-12"},
+       {"AD": "Moon",    "start": "1987-12-12", "end": "1989-08-12"},
+       {"AD": "Mars",    "start": "1989-08-12", "end": "1990-10-12"},
+       {"AD": "Rahu",    "start": "1990-10-12", "end": "1993-10-12"},
+       {"AD": "Jupiter", "start": "1993-10-12", "end": "1996-06-12"},
+       {"AD": "Saturn",  "start": "1996-06-12", "end": "1999-08-13"},
+       {"AD": "Mercury", "start": "1999-08-13", "end": "2002-06-13"},
+       {"AD": "Ketu",    "start": "2002-06-13", "end": "2003-08-13"}
+     ]
+    },
+    {"MD": "Sun",     "start": "2003-08-13", "end": "2009-08-13"},
+    {"MD": "Moon",    "start": "2009-08-13", "end": "2019-08-13",
+     "antardashas": [
+       {"AD": "Moon",    "start": "2009-08-13", "end": "2010-06-13"},
+       {"AD": "Mars",    "start": "2010-06-13", "end": "2011-01-12"},
+       {"AD": "Rahu",    "start": "2011-01-12", "end": "2012-07-13"},
+       {"AD": "Jupiter", "start": "2012-07-13", "end": "2013-11-12"},
+       {"AD": "Saturn",  "start": "2013-11-12", "end": "2015-06-13"},
+       {"AD": "Mercury", "start": "2015-06-13", "end": "2016-11-11"},
+       {"AD": "Ketu",    "start": "2016-11-11", "end": "2017-06-12"},
+       {"AD": "Venus",   "start": "2017-06-12", "end": "2019-02-11"},
+       {"AD": "Sun",     "start": "2019-02-11", "end": "2019-08-13"}
+     ]
+    },
+    {"MD": "Mars",    "start": "2019-08-13", "end": "2026-08-13"},
+    {"MD": "Rahu",    "start": "2026-08-13", "end": "2044-08-13"}
+  ],
+
+  "person_b": {
+    "name": "Person B",
+    "birth_date": "1987-03-15",
+    "lagna": "Cancer",
+    "vimsottari_dasha_sequence": [
+      {"MD": "Mars",    "start": "1991-07-18", "end": "1994-10-27"},
+      {"MD": "Rahu",    "start": "1994-10-27", "end": "2012-10-27"},
+      {"MD": "Jupiter", "start": "2012-10-27", "end": "2028-10-27",
+       "antardashas_partial": [
+         {"AD": "Jupiter", "start": "2012-10-27", "end": "2015-02-14"},
+         {"AD": "Saturn",  "start": "2015-02-14", "end": "2017-11-08"},
+         {"AD": "Mercury", "start": "2017-11-08", "end": "2020-06-04"},
+         {"AD": "Ketu",    "start": "2020-06-04", "end": "2021-06-12"},
+         {"AD": "Venus",   "start": "2021-06-12", "end": "2024-06-11"},
+         {"AD": "Sun",     "start": "2024-06-11", "end": "2025-05-01"}
+       ]
+      }
+    ]
+  },
+
+  "events_to_predict": [
+    {
+      "id": "R01",
+      "person": "Person A",
+      "event": "Marriage or major romantic commitment",
+      "classical_rules": "Apply standard Parashari: 7H lord dasha, Venus dasha/AD, or 2H activation for marriage timing"
+    },
+    {
+      "id": "R02",
+      "person": "Person A",
+      "event": "Relocation to a foreign country",
+      "classical_rules": "Apply standard Parashari: 12H lord, 9H lord, Rahu dasha for foreign travel/relocation"
+    },
+    {
+      "id": "R03",
+      "person": "Person A",
+      "event": "Birth of first child",
+      "classical_rules": "Apply standard Parashari: 5H lord dasha, Jupiter dasha as karaka, putrakaraka activation"
+    },
+    {
+      "id": "R04",
+      "person": "Person A",
+      "event": "Birth of second child",
+      "classical_rules": "Apply standard Parashari: 9H from lagna or 9H from 5H, Mercury or Jupiter involvement"
+    },
+    {
+      "id": "R05",
+      "person": "Person A",
+      "event": "Divorce or major relationship separation",
+      "classical_rules": "Apply standard Parashari: 7H lord affliction period, 6H from 7H activation, Saturn or Rahu with 7H"
+    },
+    {
+      "id": "B01",
+      "person": "Person B",
+      "event": "Birth of a child (female)",
+      "classical_rules": "Apply standard Parashari: 5H lord, Jupiter karaka, Venus as female child karaka for Cancer lagna"
+    }
+  ],
+
+  "output_format": "JSON array. Each object must have: id, predicted_year (single year), predicted_window (date range), active_md, active_ad, confidence (high/medium/low), reasoning (show your classical logic step by step)"
+}
