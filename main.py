@@ -3461,6 +3461,8 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
                     "why_this": _parsed.get("why_this", ""),
                     "layers_used": _parsed.get("layers_used", []),
                     "bridge_practice_note": _parsed.get("bridge_practice_note", ""),
+                    "prediction": (_parsed.get("verdict","") + " " + _parsed.get("plain_summary","")).strip(),
+                    "factors": _parsed.get("layers_used", []),
                     "context_path": "json-v2",
                     "tokens_used": _json_tokens,
                 }
