@@ -627,7 +627,7 @@ def build_no_time_brief(
         "md_period":      f"{md_start}–{md_end}",
         "has_birth_time": False,
         "confidence":     0.65,
-        "missing_data":   ["lagna","house_placements","d9","d10","d12"],
+        "missing_data":   ["lagna","house_placements","D9","D10","D12"],
         "available_data": ["moon_sign","moon_nakshatra","sun_sign","vimsottari_dasha","planetary_signs"],
     }
 

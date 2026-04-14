@@ -586,7 +586,7 @@ def detect_marriage_yogas(
     """
     planets    = chart_data["planets"]
     lagna_sign = chart_data["lagna"]["sign"]
-    d9         = d_charts.get("d9", d_charts.get("D9", {}))
+    d9         = d_charts.get("D9", {})
     yogas      = []
 
     lord_7   = get_house_lord(lagna_sign, 7)

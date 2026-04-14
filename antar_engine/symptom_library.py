@@ -636,7 +636,7 @@ def _score_infrastructure(cd, h):
 
     # D9 for alliance (house 7)
     if h==7:
-        d9=_sj(div.get("D9",div.get("d9",{})))
+        d9=_sj(div.get("d9",div.get("D9",{})))
         if d9:
             sc+=15; factors.append("D9 alliance chart available")
             d9_planets=d9.get("planets",{})

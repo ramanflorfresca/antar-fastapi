@@ -1241,6 +1241,7 @@ def jaimini_to_db_json(ctx: JaiminiContext) -> Dict[str, Any]:
         "moving_lagna": ctx.moving_lagna_analysis,
         "rashi_drishti_ad": [SIGN_NAMES[s] for s in ctx.rashi_drishti_from_ad],
         "argala_net": ctx.argala_on_md.net_supported if ctx.argala_on_md else None,
+        "computed_at": datetime.now().isoformat()
     }
 
 

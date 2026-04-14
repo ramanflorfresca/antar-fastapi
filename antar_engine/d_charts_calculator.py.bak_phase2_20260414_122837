@@ -39,7 +39,7 @@ USAGE:
   # Get multiple at once (most efficient)
   charts = get_all_d_charts(chart_data, [2, 6, 9, 10])
   d6 = charts["D6"]
-  d9 = charts["d9"]
+  d9 = charts["D9"]
 """
 
 from __future__ import annotations

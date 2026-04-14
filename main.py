@@ -4507,7 +4507,7 @@ async def create_chart(
             for pname, pdata in chart_data.get("planets", {}).items():
                 if isinstance(pdata, dict):
                     _planets_for_jaimini[pname] = pdata
-            _d9_data = chart_data.get("divisional_charts", {}).get("D9", {}).get("planets", {})
+            _d9_data = chart_data.get("divisional_charts", {}).get("d9", {}).get("planets", {})
             if not _d9_data:
                 _d9_data = chart_data.get("d9_planets", {})
             build_and_store_jaimini(
@@ -6807,7 +6807,7 @@ async def backfill_jaimini(chart_id: str):
         for pid, pd in cd.get("planets", {}).items():
             if isinstance(pd, dict):
                 _planets[pid] = pd
-        _d9 = cd.get("divisional_charts", {}).get("D9", {}).get("planets", {})
+        _d9 = cd.get("divisional_charts", {}).get("d9", {}).get("planets", {})
         if not _d9:
             _d9 = cd.get("d9_planets", {})
         _bd = cr.data.get("birth_date", cd.get("birth_date", "1990-01-01"))

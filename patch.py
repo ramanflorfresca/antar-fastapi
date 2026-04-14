@@ -1,266 +1,397 @@
 #!/usr/bin/env python3
 """
-patch_kv_cache_v2.py
+patch_phase2_chart_data_bugs.py
+================================
+Phase 2 of the JSON-first /predict refactor sprint.
 
-Fixes the KV cache by reordering chart_context_builder.py blocks so the
-## LIVE DATA marker sits at the right boundary between truly-stable content
-and per-call-dynamic content.
+Fixes three pre-existing bugs discovered during the Apr 14 KV caching sprint:
 
-ROOT CAUSE (from debug instrumentation):
-- chart_context_builder.py line 688 has a hardcoded `## LIVE DATA` marker
-- It currently splits at: [stable content] | LIVE DATA | [transits + Jaimini + lk_warnings + Vedic rules]
-- But Jaimini, lk_warnings, and Vedic rules are ALL stable per chart (not dynamic)
-- Result: only 7283 chars of static (~1820 tokens, barely above cache threshold)
-- And the static block content fluctuates due to noise in stable section
-- Cache hit rate: 0%
+  BUG 1 — D9 case inconsistency
+    chart data stores divisional_charts.d9 (lowercase)
+    but 5 code paths read divisional_charts.D9 (uppercase)
+    → every Jaimini computation silently fell back to D1 as Navamsa
+    → wrong Karakamsa, wrong predictions for every user
 
-FIX:
-- Move Jaimini, lk_warnings, and the trailing Vedic rules INTO the static region
-- Keep only `trans_block` and `_teva_block` (Teva is derived from transits) in dynamic tail
-- Result: ~14k chars static (~3500 tokens), only ~2k chars dynamic
-- Cache hit rate: ~85% expected
+  BUG 2 — build_and_store_jaimini dead import
+    main.py:4513 references a function that no longer exists in jaimini_engine.py
+    try/except swallows the error
+    → every new chart silently fails to store Jaimini data
 
-ALSO REMOVES:
-- The redundant `## LIVE DATA` marker we added in main.py KV cache patch
-  (chart_context_builder's marker is now correctly placed; we don't need a second one)
+  BUG 3 — computed_at timestamp in jaimini_to_db_json
+    datetime.now().isoformat() inside jaimini_to_db_json poisons KV cache
+    → cache_hit stays at 0 even after all other drift was eliminated
+
+AFFECTED FILES:
+  main.py                                      — bugs 1 (×3 locations), 2, 3
+  antar_engine/yoga_engine.py                  — bug 1 (×1 location)
+  antar_engine/d_charts_calculator.py          — bug 1 (×1 location, docstring)
+  antar_engine/compatibility_session_engine.py — bug 1 (×1 location)
+  antar_engine/jaimini_engine.py               — bug 3 (computed_at removal)
+
+USAGE:
+  cd ~/antarai && source venv311/bin/activate
+  python patch_phase2_chart_data_bugs.py
+  python3 -c "import ast; ast.parse(open('main.py').read()); print('main.py OK')"
+  python3 -c "import ast; ast.parse(open('antar_engine/jaimini_engine.py').read()); print('jaimini_engine.py OK')"
+  python3 -c "import ast; ast.parse(open('antar_engine/yoga_engine.py').read()); print('yoga_engine.py OK')"
+  python3 -c "import ast; ast.parse(open('antar_engine/compatibility_session_engine.py').read()); print('compatibility OK')"
+  git add -A && git commit -m "fix: D9 case bug, dead jaimini import, computed_at cache drift" && git push
 """
 
-import ast
-import shutil
+import re
 import sys
-from datetime import datetime
+import shutil
 from pathlib import Path
+from datetime import datetime
 
-CTX = Path("antar_engine/chart_context_builder.py")
-MAIN = Path("main.py")
-BACKUP_CTX = Path(f"antar_engine/chart_context_builder.py.bak_kv_v2_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
-BACKUP_MAIN = Path(f"main.py.bak_kv_v2_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
 
-# ============================================================
-# PART 1: Reorder chart_context_builder.py blocks
-# ============================================================
+def read(path: str) -> str:
+    return Path(path).read_text(encoding="utf-8")
+
+def write(path: str, content: str) -> None:
+    Path(path).write_text(content, encoding="utf-8")
+
+def backup(path: str) -> str:
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    dst = f"{path}.bak_phase2_{ts}"
+    shutil.copy2(path, dst)
+    return dst
+
+def apply(path: str, patches: list[tuple[str, str, str]]) -> int:
+    """
+    Apply a list of (description, old, new) patches to a file.
+    Returns count of patches applied.
+    """
+    content = read(path)
+    applied = 0
+    for description, old, new in patches:
+        if old not in content:
+            print(f"  ⚠️  SKIP ({path}): pattern not found — {description}")
+            print(f"     First 80 chars of pattern: {old[:80]!r}")
+            continue
+        count = content.count(old)
+        if count > 1:
+            print(f"  ⚠️  SKIP ({path}): pattern matches {count} times — {description}")
+            continue
+        content = content.replace(old, new)
+        applied += 1
+        print(f"  ✅ Applied: {description}")
+    write(path, content)
+    return applied
+
+# ---------------------------------------------------------------------------
+# BUG 1a — main.py: D9 uppercase reads
 #
-# OLD layout (lines ~680-694):
-#     {_lk_advanced_block}
-#     ━━━
-#     {_umra_block}
-#     ━━━
-#     {_masik_block}
-#     ━━━
-#     {_teva_block}
+# The sprint doc identified these line ranges (use landmark strings):
+#   main.py:4510  — chart creation backfill flow
+#   main.py:6810  — /api/v1/backfill-jaimini/{chart_id} endpoint
+#   main.py (3rd occurrence) — somewhere in predict/context build path
 #
-#     ## LIVE DATA
-#     ━━━
-#     {trans_block}
-#     ━━━
-#     {_jaimini_block}
-#     ━━━
-#     {lk_warnings}
-#     ━━━
-#     VEDIC ASTROLOGY RULES...
+# Strategy: grep for ALL occurrences of .get("D9" and replace with .get("d9"
+# but ONLY inside the get() call (not in comments or string literals that
+# are user-facing). We replace the dict .get("D9") pattern specifically.
+# ---------------------------------------------------------------------------
+
+def fix_d9_in_file(path: str) -> int:
+    content = read(path)
+    original = content
+
+    # Pattern 1: .get("D9") → .get("d9")
+    new_content = content.replace('.get("D9")', '.get("d9")')
+    count1 = content.count('.get("D9")')
+
+    # Pattern 2: ["D9"] → ["d9"]  (direct dict access)
+    new_content2 = new_content.replace('["D9"]', '["d9"]')
+    count2 = new_content.count('["D9"]')
+
+    # Pattern 3: 'D9' inside get() with single quotes
+    new_content3 = new_content2.replace(".get('D9')", ".get('d9')")
+    count3 = new_content2.count(".get('D9')")
+
+    # Pattern 4: ['D9'] direct access single quotes
+    new_content4 = new_content3.replace("['D9']", "['d9']")
+    count4 = new_content3.count("['D9']")
+
+    total = count1 + count2 + count3 + count4
+    if total > 0:
+        write(path, new_content4)
+        print(f"  ✅ {path}: replaced {total} D9 uppercase reference(s)")
+        print(f"     (.get: {count1+count3}, direct[]: {count2+count4})")
+    else:
+        print(f"  ℹ️  {path}: no D9 uppercase references found")
+    return total
+
+# ---------------------------------------------------------------------------
+# BUG 2 — main.py: build_and_store_jaimini dead import
 #
-# NEW layout:
-#     {_lk_advanced_block}
-#     ━━━
-#     {_umra_block}
-#     ━━━
-#     {_masik_block}
-#     ━━━
-#     {_jaimini_block}              ← moved up (stable per chart)
-#     ━━━
-#     {lk_warnings}                 ← moved up (stable per chart)
-#     ━━━
-#     VEDIC ASTROLOGY RULES...      ← moved up (constant)
-#     ... (rest of static rules)
-#     ANTI-HALLUCINATION INSTRUCTIONS...
+# The dead call at chart creation (around main.py:4513) looks like:
 #
-#     ## LIVE DATA                  ← NEW position, just before per-call dynamic
-#     ━━━
-#     {_teva_block}                 ← derived from transits, dynamic
-#     ━━━
-#     {trans_block}                 ← per-minute, dynamic
-
-OLD_BLOCK_1 = '''━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{_teva_block}
-
-## LIVE DATA
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{trans_block}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{_jaimini_block}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{lk_warnings}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'''
-
-NEW_BLOCK_1 = '''━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{_jaimini_block}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{lk_warnings}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━'''
-
-# Now we need to find the END of the static rules block and insert the
-# ## LIVE DATA marker + dynamic blocks AFTER the anti-hallucination section.
-# The function returns "context" right after, so we anchor on:
+#   try:
+#       build_and_store_jaimini(chart_id, chart_data)
+#   except Exception as e:
+#       logger.error(f"Jaimini storage failed: {e}")
 #
-#     8. Transit effects must reference the transit section above
+# Replace with the correct pattern (same as backfill_jaimini_local.py):
 #
-# """
-#     return context
-
-OLD_BLOCK_2 = '''8. Transit effects must reference the transit section above
-
-"""
-    return context'''
-
-NEW_BLOCK_2 = '''8. Transit effects must reference the transit section above
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-## LIVE DATA
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{_teva_block}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-{trans_block}
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-"""
-    return context'''
-
-
-# ============================================================
-# PART 2: Remove redundant marker from main.py KV cache patch
-# ============================================================
+#   try:
+#       from antar_engine.jaimini_engine import (
+#           calculate_jaimini_analysis, jaimini_to_db_json
+#       )
+#       jaimini_result = calculate_jaimini_analysis(chart_data)
+#       jaimini_db = jaimini_to_db_json(jaimini_result)
+#       supabase.table("charts").update(
+#           {"jaimini_data": jaimini_db}
+#       ).eq("id", chart_id).execute()
+#       logger.info(f"Jaimini data stored for chart {chart_id}")
+#   except Exception as e:
+#       logger.error(f"Jaimini storage failed for {chart_id}: {e}", exc_info=True)
 #
-# In main.py our patch currently appends "## LIVE DATA" at the end.
-# Since chart_context_builder now places the marker correctly inside
-# _full_context, we don't need to add a second one. The first split
-# (which is now the correct one) will be used by call_llm_claude.
+# NOTE: We use landmark search (the try: + build_and_store_jaimini line)
+# because line numbers shift with edits. If the exact pattern isn't found,
+# the patch prints a clear skip message so you can locate it manually.
+# ---------------------------------------------------------------------------
 
-OLD_MAIN_BLOCK = '''        _cacheable_context = _full_context if _full_context else ""
-        if _cacheable_context:
-            _master_system = (
-                _master_system
-                + "\\n\\n=== CHART CONTEXT (stable) ===\\n"
-                + _cacheable_context
-                + "\\n\\n## LIVE DATA\\n"
-            )'''
+DEAD_IMPORT_PATTERNS = [
+    # Variant A — most common form
+    (
+        "fix: replace dead build_and_store_jaimini import (variant A)",
+        """        try:
+            build_and_store_jaimini(chart_id, chart_data)
+        except Exception as e:
+            logger.error(f"Jaimini storage failed: {e}")""",
+        """        try:
+            from antar_engine.jaimini_engine import (
+                calculate_jaimini_analysis, jaimini_to_db_json
+            )
+            jaimini_result = calculate_jaimini_analysis(chart_data)
+            jaimini_db = jaimini_to_db_json(jaimini_result)
+            supabase.table("charts").update(
+                {"jaimini_data": jaimini_db}
+            ).eq("id", chart_id).execute()
+            logger.info(f"Jaimini data stored for chart {chart_id}")
+        except Exception as e:
+            logger.error(
+                f"Jaimini storage failed for {chart_id}: {e}", exc_info=True
+            )""",
+    ),
+    # Variant B — different indentation (top-level route handler)
+    (
+        "fix: replace dead build_and_store_jaimini import (variant B, 4-space indent)",
+        """    try:
+        build_and_store_jaimini(chart_id, chart_data)
+    except Exception as e:
+        logger.error(f"Jaimini storage failed: {e}")""",
+        """    try:
+        from antar_engine.jaimini_engine import (
+            calculate_jaimini_analysis, jaimini_to_db_json
+        )
+        jaimini_result = calculate_jaimini_analysis(chart_data)
+        jaimini_db = jaimini_to_db_json(jaimini_result)
+        supabase.table("charts").update(
+            {"jaimini_data": jaimini_db}
+        ).eq("id", chart_id).execute()
+        logger.info(f"Jaimini data stored for chart {chart_id}")
+    except Exception as e:
+        logger.error(
+            f"Jaimini storage failed for {chart_id}: {e}", exc_info=True
+        )""",
+    ),
+]
 
-NEW_MAIN_BLOCK = '''        _cacheable_context = _full_context if _full_context else ""
-        if _cacheable_context:
-            # NOTE: _full_context already contains the canonical "## LIVE DATA"
-            # marker (placed correctly by chart_context_builder.py after the
-            # static Vedic rules block). Do NOT add a second marker here —
-            # call_llm_claude splits on the first occurrence.
-            _master_system = (
-                _master_system
-                + "\\n\\n=== CHART CONTEXT ===\\n"
-                + _cacheable_context
-            )'''
+# Also fix the /backfill-jaimini endpoint which has the same dead import
+# (sprint doc line 6789 — different endpoint, same bug)
+BACKFILL_ENDPOINT_PATTERNS = [
+    (
+        "fix: backfill-jaimini endpoint — replace dead import (variant A)",
+        """            build_and_store_jaimini(chart_id, existing_chart_data)""",
+        """            from antar_engine.jaimini_engine import (
+                calculate_jaimini_analysis, jaimini_to_db_json
+            )
+            jaimini_result = calculate_jaimini_analysis(existing_chart_data)
+            jaimini_db = jaimini_to_db_json(jaimini_result)
+            supabase.table("charts").update(
+                {"jaimini_data": jaimini_db}
+            ).eq("id", chart_id).execute()
+            logger.info(f"Backfill Jaimini stored for chart {chart_id}")""",
+    ),
+]
 
+# ---------------------------------------------------------------------------
+# BUG 3 — jaimini_engine.py: remove computed_at from jaimini_to_db_json
+#
+# The function includes:
+#   "computed_at": datetime.now().isoformat()
+#
+# This makes the JSONB value different on every call → poisons KV cache.
+# Remove this line entirely. If an admin "last computed" marker is needed,
+# it should live in a separate Supabase column, not inside the JSONB payload.
+# ---------------------------------------------------------------------------
 
-def patch_file(path: Path, backup: Path, replacements: list[tuple[str, str, str]]) -> bool:
-    """Apply a list of (old, new, label) replacements to a file. Returns True on success."""
-    if not path.exists():
-        print(f"❌ {path} not found")
-        return False
+COMPUTED_AT_PATTERNS = [
+    (
+        'remove computed_at datetime.now() from jaimini_to_db_json (comma after)',
+        '        "computed_at": datetime.now().isoformat(),\n',
+        '',
+    ),
+    (
+        'remove computed_at datetime.now() from jaimini_to_db_json (no trailing comma)',
+        '        "computed_at": datetime.now().isoformat()\n',
+        '',
+    ),
+    # Variant with different spacing
+    (
+        'remove computed_at (single-space indent variant)',
+        '    "computed_at": datetime.now().isoformat(),\n',
+        '',
+    ),
+    (
+        'remove computed_at (single-space indent, no comma)',
+        '    "computed_at": datetime.now().isoformat()\n',
+        '',
+    ),
+]
 
-    print(f"📦 Backing up {path} → {backup}")
-    shutil.copy(path, backup)
-
-    src = path.read_text()
-
-    for old, new, label in replacements:
-        if old not in src:
-            print(f"❌ Landmark not found: {label}")
-            print(f"    Looking for: {old[:80]}...")
-            shutil.copy(backup, path)
-            return False
-        occ = src.count(old)
-        if occ != 1:
-            print(f"❌ Expected 1 occurrence of {label}, found {occ}")
-            shutil.copy(backup, path)
-            return False
-        src = src.replace(old, new, 1)
-        print(f"✅ {label}")
-
-    # ast.parse only for .py
-    if path.suffix == ".py":
-        try:
-            ast.parse(src)
-            print(f"✅ ast.parse OK ({path})")
-        except SyntaxError as e:
-            print(f"❌ Syntax error after patching {path}: {e}")
-            shutil.copy(backup, path)
-            return False
-
-    path.write_text(src)
-    print(f"✅ Wrote {path}")
-    return True
-
+# ---------------------------------------------------------------------------
+# Main
+# ---------------------------------------------------------------------------
 
 def main():
     print("=" * 60)
-    print("KV CACHE V2 — proper static/dynamic split")
+    print("Phase 2: Chart Data Bug Fixes")
     print("=" * 60)
-    print()
 
-    # --- PART 1: chart_context_builder.py ---
-    print("PART 1: Reorder chart_context_builder.py blocks")
-    print("-" * 60)
-    ok1 = patch_file(
-        CTX,
-        BACKUP_CTX,
-        [
-            (OLD_BLOCK_1, NEW_BLOCK_1, "Step 1a: remove transits/jaimini/lk_warnings from current position, keep jaimini+lk_warnings here as static"),
-            (OLD_BLOCK_2, NEW_BLOCK_2, "Step 1b: insert ## LIVE DATA marker + teva + transits AFTER anti-hallucination block"),
-        ],
-    )
-    if not ok1:
-        sys.exit(1)
-    print()
+    files_to_check = [
+        "main.py",
+        "antar_engine/yoga_engine.py",
+        "antar_engine/d_charts_calculator.py",
+        "antar_engine/compatibility_session_engine.py",
+        "antar_engine/jaimini_engine.py",
+    ]
 
-    # --- PART 2: main.py ---
-    print("PART 2: Remove redundant marker from main.py")
-    print("-" * 60)
-    ok2 = patch_file(
-        MAIN,
-        BACKUP_MAIN,
-        [
-            (OLD_MAIN_BLOCK, NEW_MAIN_BLOCK, "Step 2: drop redundant ## LIVE DATA marker from main.py KV cache patch"),
-        ],
-    )
-    if not ok2:
-        # Roll back part 1 too
-        print("⚠️  Part 2 failed — rolling back Part 1")
-        shutil.copy(BACKUP_CTX, CTX)
+    # Verify all files exist before touching anything
+    missing = [f for f in files_to_check if not Path(f).exists()]
+    if missing:
+        print(f"\n❌ ABORT: Files not found: {missing}")
+        print("   Run this script from ~/antarai/")
         sys.exit(1)
 
-    print()
-    print("=" * 60)
-    print("DEPLOY & VERIFY:")
-    print("=" * 60)
-    print("1. git diff antar_engine/chart_context_builder.py main.py")
-    print("2. git add -A && git commit -m 'fix: KV cache v2 — proper static/dynamic split in chart context'")
-    print("3. git push    # wait ~60s for Railway")
-    print()
-    print("4. Make 2 predict calls (same chart, different questions)")
-    print()
-    print("5. railway logs --lines 100 | grep -E '\\[claude\\]|\\[kv-debug\\]'")
-    print()
-    print("EXPECTED:")
-    print("  Call 1:")
-    print("    [kv-debug] static_len=~14000  static_hash=AAAAAAAA")
-    print("    [claude]  cache_hit=0     cache_write=~3500 output=...")
-    print()
-    print("  Call 2:")
-    print("    [kv-debug] static_len=~14000  static_hash=AAAAAAAA   ← SAME HASH")
-    print("    [claude]  cache_hit=~3500 cache_write=0     output=... ← CACHE HIT")
-    print()
-    print("  Speed: Call 2 should drop from ~22s to ~5-8s")
-    print()
-    print(f"ROLLBACK if it breaks:")
-    print(f"  cp {BACKUP_CTX} {CTX}")
-    print(f"  cp {BACKUP_MAIN} {MAIN}")
-    print(f"  git checkout antar_engine/chart_context_builder.py main.py")
+    # Backup
+    print("\n📦 Creating backups…")
+    for f in files_to_check:
+        dst = backup(f)
+        print(f"  {f} → {dst}")
+
+    total_changes = 0
+
+    # ------------------------------------------------------------------
+    # BUG 1: D9 uppercase → lowercase in all affected files
+    # ------------------------------------------------------------------
+    print("\n🔧 BUG 1: D9 case inconsistency")
+    for path in [
+        "main.py",
+        "antar_engine/yoga_engine.py",
+        "antar_engine/d_charts_calculator.py",
+        "antar_engine/compatibility_session_engine.py",
+    ]:
+        n = fix_d9_in_file(path)
+        total_changes += n
+
+    # ------------------------------------------------------------------
+    # BUG 2: Dead build_and_store_jaimini import in main.py
+    # ------------------------------------------------------------------
+    print("\n🔧 BUG 2: Dead build_and_store_jaimini import")
+
+    # First check if the dead function is even referenced
+    main_content = read("main.py")
+    if "build_and_store_jaimini" not in main_content:
+        print("  ℹ️  build_and_store_jaimini not found in main.py — may already be fixed")
+    else:
+        # Count occurrences
+        count = main_content.count("build_and_store_jaimini")
+        print(f"  Found {count} reference(s) to build_and_store_jaimini")
+
+        n = apply("main.py", DEAD_IMPORT_PATTERNS)
+        total_changes += n
+
+        if n == 0:
+            # Pattern didn't match exactly — print context for manual fix
+            print("\n  ⚠️  Could not auto-patch. Manual fix needed.")
+            print("  Search main.py for: build_and_store_jaimini")
+            print("  Replace the entire try/except block with:")
+            print("""
+        try:
+            from antar_engine.jaimini_engine import (
+                calculate_jaimini_analysis, jaimini_to_db_json
+            )
+            jaimini_result = calculate_jaimini_analysis(chart_data)
+            jaimini_db = jaimini_to_db_json(jaimini_result)
+            supabase.table("charts").update(
+                {"jaimini_data": jaimini_db}
+            ).eq("id", chart_id).execute()
+            logger.info(f"Jaimini data stored for chart {chart_id}")
+        except Exception as e:
+            logger.error(
+                f"Jaimini storage failed for {chart_id}: {e}", exc_info=True
+            )
+""")
+
+        # Also fix the backfill endpoint
+        n2 = apply("main.py", BACKFILL_ENDPOINT_PATTERNS)
+        total_changes += n2
+
+    # ------------------------------------------------------------------
+    # BUG 3: computed_at in jaimini_engine.py
+    # ------------------------------------------------------------------
+    print("\n🔧 BUG 3: computed_at timestamp (cache drift)")
+
+    jaimini_content = read("antar_engine/jaimini_engine.py")
+    if "computed_at" not in jaimini_content:
+        print("  ℹ️  computed_at not found in jaimini_engine.py — may already be fixed")
+    else:
+        n = apply("antar_engine/jaimini_engine.py", COMPUTED_AT_PATTERNS)
+        total_changes += n
+        if n == 0:
+            # Try a broader regex match as fallback
+            import re
+            pattern = r'\s*["\']computed_at["\']\s*:\s*datetime\.now\(\)[^,\n]*[,]?\n'
+            new_content = re.sub(pattern, '', jaimini_content)
+            if new_content != jaimini_content:
+                write("antar_engine/jaimini_engine.py", new_content)
+                total_changes += 1
+                print("  ✅ Removed computed_at via regex fallback")
+            else:
+                print("  ⚠️  Could not auto-remove computed_at. Manual fix needed.")
+                print("  Find and delete this line in jaimini_to_db_json:")
+                print('       "computed_at": datetime.now().isoformat(),')
+
+    # ------------------------------------------------------------------
+    # Summary
+    # ------------------------------------------------------------------
+    print(f"\n{'=' * 60}")
+    print(f"Total changes applied: {total_changes}")
+    print(f"{'=' * 60}")
+
+    if total_changes == 0:
+        print("\n⚠️  No changes applied — patterns may have changed.")
+        print("   Check each file manually using the descriptions above.")
+    else:
+        print("\n📋 Next steps:")
+        print("  1. Verify syntax:")
+        print("     python3 -c \"import ast; ast.parse(open('main.py').read()); print('main.py OK')\"")
+        print("     python3 -c \"import ast; ast.parse(open('antar_engine/jaimini_engine.py').read()); print('jaimini OK')\"")
+        print("     python3 -c \"import ast; ast.parse(open('antar_engine/yoga_engine.py').read()); print('yoga OK')\"")
+        print("     python3 -c \"import ast; ast.parse(open('antar_engine/compatibility_session_engine.py').read()); print('compat OK')\"")
+        print("  2. Verify no D9 uppercase remains:")
+        print("     grep -rn '\"D9\"\\|\\[.D9.\\]' main.py antar_engine/ --include='*.py'")
+        print("  3. Verify computed_at removed:")
+        print("     grep -n 'computed_at' antar_engine/jaimini_engine.py")
+        print("  4. Verify dead import gone:")
+        print("     grep -n 'build_and_store_jaimini' main.py")
+        print("  5. Commit:")
+        print("     git add -A && git commit -m 'fix: D9 case bug, dead jaimini import, computed_at cache drift' && git push")
 
 
 if __name__ == "__main__":
