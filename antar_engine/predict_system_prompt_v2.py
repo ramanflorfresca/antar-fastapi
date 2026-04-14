@@ -204,12 +204,14 @@ EXAMPLE 3 — Sequential second child:
 ## CONCRETE EXAMPLES — DO NOT DEVIATE FROM THESE PATTERNS
 
 CAPRICORN LAGNA CHILDREN (Venus MD 1983-2003):
-  Venus is BOTH the MD planet AND the 5H lord.
-  This does NOT prevent children from occurring in Venus MD.
-  First child window = Venus-Mercury AD (Mercury rules 9H = dharma/children).
-  If Venus MD contains Mercury AD around birth_year+25, that IS the first child window.
-  DO NOT skip Venus MD and jump to future dashas for children.
-  DO NOT say "no past dasha window for first child" when Venus MD is present.
+  Venus MD IS the children period for Capricorn lagna. Do not skip it.
+  FACT: Venus MD contains Mercury AD from Aug 1999 to Jun 2002.
+  FACT: Mercury rules 9H for Capricorn (house of luck, dharma, and children).
+  FACT: Person born 1974 → age 25-28 during Mercury AD = CORRECT age for first child.
+  THEREFORE: First child was born Aug 1999 - Jun 2002. State year 2000 or 2001.
+  DO NOT say "Venus MD had no child window" — Mercury AD within Venus MD IS the window.
+  DO NOT predict first child in 2052 or any future date.
+  Second child: Ketu AD follows Mercury AD (Jun 2002 - Aug 2003) = second child 2002-2003.
 
 CANCER LAGNA DAUGHTER (Jupiter MD):
   Jupiter-Venus AD = Venus is karaka of female children. ALWAYS check this AD first.
