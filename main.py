@@ -2947,8 +2947,11 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
                     _transit_list, _natal_planets, _user_prof
                 )
                 if _transit_block:
-                    _full_context += _transit_block
-                    print(f"[predict] Transit behavioral block injected ({len(_transit_block)} chars)")
+                    # === TRANSIT ORDER FIX ===
+                    # Don't += into _full_context here — build_complete_context()
+                    # below will overwrite it. Stash instead, append after.
+                    _pending_transit_block = _transit_block
+                    print(f"[predict] Transit behavioral block stashed ({len(_transit_block)} chars)")
         except Exception as _tbe:
             print(f"[predict] Transit behavioral translation failed (non-fatal): {_tbe}")
         # ── END QUESTION MODE ROUTING ─────────────────────────────
@@ -3017,6 +3020,18 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
             _full_context += "\n\n" + _signature_block
             print(f"[predict] Natal signature block injected — {_char_archetype.get('name','?')}")
         # --- END INJECT ---
+        # === TRANSIT ORDER FIX (continued) ===
+        # Re-append the stashed transit block now that build_complete_context
+        # is done. This recovers the ~7s of Swiss Ephemeris work that was
+        # being thrown away.
+        try:
+            _ptb = locals().get("_pending_transit_block")
+            if _ptb:
+                _full_context += "\n\n" + _ptb
+                print(f"[predict] Transit behavioral block re-appended ({len(_ptb)} chars)")
+        except Exception as _tbe2:
+            print(f"[predict] Transit re-append failed (non-fatal): {_tbe2}")
+        # === END TRANSIT ORDER FIX ===
         print(f"[predict] Full context: {len(_full_context)} chars")
     except Exception as _ctx_e:
         import traceback
