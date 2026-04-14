@@ -3350,6 +3350,31 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
             _master_system = _lang_block + _master_system
             print(f"[predict] Language injection: {_lang}")
         # --- end Sprint L ---
+
+        # === KV CACHE FIX ===
+        # Move _full_context into the system block (cacheable region) instead
+        # of leaving it glued to the user prompt. Insert ## LIVE DATA marker
+        # so call_llm_claude splits cached static block from per-call dynamic.
+        # _full_context is mostly stable per chart (natal sig, DKP, Jaimini,
+        # divisional charts, diagnostic). Anything dynamic per call stays in
+        # the user prompt below.
+        _cacheable_context = _full_context if _full_context else ""
+        if _cacheable_context:
+            _master_system = (
+                _master_system
+                + "\n\n=== CHART CONTEXT (stable) ===\n"
+                + _cacheable_context
+                + "\n\n## LIVE DATA\n"
+            )
+            # Strip _full_context from the user prompt — it now lives in system
+            # The user prompt becomes just question + concern + instruction
+            _user_only_prompt = prompt
+            if _full_context and _full_context in _user_only_prompt:
+                _user_only_prompt = _user_only_prompt.replace(_full_context, "", 1).lstrip()
+            prompt = _user_only_prompt
+            print(f"[predict] KV cache: system={len(_master_system)} chars, user_prompt={len(prompt)} chars")
+        # === END KV CACHE FIX ===
+
         prediction_text, tokens_used = await call_llm_claude(
             prompt,
             history=request.conversation_history or [],
