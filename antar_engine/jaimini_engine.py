@@ -673,7 +673,7 @@ def analyze_moving_lagna(
         elif ak_house == 11:  # 12th
             analysis["ak_effect"] = "Loss of health or status — caution period"
         elif ak_house in [5, 7]:  # 6th, 8th
-            analysis["ak_effect"] = "Health challenges or transformation period"
+            analysis["ak_effect"] = "Periodo de salud o transformacion profunda"
         else:
             analysis["ak_effect"] = "Neutral soul period"
 
@@ -715,7 +715,7 @@ def analyze_moving_lagna(
         pk_house = _sign_distance(dasha_sign, karaka_map["PK"].sign)
         analysis["pk_house"] = pk_house + 1
         if pk_house == 4:  # 5th
-            analysis["pk_effect"] = "Birth of a child or creative breakthrough"
+            analysis["pk_effect"] = "Nacimiento de hijo o ruptura creativa"
         elif pk_house in [0, 8]:  # 1st, 9th
             analysis["pk_effect"] = "Children and intelligence highlighted"
         else:
@@ -839,7 +839,7 @@ def predict_events(
             event_type="marriage",
             conditions_met=marriage_conditions,
             confidence="high" if len(marriage_conditions) == 3 else "medium",
-            description="Marriage or significant relationship milestone is indicated",
+            description="Hito importante en tu relacion — compromiso, matrimonio, o decision de vida con pareja",
             karaka_involved="DK",
             houses_active=[ul_house, al_7th]
         ))
@@ -859,7 +859,7 @@ def predict_events(
             event_type="children",
             conditions_met=child_conditions,
             confidence="high" if len(child_conditions) >= 3 else "medium",
-            description="Birth of a child or creative/intellectual breakthrough",
+            description="Lanzaste o completaste un proyecto creativo importante, o hubo noticia de embarazo/nacimiento en tu circulo cercano",
             karaka_involved="PK",
             houses_active=[lagna_house]
         ))
@@ -881,7 +881,7 @@ def predict_events(
             event_type="career",
             conditions_met=career_conditions,
             confidence="high" if len(career_conditions) >= 3 else "medium",
-            description="Major professional rise or career milestone",
+            description="Ascenso profesional importante — promocion, nuevo rol, o reconocimiento publico en tu trabajo",
             karaka_involved="AmK",
             houses_active=[lagna_house, al_house_career]
         ))
@@ -898,7 +898,7 @@ def predict_events(
             event_type="property",
             conditions_met=property_conditions,
             confidence="medium",
-            description="Property acquisition or significant home change",
+            description="Compra, venta, o cambio importante de casa o propiedad",
             karaka_involved="MK",
             houses_active=[4]
         ))
@@ -925,7 +925,7 @@ def predict_events(
             event_type="health",
             conditions_met=health_conditions,
             confidence="high" if len(health_conditions) >= 3 else "medium",
-            description="Health challenges or litigation — heightened caution advised",
+            description="Tuviste un episodio de salud o un conflicto que te obligo a parar — fatiga, enfermedad, o disputa importante",
             karaka_involved="GK",
             houses_active=[moving_house]
         ))
@@ -953,7 +953,7 @@ def predict_events(
             event_type="wealth",
             conditions_met=wealth_conditions,
             confidence="high" if len(wealth_conditions) >= 3 else "medium",
-            description="Financial windfall or unexpected gains indicated",
+            description="Ingreso inesperado o ganancia financiera importante — bono, negocio, o oportunidad no planeada",
             karaka_involved="AL",
             houses_active=[al_house_wealth]
         ))
