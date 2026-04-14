@@ -951,6 +951,7 @@ class PredictResponse(BaseModel):
     contradiction_detected: Optional[bool] = False
     oracle_context:         Optional[Dict] = None
     archetype_name:         Optional[str]  = None
+    context_path:           Optional[str]  = None
 
 class ChartResponse(BaseModel):
     id: str
