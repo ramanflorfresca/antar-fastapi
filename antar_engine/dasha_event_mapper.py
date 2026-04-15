@@ -33,6 +33,92 @@ HOUSE_LORDS = {
 }
 
 # ---------------------------------------------------------------------------
+# Backward-compatibility alias map (old key → new key)
+# External callers (main.py, predictions.py) can still pass old keys.
+# ---------------------------------------------------------------------------
+EVENT_ALIASES = {
+    "marriage":         "serious_partnership_began",
+    "divorce":          "serious_partnership_ended",
+    "first_child":      "family_expansion_first",
+    "second_child":     "family_expansion_second",
+    "foreign_move":     "major_relocation",
+    "property":         "major_acquisition",
+    "career_change":    "career_pivot",
+    "mother_death":     "loss_of_mother",
+    "father_death":     "loss_of_father",
+    "business_failure": "professional_setback",
+    "legal_trouble":    "legal_entanglement",
+    "financial_loss":   "financial_disruption",
+}
+
+
+def normalize_event_key(key: str) -> str:
+    """Accept old or new event key, always return new canonical key."""
+    return EVENT_ALIASES.get(key, key)
+
+
+# ---------------------------------------------------------------------------
+# Human-readable display labels (for frontend / Ask Antar)
+# ---------------------------------------------------------------------------
+EVENT_DISPLAY_LABELS = {
+    "serious_partnership_began":  "Serious partnership window",
+    "serious_partnership_ended":  "Partnership transition window",
+    "family_expansion_first":     "Family expansion (first)",
+    "family_expansion_second":    "Family expansion (second)",
+    "major_relocation":           "Major relocation window",
+    "major_acquisition":          "Major acquisition window",
+    "career_pivot":               "Career pivot window",
+    "loss_of_mother":             "Loss of mother",
+    "loss_of_father":             "Loss of father",
+    "professional_setback":       "Professional setback window",
+    "legal_entanglement":         "Legal entanglement window",
+    "financial_disruption":       "Financial disruption window",
+}
+
+EVENT_DESCRIPTION = {
+    "serious_partnership_began": (
+        "A serious relationship beginning, deepening, or major commitment moment "
+        "— marriage, engagement, moving in together, or a partnership that defines "
+        "this period of life."
+    ),
+    "serious_partnership_ended": (
+        "End or major transition of a significant partnership — separation, divorce, "
+        "or a relationship that fundamentally changed shape."
+    ),
+    "family_expansion_first": (
+        "Arrival of a first significant family addition — biological child, adoption, "
+        "step-child, or someone you took primary responsibility for."
+    ),
+    "family_expansion_second": (
+        "Arrival of a second significant family addition."
+    ),
+    "major_relocation": (
+        "Significant geographical relocation — moving abroad, moving to a new region, "
+        "or extended life elsewhere."
+    ),
+    "major_acquisition": (
+        "Major acquisition of property, business, or significant asset."
+    ),
+    "career_pivot": (
+        "Major career direction change, leadership transition, or new professional chapter."
+    ),
+    "loss_of_mother": "Loss of mother or maternal figure.",
+    "loss_of_father": "Loss of father or paternal figure.",
+    "professional_setback": (
+        "Significant professional difficulty — business failure, major loss, "
+        "sustained income disruption."
+    ),
+    "legal_entanglement": (
+        "Significant legal involvement — lawsuit, dispute, regulatory issue."
+    ),
+    "financial_disruption": (
+        "Significant financial difficulty — debt, loss, sustained money pressure."
+    ),
+}
+
+
+
+# ---------------------------------------------------------------------------
 # Build priority tables dynamically from house lords
 # ---------------------------------------------------------------------------
 
@@ -407,13 +493,13 @@ def _get_priorities(lagna: str) -> Dict:
     if lagna in _priority_cache:
         return _priority_cache[lagna]
     p = {
-        "marriage":     _build_marriage_priority(lagna),
-        "foreign_move": _build_foreign_priority(lagna),
-        "first_child":  _build_first_child_priority(lagna),
-        "second_child": _build_second_child_priority(lagna),
-        "divorce":      _build_divorce_priority(lagna),
-        "mother_death": _build_mother_death_priority(lagna),
-        "property":     _build_property_priority(lagna),
+        "serious_partnership_began":  _build_marriage_priority(lagna),
+        "major_relocation":           _build_foreign_priority(lagna),
+        "family_expansion_first":     _build_first_child_priority(lagna),
+        "family_expansion_second":    _build_second_child_priority(lagna),
+        "serious_partnership_ended":  _build_divorce_priority(lagna),
+        "loss_of_mother":             _build_mother_death_priority(lagna),
+        "major_acquisition":          _build_property_priority(lagna),
     }
     _priority_cache[lagna] = p
     return p
@@ -423,13 +509,13 @@ def _get_priorities(lagna: str) -> Dict:
 # Age ranges per event
 # ---------------------------------------------------------------------------
 AGE_RANGES = {
-    "marriage":     (20, 35),
-    "foreign_move": (8, 45),   # lowered — childhood relocations common
-    "first_child":  (22, 38),
-    "second_child": (24, 43),
-    "divorce":      (25, 55),
-    "mother_death": (15, 75),
-    "property":     (30, 65),
+    "serious_partnership_began":  (20, 35),
+    "major_relocation":           (8, 45),   # lowered — childhood relocations common
+    "family_expansion_first":     (22, 38),
+    "family_expansion_second":    (24, 43),
+    "serious_partnership_ended":  (25, 55),
+    "loss_of_mother":             (15, 75),
+    "major_acquisition":          (30, 65),
 }
 
 
@@ -543,7 +629,9 @@ def find_event_window(
     """
     Find the most likely MD+AD window for a life event.
     Works for any lagna and any dasha sequence.
+    Accepts old or new event keys via normalize_event_key().
     """
+    event_type = normalize_event_key(event_type)
     min_age, max_age = AGE_RANGES.get(event_type, (20, 50))
     eligible_start = birth_year + min_age
     eligible_end   = birth_year + max_age
@@ -627,31 +715,31 @@ def map_all_events(birth_year: int, lagna: str, ads: list) -> dict:
     """Compute all standard life event windows. Works for any chart."""
     results = {}
 
-    marriage = find_event_window("marriage", lagna, birth_year, ads)
-    results["marriage"] = marriage
+    marriage = find_event_window("serious_partnership_began", lagna, birth_year, ads)
+    results["serious_partnership_began"] = marriage
     marriage_start = marriage["start_year"] if marriage else birth_year + 22
     marriage_end   = marriage["end_year"]   if marriage else birth_year + 30
 
-    results["foreign_move"] = find_event_window(
-        "foreign_move", lagna, birth_year, ads
+    results["major_relocation"] = find_event_window(
+        "major_relocation", lagna, birth_year, ads
     )
 
     first_child = find_event_window(
-        "first_child", lagna, birth_year, ads,
+        "family_expansion_first", lagna, birth_year, ads,
         after_year=marriage_start
     )
-    results["first_child"] = first_child
+    results["family_expansion_first"] = first_child
     fc_start = first_child["start_year"] if first_child else marriage_end + 1
     fc_end   = first_child["end_year"]   if first_child else marriage_end + 4
 
-    results["second_child"] = find_event_window(
-        "second_child", lagna, birth_year, ads,
+    results["family_expansion_second"] = find_event_window(
+        "family_expansion_second", lagna, birth_year, ads,
         after_year=fc_end + 1,   # must start at least 1 year after first child ends
         before_year=fc_end + 15, # up to 15 years after first child
     )
 
-    results["divorce"] = find_event_window(
-        "divorce", lagna, birth_year, ads,
+    results["serious_partnership_ended"] = find_event_window(
+        "serious_partnership_ended", lagna, birth_year, ads,
         after_year=marriage_end + 3
     )
 
@@ -661,11 +749,11 @@ def map_all_events(birth_year: int, lagna: str, ads: list) -> dict:
 def format_for_prompt(results: dict) -> str:
     """Format computed windows for injection into Claude's context."""
     LABELS = {
-        "marriage":     "Marriage",
-        "foreign_move": "Foreign relocation",
-        "first_child":  "First child",
-        "second_child": "Second child",
-        "divorce":      "Divorce/separation",
+        "serious_partnership_began":  "Serious partnership window",
+        "major_relocation":           "Major relocation",
+        "family_expansion_first":     "Family expansion (first)",
+        "family_expansion_second":    "Family expansion (second)",
+        "serious_partnership_ended":  "Partnership transition",
     }
     lines = ["\n## COMPUTED LIFE EVENT WINDOWS (Python — do not recalculate)\n"]
     for event, label in LABELS.items():
@@ -718,11 +806,11 @@ def _smoke_test():
     ]
 
     RAMAN_ACTUAL = {
-        "marriage":     1998,
-        "foreign_move": 1992,
-        "first_child":  2001,
-        "second_child": 2003,
-        "divorce":      2014,
+        "serious_partnership_began":  1998,
+        "major_relocation":           1992,
+        "family_expansion_first":     2001,
+        "family_expansion_second":    2003,
+        "serious_partnership_ended":  2014,
     }
 
     print("\nTest 1: Raman (Capricorn lagna, birth 1974)")
@@ -788,10 +876,10 @@ def _smoke_test():
         {"planet_or_sign": "Jupiter", "start_date": "2011-04-19", "end_date": "2013-10-31", "metadata": {"parent_lord": "Saturn"}},
     ]
     AT_ACTUALS = {
-        "mother_death": 2000,
-        "marriage":     2001,
-        "first_child":  2005,
-        "second_child": 2010,
+        "loss_of_mother":             2000,
+        "serious_partnership_began":  2001,
+        "family_expansion_first":     2005,
+        "family_expansion_second":    2010,
     }
     print("\nTest 4: AT (Aries lagna, birth 1978)")
     at_correct = 0
@@ -831,17 +919,17 @@ def _smoke_test():
         {"planet_or_sign": "Ketu",    "start_date": "2017-07-10", "end_date": "2018-08-10", "metadata": {"parent_lord": "Saturn"}},
     ]
     JS_ACTUALS = {
-        "marriage":     2006,
-        "foreign_move": 2007,
-        "first_child":  2011,
-        "second_child": 2013,
-        "property":     2016,
+        "serious_partnership_began":  2006,
+        "major_relocation":           2007,
+        "family_expansion_first":     2011,
+        "family_expansion_second":    2013,
+        "major_acquisition":          2016,
     }
     # Use map_all_events for sequential event sequencing (marriage -> child after_year etc.)
     # Add property separately (not in map_all_events standard set)
     print("\nTest 5: JS (Aquarius lagna, birth 1974)")
     js_map = map_all_events(1974, "Aquarius", JS_ADS)
-    js_map["property"] = find_event_window("property", "Aquarius", 1974, JS_ADS)
+    js_map["major_acquisition"] = find_event_window("major_acquisition", "Aquarius", 1974, JS_ADS)
     js_correct = 0
     for event, actual_year in JS_ACTUALS.items():
         w = js_map.get(event)
