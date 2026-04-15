@@ -4817,12 +4817,32 @@ async def create_chart(
     else:
         lat, lng, timezone = await _geocode_city(request.birth_place, request.birth_country)
 
+    # ── TZ FIX: resolve UTC offset from the birth datetime, not utcnow() ─────
+    # _tz_name_to_offset() in chart.py used datetime.utcnow() which gives the
+    # *current* DST rule, not the historical rule at birth.  For example:
+    #   • Venezuela 2007-2016 was UTC-4:30; using utcnow() gives -4 → wrong lagna
+    #   • Any DST timezone: winter birth looked up in summer → 1-hour shift
+    # pytz.localize(birth_datetime, is_dst=None) applies the correct historical rule.
+    try:
+        import pytz as _pytz_cr
+        _tz_cr = _pytz_cr.timezone(timezone)
+        _dt_naive_cr = datetime.strptime(
+            f"{request.birth_date} {request.birth_time}", "%Y-%m-%d %H:%M"
+        )
+        _dt_local_cr = _tz_cr.localize(_dt_naive_cr, is_dst=None)
+        _chart_tz_offset = _dt_local_cr.utcoffset().total_seconds() / 3600
+    except Exception as _tz_err:
+        # Fallback: use client-supplied timezone_offset
+        _chart_tz_offset = float(getattr(request, "timezone_offset", 0.0) or 0.0)
+        print(f"[TZ] pytz localize failed ({_tz_err}); falling back to request.timezone_offset={_chart_tz_offset}")
+    # ── end TZ FIX ────────────────────────────────────────────────────────────
+
     try:
         chart_data = chart_module.calculate_chart(
             birth_date=request.birth_date,
             birth_time=request.birth_time,
             lat=lat, lng=lng,
-            timezone=timezone,
+            tz_offset=_chart_tz_offset,
             ayanamsa="lahiri",
         )
     except Exception as e:
