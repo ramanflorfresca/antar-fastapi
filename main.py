@@ -4911,16 +4911,6 @@ _TZF = _TimezoneFinder() as _pytz
             if abs(_computed - _offset) > 0.5:
                 print(f"[TZ CORRECTION] Frontend offset={_offset}, computed={_computed} from ({_blat},{_blng}). Using computed.")
                 _offset = _computed
-        # Auto-correct: derive offset from birth coordinates to prevent wrong lagna
-        _blat = getattr(request, "birth_lat", None) or getattr(request, "latitude", None)
-        _blng = getattr(request, "birth_lng", None) or getattr(request, "longitude", None)
-        _bdate = getattr(request, "birth_date", "") or ""
-        _btime = getattr(request, "birth_time", "12:00") or "12:00"
-        if _blat and _blng:
-            _computed = _get_utc_offset_from_coords(float(_blat), float(_blng), str(_bdate), str(_btime))
-            if abs(_computed - _offset) > 0.5:
-                print(f"[TZ CORRECTION] Frontend offset={_offset}, computed={_computed} from ({_blat},{_blng}). Using computed.")
-                _offset = _computed
 
     chart_row = {
         "id":                  chart_id,
