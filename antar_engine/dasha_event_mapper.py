@@ -68,13 +68,13 @@ def _build_marriage_priority(lagna: str) -> List[Tuple[str, str, int]]:
 def _build_foreign_priority(lagna: str) -> List[Tuple[str, str, int]]:
     lords = HOUSE_LORDS.get(lagna, {})
     h12 = lords.get(12, "")
-    # Gemini: Ketu AD confirmed for childhood/early foreign relocation
+    # Gemini: Ketu AD for childhood relocation, Mercury AD for adult relocation — both confirmed
     if lagna == "Gemini":
         return [
-            ("Ketu",    "Ketu = karmic foreign journey, childhood relocation — Gemini confirmed", 10),
+            ("Ketu",    "Ketu = karmic foreign journey, childhood relocation — confirmed",         10),
+            ("Mercury", "Mercury = 1H+4H lord for Gemini — adult home change/relocation",         10),
             ("Rahu",    "Rahu = foreign karaka, unconventional permanent move",                     8),
             ("Jupiter", "Jupiter = foreign through education/opportunity",                          6),
-            ("Mercury", "Mercury = 12H lord for Gemini (Taurus)",                                  5),
         ]
     result = [
         ("Rahu",    "Rahu = foreign karaka, permanent unconventional move",       10),
