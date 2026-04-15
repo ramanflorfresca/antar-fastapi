@@ -4769,6 +4769,23 @@ def _current_dasha_str(dashas: dict) -> str:
     return "Unknown"
 
 @app.post("/api/v1/chart/create", response_model=ChartCreateResponse)
+
+def _get_utc_offset_from_coords(lat: float, lng: float, birth_date: str, birth_time: str) -> float:
+    """Derive correct UTC offset from birth lat/lng + birth datetime (DST-aware)."""
+    try:
+        import pytz
+        from datetime import datetime as _dt
+        tz_name = _TZF.timezone_at(lat=lat, lng=lng)
+        if not tz_name:
+            return 0.0
+        tz = pytz.timezone(tz_name)
+        dt_naive = _dt.strptime(f"{birth_date} {birth_time}", "%Y-%m-%d %H:%M")
+        dt_local = tz.localize(dt_naive, is_dst=None)
+        return dt_local.utcoffset().total_seconds() / 3600
+    except Exception as e:
+        print(f"[TZ] Could not resolve offset from coords: {e}")
+        return 0.0
+
 async def create_chart(
     request: ChartCreateRequest,
     authorization: Optional[str] = Header(None),
@@ -4884,6 +4901,16 @@ _TZF = _TimezoneFinder() as _pytz
     except Exception:
         # Fall back to user-provided offset if available
         _offset = float(getattr(request, "timezone_offset", 0.0) or 0.0)
+        # Auto-correct: derive offset from birth coordinates to prevent wrong lagna
+        _blat = getattr(request, "birth_lat", None) or getattr(request, "latitude", None)
+        _blng = getattr(request, "birth_lng", None) or getattr(request, "longitude", None)
+        _bdate = getattr(request, "birth_date", "") or ""
+        _btime = getattr(request, "birth_time", "12:00") or "12:00"
+        if _blat and _blng:
+            _computed = _get_utc_offset_from_coords(float(_blat), float(_blng), str(_bdate), str(_btime))
+            if abs(_computed - _offset) > 0.5:
+                print(f"[TZ CORRECTION] Frontend offset={_offset}, computed={_computed} from ({_blat},{_blng}). Using computed.")
+                _offset = _computed
 
     chart_row = {
         "id":                  chart_id,
