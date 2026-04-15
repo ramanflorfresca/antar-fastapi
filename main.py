@@ -4891,36 +4891,18 @@ async def create_chart(
     # CRITICAL: use birth_date not today — historical offsets differ (e.g. Venezuela was UTC-4.5 until 2016)
     try:
         import pytz
-from timezonefinder import TimezoneFinder as _TimezoneFinder
-_TZF = _TimezoneFinder() as _pytz
+        from timezonefinder import TimezoneFinder as _TZF_cls
         from datetime import datetime as _dt
-        _tz = _pytz.timezone(timezone)
+        _tzf = _TZF_cls()
+        _tz = pytz.timezone(timezone)
         # Use birth datetime for historical accuracy
         _birth_dt = _dt.strptime(str(request.birth_date)[:10], "%Y-%m-%d")
         _offset = _tz.utcoffset(_birth_dt).total_seconds() / 3600
     except Exception:
         # Fall back to user-provided offset if available
         _offset = float(getattr(request, "timezone_offset", 0.0) or 0.0)
-        # Auto-correct: derive offset from birth coordinates to prevent wrong lagna
-        _blat = getattr(request, "birth_lat", None) or getattr(request, "latitude", None)
-        _blng = getattr(request, "birth_lng", None) or getattr(request, "longitude", None)
-        _bdate = getattr(request, "birth_date", "") or ""
-        _btime = getattr(request, "birth_time", "12:00") or "12:00"
-        if _blat and _blng:
-            _computed = _get_utc_offset_from_coords(float(_blat), float(_blng), str(_bdate), str(_btime))
-            if abs(_computed - _offset) > 0.5:
-                print(f"[TZ CORRECTION] Frontend offset={_offset}, computed={_computed} from ({_blat},{_blng}). Using computed.")
-                _offset = _computed
-        # Auto-correct: derive offset from birth coordinates to prevent wrong lagna
-        _blat = getattr(request, "birth_lat", None) or getattr(request, "latitude", None)
-        _blng = getattr(request, "birth_lng", None) or getattr(request, "longitude", None)
-        _bdate = getattr(request, "birth_date", "") or ""
-        _btime = getattr(request, "birth_time", "12:00") or "12:00"
-        if _blat and _blng:
-            _computed = _get_utc_offset_from_coords(float(_blat), float(_blng), str(_bdate), str(_btime))
-            if abs(_computed - _offset) > 0.5:
-                print(f"[TZ CORRECTION] Frontend offset={_offset}, computed={_computed} from ({_blat},{_blng}). Using computed.")
-                _offset = _computed
+
+
 
     chart_row = {
         "id":                  chart_id,
