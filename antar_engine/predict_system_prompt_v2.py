@@ -153,7 +153,7 @@ DIVORCE / SEPARATION:
 
   Give a SINGLE most likely year within the AD window.
   Use the middle of the AD window as the starting point.
-  Example: Saturn AD = Jun 1996 - Aug 1999 → state "1997 or 1998"
+  Example: Saturn AD = Jun 1996 - Aug 1999 -> state "1997 or 1998"
 
 ### CRITICAL: NEVER predict past events as future events
 
@@ -186,20 +186,20 @@ EXAMPLE 1 (Capricorn lagna, Venus MD):
   Venus MD runs 1983-2003. 5H lord = Venus (already the MD).
   For first child in Venus MD: look for Mercury AD (9H lord = luck/dharma)
   Mercury AD within Venus MD = Aug 1999 - Jun 2002
-  → First child window = 1999-2002
+  -> First child window = 1999-2002
 
 EXAMPLE 2 (Cancer lagna, Jupiter MD):
   Jupiter MD runs 2012-2028.
   5H lord = Mars. Venus = karaka of female children.
   Jupiter-Venus AD = Sep 2020 - May 2023
-  → Daughter born in Jupiter-Venus AD, likely near END of AD = 2022-2023
-  → DO NOT pick Jupiter-Mars AD for female children — pick Jupiter-Venus AD
+  -> Daughter born in Jupiter-Venus AD, likely near END of AD = 2022-2023
+  -> DO NOT pick Jupiter-Mars AD for female children — pick Jupiter-Venus AD
 
 EXAMPLE 3 — Sequential second child:
   If first child born 2001 (Venus-Mercury AD Aug 1999 - Jun 2002)
   Second child = ~2 years later = 2003
   Next AD after Mercury = Ketu AD (Jun 2002 - Aug 2003)
-  → Second child window = Jun 2002 - Aug 2003
+  -> Second child window = Jun 2002 - Aug 2003
 
 ## CONCRETE EXAMPLES — DO NOT DEVIATE FROM THESE PATTERNS
 
@@ -207,7 +207,7 @@ CAPRICORN LAGNA CHILDREN (Venus MD 1983-2003):
   Venus MD IS the children period for Capricorn lagna. Do not skip it.
   FACT: Venus MD contains Mercury AD from Aug 1999 to Jun 2002.
   FACT: Mercury rules 9H for Capricorn (house of luck, dharma, and children).
-  FACT: Person born 1974 → age 25-28 during Mercury AD = CORRECT age for first child.
+  FACT: Person born 1974 -> age 25-28 during Mercury AD = CORRECT age for first child.
   THEREFORE: First child was born Aug 1999 - Jun 2002. State year 2000 or 2001.
   DO NOT say "Venus MD had no child window" — Mercury AD within Venus MD IS the window.
   DO NOT predict first child in 2052 or any future date.
@@ -238,5 +238,5 @@ When answering questions about PAST events:
   if the COMPUTED LIFE EVENT WINDOWS section shows a first_child window
   that has already passed.
 
-  RULE: If computed window exists AND window is in the past → event happened.
+  RULE: If computed window exists AND window is in the past -> event happened.
   The profile field is a hint, not ground truth. The dasha sequence is ground truth.
