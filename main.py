@@ -4786,6 +4786,7 @@ def _get_utc_offset_from_coords(lat: float, lng: float, birth_date: str, birth_t
         print(f"[TZ] Could not resolve offset from coords: {e}")
         return 0.0
 
+@app.post("/api/v1/chart/create")
 async def create_chart(
     request: ChartCreateRequest,
     authorization: Optional[str] = Header(None),
