@@ -48,6 +48,15 @@ def _build_marriage_priority(lagna: str) -> List[Tuple[str, str, int]]:
         ("Moon",    "Moon = emotional commitment",                                  5),
         ("Rahu",    "Rahu = unconventional romance, rarely formal marriage",       2),
     ]
+    # Sagittarius: Moon AD confirmed for first marriage (Venus-Moon Oct 2002-Jun 2004)
+    # Saturn AD = second/formal marriage
+    if lagna == 'Sagittarius':
+        return [
+            ('Moon',    'Moon = emotional commitment — confirmed first marriage for Sagittarius', 10),
+            ('Saturn',  'Saturn = formal legal union — confirmed second marriage',                  9),
+            ('Jupiter', 'Jupiter = dharmic marriage, lagna lord for Sagittarius',                  7),
+            ('Venus',   'Venus = romance karaka',                                                   6),
+        ]
     # Remove duplicates keeping highest score
     seen = {}
     for p, r, s in result:
@@ -127,6 +136,14 @@ def _build_first_child_priority(lagna: str) -> List[Tuple[str, str, int]]:
             ("Jupiter", "Jupiter = natural karaka for children",                                    8),
             ("Moon",    "Moon = nurturing, emotional child period",                                  6),
             ("Mercury", "Mercury = 3H lord for Aries",                                              4),
+        ]
+    # Sagittarius: Mercury AD confirmed for first child (Venus-Mercury 2014-2017)
+    if lagna == "Sagittarius":
+        return [
+            ("Mercury", "Mercury = confirmed first child trigger for Sagittarius (Venus-Mercury AD)", 10),
+            ("Jupiter", "Jupiter = natural karaka for children",                                        8),
+            ("Moon",    "Moon = nurturing period",                                                       6),
+            ("Venus",   "Venus = karaka of female children",                                             5),
         ]
     # Gemini: Moon AD confirmed for first child (Ketu-Moon Jul 2001-Feb 2002)
     if lagna == "Gemini":
