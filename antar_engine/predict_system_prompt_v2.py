@@ -225,7 +225,7 @@ DIVORCE TIMING (Capricorn lagna):
   Moon MD (2009-2019) + Saturn AD (Nov 2013 - Jun 2015) = divorce window.
   DO NOT say "marriage year unknown" — derive it from Venus-Saturn AD.
   State: divorce occurred in 2014 within Moon-Saturn AD.
-"""
+
 
 ## DKP PROFILE vs DASHA ANALYSIS — PRIORITY RULE
 
@@ -240,3 +240,4 @@ When answering questions about PAST events:
 
   RULE: If computed window exists AND window is in the past -> event happened.
   The profile field is a hint, not ground truth. The dasha sequence is ground truth.
+"""
