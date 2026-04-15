@@ -329,17 +329,13 @@ def build_and_store_jaimini(
             }).eq("id", chart_id).execute()
             logger.info(f"Stored jaimini_data for chart {chart_id}")
 
-            # Skip dasha row insertion if table doesn't have dasha_system column
-            # The jaimini_data JSONB has all timing data — dasha rows are optional
-            try:
-                supabase_client.table("dasha_periods").delete().eq(
-                    "chart_id", chart_id
-                ).eq("dasha_system", "jaimini_chara").execute()
-                if dasha_rows:
-                    supabase_client.table("dasha_periods").insert(dasha_rows).execute()
-                    logger.info(f"Inserted {len(dasha_rows)} Jaimini dasha rows for chart {chart_id}")
-            except Exception as _de:
-                pass  # dasha_periods table may not have dasha_system column yet
+            # Wipe existing Jaimini rows for this chart, then re-insert
+            supabase_client.table("dasha_periods").delete().eq(
+                "chart_id", chart_id
+            ).eq("system", "jaimini").execute()
+            if dasha_rows:
+                supabase_client.table("dasha_periods").insert(dasha_rows).execute()
+                logger.info(f"Inserted {len(dasha_rows)} Jaimini dasha rows for chart {chart_id}")
 
         except Exception as e:
             logger.error(f"Failed to store Jaimini data for chart {chart_id}: {e}")

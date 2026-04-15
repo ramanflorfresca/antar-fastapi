@@ -1328,44 +1328,51 @@ def generate_dasha_rows(
     Generate dasha rows for the dashas table in Supabase.
     Returns list of dicts ready for bulk insert.
 
-    Each row: {chart_id, dasha_system, sign, sign_name, level, level_int,
-               start_date, end_date, duration_years, lord, direction, parent_sign}
+    Each row: {chart_id, system, type, level, sequence, planet_or_sign,
+               start_date, end_date, duration_years, metadata, parent_id}
     """
     all_mds = compute_chara_dasha(lagna_sign, planets, birth_date, num_cycles)
     rows = []
 
-    for md in all_mds:
+    for md_idx, md in enumerate(all_mds):
         # Level 1 (Mahadasha)
         rows.append({
             "chart_id": chart_id,
-            "dasha_system": "jaimini_chara",
-            "sign": md.sign,
-            "sign_name": md.sign_name,
-            "level": "MD",
-            "level_int": 1,
+            "system": "jaimini",
+            "type": "mahadasha",
+            "level": 1,
+            "sequence": md_idx,
+            "planet_or_sign": md.sign_name,
             "start_date": md.start_date.isoformat(),
             "end_date": md.end_date.isoformat(),
             "duration_years": md.duration_years,
-            "lord": md.lord,
-            "direction": md.direction,
-            "parent_sign": None
+            "metadata": {
+                "lord": md.lord,
+                "direction": md.direction,
+                "sign_index": md.sign,
+            },
+            "parent_id": None,
         })
 
         # Level 2 (Antardasha)
-        for ad in md.sub_periods:
+        for ad_idx, ad in enumerate(md.sub_periods):
             rows.append({
                 "chart_id": chart_id,
-                "dasha_system": "jaimini_chara",
-                "sign": ad.sign,
-                "sign_name": ad.sign_name,
-                "level": "AD",
-                "level_int": 2,
+                "system": "jaimini",
+                "type": "antardasha",
+                "level": 2,
+                "sequence": (md_idx * 12) + ad_idx,
+                "planet_or_sign": ad.sign_name,
                 "start_date": ad.start_date.isoformat(),
                 "end_date": ad.end_date.isoformat(),
                 "duration_years": 0,
-                "lord": ad.lord,
-                "direction": ad.direction,
-                "parent_sign": md.sign
+                "metadata": {
+                    "lord": ad.lord,
+                    "direction": ad.direction,
+                    "sign_index": ad.sign,
+                    "parent_md_sign": md.sign_name,
+                },
+                "parent_id": None,
             })
 
     return rows
