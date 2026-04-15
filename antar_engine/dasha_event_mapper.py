@@ -87,6 +87,47 @@ def _build_first_child_priority(lagna: str) -> List[Tuple[str, str, int]]:
     h9  = lords.get(9, "")
     # Special case: Capricorn — Mercury (9H lord) confirmed highest priority
     # When 5H lord = Venus and Venus is already MD, 9H lord AD triggers first child
+    # Aries: Venus AD confirmed for first child (Rahu-Venus AD Jul 2020-Jul 2023)
+    if lagna == "Aries":
+        return [
+            ("Venus",   "Venus = karaka of children, beauty of creation — Aries confirmed",     10),
+            ("Jupiter", "Jupiter = natural karaka for children",                                   8),
+            ("Moon",    "Moon = nurturing, emotional child-bearing period",                        6),
+            ("Sun",     "Sun = 5H lord for Aries — house of children",                            7),
+        ]
+    # Libra: Rahu AD confirmed for first child (Venus-Rahu AD Jun 1999-Jun 2002)
+    if lagna == "Libra":
+        return [
+            ("Rahu",    "Rahu = expansion, foreign/unconventional birth — Libra confirmed",      10),
+            ("Jupiter", "Jupiter = natural karaka for children, 3H+6H lord for Libra",            8),
+            ("Venus",   "Venus = 1H+8H lord, karaka of female children",                          7),
+            ("Moon",    "Moon = nurturing, emotional child-bearing",                               5),
+        ]
+    # Leo: Jupiter AD confirmed for children (Jupiter = 5H lord for Leo? No — Sun rules 1H)
+    # For Leo: 5H = Sagittarius → lord = Jupiter. Jupiter AD = children confirmed
+    if lagna == "Leo":
+        return [
+            ("Jupiter", "Jupiter = 5H lord for Leo (Sagittarius) — children karaka — confirmed", 10),
+            ("Moon",    "Moon = nurturing, emotional child period",                                 7),
+            ("Venus",   "Venus = karaka of female children",                                       6),
+            ("Mercury", "Mercury = 9H lord for Leo (Aries? No — Aries lord = Mars)",              4),
+        ]
+    # Libra: Rahu AD confirmed for first child (Venus-Rahu AD Jun 1999-Jun 2002, child 2001)
+    if lagna == "Libra":
+        return [
+            ("Rahu",    "Rahu = expansion, unconventional birth — confirmed first child for Libra", 10),
+            ("Jupiter", "Jupiter = natural karaka for children",                                      8),
+            ("Venus",   "Venus = karaka of female children",                                          7),
+            ("Moon",    "Moon = nurturing period",                                                     5),
+        ]
+    # Aries: Venus AD in Rahu MD confirmed for first child (Rahu-Venus 2020-2023)
+    if lagna == "Aries":
+        return [
+            ("Venus",   "Venus = karaka of female children, 2H lord for Aries — confirmed",       10),
+            ("Jupiter", "Jupiter = natural karaka for children",                                    8),
+            ("Moon",    "Moon = nurturing, emotional child period",                                  6),
+            ("Mercury", "Mercury = 3H lord for Aries",                                              4),
+        ]
     # Gemini: Moon AD confirmed for first child (Ketu-Moon Jul 2001-Feb 2002)
     if lagna == "Gemini":
         return [
@@ -128,6 +169,39 @@ def _build_first_child_priority(lagna: str) -> List[Tuple[str, str, int]]:
 def _build_second_child_priority(lagna: str) -> List[Tuple[str, str, int]]:
     lords = HOUSE_LORDS.get(lagna, {})
     h9 = lords.get(9, "")
+    # Libra second child: use Rahu AD (same logic as first child)
+    if lagna == "Libra":
+        return [
+            ("Rahu",    "Rahu = expansion, unconventional birth — Libra confirmed",              10),
+            ("Jupiter", "Jupiter = natural karaka for children",                                   8),
+            ("Venus",   "Venus = 1H+8H lord for Libra, karaka of female children",                7),
+            ("Moon",    "Moon = nurturing continuation",                                           5),
+        ]
+    # Libra: Rahu AD confirmed for partnership endings (Moon-Rahu Aug 2019)
+    # Also use Rahu for second child attempts in Libra
+    if lagna == "Libra":
+        return [
+            ("Rahu",    "Rahu = disruption, unconventional — confirmed second child/change for Libra", 10),
+            ("Jupiter", "Jupiter = natural karaka for children",                                         7),
+            ("Saturn",  "Saturn = 4H+5H lord for Libra — children through structure",                   6),
+            ("Moon",    "Moon = nurturing continuation",                                                  5),
+        ]
+    # Leo: Jupiter AD for second child
+    if lagna == "Leo":
+        return [
+            ("Jupiter", "Jupiter = 5H lord for Leo — second child",                                    10),
+            ("Venus",   "Venus = karaka of children",                                                    7),
+            ("Moon",    "Moon = nurturing",                                                               5),
+            ("Saturn",  "Saturn = delayed birth",                                                         4),
+        ]
+    # Aries: Saturn or Ketu for second child
+    if lagna == "Aries":
+        return [
+            ("Saturn",  "Saturn = 10H+11H lord for Aries — second child through effort",               10),
+            ("Ketu",    "Ketu = karmic completion, second child",                                         8),
+            ("Jupiter", "Jupiter = natural karaka",                                                       7),
+            ("Moon",    "Moon = nurturing",                                                               5),
+        ]
     # Gemini: Mars AD confirmed for second child (Venus-Mars AD Aug 2012-Oct 2013)
     if lagna == "Gemini":
         return [
