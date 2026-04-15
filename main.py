@@ -4783,9 +4783,9 @@ async def create_chart(
         except HTTPException:
             pass
 
-    if request.birth_lat and request.birth_lng:
-        lat, lng = request.birth_lat, request.birth_lng
-        timezone = request.birth_timezone or "UTC"
+    if request.latitude and request.longitude:
+        lat, lng = request.latitude, request.longitude
+        timezone = request.timezone_name or "UTC"
     else:
         lat, lng, timezone = await _geocode_city(request.birth_city, request.birth_country)
 
