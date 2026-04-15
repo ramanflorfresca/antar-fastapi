@@ -4831,6 +4831,7 @@ async def create_chart(
         )
         _dt_local_cr = _tz_cr.localize(_dt_naive_cr, is_dst=None)
         _chart_tz_offset = _dt_local_cr.utcoffset().total_seconds() / 3600
+        print(f"[TZ_DEBUG] pytz path: tz={timezone} naive={_dt_naive_cr} offset={_chart_tz_offset}")
     except Exception as _tz_err:
         # Fallback: use client-supplied timezone_offset
         _chart_tz_offset = float(getattr(request, "timezone_offset", 0.0) or 0.0)

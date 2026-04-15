@@ -122,6 +122,8 @@ def _tz_name_to_offset(timezone: str) -> float:
 
 
 def _calculate_chart_raw(birth_date, birth_time, lat, lon, tz_offset):
+    print(f"[CHART_RAW] birth={birth_date} {birth_time} lat={lat} lon={lon} tz_offset={tz_offset}")
+    print(f"[CHART_RAW] birth={birth_date} {birth_time} lat={lat} lon={lon} tz_offset={tz_offset}")
     """
     Core chart calculation — original logic, untouched.
     Returns chart_data enriched with:
