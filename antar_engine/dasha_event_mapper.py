@@ -437,6 +437,101 @@ AGE_RANGES = {
 # Core finder
 # ---------------------------------------------------------------------------
 
+
+# ---------------------------------------------------------------------------
+# Vimsottari dasha duration constants — used for PD computation
+# ---------------------------------------------------------------------------
+_VIMSOTTARI_YEARS = {
+    'Ketu': 7, 'Venus': 20, 'Sun': 6, 'Moon': 10, 'Mars': 7,
+    'Rahu': 18, 'Jupiter': 16, 'Saturn': 19, 'Mercury': 17,
+}
+_DASHA_SEQUENCE = [
+    'Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu', 'Jupiter', 'Saturn', 'Mercury',
+]
+
+
+def _compute_pds_for_ad(ad_lord: str, ad_start: str, ad_end: str) -> list:
+    """
+    Compute Pratyantardasha sub-periods for an Antardasha using the
+    Vimsottari proportional formula.  No DB access required.
+
+    Returns list of {'lord': str, 'start': 'YYYY-MM-DD', 'end': 'YYYY-MM-DD'}.
+    Gracefully returns [] on any bad input.
+    """
+    from datetime import date, timedelta
+    try:
+        s = date.fromisoformat(str(ad_start)[:10])
+        e = date.fromisoformat(str(ad_end)[:10])
+    except (ValueError, TypeError):
+        return []
+
+    total_days = (e - s).days
+    if total_days <= 0 or ad_lord not in _DASHA_SEQUENCE:
+        return []
+
+    start_idx = _DASHA_SEQUENCE.index(ad_lord)
+    pds = []
+    current = s
+    for i in range(9):
+        planet = _DASHA_SEQUENCE[(start_idx + i) % 9]
+        pd_days = int(round((_VIMSOTTARI_YEARS[planet] / 120.0) * total_days))
+        pd_end = min(current + timedelta(days=max(pd_days, 1)), e)
+        pds.append({
+            'lord':  planet,
+            'start': current.isoformat(),
+            'end':   pd_end.isoformat(),
+        })
+        current = pd_end
+        if current >= e:
+            break
+    return pds
+
+
+def _drill_to_pd(
+    winning_ad: dict,
+    rule_lords: list,
+    event_date_str: str,
+) -> Optional[dict]:
+    """
+    Given a winning AD dict and the event's priority lord list, find the
+    tightest PD window.  Uses pre-attached 'pds' key if present; otherwise
+    computes via _compute_pds_for_ad().
+
+    Returns a PD dict {'lord', 'start', 'end'} or None (fall back to AD).
+    """
+    from datetime import datetime
+
+    pds = winning_ad.get('pds') or []
+    if not pds:
+        ad_lord  = winning_ad.get('planet', winning_ad.get('planet_or_sign', ''))
+        ad_start = str(winning_ad.get('start', winning_ad.get('start_date', '')))[:10]
+        ad_end   = str(winning_ad.get('end',   winning_ad.get('end_date',   '')))[:10]
+        pds = _compute_pds_for_ad(ad_lord, ad_start, ad_end)
+
+    if not pds:
+        return None
+
+    karakas  = {'Jupiter', 'Venus', 'Moon'}
+    rule_set = set(rule_lords)
+
+    scored = []
+    for pd in pds:
+        score = 3 if pd['lord'] in rule_set else (1 if pd['lord'] in karakas else 0)
+        scored.append((score, pd))
+
+    try:
+        ev_dt = datetime.fromisoformat(event_date_str)
+        scored.sort(key=lambda x: (
+            -x[0],
+            abs((datetime.fromisoformat(x[1]['start']) - ev_dt).days),
+        ))
+    except (ValueError, TypeError):
+        scored.sort(key=lambda x: -x[0])
+
+    best_score, best_pd = scored[0]
+    return best_pd if best_score > 0 else None
+
+
 def find_event_window(
     event_type: str,
     lagna: str,
@@ -503,6 +598,28 @@ def find_event_window(
     best = candidates[0]
     best["midpoint_year"] = (best["start_year"] + best["end_year"]) // 2
     best["event_type"] = event_type
+
+    # ── PD precision drill ────────────────────────────────────────────
+    rule_lords = [p for p, _, _ in priority_list]
+    _pd = _drill_to_pd(
+        winning_ad={
+            'planet': best['planet'],
+            'start':  best['start'],
+            'end':    best['end'],
+        },
+        rule_lords=rule_lords,
+        event_date_str=f"{best['midpoint_year']}-06-01",
+    )
+    if _pd:
+        best['pd_lord']      = _pd['lord']
+        best['window_start'] = _pd['start']
+        best['window_end']   = _pd['end']
+        best['precision']    = 'PD'
+    else:
+        best['precision']    = 'AD'
+        best['window_start'] = best['start']
+        best['window_end']   = best['end']
+
     return best
 
 
@@ -554,10 +671,17 @@ def format_for_prompt(results: dict) -> str:
     for event, label in LABELS.items():
         w = results.get(event)
         if w:
-            lines.append(
-                f"{label}: {w['parent_md']} MD + {w['planet']} AD "
-                f"({w['start'][:7]} to {w['end'][:7]}) — {w['reason']}"
-            )
+            if w.get('pd_lord'):
+                _win = f"{w['window_start'][:7]} to {w['window_end'][:7]}"
+                lines.append(
+                    f"{label}: {w['parent_md']} MD + {w['planet']} AD"
+                    f" + {w['pd_lord']} PD ({_win}) — {w['reason']}"
+                )
+            else:
+                lines.append(
+                    f"{label}: {w['parent_md']} MD + {w['planet']} AD "
+                    f"({w['start'][:7]} to {w['end'][:7]}) — {w['reason']}"
+                )
         else:
             lines.append(f"{label}: no clear window found in dasha sequence")
     lines.append(
@@ -612,7 +736,9 @@ def _smoke_test():
         hit = w["start_year"] <= actual_year <= w["end_year"]
         correct += 1 if hit else 0
         mark = "✅" if hit else "❌"
-        print(f"  {event:15s}: {w['parent_md']} MD + {w['planet']} AD "
+        _pd_sfx = (f" + {w['pd_lord']} PD ({w['window_start'][:7]}–{w['window_end'][:7]})"
+                  if w.get('pd_lord') else "")
+        print(f"  {event:15s}: {w['parent_md']} MD + {w['planet']} AD{_pd_sfx} "
               f"({w['start'][:7]}–{w['end'][:7]})  actual={actual_year}  {mark}")
     print(f"  Score: {correct}/{len(RAMAN_ACTUAL)} = {correct/len(RAMAN_ACTUAL)*100:.0f}%")
 
@@ -632,7 +758,9 @@ def _smoke_test():
     if w:
         hit = w["start_year"] <= actual <= w["end_year"]
         mark = "✅" if hit else "❌"
-        print(f"  first_child: {w['parent_md']} MD + {w['planet']} AD "
+        _pd_sfx2 = (f" + {w['pd_lord']} PD ({w['window_start'][:7]}–{w['window_end'][:7]})"
+                   if w.get('pd_lord') else "")
+        print(f"  first_child: {w['parent_md']} MD + {w['planet']} AD{_pd_sfx2} "
               f"({w['start'][:7]}–{w['end'][:7]})  actual={actual}  {mark}")
     else:
         print(f"  first_child: NO PREDICTION ❌")
@@ -675,7 +803,9 @@ def _smoke_test():
         hit = w["start_year"] <= actual_year <= w["end_year"]
         at_correct += 1 if hit else 0
         mark = "✅" if hit else "❌"
-        print(f"  {event:15s}: {w['parent_md']} MD + {w['planet']} AD "
+        _pd_sfx4 = (f" + {w['pd_lord']} PD ({w['window_start'][:7]}–{w['window_end'][:7]})"
+                   if w.get('pd_lord') else "")
+        print(f"  {event:15s}: {w['parent_md']} MD + {w['planet']} AD{_pd_sfx4} "
               f"({w['start'][:7]}–{w['end'][:7]})  actual={actual_year}  {mark}")
     pct = at_correct / len(AT_ACTUALS) * 100
     print(f"  Score: {at_correct}/{len(AT_ACTUALS)} = {pct:.0f}%")
@@ -721,7 +851,9 @@ def _smoke_test():
         hit = w["start_year"] <= actual_year <= w["end_year"]
         js_correct += 1 if hit else 0
         mark = "✅" if hit else "❌"
-        print(f"  {event:15s}: {w['parent_md']} MD + {w['planet']} AD "
+        _pd_sfx5 = (f" + {w['pd_lord']} PD ({w['window_start'][:7]}–{w['window_end'][:7]})"
+                   if w.get('pd_lord') else "")
+        print(f"  {event:15s}: {w['parent_md']} MD + {w['planet']} AD{_pd_sfx5} "
               f"({w['start'][:7]}–{w['end'][:7]})  actual={actual_year}  {mark}")
     pct5 = js_correct / len(JS_ACTUALS) * 100
     print(f"  Score: {js_correct}/{len(JS_ACTUALS)} = {pct5:.0f}%")
