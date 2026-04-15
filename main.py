@@ -4873,7 +4873,9 @@ async def create_chart(
     # Calculate timezone offset in hours from timezone string
     # CRITICAL: use birth_date not today — historical offsets differ (e.g. Venezuela was UTC-4.5 until 2016)
     try:
-        import pytz as _pytz
+        import pytz
+from timezonefinder import TimezoneFinder as _TimezoneFinder
+_TZF = _TimezoneFinder() as _pytz
         from datetime import datetime as _dt
         _tz = _pytz.timezone(timezone)
         # Use birth datetime for historical accuracy
