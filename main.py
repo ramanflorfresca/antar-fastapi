@@ -856,6 +856,31 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
     print("[shutdown] Scheduler stopped")
 
+
+# --- antar:lang_from_country helper ---
+# Maps ISO-3166 alpha-2 country codes to the user's most likely UI language.
+# Used by /api/v1/chart/create to seed `language_preference` when the client
+# does not (yet) send an explicit language. Safe default = "en".
+_COUNTRY_TO_LANG = {
+    # Spanish-speaking LATAM + Spain
+    "AR": "es", "BO": "es", "CL": "es", "CO": "es", "CR": "es",
+    "CU": "es", "DO": "es", "EC": "es", "SV": "es", "GT": "es",
+    "HN": "es", "MX": "es", "NI": "es", "PA": "es", "PY": "es",
+    "PE": "es", "PR": "es", "UY": "es", "VE": "es", "ES": "es",
+    # Portuguese
+    "BR": "pt", "PT": "pt",
+    # English defaults
+    "US": "en", "GB": "en", "CA": "en", "AU": "en", "NZ": "en",
+    "IE": "en", "IN": "en", "ZA": "en", "SG": "en", "PH": "en",
+}
+
+def _lang_from_country(country_code):
+    """Return 'es' / 'pt' / 'en' for a given ISO country code. Defaults to 'en'."""
+    if not country_code:
+        return "en"
+    return _COUNTRY_TO_LANG.get(country_code.strip().upper(), "en")
+# --- /antar:lang_from_country helper ---
+
 app = FastAPI(title="Antar API", version="2.1.0", lifespan=lifespan)
 
 app.add_middleware(
@@ -4916,7 +4941,7 @@ async def create_chart(
             "house_lords":       chart_data.get("house_lords", {}),
             "atmakaraka":        chart_data.get("atmakaraka", ""),
         },
-        "language_preference": request.language or "en",
+        "language_preference": _lang_from_country(request.birth_country),
         "patra_complete":      False,
     }
     try:
