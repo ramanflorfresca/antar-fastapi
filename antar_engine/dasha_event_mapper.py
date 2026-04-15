@@ -117,6 +117,80 @@ EVENT_DESCRIPTION = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Plain-language planet descriptions for energy_explanation
+# ---------------------------------------------------------------------------
+PLANET_PARENTHETICAL = {
+    "Sun":     "identity, authority, father, vitality",
+    "Moon":    "emotions, mind, mother, nurturing",
+    "Mars":    "action, energy, courage, conflict",
+    "Mercury": "communication, intellect, business, travel",
+    "Jupiter": "growth, wisdom, children, expansion",
+    "Venus":   "love, beauty, partnership, money",
+    "Saturn":  "discipline, time, structure, hard lessons",
+    "Rahu":    "ambition, illusion, foreign, obsession",
+    "Ketu":    "detachment, liberation, past karma, spirituality",
+}
+
+# ---------------------------------------------------------------------------
+# Energy explanation builder — plain English, no house numbers, no jargon
+# ---------------------------------------------------------------------------
+
+def build_energy_explanation(prediction: dict, event_type: str, lagna_sign: str = "") -> str:
+    """
+    Build a plain-English energy explanation for a past-event prediction.
+
+    prediction must have keys: md_lord, ad_lord, pd_lord, transit_planet
+    (any can be None / missing).
+
+    Returns a clean paragraph. No Sanskrit, no house numbers, no MD/AD/PD labels.
+    """
+    md_lord      = prediction.get("md_lord")
+    ad_lord      = prediction.get("ad_lord")
+    pd_lord      = prediction.get("pd_lord")
+    transit_planet = prediction.get("transit_planet")
+
+    LIFE_AREA = {
+        "serious_partnership_began": "marriage, committed partnership, business ties",
+        "serious_partnership_ended": "marriage, committed partnership, separations",
+        "family_expansion_first":    "children, romance, creativity",
+        "family_expansion_second":   "children, romance, creativity",
+        "major_relocation":          "foreign lands, transcendence, long journeys",
+        "major_acquisition":         "home, emotional foundation, family wealth",
+        "career_pivot":              "career, public life, reputation",
+        "loss_of_mother":            "home, emotional foundation, mother",
+        "loss_of_father":            "luck, dharma, father",
+        "professional_setback":      "career, debts, sudden loss",
+        "legal_entanglement":        "debts, disputes, legal matters",
+        "financial_disruption":      "family wealth, debts, sudden loss",
+    }
+    life_area = LIFE_AREA.get(event_type, "this area of life")
+
+    parts = []
+    if md_lord:
+        parens = PLANET_PARENTHETICAL.get(md_lord, "")
+        parts.append(
+            f"{md_lord} planet of ({parens}) was leading this chapter, "
+            f"activating {life_area}."
+        )
+    if ad_lord and ad_lord != md_lord:
+        parens = PLANET_PARENTHETICAL.get(ad_lord, "")
+        parts.append(
+            f"{ad_lord} planet of ({parens}) deepened the activation."
+        )
+    if pd_lord and pd_lord not in (md_lord, ad_lord):
+        parens = PLANET_PARENTHETICAL.get(pd_lord, "")
+        parts.append(
+            f"{pd_lord} planet of ({parens}) was the spark that crystallized the moment."
+        )
+    if transit_planet:
+        parens = PLANET_PARENTHETICAL.get(transit_planet, "")
+        parts.append(
+            f"{transit_planet} planet of ({parens}) was passing through the relevant area "
+            f"of your sky at this exact time, confirming the timing."
+        )
+    return " ".join(parts)
+
 
 # ---------------------------------------------------------------------------
 # Build priority tables dynamically from house lords

@@ -2204,6 +2204,7 @@ async def get_past_events(
             find_event_window,
             EVENT_DISPLAY_LABELS,
             EVENT_DESCRIPTION,
+            build_energy_explanation,
         )
 
         # ── 1. Fetch chart row ────────────────────────────────────────────
@@ -2285,6 +2286,21 @@ async def get_past_events(
             except Exception:
                 return f"{start[:7]} to {end[:7]}"
 
+        CATEGORY_MAP = {
+            "serious_partnership_began":  "relationship",
+            "serious_partnership_ended":  "relationship",
+            "family_expansion_first":     "family",
+            "family_expansion_second":    "family",
+            "major_relocation":           "transition",
+            "major_acquisition":          "material",
+            "career_pivot":               "transition",
+            "loss_of_mother":             "loss",
+            "loss_of_father":             "loss",
+            "professional_setback":       "material",
+            "legal_entanglement":         "conflict",
+            "financial_disruption":       "material",
+        }
+
         all_predictions = []
         for event_type, w in raw_map.items():
             if not w:
@@ -2298,21 +2314,30 @@ async def get_past_events(
             if confidence < min_confidence:
                 continue
             win_start = w.get("window_start") or w.get("start") or ""
+            # Build energy explanation dict
+            _energy_pred = {
+                "md_lord":       w.get("parent_md"),
+                "ad_lord":       w.get("planet"),
+                "pd_lord":       w.get("pd_lord"),
+                "transit_planet": w.get("transit_planet"),
+            }
             all_predictions.append({
-                "event_type":       event_type,
-                "display_label":    EVENT_DISPLAY_LABELS.get(event_type, event_type),
-                "description":      EVENT_DESCRIPTION.get(event_type, ""),
+                "event_type":        event_type,
+                "display_label":     EVENT_DISPLAY_LABELS.get(event_type, event_type),
+                "description":       EVENT_DESCRIPTION.get(event_type, ""),
+                "category":          CATEGORY_MAP.get(event_type, "other"),
                 "window": {
                     "start":          win_start,
                     "end":            win_end,
                     "precision":      w.get("precision", "AD"),
                     "human_readable": _human_window(win_start, win_end) if win_start and win_end else "",
                 },
-                "dasha":            _dasha_label(w),
-                "confidence":       confidence,
-                "confidence_label": _confidence_label(confidence),
+                "dasha":             _dasha_label(w),
+                "confidence":        confidence,
+                "confidence_label":  _confidence_label(confidence),
                 "explanation_short": w.get("reason", ""),
-                "user_response":    None,
+                "energy_explanation": build_energy_explanation(_energy_pred, event_type, lagna),
+                "user_response":     None,
             })
 
         # Sort by confidence DESC
