@@ -4871,13 +4871,17 @@ async def create_chart(
 
     chart_id = str(uuid.uuid4())
     # Calculate timezone offset in hours from timezone string
+    # CRITICAL: use birth_date not today — historical offsets differ (e.g. Venezuela was UTC-4.5 until 2016)
     try:
         import pytz as _pytz
         from datetime import datetime as _dt
         _tz = _pytz.timezone(timezone)
-        _offset = _tz.utcoffset(_dt.now()).total_seconds() / 3600
+        # Use birth datetime for historical accuracy
+        _birth_dt = _dt.strptime(str(request.birth_date)[:10], "%Y-%m-%d")
+        _offset = _tz.utcoffset(_birth_dt).total_seconds() / 3600
     except Exception:
-        _offset = 0.0
+        # Fall back to user-provided offset if available
+        _offset = float(getattr(request, "timezone_offset", 0.0) or 0.0)
 
     chart_row = {
         "id":                  chart_id,

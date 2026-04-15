@@ -68,6 +68,14 @@ def _build_marriage_priority(lagna: str) -> List[Tuple[str, str, int]]:
 def _build_foreign_priority(lagna: str) -> List[Tuple[str, str, int]]:
     lords = HOUSE_LORDS.get(lagna, {})
     h12 = lords.get(12, "")
+    # Pisces: Venus AD confirmed for foreign move (Mercury-Venus May 1992-Mar 1995)
+    if lagna == "Pisces":
+        return [
+            ("Venus",   "Venus = foreign travel abroad — confirmed for Pisces",                    10),
+            ("Rahu",    "Rahu = foreign karaka, unconventional move",                                8),
+            ("Jupiter", "Jupiter = lagna lord for Pisces — dharmic foreign journey",                6),
+            ("Saturn",  "Saturn = 12H lord for Pisces — foreign establishment",                     5),
+        ]
     # Gemini: Ketu AD for childhood relocation, Mercury AD for adult relocation — both confirmed
     if lagna == "Gemini":
         return [
