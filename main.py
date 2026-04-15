@@ -4583,24 +4583,7 @@ def _build_remedies(remedy_objects: list) -> List[RemedyOut]:
 # CHART CREATE ENDPOINT — POST /api/v1/chart/create
 # ══════════════════════════════════════════════════════════════════════════════
 
-class ChartCreateRequest(BaseModel):
-    birth_date:     str
-    birth_time:     str
-    birth_city:     str
-    birth_country:  str
-    birth_lat:      Optional[float] = None
-    birth_lng:      Optional[float] = None
-    birth_timezone: Optional[str]  = None
-    user_id:        Optional[str]  = None
-    name:           Optional[str]  = None
-    first_name:     Optional[str]  = None
-    gender:         Optional[str]  = None
-    language:       Optional[str]  = "en"
-    # Residence — where the person LIVES NOW (not birth location)
-    # Used for DKP, foreign signal framing, astrocartography
-    current_city:    Optional[str]  = None   # city of current residence
-    current_country: Optional[str]  = None   # ISO country code of residence
-                                              # defaults to birth_country if not provided
+# ChartCreateRequest defined above
 
 class ChartCreateResponse(BaseModel):
     chart_id:       str
