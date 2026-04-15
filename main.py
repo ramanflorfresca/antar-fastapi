@@ -49,6 +49,9 @@ except ImportError:
 
 load_dotenv(override=False)
 
+from timezonefinder import TimezoneFinder
+_TZF = TimezoneFinder()
+
 # ══════════════════════════════════════════════════════════════════
 # DOMAIN AUDIT RULES (Sprint D) - Complete
 # Injected into /predict system prompt based on detected concern.
@@ -4874,9 +4877,7 @@ async def create_chart(
     # CRITICAL: use birth_date not today — historical offsets differ (e.g. Venezuela was UTC-4.5 until 2016)
     try:
         import pytz
-        from timezonefinder import TimezoneFinder as _TZF_cls
         from datetime import datetime as _dt
-        _tzf = _TZF_cls()
         _tz = pytz.timezone(timezone)
         # Use birth datetime for historical accuracy
         _birth_dt = _dt.strptime(str(request.birth_date)[:10], "%Y-%m-%d")
