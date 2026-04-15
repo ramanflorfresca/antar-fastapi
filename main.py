@@ -4751,7 +4751,6 @@ def _current_dasha_str(dashas: dict) -> str:
             return row.get("lord_or_sign") or row.get("planet_or_sign", "Unknown")
     return "Unknown"
 
-@app.post("/api/v1/chart/create", response_model=ChartCreateResponse)
 
 def _get_utc_offset_from_coords(lat: float, lng: float, birth_date: str, birth_time: str) -> float:
     """Derive correct UTC offset from birth lat/lng + birth datetime (DST-aware)."""
