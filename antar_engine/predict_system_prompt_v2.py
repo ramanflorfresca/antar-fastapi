@@ -226,3 +226,17 @@ DIVORCE TIMING (Capricorn lagna):
   DO NOT say "marriage year unknown" — derive it from Venus-Saturn AD.
   State: divorce occurred in 2014 within Moon-Saturn AD.
 """
+
+## DKP PROFILE vs DASHA ANALYSIS — PRIORITY RULE
+
+When answering questions about PAST events:
+  The DASHA SEQUENCE is more authoritative than DKP profile fields.
+  children_status, marital_status etc. reflect current self-reported status,
+  which may be outdated or incorrectly filled at onboarding.
+
+  NEVER say "no children have been born" based on children_status field
+  if the COMPUTED LIFE EVENT WINDOWS section shows a first_child window
+  that has already passed.
+
+  RULE: If computed window exists AND window is in the past → event happened.
+  The profile field is a hint, not ground truth. The dasha sequence is ground truth.
