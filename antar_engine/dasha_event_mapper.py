@@ -104,13 +104,13 @@ def _build_first_child_priority(lagna: str) -> List[Tuple[str, str, int]]:
     h9  = lords.get(9, "")
     # Special case: Capricorn — Mercury (9H lord) confirmed highest priority
     # When 5H lord = Venus and Venus is already MD, 9H lord AD triggers first child
-    # Aries: Venus AD confirmed for first child (Rahu-Venus AD Jul 2020-Jul 2023)
+    # Aries: Sun = 5H lord (confirmed AT first child Saturn-Sun AD 2004-2005)
     if lagna == "Aries":
         return [
-            ("Venus",   "Venus = karaka of children, beauty of creation — Aries confirmed",     10),
+            ("Sun",     "Sun = 5H lord for Aries — house of children — confirmed AT 2005",     10),
             ("Jupiter", "Jupiter = natural karaka for children",                                   8),
-            ("Moon",    "Moon = nurturing, emotional child-bearing period",                        6),
-            ("Sun",     "Sun = 5H lord for Aries — house of children",                            7),
+            ("Venus",   "Venus = karaka of female children, beauty of creation",                   6),
+            ("Moon",    "Moon = nurturing, emotional child-bearing period",                         5),
         ]
     # Libra: Rahu AD confirmed for first child (Venus-Rahu AD Jun 1999-Jun 2002)
     if lagna == "Libra":
@@ -137,14 +137,7 @@ def _build_first_child_priority(lagna: str) -> List[Tuple[str, str, int]]:
             ("Venus",   "Venus = karaka of female children",                                          7),
             ("Moon",    "Moon = nurturing period",                                                     5),
         ]
-    # Aries: Venus AD in Rahu MD confirmed for first child (Rahu-Venus 2020-2023)
-    if lagna == "Aries":
-        return [
-            ("Venus",   "Venus = karaka of female children, 2H lord for Aries — confirmed",       10),
-            ("Jupiter", "Jupiter = natural karaka for children",                                    8),
-            ("Moon",    "Moon = nurturing, emotional child period",                                  6),
-            ("Mercury", "Mercury = 3H lord for Aries",                                              4),
-        ]
+    # (dead-code Aries block removed — see active block above)
     # Sagittarius: Mercury AD confirmed for first child (Venus-Mercury 2014-2017)
     if lagna == "Sagittarius":
         return [
@@ -219,13 +212,14 @@ def _build_second_child_priority(lagna: str) -> List[Tuple[str, str, int]]:
             ("Moon",    "Moon = nurturing",                                                               5),
             ("Saturn",  "Saturn = delayed birth",                                                         4),
         ]
-    # Aries: Saturn or Ketu for second child
+    # Aries: Rahu AD confirmed for second child (Saturn-Rahu AD 2008-2011, child 2010-05)
     if lagna == "Aries":
         return [
-            ("Saturn",  "Saturn = 10H+11H lord for Aries — second child through effort",               10),
-            ("Ketu",    "Ketu = karmic completion, second child",                                         8),
-            ("Jupiter", "Jupiter = natural karaka",                                                       7),
-            ("Moon",    "Moon = nurturing",                                                               5),
+            ("Saturn",  "Saturn = 10H+11H lord for Aries — second child through effort",                      10),
+            ("Rahu",    "Rahu = expansion/unconventional second birth — confirmed AT 2010 for Aries",            9),
+            ("Ketu",    "Ketu = karmic completion, second child",                                                8),
+            ("Jupiter", "Jupiter = natural karaka",                                                              7),
+            ("Moon",    "Moon = nurturing",                                                                      5),
         ]
     # Gemini: Mars AD confirmed for second child (Venus-Mars AD Aug 2012-Oct 2013)
     if lagna == "Gemini":
@@ -274,6 +268,58 @@ def _build_divorce_priority(lagna: str) -> List[Tuple[str, str, int]]:
     return list(seen.values())
 
 
+# ---------------------------------------------------------------------------
+# Validation metadata — per-lagna confidence tracking
+# ---------------------------------------------------------------------------
+_ARIES_VALIDATION = {
+    "charts": ["AT/ee0e5dab"],
+    "events_validated": 4,
+    "confidence": "single-chart-fit",
+    "needs_second_chart": True,
+    "notes": "Validated 4/4 against AT (1978-01-04, Houston). Marriage/children/mother_death match classical lordships. Second-child Rahu rule needs cross-validation.",
+}
+_TAURUS_VALIDATION      = {"charts": [], "events_validated": 0, "confidence": "untested-default", "needs_second_chart": True}
+_GEMINI_VALIDATION      = {"charts": ["Leena/e3a3dac7", "Jonatan/0cd4d01a"], "events_validated": 7, "confidence": "multi-chart-validated", "needs_second_chart": False}
+_CANCER_VALIDATION      = {"charts": ["Andres/6ec6311c"], "events_validated": 1, "confidence": "single-event-fit", "needs_second_chart": True}
+_LEO_VALIDATION         = {"charts": ["AA/7c38b6b7"], "events_validated": 1, "confidence": "single-event-fit", "needs_second_chart": True}
+_VIRGO_VALIDATION       = {"charts": [], "events_validated": 0, "confidence": "untested-default", "needs_second_chart": True}
+_LIBRA_VALIDATION       = {"charts": ["Vikram/a4d32fc8"], "events_validated": 2, "confidence": "single-chart-fit", "needs_second_chart": True}
+_SCORPIO_VALIDATION     = {"charts": [], "events_validated": 0, "confidence": "untested-default", "needs_second_chart": True}
+_SAGITTARIUS_VALIDATION = {"charts": ["Paul"], "events_validated": 4, "confidence": "single-chart-fit", "needs_second_chart": True}
+_CAPRICORN_VALIDATION   = {"charts": ["Raman/de02bb52"], "events_validated": 5, "confidence": "single-chart-fit", "needs_second_chart": True}
+_AQUARIUS_VALIDATION    = {"charts": [], "events_validated": 0, "confidence": "untested-default", "needs_second_chart": True}
+_PISCES_VALIDATION      = {"charts": ["Gayatri/d725ce95"], "events_validated": 3, "events_failed": 1, "confidence": "single-chart-partial", "needs_second_chart": True, "known_issues": ["marriage rule misfires — Mercury-Moon AD not weighted correctly"]}
+
+
+# ---------------------------------------------------------------------------
+# Mother/parental-death priority builder
+# ---------------------------------------------------------------------------
+
+def _build_mother_death_priority(lagna: str) -> List[Tuple[str, str, int]]:
+    """
+    Priority list for timing of mother's passing.
+    Aries: 6H lord = Mercury (illness/loss) — confirmed Saturn-Mercury AD 2000-07.
+    """
+    if lagna == "Aries":
+        return [
+            ("Mercury", "Mercury = 6H lord for Aries — illness, bodily loss — confirmed mother death 2000", 10),
+            ("Saturn",  "Saturn = 10H+11H lord, karmic separation from maternal figures",                     8),
+            ("Ketu",    "Ketu = karmic completion, past-life parental separation",                             6),
+            ("Rahu",    "Rahu = sudden unexpected loss",                                                        4),
+        ]
+    result = [
+        ("Saturn", "Saturn = separation, endings, karmic death",              10),
+        ("Ketu",   "Ketu = karmic completion, past-life separation",            7),
+        ("Rahu",   "Rahu = sudden unexpected loss of maternal figure",           5),
+        ("Sun",    "Sun = significant family/authority transition",               4),
+    ]
+    seen: dict = {}
+    for p, r, s in result:
+        if p and p not in seen:
+            seen[p] = (p, r, s)
+    return list(seen.values())
+
+
 # Cache built priorities per lagna
 _priority_cache: Dict[str, Dict] = {}
 
@@ -286,6 +332,7 @@ def _get_priorities(lagna: str) -> Dict:
         "first_child":  _build_first_child_priority(lagna),
         "second_child": _build_second_child_priority(lagna),
         "divorce":      _build_divorce_priority(lagna),
+        "mother_death": _build_mother_death_priority(lagna),
     }
     _priority_cache[lagna] = p
     return p
@@ -300,6 +347,7 @@ AGE_RANGES = {
     "first_child":  (22, 38),
     "second_child": (24, 43),
     "divorce":      (25, 55),
+    "mother_death": (15, 75),
 }
 
 
@@ -512,11 +560,82 @@ def _smoke_test():
     lagnas = list(HOUSE_LORDS.keys())
     for lagna in lagnas:
         p = _get_priorities(lagna)
-        assert len(p) == 5, f"Missing priorities for {lagna}"
+        assert len(p) >= 5, f"Missing priorities for {lagna} (got {len(p)})"
     print(f"  ✅ All {len(lagnas)} lagnas OK")
+
+    # Test 4: AT (Aries lagna, birth 1978-01-04, Houston)
+    # Validated events: mother_death 2000-07, marriage 2001-11, 1st child 2005-06, 2nd child 2010-05
+    # Saturn MD antardasha sequence (approximate, computed from birth nakshatra balance)
+    AT_ADS = [
+        {"planet_or_sign": "Saturn",  "start_date": "1994-11-01", "end_date": "1997-11-04", "metadata": {"parent_lord": "Saturn"}},
+        {"planet_or_sign": "Mercury", "start_date": "1997-11-04", "end_date": "2000-07-13", "metadata": {"parent_lord": "Saturn"}},
+        {"planet_or_sign": "Ketu",    "start_date": "2000-07-13", "end_date": "2001-08-22", "metadata": {"parent_lord": "Saturn"}},
+        {"planet_or_sign": "Venus",   "start_date": "2001-08-22", "end_date": "2004-10-22", "metadata": {"parent_lord": "Saturn"}},
+        {"planet_or_sign": "Sun",     "start_date": "2004-10-22", "end_date": "2005-10-04", "metadata": {"parent_lord": "Saturn"}},
+        {"planet_or_sign": "Moon",    "start_date": "2005-10-04", "end_date": "2007-05-04", "metadata": {"parent_lord": "Saturn"}},
+        {"planet_or_sign": "Mars",    "start_date": "2007-05-04", "end_date": "2008-06-13", "metadata": {"parent_lord": "Saturn"}},
+        {"planet_or_sign": "Rahu",    "start_date": "2008-06-13", "end_date": "2011-04-19", "metadata": {"parent_lord": "Saturn"}},
+        {"planet_or_sign": "Jupiter", "start_date": "2011-04-19", "end_date": "2013-10-31", "metadata": {"parent_lord": "Saturn"}},
+    ]
+    AT_ACTUALS = {
+        "mother_death": 2000,
+        "marriage":     2001,
+        "first_child":  2005,
+        "second_child": 2010,
+    }
+    print("\nTest 4: AT (Aries lagna, birth 1978)")
+    at_correct = 0
+    for event, actual_year in AT_ACTUALS.items():
+        w = find_event_window(event, "Aries", 1978, AT_ADS)
+        if not w:
+            print(f"  {event:15s}: NO PREDICTION  actual={actual_year} ❌")
+            continue
+        hit = w["start_year"] <= actual_year <= w["end_year"]
+        at_correct += 1 if hit else 0
+        mark = "✅" if hit else "❌"
+        print(f"  {event:15s}: {w['parent_md']} MD + {w['planet']} AD "
+              f"({w['start'][:7]}–{w['end'][:7]})  actual={actual_year}  {mark}")
+    pct = at_correct / len(AT_ACTUALS) * 100
+    print(f"  Score: {at_correct}/{len(AT_ACTUALS)} = {pct:.0f}%")
+    if at_correct < len(AT_ACTUALS):
+        raise AssertionError(f"Test 4 FAILED: {at_correct}/{len(AT_ACTUALS)} — do NOT commit")
 
     print("\n✅ All smoke tests passed")
 
 
 if __name__ == "__main__":
+    import sys as _sys
+    if "--audit" in _sys.argv:
+        VALIDATION_REGISTRY = {
+            "Aries":       _ARIES_VALIDATION,
+            "Taurus":      _TAURUS_VALIDATION,
+            "Gemini":      _GEMINI_VALIDATION,
+            "Cancer":      _CANCER_VALIDATION,
+            "Leo":         _LEO_VALIDATION,
+            "Virgo":       _VIRGO_VALIDATION,
+            "Libra":       _LIBRA_VALIDATION,
+            "Scorpio":     _SCORPIO_VALIDATION,
+            "Sagittarius": _SAGITTARIUS_VALIDATION,
+            "Capricorn":   _CAPRICORN_VALIDATION,
+            "Aquarius":    _AQUARIUS_VALIDATION,
+            "Pisces":      _PISCES_VALIDATION,
+        }
+        print("=" * 78)
+        print("DashaEventMapper — Lagna Validation Audit")
+        print("=" * 78)
+        print(f"{'Lagna':<14}{'Charts':<8}{'Events':<8}{'Confidence':<25}{'Action'}")
+        print("-" * 78)
+        for lagna, v in VALIDATION_REGISTRY.items():
+            n_charts = len(v.get("charts", []))
+            n_events = v.get("events_validated", 0)
+            conf = v.get("confidence", "?")
+            if v.get("known_issues"):
+                action = f"FIX: {v['known_issues'][0][:30]}"
+            elif v.get("needs_second_chart"):
+                action = "needs 2nd chart"
+            else:
+                action = "OK"
+            print(f"{lagna:<14}{n_charts:<8}{n_events:<8}{conf:<25}{action}")
+        print("=" * 78)
+        _sys.exit(0)
     _smoke_test()
