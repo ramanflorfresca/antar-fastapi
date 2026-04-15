@@ -4787,7 +4787,7 @@ async def create_chart(
         lat, lng = request.latitude, request.longitude
         timezone = request.timezone_name or "UTC"
     else:
-        lat, lng, timezone = await _geocode_city(request.birth_city, request.birth_country)
+        lat, lng, timezone = await _geocode_city(request.birth_place, request.birth_country)
 
     try:
         chart_data = chart_module.calculate_chart(
@@ -4900,7 +4900,7 @@ async def create_chart(
         "current_country": getattr(request, "current_country", "") or "",
         "timezone_offset":     _offset,
         "country_code":        request.birth_country,
-        "birth_city":      request.birth_city,
+        "birth_city":      request.birth_place,
         "birth_country":   request.birth_country,
         "name":            getattr(request, "name", None) or getattr(request, "first_name", None) or "",
         "display_name":    (getattr(request, "first_name", None) or getattr(request, "name", None) or "").split()[0] if (getattr(request, "first_name", None) or getattr(request, "name", None)) else "",
@@ -5164,7 +5164,7 @@ async def create_chart(
         atmakaraka=ak, amatyakaraka=amk,
         current_dasha=_current_dasha_str(dashas_combined),
         dasha_count=len(dasha_rows),
-        birth_city=request.birth_city,
+        birth_city=request.birth_place,
         birth_lat=lat, birth_lng=lng, timezone=timezone,
         message="Chart created successfully",
         signup_intent=_signup_intent,
@@ -6187,7 +6187,7 @@ async def compatibility_start(request: CompatibilityStartRequest):
             raise HTTPException(400, "Either chart_id_b or birth_date_b required")
         birth_time_b = request.birth_time_b or "12:00"
         has_time_b   = bool(request.birth_time_b)
-        city_b    = request.birth_city_b or "New Delhi"
+        city_b    = request.birth_place_b or "New Delhi"
         country_b = request.birth_country_b or "IN"
         # Try internal geocoder, fall back to Nominatim for unknown cities
         try:
