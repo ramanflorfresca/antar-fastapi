@@ -2209,7 +2209,7 @@ async def get_past_events(
 
         # ── 1. Fetch chart row ────────────────────────────────────────────
         chart_res = supabase.table("charts").select(
-            "chart_data,birth_date,first_name,name,lagna_sign"
+            "chart_data,birth_date,first_name,name,lagna_sign,marital_status,children_status"
         ).eq("id", chart_id).single().execute()
 
         if not chart_res.data:
@@ -2222,6 +2222,9 @@ async def get_past_events(
         lagna       = (lagna_raw.get("sign") if isinstance(lagna_raw, dict) else lagna_raw)                       or chart_res.data.get("lagna_sign") or "Capricorn"
         first_name  = chart_res.data.get("first_name") or chart_res.data.get("name") or ""
         today_str   = datetime.now().strftime("%Y-%m-%d")
+        marital_status   = (chart_res.data.get("marital_status") or "").lower().strip()
+        children_status  = (chart_res.data.get("children_status") or "").lower().strip()
+        print(f"[PAST-EVENTS] chart={chart_id} lagna={lagna} marital={marital_status!r} children={children_status!r}")
 
         # ── 2. Fetch vimsottari antardashas ───────────────────────────────
         ads_res = supabase.table("dasha_periods")             .select("planet_or_sign,start_date,end_date,level,type,metadata")             .eq("chart_id", chart_id)             .eq("system", "vimsottari")             .order("start_date")             .execute()
@@ -2330,6 +2333,20 @@ async def get_past_events(
             if event_type in ("family_expansion_first", "family_expansion_second"):
                 if not raw_map.get("serious_partnership_began"):
                     confidence = max(1, confidence - 2)
+            # Fix F: marital status reality check — cap based on known life status
+            # Single/never_married → partnership events are speculative
+            if marital_status in ("single", "never_married", "unmarried"):
+                if event_type in ("serious_partnership_began", "serious_partnership_ended"):
+                    confidence = min(confidence, 4)
+            # Currently married → ending a current partnership is a false positive
+            if marital_status in ("married", "partnered", "in_relationship", "in_a_relationship"):
+                if event_type == "serious_partnership_ended":
+                    confidence = min(confidence, 3)
+            # Fix G: children status reality check
+            if children_status in ("none", "no_children", "no_children_unsure", "childless"):
+                if event_type in ("family_expansion_first", "family_expansion_second"):
+                    confidence = min(confidence, 4)
+            print(f"[CONF] event={event_type} score={score} base={_base} pd={_pd_bonus} corr={_corr} final={confidence} marital={marital_status!r} children={children_status!r}")
             if confidence < min_confidence:
                 continue
             win_start = w.get("window_start") or w.get("start") or ""

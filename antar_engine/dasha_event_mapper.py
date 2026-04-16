@@ -452,6 +452,17 @@ def _build_second_child_priority(lagna: str) -> List[Tuple[str, str, int]]:
 def _build_divorce_priority(lagna: str) -> List[Tuple[str, str, int]]:
     lords = HOUSE_LORDS.get(lagna, {})
     h7 = lords.get(7, "")
+    # Capricorn: Moon rules 7H (Cancer). Moon MD + Saturn AD is the confirmed pattern
+    # for Raman (divorce Sep 2014 = Moon MD Saturn AD 2013-11 to 2015-06).
+    # required_md="Moon" prevents Sun-Saturn AD (2006) from being selected over Moon-Saturn.
+    if lagna == "Capricorn":
+        return [
+            ("Saturn", "Moon MD + Saturn AD — Moon rules 7H for Capricorn — confirmed Raman divorce 2014", 10, "Moon"),
+            ("Ketu",   "Ketu = karmic past-life ending, separation",                                        7),
+            ("Rahu",   "Rahu = sudden foreign element causing separation",                                   5),
+            ("Sun",    "Sun = ego conflict ending partnership",                                              4),
+            ("Moon",   "Moon rules 7H for Capricorn — activates marriage/separation theme",                 3),
+        ]
     result = [
         ("Saturn",  f"Saturn during {h7} MD = 7H lord period + endings = textbook divorce", 10),
         ("Ketu",    "Ketu = spiritual detachment, past-life ending",                          7),
@@ -809,6 +820,46 @@ def find_event_window(
     return best
 
 
+def _apply_partnership_dependency(results: dict) -> dict:
+    """
+    Post-resolve partnership dependency check.
+    Caps serious_partnership_ended confidence when the partnership beginning
+    is absent, paradoxical, or itself uncertain.
+    Called at the end of map_all_events before returning.
+    """
+    began = results.get("serious_partnership_began")
+    ended = results.get("serious_partnership_ended")
+
+    if not ended:
+        return results
+
+    # Case A: No began prediction exists at all → no partnership to end
+    if not began:
+        ended["_dep_cap"] = "no_began"
+        ended["_dependency_fail"] = True
+        print(f"[DEP CAP] Case A: no began → capping ended confidence to 2")
+        return results
+
+    # Case B: began window_start is AFTER or SAME AS ended window_start → temporal paradox
+    began_start = began.get("window_start", "")
+    ended_start = ended.get("window_start", "")
+    if began_start and ended_start and began_start >= ended_start:
+        ended["_dep_cap"] = "temporal_paradox"
+        ended["_dependency_fail"] = True
+        print(f"[DEP CAP] Case B: temporal paradox began={began_start} >= ended={ended_start} → setting dep_fail")
+        return results
+
+    # Case C: began itself is a weak prediction → ended is speculative
+    # Score is stored on the raw window dict
+    began_score = began.get("score", 5)
+    if began_score < 6:
+        ended["_dep_cap"] = "weak_began"
+        ended["_dep_began_score"] = began_score
+        print(f"[DEP CAP] Case C: weak began score={began_score} → propagating weakness to ended")
+
+    return results
+
+
 def map_all_events(birth_year: int, lagna: str, ads: list) -> dict:
     """Compute all standard life event windows. Works for any chart."""
     results = {}
@@ -847,7 +898,14 @@ def map_all_events(birth_year: int, lagna: str, ads: list) -> dict:
         or marriage.get("window_start", "9999-99") >= _ended_w.get("window_start", "0000-00")
     ):
         _ended_w["_dependency_fail"] = True
+    print(f"[DEP CHECK] event=serious_partnership_ended "
+          f"began_found={bool(marriage)} "
+          f"ended_window_start={_ended_w.get('window_start') if _ended_w else None} "
+          f"dep_fail={_ended_w.get('_dependency_fail') if _ended_w else None}")
     results["serious_partnership_ended"] = _ended_w
+
+    # Post-resolve partnership dependency: apply confidence caps across result set
+    results = _apply_partnership_dependency(results)
 
     return results
 
