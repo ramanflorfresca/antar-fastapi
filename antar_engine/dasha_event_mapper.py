@@ -253,11 +253,11 @@ def _build_foreign_priority(lagna: str) -> List[Tuple[str, str, int]]:
             ("Rahu",    "Rahu = foreign karaka, unconventional permanent move",                     8),
             ("Jupiter", "Jupiter = foreign through education/opportunity",                          6),
         ]
-    # Aquarius: Moon AD confirmed foreign move (Jupiter-Moon Jul 2007)
-    # Moon = emotional relocation; Jupiter = 11H+2H opportunity context
+    # Aquarius: Moon AD confirmed foreign move ONLY under Jupiter MD (Jupiter-Moon Jul 2007)
+    # required_md="Jupiter" prevents Moon AD under Rahu MD (1993) from being selected.
     if lagna == "Aquarius":
         return [
-            ("Moon",    "Moon = emotional relocation — confirmed JS 2007 Jupiter-Moon AD",           10),
+            ("Moon",    "Moon = emotional relocation — confirmed JS 2007 Jupiter-Moon AD",           10, "Jupiter"),
             ("Jupiter", "Jupiter = 11H+2H lord for Aquarius, opportunity-driven relocation",          9),
             ("Venus",   "Venus = 9H lord for Aquarius — dharmic foreign journey",                     7),
             ("Saturn",  "Saturn = 12H lord for Aquarius — foreign establishment",                     6),
@@ -717,8 +717,9 @@ def find_event_window(
 
     priorities = _get_priorities(lagna)
     priority_list = priorities.get(event_type, [])
-    priority_map = {p: s for p, _, s in priority_list}
-    reason_map   = {p: r for p, r, _ in priority_list}
+    priority_map    = {tup[0]: tup[2] for tup in priority_list}
+    reason_map      = {tup[0]: tup[1] for tup in priority_list}
+    required_md_map = {tup[0]: tup[3] for tup in priority_list if len(tup) >= 4}
 
     candidates = []
     for ad in ads:
@@ -742,6 +743,11 @@ def find_event_window(
         if score == 0:
             continue
 
+        # Skip if this planet has a required_md constraint and parent doesn't match
+        req_md = required_md_map.get(planet)
+        if req_md and parent != req_md:
+            continue
+
         candidates.append({
             "planet":        planet,
             "parent_md":     parent,
@@ -762,7 +768,7 @@ def find_event_window(
     best["event_type"] = event_type
 
     # ── PD precision drill ────────────────────────────────────────────
-    rule_lords = [p for p, _, _ in priority_list]
+    rule_lords = [tup[0] for tup in priority_list]
     _pd = _drill_to_pd(
         winning_ad={
             'planet': best['planet'],
