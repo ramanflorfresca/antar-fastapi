@@ -2200,8 +2200,7 @@ async def get_past_events(
     """
     try:
         from antar_engine.dasha_event_mapper import (
-            map_all_events,
-            find_event_window,
+            map_future_events,
             EVENT_DISPLAY_LABELS,
             EVENT_DESCRIPTION,
             build_energy_explanation,
@@ -2253,14 +2252,14 @@ async def get_past_events(
         # ── 3. Run all event windows ──────────────────────────────────────
         # map_all_events covers: serious_partnership_began, major_relocation,
         #   family_expansion_first, family_expansion_second, serious_partnership_ended
-        raw_map = map_all_events(birth_year, lagna, ads)
+        raw_map = map_future_events(
+            lagna, birth_year, ads,
+            from_date=today_str,
+            to_date=cutoff_date,
+        )
 
         # Additional events not covered by map_all_events
-        for extra_event in ("loss_of_mother", "major_acquisition"):
-            if extra_event not in raw_map:
-                raw_map[extra_event] = find_event_window(
-                    extra_event, lagna, birth_year, ads
-                )
+        # map_future_events already scans all event types
 
         # ── 4. Score, filter, format ──────────────────────────────────────
         def _confidence_label(score: int) -> str:

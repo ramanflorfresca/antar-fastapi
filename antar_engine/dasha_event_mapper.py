@@ -865,6 +865,145 @@ def _apply_partnership_dependency(results: dict) -> dict:
     return results
 
 
+
+
+# ---------------------------------------------------------------------------
+# Future window scanning (for upcoming-themes endpoint)
+# ---------------------------------------------------------------------------
+
+def find_future_windows(
+    lagna: str,
+    birth_year: int,
+    ads: list,
+    from_date: str = None,
+    to_date: str = None,
+    min_score: int = 3,
+) -> list:
+    """
+    Scan all ADs from from_date to to_date. For each event type,
+    find ALL matching AD windows based on priority rules.
+    Returns a list of dicts. No AGE_RANGES cap — future has no age limit.
+    """
+    from datetime import datetime as _dt
+
+    if not from_date:
+        from_date = _dt.now().strftime("%Y-%m-%d")
+    if not to_date:
+        to_date = _dt(year=_dt.now().year + 5, month=1, day=1).strftime("%Y-%m-%d")
+
+    priorities = _get_priorities(lagna)
+    results = []
+
+    # Build a quick lookup: for each event_type, which AD lords score how much
+    event_lord_scores = {}
+    for event_type, prio_list in priorities.items():
+        lord_map = {}
+        for item in prio_list:
+            planet, reason, score = item[0], item[1], item[2]
+            if planet and planet not in lord_map:
+                lord_map[planet] = (score, reason)
+        event_lord_scores[event_type] = lord_map
+
+    for ad in ads:
+        ad_start = (ad.get("start_date") or ad.get("start") or "")[:10]
+        ad_end = (ad.get("end_date") or ad.get("end") or "")[:10]
+        ad_lord = ad.get("planet_or_sign") or ad.get("lord") or ""
+
+        if not ad_start or not ad_end or not ad_lord:
+            continue
+        # Must overlap the future window
+        if ad_end < from_date or ad_start > to_date:
+            continue
+
+        # Get parent MD lord
+        parent_md = ""
+        meta = ad.get("metadata")
+        if isinstance(meta, dict):
+            parent_md = meta.get("parent_lord") or meta.get("parent_md") or ""
+
+        for event_type, lord_map in event_lord_scores.items():
+            ad_score = 0
+            ad_reason = ""
+            if ad_lord in lord_map:
+                ad_score, ad_reason = lord_map[ad_lord]
+
+            # Bonus if MD lord also matches
+            md_bonus = 0
+            if parent_md and parent_md in lord_map and parent_md != ad_lord:
+                md_bonus = min(3, lord_map[parent_md][0] // 3)
+
+            total = ad_score + md_bonus
+            if total >= min_score:
+                # Try PD drilling
+                pd_lord = None
+                pd_start = ad_start
+                pd_end = ad_end
+                precision = "AD"
+                try:
+                    pds = _compute_pds_for_ad(ad_lord, ad_start, ad_end)
+                    if pds:
+                        # Find best PD that's in the future window
+                        best_pd = None
+                        best_pd_score = 0
+                        for pd in pds:
+                            ps = pd.get("start", "")[:10]
+                            pe = pd.get("end", "")[:10]
+                            if pe < from_date:
+                                continue
+                            pl = pd.get("lord", "")
+                            ps_score = lord_map.get(pl, (0, ""))[0] if pl in lord_map else 0
+                            if ps_score > best_pd_score:
+                                best_pd = pd
+                                best_pd_score = ps_score
+                        if best_pd and best_pd_score > 0:
+                            pd_lord = best_pd.get("lord")
+                            pd_start = best_pd.get("start", ad_start)[:10]
+                            pd_end = best_pd.get("end", ad_end)[:10]
+                            precision = "PD"
+                            total += 1  # PD bonus
+                except Exception:
+                    pass
+
+                results.append({
+                    "event_type": event_type,
+                    "window_start": pd_start if precision == "PD" else ad_start,
+                    "window_end": pd_end if precision == "PD" else ad_end,
+                    "start": ad_start,
+                    "end": ad_end,
+                    "planet": ad_lord,
+                    "parent_md": parent_md,
+                    "score": total,
+                    "precision": precision,
+                    "pd_lord": pd_lord,
+                    "candidate_count": 1,
+                    "explanation_short": ad_reason,
+                })
+
+    return results
+
+
+def map_future_events(
+    lagna: str,
+    birth_year: int,
+    ads: list,
+    from_date: str = None,
+    to_date: str = None,
+) -> dict:
+    """
+    Like map_all_events() but for future windows.
+    Returns dict keyed by event_type, value = best future window.
+    """
+    all_future = find_future_windows(lagna, birth_year, ads, from_date, to_date)
+
+    best = {}
+    for w in all_future:
+        et = w["event_type"]
+        if et not in best or w["score"] > best[et]["score"]:
+            best[et] = w
+
+    return best
+
+
 def map_all_events(birth_year: int, lagna: str, ads: list) -> dict:
     """Compute all standard life event windows. Works for any chart."""
     results = {}
