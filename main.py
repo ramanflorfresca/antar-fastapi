@@ -2320,15 +2320,30 @@ async def get_past_events(
             # Normalize priority score (1-10) to base confidence (2-7).
             # Top-priority planets (score=10) start at 7, not 10, so signals
             # below can differentiate without everything saturating at the cap.
-            _base      = max(2, min(7, round(score * 0.7)))
+            # Base: scale 0.6 keeps top-priority (score=10) capped at 6.
+            # This prevents everything saturating at 9 — best unvalidated
+            # event scores 6+1+1=8; multi-chart validated can reach 9 via
+            # future natal-promise bonus.
+            _base      = max(2, min(6, round(score * 0.6)))
             # +1 if the PD precision drill found a sub-period (higher certainty)
             _pd_bonus  = 1 if w.get("pd_lord") else 0
-            # +1 if multiple candidate ADs were in the eligible age window
-            _corr      = 1 if candidate_count >= 2 else 0
+            # +1 if THREE or more candidate ADs corroborate (raised bar from 2→3)
+            _corr      = 1 if candidate_count >= 3 else 0
             confidence = min(10, _base + _pd_bonus + _corr)
             # Fix C (confidence tier): ended without a preceding began → low confidence
             if event_type == "serious_partnership_ended" and w.get("_dependency_fail"):
                 confidence = min(confidence, 3)
+            # Fix C2: if began exists but itself scores below 5, cap ended at began level
+            if event_type == "serious_partnership_ended":
+                _began_w = raw_map.get("serious_partnership_began")
+                if _began_w:
+                    _began_score = _began_w.get("score", 5)
+                    _began_base  = max(2, min(6, round(_began_score * 0.6)))
+                    _began_pd    = 1 if _began_w.get("pd_lord") else 0
+                    _began_conf  = _began_base + _began_pd
+                    if _began_conf < 5:
+                        confidence = min(confidence, _began_conf)
+                        print(f"[CONF-C2] began_conf={_began_conf} → capping ended at {confidence}")
             # Fix E: children events require a detected partnership as prerequisite
             if event_type in ("family_expansion_first", "family_expansion_second"):
                 if not raw_map.get("serious_partnership_began"):

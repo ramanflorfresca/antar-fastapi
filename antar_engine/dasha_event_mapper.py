@@ -779,7 +779,12 @@ def find_event_window(
     if not candidates:
         return None
 
-    candidates.sort(key=lambda x: (-x["score"], x["start_year"]))
+    # For divorce/separation prefer LATER matching AD so Sun-Saturn (2006)
+    # does not beat Moon-Saturn (2014) when both satisfy the rule.
+    if event_type == "serious_partnership_ended":
+        candidates.sort(key=lambda x: (-x["score"], -x["start_year"]))
+    else:
+        candidates.sort(key=lambda x: (-x["score"], x["start_year"]))
     best = candidates[0]
     best["midpoint_year"] = (best["start_year"] + best["end_year"]) // 2
     best["event_type"] = event_type
