@@ -4661,19 +4661,35 @@ async def get_user_profile(request: Request):
         if not chart_id:
             return {"language": "en", "career_stage": None, "relationship_stage": None}
         result = supabase.table("charts").select(
-            "id, first_name, lagna, moon_sign, current_country, language"
+            "id, first_name, name, display_name, email, birth_date, "
+            "birth_city, birth_country, current_city, current_country, "
+            "lagna_sign, moon_sign, sun_sign, language, gender, "
+            "marital_status, children_status, career_stage, lagna"
         ).eq("id", chart_id).single().execute()
         if not result.data:
-            return {"language": "en", "career_stage": None, "relationship_stage": None}
+            raise HTTPException(status_code=404, detail="Chart not found")
         chart = result.data
         return {
             "chart_id": chart_id,
-            "first_name": chart.get("first_name", ""),
-            "language": chart.get("language", "en"),
+            "id": chart.get("id", chart_id),
+            "first_name": chart.get("first_name") or chart.get("name", ""),
+            "name": chart.get("name", ""),
+            "display_name": chart.get("display_name", ""),
+            "email": chart.get("email", ""),
+            "birth_date": str(chart.get("birth_date", "") or "")[:10],
+            "birth_city": chart.get("birth_city", ""),
+            "birth_country": chart.get("birth_country", ""),
+            "current_city": chart.get("current_city", ""),
+            "current_country": chart.get("current_country", ""),
+            "lagna_sign": chart.get("lagna_sign", ""),
             "lagna": chart.get("lagna", ""),
             "moon_sign": chart.get("moon_sign", ""),
-            "current_country": chart.get("current_country", ""),
-            "career_stage": None,
+            "sun_sign": chart.get("sun_sign", ""),
+            "language": chart.get("language") or "en",
+            "gender": chart.get("gender", ""),
+            "marital_status": chart.get("marital_status", ""),
+            "children_status": chart.get("children_status", ""),
+            "career_stage": chart.get("career_stage"),
             "relationship_stage": None,
             "remedy_style": "secular",
         }

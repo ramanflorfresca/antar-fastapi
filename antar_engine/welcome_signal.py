@@ -171,16 +171,22 @@ async def generate_welcome_signal(
         pass
 
     # ── Build context ─────────────────────────────────────────────
-    context = _build_welcome_context(
-        chart_data, dashas, first_name, lagna,
-        moon_sign, current_dasha, age, country_code,
-        birth_date=birth_date,
-        chart_id=chart_id,
-        supabase=supabase,
-    )
+    try:
+        context = _build_welcome_context(
+            chart_data, dashas, first_name, lagna,
+            moon_sign, current_dasha, age, country_code,
+            birth_date=birth_date,
+            chart_id=chart_id,
+            supabase=supabase,
+        )
+    except Exception as _ctx_err:
+        logger.error(f"[welcome] Context build failed: {_ctx_err}")
+        context = None
 
     # ── Call Claude ───────────────────────────────────────────────
     result = await _call_claude(context, claude_client)
+    if result is None:
+        result = _fallback_signal()
 
     # ── Inject first_name into Signal 1 headline if missing ──────
     if first_name and result:
@@ -191,6 +197,8 @@ async def generate_welcome_signal(
             result["signal_1"] = s1
 
     # ── Save to DB (flattened for Supabase) ──────────────────────
+    if result is None:
+        result = _fallback_signal()
     try:
         s1 = result.get("signal_1", {})
         s2 = result.get("signal_2", {})

@@ -312,13 +312,24 @@ def build_and_store_jaimini(
     birth_date = datetime.strptime(birth_date_str, "%Y-%m-%d")
     target_date = datetime.now()
 
-    # Build full context
-    ctx = build_jaimini_context(lagna_sign, planets, d9_planets, birth_date, target_date)
+    # Initialise before the build block so variables are always bound,
+    # even if build_jaimini_context raises early (prevents UnboundLocalError).
+    jaimini_data = {}
+    prompt_block = ""
+    dasha_rows = []
 
-    # Serialize
-    jaimini_data = jaimini_to_db_json(ctx)
-    prompt_block = format_jaimini_prompt_block(ctx)
-    dasha_rows = generate_dasha_rows(chart_id, lagna_sign, planets, birth_date, num_cycles=2)
+    try:
+        # Build full context
+        ctx = build_jaimini_context(lagna_sign, planets, d9_planets, birth_date, target_date)
+
+        # Serialize
+        jaimini_data = jaimini_to_db_json(ctx)
+        prompt_block = format_jaimini_prompt_block(ctx)
+        dasha_rows = generate_dasha_rows(chart_id, lagna_sign, planets, birth_date, num_cycles=2)
+    except Exception as _build_err:
+        logger.error(f"Jaimini context build failed for chart {chart_id}: {_build_err}")
+        # Return early with empty data rather than propagate an unbound-variable crash
+        return {"jaimini_data": jaimini_data, "dasha_rows": dasha_rows, "prompt_block": prompt_block}
 
     # Store to DB if client provided
     if supabase_client:

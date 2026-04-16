@@ -600,6 +600,18 @@ def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
                 f"but plain_summary has positive framing. Chart may receive wrong signal. "
                 f"Summary: '{result.get('plain_summary', '')[:100]}'"
             )
+            # CORRECTION: patch plain_summary to preserve the friction/wait signal
+            _negation_words = {"not", "don't", "avoid", "wait", "delay",
+                               "hold off", "isn't", "won't", "pause", "caution"}
+            _ps = result.get("plain_summary") or ""
+            _ps_lower = _ps.lower()
+            if _ps and not any(w in _ps_lower for w in _negation_words):
+                result["plain_summary"] = (
+                    "This is not the right moment to push forward. " + _ps
+                )
+                logging.getLogger("plain_english").info(
+                    "plain_english: auto-corrected positive plain_summary to match friction timing"
+                )
         elif _timing_has_positive and _summary_has_friction:
             import logging
             logging.getLogger("plain_english").warning(
