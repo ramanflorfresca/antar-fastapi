@@ -1,0 +1,153 @@
+================================================================================
+ANTAR VOICE SPEC V2 — ADDENDUM: COACH VOICE + VOICE GRADUATION
+================================================================================
+Date: April 16, 2026
+Extends: ANTAR_VOICE_SPEC_V2.txt
+Purpose: Defines the Coach Voice mode and the graduation from
+         Coach Voice → Mentor Voice based on user engagement.
+================================================================================
+1. TWO VOICE MODES
+================================================================================
+MODE: COACH VOICE (default for new users)
+─────────────────────────────────────────
+No planet names. Pure energy language. The user feels the reading
+without learning any new vocabulary.
+
+  "Your discipline energy is working quietly behind the scenes,
+   in your daily routines and work life."
+
+  "Three powerful energies are clustering in the part of your
+   life connected to gains, friendships, and your professional
+   network."
+
+  "The first stretch is pure ignition. Think of it as lighting
+   the fuse."
+
+MODE: MENTOR VOICE (for returning/engaged users)
+────────────────────────────────────────────────
+Planet names present with parenthetical translation. User builds
+Vedic vocabulary through repetition.
+
+  "Saturn planet of (discipline, structure) is supporting this
+   from your daily work area."
+
+  "Three planets gathered in your gains and networks area:
+   Sun planet of (identity), Venus planet of (partnership),
+   and Rahu planet of (ambition)."
+
+  "The first sub-chapter is pure Rahu energy through April 2029
+   — the ignition window."
+
+KEY DIFFERENCE:
+  Coach: "your discipline energy" — sounds like a part of YOU
+  Mentor: "Saturn planet of (discipline)" — sounds like an external force
+
+Coach Voice gives agency. Mentor Voice gives education.
+Start with agency. Graduate to education when trust is built.
+
+================================================================================
+2. VOICE GRADUATION LOGIC
+================================================================================
+Track user engagement to determine voice mode:
+  sessions_count: number of Ask Antar conversations
+  days_active: days since first chart creation where user opened app
+  practices_completed: total practice sessions marked complete
+
+RULES:
+  Coach Voice (default):
+    sessions_count < 10 OR days_active < 14
+
+  Mentor Voice (graduated):
+    sessions_count >= 10 AND days_active >= 14
+
+  Override: User can toggle in profile settings
+    "Show me the planet names" → forces Mentor Voice
+    "Keep it simple" → forces Coach Voice
+
+IMPLEMENTATION:
+  Add to charts table:
+    voice_mode VARCHAR DEFAULT 'coach'  -- 'coach' | 'mentor' | 'auto'
+
+  If voice_mode = 'auto' (default):
+    Apply graduation rules above
+
+  If voice_mode = 'coach' or 'mentor':
+    User has explicitly chosen — respect it
+
+================================================================================
+3. COACH VOICE — FULL TRANSLATION TABLE
+================================================================================
+PLANET → COACH VOICE LABEL:
+  Sun      → "your identity and authority energy"
+  Moon     → "your emotional and nurturing energy"
+  Mars     → "your drive and action energy"
+  Mercury  → "your communication and intellect energy"
+  Jupiter  → "a growth and wisdom energy"
+  Venus    → "your love and partnership energy"
+  Saturn   → "your discipline and structure energy"
+  Rahu     → "your ambition and breakthrough energy"
+  Ketu     → "your letting-go and liberation energy"
+
+  Note: "your" for energies the user already has active.
+        "a" for energies arriving or transitioning in.
+
+HOUSE AREAS → COACH VOICE LABEL:
+  1st   → "your sense of self"
+  2nd   → "your sense of home, family, and material security"
+  3rd   → "your daily communication and courage"
+  4th   → "your emotional foundation and where you feel safe"
+  5th   → "your creative life and joy"
+  6th   → "your daily routines and work life"
+  7th   → "your closest partnerships and commitments"
+  8th   → "the hidden, transformative part of your life"
+  9th   → "your beliefs, travels, and sense of purpose"
+  10th  → "your career and public reputation"
+  11th  → "the part of your life connected to gains, friendships,
+           and your professional network"
+  12th  → "your inner world, foreign connections, and what you
+           let go of"
+
+DASHA TERMS → COACH VOICE:
+  Mahadasha      → "chapter" (same as Mentor)
+  Antardasha     → "the first stretch" / "the next stretch"
+  Pratyantar     → "the moment things crystallize"
+  Dasha sandhi   → "the shift" / "the transition between chapters"
+
+DIGNITIES → COACH VOICE:
+  Exalted        → "at its strongest"
+  Own sign       → "completely at home"
+  Debilitated    → "running low" / "needs strengthening"
+  Retrograde     → "turned inward, processing"
+  Combust        → "overshadowed"
+
+PATTERNS → COACH VOICE:
+  Stellium       → "three powerful energies clustering together"
+  Conjunction    → "two energies working side by side"
+  Opposition     → "two energies pulling in opposite directions"
+  Trine          → "energies flowing easily between areas"
+  Square         → "energies creating productive friction"
+
+================================================================================
+4. PER-SURFACE VOICE MODE
+================================================================================
+ALWAYS COACH VOICE:
+  - Onboarding (signature verification screen)
+  - Welcome signal
+  - Landing page / marketing
+  - Share cards (social sharing)
+  - Push notifications
+
+VOICE MODE FOLLOWS GRADUATION:
+  - Ask Antar (conversational)
+  - Coming Up card (dashboard)
+  - Daily Signal (Today tab)
+  - Weekly briefing
+  - Compatibility reading
+
+ALWAYS MENTOR VOICE:
+  - None. Even expert users benefit from Coach Voice on first
+    encounter with a new feature.
+
+================================================================================
+END OF ADDENDUM
+================================================================================

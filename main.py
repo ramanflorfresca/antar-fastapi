@@ -2423,9 +2423,10 @@ async def get_past_events(
 # UPCOMING-THEMES  —  LLM narration helpers
 # ═══════════════════════════════════════════════════════════════════════════════
 
-def _build_upcoming_themes_prompt(chart_data, profile, future_windows, rahu_md_ads=None):
+def _build_upcoming_themes_prompt(chart_data, profile, future_windows, rahu_md_ads=None, voice_mode="mentor"):
     """
     Build the 3-layer prompt for Claude to narrate upcoming themes.
+    voice_mode: 'coach' (no planet names, pure energy language) or 'mentor' (planet names + parentheticals)
     Returns the full prompt string.
     """
     from datetime import datetime as _dt
@@ -2512,12 +2513,78 @@ def _build_upcoming_themes_prompt(chart_data, profile, future_windows, rahu_md_a
     nak_idx = NAK_LIST.index(moon_nak) if moon_nak in NAK_LIST else -1
     if 0 <= nak_idx <= 8:
         nak_group = "Group 1 — creation energy, action-oriented, high physical vitality"
+        nak_tone = (
+            "TONE CALIBRATION (Group 1 — Creation): "
+            "Punchy, direct, action-first. Lead with what to DO, then why. "
+            "Shorter sentences. Less philosophy. "
+            '"Here\'s what\'s happening. Here\'s what to do. Go."'
+        )
     elif 9 <= nak_idx <= 17:
         nak_group = "Group 2 — sustaining energy, strategic, structure-minded"
+        nak_tone = (
+            "TONE CALIBRATION (Group 2 — Sustaining): "
+            "Balanced, strategic, measured. Equal weight to analysis and action. "
+            '"Here\'s the pattern. Here\'s the strategy. Here\'s the move."'
+        )
     elif 18 <= nak_idx <= 26:
         nak_group = "Group 3 — wisdom energy, reflective, pattern-recognition, guide archetype"
+        nak_tone = (
+            "TONE CALIBRATION (Group 3 — Wisdom): "
+            "Contemplative, meaning-first, then action. Lead with WHY and PATTERN, "
+            "then what to do. "
+            '"Here\'s what this means. Here\'s the deeper pattern. '
+            'And here\'s the one thing to do about it."'
+        )
     else:
         nak_group = "unknown"
+        nak_tone = "TONE CALIBRATION: Balanced, direct, confident."
+
+    # Voice mode instruction
+    if voice_mode == "coach":
+        voice_instruction = """
+══════════════════════════════════════════════
+VOICE MODE: COACH (this user is new — no planet names)
+══════════════════════════════════════════════
+CRITICAL: Do NOT use any planet names (Sun, Moon, Mars, Mercury, Jupiter, Venus,
+Saturn, Rahu, Ketu). Instead, refer to energies by their QUALITY:
+  Sun      → "your identity and authority energy"
+  Moon     → "your emotional and nurturing energy"
+  Mars     → "your drive and action energy"
+  Mercury  → "your communication and intellect energy"
+  Jupiter  → "a growth and wisdom energy" (use "a" for arriving energies)
+  Venus    → "your love and partnership energy"
+  Saturn   → "your discipline and structure energy"
+  Rahu     → "your ambition and breakthrough energy"
+  Ketu     → "your letting-go and liberation energy"
+
+For life areas, use descriptive language:
+  Instead of "your gains and networks area" say "the part of your life connected
+  to gains, friendships, and your professional network"
+  Instead of "your foreign and transcendence area" say "your inner world, foreign
+  connections, and what you let go of"
+
+For dasha terms:
+  AD → "the first stretch" / "the next stretch" (not "sub-chapter")
+  PD → "the moment things crystallize" (not "inner window")
+
+For patterns:
+  Stellium → "three powerful energies clustering together"
+  Conjunction → "two energies working side by side"
+
+The goal: the user FEELS the reading without learning new vocabulary.
+Everything should sound like it's describing a part of THEM, not external forces.
+"""
+    else:
+        voice_instruction = """
+══════════════════════════════════════════════
+VOICE MODE: MENTOR (this user is familiar with Vedic terminology)
+══════════════════════════════════════════════
+Use planet names with parenthetical on first mention:
+  "Saturn planet of (discipline, structure)" — then "Saturn" alone after.
+Use area labels: "your gains and networks area".
+Use dasha translations: chapter, sub-chapter, inner window.
+The user has built vocabulary through prior sessions — speak to their knowledge.
+"""
 
     # Layer 3: Future windows
     window_lines = []
@@ -2540,31 +2607,125 @@ def _build_upcoming_themes_prompt(chart_data, profile, future_windows, rahu_md_a
             parens = PLANET_PARENS.get(lord, "")
             rahu_lines.append(f"    Rahu-{lord} ({parens}): {s} to {e}")
 
-    prompt = f"""You are Antar — a Vedic astrology-powered life advisor. You are writing
-a "Coming Up" prediction card for a real person's dashboard.
+    # Planet → Chakra/Center mapping
+    PLANET_CENTER = {
+        "Sun": "Solar Plexus center — where confidence, willpower, and identity live",
+        "Moon": "Sacral center — where emotions, intuition, and nurturing live",
+        "Mars": "Root center — where security, physical vitality, and drive live",
+        "Mercury": "Throat center — where communication, intellect, and expression live",
+        "Jupiter": "Crown center — where wisdom, expansion, and higher purpose live",
+        "Venus": "Heart center — where love, beauty, and partnership live",
+        "Saturn": "Root center — where discipline, structure, and endurance live",
+        "Rahu": "Third Eye center — where vision, ambition, and breakthrough live",
+        "Ketu": "Crown center — where detachment, liberation, and spirituality live",
+    }
+    # Determine the primary planet driving the most significant window
+    primary_planet = ""
+    if future_windows:
+        _fw0 = future_windows[0]
+        primary_planet = _fw0.get("parent_md") or _fw0.get("planet") or ""
+    center_link = ""
+    if primary_planet and primary_planet in PLANET_CENTER:
+        center_link = f"{primary_planet} · {PLANET_CENTER[primary_planet].split(' — ')[0]}"
+
+    prompt = f"""You are Antar — a senior advisor who has studied this person's chart for years
+and genuinely cares about their outcome. Not a fortune teller. Not a therapist.
+Not a textbook. A mentor who sees the pattern clearly and tells them what to do about it.
+
+You are writing a "Coming Up" prediction card for their dashboard.
+
+THREE CORE PRINCIPLES:
+1. Acknowledge the human, then show the chart
+2. Reframe any weakness or difficulty as a natural phase, never as broken
+3. End with agency — the user drives, Antar navigates
 
 You have three layers of context:
 1. Their birth chart (natal positions, karakas)
 2. Their life context (DKP — where they live, what they do, who they are now)
 3. The upcoming dasha window(s)
 
-YOUR TASK:
-Write a prediction for the most significant upcoming window. This appears on their
-dashboard as a card they read every day. It must feel like a senior advisor who knows
-their chart AND their life speaking directly to them.
+{nak_tone}
+{voice_instruction}
+══════════════════════════════════════════════
+VOCABULARY RULES (STRICT — violating these is a failure):
+══════════════════════════════════════════════
 
-RULES:
-- Use planet names with parentheticals: "Rahu planet of (ambition, breakthrough, foreign)"
-- Never use house numbers (say "your gains and networks area" not "11th house")
-- Never use: MD, AD, PD, lord, lagna, dasha — say "chapter" "sub-chapter" "inner window"
-- Name the specific life areas that activate: career, partnerships, wealth, creativity
-- Connect the prediction to their ACTUAL life situation using the DKP context
-- Include one "what to watch for" caution
-- End with "YOUR MOVE" — one specific actionable thing to do before the window opens
-- Total length: 150-200 words for body. Not more.
-- Tone: confident, warm, specific. Like a mentor who sees the pattern clearly.
-- Do NOT be vague or hedge with "may" and "could" — be direct
+PLANET NAMES:
+  First mention: "Mars planet of (action, drive, energy)" — full parenthetical
+  Subsequent mentions: "Mars" alone
+
+HOUSE AREAS — NEVER use house numbers. Always say:
+  H1="your identity and self area"  H2="your wealth and family area"
+  H3="your courage and communication area"  H4="your home and foundation area"
+  H5="your children and creativity area"  H6="your daily work and service area"
+  H7="your partnership and marriage area"  H8="your transformation and hidden area"
+  H9="your luck and long journeys area"  H10="your career and public life area"
+  H11="your gains and networks area"  H12="your foreign and transcendence area"
+
+DASHA PERIODS — NEVER use MD, AD, PD, mahadasha, antardasha, pratyantar, lord, lagna, dasha:
+  MD = "chapter" (the big arc)
+  AD = "sub-chapter" (the current focus)
+  PD = "inner window" (the specific moment)
+
+TIME LANGUAGE: "window" not "period". "chapter" not "phase". "transition" not "change".
+
+CHAKRA/CENTER NAMES — use English: Root, Sacral, Solar Plexus, Heart, Throat, Third Eye, Crown
+  First mention: add what it governs ("Your Root center — where security and physical vitality live")
+  Subsequent: "Root center" alone
+
+BANNED WORDS/PHRASES (never use these):
+  "may" or "could" when stating chart facts — be direct
+  "it seems like" — commit to the reading
+  "based on your chart" — everything is; don't state the obvious
+  "the universe" — too generic
+  "manifest" — overused
+  "journey" — overused
+  "aligned" as vague positive
+  "vibration" — use "frequency" or "energy"
+  "divine timing" — say "your chart's timing"
+  "trust the process" — give something specific to trust
+  "everything happens for a reason" — tell them the reason
+  "unfortunately" — reframe as natural phase
+  "your chart says" — say "your energy map shows" or "the pattern in your chart is"
+
+══════════════════════════════════════════════
+METAPHOR LIBRARY (use these, not generic ones):
+══════════════════════════════════════════════
+
+For low/weak energy: "walking through water", "the pause between exhale and inhale",
+  "a battery recharging before the next sprint", "soil resting between planting seasons"
+For transition/chapter change: "the gear shift between third and fourth",
+  "one chapter closing so the binding can hold the next"
+For strong/activated energy: "a current that's been building and finally breaks the surface",
+  "the ignition, not the spark — everything that follows is momentum",
+  "three rivers converging into one channel"
+For stellium/convergence: "three instruments playing the same note at different octaves",
+  "a triple lock opening simultaneously"
+DO NOT USE: war metaphors, death metaphors, gambling metaphors, generic nature metaphors
+
+══════════════════════════════════════════════
+ANTI-PATTERNS (what Antar NEVER does):
+══════════════════════════════════════════════
+- NEVER predict death or loss
+- NEVER tell a married user their marriage will end
+- NEVER end with a follow-up question ("Want me to explore...?" — NO)
+- NEVER give a menu of 5 actions (one micro-action + one deeper practice, max two)
+- NEVER apologize for what the chart shows — reframe as natural
+- NEVER use astrology to explain away accountability
+
+══════════════════════════════════════════════
+COMING UP CARD FORMAT:
+══════════════════════════════════════════════
+
+Write a prediction for the most significant upcoming window.
+- Headline: max 8 words, punchy, active voice
+- Body: 150-200 words. Connect chart → life context → action.
+- Show planet + center connection in the body naturally
 - If a major chapter transition is happening (e.g. Mars→Rahu), lead with that — it's the headline
+- Caution: one sentence — what to watch for
+- YOUR MOVE: one specific, time-bound action before this window opens
+- Energy tags: 2-4 chips for visual scanning
+- Center link: which planet · which center is most activated
 
 Return ONLY valid JSON, no markdown fences, no other text:
 {{
@@ -2572,10 +2733,13 @@ Return ONLY valid JSON, no markdown fences, no other text:
   "body": "the prediction text, 150-200 words",
   "caution": "one sentence — what to watch for",
   "your_move": "one specific action before this window opens",
-  "energy_tags": ["tag1", "tag2", "tag3"]
+  "energy_tags": ["tag1", "tag2", "tag3"],
+  "center_link": "{center_link}"
 }}
 
+══════════════════════════════════════════════
 CHART CONTEXT:
+══════════════════════════════════════════════
   Lagna: {lagna}
   Moon: {moon_sign} / {moon_nak} ({nak_group})
   Atmakaraka: {atmakaraka}
@@ -2593,6 +2757,20 @@ UPCOMING WINDOWS (from mapper):
 {chr(10).join(window_lines) if window_lines else "  No specific windows identified by mapper."}
 {"MAJOR CHAPTER SUB-PERIOD SEQUENCE:" if rahu_lines else ""}
 {chr(10).join(rahu_lines) if rahu_lines else ""}
+
+REFERENCE EXAMPLE (for tone and structure — do NOT copy content):
+HEADLINE: Your 18-Year Expansion Chapter Ignites
+BODY: What you've been building under Mars planet of (action, drive, courage) — the
+infrastructure, the co-founder relationship, the 17-country payment system — was
+preparation. August 2026 is not a transition. It is an ignition. Rahu planet of
+(ambition, breakthrough, foreign) begins its 18-year chapter activating the most
+powerful cluster in your chart: three planets gathered in your gains and networks
+area fire simultaneously. Your Third Eye center — where vision and breakthrough
+live — is the energy channel opening here.
+CAUTION: Rahu amplifies everything including overextension — the first 6 months
+can feel like drinking from a firehose.
+YOUR MOVE: Lock one anchor market before August — a specific target, a specific
+segment — so when Rahu ignites, you're accelerating something already moving.
 """
     return prompt
 
@@ -2608,10 +2786,11 @@ async def _get_or_generate_upcoming_themes_llm(
     future_windows: list,
     rahu_md_ads: list = None,
     refresh: bool = False,
+    voice_mode: str = "coach",
 ):
     """
     Get cached Claude narration or generate fresh.
-    Cache TTL: 30 days.
+    Cache TTL: 30 days. Cache is invalidated if voice_mode changes.
     """
     from datetime import datetime, timedelta
 
@@ -2625,19 +2804,24 @@ async def _get_or_generate_upcoming_themes_llm(
                 cached = cache_row.data.get("upcoming_themes_cache")
                 cached_at = cache_row.data.get("upcoming_themes_cached_at")
                 if cached and cached_at:
-                    try:
-                        cached_dt = datetime.fromisoformat(cached_at.replace("Z", "+00:00"))
-                        now = datetime.now(cached_dt.tzinfo) if cached_dt.tzinfo else datetime.now()
-                        if now - cached_dt < timedelta(days=30):
-                            print(f"[upcoming-themes-llm] Cache hit for {chart_id}")
-                            return cached
-                    except Exception:
-                        pass  # Stale or bad timestamp — regenerate
+                    # Invalidate cache if voice_mode changed
+                    cached_vm = cached.get("_voice_mode") if isinstance(cached, dict) else None
+                    if cached_vm and cached_vm != voice_mode:
+                        print(f"[upcoming-themes-llm] Voice mode changed ({cached_vm}→{voice_mode}), regenerating")
+                    else:
+                        try:
+                            cached_dt = datetime.fromisoformat(cached_at.replace("Z", "+00:00"))
+                            now = datetime.now(cached_dt.tzinfo) if cached_dt.tzinfo else datetime.now()
+                            if now - cached_dt < timedelta(days=30):
+                                print(f"[upcoming-themes-llm] Cache hit for {chart_id} (voice={voice_mode})")
+                                return cached
+                        except Exception:
+                            pass  # Stale or bad timestamp — regenerate
         except Exception as e:
             print(f"[upcoming-themes-llm] Cache read error: {e}")
 
     # Build prompt
-    prompt = _build_upcoming_themes_prompt(chart_data, profile, future_windows, rahu_md_ads)
+    prompt = _build_upcoming_themes_prompt(chart_data, profile, future_windows, rahu_md_ads, voice_mode=voice_mode)
 
     # Call Claude (async — uses the global claude_client)
     print(f"[upcoming-themes-llm] Generating for {chart_id}...")
@@ -2651,6 +2835,8 @@ async def _get_or_generate_upcoming_themes_llm(
         # Parse JSON from response (strip markdown fences if present)
         clean = _re.sub(r"```json\s*|```\s*", "", raw_text).strip()
         result = _json.loads(clean)
+        # Tag with voice mode so cache can be invalidated on mode change
+        result["_voice_mode"] = voice_mode
 
         # Cache in Supabase (fire-and-forget — don't block on failure)
         try:
@@ -2658,7 +2844,7 @@ async def _get_or_generate_upcoming_themes_llm(
                 "upcoming_themes_cache": result,
                 "upcoming_themes_cached_at": datetime.now().isoformat(),
             }).eq("id", chart_id).execute()
-            print(f"[upcoming-themes-llm] Generated + cached for {chart_id}")
+            print(f"[upcoming-themes-llm] Generated + cached for {chart_id} (voice={voice_mode})")
         except Exception as ce:
             print(f"[upcoming-themes-llm] Cache write error (non-fatal): {ce}")
 
@@ -2697,7 +2883,7 @@ async def get_upcoming_themes(
 
         # ── 1. Fetch chart row ────────────────────────────────────────────
         chart_res = supabase.table("charts").select(
-            "chart_data,birth_date,first_name,name,lagna_sign,marital_status,children_status"
+            "chart_data,birth_date,first_name,name,lagna_sign,marital_status,children_status,voice_mode"
         ).eq("id", chart_id).single().execute()
 
         if not chart_res.data:
@@ -2713,7 +2899,11 @@ async def get_upcoming_themes(
         cutoff_date = (datetime.now() + timedelta(days=months_ahead * 30)).strftime("%Y-%m-%d")
         marital_status  = (chart_res.data.get("marital_status") or "").lower().strip()
         children_status = (chart_res.data.get("children_status") or "").lower().strip()
-        print(f"[UPCOMING-THEMES] chart={chart_id} lagna={lagna} look_ahead={months_ahead}mo cutoff={cutoff_date}")
+
+        # Voice mode: 'coach' (default for new users) or 'mentor' (graduated)
+        _vm_raw = (chart_res.data.get("voice_mode") or "coach").lower().strip()
+        voice_mode = _vm_raw if _vm_raw in ("coach", "mentor") else "coach"
+        print(f"[UPCOMING-THEMES] chart={chart_id} lagna={lagna} voice={voice_mode} look_ahead={months_ahead}mo cutoff={cutoff_date}")
 
         # ── 2. Fetch vimsottari antardashas ───────────────────────────────
         ads_res = supabase.table("dasha_periods")             .select("planet_or_sign,start_date,end_date,level,type,metadata")             .eq("chart_id", chart_id)             .eq("system", "vimsottari")             .order("start_date")             .execute()
@@ -2954,14 +3144,17 @@ async def get_upcoming_themes(
                     future_windows=_fw,
                     rahu_md_ads=rahu_md_ads,
                     refresh=refresh,
+                    voice_mode=voice_mode,
                 )
                 if llm_narration and isinstance(llm_narration, dict):
                     llm_card = {
-                        "headline":    llm_narration.get("headline", ""),
-                        "body":        llm_narration.get("body", ""),
-                        "caution":     llm_narration.get("caution", ""),
-                        "your_move":   llm_narration.get("your_move", ""),
-                        "energy_tags": llm_narration.get("energy_tags", []),
+                        "headline":     llm_narration.get("headline", ""),
+                        "body":         llm_narration.get("body", ""),
+                        "caution":      llm_narration.get("caution", ""),
+                        "your_move":    llm_narration.get("your_move", ""),
+                        "energy_tags":  llm_narration.get("energy_tags", []),
+                        "center_link":  llm_narration.get("center_link", ""),
+                        "voice_mode":   voice_mode,
                     }
             except Exception as llm_err:
                 print(f"[upcoming-themes-llm] Non-fatal error: {llm_err}")
