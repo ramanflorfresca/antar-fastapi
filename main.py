@@ -2419,6 +2419,254 @@ async def get_past_events(
         raise HTTPException(status_code=500, detail=f"Failed to compute past events: {str(e)}")
 
 
+# ═══════════════════════════════════════════════════════════════════════════════
+# UPCOMING-THEMES  —  LLM narration helpers
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _build_upcoming_themes_prompt(chart_data, profile, future_windows, rahu_md_ads=None):
+    """
+    Build the 3-layer prompt for Claude to narrate upcoming themes.
+    Returns the full prompt string.
+    """
+    from datetime import datetime as _dt
+
+    cd = chart_data or {}
+    planets = cd.get("planets", {})
+    lagna_obj = cd.get("lagna", {})
+    lagna = lagna_obj.get("sign") if isinstance(lagna_obj, dict) else lagna_obj
+
+    # Layer 1: Chart DNA
+    PLANET_PARENS = {
+        "Sun": "identity, authority, vitality",
+        "Moon": "emotions, mind, mother, nurturing",
+        "Mars": "action, drive, courage, conflict",
+        "Mercury": "communication, intellect, business, travel",
+        "Jupiter": "growth, wisdom, children, expansion",
+        "Venus": "love, beauty, partnership, money",
+        "Saturn": "discipline, time, structure, hard lessons",
+        "Rahu": "ambition, hunger, foreign, breakthrough",
+        "Ketu": "detachment, liberation, past karma, spirituality",
+    }
+    HOUSE_LABELS = {
+        1: "self & identity area", 2: "wealth & family area",
+        3: "courage & communication area", 4: "home & foundation area",
+        5: "children & creativity area", 6: "daily work & service area",
+        7: "partnership & marriage area", 8: "transformation & hidden area",
+        9: "luck & long journeys area", 10: "career & public life area",
+        11: "gains & networks area", 12: "foreign & transcendence area",
+    }
+
+    planet_lines = []
+    for pname, pdata in planets.items():
+        if isinstance(pdata, dict):
+            sign = pdata.get("sign", "?")
+            house = pdata.get("house", 0)
+            nak = pdata.get("nakshatra", "")
+            area = HOUSE_LABELS.get(house, f"house {house}")
+            parens = PLANET_PARENS.get(pname, "")
+            planet_lines.append(f"    {pname} ({parens}) in {sign}, {area}, nakshatra {nak}")
+
+    # Detect stelliums (3+ planets in same house)
+    house_counts = {}
+    for pname, pdata in planets.items():
+        if isinstance(pdata, dict):
+            h = pdata.get("house", 0)
+            house_counts.setdefault(h, []).append(pname)
+    stellium_lines = []
+    for h, plist in house_counts.items():
+        if len(plist) >= 3:
+            area = HOUSE_LABELS.get(h, f"house {h}")
+            stellium_lines.append(
+                f"  Stellium: {' + '.join(plist)} in {area} — modern wealth/power signal"
+            )
+
+    # Layer 2: DKP
+    first_name = profile.get("first_name") or profile.get("name") or "this person"
+    birth_country = profile.get("birth_country") or "unknown"
+    current_country = profile.get("current_country") or "unknown"
+    current_city = profile.get("current_city") or ""
+    career_stage = profile.get("career_stage") or "unknown"
+    marital = profile.get("marital_status") or "unknown"
+    children = profile.get("children_status") or "unknown"
+    moon_sign = profile.get("moon_sign") or cd.get("moon_sign") or "unknown"
+    moon_nak = profile.get("moon_nakshatra") or cd.get("moon_nakshatra") or "unknown"
+    atmakaraka = cd.get("atmakaraka") or "unknown"
+    birth_date = profile.get("birth_date") or ""
+
+    age = ""
+    if birth_date:
+        try:
+            by = int(str(birth_date)[:4])
+            age = str(_dt.now().year - by)
+        except Exception:
+            pass
+
+    # Nakshatra group
+    NAK_LIST = [
+        "Ashwini","Bharani","Krittika","Rohini","Mrigashira","Ardra",
+        "Punarvasu","Pushya","Ashlesha","Magha","Purva Phalguni",
+        "Uttara Phalguni","Hasta","Chitra","Swati","Vishakha","Anuradha",
+        "Jyeshtha","Mula","Purva Ashadha","Uttara Ashadha","Shravana",
+        "Dhanishta","Shatabhisha","Purva Bhadrapada","Uttara Bhadrapada","Revati"
+    ]
+    nak_idx = NAK_LIST.index(moon_nak) if moon_nak in NAK_LIST else -1
+    if 0 <= nak_idx <= 8:
+        nak_group = "Group 1 — creation energy, action-oriented, high physical vitality"
+    elif 9 <= nak_idx <= 17:
+        nak_group = "Group 2 — sustaining energy, strategic, structure-minded"
+    elif 18 <= nak_idx <= 26:
+        nak_group = "Group 3 — wisdom energy, reflective, pattern-recognition, guide archetype"
+    else:
+        nak_group = "unknown"
+
+    # Layer 3: Future windows
+    window_lines = []
+    for w in future_windows:
+        et = w.get("event_type", "unknown")
+        ws = w.get("window_start", "?")
+        we = w.get("window_end", "?")
+        planet = w.get("planet", "?")
+        parent = w.get("parent_md", "?")
+        score = w.get("score", 0)
+        window_lines.append(f"    {et}: {ws} to {we} ({parent} chapter + {planet} sub-chapter, score={score})")
+
+    # Rahu MD sub-chapters if available
+    rahu_lines = []
+    if rahu_md_ads:
+        for ad in rahu_md_ads:
+            lord = ad.get("planet_or_sign", "?")
+            s = (ad.get("start_date") or "")[:10]
+            e = (ad.get("end_date") or "")[:10]
+            parens = PLANET_PARENS.get(lord, "")
+            rahu_lines.append(f"    Rahu-{lord} ({parens}): {s} to {e}")
+
+    prompt = f"""You are Antar — a Vedic astrology-powered life advisor. You are writing
+a "Coming Up" prediction card for a real person's dashboard.
+
+You have three layers of context:
+1. Their birth chart (natal positions, karakas)
+2. Their life context (DKP — where they live, what they do, who they are now)
+3. The upcoming dasha window(s)
+
+YOUR TASK:
+Write a prediction for the most significant upcoming window. This appears on their
+dashboard as a card they read every day. It must feel like a senior advisor who knows
+their chart AND their life speaking directly to them.
+
+RULES:
+- Use planet names with parentheticals: "Rahu planet of (ambition, breakthrough, foreign)"
+- Never use house numbers (say "your gains and networks area" not "11th house")
+- Never use: MD, AD, PD, lord, lagna, dasha — say "chapter" "sub-chapter" "inner window"
+- Name the specific life areas that activate: career, partnerships, wealth, creativity
+- Connect the prediction to their ACTUAL life situation using the DKP context
+- Include one "what to watch for" caution
+- End with "YOUR MOVE" — one specific actionable thing to do before the window opens
+- Total length: 150-200 words for body. Not more.
+- Tone: confident, warm, specific. Like a mentor who sees the pattern clearly.
+- Do NOT be vague or hedge with "may" and "could" — be direct
+- If a major chapter transition is happening (e.g. Mars→Rahu), lead with that — it's the headline
+
+Return ONLY valid JSON, no markdown fences, no other text:
+{{
+  "headline": "short punchy headline, max 8 words",
+  "body": "the prediction text, 150-200 words",
+  "caution": "one sentence — what to watch for",
+  "your_move": "one specific action before this window opens",
+  "energy_tags": ["tag1", "tag2", "tag3"]
+}}
+
+CHART CONTEXT:
+  Lagna: {lagna}
+  Moon: {moon_sign} / {moon_nak} ({nak_group})
+  Atmakaraka: {atmakaraka}
+  Natal positions:
+{chr(10).join(planet_lines)}
+{chr(10).join(stellium_lines) if stellium_lines else "  No stelliums detected."}
+
+LIFE CONTEXT (DKP):
+  DESHA: Lives in {current_city + ", " if current_city else ""}{current_country}. Born in {birth_country}.
+  KALA: Age {age}. {_dt.now().strftime("%B %Y")}.
+        Career stage: {career_stage}.
+  PATRA: Marital status: {marital}. Children: {children}.
+
+UPCOMING WINDOWS (from mapper):
+{chr(10).join(window_lines) if window_lines else "  No specific windows identified by mapper."}
+{"MAJOR CHAPTER SUB-PERIOD SEQUENCE:" if rahu_lines else ""}
+{chr(10).join(rahu_lines) if rahu_lines else ""}
+"""
+    return prompt
+
+
+import json as _json
+import re as _re
+
+
+async def _get_or_generate_upcoming_themes_llm(
+    chart_id: str,
+    chart_data: dict,
+    profile: dict,
+    future_windows: list,
+    rahu_md_ads: list = None,
+    refresh: bool = False,
+):
+    """
+    Get cached Claude narration or generate fresh.
+    Cache TTL: 30 days.
+    """
+    from datetime import datetime, timedelta
+
+    # Check cache first (unless refresh forced)
+    if not refresh:
+        try:
+            cache_row = supabase.table("charts").select(
+                "upcoming_themes_cache, upcoming_themes_cached_at"
+            ).eq("id", chart_id).single().execute()
+            if cache_row.data:
+                cached = cache_row.data.get("upcoming_themes_cache")
+                cached_at = cache_row.data.get("upcoming_themes_cached_at")
+                if cached and cached_at:
+                    try:
+                        cached_dt = datetime.fromisoformat(cached_at.replace("Z", "+00:00"))
+                        now = datetime.now(cached_dt.tzinfo) if cached_dt.tzinfo else datetime.now()
+                        if now - cached_dt < timedelta(days=30):
+                            print(f"[upcoming-themes-llm] Cache hit for {chart_id}")
+                            return cached
+                    except Exception:
+                        pass  # Stale or bad timestamp — regenerate
+        except Exception as e:
+            print(f"[upcoming-themes-llm] Cache read error: {e}")
+
+    # Build prompt
+    prompt = _build_upcoming_themes_prompt(chart_data, profile, future_windows, rahu_md_ads)
+
+    # Call Claude (async — uses the global claude_client)
+    print(f"[upcoming-themes-llm] Generating for {chart_id}...")
+    try:
+        resp = await claude_client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw_text = resp.content[0].text
+        # Parse JSON from response (strip markdown fences if present)
+        clean = _re.sub(r"```json\s*|```\s*", "", raw_text).strip()
+        result = _json.loads(clean)
+
+        # Cache in Supabase (fire-and-forget — don't block on failure)
+        try:
+            supabase.table("charts").update({
+                "upcoming_themes_cache": result,
+                "upcoming_themes_cached_at": datetime.now().isoformat(),
+            }).eq("id", chart_id).execute()
+            print(f"[upcoming-themes-llm] Generated + cached for {chart_id}")
+        except Exception as ce:
+            print(f"[upcoming-themes-llm] Cache write error (non-fatal): {ce}")
+
+        return result
+    except Exception as e:
+        print(f"[upcoming-themes-llm] Claude error for {chart_id}: {e}")
+        return None
+
 
 @app.get("/api/v1/chart/{chart_id}/upcoming-themes")
 async def get_upcoming_themes(
@@ -2426,6 +2674,7 @@ async def get_upcoming_themes(
     min_confidence: int = 5,
     max_predictions: int = 3,
     months_ahead: int = 24,
+    refresh: bool = False,
     authorization: Optional[str] = Header(None),
 ):
     """
@@ -2669,13 +2918,62 @@ async def get_upcoming_themes(
                 f"to build — real progress compounds in windows like this."
             )
 
+        # ── LLM Narration (Claude) ────────────────────────────────────────
+        llm_card = None
+        if themes and _CLAUDE_AVAILABLE:
+            # Fetch Rahu MD sub-periods if any theme involves Rahu
+            rahu_md_ads = []
+            for t in themes:
+                if "Rahu" in (t.get("dasha") or ""):
+                    try:
+                        rahu_ads = supabase.table("dasha_periods").select(
+                            "planet_or_sign, start_date, end_date"
+                        ).eq("chart_id", chart_id).eq("system", "vimsottari").eq(
+                            "level", 2
+                        ).gte("start_date", "2026-01-01").order("start_date").execute()
+                        rahu_md_ads = rahu_ads.data or []
+                    except Exception:
+                        pass
+                    break
+
+            # Build future_windows list from scored themes
+            _fw = [{
+                "event_type":   t["event_type"],
+                "window_start": t["window"]["start"],
+                "window_end":   t["window"]["end"],
+                "planet": (t.get("dasha") or "").split(" + ")[1].replace(" AD", "").replace(" PD", "").strip() if " + " in (t.get("dasha") or "") else "",
+                "parent_md": (t.get("dasha") or "").split(" MD")[0].strip() if " MD" in (t.get("dasha") or "") else "",
+                "score": t.get("confidence", 5),
+            } for t in themes]
+
+            try:
+                llm_narration = await _get_or_generate_upcoming_themes_llm(
+                    chart_id=chart_id,
+                    chart_data=cd,
+                    profile=chart_res.data,
+                    future_windows=_fw,
+                    rahu_md_ads=rahu_md_ads,
+                    refresh=refresh,
+                )
+                if llm_narration and isinstance(llm_narration, dict):
+                    llm_card = {
+                        "headline":    llm_narration.get("headline", ""),
+                        "body":        llm_narration.get("body", ""),
+                        "caution":     llm_narration.get("caution", ""),
+                        "your_move":   llm_narration.get("your_move", ""),
+                        "energy_tags": llm_narration.get("energy_tags", []),
+                    }
+            except Exception as llm_err:
+                print(f"[upcoming-themes-llm] Non-fatal error: {llm_err}")
+
         return {
-            "chart_id":      chart_id,
-            "lagna":         lagna,
-            "first_name":    first_name,
-            "themes":        themes,
-            "themes_shown":  len(themes),
+            "chart_id":       chart_id,
+            "lagna":          lagna,
+            "first_name":     first_name,
+            "themes":         themes,
+            "themes_shown":   len(themes),
             "stable_message": stable,
+            "llm_narration":  llm_card,
         }
 
     except HTTPException:
