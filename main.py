@@ -2551,10 +2551,43 @@ async def get_upcoming_themes(
         }
 
         # ── 5. Score + filter to FUTURE windows ──────────────────────────
+
+        # Events that should NEVER appear on dashboard Coming Up
+        _EXCLUDE_FROM_UPCOMING = {
+            'loss_of_mother',
+            'loss_of_father',
+        }
+
         future_predictions = []
         for event_type, w in raw_map.items():
             if not w:
                 continue
+
+            # ── QUALITY RULES ──────────────────────────────────────────
+            # Rule 1: NEVER show death/loss predictions on dashboard.
+            # These are deeply sensitive. Users should only encounter them
+            # in Ask Antar if they specifically ask, never on a card.
+            if event_type in _EXCLUDE_FROM_UPCOMING:
+                continue
+
+            # Rule 2: Don't predict "first child" if user already has children.
+            # The mapper doesn't distinguish "first ever" from "next" — so if
+            # children_status indicates existing children, skip this event type.
+            if event_type == 'family_expansion_first':
+                if children_status in (
+                    'has_children', 'has_child', 'one', 'two', 'three',
+                    '1', '2', '3', '4', 'multiple'
+                ):
+                    continue
+
+            # Rule 3: Don't predict "partnership ended" if user is already
+            # single, divorced, or separated — can't end what doesn't exist.
+            if event_type == 'serious_partnership_ended':
+                if marital_status in (
+                    'single', 'divorced', 'separated', 'never_married',
+                    'unmarried', 'widowed'
+                ):
+                    continue
             win_start = w.get("window_start") or w.get("start") or ""
             win_end   = w.get("window_end")   or w.get("end")   or ""
 
