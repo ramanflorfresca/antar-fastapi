@@ -681,10 +681,16 @@ def _drill_to_pd(
 
     try:
         ev_dt = datetime.fromisoformat(event_date_str)
-        scored.sort(key=lambda x: (
-            -x[0],
-            abs((datetime.fromisoformat(x[1]['start']) - ev_dt).days),
-        ))
+
+        def _pd_sort_key(item, _ev=ev_dt):
+            s, pd = item
+            pd_s = datetime.fromisoformat(pd['start'])
+            pd_e = datetime.fromisoformat(pd['end'])
+            # Use PD midpoint so the whole window centres on the target date
+            pd_mid = pd_s + (pd_e - pd_s) / 2
+            return (-s, abs((pd_mid - _ev).days))
+
+        scored.sort(key=_pd_sort_key)
     except (ValueError, TypeError):
         scored.sort(key=lambda x: -x[0])
 
@@ -766,8 +772,20 @@ def find_event_window(
     best = candidates[0]
     best["midpoint_year"] = (best["start_year"] + best["end_year"]) // 2
     best["event_type"] = event_type
+    best["candidate_count"] = len(candidates)   # used for corroboration signal
 
     # ── PD precision drill ────────────────────────────────────────────
+    # Compute precise AD midpoint date to avoid integer-year-truncation drift.
+    # Integer division (2003+2006)//2 = 2004 can be ~12 months before true midpoint.
+    try:
+        from datetime import datetime as _dt_mid
+        _ad_s_mid = _dt_mid.fromisoformat(best['start'])
+        _ad_e_mid = _dt_mid.fromisoformat(best['end'])
+        _ad_mid_dt = _ad_s_mid + (_ad_e_mid - _ad_s_mid) / 2
+        _event_date_for_pd = _ad_mid_dt.strftime('%Y-%m-%d')
+    except Exception:
+        _event_date_for_pd = f"{best['midpoint_year']}-06-01"
+
     rule_lords = [tup[0] for tup in priority_list]
     _pd = _drill_to_pd(
         winning_ad={
@@ -776,7 +794,7 @@ def find_event_window(
             'end':    best['end'],
         },
         rule_lords=rule_lords,
-        event_date_str=f"{best['midpoint_year']}-06-01",
+        event_date_str=_event_date_for_pd,
     )
     if _pd:
         best['pd_lord']      = _pd['lord']
@@ -818,10 +836,18 @@ def map_all_events(birth_year: int, lagna: str, ads: list) -> dict:
         before_year=fc_end + 15, # up to 15 years after first child
     )
 
-    results["serious_partnership_ended"] = find_event_window(
+    _ended_w = find_event_window(
         "serious_partnership_ended", lagna, birth_year, ads,
         after_year=marriage_end + 3
     )
+    # Dependency check: serious_partnership_ended is a false positive when
+    # no serious_partnership_began precedes it in the same chart.
+    if _ended_w and (
+        not marriage
+        or marriage.get("window_start", "9999-99") >= _ended_w.get("window_start", "0000-00")
+    ):
+        _ended_w["_dependency_fail"] = True
+    results["serious_partnership_ended"] = _ended_w
 
     return results
 
