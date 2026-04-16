@@ -2200,7 +2200,8 @@ async def get_past_events(
     """
     try:
         from antar_engine.dasha_event_mapper import (
-            map_future_events,
+            map_all_events,
+            find_event_window,
             EVENT_DISPLAY_LABELS,
             EVENT_DESCRIPTION,
             build_energy_explanation,
@@ -2252,11 +2253,7 @@ async def get_past_events(
         # ── 3. Run all event windows ──────────────────────────────────────
         # map_all_events covers: serious_partnership_began, major_relocation,
         #   family_expansion_first, family_expansion_second, serious_partnership_ended
-        raw_map = map_future_events(
-            lagna, birth_year, ads,
-            from_date=today_str,
-            to_date=cutoff_date,
-        )
+        raw_map = map_all_events(birth_year, lagna, ads)
 
         # Additional events not covered by map_all_events
         # map_future_events already scans all event types
@@ -2442,8 +2439,7 @@ async def get_upcoming_themes(
     """
     try:
         from antar_engine.dasha_event_mapper import (
-            map_all_events,
-            find_event_window,
+            map_future_events,
             EVENT_DISPLAY_LABELS,
             EVENT_DESCRIPTION,
             build_energy_explanation,
@@ -2492,7 +2488,11 @@ async def get_upcoming_themes(
             }
 
         # ── 3. Run all event windows (same as past-events) ────────────────
-        raw_map = map_all_events(birth_year, lagna, ads)
+        raw_map = map_future_events(
+            lagna, birth_year, ads,
+            from_date=today_str,
+            to_date=cutoff_date,
+        )
 
         for extra_event in ("loss_of_mother", "major_acquisition"):
             if extra_event not in raw_map:
