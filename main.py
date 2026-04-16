@@ -2663,9 +2663,10 @@ async def get_upcoming_themes(
         stable = None
         if len(themes) < 2:
             stable = (
-                f"Your chart is in a stable consolidation period. No major "
-                f"new themes are activating in the next {months_ahead} months. "
-                f"Focus on what's already in motion."
+                f"Your current energies are strong and steady. The next "
+                f"{months_ahead} months favor deepening what's already in motion "
+                f"rather than starting entirely new chapters. Use this stability "
+                f"to build — real progress compounds in windows like this."
             )
 
         return {
