@@ -2440,6 +2440,7 @@ async def get_upcoming_themes(
     try:
         from antar_engine.dasha_event_mapper import (
             map_future_events,
+            find_event_window,
             EVENT_DISPLAY_LABELS,
             EVENT_DESCRIPTION,
             build_energy_explanation,
