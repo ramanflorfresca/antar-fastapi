@@ -624,7 +624,7 @@ def _score_infrastructure(cd, h):
 
     # D10 for career (house 10)
     if h==10:
-        d10=_sj(div.get("D10",div.get("d10",{})))
+        d10=_sj(div.get("d10",div.get("D10",{})))
         if d10:
             d10_lagna=d10.get("lagna_sign",d10.get("lagna",""))
             if d10_lagna: sc+=15; factors.append("D10 career chart available — infrastructure verified")

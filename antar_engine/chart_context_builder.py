@@ -69,6 +69,18 @@ except ImportError:
     _TEVA_AVAILABLE = False
 
 try:
+    from antar_engine.varshaphal_table import get_annual_house, VARSHAPHAL_TABLE
+    _VARSHAPHAL_AVAILABLE = True
+except ImportError:
+    _VARSHAPHAL_AVAILABLE = False
+
+try:
+    from antar_engine.lal_kitab_advanced import detect_sleeping_planets, calculate_comprehensive_rin
+    _LK_SLEEP_RIN_AVAILABLE = True
+except ImportError:
+    _LK_SLEEP_RIN_AVAILABLE = False
+
+try:
     from antar_engine.jaimini_analysis import build_jaimini_context_block, jaimini_from_dasha_rows
     _JAIMINI_AVAILABLE = True
 except ImportError:
@@ -186,6 +198,37 @@ def _format_dr(sd: datetime, ed: datetime) -> str:
     return f"from {sd.year} to {ed.year}"
 
 
+
+def _audit_chart_completeness(chart_data: dict, jaimini_data: dict,
+                               lk_data: dict) -> dict:
+    """
+    Check which layers have real data vs are empty/missing.
+    Returns audit dict that gets injected into Claude's context.
+    """
+    _div = chart_data.get("divisional_charts", {})
+    layers = {
+        "vimsottari":  bool(chart_data.get("planets")),
+        "jaimini":     bool(jaimini_data and jaimini_data.get("chara_karakas",
+                            jaimini_data.get("karakas"))),
+        "transits":    True,  # always computed live
+        "d9":          bool(_div.get("d9", _div.get("D9", {}))),
+        "d10":         bool(_div.get("d10", _div.get("D10", {}))),
+        "varshaphal":  bool(chart_data.get("planets")),  # varshaphal computable if planets exist
+        "lal_kitab":   bool(lk_data and (lk_data.get("planets") or lk_data.get("planet_in_house_analysis"))),
+        "ashtottari":  bool(chart_data.get("ashtottari_dashas")),
+    }
+    active = sum(layers.values())
+    missing = [k for k, v in layers.items() if not v]
+    return {
+        "layers_active": active,
+        "layers_total": 8,
+        "layers_missing": missing,
+        "confidence_ceiling": round(active / 8, 2),
+        "is_complete": active >= 6,
+        "audit": layers,
+    }
+
+
 def build_complete_context(
     chart_data:      dict,
     dashas:          dict,
@@ -200,6 +243,8 @@ def build_complete_context(
     yogas:           list = None,
     divisional_charts: dict = None,
     question_mode:     str  = "general",
+    jaimini_data:    dict = None,
+    lk_raw_data:     dict = None,
 ) -> str:
     """
     Build the complete astrological context for LLM.
@@ -465,6 +510,57 @@ WEALTH ANALYSIS CONTEXT:
     except Exception as _te:
         print(f"[teva] error (non-fatal): {_te}")
 
+    # ── VARSHAPHAL — always on (Layer 6) ─────────────────────────────────
+    _varshaphal_block = ""
+    try:
+        if _VARSHAPHAL_AVAILABLE and birth_date:
+            from datetime import date as _date_cls
+            _born = _date_cls.fromisoformat(birth_date[:10])
+            _today = _date_cls.today()
+            _age = (_today - _born).days // 365
+            _running_year = _age + 1
+            if 1 <= _running_year <= 120:
+                _last_bday = _born.replace(year=_today.year)
+                if _last_bday > _today:
+                    _last_bday = _born.replace(year=_today.year - 1)
+                _next_bday = _last_bday.replace(year=_last_bday.year + 1)
+                _vlines = [f"VARSHAPHAL (Lal Kitab Annual Chart — Running Year {_running_year}, valid {_last_bday.isoformat()} to {_next_bday.isoformat()})"]
+                _vlines.append("Annual house destinations for each natal planet:")
+                for _pname, _pdata in planets.items():
+                    _natal_h = _pdata.get("house", 0)
+                    if _natal_h and 1 <= _natal_h <= 12:
+                        _annual_h = get_annual_house(_natal_h, _age)
+                        _moved = " (SAME)" if _annual_h == _natal_h else f" (moved from H{_natal_h})"
+                        _vlines.append(f"  {_pname}: natal H{_natal_h} → annual H{_annual_h}{_moved}")
+                _varshaphal_block = "\n".join(_vlines)
+                print(f"[varshaphal] Block built: RY={_running_year}, age={_age}")
+    except Exception as _ve:
+        print(f"[varshaphal] Context injection failed (non-fatal): {_ve}")
+
+    # ── LK Sleeping Planets + Rin — always on (Layer 7 supplement) ────────
+    _lk_sleeping_block = ""
+    try:
+        if _LK_SLEEP_RIN_AVAILABLE and planets:
+            _sleeping = detect_sleeping_planets(planets)
+            _rins = calculate_comprehensive_rin(planets)
+            _sp_lines = []
+            if _sleeping:
+                _sp_lines.append("LAL KITAB — SLEEPING PLANETS (blocked energy, need activation):")
+                for _sp in _sleeping:
+                    _sp_lines.append(f"  {_sp['planet']} in house {_sp['house']} — {_sp['impact']}")
+                    _sp_lines.append(f"    Activation: {_sp['awakening']}")
+            if _rins:
+                _sp_lines.append("LAL KITAB — KARMIC DEBTS (Rin — repeating life patterns):")
+                for _rin in _rins:
+                    _sp_lines.append(f"  {_rin['rin']}: {_rin['planet']} in house {_rin['house']}")
+                    _sp_lines.append(f"    Pattern: {_rin['cause']}")
+                    _sp_lines.append(f"    Counter-action: {_rin['remedy']}")
+            if _sp_lines:
+                _lk_sleeping_block = "\n".join(_sp_lines)
+                print(f"[lk_sleeping_rin] Block built: {len(_sleeping)} sleeping, {len(_rins)} rins")
+    except Exception as _lsr_e:
+        print(f"[lk_sleeping_rin] error (non-fatal): {_lsr_e}")
+
     # Calculate LK aspects
     try:
         from antar_engine.lal_kitab_engine import calculate_lk_aspects
@@ -567,6 +663,18 @@ WEALTH ANALYSIS CONTEXT:
     _jk_dk  = jaimini_karakas.get('Darakaraka',{}).get('planet','?')
     _jk_pk  = jaimini_karakas.get('Putrakaraka',{}).get('planet','?')
     _jk_mk  = jaimini_karakas.get('Matrukaraka',{}).get('planet','?')
+    # ── Data Completeness Audit ───────────────────────────
+    _audit = _audit_chart_completeness(chart_data, jaimini_data or {}, lk_raw_data or lk_analysis or {})
+    _completeness_block = (
+        "DATA COMPLETENESS AUDIT\n"
+        f"Layers active: {_audit['layers_active']}/{_audit['layers_total']}\n"
+        f"Missing layers: {', '.join(_audit['layers_missing']) if _audit['layers_missing'] else 'none'}\n"
+        f"Confidence ceiling: {_audit['confidence_ceiling'] * 100:.0f}%\n"
+        f"INSTRUCTION: Your confidence score must not exceed {_audit['confidence_ceiling'] * 100:.0f}%.\n"
+        "If key layers are missing, note this in your prediction.\n"
+        'Example: \"Note: Jaimini layer unavailable — timing precision is reduced.\"'
+    )
+
     context = f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║         COMPLETE ASTROLOGICAL CONTEXT — ANTAR ENGINE         ║
@@ -687,6 +795,10 @@ LAL KITAB ADVANCED ANALYSIS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {lk_warnings}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{_varshaphal_block}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{_lk_sleeping_block}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 VEDIC ASTROLOGY RULES FOR ACCURATE ANALYSIS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 WEALTH COMBINATIONS (Dhana Yogas) — apply these rules:
@@ -736,6 +848,9 @@ LAL KITAB RULES:
   • Planet in enemy house = results come through struggle
   • Remedy activates the planet's positive potential
   • Karmic debts (Rin) must be identified and addressed
+
+{_completeness_block}
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ANTI-HALLUCINATION INSTRUCTIONS

@@ -436,6 +436,45 @@ def _build_natal_summary(chart_data: Dict[str, Any]) -> Dict[str, Any]:
 # 7. Live data builder — per-request, NOT cached
 # ---------------------------------------------------------------------------
 
+def detect_question_domain(question: str) -> str:
+    """
+    Simple keyword-based domain detection for layer emphasis hints.
+    Returns: relationship, career, health, timing, spiritual, or general.
+    """
+    q = (question or "").lower()
+    if any(w in q for w in [
+        "relationship", "love", "marriage", "partner", "breakup",
+        "boyfriend", "girlfriend", "husband", "wife", "romance",
+        "dating", "attract", "soulmate", "compatibility", "divorce",
+        "separated", "ex ", "wedding",
+    ]):
+        return "relationship"
+    if any(w in q for w in [
+        "career", "job", "work", "business", "salary", "promotion",
+        "profession", "company", "startup", "money", "finance",
+        "income", "wealth", "funding", "investor", "hire", "client",
+        "revenue", "profit", "deal", "contract",
+    ]):
+        return "career"
+    if any(w in q for w in [
+        "health", "sick", "illness", "body", "energy", "tired",
+        "disease", "pain", "medical", "weight", "sleep", "anxiety",
+        "stress", "mental health",
+    ]):
+        return "health"
+    if any(w in q for w in [
+        "soul", "purpose", "dharma", "karma", "spiritual", "past life",
+        "mission", "meaning", "calling",
+    ]):
+        return "spiritual"
+    if any(w in q for w in [
+        "when", "timing", "window", "date", "month", "year",
+        "how long", "how soon", "which quarter",
+    ]):
+        return "timing"
+    return "general"
+
+
 def _build_live(
     chart_data: Dict[str, Any],
     question: str,
@@ -499,10 +538,14 @@ def _build_live(
     except Exception as e:
         print(f"[json_ctx] hora failed (non-fatal): {e}")
 
+    # Detect domain for layer emphasis hints
+    question_domain = detect_question_domain(question)
+
     return {
         "today_iso": today_iso,
         "question": question,
         "concern": concern,
+        "question_domain": question_domain,
         "language": language,
         "current_transits": current_transits,
         "current_hora": current_hora,

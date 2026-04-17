@@ -276,9 +276,9 @@ def get_all_d_charts(chart_data: dict, divisions: list[int]) -> dict:
     Calculate multiple divisional charts at once.
     More efficient than calling get_d_chart() in a loop.
 
-    Returns: { "D6": {...}, "D9": {...}, "D10": {...} }
+    Returns: { "d6": {...}, "d9": {...}, "d10": {...} }
     """
-    return {f"D{d}": get_d_chart(chart_data, d) for d in divisions}
+    return {f"d{d}": get_d_chart(chart_data, d) for d in divisions}
 
 
 def get_house_lord(lagna_sign: str, house_number: int) -> str:
