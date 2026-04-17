@@ -568,15 +568,15 @@ def _rank_predictions_by_concern(
 
 def _planet_energy(planet: str) -> str:
     return {
-        "Sun":     "Identity & Purpose energy",
-        "Moon":    "Emotional Depth energy",
-        "Mars":    "Action & Courage energy",
-        "Mercury": "Intellect & Communication energy",
-        "Jupiter": "Expansive Growth energy",
-        "Venus":   "Heart & Beauty energy",
-        "Saturn":  "Clarifying Pressure energy",
-        "Rahu":    "Ambition & Breakthrough energy",
-        "Ketu":    "Releasing & Liberation energy",
+        "Sun":     "Sun energy",
+        "Moon":    "Moon energy",
+        "Mars":    "Mars energy",
+        "Mercury": "Mercury energy",
+        "Jupiter": "Jupiter energy",
+        "Venus":   "Venus energy",
+        "Saturn":  "Saturn energy",
+        "Rahu":    "Rahu energy",
+        "Ketu":    "Ketu energy",
     }.get(planet, f"{planet} energy")
 
 

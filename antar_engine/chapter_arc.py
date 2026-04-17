@@ -55,15 +55,15 @@ from typing import Optional
 # ── Energy language ───────────────────────────────────────────────────────────
 
 DASHA_ENERGY = {
-    "Sun":     "Identity & Purpose",
-    "Moon":    "Emotional Depth",
-    "Mars":    "Action & Courage",
-    "Mercury": "Intellect & Communication",
-    "Jupiter": "Expansive Growth",
-    "Venus":   "Heart & Beauty",
-    "Saturn":  "Clarifying Pressure",
-    "Rahu":    "Hungry Becoming",
-    "Ketu":    "Releasing & Liberation",
+    "Sun":     "Sun",
+    "Moon":    "Moon",
+    "Mars":    "Mars",
+    "Mercury": "Mercury",
+    "Jupiter": "Jupiter",
+    "Venus":   "Venus",
+    "Saturn":  "Saturn",
+    "Rahu":    "Rahu",
+    "Ketu":    "Ketu",
 }
 
 # What each chapter phase means by planet
@@ -123,7 +123,7 @@ CHAPTER_PHASES = {
         },
         "building": {
             "past":    "The opening of this chapter ignited your capacity for bold action.",
-            "present": "You are in the building phase of your Action & Courage chapter. This is when you build real things — not plans, not intentions, but actual structures. Your energy is high and your capacity to work hard is exceptional.",
+            "present": "You are in the building phase of your Mars chapter. This is when you build real things — not plans, not intentions, but actual structures. Your energy is high and your capacity to work hard is exceptional.",
             "gift":    "Tangible, lasting results from courageous action.",
         },
         "peak": {
@@ -146,7 +146,7 @@ CHAPTER_PHASES = {
         },
         "building": {
             "past":    "The opening phase sharpened your mind and opened new intellectual avenues.",
-            "present": "You are in the building phase of your Intellect & Communication chapter. Business, education, and the power of your ideas are the central themes. This is when intellectual work produces lasting results.",
+            "present": "You are in the building phase of your Mercury chapter. Business, education, and the power of your ideas are the central themes. This is when intellectual work produces lasting results.",
             "gift":    "Mastery in communication and intellectual leadership.",
         },
         "peak": {
@@ -192,7 +192,7 @@ CHAPTER_PHASES = {
         },
         "building": {
             "past":    "The opening phase awakened your heart and creative instincts.",
-            "present": "You are in the building phase of your Heart & Beauty chapter. This is when relationships deepen, creative work flourishes, and the refinement of your life accelerates. Love is a teacher right now.",
+            "present": "You are in the building phase of your Venus chapter. This is when relationships deepen, creative work flourishes, and the refinement of your life accelerates. Love is a teacher right now.",
             "gift":    "Deep love, creative mastery, and a refined life.",
         },
         "peak": {
@@ -215,12 +215,12 @@ CHAPTER_PHASES = {
         },
         "building": {
             "past":    "The opening phase began the clarification — things that weren't real began to surface.",
-            "present": "You are in the building phase of your Clarifying Pressure chapter. This is when Saturn's gifts — discipline, integrity, real work — produce lasting results. What you build with honest effort right now will outlast everything.",
+            "present": "You are in the building phase of your Saturn chapter. This is when Saturn's gifts — discipline, integrity, real work — produce lasting results. What you build with honest effort right now will outlast everything.",
             "gift":    "The construction of something that will last a lifetime.",
         },
         "peak": {
             "past":    "Years of real work and honest building have produced something of genuine value.",
-            "present": "You are at the peak of your Clarifying Pressure chapter. The work of Saturn is most concentrated now. What is not real cannot survive here. What is genuine will be revealed with extraordinary clarity.",
+            "present": "You are at the peak of your Saturn chapter. The work of Saturn is most concentrated now. What is not real cannot survive here. What is genuine will be revealed with extraordinary clarity.",
             "gift":    "Total clarity about what is real in your life.",
         },
         "closing": {
@@ -233,12 +233,12 @@ CHAPTER_PHASES = {
     "Rahu": {
         "opening": {
             "past":    "The chapter opened with a hunger — an unusual ambition for something new, something that the previous version of you would not have reached for.",
-            "present": "You are in the opening phase of a Hungry Becoming chapter. Rahu's disruptive energy is beginning to rewrite your ambitions, your social world, and your sense of what is possible.",
+            "present": "You are in the opening phase of a Rahu chapter. Rahu's disruptive energy is beginning to rewrite your ambitions, your social world, and your sense of what is possible.",
             "gift":    "Access to completely new possibilities.",
         },
         "building": {
             "past":    "The opening phase disrupted old patterns and introduced entirely new possibilities.",
-            "present": "You are in the building phase of your Hungry Becoming chapter. Material rise, unconventional success, and foreign or technological connections are all in play. Move boldly, but stay honest with yourself about what you're chasing.",
+            "present": "You are in the building phase of your Rahu chapter. Material rise, unconventional success, and foreign or technological connections are all in play. Move boldly, but stay honest with yourself about what you're chasing.",
             "gift":    "Rapid transformation and unconventional success.",
         },
         "peak": {
@@ -247,7 +247,7 @@ CHAPTER_PHASES = {
             "gift":    "Arrival at a completely new version of your life.",
         },
         "closing": {
-            "past":    "This chapter of hungry becoming has transformed your world beyond recognition.",
+            "past":    "This Rahu chapter has transformed your world beyond recognition.",
             "present": "The chapter is completing. Rahu's illusions are beginning to clear, revealing what was truly worth the ambition and what was not.",
             "gift":    "Wisdom about what truly matters, earned through transformation.",
         },

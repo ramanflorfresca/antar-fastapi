@@ -124,15 +124,15 @@ WINDOW_INTENSITY_LABELS = {
 }
 
 DASHA_ENERGY_SHORT = {
-    "Sun":     "Identity & Purpose",
-    "Moon":    "Emotional Depth",
-    "Mars":    "Action & Courage",
-    "Mercury": "Intellect & Communication",
-    "Jupiter": "Expansive Growth",
-    "Venus":   "Heart & Beauty",
-    "Saturn":  "Clarifying Pressure",
-    "Rahu":    "Ambition & Breakthrough",
-    "Ketu":    "Releasing & Liberation",
+    "Sun":     "Sun",
+    "Moon":    "Moon",
+    "Mars":    "Mars",
+    "Mercury": "Mercury",
+    "Jupiter": "Jupiter",
+    "Venus":   "Venus",
+    "Saturn":  "Saturn",
+    "Rahu":    "Rahu",
+    "Ketu":    "Ketu",
 }
 
 # Yogas relevant to each concern

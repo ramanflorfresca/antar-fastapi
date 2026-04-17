@@ -97,12 +97,12 @@ SIGN_LORDS = {
 DASHA_ENERGY = {
     "Sun":     "Identity & Purpose — time to step into authority",
     "Moon":    "Emotional Depth — nurturing, intuition, public connection",
-    "Mars":    "Action & Courage — building, competing, beginning",
+    "Mars":    "Mars — building, competing, beginning",
     "Mercury": "Intellect & Communication — ideas, trade, analysis",
     "Jupiter": "Expansive Growth — abundance, wisdom, opportunity",
     "Venus":   "Heart & Beauty — love, creativity, material pleasures",
     "Saturn":  "Clarifying Pressure — discipline, mastery, karma resolved",
-    "Rahu":    "Hungry Becoming — ambition, disruption, foreign rise",
+    "Rahu":    "Rahu — ambition, disruption, foreign rise",
     "Ketu":    "Releasing & Liberation — past skills, detachment, depth",
 }
 CHART_LABELS = {

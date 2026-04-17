@@ -125,15 +125,15 @@ remedy_block = format_remedies_for_prompt(all_remedies, energy_language=True)
 # ─────────────────────────────────────────────────────────────────────────────
 
 ENERGY_MAP = {
-    "Sun":     "Identity & Purpose",
-    "Moon":    "Emotional Depth",
-    "Mars":    "Action & Courage",
-    "Mercury": "Intellect & Communication",
-    "Jupiter": "Expansive Growth",
-    "Venus":   "Heart & Beauty",
-    "Saturn":  "Clarifying Pressure",
-    "Rahu":    "Hungry Becoming",
-    "Ketu":    "Releasing & Liberation",
+    "Sun":     "Sun",
+    "Moon":    "Moon",
+    "Mars":    "Mars",
+    "Mercury": "Mercury",
+    "Jupiter": "Jupiter",
+    "Venus":   "Venus",
+    "Saturn":  "Saturn",
+    "Rahu":    "Rahu",
+    "Ketu":    "Ketu",
 }
 HOUSE_THEME = {
     1:  "self & identity",

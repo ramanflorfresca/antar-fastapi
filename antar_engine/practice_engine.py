@@ -218,15 +218,15 @@ REMEDY_DURATION_RULES = {
 # ════════════════════════════════════════════
 
 PLANET_ENERGY = {
-    "Sun":     {"label": "Identity & Authority",   "domain": "career",       "color": "#F59E0B", "day": "Sunday",    "chakra": "Solar Plexus",  "element": "Fire"},
-    "Moon":    {"label": "Emotional Clarity",       "domain": "wellbeing",    "color": "#94A3B8", "day": "Monday",    "chakra": "Sacral",        "element": "Water"},
-    "Mars":    {"label": "Action & Courage",        "domain": "career",       "color": "#EF4444", "day": "Tuesday",   "chakra": "Root",          "element": "Fire"},
-    "Mercury": {"label": "Communication & Clarity", "domain": "career",       "color": "#22C55E", "day": "Wednesday", "chakra": "Throat",        "element": "Earth"},
-    "Jupiter": {"label": "Wisdom & Expansion",      "domain": "growth",       "color": "#F59E0B", "day": "Thursday",  "chakra": "Crown",         "element": "Ether"},
-    "Venus":   {"label": "Love & Creativity",       "domain": "relationship", "color": "#EC4899", "day": "Friday",    "chakra": "Heart",         "element": "Water"},
-    "Saturn":  {"label": "Discipline & Structure",   "domain": "career",       "color": "#8B5CF6", "day": "Saturday",  "chakra": "Root",          "element": "Air"},
-    "Rahu":    {"label": "Ambition & Breakthrough",  "domain": "growth",       "color": "#6366F1", "day": "Saturday",  "chakra": "Third Eye",     "element": "Air"},
-    "Ketu":    {"label": "Intuition & Release",      "domain": "spiritual",    "color": "#A78BFA", "day": "Tuesday",   "chakra": "Crown",         "element": "Fire"},
+    "Sun":     {"label": "Sun",   "domain": "career",       "color": "#F59E0B", "day": "Sunday",    "chakra": "Solar Plexus",  "element": "Fire"},
+    "Moon":    {"label": "Moon",       "domain": "wellbeing",    "color": "#94A3B8", "day": "Monday",    "chakra": "Sacral",        "element": "Water"},
+    "Mars":    {"label": "Mars",        "domain": "career",       "color": "#EF4444", "day": "Tuesday",   "chakra": "Root",          "element": "Fire"},
+    "Mercury": {"label": "Mercury", "domain": "career",       "color": "#22C55E", "day": "Wednesday", "chakra": "Throat",        "element": "Earth"},
+    "Jupiter": {"label": "Jupiter",      "domain": "growth",       "color": "#F59E0B", "day": "Thursday",  "chakra": "Crown",         "element": "Ether"},
+    "Venus":   {"label": "Venus",       "domain": "relationship", "color": "#EC4899", "day": "Friday",    "chakra": "Heart",         "element": "Water"},
+    "Saturn":  {"label": "Saturn",   "domain": "career",       "color": "#8B5CF6", "day": "Saturday",  "chakra": "Root",          "element": "Air"},
+    "Rahu":    {"label": "Rahu",  "domain": "growth",       "color": "#6366F1", "day": "Saturday",  "chakra": "Third Eye",     "element": "Air"},
+    "Ketu":    {"label": "Ketu",      "domain": "spiritual",    "color": "#A78BFA", "day": "Tuesday",   "chakra": "Crown",         "element": "Fire"},
 }
 
 # Jaimini Karaka → Chakra mapping (from user's spec)
