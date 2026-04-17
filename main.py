@@ -9753,7 +9753,7 @@ async def get_dashboard(chart_id: str, language: str = 'es', ):
     """
     try:
         # ── Wire 5: Inject jaimini + lal_kitab into dashboard response ──
-        _w5_result = await _get_dashboard_inner(chart_id)
+        _w5_result = await _get_dashboard_inner(chart_id, language=language)
         if isinstance(_w5_result, dict):
             try:
                 _w5_chart = supabase.table('charts').select('jaimini_data, lal_kitab_data').eq('id', chart_id).single().execute()
@@ -9768,7 +9768,7 @@ async def get_dashboard(chart_id: str, language: str = 'es', ):
         import traceback
         raise HTTPException(500, f"Dashboard error: {str(e)} | {traceback.format_exc()[-300:]}")
 
-async def _get_dashboard_inner(chart_id: str):
+async def _get_dashboard_inner(chart_id: str, language: str = "es"):
     import asyncio
     from datetime import date, timezone as _tz
 
@@ -11048,6 +11048,36 @@ def _translate_practice_schedule_es(sched):
             "Las practicas de desapego activan la red de modo predeterminado de manera diferente al pensamiento enfocado en metas \u2014 aumentan la percepcion y creatividad al reducir la fijacion cognitiva.",
     }
 
+    # --- Duration label translations ---
+    DURATION_LABEL_ES = {
+        "40 days without interruption": "40 dias sin interrupcion",
+        "40 days": "40 dias",
+        "21 days": "21 dias",
+        "18 days": "18 dias",
+        "11 days": "11 dias",
+        "9 days": "9 dias",
+        "7 days": "7 dias",
+        "7 Tuesdays": "7 martes",
+        "7 weeks": "7 semanas",
+        "108 repetitions": "108 repeticiones",
+        "This week": "Esta semana",
+        "21 days — this is a priority cycle": "21 dias — este es un ciclo prioritario",
+    }
+    # --- Duration reason snippets ---
+    DURATION_REASON_SNIPPETS_ES = {
+        "7 mirrors the solar weekly cycle. One full week resets the pattern.": "7 refleja el ciclo solar semanal. Una semana completa reinicia el patron.",
+        "11 is the number of emotional completion in Vedic numerology. One cycle of the Moon's emotional arc.": "11 es el numero de completacion emocional. Un ciclo del arco emocional lunar.",
+        "Mars energy requires 7 consecutive Tuesday cycles to fully redirect. Tuesday is Mars's day — the energy is most receptive.": "La energia de Marte requiere 7 ciclos consecutivos de martes para redirigirse. El martes es el dia de Marte.",
+        "9 completes a Mercury cognitive cycle. Enough repetition to build a new communication habit.": "9 completa un ciclo cognitivo de Mercurio. Suficiente repeticion para crear un nuevo habito de comunicacion.",
+        "21 days (3 lunar weeks) is the minimum for Jupiter to shift a belief pattern. Jupiter is the slowest-moving benefic and requires sustained intention.": "21 dias (3 semanas lunares) es el minimo para que Jupiter cambie un patron de creencias.",
+        "Venus rules 21-day relationship cycles. 21 days is enough to shift a core relationship pattern.": "Venus rige ciclos de relacion de 21 dias. 21 dias es suficiente para cambiar un patron de relacion fundamental.",
+        "40 days is Saturn's minimum commitment cycle. Saturn governs long-term structures and only shifts through demonstrated sustained discipline.": "40 dias es el ciclo minimo de compromiso de Saturno. Saturno solo cambia a traves de disciplina sostenida demostrada.",
+        "18 is Rahu's nodal completion number. 18 consecutive days creates one full Rahu micro-cycle.": "18 es el numero de completacion nodal de Rahu. 18 dias consecutivos crean un micro-ciclo completo de Rahu.",
+        "Ketu works in 7-day release cycles. One week of consistent practice completes one detachment arc.": "Ketu trabaja en ciclos de 7 dias de liberacion. Una semana de practica consistente completa un arco de desapego.",
+        "When multiple timing systems point to the same planet, 21 days of practice synchronizes your actions with the active energy window.": "Cuando multiples sistemas de tiempo apuntan al mismo planeta, 21 dias de practica sincronizan tus acciones con la ventana de energia activa.",
+        "Some planetary energies only open on specific days of the week. 7 consecutive weeks on the right day completes one full planetary cycle.": "Algunas energias planetarias solo se abren en dias especificos. 7 semanas consecutivas en el dia correcto completan un ciclo planetario completo.",
+    }
+
     # Apply full-text remedy_why translations
     # Translate sleeping_alerts and rin_cards
     if "sleeping_alerts" in s:
@@ -11055,16 +11085,37 @@ def _translate_practice_schedule_es(sched):
             if "energy_label" in sa: sa["energy_label"]=L.get(sa["energy_label"],sa["energy_label"])
             if "remedy_why" in sa: sa["remedy_why"]=t_remedy_why(sa["remedy_why"])
             if "remedy_why_science" in sa: sa["remedy_why_science"]=t_remedy_why_science(sa["remedy_why_science"])
-            for f in ("why","practice","duration_reason"):
+            if "duration_label" in sa: sa["duration_label"]=DURATION_LABEL_ES.get(sa["duration_label"], sa["duration_label"])
+            if "duration" in sa: sa["duration"]=DURATION_LABEL_ES.get(sa["duration"], sa["duration"])
+            if "duration_reason" in sa: sa["duration_reason"]=DURATION_REASON_SNIPPETS_ES.get(sa["duration_reason"], t(sa["duration_reason"]))
+            for f in ("why","practice"):
                 if f in sa: sa[f]=t(sa[f])
     if "rin_cards" in s:
         for rc in s["rin_cards"]:
             if "clearing_practice" in rc: rc["clearing_practice"]=t_remedy(rc["clearing_practice"])
             if "remedy_why" in rc: rc["remedy_why"]=t_remedy_why(rc["remedy_why"])
             if "remedy_why_science" in rc: rc["remedy_why_science"]=t_remedy_why_science(rc["remedy_why_science"])
-            for f in ("why","duration_reason"):
+            if "duration_label" in rc: rc["duration_label"]=DURATION_LABEL_ES.get(rc["duration_label"], rc["duration_label"])
+            if "duration" in rc: rc["duration"]=DURATION_LABEL_ES.get(rc["duration"], rc["duration"])
+            if "duration_reason" in rc: rc["duration_reason"]=DURATION_REASON_SNIPPETS_ES.get(rc["duration_reason"], t(rc["duration_reason"]))
+            if "streak_warning" in rc and rc["streak_warning"]:
+                _sw = rc["streak_warning"]
+                if "Do not break the streak" in _sw: rc["streak_warning"] = "No rompas la racha. Si pierdes un dia, reinicia desde el dia 1."
+            for f in ("why",):
                 if f in rc: rc[f]=t(rc[f])
     # Translate primary_practice and supporting_practices
+    # --- Completion milestone snippets ---
+    MILESTONE_SNIPPETS_ES = {
+        "After 7 days, notice whether opportunities for visibility feel more natural.": "Despues de 7 dias, nota si las oportunidades de visibilidad se sienten mas naturales.",
+        "After 11 days, emotional decisions should feel less reactive and more grounded.": "Despues de 11 dias, las decisiones emocionales deberian sentirse menos reactivas y mas centradas.",
+        "After 7 Tuesdays, notice whether impulsive decisions have decreased.": "Despues de 7 martes, nota si las decisiones impulsivas han disminuido.",
+        "After 9 days, notice whether your communication feels more precise and less anxious.": "Despues de 9 dias, nota si tu comunicacion se siente mas precisa y menos ansiosa.",
+        "After 21 days, notice whether mentors, teachers, or growth opportunities appear more readily.": "Despues de 21 dias, nota si mentores, maestros u oportunidades de crecimiento aparecen mas facilmente.",
+        "After 21 days, notice whether your key relationships feel more fluid and less effortful.": "Despues de 21 dias, nota si tus relaciones clave se sienten mas fluidas y menos forzadas.",
+        "After 40 days, notice whether patience in key situations has increased and whether chronic delays are easing.": "Despues de 40 dias, nota si la paciencia en situaciones clave ha aumentado y si los retrasos cronicos estan cediendo.",
+        "After 18 days, notice whether obsessive thought loops around one particular desire have softened.": "Despues de 18 dias, nota si los bucles de pensamiento obsesivo alrededor de un deseo particular se han suavizado.",
+        "After 7 days, notice whether one thing you have been holding onto feels lighter.": "Despues de 7 dias, nota si algo que has estado reteniendo se siente mas ligero.",
+    }
     def _translate_practice_card(p):
         if not p: return
         if "what" in p: p["what"] = t_remedy(p["what"])
@@ -11072,6 +11123,14 @@ def _translate_practice_schedule_es(sched):
             p["practice_why"] = PRACTICE_WHY_ES.get(p["practice_why"], t(p["practice_why"]))
         if "practice_why_science" in p:
             p["practice_why_science"] = PRACTICE_WHY_SCIENCE_ES.get(p["practice_why_science"], t(p["practice_why_science"]))
+        if "duration_label" in p:
+            p["duration_label"] = DURATION_LABEL_ES.get(p["duration_label"], p["duration_label"])
+        if "duration" in p:
+            p["duration"] = DURATION_LABEL_ES.get(p["duration"], p["duration"])
+        if "duration_reason" in p:
+            p["duration_reason"] = DURATION_REASON_SNIPPETS_ES.get(p["duration_reason"], t(p["duration_reason"]))
+        if "completion_milestone" in p:
+            p["completion_milestone"] = MILESTONE_SNIPPETS_ES.get(p["completion_milestone"], t(p["completion_milestone"]))
     if "primary_practice" in s:
         _translate_practice_card(s["primary_practice"])
     if "supporting_practices" in s:
