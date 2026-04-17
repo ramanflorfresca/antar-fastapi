@@ -251,7 +251,9 @@ def compute_arudha_lagna(lagna_sign: int, planets: Dict[str, Planet]) -> ArudhaR
     The AL CANNOT be in the 1st or 7th houses from the Lagna. If it is, it's wrong.
     """
     lagna_lord_name = _get_sign_lord(lagna_sign, planets)
-    lord_sign = planets[lagna_lord_name].sign
+    _SIGNS_JE = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo","Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"]
+    _raw_lord_sign = planets[lagna_lord_name].sign
+    lord_sign = _SIGNS_JE.index(_raw_lord_sign) if isinstance(_raw_lord_sign, str) and _raw_lord_sign in _SIGNS_JE else int(_raw_lord_sign or 0)
 
     # Distance from lagna to lord
     n = _sign_distance(lagna_sign, lord_sign)
