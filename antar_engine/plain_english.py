@@ -291,6 +291,10 @@ STRICT RULES:
 FORBIDDEN WORDS in plain_summary, signal_line, action_item:
 Processing Speed, Fortune Vector, Authority Signal, Growth Amplifier,
 Magnetism Field, Structural Load, Capital Runway, Action Drive,
+Ambition Engine, Emotional Radar, Intuition Compass, Revenue Pipeline,
+Alliance Sync, Hungry Becoming, Creative Pulse, Velocity Engine,
+Foundation Shield, Wisdom Lens, Health Matrix, Resource Grid,
+Authority Engine, System Vitals, Capital Reserves, Conflict Shield,
 house, nakshatra, dasha, yoga, karaka, lagna, rashi, bhava,
 Vimsottari, Jaimini, Lal Kitab, mahadasha, antardasha,
 any planet name (Mercury, Venus, Mars, Saturn, Jupiter, Rahu, Ketu)
@@ -630,15 +634,15 @@ def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
 # ═══ ENERGY TRANSLATION MAP ═══
 # Replaces planet names with energy frequencies in user-facing text
 ENERGY_MAP = {
-    "rahu":    "your Ambition Engine",
-    "ketu":    "your Extraction Phase",
-    "saturn":  "your Structural Load",
-    "jupiter": "your Growth Signal",
-    "mars":    "your Execution Force",
-    "venus":   "your Magnetism Node",
-    "mercury": "your Communication Stream",
-    "sun":     "your Power Source",
-    "moon":    "your Mental Current",
+    "rahu":    "your ambition and breakthrough energy",
+    "ketu":    "your intuition and release energy",
+    "saturn":  "your discipline and structure energy",
+    "jupiter": "your growth and wisdom energy",
+    "mars":    "your action and drive energy",
+    "venus":   "your love and partnership energy",
+    "mercury": "your communication and intellect energy",
+    "sun":     "your identity and authority energy",
+    "moon":    "your emotional and nurturing energy",
 }
 
 # Dasha/period translations

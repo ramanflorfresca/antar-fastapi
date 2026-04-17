@@ -61,7 +61,7 @@ def get_current_transit_positions(date: datetime = None) -> Dict:
 
     positions = {}
     for name, pid in SWE_PLANETS.items():
-        result = swe.calc_ut(jd, pid, swe.FLG_SIDEREAL)
+        result = swe.calc_ut(jd, pid, swe.FLG_SIDEREAL | swe.FLG_SPEED)
         lon = result[0][0]  # sidereal longitude
         sign_idx = int(lon / 30)
         deg_in_sign = lon % 30

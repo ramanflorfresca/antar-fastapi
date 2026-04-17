@@ -59,10 +59,10 @@ OWN   = {0:[4],1:[3],2:[0,7],3:[2,5],4:[8,11],5:[1,6],6:[9,10]}
 MALEFICS = {"sun","mars","saturn","rahu","ketu"}
 
 ENERGY = {
-    "Sun":"Authority Signal","Moon":"Emotional Radar","Mars":"Action Drive",
-    "Mercury":"Processing Speed","Jupiter":"Growth Amplifier",
-    "Venus":"Magnetism Field","Saturn":"Structural Load",
-    "Rahu":"Ambition Engine","Ketu":"Intuition Compass",
+    "Sun":"Sun planet of (identity, authority, vitality)","Moon":"Moon planet of (emotion, mind, nurturing)","Mars":"Mars planet of (action, drive, energy)",
+    "Mercury":"Mercury planet of (communication, intellect, adaptability)","Jupiter":"Jupiter planet of (growth, wisdom, expansion)",
+    "Venus":"Venus planet of (love, partnership, money)","Saturn":"Saturn planet of (discipline, structure, time)",
+    "Rahu":"Rahu planet of (ambition, breakthrough, foreign)","Ketu":"Ketu planet of (intuition, release, spirituality)",
 }
 
 # 12 Strategic Instruments (houses are deprecated in UI)
@@ -1065,11 +1065,11 @@ def calculate_wealth_blueprint(cd, jd=None, stored_yogas=None):
     if _lc(cd,5,9): yogas.append({"name":"Fortune Convergence","desc":"Intelligence and luck aligned"})
     if _lc(cd,9,10): yogas.append({"name":"Authority-Fortune Lock","desc":"Power positions bring wealth"})
     jup=_fp(cd,"Jupiter")
-    if jup and jup.get("house") in [2,5,9,11]: yogas.append({"name":"Growth Amplifier Active","desc":"Expansion in wealth house"})
+    if jup and jup.get("house") in [2,5,9,11]: yogas.append({"name":"Jupiter Wealth Activation","desc":"Expansion in wealth house"})
     ven=_fp(cd,"Venus")
-    if ven and ven.get("house") in [2,7]: yogas.append({"name":"Magnetism-Wealth Link","desc":"Attraction feeds earning"})
+    if ven and ven.get("house") in [2,7]: yogas.append({"name":"Venus-Wealth Link","desc":"Attraction feeds earning"})
     l11d=_fp(cd,_hl(cd,11))
-    if _strong(l11d): yogas.append({"name":"Revenue Engine Strong","desc":"Gains pipeline robust"})
+    if _strong(l11d): yogas.append({"name":"Gains Engine Strong","desc":"Gains pipeline robust"})
     rahu=_fp(cd,"Rahu")
     if rahu and rahu.get("house") in [10,11]: yogas.append({"name":"Ambition-Wealth Axis","desc":"Drive wired to gains"})
     kr=_karakas(jd)

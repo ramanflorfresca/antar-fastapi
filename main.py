@@ -1798,44 +1798,44 @@ def _vimsottari_is_ambiguous(chart_data: dict, current_md: str, question: str) -
 # Maps symptom category keywords → instrument domain for diagnostic prompt
 SYMPTOM_DOMAIN_MAP = {
     # keyword fragment → (instrument, backup_instrument)
-    "losing clients":       ("Authority Engine",   "Alliance Sync"),
-    "losing money":         ("Capital Reserves",   "Capital Runway"),
-    "losing opportunities": ("Fortune Vector",     "Authority Engine"),
-    "losing friends":       ("Alliance Sync",      "Emotional Radar"),
-    "losing temper":        ("System Vitals",      "Emotional Radar"),
-    "losing focus":         ("Processing Speed",   "System Vitals"),
-    "stuck":                ("System Vitals",      "Action Capacity"),
-    "money":                ("Capital Reserves",   "Capital Runway"),
-    "clients":              ("Authority Engine",   "Alliance Sync"),
-    "deals":                ("Alliance Sync",      "Authority Engine"),
-    "relationship":         ("Alliance Sync",      "Emotional Radar"),
-    "partner":              ("Alliance Sync",      "Emotional Radar"),
-    "career":               ("Authority Engine",   "Fortune Vector"),
-    "purpose":              ("Fortune Vector",     "Authority Engine"),
-    "purpose":              ("Fortune Vector",     "Authority Engine"),
-    "identity":             ("System Vitals",      "Fortune Vector"),
-    "fire":                 ("Action Capacity",    "System Vitals"),
-    "spark":                ("Creation Engine",    "System Vitals"),
-    "impostor":             ("Authority Engine",   "System Vitals"),
-    "fraud":                ("Authority Engine",   "System Vitals"),
-    "timing":               ("Fortune Vector",     "Action Capacity"),
-    "window":               ("Fortune Vector",     "Action Capacity"),
-    "drained":              ("System Vitals",      "Emotional Radar"),
-    "blocked":              ("System Vitals",      "Action Capacity"),
-    "trapped":              ("System Vitals",      "Fortune Vector"),
-    "sleep":                ("System Vitals",      "Emotional Radar"),
-    "body":                 ("System Vitals",      "Emotional Radar"),
-    "decision":             ("Processing Speed",   "Fortune Vector"),
-    "choose":               ("Processing Speed",   "Alliance Sync"),
-    "sabotage":             ("Action Capacity",    "System Vitals"),
-    "betrayed":             ("Alliance Sync",      "Conflict Shield"),
-    "overlooked":           ("Authority Engine",   "Revenue Pipeline"),
-    "invisible":            ("Authority Engine",   "Alliance Sync"),
-    "lonely":               ("Alliance Sync",      "Emotional Radar"),
-    "ending":               ("Fortune Vector",     "System Vitals"),
-    "waiting":              ("Fortune Vector",     "Action Capacity"),
-    "tested":               ("Structural Load",    "System Vitals"),
-    "punished":             ("Structural Load",    "Fortune Vector"),
+    "losing clients":       ("career area",   "partnership area"),
+    "losing money":         ("wealth area",   "transformation area"),
+    "losing opportunities": ("luck area",     "career area"),
+    "losing friends":       ("partnership area",      "home area"),
+    "losing temper":        ("identity area",      "home area"),
+    "losing focus":         ("courage area",   "identity area"),
+    "stuck":                ("identity area",      "courage area"),
+    "money":                ("wealth area",   "transformation area"),
+    "clients":              ("career area",   "partnership area"),
+    "deals":                ("partnership area",      "career area"),
+    "relationship":         ("partnership area",      "home area"),
+    "partner":              ("partnership area",      "home area"),
+    "career":               ("career area",   "luck area"),
+    "purpose":              ("luck area",     "career area"),
+    "purpose":              ("luck area",     "career area"),
+    "identity":             ("identity area",      "luck area"),
+    "fire":                 ("courage area",    "identity area"),
+    "spark":                ("creativity area",    "identity area"),
+    "impostor":             ("career area",   "identity area"),
+    "fraud":                ("career area",   "identity area"),
+    "timing":               ("luck area",     "courage area"),
+    "window":               ("luck area",     "courage area"),
+    "drained":              ("identity area",      "home area"),
+    "blocked":              ("identity area",      "courage area"),
+    "trapped":              ("identity area",      "luck area"),
+    "sleep":                ("identity area",      "home area"),
+    "body":                 ("identity area",      "home area"),
+    "decision":             ("courage area",   "luck area"),
+    "choose":               ("courage area",   "partnership area"),
+    "sabotage":             ("courage area",    "identity area"),
+    "betrayed":             ("partnership area",      "work area"),
+    "overlooked":           ("career area",   "gains area"),
+    "invisible":            ("career area",   "partnership area"),
+    "lonely":               ("partnership area",      "home area"),
+    "ending":               ("luck area",     "identity area"),
+    "waiting":              ("luck area",     "courage area"),
+    "tested":               ("discipline area",    "identity area"),
+    "punished":             ("discipline area",    "luck area"),
 }
 
 def _get_symptom_domain(question: str) -> tuple:
@@ -4547,10 +4547,29 @@ CRITICAL RULES:
     # HARD JARGON CONSTRAINT — prepended to EVERY prompt
     _hard_constraint = """
 ABSOLUTE RULES (violating these rules means the response is rejected):
-1. NEVER use planet names (Jupiter, Saturn, Mars, Venus, Mercury, Sun, Moon, Rahu, Ketu). Use ONLY: Growth Amplifier, Structural Load, Action Drive, Magnetism Field, Processing Speed, Authority Signal, Emotional Radar, Ambition Engine, Intuition Compass.
-2. NEVER use house numbers (1st house, 2nd house, 10th house). Use ONLY instrument labels: System Vitals, Capital Reserves, Action Capacity, Real Estate Radar, Creation Engine, Conflict Shield, Alliance Sync, Capital Runway, Fortune Vector, Authority Engine, Revenue Pipeline, Global Vector.
+1. USE planet names with parenthetical context on first mention:
+   Sun planet of (identity, authority, vitality), Moon planet of (emotion, mind, nurturing),
+   Mars planet of (action, drive, energy), Mercury planet of (communication, intellect, adaptability),
+   Jupiter planet of (growth, wisdom, expansion), Venus planet of (love, partnership, money),
+   Saturn planet of (discipline, structure, time), Rahu planet of (ambition, breakthrough, foreign),
+   Ketu planet of (intuition, release, spirituality).
+   After first mention, use planet name alone.
+2. NEVER use house numbers (1st house, 10th house). Use area labels:
+   1st = identity area, 2nd = wealth area, 3rd = courage area, 4th = home area,
+   5th = creativity area, 6th = work area, 7th = partnership area, 8th = transformation area,
+   9th = luck area, 10th = career area, 11th = gains area, 12th = foreign area.
 3. NEVER use Sanskrit terms (Yoga, Dasha, Nakshatra, Lagna, Rashi, Karaka, Amatyakaraka, Atmakaraka, Bhava, Graha, Navamsa, D9, D10, D1, Budhaditya, Muhurta, Panchami).
 4. NEVER reference chart divisions or technical astrology concepts.
+5. NEVER use FIELD×MODE codenames. These are DEPRECATED:
+   Magnetism Field, Revenue Pipeline, Ambition Engine, Authority Signal, Emotional Radar,
+   Growth Amplifier, Hungry Becoming, Alliance Sync, Creative Pulse, Velocity Engine,
+   Foundation Shield, Wisdom Lens, Health Matrix, Resource Grid, Capital Runway,
+   Processing Speed, Action Drive, Structural Load, Intuition Compass, System Vitals,
+   Capital Reserves, Action Capacity, Creation Engine, Conflict Shield, Fortune Vector,
+   Authority Engine, Global Vector.
+6. NEVER use: MD, AD, PD, mahadasha, antardasha, pratyantar.
+   Use: "chapter", "sub-chapter", "inner window".
+7. NEVER use: drishti, bhava, rashi, graha, karaka in user-facing text.
 5. The current year is 2026, NOT 2025. Today is """ + __import__('datetime').datetime.utcnow().strftime("%B %d, %Y") + """.
 6. Answer the user's QUESTION directly. Do not explain astrological mechanics.
 7. Use business/strategic language: positioning, leverage, runway, capacity, friction, momentum.
@@ -4567,6 +4586,21 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
     Line 8: TIMING: [When the window opens/closes]
 11. NO POETIC LANGUAGE. NO METAPHORS. NO "your visibility is real but...". 
 12. NO MARKDOWN HEADERS (## or ###). NO LONG ESSAYS. Founders read in 30 seconds.
+
+RESPONSE PATTERN:
+1. State the verdict directly (first sentence)
+2. Show the energy map evidence (which planets, which areas, what state)
+3. Connect to the user's actual life context
+4. Give timing with specific window
+5. End with YOUR MOVE — one specific action. Never end with a question.
+
+VOCABULARY RULES:
+- Use planet names with parenthetical on first mention: "Saturn planet of (discipline, structure, time)"
+- After first mention, use planet name alone: "Saturn"
+- Never use house numbers. Use area labels: identity, wealth, courage, home, creativity, work, partnership, transformation, luck, career, gains, foreign.
+- Never use: MD, AD, PD, mahadasha, antardasha, pratyantar. Use: chapter, sub-chapter, inner window.
+- Never use FIELD×MODE codenames (deprecated).
+- Never use: drishti, bhava, rashi, graha, karaka in user-facing text.
 13. If user asks "will I", "what are my chances", "is it possible" — LEAD with PROBABILITY: XX%.
 14. Treat the user like a busy founder/executive. They need answers, not analysis.
 
@@ -4623,14 +4657,13 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
     - timing_window (in Spanish)
     Plain_english.py post-processing must NOT translate back to English.
 
-25. NO ASTROLOGY METAPHORS. Banned:
-    - "Magnetism Field transits Authority Engine"
-    - "Capital Reserves under pressure"
-    - "Action Drive sub-cycle"
-    Replace with plain business language:
-    - "Your visibility is peaking"
-    - "Cash flow tight until June"
-    - "Execution velocity high through May"
+25. NO ASTROLOGY METAPHORS OR CODENAMES. Banned:
+    - Any FIELD×MODE codename (Magnetism Field, Revenue Pipeline, Ambition Engine, Authority Signal, etc)
+    - "Capital Reserves under pressure", "Action Drive sub-cycle"
+    Replace with plain language using planet names + area labels:
+    - "Venus planet of (love, partnership) is active in your career area"
+    - "Saturn is tightening your wealth area until June"
+    - "Mars energy is high through May"
 """
     # ── Symptom → Practice Bridge ────────────────────────────────────────────
     if _question_mode == "symptom":
@@ -4671,20 +4704,28 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
     _today_str = __import__('datetime').datetime.utcnow().strftime("%B %d, %Y")
     _jargon_only = (
         "ABSOLUTE RULES (no exceptions):\n"
-        "1. NEVER use planet names. Use: Growth Amplifier, Structural Load, Action Drive, "
-        "Magnetism Field, Processing Speed, Authority Signal, Emotional Radar, Ambition Engine, Intuition Compass.\n"
-        "2. NEVER use house numbers. Use instrument labels: System Vitals, Capital Reserves, "
-        "Action Capacity, Alliance Sync, Capital Runway, Fortune Vector, Authority Engine, Revenue Pipeline, Global Vector.\n"
+        "1. USE planet names with parenthetical on first mention: "
+        "Sun planet of (identity, authority, vitality), Moon planet of (emotion, mind, nurturing), "
+        "Mars planet of (action, drive, energy), Jupiter planet of (growth, wisdom, expansion), "
+        "Venus planet of (love, partnership, money), Saturn planet of (discipline, structure, time), "
+        "Rahu planet of (ambition, breakthrough, foreign), Ketu planet of (intuition, release, spirituality). "
+        "After first mention, use planet name alone.\n"
+        "2. NEVER use house numbers. Use area labels: "
+        "1st=identity area, 2nd=wealth area, 3rd=courage area, 4th=home area, "
+        "5th=creativity area, 6th=work area, 7th=partnership area, 8th=transformation area, "
+        "9th=luck area, 10th=career area, 11th=gains area, 12th=foreign area.\n"
         "3. NEVER use Sanskrit terms (Dasha, Nakshatra, Lagna, Yoga, Rashi, etc).\n"
-        f"4. Today is {_today_str}. The current year is 2026.\n"
-        "5. Answer the QUESTION directly. Lead with VERDICT in first sentence.\n"
-        "6. THE MOVE at the end — one specific action for this week."
+        "4. NEVER use FIELD×MODE codenames (Magnetism Field, Revenue Pipeline, Ambition Engine, etc). DEPRECATED.\n"
+        "5. NEVER use: MD, AD, PD, mahadasha, antardasha. Use: chapter, sub-chapter, inner window.\n"
+        f"6. Today is {_today_str}. The current year is 2026.\n"
+        "7. Answer the QUESTION directly. Lead with VERDICT in first sentence.\n"
+        "8. THE MOVE at the end — one specific action for this week."
     )
     prompt = _jargon_only + "\n\n" + prompt
     if False:  # dead code block — keeps old symptom path reference intact
         _jargon_only = """ABSOLUTE RULES (no exceptions):
-1. NEVER use planet names. Use: Growth Amplifier, Structural Load, Action Drive, Magnetism Field, Processing Speed, Authority Signal, Emotional Radar, Ambition Engine, Intuition Compass.
-2. NEVER use house numbers. Use instrument labels: System Vitals, Capital Reserves, Action Capacity, Alliance Sync, Capital Runway, Fortune Vector, Authority Engine, Revenue Pipeline, Global Vector.
+1. USE planet names with parenthetical on first mention (e.g. "Jupiter planet of (growth, wisdom)"). After first mention, planet name alone.
+2. NEVER use house numbers. Use area labels (identity area, wealth area, career area, etc). NEVER use FIELD×MODE codenames.
 3. NEVER use Sanskrit terms (Dasha, Nakshatra, Lagna, Yoga, Rashi, etc).
 4. The current year is 2026. Today is """ + __import__('datetime').datetime.utcnow().strftime("%B %d, %Y") + """.
 5. Use business language only: positioning, leverage, runway, capacity, friction, momentum.
@@ -10673,6 +10714,10 @@ def _translate_instrument_symptom_es(symptom, status, area_name):
     # Remove "Processing Speed", "Action Drive", "Magnetism Field", "Intuition Compass" etc.
     for jargon in ["Processing Speed", "Action Drive", "Magnetism Field", "Intuition Compass",
                    "Ambition Engine", "Structural Load", "Fortune Vector", "Authority Signal",
+                   "Growth Amplifier", "Emotional Radar", "Revenue Pipeline", "Alliance Sync",
+                   "Capital Runway", "Hungry Becoming", "Creative Pulse", "Velocity Engine",
+                   "Foundation Shield", "Wisdom Lens", "Health Matrix", "Resource Grid",
+                   "Authority Engine", "System Vitals", "Capital Reserves", "Conflict Shield",
                    "instrument lord", "dusthana", "Argala", "unobstructed interventions",
                    "PRESSURE", "ACTIVE"]:
         cleaned = cleaned.replace(jargon, "")
@@ -13010,7 +13055,7 @@ def _translate_daily_signals_es(signals):
             "rather than launching or confronting": "en vez de lanzar o confrontar",
             "overlay favors courage, direct action, confrontation": "favorece el coraje, accion directa y confrontacion",
             "but the": "pero la",
-            "Emotional Radar": "posicion lunar",
+            "Moon energy": "posicion lunar",
             "position slows outer momentum": "frena el impulso externo",
             "creates a stable, grounded": "crea una energia estable y enraizada",
             "good for building": "bueno para construir",
@@ -13327,7 +13372,7 @@ def _translate_daily_signals_es(signals):
             "rather than launching or confronting": "en vez de lanzar o confrontar",
             "overlay favors courage, direct action, confrontation": "favorece el coraje, accion directa y confrontacion",
             "but the": "pero la",
-            "Emotional Radar": "posicion lunar",
+            "Moon energy": "posicion lunar",
             "position slows outer momentum": "frena el impulso externo",
             "creates a stable, grounded": "crea una energia estable y enraizada",
             "good for building": "bueno para construir",

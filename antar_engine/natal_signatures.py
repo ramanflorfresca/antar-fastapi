@@ -781,15 +781,15 @@ def build_signature_context_block(planet_signatures: dict, character_archetype: 
     ]
 
     PLANET_LABELS = {
-        "sun":     "Identity Signal",
-        "moon":    "Emotional Radar",
-        "mars":    "Action Drive",
-        "mercury": "Processing Speed",
-        "jupiter": "Growth Amplifier",
-        "venus":   "Magnetism Field",
-        "saturn":  "Structural Load",
-        "rahu":    "Ambition Engine",
-        "ketu":    "Intuition Compass",
+        "sun":     "Sun (identity, authority, vitality)",
+        "moon":    "Moon (emotion, mind, nurturing)",
+        "mars":    "Mars (action, drive, energy)",
+        "mercury": "Mercury (communication, intellect)",
+        "jupiter": "Jupiter (growth, wisdom, expansion)",
+        "venus":   "Venus (love, partnership, money)",
+        "saturn":  "Saturn (discipline, structure, time)",
+        "rahu":    "Rahu (ambition, breakthrough, foreign)",
+        "ketu":    "Ketu (intuition, release, spirituality)",
     }
 
     for planet, label in PLANET_LABELS.items():

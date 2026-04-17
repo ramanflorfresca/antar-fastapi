@@ -575,7 +575,7 @@ def _planet_energy(planet: str) -> str:
         "Jupiter": "Expansive Growth energy",
         "Venus":   "Heart & Beauty energy",
         "Saturn":  "Clarifying Pressure energy",
-        "Rahu":    "Hungry Becoming energy",
+        "Rahu":    "Ambition & Breakthrough energy",
         "Ketu":    "Releasing & Liberation energy",
     }.get(planet, f"{planet} energy")
 

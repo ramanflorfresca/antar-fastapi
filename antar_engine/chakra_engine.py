@@ -257,7 +257,7 @@ DASHA_ENERGY_SHORT = {
     "Jupiter": "Expansive Growth",
     "Venus":   "Heart & Beauty",
     "Saturn":  "Clarifying Pressure",
-    "Rahu":    "Hungry Becoming",
+    "Rahu":    "Ambition & Breakthrough",
     "Ketu":    "Releasing & Liberation",
 }
 

@@ -362,7 +362,11 @@ def layer2_confluence(
 
     # Build transit map: planet → current sign
     transit_map = {}
-    for t in current_transits:
+    # Handle both list-of-dicts and dict-of-dicts formats
+    _transit_items = current_transits
+    if isinstance(current_transits, dict):
+        _transit_items = list(current_transits.values())
+    for t in _transit_items:
         if isinstance(t, dict):
             p = t.get("planet", t.get("name", ""))
             s = t.get("current_sign", t.get("sign", t.get("transit_sign", "")))
