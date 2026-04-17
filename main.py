@@ -9909,6 +9909,66 @@ async def _get_dashboard_inner(chart_id: str):
             for d in (_la_vim.data or [])
         ]}
         _life_arc_data = build_chapter_arc(chart_data=_la_chart_data, dashas=_la_dashas)
+        # Translate life_arc fields for Spanish
+        if _life_arc_data and language and language.startswith("es"):
+            _CHAPTER_THEME_ES = {
+                "The soul is stepping out of the shadow and into its own light.": "El alma esta saliendo de la sombra hacia su propia luz.",
+                "An identity is being forged that cannot be taken away.": "Se esta forjando una identidad que no puede ser arrebatada.",
+                "The full sun of who you are is at its zenith.": "El sol pleno de quien eres esta en su cenit.",
+                "The harvest of hard-won identity is complete.": "La cosecha de una identidad ganada con esfuerzo esta completa.",
+                "The inner world is becoming the teacher.": "El mundo interior se esta convirtiendo en el maestro.",
+                "Emotional roots are being planted that will hold for a lifetime.": "Se estan plantando raices emocionales que duraran toda la vida.",
+                "The deepest feeling is the clearest truth.": "El sentimiento mas profundo es la verdad mas clara.",
+                "A river of feeling is becoming a deep, still lake.": "Un rio de emociones se esta convirtiendo en un lago profundo y quieto.",
+                "The warrior in you is waking up.": "El guerrero en ti esta despertando.",
+                "Courage is being built through use.": "El coraje se construye con la practica.",
+                "The fire of will is at its brightest.": "El fuego de la voluntad esta en su maximo brillo.",
+                "The battle is ending. The victor is ready for peace.": "La batalla esta terminando. El vencedor esta listo para la paz.",
+                "The mind is sharpening like a new blade.": "La mente se afila como una hoja nueva.",
+                "Intellect is becoming the primary tool.": "El intelecto se esta convirtiendo en la herramienta principal.",
+                "The mind at its most precise and powerful.": "La mente en su punto mas preciso y poderoso.",
+                "The library is full. The teaching begins.": "La biblioteca esta llena. La ensenanza comienza.",
+                "The sky is getting larger.": "El cielo se esta haciendo mas grande.",
+                "Abundance is being constructed, brick by brick.": "La abundancia se construye ladrillo a ladrillo.",
+                "The harvest of expansion is here.": "La cosecha de la expansion esta aqui.",
+                "What was received must now be given forward.": "Lo que se recibio ahora debe darse hacia adelante.",
+                "The heart is learning how to love.": "El corazon esta aprendiendo a amar.",
+                "Beauty is becoming a way of living.": "La belleza se esta convirtiendo en una forma de vivir.",
+                "Love in its fullest expression.": "El amor en su expresion mas plena.",
+                "What was beautiful remains in the heart forever.": "Lo que fue hermoso permanece en el corazon para siempre.",
+                "The sculptor has arrived. The work begins.": "El escultor ha llegado. El trabajo comienza.",
+                "What is real is being separated from what is not.": "Lo real se esta separando de lo que no lo es.",
+                "Truth without ornamentation.": "La verdad sin adornos.",
+                "The fire has burned. What remains is gold.": "El fuego ha ardido. Lo que queda es oro.",
+                "Something new and unprecedented is beginning.": "Algo nuevo y sin precedentes esta comenzando.",
+                "The old world is dissolving into the new.": "El viejo mundo se esta disolviendo en el nuevo.",
+                "Transformation at maximum velocity.": "Transformacion a maxima velocidad.",
+                "The dream and the reality are meeting.": "El sueno y la realidad se estan encontrando.",
+                "Something essential is being uncovered beneath the layers.": "Algo esencial se esta descubriendo bajo las capas.",
+                "The soul is lightening its load.": "El alma esta aligerando su carga.",
+                "Liberation in the truest sense.": "Liberacion en el sentido mas verdadero.",
+                "The last thing to be released is the releasing itself.": "Lo ultimo que hay que soltar es el soltar mismo.",
+            }
+            _PHASE_LABEL_ES = {
+                "The Opening Phase": "La Fase de Apertura",
+                "The Building Phase": "La Fase de Construccion",
+                "The Peak Phase": "La Fase Pico",
+                "The Completion Phase": "La Fase de Cierre",
+                "Active Phase": "Fase Activa",
+            }
+            _PLANET_NAME_ES = {
+                "Sun": "Sol", "Moon": "Luna", "Mars": "Marte", "Mercury": "Mercurio",
+                "Jupiter": "Jupiter", "Venus": "Venus", "Saturn": "Saturno",
+                "Rahu": "Rahu", "Ketu": "Ketu",
+            }
+            _ct = _life_arc_data.get("chapter_theme", "")
+            _life_arc_data["chapter_theme"] = _CHAPTER_THEME_ES.get(_ct, _ct)
+            _pl = _life_arc_data.get("phase_label", "")
+            _life_arc_data["phase_label"] = _PHASE_LABEL_ES.get(_pl, _pl)
+            _ce = _life_arc_data.get("current_energy", "")
+            _life_arc_data["current_energy"] = _PLANET_NAME_ES.get(_ce, _ce)
+            _ne = _life_arc_data.get("next_chapter_energy", "")
+            _life_arc_data["next_chapter_energy"] = _PLANET_NAME_ES.get(_ne, _ne)
     except Exception as _lae:
         print(f'[dashboard] life_arc: {_lae}')
 
@@ -10891,24 +10951,132 @@ def _translate_practice_schedule_es(sched):
         for en, es in {**L, **CONV_PATTERNS_ES}.items():
             cs = cs.replace(en, es)
         s["convergence_summary"] = cs
+    # --- Planet name ES mapping ---
+    PLANET_NAME_ES = {
+        "Sun": "Sol", "Moon": "Luna", "Mars": "Marte", "Mercury": "Mercurio",
+        "Jupiter": "Jupiter", "Venus": "Venus", "Saturn": "Saturno",
+        "Rahu": "Rahu", "Ketu": "Ketu",
+    }
+    # --- Full-text remedy_why translations ---
+    def t_remedy_why(text):
+        """Translate remedy_why long-form paragraphs."""
+        if not text or not isinstance(text, str): return text
+        # Pattern A: dormant/sleeping planet
+        if "currently dormant in your chart" in text:
+            # Extract planet label from "Your {label} energy is currently dormant"
+            import re as _re
+            _m = _re.search(r"Your (.+?) energy is currently dormant", text)
+            _label = _m.group(1) if _m else ""
+            _label_es = PLANET_NAME_ES.get(_label, L.get(_label, _label))
+            return (
+                f"Tu energia de {_label_es} esta inactiva en tu carta ahora mismo. "
+                f"Esto significa que las oportunidades en esta area pasan desapercibidas "
+                f"\u2014 no porque no existan, sino porque el canal para recibirlas esta "
+                f"bloqueado. Esta practica activa ese canal."
+            )
+        # Pattern B: repeating pattern / Rin
+        if "repeating pattern has been detected" in text:
+            return (
+                "Se ha detectado un patron repetitivo en esta area de tu vida \u2014 "
+                "la misma situacion sigue apareciendo de diferentes formas. No es mala "
+                "suerte. Es una senal de que un patron de respuesta particular necesita "
+                "cambiar. Esta practica es el contra-patron."
+            )
+        # Fallback: use the partial t() translator
+        return t(text)
+
+    def t_remedy_why_science(text):
+        """Translate remedy_why_science paragraphs."""
+        if not text or not isinstance(text, str): return text
+        # Pattern A: "Consistent behavioral repetition..."
+        if "Consistent behavioral repetition" in text:
+            return (
+                "La repeticion conductual consistente en un dominio especifico activa vias "
+                "neuronales asociadas con ese dominio \u2014 literalmente hace que tu cerebro "
+                "sea mas receptivo a oportunidades relacionadas."
+            )
+        # Pattern B: "Repeating life patterns..."
+        if "Repeating life patterns" in text:
+            return (
+                "Los patrones de vida repetitivos frecuentemente se originan en bucles "
+                "conductuales inconscientes \u2014 respuestas que alguna vez te protegieron "
+                "pero que ahora crean exactamente los problemas que intentas evitar. El "
+                "contra-comportamiento consistente durante 40 dias interrumpe el bucle a "
+                "nivel neurologico."
+            )
+        return t(text)
+
+    # --- practice_why translation (from PLANET_PRACTICE_META) ---
+    PRACTICE_WHY_ES = {
+        "Your sense of identity and self-worth is the energy being worked on right now. This practice builds the internal confidence that makes external recognition possible.":
+            "Tu sentido de identidad y autoestima es la energia que se esta trabajando ahora. Esta practica construye la confianza interna que hace posible el reconocimiento externo.",
+        "Your emotional processing patterns are being recalibrated. This practice creates a pause between feeling and reacting — giving you clarity instead of reactivity.":
+            "Tus patrones de procesamiento emocional se estan recalibrando. Esta practica crea una pausa entre sentir y reaccionar \u2014 dandote claridad en lugar de reactividad.",
+        "Your action energy and drive need direction right now. This practice channels aggression and impatience into decisive, purposeful movement instead of scattered effort.":
+            "Tu energia de accion necesita direccion ahora. Esta practica canaliza la agresividad y la impaciencia en movimiento decisivo y con proposito.",
+        "Your communication clarity and analytical precision are the focus right now. This practice sharpens how you express ideas and reduces overthinking loops.":
+            "Tu claridad de comunicacion y precision analitica son el enfoque ahora. Esta practica agudiza como expresas ideas y reduce los bucles de sobre-analisis.",
+        "Your capacity for growth, wisdom, and expansion is being activated. This practice opens you to learning and opportunities that your current beliefs might be filtering out.":
+            "Tu capacidad de crecimiento, sabiduria y expansion se esta activando. Esta practica te abre al aprendizaje y oportunidades que tus creencias actuales pueden estar filtrando.",
+        "Your relationship patterns and creative expression are the focus. This practice softens defensiveness and opens you to giving and receiving more freely.":
+            "Tus patrones de relacion y expresion creativa son el enfoque. Esta practica suaviza la defensividad y te abre a dar y recibir mas libremente.",
+        "Your relationship with discipline, long-term thinking, and karmic patterns is being worked on. This practice builds the tolerance for delay that turns ambition into lasting results.":
+            "Tu relacion con la disciplina, el pensamiento a largo plazo y los patrones karmicos se esta trabajando. Esta practica construye la tolerancia a la espera que convierte la ambicion en resultados duraderos.",
+        "Your relationship with obsession, ambition, and unconventional paths is being recalibrated. This practice helps you use disruptive energy constructively instead of compulsively.":
+            "Tu relacion con la obsesion, la ambicion y los caminos no convencionales se esta recalibrando. Esta practica te ayuda a usar la energia disruptiva de forma constructiva.",
+        "Your capacity for release, detachment, and trusting your intuition is being developed. This practice helps you let go of outcomes that are blocking your next chapter.":
+            "Tu capacidad de soltar, desapego y confianza en tu intuicion se esta desarrollando. Esta practica te ayuda a soltar resultados que bloquean tu siguiente capitulo.",
+    }
+    PRACTICE_WHY_SCIENCE_ES = {
+        "Repetitive intention-setting at the same time daily recalibrates your reticular activating system \u2014 the brain's filter that decides what opportunities to notice.":
+            "La fijacion repetitiva de intencion a la misma hora recalibra tu sistema reticular activador \u2014 el filtro cerebral que decide que oportunidades notar.",
+        "The Moon's cycle directly affects human fluid systems and sleep rhythms. Consistent evening practice syncs your nervous system to a calmer biological rhythm.":
+            "El ciclo lunar afecta directamente los sistemas de fluidos y ritmos de sueno. La practica nocturna constante sincroniza tu sistema nervioso con un ritmo biologico mas calmado.",
+        "High-intensity breath patterns (like Kapalabhati) activate the sympathetic nervous system constructively \u2014 releasing accumulated stress hormones without aggression.":
+            "Los patrones de respiracion intensa activan el sistema nervioso simpatico de forma constructiva \u2014 liberando hormonas de estres acumuladas sin agresion.",
+        "Vocal repetition of structured sound patterns activates Broca's area and the prefrontal cortex simultaneously \u2014 literally training clearer thinking and expression.":
+            "La repeticion vocal de patrones de sonido estructurados activa el area de Broca y la corteza prefrontal simultaneamente \u2014 entrenando literalmente un pensamiento y expresion mas claros.",
+        "21 days is the neurological minimum to form a new cognitive habit. Gratitude and expansion practices literally rewire the brain's default mode network toward opportunity-seeking.":
+            "21 dias es el minimo neurologico para formar un nuevo habito cognitivo. Las practicas de gratitud y expansion literalmente reconectan la red de modo predeterminado del cerebro hacia la busqueda de oportunidades.",
+        "Loving-kindness practices (the emotional equivalent of Venus remedies) measurably increase oxytocin, reduce cortisol, and improve relationship satisfaction within 21 days.":
+            "Las practicas de bondad amorosa aumentan la oxitocina, reducen el cortisol y mejoran la satisfaccion en las relaciones en 21 dias.",
+        "40 days is the clinical minimum for breaking a deeply ingrained behavioral pattern (used in addiction recovery, habit formation research). Saturn rules exactly this kind of structural change.":
+            "40 dias es el minimo clinico para romper un patron conductual profundamente arraigado. Saturno gobierna exactamente este tipo de cambio estructural.",
+        "18 days of consistent mindfulness around a specific pattern is enough to create metacognitive awareness \u2014 the ability to observe your own obsessive tendencies without being controlled by them.":
+            "18 dias de atencion plena consistente alrededor de un patron especifico es suficiente para crear conciencia metacognitiva \u2014 la capacidad de observar tus propias tendencias obsesivas sin ser controlado por ellas.",
+        "Detachment practices activate the default mode network differently than goal-focused thinking \u2014 they increase insight and creativity by reducing cognitive fixation.":
+            "Las practicas de desapego activan la red de modo predeterminado de manera diferente al pensamiento enfocado en metas \u2014 aumentan la percepcion y creatividad al reducir la fijacion cognitiva.",
+    }
+
+    # Apply full-text remedy_why translations
     # Translate sleeping_alerts and rin_cards
     if "sleeping_alerts" in s:
         for sa in s["sleeping_alerts"]:
             if "energy_label" in sa: sa["energy_label"]=L.get(sa["energy_label"],sa["energy_label"])
-            for f in ("why","practice","remedy_why","remedy_why_science","duration_reason"):
+            if "remedy_why" in sa: sa["remedy_why"]=t_remedy_why(sa["remedy_why"])
+            if "remedy_why_science" in sa: sa["remedy_why_science"]=t_remedy_why_science(sa["remedy_why_science"])
+            for f in ("why","practice","duration_reason"):
                 if f in sa: sa[f]=t(sa[f])
     if "rin_cards" in s:
         for rc in s["rin_cards"]:
             if "clearing_practice" in rc: rc["clearing_practice"]=t_remedy(rc["clearing_practice"])
-            for f in ("why","remedy_why","remedy_why_science","duration_reason"):
+            if "remedy_why" in rc: rc["remedy_why"]=t_remedy_why(rc["remedy_why"])
+            if "remedy_why_science" in rc: rc["remedy_why_science"]=t_remedy_why_science(rc["remedy_why_science"])
+            for f in ("why","duration_reason"):
                 if f in rc: rc[f]=t(rc[f])
-    # Translate primary_practice and supporting_practices what/action fields (remedy text)
+    # Translate primary_practice and supporting_practices
+    def _translate_practice_card(p):
+        if not p: return
+        if "what" in p: p["what"] = t_remedy(p["what"])
+        if "practice_why" in p:
+            p["practice_why"] = PRACTICE_WHY_ES.get(p["practice_why"], t(p["practice_why"]))
+        if "practice_why_science" in p:
+            p["practice_why_science"] = PRACTICE_WHY_SCIENCE_ES.get(p["practice_why_science"], t(p["practice_why_science"]))
     if "primary_practice" in s:
-        if "what" in s["primary_practice"]:
-            s["primary_practice"]["what"] = t_remedy(s["primary_practice"]["what"])
+        _translate_practice_card(s["primary_practice"])
     if "supporting_practices" in s:
         for sp in s["supporting_practices"]:
-            if "what" in sp: sp["what"] = t_remedy(sp["what"])
+            _translate_practice_card(sp)
     return s
 
 @app.get("/api/v1/practices/{chart_id}/schedule")
@@ -13189,6 +13357,24 @@ def _translate_daily_signals_es(signals):
         "creativity": "creatividad",
         "emotional conversations": "conversaciones emocionales",
         "signing contracts": "firmar contratos",
+        # --- Part 2+3: additional action strings ---
+        "launching": "lanzar proyectos",
+        "negotiating": "negociar",
+        "expanding": "expandir",
+        "consolidating": "consolidar",
+        "reviewing": "revisar",
+        "executing": "ejecutar",
+        "collaborating": "colaborar",
+        "researching": "investigar",
+        "presenting": "presentar",
+        "selling": "vender",
+        "hiring": "contratar",
+        "fundraising": "levantar capital",
+        "building systems": "construir sistemas",
+        "making offers": "hacer ofertas",
+        "closing deals": "cerrar tratos",
+        "public speaking": "hablar en publico",
+        "creating content": "crear contenido",
     }
     DAYS = {
         "Monday":"Lunes","Tuesday":"Martes","Wednesday":"Miercoles",
