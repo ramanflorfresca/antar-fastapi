@@ -3438,7 +3438,7 @@ async def _ensure_chart_complete(chart_id: str, chart_data: dict,
                 d9_planets_dict=_d9_data or {},
                 birth_date_str=birth_date,
             )
-            _db = jaimini_to_db_json(_result)
+            _db = _result["db_json"]
             _db.pop("computed_at", None)
             supabase_client.table("charts").update({
                 "jaimini_data": _db
@@ -6372,7 +6372,7 @@ async def create_chart(
                     d9_planets_dict=_d9_data2 or {},
                     birth_date_str=_jaimini_bd,
                 )
-                _jaimini_db = jaimini_to_db_json(_jaimini_result)
+                _jaimini_db = _jaimini_result["db_json"]
                 _jaimini_db.pop("computed_at", None)
                 supabase.table("charts").update({
                     "jaimini_data": _jaimini_db
@@ -8956,7 +8956,7 @@ async def backfill_jaimini(chart_id: str):
             d9_planets_dict=_d9_data3 or {},
             birth_date_str=_bd,
         )
-        _jaimini_db = jaimini_to_db_json(_jaimini_result)
+        _jaimini_db = _jaimini_result["db_json"]
         _jaimini_db.pop("computed_at", None)
         supabase.table("charts").update({
             "jaimini_data": _jaimini_db
