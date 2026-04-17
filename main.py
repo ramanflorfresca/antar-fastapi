@@ -9890,6 +9890,28 @@ async def _get_dashboard_inner(chart_id: str):
     except Exception as _pe:
         print(f'[dashboard] panchang: {_pe}')
 
+    # Life Arc (chapter_arc) — same data shown on Patterns page
+    _life_arc_data = None
+    try:
+        from antar_engine.chapter_arc import build_chapter_arc
+        _la_chart = supabase.table("charts").select("chart_data").eq("id", chart_id).single().execute()
+        _la_chart_data = _la_chart.data.get("chart_data", {}) if _la_chart.data else {}
+        if isinstance(_la_chart_data, str):
+            import json as _lajson
+            try: _la_chart_data = _lajson.loads(_la_chart_data)
+            except: _la_chart_data = {}
+        # Get vimsottari dashas for chapter arc
+        _la_vim = supabase.table("dasha_periods").select(
+            "planet_or_sign, start_date, end_date, level"
+        ).eq("chart_id", chart_id).eq("system", "vimsottari").eq("level", 1).order("start_date").execute()
+        _la_dashas = {"vimsottari": [
+            {"lord_or_sign": d["planet_or_sign"], "start": d["start_date"], "end": d["end_date"]}
+            for d in (_la_vim.data or [])
+        ]}
+        _life_arc_data = build_chapter_arc(chart_data=_la_chart_data, dashas=_la_dashas)
+    except Exception as _lae:
+        print(f'[dashboard] life_arc: {_lae}')
+
     return {
         "chart_id":    chart_id,
         "first_name":  first_name,
@@ -9954,6 +9976,9 @@ async def _get_dashboard_inner(chart_id: str):
         "event_signal_today":   _pc.get("event_signal"),
         "moon_nak_today":       _pc.get("moon_nakshatra", ""),
         "is_friction_day":      _pc.get("is_friction_day", False),
+
+        # Section 10: Life Arc (chapter_arc) — powers dashboard Life Arc card
+        "life_arc": _life_arc_data,
     }
 
 
@@ -10791,10 +10816,99 @@ def _translate_practice_schedule_es(sched):
         cs=s["convergence_summary"]
         for a,b in {**L,**TX}.items(): cs=cs.replace(a,b)
         s["convergence_summary"]=cs
+    # --- Lal Kitab remedy translations (IN locale items) ---
+    LK_REMEDY_ES = {
+        "iron nails buried under a tree on Saturday": "Entierra clavos de hierro bajo un arbol el sabado",
+        "copper coin in flowing water": "Moneda de cobre en agua corriente",
+        "white flowers at home": "Flores blancas en casa",
+        "sweet bread to a dog on Tuesday": "Pan dulce a un perro el martes",
+        "green moong dal to birds": "Dal de moong verde a las aves",
+        "turmeric tilak on forehead Thursday morning": "Tilak de curcuma en la frente el jueves por la manana",
+        "rice and sugar to ants on Friday": "Arroz y azucar a las hormigas el viernes",
+        "coal in flowing water on Saturday": "Carbon en agua corriente el sabado",
+        "bananas to a temple on Tuesday": "Platanos a un templo el martes",
+        "wear warm gold or orange on Sunday": "Viste dorado calido o naranja el domingo",
+        "keep a small silver item in your pocket on Monday": "Lleva un objeto de plata en tu bolsillo el lunes",
+        "wear red or maroon on Tuesday": "Viste rojo o granate el martes",
+        "wear green on Wednesday": "Viste de verde el miercoles",
+        "wear yellow on Thursday": "Viste de amarillo el jueves",
+        "wear white or pastel on Friday": "Viste de blanco o pastel el viernes",
+        "wear black or navy on Saturday": "Viste de negro o azul marino el sabado",
+        "keep a small sandalwood item near your desk": "Ten un objeto de sandalo cerca de tu escritorio",
+        "wear earth tones on Tuesday": "Viste tonos tierra el martes",
+        "Feed birds green moong on Wednesday. Donate to education.": "Alimenta aves con moong verde el miercoles. Dona a causas educativas.",
+        "Feed birds on Sunday. Offer water to the Sun.": "Alimenta aves el domingo. Ofrece agua al Sol.",
+        "Donate milk or white items on Monday.": "Dona leche o articulos blancos el lunes.",
+        "Offer red flowers on Tuesday. Light a lamp.": "Ofrece flores rojas el martes. Enciende una lampara.",
+        "Light sesame oil lamp on Saturday.": "Enciende una lampara de aceite de sesamo el sabado.",
+        "Donate yellow items on Thursday.": "Dona articulos amarillos el jueves.",
+        "Offer white flowers on Friday.": "Ofrece flores blancas el viernes.",
+        "Feed black sesame to birds at dusk.": "Alimenta aves con sesamo negro al anochecer.",
+        "Donate multi-colored cloth on Saturday.": "Dona tela multicolor el sabado.",
+    }
+    # --- Remedy action translations (GLOBAL locale) ---
+    REMEDY_ACTION_ES = {
+        "Spend 5 minutes in morning sunlight. Volunteer for a leadership role this week.": "Pasa 5 minutos al sol de la manana. Ofrece liderazgo esta semana.",
+        "Take a 10-minute walk by water this week. Write down three feelings you've been avoiding.": "Camina 10 minutos cerca del agua. Escribe tres emociones que has evitado.",
+        "Do 15 minutes of intense exercise on Tuesday. Channel frustration into a physical goal.": "Haz 15 minutos de ejercicio intenso el martes. Canaliza la frustracion en una meta fisica.",
+        "Write one difficult email you've been avoiding. Read 15 pages of a new book.": "Escribe ese email dificil que has evitado. Lee 15 paginas de un libro nuevo.",
+        "Express gratitude to a mentor or teacher this week. Teach someone one thing you know.": "Agradece a un mentor esta semana. Ensena algo que sepas.",
+        "Create something beautiful this week — cook, paint, arrange flowers. Compliment someone sincerely.": "Crea algo hermoso esta semana — cocina, pinta, arregla flores. Halaga a alguien con sinceridad.",
+        "Volunteer at a shelter or food bank this Saturday. Help someone who serves others.": "Haz voluntariado este sabado. Ayuda a alguien que sirve a otros.",
+        "Pause before your next impulsive decision. Meditate on the difference between desire and need.": "Pausa antes de tu proxima decision impulsiva. Medita sobre deseo vs necesidad.",
+        "Spend 10 minutes in silence today. Let go of one attachment — delete, donate, or forgive.": "Pasa 10 minutos en silencio hoy. Suelta un apego — borra, dona o perdona.",
+    }
+    def t_remedy(v):
+        if not v or not isinstance(v,str): return v
+        if v in LK_REMEDY_ES: return LK_REMEDY_ES[v]
+        if v in REMEDY_ACTION_ES: return REMEDY_ACTION_ES[v]
+        # Try partial matches for compound strings (e.g. action + " ← This is your primary practice day.")
+        for en,es in {**LK_REMEDY_ES, **REMEDY_ACTION_ES}.items():
+            if en in v: v = v.replace(en, es)
+        return v
+
     if "weekly_plan" in s:
         for d in s["weekly_plan"]:
             if "energy_label" in d: d["energy_label"]=L.get(d["energy_label"],d["energy_label"])
             if "day_name" in d: d["day_name"]=DY.get(d["day_name"],d["day_name"])
+            if "primary_action" in d: d["primary_action"]=t_remedy(d["primary_action"])
+            if "mantra" in d:
+                aff = d["mantra"]
+                if aff in TX: d["mantra"] = TX[aff]
+    # Translate convergence_summary fully
+    if "convergence_summary" in s:
+        cs = s["convergence_summary"]
+        # Full pattern translations
+        CONV_PATTERNS_ES = {
+            "Strong alignment:": "Fuerte alineacion:",
+            "indicators confirm your": "indicadores confirman que tu energia de",
+            "energy is the focus right now.": "es el enfoque ahora.",
+            "Multiple signals point to": "Multiples senales apuntan a la energia de",
+            "energy as your priority this period.": "como tu prioridad en este periodo.",
+            "energy is gently active. Light practice recommended.": "esta suavemente activa. Se recomienda practica ligera.",
+            "Your": "Tu energia de",
+        }
+        for en, es in {**L, **CONV_PATTERNS_ES}.items():
+            cs = cs.replace(en, es)
+        s["convergence_summary"] = cs
+    # Translate sleeping_alerts and rin_cards
+    if "sleeping_alerts" in s:
+        for sa in s["sleeping_alerts"]:
+            if "energy_label" in sa: sa["energy_label"]=L.get(sa["energy_label"],sa["energy_label"])
+            for f in ("why","practice","remedy_why","remedy_why_science","duration_reason"):
+                if f in sa: sa[f]=t(sa[f])
+    if "rin_cards" in s:
+        for rc in s["rin_cards"]:
+            if "clearing_practice" in rc: rc["clearing_practice"]=t_remedy(rc["clearing_practice"])
+            for f in ("why","remedy_why","remedy_why_science","duration_reason"):
+                if f in rc: rc[f]=t(rc[f])
+    # Translate primary_practice and supporting_practices what/action fields (remedy text)
+    if "primary_practice" in s:
+        if "what" in s["primary_practice"]:
+            s["primary_practice"]["what"] = t_remedy(s["primary_practice"]["what"])
+    if "supporting_practices" in s:
+        for sp in s["supporting_practices"]:
+            if "what" in sp: sp["what"] = t_remedy(sp["what"])
     return s
 
 @app.get("/api/v1/practices/{chart_id}/schedule")
@@ -12958,6 +13072,123 @@ def _translate_daily_signals_es(signals):
         "preparation": "preparacion",
         "confrontation": "confrontacion directa",
         "audit": "auditoria",
+        # --- Extended action translations (from NAKSHATRA_PROFILES) ---
+        "starting projects": "iniciar proyectos",
+        "health actions": "acciones de salud",
+        "speed decisions": "decisiones rapidas",
+        "long-term planning": "planificacion a largo plazo",
+        "slow negotiations": "negociaciones lentas",
+        "difficult conversations": "conversaciones dificiles",
+        "ending cycles": "cerrar ciclos",
+        "financial moves": "movimientos financieros",
+        "new beginnings": "nuevos comienzos",
+        "light social events": "eventos sociales ligeros",
+        "cutting losses": "cortar perdidas",
+        "clarity conversations": "conversaciones de claridad",
+        "editing work": "trabajo de edicion",
+        "diplomacy": "diplomacia",
+        "compromise situations": "situaciones de compromiso",
+        "relationship building": "construir relaciones",
+        "financial planning": "planificacion financiera",
+        "confrontation": "confrontacion",
+        "endings": "finales",
+        "exploration": "exploracion",
+        "new contacts": "nuevos contactos",
+        "commitment decisions": "decisiones de compromiso",
+        "finalizing": "finalizar",
+        "problem-solving": "resolucion de problemas",
+        "technical work": "trabajo tecnico",
+        "breakthrough thinking": "pensamiento disruptivo",
+        "public appearances": "apariciones publicas",
+        "recovery": "recuperacion",
+        "relaunching stalled projects": "relanzar proyectos estancados",
+        "intense focus": "enfoque intenso",
+        "investments": "inversiones",
+        "team building": "construir equipo",
+        "risky moves": "movimientos arriesgados",
+        "speculation": "especulacion",
+        "negotiation": "negociacion",
+        "uncovering hidden info": "descubrir informacion oculta",
+        "trust-building": "construir confianza",
+        "openness": "apertura",
+        "leadership actions": "acciones de liderazgo",
+        "legacy work": "trabajo de legado",
+        "collaboration": "colaboracion",
+        "blending in": "pasar desapercibido",
+        "client entertainment": "entretenimiento de clientes",
+        "creative projects": "proyectos creativos",
+        "solo deep work": "trabajo profundo en solitario",
+        "financial discipline": "disciplina financiera",
+        "long-term agreements": "acuerdos a largo plazo",
+        "institutional work": "trabajo institucional",
+        "rapid pivots": "cambios rapidos",
+        "detailed work": "trabajo detallado",
+        "craftsmanship": "artesania",
+        "healing actions": "acciones de sanacion",
+        "big-picture strategy": "estrategia general",
+        "delegation": "delegacion",
+        "design": "diseno",
+        "brand work": "trabajo de marca",
+        "pitches": "presentaciones de pitch",
+        "routine work": "trabajo rutinario",
+        "slow processes": "procesos lentos",
+        "flexibility": "flexibilidad",
+        "trading": "comercio",
+        "fixed commitments": "compromisos fijos",
+        "goal-setting": "fijar metas",
+        "competitive moves": "movimientos competitivos",
+        "ambition-driven work": "trabajo impulsado por ambicion",
+        "rest": "descanso",
+        "casual socializing": "socializacion informal",
+        "team loyalty": "lealtad de equipo",
+        "friendship": "amistad",
+        "structured work": "trabajo estructurado",
+        "isolation": "aislamiento",
+        "self-promotion": "autopromocion",
+        "authority decisions": "decisiones de autoridad",
+        "crisis management": "gestion de crisis",
+        "protection": "proteccion",
+        "partnership building": "construir alianzas",
+        "softness": "suavidad",
+        "root-cause analysis": "analisis de causa raiz",
+        "philosophy": "filosofia",
+        "stability": "estabilidad",
+        "new launches": "nuevos lanzamientos",
+        "pitching": "hacer pitch",
+        "persuasion": "persuasion",
+        "accepting defeat": "aceptar la derrota",
+        "slowing down": "desacelerar",
+        "finalizing wins": "consolidar victorias",
+        "integrity-based decisions": "decisiones basadas en integridad",
+        "launches": "lanzamientos",
+        "compromise": "compromiso",
+        "grey areas": "zonas grises",
+        "mentorship": "mentoria",
+        "advisory conversations": "conversaciones de asesoria",
+        "speaking over others": "hablar por encima de otros",
+        "impulsive action": "accion impulsiva",
+        "wealth moves": "movimientos de riqueza",
+        "group leadership": "liderazgo grupal",
+        "bold action": "accion audaz",
+        "detail work": "trabajo de detalle",
+        "unconventional approaches": "enfoques innovadores",
+        "public-facing work": "trabajo de cara al publico",
+        "high-stakes decisions": "decisiones de alto riesgo",
+        "transitions": "transiciones",
+        "patience": "paciencia",
+        "slow work": "trabajo lento",
+        "teaching": "ensenanza",
+        "settling matters": "resolver asuntos",
+        "fast pivots": "cambios rapidos",
+        "closing cycles": "cerrar ciclos",
+        "charitable work": "trabajo caritativo",
+        "spiritual clarity": "claridad espiritual",
+        "new ventures": "nuevos emprendimientos",
+        "competitive pressure": "presion competitiva",
+        "exercise": "ejercicio",
+        "creativity": "creatividad",
+        "emotional conversations": "conversaciones emocionales",
+        "signing contracts": "firmar contratos",
     }
     DAYS = {
         "Monday":"Lunes","Tuesday":"Martes","Wednesday":"Miercoles",
@@ -13098,6 +13329,21 @@ def _translate_daily_signals_es(signals):
             "communication": "comunicacion",
             "creative work": "trabajo creativo",
             "leadership": "liderazgo",
+            "starting projects": "iniciar proyectos",
+            "health actions": "acciones de salud",
+            "long-term planning": "planificacion a largo plazo",
+            "slow negotiations": "negociaciones lentas",
+            "financial moves": "movimientos financieros",
+            "problem-solving": "resolucion de problemas",
+            "technical work": "trabajo tecnico",
+            "investments": "inversiones",
+            "team building": "construir equipo",
+            "leadership actions": "acciones de liderazgo",
+            "detailed work": "trabajo detallado",
+            "goal-setting": "fijar metas",
+            "negotiation": "negociacion",
+            "flexibility": "flexibilidad",
+            "closing cycles": "cerrar ciclos",
         }
         for en, es in replacements.items():
             text = text.replace(en, es)
