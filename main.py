@@ -3129,6 +3129,42 @@ async def get_upcoming_themes(
             print(f"[upcoming-themes] Transit confirmation failed (non-fatal): {_tce}")
         # === END TRANSIT CONFIRMATION ===
 
+        # === D9/D10 CONFIDENCE ADJUSTMENT ===
+        try:
+            from antar_engine.divisional_context import extract_d9_context, extract_d10_context
+            _d9_up = extract_d9_context(cd)
+            _d10_up = extract_d10_context(cd)
+
+            for _th in themes:
+                _evt = _th.get("event_type", "")
+
+                # Relationship events: D9 Venus strength adjusts confidence
+                if _d9_up and _evt in ("serious_partnership_began", "serious_partnership_ended"):
+                    _rs = _d9_up.get("relationship_strength", "moderate")
+                    if _rs == "strong":
+                        _th["confidence"] = min(10, _th.get("confidence", 5) + 1)
+                        _th["d9_signal"] = "D9 Venus strong — relationship energy confirmed"
+                    elif _rs == "difficult":
+                        _th["confidence"] = max(1, _th.get("confidence", 5) - 1)
+                        _th["d9_signal"] = "D9 Venus challenged — timing may shift"
+
+                # Career events: D10 Sun/10th house adjusts confidence
+                if _d10_up and _evt in ("career_pivot", "major_acquisition"):
+                    _cs = _d10_up.get("career_strength", "moderate")
+                    if _cs == "strong":
+                        _th["confidence"] = min(10, _th.get("confidence", 5) + 1)
+                        _th["d10_signal"] = "D10 career chart strong — professional shift confirmed"
+                    elif _cs == "needs_effort":
+                        _th["confidence"] = max(1, _th.get("confidence", 5) - 1)
+                        _th["d10_signal"] = "D10 career chart needs effort — transition requires extra push"
+
+                # Recalculate label after adjustment
+                _c = _th.get("confidence", 5)
+                _th["confidence_label"] = "high" if _c >= 8 else "moderate" if _c >= 5 else "low"
+        except Exception as _dce:
+            print(f"[upcoming-themes] D9/D10 confidence adjustment failed (non-fatal): {_dce}")
+        # === END D9/D10 CONFIDENCE ADJUSTMENT ===
+
         stable = None
         if len(themes) < 2:
             stable = (
@@ -4329,6 +4365,46 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
         except Exception as _lte:
             print(f"[predict] Live transit injection failed (non-fatal): {_lte}")
         # === END LIVE TRANSIT CONTEXT ===
+
+        # === D9/D10 DIVISIONAL CHART CONTEXT ===
+        try:
+            from antar_engine.divisional_context import (
+                extract_d9_context, extract_d10_context,
+                format_d9_for_prompt, format_d10_for_prompt,
+            )
+            _d9_ctx = extract_d9_context(chart_data)
+            _d10_ctx = extract_d10_context(chart_data)
+
+            # Domain-gated injection: relationship → D9, career → D10, general → both
+            _div_parts = []
+            _concern_lower = (concern or "").lower()
+            _q_lower = (request.question or "").lower()
+
+            _is_relationship = _concern_lower in ("relationship", "marriage", "love", "partner", "compatibility") or any(
+                kw in _q_lower for kw in ("relationship", "marriage", "love", "partner", "wife", "husband", "dating", "romantic")
+            )
+            _is_career = _concern_lower in ("career", "job", "business", "money", "wealth", "promotion") or any(
+                kw in _q_lower for kw in ("career", "job", "business", "work", "promotion", "salary", "company", "professional")
+            )
+
+            if _is_relationship and _d9_ctx:
+                _div_parts.append(format_d9_for_prompt(_d9_ctx))
+            elif _is_career and _d10_ctx:
+                _div_parts.append(format_d10_for_prompt(_d10_ctx))
+            else:
+                # General question — include both if available
+                if _d9_ctx:
+                    _div_parts.append(format_d9_for_prompt(_d9_ctx))
+                if _d10_ctx:
+                    _div_parts.append(format_d10_for_prompt(_d10_ctx))
+
+            _div_block = "\n\n".join(_div_parts)
+            if _div_block:
+                _full_context += "\n\n" + _div_block
+                print(f"[predict] D9/D10 divisional context injected ({len(_div_block)} chars, rel={_is_relationship}, career={_is_career})")
+        except Exception as _dive:
+            print(f"[predict] D9/D10 injection failed (non-fatal): {_dive}")
+        # === END D9/D10 DIVISIONAL CHART CONTEXT ===
 
         print(f"[predict] Full context: {len(_full_context)} chars")
     except Exception as _ctx_e:

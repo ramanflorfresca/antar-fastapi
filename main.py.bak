@@ -980,6 +980,7 @@ class PredictResponse(BaseModel):
     oracle_context:         Optional[Dict] = None
     archetype_name:         Optional[str]  = None
     context_path:           Optional[str]  = None
+    rating_prompt:          Optional[Dict] = None   # smart prompt to rate old predictions
 
 class ChartResponse(BaseModel):
     id: str
@@ -5108,6 +5109,48 @@ State a specific year. Never predict past events as future windows.
         if isinstance(_conf, (int, float)):
             _pe["confidence"] = "high" if _conf >= 0.7 else ("medium" if _conf >= 0.4 else "low")
 
+    # === RATING PROMPT — nudge user to rate old predictions ===
+    _rating_prompt = None
+    try:
+        from datetime import datetime as _rp_dt, timedelta as _rp_td
+        _7days_ago = (_rp_dt.utcnow() - _rp_td(days=7)).isoformat()
+        _3days_ago = (_rp_dt.utcnow() - _rp_td(days=3)).isoformat()
+        # Check if we should prompt (not prompted in last 3 days)
+        _chart_meta = supabase.table("charts").select(
+            "last_rating_prompt_at"
+        ).eq("id", request.chart_id).single().execute()
+        _last_prompt_at = (_chart_meta.data or {}).get("last_rating_prompt_at")
+        _should_prompt = not _last_prompt_at or _last_prompt_at < _3days_ago
+        if _should_prompt:
+            # Find oldest unrated prediction older than 7 days
+            _unrated = supabase.table("predictions").select(
+                "id, signal_line, question, created_at"
+            ).eq("chart_id", request.chart_id).is_(
+                "accuracy_rating", "null"
+            ).lt("created_at", _7days_ago).order(
+                "created_at"
+            ).limit(1).execute()
+            if _unrated.data:
+                _up = _unrated.data[0]
+                _days_ago = (_rp_dt.utcnow() - _rp_dt.fromisoformat(
+                    _up["created_at"].replace("Z", "").split("+")[0]
+                )).days
+                _rating_prompt = {
+                    "prediction_id": _up["id"],
+                    "signal_line": _up.get("signal_line") or _up.get("question", "")[:80],
+                    "asked_date": _up["created_at"][:10],
+                    "days_ago": _days_ago,
+                    "question": f"You asked about this {_days_ago} days ago. Did it happen?",
+                    "options": ["Yes, accurate", "Partially", "No, didn't happen", "Too early to tell"],
+                }
+                # Mark that we prompted
+                supabase.table("charts").update(
+                    {"last_rating_prompt_at": _rp_dt.utcnow().isoformat()}
+                ).eq("id", request.chart_id).execute()
+    except Exception as _rpe:
+        print(f"[predict] Rating prompt generation failed (non-fatal): {_rpe}")
+    # === END RATING PROMPT ===
+
     return PredictResponse(
         prediction=prediction_text,
         confidence=confidence,
@@ -5143,6 +5186,7 @@ State a specific year. Never predict past events as future windows.
         contradiction_detected=_contradiction_detected if '_contradiction_detected' in dir() else False,
         oracle_context=_oracle_context if '_oracle_context' in dir() else None,
         archetype_name=_char_archetype.get("name") if _char_archetype else None,
+        rating_prompt=_rating_prompt,
     )
 
 # ── Conversations ─────────────────────────────────────────────────────────────
@@ -13861,4 +13905,450 @@ async def get_transit_report_endpoint(chart_id: str):
 
 # ============================================================================
 # END TRANSIT ENDPOINT
+# ============================================================================
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# FEEDBACK LOOPS — Daily check-in, Prashna follow-up, Accuracy dashboard
+# ══════════════════════════════════════════════════════════════════════════════
+
+# ── Daily Check-in ───────────────────────────────────────────────────────────
+
+@app.post("/api/v1/daily-feedback/{chart_id}")
+async def submit_daily_feedback(chart_id: str, body: dict):
+    """
+    User rates how their day went. We compare to what we predicted.
+    Body: { "date": "2026-04-16", "user_rating": 3, "user_note": "felt great" }
+    user_rating: 1=bad, 2=neutral, 3=good
+    """
+    try:
+        from datetime import datetime as _df_dt
+        _date = body.get("date")
+        _rating = body.get("user_rating")
+        _note = body.get("user_note", "")
+
+        if _rating not in (1, 2, 3):
+            raise HTTPException(status_code=400, detail="user_rating must be 1, 2, or 3")
+        if not _date:
+            raise HTTPException(status_code=400, detail="date is required (YYYY-MM-DD)")
+
+        # Look up predicted signal for that date from daily_wow_cache or generate
+        _predicted_score = None
+        _predicted_friction = None
+        try:
+            from antar_engine.daily_prediction_engine import generate_weekly_signals
+            _chart_row = supabase.table("charts").select(
+                "chart_data, current_country"
+            ).eq("id", chart_id).single().execute()
+            if _chart_row.data:
+                _raw_cd = _chart_row.data.get("chart_data") or {}
+                if isinstance(_raw_cd, str):
+                    import json as _dfjson
+                    try: _raw_cd = _dfjson.loads(_raw_cd)
+                    except: _raw_cd = {}
+                _natal_moon = "Aries"
+                _planets = _raw_cd.get("planets") or _raw_cd.get("planet_positions")
+                if _planets:
+                    for _p in _planets:
+                        if isinstance(_p, dict):
+                            _pn = _p.get("name", "").lower() or _p.get("planet", "").lower()
+                            if _pn == "moon":
+                                _natal_moon = _p.get("sign") or _p.get("rashi") or "Aries"
+                                break
+                _target_date = _df_dt.fromisoformat(_date)
+                _signals = generate_weekly_signals(natal_moon_sign=_natal_moon, start_date=_target_date)
+                if _signals:
+                    _today_sig = _signals[0]
+                    _predicted_score = _today_sig.get("daily_score", 5)
+                    _predicted_friction = _today_sig.get("is_friction_day", False)
+        except Exception as _pse:
+            print(f"[daily-feedback] Predicted signal lookup failed (non-fatal): {_pse}")
+
+        # Save to daily_feedback table
+        _row = {
+            "chart_id": chart_id,
+            "date": _date,
+            "predicted_score": _predicted_score,
+            "predicted_friction": _predicted_friction,
+            "user_rating": _rating,
+            "user_note": _note or None,
+        }
+        supabase.table("daily_feedback").upsert(
+            _row, on_conflict="chart_id,date"
+        ).execute()
+
+        # Compute match
+        _predicted_type = "friction" if _predicted_friction else "flow"
+        _rating_label = {1: "bad", 2: "neutral", 3: "good"}[_rating]
+        if _predicted_friction:
+            _match = _rating == 1
+        else:
+            _match = _rating == 3
+        _partial = _rating == 2
+
+        # Compute accuracy stats
+        _all = supabase.table("daily_feedback").select(
+            "predicted_friction, user_rating"
+        ).eq("chart_id", chart_id).not_.is_(
+            "predicted_friction", "null"
+        ).execute()
+        _total = len(_all.data or [])
+        _matched = 0
+        for _r in (_all.data or []):
+            _pf = _r.get("predicted_friction")
+            _ur = _r.get("user_rating")
+            if _pf and _ur == 1:
+                _matched += 1
+            elif not _pf and _ur == 3:
+                _matched += 1
+            elif _ur == 2:
+                _matched += 0.5
+
+        # Compute accuracy streak
+        _recent = supabase.table("daily_feedback").select(
+            "predicted_friction, user_rating, date"
+        ).eq("chart_id", chart_id).not_.is_(
+            "predicted_friction", "null"
+        ).order("date", desc=True).limit(30).execute()
+        _streak = 0
+        for _r in (_recent.data or []):
+            _pf = _r.get("predicted_friction")
+            _ur = _r.get("user_rating")
+            _is_match = (_pf and _ur == 1) or (not _pf and _ur == 3) or _ur == 2
+            if _is_match:
+                _streak += 1
+            else:
+                break
+
+        return {
+            "saved": True,
+            "predicted_type": _predicted_type,
+            "your_rating": _rating_label,
+            "match": _match,
+            "partial": _partial,
+            "accuracy_streak": _streak,
+            "total_rated": _total,
+            "total_matched": int(_matched),
+            "accuracy_pct": round(_matched / _total * 100) if _total > 0 else 0,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[daily-feedback] Error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save feedback: {str(e)}")
+
+
+@app.get("/api/v1/daily-feedback/{chart_id}/stats")
+async def get_daily_feedback_stats(chart_id: str):
+    """Returns accuracy stats for daily signal predictions."""
+    try:
+        _all = supabase.table("daily_feedback").select(
+            "date, predicted_friction, predicted_score, user_rating, user_note"
+        ).eq("chart_id", chart_id).order("date", desc=True).execute()
+
+        _rows = _all.data or []
+        _total = 0
+        _matched = 0.0
+        _streak = 0
+        _streak_counting = True
+        _longest_streak = 0
+        _current_streak = 0
+        _last_7 = []
+
+        for _r in _rows:
+            _pf = _r.get("predicted_friction")
+            _ur = _r.get("user_rating")
+            if _pf is None:
+                continue
+            _total += 1
+            _is_match = (_pf and _ur == 1) or (not _pf and _ur == 3)
+            _is_partial = _ur == 2
+
+            if _is_match:
+                _matched += 1
+                _current_streak += 1
+            elif _is_partial:
+                _matched += 0.5
+                _current_streak += 1  # partial counts for streak
+            else:
+                _longest_streak = max(_longest_streak, _current_streak)
+                _current_streak = 0
+
+            if _streak_counting:
+                if _is_match or _is_partial:
+                    _streak += 1
+                else:
+                    _streak_counting = False
+
+            if _total <= 7:
+                _last_7.append({
+                    "date": _r.get("date"),
+                    "predicted": "friction" if _pf else "flow",
+                    "actual": {1: "bad", 2: "neutral", 3: "good"}.get(_ur, "?"),
+                    "match": _is_match,
+                    "partial": _is_partial,
+                })
+
+        _longest_streak = max(_longest_streak, _current_streak)
+
+        return {
+            "chart_id": chart_id,
+            "total_days_rated": _total,
+            "total_matched": int(_matched),
+            "accuracy_pct": round(_matched / _total * 100) if _total > 0 else 0,
+            "current_streak": _streak,
+            "longest_streak": _longest_streak,
+            "last_7_days": _last_7,
+        }
+
+    except Exception as e:
+        print(f"[daily-feedback-stats] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Prashna Follow-up ────────────────────────────────────────────────────────
+
+@app.get("/api/v1/prashna-followup/{chart_id}")
+async def get_prashna_followups(chart_id: str):
+    """Returns prashna questions from 30+ days ago that haven't been followed up."""
+    try:
+        from datetime import datetime as _pf_dt, timedelta as _pf_td
+        _30_ago = (_pf_dt.utcnow() - _pf_td(days=30)).isoformat()
+
+        _pending = supabase.table("prashna_log").select(
+            "id, question, verdict, score, label, created_at"
+        ).eq("chart_id", chart_id).lt(
+            "created_at", _30_ago
+        ).is_("follow_up_rating", "null").order(
+            "created_at", desc=True
+        ).limit(3).execute()
+
+        _followups = []
+        for _r in (_pending.data or []):
+            _created = _r.get("created_at", "")
+            try:
+                _days = (_pf_dt.utcnow() - _pf_dt.fromisoformat(
+                    _created.replace("Z", "").split("+")[0]
+                )).days
+            except Exception:
+                _days = 30
+            _followups.append({
+                "prashna_id": _r["id"],
+                "question": _r.get("question", ""),
+                "asked_date": _created[:10],
+                "verdict": _r.get("verdict", ""),
+                "score": _r.get("score", 0),
+                "label": _r.get("label", ""),
+                "days_ago": _days,
+            })
+
+        return {"chart_id": chart_id, "pending_followups": _followups}
+
+    except Exception as e:
+        print(f"[prashna-followup] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/prashna-followup/{chart_id}/{prashna_id}")
+async def submit_prashna_followup(chart_id: str, prashna_id: str, body: dict):
+    """
+    User reports whether a prashna verdict came true.
+    Body: { "outcome": "confirmed", "user_note": "took the job, going great" }
+    outcome: "confirmed" | "partially" | "wrong" | "still_unclear"
+    """
+    try:
+        from datetime import datetime as _sf_dt
+        _outcome = body.get("outcome", "")
+        _note = body.get("user_note", "")
+
+        if _outcome not in ("confirmed", "partially", "wrong", "still_unclear"):
+            raise HTTPException(
+                status_code=400,
+                detail="outcome must be: confirmed, partially, wrong, or still_unclear"
+            )
+
+        # Update prashna_log row
+        _update = supabase.table("prashna_log").update({
+            "follow_up_rating": _outcome,
+            "follow_up_note": _note or None,
+            "follow_up_at": _sf_dt.utcnow().isoformat(),
+        }).eq("id", prashna_id).eq("chart_id", chart_id).execute()
+
+        if not _update.data:
+            raise HTTPException(status_code=404, detail="Prashna not found")
+
+        _row = _update.data[0]
+        _verdict = (_row.get("verdict") or "").upper()
+
+        # Compute match: PROCEED + confirmed = match, WAIT/AVOID + wrong = match
+        _is_match = False
+        if _outcome == "confirmed" and _verdict in ("PROCEED", "STRONG PROCEED"):
+            _is_match = True
+        elif _outcome == "confirmed" and _verdict in ("WAIT", "AVOID", "STRONG AVOID"):
+            _is_match = False
+        elif _outcome == "wrong" and _verdict in ("WAIT", "AVOID", "STRONG AVOID"):
+            _is_match = True
+        elif _outcome == "wrong" and _verdict in ("PROCEED", "STRONG PROCEED"):
+            _is_match = False
+        elif _outcome == "partially":
+            _is_match = None  # partial
+
+        # Compute overall prashna accuracy
+        _all_followed = supabase.table("prashna_log").select(
+            "verdict, follow_up_rating"
+        ).eq("chart_id", chart_id).not_.is_(
+            "follow_up_rating", "null"
+        ).neq("follow_up_rating", "still_unclear").execute()
+
+        _total = len(_all_followed.data or [])
+        _correct = 0
+        for _r in (_all_followed.data or []):
+            _v = (_r.get("verdict") or "").upper()
+            _f = _r.get("follow_up_rating", "")
+            if _f == "confirmed" and _v in ("PROCEED", "STRONG PROCEED"):
+                _correct += 1
+            elif _f == "wrong" and _v in ("WAIT", "AVOID", "STRONG AVOID"):
+                _correct += 1
+            elif _f == "partially":
+                _correct += 0.5
+
+        return {
+            "saved": True,
+            "prashna_id": prashna_id,
+            "verdict": _verdict,
+            "outcome": _outcome,
+            "match": _is_match,
+            "total_followed_up": _total,
+            "total_correct": int(_correct),
+            "accuracy_pct": round(_correct / _total * 100) if _total > 0 else 0,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[prashna-followup] Submit error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Accuracy Dashboard ───────────────────────────────────────────────────────
+
+@app.get("/api/v1/accuracy/{chart_id}")
+async def get_accuracy_dashboard(chart_id: str):
+    """
+    Master accuracy endpoint combining daily signal, prashna, and predictions.
+    Returns the 'Antar Precision Score' for the user's profile.
+    """
+    try:
+        from datetime import datetime as _ad_dt, timedelta as _ad_td
+
+        # 1. Daily signal accuracy
+        _daily = {"total_rated": 0, "accuracy_pct": 0, "current_streak": 0}
+        try:
+            _df_rows = supabase.table("daily_feedback").select(
+                "predicted_friction, user_rating, date"
+            ).eq("chart_id", chart_id).not_.is_(
+                "predicted_friction", "null"
+            ).order("date", desc=True).execute()
+            _dt = len(_df_rows.data or [])
+            _dm = 0.0
+            _ds = 0
+            _ds_counting = True
+            for _r in (_df_rows.data or []):
+                _pf = _r.get("predicted_friction")
+                _ur = _r.get("user_rating")
+                _is_m = (_pf and _ur == 1) or (not _pf and _ur == 3)
+                _is_p = _ur == 2
+                if _is_m: _dm += 1
+                elif _is_p: _dm += 0.5
+                if _ds_counting:
+                    if _is_m or _is_p: _ds += 1
+                    else: _ds_counting = False
+            _daily = {
+                "total_rated": _dt,
+                "accuracy_pct": round(_dm / _dt * 100) if _dt > 0 else 0,
+                "current_streak": _ds,
+            }
+        except Exception as _de:
+            print(f"[accuracy] Daily stats error (non-fatal): {_de}")
+
+        # 2. Prashna accuracy
+        _prashna = {"total_asked": 0, "total_followed_up": 0, "accuracy_pct": 0, "pending_followups": 0}
+        try:
+            _pa = supabase.table("prashna_log").select(
+                "verdict, follow_up_rating"
+            ).eq("chart_id", chart_id).execute()
+            _pa_total = len(_pa.data or [])
+            _pa_followed = [r for r in (_pa.data or []) if r.get("follow_up_rating") and r.get("follow_up_rating") != "still_unclear"]
+            _pa_pending = _pa_total - len([r for r in (_pa.data or []) if r.get("follow_up_rating")])
+            _pa_correct = 0.0
+            for _r in _pa_followed:
+                _v = (_r.get("verdict") or "").upper()
+                _f = _r.get("follow_up_rating", "")
+                if _f == "confirmed" and _v in ("PROCEED", "STRONG PROCEED"): _pa_correct += 1
+                elif _f == "wrong" and _v in ("WAIT", "AVOID", "STRONG AVOID"): _pa_correct += 1
+                elif _f == "partially": _pa_correct += 0.5
+            _prashna = {
+                "total_asked": _pa_total,
+                "total_followed_up": len(_pa_followed),
+                "accuracy_pct": round(_pa_correct / len(_pa_followed) * 100) if _pa_followed else 0,
+                "pending_followups": _pa_pending,
+            }
+        except Exception as _pe:
+            print(f"[accuracy] Prashna stats error (non-fatal): {_pe}")
+
+        # 3. Predictions accuracy
+        _predictions = {"total_predictions": 0, "total_rated": 0, "accuracy_pct": 0, "unrated": 0}
+        try:
+            _pr = supabase.table("predictions").select(
+                "accuracy_rating"
+            ).eq("chart_id", chart_id).execute()
+            _pr_total = len(_pr.data or [])
+            _pr_rated = [r for r in (_pr.data or []) if r.get("accuracy_rating") is not None]
+            _pr_accurate = sum(1 for r in _pr_rated if r.get("accuracy_rating") == 1)
+            _predictions = {
+                "total_predictions": _pr_total,
+                "total_rated": len(_pr_rated),
+                "accuracy_pct": round(_pr_accurate / len(_pr_rated) * 100) if _pr_rated else 0,
+                "unrated": _pr_total - len(_pr_rated),
+            }
+        except Exception as _pre:
+            print(f"[accuracy] Predictions stats error (non-fatal): {_pre}")
+
+        # 4. Overall precision score (weighted average)
+        _components = []
+        if _daily["total_rated"] >= 5:
+            _components.append((_daily["accuracy_pct"], 0.4))
+        if _prashna["total_followed_up"] >= 5:
+            _components.append((_prashna["accuracy_pct"], 0.3))
+        if _predictions["total_rated"] >= 5:
+            _components.append((_predictions["accuracy_pct"], 0.3))
+
+        if _components:
+            _total_weight = sum(w for _, w in _components)
+            _overall = sum(v * w for v, w in _components) / _total_weight
+        else:
+            _overall = None  # not enough data
+
+        return {
+            "chart_id": chart_id,
+            "daily_signal": _daily,
+            "prashna": _prashna,
+            "predictions": _predictions,
+            "overall_precision": round(_overall) if _overall is not None else None,
+            "precision_status": (
+                "insufficient_data" if _overall is None
+                else "excellent" if _overall >= 80
+                else "good" if _overall >= 65
+                else "developing"
+            ),
+        }
+
+    except Exception as e:
+        print(f"[accuracy] Dashboard error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# END FEEDBACK LOOPS
 # ============================================================================
