@@ -97,6 +97,20 @@ SIGN_LORDS = {
     "Sagittarius":"Jupiter","Capricorn":"Saturn","Aquarius":"Saturn","Pisces":"Jupiter"
 }
 
+import json as _json_mod
+
+def _safe_json(val):
+    """Parse JSONB that might be stored as a JSON string."""
+    if isinstance(val, dict):
+        return val
+    if isinstance(val, str):
+        try:
+            return _json_mod.loads(val)
+        except Exception:
+            return {}
+    return {}
+
+
 PLANET_KARAKAS = {
     "Sun":     "Self, soul, father, authority, government, health",
     "Moon":    "Mind, mother, emotions, public, liquids, home",
@@ -396,10 +410,10 @@ def build_complete_context(
         pass
 
     # ── D9 and D10 ───────────────────────────────────────────────
-    d9  = divisional_charts.get("d9", {})
-    d10 = divisional_charts.get("d10", {})
-    d2  = divisional_charts.get("d2", {})
-    d7  = divisional_charts.get("d7", {})
+    d9  = divisional_charts.get("d9") or divisional_charts.get("D9") or {}
+    d10 = divisional_charts.get("d10") or divisional_charts.get("D10") or {}
+    d2  = divisional_charts.get("d2") or divisional_charts.get("D2") or {}
+    d7  = divisional_charts.get("d7") or divisional_charts.get("D7") or {}
 
     d9_lagna  = d9.get("lagna","?")
     d10_lagna = d10.get("lagna","?")
