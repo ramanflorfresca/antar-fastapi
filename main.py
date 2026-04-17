@@ -3415,7 +3415,7 @@ async def _ensure_chart_complete(chart_id: str, chart_data: dict,
         _lagna_obj = _cd.get("lagna", {})
         _lagna_sign = _lagna_obj.get("sign_num", _lagna_obj.get("sign_index", 0)) if isinstance(_lagna_obj, dict) else 0
         _planets = _cd.get("planets", {})
-        _d9_data = _cd.get("divisional_charts", {}).get("d9", {}).get("planets", {})
+        _d9_data = (_cd.get("divisional_charts", {}).get("d9") or _cd.get("divisional_charts", {}).get("D9") or {}).get("planets", {})
         if not _d9_data:
             _d9_data = _cd.get("d9_planets", {})
         if birth_date and _planets:
@@ -3524,7 +3524,7 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     print(f"[predict debug] chart_data keys: {list(_cd.keys())[:20]}")
     print(f"[predict debug] jaimini_data: {bool(chart_record.get('jaimini_data'))}")
     print(f"[predict debug] lal_kitab_data: {bool(chart_record.get('lal_kitab_data'))}")
-    print(f"[predict debug] d9: {bool(_cd.get('divisional_charts', {}).get('d9'))}")
+    print(f"[predict debug] d9: {bool(_cd.get('divisional_charts', {}).get('d9') or _cd.get('divisional_charts', {}).get('D9'))}")
     # --- END DEBUG ---
 
     # Self-heal missing layers (Jaimini)
@@ -4367,9 +4367,16 @@ Do not use any planet names or astrological jargon — translate everything into
             yogas=chart_data.get("yogas", []),
             divisional_charts=chart_data.get("divisional_charts", {}),
             question_mode=_question_mode,
-            jaimini_data=chart_record.get("jaimini_data") if isinstance(chart_record.get("jaimini_data"), dict) else None,
-            lk_raw_data=_lk_data,
+            jaimini_data=_dbg_safe(chart_record.get("jaimini_data")) or None,
+            lk_raw_data=_dbg_safe(chart_record.get("lal_kitab_data")) or _lk_data,
         )
+
+        # ── Permanent completeness log ──
+        print(f"[predict] chart={request.chart_id[:8]} "
+              f"jaimini={bool(_dbg_safe(chart_record.get('jaimini_data')))} "
+              f"lak={bool(chart_record.get('lal_kitab_data'))} "
+              f"d9={bool((_cd.get('divisional_charts') or {}).get('d9') or (_cd.get('divisional_charts') or {}).get('D9'))} "
+              f"varsha={bool((_cd.get('chart_data') or _cd).get('varshaphal'))}")
 
         # --- LAYER 2.5: JAIMINI CHARA DASHA (tie-breaker only) ---
         # Per spec: Jaimini fires ONLY when Vimsottari is ambiguous.
@@ -6334,7 +6341,7 @@ async def create_chart(
                 for pname, pdata in chart_data.get("planets", {}).items():
                     if isinstance(pdata, dict):
                         _planets_for_jaimini[pname] = pdata
-                _d9_data = chart_data.get("divisional_charts", {}).get("d9", {}).get("planets", {})
+                _d9_data = (chart_data.get("divisional_charts", {}).get("d9") or chart_data.get("divisional_charts", {}).get("D9") or {}).get("planets", {})
                 if not _d9_data:
                     _d9_data = chart_data.get("d9_planets", {})
                 from antar_engine.jaimini_engine import (
@@ -6343,7 +6350,7 @@ async def create_chart(
                 )
                 _lagna_obj2 = chart_data.get("lagna", {})
                 _lagna_sign2 = _lagna_obj2.get("sign_num", _lagna_obj2.get("sign_index", 0)) if isinstance(_lagna_obj2, dict) else 0
-                _d9_data2 = chart_data.get("divisional_charts", {}).get("d9", {}).get("planets", {})
+                _d9_data2 = (chart_data.get("divisional_charts", {}).get("d9") or chart_data.get("divisional_charts", {}).get("D9") or {}).get("planets", {})
                 if not _d9_data2:
                     _d9_data2 = chart_data.get("d9_planets", {})
                 _jaimini_result = calculate_jaimini_analysis(
@@ -8923,9 +8930,11 @@ async def backfill_jaimini(chart_id: str):
             cd = _bjson.loads(cd)
         _bd = str(cr.data.get("birth_date", cd.get("birth_date", "1990-01-01")))[:10]
         _lagna_obj3 = cd.get("lagna", {})
-        _lagna_sign3 = _lagna_obj3.get("sign_num", _lagna_obj3.get("sign_index", 0)) if isinstance(_lagna_obj3, dict) else 0
+        SIGNS_BF = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo","Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"]
+        _raw_sign3 = _lagna_obj3.get("sign_num", _lagna_obj3.get("sign_index", _lagna_obj3.get("sign", 0))) if isinstance(_lagna_obj3, dict) else 0
+        _lagna_sign3 = SIGNS_BF.index(_raw_sign3) if isinstance(_raw_sign3, str) and _raw_sign3 in SIGNS_BF else int(_raw_sign3 or 0)
         _planets3 = cd.get("planets", {})
-        _d9_data3 = cd.get("divisional_charts", {}).get("d9", {}).get("planets", {})
+        _d9_data3 = (cd.get("divisional_charts", {}).get("d9") or cd.get("divisional_charts", {}).get("D9") or {}).get("planets", {})
         if not _d9_data3:
             _d9_data3 = cd.get("d9_planets", {})
         _jaimini_result = calculate_jaimini_analysis(
