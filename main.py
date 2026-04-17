@@ -6074,7 +6074,7 @@ async def create_chart(
 
     if request.latitude and request.longitude:
         lat, lng = request.latitude, request.longitude
-        timezone = request.timezone_name or "UTC"
+        timezone = getattr(request, "timezone_name", None) or getattr(request, "timezone", None) or "UTC"
     else:
         lat, lng, timezone = await _geocode_city(request.birth_place, request.birth_country)
 
@@ -6207,7 +6207,7 @@ async def create_chart(
         "current_country": getattr(request, "current_country", "") or "",
         "timezone_offset":     _offset,
         "country_code":        request.birth_country,
-        "birth_city":      request.birth_place or "",
+        "birth_city":      request.birth_place or getattr(request, "birth_city", "") or "",
         "birth_country":   request.birth_country or "",
         "name":            getattr(request, "name", None) or getattr(request, "first_name", None) or "",
         "display_name":    (getattr(request, "first_name", None) or getattr(request, "name", None) or "").split()[0] if (getattr(request, "first_name", None) or getattr(request, "name", None)) else "",
@@ -6471,7 +6471,7 @@ async def create_chart(
         atmakaraka=ak, amatyakaraka=amk,
         current_dasha=_current_dasha_str(dashas_combined),
         dasha_count=len(dasha_rows),
-        birth_city=request.birth_place or "",
+        birth_city=request.birth_place or getattr(request, "birth_city", "") or "",
         birth_lat=lat, birth_lng=lng, timezone=timezone,
         message="Chart created successfully",
         signup_intent=_signup_intent,
