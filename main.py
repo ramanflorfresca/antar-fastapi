@@ -927,6 +927,7 @@ class PredictRequest(BaseModel):
     ventures:             Optional[List[str]] = Field(None, description="Active ventures (Patra)")
     current_focus:        Optional[str] = Field(None, description="What the user is working on (Patra)")
     use_json_context:     bool = Field(False, description="Use JSON context path (Phase 4 A/B flag)")
+    compat_context:       Optional[dict] = Field(None, description="Compatibility context from a previous compatibility/start call")
 
 class DashaPeriodOut(BaseModel):
     lord_or_sign: str
@@ -4148,6 +4149,25 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
         dkp_block = (dkp_block or "") + "\n\n" + _connection_context
         print(f"[predict] Connection context appended to DKP block")
 
+    # ── Compat context injection (from compatibility/start) ──────────
+    if hasattr(request, "compat_context") and request.compat_context:
+        _cc = request.compat_context
+        _cc_name_b = _cc.get("name_b", "the other person")
+        _cc_rel = _cc.get("relationship_type", "relationship")
+        _cc_score = _cc.get("score", 0)
+        _cc_dasha = _cc.get("chart_b_dasha", {})
+        _compat_injection = f"""
+COMPATIBILITY CONTEXT:
+The user is asking about their {_cc_rel} with {_cc_name_b}.
+Overall compatibility: {_cc_score}%
+{_cc_name_b}'s current life chapter: {_cc_dasha.get('current_md', 'unknown')} energy cycle, {_cc_dasha.get('md_remaining_months', '?')} months remaining.
+{_cc_name_b}'s phase: {_cc_dasha.get('phase_label', '')}
+Answer this question in the context of BOTH people's current timing, not just the user's chart alone.
+Do not use any planet names or astrological jargon — translate everything into plain energy language.
+"""
+        dkp_block = (dkp_block or "") + "\n\n" + _compat_injection
+        print(f"[predict] Compat context injected for {_cc_name_b} ({_cc_rel})")
+
     # ── REMEDIES ──────────────────────────────────────────────────
     karakas_list = get_all_karakas(chart_data)
     user_age = patra.age
@@ -7315,6 +7335,10 @@ class CompatibilityStartRequest(BaseModel):
     birth_time_b:       Optional[str] = None
     birth_city_b:       Optional[str] = None
     birth_country_b:    Optional[str] = None
+    latitude_b:         Optional[float] = None
+    longitude_b:        Optional[float] = None
+    timezone_b:         Optional[str] = None
+    language:           Optional[str] = "en"
 
 
 class CompatibilityContinueRequest(BaseModel):
@@ -7432,6 +7456,111 @@ def _compute_dasha_compatibility_score(dashas_a: dict, dashas_b: dict) -> dict:
     }
 
 
+def _compute_combined_timing(dasha_a: dict, dasha_b: dict, name_a: str = "Person A", name_b: str = "Person B") -> dict:
+    """
+    Determine if both people are in compatible life phases.
+    Returns: alignment status, window description, months of overlap.
+    """
+    from datetime import datetime, timezone as _tz_mod
+    now = datetime.now(_tz_mod.utc)
+
+    RELATIONSHIP_ACTIVE = {"Venus", "Moon", "Jupiter"}
+    EXPANSION_ACTIVE = {"Jupiter", "Rahu", "Sun"}
+
+    # Extract current MD lord from vimsottari periods
+    def _get_current_md(dashas: dict) -> tuple:
+        """Returns (lord_name, remaining_months)"""
+        periods = dashas.get("vimsottari", [])
+        for p in periods:
+            try:
+                level = p.get("level", "mahadasha")
+                if level != "mahadasha":
+                    continue
+                start = datetime.fromisoformat(str(p.get("start", "") or p.get("start_date", ""))[:10])
+                end = datetime.fromisoformat(str(p.get("end", "") or p.get("end_date", ""))[:10])
+                if start.date() <= now.date() <= end.date():
+                    months_left = max(0, (end.year - now.year) * 12 + (end.month - now.month))
+                    lord = p.get("lord_or_sign", "") or p.get("planet_or_sign", "") or p.get("lord", "")
+                    return (lord, months_left)
+            except Exception:
+                pass
+        # Fallback: first mahadasha
+        for p in periods:
+            if p.get("level", "mahadasha") == "mahadasha":
+                lord = p.get("lord_or_sign", "") or p.get("planet_or_sign", "") or p.get("lord", "")
+                return (lord, 0)
+        return ("", 0)
+
+    # Get current antardasha
+    def _get_current_ad(dashas: dict) -> str:
+        periods = dashas.get("vimsottari", [])
+        for p in periods:
+            try:
+                level = p.get("level", "antardasha")
+                if level != "antardasha":
+                    continue
+                start = datetime.fromisoformat(str(p.get("start", "") or p.get("start_date", ""))[:10])
+                end = datetime.fromisoformat(str(p.get("end", "") or p.get("end_date", ""))[:10])
+                if start.date() <= now.date() <= end.date():
+                    return p.get("lord_or_sign", "") or p.get("planet_or_sign", "") or p.get("lord", "")
+            except Exception:
+                pass
+        return ""
+
+    md_a, remaining_a = _get_current_md(dasha_a)
+    md_b, remaining_b = _get_current_md(dasha_b)
+    ad_a = _get_current_ad(dasha_a)
+    ad_b = _get_current_ad(dasha_b)
+
+    # Determine phase label
+    def _phase_label(remaining, total_approx=84):
+        if remaining <= 0:
+            return "Active Phase"
+        pct = remaining / max(total_approx, 1)
+        if pct > 0.75:
+            return "The Opening Phase"
+        elif pct > 0.5:
+            return "The Building Phase"
+        elif pct > 0.25:
+            return "The Peak Phase"
+        else:
+            return "The Completion Phase"
+
+    both_active = md_a in RELATIONSHIP_ACTIVE and md_b in RELATIONSHIP_ACTIVE
+    one_active = (md_a in RELATIONSHIP_ACTIVE or md_b in RELATIONSHIP_ACTIVE) and not both_active
+    overlap_months = min(remaining_a, remaining_b)
+
+    if both_active:
+        status = "aligned"
+        label = "Both in active phases"
+        description = f"Both are in expansive life phases. This window lasts {overlap_months} more months."
+    elif one_active:
+        active_person = name_a if md_a in RELATIONSHIP_ACTIVE else name_b
+        status = "partial"
+        label = "One person in active phase"
+        description = f"{active_person} is in an active phase. The other is in a consolidation period."
+    else:
+        status = "misaligned"
+        label = "Both in consolidation phases"
+        description = "Neither person is in an expansion phase right now. Timing favors patience."
+        overlap_months = 0
+
+    return {
+        "status": status,
+        "label": label,
+        "overlap_months": overlap_months,
+        "description": description,
+        "md_a": md_a,
+        "md_b": md_b,
+        "ad_a": ad_a,
+        "ad_b": ad_b,
+        "remaining_a": remaining_a,
+        "remaining_b": remaining_b,
+        "phase_label_a": _phase_label(remaining_a),
+        "phase_label_b": _phase_label(remaining_b),
+    }
+
+
 @app.post("/api/v1/compatibility/start")
 async def compatibility_start(request: CompatibilityStartRequest):
     from antar_engine.compatibility_session_engine import (
@@ -7474,82 +7603,195 @@ async def compatibility_start(request: CompatibilityStartRequest):
             raise HTTPException(400, "Either chart_id_b or birth_date_b required")
         birth_time_b = request.birth_time_b or "12:00"
         has_time_b   = bool(request.birth_time_b)
-        city_b    = request.birth_place_b or "New Delhi"
+        city_b    = request.birth_city_b or "New Delhi"
         country_b = request.birth_country_b or "IN"
-        # Try internal geocoder, fall back to Nominatim for unknown cities
-        try:
-            _gc = await _geocode_city(city_b, country_b)
-            if isinstance(_gc, (tuple, list)) and len(_gc) >= 2:
-                coords_b = {"lat": _gc[0], "lng": _gc[1], "timezone": _gc[2] if len(_gc) > 2 else "UTC"}
-            elif isinstance(_gc, dict) and _gc.get("lat"):
-                coords_b = _gc
-            else:
-                coords_b = None
-        except Exception:
+
+        # Use provided lat/lng/tz if available (from frontend city autocomplete)
+        if request.latitude_b and request.longitude_b:
+            coords_b = {
+                "lat": request.latitude_b,
+                "lng": request.longitude_b,
+                "timezone": request.timezone_b or "UTC",
+            }
+        else:
+            # Try internal geocoder, fall back to Nominatim for unknown cities
             coords_b = None
-        if not coords_b or not coords_b.get("lat"):
             try:
-                import httpx as _httpx
-                nom = await _httpx.AsyncClient().get(
-                    "https://nominatim.openstreetmap.org/search",
-                    params={"q": f"{city_b}, {country_b}", "format": "json", "limit": 1},
-                    headers={"User-Agent": "Antar/1.0"},
-                    timeout=10,
-                )
-                nom_data = nom.json()
-                if nom_data:
-                    coords_b = {
-                        "lat": float(nom_data[0]["lat"]),
-                        "lng": float(nom_data[0]["lon"]),
-                        "timezone": "UTC",
-                    }
-                    # Get timezone from coords
-                    try:
-                        import timezonefinder as _tzf
-                        tf = _tzf.TimezoneFinder()
-                        tz = tf.timezone_at(lat=coords_b["lat"], lng=coords_b["lng"])
-                        if tz: coords_b["timezone"] = tz
-                    except Exception:
-                        pass
+                _gc = await _geocode_city(city_b, country_b)
+                if isinstance(_gc, (tuple, list)) and len(_gc) >= 2:
+                    coords_b = {"lat": _gc[0], "lng": _gc[1], "timezone": _gc[2] if len(_gc) > 2 else "UTC"}
+                elif isinstance(_gc, dict) and _gc.get("lat"):
+                    coords_b = _gc
             except Exception:
                 pass
+            if not coords_b or not coords_b.get("lat"):
+                try:
+                    import httpx as _httpx
+                    nom = await _httpx.AsyncClient().get(
+                        "https://nominatim.openstreetmap.org/search",
+                        params={"q": f"{city_b}, {country_b}", "format": "json", "limit": 1},
+                        headers={"User-Agent": "Antar/1.0"},
+                        timeout=10,
+                    )
+                    nom_data = nom.json()
+                    if nom_data:
+                        coords_b = {
+                            "lat": float(nom_data[0]["lat"]),
+                            "lng": float(nom_data[0]["lon"]),
+                            "timezone": getattr(request, "timezone", None) or f'UTC{int(getattr(request, "timezone_offset", 0) or 0):+d}',
+                        }
+                        try:
+                            import timezonefinder as _tzf
+                            tf = _tzf.TimezoneFinder()
+                            tz = tf.timezone_at(lat=coords_b["lat"], lng=coords_b["lng"])
+                            if tz: coords_b["timezone"] = tz
+                        except Exception:
+                            pass
+                except Exception:
+                    pass
         if not coords_b or not coords_b.get("lat"):
             raise HTTPException(400, f"Could not locate '{city_b}'. Try a larger nearby city.")
-        from antar_engine.chart import calculate_chart
-        chart_b   = calculate_chart(
-            birth_date=request.birth_date_b,
-            birth_time=birth_time_b,
-            lat=coords_b["lat"], lng=coords_b["lng"],
-            timezone=coords_b.get("timezone","UTC"),
-        )
-        chart_id_b = str(_uuid.uuid4())
-        supabase.table("charts").insert({
-            "id": chart_id_b,
-            "birth_date": request.birth_date_b,
-            "birth_time": birth_time_b,
-            "birth_city": city_b,
-            "birth_country": country_b,
-            "latitude": coords_b["lat"],
-            "longitude": coords_b["lng"],
-            "timezone": coords_b.get("timezone","UTC"),
-            "timezone_offset": 0.0,
-            "timezone_offset": 0.0,
-            "timezone_offset": 0.0,
-            "name": request.name_b,
-            "chart_data": chart_b,
-            "lagna_sign": chart_b.get("lagna",{}).get("sign",""),
-            "lagna_degree": chart_b.get("lagna",{}).get("degree",0),
-            "moon_sign": chart_b.get("planets",{}).get("Moon",{}).get("sign",""),
-            "moon_nakshatra": chart_b.get("planets",{}).get("Moon",{}).get("nakshatra",""),
-            "sun_sign": chart_b.get("planets",{}).get("Sun",{}).get("sign",""),
-        }).execute()
-        dashas_b = {}
+
+        # Check if this person already has a chart (same birth data + name under this chart_a)
+        _existing_b = None
+        try:
+            _existing_b = supabase.table("charts").select("id").eq(
+                "parent_chart_id", request.chart_id_a
+            ).eq("name", request.name_b).eq(
+                "birth_date", request.birth_date_b
+            ).execute()
+        except Exception:
+            pass
+
+        if _existing_b and _existing_b.data:
+            chart_id_b = _existing_b.data[0]["id"]
+            _res_b2 = supabase.table("charts").select("chart_data").eq("id", chart_id_b).execute()
+            chart_b = _res_b2.data[0]["chart_data"] if _res_b2.data else {}
+            dashas_b = get_dashas_for_chart(chart_id_b)
+            print(f"[compat] Reusing existing sub-chart {chart_id_b} for {request.name_b}")
+        else:
+            from antar_engine.chart import calculate_chart
+            chart_b = calculate_chart(
+                birth_date=request.birth_date_b,
+                birth_time=birth_time_b,
+                lat=coords_b["lat"], lng=coords_b["lng"],
+                timezone=coords_b.get("timezone", "UTC"),
+            )
+            chart_id_b = str(_uuid.uuid4())
+
+            # Compute dashas for Chart B (same as chart/create)
+            from antar_engine import vimsottari as _vim_mod, ashtottari as _ash_mod
+            _vim_b, _jai_b, _ash_b = [], [], []
+            def _normalise_dashas_b(raw):
+                flat = []
+                for p in raw:
+                    if isinstance(p, dict) and "sub" in p:
+                        sd = str(p.get("start_date","") or p.get("start",""))[:10]
+                        ed = str(p.get("end_date","") or p.get("end",""))[:10]
+                        flat.append({"lord_or_sign": p.get("lord",""), "planet_or_sign": p.get("lord",""), "start": sd, "end": ed, "start_date": sd, "end_date": ed, "duration_years": p.get("duration_years",0), "level": "mahadasha", "parent_lord": ""})
+                        for s in p.get("sub",[]):
+                            ssd = str(s.get("start_date","") or s.get("start",""))[:10]
+                            sed = str(s.get("end_date","") or s.get("end",""))[:10]
+                            flat.append({"lord_or_sign": s.get("lord",""), "planet_or_sign": s.get("lord",""), "start": ssd, "end": sed, "start_date": ssd, "end_date": sed, "duration_years": s.get("duration_years",0), "level": "antardasha", "parent_lord": s.get("parent_lord","")})
+                    elif isinstance(p, dict):
+                        sd = str(p.get("start_date","") or p.get("start",""))[:10]
+                        ed = str(p.get("end_date","") or p.get("end",""))[:10]
+                        flat.append({"lord_or_sign": p.get("lord","") or p.get("lord_or_sign","") or p.get("planet_or_sign",""), "planet_or_sign": p.get("lord","") or p.get("lord_or_sign","") or p.get("planet_or_sign",""), "start": sd, "end": ed, "start_date": sd, "end_date": ed, "duration_years": p.get("duration_years",0), "level": p.get("level","mahadasha"), "parent_lord": p.get("parent_lord","")})
+                return flat
+            try:
+                _vim_b = _normalise_dashas_b(_vim_mod.calculate_vimsottari_from_chart(chart_b, chart_b.get("birth_jd")))
+            except Exception as _ve:
+                print(f"[compat] Chart B vimsottari error: {_ve}")
+            try:
+                _ash_b = _normalise_dashas_b(_ash_mod.calculate_ashtottari_from_chart(chart_b, chart_b.get("birth_jd")))
+            except Exception as _ae:
+                print(f"[compat] Chart B ashtottari error: {_ae}")
+
+            # Compute timezone offset for Chart B
+            _offset_b = 0.0
+            try:
+                import pytz as _pytz_b
+                _tz_b = _pytz_b.timezone(coords_b.get("timezone", "UTC"))
+                from datetime import datetime as _dt_b
+                _birth_dt_b = _dt_b.strptime(str(request.birth_date_b)[:10], "%Y-%m-%d")
+                _offset_b = _tz_b.utcoffset(_birth_dt_b).total_seconds() / 3600
+            except Exception:
+                pass
+
+            # Store Chart B as real sub-chart
+            supabase.table("charts").insert({
+                "id": chart_id_b,
+                "birth_date": request.birth_date_b,
+                "birth_time": birth_time_b,
+                "birth_city": city_b,
+                "birth_country": country_b,
+                "latitude": coords_b["lat"],
+                "longitude": coords_b["lng"],
+                "timezone": coords_b.get("timezone", "UTC"),
+                "timezone_offset": _offset_b,
+                "name": request.name_b,
+                "chart_data": chart_b,
+                "lagna_sign": chart_b.get("lagna", {}).get("sign", ""),
+                "lagna_degree": chart_b.get("lagna", {}).get("degree", 0),
+                "moon_sign": chart_b.get("planets", {}).get("Moon", {}).get("sign", ""),
+                "moon_nakshatra": chart_b.get("planets", {}).get("Moon", {}).get("nakshatra", ""),
+                "sun_sign": chart_b.get("planets", {}).get("Sun", {}).get("sign", ""),
+                "parent_chart_id": request.chart_id_a,
+                "chart_type": "compatibility",
+            }).execute()
+
+            # Store dasha periods for Chart B
+            _dasha_rows_b = []
+            for _sys, _periods in [("vimsottari", _vim_b), ("ashtottari", _ash_b)]:
+                for _i, _p in enumerate(_periods):
+                    _lord = _p.get("lord") or _p.get("lord_or_sign") or _p.get("planet_or_sign", "")
+                    _sd = str(_p.get("start_date") or _p.get("start", ""))[:10]
+                    _ed = str(_p.get("end_date") or _p.get("end", ""))[:10]
+                    _level_name = _p.get("level", "mahadasha")
+                    _level_int = 1 if _level_name == "mahadasha" else (2 if _level_name == "antardasha" else 3)
+                    _dasha_rows_b.append({
+                        "chart_id": chart_id_b,
+                        "system": _sys,
+                        "type": _level_name,
+                        "level": _level_int,
+                        "planet_or_sign": _lord,
+                        "start_date": _sd,
+                        "end_date": _ed,
+                        "duration_years": _p.get("duration_years", 0),
+                        "sequence": _i,
+                        "parent_id": None,
+                        "metadata": {"parent_lord": _p.get("parent_lord", ""), "type": _level_name},
+                    })
+            if _dasha_rows_b:
+                try:
+                    for _i in range(0, len(_dasha_rows_b), 100):
+                        _batch = _dasha_rows_b[_i:_i+100]
+                        supabase.table("dasha_periods").insert(_batch).execute()
+                    print(f"[compat] Chart B dashas stored: {len(_dasha_rows_b)} rows")
+                except Exception as _dbe:
+                    print(f"[compat] Chart B dasha store non-fatal: {_dbe}")
+
+            dashas_b = {"vimsottari": _vim_b, "ashtottari": _ash_b}
+            print(f"[compat] Created sub-chart {chart_id_b} for {request.name_b} (parent={request.chart_id_a})")
+        birth_b = request.birth_date_b
 
     _compat_type = request.compatibility_type or "cofounder"
     brief_a = build_person_brief(name_a, chart_a, dashas_a, birth_a, has_time_a, _compat_type)
     brief_b = build_person_brief(request.name_b, chart_b, dashas_b,
                                   birth_b if request.chart_id_b else request.birth_date_b,
                                   has_time_b, _compat_type)
+
+    # ── FIX 3: Pre-compute timing and inject into briefs for Claude ──
+    _pre_timing = _compute_combined_timing(dashas_a, dashas_b, name_a, request.name_b)
+    _timing_inject = f"""
+COMBINED TIMING CONTEXT:
+{name_a} current cycle: {_pre_timing['md_a']} ({_pre_timing['phase_label_a']}, {_pre_timing['remaining_a']} months remaining)
+{request.name_b} current cycle: {_pre_timing['md_b']} ({_pre_timing['phase_label_b']}, {_pre_timing['remaining_b']} months remaining)
+Alignment status: {_pre_timing['status'].upper()} — {_pre_timing['description']}
+Overlap window: {_pre_timing['overlap_months']} months
+IMPORTANT: Lead with timing analysis — is NOW a good time for this {_compat_type}? Be specific about the window (months, not vague). No astrology jargon in output.
+"""
+    brief_b = brief_b + "\n" + _timing_inject
 
     layer1 = await run_layer1_llm(
         brief_a=brief_a, brief_b=brief_b,
@@ -7638,6 +7880,10 @@ async def compatibility_start(request: CompatibilityStartRequest):
     _personality_score = min(100, int((_field_mode_layer.get("score_contribution", 15) / 20) * 100)) if _field_mode_layer else 70
     _dasha_scores      = _compute_dasha_compatibility_score(dashas_a, dashas_b)
     _dasha_score       = _dasha_scores["score"]
+
+    # ── Combined timing analysis (8-layer context) ──────────────────
+    _combined_timing = _compute_combined_timing(dashas_a, dashas_b, name_a, request.name_b)
+    print(f"[compat] Combined timing: {_combined_timing['status']} | A={_combined_timing['md_a']} B={_combined_timing['md_b']} | overlap={_combined_timing['overlap_months']}mo")
 
     # Weighted overall: 50% natal/personality + 30% dasha + 20% field_mode + nakshatra modifier
     _nak_modifier = _nakshatra_layer.get("compatibility_modifier", 0) if _nakshatra_layer else 0
@@ -7736,6 +7982,28 @@ async def compatibility_start(request: CompatibilityStartRequest):
         "field_mode_layer": _field_mode_layer or None,
         "nakshatra_layer":  _nakshatra_layer or None,
         "score_breakdown":  _score_breakdown,
+        # ── NEW: 8-layer timing context ──
+        "chart_b_dasha": {
+            "current_md": _combined_timing.get("md_b", ""),
+            "current_ad": _combined_timing.get("ad_b", ""),
+            "md_remaining_months": _combined_timing.get("remaining_b", 0),
+            "phase_label": _combined_timing.get("phase_label_b", ""),
+        },
+        "combined_timing": {
+            "status": _combined_timing.get("status", ""),
+            "label": _combined_timing.get("label", ""),
+            "overlap_months": _combined_timing.get("overlap_months", 0),
+            "description": _combined_timing.get("description", ""),
+        },
+        "timing": {
+            "phase_a": _combined_timing.get("md_a", ""),
+            "phase_b": _combined_timing.get("md_b", ""),
+            "aligned": _combined_timing.get("status") == "aligned",
+            "overlap_months": _combined_timing.get("overlap_months", 0),
+            "description": _combined_timing.get("description", ""),
+            "status": _combined_timing.get("status", ""),
+            "label": _combined_timing.get("label", ""),
+        },
     }
 
 
