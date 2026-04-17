@@ -58,9 +58,14 @@ for label, prefix in PREFIXES.items():
         import json
         cd = json.loads(cd)
 
-    lagna_str = cd.get("lagna")
+    lagna_raw = cd.get("lagna")
+    # lagna can be a plain string "Capricorn" or a dict {"sign": "Capricorn", ...}
+    if isinstance(lagna_raw, dict):
+        lagna_str = lagna_raw.get("sign") or lagna_raw.get("name") or lagna_raw.get("sign_name")
+    else:
+        lagna_str = lagna_raw
     if not lagna_str or lagna_str not in SIGN_INDEX:
-        print(f"SKIP {label} ({chart['id'][:8]}): bad lagna={lagna_str!r}")
+        print(f"SKIP {label} ({chart['id'][:8]}): bad lagna={lagna_raw!r}")
         skipped += 1
         continue
 

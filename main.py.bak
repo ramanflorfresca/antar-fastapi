@@ -49,6 +49,9 @@ except ImportError:
 
 load_dotenv(override=False)
 
+from timezonefinder import TimezoneFinder
+_TZF = TimezoneFinder()
+
 # ══════════════════════════════════════════════════════════════════
 # DOMAIN AUDIT RULES (Sprint D) - Complete
 # Injected into /predict system prompt based on detected concern.
@@ -853,6 +856,31 @@ async def lifespan(app: FastAPI):
     scheduler.shutdown(wait=False)
     print("[shutdown] Scheduler stopped")
 
+
+# --- antar:lang_from_country helper ---
+# Maps ISO-3166 alpha-2 country codes to the user's most likely UI language.
+# Used by /api/v1/chart/create to seed `language_preference` when the client
+# does not (yet) send an explicit language. Safe default = "en".
+_COUNTRY_TO_LANG = {
+    # Spanish-speaking LATAM + Spain
+    "AR": "es", "BO": "es", "CL": "es", "CO": "es", "CR": "es",
+    "CU": "es", "DO": "es", "EC": "es", "SV": "es", "GT": "es",
+    "HN": "es", "MX": "es", "NI": "es", "PA": "es", "PY": "es",
+    "PE": "es", "PR": "es", "UY": "es", "VE": "es", "ES": "es",
+    # Portuguese
+    "BR": "pt", "PT": "pt",
+    # English defaults
+    "US": "en", "GB": "en", "CA": "en", "AU": "en", "NZ": "en",
+    "IE": "en", "IN": "en", "ZA": "en", "SG": "en", "PH": "en",
+}
+
+def _lang_from_country(country_code):
+    """Return 'es' / 'pt' / 'en' for a given ISO country code. Defaults to 'en'."""
+    if not country_code:
+        return "en"
+    return _COUNTRY_TO_LANG.get(country_code.strip().upper(), "en")
+# --- /antar:lang_from_country helper ---
+
 app = FastAPI(title="Antar API", version="2.1.0", lifespan=lifespan)
 
 app.add_middleware(
@@ -898,6 +926,7 @@ class PredictRequest(BaseModel):
     profession:           Optional[str] = Field(None, description="User's profession/role (Patra)")
     ventures:             Optional[List[str]] = Field(None, description="Active ventures (Patra)")
     current_focus:        Optional[str] = Field(None, description="What the user is working on (Patra)")
+    use_json_context:     bool = Field(False, description="Use JSON context path (Phase 4 A/B flag)")
 
 class DashaPeriodOut(BaseModel):
     lord_or_sign: str
@@ -950,6 +979,7 @@ class PredictResponse(BaseModel):
     contradiction_detected: Optional[bool] = False
     oracle_context:         Optional[Dict] = None
     archetype_name:         Optional[str]  = None
+    context_path:           Optional[str]  = None
 
 class ChartResponse(BaseModel):
     id: str
@@ -1900,6 +1930,207 @@ def _classify_question_mode(question: str) -> str:
     return "timing"
 
 
+
+def _is_jargon(text: str) -> bool:
+    """Return True if text contains raw astrological computation language."""
+    if not text:
+        return True
+    text_lower = text.lower()
+    jargon = [
+        "karakamsa", "dusthana", "mahadasha", "antardasha", "instrument lord",
+        "sign aspects", "soul purpose resonance", "chara dasha",
+        "power off", "sleeping", "structural load",
+        "lord in", "bhava", "navamsa", "atmakaraka", "amatyakaraka",
+        "upapada", "arudha", "varshphal", "masik",
+    ]
+    return any(j in text_lower for j in jargon)
+
+def _safe_signal_line(signal_line: str, domain: str, language: str = "en") -> str:
+    """Return signal_line if clean, otherwise return a safe ask-Antar prompt."""
+    if _is_jargon(signal_line):
+        if language == "es":
+            return f"Pregunta a Antar sobre tu señal de {domain} esta semana."
+        return f"Ask Antar about your {domain} signal this week."
+    return signal_line
+
+
+
+async def save_chat_message(
+    supabase,
+    chart_id: str,
+    question: str,
+    response_data: dict,
+    language: str = "en"
+) -> str:
+    """
+    Save a chat message (question + answer) to Supabase.
+    Returns the message_id.
+    
+    Extracts:
+    - domain from question keywords (finance/career/relationships/health)
+    - question_type (timing/blockage/decision/opportunity)
+    - key_date from timing_window field
+    """
+    import re as _re
+    from datetime import datetime, timezone
+
+    # ── Extract domain from question ──────────────────────────────
+    q_lower = question.lower()
+    domain = "general"
+    if any(w in q_lower for w in [
+        "cash", "money", "finance", "income", "revenue", "invest",
+        "wealth", "salary", "profit", "business", "dinero", "plata",
+        "riqueza", "ingresos", "negocio", "capital", "flujo"
+    ]):
+        domain = "finance"
+    elif any(w in q_lower for w in [
+        "career", "job", "work", "promotion", "boss", "company",
+        "client", "project", "carrera", "trabajo", "empleo", "jefe"
+    ]):
+        domain = "career"
+    elif any(w in q_lower for w in [
+        "relationship", "partner", "love", "marriage", "dating",
+        "relacion", "pareja", "amor", "matrimonio", "novio", "novia"
+    ]):
+        domain = "relationships"
+    elif any(w in q_lower for w in [
+        "health", "sick", "doctor", "pain", "energy", "tired",
+        "salud", "enfermo", "doctor", "dolor", "energía", "cansado"
+    ]):
+        domain = "health"
+    elif any(w in q_lower for w in [
+        "move", "relocate", "travel", "city", "country",
+        "mudar", "mover", "ciudad", "país", "viaje"
+    ]):
+        domain = "location"
+
+    # ── Extract question type ──────────────────────────────────────
+    question_type = "general"
+    if any(w in q_lower for w in [
+        "when", "cuándo", "how long", "cuánto tiempo", "date", "fecha"
+    ]):
+        question_type = "timing"
+    elif any(w in q_lower for w in [
+        "why", "por qué", "block", "bloqueo", "stuck", "atascado",
+        "problem", "problema", "issue", "dificultad"
+    ]):
+        question_type = "blockage"
+    elif any(w in q_lower for w in [
+        "should i", "debo", "debería", "decision", "decisión",
+        "choose", "elegir", "better", "mejor"
+    ]):
+        question_type = "decision"
+    elif any(w in q_lower for w in [
+        "opportunity", "oportunidad", "chance", "posibilidad",
+        "good time", "buen momento", "window", "ventana"
+    ]):
+        question_type = "opportunity"
+
+    # ── Extract key date from timing_window ───────────────────────
+    timing_window = response_data.get("timing_window", "")
+    key_date = None
+    if timing_window:
+        # Extract year-month patterns: "September 2026", "septiembre 2026"
+        date_match = _re.search(
+            r'(enero|febrero|marzo|abril|mayo|junio|julio|agosto|'
+            r'septiembre|octubre|noviembre|diciembre|'
+            r'january|february|march|april|may|june|july|august|'
+            r'september|october|november|december)'
+            r'\s+(\d{4})',
+            timing_window.lower()
+        )
+        if date_match:
+            key_date = date_match.group(0).title()
+        else:
+            # Try year only
+            year_match = _re.search(r'(202[4-9]|203\d)', timing_window)
+            if year_match:
+                key_date = year_match.group(0)
+
+    # ── Build record ──────────────────────────────────────────────
+    record = {
+        "chart_id": chart_id,
+        "question": question,
+        "plain_summary": response_data.get("plain_summary", ""),
+        "signal_line": response_data.get("signal_line", ""),
+        "action_item": response_data.get("action_item", ""),
+        "timing_window": timing_window,
+        "domain": domain,
+        "question_type": question_type,
+        "key_date": key_date,
+        "confidence": response_data.get("signal_confidence", ""),
+        "archetype_name": response_data.get("archetype_name", ""),
+        "language": language,
+        "why_this": response_data.get("why_this", ""),
+        "bridge_practice_note": response_data.get("bridge_practice_note", ""),
+        "contradiction_detected": response_data.get("contradiction_detected", False),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    try:
+        result = supabase.table("chat_messages").insert(record).execute()
+        if result.data:
+            msg_id = result.data[0].get("id", "")
+            return msg_id
+    except Exception as e:
+        print(f"save_chat_message error: {e}")
+
+    return ""
+
+
+async def get_recent_questions(
+    supabase,
+    chart_id: str,
+    limit: int = 5,
+    domain: str = None
+) -> list:
+    """
+    Get recent Ask Antar questions for this chart.
+    Used to build oracle_context for follow-up questions.
+    """
+    try:
+        query = supabase.table("chat_messages").select(
+            "question, signal_line, action_item, domain, key_date, created_at"
+        ).eq("chart_id", chart_id).order(
+            "created_at", desc=True
+        ).limit(limit)
+
+        if domain:
+            query = query.eq("domain", domain)
+
+        result = query.execute()
+        return result.data or []
+    except Exception as e:
+        print(f"get_recent_questions error: {e}")
+        return []
+
+
+async def get_domain_pattern(supabase, chart_id: str) -> dict:
+    """
+    Returns a dict of how many times each domain has been asked.
+    Used to personalise the dashboard (show finance signals first if
+    user mostly asks about money).
+    """
+    try:
+        result = supabase.table("chat_messages").select(
+            "domain"
+        ).eq("chart_id", chart_id).execute()
+
+        if not result.data:
+            return {}
+
+        counts = {}
+        for row in result.data:
+            d = row.get("domain", "general")
+            counts[d] = counts.get(d, 0) + 1
+
+        # Sort by frequency
+        return dict(sorted(counts.items(), key=lambda x: x[1], reverse=True))
+    except Exception as e:
+        print(f"get_domain_pattern error: {e}")
+        return {}
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
@@ -1945,6 +2176,1074 @@ async def get_chart_signature(chart_id: str, authorization: Optional[str] = Head
         print(f"[signature] Error for {chart_id}: {e}")
         return {"error": str(e)}
 
+
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PAST-EVENTS: Signature verification screen
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/v1/chart/{chart_id}/past-events")
+async def get_past_events(
+    chart_id: str,
+    min_confidence: int = 5,
+    max_predictions: int = 5,
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Returns high-confidence past-event predictions for the chart.
+    Used by onboarding signature verification screen (Lovable).
+
+    Query params:
+      min_confidence : filter threshold 1-10 (default 5 = "moderate")
+      max_predictions: cap on number returned (default 5)
+    """
+    try:
+        from antar_engine.dasha_event_mapper import (
+            map_all_events,
+            find_event_window,
+            EVENT_DISPLAY_LABELS,
+            EVENT_DESCRIPTION,
+            build_energy_explanation,
+        )
+
+        # ── 1. Fetch chart row ────────────────────────────────────────────
+        chart_res = supabase.table("charts").select(
+            "chart_data,birth_date,first_name,name,lagna_sign,marital_status,children_status"
+        ).eq("id", chart_id).single().execute()
+
+        if not chart_res.data:
+            raise HTTPException(status_code=404, detail="Chart not found")
+
+        cd          = chart_res.data.get("chart_data") or {}
+        birth_date  = str(chart_res.data.get("birth_date", ""))
+        birth_year  = int(birth_date[:4]) if birth_date and birth_date[:4].isdigit() else 1980
+        lagna_raw   = cd.get("lagna") or {}
+        lagna       = (lagna_raw.get("sign") if isinstance(lagna_raw, dict) else lagna_raw)                       or chart_res.data.get("lagna_sign") or "Capricorn"
+        first_name  = chart_res.data.get("first_name") or chart_res.data.get("name") or ""
+        today_str   = datetime.now().strftime("%Y-%m-%d")
+        marital_status   = (chart_res.data.get("marital_status") or "").lower().strip()
+        children_status  = (chart_res.data.get("children_status") or "").lower().strip()
+        print(f"[PAST-EVENTS] chart={chart_id} lagna={lagna} marital={marital_status!r} children={children_status!r}")
+
+        # ── 2. Fetch vimsottari antardashas ───────────────────────────────
+        ads_res = supabase.table("dasha_periods")             .select("planet_or_sign,start_date,end_date,level,type,metadata")             .eq("chart_id", chart_id)             .eq("system", "vimsottari")             .order("start_date")             .execute()
+
+        ads = [
+            r for r in (ads_res.data or [])
+            if r.get("level") == 2
+            or str(r.get("type", "")).lower() in ("antardasha", "ad", "2")
+        ]
+
+        if not ads:
+            # graceful: no dasha data yet
+            return {
+                "chart_id":             chart_id,
+                "lagna":                lagna,
+                "first_name":           first_name,
+                "predictions":          [],
+                "predictions_filtered": 0,
+                "predictions_shown":    0,
+                "fallback_message":     (
+                    "Your dasha sequence hasn't been computed yet. "
+                    "Visit your dashboard to generate your full blueprint."
+                ),
+            }
+
+        # ── 3. Run all event windows ──────────────────────────────────────
+        # map_all_events covers: serious_partnership_began, major_relocation,
+        #   family_expansion_first, family_expansion_second, serious_partnership_ended
+        raw_map = map_all_events(birth_year, lagna, ads)
+
+        # Additional events not covered by map_all_events
+        # map_future_events already scans all event types
+
+        # ── 4. Score, filter, format ──────────────────────────────────────
+        def _confidence_label(score: int) -> str:
+            if score >= 8:
+                return "high"
+            if score >= 5:
+                return "moderate"
+            return "low"
+
+        def _dasha_label(w: dict) -> str:
+            md  = w.get("parent_md", "")
+            ad  = w.get("planet", "")
+            pd  = w.get("pd_lord", "")
+            lbl = f"{md} MD + {ad} AD"
+            if pd:
+                lbl += f" + {pd} PD"
+            return lbl
+
+        def _human_window(start: str, end: str) -> str:
+            try:
+                s = datetime.fromisoformat(start)
+                e = datetime.fromisoformat(end)
+                if s.year == e.year and s.month == e.month:
+                    # Same calendar month: "June 2006" not "June to June 2006"
+                    return s.strftime('%B %Y')
+                if s.year == e.year:
+                    return f"{s.strftime('%B')} to {e.strftime('%B %Y')}"
+                return f"{s.strftime('%B %Y')} to {e.strftime('%B %Y')}"
+            except Exception:
+                return f"{start[:7]} to {end[:7]}"
+
+        CATEGORY_MAP = {
+            "serious_partnership_began":  "relationship",
+            "serious_partnership_ended":  "relationship",
+            "family_expansion_first":     "family",
+            "family_expansion_second":    "family",
+            "major_relocation":           "transition",
+            "major_acquisition":          "material",
+            "career_pivot":               "transition",
+            "loss_of_mother":             "loss",
+            "loss_of_father":             "loss",
+            "professional_setback":       "material",
+            "legal_entanglement":         "conflict",
+            "financial_disruption":       "material",
+        }
+
+        all_predictions = []
+        for event_type, w in raw_map.items():
+            if not w:
+                continue
+            win_end = w.get("window_end") or w.get("end") or ""
+            # Keep only past events (window end before today)
+            if win_end and win_end > today_str:
+                continue
+            score           = w.get("score", 5)
+            candidate_count = w.get("candidate_count", 1)
+            # Normalize priority score (1-10) to base confidence (2-7).
+            # Top-priority planets (score=10) start at 7, not 10, so signals
+            # below can differentiate without everything saturating at the cap.
+            # Base: scale 0.6 keeps top-priority (score=10) capped at 6.
+            # This prevents everything saturating at 9 — best unvalidated
+            # event scores 6+1+1=8; multi-chart validated can reach 9 via
+            # future natal-promise bonus.
+            _base      = max(2, min(6, round(score * 0.6)))
+            # +1 if the PD precision drill found a sub-period (higher certainty)
+            _pd_bonus  = 1 if w.get("pd_lord") else 0
+            # +1 if THREE or more candidate ADs corroborate (raised bar from 2→3)
+            _corr      = 1 if candidate_count >= 3 else 0
+            confidence = min(10, _base + _pd_bonus + _corr)
+            # Fix C (confidence tier): ended without a preceding began → low confidence
+            if event_type == "serious_partnership_ended" and w.get("_dependency_fail"):
+                confidence = min(confidence, 3)
+            # Fix C2: if began exists but itself scores below 5, cap ended at began level
+            if event_type == "serious_partnership_ended":
+                _began_w = raw_map.get("serious_partnership_began")
+                if _began_w:
+                    _began_score = _began_w.get("score", 5)
+                    _began_base  = max(2, min(6, round(_began_score * 0.6)))
+                    _began_pd    = 1 if _began_w.get("pd_lord") else 0
+                    _began_conf  = _began_base + _began_pd
+                    if _began_conf < 5:
+                        confidence = min(confidence, _began_conf)
+                        print(f"[CONF-C2] began_conf={_began_conf} → capping ended at {confidence}")
+            # Fix E: children events require a detected partnership as prerequisite
+            if event_type in ("family_expansion_first", "family_expansion_second"):
+                if not raw_map.get("serious_partnership_began"):
+                    confidence = max(1, confidence - 2)
+            # Fix F: marital status reality check — cap based on known life status
+            # Single/never_married → partnership events are speculative
+            if marital_status in ("single", "never_married", "unmarried"):
+                if event_type in ("serious_partnership_began", "serious_partnership_ended"):
+                    confidence = min(confidence, 4)
+            # Currently married → ending a current partnership is a false positive
+            if marital_status in ("married", "partnered", "in_relationship", "in_a_relationship"):
+                if event_type == "serious_partnership_ended":
+                    confidence = min(confidence, 3)
+            # Fix G: children status reality check
+            if children_status in ("none", "no_children", "no_children_unsure", "childless"):
+                if event_type in ("family_expansion_first", "family_expansion_second"):
+                    confidence = min(confidence, 4)
+            print(f"[CONF] event={event_type} score={score} base={_base} pd={_pd_bonus} corr={_corr} final={confidence} marital={marital_status!r} children={children_status!r}")
+            if confidence < min_confidence:
+                continue
+            win_start = w.get("window_start") or w.get("start") or ""
+            # Build energy explanation dict
+            _energy_pred = {
+                "md_lord":       w.get("parent_md"),
+                "ad_lord":       w.get("planet"),
+                "pd_lord":       w.get("pd_lord"),
+                "transit_planet": w.get("transit_planet"),
+            }
+            all_predictions.append({
+                "event_type":        event_type,
+                "display_label":     EVENT_DISPLAY_LABELS.get(event_type, event_type),
+                "description":       EVENT_DESCRIPTION.get(event_type, ""),
+                "category":          CATEGORY_MAP.get(event_type, "other"),
+                "window": {
+                    "start":          win_start,
+                    "end":            win_end,
+                    "precision":      w.get("precision", "AD"),
+                    "human_readable": _human_window(win_start, win_end) if win_start and win_end else "",
+                },
+                "dasha":             _dasha_label(w),
+                "confidence":        confidence,
+                "confidence_label":  _confidence_label(confidence),
+                "explanation_short": w.get("reason", ""),
+                "energy_explanation": build_energy_explanation(_energy_pred, event_type, lagna),
+                "user_response":     None,
+            })
+
+        # Sort by confidence DESC
+        all_predictions.sort(key=lambda x: -x["confidence"])
+        shown             = all_predictions[:max_predictions]
+        total_past        = len(all_predictions)
+        filtered_out      = total_past - len(shown)
+
+        # Fallback message for sparse charts
+        fallback = None
+        if len(shown) < 2:
+            fallback = (
+                "Your chart speaks in nuance, not headlines. Most charts have a "
+                "few clear life events; yours threads its story through quieter "
+                "patterns. Continue to your dashboard to explore your blueprint."
+            )
+
+        return {
+            "chart_id":             chart_id,
+            "lagna":                lagna,
+            "first_name":           first_name,
+            "predictions":          shown,
+            "predictions_filtered": filtered_out,
+            "predictions_shown":    len(shown),
+            "fallback_message":     fallback,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[past-events] Error for {chart_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to compute past events: {str(e)}")
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# UPCOMING-THEMES  —  LLM narration helpers
+# ═══════════════════════════════════════════════════════════════════════════════
+
+def _build_upcoming_themes_prompt(chart_data, profile, future_windows, rahu_md_ads=None, voice_mode="mentor"):
+    """
+    Build the 3-layer prompt for Claude to narrate upcoming themes.
+    voice_mode: 'coach' (no planet names, pure energy language) or 'mentor' (planet names + parentheticals)
+    Returns the full prompt string.
+    """
+    from datetime import datetime as _dt
+
+    cd = chart_data or {}
+    planets = cd.get("planets", {})
+    lagna_obj = cd.get("lagna", {})
+    lagna = lagna_obj.get("sign") if isinstance(lagna_obj, dict) else lagna_obj
+
+    # Layer 1: Chart DNA
+    PLANET_PARENS = {
+        "Sun": "identity, authority, vitality",
+        "Moon": "emotions, mind, mother, nurturing",
+        "Mars": "action, drive, courage, conflict",
+        "Mercury": "communication, intellect, business, travel",
+        "Jupiter": "growth, wisdom, children, expansion",
+        "Venus": "love, beauty, partnership, money",
+        "Saturn": "discipline, time, structure, hard lessons",
+        "Rahu": "ambition, hunger, foreign, breakthrough",
+        "Ketu": "detachment, liberation, past karma, spirituality",
+    }
+    HOUSE_LABELS = {
+        1: "self & identity area", 2: "wealth & family area",
+        3: "courage & communication area", 4: "home & foundation area",
+        5: "children & creativity area", 6: "daily work & service area",
+        7: "partnership & marriage area", 8: "transformation & hidden area",
+        9: "luck & long journeys area", 10: "career & public life area",
+        11: "gains & networks area", 12: "foreign & transcendence area",
+    }
+
+    planet_lines = []
+    for pname, pdata in planets.items():
+        if isinstance(pdata, dict):
+            sign = pdata.get("sign", "?")
+            house = pdata.get("house", 0)
+            nak = pdata.get("nakshatra", "")
+            area = HOUSE_LABELS.get(house, f"house {house}")
+            parens = PLANET_PARENS.get(pname, "")
+            planet_lines.append(f"    {pname} ({parens}) in {sign}, {area}, nakshatra {nak}")
+
+    # Detect stelliums (3+ planets in same house)
+    house_counts = {}
+    for pname, pdata in planets.items():
+        if isinstance(pdata, dict):
+            h = pdata.get("house", 0)
+            house_counts.setdefault(h, []).append(pname)
+    stellium_lines = []
+    for h, plist in house_counts.items():
+        if len(plist) >= 3:
+            area = HOUSE_LABELS.get(h, f"house {h}")
+            stellium_lines.append(
+                f"  Stellium: {' + '.join(plist)} in {area} — modern wealth/power signal"
+            )
+
+    # Layer 2: DKP
+    first_name = profile.get("first_name") or profile.get("name") or "this person"
+    birth_country = profile.get("birth_country") or "unknown"
+    current_country = profile.get("current_country") or "unknown"
+    current_city = profile.get("current_city") or ""
+    career_stage = profile.get("career_stage") or "unknown"
+    marital = profile.get("marital_status") or "unknown"
+    children = profile.get("children_status") or "unknown"
+    moon_sign = profile.get("moon_sign") or cd.get("moon_sign") or "unknown"
+    moon_nak = profile.get("moon_nakshatra") or cd.get("moon_nakshatra") or "unknown"
+    atmakaraka = cd.get("atmakaraka") or "unknown"
+    birth_date = profile.get("birth_date") or ""
+
+    age = ""
+    if birth_date:
+        try:
+            by = int(str(birth_date)[:4])
+            age = str(_dt.now().year - by)
+        except Exception:
+            pass
+
+    # Nakshatra group
+    NAK_LIST = [
+        "Ashwini","Bharani","Krittika","Rohini","Mrigashira","Ardra",
+        "Punarvasu","Pushya","Ashlesha","Magha","Purva Phalguni",
+        "Uttara Phalguni","Hasta","Chitra","Swati","Vishakha","Anuradha",
+        "Jyeshtha","Mula","Purva Ashadha","Uttara Ashadha","Shravana",
+        "Dhanishta","Shatabhisha","Purva Bhadrapada","Uttara Bhadrapada","Revati"
+    ]
+    nak_idx = NAK_LIST.index(moon_nak) if moon_nak in NAK_LIST else -1
+    if 0 <= nak_idx <= 8:
+        nak_group = "Group 1 — creation energy, action-oriented, high physical vitality"
+        nak_tone = (
+            "TONE CALIBRATION (Group 1 — Creation): "
+            "Punchy, direct, action-first. Lead with what to DO, then why. "
+            "Shorter sentences. Less philosophy. "
+            '"Here\'s what\'s happening. Here\'s what to do. Go."'
+        )
+    elif 9 <= nak_idx <= 17:
+        nak_group = "Group 2 — sustaining energy, strategic, structure-minded"
+        nak_tone = (
+            "TONE CALIBRATION (Group 2 — Sustaining): "
+            "Balanced, strategic, measured. Equal weight to analysis and action. "
+            '"Here\'s the pattern. Here\'s the strategy. Here\'s the move."'
+        )
+    elif 18 <= nak_idx <= 26:
+        nak_group = "Group 3 — wisdom energy, reflective, pattern-recognition, guide archetype"
+        nak_tone = (
+            "TONE CALIBRATION (Group 3 — Wisdom): "
+            "Contemplative, meaning-first, then action. Lead with WHY and PATTERN, "
+            "then what to do. "
+            '"Here\'s what this means. Here\'s the deeper pattern. '
+            'And here\'s the one thing to do about it."'
+        )
+    else:
+        nak_group = "unknown"
+        nak_tone = "TONE CALIBRATION: Balanced, direct, confident."
+
+    # Voice mode instruction
+    if voice_mode == "coach":
+        voice_instruction = """
+══════════════════════════════════════════════
+VOICE MODE: COACH (this user is new — no planet names)
+══════════════════════════════════════════════
+CRITICAL: Do NOT use any planet names (Sun, Moon, Mars, Mercury, Jupiter, Venus,
+Saturn, Rahu, Ketu). Instead, refer to energies by their QUALITY:
+  Sun      → "your identity and authority energy"
+  Moon     → "your emotional and nurturing energy"
+  Mars     → "your drive and action energy"
+  Mercury  → "your communication and intellect energy"
+  Jupiter  → "a growth and wisdom energy" (use "a" for arriving energies)
+  Venus    → "your love and partnership energy"
+  Saturn   → "your discipline and structure energy"
+  Rahu     → "your ambition and breakthrough energy"
+  Ketu     → "your letting-go and liberation energy"
+
+For life areas, use descriptive language:
+  Instead of "your gains and networks area" say "the part of your life connected
+  to gains, friendships, and your professional network"
+  Instead of "your foreign and transcendence area" say "your inner world, foreign
+  connections, and what you let go of"
+
+For dasha terms:
+  AD → "the first stretch" / "the next stretch" (not "sub-chapter")
+  PD → "the moment things crystallize" (not "inner window")
+
+For patterns:
+  Stellium → "three powerful energies clustering together"
+  Conjunction → "two energies working side by side"
+
+The goal: the user FEELS the reading without learning new vocabulary.
+Everything should sound like it's describing a part of THEM, not external forces.
+"""
+    else:
+        voice_instruction = """
+══════════════════════════════════════════════
+VOICE MODE: MENTOR (this user is familiar with Vedic terminology)
+══════════════════════════════════════════════
+Use planet names with parenthetical on first mention:
+  "Saturn planet of (discipline, structure)" — then "Saturn" alone after.
+Use area labels: "your gains and networks area".
+Use dasha translations: chapter, sub-chapter, inner window.
+The user has built vocabulary through prior sessions — speak to their knowledge.
+"""
+
+    # Layer 3: Future windows
+    window_lines = []
+    for w in future_windows:
+        et = w.get("event_type", "unknown")
+        ws = w.get("window_start", "?")
+        we = w.get("window_end", "?")
+        planet = w.get("planet", "?")
+        parent = w.get("parent_md", "?")
+        score = w.get("score", 0)
+        window_lines.append(f"    {et}: {ws} to {we} ({parent} chapter + {planet} sub-chapter, score={score})")
+
+    # Rahu MD sub-chapters if available
+    rahu_lines = []
+    if rahu_md_ads:
+        for ad in rahu_md_ads:
+            lord = ad.get("planet_or_sign", "?")
+            s = (ad.get("start_date") or "")[:10]
+            e = (ad.get("end_date") or "")[:10]
+            parens = PLANET_PARENS.get(lord, "")
+            rahu_lines.append(f"    Rahu-{lord} ({parens}): {s} to {e}")
+
+    # Planet → Chakra/Center mapping
+    PLANET_CENTER = {
+        "Sun": "Solar Plexus center — where confidence, willpower, and identity live",
+        "Moon": "Sacral center — where emotions, intuition, and nurturing live",
+        "Mars": "Root center — where security, physical vitality, and drive live",
+        "Mercury": "Throat center — where communication, intellect, and expression live",
+        "Jupiter": "Crown center — where wisdom, expansion, and higher purpose live",
+        "Venus": "Heart center — where love, beauty, and partnership live",
+        "Saturn": "Root center — where discipline, structure, and endurance live",
+        "Rahu": "Third Eye center — where vision, ambition, and breakthrough live",
+        "Ketu": "Crown center — where detachment, liberation, and spirituality live",
+    }
+    # Determine the primary planet driving the most significant window
+    primary_planet = ""
+    if future_windows:
+        _fw0 = future_windows[0]
+        primary_planet = _fw0.get("parent_md") or _fw0.get("planet") or ""
+    center_link = ""
+    if primary_planet and primary_planet in PLANET_CENTER:
+        center_link = f"{primary_planet} · {PLANET_CENTER[primary_planet].split(' — ')[0]}"
+
+    prompt = f"""You are Antar — a senior advisor who has studied this person's chart for years
+and genuinely cares about their outcome. Not a fortune teller. Not a therapist.
+Not a textbook. A mentor who sees the pattern clearly and tells them what to do about it.
+
+You are writing a "Coming Up" prediction card for their dashboard.
+
+THREE CORE PRINCIPLES:
+1. Acknowledge the human, then show the chart
+2. Reframe any weakness or difficulty as a natural phase, never as broken
+3. End with agency — the user drives, Antar navigates
+
+You have three layers of context:
+1. Their birth chart (natal positions, karakas)
+2. Their life context (DKP — where they live, what they do, who they are now)
+3. The upcoming dasha window(s)
+
+{nak_tone}
+{voice_instruction}
+══════════════════════════════════════════════
+VOCABULARY RULES (STRICT — violating these is a failure):
+══════════════════════════════════════════════
+
+PLANET NAMES:
+  First mention: "Mars planet of (action, drive, energy)" — full parenthetical
+  Subsequent mentions: "Mars" alone
+
+HOUSE AREAS — NEVER use house numbers. Always say:
+  H1="your identity and self area"  H2="your wealth and family area"
+  H3="your courage and communication area"  H4="your home and foundation area"
+  H5="your children and creativity area"  H6="your daily work and service area"
+  H7="your partnership and marriage area"  H8="your transformation and hidden area"
+  H9="your luck and long journeys area"  H10="your career and public life area"
+  H11="your gains and networks area"  H12="your foreign and transcendence area"
+
+DASHA PERIODS — NEVER use MD, AD, PD, mahadasha, antardasha, pratyantar, lord, lagna, dasha:
+  MD = "chapter" (the big arc)
+  AD = "sub-chapter" (the current focus)
+  PD = "inner window" (the specific moment)
+
+TIME LANGUAGE: "window" not "period". "chapter" not "phase". "transition" not "change".
+
+CHAKRA/CENTER NAMES — use English: Root, Sacral, Solar Plexus, Heart, Throat, Third Eye, Crown
+  First mention: add what it governs ("Your Root center — where security and physical vitality live")
+  Subsequent: "Root center" alone
+
+BANNED WORDS/PHRASES (never use these):
+  "may" or "could" when stating chart facts — be direct
+  "it seems like" — commit to the reading
+  "based on your chart" — everything is; don't state the obvious
+  "the universe" — too generic
+  "manifest" — overused
+  "journey" — overused
+  "aligned" as vague positive
+  "vibration" — use "frequency" or "energy"
+  "divine timing" — say "your chart's timing"
+  "trust the process" — give something specific to trust
+  "everything happens for a reason" — tell them the reason
+  "unfortunately" — reframe as natural phase
+  "your chart says" — say "your energy map shows" or "the pattern in your chart is"
+
+══════════════════════════════════════════════
+METAPHOR LIBRARY (use these, not generic ones):
+══════════════════════════════════════════════
+
+For low/weak energy: "walking through water", "the pause between exhale and inhale",
+  "a battery recharging before the next sprint", "soil resting between planting seasons"
+For transition/chapter change: "the gear shift between third and fourth",
+  "one chapter closing so the binding can hold the next"
+For strong/activated energy: "a current that's been building and finally breaks the surface",
+  "the ignition, not the spark — everything that follows is momentum",
+  "three rivers converging into one channel"
+For stellium/convergence: "three instruments playing the same note at different octaves",
+  "a triple lock opening simultaneously"
+DO NOT USE: war metaphors, death metaphors, gambling metaphors, generic nature metaphors
+
+══════════════════════════════════════════════
+ANTI-PATTERNS (what Antar NEVER does):
+══════════════════════════════════════════════
+- NEVER predict death or loss
+- NEVER tell a married user their marriage will end
+- NEVER end with a follow-up question ("Want me to explore...?" — NO)
+- NEVER give a menu of 5 actions (one micro-action + one deeper practice, max two)
+- NEVER apologize for what the chart shows — reframe as natural
+- NEVER use astrology to explain away accountability
+
+══════════════════════════════════════════════
+COMING UP CARD FORMAT:
+══════════════════════════════════════════════
+
+Write a prediction for the most significant upcoming window.
+- Headline: max 8 words, punchy, active voice
+- Body: 150-200 words. Connect chart → life context → action.
+- Show planet + center connection in the body naturally
+- If a major chapter transition is happening (e.g. Mars→Rahu), lead with that — it's the headline
+- Caution: one sentence — what to watch for
+- YOUR MOVE: one specific, time-bound action before this window opens
+- Energy tags: 2-4 chips for visual scanning
+- Center link: which planet · which center is most activated
+
+Return ONLY valid JSON, no markdown fences, no other text:
+{{
+  "headline": "short punchy headline, max 8 words",
+  "body": "the prediction text, 150-200 words",
+  "caution": "one sentence — what to watch for",
+  "your_move": "one specific action before this window opens",
+  "energy_tags": ["tag1", "tag2", "tag3"],
+  "center_link": "{center_link}"
+}}
+
+══════════════════════════════════════════════
+CHART CONTEXT:
+══════════════════════════════════════════════
+  Lagna: {lagna}
+  Moon: {moon_sign} / {moon_nak} ({nak_group})
+  Atmakaraka: {atmakaraka}
+  Natal positions:
+{chr(10).join(planet_lines)}
+{chr(10).join(stellium_lines) if stellium_lines else "  No stelliums detected."}
+
+LIFE CONTEXT (DKP):
+  DESHA: Lives in {current_city + ", " if current_city else ""}{current_country}. Born in {birth_country}.
+  KALA: Age {age}. {_dt.now().strftime("%B %Y")}.
+        Career stage: {career_stage}.
+  PATRA: Marital status: {marital}. Children: {children}.
+
+UPCOMING WINDOWS (from mapper):
+{chr(10).join(window_lines) if window_lines else "  No specific windows identified by mapper."}
+{"MAJOR CHAPTER SUB-PERIOD SEQUENCE:" if rahu_lines else ""}
+{chr(10).join(rahu_lines) if rahu_lines else ""}
+
+REFERENCE EXAMPLE (for tone and structure — do NOT copy content):
+HEADLINE: Your 18-Year Expansion Chapter Ignites
+BODY: What you've been building under Mars planet of (action, drive, courage) — the
+infrastructure, the co-founder relationship, the 17-country payment system — was
+preparation. August 2026 is not a transition. It is an ignition. Rahu planet of
+(ambition, breakthrough, foreign) begins its 18-year chapter activating the most
+powerful cluster in your chart: three planets gathered in your gains and networks
+area fire simultaneously. Your Third Eye center — where vision and breakthrough
+live — is the energy channel opening here.
+CAUTION: Rahu amplifies everything including overextension — the first 6 months
+can feel like drinking from a firehose.
+YOUR MOVE: Lock one anchor market before August — a specific target, a specific
+segment — so when Rahu ignites, you're accelerating something already moving.
+"""
+    return prompt
+
+
+import json as _json
+import re as _re
+
+
+async def _get_or_generate_upcoming_themes_llm(
+    chart_id: str,
+    chart_data: dict,
+    profile: dict,
+    future_windows: list,
+    rahu_md_ads: list = None,
+    refresh: bool = False,
+    voice_mode: str = "coach",
+):
+    """
+    Get cached Claude narration or generate fresh.
+    Cache TTL: 30 days. Cache is invalidated if voice_mode changes.
+    """
+    from datetime import datetime, timedelta
+
+    # Check cache first (unless refresh forced)
+    if not refresh:
+        try:
+            cache_row = supabase.table("charts").select(
+                "upcoming_themes_cache, upcoming_themes_cached_at"
+            ).eq("id", chart_id).single().execute()
+            if cache_row.data:
+                cached = cache_row.data.get("upcoming_themes_cache")
+                cached_at = cache_row.data.get("upcoming_themes_cached_at")
+                if cached and cached_at:
+                    # Invalidate cache if voice_mode changed
+                    cached_vm = cached.get("_voice_mode") if isinstance(cached, dict) else None
+                    if cached_vm and cached_vm != voice_mode:
+                        print(f"[upcoming-themes-llm] Voice mode changed ({cached_vm}→{voice_mode}), regenerating")
+                    else:
+                        try:
+                            cached_dt = datetime.fromisoformat(cached_at.replace("Z", "+00:00"))
+                            now = datetime.now(cached_dt.tzinfo) if cached_dt.tzinfo else datetime.now()
+                            if now - cached_dt < timedelta(days=30):
+                                print(f"[upcoming-themes-llm] Cache hit for {chart_id} (voice={voice_mode})")
+                                return cached
+                        except Exception:
+                            pass  # Stale or bad timestamp — regenerate
+        except Exception as e:
+            print(f"[upcoming-themes-llm] Cache read error: {e}")
+
+    # Build prompt
+    prompt = _build_upcoming_themes_prompt(chart_data, profile, future_windows, rahu_md_ads, voice_mode=voice_mode)
+
+    # Call Claude (async — uses the global claude_client)
+    print(f"[upcoming-themes-llm] Generating for {chart_id}...")
+    try:
+        resp = await claude_client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=2000,
+            messages=[{"role": "user", "content": prompt}],
+        )
+        raw_text = resp.content[0].text
+        # Parse JSON from response (strip markdown fences if present)
+        clean = _re.sub(r"```json\s*|```\s*", "", raw_text).strip()
+        result = _json.loads(clean)
+        # Tag with voice mode so cache can be invalidated on mode change
+        result["_voice_mode"] = voice_mode
+
+        # Cache in Supabase (fire-and-forget — don't block on failure)
+        try:
+            supabase.table("charts").update({
+                "upcoming_themes_cache": result,
+                "upcoming_themes_cached_at": datetime.now().isoformat(),
+            }).eq("id", chart_id).execute()
+            print(f"[upcoming-themes-llm] Generated + cached for {chart_id} (voice={voice_mode})")
+        except Exception as ce:
+            print(f"[upcoming-themes-llm] Cache write error (non-fatal): {ce}")
+
+        return result
+    except Exception as e:
+        print(f"[upcoming-themes-llm] Claude error for {chart_id}: {e}")
+        return None
+
+
+@app.get("/api/v1/chart/{chart_id}/upcoming-themes")
+async def get_upcoming_themes(
+    chart_id: str,
+    min_confidence: int = 5,
+    max_predictions: int = 3,
+    months_ahead: int = 24,
+    refresh: bool = False,
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Returns high-confidence FUTURE event predictions for the chart.
+    Used by the dashboard "Coming Up" module.
+
+    Query params:
+      min_confidence : filter threshold 1-10 (default 5)
+      max_predictions: cap on number returned (default 3)
+      months_ahead   : look-ahead window in months (default 24)
+    """
+    try:
+        from antar_engine.dasha_event_mapper import (
+            map_future_events,
+            find_event_window,
+            EVENT_DISPLAY_LABELS,
+            EVENT_DESCRIPTION,
+            build_energy_explanation,
+        )
+
+        # ── 1. Fetch chart row ────────────────────────────────────────────
+        chart_res = supabase.table("charts").select(
+            "chart_data,birth_date,first_name,name,lagna_sign,marital_status,children_status,voice_mode"
+        ).eq("id", chart_id).single().execute()
+
+        if not chart_res.data:
+            raise HTTPException(status_code=404, detail="Chart not found")
+
+        cd          = chart_res.data.get("chart_data") or {}
+        birth_date  = str(chart_res.data.get("birth_date", ""))
+        birth_year  = int(birth_date[:4]) if birth_date and birth_date[:4].isdigit() else 1980
+        lagna_raw   = cd.get("lagna") or {}
+        lagna       = (lagna_raw.get("sign") if isinstance(lagna_raw, dict) else lagna_raw)                        or chart_res.data.get("lagna_sign") or "Capricorn"
+        first_name  = chart_res.data.get("first_name") or chart_res.data.get("name") or ""
+        today_str   = datetime.now().strftime("%Y-%m-%d")
+        cutoff_date = (datetime.now() + timedelta(days=months_ahead * 30)).strftime("%Y-%m-%d")
+        marital_status  = (chart_res.data.get("marital_status") or "").lower().strip()
+        children_status = (chart_res.data.get("children_status") or "").lower().strip()
+
+        # Voice mode: 'coach' (default for new users) or 'mentor' (graduated)
+        _vm_raw = (chart_res.data.get("voice_mode") or "coach").lower().strip()
+        voice_mode = _vm_raw if _vm_raw in ("coach", "mentor") else "coach"
+        print(f"[UPCOMING-THEMES] chart={chart_id} lagna={lagna} voice={voice_mode} look_ahead={months_ahead}mo cutoff={cutoff_date}")
+
+        # ── 2. Fetch vimsottari antardashas ───────────────────────────────
+        ads_res = supabase.table("dasha_periods")             .select("planet_or_sign,start_date,end_date,level,type,metadata")             .eq("chart_id", chart_id)             .eq("system", "vimsottari")             .order("start_date")             .execute()
+
+        ads = [
+            r for r in (ads_res.data or [])
+            if r.get("level") == 2
+            or str(r.get("type", "")).lower() in ("antardasha", "ad", "2")
+        ]
+
+        if not ads:
+            return {
+                "chart_id":      chart_id,
+                "lagna":         lagna,
+                "first_name":    first_name,
+                "themes":        [],
+                "themes_shown":  0,
+                "stable_message": (
+                    "Your dasha sequence hasn't been computed yet. "
+                    "Visit your dashboard to generate your full blueprint."
+                ),
+            }
+
+        # ── 3. Run all event windows (same as past-events) ────────────────
+        raw_map = map_future_events(
+            lagna, birth_year, ads,
+            from_date=today_str,
+            to_date=cutoff_date,
+        )
+
+        for extra_event in ("loss_of_mother", "major_acquisition"):
+            if extra_event not in raw_map:
+                raw_map[extra_event] = find_event_window(
+                    extra_event, lagna, birth_year, ads
+                )
+
+        # ── 4. Confidence helpers (identical logic to past-events) ────────
+        def _confidence_label(score: int) -> str:
+            if score >= 8: return "high"
+            if score >= 5: return "moderate"
+            return "low"
+
+        def _dasha_label(w: dict) -> str:
+            md  = w.get("parent_md", "")
+            ad  = w.get("planet", "")
+            pd  = w.get("pd_lord", "")
+            lbl = f"{md} MD + {ad} AD"
+            if pd:
+                lbl += f" + {pd} PD"
+            return lbl
+
+        def _human_window(start: str, end: str) -> str:
+            try:
+                s = datetime.fromisoformat(start)
+                e = datetime.fromisoformat(end)
+                if s.year == e.year and s.month == e.month:
+                    return s.strftime('%B %Y')
+                if s.year == e.year:
+                    return f"{s.strftime('%B')} to {e.strftime('%B %Y')}"
+                return f"{s.strftime('%B %Y')} to {e.strftime('%B %Y')}"
+            except Exception:
+                return f"{start[:7]} to {end[:7]}"
+
+        def _months_until(date_str: str) -> int:
+            try:
+                d   = datetime.fromisoformat(date_str)
+                now = datetime.now()
+                return max(0, (d.year - now.year) * 12 + (d.month - now.month))
+            except Exception:
+                return 0
+
+        CATEGORY_MAP_LOCAL = {
+            "serious_partnership_began":  "relationship",
+            "serious_partnership_ended":  "relationship",
+            "family_expansion_first":     "family",
+            "family_expansion_second":    "family",
+            "major_relocation":           "transition",
+            "major_acquisition":          "material",
+            "career_pivot":               "transition",
+            "loss_of_mother":             "loss",
+            "loss_of_father":             "loss",
+            "professional_setback":       "material",
+            "legal_entanglement":         "conflict",
+            "financial_disruption":       "material",
+        }
+
+        # ── 5. Score + filter to FUTURE windows ──────────────────────────
+
+        # Events that should NEVER appear on dashboard Coming Up
+        _EXCLUDE_FROM_UPCOMING = {
+            'loss_of_mother',
+            'loss_of_father',
+        }
+
+        future_predictions = []
+        for event_type, w in raw_map.items():
+            if not w:
+                continue
+
+            # ── QUALITY RULES ──────────────────────────────────────────
+            # Rule 1: NEVER show death/loss predictions on dashboard.
+            # These are deeply sensitive. Users should only encounter them
+            # in Ask Antar if they specifically ask, never on a card.
+            if event_type in _EXCLUDE_FROM_UPCOMING:
+                continue
+
+            # Rule 2: Don't predict "first child" if user already has children.
+            # The mapper doesn't distinguish "first ever" from "next" — so if
+            # children_status indicates existing children, skip this event type.
+            if event_type == 'family_expansion_first':
+                if children_status in (
+                    'has_children', 'has_child', 'one', 'two', 'three',
+                    '1', '2', '3', '4', 'multiple'
+                ):
+                    continue
+
+            # Rule 3: Don't predict "partnership ended" if user is already
+            # single, divorced, or separated — can't end what doesn't exist.
+            if event_type == 'serious_partnership_ended':
+                if marital_status in (
+                    'single', 'divorced', 'separated', 'never_married',
+                    'unmarried', 'widowed'
+                ):
+                    continue
+            win_start = w.get("window_start") or w.get("start") or ""
+            win_end   = w.get("window_end")   or w.get("end")   or ""
+
+            # FUTURE only: window starts on/after today and within look-ahead cutoff
+            if not win_start or win_start < today_str or win_start > cutoff_date:
+                continue
+
+            score           = w.get("score", 5)
+            candidate_count = w.get("candidate_count", 1)
+            _base      = max(2, min(6, round(score * 0.6)))
+            _pd_bonus  = 1 if w.get("pd_lord") else 0
+            _corr      = 1 if candidate_count >= 3 else 0
+            confidence = min(10, _base + _pd_bonus + _corr)
+
+            # Same reality-check adjustments as past-events
+            if event_type == "serious_partnership_ended" and w.get("_dependency_fail"):
+                confidence = min(confidence, 3)
+            if event_type == "serious_partnership_ended":
+                _began_w = raw_map.get("serious_partnership_began")
+                if _began_w:
+                    _began_conf = max(2, min(6, round(_began_w.get("score", 5) * 0.6)))                                   + (1 if _began_w.get("pd_lord") else 0)
+                    if _began_conf < 5:
+                        confidence = min(confidence, _began_conf)
+            if event_type in ("family_expansion_first", "family_expansion_second"):
+                if not raw_map.get("serious_partnership_began"):
+                    confidence = max(1, confidence - 2)
+            if marital_status in ("single", "never_married", "unmarried"):
+                if event_type in ("serious_partnership_began", "serious_partnership_ended"):
+                    confidence = min(confidence, 4)
+            if marital_status in ("married", "partnered", "in_relationship", "in_a_relationship"):
+                if event_type == "serious_partnership_ended":
+                    confidence = min(confidence, 3)
+            if children_status in ("none", "no_children", "no_children_unsure", "childless"):
+                if event_type in ("family_expansion_first", "family_expansion_second"):
+                    confidence = min(confidence, 4)
+
+            print(f"[UPCOMING-CONF] event={event_type} score={score} base={_base} pd={_pd_bonus} corr={_corr} final={confidence}")
+
+            if confidence < min_confidence:
+                continue
+
+            _energy_pred = {
+                "md_lord":       w.get("parent_md"),
+                "ad_lord":       w.get("planet"),
+                "pd_lord":       w.get("pd_lord"),
+                "transit_planet": w.get("transit_planet"),
+            }
+
+            future_predictions.append({
+                "event_type":        event_type,
+                "category":          CATEGORY_MAP_LOCAL.get(event_type, "other"),
+                "display_label":     EVENT_DISPLAY_LABELS.get(event_type, event_type),
+                "description":       EVENT_DESCRIPTION.get(event_type, ""),
+                "window": {
+                    "start":          win_start,
+                    "end":            win_end,
+                    "precision":      w.get("precision", "AD"),
+                    "human_readable": _human_window(win_start, win_end) if win_start and win_end else "",
+                },
+                "dasha":             _dasha_label(w),
+                "confidence":        confidence,
+                "confidence_label":  _confidence_label(confidence),
+                "energy_explanation": build_energy_explanation(_energy_pred, event_type, lagna),
+                "framing":           "opening",
+                "months_away":       _months_until(win_start),
+            })
+
+        # Sort: highest confidence first, then soonest
+        future_predictions.sort(key=lambda x: (-x["confidence"], x["window"]["start"]))
+        themes = future_predictions[:max_predictions]
+
+        # === TRANSIT CONFIRMATION — boost confidence when transit aligns with dasha ===
+        try:
+            from antar_engine.transit_engine import get_full_transit_report
+            for _th in themes:
+                _ws = _th.get("window", {}).get("start", "")
+                if not _ws:
+                    continue
+                try:
+                    _wd = datetime.fromisoformat(_ws)
+                    _future_transit = get_full_transit_report(cd, date=_wd)
+                    _confirming = [mt for mt in _future_transit.get("major_transits", [])
+                                   if mt.get("severity") in ("high", "positive")]
+                    if _confirming:
+                        _th["transit_confirmation"] = True
+                        _th["transit_details"] = _confirming[0]["description"]
+                        _th["confidence"] = min(10, _th.get("confidence", 5) + 1)
+                        _th["confidence_label"] = (
+                            "high" if _th["confidence"] >= 8
+                            else "moderate" if _th["confidence"] >= 5
+                            else "low"
+                        )
+                    else:
+                        _th["transit_confirmation"] = False
+                except Exception:
+                    _th["transit_confirmation"] = None
+        except Exception as _tce:
+            print(f"[upcoming-themes] Transit confirmation failed (non-fatal): {_tce}")
+        # === END TRANSIT CONFIRMATION ===
+
+        stable = None
+        if len(themes) < 2:
+            stable = (
+                f"Your current energies are strong and steady. The next "
+                f"{months_ahead} months favor deepening what's already in motion "
+                f"rather than starting entirely new chapters. Use this stability "
+                f"to build — real progress compounds in windows like this."
+            )
+
+        # ── LLM Narration (Claude) ────────────────────────────────────────
+        llm_card = None
+        if themes and _CLAUDE_AVAILABLE:
+            # Fetch Rahu MD sub-periods if any theme involves Rahu
+            rahu_md_ads = []
+            for t in themes:
+                if "Rahu" in (t.get("dasha") or ""):
+                    try:
+                        rahu_ads = supabase.table("dasha_periods").select(
+                            "planet_or_sign, start_date, end_date"
+                        ).eq("chart_id", chart_id).eq("system", "vimsottari").eq(
+                            "level", 2
+                        ).gte("start_date", "2026-01-01").order("start_date").execute()
+                        rahu_md_ads = rahu_ads.data or []
+                    except Exception:
+                        pass
+                    break
+
+            # Build future_windows list from scored themes
+            _fw = [{
+                "event_type":   t["event_type"],
+                "window_start": t["window"]["start"],
+                "window_end":   t["window"]["end"],
+                "planet": (t.get("dasha") or "").split(" + ")[1].replace(" AD", "").replace(" PD", "").strip() if " + " in (t.get("dasha") or "") else "",
+                "parent_md": (t.get("dasha") or "").split(" MD")[0].strip() if " MD" in (t.get("dasha") or "") else "",
+                "score": t.get("confidence", 5),
+            } for t in themes]
+
+            try:
+                llm_narration = await _get_or_generate_upcoming_themes_llm(
+                    chart_id=chart_id,
+                    chart_data=cd,
+                    profile=chart_res.data,
+                    future_windows=_fw,
+                    rahu_md_ads=rahu_md_ads,
+                    refresh=refresh,
+                    voice_mode=voice_mode,
+                )
+                if llm_narration and isinstance(llm_narration, dict):
+                    llm_card = {
+                        "headline":     llm_narration.get("headline", ""),
+                        "body":         llm_narration.get("body", ""),
+                        "caution":      llm_narration.get("caution", ""),
+                        "your_move":    llm_narration.get("your_move", ""),
+                        "energy_tags":  llm_narration.get("energy_tags", []),
+                        "center_link":  llm_narration.get("center_link", ""),
+                        "voice_mode":   voice_mode,
+                    }
+            except Exception as llm_err:
+                print(f"[upcoming-themes-llm] Non-fatal error: {llm_err}")
+
+        return {
+            "chart_id":       chart_id,
+            "lagna":          lagna,
+            "first_name":     first_name,
+            "themes":         themes,
+            "themes_shown":   len(themes),
+            "stable_message": stable,
+            "llm_narration":  llm_card,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[upcoming-themes] Error for {chart_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to compute upcoming themes: {str(e)}")
+
+@app.post("/api/v1/chart/{chart_id}/past-events/feedback")
+async def submit_past_event_feedback(
+    chart_id: str,
+    feedback: dict,
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Store user confirmation/correction of a past-event prediction.
+    Payload: {"event_type": "...", "response": "yes|close|no", "actual_date": "YYYY-MM-DD" (optional)}
+
+    Used to validate mapper accuracy and improve confidence calibration.
+    Gracefully no-ops if the past_event_feedback table doesn't exist yet.
+    """
+    try:
+        event_type  = feedback.get("event_type")
+        response    = feedback.get("response")
+        actual_date = feedback.get("actual_date")
+
+        if response not in ("yes", "close", "no"):
+            raise HTTPException(status_code=400, detail="response must be: yes, close, or no")
+
+        try:
+            supabase.table("past_event_feedback").insert({
+                "chart_id":     chart_id,
+                "event_type":   event_type,
+                "response":     response,
+                "actual_date":  actual_date,
+                "submitted_at": datetime.now().isoformat(),
+            }).execute()
+        except Exception as db_err:
+            # Table may not exist yet — log but don't block UX
+            print(f"[past-events-feedback] DB insert skipped ({db_err})")
+
+        return {"status": "recorded"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[past-events-feedback] Error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/chart/{chart_id}", response_model=ChartResponse)
 async def get_chart(chart_id: str):
@@ -2145,6 +3444,192 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
 
     # Dashas
     dashas_response = get_dashas_for_chart(request.chart_id)
+
+    # ================================================================
+    # LOCATION QUESTION ROUTING → DeepSeek + Astrocartography engine
+    # ================================================================
+    # Detect location intent and route to DeepSeek for accuracy.
+    # DeepSeek demonstrated better context-awareness for location questions
+    # (stay-vs-move logic, LATAM focus, current city awareness).
+    # ================================================================
+    _LOCATION_KEYWORDS = [
+        "city", "ciudad", "cities", "ciudades",
+        "country", "pais", "location", "ubicacion", "ubicación",
+        "move", "mover", "relocate", "mudarse",
+        "where should i", "dónde debo", "donde debo",
+        "best place", "mejor lugar", "mejor ciudad",
+        "which city", "qué ciudad", "que ciudad",
+        "startup growth", "wealth location", "billionaire",
+        "latam", "latin america", "europe", "asia",
+        "astrocartography", "astrocartografía", "planetary lines",
+        "live", "vivir", "settle", "establecer",
+        "bogota", "houston", "london", "mexico",
+    ]
+
+    _q_lower_loc = request.question.lower()
+    _is_location_q = any(kw in _q_lower_loc for kw in _LOCATION_KEYWORDS)
+
+    if _is_location_q and chart_record.get("astrocartography_data"):
+        try:
+            print(f"[predict] Location question detected — routing to DeepSeek astrocartography")
+
+            from antar_engine.chart_context_builder_json import _fetch_dashas
+            from antar_engine.astrocartography_recommender import recommend_cities
+            import json as _loc_json, httpx as _loc_httpx, os as _loc_os
+
+            _loc_dashas = _fetch_dashas(request.chart_id, supabase)
+
+            # Detect intent from question
+            _loc_intent = "general"
+            _q_l = request.question.lower()
+            if any(w in _q_l for w in ["startup", "empresa", "negocio", "business", "tech", "ai", "msme"]):
+                _loc_intent = "startup"
+            elif any(w in _q_l for w in ["billionaire", "billonario", "billion", "mil millones"]):
+                _loc_intent = "billionaire"
+            elif any(w in _q_l for w in ["wealth", "riqueza", "rich", "rico", "money", "dinero", "fortune"]):
+                _loc_intent = "wealth"
+            elif any(w in _q_l for w in ["career", "carrera", "job", "trabajo", "profession"]):
+                _loc_intent = "career"
+            elif any(w in _q_l for w in ["relationship", "relacion", "partner", "love", "amor", "marriage"]):
+                _loc_intent = "relationships"
+
+            # Detect region from question
+            _loc_region = "global"
+            if any(w in _q_l for w in ["latam", "latin", "colombia", "mexico", "brazil", "argentina", "chile", "peru"]):
+                _loc_region = "latam"
+            elif any(w in _q_l for w in ["europe", "europa", "london", "paris", "berlin", "madrid"]):
+                _loc_region = "europe"
+            elif any(w in _q_l for w in ["asia", "india", "singapore", "japan", "china", "dubai"]):
+                _loc_region = "asia"
+            elif any(w in _q_l for w in ["usa", "us", "united states", "houston", "austin", "new york"]):
+                _loc_region = "north_america"
+
+            # Extract natal yogas
+            _loc_chart_data = chart_record.get("chart_data") or {}
+            _loc_yogas = _loc_chart_data.get("yogas") or []
+            if not _loc_yogas:
+                _loc_planets = _loc_chart_data.get("planets", {})
+                if (_loc_planets.get("Jupiter") or {}).get("house") == 2 and                    (_loc_planets.get("Venus") or {}).get("house") == 11:
+                    _loc_yogas = [{"name": "Dhana Yoga", "planets": ["Jupiter", "Venus"]}]
+
+            # Python ranking
+            _loc_ranking = recommend_cities(
+                chart_record=chart_record,
+                dashas=_loc_dashas,
+                natal_yogas=_loc_yogas,
+                intent=_loc_intent,
+                region=_loc_region,
+                language=language,
+                top_n=5,
+            )
+
+            # DeepSeek narrative
+            _loc_dc = _loc_ranking.get("dasha_context", {})
+            _loc_archetype = (chart_record.get("character_archetype") or {}).get("name", "")
+            _loc_current_city = chart_record.get("current_city") or ""
+            _loc_current_country = chart_record.get("current_country") or ""
+
+            _loc_city_list = []
+            for i, c in enumerate(_loc_ranking.get("top_cities", [])[:5]):
+                _loc_city_list.append({
+                    "rank":        i + 1,
+                    "city":        c["city"],
+                    "score":       c["score"],
+                    "is_current":  c.get("is_current_location", False),
+                    "dasha_notes": c.get("dasha_notes", []),
+                    "yoga_notes":  c.get("yoga_notes", []),
+                    "top_lines":   [{
+                        "planet": l["planet"], "line": l["line"], "strength": l["strength"]
+                    } for l in c.get("line_details", [])[:3]],
+                })
+
+            _loc_prompt = f"""You are Antar's astrocartography interpreter.
+You receive deterministic scores from the Python engine. Do NOT calculate anything.
+
+USER QUESTION: {request.question}
+
+USER CONTEXT:
+- Current location: {_loc_current_city or _loc_current_country or "unknown"}
+- Intent detected: {_loc_intent}
+- Region: {_loc_region}
+- Archetype: {_loc_archetype}
+- Dashas: Current MD {_loc_dc.get("current_md")} until {str(_loc_dc.get("current_md_end",""))[:10]} | Next MD {_loc_dc.get("next_md")} from {str(_loc_dc.get("next_md_start",""))[:10]} (18-year window)
+
+PYTHON RANKING:
+{_loc_json.dumps(_loc_city_list, indent=2)}
+
+STAY-VS-MOVE: {_loc_ranking.get("stay_vs_move", "unknown")}
+MISSING LINES: {", ".join(_loc_ranking.get("missing_lines", [])) or "none"}
+
+Your job:
+1. Answer the user's specific question directly in the first sentence
+2. If stay_vs_move is "stay": explain why current location works
+3. If "move": recommend the top city with exact timing
+4. Mention missing lines honestly if relevant
+5. End with YOUR MOVE — one specific action this week
+6. Do NOT use planet names — use energy language
+   (e.g., "expansion energy" not "Jupiter", "disruption channel" not "Rahu")
+
+{"Respond entirely in Spanish." if language == "es" else "Respond in English."}
+
+Keep response under 200 words. Be warm, specific, actionable."""
+
+            _loc_ds_key = _loc_os.environ.get("DEEPSEEK_API_KEY", "")
+            if not _loc_ds_key:
+                raise ValueError("DEEPSEEK_API_KEY not set — falling back to Claude")
+
+            _loc_resp = _loc_httpx.post(
+                "https://api.deepseek.com/chat/completions",
+                headers={"Authorization": f"Bearer {_loc_ds_key}"},
+                json={
+                    "model":       "deepseek-chat",
+                    "messages":    [{"role": "user", "content": _loc_prompt}],
+                    "temperature": 0.2,
+                    "max_tokens":  400,
+                },
+                timeout=25.0,
+            )
+            _loc_answer = _loc_resp.json()["choices"][0]["message"]["content"].strip()
+            print(f"[predict] Location answer from DeepSeek — {len(_loc_answer)} chars")
+
+            # Save to chat_messages
+            try:
+                supabase.table("chat_messages").insert({
+                    "chart_id":     request.chart_id,
+                    "question":     request.question,
+                    "plain_summary": _loc_answer,
+                    "signal_line":  f"Location: {_loc_ranking.get('top_cities', [{}])[0].get('city', '')}",
+                    "action_item":  "",
+                    "domain":       "location",
+                    "language":     language,
+                }).execute()
+            except Exception:
+                pass
+
+            return {
+                "prediction":    _loc_answer,
+                "plain_summary": _loc_answer,
+                "confidence":    0.80,
+                "factors":       [c["city"] for c in _loc_ranking.get("top_cities", [])[:3]],
+                "signal_line":   f"Top location: {_loc_ranking.get('top_cities', [{}])[0].get('city', '')}",
+                "action_item":   "",
+                "timing_window": f"Next MD: {_loc_dc.get('next_md')} from {str(_loc_dc.get('next_md_start',''))[:10]}",
+                "why_this":      f"Astrocartography + dasha alignment. Stay/move: {_loc_ranking.get('stay_vs_move')}",
+                "model_used":    "deepseek-astrocartography",
+                "rarity_signals": [],
+                "precision_windows": [],
+                "all_domains":   [],
+            }
+
+        except Exception as _loc_e:
+            import traceback
+            print(f"[predict] Location routing failed — falling back to Claude: {_loc_e}")
+            print(f"[predict] {traceback.format_exc()[:300]}")
+            # Fall through to normal Claude path
+    # ================================================================
+    # END LOCATION ROUTING
+    # ================================================================
+
 
     # Life events
     life_events = []
@@ -2742,12 +4227,15 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
                     "first_name": chart_data.get("first_name") or chart_data.get("name", ""),
                     "current_country": chart_data.get("current_country", ""),
                 }
-                _transit_block = build_transit_behavioral_block(
+                _transit_block = await build_transit_behavioral_block(
                     _transit_list, _natal_planets, _user_prof
                 )
                 if _transit_block:
-                    _full_context += _transit_block
-                    print(f"[predict] Transit behavioral block injected ({len(_transit_block)} chars)")
+                    # === TRANSIT ORDER FIX ===
+                    # Don't += into _full_context here — build_complete_context()
+                    # below will overwrite it. Stash instead, append after.
+                    _pending_transit_block = _transit_block
+                    print(f"[predict] Transit behavioral block stashed ({len(_transit_block)} chars)")
         except Exception as _tbe:
             print(f"[predict] Transit behavioral translation failed (non-fatal): {_tbe}")
         # ── END QUESTION MODE ROUTING ─────────────────────────────
@@ -2816,6 +4304,31 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
             _full_context += "\n\n" + _signature_block
             print(f"[predict] Natal signature block injected — {_char_archetype.get('name','?')}")
         # --- END INJECT ---
+        # === TRANSIT ORDER FIX (continued) ===
+        # Re-append the stashed transit block now that build_complete_context
+        # is done. This recovers the ~7s of Swiss Ephemeris work that was
+        # being thrown away.
+        try:
+            _ptb = locals().get("_pending_transit_block")
+            if _ptb:
+                _full_context += "\n\n" + _ptb
+                print(f"[predict] Transit behavioral block re-appended ({len(_ptb)} chars)")
+        except Exception as _tbe2:
+            print(f"[predict] Transit re-append failed (non-fatal): {_tbe2}")
+        # === END TRANSIT ORDER FIX ===
+
+        # === LIVE TRANSIT CONTEXT (Swiss Ephemeris) ===
+        try:
+            from antar_engine.transit_engine import get_full_transit_report, format_transit_for_prompt
+            _live_transit = get_full_transit_report(chart_data)
+            _live_transit_block = format_transit_for_prompt(_live_transit)
+            if _live_transit_block:
+                _full_context += "\n\n" + _live_transit_block
+                print(f"[predict] Live transit context injected ({len(_live_transit_block)} chars)")
+        except Exception as _lte:
+            print(f"[predict] Live transit injection failed (non-fatal): {_lte}")
+        # === END LIVE TRANSIT CONTEXT ===
+
         print(f"[predict] Full context: {len(_full_context)} chars")
     except Exception as _ctx_e:
         import traceback
@@ -3149,6 +4662,266 @@ ABSOLUTE RULES (violating these rules means the response is rejected):
             _master_system = _lang_block + _master_system
             print(f"[predict] Language injection: {_lang}")
         # --- end Sprint L ---
+
+
+        # ================================================================
+        # JSON PATH (use_json_context=True) — Phase 4 JSON-first refactor
+        # ================================================================
+        if getattr(request, "use_json_context", False):
+            # For past-event questions: clear prose context so it doesn't
+            # contaminate Claude's reasoning. JSON path provides all needed context.
+            _past_kw = ["when did","when was","what year","married","born","child",
+                        "son","daughter","moved","divorc","america","foreign",
+                        "cuándo","cuando","nació","hijo","hija","casé","mudé"]
+            if any(kw in request.question.lower() for kw in _past_kw):
+                _full_context = ""
+                print(f"[json-v2] Past question detected — cleared prose context")
+            try:
+                print(f"[json-v2] JSON path activated for chart {request.chart_id}")
+                from antar_engine.chart_context_builder_json import (
+                    build_chart_context_json,
+                    chart_static_to_json,
+                    live_to_json,
+                    estimate_token_count,
+                )
+                from antar_engine.predict_system_prompt_v2 import PREDICT_SYSTEM_PROMPT_V2
+
+                _json_ctx = await build_chart_context_json(
+                    chart_id=request.chart_id,
+                    question=request.question,
+                    concern=concern,
+                    language=_lang if "_lang" in dir() else language,
+                    supabase=supabase,
+                )
+
+                # ── PAST EVENT HISTORICAL DASHA INJECTION ─────────────────
+                _past_keywords = [
+                    "when did", "when was", "what year", "which year",
+                    "when did i", "when were", "what happened", "how old",
+                    "married", "marriage", "wedding",
+                    "born", "birth", "child", "children", "son", "daughter",
+                    "moved", "relocat", "immigrat", "america", "foreign",
+                    "divorc", "separat", "ended", "split",
+                    "cuándo", "cuando", "qué año", "que año",
+                    "casé", "matrimonio", "boda", "nació", "hijo", "hija",
+                    "mudé", "emigr", "divorcié", "separé", "terminó",
+                ]
+                _is_past_q = any(kw in request.question.lower() for kw in _past_keywords)
+
+                if _is_past_q:
+                    # Run Python DashaEventMapper — compute windows deterministically
+                    try:
+                        from antar_engine.dasha_event_mapper import map_all_events, format_for_prompt
+                        _mapper_results = map_all_events(
+                            birth_year=_birth_year,
+                            lagna=_lagna_sign,
+                            ads=_ads,
+                        )
+                        _mapper_block = format_for_prompt(_mapper_results)
+                        _tl += _mapper_block
+                        print(f"[json-v2] DashaEventMapper: {sum(1 for v in _mapper_results.values() if v)}/5 events computed")
+                    except Exception as _me:
+                        print(f"[json-v2] DashaEventMapper failed (non-fatal): {_me}")
+                if _is_past_q:
+                    try:
+                        _hist = supabase.table("dasha_periods") \
+                            .select("planet_or_sign,start_date,end_date,level,type,metadata,sequence") \
+                            .eq("chart_id", request.chart_id) \
+                            .eq("system", "vimsottari") \
+                            .order("sequence") \
+                            .execute()
+
+                        _mds, _ads = [], []
+                        for _row in _hist.data:
+                            _lv = _row.get("level")
+                            _tp = str(_row.get("type","")).lower()
+                            if _lv == 1 or _tp in ("mahadasha","md","1"):
+                                _mds.append(_row)
+                            elif _lv == 2 or _tp in ("antardasha","ad","2"):
+                                _ads.append(_row)
+
+                        try:
+                            _bd_row = supabase.table("charts") \
+                                .select("birth_date,chart_data") \
+                                .eq("id", request.chart_id) \
+                                .single().execute()
+                            _birth_year = int(str(_bd_row.data.get("birth_date","1974"))[:4])
+                            _lagna_sign = (_bd_row.data.get("chart_data") or {}) \
+                                .get("lagna", {}).get("sign", "unknown")
+                        except Exception:
+                            _birth_year = 1974
+                            _lagna_sign = "unknown"
+
+                        _tl = "\n\n## HISTORICAL VIMSOTTARI DASHA SEQUENCE\n"
+                        _tl += f"Birth year: {_birth_year} | Lagna: {_lagna_sign}\n\n"
+                        _tl += "MAHADASHAS:\n"
+                        for _r in _mds:
+                            _p = _r.get("planet_or_sign","")
+                            _s = str(_r.get("start_date",""))[:10]
+                            _e = str(_r.get("end_date",""))[:10]
+                            _tl += f"  {_p} MD: {_s} to {_e}\n"
+
+                        _ads_by_md = {}
+                        for _r in _ads:
+                            _parent = (_r.get("metadata") or {}).get("parent_lord","?")
+                            if _parent not in _ads_by_md:
+                                _ads_by_md[_parent] = []
+                            _p = _r.get("planet_or_sign","")
+                            _s = str(_r.get("start_date",""))[:10]
+                            _e = str(_r.get("end_date",""))[:10]
+                            _ads_by_md[_parent].append(f"    {_p} AD: {_s} to {_e}")
+
+                        _tl += "\nANTARDASHAS BY MD:\n"
+                        for _md_p, _ad_lines in _ads_by_md.items():
+                            _tl += f"  {_md_p} MD:\n" + "\n".join(_ad_lines) + "\n"
+
+                        _tl += f"""
+## ELIGIBLE YEAR RANGES (birth year = {_birth_year})
+  Marriage eligible:          {_birth_year+20} to {_birth_year+35}
+  First child eligible:       {_birth_year+22} to {_birth_year+37} (must be after marriage)
+  Second child:               first_child_year + 1 to + 4
+  Foreign relocation:         {_birth_year+15} to {_birth_year+45}
+  Divorce:                    marriage_year + 5 to + 25
+
+Apply the classical AD priority rules from the system prompt.
+State a specific year. Never predict past events as future windows.
+"""
+                        if isinstance(_json_ctx, dict):
+                            _json_ctx["_historical_dasha"] = _tl
+                        print(f"[json-v2] Past event: {len(_mds)} MDs, {len(_ads)} ADs, birth={_birth_year}, lagna={_lagna_sign}")
+
+                    except Exception as _he:
+                        print(f"[json-v2] Historical dasha failed (non-fatal): {_he}")
+                # ── END PAST EVENT INJECTION ──────────────────────────────
+
+                _static_json = chart_static_to_json(_json_ctx)
+                _live_json   = live_to_json(_json_ctx)
+
+                # System prompt = framework (cached) + static chart JSON (cached)
+                # ## LIVE DATA marker = split point for KV cache
+                _hist_suffix = _json_ctx.get("_historical_dasha", "") if isinstance(_json_ctx, dict) else ""
+                _json_system = (
+                    PREDICT_SYSTEM_PROMPT_V2
+                    + "\n\n## CHART DATA (JSON)\n"
+                    + _static_json
+                    + "\n\n## LIVE DATA\n"
+                    + _live_json
+                    + (_hist_suffix if _hist_suffix else "")
+                )
+
+                # User message = just the question
+                _json_user_prompt = (
+                    f"Question: {request.question}\n"
+                    f"Domain: {concern}\n"
+                    "Respond with a JSON object exactly as specified in the output format."
+                )
+
+                print(f"[json-v2] system={len(_json_system)} chars "
+                      f"(~{estimate_token_count(_json_system)} tokens), "
+                      f"user={len(_json_user_prompt)} chars")
+
+                _json_raw, _json_tokens = await call_llm_claude(
+                    _json_user_prompt,
+                    history=request.conversation_history or [],
+                    system_override=_json_system,
+                )
+
+                # Parse structured response
+                import json as _json_mod
+                _json_text = _json_raw.strip()
+                if _json_text.startswith("```"):
+                    _json_text = _json_text.split("\n", 1)[-1]
+                    _json_text = _json_text.rsplit("```", 1)[0]
+                try:
+                    _parsed = _json_mod.loads(_json_text)
+                except Exception:
+                    # Fallback: return raw if parse fails
+                    _parsed = {"plain_summary": _json_raw, "verdict": "", "signal_line": ""}
+
+                print(f"[json-v2] response parsed — confidence={_parsed.get('confidence','?')}")
+
+                # Save to chat_messages if table exists
+                try:
+                    supabase.table("chat_messages").insert({
+                        "chart_id": request.chart_id,
+                        "question": request.question,
+                        "plain_summary": _parsed.get("plain_summary", ""),
+                        "signal_line": _parsed.get("signal_line", ""),
+                        "action_item": _parsed.get("action_item", ""),
+                        "timing_window": _parsed.get("timing_window", ""),
+                        "confidence": {"high": 0.85, "medium": 0.65, "low": 0.45}.get(
+                        str(_parsed.get("confidence", "medium")).lower(), 0.65),
+                    "confidence_label": _parsed.get("confidence", "medium"),
+                        "domain": concern,
+                        "language": _lang if "_lang" in dir() else language,
+                        "why_this": _parsed.get("why_this", ""),
+                        "bridge_practice_note": _parsed.get("bridge_practice_note", ""),
+                    }).execute()
+                except Exception as _save_e:
+                    print(f"[json-v2] chat_messages save failed (non-fatal): {_save_e}")
+
+                # Map confidence string -> float for PredictResponse model
+                _conf_map = {"high": 0.85, "medium": 0.65, "low": 0.45}
+                _conf_str = str(_parsed.get("confidence", "medium")).lower()
+                _conf_float = _conf_map.get(_conf_str, 0.65)
+                _pred_text = (
+                    _parsed.get("verdict", "") + " " + _parsed.get("plain_summary", "")
+                ).strip()
+                _factors = [str(x) for x in _parsed.get("layers_used", [])]
+
+                return {
+                    # Required fields (PredictResponse model)
+                    "prediction":   _pred_text,
+                    "confidence":   _conf_float,
+                    "factors":      _factors,
+                    # Optional structured fields for frontend
+                    "plain_summary":        _parsed.get("plain_summary", ""),
+                    "signal_line":          _parsed.get("signal_line", ""),
+                    "action_item":          _parsed.get("action_item", ""),
+                    "timing_window":        _parsed.get("timing_window", ""),
+                    "why_this":             _parsed.get("why_this", ""),
+                    "bridge_practice_note": _parsed.get("bridge_practice_note", ""),
+                    "signal_confidence":    _conf_str,
+                    "rarity_signals":       [],
+                    "precision_windows":    [],
+                    "all_domains":          [],
+                }
+            except Exception as _json_e:
+                import traceback
+                print(f"[json-v2] FAILED — falling back to prose path: {_json_e}")
+                print(f"[json-v2] Traceback: {traceback.format_exc()}")
+                # Fall through to existing prose path below
+        # ================================================================
+        # END JSON PATH
+        # ================================================================
+        # === KV CACHE FIX ===
+        # Move _full_context into the system block (cacheable region) instead
+        # of leaving it glued to the user prompt. Insert ## LIVE DATA marker
+        # so call_llm_claude splits cached static block from per-call dynamic.
+        # _full_context is mostly stable per chart (natal sig, DKP, Jaimini,
+        # divisional charts, diagnostic). Anything dynamic per call stays in
+        # the user prompt below.
+        _cacheable_context = _full_context if _full_context else ""
+        if _cacheable_context:
+            # NOTE: _full_context already contains the canonical "## LIVE DATA"
+            # marker (placed correctly by chart_context_builder.py after the
+            # static Vedic rules block). Do NOT add a second marker here —
+            # call_llm_claude splits on the first occurrence.
+            _master_system = (
+                _master_system
+                + "\n\n=== CHART CONTEXT ===\n"
+                + _cacheable_context
+            )
+            # Strip _full_context from the user prompt — it now lives in system
+            # The user prompt becomes just question + concern + instruction
+            _user_only_prompt = prompt
+            if _full_context and _full_context in _user_only_prompt:
+                _user_only_prompt = _user_only_prompt.replace(_full_context, "", 1).lstrip()
+            prompt = _user_only_prompt
+            print(f"[predict] KV cache: system={len(_master_system)} chars, user_prompt={len(prompt)} chars")
+
+        # === END KV CACHE FIX ===
+
         prediction_text, tokens_used = await call_llm_claude(
             prompt,
             history=request.conversation_history or [],
@@ -3682,19 +5455,35 @@ async def get_user_profile(request: Request):
         if not chart_id:
             return {"language": "en", "career_stage": None, "relationship_stage": None}
         result = supabase.table("charts").select(
-            "id, first_name, lagna, moon_sign, current_country, language"
+            "id, first_name, name, display_name, email, birth_date, "
+            "birth_city, birth_country, current_city, current_country, "
+            "lagna_sign, moon_sign, sun_sign, language, gender, "
+            "marital_status, children_status, career_stage, lagna"
         ).eq("id", chart_id).single().execute()
         if not result.data:
-            return {"language": "en", "career_stage": None, "relationship_stage": None}
+            raise HTTPException(status_code=404, detail="Chart not found")
         chart = result.data
         return {
             "chart_id": chart_id,
-            "first_name": chart.get("first_name", ""),
-            "language": chart.get("language", "en"),
+            "id": chart.get("id", chart_id),
+            "first_name": chart.get("first_name") or chart.get("name", ""),
+            "name": chart.get("name", ""),
+            "display_name": chart.get("display_name", ""),
+            "email": chart.get("email", ""),
+            "birth_date": str(chart.get("birth_date", "") or "")[:10],
+            "birth_city": chart.get("birth_city", ""),
+            "birth_country": chart.get("birth_country", ""),
+            "current_city": chart.get("current_city", ""),
+            "current_country": chart.get("current_country", ""),
+            "lagna_sign": chart.get("lagna_sign", ""),
             "lagna": chart.get("lagna", ""),
             "moon_sign": chart.get("moon_sign", ""),
-            "current_country": chart.get("current_country", ""),
-            "career_stage": None,
+            "sun_sign": chart.get("sun_sign", ""),
+            "language": chart.get("language") or "en",
+            "gender": chart.get("gender", ""),
+            "marital_status": chart.get("marital_status", ""),
+            "children_status": chart.get("children_status", ""),
+            "career_stage": chart.get("career_stage"),
             "relationship_stage": None,
             "remedy_style": "secular",
         }
@@ -3919,24 +5708,7 @@ def _build_remedies(remedy_objects: list) -> List[RemedyOut]:
 # CHART CREATE ENDPOINT — POST /api/v1/chart/create
 # ══════════════════════════════════════════════════════════════════════════════
 
-class ChartCreateRequest(BaseModel):
-    birth_date:     str
-    birth_time:     str
-    birth_city:     str
-    birth_country:  str
-    birth_lat:      Optional[float] = None
-    birth_lng:      Optional[float] = None
-    birth_timezone: Optional[str]  = None
-    user_id:        Optional[str]  = None
-    name:           Optional[str]  = None
-    first_name:     Optional[str]  = None
-    gender:         Optional[str]  = None
-    language:       Optional[str]  = "en"
-    # Residence — where the person LIVES NOW (not birth location)
-    # Used for DKP, foreign signal framing, astrocartography
-    current_city:    Optional[str]  = None   # city of current residence
-    current_country: Optional[str]  = None   # ISO country code of residence
-                                              # defaults to birth_country if not provided
+# ChartCreateRequest defined above
 
 class ChartCreateResponse(BaseModel):
     chart_id:       str
@@ -4104,7 +5876,24 @@ def _current_dasha_str(dashas: dict) -> str:
             return row.get("lord_or_sign") or row.get("planet_or_sign", "Unknown")
     return "Unknown"
 
-@app.post("/api/v1/chart/create", response_model=ChartCreateResponse)
+
+def _get_utc_offset_from_coords(lat: float, lng: float, birth_date: str, birth_time: str) -> float:
+    """Derive correct UTC offset from birth lat/lng + birth datetime (DST-aware)."""
+    try:
+        import pytz
+        from datetime import datetime as _dt
+        tz_name = _TZF.timezone_at(lat=lat, lng=lng)
+        if not tz_name:
+            return 0.0
+        tz = pytz.timezone(tz_name)
+        dt_naive = _dt.strptime(f"{birth_date} {birth_time}", "%Y-%m-%d %H:%M")
+        dt_local = tz.localize(dt_naive, is_dst=None)
+        return dt_local.utcoffset().total_seconds() / 3600
+    except Exception as e:
+        print(f"[TZ] Could not resolve offset from coords: {e}")
+        return 0.0
+
+@app.post("/api/v1/chart/create")
 async def create_chart(
     request: ChartCreateRequest,
     authorization: Optional[str] = Header(None),
@@ -4119,18 +5908,38 @@ async def create_chart(
         except HTTPException:
             pass
 
-    if request.birth_lat and request.birth_lng:
-        lat, lng = request.birth_lat, request.birth_lng
-        timezone = request.birth_timezone or "UTC"
+    if request.latitude and request.longitude:
+        lat, lng = request.latitude, request.longitude
+        timezone = request.timezone_name or "UTC"
     else:
-        lat, lng, timezone = await _geocode_city(request.birth_city, request.birth_country)
+        lat, lng, timezone = await _geocode_city(request.birth_place, request.birth_country)
+
+    # ── TZ FIX: resolve UTC offset from the birth datetime, not utcnow() ─────
+    # _tz_name_to_offset() in chart.py used datetime.utcnow() which gives the
+    # *current* DST rule, not the historical rule at birth.  For example:
+    #   • Venezuela 2007-2016 was UTC-4:30; using utcnow() gives -4 → wrong lagna
+    #   • Any DST timezone: winter birth looked up in summer → 1-hour shift
+    # pytz.localize(birth_datetime, is_dst=None) applies the correct historical rule.
+    try:
+        import pytz as _pytz_cr
+        _tz_cr = _pytz_cr.timezone(timezone)
+        _dt_naive_cr = datetime.strptime(
+            f"{request.birth_date} {request.birth_time}", "%Y-%m-%d %H:%M"
+        )
+        _dt_local_cr = _tz_cr.localize(_dt_naive_cr, is_dst=None)
+        _chart_tz_offset = _dt_local_cr.utcoffset().total_seconds() / 3600
+    except Exception as _tz_err:
+        # Fallback: use client-supplied timezone_offset
+        _chart_tz_offset = float(getattr(request, "timezone_offset", 0.0) or 0.0)
+        print(f"[TZ] pytz localize failed ({_tz_err}); falling back to request.timezone_offset={_chart_tz_offset}")
+    # ── end TZ FIX ────────────────────────────────────────────────────────────
 
     try:
         chart_data = chart_module.calculate_chart(
             birth_date=request.birth_date,
             birth_time=request.birth_time,
             lat=lat, lng=lng,
-            timezone=timezone,
+            tz_offset=_chart_tz_offset,
             ayanamsa="lahiri",
         )
     except Exception as e:
@@ -4207,13 +6016,19 @@ async def create_chart(
 
     chart_id = str(uuid.uuid4())
     # Calculate timezone offset in hours from timezone string
+    # CRITICAL: use birth_date not today — historical offsets differ (e.g. Venezuela was UTC-4.5 until 2016)
     try:
-        import pytz as _pytz
+        import pytz
         from datetime import datetime as _dt
-        _tz = _pytz.timezone(timezone)
-        _offset = _tz.utcoffset(_dt.now()).total_seconds() / 3600
+        _tz = pytz.timezone(timezone)
+        # Use birth datetime for historical accuracy
+        _birth_dt = _dt.strptime(str(request.birth_date)[:10], "%Y-%m-%d")
+        _offset = _tz.utcoffset(_birth_dt).total_seconds() / 3600
     except Exception:
-        _offset = 0.0
+        # Fall back to user-provided offset if available
+        _offset = float(getattr(request, "timezone_offset", 0.0) or 0.0)
+
+
 
     chart_row = {
         "id":                  chart_id,
@@ -4228,7 +6043,7 @@ async def create_chart(
         "current_country": getattr(request, "current_country", "") or "",
         "timezone_offset":     _offset,
         "country_code":        request.birth_country,
-        "birth_city":      request.birth_city,
+        "birth_city":      request.birth_place,
         "birth_country":   request.birth_country,
         "name":            getattr(request, "name", None) or getattr(request, "first_name", None) or "",
         "display_name":    (getattr(request, "first_name", None) or getattr(request, "name", None) or "").split()[0] if (getattr(request, "first_name", None) or getattr(request, "name", None)) else "",
@@ -4243,7 +6058,7 @@ async def create_chart(
             "house_lords":       chart_data.get("house_lords", {}),
             "atmakaraka":        chart_data.get("atmakaraka", ""),
         },
-        "language_preference": request.language or "en",
+        "language_preference": _lang_from_country(request.birth_country),
         "patra_complete":      False,
     }
     try:
@@ -4262,7 +6077,7 @@ async def create_chart(
             for pname, pdata in chart_data.get("planets", {}).items():
                 if isinstance(pdata, dict):
                     _planets_for_jaimini[pname] = pdata
-            _d9_data = chart_data.get("divisional_charts", {}).get("D9", {}).get("planets", {})
+            _d9_data = chart_data.get("divisional_charts", {}).get("d9", {}).get("planets", {})
             if not _d9_data:
                 _d9_data = chart_data.get("d9_planets", {})
             build_and_store_jaimini(
@@ -4492,7 +6307,7 @@ async def create_chart(
         atmakaraka=ak, amatyakaraka=amk,
         current_dasha=_current_dasha_str(dashas_combined),
         dasha_count=len(dasha_rows),
-        birth_city=request.birth_city,
+        birth_city=request.birth_place,
         birth_lat=lat, birth_lng=lng, timezone=timezone,
         message="Chart created successfully",
         signup_intent=_signup_intent,
@@ -5515,7 +7330,7 @@ async def compatibility_start(request: CompatibilityStartRequest):
             raise HTTPException(400, "Either chart_id_b or birth_date_b required")
         birth_time_b = request.birth_time_b or "12:00"
         has_time_b   = bool(request.birth_time_b)
-        city_b    = request.birth_city_b or "New Delhi"
+        city_b    = request.birth_place_b or "New Delhi"
         country_b = request.birth_country_b or "IN"
         # Try internal geocoder, fall back to Nominatim for unknown cities
         try:
@@ -6562,7 +8377,7 @@ async def backfill_jaimini(chart_id: str):
         for pid, pd in cd.get("planets", {}).items():
             if isinstance(pd, dict):
                 _planets[pid] = pd
-        _d9 = cd.get("divisional_charts", {}).get("D9", {}).get("planets", {})
+        _d9 = cd.get("divisional_charts", {}).get("d9", {}).get("planets", {})
         if not _d9:
             _d9 = cd.get("d9_planets", {})
         _bd = cr.data.get("birth_date", cd.get("birth_date", "1990-01-01"))
@@ -6582,8 +8397,132 @@ async def backfill_jaimini(chart_id: str):
 # --- END JAIMINI BACKFILL ---
 
 # --- EXECUTIVE SUMMARY ENDPOINT (auto-inserted) ---
+
+# ─── Plain language translation for executive-summary dashboard signal ───────
+
+_INSTRUMENT_TO_DOMAIN = {
+    "SYSTEM_VITALS":      "salud",
+    "CAPITAL_RESERVES":   "finanzas",
+    "ACTION_CAPACITY":    "accion",
+    "REAL_ESTATE_RADAR":  "hogar",
+    "CREATION_ENGINE":    "creatividad",
+    "CONFLICT_SHIELD":    "conflictos",
+    "ALLIANCE_SYNC":      "relaciones",
+    "CAPITAL_RUNWAY":     "transformacion",
+    "FORTUNE_VECTOR":     "oportunidad",
+    "AUTHORITY_ENGINE":   "carrera",
+    "REVENUE_PIPELINE":   "ingresos",
+    "GLOBAL_VECTOR":      "viajes",
+}
+
+_DOMAIN_NAMES_ES = {
+    "carrera":        "Carrera",
+    "ingresos":       "Ingresos",
+    "relaciones":     "Relaciones",
+    "finanzas":       "Finanzas",
+    "salud":          "Salud y energía",
+    "accion":         "Iniciativa",
+    "hogar":          "Hogar y raíces",
+    "creatividad":    "Creatividad",
+    "conflictos":     "Manejo de conflictos",
+    "transformacion": "Transformación",
+    "oportunidad":    "Oportunidad",
+    "viajes":         "Viajes y expansión",
+}
+
+_STATUS_TO_ES = {
+    "ACTIVE":    "activo",
+    "PREPARING": "preparando",
+    "FRICTION":  "bajo presión",
+    "PEAK":      "en su mejor momento",
+    "DORMANT":   "dormido",
+}
+
+def _build_plain_dashboard_signal(instruments, language="es"):
+    """Dict-based: instruments keyed by slug (vitals, reserves, action...)"""
+    _NAMES_ES = {
+        "vitals": "Salud y Energia", "reserves": "Ahorros y Riqueza",
+        "action": "Valentia e Iniciativa", "real_estate": "Hogar y Raices",
+        "creation": "Creatividad y Proyectos", "conflict": "Retos y Legal",
+        "alliance": "Socios y Alianzas", "runway": "Transformacion",
+        "fortune": "Oportunidad y Suerte", "authority": "Carrera y Autoridad",
+        "revenue": "Ingresos y Negocios", "global_vec": "Viajes y Expansion",
+        "global": "Viajes y Expansion",
+    }
+    if not instruments:
+        return {"focus_area": "Energia general", "focus_message": "Tu senal se esta calculando.", "do_this": "Mantente en tu rutina hoy.", "caution_area": None, "caution_message": None, "avoid_this": None, "open_window": None, "open_window_message": None, "urgency": "low"}
+    # Normalize: handle both dict and list
+    if isinstance(instruments, dict):
+        items = [(k, float(v.get("signal_score") or v.get("blueprint_score") or 0), (v.get("signal_status") or v.get("verdict") or "DORMANT").upper()) for k, v in instruments.items()]
+    else:
+        items = [(v.get("name","x"), float(v.get("signal_score") or v.get("blueprint_score") or 0), (v.get("signal_status") or v.get("verdict") or "DORMANT").upper()) for v in instruments]
+    items.sort(key=lambda x: x[1], reverse=True)
+    def nme(k): return _NAMES_ES.get(k, k.replace("_"," ").title())
+    focus_key = next((k for k,s,st in items if st in ("ACTIVE","PEAK")), items[0][0] if items else None)
+    caution_key = next((k for k,s,st in items if st == "FRICTION"), None)
+    window_key = next((k for k,s,st in items if st == "PREPARING" and k != focus_key), None)
+    top = items[0][1] if items else 0
+    urgency = "high" if (caution_key and top > 65) else "medium" if caution_key else "low"
+    focus_st = next((st for k,s,st in items if k == focus_key), "ACTIVE")
+    st_map = {"ACTIVE":"activa","PEAK":"en su mejor momento","PREPARING":"preparandose","FRICTION":"bajo presion","DORMANT":"dormida","POSITION":"preparandose"}
+    if language == "es":
+        fname = nme(focus_key) if focus_key else "Energia general"
+        flabel = st_map.get(focus_st, "activa")
+        suffix = " Es buen momento para avanzar." if focus_st in ("ACTIVE","PEAK") else " Se esta preparando." if focus_st=="PREPARING" else ""
+        return {
+            "focus_area": fname, "focus_status": flabel,
+            "focus_message": f"Tu energia de {fname.lower()} esta {flabel}.{suffix}",
+            "do_this": f"Pon atencion activa a {fname.lower()} esta semana.",
+            "caution_area": nme(caution_key) if caution_key else None,
+            "caution_message": f"{nme(caution_key)} esta bajo presion ahora." if caution_key else None,
+            "avoid_this": f"Evita decisiones en {nme(caution_key).lower()} esta semana." if caution_key else None,
+            "open_window": nme(window_key) if window_key else None,
+            "open_window_message": f"Una oportunidad en {nme(window_key).lower()} se esta preparando." if window_key else None,
+            "urgency": urgency,
+        }
+    fname = focus_key.replace("_"," ").title() if focus_key else "General energy"
+    return {
+        "focus_area": fname,
+        "focus_message": f"Your {fname.lower()} energy is active. Good time to move forward.",
+        "do_this": f"Give active attention to {fname.lower()} this week.",
+        "caution_area": caution_key if caution_key else None,
+        "caution_message": f"{caution_key} is under pressure." if caution_key else None,
+        "avoid_this": f"Avoid major {caution_key} decisions this week." if caution_key else None,
+        "open_window": window_key if window_key else None,
+        "open_window_message": f"A {window_key} opportunity is opening." if window_key else None,
+        "urgency": urgency,
+    }
+
+
+def _default_signal(language: str = "es") -> dict:
+    if language == "es":
+        return {
+            "focus_area": "Energía general",
+            "focus_status": "calculando",
+            "focus_message": "Tu señal se está calculando. Vuelve en unos minutos.",
+            "do_this": "Mantén tu rutina habitual hoy.",
+            "caution_area": None,
+            "caution_message": None,
+            "avoid_this": None,
+            "open_window": None,
+            "open_window_message": None,
+            "urgency": "low"
+        }
+    return {
+        "focus_area": "General energy",
+        "focus_status": "calculating",
+        "focus_message": "Your signal is being calculated. Check back in a few minutes.",
+        "do_this": "Maintain your usual routine today.",
+        "caution_area": None,
+        "caution_message": None,
+        "avoid_this": None,
+        "open_window": None,
+        "open_window_message": None,
+        "urgency": "low"
+    }
+
 @app.get("/api/v1/executive-summary/{chart_id}")
-async def get_executive_summary(chart_id: str):
+async def get_executive_summary(chart_id: str, language: str = "es"):
     try:
         from antar_engine.symptom_library import build_executive_summary
         from datetime import datetime as _exdt
@@ -6627,6 +8566,33 @@ async def get_executive_summary(chart_id: str):
             if ad_row:
                 current_dasha = current_dasha + "-" + ad_row["planet_or_sign"].strip()
         result = build_executive_summary(cd, jd, lk, current_dasha, dasha_list)
+        instruments = result.get("instruments", {})
+        # Translate symptom text to plain language
+        if language == "es":
+            for k, inst in instruments.items():
+                inst["symptom_plain"] = _translate_instrument_symptom_es(
+                    inst.get("symptom",""), inst.get("signal_status",""), inst.get("name","")
+                )
+                # Also translate instrument name to Spanish
+                ES_NAMES = {
+                    "Marriage & Partners": "Socios y Alianzas",
+                    "Income & Network": "Ingresos y Red",
+                    "Home & Property": "Hogar y Propiedad",
+                    "Career & Status": "Carrera y Autoridad",
+                    "Children & Intelligence": "Creatividad e Inteligencia",
+                    "Wealth & Savings": "Riqueza y Ahorros",
+                    "Enemies & Legal": "Retos y Legal",
+                    "Funding & Transformation": "Transformacion",
+                    "Health & Identity": "Salud e Identidad",
+                    "Fortune & Expansion": "Suerte y Expansion",
+                    "Spirituality & Loss": "Espiritualidad",
+                    "Courage & Initiative": "Valentia e Iniciativa",
+                }
+                if inst.get("name") in ES_NAMES:
+                    inst["name_es"] = ES_NAMES[inst["name"]]
+                else:
+                    inst["name_es"] = inst.get("name", k)
+        result["plain_signal"] = _build_plain_dashboard_signal(instruments, language)
         return result
     except Exception as e:
         import traceback
@@ -7377,8 +9343,232 @@ async def list_compatibility_sessions(chart_id: str):
 
 # ── Master Dashboard Endpoint ─────────────────────────────────────
 
+
+# ─── Panchang plain language (27 nakshatras, 30 tithis, 7 varas) ─────────────
+
+_NAK = {
+    "Ashwini":           {"es": "inicio rápido y curación",      "en": "fast starts and healing"},
+    "Bharani":           {"es": "transformación profunda",       "en": "deep transformation"},
+    "Krittika":          {"es": "claridad y determinación",      "en": "clarity and determination"},
+    "Rohini":            {"es": "crecimiento y abundancia",      "en": "growth and abundance"},
+    "Mrigashira":        {"es": "búsqueda y curiosidad",         "en": "searching and curiosity"},
+    "Ardra":             {"es": "tormenta y renovación",         "en": "storm and renewal"},
+    "Punarvasu":         {"es": "renovación y retorno",          "en": "renewal and return"},
+    "Pushya":            {"es": "nutrición y crecimiento",       "en": "nourishment and growth"},
+    "Ashlesha":          {"es": "percepción y estrategia",       "en": "perception and strategy"},
+    "Magha":             {"es": "poder y autoridad",             "en": "power and authority"},
+    "Purva Phalguni":    {"es": "placer y creatividad",          "en": "pleasure and creativity"},
+    "Uttara Phalguni":   {"es": "acuerdos y compromisos",        "en": "agreements and commitments"},
+    "Hasta":             {"es": "habilidad y precisión",         "en": "skill and precision"},
+    "Chitra":            {"es": "diseño y brillantez",           "en": "design and brilliance"},
+    "Swati":             {"es": "independencia y movimiento",    "en": "independence and movement"},
+    "Vishakha":          {"es": "enfoque y propósito",           "en": "focus and purpose"},
+    "Anuradha":          {"es": "devoción y cooperación",        "en": "devotion and cooperation"},
+    "Jyeshtha":          {"es": "autoridad y protección",        "en": "authority and protection"},
+    "Mula":              {"es": "raíces y transformación",       "en": "roots and transformation"},
+    "Purva Ashadha":     {"es": "invencibilidad y pureza",       "en": "invincibility and purification"},
+    "Uttara Ashadha":    {"es": "victoria definitiva",           "en": "definitive victory"},
+    "Shravana":          {"es": "escucha y aprendizaje",         "en": "listening and learning"},
+    "Shatabhisha":       {"es": "sanación y misterio",           "en": "healing and mystery"},
+    "Purva Bhadrapada":  {"es": "intensidad y fuego interior",   "en": "intensity and inner fire"},
+    "Uttara Bhadrapada": {"es": "profundidad y sabiduría",       "en": "depth and wisdom"},
+    "Revati":            {"es": "viaje y compasión",             "en": "journey and compassion"},
+    "Abhijit":           {"es": "momento victorioso",            "en": "victorious moment"},
+}
+
+_NAK_ACTION = {
+    "Ashwini":           {"es": "Bueno para lanzar proyectos nuevos.",               "en": "Good for launching new projects."},
+    "Bharani":           {"es": "Día intenso para trabajo de fondo.",                "en": "Intense day for deep work."},
+    "Krittika":          {"es": "Bueno para decisiones directas.",                   "en": "Good for direct decisions."},
+    "Rohini":            {"es": "Excelente para negocios y creatividad.",            "en": "Excellent for business and creativity."},
+    "Mrigashira":        {"es": "Bueno para investigar y explorar.",                 "en": "Good for research and exploration."},
+    "Ardra":             {"es": "Permite soltar lo viejo.",                          "en": "Good for letting go."},
+    "Punarvasu":         {"es": "Los segundos intentos tienen éxito hoy.",           "en": "Second attempts succeed today."},
+    "Pushya":            {"es": "Uno de los mejores días del mes para iniciar.",     "en": "One of the best days to start anything."},
+    "Ashlesha":          {"es": "Bueno para negociaciones profundas.",               "en": "Good for deep negotiations."},
+    "Magha":             {"es": "Día para liderar y tomar decisiones grandes.",      "en": "Day to lead and make big decisions."},
+    "Purva Phalguni":    {"es": "Bueno para arte, amor y descanso.",                 "en": "Good for art, love, and rest."},
+    "Uttara Phalguni":   {"es": "Excelente para firmar contratos.",                  "en": "Excellent for signing contracts."},
+    "Hasta":             {"es": "Bueno para trabajo detallado y manual.",            "en": "Good for detailed and hands-on work."},
+    "Chitra":            {"es": "Energía creativa alta — bueno para crear.",         "en": "High creative energy — good for making things."},
+    "Swati":             {"es": "Bueno para viajes y nuevas ideas.",                 "en": "Good for travel and new ideas."},
+    "Vishakha":          {"es": "Energía fuerte para lograr metas.",                 "en": "Strong energy for achieving goals."},
+    "Anuradha":          {"es": "Bueno para relaciones y trabajo en equipo.",        "en": "Good for relationships and teamwork."},
+    "Jyeshtha":          {"es": "Día de liderazgo — toma el control.",               "en": "Leadership day — take charge."},
+    "Mula":              {"es": "Día para sanar heridas profundas.",                 "en": "Day to heal deep wounds."},
+    "Purva Ashadha":     {"es": "Energía para superar obstáculos.",                  "en": "Energy to overcome obstacles."},
+    "Uttara Ashadha":    {"es": "Lo que inicies hoy tiene éxito duradero.",          "en": "What you start today has lasting success."},
+    "Shravana":          {"es": "Bueno para absorber conocimiento nuevo.",           "en": "Good for absorbing new knowledge."},
+    "Shatabhisha":       {"es": "Energía para trabajo profundo y solitario.",        "en": "Energy for deep, solo work."},
+    "Purva Bhadrapada":  {"es": "Día para compromisos profundos.",                   "en": "Day for deep commitments."},
+    "Uttara Bhadrapada": {"es": "Bueno para meditación y estudio serio.",            "en": "Good for meditation and serious study."},
+    "Revati":            {"es": "Energía nutritiva — bueno para ayudar a otros.",    "en": "Nurturing energy — good for helping others."},
+    "Abhijit":           {"es": "Ventana especial de éxito durante el mediodía.",    "en": "Special window of success around midday."},
+}
+
+_TITHI_MEANING = {
+    "1st":  {"es": "energía de inicio — momento para comenzar",      "en": "new beginning energy — time to start"},
+    "2nd":  {"es": "energía suave de planificación",                  "en": "gentle planning energy"},
+    "3rd":  {"es": "energía de expansión y conexión",                 "en": "expansion and connection energy"},
+    "4th":  {"es": "energía de construcción y estabilidad",           "en": "building and stability energy"},
+    "5th":  {"es": "energía de riqueza — uno de los mejores días",    "en": "wealth energy — one of the best days"},
+    "6th":  {"es": "energía de salud y vitalidad",                    "en": "health and vitality energy"},
+    "7th":  {"es": "energía de movimiento y acción",                  "en": "movement and action energy"},
+    "8th":  {"es": "energía de prueba — actúa con paciencia",         "en": "challenge energy — act with patience"},
+    "9th":  {"es": "energía de fortuna — día auspicioso",             "en": "fortune energy — auspicious day"},
+    "10th": {"es": "energía de éxito — bueno para cerrar tratos",     "en": "success energy — good for closing deals"},
+    "11th": {"es": "energía espiritual elevada",                      "en": "elevated spiritual energy"},
+    "12th": {"es": "energía de logros — completa pendientes",         "en": "achievement energy — complete what's pending"},
+    "13th": {"es": "energía de victoria — día favorable",             "en": "victory energy — favorable day"},
+    "14th": {"es": "energía intensa — requiere enfoque",              "en": "intense energy — requires focus"},
+    "15th": {"es": "luna llena — energía máxima, todo se amplifica",  "en": "full moon — maximum energy, everything amplifies"},
+    "16th": {"es": "energía de soltar y sanar",                       "en": "releasing and healing energy"},
+    "17th": {"es": "energía de reflexión interior",                   "en": "inner reflection energy"},
+    "18th": {"es": "energía de claridad y perspectiva",               "en": "clarity and perspective energy"},
+    "19th": {"es": "energía de organización y preparación",           "en": "organization and preparation energy"},
+    "20th": {"es": "energía de profundidad estratégica",              "en": "strategic depth energy"},
+    "21st": {"es": "energía de transición — mantén flexibilidad",     "en": "transition energy — stay flexible"},
+    "22nd": {"es": "energía de consolidación",                        "en": "consolidation energy"},
+    "23rd": {"es": "energía introspectiva — escucha tu intuición",    "en": "introspective energy — listen to your intuition"},
+    "24th": {"es": "energía de recuperación y descanso",              "en": "recovery and rest energy"},
+    "25th": {"es": "energía de revisión interior",                    "en": "inner review energy"},
+    "26th": {"es": "energía de introspección profunda — suelta lo viejo", "en": "deep introspection energy — release the old"},
+    "27th": {"es": "energía de preparación final",                    "en": "final preparation energy"},
+    "28th": {"es": "energía de cierre — libera lo que no sirve",      "en": "closing energy — release what no longer serves"},
+    "29th": {"es": "energía de fin de ciclo",                         "en": "end of cycle energy"},
+    "30th": {"es": "energía de luna nueva — cierre y comienzo",       "en": "new moon energy — closing and beginning"},
+}
+
+_VARA = {
+    "Sunday":    {"es_day": "Domingo",   "planet_es": "Sol",       "planet_en": "Sun",      "es": "Bueno para liderazgo, visibilidad y autoridad.",         "en": "Good for leadership, visibility, and authority."},
+    "Monday":    {"es_day": "Lunes",     "planet_es": "Luna",      "planet_en": "Moon",     "es": "Bueno para trabajo creativo, intuición y relaciones.",   "en": "Good for creative work, intuition, and relationships."},
+    "Tuesday":   {"es_day": "Martes",    "planet_es": "Marte",     "planet_en": "Mars",     "es": "Bueno para iniciar y confrontar obstáculos.",            "en": "Good for starting things and confronting obstacles."},
+    "Wednesday": {"es_day": "Miércoles", "planet_es": "Mercurio",  "planet_en": "Mercury",  "es": "Mejor día para reuniones, comunicación y contratos.",    "en": "Best day for meetings, communication, and contracts."},
+    "Thursday":  {"es_day": "Jueves",    "planet_es": "Júpiter",   "planet_en": "Jupiter",  "es": "Bueno para aprender y tomar decisiones importantes.",    "en": "Good for learning and making important decisions."},
+    "Friday":    {"es_day": "Viernes",   "planet_es": "Venus",     "planet_en": "Venus",    "es": "Bueno para relaciones, amor y creatividad.",             "en": "Good for relationships, love, and creativity."},
+    "Saturday":  {"es_day": "Sábado",    "planet_es": "Saturno",   "planet_en": "Saturn",   "es": "Día para trabajo serio, disciplina y responsabilidad.",  "en": "Day for serious work, discipline, and responsibility."},
+}
+
+_ACTION_TRANS = {
+    "research": {"es": "investigación", "en": "research"},
+    "solo work": {"es": "trabajo en solitario", "en": "solo work"},
+    "unconventional approaches": {"es": "enfoques innovadores", "en": "unconventional approaches"},
+    "public-facing work": {"es": "trabajo público", "en": "public-facing work"},
+    "partnerships": {"es": "asociaciones", "en": "partnerships"},
+    "communication": {"es": "comunicación", "en": "communication"},
+    "business meetings": {"es": "reuniones de negocios", "en": "business meetings"},
+    "contracts": {"es": "contratos", "en": "contracts"},
+    "creative work": {"es": "trabajo creativo", "en": "creative work"},
+    "leadership": {"es": "liderazgo", "en": "leadership"},
+    "presentations": {"es": "presentaciones", "en": "presentations"},
+    "travel": {"es": "viajes", "en": "travel"},
+    "learning": {"es": "aprendizaje", "en": "learning"},
+    "relationships": {"es": "relaciones", "en": "relationships"},
+    "physical activity": {"es": "actividad física", "en": "physical activity"},
+    "meditation": {"es": "meditación", "en": "meditation"},
+    "financial decisions": {"es": "decisiones financieras", "en": "financial decisions"},
+    "new beginnings": {"es": "nuevos comienzos", "en": "new beginnings"},
+    "deep work": {"es": "trabajo profundo", "en": "deep work"},
+    "networking": {"es": "networking", "en": "networking"},
+    "writing": {"es": "escritura", "en": "writing"},
+    "healing": {"es": "sanación", "en": "healing"},
+    "planning": {"es": "planificación", "en": "planning"},
+}
+
+def _build_panchang_card(day_data, language="es"):
+    """
+    Converts raw daily-week day into plain-language panchang.
+    NEVER shows nakshatra names or tithi numbers to users.
+    Only shows meaning.
+    """
+    if not day_data or not isinstance(day_data, dict):
+        return {}
+
+    lang = language if language in ("es", "en") else "es"
+    nak       = day_data.get("moon_nakshatra", "")
+    tithi     = day_data.get("tithi", "")
+    day_name  = day_data.get("day", "")
+    aligned   = day_data.get("aligned_for") or []
+    friction  = day_data.get("friction_for") or []
+    signal    = day_data.get("signal", "")
+    move      = day_data.get("move", "")
+    event_signal = day_data.get("event_signal") or {}
+    score     = day_data.get("score", 5)
+    is_friction = day_data.get("is_friction_day", False)
+
+    nak_energy  = _NAK.get(nak, {}).get(lang, "")
+    nak_action  = _NAK_ACTION.get(nak, {}).get(lang, "")
+    tithi_meaning = _TITHI_MEANING.get(tithi, {}).get(lang, "")
+    vara        = _VARA.get(day_name, {})
+
+    def trans(items):
+        return [_ACTION_TRANS.get(a, {}).get(lang, a) for a in items]
+
+    if lang == "es":
+        day_display = vara.get("es_day", day_name)
+        planet      = vara.get("planet_es", "")
+        vara_action = vara.get("es", "")
+
+        # Headline: NO tithi numbers, NO nakshatra names
+        # Just: "Lunes · energía de sanación y misterio"
+        headline = f"{day_display} · energía de {nak_energy}" if nak_energy else day_display
+
+        # Sub: what does today's energy mean + what to do
+        energy_desc = f"{nak_action} {tithi_meaning}".strip()
+
+        # Day context (planet)
+        day_context = f"Día de {planet} — {vara_action}" if planet else vara_action
+
+        day_quality = "Alta fricción — actúa con cuidado" if is_friction else ("Día fuerte" if score >= 7 else "Día favorable")
+
+        event_out = None
+        if event_signal and event_signal.get("fires"):
+            cat_map = {"relationship":"relaciones","career":"carrera","wealth":"riqueza","health":"salud","general":"general"}
+            event_out = {
+                "category": cat_map.get(event_signal.get("category",""), event_signal.get("category","")),
+                "hint": event_signal.get("hint",""),
+                "strength": event_signal.get("strength",""),
+                "follow_up": "Si algo pasa hoy en esta área — pregúntale a Antar."
+            }
+    else:
+        day_display = day_name
+        planet      = vara.get("planet_en", "")
+        vara_action = vara.get("en", "")
+
+        headline    = f"{day_display} · {nak_energy} energy" if nak_energy else day_display
+        energy_desc = f"{nak_action} {tithi_meaning}".strip()
+        day_context = f"{planet}'s day — {vara_action}" if planet else vara_action
+        day_quality = "High friction — act carefully" if is_friction else ("Strong day" if score >= 7 else "Favorable day")
+
+        event_out = None
+        if event_signal and event_signal.get("fires"):
+            event_out = {
+                "category": event_signal.get("category",""),
+                "hint": event_signal.get("hint",""),
+                "strength": event_signal.get("strength",""),
+                "follow_up": event_signal.get("follow_up","")
+            }
+
+    return {
+        "headline":          headline,
+        "energy_desc":       energy_desc,
+        "day_context":       day_context,
+        "day_quality":       day_quality,
+        "do_today":          trans(aligned),
+        "dont_today":        trans(friction),
+        "signal":            signal,
+        "move":              move,
+        "event_signal":      event_out,
+        "score":             score,
+        "is_friction_day":   is_friction,
+        "moon_nakshatra":    nak,
+        "tithi":             tithi,
+        "day":               day_display,
+    }
+
+
 @app.get("/api/v1/dashboard/{chart_id}")
-async def get_dashboard(chart_id: str):
+async def get_dashboard(chart_id: str, language: str = 'es', ):
     """
     Single endpoint that returns all dashboard data.
     Powers the home page with all 6 sections.
@@ -7513,6 +9703,16 @@ async def _get_dashboard_inner(chart_id: str):
         try: panchanga = _json.loads(panchanga)
         except: panchanga = {}
 
+    # Panchang from daily-week
+    _pc = {}
+    try:
+        from antar_engine.daily_prediction_engine import build_daily_week
+        _dw = build_daily_week(chart_id=chart_id, tz_offset=-5, language=language)
+        _days = _dw.get('days', [])
+        if _days: _pc = _build_panchang_card(_days[0], language)
+    except Exception as _pe:
+        print(f'[dashboard] panchang: {_pe}')
+
     return {
         "chart_id":    chart_id,
         "first_name":  first_name,
@@ -7566,6 +9766,17 @@ async def _get_dashboard_inner(chart_id: str):
 
         # Section 9: Locale
         "current_country": row.get("current_country", row.get("country_code", "")),
+        "panchanga_headline":   _pc.get("headline", ""),
+        "energy_desc_today":    _pc.get("energy_desc", ""),
+        "day_context_today":    _pc.get("day_context", ""),
+        "day_quality":          _pc.get("day_quality", ""),
+        "do_today":             _pc.get("do_today", []),
+        "dont_today":           _pc.get("dont_today", []),
+        "signal_today":         _pc.get("signal", ""),
+        "move_today":           _pc.get("move", ""),
+        "event_signal_today":   _pc.get("event_signal"),
+        "moon_nak_today":       _pc.get("moon_nakshatra", ""),
+        "is_friction_day":      _pc.get("is_friction_day", False),
     }
 
 
@@ -8327,8 +10538,86 @@ class _PracticeCompleteReq(_PracticeBaseModel):
     practice_id: str
     user_note: str = None
 
+
+def _translate_instrument_symptom_es(symptom, status, area_name):
+    """Convert internal symptom jargon to plain Spanish."""
+    if not symptom or not isinstance(symptom, str): 
+        return _default_symptom_es(status, area_name)
+    
+    # Strip internal jargon patterns entirely
+    import re
+    # Remove "X (instrument lord) in dusthana annual house — ..." patterns
+    cleaned = re.sub(r'[A-Z][a-z]+ [A-Z][a-z]+\s*\(instrument lord\)[^.]*\.?\s*', '', symptom)
+    # Remove "X transiting through this instrument — ..." patterns  
+    cleaned = re.sub(r'[A-Z][a-z]+ [A-Z][a-z]+\s*transiting through[^.]*\.?\s*', '', cleaned)
+    # Remove "Processing Speed", "Action Drive", "Magnetism Field", "Intuition Compass" etc.
+    for jargon in ["Processing Speed", "Action Drive", "Magnetism Field", "Intuition Compass",
+                   "Ambition Engine", "Structural Load", "Fortune Vector", "Authority Signal",
+                   "instrument lord", "dusthana", "Argala", "unobstructed interventions",
+                   "PRESSURE", "ACTIVE"]:
+        cleaned = cleaned.replace(jargon, "")
+    cleaned = re.sub(r'\s+', ' ', cleaned).strip(" .,—-")
+    
+    # If nothing meaningful remains, use status-based default
+    if len(cleaned) < 10:
+        return _default_symptom_es(status, area_name)
+    return cleaned
+
+def _default_symptom_es(status, area_name):
+    """Plain Spanish description based on status."""
+    name = area_name.lower() if area_name else "esta area"
+    status = (status or "").upper()
+    if status == "FRICTION":
+        return f"Esta area necesita tu atencion ahora. Actua con cuidado."
+    elif status == "ACTIVE":
+        return f"Energia abierta. Buen momento para avanzar en {name}."
+    elif status == "PEAK":
+        return f"En su mejor momento. Prioriza {name} esta semana."
+    elif status == "PREPARING":
+        return f"Se esta preparando. La energia de {name} se abrira pronto."
+    else:
+        return f"Sin actividad significativa en {name} ahora."
+
+
+def _translate_practice_schedule_es(sched):
+    if not sched or not isinstance(sched, dict): return sched
+    import copy; s = copy.deepcopy(sched)
+    L = {"Love & Creativity":"Amor y Creatividad","Communication & Clarity":"Comunicacion y Claridad","Career & Authority":"Carrera y Autoridad","Health & Vitality":"Salud y Vitalidad","Wealth & Resources":"Riqueza y Recursos","Courage & Initiative":"Valentia e Iniciativa","Wisdom & Expansion":"Sabiduria y Expansion","Relationships & Harmony":"Relaciones y Armonia","Discipline & Structure":"Disciplina y Estructura","Transformation":"Transformacion"}
+    TM = {"morning":"manana","evening":"tarde/noche","morning or evening":"manana o tarde/noche","evening, in a calm space":"tarde/noche en espacio tranquilo","morning, before important conversations":"manana antes de conversaciones importantes","morning, before meetings or writing":"manana antes de reuniones"}
+    DY = {"Monday":"Lunes","Tuesday":"Martes","Wednesday":"Miercoles","Thursday":"Jueves","Friday":"Viernes","Saturday":"Sabado","Sunday":"Domingo"}
+    TX = {"Your ability to attract — love, beauty, resources":"Tu capacidad de atraer — amor belleza recursos","Your ability to attract":"Tu capacidad de atraer","love, beauty, resources":"amor belleza recursos","is suppressed. Life feels functional but joyless":"esta bloqueada. La vida se siente funcional pero sin alegria","suppressed. Life feels functional but joyless":"bloqueada. La vida se siente funcional pero sin alegria","Create something beautiful this week":"Crea algo hermoso esta semana","Take yourself somewhere aesthetically inspiring":"Ve a un lugar que inspire belleza","Wear white on Friday":"Viste de blanco el viernes","Your communication and analytical abilities are foggy. Words don't land, deals stall, ideas feel stuck.":"Tu capacidad de comunicacion esta nublada. Las palabras no llegan, los tratos se frenan, las ideas se atascan.","Your communication and analytical abilities are foggy":"Tu capacidad de comunicacion esta nublada","Words don't land, deals stall, ideas feel stuck":"Las palabras no llegan, los tratos se frenan, las ideas se atascan","Strong alignment:":"Fuerte alineacion:","indicators confirm your":"indicadores confirman que tu energia de","energy is the focus right now":"es el enfoque ahora","love & creativity energy is the focus right now":"amor y creatividad es el enfoque ahora","love & creativity":"amor y creatividad","& creativity":"y creatividad","I attract love, beauty, and creative abundance.":"Atraigo amor, belleza y abundancia creativa.","I attract love, beauty, and creative abundance":"Atraigo amor, belleza y abundancia creativa","I am disciplined, patient, and build things that last":"Soy disciplinado/a paciente y construyo cosas que duran"}
+    def t(v):
+        if not v or not isinstance(v,str): return v
+        for a,b in {**L,**TX}.items(): v=v.replace(a,b)
+        return v
+    def tp(p):
+        if not p: return p
+        if "energy_label" in p: p["energy_label"]=L.get(p["energy_label"],p["energy_label"])
+        if "best_time" in p: p["best_time"]=TM.get(p["best_time"],p["best_time"])
+        if "best_day" in p: p["best_day"]=DY.get(p["best_day"],p["best_day"])
+        if "day" in p: p["day"]=DY.get(p["day"],p["day"])
+        for f in ("why","what","how","practice_why","practice_why_science","duration_reason","completion_milestone"):
+            if f in p: p[f]=t(p[f])
+        return p
+    if "primary_practice" in s: tp(s["primary_practice"])
+    if "supporting_practices" in s: [tp(p) for p in s["supporting_practices"]]
+    if "mantra_of_the_day" in s:
+        m=s["mantra_of_the_day"]
+        if "energy_label" in m: m["energy_label"]=L.get(m["energy_label"],m["energy_label"])
+        if "affirmation" in m: m["affirmation"]=TX.get(m.get("affirmation",""),m.get("affirmation",""))
+        if "mantra_best_time" in m: m["mantra_best_time"]=TM.get(m["mantra_best_time"],m["mantra_best_time"])
+    if "convergence_summary" in s:
+        cs=s["convergence_summary"]
+        for a,b in {**L,**TX}.items(): cs=cs.replace(a,b)
+        s["convergence_summary"]=cs
+    if "weekly_plan" in s:
+        for d in s["weekly_plan"]:
+            if "energy_label" in d: d["energy_label"]=L.get(d["energy_label"],d["energy_label"])
+            if "day_name" in d: d["day_name"]=DY.get(d["day_name"],d["day_name"])
+    return s
+
 @app.get("/api/v1/practices/{chart_id}/schedule")
-async def get_practice_schedule_endpoint(chart_id: str, refresh: bool = False):
+async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", refresh: bool = False):
     try:
         from datetime import date as _d, timedelta as _td
         _today = _d.today()
@@ -8339,12 +10628,60 @@ async def get_practice_schedule_endpoint(chart_id: str, refresh: bool = False):
                 _sched = _cache.data[0]["schedule_data"]
                 _streak = await _practice_get_streak(chart_id)
                 _sched["streak_data"] = _streak
+                if language == "es": _sched = _translate_practice_schedule_es(_sched)
                 return {"status": "ok", "source": "cache", "schedule": _sched}
         _chart = supabase.table("charts").select("chart_data, jaimini_data, lal_kitab_data, current_country, birth_date").eq("id", chart_id).single().execute()
         if not _chart.data:
             return {"status": "error", "message": "Chart not found"}
         _c = _chart.data
         _streak = await _practice_get_streak(chart_id)
+
+        # ── Fetch Vimsottari dasha periods (MD + AD) ──
+        _vim_md = None
+        _vim_ad = None
+        _vim_next_md = None
+        try:
+            from datetime import date as _vd
+            _vtoday = _vd.today().isoformat()
+            _vim_res = supabase.table("dasha_periods").select(
+                "planet_or_sign, start_date, end_date, level"
+            ).eq("chart_id", chart_id).eq("system", "vimsottari").lte(
+                "start_date", _vtoday
+            ).gte("end_date", _vtoday).order("level").execute()
+            for _vr in (_vim_res.data or []):
+                if _vr.get("level") == 1:
+                    _vim_md = _vr
+                elif _vr.get("level") == 2:
+                    _vim_ad = _vr
+            if _vim_md:
+                _vnext = supabase.table("dasha_periods").select(
+                    "planet_or_sign, start_date, end_date"
+                ).eq("chart_id", chart_id).eq("system", "vimsottari").eq(
+                    "level", 1
+                ).gt("start_date", _vim_md.get("end_date", "")).order(
+                    "start_date"
+                ).limit(1).execute()
+                if _vnext.data:
+                    _vim_next_md = _vnext.data[0]
+        except Exception as _ve:
+            print(f"[PRACTICE] Vimsottari fetch error (non-fatal): {_ve}")
+
+        # ── Fetch practice completions for last 30 days ──
+        _practice_counts = {}
+        try:
+            from datetime import datetime as _pdt, timedelta as _ptd
+            _30ago = (_pdt.now() - _ptd(days=30)).isoformat()
+            _plog = supabase.table("practice_log").select(
+                "planet, completed_at"
+            ).eq("chart_id", chart_id).gte(
+                "completed_at", _30ago
+            ).execute()
+            for _pr_row in (_plog.data or []):
+                _pp = _pr_row.get("planet", "")
+                _practice_counts[_pp] = _practice_counts.get(_pp, 0) + 1
+        except Exception as _ple:
+            print(f"[PRACTICE] Practice log fetch error (non-fatal): {_ple}")
+
         _sched = generate_practice_schedule(
             chart_data=_safe_jsonb(_c.get("chart_data")),
             jaimini_data=_safe_jsonb(_c.get("jaimini_data")),
@@ -8352,11 +10689,16 @@ async def get_practice_schedule_endpoint(chart_id: str, refresh: bool = False):
             current_country=_c.get("current_country", "US"),
             birth_date=_c.get("birth_date"),
             streak_data=_streak,
+            vimsottari_md=_vim_md,
+            vimsottari_ad=_vim_ad,
+            next_md=_vim_next_md,
+            practice_counts=_practice_counts,
         )
         try:
             supabase.table("practice_schedule_cache").upsert({"chart_id": chart_id, "week_of": _week_of.isoformat(), "cache_key": _sched.get("cache_key", ""), "schedule_data": _sched}, on_conflict="chart_id,week_of").execute()
         except Exception:
             pass
+        if language == "es": _sched = _translate_practice_schedule_es(_sched)
         return {"status": "ok", "source": "generated", "schedule": _sched}
     except Exception as e:
         print(f"[PRACTICE] Schedule error: {e}")
@@ -9142,7 +11484,7 @@ def _get_transit_plain_context(
     }
 
 
-def build_transit_behavioral_block(
+async def build_transit_behavioral_block(
     transits: list,
     natal_planets: dict,
     user_profile: dict,
@@ -9150,23 +11492,20 @@ def build_transit_behavioral_block(
 ) -> str:
     """
     Build a plain-English behavioral transit block for the predict prompt.
-    
+
     Args:
         transits: List of active transit dicts with planet, nakshatra, sign, house
         natal_planets: Dict of natal planet data {name: {nakshatra, sign, house}}
         user_profile: Dict with first_name, age, current_country, profession
         max_transits: Max number of transits to translate (keep prompt lean)
-    
+
     Returns:
         Plain-English transit block string for injection into predict prompt
     """
     if not transits:
         return ""
 
-    try:
-        import anthropic as _anth
-        _sync_client = _anth.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-    except Exception:
+    if not claude_client:
         return _build_transit_block_fallback(transits, natal_planets)
 
     # Priority: Saturn, Jupiter, Rahu first (most impactful)
@@ -9245,7 +11584,7 @@ DO: [one line]
 Output all {len(transit_contexts)} transit(s) in this format. Nothing else."""
 
     try:
-        response = _sync_client.messages.create(
+        response = await claude_client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=300,
             temperature=0.3,
@@ -9503,7 +11842,7 @@ def _save_wow_cache(chart_id: str, instrument_name: str, wow_data: dict):
         print(f"[daily-week] WOW cache save failed (non-fatal): {e}")
 
 
-def _call_claude_wow_hint(
+async def _call_claude_wow_hint(
     base_template: str,
     category: str,
     instrument_name: str,
@@ -9516,6 +11855,7 @@ def _call_claude_wow_hint(
     weekday: str,
     signal_score: float,
     strength: str,
+    language: str = "en",
 ) -> str:
     """
     Call Claude to write ONE personalized WOW sentence.
@@ -9549,11 +11889,14 @@ Rewrite the base template as ONE sentence that feels personally relevant to this
 - No astrology terms. No planet names. No nakshatra names.
 - Maximum 25 words.
 - Do NOT start with "Today" — vary the opening.
+- Never use double articles. Never write "the your", "a the", "the the", or "but the your". Proofread before returning.
+- {f'Write the entire response in {language}.' if language != 'en' else 'Write in English.'}
 - Output ONLY the single sentence. Nothing else."""
 
-        import anthropic as _anth
-        _sync_client = _anth.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        response = _sync_client.messages.create(
+        if not claude_client:
+            return base_template
+
+        response = await claude_client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=60,
             temperature=0.7,
@@ -9569,7 +11912,7 @@ Rewrite the base template as ONE sentence that feels personally relevant to this
 
 
 
-def _call_claude_wow_hint_v2(
+async def _call_claude_wow_hint_v2(
     action_signature: dict,
     is_friction: bool,
     score: int,
@@ -9584,10 +11927,11 @@ def _call_claude_wow_hint_v2(
     instrument_name: str,
     signal_score: float,
     instrument_strength: str,
+    language: str = "en",
 ) -> str:
     """
     Layer 3: Claude judge — friction-aware narration from matrix action signature.
-    
+
     Sends: action phrase + friction context + user profile + confidence
     Gets back: ONE sentence that reads like a trailer, not a prediction.
     """
@@ -9642,14 +11986,17 @@ CONFIDENCE: {sd_confidence}
 RULES:
 - Maximum 25 words
 - No astrology terms. No planet names. No nakshatra names. No "FIELD" or "MODE" labels.
-- Do NOT start with "Today" 
+- Do NOT start with "Today"
 - Write as if you know something they don't — a hint, not a prediction
 - Use their professional/geographic context naturally
+- Never use double articles. Never write "the your", "a the", "the the", or "but the your". Proofread before returning.
+- {f'Write the entire response in {language}.' if language != 'en' else 'Write in English.'}
 - Output ONLY the single sentence. Nothing else."""
 
-        import anthropic as _anth
-        _sync_client = _anth.Anthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
-        response = _sync_client.messages.create(
+        if not claude_client:
+            return action_signature.get("description", "Stay alert to what arrives today.")
+
+        response = await claude_client.messages.create(
             model="claude-sonnet-4-20250514",
             max_tokens=60,
             temperature=0.75,
@@ -9665,7 +12012,7 @@ RULES:
 
 
 
-def _get_wow_signal_for_chart_v2(
+async def _get_wow_signal_for_chart_v2(
     chart_id: str,
     chart_data: dict,
     today_nakshatra: str,
@@ -9674,6 +12021,7 @@ def _get_wow_signal_for_chart_v2(
     is_friction: bool,
     all_scores: list,
     weekday: str,
+    language: str = "en",
 ) -> dict:
     """
     Full WOW signal pipeline v2:
@@ -9793,7 +12141,7 @@ def _get_wow_signal_for_chart_v2(
         gender = chart_data.get("gender") or ""
 
         # Claude Layer 3
-        hint = _call_claude_wow_hint_v2(
+        hint = await _call_claude_wow_hint_v2(
             action_signature=sig,
             is_friction=is_friction,
             score=today_score,
@@ -9808,6 +12156,7 @@ def _get_wow_signal_for_chart_v2(
             instrument_name=inst_name,
             signal_score=inst_score,
             instrument_strength=inst_strength,
+            language=language,
         )
 
         result = {
@@ -9850,7 +12199,7 @@ def _map_instrument_to_category(inst_name: str) -> str:
     return "opportunity"
 
 
-def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: str, weekday: str) -> dict:
+async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: str, weekday: str, language: str = "en") -> dict:
     """
     Main WOW signal builder.
     1. Load executive summary
@@ -9956,7 +12305,7 @@ def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: 
         gender = chart_data.get("gender") or ""
 
         # Call Claude for personalized hint
-        hint = _call_claude_wow_hint(
+        hint = await _call_claude_wow_hint(
             base_template=base_template,
             category=category,
             instrument_name=inst_name,
@@ -9969,6 +12318,7 @@ def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: 
             weekday=weekday,
             signal_score=sig_score,
             strength=strength,
+            language=language,
         )
 
         wow_result = {
@@ -9996,8 +12346,143 @@ def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: 
 # GET /api/v1/daily-week/{chart_id}  — 7-Day Daily Signal Engine
 # ═══════════════════════════════════════════════════════════════════
 
+
+# ============================================================
+# HORA SPANISH TRANSLATION
+# ============================================================
+
+_HORA_WINDOW_ES = {
+    "MAGNETISM WINDOW": "VENTANA DE ATRACCIÓN",
+    "CONNECT WINDOW": "VENTANA DE CONEXIÓN",
+    "REFLECT WINDOW": "VENTANA DE REFLEXIÓN",
+    "PEAK WINDOW": "VENTANA DE PICO",
+    "◆ PEAK WINDOW": "◆ VENTANA DE PICO",
+    "RAHU WINDOW": "VENTANA DE RAHU",
+    "KETU WINDOW": "VENTANA DE KETU",
+    "EXPANSION WINDOW": "VENTANA DE EXPANSIÓN",
+    "DRIVE WINDOW": "VENTANA DE IMPULSO",
+    "AUTHORITY WINDOW": "VENTANA DE AUTORIDAD",
+    "LOVE WINDOW": "VENTANA DE AMOR",
+    "ATTRACTION WINDOW": "VENTANA DE ATRACCIÓN",
+    "REFLECTION WINDOW": "VENTANA DE REFLEXIÓN",
+    "DISCIPLINE WINDOW": "VENTANA DE DISCIPLINA",
+    "STRUCTURE WINDOW": "VENTANA DE ESTRUCTURA",
+    "COMMUNICATION WINDOW": "VENTANA DE COMUNICACIÓN",
+    "SHADOW WINDOW": "VENTANA DE SOMBRA",
+    "DISSOLUTION WINDOW": "VENTANA DE DISOLUCIÓN",
+}
+
+_HORA_FIELD_ES = {
+    "EXPANSION": "EXPANSIÓN",
+    "COMMAND": "MANDO",
+    "CONNECTION": "CONEXIÓN",
+    "ATTRACTION": "ATRACCIÓN",
+    "REFLECTION": "REFLEXIÓN",
+    "DISCIPLINE": "DISCIPLINA",
+    "STRUCTURE": "ESTRUCTURA",
+    "COMMUNICATION": "COMUNICACIÓN",
+    "SHADOW": "SOMBRA",
+}
+
+_HORA_MODE_ES = {
+    "EXPAND": "EXPANDIR",
+    "DRIVE": "IMPULSAR",
+    "ATTRACT": "ATRAER",
+    "REFLECT": "REFLEJAR",
+    "STRUCTURE": "ESTRUCTURAR",
+    "CONNECT": "CONECTAR",
+    "DISSOLVE": "DISOLVER",
+}
+
+_HORA_BY_RULER_ES = {
+    "Jupiter": {
+        "action": "Estrategia, planificación a largo plazo, mentoría, aprendizaje",
+        "plain_message": "Piensa en grande. Sesiones de estrategia, planificación a largo plazo, conversaciones de mentoría. Esta es tu ventana de pensamiento más claro.",
+    },
+    "Mars": {
+        "action": "Ejecución de alta intensidad, gimnasio, confrontaciones, llamadas en frío",
+        "plain_message": "Alta energía, alta intensidad. Buena para el gimnasio, llamadas en frío, o empujar una tarea difícil. Canalízala o te canaliza a ti.",
+    },
+    "Sun": {
+        "action": "Reuniones de alto nivel, decisiones de liderazgo, movimientos de visibilidad",
+        "plain_message": "Tu ventana de mando está abierta. Envía esa propuesta. Toma la decisión. Ten la conversación de alto riesgo.",
+    },
+    "Venus": {
+        "action": "Relaciones, negociación, acuerdos, trabajo creativo, cerrar con calidez",
+        "plain_message": "Ventana de atracción. Buena para relaciones, negociación con calidez, trabajo creativo, cerrar con encanto en vez de presión.",
+    },
+    "Saturn": {
+        "action": "Trabajo profundo, disciplina, documentación, auditoría, compromisos a largo plazo",
+        "plain_message": "Ventana de estructura. Trabajo profundo, documentación, decisiones serias. Lento pero sólido — lo que construyas aquí dura.",
+    },
+    "Mercury": {
+        "action": "Escritura, análisis, correos, llamadas, negociación, aprendizaje rápido",
+        "plain_message": "Ventana de comunicación. Escribe el correo, haz la llamada, analiza los datos. Tu mente está ágil — úsala.",
+    },
+    "Moon": {
+        "action": "Reflexión, descanso, planificar mañana, trabajo emocional, familia",
+        "plain_message": "Baja la intensidad. Reflexiona, planea mañana, conversa con la familia. Ventana suave — no fuerces decisiones grandes.",
+    },
+    "Rahu": {
+        "action": "Movimientos no convencionales, tecnología, apuestas calculadas",
+        "plain_message": "Ventana de ruptura. Buena para movimientos no convencionales y tecnología — pero verifica dos veces antes de firmar.",
+    },
+    "Ketu": {
+        "action": "Soltar, meditar, revisión, cierre de ciclos — NO inicies nada nuevo",
+        "plain_message": "Ventana de disolución. No inicies nada nuevo. Buena para soltar, meditar, cerrar ciclos pendientes.",
+    },
+}
+
+
+def _translate_hora_entry_es(h: dict) -> dict:
+    """Translate a single hora dict in-place (returns same dict)."""
+    if not isinstance(h, dict):
+        return h
+
+    # Window label
+    if h.get("window") in _HORA_WINDOW_ES:
+        h["window"] = _HORA_WINDOW_ES[h["window"]]
+
+    # Field / mode
+    if h.get("field") in _HORA_FIELD_ES:
+        h["field"] = _HORA_FIELD_ES[h["field"]]
+    if h.get("mode") in _HORA_MODE_ES:
+        h["mode"] = _HORA_MODE_ES[h["mode"]]
+
+    # Action + plain_message — key off ruler (always English from engine)
+    ruler = h.get("ruler")
+    if ruler and ruler in _HORA_BY_RULER_ES:
+        tr = _HORA_BY_RULER_ES[ruler]
+        h["action"] = tr["action"]
+        h["plain_message"] = tr["plain_message"]
+
+    return h
+
+
+def _translate_hora_es(result: dict) -> dict:
+    """Apply Spanish translation to full hora response dict."""
+    if not isinstance(result, dict):
+        return result
+
+    if result.get("current_hora"):
+        result["current_hora"] = _translate_hora_entry_es(result["current_hora"])
+
+    if isinstance(result.get("upcoming_horas"), list):
+        result["upcoming_horas"] = [
+            _translate_hora_entry_es(h) for h in result["upcoming_horas"]
+        ]
+
+    if result.get("next_power_hora"):
+        result["next_power_hora"] = _translate_hora_entry_es(result["next_power_hora"])
+
+    return result
+
+# ============================================================
+# END HORA SPANISH TRANSLATION
+# ============================================================
+
 @app.get("/api/v1/hora/{chart_id}")
-async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
+async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8, language: Optional[str] = "en"):
     """
     Kala Hora — Planetary Hour Timing Engine.
     Returns current hora + upcoming N horas with FIELD×MODE guidance.
@@ -10052,6 +12537,10 @@ async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
         result["next_power_hora"] = get_next_power_hora(
             result["upcoming_horas"], daily_field
         )
+
+    # Spanish translation layer
+    if (language or "en").lower() == "es":
+        result = _translate_hora_es(result)
 
     return result
 
@@ -10232,17 +12721,251 @@ async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
         result["next_power_hora"] = get_next_power_hora(
             result["upcoming_horas"], daily_field
         )
+
+    return result
+
+
+
+def _translate_daily_signals_es(signals):
+    """Translate daily-week signals array to Spanish."""
+    if not signals: return signals
+    import copy
+    result = copy.deepcopy(signals)
+
+    ENERGY = {
+        "healing, mysterious": "sanacion y misterio",
+        "creative, expressive": "creatividad y expresion",
+        "action, courage": "accion y valentia",
+        "communication, business": "comunicacion y negocios",
+        "expansion, wisdom": "expansion y sabiduria",
+        "love, creativity": "amor y creatividad",
+        "discipline, karma": "disciplina y karma",
+        "leadership, visibility": "liderazgo y visibilidad",
+        "intuition, emotions": "intuicion y emociones",
+        "transformation": "transformacion profunda",
+        "growth, abundance": "crecimiento y abundancia",
+        "deep, spiritual": "profundidad espiritual",
+        "obstacles, caution": "dia de prueba",
+        "fortune, auspicious": "fortuna y energia positiva",
+    }
+    ACTIONS = {
+        "research": "investigacion",
+        "solo work": "trabajo en solitario",
+        "unconventional approaches": "enfoques innovadores",
+        "public-facing work": "trabajo publico",
+        "partnerships": "asociaciones",
+        "communication": "comunicacion",
+        "business meetings": "reuniones de negocios",
+        "contracts": "contratos",
+        "creative work": "trabajo creativo",
+        "leadership": "liderazgo",
+        "presentations": "presentaciones",
+        "travel": "viajes",
+        "learning": "aprendizaje",
+        "relationships": "relaciones",
+        "physical activity": "actividad fisica",
+        "meditation": "meditacion",
+        "financial decisions": "decisiones financieras",
+        "new beginnings": "nuevos comienzos",
+        "deep work": "trabajo profundo",
+        "networking": "networking",
+        "writing": "escritura",
+        "healing": "sanacion",
+        "planning": "planificacion",
+        "inner work": "trabajo interior",
+        "review": "revision",
+        "preparation": "preparacion",
+        "confrontation": "confrontacion directa",
+        "audit": "auditoria",
+    }
+    DAYS = {
+        "Monday":"Lunes","Tuesday":"Martes","Wednesday":"Miercoles",
+        "Thursday":"Jueves","Friday":"Viernes","Saturday":"Sabado","Sunday":"Domingo"
+    }
+    DAY_SHORT = {
+        "Monday":"LUN","Tuesday":"MAR","Wednesday":"MIE",
+        "Thursday":"JUE","Friday":"Vie","Saturday":"SAB","Sunday":"DOM"
+    }
+    QUALITY = {
+        "Friction": "Friccion",
+        "Caution": "Precaucion",
+        "Good": "Bueno",
+        "Strong": "Fuerte",
+        "Excellent": "Excelente",
+        "Neutral": "Neutral",
+        "Mixed": "Mixto",
+    }
+
+    def t_actions(lst):
+        return [ACTIONS.get(a, a) for a in (lst or [])]
+
+    def t_signal(text):
+        if not text: return text
+        # Common patterns in signal text
+        replacements = {
+            "The energy today is": "La energia hoy es de",
+        "The energy today creates": "La energia hoy crea",
+        "internal friction": "friccion interna",
+        "best used for inner work, review, and preparation rather than launching or confronting": "mejor para trabajo interior y revision que para lanzar o confrontar",
+        "compassionate, completing": "compasion y culminacion",
+        "completing, compassionate": "culminacion y compasion",
+        "auspicious, nourishing": "auspicioso y nutritivo",
+        "victorious, completing": "victoria y culminacion",
+        "stable, building": "estabilidad y construccion",
+        "expansive, optimistic": "expansion y optimismo",
+        "sharp, communicative": "agudeza y comunicacion",
+        "courageous, initiating": "coraje e iniciativa",
+        "pleasurable, creative": "placer y creatividad",
+        "disciplined, karmic": "disciplina y karma",
+        "spiritual, releasing": "espiritualidad y soltar",
+        "transformative, intense": "transformacion intensa",
+        "quick, healing": "inicio rapido y sanacion",
+        "swift, initiating": "velocidad e iniciativa",
+        "swift, initiating —": "velocidad e iniciativa —",
+        "sharp, decisive": "claridad y decision",
+        "sharp, decisive —": "claridad y decision —",
+        "bright, creative": "brillo y creatividad",
+        "strong, determined": "fuerza y determinacion",
+        "gentle, receptive": "suavidad y receptividad",
+        "deep, mystical": "profundidad y misticismo",
+        "bold, pioneering": "audacia y pionerismo",
+        "graceful, artistic": "gracia y arte",
+        "steady, practical": "constancia y practicidad",
+        "abundant, growing": "abundancia y crecimiento",
+        "The energy today": "La energia hoy",
+        "stable, wise": "estabilidad y sabiduria",
+        "stable, grounded": "estabilidad y arraigo",
+        "focused, determined": "enfoque y determinacion",
+        "deep, introspective": "profundidad e introspeccion",
+        "social, charming": "energia social y encanto",
+        "intense, transformative": "intensidad y transformacion",
+        "victorious, unstoppable": "victoria e impulso",
+        "curious, searching": "curiosidad y busqueda",
+        "nurturing, compassionate": "nutricion y compasion",
+        "powerful, authoritative": "poder y autoridad",
+        "sharp, analytical": "agudeza y analisis",
+        "flowing, adaptable": "fluidez y adaptabilidad",
+        "independent, pioneering": "independencia y pionerismo",
+        "devoted, faithful": "devocion y lealtad",
+        "joyful, creative": "alegria y creatividad",
+        "skillful, precise": "habilidad y precision",
+        "bright, shining": "brillo y luminosidad",
+        "renewing, optimistic": "renovacion y optimismo",
+        "nourishing, auspicious": "nutricion y auspicio",
+        "perceptive, strategic": "percepcion y estrategia",
+        "invincible, purifying": "invencibilidad y pureza",
+        "victorious, enduring": "victoria duradera",
+        "listening, receptive": "escucha y receptividad",
+        "healing, secretive": "sanacion y misterio",
+        "intense, passionate": "intensidad y pasion",
+        "deep, wise": "profundidad y sabiduria",
+        "compassionate, journeying": "compasion y viaje",
+        "healing, mysterious": "sanacion y misterio",
+        "healing, mysterious —": "sanacion y misterio —",
+        "is healing, mysterious": "es de sanacion y misterio",
+        "action, courage": "accion y valentia",
+        "communication, business": "comunicacion y negocios",
+        "expansion, wisdom": "expansion y sabiduria",
+        "love, creativity": "amor y creatividad",
+        "discipline, karma": "disciplina y karma",
+        "leadership, visibility": "liderazgo y visibilidad",
+        "intuition, emotions": "intuicion y emociones",
+        "growth, abundance": "crecimiento y abundancia",
+        "creative, expressive": "creatividad y expresion",
+        "amplifies emotional intelligence, intuition": "amplifica la inteligencia emocional y la intuicion",
+        "making this a good window for research": "creando una buena ventana para la investigacion",
+        "making this a good window for": "creando una buena ventana para",
+        ", intuition,": ", intuicion,",
+        "emotional intelligence": "inteligencia emocional",
+            "lean into it": "aprovechala",
+            "amplifies emotional intelligence, intuition": "amplifica la inteligencia emocional y la intuicion",
+            "amplifies": "amplifica",
+            "making this a good window for": "creando una buena ventana para",
+            "making this a": "creando una",
+            "good window for": "buena ventana para",
+            "Monday": "Lunes", "Tuesday": "Martes", "Wednesday": "Miercoles",
+            "Thursday": "Jueves", "Friday": "Viernes", "Saturday": "Sabado", "Sunday": "Domingo",
+            "creates internal friction": "crea friccion interna",
+            "best used for inner work, review, and preparation": "mejor usarla para trabajo interior, revision y preparacion",
+            "rather than launching or confronting": "en vez de lanzar o confrontar",
+            "overlay favors courage, direct action, confrontation": "favorece el coraje, accion directa y confrontacion",
+            "but the": "pero la",
+            "Emotional Radar": "posicion lunar",
+            "position slows outer momentum": "frena el impulso externo",
+            "creates a stable, grounded": "crea una energia estable y enraizada",
+            "good for building": "bueno para construir",
+            "favors communication": "favorece la comunicacion",
+            "sharp thinking": "pensamiento claro",
+        }
+        for en, es in replacements.items():
+            text = text.replace(en, es)
+        return text
+
+    def t_move(text):
+        if not text: return text
+        replacements = {
+            "Take one concrete step today in:": "Da un paso concreto hoy en:",
+            "Take one concrete step today": "Da un paso concreto hoy",
+            "Avoid:": "Evita:",
+            "Use today to audit, review, or strengthen one thing already in motion.": "Usa hoy para revisar o fortalecer algo ya en marcha.",
+            "Hold new launches until energy lifts.": "Espera para lanzar algo nuevo.",
+            "research": "investigacion",
+            "solo work": "trabajo en solitario",
+            "unconventional approaches": "enfoques innovadores",
+            "public-facing work": "trabajo publico",
+            "partnerships": "asociaciones",
+            "communication": "comunicacion",
+            "creative work": "trabajo creativo",
+            "leadership": "liderazgo",
+        }
+        for en, es in replacements.items():
+            text = text.replace(en, es)
+        return text
+
+    for day in result:
+        if "energy" in day:
+            day["energy"] = ENERGY.get(day["energy"], day["energy"])
+        if "aligned_for" in day:
+            day["aligned_for"] = t_actions(day["aligned_for"])
+        if "friction_for" in day:
+            day["friction_for"] = t_actions(day["friction_for"])
+        if "signal" in day:
+            day["signal"] = t_signal(day["signal"])
+        if "move" in day:
+            day["move"] = t_move(day["move"])
+        if "day" in day:
+            day["day_es"] = DAYS.get(day["day"], day["day"])
+            day["day_short_es"] = DAY_SHORT.get(day["day"], day["day"][:3].upper())
+        # Translate score label
+        score = day.get("score", 5)
+        is_friction = day.get("is_friction_day", False)
+        if is_friction:
+            day["quality_label"] = "Friccion"
+            day["quality_label_es"] = "Friccion"
+        elif score >= 8:
+            day["quality_label_es"] = "Excelente"
+        elif score >= 7:
+            day["quality_label_es"] = "Fuerte"
+        elif score >= 6:
+            day["quality_label_es"] = "Bueno"
+        elif score >= 4:
+            day["quality_label_es"] = "Mixto"
+        else:
+            day["quality_label_es"] = "Precaucion"
 
     return result
 
 
 @app.get("/api/v1/daily-week/{chart_id}")
-async def get_daily_week(chart_id: str):
+async def get_daily_week(chart_id: str, language: str = "en"):
     """
     Returns 7-day daily signal array.
     Today: Python energy forecast + Claude-personalized WOW hint (if PEAK/ACTIVE)
     Days 2-7: Python energy forecast only
     WOW hint cached 24hrs in charts.daily_wow_cache
+
+    Args:
+        language: Language code (e.g. "en", "es", "hi"). Default "en".
     """
     try:
         # 1. Fetch chart
@@ -10280,7 +13003,7 @@ async def get_daily_week(chart_id: str):
         today_weekday = today_data.get("day", "Monday")
         all_scores = [d.get("score", 5) for d in signals]
 
-        wow_signal = _get_wow_signal_for_chart_v2(
+        wow_signal = await _get_wow_signal_for_chart_v2(
             chart_id=chart_id,
             chart_data=chart_data,
             today_nakshatra=today_nakshatra,
@@ -10289,15 +13012,20 @@ async def get_daily_week(chart_id: str):
             is_friction=today_is_friction,
             all_scores=all_scores,
             weekday=today_weekday,
+            language=language,
         )
 
         # 5. Attach WOW to today only
         for i, day in enumerate(signals):
             day["event_signal"] = wow_signal if i == 0 else None
 
+        if language == "es":
+            signals = _translate_daily_signals_es(signals)
+
         return {
             "chart_id": chart_id,
             "natal_moon_sign": natal_moon_sign,
+            "language": language,
             "generated_at": datetime.utcnow().isoformat() + "Z",
             "days": signals
         }
@@ -10314,15 +13042,247 @@ async def get_daily_week(chart_id: str):
 # Timezone-aware: pass ?tz_offset=-5 or auto-detected from country
 # ═══════════════════════════════════════════════════════════════════
 
+
+def _translate_daily_signals_es(signals):
+    """Translate daily-week signals array to Spanish."""
+    if not signals: return signals
+    import copy
+    result = copy.deepcopy(signals)
+
+    ENERGY = {
+        "healing, mysterious": "sanacion y misterio",
+        "creative, expressive": "creatividad y expresion",
+        "action, courage": "accion y valentia",
+        "communication, business": "comunicacion y negocios",
+        "expansion, wisdom": "expansion y sabiduria",
+        "love, creativity": "amor y creatividad",
+        "discipline, karma": "disciplina y karma",
+        "leadership, visibility": "liderazgo y visibilidad",
+        "intuition, emotions": "intuicion y emociones",
+        "transformation": "transformacion profunda",
+        "growth, abundance": "crecimiento y abundancia",
+        "deep, spiritual": "profundidad espiritual",
+        "obstacles, caution": "dia de prueba",
+        "fortune, auspicious": "fortuna y energia positiva",
+    }
+    ACTIONS = {
+        "research": "investigacion",
+        "solo work": "trabajo en solitario",
+        "unconventional approaches": "enfoques innovadores",
+        "public-facing work": "trabajo publico",
+        "partnerships": "asociaciones",
+        "communication": "comunicacion",
+        "business meetings": "reuniones de negocios",
+        "contracts": "contratos",
+        "creative work": "trabajo creativo",
+        "leadership": "liderazgo",
+        "presentations": "presentaciones",
+        "travel": "viajes",
+        "learning": "aprendizaje",
+        "relationships": "relaciones",
+        "physical activity": "actividad fisica",
+        "meditation": "meditacion",
+        "financial decisions": "decisiones financieras",
+        "new beginnings": "nuevos comienzos",
+        "deep work": "trabajo profundo",
+        "networking": "networking",
+        "writing": "escritura",
+        "healing": "sanacion",
+        "planning": "planificacion",
+        "inner work": "trabajo interior",
+        "review": "revision",
+        "preparation": "preparacion",
+        "confrontation": "confrontacion directa",
+        "audit": "auditoria",
+    }
+    DAYS = {
+        "Monday":"Lunes","Tuesday":"Martes","Wednesday":"Miercoles",
+        "Thursday":"Jueves","Friday":"Viernes","Saturday":"Sabado","Sunday":"Domingo"
+    }
+    DAY_SHORT = {
+        "Monday":"LUN","Tuesday":"MAR","Wednesday":"MIE",
+        "Thursday":"JUE","Friday":"Vie","Saturday":"SAB","Sunday":"DOM"
+    }
+    QUALITY = {
+        "Friction": "Friccion",
+        "Caution": "Precaucion",
+        "Good": "Bueno",
+        "Strong": "Fuerte",
+        "Excellent": "Excelente",
+        "Neutral": "Neutral",
+        "Mixed": "Mixto",
+    }
+
+    def t_actions(lst):
+        return [ACTIONS.get(a, a) for a in (lst or [])]
+
+    def t_signal(text):
+        if not text: return text
+        # Common patterns in signal text
+        replacements = {
+            "The energy today is": "La energia hoy es de",
+        "The energy today creates": "La energia hoy crea",
+        "internal friction": "friccion interna",
+        "best used for inner work, review, and preparation rather than launching or confronting": "mejor para trabajo interior y revision que para lanzar o confrontar",
+        "compassionate, completing": "compasion y culminacion",
+        "completing, compassionate": "culminacion y compasion",
+        "auspicious, nourishing": "auspicioso y nutritivo",
+        "victorious, completing": "victoria y culminacion",
+        "stable, building": "estabilidad y construccion",
+        "expansive, optimistic": "expansion y optimismo",
+        "sharp, communicative": "agudeza y comunicacion",
+        "courageous, initiating": "coraje e iniciativa",
+        "pleasurable, creative": "placer y creatividad",
+        "disciplined, karmic": "disciplina y karma",
+        "spiritual, releasing": "espiritualidad y soltar",
+        "transformative, intense": "transformacion intensa",
+        "quick, healing": "inicio rapido y sanacion",
+        "swift, initiating": "velocidad e iniciativa",
+        "swift, initiating —": "velocidad e iniciativa —",
+        "sharp, decisive": "claridad y decision",
+        "sharp, decisive —": "claridad y decision —",
+        "bright, creative": "brillo y creatividad",
+        "strong, determined": "fuerza y determinacion",
+        "gentle, receptive": "suavidad y receptividad",
+        "deep, mystical": "profundidad y misticismo",
+        "bold, pioneering": "audacia y pionerismo",
+        "graceful, artistic": "gracia y arte",
+        "steady, practical": "constancia y practicidad",
+        "abundant, growing": "abundancia y crecimiento",
+        "The energy today": "La energia hoy",
+        "stable, wise": "estabilidad y sabiduria",
+        "stable, grounded": "estabilidad y arraigo",
+        "focused, determined": "enfoque y determinacion",
+        "deep, introspective": "profundidad e introspeccion",
+        "social, charming": "energia social y encanto",
+        "intense, transformative": "intensidad y transformacion",
+        "victorious, unstoppable": "victoria e impulso",
+        "curious, searching": "curiosidad y busqueda",
+        "nurturing, compassionate": "nutricion y compasion",
+        "powerful, authoritative": "poder y autoridad",
+        "sharp, analytical": "agudeza y analisis",
+        "flowing, adaptable": "fluidez y adaptabilidad",
+        "independent, pioneering": "independencia y pionerismo",
+        "devoted, faithful": "devocion y lealtad",
+        "joyful, creative": "alegria y creatividad",
+        "skillful, precise": "habilidad y precision",
+        "bright, shining": "brillo y luminosidad",
+        "renewing, optimistic": "renovacion y optimismo",
+        "nourishing, auspicious": "nutricion y auspicio",
+        "perceptive, strategic": "percepcion y estrategia",
+        "invincible, purifying": "invencibilidad y pureza",
+        "victorious, enduring": "victoria duradera",
+        "listening, receptive": "escucha y receptividad",
+        "healing, secretive": "sanacion y misterio",
+        "intense, passionate": "intensidad y pasion",
+        "deep, wise": "profundidad y sabiduria",
+        "compassionate, journeying": "compasion y viaje",
+        "healing, mysterious": "sanacion y misterio",
+        "healing, mysterious —": "sanacion y misterio —",
+        "is healing, mysterious": "es de sanacion y misterio",
+        "action, courage": "accion y valentia",
+        "communication, business": "comunicacion y negocios",
+        "expansion, wisdom": "expansion y sabiduria",
+        "love, creativity": "amor y creatividad",
+        "discipline, karma": "disciplina y karma",
+        "leadership, visibility": "liderazgo y visibilidad",
+        "intuition, emotions": "intuicion y emociones",
+        "growth, abundance": "crecimiento y abundancia",
+        "creative, expressive": "creatividad y expresion",
+        "amplifies emotional intelligence, intuition": "amplifica la inteligencia emocional y la intuicion",
+        "making this a good window for research": "creando una buena ventana para la investigacion",
+        "making this a good window for": "creando una buena ventana para",
+        ", intuition,": ", intuicion,",
+        "emotional intelligence": "inteligencia emocional",
+            "lean into it": "aprovechala",
+            "amplifies emotional intelligence, intuition": "amplifica la inteligencia emocional y la intuicion",
+            "amplifies": "amplifica",
+            "making this a good window for": "creando una buena ventana para",
+            "making this a": "creando una",
+            "good window for": "buena ventana para",
+            "Monday": "Lunes", "Tuesday": "Martes", "Wednesday": "Miercoles",
+            "Thursday": "Jueves", "Friday": "Viernes", "Saturday": "Sabado", "Sunday": "Domingo",
+            "creates internal friction": "crea friccion interna",
+            "best used for inner work, review, and preparation": "mejor usarla para trabajo interior, revision y preparacion",
+            "rather than launching or confronting": "en vez de lanzar o confrontar",
+            "overlay favors courage, direct action, confrontation": "favorece el coraje, accion directa y confrontacion",
+            "but the": "pero la",
+            "Emotional Radar": "posicion lunar",
+            "position slows outer momentum": "frena el impulso externo",
+            "creates a stable, grounded": "crea una energia estable y enraizada",
+            "good for building": "bueno para construir",
+            "favors communication": "favorece la comunicacion",
+            "sharp thinking": "pensamiento claro",
+        }
+        for en, es in replacements.items():
+            text = text.replace(en, es)
+        return text
+
+    def t_move(text):
+        if not text: return text
+        replacements = {
+            "Take one concrete step today in:": "Da un paso concreto hoy en:",
+            "Take one concrete step today": "Da un paso concreto hoy",
+            "Avoid:": "Evita:",
+            "Use today to audit, review, or strengthen one thing already in motion.": "Usa hoy para revisar o fortalecer algo ya en marcha.",
+            "Hold new launches until energy lifts.": "Espera para lanzar algo nuevo.",
+            "research": "investigacion",
+            "solo work": "trabajo en solitario",
+            "unconventional approaches": "enfoques innovadores",
+            "public-facing work": "trabajo publico",
+            "partnerships": "asociaciones",
+            "communication": "comunicacion",
+            "creative work": "trabajo creativo",
+            "leadership": "liderazgo",
+        }
+        for en, es in replacements.items():
+            text = text.replace(en, es)
+        return text
+
+    for day in result:
+        if "energy" in day:
+            day["energy"] = ENERGY.get(day["energy"], day["energy"])
+        if "aligned_for" in day:
+            day["aligned_for"] = t_actions(day["aligned_for"])
+        if "friction_for" in day:
+            day["friction_for"] = t_actions(day["friction_for"])
+        if "signal" in day:
+            day["signal"] = t_signal(day["signal"])
+        if "move" in day:
+            day["move"] = t_move(day["move"])
+        if "day" in day:
+            day["day_es"] = DAYS.get(day["day"], day["day"])
+            day["day_short_es"] = DAY_SHORT.get(day["day"], day["day"][:3].upper())
+        # Translate score label
+        score = day.get("score", 5)
+        is_friction = day.get("is_friction_day", False)
+        if is_friction:
+            day["quality_label"] = "Friccion"
+            day["quality_label_es"] = "Friccion"
+        elif score >= 8:
+            day["quality_label_es"] = "Excelente"
+        elif score >= 7:
+            day["quality_label_es"] = "Fuerte"
+        elif score >= 6:
+            day["quality_label_es"] = "Bueno"
+        elif score >= 4:
+            day["quality_label_es"] = "Mixto"
+        else:
+            day["quality_label_es"] = "Precaucion"
+
+    return result
+
+
 @app.get("/api/v1/daily-week/{chart_id}")
-async def get_daily_week(chart_id: str, tz_offset: float = None):
+async def get_daily_week(chart_id: str, tz_offset: float = None, language: str = "en"):
     """
     Returns 7-day daily signal array starting from TODAY in user's local timezone.
-    
+
     Args:
         tz_offset: UTC offset in hours (e.g. -5 for Colombia/EST, -3 for Brazil)
                    If not provided, auto-detected from chart's current_country.
-    
+        language: Language code (e.g. "en", "es", "hi"). Default "en".
+
     WOW event signal fires for today when executive summary shows PEAK/ACTIVE instrument.
     """
     try:
@@ -10365,19 +13325,45 @@ async def get_daily_week(chart_id: str, tz_offset: float = None):
         # 5. Get WOW event signal for TODAY only
         today_nakshatra = signals[0].get("moon_nakshatra", "Unknown") if signals else "Unknown"
         today_weekday = signals[0].get("day", "Monday") if signals else "Monday"
-        wow_signal = _get_wow_signal_for_chart(chart_id, chart_data, today_nakshatra, today_weekday)
+        wow_signal = await _get_wow_signal_for_chart(chart_id, chart_data, today_nakshatra, today_weekday, language=language)
 
         # 6. Attach WOW to today only
         for i, day in enumerate(signals):
             day["event_signal"] = wow_signal if i == 0 else None
 
+        if language == "es":
+            signals = _translate_daily_signals_es(signals)
+
+        # === LIVE TRANSIT HIGHLIGHTS ===
+        _transit_highlights = []
+        _transit_positions = {}
+        _transit_activated_areas = []
+        try:
+            from antar_engine.transit_engine import get_full_transit_report
+            _raw_cd = chart_data.get("chart_data") or chart_data
+            if isinstance(_raw_cd, str):
+                import json as _tjson
+                try: _raw_cd = _tjson.loads(_raw_cd)
+                except: _raw_cd = {}
+            _transit_rpt = get_full_transit_report(_raw_cd)
+            _transit_highlights = _transit_rpt.get("major_transits", [])
+            _transit_positions = _transit_rpt.get("transit_positions", {})
+            _transit_activated_areas = _transit_rpt.get("activated_areas", [])
+        except Exception as _dte:
+            print(f"[daily-week] Transit computation failed (non-fatal): {_dte}")
+        # === END LIVE TRANSIT HIGHLIGHTS ===
+
         return {
             "chart_id": chart_id,
             "natal_moon_sign": natal_moon_sign,
+            "language": language,
             "timezone_offset": effective_offset,
             "local_date": start_date.strftime("%Y-%m-%d"),
             "generated_at": datetime.utcnow().isoformat() + "Z",
-            "days": signals
+            "days": signals,
+            "transit_highlights": _transit_highlights,
+            "transit_positions": _transit_positions,
+            "activated_areas": _transit_activated_areas,
         }
 
     except HTTPException:
@@ -10444,3 +13430,435 @@ async def delete_connection(chart_id: str, connection_id: str):
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+
+
+
+
+
+# ============================================================================
+# ASTROCARTOGRAPHY RECOMMENDATION ENDPOINT
+# ============================================================================
+
+class AstroRecommendRequest(BaseModel):
+    chart_id: str
+    intent:   str  = Field("startup", description="startup|wealth|billionaire|career|relationships|general")
+    region:   str  = Field("global",  description="latam|europe|asia|middleeast|africa|north_america|global")
+    language: str  = Field("en",      description="en|es")
+    top_n:    int  = Field(5,         description="1-10")
+    explain:  bool = Field(True,      description="Add DeepSeek narrative")
+
+
+@app.post("/api/v1/astrocartography/recommend")
+async def astrocartography_recommend(
+    request: AstroRecommendRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """
+    City recommendation engine:
+    1. Python computes deterministic scores (line × dasha × yoga × paran)
+    2. DeepSeek writes context-aware narrative from the scores
+    """
+    chart_res = supabase.table("charts").select("*").eq("id", request.chart_id).execute()
+    if not chart_res.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    chart_record = chart_res.data[0]
+
+    from antar_engine.chart_context_builder_json import _fetch_dashas
+    from antar_engine.astrocartography_recommender import recommend_cities
+
+    dashas = _fetch_dashas(request.chart_id, supabase)
+
+    # Extract natal yogas
+    chart_data  = chart_record.get("chart_data") or {}
+    natal_yogas = chart_data.get("yogas") or []
+    if not natal_yogas:
+        planets   = chart_data.get("planets", {})
+        jup_house = (planets.get("Jupiter") or {}).get("house")
+        ven_house = (planets.get("Venus") or {}).get("house")
+        if jup_house == 2 and ven_house == 11:
+            natal_yogas = [{"name": "Dhana Yoga", "planets": ["Jupiter", "Venus"]}]
+
+    # Python ranking — deterministic
+    ranking = recommend_cities(
+        chart_record=chart_record,
+        dashas=dashas,
+        natal_yogas=natal_yogas,
+        intent=request.intent,
+        region=request.region,
+        language=request.language,
+        top_n=min(request.top_n, 10),
+    )
+
+    if not request.explain or not ranking.get("top_cities"):
+        return ranking
+
+    # --- DeepSeek narrative ---
+    import json as _json, httpx, os
+    from datetime import date
+
+    # Build chart summary for prompt
+    lagna_sign   = (chart_data.get("lagna") or {}).get("sign", "")
+    atmakaraka   = chart_data.get("atmakaraka", "")
+    archetype    = (chart_record.get("character_archetype") or {}).get("name", "")
+    career_stage = chart_record.get("career_stage", "")
+    current_city = chart_record.get("current_city") or ""
+    current_country = chart_record.get("current_country") or ""
+
+    # Age
+    age = None
+    try:
+        bd = chart_record.get("birth_date", "")
+        if bd:
+            b = date.fromisoformat(str(bd)[:10])
+            t = date.today()
+            age = t.year - b.year - (1 if (t.month, t.day) < (b.month, b.day) else 0)
+    except Exception:
+        pass
+
+    dc = ranking["dasha_context"]
+
+    chart_summary = (
+        f"Lagna: {lagna_sign}, Atmakaraka: {atmakaraka}, "
+        f"Archetype: {archetype}, Age: {age}, Career: {career_stage}"
+    )
+    dasha_summary = (
+        f"Current MD: {dc.get('current_md')} until {dc.get('current_md_end','')[:10]} | "
+        f"AD: {dc.get('current_ad')} | "
+        f"Next MD: {dc.get('next_md')} from {dc.get('next_md_start','')[:10]} (18-year window)"
+    )
+
+    # City rankings compact — only what DeepSeek needs
+    city_rankings = []
+    for i, c in enumerate(ranking["top_cities"]):
+        city_rankings.append({
+            "rank":          i + 1,
+            "city":          c["city"],
+            "score":         c["score"],
+            "is_current":    c.get("is_current_location", False),
+            "dasha_notes":   c.get("dasha_notes", []),
+            "yoga_notes":    c.get("yoga_notes", []),
+            "paran_notes":   c.get("paran_notes", []),
+            "top_lines":     [{
+                "planet": l["planet"],
+                "line":   l["line"],
+                "strength": l["strength"]
+            } for l in c.get("line_details", [])[:3]],
+        })
+
+    # DeepSeek prompt — exact spec
+    _system = (
+        "You are Antar's astrocartography interpreter. "
+        "You receive deterministic scores from the Python engine. Do NOT calculate anything. "
+        "Your job is to write a warm, specific, actionable narrative from the data provided."
+    )
+
+    _user = f"""You are Antar's astrocartography interpreter.
+You receive deterministic scores from the Python engine. Do NOT calculate anything.
+
+USER CONTEXT:
+- Current location: {current_city or current_country or "unknown"}
+- Intent: {request.intent} (startup / billionaire / wealth)
+- Chart: {chart_summary}
+- Dashas: {dasha_summary}
+
+PYTHON RANKING:
+{_json.dumps(city_rankings, indent=2)}
+
+STAY-VS-MOVE RULE RESULT: {ranking["stay_vs_move"]}
+
+MISSING LINES: {", ".join(ranking.get("missing_lines", [])) or "none"}
+
+Your job:
+1. If stay_vs_move is "stay": explain why the user should stay put and what to optimize there
+2. If "move": recommend the top city and explain why with specific timing
+3. Always mention missing lines honestly (e.g., "Rahu MC lines not in dataset — billionaire public track not confirmed")
+4. End with a "Your move" sentence — one specific action this week
+5. Be warm, specific, and actionable
+6. Do NOT use planet names in the final output — use energy language instead
+   (e.g., "expansion energy" not "Jupiter", "disruption channel" not "Rahu")
+
+{"Respond in Spanish." if request.language == "es" else "Respond in English."}
+
+Output JSON:
+{{
+  "plain_summary": "2-3 sentences — where should this person be and why",
+  "stay_or_move_explanation": "why stay / why move with timing",
+  "top_city_why": "what makes the #1 city right for this person specifically",
+  "honest_gaps": "what data is missing — be direct",
+  "your_move": "one specific action this week"
+}}"""
+
+    _parsed = {}
+    try:
+        _ds_key = os.environ.get("DEEPSEEK_API_KEY", "")
+        if not _ds_key:
+            raise ValueError("DEEPSEEK_API_KEY not set")
+
+        _resp = httpx.post(
+            "https://api.deepseek.com/chat/completions",
+            headers={"Authorization": f"Bearer {_ds_key}"},
+            json={
+                "model":       "deepseek-chat",
+                "messages":    [
+                    {"role": "system", "content": _system},
+                    {"role": "user",   "content": _user},
+                ],
+                "temperature": 0.2,
+                "max_tokens":  700,
+            },
+            timeout=30.0,
+        )
+        _raw = _resp.json()["choices"][0]["message"]["content"].strip()
+
+        # Strip markdown code fences if present
+        if "```" in _raw:
+            _parts = _raw.split("```")
+            for _p in _parts:
+                if "{" in _p:
+                    _raw = _p.lstrip("json").strip()
+                    break
+
+        _parsed = _json.loads(_raw)
+        print(f"[astro-deepseek] OK — {len(_raw)} chars")
+
+    except Exception as _e:
+        print(f"[astro-deepseek] DeepSeek failed (non-fatal): {_e}")
+        _parsed = {
+            "plain_summary":             ranking.get("top_cities", [{}])[0].get("city", ""),
+            "stay_or_move_explanation":  ranking["stay_vs_move"],
+            "top_city_why":              "",
+            "honest_gaps":               ", ".join(ranking.get("missing_lines", [])),
+            "your_move":                 "",
+        }
+
+    return {
+        **ranking,
+        "narrative":           _parsed,
+        "explanation_model":   "deepseek-chat",
+    }
+
+# ============================================================================
+# END ASTROCARTOGRAPHY RECOMMENDATION ENDPOINT
+# ============================================================================
+
+
+# ============================================================================
+# SIGNATURE VERIFICATION — Onboarding WOW screen
+# ============================================================================
+
+class SignatureConfirmRequest(BaseModel):
+    chart_id: str
+    confirmations: dict  # {statement_id: "confirmed"|"declined"|"skipped"}
+
+
+@app.get("/api/v1/chart/signature/{chart_id}")
+async def get_signature_statements(chart_id: str):
+    """
+    Generate 3 past-event statements for the onboarding WOW screen.
+    Uses DashaEventMapper — no LLM involved, instant response.
+    Returns human-readable statements with no astrological terms.
+    """
+    try:
+        from antar_engine.dasha_event_mapper import map_all_events
+
+        # Fetch chart data
+        chart_res = supabase.table("charts").select(
+            "chart_data,birth_date"
+        ).eq("id", chart_id).single().execute()
+
+        if not chart_res.data:
+            raise HTTPException(status_code=404, detail="Chart not found")
+
+        chart_data  = chart_res.data.get("chart_data") or {}
+        birth_date  = str(chart_res.data.get("birth_date", ""))
+        birth_year  = int(birth_date[:4]) if birth_date else 1980
+        lagna       = (chart_data.get("lagna") or {}).get("sign", "Capricorn")
+
+        # Fetch ADs from dasha_periods
+        ads_res = supabase.table("dasha_periods")             .select("planet_or_sign,start_date,end_date,level,type,metadata")             .eq("chart_id", chart_id)             .eq("system", "vimsottari")             .order("start_date")             .execute()
+
+        ads = [
+            r for r in ads_res.data
+            if r.get("level") == 2 or
+               str(r.get("type","")).lower() in ("antardasha","ad","2")
+        ]
+
+        # Compute event windows
+        events = map_all_events(birth_year, lagna, ads)
+
+        # Build human-readable statements (NO astrological terms)
+        statements = []
+
+        # Statement 1: Foreign move (most verifiable, dramatic)
+        fm = events.get("foreign_move")
+        if fm and fm["start_year"] < 2020:
+            statements.append({
+                "id":      "foreign_move",
+                "text":    f"Your chart shows a major relocation or foreign move around {fm['start_year']}-{fm['end_year']}.",
+                "text_es": f"Tu carta muestra una reubicación importante alrededor de {fm['start_year']}-{fm['end_year']}.",
+                "window":  f"{fm['start_year']}-{fm['end_year']}",
+            })
+
+        # Statement 2: Relationship transformation (divorce or marriage)
+        div = events.get("divorce")
+        mar = events.get("marriage")
+        if div and div["start_year"] < 2024:
+            statements.append({
+                "id":      "relationship_change",
+                "text":    f"Between {div['start_year']}-{div['end_year']} your chart shows a significant relationship transformation.",
+                "text_es": f"Entre {div['start_year']}-{div['end_year']} tu carta muestra una transformación significativa en relaciones.",
+                "window":  f"{div['start_year']}-{div['end_year']}",
+            })
+        elif mar and mar["start_year"] < 2020:
+            statements.append({
+                "id":      "relationship_change",
+                "text":    f"Your chart shows a major commitment or partnership forming around {mar['start_year']}-{mar['end_year']}.",
+                "text_es": f"Tu carta muestra un compromiso importante formándose alrededor de {mar['start_year']}-{mar['end_year']}.",
+                "window":  f"{mar['start_year']}-{mar['end_year']}",
+            })
+
+        # Statement 3: Current period (almost always verifiable — builds immediate trust)
+        # Get current MD from dasha_periods
+        try:
+            cur_md_res = supabase.table("dasha_periods")                 .select("planet_or_sign,start_date,end_date")                 .eq("chart_id", chart_id)                 .eq("system", "vimsottari")                 .lte("start_date", "2026-04-14")                 .gte("end_date", "2026-04-14")                 .execute()
+
+            if cur_md_res.data:
+                cur = cur_md_res.data[0]
+                cur_start = str(cur.get("start_date",""))[:4]
+                cur_end   = str(cur.get("end_date",""))[:4]
+                cur_planet = cur.get("planet_or_sign","")
+
+                # Map planet to human description of its energy
+                PERIOD_DESCRIPTIONS = {
+                    "Mars":    ("career pressure and income friction",
+                                "presión profesional y fricción de ingresos"),
+                    "Rahu":    ("rapid change and unconventional opportunities",
+                                "cambio rápido y oportunidades poco convencionales"),
+                    "Saturn":  ("discipline, delays, and structural rebuilding",
+                                "disciplina, retrasos y reconstrucción estructural"),
+                    "Jupiter": ("expansion, opportunity, and wisdom growth",
+                                "expansión, oportunidades y crecimiento de sabiduría"),
+                    "Moon":    ("emotional shifts and relationship changes",
+                                "cambios emocionales y transformaciones en relaciones"),
+                    "Sun":     ("identity clarification and authority building",
+                                "clarificación de identidad y construcción de autoridad"),
+                    "Venus":   ("creative income and partnership opportunities",
+                                "ingresos creativos y oportunidades de asociación"),
+                    "Mercury": ("communication, deals, and intellectual growth",
+                                "comunicación, acuerdos y crecimiento intelectual"),
+                    "Ketu":    ("spiritual seeking and letting go of old patterns",
+                                "búsqueda espiritual y soltar patrones antiguos"),
+                }
+
+                desc_en, desc_es = PERIOD_DESCRIPTIONS.get(
+                    cur_planet,
+                    ("significant life changes", "cambios significativos de vida")
+                )
+
+                statements.append({
+                    "id":      "current_period",
+                    "text":    f"Since {cur_start} your chart shows {desc_en}.",
+                    "text_es": f"Desde {cur_start} tu carta muestra {desc_es}.",
+                    "window":  f"{cur_start}-present",
+                })
+        except Exception:
+            pass
+
+        return {
+            "chart_id":   chart_id,
+            "statements": statements[:3],  # max 3
+            "birth_year": birth_year,
+            "lagna":      lagna,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[signature] Error generating statements: {e}")
+        return {"chart_id": chart_id, "statements": [], "error": str(e)}
+
+
+@app.post("/api/v1/chart/signature/confirm")
+async def confirm_signature(request: SignatureConfirmRequest):
+    """
+    Store user's signature confirmations.
+    Used by onboarding to calibrate dasha accuracy.
+    """
+    try:
+        # Read existing chart_data
+        chart_res = supabase.table("charts")             .select("chart_data")             .eq("id", request.chart_id)             .single().execute()
+
+        if not chart_res.data:
+            raise HTTPException(status_code=404, detail="Chart not found")
+
+        chart_data = chart_res.data.get("chart_data") or {}
+
+        # Add signature confirmations
+        chart_data["signature_confirmations"] = {
+            **request.confirmations,
+            "confirmed_at": "2026-04-14",
+            "score": sum(1 for v in request.confirmations.values() if v == "confirmed"),
+        }
+
+        # Update chart
+        supabase.table("charts").update({
+            "chart_data": chart_data
+        }).eq("id", request.chart_id).execute()
+
+        score = chart_data["signature_confirmations"]["score"]
+        calibration = (
+            "fully_locked"  if score == 3 else
+            "strong_signal" if score == 2 else
+            "calibrating"   if score == 1 else
+            "needs_data"
+        )
+
+        return {
+            "confirmed":    True,
+            "score":        score,
+            "calibration":  calibration,
+            "message":      f"{score}/3 statements confirmed — {calibration.replace('_', ' ').title()}",
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[signature] Confirm error: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ============================================================================
+# END SIGNATURE VERIFICATION
+# ============================================================================
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TRANSIT — Real-time sky positions vs natal chart
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/v1/transit/{chart_id}")
+async def get_transit_report_endpoint(chart_id: str):
+    """
+    Returns current transit positions and how they relate to the natal chart.
+    Includes: planet positions, top aspects, house activation, major transits.
+    """
+    try:
+        from antar_engine.transit_engine import get_full_transit_report
+        _row = supabase.table("charts").select("chart_data").eq("id", chart_id).single().execute()
+        if not _row.data:
+            raise HTTPException(status_code=404, detail="Chart not found")
+        _cd = _row.data.get("chart_data") or {}
+        if isinstance(_cd, str):
+            import json as _trjson
+            try: _cd = _trjson.loads(_cd)
+            except: _cd = {}
+        _report = get_full_transit_report(_cd)
+        return {"status": "ok", "chart_id": chart_id, **_report}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[transit] Error for chart {chart_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Transit computation failed: {str(e)}")
+
+# ============================================================================
+# END TRANSIT ENDPOINT
+# ============================================================================

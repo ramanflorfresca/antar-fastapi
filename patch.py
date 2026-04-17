@@ -1,327 +1,275 @@
-#!/usr/bin/env python3
 """
-patch_past_predictions_accuracy.py
-All 5 event types covered. Lagna-aware rules.
+patch_future_windows.py
+Adds find_future_windows() and map_future_events() to dasha_event_mapper.py.
+Also updates main.py upcoming-themes endpoint to use map_future_events.
+Uses landmark string search — never line numbers.
 """
-import sys, ast
-from pathlib import Path
+import re
+import shutil
+from datetime import datetime
 
-PAST_EVENT_RULES = '''
-## PAST EVENT TIMING — CLASSICAL VIMSOTTARI RULES
+MAPPER = "antar_engine/dasha_event_mapper.py"
+MAIN = "main.py"
 
-When a question asks about a PAST event, follow these steps exactly.
+def patch_mapper():
+    with open(MAPPER, "r") as f:
+        content = f.read()
 
-### STEP 1: Establish eligible year range using birth year + age
+    # Check if already patched
+    if "def find_future_windows" in content:
+        print("[MAPPER] find_future_windows already exists — skipping")
+        return
 
-  Marriage (age 20-35):           birth_year+20 to birth_year+35
-  First child (age 22-37):        birth_year+22 to birth_year+37 AND after marriage
-  Second child:                   first_child_year+1 to first_child_year+4
-  Foreign relocation (age 15-45): birth_year+15 to birth_year+45
-  Divorce:                        marriage_year+5 to marriage_year+25
+    # Backup
+    shutil.copy(MAPPER, f"{MAPPER}.bak_future_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
 
-ELIMINATE any MD or AD window outside the eligible range.
+    # Find insertion point — right before map_all_events
+    landmark = "def map_all_events(birth_year: int, lagna: str, ads: list) -> dict:"
+    idx = content.find(landmark)
+    if idx == -1:
+        print("[MAPPER] ERROR: could not find map_all_events landmark")
+        return
 
-### STEP 2: Find which MD covers the eligible year range
+    new_code = '''
 
-### STEP 3: Within that MD, apply AD priority rules
+# ---------------------------------------------------------------------------
+# Future window scanning (for upcoming-themes endpoint)
+# ---------------------------------------------------------------------------
 
-MARRIAGE:
-  1. Saturn AD = formal legal union, ceremony, registration. STRONGEST.
-  2. Moon AD = emotional commitment (strongest if Moon rules 7H).
-  3. Jupiter AD = dharmic marriage through family/wisdom.
-  4. Venus AD = romance (weaker when Venus is already the MD planet).
-  5. Rahu AD = unconventional romance BEGINS but rarely formalizes immediately.
-  RULE: If both Rahu AD and Saturn AD are in range, CHOOSE Saturn AD for formal marriage.
+def find_future_windows(
+    lagna: str,
+    birth_year: int,
+    ads: list,
+    from_date: str = None,
+    to_date: str = None,
+    min_score: int = 3,
+) -> list:
+    """
+    Scan all ADs from from_date to to_date. For each event type,
+    find ALL matching AD windows based on priority rules.
+    Returns a list of dicts. No AGE_RANGES cap — future has no age limit.
+    """
+    from datetime import datetime as _dt
 
-FOREIGN RELOCATION:
-  1. Rahu AD = unconventional foreign move, often permanent. STRONGEST.
-  2. 12H lord AD (varies by lagna) = foreign through opportunity.
-  3. Jupiter AD = foreign for education/wisdom.
-  RULE: Rahu AD is almost always the primary trigger for permanent foreign relocation.
+    if not from_date:
+        from_date = _dt.now().strftime("%Y-%m-%d")
+    if not to_date:
+        to_date = _dt(year=_dt.now().year + 5, month=1, day=1).strftime("%Y-%m-%d")
 
-FIRST CHILD:
-  1. Jupiter AD = natural karaka for children. STRONGEST.
-  2. 5H lord AD (varies by lagna) = house of children.
-  3. Mercury AD = 9H lord for many lagnas (luck/dharma/children). Strong.
-  4. Moon AD = nurturing period. Moderate.
-  RULE: First child MUST come AFTER marriage. Eliminate any AD before marriage AD.
-  RULE: If Venus is MD planet, look for Jupiter AD or Mercury AD (9H lord) within Venus MD.
+    priorities = _get_priorities(lagna)
+    results = []
 
-SECOND CHILD:
-  1. AD immediately following first child AD (sequential, ~2 years later).
-  2. Ketu AD = completion of karma, often brings second child.
-  3. Mercury AD = 9H lord (classical 2nd child house).
-  RULE: Find which AD is active ~2 years after the first child year.
+    # Build a quick lookup: for each event_type, which AD lords score how much
+    event_lord_scores = {}
+    for event_type, prio_list in priorities.items():
+        lord_map = {}
+        for planet, reason, score in prio_list:
+            if planet and planet not in lord_map:
+                lord_map[planet] = (score, reason)
+        event_lord_scores[event_type] = lord_map
 
-DIVORCE / SEPARATION:
-  1. Saturn AD during 7H lord MD = TEXTBOOK divorce. Moon MD + Saturn AD
-     for Capricorn lagna (Moon = 7H lord). STRONGEST.
-  2. Ketu AD = spiritual detachment, separation.
-  3. Rahu AD = sudden/foreign element causing separation.
-  RULE: Saturn AD during the 7H lord mahadasha is the most classical divorce signature.
+    for ad in ads:
+        ad_start = (ad.get("start_date") or ad.get("start") or "")[:10]
+        ad_end = (ad.get("end_date") or ad.get("end") or "")[:10]
+        ad_lord = ad.get("planet_or_sign") or ad.get("lord") or ""
 
-### STEP 4: House lords by lagna
+        if not ad_start or not ad_end or not ad_lord:
+            continue
+        # Must overlap the future window
+        if ad_end < from_date or ad_start > to_date:
+            continue
 
-  Lagna      | 5H (children) | 7H (marriage) | 12H (foreign)
-  -----------|---------------|---------------|---------------
-  Aries      | Sun           | Venus         | Jupiter
-  Taurus     | Mercury       | Mars          | Mars
-  Gemini     | Venus         | Jupiter       | Venus
-  Cancer     | Mars          | Saturn        | Mercury
-  Leo        | Jupiter       | Saturn        | Moon
-  Virgo      | Saturn        | Jupiter       | Sun
-  Libra      | Saturn        | Mars          | Mercury
-  Scorpio    | Jupiter       | Venus         | Jupiter
-  Sagittarius| Mars          | Mercury       | Mars
-  Capricorn  | Venus         | Moon          | Jupiter
-  Aquarius   | Mercury       | Moon          | Saturn
-  Pisces     | Moon          | Mercury       | Saturn
+        # Get parent MD lord
+        parent_md = ""
+        meta = ad.get("metadata")
+        if isinstance(meta, dict):
+            parent_md = meta.get("parent_lord") or meta.get("parent_md") or ""
 
-### STEP 5: State a specific year
+        for event_type, lord_map in event_lord_scores.items():
+            ad_score = 0
+            ad_reason = ""
+            if ad_lord in lord_map:
+                ad_score, ad_reason = lord_map[ad_lord]
 
-  Give a SINGLE most likely year within the AD window.
-  Use the middle of the AD window as the starting point.
-  Example: Saturn AD = Jun 1996 - Aug 1999 → state "1997 or 1998"
+            # Bonus if MD lord also matches
+            md_bonus = 0
+            if parent_md and parent_md in lord_map and parent_md != ad_lord:
+                md_bonus = min(3, lord_map[parent_md][0] // 3)
 
-### CRITICAL: NEVER predict past events as future events
+            total = ad_score + md_bonus
+            if total >= min_score:
+                # Try PD drilling
+                pd_lord = None
+                pd_start = ad_start
+                pd_end = ad_end
+                precision = "AD"
+                try:
+                    pds = _compute_pds_for_ad(ad_lord, ad_start, ad_end)
+                    if pds:
+                        # Find best PD that's in the future window
+                        best_pd = None
+                        best_pd_score = 0
+                        for pd in pds:
+                            ps = pd.get("start", "")[:10]
+                            pe = pd.get("end", "")[:10]
+                            if pe < from_date:
+                                continue
+                            pl = pd.get("lord", "")
+                            ps_score = lord_map.get(pl, (0, ""))[0] if pl in lord_map else 0
+                            if ps_score > best_pd_score:
+                                best_pd = pd
+                                best_pd_score = ps_score
+                        if best_pd and best_pd_score > 0:
+                            pd_lord = best_pd.get("lord")
+                            pd_start = best_pd.get("start", ad_start)[:10]
+                            pd_end = best_pd.get("end", ad_end)[:10]
+                            precision = "PD"
+                            total += 1  # PD bonus
+                except Exception:
+                    pass
 
-  If a clear past dasha window exists, state when it OCCURRED.
-  Do NOT say "this hasn't happened yet" or redirect to future dashas.
-  The person is asking about something that ALREADY HAPPENED.
-  If uncertain between two windows, give BOTH with reasoning.
+                results.append({
+                    "event_type": event_type,
+                    "window_start": pd_start if precision == "PD" else ad_start,
+                    "window_end": pd_end if precision == "PD" else ad_end,
+                    "start": ad_start,
+                    "end": ad_end,
+                    "planet": ad_lord,
+                    "parent_md": parent_md,
+                    "score": total,
+                    "precision": precision,
+                    "pd_lord": pd_lord,
+                    "candidate_count": 1,
+                    "explanation_short": ad_reason,
+                })
+
+    return results
+
+
+def map_future_events(
+    lagna: str,
+    birth_year: int,
+    ads: list,
+    from_date: str = None,
+    to_date: str = None,
+) -> dict:
+    """
+    Like map_all_events() but for future windows.
+    Returns dict keyed by event_type, value = best future window.
+    """
+    all_future = find_future_windows(lagna, birth_year, ads, from_date, to_date)
+
+    best = {}
+    for w in all_future:
+        et = w["event_type"]
+        if et not in best or w["score"] > best[et]["score"]:
+            best[et] = w
+
+    return best
+
+
 '''
 
-HIST_INJECTION = '''
-                # ── PAST EVENT HISTORICAL DASHA INJECTION ─────────────────
-                _past_keywords = [
-                    "when did", "when was", "what year", "which year",
-                    "when did i", "when were", "what happened", "how old",
-                    "married", "marriage", "wedding",
-                    "born", "birth", "child", "children", "son", "daughter",
-                    "moved", "relocat", "immigrat", "america", "foreign",
-                    "divorc", "separat", "ended", "split",
-                    "cuándo", "cuando", "qué año", "que año",
-                    "casé", "matrimonio", "boda", "nació", "hijo", "hija",
-                    "mudé", "emigr", "divorcié", "separé", "terminó",
-                ]
-                _is_past_q = any(kw in request.question.lower() for kw in _past_keywords)
+    content = content[:idx] + new_code + content[idx:]
 
-                if _is_past_q:
-                    try:
-                        _hist = supabase.table("dasha_periods") \\
-                            .select("planet_or_sign,start_date,end_date,level,type,metadata,sequence") \\
-                            .eq("chart_id", request.chart_id) \\
-                            .eq("system", "vimsottari") \\
-                            .order("sequence") \\
-                            .execute()
-
-                        _mds, _ads = [], []
-                        for _row in _hist.data:
-                            _lv = _row.get("level")
-                            _tp = str(_row.get("type","")).lower()
-                            if _lv == 1 or _tp in ("mahadasha","md","1"):
-                                _mds.append(_row)
-                            elif _lv == 2 or _tp in ("antardasha","ad","2"):
-                                _ads.append(_row)
-
-                        try:
-                            _bd_row = supabase.table("charts") \\
-                                .select("birth_date,chart_data") \\
-                                .eq("id", request.chart_id) \\
-                                .single().execute()
-                            _birth_year = int(str(_bd_row.data.get("birth_date","1974"))[:4])
-                            _lagna_sign = (_bd_row.data.get("chart_data") or {}) \\
-                                .get("lagna", {}).get("sign", "unknown")
-                        except Exception:
-                            _birth_year = 1974
-                            _lagna_sign = "unknown"
-
-                        _tl = "\\n\\n## HISTORICAL VIMSOTTARI DASHA SEQUENCE\\n"
-                        _tl += f"Birth year: {_birth_year} | Lagna: {_lagna_sign}\\n\\n"
-                        _tl += "MAHADASHAS:\\n"
-                        for _r in _mds:
-                            _p = _r.get("planet_or_sign","")
-                            _s = str(_r.get("start_date",""))[:10]
-                            _e = str(_r.get("end_date",""))[:10]
-                            _tl += f"  {_p} MD: {_s} to {_e}\\n"
-
-                        _ads_by_md = {}
-                        for _r in _ads:
-                            _parent = (_r.get("metadata") or {}).get("parent_lord","?")
-                            if _parent not in _ads_by_md:
-                                _ads_by_md[_parent] = []
-                            _p = _r.get("planet_or_sign","")
-                            _s = str(_r.get("start_date",""))[:10]
-                            _e = str(_r.get("end_date",""))[:10]
-                            _ads_by_md[_parent].append(f"    {_p} AD: {_s} to {_e}")
-
-                        _tl += "\\nANTARDASHAS BY MD:\\n"
-                        for _md_p, _ad_lines in _ads_by_md.items():
-                            _tl += f"  {_md_p} MD:\\n" + "\\n".join(_ad_lines) + "\\n"
-
-                        _tl += f"""
-## ELIGIBLE YEAR RANGES (birth year = {_birth_year})
-  Marriage eligible:          {_birth_year+20} to {_birth_year+35}
-  First child eligible:       {_birth_year+22} to {_birth_year+37} (must be after marriage)
-  Second child:               first_child_year + 1 to + 4
-  Foreign relocation:         {_birth_year+15} to {_birth_year+45}
-  Divorce:                    marriage_year + 5 to + 25
-
-Apply the classical AD priority rules from the system prompt.
-State a specific year. Never predict past events as future windows.
-"""
-                        if isinstance(_json_ctx, dict):
-                            _json_ctx["_historical_dasha"] = _tl
-                        print(f"[json-v2] Past event: {len(_mds)} MDs, {len(_ads)} ADs, birth={_birth_year}, lagna={_lagna_sign}")
-
-                    except Exception as _he:
-                        print(f"[json-v2] Historical dasha failed (non-fatal): {_he}")
-                # ── END PAST EVENT INJECTION ──────────────────────────────
-'''
-
-
-def patch_system_prompt():
-    path = Path("antar_engine/predict_system_prompt_v2.py")
-    if not path.exists():
-        print("❌ predict_system_prompt_v2.py not found"); return False
-
-    content = path.read_text(encoding="utf-8")
-
-    # Remove old version if exists
-    if "PAST EVENT TIMING" in content:
-        start = content.find("## PAST EVENT TIMING")
-        markers = ["## OUTPUT FORMAT", "## RESPONSE FORMAT", "YOUR MOVE", "ANTAR voice"]
-        end = len(content)
-        for m in markers:
-            idx = content.find(m, start + 100)
-            if 0 < idx < end:
-                end = idx
-                break
-        content = content[:start] + content[end:]
-        print("ℹ️  Removed old past event rules")
-
-    landmarks = ["## OUTPUT FORMAT", "## RESPONSE FORMAT", "YOUR MOVE", 'ANTAR voice', '"""']
-    inserted = False
-    for lm in landmarks:
-        if lm in content:
-            content = content.replace(lm, PAST_EVENT_RULES + "\n" + lm, 1)
-            inserted = True
-            print(f"✅ Past event rules injected before: {lm[:40]}")
-            break
-
-    if not inserted:
-        idx = content.rfind('"""')
-        content = content[:idx] + PAST_EVENT_RULES + '\n"""'
-        print("✅ Past event rules appended")
-
-    try:
-        ast.parse(content)
-    except SyntaxError as e:
-        print(f"❌ Syntax error: {e}"); return False
-
-    path.write_text(content, encoding="utf-8")
-    return True
+    with open(MAPPER, "w") as f:
+        f.write(content)
+    print("[MAPPER] Added find_future_windows + map_future_events")
 
 
 def patch_main():
-    path = Path("main.py")
-    if not path.exists():
-        print("❌ Run from ~/antarai/"); return False
+    with open(MAIN, "r") as f:
+        content = f.read()
 
-    content = path.read_text(encoding="utf-8")
+    # Check if already patched
+    if "map_future_events" in content:
+        print("[MAIN] map_future_events already referenced — skipping")
+        return
 
-    # Remove all old injection blocks
-    for start_m, end_m in [
-        ("                # ── PAST EVENT HISTORICAL DASHA INJECTION", "                # ── END PAST EVENT INJECTION"),
-        ("                # ── IMPROVED HISTORICAL DASHA INJECTION", "                # ── END HISTORICAL DASHA INJECTION"),
-        ("                # Detect past-tense questions", "                print(f\"[json-v2] JSON path activated"),
-    ]:
-        if start_m in content and end_m in content:
-            si = content.find(start_m)
-            ei = content.find(end_m, si) + len(end_m) + 1
-            content = content[:si] + content[ei:]
-            print(f"ℹ️  Removed: {start_m[:50]}")
+    # Backup
+    shutil.copy(MAIN, f"{MAIN}.bak_future_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
 
-    landmark = "                _static_json = chart_static_to_json(_json_ctx)"
-    if landmark not in content:
-        print("❌ Landmark not found"); return False
+    # Find the upcoming-themes endpoint's import block and replace map_all_events with map_future_events
+    old_import = """from antar_engine.dasha_event_mapper import (
+            map_all_events,
+            find_event_window,
+            EVENT_DISPLAY_LABELS,
+            EVENT_DESCRIPTION,
+            build_energy_explanation,
+        )"""
 
-    content = content.replace(landmark, HIST_INJECTION + "\n" + landmark, 1)
-    print("✅ Historical dasha injection added")
+    new_import = """from antar_engine.dasha_event_mapper import (
+            map_future_events,
+            EVENT_DISPLAY_LABELS,
+            EVENT_DESCRIPTION,
+            build_energy_explanation,
+        )"""
 
-    # Fix _json_system
-    new_sys = '''                _hist_suffix = _json_ctx.get("_historical_dasha", "") if isinstance(_json_ctx, dict) else ""
-                _json_system = (
-                    PREDICT_SYSTEM_PROMPT_V2
-                    + "\\n\\n## CHART DATA (JSON)\\n"
-                    + _static_json
-                    + "\\n\\n## LIVE DATA\\n"
-                    + _live_json
-                    + (_hist_suffix if _hist_suffix else "")
-                )'''
-
-    for old in [
-        '''                _hist_suffix = ""
-                if isinstance(_json_ctx, dict) and _json_ctx.get("_historical_dasha"):
-                    _hist_suffix = _json_ctx["_historical_dasha"]
-                _json_system = (
-                    PREDICT_SYSTEM_PROMPT_V2
-                    + "\\n\\n## CHART DATA (JSON)\\n"
-                    + _static_json
-                    + "\\n\\n## LIVE DATA\\n"
-                    + _live_json
-                    + (_hist_suffix if _hist_suffix else "")
-                )''',
-        '''                _json_system = (
-                    PREDICT_SYSTEM_PROMPT_V2
-                    + "\\n\\n## CHART DATA (JSON)\\n"
-                    + _static_json
-                    + "\\n\\n## LIVE DATA\\n"
-                    + _live_json
-                    + (_hist_suffix if _hist_suffix else "")
-                )''',
-        '''                _json_system = (
-                    PREDICT_SYSTEM_PROMPT_V2
-                    + "\\n\\n## CHART DATA (JSON)\\n"
-                    + _static_json
-                    + "\\n\\n## LIVE DATA\\n"
-                    + _live_json
-                )''',
-    ]:
-        if old in content:
-            content = content.replace(old, new_sys, 1)
-            print("✅ _json_system updated with hist_suffix")
-            break
-
-    try:
-        ast.parse(content)
-        print("✅ main.py syntax OK")
-    except SyntaxError as e:
-        print(f"❌ {e}"); return False
-
-    path.write_text(content, encoding="utf-8")
-    return True
-
-
-def main():
-    print("=" * 60)
-    print("PAST PREDICTIONS PATCH — ALL 5 EVENT TYPES")
-    print("=" * 60)
-    ok1 = patch_system_prompt()
-    print()
-    ok2 = patch_main()
-    print()
-    if ok1 and ok2:
-        print("✅ Done. Deploy:")
-        print("  git add -A && git commit -m 'fix: past predictions all 5 event types' && git push")
-        print()
-        print("Then test:")
-        print("  python3 /tmp/test_blind_claude.py")
-        print()
-        print("Expected: 60%+ (3-4 of 6 correct)")
+    if old_import in content:
+        content = content.replace(old_import, new_import, 1)
+        print("[MAIN] Replaced import block")
     else:
-        sys.exit(1)
+        # Try finding it with different whitespace
+        # Search for map_all_events near upcoming-themes
+        pattern = r"(from antar_engine\.dasha_event_mapper import \([\s\S]*?map_all_events[\s\S]*?\))"
+        match = re.search(pattern, content[content.find("upcoming-themes"):content.find("upcoming-themes") + 2000])
+        if match:
+            old_block = match.group(1)
+            new_block = old_block.replace("map_all_events", "map_future_events").replace("find_event_window,\n", "").replace("find_event_window,", "")
+            offset = content.find("upcoming-themes")
+            rel_start = match.start()
+            abs_start = offset + rel_start
+            abs_end = abs_start + len(old_block)
+            content = content[:abs_start] + new_block + content[abs_end:]
+            print("[MAIN] Replaced import block (regex)")
+        else:
+            print("[MAIN] WARNING: Could not find import block to replace")
+
+    # Replace the call: raw_map = map_all_events(birth_year, lagna, ads)
+    old_call = "raw_map = map_all_events(birth_year, lagna, ads)"
+    new_call = """raw_map = map_future_events(
+            lagna, birth_year, ads,
+            from_date=today_str,
+            to_date=cutoff_date,
+        )"""
+
+    if old_call in content:
+        content = content.replace(old_call, new_call, 1)
+        print("[MAIN] Replaced map_all_events call with map_future_events")
+    else:
+        print("[MAIN] WARNING: Could not find map_all_events call to replace")
+
+    # Remove the extra find_event_window calls for loss_of_mother/major_acquisition
+    # These are no longer needed since map_future_events scans all event types
+    extra_block = """for extra_event in ("loss_of_mother", "major_acquisition"):
+            if extra_event not in raw_map:
+                raw_map[extra_event] = find_event_window(
+                    extra_event, lagna, birth_year, ads
+                )"""
+    if extra_block in content:
+        content = content.replace(extra_block, "# map_future_events already scans all event types", 1)
+        print("[MAIN] Removed extra find_event_window calls")
+    else:
+        # Try with different indentation
+        alt = re.search(r"for extra_event in.*?loss_of_mother.*?major_acquisition.*?raw_map\[extra_event\].*?find_event_window.*?\)", content, re.DOTALL)
+        if alt:
+            content = content[:alt.start()] + "# map_future_events already scans all event types" + content[alt.end():]
+            print("[MAIN] Removed extra find_event_window calls (regex)")
+        else:
+            print("[MAIN] NOTE: extra find_event_window block not found (may not exist)")
+
+    with open(MAIN, "w") as f:
+        f.write(content)
+    print("[MAIN] Updated upcoming-themes endpoint")
 
 
 if __name__ == "__main__":
-    main()
+    print("=" * 60)
+    print("Patching future window scanning")
+    print("=" * 60)
+    patch_mapper()
+    patch_main()
+    print()
+    print("Done. Run these to verify:")
+    print("  python -c \"import ast; ast.parse(open('antar_engine/dasha_event_mapper.py').read()); print('mapper OK')\"")
+    print("  python -c \"import ast; ast.parse(open('main.py').read()); print('main OK')\"")
