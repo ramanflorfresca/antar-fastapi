@@ -1277,26 +1277,50 @@ def calculate_jaimini_analysis(
         Complete Jaimini analysis as serialized dict for DB storage + LLM prompt
     """
     # Convert raw dicts to Planet objects
+    # Helper: chart_data stores sign as string ("Libra"), Planet needs int (0-indexed)
+    def _sign_to_idx(s):
+        if isinstance(s, int):
+            return s
+        if isinstance(s, str) and s in SIGN_NAMES:
+            return SIGN_NAMES.index(s)
+        try:
+            return int(s)
+        except (ValueError, TypeError):
+            return 0
+
+    def _safe_float(v, default=0.0):
+        try:
+            return float(v)
+        except (ValueError, TypeError):
+            return default
+
     planets = {}
     for name, data in planets_dict.items():
+        _raw_sign = data.get("sign", 0)
+        _raw_house = data.get("house", 0)
+        _deg = _safe_float(data.get("degree", 0.0))
+        _deg_in = _safe_float(data.get("degree_in_sign", _deg % 30 if _deg else 0.0))
         planets[name] = Planet(
             name=name,
-            sign=data.get("sign", 0),
-            degree=data.get("degree", 0.0),
-            degree_in_sign=data.get("degree_in_sign", 0.0),
-            retrograde=data.get("retrograde", False),
+            sign=_sign_to_idx(_raw_sign),
+            degree=_deg,
+            degree_in_sign=_deg_in,
+            retrograde=bool(data.get("retrograde", False)),
             nakshatra=data.get("nakshatra", ""),
             nakshatra_lord=data.get("nakshatra_lord", "")
         )
 
     d9_planets = {}
     for name, data in d9_planets_dict.items():
+        _raw_sign = data.get("sign", 0)
+        _deg = _safe_float(data.get("degree", 0.0))
+        _deg_in = _safe_float(data.get("degree_in_sign", _deg % 30 if _deg else 0.0))
         d9_planets[name] = Planet(
             name=name,
-            sign=data.get("sign", 0),
-            degree=data.get("degree", 0.0),
-            degree_in_sign=data.get("degree_in_sign", 0.0),
-            retrograde=data.get("retrograde", False)
+            sign=_sign_to_idx(_raw_sign),
+            degree=_deg,
+            degree_in_sign=_deg_in,
+            retrograde=bool(data.get("retrograde", False))
         )
 
     birth_date = datetime.strptime(birth_date_str, "%Y-%m-%d")

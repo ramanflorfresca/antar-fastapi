@@ -3388,6 +3388,19 @@ Acknowledge it explicitly and explain the difference.
 
 
 
+
+# ── Helper: convert sign name to 0-indexed int ──
+_SIGNS_LIST = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo","Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"]
+def _sign_name_to_idx(val):
+    if isinstance(val, int):
+        return val
+    if isinstance(val, str) and val in _SIGNS_LIST:
+        return _SIGNS_LIST.index(val)
+    try:
+        return int(val)
+    except (ValueError, TypeError):
+        return 0
+
 # ── Self-healing: recompute missing Jaimini on predict ──────────
 async def _ensure_chart_complete(chart_id: str, chart_data: dict,
                                   chart_record: dict, supabase_client) -> dict:
@@ -3413,7 +3426,7 @@ async def _ensure_chart_complete(chart_id: str, chart_data: dict,
         _cd = chart_data if isinstance(chart_data, dict) else (_ecj2.loads(chart_data) if isinstance(chart_data, str) else {})
         birth_date = str(chart_record.get("birth_date", _cd.get("birth_date", "")))[:10]
         _lagna_obj = _cd.get("lagna", {})
-        _lagna_sign = _lagna_obj.get("sign_num", _lagna_obj.get("sign_index", 0)) if isinstance(_lagna_obj, dict) else 0
+        _lagna_sign = _sign_name_to_idx(_lagna_obj.get("sign_num", _lagna_obj.get("sign_index", _lagna_obj.get("sign", 0)))) if isinstance(_lagna_obj, dict) else 0
         _planets = _cd.get("planets", {})
         _d9_data = (_cd.get("divisional_charts", {}).get("d9") or _cd.get("divisional_charts", {}).get("D9") or {}).get("planets", {})
         if not _d9_data:
@@ -6349,7 +6362,7 @@ async def create_chart(
                     jaimini_to_db_json,
                 )
                 _lagna_obj2 = chart_data.get("lagna", {})
-                _lagna_sign2 = _lagna_obj2.get("sign_num", _lagna_obj2.get("sign_index", 0)) if isinstance(_lagna_obj2, dict) else 0
+                _lagna_sign2 = _sign_name_to_idx(_lagna_obj2.get("sign_num", _lagna_obj2.get("sign_index", _lagna_obj2.get("sign", 0)))) if isinstance(_lagna_obj2, dict) else 0
                 _d9_data2 = (chart_data.get("divisional_charts", {}).get("d9") or chart_data.get("divisional_charts", {}).get("D9") or {}).get("planets", {})
                 if not _d9_data2:
                     _d9_data2 = chart_data.get("d9_planets", {})
