@@ -3374,7 +3374,7 @@ IF your birth chart analysis contradicts the Oracle verdict:
 - When they disagree, the timing is usually the real signal
 - Birth chart = when the foundation is ready. Oracle = when the door opens.
 - THE MOVE should account for both: prepare now (Oracle), don't overcommit yet (birth chart)
-- Frame it as: \"Two lenses, same question \u2014 here's what each one sees.\"
+- Frame it as: \"Two lenses, same question — here's what each one sees.\"
 
 IF your birth chart analysis AGREES with the Oracle verdict:
 - Note the convergence: \"Both your birth chart and the Oracle point the same direction.\"
@@ -10872,6 +10872,9 @@ def _translate_practice_schedule_es(sched):
         if "energy_label" in m: m["energy_label"]=L.get(m["energy_label"],m["energy_label"])
         if "affirmation" in m: m["affirmation"]=TX.get(m.get("affirmation",""),m.get("affirmation",""))
         if "mantra_best_time" in m: m["mantra_best_time"]=TM.get(m["mantra_best_time"],m["mantra_best_time"])
+        if "mantra_duration_label" in m:
+            _MDL_ES={"21 days":"21 dias","40 days":"40 dias","18 days":"18 dias","11 days":"11 dias","9 days":"9 dias","7 days":"7 dias","7 Tuesdays":"7 martes","7 weeks":"7 semanas"}
+            m["mantra_duration_label"]=_MDL_ES.get(m["mantra_duration_label"],m["mantra_duration_label"])
     if "convergence_summary" in s:
         cs=s["convergence_summary"]
         for a,b in {**L,**TX}.items(): cs=cs.replace(a,b)
@@ -10971,13 +10974,13 @@ def _translate_practice_schedule_es(sched):
             return (
                 f"Tu energia de {_label_es} esta inactiva en tu carta ahora mismo. "
                 f"Esto significa que las oportunidades en esta area pasan desapercibidas "
-                f"\u2014 no porque no existan, sino porque el canal para recibirlas esta "
+                f"— no porque no existan, sino porque el canal para recibirlas esta "
                 f"bloqueado. Esta practica activa ese canal."
             )
         # Pattern B: repeating pattern / Rin
         if "repeating pattern has been detected" in text:
             return (
-                "Se ha detectado un patron repetitivo en esta area de tu vida \u2014 "
+                "Se ha detectado un patron repetitivo en esta area de tu vida — "
                 "la misma situacion sigue apareciendo de diferentes formas. No es mala "
                 "suerte. Es una senal de que un patron de respuesta particular necesita "
                 "cambiar. Esta practica es el contra-patron."
@@ -10992,14 +10995,14 @@ def _translate_practice_schedule_es(sched):
         if "Consistent behavioral repetition" in text:
             return (
                 "La repeticion conductual consistente en un dominio especifico activa vias "
-                "neuronales asociadas con ese dominio \u2014 literalmente hace que tu cerebro "
+                "neuronales asociadas con ese dominio — literalmente hace que tu cerebro "
                 "sea mas receptivo a oportunidades relacionadas."
             )
         # Pattern B: "Repeating life patterns..."
         if "Repeating life patterns" in text:
             return (
                 "Los patrones de vida repetitivos frecuentemente se originan en bucles "
-                "conductuales inconscientes \u2014 respuestas que alguna vez te protegieron "
+                "conductuales inconscientes — respuestas que alguna vez te protegieron "
                 "pero que ahora crean exactamente los problemas que intentas evitar. El "
                 "contra-comportamiento consistente durante 40 dias interrumpe el bucle a "
                 "nivel neurologico."
@@ -11011,7 +11014,7 @@ def _translate_practice_schedule_es(sched):
         "Your sense of identity and self-worth is the energy being worked on right now. This practice builds the internal confidence that makes external recognition possible.":
             "Tu sentido de identidad y autoestima es la energia que se esta trabajando ahora. Esta practica construye la confianza interna que hace posible el reconocimiento externo.",
         "Your emotional processing patterns are being recalibrated. This practice creates a pause between feeling and reacting — giving you clarity instead of reactivity.":
-            "Tus patrones de procesamiento emocional se estan recalibrando. Esta practica crea una pausa entre sentir y reaccionar \u2014 dandote claridad en lugar de reactividad.",
+            "Tus patrones de procesamiento emocional se estan recalibrando. Esta practica crea una pausa entre sentir y reaccionar — dandote claridad en lugar de reactividad.",
         "Your action energy and drive need direction right now. This practice channels aggression and impatience into decisive, purposeful movement instead of scattered effort.":
             "Tu energia de accion necesita direccion ahora. Esta practica canaliza la agresividad y la impaciencia en movimiento decisivo y con proposito.",
         "Your communication clarity and analytical precision are the focus right now. This practice sharpens how you express ideas and reduces overthinking loops.":
@@ -11028,24 +11031,24 @@ def _translate_practice_schedule_es(sched):
             "Tu capacidad de soltar, desapego y confianza en tu intuicion se esta desarrollando. Esta practica te ayuda a soltar resultados que bloquean tu siguiente capitulo.",
     }
     PRACTICE_WHY_SCIENCE_ES = {
-        "Repetitive intention-setting at the same time daily recalibrates your reticular activating system \u2014 the brain's filter that decides what opportunities to notice.":
-            "La fijacion repetitiva de intencion a la misma hora recalibra tu sistema reticular activador \u2014 el filtro cerebral que decide que oportunidades notar.",
+        "Repetitive intention-setting at the same time daily recalibrates your reticular activating system — the brain's filter that decides what opportunities to notice.":
+            "La fijacion repetitiva de intencion a la misma hora recalibra tu sistema reticular activador — el filtro cerebral que decide que oportunidades notar.",
         "The Moon's cycle directly affects human fluid systems and sleep rhythms. Consistent evening practice syncs your nervous system to a calmer biological rhythm.":
             "El ciclo lunar afecta directamente los sistemas de fluidos y ritmos de sueno. La practica nocturna constante sincroniza tu sistema nervioso con un ritmo biologico mas calmado.",
-        "High-intensity breath patterns (like Kapalabhati) activate the sympathetic nervous system constructively \u2014 releasing accumulated stress hormones without aggression.":
-            "Los patrones de respiracion intensa activan el sistema nervioso simpatico de forma constructiva \u2014 liberando hormonas de estres acumuladas sin agresion.",
-        "Vocal repetition of structured sound patterns activates Broca's area and the prefrontal cortex simultaneously \u2014 literally training clearer thinking and expression.":
-            "La repeticion vocal de patrones de sonido estructurados activa el area de Broca y la corteza prefrontal simultaneamente \u2014 entrenando literalmente un pensamiento y expresion mas claros.",
+        "High-intensity breath patterns (like Kapalabhati) activate the sympathetic nervous system constructively — releasing accumulated stress hormones without aggression.":
+            "Los patrones de respiracion intensa activan el sistema nervioso simpatico de forma constructiva — liberando hormonas de estres acumuladas sin agresion.",
+        "Vocal repetition of structured sound patterns activates Broca's area and the prefrontal cortex simultaneously — literally training clearer thinking and expression.":
+            "La repeticion vocal de patrones de sonido estructurados activa el area de Broca y la corteza prefrontal simultaneamente — entrenando literalmente un pensamiento y expresion mas claros.",
         "21 days is the neurological minimum to form a new cognitive habit. Gratitude and expansion practices literally rewire the brain's default mode network toward opportunity-seeking.":
             "21 dias es el minimo neurologico para formar un nuevo habito cognitivo. Las practicas de gratitud y expansion literalmente reconectan la red de modo predeterminado del cerebro hacia la busqueda de oportunidades.",
         "Loving-kindness practices (the emotional equivalent of Venus remedies) measurably increase oxytocin, reduce cortisol, and improve relationship satisfaction within 21 days.":
             "Las practicas de bondad amorosa aumentan la oxitocina, reducen el cortisol y mejoran la satisfaccion en las relaciones en 21 dias.",
         "40 days is the clinical minimum for breaking a deeply ingrained behavioral pattern (used in addiction recovery, habit formation research). Saturn rules exactly this kind of structural change.":
             "40 dias es el minimo clinico para romper un patron conductual profundamente arraigado. Saturno gobierna exactamente este tipo de cambio estructural.",
-        "18 days of consistent mindfulness around a specific pattern is enough to create metacognitive awareness \u2014 the ability to observe your own obsessive tendencies without being controlled by them.":
-            "18 dias de atencion plena consistente alrededor de un patron especifico es suficiente para crear conciencia metacognitiva \u2014 la capacidad de observar tus propias tendencias obsesivas sin ser controlado por ellas.",
-        "Detachment practices activate the default mode network differently than goal-focused thinking \u2014 they increase insight and creativity by reducing cognitive fixation.":
-            "Las practicas de desapego activan la red de modo predeterminado de manera diferente al pensamiento enfocado en metas \u2014 aumentan la percepcion y creatividad al reducir la fijacion cognitiva.",
+        "18 days of consistent mindfulness around a specific pattern is enough to create metacognitive awareness — the ability to observe your own obsessive tendencies without being controlled by them.":
+            "18 dias de atencion plena consistente alrededor de un patron especifico es suficiente para crear conciencia metacognitiva — la capacidad de observar tus propias tendencias obsesivas sin ser controlado por ellas.",
+        "Detachment practices activate the default mode network differently than goal-focused thinking — they increase insight and creativity by reducing cognitive fixation.":
+            "Las practicas de desapego activan la red de modo predeterminado de manera diferente al pensamiento enfocado en metas — aumentan la percepcion y creatividad al reducir la fijacion cognitiva.",
     }
 
     # --- Duration label translations ---
@@ -11076,6 +11079,9 @@ def _translate_practice_schedule_es(sched):
         "Ketu works in 7-day release cycles. One week of consistent practice completes one detachment arc.": "Ketu trabaja en ciclos de 7 dias de liberacion. Una semana de practica consistente completa un arco de desapego.",
         "When multiple timing systems point to the same planet, 21 days of practice synchronizes your actions with the active energy window.": "Cuando multiples sistemas de tiempo apuntan al mismo planeta, 21 dias de practica sincronizan tus acciones con la ventana de energia activa.",
         "Some planetary energies only open on specific days of the week. 7 consecutive weeks on the right day completes one full planetary cycle.": "Algunas energias planetarias solo se abren en dias especificos. 7 semanas consecutivas en el dia correcto completan un ciclo planetario completo.",
+        # --- Sleeping planet + Rin clearing duration reasons ---
+        "A sleeping planet needs 21 days of consistent activation to wake up. Think of it as physical therapy for an underused muscle — skipping days resets the progress.": "Un planeta dormido necesita 21 dias de activacion consistente para despertar. Piensalo como fisioterapia para un musculo poco usado — saltarse dias reinicia el progreso.",
+        "Karmic patterns took years to form. 40 uninterrupted days is the minimum to interrupt the cycle. Even one missed day traditionally requires restarting — not as punishment, but because the pattern needs continuous counter-pressure.": "Los patrones karmicos tardaron anos en formarse. 40 dias sin interrupcion es el minimo para interrumpir el ciclo. Incluso un dia perdido requiere reiniciar — no como castigo, sino porque el patron necesita presion contraria continua.",
     }
 
     # Apply full-text remedy_why translations
@@ -13766,6 +13772,136 @@ def _translate_daily_signals_es(signals):
         "preparation": "preparacion",
         "confrontation": "confrontacion directa",
         "audit": "auditoria",
+        # --- Full NAKSHATRA_PROFILES coverage ---
+        "starting projects": "iniciar proyectos",
+        "health actions": "acciones de salud",
+        "speed decisions": "decisiones rapidas",
+        "long-term planning": "planificacion a largo plazo",
+        "slow negotiations": "negociaciones lentas",
+        "difficult conversations": "conversaciones dificiles",
+        "ending cycles": "cerrar ciclos",
+        "financial moves": "movimientos financieros",
+        "light social events": "eventos sociales ligeros",
+        "cutting losses": "cortar perdidas",
+        "clarity conversations": "conversaciones de claridad",
+        "editing work": "trabajo de edicion",
+        "diplomacy": "diplomacia",
+        "compromise situations": "situaciones de compromiso",
+        "relationship building": "construir relaciones",
+        "financial planning": "planificacion financiera",
+        "endings": "finales",
+        "exploration": "exploracion",
+        "new contacts": "nuevos contactos",
+        "commitment decisions": "decisiones de compromiso",
+        "finalizing": "finalizar",
+        "problem-solving": "resolucion de problemas",
+        "technical work": "trabajo tecnico",
+        "breakthrough thinking": "pensamiento disruptivo",
+        "public appearances": "apariciones publicas",
+        "recovery": "recuperacion",
+        "relaunching stalled projects": "relanzar proyectos estancados",
+        "intense focus": "enfoque intenso",
+        "investments": "inversiones",
+        "team building": "construir equipo",
+        "risky moves": "movimientos arriesgados",
+        "speculation": "especulacion",
+        "negotiation": "negociacion",
+        "uncovering hidden info": "descubrir informacion oculta",
+        "trust-building": "construir confianza",
+        "openness": "apertura",
+        "leadership actions": "acciones de liderazgo",
+        "legacy work": "trabajo de legado",
+        "collaboration": "colaboracion",
+        "blending in": "pasar desapercibido",
+        "client entertainment": "entretenimiento de clientes",
+        "creative projects": "proyectos creativos",
+        "solo deep work": "trabajo profundo en solitario",
+        "financial discipline": "disciplina financiera",
+        "long-term agreements": "acuerdos a largo plazo",
+        "institutional work": "trabajo institucional",
+        "rapid pivots": "cambios rapidos",
+        "detailed work": "trabajo detallado",
+        "craftsmanship": "artesania",
+        "healing actions": "acciones de sanacion",
+        "big-picture strategy": "estrategia general",
+        "delegation": "delegacion",
+        "design": "diseno",
+        "brand work": "trabajo de marca",
+        "pitches": "presentaciones de pitch",
+        "routine work": "trabajo rutinario",
+        "slow processes": "procesos lentos",
+        "flexibility": "flexibilidad",
+        "trading": "comercio",
+        "fixed commitments": "compromisos fijos",
+        "goal-setting": "fijar metas",
+        "competitive moves": "movimientos competitivos",
+        "ambition-driven work": "trabajo impulsado por ambicion",
+        "rest": "descanso",
+        "casual socializing": "socializacion informal",
+        "team loyalty": "lealtad de equipo",
+        "friendship": "amistad",
+        "structured work": "trabajo estructurado",
+        "isolation": "aislamiento",
+        "self-promotion": "autopromocion",
+        "authority decisions": "decisiones de autoridad",
+        "crisis management": "gestion de crisis",
+        "protection": "proteccion",
+        "partnership building": "construir alianzas",
+        "softness": "suavidad",
+        "root-cause analysis": "analisis de causa raiz",
+        "philosophy": "filosofia",
+        "stability": "estabilidad",
+        "new launches": "nuevos lanzamientos",
+        "pitching": "hacer pitch",
+        "persuasion": "persuasion",
+        "accepting defeat": "aceptar la derrota",
+        "slowing down": "desacelerar",
+        "finalizing wins": "consolidar victorias",
+        "integrity-based decisions": "decisiones basadas en integridad",
+        "launches": "lanzamientos",
+        "compromise": "compromiso",
+        "grey areas": "zonas grises",
+        "mentorship": "mentoria",
+        "advisory conversations": "conversaciones de asesoria",
+        "speaking over others": "hablar por encima de otros",
+        "impulsive action": "accion impulsiva",
+        "wealth moves": "movimientos de riqueza",
+        "group leadership": "liderazgo grupal",
+        "bold action": "accion audaz",
+        "detail work": "trabajo de detalle",
+        "high-stakes decisions": "decisiones de alto riesgo",
+        "transitions": "transiciones",
+        "patience": "paciencia",
+        "slow work": "trabajo lento",
+        "teaching": "ensenanza",
+        "settling matters": "resolver asuntos",
+        "fast pivots": "cambios rapidos",
+        "closing cycles": "cerrar ciclos",
+        "charitable work": "trabajo caritativo",
+        "spiritual clarity": "claridad espiritual",
+        "new ventures": "nuevos emprendimientos",
+        "competitive pressure": "presion competitiva",
+        "exercise": "ejercicio",
+        "creativity": "creatividad",
+        "emotional conversations": "conversaciones emocionales",
+        "signing contracts": "firmar contratos",
+        "launching": "lanzar proyectos",
+        "negotiating": "negociar",
+        "expanding": "expandir",
+        "consolidating": "consolidar",
+        "reviewing": "revisar",
+        "executing": "ejecutar",
+        "collaborating": "colaborar",
+        "researching": "investigar",
+        "presenting": "presentar",
+        "selling": "vender",
+        "hiring": "contratar",
+        "fundraising": "levantar capital",
+        "building systems": "construir sistemas",
+        "making offers": "hacer ofertas",
+        "closing deals": "cerrar tratos",
+        "public speaking": "hablar en publico",
+        "creating content": "crear contenido",
     }
     DAYS = {
         "Monday":"Lunes","Tuesday":"Martes","Wednesday":"Miercoles",
