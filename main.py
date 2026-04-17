@@ -3099,6 +3099,35 @@ async def get_upcoming_themes(
         future_predictions.sort(key=lambda x: (-x["confidence"], x["window"]["start"]))
         themes = future_predictions[:max_predictions]
 
+        # === TRANSIT CONFIRMATION — boost confidence when transit aligns with dasha ===
+        try:
+            from antar_engine.transit_engine import get_full_transit_report
+            for _th in themes:
+                _ws = _th.get("window", {}).get("start", "")
+                if not _ws:
+                    continue
+                try:
+                    _wd = datetime.fromisoformat(_ws)
+                    _future_transit = get_full_transit_report(cd, date=_wd)
+                    _confirming = [mt for mt in _future_transit.get("major_transits", [])
+                                   if mt.get("severity") in ("high", "positive")]
+                    if _confirming:
+                        _th["transit_confirmation"] = True
+                        _th["transit_details"] = _confirming[0]["description"]
+                        _th["confidence"] = min(10, _th.get("confidence", 5) + 1)
+                        _th["confidence_label"] = (
+                            "high" if _th["confidence"] >= 8
+                            else "moderate" if _th["confidence"] >= 5
+                            else "low"
+                        )
+                    else:
+                        _th["transit_confirmation"] = False
+                except Exception:
+                    _th["transit_confirmation"] = None
+        except Exception as _tce:
+            print(f"[upcoming-themes] Transit confirmation failed (non-fatal): {_tce}")
+        # === END TRANSIT CONFIRMATION ===
+
         stable = None
         if len(themes) < 2:
             stable = (
@@ -4287,6 +4316,19 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
         except Exception as _tbe2:
             print(f"[predict] Transit re-append failed (non-fatal): {_tbe2}")
         # === END TRANSIT ORDER FIX ===
+
+        # === LIVE TRANSIT CONTEXT (Swiss Ephemeris) ===
+        try:
+            from antar_engine.transit_engine import get_full_transit_report, format_transit_for_prompt
+            _live_transit = get_full_transit_report(chart_data)
+            _live_transit_block = format_transit_for_prompt(_live_transit)
+            if _live_transit_block:
+                _full_context += "\n\n" + _live_transit_block
+                print(f"[predict] Live transit context injected ({len(_live_transit_block)} chars)")
+        except Exception as _lte:
+            print(f"[predict] Live transit injection failed (non-fatal): {_lte}")
+        # === END LIVE TRANSIT CONTEXT ===
+
         print(f"[predict] Full context: {len(_full_context)} chars")
     except Exception as _ctx_e:
         import traceback
@@ -13292,6 +13334,25 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
         if language == "es":
             signals = _translate_daily_signals_es(signals)
 
+        # === LIVE TRANSIT HIGHLIGHTS ===
+        _transit_highlights = []
+        _transit_positions = {}
+        _transit_activated_areas = []
+        try:
+            from antar_engine.transit_engine import get_full_transit_report
+            _raw_cd = chart_data.get("chart_data") or chart_data
+            if isinstance(_raw_cd, str):
+                import json as _tjson
+                try: _raw_cd = _tjson.loads(_raw_cd)
+                except: _raw_cd = {}
+            _transit_rpt = get_full_transit_report(_raw_cd)
+            _transit_highlights = _transit_rpt.get("major_transits", [])
+            _transit_positions = _transit_rpt.get("transit_positions", {})
+            _transit_activated_areas = _transit_rpt.get("activated_areas", [])
+        except Exception as _dte:
+            print(f"[daily-week] Transit computation failed (non-fatal): {_dte}")
+        # === END LIVE TRANSIT HIGHLIGHTS ===
+
         return {
             "chart_id": chart_id,
             "natal_moon_sign": natal_moon_sign,
@@ -13299,7 +13360,10 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
             "timezone_offset": effective_offset,
             "local_date": start_date.strftime("%Y-%m-%d"),
             "generated_at": datetime.utcnow().isoformat() + "Z",
-            "days": signals
+            "days": signals,
+            "transit_highlights": _transit_highlights,
+            "transit_positions": _transit_positions,
+            "activated_areas": _transit_activated_areas,
         }
 
     except HTTPException:
@@ -13764,4 +13828,37 @@ async def confirm_signature(request: SignatureConfirmRequest):
 
 # ============================================================================
 # END SIGNATURE VERIFICATION
+# ============================================================================
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TRANSIT — Real-time sky positions vs natal chart
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/v1/transit/{chart_id}")
+async def get_transit_report_endpoint(chart_id: str):
+    """
+    Returns current transit positions and how they relate to the natal chart.
+    Includes: planet positions, top aspects, house activation, major transits.
+    """
+    try:
+        from antar_engine.transit_engine import get_full_transit_report
+        _row = supabase.table("charts").select("chart_data").eq("id", chart_id).single().execute()
+        if not _row.data:
+            raise HTTPException(status_code=404, detail="Chart not found")
+        _cd = _row.data.get("chart_data") or {}
+        if isinstance(_cd, str):
+            import json as _trjson
+            try: _cd = _trjson.loads(_cd)
+            except: _cd = {}
+        _report = get_full_transit_report(_cd)
+        return {"status": "ok", "chart_id": chart_id, **_report}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[transit] Error for chart {chart_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Transit computation failed: {str(e)}")
+
+# ============================================================================
+# END TRANSIT ENDPOINT
 # ============================================================================
