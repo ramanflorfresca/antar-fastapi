@@ -2908,10 +2908,14 @@ async def get_upcoming_themes(
             }
 
         # ── 3. Run all event windows (same as past-events) ────────────────
+        # Extract natal planets for nakshatra PD tightening
+        natal_planets = cd.get("planets", {})
+
         raw_map = map_future_events(
             lagna, birth_year, ads,
             from_date=today_str,
             to_date=cutoff_date,
+            natal_planets=natal_planets,
         )
 
         for extra_event in ("loss_of_mother", "major_acquisition"):

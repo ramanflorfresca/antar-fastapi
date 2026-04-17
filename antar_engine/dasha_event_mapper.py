@@ -620,6 +620,23 @@ _DASHA_SEQUENCE = [
     'Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu', 'Jupiter', 'Saturn', 'Mercury',
 ]
 
+# ---------------------------------------------------------------------------
+# Nakshatra -> Vimsottari lord mapping (same repeating cycle as dasha)
+# Used by nakshatra PD tightener to narrow AD windows to specific PDs.
+# ---------------------------------------------------------------------------
+NAKSHATRA_LORDS = {
+    "Ashwini": "Ketu", "Bharani": "Venus", "Krittika": "Sun",
+    "Rohini": "Moon", "Mrigashira": "Mars", "Ardra": "Rahu",
+    "Punarvasu": "Jupiter", "Pushya": "Saturn", "Ashlesha": "Mercury",
+    "Magha": "Ketu", "Purva Phalguni": "Venus", "Uttara Phalguni": "Sun",
+    "Hasta": "Moon", "Chitra": "Mars", "Swati": "Rahu",
+    "Vishakha": "Jupiter", "Anuradha": "Saturn", "Jyeshtha": "Mercury",
+    "Mula": "Ketu", "Purva Ashadha": "Venus", "Uttara Ashadha": "Sun",
+    "Shravana": "Moon", "Dhanishta": "Mars", "Shatabhisha": "Rahu",
+    "Purva Bhadrapada": "Jupiter", "Uttara Bhadrapada": "Saturn",
+    "Revati": "Mercury",
+}
+
 
 def _compute_pds_for_ad(ad_lord: str, ad_start: str, ad_end: str) -> list:
     """
@@ -898,6 +915,78 @@ def _apply_partnership_dependency(results: dict) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# Nakshatra lord PD tightening (post-processing layer)
+# ---------------------------------------------------------------------------
+
+def tighten_window_with_nakshatra(
+    ad_lord: str,
+    ad_start: str,
+    ad_end: str,
+    natal_planets: dict,
+) -> Optional[dict]:
+    """
+    Tighten an AD window to the specific PD where the AD lord's
+    nakshatra lord activates. Narrows timing from months to weeks.
+
+    How it works:
+    1. Look up which nakshatra the AD lord sits in (from natal chart)
+    2. Find that nakshatra's Vimsottari lord
+    3. Find the PD within this AD where that lord is the PD planet
+    4. Return the tightened window
+
+    Example:
+      AD lord = Rahu, natal Rahu in Jyeshtha nakshatra
+      Jyeshtha lord = Mercury
+      Find Mercury PD within Rahu AD -> that's the precision window
+
+    Returns None if tightening not possible (missing data, no matching PD).
+    The user never sees nakshatra names — only tighter dates.
+    """
+    if not ad_lord or not natal_planets:
+        return None
+
+    # Get the AD lord's natal nakshatra
+    ad_planet_data = natal_planets.get(ad_lord, {})
+    if not isinstance(ad_planet_data, dict):
+        return None
+
+    ad_nakshatra = ad_planet_data.get("nakshatra", "")
+    if not ad_nakshatra or ad_nakshatra not in NAKSHATRA_LORDS:
+        return None
+
+    nak_lord = NAKSHATRA_LORDS[ad_nakshatra]
+
+    # Don't tighten if nakshatra lord is the same as AD lord
+    # (e.g., Rahu in Ardra -> nak lord is Rahu -> same planet, no tightening)
+    if nak_lord == ad_lord:
+        return None
+
+    # Compute PDs within this AD
+    try:
+        pds = _compute_pds_for_ad(ad_lord, ad_start, ad_end)
+    except Exception:
+        return None
+
+    if not pds:
+        return None
+
+    # Find the PD where the nakshatra lord activates
+    for pd in pds:
+        pd_lord = pd.get("lord", "")
+        if pd_lord == nak_lord:
+            return {
+                "tightened_start": pd.get("start", ad_start)[:10],
+                "tightened_end": pd.get("end", ad_end)[:10],
+                "nak_lord": nak_lord,
+                "precision": "nakshatra_PD",
+                "original_ad_start": ad_start[:10],
+                "original_ad_end": ad_end[:10],
+            }
+
+    return None  # Nakshatra lord PD not found in this AD
+
+
+# ---------------------------------------------------------------------------
 # Future window scanning (for upcoming-themes endpoint)
 # ---------------------------------------------------------------------------
 
@@ -908,6 +997,7 @@ def find_future_windows(
     from_date: str = None,
     to_date: str = None,
     min_score: int = 3,
+    natal_planets: dict = None,
 ) -> list:
     """
     Scan all ADs from from_date to to_date. For each event type,
@@ -994,19 +1084,36 @@ def find_future_windows(
                 except Exception:
                     pass
 
+                # Nakshatra PD tightening (narrows AD to nak-lord PD)
+                _nak_tightened = None
+                if natal_planets and precision != "PD":
+                    # Only tighten AD-precision windows; PD-precision already tight
+                    try:
+                        _nak_tightened = tighten_window_with_nakshatra(
+                            ad_lord, ad_start, ad_end, natal_planets
+                        )
+                    except Exception:
+                        pass
+
+                _final_start = _nak_tightened["tightened_start"] if _nak_tightened else (pd_start if precision == "PD" else ad_start)
+                _final_end   = _nak_tightened["tightened_end"]   if _nak_tightened else (pd_end if precision == "PD" else ad_end)
+                _final_prec  = "nakshatra_PD" if _nak_tightened else precision
+                _final_pd    = _nak_tightened["nak_lord"] if _nak_tightened else pd_lord
+
                 results.append({
                     "event_type": event_type,
-                    "window_start": pd_start if precision == "PD" else ad_start,
-                    "window_end": pd_end if precision == "PD" else ad_end,
+                    "window_start": _final_start,
+                    "window_end": _final_end,
                     "start": ad_start,
                     "end": ad_end,
                     "planet": ad_lord,
                     "parent_md": parent_md,
                     "score": total,
-                    "precision": precision,
-                    "pd_lord": pd_lord,
+                    "precision": _final_prec,
+                    "pd_lord": _final_pd,
                     "candidate_count": 1,
                     "explanation_short": ad_reason,
+                    "nak_tightened": bool(_nak_tightened),
                 })
 
     return results
@@ -1018,12 +1125,13 @@ def map_future_events(
     ads: list,
     from_date: str = None,
     to_date: str = None,
+    natal_planets: dict = None,
 ) -> dict:
     """
     Like map_all_events() but for future windows.
     Returns dict keyed by event_type, value = best future window.
     """
-    all_future = find_future_windows(lagna, birth_year, ads, from_date, to_date)
+    all_future = find_future_windows(lagna, birth_year, ads, from_date, to_date, natal_planets=natal_planets)
 
     best = {}
     for w in all_future:
