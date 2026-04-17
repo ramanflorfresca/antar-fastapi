@@ -3409,11 +3409,21 @@ async def _ensure_chart_complete(chart_id: str, chart_data: dict,
         from antar_engine.jaimini_engine import (
             calculate_jaimini_analysis, jaimini_to_db_json
         )
-        birth_date = str(chart_record.get("birth_date", chart_data.get("birth_date", "")))[:10]
-        if birth_date:
+        import json as _ecj2
+        _cd = chart_data if isinstance(chart_data, dict) else (_ecj2.loads(chart_data) if isinstance(chart_data, str) else {})
+        birth_date = str(chart_record.get("birth_date", _cd.get("birth_date", "")))[:10]
+        _lagna_obj = _cd.get("lagna", {})
+        _lagna_sign = _lagna_obj.get("sign_num", _lagna_obj.get("sign_index", 0)) if isinstance(_lagna_obj, dict) else 0
+        _planets = _cd.get("planets", {})
+        _d9_data = _cd.get("divisional_charts", {}).get("d9", {}).get("planets", {})
+        if not _d9_data:
+            _d9_data = _cd.get("d9_planets", {})
+        if birth_date and _planets:
             _result = calculate_jaimini_analysis(
-                chart_data=chart_data,
-                birth_date=birth_date,
+                lagna_sign=_lagna_sign,
+                planets_dict=_planets,
+                d9_planets_dict=_d9_data or {},
+                birth_date_str=birth_date,
             )
             _db = jaimini_to_db_json(_result)
             _db.pop("computed_at", None)
@@ -6331,9 +6341,16 @@ async def create_chart(
                     calculate_jaimini_analysis,
                     jaimini_to_db_json,
                 )
+                _lagna_obj2 = chart_data.get("lagna", {})
+                _lagna_sign2 = _lagna_obj2.get("sign_num", _lagna_obj2.get("sign_index", 0)) if isinstance(_lagna_obj2, dict) else 0
+                _d9_data2 = chart_data.get("divisional_charts", {}).get("d9", {}).get("planets", {})
+                if not _d9_data2:
+                    _d9_data2 = chart_data.get("d9_planets", {})
                 _jaimini_result = calculate_jaimini_analysis(
-                    chart_data=chart_data,
-                    birth_date=_jaimini_bd,
+                    lagna_sign=_lagna_sign2,
+                    planets_dict=_planets_for_jaimini,
+                    d9_planets_dict=_d9_data2 or {},
+                    birth_date_str=_jaimini_bd,
                 )
                 _jaimini_db = jaimini_to_db_json(_jaimini_result)
                 _jaimini_db.pop("computed_at", None)
@@ -8905,9 +8922,17 @@ async def backfill_jaimini(chart_id: str):
             import json as _bjson
             cd = _bjson.loads(cd)
         _bd = str(cr.data.get("birth_date", cd.get("birth_date", "1990-01-01")))[:10]
+        _lagna_obj3 = cd.get("lagna", {})
+        _lagna_sign3 = _lagna_obj3.get("sign_num", _lagna_obj3.get("sign_index", 0)) if isinstance(_lagna_obj3, dict) else 0
+        _planets3 = cd.get("planets", {})
+        _d9_data3 = cd.get("divisional_charts", {}).get("d9", {}).get("planets", {})
+        if not _d9_data3:
+            _d9_data3 = cd.get("d9_planets", {})
         _jaimini_result = calculate_jaimini_analysis(
-            chart_data=cd,
-            birth_date=_bd,
+            lagna_sign=_lagna_sign3,
+            planets_dict=_planets3,
+            d9_planets_dict=_d9_data3 or {},
+            birth_date_str=_bd,
         )
         _jaimini_db = jaimini_to_db_json(_jaimini_result)
         _jaimini_db.pop("computed_at", None)
