@@ -15512,3 +15512,20 @@ async def get_accuracy_dashboard(chart_id: str):
 # ============================================================================
 # END FEEDBACK LOOPS
 # ============================================================================
+@app.get("/api/v1/debug-context/{chart_id}")
+async def debug_context(chart_id: str, question: str = "What is my career direction for 2026?"):
+    from antar_engine.chart_context_builder_json import build_chart_context_json
+    import asyncio
+    chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+    if not chart_res.data:
+        return {"error": "Chart not found"}
+    chart_record = chart_res.data[0]
+    ctx = await build_chart_context_json(
+        chart_id=chart_id,
+        chart_record=chart_record,
+        question=question,
+        language="en",
+        supabase=supabase
+    )
+    return ctx
+
