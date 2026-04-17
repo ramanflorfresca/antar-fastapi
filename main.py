@@ -3503,6 +3503,20 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     chart_record = chart_res.data[0]
     chart_data = chart_record["chart_data"]
 
+    # --- DEBUG: chart data diagnostic ---
+    import json as _dbg_json
+    def _dbg_safe(v):
+        if isinstance(v, str):
+            try: return _dbg_json.loads(v)
+            except: return {}
+        return v if isinstance(v, dict) else {}
+    _cd = _dbg_safe(chart_data)
+    print(f"[predict debug] chart_data keys: {list(_cd.keys())[:20]}")
+    print(f"[predict debug] jaimini_data: {bool(chart_record.get('jaimini_data'))}")
+    print(f"[predict debug] lal_kitab_data: {bool(chart_record.get('lal_kitab_data'))}")
+    print(f"[predict debug] d9: {bool(_cd.get('divisional_charts', {}).get('d9'))}")
+    # --- END DEBUG ---
+
     # Self-heal missing layers (Jaimini)
     chart_record = await _ensure_chart_complete(
         request.chart_id, chart_data, chart_record, supabase
