@@ -548,6 +548,10 @@ def generate_practice_schedule(
     current_country: str = "US",
     birth_date: str = None,
     streak_data: dict = None,
+    vimsottari_md: dict = None,
+    vimsottari_ad: dict = None,
+    next_md: dict = None,
+    practice_counts: dict = None,
 ) -> dict:
     """
     Main entry point. Reads stored data, returns full PracticeSchedule as dict.
@@ -586,7 +590,8 @@ def generate_practice_schedule(
 
     # ── 1. Score convergence for each planet ──
     convergence = _score_planet_convergence(
-        planets, karakas, current_dasha, varshphal, sleeping, masik_phal, age
+        planets, karakas, current_dasha, varshphal, sleeping, masik_phal, age,
+        vimsottari_md=vimsottari_md, vimsottari_ad=vimsottari_ad, next_md=next_md,
     )
 
     # ── 2. Determine primary planet (highest convergence) ──
@@ -599,7 +604,7 @@ def generate_practice_schedule(
     sleeping_alerts = _build_sleeping_alerts(sleeping, locale)
     rin_cards = _build_rin_cards(rin_debts, locale)
     weekly_plan = _build_weekly_plan(convergence, primary_planet, locale, today)
-    chakra_map = _build_chakra_map(karakas, sleeping, convergence)
+    chakra_map = _build_chakra_map(karakas, sleeping, convergence, practice_counts=practice_counts)
     convergence_summary = _build_convergence_summary(convergence, primary_planet)
 
     # ── 4. Cache key (recompute weekly) ──
@@ -629,7 +634,7 @@ def generate_practice_schedule(
 # 6. CONVERGENCE SCORING
 # ════════════════════════════════════════════
 
-def _score_planet_convergence(planets, karakas, current_dasha, varshphal, sleeping, masik_phal, age):
+def _score_planet_convergence(planets, karakas, current_dasha, varshphal, sleeping, masik_phal, age, vimsottari_md=None, vimsottari_ad=None, next_md=None):
     """
     Score each planet 0.0–1.0 based on how many systems point to it.
     Higher score = this planet's energy needs the most attention RIGHT NOW.
@@ -644,6 +649,43 @@ def _score_planet_convergence(planets, karakas, current_dasha, varshphal, sleepi
         if current_dasha and current_dasha.get("lord") == planet:
             score += 0.3
             reasons.append("active in your current life chapter")
+
+        # Vimsottari Mahadasha lord — PRIMARY dasha system
+        vim_md = vimsottari_md or {}
+        if vim_md.get("planet_or_sign") == planet:
+            score += 0.30
+            reasons.append("ruling your current major life chapter (Vimsottari)")
+
+        # Vimsottari Antardasha lord — current sub-chapter
+        vim_ad = vimsottari_ad or {}
+        if vim_ad.get("planet_or_sign") == planet:
+            score += 0.20
+            reasons.append("active in your current sub-chapter")
+
+        # Chapter transition bonus — MD ending within 6 months
+        if vim_md.get("planet_or_sign") == planet:
+            try:
+                from datetime import datetime as _dt_vim, timedelta as _td_vim
+                _md_end = _dt_vim.fromisoformat(vim_md.get("end_date", "")[:10])
+                _months_left = (_md_end - _dt_vim.now()).days / 30
+                if 0 < _months_left <= 6:
+                    score += 0.15
+                    reasons.append(f"chapter ending in {int(_months_left)} months — strengthen now")
+            except Exception:
+                pass
+
+        # Next MD lord — new chapter starting within 6 months needs preparation
+        _next_md = next_md or {}
+        if _next_md.get("planet_or_sign") == planet:
+            try:
+                from datetime import datetime as _dt_nxt
+                _md_start = _dt_nxt.fromisoformat(_next_md.get("start_date", "")[:10])
+                _months_until = (_md_start - _dt_nxt.now()).days / 30
+                if 0 < _months_until <= 6:
+                    score += 0.20
+                    reasons.append(f"new chapter starting in {int(_months_until)} months — prepare this energy")
+            except Exception:
+                pass
 
         # Jaimini Karaka — is this planet a key karaka?
         karaka_role = None
@@ -957,7 +999,7 @@ def _build_weekly_plan(convergence, primary_planet, locale, today):
     return plan
 
 
-def _build_chakra_map(karakas, sleeping, convergence):
+def _build_chakra_map(karakas, sleeping, convergence, practice_counts=None):
     """Map Jaimini Karakas to Chakras with status. Falls back to default map when karakas empty."""
     chakra_list = []
     sleeping_planets = [s.get("planet") for s in (sleeping or [])]
@@ -994,6 +1036,17 @@ def _build_chakra_map(karakas, sleeping, convergence):
         else:
             status = "Stressed"
             completion = int(score * 60)
+
+        # Practice completion boost: +2% per completed day in last 30 days (cap +30%)
+        _pc = (practice_counts or {}).get(planet, 0)
+        _practice_boost = min(_pc * 2, 30)
+        completion = completion + _practice_boost
+
+        # Status can UPGRADE based on boosted completion
+        if completion >= 70 and status != "Flowing":
+            status = "Flowing"
+        elif completion >= 40 and status == "Dormant":
+            status = "Stressed"
 
         chakra_list.append(ChakraStatus(
             karaka=karaka_code,

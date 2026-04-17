@@ -10593,6 +10593,53 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
             return {"status": "error", "message": "Chart not found"}
         _c = _chart.data
         _streak = await _practice_get_streak(chart_id)
+
+        # ── Fetch Vimsottari dasha periods (MD + AD) ──
+        _vim_md = None
+        _vim_ad = None
+        _vim_next_md = None
+        try:
+            from datetime import date as _vd
+            _vtoday = _vd.today().isoformat()
+            _vim_res = supabase.table("dasha_periods").select(
+                "planet_or_sign, start_date, end_date, level"
+            ).eq("chart_id", chart_id).eq("system", "vimsottari").lte(
+                "start_date", _vtoday
+            ).gte("end_date", _vtoday).order("level").execute()
+            for _vr in (_vim_res.data or []):
+                if _vr.get("level") == 1:
+                    _vim_md = _vr
+                elif _vr.get("level") == 2:
+                    _vim_ad = _vr
+            if _vim_md:
+                _vnext = supabase.table("dasha_periods").select(
+                    "planet_or_sign, start_date, end_date"
+                ).eq("chart_id", chart_id).eq("system", "vimsottari").eq(
+                    "level", 1
+                ).gt("start_date", _vim_md.get("end_date", "")).order(
+                    "start_date"
+                ).limit(1).execute()
+                if _vnext.data:
+                    _vim_next_md = _vnext.data[0]
+        except Exception as _ve:
+            print(f"[PRACTICE] Vimsottari fetch error (non-fatal): {_ve}")
+
+        # ── Fetch practice completions for last 30 days ──
+        _practice_counts = {}
+        try:
+            from datetime import datetime as _pdt, timedelta as _ptd
+            _30ago = (_pdt.now() - _ptd(days=30)).isoformat()
+            _plog = supabase.table("practice_log").select(
+                "planet, completed_at"
+            ).eq("chart_id", chart_id).gte(
+                "completed_at", _30ago
+            ).execute()
+            for _pr_row in (_plog.data or []):
+                _pp = _pr_row.get("planet", "")
+                _practice_counts[_pp] = _practice_counts.get(_pp, 0) + 1
+        except Exception as _ple:
+            print(f"[PRACTICE] Practice log fetch error (non-fatal): {_ple}")
+
         _sched = generate_practice_schedule(
             chart_data=_safe_jsonb(_c.get("chart_data")),
             jaimini_data=_safe_jsonb(_c.get("jaimini_data")),
@@ -10600,6 +10647,10 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
             current_country=_c.get("current_country", "US"),
             birth_date=_c.get("birth_date"),
             streak_data=_streak,
+            vimsottari_md=_vim_md,
+            vimsottari_ad=_vim_ad,
+            next_md=_vim_next_md,
+            practice_counts=_practice_counts,
         )
         try:
             supabase.table("practice_schedule_cache").upsert({"chart_id": chart_id, "week_of": _week_of.isoformat(), "cache_key": _sched.get("cache_key", ""), "schedule_data": _sched}, on_conflict="chart_id,week_of").execute()
