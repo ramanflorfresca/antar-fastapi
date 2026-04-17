@@ -8927,6 +8927,42 @@ async def get_transit_alerts_endpoint(chart_id: str = None, request: dict = {}):
 
 
 
+
+
+@app.get("/api/v1/debug-predict-context/{chart_id}")
+async def debug_predict_context(
+    chart_id: str,
+    question: str = "What is my career direction for 2026?"
+):
+    """Shows exact JSON sent to Claude for a predict call."""
+    import json as _dj
+    try:
+        from antar_engine.chart_context_builder_json import build_chart_context_json
+        ctx = await build_chart_context_json(
+            chart_id=chart_id,
+            question=question,
+            concern="general",
+            language="en",
+            supabase=supabase,
+        )
+        # Count tokens
+        ctx_str = _dj.dumps(ctx, indent=2, default=str)
+        token_estimate = len(ctx_str.split()) * 1.3
+        return {
+            "token_estimate": int(token_estimate),
+            "char_count": len(ctx_str),
+            "top_level_keys": list(ctx.keys()) if isinstance(ctx, dict) else [],
+            "jaimini_present": bool((ctx.get("jaimini") or {}) if isinstance(ctx, dict) else False),
+            "lal_kitab_present": bool((ctx.get("lal_kitab") or {}) if isinstance(ctx, dict) else False),
+            "transits_present": bool((ctx.get("transits") or {}) if isinstance(ctx, dict) else False),
+            "d9_present": bool((ctx.get("divisional_charts") or {}).get("d9") if isinstance(ctx, dict) else False),
+            "varshaphal_present": bool((ctx.get("varshaphal") or {}) if isinstance(ctx, dict) else False),
+            "full_context": ctx,
+        }
+    except Exception as e:
+        import traceback
+        return {"error": str(e), "trace": traceback.format_exc()[:500]}
+
 # --- JAIMINI BACKFILL ENDPOINT ---
 @app.get("/api/v1/backfill-jaimini/{chart_id}")
 async def backfill_jaimini(chart_id: str):
