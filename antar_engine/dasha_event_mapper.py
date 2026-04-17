@@ -716,6 +716,7 @@ def find_event_window(
     ads: list,
     after_year: Optional[int] = None,
     before_year: Optional[int] = None,
+    moon_nakshatra: Optional[str] = None,
 ) -> Optional[dict]:
     """
     Find the most likely MD+AD window for a life event.
@@ -817,6 +818,35 @@ def find_event_window(
         best['window_start'] = _pd['start']
         best['window_end']   = _pd['end']
         best['precision']    = 'PD'
+
+        # ── Nakshatra group PD bias: prefer early/mid/late PD based on group ──
+        if moon_nakshatra:
+            try:
+                from antar_engine.nakshatra_groups import get_nakshatra_group, get_pd_bias_multiplier
+                _nak_grp = get_nakshatra_group(moon_nakshatra)
+                if _nak_grp:
+                    from datetime import datetime as _dt_nak
+                    _ad_s = _dt_nak.fromisoformat(best['start'])
+                    _ad_e = _dt_nak.fromisoformat(best['end'])
+                    _pd_s = _dt_nak.fromisoformat(_pd['start'])
+                    _pd_e = _dt_nak.fromisoformat(_pd['end'])
+                    _ad_dur = (_ad_e - _ad_s).days
+                    _pd_mid = _pd_s + (_pd_e - _pd_s) / 2
+                    _pd_pos_pct = (_pd_mid - _ad_s).days / max(_ad_dur, 1)
+                    if _pd_pos_pct < 0.33:
+                        _pd_pos = "early"
+                    elif _pd_pos_pct < 0.67:
+                        _pd_pos = "middle"
+                    else:
+                        _pd_pos = "late"
+                    _grp_mult = get_pd_bias_multiplier(_nak_grp, _pd_pos)
+                    best['nak_group'] = _nak_grp
+                    best['pd_position'] = _pd_pos
+                    best['nak_pd_multiplier'] = _grp_mult
+                    # Soft adjustment: scale the event score by the group multiplier
+                    best['score'] = round(best.get('score', 1) * _grp_mult, 2)
+            except Exception as _nak_err:
+                pass  # non-fatal: nakshatra bias is a soft overlay
     else:
         best['precision']    = 'AD'
         best['window_start'] = best['start']

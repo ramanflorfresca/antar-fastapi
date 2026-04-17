@@ -604,7 +604,9 @@ def generate_practice_schedule(
     sleeping_alerts = _build_sleeping_alerts(sleeping, locale)
     rin_cards = _build_rin_cards(rin_debts, locale)
     weekly_plan = _build_weekly_plan(convergence, primary_planet, locale, today)
-    chakra_map = _build_chakra_map(karakas, sleeping, convergence, practice_counts=practice_counts)
+    # Extract moon_nakshatra for group-based chakra baselines
+    _moon_nak_for_chakra = (chart_data or {}).get("planets", {}).get("Moon", {}).get("nakshatra", "")
+    chakra_map = _build_chakra_map(karakas, sleeping, convergence, practice_counts=practice_counts, moon_nakshatra=_moon_nak_for_chakra)
     convergence_summary = _build_convergence_summary(convergence, primary_planet)
 
     # ── 4. Cache key (recompute weekly) ──
@@ -999,8 +1001,18 @@ def _build_weekly_plan(convergence, primary_planet, locale, today):
     return plan
 
 
-def _build_chakra_map(karakas, sleeping, convergence, practice_counts=None):
+def _build_chakra_map(karakas, sleeping, convergence, practice_counts=None, moon_nakshatra=None):
     """Map Jaimini Karakas to Chakras with status. Falls back to default map when karakas empty."""
+    # Nakshatra group baseline adjustments
+    _chakra_baselines = {}
+    if moon_nakshatra:
+        try:
+            from antar_engine.nakshatra_groups import get_nakshatra_group, get_chakra_group_baseline
+            _nak_group = get_nakshatra_group(moon_nakshatra)
+            _chakra_baselines = get_chakra_group_baseline(_nak_group)
+        except Exception:
+            _chakra_baselines = {}
+
     chakra_list = []
     sleeping_planets = [s.get("planet") for s in (sleeping or [])]
 
@@ -1041,6 +1053,11 @@ def _build_chakra_map(karakas, sleeping, convergence, practice_counts=None):
         _pc = (practice_counts or {}).get(planet, 0)
         _practice_boost = min(_pc * 2, 30)
         completion = completion + _practice_boost
+
+        # Nakshatra group baseline adjustment
+        _c_name = chakra_info["chakra"].split("(")[-1].rstrip(")") if "(" in chakra_info["chakra"] else chakra_info["chakra"]
+        _baseline_adj = _chakra_baselines.get(_c_name, 0)
+        completion = max(0, min(100, completion + _baseline_adj))
 
         # Status can UPGRADE based on boosted completion
         if completion >= 70 and status != "Flowing":

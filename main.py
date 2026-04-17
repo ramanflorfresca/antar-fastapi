@@ -2503,42 +2503,20 @@ def _build_upcoming_themes_prompt(chart_data, profile, future_windows, rahu_md_a
         except Exception:
             pass
 
-    # Nakshatra group
-    NAK_LIST = [
-        "Ashwini","Bharani","Krittika","Rohini","Mrigashira","Ardra",
-        "Punarvasu","Pushya","Ashlesha","Magha","Purva Phalguni",
-        "Uttara Phalguni","Hasta","Chitra","Swati","Vishakha","Anuradha",
-        "Jyeshtha","Mula","Purva Ashadha","Uttara Ashadha","Shravana",
-        "Dhanishta","Shatabhisha","Purva Bhadrapada","Uttara Bhadrapada","Revati"
-    ]
-    nak_idx = NAK_LIST.index(moon_nak) if moon_nak in NAK_LIST else -1
-    if 0 <= nak_idx <= 8:
+    # Nakshatra group (via nakshatra_groups module)
+    from antar_engine.nakshatra_groups import get_nakshatra_group, get_group_profile, format_nakshatra_for_prompt
+    _nak_group_num = get_nakshatra_group(moon_nak)
+    _nak_profile = get_group_profile(_nak_group_num)
+    if _nak_group_num == 1:
         nak_group = "Group 1 — creation energy, action-oriented, high physical vitality"
-        nak_tone = (
-            "TONE CALIBRATION (Group 1 — Creation): "
-            "Punchy, direct, action-first. Lead with what to DO, then why. "
-            "Shorter sentences. Less philosophy. "
-            '"Here\'s what\'s happening. Here\'s what to do. Go."'
-        )
-    elif 9 <= nak_idx <= 17:
+    elif _nak_group_num == 2:
         nak_group = "Group 2 — sustaining energy, strategic, structure-minded"
-        nak_tone = (
-            "TONE CALIBRATION (Group 2 — Sustaining): "
-            "Balanced, strategic, measured. Equal weight to analysis and action. "
-            '"Here\'s the pattern. Here\'s the strategy. Here\'s the move."'
-        )
-    elif 18 <= nak_idx <= 26:
+    elif _nak_group_num == 3:
         nak_group = "Group 3 — wisdom energy, reflective, pattern-recognition, guide archetype"
-        nak_tone = (
-            "TONE CALIBRATION (Group 3 — Wisdom): "
-            "Contemplative, meaning-first, then action. Lead with WHY and PATTERN, "
-            "then what to do. "
-            '"Here\'s what this means. Here\'s the deeper pattern. '
-            'And here\'s the one thing to do about it."'
-        )
     else:
         nak_group = "unknown"
-        nak_tone = "TONE CALIBRATION: Balanced, direct, confident."
+    nak_tone = _nak_profile["tone_instruction"]
+    _nak_extra_context = format_nakshatra_for_prompt(moon_nak)
 
     # Voice mode instruction
     if voice_mode == "coach":
@@ -2646,6 +2624,7 @@ You have three layers of context:
 3. The upcoming dasha window(s)
 
 {nak_tone}
+{_nak_extra_context}
 {voice_instruction}
 ══════════════════════════════════════════════
 VOCABULARY RULES (STRICT — violating these is a failure):
@@ -7621,18 +7600,49 @@ async def compatibility_start(request: CompatibilityStartRequest):
         print(f"[compat] synastry layer error (non-fatal): {_fe}")
     # ── end synastry ──────────────────────────────────────────────────────────
 
+    # ── NAKSHATRA CROSS-GROUP DYNAMICS ───────────────────────────────────────
+    _nakshatra_layer = {}
+    try:
+        from antar_engine.nakshatra_groups import get_nakshatra_group, get_cross_group_dynamic
+        _safe_chart_a = _safe_json(chart_a) if isinstance(chart_a, str) else chart_a
+        _safe_chart_b = _safe_json(chart_b) if isinstance(chart_b, str) else chart_b
+        _moon_nak_a = (_safe_chart_a or {}).get("planets", {}).get("Moon", {}).get("nakshatra", "")
+        _moon_nak_b = (_safe_chart_b or {}).get("planets", {}).get("Moon", {}).get("nakshatra", "")
+        _group_a = get_nakshatra_group(_moon_nak_a) if _moon_nak_a else 0
+        _group_b = get_nakshatra_group(_moon_nak_b) if _moon_nak_b else 0
+        if _group_a and _group_b:
+            _cross_group = get_cross_group_dynamic(_group_a, _group_b)
+            _nakshatra_layer = {
+                "person_a_group": _group_a,
+                "person_b_group": _group_b,
+                "person_a_nakshatra": _moon_nak_a,
+                "person_b_nakshatra": _moon_nak_b,
+                "dynamic_name": _cross_group["dynamic"],
+                "description": _cross_group["description"],
+                "strength": _cross_group["strength"],
+                "risk": _cross_group["risk"],
+                "advice": _cross_group["advice"],
+                "compatibility_modifier": _cross_group["compatibility_modifier"],
+            }
+            print(f"[compat] Nakshatra dynamic: {_moon_nak_a}(G{_group_a}) x {_moon_nak_b}(G{_group_b}) = {_cross_group['dynamic']} (mod={_cross_group['compatibility_modifier']})")
+    except Exception as _nke:
+        print(f"[compat] nakshatra layer error (non-fatal): {_nke}")
+    # ── end nakshatra ────────────────────────────────────────────────────────
+
     # ── Structured score breakdown ───────────────────────────────────────────
     _overall_score     = extracted_score or 72
     _personality_score = min(100, int((_field_mode_layer.get("score_contribution", 15) / 20) * 100)) if _field_mode_layer else 70
     _dasha_scores      = _compute_dasha_compatibility_score(dashas_a, dashas_b)
     _dasha_score       = _dasha_scores["score"]
 
-    # Weighted overall: 50% natal/personality + 30% dasha + 20% field_mode
-    _weighted_overall = int(
+    # Weighted overall: 50% natal/personality + 30% dasha + 20% field_mode + nakshatra modifier
+    _nak_modifier = _nakshatra_layer.get("compatibility_modifier", 0) if _nakshatra_layer else 0
+    _weighted_overall = max(0, min(100, int(
         (_overall_score * 0.5) +
         (_dasha_score   * 0.3) +
-        (_personality_score * 0.2)
-    )
+        (_personality_score * 0.2) +
+        _nak_modifier
+    )))
 
     # Type-specific score labels
     _type_labels = {
@@ -7670,6 +7680,7 @@ async def compatibility_start(request: CompatibilityStartRequest):
         "score_b_label":  _type_labels["score_b_label"],
         "score_c_label":  _type_labels["score_c_label"],
         "compat_type":    request.compatibility_type,
+        "nakshatra_dynamic": _nakshatra_layer.get("dynamic_name", "") if _nakshatra_layer else "",
     }
 
     # ── Auto-save connection ─────────────────────────────────────────────────
@@ -7719,6 +7730,7 @@ async def compatibility_start(request: CompatibilityStartRequest):
         "next_question":    "Would you like to analyze startup or business alignment?",
         "can_continue":     True,
         "field_mode_layer": _field_mode_layer or None,
+        "nakshatra_layer":  _nakshatra_layer or None,
         "score_breakdown":  _score_breakdown,
     }
 
