@@ -312,10 +312,13 @@ def build_complete_context(
         sign   = d.get("sign","")
         house  = d.get("house","")
         nak    = d.get("nakshatra","")
+        nak_lord = d.get("nakshatra_lord","")
         retro  = " (R)" if d.get("retrograde") else ""
         karaka = PLANET_KARAKAS.get(p,"")
+        nak_str = f", nakshatra {nak}" if nak else ""
+        nak_lord_str = f" (lord: {nak_lord})" if nak_lord else ""
         planet_lines.append(
-            f"  {p}{retro}: {sign}, house {house} — {karaka}"
+            f"  {p}{retro}: {sign}, house {house}{nak_str}{nak_lord_str} — {karaka}"
         )
 
     # ── House lords ─────────────────────────────────────────────

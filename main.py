@@ -4389,7 +4389,8 @@ Do not use any planet names or astrological jargon — translate everything into
               f"jaimini={bool(_dbg_safe(chart_record.get('jaimini_data')))} "
               f"lak={bool(chart_record.get('lal_kitab_data'))} "
               f"d9={bool((_cd.get('divisional_charts') or {}).get('d9') or (_cd.get('divisional_charts') or {}).get('D9'))} "
-              f"varsha={bool((_cd.get('chart_data') or _cd).get('varshaphal'))}")
+              f"varsha={bool(_birth_dt and _cd.get('planets'))} "
+              f"transits={bool(_tr_data)}")
 
         # --- LAYER 2.5: JAIMINI CHARA DASHA (tie-breaker only) ---
         # Per spec: Jaimini fires ONLY when Vimsottari is ambiguous.
@@ -5335,7 +5336,7 @@ State a specific year. Never predict past events as future windows.
         if _should_prompt:
             # Find oldest unrated prediction older than 7 days
             _unrated = supabase.table("predictions").select(
-                "id, signal_line, question, created_at"
+                "id, signal_line, created_at"
             ).eq("chart_id", request.chart_id).is_(
                 "accuracy_rating", "null"
             ).lt("created_at", _7days_ago).order(
@@ -5348,7 +5349,7 @@ State a specific year. Never predict past events as future windows.
                 )).days
                 _rating_prompt = {
                     "prediction_id": _up["id"],
-                    "signal_line": _up.get("signal_line") or _up.get("question", "")[:80],
+                    "signal_line": _up.get("signal_line", "")[:80],
                     "asked_date": _up["created_at"][:10],
                     "days_ago": _days_ago,
                     "question": f"You asked about this {_days_ago} days ago. Did it happen?",
