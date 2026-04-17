@@ -6113,20 +6113,41 @@ async def create_chart(
     def _normalise_dashas(raw) -> list:
         """
         Dasha modules return {mahadashas:[{lord, start_date, end_date, ...}], antardashas:[...]}
-        Normalise to flat list with keys predictions.py / get_dashas_for_chart() expect:
+        OR a flat list (Jaimini). Normalise to flat list with keys:
         {lord_or_sign, start, end, duration_years, level, planet_or_sign}
         """
         if isinstance(raw, list):
-            return raw   # already flat
+            # Jaimini returns flat list with "sign" key — normalize keys
+            normalized = []
+            for item in raw:
+                if isinstance(item, dict):
+                    _lord_v = item.get("lord_or_sign", "") or item.get("lord", "") or item.get("sign", "") or item.get("planet_or_sign", "")
+                    _sd = str(item.get("start_date", "") or item.get("start", ""))[:10]
+                    _ed = str(item.get("end_date", "") or item.get("end", ""))[:10]
+                    normalized.append({
+                        "lord_or_sign":   _lord_v,
+                        "planet_or_sign": _lord_v,
+                        "start":          _sd,
+                        "end":            _ed,
+                        "start_date":     _sd,
+                        "end_date":       _ed,
+                        "duration_years": item.get("duration_years", 0),
+                        "level":          item.get("level", "mahadasha"),
+                        "parent_lord":    item.get("parent_lord", ""),
+                    })
+                else:
+                    normalized.append(item)
+            return normalized
         if not isinstance(raw, dict):
             return []
         flat = []
         for p in raw.get("mahadashas", []):
             sd = str(p.get("start_date", "") or "")[:10]
             ed = str(p.get("end_date",   "") or "")[:10]
+            _lord_val = p.get("lord", "") or p.get("sign", "") or p.get("lord_or_sign", "")
             flat.append({
-                "lord_or_sign":   p.get("lord", ""),
-                "planet_or_sign": p.get("lord", ""),
+                "lord_or_sign":   _lord_val,
+                "planet_or_sign": _lord_val,
                 "start":          sd,
                 "end":            ed,
                 "start_date":     sd,
@@ -6137,9 +6158,10 @@ async def create_chart(
         for p in raw.get("antardashas", []):
             sd = str(p.get("start_date", "") or "")[:10]
             ed = str(p.get("end_date",   "") or "")[:10]
+            _lord_val_ad = p.get("lord", "") or p.get("sign", "") or p.get("lord_or_sign", "")
             flat.append({
-                "lord_or_sign":   p.get("lord", ""),
-                "planet_or_sign": p.get("lord", ""),
+                "lord_or_sign":   _lord_val_ad,
+                "planet_or_sign": _lord_val_ad,
                 "start":          sd,
                 "end":            ed,
                 "start_date":     sd,
@@ -6208,7 +6230,7 @@ async def create_chart(
         "current_country": getattr(request, "current_country", "") or "",
         "timezone_offset":     _offset,
         "country_code":        request.birth_country,
-        "birth_city":      request.birth_place or getattr(request, "birth_city", "") or "",
+        "birth_city":      getattr(request, "birth_city", "") or request.birth_place or "",
         "birth_country":   request.birth_country or "",
         "name":            getattr(request, "name", None) or getattr(request, "first_name", None) or "",
         "display_name":    (getattr(request, "first_name", None) or getattr(request, "name", None) or "").split()[0] if (getattr(request, "first_name", None) or getattr(request, "name", None)) else "",
@@ -6230,31 +6252,32 @@ async def create_chart(
         supabase.table("charts").insert(chart_row).execute()
 
         # --- Jaimini v2: Compute and store Chara Dasha ---
-        _jaimini_bd = (
-            getattr(locals().get('req'), 'birth_date', None)
-            or locals().get('birth_date')
-            or locals().get('_bd')
-            or ''
-        )
-        try:
-            _lagna_idx_j = constants.SIGNS.index(_lagna_sign) if isinstance(_lagna_sign, str) else int(_lagna_sign)
-            _planets_for_jaimini = {}
-            for pname, pdata in chart_data.get("planets", {}).items():
-                if isinstance(pdata, dict):
-                    _planets_for_jaimini[pname] = pdata
-            _d9_data = chart_data.get("divisional_charts", {}).get("d9", {}).get("planets", {})
-            if not _d9_data:
-                _d9_data = chart_data.get("d9_planets", {})
-            build_and_store_jaimini(
-                chart_id=chart_id,
-                lagna_sign=_lagna_idx_j,
-                planets_dict=_planets_for_jaimini,
-                d9_planets_dict=_d9_data if _d9_data else _planets_for_jaimini,
-                birth_date_str=str(_jaimini_bd)[:10],
-                supabase_client=supabase,
-            )
-        except Exception as _je:
-            print(f"Jaimini v2 store failed (non-blocking): {_je}")
+        _jaimini_bd = str(request.birth_date)[:10] if request.birth_date else ""
+        if "_lagna_sign" not in dir():
+            _lagna_sign = chart_data.get("lagna", {}).get("sign", "Aries") if isinstance(chart_data.get("lagna"), dict) else "Aries"
+        if not _jaimini_bd:
+            print(f"[jaimini] Skipping v2 store — no birth_date for chart {chart_id}")
+        else:
+            try:
+                _lagna_idx_j = constants.SIGNS.index(_lagna_sign) if isinstance(_lagna_sign, str) else int(_lagna_sign)
+                _planets_for_jaimini = {}
+                for pname, pdata in chart_data.get("planets", {}).items():
+                    if isinstance(pdata, dict):
+                        _planets_for_jaimini[pname] = pdata
+                _d9_data = chart_data.get("divisional_charts", {}).get("d9", {}).get("planets", {})
+                if not _d9_data:
+                    _d9_data = chart_data.get("d9_planets", {})
+                build_and_store_jaimini(
+                    chart_id=chart_id,
+                    lagna_sign=_lagna_idx_j,
+                    planets_dict=_planets_for_jaimini,
+                    d9_planets_dict=_d9_data if _d9_data else _planets_for_jaimini,
+                    birth_date_str=_jaimini_bd,
+                    supabase_client=supabase,
+                )
+                print(f"[jaimini] v2 store OK for chart {chart_id}")
+            except Exception as _je:
+                print(f"[jaimini] v2 store failed (non-blocking): {_je}")
 
         # Backfill advanced LK data (sleeping planets + Rin)
         try:
