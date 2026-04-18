@@ -39,3 +39,11 @@ llm_comarison.py
 /tmp/llm_comparison_*
 main.py.bak_*
 antar_engine/chart_context_builder.py.bak_*
+*.bak
+*.bak_*
+main.py.bak
+patch_*.py
+b_*_v3.json
+billionaire_*.json
+extract.py
+billionaire.py
