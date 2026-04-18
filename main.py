@@ -5037,6 +5037,7 @@ State a specific year. Never predict past events as future windows.
                     _json_user_prompt,
                     history=request.conversation_history or [],
                     system_override=_json_system,
+                    max_tokens=4000,
                 )
 
                 # Parse structured response
@@ -5047,9 +5048,40 @@ State a specific year. Never predict past events as future windows.
                     _json_text = _json_text.rsplit("```", 1)[0]
                 try:
                     _parsed = _json_mod.loads(_json_text)
-                except Exception:
-                    # Fallback: return raw if parse fails
-                    _parsed = {"plain_summary": _json_raw, "verdict": "", "signal_line": ""}
+                except Exception as _parse_err:
+                    # Fallback: regex-extract known fields from truncated/malformed JSON
+                    # Preserves usable content even when response was cut off mid-output
+                    print(f"[json-v2] JSON parse failed ({_parse_err}) — attempting regex fallback")
+                    import re as _re_mod
+                    _parsed = {}
+                    # Fields likely to be present as string values in the response
+                    _str_fields = [
+                        "verdict", "plain_summary", "signal_line", "action_item",
+                        "timing_window", "why_this", "bridge_practice_note",
+                        "confidence"
+                    ]
+                    for _field in _str_fields:
+                        # Match "field": "value" — non-greedy, handles escaped quotes inside
+                        _pattern = r'"' + _field + r'"\s*:\s*"((?:[^"\\]|\\.)*)"'
+                        _m = _re_mod.search(_pattern, _json_text)
+                        if _m:
+                            # Unescape common JSON escapes
+                            _val = _m.group(1).replace('\\"', '"').replace("\\n", " ").replace("\\t", " ")
+                            _parsed[_field] = _val
+                    # Extract layers_used array if present
+                    _layers_match = _re_mod.search(r'"layers_used"\s*:\s*\[(.*?)\]', _json_text, _re_mod.DOTALL)
+                    if _layers_match:
+                        _layer_strs = _re_mod.findall(r'"((?:[^"\\]|\\.)*)"', _layers_match.group(1))
+                        _parsed["layers_used"] = _layer_strs
+                    else:
+                        _parsed["layers_used"] = []
+                    # Safety net: if we got NOTHING via regex, fall back to raw text
+                    if not any(_parsed.get(f) for f in ["plain_summary", "signal_line", "verdict"]):
+                        print(f"[json-v2] Regex fallback salvaged nothing — using raw text")
+                        _parsed = {"plain_summary": _json_raw[:2000], "verdict": "", "signal_line": ""}
+                    else:
+                        _salvaged = [f for f in _str_fields if _parsed.get(f)]
+                        print(f"[json-v2] Regex fallback salvaged: {_salvaged}")
 
                 print(f"[json-v2] response parsed — confidence={_parsed.get('confidence','?')}")
 
