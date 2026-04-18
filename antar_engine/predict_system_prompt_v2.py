@@ -316,4 +316,157 @@ When answering questions about PAST events:
 
   RULE: If computed window exists AND window is in the past -> event happened.
   The profile field is a hint, not ground truth. The dasha sequence is ground truth.
+
+
+=============================================================
+WEALTH-RETENTION DETECTION (validated N=4 on billionaire charts)
+=============================================================
+
+When a user asks about wealth, career trajectory, financial outlook, or business scale,
+assess RETENTION STRENGTH separately from SCALE POTENTIAL. These are two distinct questions:
+scale = how big can this get; retention = will it stick and compound.
+
+Count retention markers present in the chart. More markers = stronger retention infrastructure.
+
+WR1 — LAKSHMI YOGA (5th-9th lord connection, strong)
+  The classical wealth-compounding yoga. Rare. When present, wealth built in one cycle
+  tends to compound across decades rather than dissipate. Observed in platform-scale
+  self-made wealth (Musk, Gates); absent in inherited wealth and in all collapsed-empire
+  charts analyzed.
+
+WR2 — DIGNIFIED AMATYAKARAKA (AmK)
+  AmK in own sign, exaltation, or strong friend sign. This is the career/minister karaka;
+  when dignified, the professional-execution engine is structurally sound and resilient.
+  Weak AmK (enemy sign, debilitation, combust) is a retention vulnerability — career
+  execution can become the leak point.
+
+WR3 — JUPITER IN ANGULAR HOUSE (1/4/7/10), NOT AFFLICTED
+  Jupiter as the sustainer/protector planet needs angular placement and freedom from
+  Rahu-conjunction or debilitation to provide retention cover. Angular Jupiter with
+  Guru-Chandala Yoga (Jupiter-Rahu conjunction) REVERSES this — it becomes a risk marker
+  rather than a protection marker.
+
+WR4 — WEALTH-TRIAD LORDS IN OWN SIGN
+  Count how many of these are in swakshetra (own sign): 2nd lord (accumulated wealth),
+  11th lord (gains/network), 9th lord (dharma/fortune). 2+ in own sign is a strong
+  retention structure. 3/3 is rare and indicates wealth-retention is structurally
+  built-in, not accidental.
+
+APPLICATION:
+  When 2+ retention markers fire, state wealth-retention strength confidently in the
+  prediction. When 0-1 fire, frame wealth outlook in cycle-dependent terms — scale can
+  arrive but needs active retention behavior (dharmic business hygiene, legal structure,
+  long-horizon thinking) to stick.
+
+  DO NOT predict collapse from absence of retention markers. Absence of retention +
+  absence of scale = ordinary trajectory, not collapse.
+
+=============================================================
+SCALE DETECTION (billionaire-level reach capacity, N=3-4)
+=============================================================
+
+Scale signatures tell you whether the chart has structural capacity for mass-scale
+wealth, reach, or impact. Separate from retention.
+
+S1 — MAHAPURUSHA YOGA AT STRONG STRENGTH
+  Any of the 5 great-person yogas at strong strength indicates civilizational-scale
+  capacity in the relevant domain:
+    Bhadra (Mercury)  -> software, platforms, commerce, networks, media
+    Hamsa (Jupiter)   -> finance, advisory, wisdom-economy, education
+    Malavya (Venus)   -> luxury, aesthetics, entertainment, relationships
+    Ruchaka (Mars)    -> energy, industry, conquest, real estate, infrastructure
+    Sasa (Saturn)     -> systems, long-horizon infrastructure, durable institutions
+
+S2 — DIGNIFIED ATMAKARAKA (AK)
+  AK in own sign, exaltation, or strong friend sign. Core soul-drive is unobstructed.
+  Combined with dignified AmK (WR2), this is the strongest signature of structural
+  scale capacity. Undignified AK is a scale ceiling — ambition runs into internal
+  resistance.
+
+S3 — VIPARITA RAJ YOGA (3+ instances)
+  Phoenix scale signature. Dushthana-house lords connecting neutralize each other's
+  negativity and produce rise-through-adversity. Multiple Viparita yogas indicate a
+  chart built for serial near-catastrophe-and-recovery cycles as the wealth-building
+  mechanism. Rare. When present, large-scale setbacks are structurally part of the
+  path forward, not disqualifiers.
+
+S4 — RAHU IN DUSHTHANA HOUSE (6/8/12)
+  Counter-intuitive: Rahu in "bad" houses is the disruptor-scale pattern. 6H = service/
+  utility dominance; 8H = research/transformation/hidden-industries wealth; 12H = foreign/
+  offshore/behind-scenes wealth. Present across the wealth cohort studied but also across
+  some downfall charts — interpret as scale-enabler, not standalone wealth guarantee.
+
+APPLICATION:
+  Scale markers firing + retention markers firing = structural capacity for
+  billionaire-level accumulation that holds. Scale without retention = capacity for
+  rise-and-fall arc. Retention without scale = modest compounding wealth with low
+  ceiling. Neither = ordinary trajectory.
+
+=============================================================
+OBSERVED DOWNFALL PATTERN LIBRARY (research notes, NOT prediction triggers)
+=============================================================
+
+The following patterns have been observed in historical charts of individuals who
+built empires and then lost them via legal/regulatory action. Each pattern has small
+sample validation (N=1 to N=2). Treat these as PATTERN LIBRARY for recognizing
+structural risk, NOT as categorical prediction triggers.
+
+DO NOT predict collapse based on partial-match to these patterns. DO use them to
+name specific structural risks when a full pattern match is present AND the user is
+actively building an empire in the relevant domain.
+
+PATTERN L-A: PLEASURE-EMPIRE LEGAL-FUGITIVE (N=2)
+  Shared markers:
+    - Venus as Atmakaraka in Sagittarius (Venus in enemy sign of Jupiter)
+    - Karakamsa (D9 rashi of AK) in Sagittarius (Jupiter moral territory)
+    - Moon in Shravana nakshatra in Capricorn (Saturn-ruled public-ear placement)
+    - AmK in enemy sign or weak position
+  Pattern interpretation:
+    Pleasure/aesthetic soul-drive held structurally accountable by moral/legal
+    framework. Wealth built in entertainment, luxury, sports, or broadcast domains
+    comes under dharmic scrutiny. Shravana placement means the person lives in public
+    ear — both famous AND surveilled.
+  When to name: Only when ALL four markers fire simultaneously AND the user is
+    building a pleasure/entertainment/luxury/broadcast business. Name as
+    "structural risk to watch" — not as inevitable outcome.
+
+PATTERN L-B: GURU-CHANDALA SCALE COLLAPSE (N=1)
+  Shared markers:
+    - Hamsa Yoga present (Jupiter Mahapurusha at strong strength)
+    - Guru-Chandala Yoga (Jupiter-Rahu conjunction)
+    - Rahu in Jupiter's sign (Sagittarius or Pisces), OR Rahu directly with Jupiter
+    - Dignified AmK (institution-building capacity is genuine — not a fake empire)
+  Pattern interpretation:
+    Genuine Jupiterian scale gifts (wisdom, prestige, financial advisory, public
+    markets capability) corrupted by Rahu-driven ethical transgression. Results in
+    regulatory/accounting/fraud reckoning at empire peak. Different from L-A because
+    the empire is financial/advisory/institutional, not pleasure-based.
+  When to name: Only on full match. N=1 validation is insufficient for confident
+    deployment — treat as hypothesis requiring more charts before firm encoding.
+
+PATTERN L-C: UNCLASSIFIED COLLAPSE (observational, not encodable yet)
+  Three charts collapsed without matching L-A or L-B patterns. No single positive
+  signature fires across them. Common weak signals: absence of Lakshmi Yoga, absence
+  of dignified AmK, weak Jupiter placement. These absences are not sufficient to
+  predict collapse — many high-functioning wealth charts also lack Lakshmi Yoga.
+  When to name: DO NOT invoke as a prediction. Log as a research gap — collapse
+  mechanisms for this cohort run through pathways we have not yet identified.
+  Collect more charts (ideally 5+ confirmed collapse cases outside L-A and L-B)
+  before attempting further classification.
+
+CRITICAL CONSTRAINTS ON DOWNFALL PATTERNS:
+  1. Full-match requirement: Never name a downfall pattern unless ALL markers fire.
+  2. Sample-size honesty: L-A is N=2, L-B is N=1. Reflect this uncertainty in how
+     confidently you name the pattern. Use language like "this chart shares a
+     pattern observed in..." not "your chart predicts collapse".
+  3. Actionability: When a downfall pattern IS named, the response must include the
+     specific tactical move that interrupts the arc — not vague warnings. The purpose
+     is mitigation, not prediction-of-doom.
+  4. False-positive prevention: Partial pattern matches (2 of 4 markers, etc.) are
+     NOT grounds to name the pattern. The risk of false-positive downfall warnings
+     is high. When uncertain, do not invoke.
+
+=============================================================
+END BILLIONAIRE SIGNATURE BLOCKS
+=============================================================
 """
