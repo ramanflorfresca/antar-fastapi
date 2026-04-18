@@ -672,6 +672,63 @@ ARCHETYPE_LIBRARY = {
         "blind_spot": "Can live too much in brokering, too little in making. Build something that's only yours.",
         "frequency": "3% of charts",
     },
+    # --- v3: fresh names for keys blocked by name collisions ---
+    ("SIGNAL", "CONNECT"): {
+        "name": "THE BROADCASTER",
+        "tagline": "Turns quiet truth into public signal.",
+        "description": "You pick up what exists and transmit it until it reshapes the conversation. Your network becomes your megaphone. Not a pure creator — a signal amplifier whose timing makes ideas land.",
+        "strength": "Distribution reach. What you notice, the world notices.",
+        "blind_spot": "Can amplify faster than you verify. Not every signal deserves your platform.",
+        "frequency": "3% of charts",
+    },
+    ("EXECUTION", "STRUCTURE"): {
+        "name": "THE SYSTEMS-BUILDER",
+        "tagline": "Turns vision into operating infrastructure.",
+        "description": "You take someone's vision and construct the ops layer that makes it survive contact with reality. Process, throughput, hiring, scale. The vision has a name; your work makes it function.",
+        "strength": "Execution at scale. You ship what others design.",
+        "blind_spot": "Can optimize the current system past the point it should be replaced.",
+        "frequency": "4% of charts",
+    },
+    ("EXECUTION", "DRIVE"): {
+        "name": "THE FINISHER",
+        "tagline": "Crosses the line others stop at.",
+        "description": "Where most drop off at 80%, you push through to done. Deals, deliverables, negotiations — your gift is the last mile. The person brought in when something must actually land.",
+        "strength": "Finishing power. You don't stop until it's real.",
+        "blind_spot": "Can push through deals that should have died. Not every fight is worth winning.",
+        "frequency": "3% of charts",
+    },
+    ("PROTECT", "STRUCTURE"): {
+        "name": "THE SHIELD",
+        "tagline": "Keeps what matters safe from what would break it.",
+        "description": "You construct protective layers — legal, financial, operational, relational — around what's valuable. Succession plans, legal entities, risk management. The role most visible only when absent.",
+        "strength": "Institutional protection. What you defend endures.",
+        "blind_spot": "Protection can become paralysis. Some changes must be allowed through the walls.",
+        "frequency": "3% of charts",
+    },
+    ("RECOVERY", "BALANCE"): {
+        "name": "THE RESTORER",
+        "tagline": "Rebuilds through patience, not force.",
+        "description": "You repair through presence rather than intervention. Relationships, teams, organizations — they find equilibrium around you. The opposite of the operator: you work on the emotional and relational layer.",
+        "strength": "Quiet restoration. You mend what others rupture.",
+        "blind_spot": "Absorbs others' disorder. Protect your own equilibrium first.",
+        "frequency": "5% of charts",
+    },
+    ("MOMENTUM", "DRIVE"): {
+        "name": "THE VELOCITY",
+        "tagline": "Accelerates through friction like it isn't there.",
+        "description": "Once you start, stopping is the problem. You accumulate speed across decades — career, network, wealth, reputation — and compounding is the story. Your late work is your best work.",
+        "strength": "Sustained acceleration. Compounding is your superpower.",
+        "blind_spot": "Hard to pivot at full speed. Plan turns well in advance.",
+        "frequency": "4% of charts",
+    },
+    ("DISCOVERY", "PENETRATE"): {
+        "name": "THE DIGGER",
+        "tagline": "Finds what was hidden by going all the way in.",
+        "description": "You don't just learn — you penetrate until the thing reveals itself. Investigation, research, due diligence, forensic work: variants of the same drive. Depth-first learning with weaponized curiosity.",
+        "strength": "Investigative depth. Nothing stays hidden from sustained inquiry.",
+        "blind_spot": "Can investigate past the point of action. Knowledge without use is inert.",
+        "frequency": "3% of charts",
+    },
 }
 
 # Default archetype for unmapped combinations

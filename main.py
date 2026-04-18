@@ -5037,7 +5037,6 @@ State a specific year. Never predict past events as future windows.
                     _json_user_prompt,
                     history=request.conversation_history or [],
                     system_override=_json_system,
-                    max_tokens=4000,
                 )
 
                 # Parse structured response
