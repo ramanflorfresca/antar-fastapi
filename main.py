@@ -4390,6 +4390,74 @@ Do not use any planet names or astrological jargon — translate everything into
             lk_raw_data=_dbg_safe(chart_record.get("lal_kitab_data")) or _lk_data,
         )
 
+
+        # ── Phase 2: Business-Fit & Career-Fit Signature ──
+        _phase2_context = ""
+        try:
+            from antar_engine.life_arc.signatures.business_fit import analyze_business_fit
+            from antar_engine.life_arc.actionability import (
+                enrich_signature_with_actionability, actionability_summary,
+            )
+            from antar_engine.life_arc.voice.forbidden_terms import FORBIDDEN_TERMS
+
+            _bf_result = analyze_business_fit(_cd)
+            _ab_blocks = enrich_signature_with_actionability(_bf_result, _cd)
+            _ab_summary = actionability_summary(_ab_blocks)
+
+            # Build archetype context
+            _arch = _bf_result.get("wealth_archetype", {})
+            _arch_name = _arch.get("name", "") if isinstance(_arch, dict) else ""
+            _arch_honest = _bf_result.get("honest_scale_read", "")
+
+            # Build top-3 favored categories
+            _favored = _bf_result.get("favored_categories", [])[:3]
+            _fav_lines = []
+            for _fc in _favored:
+                _fav_lines.append(f"- {_fc.get('category','')}: score {_fc.get('score',0):.1f}")
+
+            # Build actionability context
+            _act_lines = []
+            for _blk in _ab_blocks[:5]:  # top 5 findings
+                _d = _blk.to_dict() if hasattr(_blk, 'to_dict') else _blk
+                _act_lines.append(
+                    f"- [{_d.get('finding_category','?')}] {_d.get('finding_id','')}: "
+                    f"{_d.get('why_plain_language','')}"
+                )
+                if _d.get('what_to_do_now'):
+                    _act_lines.append(f"  DO: {_d['what_to_do_now']}")
+                if _d.get('what_not_to_do'):
+                    _act_lines.append(f"  DON'T: {_d['what_not_to_do']}")
+                _lk = _d.get('lal_kitab_activation') or {}
+                if _lk.get('action'):
+                    _act_lines.append(f"  PRACTICE: {_lk['action']}")
+                    if _lk.get('expected_observation'):
+                        _act_lines.append(f"  OBSERVE: {_lk['expected_observation']}")
+
+            # Build critical warnings context
+            _cw = _bf_result.get("critical_warnings", [])
+            _cw_lines = [f"- {w}" for w in _cw] if _cw else []
+
+            # Assemble Phase 2 context block
+            _p2_parts = ["\n## BUSINESS-FIT SIGNATURE (Phase 2)"]
+            if _arch_name:
+                _p2_parts.append(f"Wealth Archetype: {_arch_name}")
+            if _arch_honest:
+                _p2_parts.append(f"Honest Read: {_arch_honest}")
+            if _fav_lines:
+                _p2_parts.append("Top Business Fits:\n" + "\n".join(_fav_lines))
+            if _act_lines:
+                _p2_parts.append("Actionable Findings:\n" + "\n".join(_act_lines))
+            if _cw_lines:
+                _p2_parts.append("Critical Warnings:\n" + "\n".join(_cw_lines))
+
+            _phase2_context = "\n".join(_p2_parts)
+            _full_context = _full_context + "\n" + _phase2_context
+            print(f"[predict] Phase 2: archetype={_arch_name}, "
+                  f"findings={_ab_summary.get('total_findings',0)}, "
+                  f"remedies={_ab_summary.get('remedies_available',0)}")
+        except Exception as _p2_err:
+            print(f"[predict] Phase 2 skipped (non-fatal): {_p2_err}")
+
         # ── Permanent completeness log ──
         print(f"[predict] chart={request.chart_id[:8]} "
               f"jaimini={bool(_dbg_safe(chart_record.get('jaimini_data')))} "
@@ -4859,15 +4927,39 @@ VOCABULARY RULES:
         except Exception:
             _domain_system = ""
 
+        # v5.1 voice-enriched format rules
+        _voice_rules = (
+            "VOICE RULES (mandatory — applies to every response):\n"
+            "- Use energy-systems language, NOT planet-deity language.\n"
+            "- NEVER say 'Your Jupiter', 'Your Saturn' etc. — use energy names "
+            "(e.g. 'your expansion energy', 'your structure energy').\n"
+            "- NEVER use: Lal Kitab, dushthana, kendra, yogakaraka, Mahapurusha, "
+            "Viparita, navamsha, Mahadasha, lagna, nakshatra, dosha, graha, H1-H12.\n"
+            "- NEVER say 'You must', 'You should', 'guaranteed', 'cursed', 'evil'.\n"
+            "- Use: 'You may have noticed...', 'running dim/strong', "
+            "'One thing to pause...', 'Over a few weeks, notice...'.\n"
+            "- Tone: thoughtful friend with deep wisdom, not astrologer/guru/therapist.\n"
+            "- If the chart has a wealth archetype, name it naturally in the response.\n"
+        )
         _format_rules = (
             "RESPONSE FORMAT (always follow):\n"
             "Line 1: ✦ VERDICT: [ACTION VERB]. [Direct call in 8 words or less]\n"
-            "Lines 2-3: 2-3 sentences WHY in business language (no astrology jargon).\n"
+            "Lines 2-3: 2-3 sentences WHY in energy-systems language (no astrology jargon).\n"
             "Lines 4-6: YOUR MOVE — three numbered actions (this week / next 2 weeks / next 30 days).\n"
             "Line 7: TIMING: [exact window].\n"
-            "TOTAL: under 150 words. No markdown headers. No poetic language.\n"
+        )
+        # Append WHAT NOT TO DO + ACTIVATE sections if Phase 2 produced findings
+        if _phase2_context:
+            _format_rules += (
+                "Line 8: ⚡ ACTIVATE: [one practice from the chart's remedy data — "
+                "describe in plain action terms, no tradition-naming].\n"
+                "Line 9: 🛑 PAUSE THIS: [one thing to stop doing, from the actionability data].\n"
+            )
+        _format_rules += (
+            "TOTAL: under 180 words. No markdown headers. No poetic language.\n"
             "If user asks will/chances/probability: lead with PROBABILITY: XX%.\n"
         )
+        _format_rules = _voice_rules + "\n" + _format_rules
         _master_system = (_domain_system if _domain_system else (
             "You are Antar — a precise Vedic astrology AI. "
             "Answer directly using the data provided. "
