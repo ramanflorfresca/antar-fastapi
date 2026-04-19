@@ -629,32 +629,47 @@ async def build_daily_context(chart_id: str, supabase_client) -> dict:
         if isinstance(archetype, str):
             archetype = _safe_json(archetype)
 
-        # Get dashas
+        # Get dashas — LIVE computation via phase_analyzer (includes PD + SD)
+        # (dasha_periods table does not store PD/SD, so we compute live.)
+        current_dashas = {"md": "unknown", "ad": "unknown", "pd": "unknown", "sd": "unknown",
+                          "md_end_date": None, "pd_end_date": None, "sd_end_date": None}
+        try:
+            from antar_engine.life_arc.phase_analyzer import get_current_vimsottari
+            birth_jd = chart_data.get("birth_jd")
+            if birth_jd is not None:
+                vim = get_current_vimsottari(chart_data, birth_jd)
+                if not vim.get("error"):
+                    current_dashas["md"] = vim.get("md") or "unknown"
+                    current_dashas["ad"] = vim.get("ad") or "unknown"
+                    current_dashas["pd"] = vim.get("pd") or "unknown"
+                    current_dashas["sd"] = vim.get("sd") or "unknown"
+                    current_dashas["md_end_date"] = vim.get("md_end_date")
+                    current_dashas["pd_end_date"] = vim.get("pd_end_date")
+                    current_dashas["sd_end_date"] = vim.get("sd_end_date")
+            else:
+                logger.warning("[daily-context] chart_data has no birth_jd; cannot compute live vimsottari")
+        except Exception as de:
+            logger.warning(f"[daily-context] live dasha computation failed: {de}")
+
+        # Jaimini Chara — still reads from dasha_periods table
         dashas_dict = {}
         try:
             dasha_res = supabase_client.table("dasha_periods").select("*").eq(
                 "chart_id", chart_id
             ).order("sequence").limit(500).execute()
-
             for d_row in (dasha_res.data or []):
                 system = d_row.get("system", "vimsottari")
                 if system not in dashas_dict:
                     dashas_dict[system] = []
-                parent_lord = ""
-                if isinstance(d_row.get("metadata"), dict):
-                    parent_lord = d_row["metadata"].get("parent_lord", "")
                 dashas_dict[system].append({
                     "planet_or_sign": d_row.get("planet_or_sign", ""),
                     "start_date": d_row.get("start_date", ""),
                     "end_date": d_row.get("end_date", ""),
                     "level": d_row.get("type") or d_row.get("level", "mahadasha"),
-                    "parent_lord": parent_lord,
                 })
         except Exception as de:
-            logger.warning(f"[daily-context] dasha fetch failed: {de}")
+            logger.warning(f"[daily-context] chara dasha fetch failed: {de}")
 
-        # Extract all pieces
-        current_dashas = _extract_current_dashas(dashas_dict)
         chara_md = _extract_chara_dasha(dashas_dict)
         natal_moon = _extract_natal_moon_info(chart_data)
         lagna_sign = _extract_lagna(chart_data)
@@ -685,6 +700,10 @@ async def build_daily_context(chart_id: str, supabase_client) -> dict:
             "md": current_dashas["md"],
             "ad": current_dashas["ad"],
             "pd": current_dashas["pd"],
+            "sd": current_dashas.get("sd", "unknown"),
+            "md_end_date": current_dashas.get("md_end_date"),
+            "pd_end_date": current_dashas.get("pd_end_date"),
+            "sd_end_date": current_dashas.get("sd_end_date"),
             "chara_md": chara_md,
             "natal_moon_sign": natal_moon["sign"],
             "moon_nakshatra": natal_moon["nakshatra"],

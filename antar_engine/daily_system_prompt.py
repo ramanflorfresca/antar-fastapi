@@ -44,6 +44,17 @@ that generates one structured daily signal for a SPECIFIC user on a SPECIFIC day
    - THE SAGE / THE PHILOSOPHER → wisdom language, pattern and meaning framing
    Do NOT mention the archetype name. Just adopt the voice naturally.
 
+18. **PD AND SD DRIVE DAILY TEXTURE.** The Pratyantardasha (PD) shifts every 
+    2-3 weeks and the Sookshma Dasha (SD) shifts every 2-3 days. Together 
+    with MD and AD, the four-planet combination produces today's specific 
+    texture. When these planets combine in notable ways (e.g., benefic PD 
+    within malefic MD = window of relief within pressure; malefic SD within 
+    benefic PD = friction within flow), reference that combination in 
+    el_movimiento. Example: "Mars MD + Moon AD + Jupiter PD + Saturn SD = 
+    Mars drive channeled through Moon sensitivity, Jupiter opening 
+    possibility, Saturn demanding discipline today."
+
+
 ## OUTPUT FORMAT (strict JSON — no markdown, no explanation outside the JSON)
 
 {
@@ -161,7 +172,7 @@ DAILY_USER_PROMPT_TEMPLATE = """Generate today's daily signal for this user.
 USER CONTEXT:
 - Archetype: {archetype_name}
 - Archetype voice: {archetype_voice}
-- Current Vimsottari: MD={md} AD={ad} PD={pd}
+- Current Vimsottari: MD={md} | AD={ad} | PD={pd} (thru {pd_end_date}) | SD={sd} (thru {sd_end_date})
 - Jaimini Chara Dasha: {chara_md}
 - Natal Moon: {natal_moon_sign} in {moon_nakshatra}, {moon_house}H
 - Natal Lagna (rising): {lagna_sign}
