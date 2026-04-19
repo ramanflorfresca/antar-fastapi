@@ -923,7 +923,7 @@ async def generate_weekly_signals(
                     "is_friction": is_friction,
                 }
 
-                # ── Phase 1: Slow-planet transit analysis ──
+                # ── Phase 1+2: Full transit analysis (slow + fast + ashtakavarga + tara + aspects) ──
                 try:
                     from antar_engine.daily_transit_analyzer import analyze_day_transits
                     chart_data_raw = daily_context.get("chart_data", {})
@@ -933,14 +933,24 @@ async def generate_weekly_signals(
                         target_date=target_date,
                         current_md_lord=md_lord,
                     )
+                    # Phase 1 blocks (kept)
                     day_prompt_data["transit_analysis_block"] = transit_result["transit_analysis_block"]
                     day_prompt_data["dasha_spotlight_block"] = transit_result["dasha_spotlight_block"]
                     day_prompt_data["synthesis_hints_block"] = transit_result["synthesis_hints_block"]
+                    # Phase 2 blocks (new)
+                    day_prompt_data["ashtakavarga_block"] = transit_result.get("ashtakavarga_block", "")
+                    day_prompt_data["tara_bala_block"] = transit_result.get("tara_bala_block", "")
+                    day_prompt_data["aspects_block"] = transit_result.get("aspects_block", "")
+                    day_prompt_data["enhanced_synthesis_block"] = transit_result.get("enhanced_synthesis_block", "")
                 except Exception as ta_err:
                     logger.warning(f"[daily-week] Transit analysis failed for {date_str}: {ta_err}")
                     day_prompt_data["transit_analysis_block"] = "Transit data unavailable."
                     day_prompt_data["dasha_spotlight_block"] = "No dasha spotlight available."
                     day_prompt_data["synthesis_hints_block"] = "No synthesis hints available."
+                    day_prompt_data["ashtakavarga_block"] = ""
+                    day_prompt_data["tara_bala_block"] = ""
+                    day_prompt_data["aspects_block"] = ""
+                    day_prompt_data["enhanced_synthesis_block"] = ""
 
                 llm_signal = await _call_claude_daily_signal(
                     context=daily_context,

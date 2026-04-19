@@ -15,6 +15,9 @@ from typing import Dict, List, Optional, Tuple
 import swisseph as swe
 
 from antar_engine.classical_transit_library import lookup_classical_transit
+from antar_engine.tara_bala import compute_tara_bala, find_next_favorable_tara
+from antar_engine.aspects_engine import compute_aspects_to_natal, get_significant_aspects
+from antar_engine.ashtakavarga import get_day_ashtakavarga_analysis
 
 logger = logging.getLogger("antar_engine.daily_transit_analyzer")
 
@@ -36,6 +39,25 @@ SLOW_PLANETS = {
     "Saturn": swe.SATURN,
     "Jupiter": swe.JUPITER,
     "Rahu": swe.MEAN_NODE,  # Ketu derived from Rahu
+}
+
+# Fast planets added in Phase 2
+FAST_PLANETS = {
+    "Sun": swe.SUN,
+    "Mars": swe.MARS,
+    "Mercury": swe.MERCURY,
+    "Venus": swe.VENUS,
+}
+
+# All planets for ashtakavarga aggregate (7 classical)
+ALL_SEVEN_PLANETS = {
+    "Sun": swe.SUN,
+    "Moon": swe.MOON,
+    "Mars": swe.MARS,
+    "Mercury": swe.MERCURY,
+    "Jupiter": swe.JUPITER,
+    "Venus": swe.VENUS,
+    "Saturn": swe.SATURN,
 }
 
 SWE_FLAGS = swe.FLG_SWIEPH | swe.FLG_SIDEREAL | swe.FLG_SPEED
@@ -204,6 +226,86 @@ def _compute_slow_transits(target_date, natal_moon_idx: int, natal_lagna_idx: in
     return transits
 
 
+def _compute_fast_transits(target_date, natal_moon_idx: int, natal_lagna_idx: int) -> list:
+    """
+    Compute positions and house placements for Sun, Mars, Mercury, Venus.
+    Returns list of transit dicts (same shape as slow_transits).
+    """
+    transits = []
+
+    for planet_name, planet_id in FAST_PLANETS.items():
+        pos = get_planet_full_position(target_date, planet_id)
+
+        house_from_moon = house_from_reference(pos["sign_index"], natal_moon_idx) if natal_moon_idx >= 0 else None
+        house_from_lagna = house_from_reference(pos["sign_index"], natal_lagna_idx) if natal_lagna_idx >= 0 else None
+
+        # Classical interpretation (from Moon)
+        classical = lookup_classical_transit(planet_name, house_from_moon) if house_from_moon else None
+
+        transit = {
+            "planet": planet_name,
+            "sign": pos["sign"],
+            "sign_index": pos["sign_index"],
+            "degree": pos["degree_in_sign"],
+            "retrograde": pos["retrograde"],
+            "house_from_moon": house_from_moon,
+            "house_from_lagna": house_from_lagna,
+            "classical": classical,
+        }
+        transits.append(transit)
+
+    return transits
+
+
+def _compute_all_transit_sign_indices(target_date) -> dict:
+    """
+    Compute current sign index for all 7 classical planets.
+    Used for ashtakavarga day aggregate.
+    Returns: {planet_name: sign_index}
+    """
+    positions = {}
+    for planet_name, planet_id in ALL_SEVEN_PLANETS.items():
+        pos = get_planet_full_position(target_date, planet_id)
+        positions[planet_name] = pos["sign_index"]
+    return positions
+
+
+def _get_natal_moon_nakshatra(chart_data: dict) -> str:
+    """Extract natal Moon nakshatra from chart_data."""
+    planets = chart_data.get("planets") or chart_data.get("planet_positions", [])
+
+    if isinstance(planets, list):
+        for p in planets:
+            if isinstance(p, dict):
+                name = (p.get("name") or p.get("planet") or "").strip()
+                if name.lower() == "moon":
+                    return p.get("nakshatra") or ""
+    elif isinstance(planets, dict):
+        moon = planets.get("Moon") or planets.get("moon", {})
+        if isinstance(moon, dict):
+            return moon.get("nakshatra") or ""
+
+    return ""
+
+
+def _get_today_moon_nakshatra(target_date) -> str:
+    """Compute today's Moon nakshatra from Swiss Ephemeris."""
+    NAKSHATRAS = [
+        "Ashwini", "Bharani", "Krittika", "Rohini", "Mrigashira", "Ardra",
+        "Punarvasu", "Pushya", "Ashlesha", "Magha", "Purva Phalguni",
+        "Uttara Phalguni", "Hasta", "Chitra", "Swati", "Vishakha", "Anuradha",
+        "Jyeshtha", "Mula", "Purva Ashadha", "Uttara Ashadha", "Shravana",
+        "Dhanishta", "Shatabhisha", "Purva Bhadrapada", "Uttara Bhadrapada",
+        "Revati",
+    ]
+    try:
+        moon_pos = get_planet_full_position(target_date, swe.MOON)
+        nak_idx = int(moon_pos["longitude"] / (360 / 27))
+        return NAKSHATRAS[nak_idx % 27]
+    except Exception:
+        return ""
+
+
 def _build_dasha_spotlight(slow_transits: list, current_md_lord: str) -> Optional[dict]:
     """
     If the MD lord is one of the slow planets being tracked,
@@ -323,35 +425,104 @@ async def analyze_day_transits(
         if natal_moon_idx < 0:
             logger.warning("[transit-analyzer] Could not find natal Moon sign in chart_data")
 
-        # Compute slow planet positions + house placements
+        # ── Phase 1: Slow planet positions + house placements ──
         slow_transits = _compute_slow_transits(target_date, natal_moon_idx, natal_lagna_idx)
 
-        # Build dasha spotlight
-        dasha_spotlight = _build_dasha_spotlight(slow_transits, current_md_lord)
+        # ── Phase 2: Fast planet positions + house placements ──
+        fast_transits = _compute_fast_transits(target_date, natal_moon_idx, natal_lagna_idx)
 
-        # Compute synthesis hints
+        # Combined for synthesis
+        all_transits = slow_transits + fast_transits
+
+        # Build dasha spotlight (checks all transits now)
+        dasha_spotlight = _build_dasha_spotlight(all_transits, current_md_lord)
+
+        # Compute synthesis hints (uses all transits)
         natal_moon_sign = SIGNS[natal_moon_idx] if natal_moon_idx >= 0 else "unknown"
-        synthesis_hints = compute_synthesis_hints(slow_transits, dasha_spotlight, natal_moon_sign)
+        synthesis_hints = compute_synthesis_hints(all_transits, dasha_spotlight, natal_moon_sign)
+
+        # ── Phase 2: Ashtakavarga day aggregate ──
+        ashtakavarga_data = None
+        try:
+            all_sign_indices = _compute_all_transit_sign_indices(target_date)
+            ashtakavarga_data = get_day_ashtakavarga_analysis(chart_data, all_sign_indices)
+        except Exception as av_err:
+            logger.warning(f"[transit-analyzer] Ashtakavarga failed (non-fatal): {av_err}")
+
+        # ── Phase 2: Tara Bala ──
+        tara_bala_data = None
+        next_favorable = None
+        try:
+            natal_moon_nak = _get_natal_moon_nakshatra(chart_data)
+            today_moon_nak = _get_today_moon_nakshatra(target_date)
+            if natal_moon_nak and today_moon_nak:
+                tara_bala_data = compute_tara_bala(natal_moon_nak, today_moon_nak)
+                # If unfavorable, find next favorable tara
+                if tara_bala_data and tara_bala_data["quality"] in ("unfavorable", "caution", "cautious"):
+                    next_favorable = find_next_favorable_tara(natal_moon_nak, today_moon_nak)
+        except Exception as tb_err:
+            logger.warning(f"[transit-analyzer] Tara Bala failed (non-fatal): {tb_err}")
+
+        # ── Phase 2: Aspects to natal ──
+        aspects_to_natal = []
+        try:
+            transit_positions = {}
+            for t in all_transits:
+                transit_positions[t["planet"]] = t["sign_index"]
+            raw_aspects = compute_aspects_to_natal(transit_positions, chart_data)
+            aspects_to_natal = get_significant_aspects(raw_aspects, max_count=6)
+        except Exception as asp_err:
+            logger.warning(f"[transit-analyzer] Aspects failed (non-fatal): {asp_err}")
+
+        # ── Build enhanced synthesis hints ──
+        enhanced_synthesis = _build_enhanced_synthesis(
+            synthesis_hints, ashtakavarga_data, tara_bala_data,
+            next_favorable, aspects_to_natal
+        )
 
         return {
+            # Phase 1 (kept)
             "slow_transits": slow_transits,
             "dasha_spotlight": dasha_spotlight,
             "synthesis_hints": synthesis_hints,
+            # Phase 2 additions
+            "fast_transits": fast_transits,
+            "all_planet_transits": all_transits,
+            "ashtakavarga": ashtakavarga_data,
+            "tara_bala": tara_bala_data,
+            "next_favorable_tara": next_favorable,
+            "aspects_to_natal": aspects_to_natal,
+            "enhanced_synthesis": enhanced_synthesis,
             # Pre-formatted prompt blocks
-            "transit_analysis_block": format_for_prompt(slow_transits),
+            "transit_analysis_block": format_all_transits_for_prompt(all_transits),
             "dasha_spotlight_block": format_dasha_spotlight(dasha_spotlight),
             "synthesis_hints_block": format_synthesis_hints(synthesis_hints),
+            "ashtakavarga_block": format_ashtakavarga(ashtakavarga_data),
+            "tara_bala_block": format_tara_bala(tara_bala_data, next_favorable),
+            "aspects_block": format_aspects(aspects_to_natal),
+            "enhanced_synthesis_block": format_enhanced_synthesis(enhanced_synthesis),
         }
 
     except Exception as e:
         logger.error(f"[transit-analyzer] analyze_day_transits failed: {e}")
         return {
             "slow_transits": [],
+            "fast_transits": [],
+            "all_planet_transits": [],
             "dasha_spotlight": None,
             "synthesis_hints": [],
+            "ashtakavarga": None,
+            "tara_bala": None,
+            "next_favorable_tara": None,
+            "aspects_to_natal": [],
+            "enhanced_synthesis": None,
             "transit_analysis_block": "Transit data unavailable.",
             "dasha_spotlight_block": "No dasha spotlight available.",
             "synthesis_hints_block": "No synthesis hints available.",
+            "ashtakavarga_block": "",
+            "tara_bala_block": "",
+            "aspects_block": "",
+            "enhanced_synthesis_block": "",
         }
 
 
@@ -422,3 +593,200 @@ def format_synthesis_hints(synthesis_hints: list) -> str:
         lines.append(f"  • {hint}")
 
     return "\n".join(lines)
+
+
+# ─────────────────────────────────────────────────────────────────
+# PHASE 2 PROMPT FORMATTERS
+# ─────────────────────────────────────────────────────────────────
+
+def format_all_transits_for_prompt(all_transits: list) -> str:
+    """
+    Format ALL planet transit data (slow + fast) into a text block for LLM prompt.
+    """
+    if not all_transits:
+        return "Transit data unavailable."
+
+    # Separate slow and fast for clarity
+    slow = [t for t in all_transits if t["planet"] in ("Saturn", "Jupiter", "Rahu", "Ketu")]
+    fast = [t for t in all_transits if t["planet"] not in ("Saturn", "Jupiter", "Rahu", "Ketu")]
+
+    lines = ["ALL PLANET TRANSITS (today):"]
+    lines.append("")
+    lines.append("  SLOW PLANETS (long-term backdrop):")
+    for t in slow:
+        retro_tag = " [R]" if t["retrograde"] else ""
+        house_moon = f"H{t['house_from_moon']} from Moon" if t["house_from_moon"] else "house unknown"
+        house_lagna = f"H{t['house_from_lagna']} from Lagna" if t["house_from_lagna"] else ""
+        placement = house_moon + (f", {house_lagna}" if house_lagna else "")
+        lines.append(f"    {t['planet']} in {t['sign']} {t['degree']:.1f}°{retro_tag} → {placement}")
+        classical = t.get("classical")
+        if classical:
+            lines.append(f"      Classical: {classical['essence']}")
+            lines.append(f"      Advice: {classical['advice']}")
+
+    lines.append("")
+    lines.append("  FAST PLANETS (today's flavor):")
+    for t in fast:
+        retro_tag = " [R]" if t["retrograde"] else ""
+        house_moon = f"H{t['house_from_moon']} from Moon" if t["house_from_moon"] else "house unknown"
+        house_lagna = f"H{t['house_from_lagna']} from Lagna" if t["house_from_lagna"] else ""
+        placement = house_moon + (f", {house_lagna}" if house_lagna else "")
+        lines.append(f"    {t['planet']} in {t['sign']} {t['degree']:.1f}°{retro_tag} → {placement}")
+        classical = t.get("classical")
+        if classical:
+            lines.append(f"      Classical: {classical['essence']}")
+            lines.append(f"      Advice: {classical['advice']}")
+
+    return "\n".join(lines)
+
+
+def format_ashtakavarga(av_data: Optional[dict]) -> str:
+    """Format ashtakavarga day analysis for prompt injection."""
+    if not av_data:
+        return ""
+
+    aggregate = av_data["aggregate_today"]
+    classification = av_data["classification"]
+
+    lines = [f"ASHTAKAVARGA QUANTIFICATION:"]
+    lines.append(f"  Today's aggregate: {aggregate}/56 ({classification})")
+
+    for planet, scores in av_data.get("planet_scores", {}).items():
+        lines.append(f"    {planet} in {scores['sign']}: {scores['bindu']}/8 bindus ({scores['interpretation']})")
+
+    return "\n".join(lines)
+
+
+def format_tara_bala(tara_data: Optional[dict], next_favorable: Optional[dict] = None) -> str:
+    """Format tara bala for prompt injection."""
+    if not tara_data:
+        return ""
+
+    lines = ["TARA BALA (nakshatra day timing):"]
+    lines.append(f"  Today's tara: {tara_data['tara_name']} ({tara_data['quality']})")
+    lines.append(f"  Classical advice: {tara_data['advice']}")
+    lines.append(f"  Nakshatra count from natal Moon: {tara_data['count']}")
+
+    if next_favorable:
+        lines.append(f"  Next favorable tara: {next_favorable['tara_name']} in ~{next_favorable.get('approx_days', '?')} days ({next_favorable.get('nakshatra', '')})")
+
+    return "\n".join(lines)
+
+
+def format_aspects(aspects: list) -> str:
+    """Format significant transit aspects to natal planets for prompt injection."""
+    if not aspects:
+        return ""
+
+    lines = ["TRANSIT ASPECTS TO NATAL PLANETS:"]
+    for a in aspects:
+        malefic_tag = "[MALEFIC]" if a["is_malefic"] else "[BENEFIC]"
+        lines.append(f"  {a['transit_planet']} ({a['transit_sign']}) → {a['aspect_type']} aspect → natal {a['aspects_natal']} ({a['natal_sign']}) {malefic_tag}")
+        lines.append(f"    {a['note']}")
+
+    return "\n".join(lines)
+
+
+def format_enhanced_synthesis(synthesis: Optional[dict]) -> str:
+    """Format enhanced synthesis for prompt injection."""
+    if not synthesis:
+        return ""
+
+    lines = ["ENHANCED DAY SYNTHESIS:"]
+
+    if synthesis.get("overall_score") is not None:
+        lines.append(f"  Ashtakavarga day score: {synthesis['overall_score']}/56 ({synthesis.get('quality_label', '')})")
+
+    if synthesis.get("tara_quality"):
+        lines.append(f"  Tara bala: {synthesis['tara_name']} ({synthesis['tara_quality']})")
+
+    if synthesis.get("dominant_theme"):
+        lines.append(f"  Dominant theme: {synthesis['dominant_theme']}")
+
+    if synthesis.get("why_stuck"):
+        lines.append(f"  Why dynamics feel the way they do: {synthesis['why_stuck']}")
+
+    if synthesis.get("action_timing"):
+        lines.append(f"  Action timing: {synthesis['action_timing']}")
+
+    return "\n".join(lines)
+
+
+def _build_enhanced_synthesis(
+    base_hints: list,
+    av_data: Optional[dict],
+    tara_data: Optional[dict],
+    next_favorable: Optional[dict],
+    aspects: list,
+) -> dict:
+    """
+    Build enhanced synthesis combining all Phase 2 signals.
+    This gives Claude the "why dynamics feel the way they do" answer.
+    """
+    synthesis = {
+        "overall_score": None,
+        "quality_label": "",
+        "tara_name": "",
+        "tara_quality": "",
+        "dominant_theme": "",
+        "why_stuck": "",
+        "action_timing": "",
+    }
+
+    # Ashtakavarga quantification
+    if av_data:
+        synthesis["overall_score"] = av_data["aggregate_today"]
+        synthesis["quality_label"] = av_data["classification"]
+
+    # Tara bala
+    if tara_data:
+        synthesis["tara_name"] = tara_data["tara_name"]
+        synthesis["tara_quality"] = tara_data["quality"]
+
+    # Build "why stuck" narrative from combined signals
+    friction_layers = []
+
+    if av_data and av_data["aggregate_today"] < 28:
+        friction_layers.append(
+            f"ashtakavarga aggregate is {av_data['aggregate_today']}/56 (below average)"
+        )
+
+    if tara_data and tara_data["quality"] in ("unfavorable", "caution", "cautious"):
+        friction_layers.append(
+            f"tara bala is {tara_data['tara_name']} ({tara_data['quality']})"
+        )
+
+    # Malefic aspects on Moon/Sun
+    malefic_on_sensitive = [
+        a for a in aspects
+        if a["is_malefic"] and a["aspects_natal"] in ("Moon", "Sun", "Lagna")
+    ]
+    for a in malefic_on_sensitive[:2]:
+        friction_layers.append(
+            f"{a['transit_planet']}'s {a['aspect_type']} aspect on natal {a['aspects_natal']}"
+        )
+
+    if friction_layers:
+        synthesis["why_stuck"] = " + ".join(friction_layers)
+    else:
+        # Check for positive signals
+        support_layers = []
+        if av_data and av_data["aggregate_today"] >= 35:
+            support_layers.append(f"ashtakavarga {av_data['aggregate_today']}/56 is strong")
+        if tara_data and tara_data["quality"] in ("favorable", "very_favorable"):
+            support_layers.append(f"{tara_data['tara_name']} tara supports action")
+        benefic_aspects = [a for a in aspects if not a["is_malefic"] and a["aspects_natal"] in ("Moon", "Sun", "Lagna")]
+        for a in benefic_aspects[:1]:
+            support_layers.append(f"{a['transit_planet']} supports natal {a['aspects_natal']}")
+        if support_layers:
+            synthesis["dominant_theme"] = "Supportive day: " + " + ".join(support_layers)
+
+    # Action timing
+    if tara_data and tara_data["quality"] in ("unfavorable", "caution", "cautious") and next_favorable:
+        synthesis["action_timing"] = (
+            f"Wait for {next_favorable['tara_name']} tara (~{next_favorable.get('approx_days', '?')} days)"
+        )
+    elif tara_data and tara_data["quality"] in ("favorable", "very_favorable"):
+        synthesis["action_timing"] = f"Act today — {tara_data['tara_name']} tara favors initiative"
+
+    return synthesis

@@ -515,3 +515,100 @@ def apply_ashtakavarga_signals(chart_data: dict, current_transits: list,
             })
 
     return signals
+
+
+# ── Phase 2: Day Aggregate & JSONB Storage ───────────────────────────────────
+
+SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+         "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
+SIGN_TO_INDEX = {s: i for i, s in enumerate(SIGNS)}
+
+
+def get_day_aggregate(chart_data: dict, today_transits: dict) -> int:
+    """
+    Sum of bindu scores for each currently-transiting planet in its current sign.
+    today_transits: {planet_name: sign_index} for all 7 planets
+    Returns 0-56 aggregate.
+    """
+    total = 0
+    for planet in PLANETS:
+        sign_idx = today_transits.get(planet)
+        if sign_idx is not None:
+            total += get_transit_bindus(planet, sign_idx, chart_data)
+    return total
+
+
+def classify_day_quality(aggregate: int) -> str:
+    """
+    Classify day quality based on aggregate ashtakavarga score.
+    >= 42: Excellent
+    35-41: Strong
+    28-34: Moderate
+    20-27: Weak
+    < 20:  Heavy friction
+    """
+    if aggregate >= 42:
+        return "excellent"
+    elif aggregate >= 35:
+        return "strong"
+    elif aggregate >= 28:
+        return "moderate"
+    elif aggregate >= 20:
+        return "weak"
+    else:
+        return "heavy_friction"
+
+
+def get_day_ashtakavarga_analysis(chart_data: dict, today_transits: dict) -> dict:
+    """
+    Full day ashtakavarga analysis for prompt injection.
+    today_transits: {planet_name: sign_index} for all 7 planets
+
+    Returns dict with aggregate, classification, and per-planet scores.
+    """
+    aggregate = get_day_aggregate(chart_data, today_transits)
+    classification = classify_day_quality(aggregate)
+
+    planet_scores = {}
+    for planet in PLANETS:
+        sign_idx = today_transits.get(planet)
+        if sign_idx is not None:
+            bindus = get_transit_bindus(planet, sign_idx, chart_data)
+            thresholds = BINDU_THRESHOLDS.get(planet, {"weak": 3, "strong": 5})
+            if bindus >= thresholds["strong"]:
+                interp = "strong"
+            elif bindus >= thresholds["weak"]:
+                interp = "moderate"
+            else:
+                interp = "weak"
+            planet_scores[planet] = {
+                "sign": SIGNS[sign_idx],
+                "bindu": bindus,
+                "interpretation": interp,
+            }
+
+    return {
+        "aggregate_today": aggregate,
+        "classification": classification,
+        "planet_scores": planet_scores,
+    }
+
+
+def compute_full_ashtakavarga_for_storage(chart_data: dict) -> dict:
+    """
+    Compute full ashtakavarga for JSONB storage in charts.ashtakavarga column.
+    Called once at chart creation or during backfill.
+    """
+    from datetime import datetime as _dt
+
+    bhinnashtakavarga = {}
+    for planet in PLANETS:
+        bhinnashtakavarga[planet] = compute_bhinnashtakavarga(planet, chart_data)
+
+    sarva = compute_sarvashtakavarga(chart_data)
+
+    return {
+        "bhinnashtakavarga": bhinnashtakavarga,
+        "sarvashtakavarga": sarva,
+        "generated_at": _dt.utcnow().isoformat() + "Z",
+    }

@@ -100,6 +100,31 @@ Check which natal house lord is most activated by today's transits:
    12H), the day's tone must reflect caution regardless of other signals. If "favorable",
    lean into its themes.
 
+10. **QUANTIFY WHEN POSSIBLE.** Ashtakavarga gives you an objective day score. If aggregate
+    is 40+, say "objectively strong day." If below 25, say "objectively weak — proof your
+    hesitation isn't psychology." Always reference the aggregate score when it's available.
+
+11. **TARA BALA DRIVES TIMING.** If today is Pratyari/Vipat tara (unfavorable), your
+    el_movimiento MUST say "wait for [next favorable tara]". Do not tell user to push
+    through on an unfavorable tara day. If today is Sadhana/Ati-Mitra (favorable),
+    emphasize that this is the window to act.
+
+12. **ASPECTS EXPLAIN INTERIOR EXPERIENCE.** When a malefic transit planet aspects natal
+    Moon (even from another sign), EXPLAIN the emotional heaviness with the specific aspect.
+    "Saturn's 3rd aspect on your Moon is why motivation feels dragged." When benefics aspect
+    sensitive natal points, note the uplift.
+
+13. **ANSWER THE FOUR QUESTIONS.** Every el_movimiento should implicitly or explicitly answer:
+    - WHAT to do (the action)
+    - WHY now (the astrological reason — transit, tara, ashtakavarga)
+    - WHEN (the time window — hour, day, tara)
+    - HOW (concrete, falsifiable step)
+
+    Example bad: "Reflect on your goals today."
+    Example good: "Today's ashtakavarga is 21/56 and Pratyari tara is active — this is a
+      planning day, not an execution day. Write down the 3 commitments you're avoiding.
+      Don't act on them — Wednesday's Sadhana tara is when you push."
+
 ## SCORING INTERPRETATION
 
 The rule engine provides a score 0-10:
@@ -140,12 +165,20 @@ TODAY'S PANCHANG:
 TODAY'S TRANSITS (basic):
 {formatted_transits}
 
-SLOW-PLANET TRANSIT ANALYSIS (classical):
+TRANSIT ANALYSIS FOR TODAY (all planets):
 {transit_analysis_block}
+
+{ashtakavarga_block}
+
+{tara_bala_block}
+
+{aspects_block}
 
 {dasha_spotlight_block}
 
 {synthesis_hints_block}
+
+{enhanced_synthesis_block}
 
 Language: {language}
 

@@ -4,8 +4,8 @@ antar_engine/classical_transit_library.py
 Static lookup table: classical Vedic interpretations for slow-planet transits
 through each house from natal Moon.
 
-Phase 1: 4 planets × 12 houses = 48 entries.
-Sources: Phaladipika (Saturn/Jupiter), BPHS (Rahu/Ketu).
+8 planets × 12 houses = 96 entries.
+Sources: Phaladipika (Saturn/Jupiter/Sun/Mars/Venus), BPHS (Rahu/Ketu/Mercury).
 
 Called by: daily_transit_analyzer.py
 """
@@ -316,6 +316,306 @@ CLASSICAL_TRANSITS_FROM_MOON = {
         "themes": ["spiritual breakthrough", "foreign ease", "expenses for meaning"],
         "advice": "Retreat, meditation, foreign travel all favored.",
         "classical_ref": "BPHS: 'Ketu in 12th brings moksha, foreign residence, liberation from karmic burdens.'",
+    },
+
+    # ─── SUN (shifts sign every ~30 days) ──────────────────────
+
+    ("Sun", 1): {
+        "essence": "Vitality and visibility spike, ego active",
+        "themes": ["authority", "health energy", "father figure"],
+        "advice": "Step forward, speak up, take the lead.",
+        "classical_ref": "Phaladipika: 'Surya in lagna from Chandra brings prominence, vitality, and authority.'",
+    },
+    ("Sun", 2): {
+        "essence": "Speech authoritative, finances flow",
+        "themes": ["bold claims", "family of origin", "eating habits"],
+        "advice": "Important financial calls favored.",
+        "classical_ref": "Phaladipika: 'Surya in 2nd brings commanding speech and wealth through authority.'",
+    },
+    ("Sun", 3): {
+        "essence": "Favorable — courage and initiative rise",
+        "themes": ["siblings", "short trips", "writing"],
+        "advice": "Take bold action on communications.",
+        "classical_ref": "Phaladipika: 'Surya in 3rd brings valor, courage, and victory through effort.'",
+    },
+    ("Sun", 4): {
+        "essence": "Home and domestic friction",
+        "themes": ["mother tension", "property issues", "inner discomfort"],
+        "advice": "Tend to home matters with patience.",
+        "classical_ref": "Phaladipika: 'Surya in 4th brings domestic unease and friction with mother.'",
+    },
+    ("Sun", 5): {
+        "essence": "Creative confidence peaks",
+        "themes": ["children", "speculation", "romance"],
+        "advice": "Creative risks and educational pursuits favored.",
+        "classical_ref": "Phaladipika: 'Surya in 5th brings creative brilliance and gains through progeny.'",
+    },
+    ("Sun", 6): {
+        "essence": "Favorable — victory over enemies",
+        "themes": ["competition wins", "health improvement", "service"],
+        "advice": "Confront obstacles directly.",
+        "classical_ref": "Phaladipika: 'Surya in 6th brings triumph over enemies, disease, and competition.'",
+    },
+    ("Sun", 7): {
+        "essence": "Partnership spotlight",
+        "themes": ["spouse attention", "business partners", "public dealings"],
+        "advice": "Negotiate from strength.",
+        "classical_ref": "Phaladipika: 'Surya in 7th brings prominence in partnerships and public dealings.'",
+    },
+    ("Sun", 8): {
+        "essence": "Vitality dip, hidden matters surface",
+        "themes": ["health caution", "inheritance", "research"],
+        "advice": "Rest, avoid confrontation, protect energy.",
+        "classical_ref": "Phaladipika: 'Surya in 8th brings loss of vitality, hidden troubles, and fatigue.'",
+    },
+    ("Sun", 9): {
+        "essence": "Father and guru connection activated",
+        "themes": ["long travel", "dharma", "authority figures"],
+        "advice": "Seek guidance from mentors.",
+        "classical_ref": "Phaladipika: 'Surya in 9th brings connection to father, guru, and righteous pursuits.'",
+    },
+    ("Sun", 10): {
+        "essence": "Very favorable — career peak and recognition",
+        "themes": ["recognition", "authority", "professional success"],
+        "advice": "Make career moves, seek promotion.",
+        "classical_ref": "Phaladipika: 'Surya in 10th brings fame, authority, and professional triumph.'",
+    },
+    ("Sun", 11): {
+        "essence": "Very favorable — gains from authority",
+        "themes": ["income", "elder connections", "network fruits"],
+        "advice": "Best day for collections and income moves.",
+        "classical_ref": "Phaladipika: 'Surya in 11th brings abundant gains, fulfilled desires, and powerful allies.'",
+    },
+    ("Sun", 12): {
+        "essence": "Vitality drains, retreat indicated",
+        "themes": ["expenses", "foreign", "isolation"],
+        "advice": "Rest and spiritual practice over action.",
+        "classical_ref": "Phaladipika: 'Surya in 12th brings loss of vitality, expenses, and withdrawal from public.'",
+    },
+
+    # ─── MARS (shifts every ~45 days) ──────────────────────────
+
+    ("Mars", 1): {
+        "essence": "Aggression, courage, physical energy peak",
+        "themes": ["fight mode", "physical activity", "conflict risk"],
+        "advice": "Channel into action, avoid confrontations.",
+        "classical_ref": "Phaladipika: 'Mangala in lagna from Chandra brings courage, aggression, and physical vigor.'",
+    },
+    ("Mars", 2): {
+        "essence": "Speech heated, financial aggression",
+        "themes": ["harsh words", "family conflict", "spending impulse"],
+        "advice": "Guard speech and wallet.",
+        "classical_ref": "Phaladipika: 'Mangala in 2nd brings harsh speech, family strife, and impulsive spending.'",
+    },
+    ("Mars", 3): {
+        "essence": "Very favorable — valor and initiative succeed",
+        "themes": ["courage succeeds", "siblings", "bold communication"],
+        "advice": "Push hard. Best day for competitive moves.",
+        "classical_ref": "Phaladipika: 'Mangala in 3rd brings great valor, victory, and success through initiative.'",
+    },
+    ("Mars", 4): {
+        "essence": "Domestic friction and heated emotions",
+        "themes": ["property disputes", "vehicle issues", "emotional heat"],
+        "advice": "Avoid property decisions, cool heated situations.",
+        "classical_ref": "Phaladipika: 'Mangala in 4th brings domestic strife, vehicle trouble, and emotional unrest.'",
+    },
+    ("Mars", 5): {
+        "essence": "Children and creativity intensified",
+        "themes": ["speculation risk", "romantic intensity", "competitive games"],
+        "advice": "Channel intensity into creative output, avoid gambling.",
+        "classical_ref": "Phaladipika: 'Mangala in 5th brings intensity in romance, speculation risk, and creative fire.'",
+    },
+    ("Mars", 6): {
+        "essence": "Very favorable — enemies defeated decisively",
+        "themes": ["competition dominated", "health discipline", "litigation wins"],
+        "advice": "Confront opposition with full force.",
+        "classical_ref": "Phaladipika: 'Mangala in 6th brings destruction of enemies, victory in competition and litigation.'",
+    },
+    ("Mars", 7): {
+        "essence": "Partnership conflict and friction",
+        "themes": ["spouse friction", "business partner clash", "public disputes"],
+        "advice": "Cool down before engaging partner.",
+        "classical_ref": "Phaladipika: 'Mangala in 7th brings marital friction, partner conflicts, and public disputes.'",
+    },
+    ("Mars", 8): {
+        "essence": "Dangerous — accidents and sudden events",
+        "themes": ["health risk", "surgery", "insurance matters"],
+        "advice": "Extreme caution. No risky activities.",
+        "classical_ref": "Phaladipika: 'Mangala in 8th brings accidents, surgery risk, and sudden calamities.'",
+    },
+    ("Mars", 9): {
+        "essence": "Father conflict, dharma challenged",
+        "themes": ["authority clashes", "travel disruption", "ideological fights"],
+        "advice": "Don't provoke elders.",
+        "classical_ref": "Phaladipika: 'Mangala in 9th brings conflict with father, disrupted travel, and dharmic friction.'",
+    },
+    ("Mars", 10): {
+        "essence": "Career aggression and ambitious push",
+        "themes": ["work intensity", "authority confrontation", "ambitious push"],
+        "advice": "Channel energy into deliverables, not fights.",
+        "classical_ref": "Phaladipika: 'Mangala in 10th brings career intensity, ambition, and authority clashes.'",
+    },
+    ("Mars", 11): {
+        "essence": "Favorable — gains from bold action",
+        "themes": ["income through effort", "competitive wins", "network activation"],
+        "advice": "Push for what you're owed.",
+        "classical_ref": "Phaladipika: 'Mangala in 11th brings gains through effort, competitive victories, and network activation.'",
+    },
+    ("Mars", 12): {
+        "essence": "Energy drain and hidden enemies active",
+        "themes": ["hospitalization risk", "secret conflict", "expenses"],
+        "advice": "Rest and recover. Avoid confrontation.",
+        "classical_ref": "Phaladipika: 'Mangala in 12th brings energy loss, hidden enemies, and hospitalization risk.'",
+    },
+
+    # ─── MERCURY (shifts every 15-30 days) ─────────────────────
+
+    ("Mercury", 1): {
+        "essence": "Mind sharp, communication clear",
+        "themes": ["analytical clarity", "writing", "quick thinking"],
+        "advice": "Good for writing, teaching, negotiating, contracts.",
+        "classical_ref": "BPHS: 'Budha in lagna from Chandra brings sharp intellect, eloquent speech, and clarity.'",
+    },
+    ("Mercury", 2): {
+        "essence": "Financial intelligence active",
+        "themes": ["money calculations", "family communication", "food decisions"],
+        "advice": "Financial analysis and negotiations favored.",
+        "classical_ref": "BPHS: 'Budha in 2nd brings financial acumen, persuasive speech, and family dialogue.'",
+    },
+    ("Mercury", 3): {
+        "essence": "Very favorable — Mercury in its own house themes",
+        "themes": ["brilliant communication", "sibling connection", "short trips"],
+        "advice": "Write, pitch, network. Communication superpower active.",
+        "classical_ref": "BPHS: 'Budha in 3rd brings mastery of communication, literary success, and sibling harmony.'",
+    },
+    ("Mercury", 4): {
+        "essence": "Mental restlessness at home",
+        "themes": ["home organization", "intellectual pursuits", "study"],
+        "advice": "Organize your space, study at home.",
+        "classical_ref": "BPHS: 'Budha in 4th brings restless mind, intellectual home pursuits, and study.'",
+    },
+    ("Mercury", 5): {
+        "essence": "Intellectual creativity flourishes",
+        "themes": ["clever solutions", "children's education", "speculation analysis"],
+        "advice": "Apply intellect to creative problems.",
+        "classical_ref": "BPHS: 'Budha in 5th brings intellectual creativity, clever solutions, and educational gains.'",
+    },
+    ("Mercury", 6): {
+        "essence": "Favorable — analytical problem-solving dominates",
+        "themes": ["health analysis", "legal documentation", "service optimization"],
+        "advice": "Solve complex problems, handle paperwork.",
+        "classical_ref": "BPHS: 'Budha in 6th brings victory through intellect, analytical skill defeats enemies.'",
+    },
+    ("Mercury", 7): {
+        "essence": "Partnership communication peaks",
+        "themes": ["negotiation", "business discussions", "contract signing"],
+        "advice": "Best day for deals and partnership negotiations.",
+        "classical_ref": "BPHS: 'Budha in 7th brings successful negotiations, partnership agreements, and trade.'",
+    },
+    ("Mercury", 8): {
+        "essence": "Research and investigation favored",
+        "themes": ["hidden information revealed", "occult study", "tax matters"],
+        "advice": "Dig deep. Research and analysis favored.",
+        "classical_ref": "BPHS: 'Budha in 8th brings research breakthroughs, hidden knowledge, and investigative success.'",
+    },
+    ("Mercury", 9): {
+        "essence": "Learning and higher thought activated",
+        "themes": ["teaching", "publishing", "philosophical discussion"],
+        "advice": "Learn, teach, or publish something meaningful.",
+        "classical_ref": "BPHS: 'Budha in 9th brings higher learning, teaching success, and philosophical clarity.'",
+    },
+    ("Mercury", 10): {
+        "essence": "Favorable — career communication drives success",
+        "themes": ["professional presentations", "business writing", "analytical work"],
+        "advice": "Present your work. Communication drives career.",
+        "classical_ref": "BPHS: 'Budha in 10th brings professional recognition through intellect and communication.'",
+    },
+    ("Mercury", 11): {
+        "essence": "Very favorable — gains from intellect and ideas",
+        "themes": ["income through ideas", "network communication", "tech gains"],
+        "advice": "Monetize your intelligence. Sell, pitch, close.",
+        "classical_ref": "BPHS: 'Budha in 11th brings gains through intellect, successful trade, and network profits.'",
+    },
+    ("Mercury", 12): {
+        "essence": "Mind wanders, miscommunication risk",
+        "themes": ["miscommunication risk", "foreign correspondence", "introspection"],
+        "advice": "Double-check all communications. Avoid binding agreements.",
+        "classical_ref": "BPHS: 'Budha in 12th brings confused thinking, expenses on communication, and foreign correspondence.'",
+    },
+
+    # ─── VENUS (shifts every ~30 days) ─────────────────────────
+
+    ("Venus", 1): {
+        "essence": "Charm, beauty, pleasure — self as attractive",
+        "themes": ["relationship warmth", "creative flow", "comfort seeking"],
+        "advice": "Connect with beauty. Relationship gestures favored.",
+        "classical_ref": "Phaladipika: 'Shukra in lagna from Chandra brings charm, beauty, and pleasurable experiences.'",
+    },
+    ("Venus", 2): {
+        "essence": "Very favorable — wealth and comfort flow",
+        "themes": ["financial gains", "family harmony", "food and luxury"],
+        "advice": "Best day for purchases and financial moves.",
+        "classical_ref": "Phaladipika: 'Shukra in 2nd brings wealth, family happiness, and luxurious comforts.'",
+    },
+    ("Venus", 3): {
+        "essence": "Creative communication flourishes",
+        "themes": ["artistic expression", "pleasant travels", "sibling harmony"],
+        "advice": "Express creatively. Social outings favored.",
+        "classical_ref": "Phaladipika: 'Shukra in 3rd brings artistic expression, pleasant journeys, and sibling joy.'",
+    },
+    ("Venus", 4): {
+        "essence": "Very favorable — domestic bliss peaks",
+        "themes": ["home beauty", "vehicle purchase", "mother's comfort"],
+        "advice": "Invest in home. Domestic harmony peaks.",
+        "classical_ref": "Phaladipika: 'Shukra in 4th brings domestic happiness, vehicles, and comforts of home.'",
+    },
+    ("Venus", 5): {
+        "essence": "Romance and creativity peak",
+        "themes": ["love affairs", "artistic breakthrough", "children's joy"],
+        "advice": "Express love. Creative projects flourish.",
+        "classical_ref": "Phaladipika: 'Shukra in 5th brings romance, creative brilliance, and joy through progeny.'",
+    },
+    ("Venus", 6): {
+        "essence": "Moderate — opponents softened through charm",
+        "themes": ["workplace harmony", "health through comfort", "service with grace"],
+        "advice": "Kill with kindness. Charm solves conflicts.",
+        "classical_ref": "Phaladipika: 'Shukra in 6th brings resolution through diplomacy and grace under pressure.'",
+    },
+    ("Venus", 7): {
+        "essence": "Very favorable — partnerships blessed",
+        "themes": ["marriage harmony", "business partnership", "public appeal"],
+        "advice": "Best day for relationship commitments and partnerships.",
+        "classical_ref": "Phaladipika: 'Shukra in 7th brings marital bliss, successful partnerships, and public favor.'",
+    },
+    ("Venus", 8): {
+        "essence": "Hidden pleasures and inheritance matters",
+        "themes": ["secret relationships", "insurance gains", "transformation through beauty"],
+        "advice": "Investigate financial assets. Private matters favored.",
+        "classical_ref": "Phaladipika: 'Shukra in 8th brings hidden gains, inheritance, and transformative pleasures.'",
+    },
+    ("Venus", 9): {
+        "essence": "Fortune through grace and beauty",
+        "themes": ["travel for pleasure", "guru's blessing", "dharmic relationships"],
+        "advice": "Travel, connect with mentors, expand horizons gracefully.",
+        "classical_ref": "Phaladipika: 'Shukra in 9th brings fortune through grace, pleasant travels, and guru's favor.'",
+    },
+    ("Venus", 10): {
+        "essence": "Career charm and public likability",
+        "themes": ["professional recognition through likability", "creative career moves", "public image"],
+        "advice": "Charm your audience. Let likability drive career moves.",
+        "classical_ref": "Phaladipika: 'Shukra in 10th brings career success through charm, creative profession, and public admiration.'",
+    },
+    ("Venus", 11): {
+        "essence": "Very favorable — gains through relationships",
+        "themes": ["income through connections", "social network activation", "wish fulfillment"],
+        "advice": "Network aggressively. Relationships bring gains.",
+        "classical_ref": "Phaladipika: 'Shukra in 11th brings abundant gains, social success, and fulfilled desires.'",
+    },
+    ("Venus", 12): {
+        "essence": "Expenses on pleasure, foreign comfort",
+        "themes": ["luxury spending", "foreign relationships", "bedroom matters"],
+        "advice": "Budget for indulgence. Foreign connections favored.",
+        "classical_ref": "Phaladipika: 'Shukra in 12th brings expenses on pleasure, foreign comforts, and bedroom happiness.'",
     },
 }
 
