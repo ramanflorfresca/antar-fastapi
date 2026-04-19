@@ -1331,6 +1331,10 @@ async def call_llm_claude(
     _tail = _static_part[-200:].replace('\n', ' ')
     print(f"[claude-cache-head] {_head[:200]}")
     print(f"[claude-cache-tail] {_tail[:200]}")
+    
+    # CHUNK 2 IDENTIFIED AS DRIFT ZONE — log its contents
+    _chunk2 = _static_part[4000:6000].replace('\n', ' ')
+    print(f"[claude-cache-chunk2] {_chunk2[:2000]}")
 
     _system_blocks = [
         {
