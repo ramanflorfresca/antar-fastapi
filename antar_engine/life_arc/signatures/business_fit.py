@@ -26,12 +26,21 @@ from ..modern_translation import compute_modern_corrections
 from ..dushthana_wealth_detector import detect_modern_dushthana_wealth_pattern
 from ..lal_kitab_negations import check_lal_kitab_negations
 
+# v4 imports: Archetype Classification + Detections
+from ..v4_detections import (
+    detect_viparita_stack,
+    detect_identity_overwhelm,
+    check_moon_md_h2_pressure,
+    check_d2_hora_business_mismatch,
+)
+from ..archetype_classifier import classify_wealth_archetype
+
 
 # ─── METADATA ────────────────────────────────────────────────────────────────
 
 SIGNATURE_METADATA = {
     "name": "business_fit",
-    "version": "3.0",
+    "version": "4.0",
     "event_label": "Business & career structural alignment",
     "confidence": "MEDIUM",
     "positive_sample_size": 2,      # Raman + Andres retrodiction
@@ -43,7 +52,10 @@ SIGNATURE_METADATA = {
         "Retrodiction: Raman (Capricorn rising), Andres (Cancer rising)",
         "Classical Vedic divisional analysis (D-1/D-2/D-4/D-7/D-9/D-10/D-60)",
     ],
-    "notes": "v3: Added Modern Interpretation Layer — classical-to-modern rescaling, "
+    "notes": "v4: Wealth archetype classification (DISRUPTOR/SYSTEMATIC/MASS_SERVER/"
+             "CHARISMA/INSTITUTIONAL), Viparita stack, identity-overwhelm, Moon MD H2 "
+             "pressure, D-2 hora mismatch, honest-scale-read. "
+             "v3: Modern Interpretation Layer — classical-to-modern rescaling, "
              "dushthana-as-wealth detection, Lal Kitab condition-dependent negations. "
              "v2: yogakaraka, Mahapurusha stacking, focus-split risk, "
              "SERVICE_MASSES_AUTOMATION + INSTITUTIONAL_AUTHORITY. 9 categories scored.",
@@ -692,6 +704,24 @@ def score_physical_ops_fit(chart_data: dict) -> dict:
             except (TypeError, ValueError):
                 pass
 
+    # ── Mahapurusha yogas WITHOUT Mars = no physical-ops foundation ──
+    mp_stack = detect_mahapurusha_stack(chart_data)
+    if mp_stack.get("tier") in ("single", "stacked"):
+        mp_names = [n.lower() for n in mp_stack.get("names", [])]
+        if "ruchaka" not in mp_names:
+            score -= 1.5
+            warnings.append(
+                "Mahapurusha yoga(s) present but NOT Ruchaka (Mars) — "
+                "chart's institutional/wisdom capacity doesn't translate to physical ops"
+            )
+
+    # ── No functional malefics in H6/H10 = no execution engine ──
+    h6_exec = [p for p in ("Saturn", "Mars", "Rahu")
+               if _get_planet_house(p, planets, lagna_idx) in (6, 10)]
+    if not h6_exec:
+        score -= 1.0
+        warnings.append("No functional malefics in H6/H10 — lacks operational execution engine")
+
     # ── D-7: Creative output capacity (what you "birth" into the world) ──
     d7_planets = _get_d_chart_planets(chart_data, "d7")
     # If D-7 is weakened, creative/physical output is challenged
@@ -1033,11 +1063,41 @@ def score_brokering_fit(chart_data: dict) -> dict:
         score += 1.0
         reasons.append(f"Jupiter in H{jup_house} — dealmaking authority")
 
-    # ── Saturn in 11H (network-based gains, structured brokering) ──
+    # ── Saturn in dealmaking houses (7, 10, 11) ──
     sat_house = _get_planet_house("Saturn", planets, lagna_idx)
-    if sat_house == 11:
+    sat_sign = _get_planet_sign("Saturn", planets)
+    if sat_house in (7, 10, 11):
         score += 1.5
-        reasons.append("Saturn in 11H — disciplined network-based gains; structured brokering")
+        reasons.append(f"Saturn in H{sat_house} — structured dealmaking/partnership capacity")
+        if sat_sign is not None and _is_dignified("Saturn", sat_sign):
+            score += 1.0
+            reasons.append("Saturn dignified — institutional-grade deal structuring")
+
+    # ── Mahapurusha stacking boosts partnership/brokering capacity ──
+    mp_stack = detect_mahapurusha_stack(chart_data)
+    if mp_stack.get("tier") == "stacked":
+        score += 2.5
+        reasons.append(f"Stacked Mahapurusha ({', '.join(mp_stack.get('names', []))}) — institutional-scale dealmaking capacity")
+    elif mp_stack.get("tier") == "single":
+        mp_names = [n.lower() for n in mp_stack.get("names", [])]
+        if any(n in mp_names for n in ("sasa", "hamsa", "bhadra")):
+            score += 1.5
+            reasons.append(f"Mahapurusha ({mp_stack['names'][0]}) — authority-based brokering capacity")
+
+    # ── Sun in H10 + Venus in H10 = public-authority dealmaking ──
+    sun_house = _get_planet_house("Sun", planets, lagna_idx)
+    ven_house_check = _get_planet_house("Venus", planets, lagna_idx)
+    if sun_house == 10 and ven_house_check == 10:
+        score += 1.5
+        reasons.append("Sun+Venus in H10 — public-authority charm in dealmaking")
+
+    # ── D-10 Saturn in gains houses (10, 11) = structured career brokering ──
+    d10_planets_brok = _get_d_chart_planets(chart_data, "d10")
+    d10_sat = d10_planets_brok.get("Saturn", {})
+    d10_sat_h = d10_sat.get("house")
+    if d10_sat_h in (10, 11):
+        score += 1.0
+        reasons.append(f"D-10 Saturn in H{d10_sat_h} — career-level structured dealmaking")
 
     # ── Archetype check ──
     archetype = chart_data.get("archetype", {})
@@ -1643,6 +1703,13 @@ def analyze_business_fit(chart_data: dict) -> dict:
     mahapurusha_stack = detect_mahapurusha_stack(chart_data)
     focus_split = detect_focus_split_risk(chart_data)
 
+    # ── V4: Run new detections ──
+    viparita = detect_viparita_stack(chart_data)
+    identity_ow = detect_identity_overwhelm(chart_data)
+    # Moon MD pressure needs current_md — extract from chart_data if available
+    current_md = chart_data.get("current_dasha", {}).get("md_lord") if isinstance(chart_data.get("current_dasha"), dict) else None
+    moon_pressure = check_moon_md_h2_pressure(chart_data, current_md)
+
     # ── Score all categories (v1 + v2) ──
     categories = [
         score_platform_fit(chart_data),
@@ -1700,6 +1767,53 @@ def analyze_business_fit(chart_data: dict) -> dict:
         # Attach LK warnings if any exist for this category
         cat["lk_warnings"] = lk_negations.get("categories_with_warnings", {}).get(cat_name, [])
 
+    # ── V4: Classify wealth archetype ──
+    wealth_archetype = classify_wealth_archetype(
+        chart_data,
+        viparita_result=viparita,
+        identity_overwhelm=identity_ow,
+        mahapurusha_result=mahapurusha_stack,
+        yogakaraka_result=yogakaraka,
+        dushthana_wealth=dushthana_wealth,
+    )
+
+    # ── V4: D-2 hora mismatch check against top favored category ──
+    hora_mismatch = None
+    if favored:
+        top_category = favored[0]["category"]
+        hora_mismatch = check_d2_hora_business_mismatch(chart_data, top_category)
+
+    # ── V4: Build critical warnings list ──
+    critical_warnings = []
+    if viparita.get("tier") in ("extreme", "strong"):
+        critical_warnings.append({
+            "type": "viparita_stack",
+            "severity": "info",  # not a warning — a strength signal
+            "message": viparita.get("implication", ""),
+        })
+    if identity_ow:
+        critical_warnings.append({
+            "type": "identity_overwhelm",
+            "severity": identity_ow.get("severity", "moderate"),
+            "message": identity_ow.get("implication", ""),
+            "favored_vehicles": identity_ow.get("favored_vehicles", []),
+            "disfavored_vehicles": identity_ow.get("disfavored_vehicles", []),
+        })
+    if moon_pressure:
+        critical_warnings.append({
+            "type": "moon_md_h2_pressure",
+            "severity": moon_pressure.get("severity", "moderate"),
+            "message": moon_pressure.get("implication", ""),
+            "guidance": moon_pressure.get("guidance", ""),
+        })
+    if hora_mismatch:
+        critical_warnings.append({
+            "type": "hora_business_mismatch",
+            "severity": hora_mismatch.get("severity", "high"),
+            "message": hora_mismatch.get("implication", ""),
+            "recommendation": hora_mismatch.get("recommendation", ""),
+        })
+
     return {
         "primary_activation": primary_activation,
         "mahapurusha_stack": mahapurusha_stack,
@@ -1713,12 +1827,21 @@ def analyze_business_fit(chart_data: dict) -> dict:
         "modern_corrections": modern_corrections,
         "dushthana_wealth": dushthana_wealth,
         "lk_negations": lk_negations,
+        # v4 additions
+        "wealth_archetype": wealth_archetype,
+        "viparita_stack": viparita,
+        "critical_warnings": critical_warnings,
+        "hora_mismatch": hora_mismatch,
+        "moon_md_pressure": moon_pressure,
+        "honest_scale_read": wealth_archetype.get("honest_read", ""),
+        # metadata
         "signature_version": SIGNATURE_METADATA["version"],
         "confidence": SIGNATURE_METADATA["confidence"],
         "sample_size": SIGNATURE_METADATA["positive_sample_size"],
         "honesty_note": (
             "This analysis describes structural alignment based on classical "
             "Vedic divisional analysis with a modern interpretation layer. "
+            "v4 adds wealth archetype classification and honest-scale-read. "
             "Classical scores are adjusted for modern business outcomes — "
             "dushthana placements (6H/8H/12H) that classically read as negative "
             "may actually produce wealth in modern contexts. Lal Kitab conditions "
