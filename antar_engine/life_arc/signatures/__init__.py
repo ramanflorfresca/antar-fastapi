@@ -4,13 +4,15 @@
 # get_enabled_signatures(): returns only signatures with enabled_in_library=True.
 # get_library_version(): returns a cache-key-safe version string for all enabled sigs.
 
-from . import wealth_jump, job_change, marriage, wealth_loss
+from . import wealth_jump, job_change, marriage, wealth_loss, business_fit, venture_timing
 
 SIGNATURE_REGISTRY = {
-    "wealth_jump":  wealth_jump,
-    "job_change":   job_change,
-    "marriage":     marriage,
-    "wealth_loss":  wealth_loss,
+    "wealth_jump":     wealth_jump,
+    "job_change":      job_change,
+    "marriage":        marriage,
+    "wealth_loss":     wealth_loss,
+    "business_fit":    business_fit,
+    "venture_timing":  venture_timing,
 }
 
 
