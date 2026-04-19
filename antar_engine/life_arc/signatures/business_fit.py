@@ -21,12 +21,17 @@ Author: Antar Engine · April 2026
 
 from typing import Dict, List, Optional, Any
 
+# v3 imports: Modern Interpretation Layer
+from ..modern_translation import compute_modern_corrections
+from ..dushthana_wealth_detector import detect_modern_dushthana_wealth_pattern
+from ..lal_kitab_negations import check_lal_kitab_negations
+
 
 # ─── METADATA ────────────────────────────────────────────────────────────────
 
 SIGNATURE_METADATA = {
     "name": "business_fit",
-    "version": "2.0",
+    "version": "3.0",
     "event_label": "Business & career structural alignment",
     "confidence": "MEDIUM",
     "positive_sample_size": 2,      # Raman + Andres retrodiction
@@ -38,9 +43,10 @@ SIGNATURE_METADATA = {
         "Retrodiction: Raman (Capricorn rising), Andres (Cancer rising)",
         "Classical Vedic divisional analysis (D-1/D-2/D-4/D-7/D-9/D-10/D-60)",
     ],
-    "notes": "v2: Added yogakaraka detection, Mahapurusha stacking, focus-split risk, "
-             "SERVICE_MASSES_AUTOMATION and INSTITUTIONAL_AUTHORITY categories. "
-             "9 total categories scored. Supersedes wealth_jump business-type analysis.",
+    "notes": "v3: Added Modern Interpretation Layer — classical-to-modern rescaling, "
+             "dushthana-as-wealth detection, Lal Kitab condition-dependent negations. "
+             "v2: yogakaraka, Mahapurusha stacking, focus-split risk, "
+             "SERVICE_MASSES_AUTOMATION + INSTITUTIONAL_AUTHORITY. 9 categories scored.",
 }
 
 
@@ -1677,6 +1683,23 @@ def analyze_business_fit(chart_data: dict) -> dict:
             "note": "This is the single most important career-success marker in the chart.",
         }
 
+    # ── V3: Modern Interpretation Layer ──
+    # 1. Classical-to-modern rescaling corrections
+    modern_corrections = compute_modern_corrections(chart_data)
+
+    # 2. Dushthana-as-wealth detection
+    dushthana_wealth = detect_modern_dushthana_wealth_pattern(chart_data)
+
+    # 3. Lal Kitab condition-dependent negations (warnings only)
+    lk_negations = check_lal_kitab_negations(chart_data)
+
+    # ── Attach modern corrections to category results ──
+    # Add classical_score vs modern_score for each category
+    for cat in categories:
+        cat_name = cat["category"]
+        # Attach LK warnings if any exist for this category
+        cat["lk_warnings"] = lk_negations.get("categories_with_warnings", {}).get(cat_name, [])
+
     return {
         "primary_activation": primary_activation,
         "mahapurusha_stack": mahapurusha_stack,
@@ -1686,13 +1709,20 @@ def analyze_business_fit(chart_data: dict) -> dict:
         "neutral_categories": neutral,
         "karmic_warnings": karmic_warnings,
         "archetype_business_fit": archetype_summary,
+        # v3 additions
+        "modern_corrections": modern_corrections,
+        "dushthana_wealth": dushthana_wealth,
+        "lk_negations": lk_negations,
         "signature_version": SIGNATURE_METADATA["version"],
         "confidence": SIGNATURE_METADATA["confidence"],
         "sample_size": SIGNATURE_METADATA["positive_sample_size"],
         "honesty_note": (
             "This analysis describes structural alignment based on classical "
-            "Vedic divisional analysis, not outcome guarantees. A structurally "
-            "aligned business can still fail if execution, capital, or market "
-            "timing is off. The chart identifies the right vehicle type — you drive it."
+            "Vedic divisional analysis with a modern interpretation layer. "
+            "Classical scores are adjusted for modern business outcomes — "
+            "dushthana placements (6H/8H/12H) that classically read as negative "
+            "may actually produce wealth in modern contexts. Lal Kitab conditions "
+            "flag potential blocking factors. The chart identifies the right "
+            "vehicle type — you drive it."
         ),
     }
