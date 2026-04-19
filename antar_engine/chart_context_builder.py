@@ -704,9 +704,6 @@ Life Stage: {life_stage['stage']}
 Core Question (psychology): {life_stage['core_question']}
 Prediction Lens: {life_stage['prediction_lens']}
 
-QUESTION ASKED: "{question}"
-CONCERN DOMAIN: {concern}
-
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 D1 NATAL CHART (Primary Chart)
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -884,6 +881,9 @@ ANTI-HALLUCINATION INSTRUCTIONS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 ## LIVE DATA
+
+QUESTION ASKED: "{question}"
+CONCERN DOMAIN: {concern}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 {_teva_block}
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
