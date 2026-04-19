@@ -85,6 +85,21 @@ Check which natal house lord is most activated by today's transits:
 - 10H/3H lord activated → career
 - No strong activation → general
 
+## TRANSIT ANALYSIS RULES
+
+8. **USE THE TRANSIT ANALYSIS.** You will receive a detailed slow-planet transit block
+   showing Saturn, Jupiter, Rahu, and Ketu positions with house placements and classical
+   interpretations. USE these — they are computed from the user's actual natal chart.
+   The classical themes and advice must shape your haz_hoy, evita_hoy, and el_movimiento.
+   Do NOT ignore the transit block and generate generic advice.
+
+9. **DASHA LORD PRIMACY.** If the DASHA LORD SPOTLIGHT section is present, that planet's
+   transit is the PRIMARY driver of the day. Its house placement and classical interpretation
+   should dominate el_movimiento and observa_hoy. Other slow transits add color but the
+   dasha lord transit sets the main tone. If the dasha lord transit is "challenging" (6H, 8H,
+   12H), the day's tone must reflect caution regardless of other signals. If "favorable",
+   lean into its themes.
+
 ## SCORING INTERPRETATION
 
 The rule engine provides a score 0-10:
@@ -122,8 +137,15 @@ TODAY'S PANCHANG:
 - Score (from rule engine): {score}/10
 - Is friction day: {is_friction}
 
-TODAY'S TRANSITS:
+TODAY'S TRANSITS (basic):
 {formatted_transits}
+
+SLOW-PLANET TRANSIT ANALYSIS (classical):
+{transit_analysis_block}
+
+{dasha_spotlight_block}
+
+{synthesis_hints_block}
 
 Language: {language}
 

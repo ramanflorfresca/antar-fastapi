@@ -695,6 +695,7 @@ async def build_daily_context(chart_id: str, supabase_client) -> dict:
             "life_stage": life_stage,
             "sleeping_planets": sleeping_planets,
             "formatted_transits": formatted_transits,
+            "chart_data": chart_data,  # raw natal data for transit analyzer
         }
 
     except Exception as e:
@@ -921,6 +922,25 @@ async def generate_weekly_signals(
                     "score": score,
                     "is_friction": is_friction,
                 }
+
+                # ── Phase 1: Slow-planet transit analysis ──
+                try:
+                    from antar_engine.daily_transit_analyzer import analyze_day_transits
+                    chart_data_raw = daily_context.get("chart_data", {})
+                    md_lord = daily_context.get("md", "")
+                    transit_result = await analyze_day_transits(
+                        chart_data=chart_data_raw,
+                        target_date=target_date,
+                        current_md_lord=md_lord,
+                    )
+                    day_prompt_data["transit_analysis_block"] = transit_result["transit_analysis_block"]
+                    day_prompt_data["dasha_spotlight_block"] = transit_result["dasha_spotlight_block"]
+                    day_prompt_data["synthesis_hints_block"] = transit_result["synthesis_hints_block"]
+                except Exception as ta_err:
+                    logger.warning(f"[daily-week] Transit analysis failed for {date_str}: {ta_err}")
+                    day_prompt_data["transit_analysis_block"] = "Transit data unavailable."
+                    day_prompt_data["dasha_spotlight_block"] = "No dasha spotlight available."
+                    day_prompt_data["synthesis_hints_block"] = "No synthesis hints available."
 
                 llm_signal = await _call_claude_daily_signal(
                     context=daily_context,
