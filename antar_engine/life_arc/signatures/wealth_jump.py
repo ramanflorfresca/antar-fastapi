@@ -1,15 +1,19 @@
 """
-Wealth Jump Signature — Surface B: Life Arc
-=============================================
-First validated signature for Surface B predictions.
+Wealth Jump Signature v2.0 — Surface B: Life Arc
+==================================================
+Validated against billionaire chart analysis (N=9).
 
-Based on billionaire analysis (N=9) extended to N=15-20.
-Checks natal wealth potential, dasha activation, and transit support.
+Checks natal wealth archetype via multi-marker scoring, dasha activation
+(including Rahu/Ketu shadow planets), and transit support.
 
-Conditions:
-  NATAL:   2L or 11L dignified/well-placed + Jupiter touches wealth houses
-  DASHA:   MD or AD lord rules 2H/5H/9H/11H or is Jupiter/Venus
-  TRANSIT: Jupiter in 2/5/9/11 from Moon/Lagna + Saturn not blocking
+Natal markers (v2.0):
+  - Mahapurusha Yoga (exalted/own in kendra) — weight 2
+  - Lakshmi Yoga (9L dignified in kendra/trikona) — weight 2
+  - Dhana Yoga (2L/11L in kendra/trikona) — weight 1 each
+  - Kendra/trikona stellium (3+ planets) — weight 2
+  - Viparita Raj Yoga (2+ dushthana lords in dushthana) — weight 2
+  - Rahu in upachaya (3/6/10/11) — weight 1
+  Fires at total weight >= 3.
 
 Author: Antar Engine · April 2026
 """
@@ -18,19 +22,20 @@ from typing import Dict, List, Optional, Any
 
 SIGNATURE_METADATA = {
     "name": "wealth_jump",
-    "version": "1.2",
+    "version": "2.0",
     "event_label": "Significant income increase",
-    "confidence": "HIGH",
-    "positive_sample_size": 15,
-    "positive_rate": 0.82,
-    "false_positive_rate": 0.14,
-    "last_validated": "2026-04-26",
+    "confidence": "MEDIUM",  # Will upgrade to HIGH after N=15+ validation
+    "positive_sample_size": 9,   # from billionaire analysis
+    "positive_rate": None,       # re-validate with v2 rules
+    "false_positive_rate": None,
+    "last_validated": "2026-04-19",
+    "enabled_in_library": True,
     "sources": [
-        "billionaire charts (N=9): Musk, Gates, Ambani, Burman, Zuckerberg, Bezos, Ellison, Adani, Dangote",
-        "personal network (N=6): extended validation set",
+        "Billionaire N=9 analysis (Musk, Gates, Ambani, Burman, Zuckerberg, Bezos, Ellison, Adani, Dangote)",
     ],
-    "notes": "Extension of original billionaire wealth retention analysis. "
-             "Tightened for moderate-scale wealth jumps, not just billionaire-scale."
+    "notes": "v2 rewrite — encodes Mahapurusha / Lakshmi / Viparita / stellium patterns "
+             "from actual billionaire chart analysis instead of generic classical 2L/11L rules. "
+             "Dasha check includes Rahu/Ketu shadow-planet activation.",
 }
 
 
@@ -137,62 +142,164 @@ def _rahu_saturn_conjunct_on_lord(planets: dict, lord_name: str) -> bool:
     return rahu_sign == lord_sign and saturn_sign == lord_sign
 
 
-# ─── NATAL CONDITIONS ───────────────────────────────────────────────────────
+# ─── NATAL CONDITIONS (v2.0 — billionaire-pattern detection) ───────────────
 
 def check_natal_conditions(chart_data: dict) -> dict:
     """
-    Check natal wealth potentials:
-    - 2L dignified OR placed in 2/11/5/9
-    - 11L dignified OR placed in 11/2/5/9
-    - Jupiter aspects or conjuncts 2H, 5H, 9H, or 11H
-    - No Rahu-Saturn conjunction on 2L or 11L (downfall marker)
+    Wealth-archetype natal check (v2.0).
+    Scores multiple independent wealth markers. Signature fires at 3+ total weight.
+
+    Markers checked:
+      - Mahapurusha Yoga (weight 2)
+      - Lakshmi Yoga (weight 2)
+      - Dhana Yoga — 2L/11L in kendra/trikona (weight 1 each)
+      - Kendra/trikona stellium (weight 2)
+      - Viparita Raj Yoga (weight 2)
+      - Rahu in upachaya (weight 1)
+
+    Anti-condition: Rahu-Saturn conjunction on 2L or 11L (zeroes out).
     """
     planets = chart_data.get("planets", {})
     lagna_idx = chart_data.get("lagna", {}).get("sign_index", 0)
 
+    markers = []  # each entry: {name, fires: bool, weight: int, detail: str}
+
+    # ── MAHAPURUSHA YOGAS ─────────────────────────────────────────────────
+    # Sasha (Saturn), Hamsa (Jupiter), Bhadra (Mercury), Malavya (Venus),
+    # Ruchaka (Mars) — planet exalted or own sign in kendra (1, 4, 7, 10)
+    mahapurusha_planets = ["Saturn", "Jupiter", "Mercury", "Venus", "Mars"]
+    for p in mahapurusha_planets:
+        pdata = planets.get(p, {})
+        if not pdata:
+            continue
+        p_sign = pdata.get("sign_index", -1)
+        if not _is_dignified(p, p_sign):
+            continue
+        p_house = (p_sign - lagna_idx + 12) % 12 + 1
+        if p_house in {1, 4, 7, 10}:  # kendra
+            markers.append({
+                "name": f"mahapurusha_{p.lower()}",
+                "fires": True,
+                "weight": 2,  # strong marker
+                "detail": f"{p} dignified in H{p_house} (Mahapurusha yoga)",
+            })
+            break  # one Mahapurusha is enough
+
+    # ── LAKSHMI YOGA ───────────────────────────────────────────────────────
+    # Classical: 9L in own/exalted AND in kendra/trikona
+    lord_9 = _get_house_lord(9, lagna_idx)
+    lord_9_data = planets.get(lord_9, {})
+    if lord_9_data:
+        lord_9_sign = lord_9_data.get("sign_index", -1)
+        lord_9_house = (lord_9_sign - lagna_idx + 12) % 12 + 1
+        lord_9_dignified = _is_dignified(lord_9, lord_9_sign)
+        lord_9_well_placed = lord_9_house in {1, 4, 5, 7, 9, 10}
+        if lord_9_dignified and lord_9_well_placed:
+            markers.append({
+                "name": "lakshmi_yoga",
+                "fires": True,
+                "weight": 2,
+                "detail": f"Lakshmi Yoga: 9L ({lord_9}) dignified in H{lord_9_house}",
+            })
+
+    # ── DHANA YOGAS (wealth-house lord in kendra/trikona) ──────────────────
+    # 2L or 11L in kendra/trikona (1/4/5/7/9/10) — broader than v1 wealth-house-only
+    for h in [2, 11]:
+        lord = _get_house_lord(h, lagna_idx)
+        pdata = planets.get(lord, {})
+        if not pdata:
+            continue
+        p_sign = pdata.get("sign_index", -1)
+        p_house = (p_sign - lagna_idx + 12) % 12 + 1
+        if p_house in {1, 4, 5, 7, 9, 10}:  # kendra OR trikona
+            markers.append({
+                "name": f"dhana_yoga_{h}l",
+                "fires": True,
+                "weight": 1,
+                "detail": f"{h}L ({lord}) in H{p_house} (kendra/trikona)",
+            })
+
+    # ── KENDRA/TRIKONA STELLIUM ────────────────────────────────────────────
+    # 3+ planets in a single kendra/trikona/11H = power concentration
+    house_counts = {}
+    for p_name, pdata in planets.items():
+        if p_name in ("Rahu", "Ketu"):
+            continue  # nodes don't count for stellium
+        if not isinstance(pdata, dict):
+            continue
+        p_sign = pdata.get("sign_index", -1)
+        if p_sign < 0:
+            continue
+        p_house = (p_sign - lagna_idx + 12) % 12 + 1
+        house_counts[p_house] = house_counts.get(p_house, 0) + 1
+
+    for h, count in house_counts.items():
+        if count >= 3 and h in {1, 4, 5, 7, 9, 10, 11}:  # kendra/trikona/11
+            markers.append({
+                "name": f"stellium_h{h}",
+                "fires": True,
+                "weight": 2,
+                "detail": f"{count}-planet stellium in H{h}",
+            })
+            break  # one stellium is enough
+
+    # ── VIPARITA RAJ YOGA ──────────────────────────────────────────────────
+    # Lords of 6, 8, 12 in 6, 8, or 12 (the "reverse" houses)
+    # Counterintuitively strong for post-crisis wealth accumulation
+    dushthana_lords = [_get_house_lord(h, lagna_idx) for h in [6, 8, 12]]
+    vrj_count = 0
+    for lord in dushthana_lords:
+        pdata = planets.get(lord, {})
+        if not pdata:
+            continue
+        p_sign = pdata.get("sign_index", -1)
+        p_house = (p_sign - lagna_idx + 12) % 12 + 1
+        if p_house in {6, 8, 12}:
+            vrj_count += 1
+    if vrj_count >= 2:
+        markers.append({
+            "name": "viparita_raj_yoga",
+            "fires": True,
+            "weight": 2,
+            "detail": f"Viparita Raj Yoga: {vrj_count} of 3 dushthana lords in dushthana",
+        })
+
+    # ── UPACHAYA-SHADOW WEALTH ─────────────────────────────────────────────
+    # Rahu in 3, 6, 10, 11 (upachaya) — unconventional wealth builder
+    rahu_data = planets.get("Rahu", {})
+    if rahu_data:
+        rahu_sign = rahu_data.get("sign_index", -1)
+        if rahu_sign >= 0:
+            rahu_house = (rahu_sign - lagna_idx + 12) % 12 + 1
+            if rahu_house in {3, 6, 10, 11}:
+                markers.append({
+                    "name": "rahu_upachaya",
+                    "fires": True,
+                    "weight": 1,
+                    "detail": f"Rahu in H{rahu_house} (upachaya — unconventional wealth building)",
+                })
+
+    # ── ANTI-CONDITIONS: DOWNFALL MARKERS ─────────────────────────────────
     lord_2 = _get_house_lord(2, lagna_idx)
     lord_11 = _get_house_lord(11, lagna_idx)
-
-    # Condition 1: 2L dignified or well-placed
-    lord_2_data = planets.get(lord_2, {})
-    lord_2_sign = lord_2_data.get("sign_index", -1)
-    cond_2l = _is_dignified(lord_2, lord_2_sign) or _planet_in_houses(lord_2, planets, lagna_idx, WEALTH_HOUSES)
-
-    # Condition 2: 11L dignified or well-placed
-    lord_11_data = planets.get(lord_11, {})
-    lord_11_sign = lord_11_data.get("sign_index", -1)
-    cond_11l = _is_dignified(lord_11, lord_11_sign) or _planet_in_houses(lord_11, planets, lagna_idx, WEALTH_HOUSES)
-
-    # Condition 3: Jupiter touches wealth houses
-    cond_jupiter = (
-        _planet_in_houses("Jupiter", planets, lagna_idx, WEALTH_HOUSES) or
-        _planet_aspects_houses("Jupiter", planets, lagna_idx, WEALTH_HOUSES)
-    )
-
-    # Anti-condition: Rahu-Saturn on 2L or 11L
     downfall_marker = (
         _rahu_saturn_conjunct_on_lord(planets, lord_2) or
         _rahu_saturn_conjunct_on_lord(planets, lord_11)
     )
 
-    # Need at least 2 of 3 positive conditions and no downfall
-    positives = sum([cond_2l, cond_11l, cond_jupiter])
-    fires = positives >= 2 and not downfall_marker
+    # ── FIRE LOGIC ─────────────────────────────────────────────────────────
+    total_weight = sum(m["weight"] for m in markers if m["fires"])
+    fires = total_weight >= 3 and not downfall_marker
 
-    detail = []
-    if cond_2l:
-        detail.append(f"2L ({lord_2}) dignified or well-placed")
-    if cond_11l:
-        detail.append(f"11L ({lord_11}) dignified or well-placed")
-    if cond_jupiter:
-        detail.append("Jupiter aspects/occupies wealth houses (2H/5H/9H/11H)")
+    detail = [m["detail"] for m in markers if m["fires"]]
     if downfall_marker:
         detail.append("WARNING: Rahu-Saturn conjunction on wealth lord (downfall marker)")
 
     return {
         "fires": fires,
-        "score": positives,
-        "max_score": 3,
+        "score": total_weight,
+        "max_score": 10,  # theoretical ceiling
+        "markers": [m["name"] for m in markers if m["fires"]],
         "detail": detail,
         "downfall_marker": downfall_marker,
     }
@@ -379,7 +486,7 @@ def _build_missing(natal: dict, dasha: dict, transit: dict) -> list:
     """Build a list of what's missing for full signature match."""
     missing = []
     if not natal["fires"]:
-        missing.append("Natal wealth potential insufficient (need 2+ of: 2L strong, 11L strong, Jupiter on wealth houses)")
+        missing.append("Natal wealth potential insufficient (need 3+ marker weight from: Mahapurusha, Lakshmi, Dhana, Stellium, Viparita, Rahu-upachaya)")
     if not dasha["fires"]:
         missing.append("Dasha lords do not activate wealth axis")
     if not transit["fires"]:

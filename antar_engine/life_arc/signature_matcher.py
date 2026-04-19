@@ -1,10 +1,12 @@
 """
 Signature Matcher — Surface B: Life Arc
 ========================================
-Scans the forecast horizon month-by-month, runs validated signatures
-against each month's dasha/transit state, and returns predicted events.
+Scans the forecast horizon month-by-month, runs all enabled signatures
+from the SIGNATURE_REGISTRY against each month's dasha/transit state,
+and returns predicted events.
 
-For MVP: only loads wealth_jump signature.
+Supports dynamic signature library: only signatures with
+enabled_in_library=True in their SIGNATURE_METADATA participate.
 
 Author: Antar Engine · April 2026
 """
@@ -18,7 +20,9 @@ from antar_engine import vimsottari, transits, utils, constants
 def _now_utc() -> datetime:
     """Timezone-aware UTC now."""
     return datetime.now(timezone.utc)
-from antar_engine.life_arc.signatures import wealth_jump
+from antar_engine.life_arc.signatures import (
+    wealth_jump, SIGNATURE_REGISTRY, get_enabled_signatures
+)
 
 
 # ─── Transit computation for future dates ────────────────────────────────────
@@ -106,6 +110,11 @@ def _find_peak_month(months: list) -> str:
 
 
 def _build_reasoning_public(window: dict, chart_data: dict) -> str:
+    """Build user-facing reasoning (backward compat — calls generic with wealth_jump meta)."""
+    return _build_reasoning_public_generic(window, chart_data, wealth_jump.SIGNATURE_METADATA)
+
+
+def _build_reasoning_public_generic(window: dict, chart_data: dict, meta: dict) -> str:
     """Build user-facing reasoning from the window's best month data."""
     best_month = max(window["months"], key=lambda m: m.get("conditions_met", 0))
     parts = []
@@ -118,22 +127,35 @@ def _build_reasoning_public(window: dict, chart_data: dict) -> str:
     for t in best_month.get("transit_match", []):
         parts.append(t)
 
-    # Historical match
-    meta = wealth_jump.SIGNATURE_METADATA
-    n = meta["positive_sample_size"]
-    rate = meta["positive_rate"]
-    pct = int(rate * 100)
-    count = int(n * rate)
-    parts.append(
-        f"Historical pattern match: {count} of {n} charts with identical "
-        f"conditions experienced income jumps of 30%+ in this window."
-    )
+    # Historical match — only if we have validation data
+    n = meta.get("positive_sample_size", 0)
+    rate = meta.get("positive_rate")
+    if n and rate:
+        pct = int(rate * 100)
+        count = int(n * rate)
+        parts.append(
+            f"Historical pattern match: {count} of {n} charts with identical "
+            f"conditions experienced this event in the predicted window."
+        )
+    elif n:
+        parts.append(
+            f"Pattern detected across {n} reference charts."
+        )
+    else:
+        parts.append(
+            f"This pattern is in early validation (confidence: {meta.get('confidence', 'INDICATIVE')})."
+        )
 
     return " ".join(parts)
 
 
 def _build_actions(window: dict) -> list:
-    """Generate actionable advice for the predicted wealth window."""
+    """Generate actionable advice (backward compat — calls generic for wealth_jump)."""
+    return _build_actions_generic(window, "wealth_jump")
+
+
+def _build_actions_generic(window: dict, signature_name: str) -> list:
+    """Generate actionable advice for a predicted event window."""
     peak = _find_peak_month(window["months"])
     peak_parts = peak.split("-")
     peak_year, peak_month_num = int(peak_parts[0]), int(peak_parts[1])
@@ -148,11 +170,54 @@ def _build_actions(window: dict) -> list:
     peak_name = month_names[peak_month_num] if 1 <= peak_month_num <= 12 else "Unknown"
     prep_name = month_names[prep_month] if 1 <= prep_month <= 12 else "Unknown"
 
+    # Signature-specific action templates
+    actions = _ACTION_TEMPLATES.get(signature_name)
+    if actions:
+        return [a.format(
+            peak_name=peak_name, peak_year=peak_year,
+            prep_name=prep_name, prep_year=prep_year
+        ) for a in actions]
+
+    # Fallback generic
     return [
-        f"Position for income expansion — negotiate salary, equity, contracts in the 2 months BEFORE peak ({prep_name} {prep_year})",
-        f"Large investment decisions favored during window",
-        f"Close pending deals in peak month ({peak_name} {peak_year})",
+        f"Pay attention to this area around {peak_name} {peak_year}",
+        f"Start preparing in {prep_name} {prep_year}",
+        f"Use this window for important decisions in this domain",
     ]
+
+
+_ACTION_TEMPLATES = {
+    "wealth_jump": [
+        "Position for income expansion — negotiate salary, equity, contracts in the 2 months BEFORE peak ({prep_name} {prep_year})",
+        "Large investment decisions favored during window",
+        "Close pending deals in peak month ({peak_name} {peak_year})",
+    ],
+    "job_change": [
+        "Update your resume and professional profile before {prep_name} {prep_year}",
+        "Network actively and explore opportunities — this window favors career moves",
+        "If considering a change, aim to finalize around {peak_name} {peak_year}",
+    ],
+    "marriage": [
+        "If in a relationship, this is a favorable window for deepening commitment",
+        "Social opportunities peak around {peak_name} {peak_year} — be open to meeting people",
+        "Important partnership decisions are supported during this window",
+    ],
+    "wealth_loss": [
+        "Review and strengthen financial safeguards before {prep_name} {prep_year}",
+        "Avoid high-risk investments or large financial commitments during this window",
+        "Build cash reserves — liquidity is your buffer around {peak_name} {peak_year}",
+    ],
+}
+
+
+def _event_label_for(signature_name: str) -> str:
+    """Map signature names to user-facing event labels."""
+    return {
+        "wealth_jump": "Significant income increase",
+        "job_change": "Job or career transition",
+        "marriage": "Marriage or committed partnership",
+        "wealth_loss": "Financial stress window",
+    }.get(signature_name, signature_name.replace("_", " ").title())
 
 
 # ─── Main Entry Point ───────────────────────────────────────────────────────
@@ -168,14 +233,22 @@ async def match_signatures(
 
     For MVP: only wealth_jump is checked.
     """
-    signatures_to_check = signatures_to_check or ["wealth_jump"]
     now = _now_utc()
+
+    # Resolve which signatures to check
+    if signatures_to_check is not None:
+        sig_modules = [
+            (name, SIGNATURE_REGISTRY[name])
+            for name in signatures_to_check
+            if name in SIGNATURE_REGISTRY
+        ]
+    else:
+        sig_modules = get_enabled_signatures()
 
     predicted_events = []
 
-    for sig_name in signatures_to_check:
-        if sig_name != "wealth_jump":
-            continue  # MVP: only wealth_jump
+    for sig_name, sig_module in sig_modules:
+        meta = sig_module.SIGNATURE_METADATA
 
         # Scan each month in the horizon
         monthly_results = []
@@ -190,8 +263,8 @@ async def match_signatures(
             # Get transit positions for this month
             transit_pos = _get_transit_positions_for_date(target_date)
 
-            # Run signature check
-            result = wealth_jump.check_signature(
+            # Run signature check (all signatures export check_signature)
+            result = sig_module.check_signature(
                 chart_data,
                 dasha_state["md_lord"],
                 dasha_state["ad_lord"],
@@ -212,11 +285,10 @@ async def match_signatures(
             peak = _find_peak_month(window["months"])
             best = max(window["months"], key=lambda m: m.get("conditions_met", 0))
 
-            meta = wealth_jump.SIGNATURE_METADATA
-
             event = {
-                "signature": "wealth_jump",
-                "event_label": meta["event_label"],
+                "signature": meta["name"],
+                "signature_version": meta["version"],
+                "event_label": meta.get("event_label", _event_label_for(meta["name"])),
                 "confidence": meta["confidence"],
                 "confidence_metadata": {
                     "signature_version": meta["version"],
@@ -229,14 +301,16 @@ async def match_signatures(
                     "end": window["end"].strftime("%Y-%m-%d"),
                     "peak_month": peak,
                 },
-                "reasoning_public": _build_reasoning_public(window, chart_data),
+                "reasoning_public": _build_reasoning_public_generic(
+                    window, chart_data, meta
+                ),
                 "reasoning_technical": {
                     "natal_match": best.get("natal_match", []),
                     "dasha_match": best.get("dasha_match", []),
                     "transit_match": best.get("transit_match", []),
                     "missing": best.get("missing", []),
                 },
-                "actions_during_window": _build_actions(window),
+                "actions_during_window": _build_actions_generic(window, meta["name"]),
             }
             predicted_events.append(event)
 

@@ -15675,6 +15675,10 @@ async def get_life_arc(
     if not chart_data:
         raise HTTPException(status_code=400, detail="Chart has no chart_data")
 
+    # ── Library version (for cache invalidation) ────────────────────────
+    from antar_engine.life_arc.signatures import get_library_version
+    _lib_version = get_library_version()
+
     # ── Cache check ──────────────────────────────────────────────────────
     try:
         cache_res = supabase.table("life_arc_cache").select("life_arc,generated_at").eq(
@@ -15684,8 +15688,14 @@ async def get_life_arc(
             cached = cache_res.data[0]
             life_arc = _safe_jsonb(cached.get("life_arc"))
             if life_arc:
-                print(f"[life_arc] Cache HIT for {chart_id}")
-                return life_arc
+                # Invalidate if library version changed since cache was written
+                cached_lib_ver = life_arc.get("_library_version")
+                if cached_lib_ver and cached_lib_ver == _lib_version:
+                    print(f"[life_arc] Cache HIT for {chart_id} (lib={_lib_version})")
+                    return life_arc
+                else:
+                    print(f"[life_arc] Cache STALE for {chart_id} "
+                          f"(cached={cached_lib_ver}, current={_lib_version})")
     except Exception as _cache_e:
         print(f"[life_arc] Cache check error (non-blocking): {_cache_e}")
 
@@ -15798,6 +15808,7 @@ async def get_life_arc(
     try:
         from datetime import timedelta as _la_td
         expires = _la_dt.utcnow() + _la_td(days=30)
+        response["_library_version"] = _lib_version
         supabase.table("life_arc_cache").upsert({
             "chart_id": chart_id,
             "horizon_months": horizon_months,
@@ -15805,7 +15816,7 @@ async def get_life_arc(
             "life_arc": response,
             "expires_at": expires.isoformat(),
         }).execute()
-        print(f"[life_arc] Cached result for {chart_id}")
+        print(f"[life_arc] Cached result for {chart_id} (lib={_lib_version})")
     except Exception as _cache_w_e:
         print(f"[life_arc] Cache write error (non-blocking): {_cache_w_e}")
 
