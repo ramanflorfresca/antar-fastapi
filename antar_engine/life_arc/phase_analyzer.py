@@ -11,10 +11,15 @@ Computes the current life phase for a chart:
 Author: Antar Engine · April 2026
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Optional, Any
 
 from antar_engine import vimsottari, transits, utils, constants
+
+
+def _now_utc() -> datetime:
+    """Timezone-aware UTC now — matches vimsottari's tz-aware datetimes."""
+    return datetime.now(timezone.utc)
 
 
 # ─── Vimsottari: Current MD / AD / PD ───────────────────────────────────────
@@ -63,7 +68,7 @@ def get_current_vimsottari(chart_data: dict, birth_jd: float, now: datetime = No
     """
     Returns current MD, AD, PD with end dates.
     """
-    now = now or datetime.utcnow()
+    now = now or _now_utc()
     result = vimsottari.calculate_vimsottari_from_chart(chart_data, birth_jd)
     mds = result["mahadashas"]
     ads = result["antardashas"]
@@ -137,7 +142,7 @@ def get_current_jaimini(chart_data: dict, birth_date_str: str, now: datetime = N
     """
     Returns current Jaimini Chara MD with end date.
     """
-    now = now or datetime.utcnow()
+    now = now or _now_utc()
     try:
         from antar_engine.jaimini_engine import (
             compute_chara_dasha, get_current_dasha, Planet, SIGN_NAMES
@@ -166,7 +171,9 @@ def get_current_jaimini(chart_data: dict, birth_date_str: str, now: datetime = N
         birth_dt = datetime(int(bd_parts[0]), int(bd_parts[1]), int(bd_parts[2]))
 
         all_mds = compute_chara_dasha(lagna_sign, planets, birth_dt, num_cycles=3)
-        current_md, current_ad = get_current_dasha(all_mds, now)
+        # Jaimini uses naive datetimes — strip tz for comparison
+        now_naive = now.replace(tzinfo=None) if now.tzinfo else now
+        current_md, current_ad = get_current_dasha(all_mds, now_naive)
 
         if current_md:
             return {
@@ -186,7 +193,7 @@ def detect_sade_sati(chart_data: dict, now: datetime = None) -> dict:
     Detect Sade Sati status: Saturn transiting 12H, 1H, or 2H from natal Moon.
     Returns status string and months remaining.
     """
-    now = now or datetime.utcnow()
+    now = now or _now_utc()
     natal_moon = chart_data.get("planets", {}).get("Moon", {})
     moon_sign_idx = natal_moon.get("sign_index", 0)
 
@@ -242,7 +249,7 @@ def get_transit_overlay(chart_data: dict, now: datetime = None) -> dict:
     """
     Get slow-planet transit positions relative to natal Moon for context.
     """
-    now = now or datetime.utcnow()
+    now = now or _now_utc()
     natal_moon = chart_data.get("planets", {}).get("Moon", {})
     moon_sign_idx = natal_moon.get("sign_index", 0)
     natal_lagna_idx = chart_data.get("lagna", {}).get("sign_index", 0)
@@ -348,7 +355,7 @@ async def analyze_current_phase(
     Full current phase analysis. Returns the current_phase block
     for the life-arc response.
     """
-    now = now or datetime.utcnow()
+    now = now or _now_utc()
 
     # 1. Vimsottari
     vim = get_current_vimsottari(chart_data, birth_jd, now)

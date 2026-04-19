@@ -279,7 +279,7 @@ def _months_until(date_str: str) -> int:
         return 0
     try:
         target = datetime.strptime(date_str[:10], "%Y-%m-%d")
-        now = datetime.utcnow()
+        now = datetime.utcnow()  # naive is fine here — just calculating month diff
         delta = target - now
         return max(0, int(delta.days / 30))
     except Exception:

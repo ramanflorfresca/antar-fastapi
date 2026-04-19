@@ -7,7 +7,7 @@ Output is structured data the frontend can render as a horizontal timeline.
 Author: Antar Engine · April 2026
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any
 
 
@@ -21,7 +21,7 @@ def build_timeline(
     Build structured timeline data for frontend rendering.
     Includes phase shift dates, event windows, peak dates.
     """
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     start_date = now.strftime("%Y-%m-%d")
     end_date = (now + timedelta(days=30 * horizon_months)).strftime("%Y-%m-%d")
 
@@ -127,7 +127,9 @@ def _is_in_horizon(date_str: str, now: datetime, horizon_months: int) -> bool:
     """Check if a date string falls within the forecast horizon."""
     try:
         target = datetime.strptime(date_str[:10], "%Y-%m-%d")
-        horizon_end = now + timedelta(days=30 * horizon_months)
-        return now <= target <= horizon_end
+        # Strip tz from now for comparison with naive parsed dates
+        now_naive = now.replace(tzinfo=None) if now.tzinfo else now
+        horizon_end = now_naive + timedelta(days=30 * horizon_months)
+        return now_naive <= target <= horizon_end
     except (ValueError, TypeError):
         return False

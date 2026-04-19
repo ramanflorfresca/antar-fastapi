@@ -9,10 +9,15 @@ For MVP: only loads wealth_jump signature.
 Author: Antar Engine · April 2026
 """
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Any
 
 from antar_engine import vimsottari, transits, utils, constants
+
+
+def _now_utc() -> datetime:
+    """Timezone-aware UTC now."""
+    return datetime.now(timezone.utc)
 from antar_engine.life_arc.signatures import wealth_jump
 
 
@@ -31,6 +36,10 @@ def _get_dasha_at_date(
     result = vimsottari.calculate_vimsottari_from_chart(chart_data, birth_jd)
     mds = result["mahadashas"]
     ads = result["antardashas"]
+
+    # Ensure target_date is tz-aware (vimsottari returns tz-aware datetimes)
+    if target_date.tzinfo is None:
+        target_date = target_date.replace(tzinfo=timezone.utc)
 
     current_md = None
     for md in mds:
@@ -160,7 +169,7 @@ async def match_signatures(
     For MVP: only wealth_jump is checked.
     """
     signatures_to_check = signatures_to_check or ["wealth_jump"]
-    now = datetime.utcnow()
+    now = _now_utc()
 
     predicted_events = []
 
