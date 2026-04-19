@@ -14164,18 +14164,33 @@ async def get_daily_week(chart_id: str, language: str = "en"):
         chart_data = chart_resp.data
 
         # 2. Extract natal Moon sign
-        natal_moon_sign = "Aries"
+        # Handle BOTH storage formats:
+        #   (a) planets = {"Moon": {"sign": "..."}, "Sun": {...}, ...}   (current schema)
+        #   (b) planets = [{"name": "Moon", "sign": "..."}, ...]          (legacy)
+        natal_moon_sign = None
         planets = None
         raw = chart_data.get("chart_data") or chart_data
         if isinstance(raw, dict):
             planets = raw.get("planets") or raw.get("planet_positions")
-        if planets:
+
+        if isinstance(planets, dict):
+            # Format (a): dict keyed by planet name — case-insensitive lookup
+            for key, val in planets.items():
+                if isinstance(key, str) and key.lower() == "moon" and isinstance(val, dict):
+                    natal_moon_sign = val.get("sign") or val.get("rashi")
+                    break
+        elif isinstance(planets, list):
+            # Format (b): list of dicts with name/planet field
             for p in planets:
                 if isinstance(p, dict):
-                    name = p.get("name", "").lower() or p.get("planet", "").lower()
+                    name = (p.get("name") or p.get("planet") or "").lower()
                     if name == "moon":
-                        natal_moon_sign = p.get("sign") or p.get("rashi") or "Aries"
+                        natal_moon_sign = p.get("sign") or p.get("rashi")
                         break
+
+        if not natal_moon_sign:
+            print(f"[daily-week] WARNING: natal Moon extraction failed for chart {chart_id}, defaulting to Aries")
+            natal_moon_sign = "Aries"
 
         print(f"[daily-week] chart={chart_id} natal_moon={natal_moon_sign}")
 
@@ -14686,18 +14701,33 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
         chart_data = chart_resp.data
 
         # 2. Extract natal Moon sign
-        natal_moon_sign = "Aries"
+        # Handle BOTH storage formats:
+        #   (a) planets = {"Moon": {"sign": "..."}, "Sun": {...}, ...}   (current schema)
+        #   (b) planets = [{"name": "Moon", "sign": "..."}, ...]          (legacy)
+        natal_moon_sign = None
         planets = None
         raw = chart_data.get("chart_data") or chart_data
         if isinstance(raw, dict):
             planets = raw.get("planets") or raw.get("planet_positions")
-        if planets:
+
+        if isinstance(planets, dict):
+            # Format (a): dict keyed by planet name — case-insensitive lookup
+            for key, val in planets.items():
+                if isinstance(key, str) and key.lower() == "moon" and isinstance(val, dict):
+                    natal_moon_sign = val.get("sign") or val.get("rashi")
+                    break
+        elif isinstance(planets, list):
+            # Format (b): list of dicts with name/planet field
             for p in planets:
                 if isinstance(p, dict):
-                    name = p.get("name", "").lower() or p.get("planet", "").lower()
+                    name = (p.get("name") or p.get("planet") or "").lower()
                     if name == "moon":
-                        natal_moon_sign = p.get("sign") or p.get("rashi") or "Aries"
+                        natal_moon_sign = p.get("sign") or p.get("rashi")
                         break
+
+        if not natal_moon_sign:
+            print(f"[daily-week] WARNING: natal Moon extraction failed for chart {chart_id}, defaulting to Aries")
+            natal_moon_sign = "Aries"
 
         # 3. Compute local start date
         current_country = chart_data.get("current_country") or chart_data.get("birth_country") or ""
