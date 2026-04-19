@@ -26,7 +26,7 @@ from typing import Dict, List, Optional, Any
 
 SIGNATURE_METADATA = {
     "name": "business_fit",
-    "version": "1.0",
+    "version": "2.0",
     "event_label": "Business & career structural alignment",
     "confidence": "MEDIUM",
     "positive_sample_size": 2,      # Raman + Andres retrodiction
@@ -38,9 +38,9 @@ SIGNATURE_METADATA = {
         "Retrodiction: Raman (Capricorn rising), Andres (Cancer rising)",
         "Classical Vedic divisional analysis (D-1/D-2/D-4/D-7/D-9/D-10/D-60)",
     ],
-    "notes": "Classifies which business categories align with chart. "
-             "Outputs ranked category fit, not probability predictions. "
-             "Supersedes wealth_jump v2 business-type analysis.",
+    "notes": "v2: Added yogakaraka detection, Mahapurusha stacking, focus-split risk, "
+             "SERVICE_MASSES_AUTOMATION and INSTITUTIONAL_AUTHORITY categories. "
+             "9 total categories scored. Supersedes wealth_jump business-type analysis.",
 }
 
 
@@ -76,6 +76,8 @@ CATEGORY_ADVISORY = "ADVISORY"
 CATEGORY_BROKERING = "BROKERING"
 CATEGORY_CREATIVE = "CREATIVE"
 CATEGORY_SPECULATION = "SPECULATION"
+CATEGORY_SERVICE_MASSES = "SERVICE_MASSES_AUTOMATION"
+CATEGORY_INSTITUTIONAL = "INSTITUTIONAL_AUTHORITY"
 
 CATEGORY_VEHICLES = {
     CATEGORY_PLATFORM: "AI platforms, SaaS, knowledge products, media platforms, data businesses, educational products",
@@ -85,6 +87,50 @@ CATEGORY_VEHICLES = {
     CATEGORY_BROKERING: "Deal-making, M&A advisory, real estate brokerage, partnerships, marketplace, sales",
     CATEGORY_CREATIVE: "Writing, music, film, design, brand/persona businesses, entertainment, art",
     CATEGORY_SPECULATION: "Trading, crypto, VC investing, hedge funds, derivatives, speculative finance",
+    CATEGORY_SERVICE_MASSES: "Operational automation, labor augmentation, MSME services, healthcare, debt/dispute resolution, outsourcing, care work platforms",
+    CATEGORY_INSTITUTIONAL: "Legal practice at scale, financial institutions, academic authority, regulatory/government roles, large consulting firms, multi-generational family business leadership",
+}
+
+# ─── YOGAKARAKA BY LAGNA ─────────────────────────────────────────────────────
+# Planet that simultaneously rules a kendra AND a trikona from lagna.
+# When well-placed, this single planet produces Raj Yoga.
+
+YOGAKARAKA_BY_LAGNA = {
+    0:  None,       # Aries — no single-planet yogakaraka
+    1:  "Saturn",   # Taurus — Saturn rules 9H (Capricorn) + 10H (Aquarius)
+    2:  None,       # Gemini
+    3:  "Mars",     # Cancer — Mars rules 5H (Scorpio) + 10H (Aries)
+    4:  "Mars",     # Leo — Mars rules 4H (Scorpio) + 9H (Aries)
+    5:  None,       # Virgo
+    6:  "Saturn",   # Libra — Saturn rules 4H (Capricorn) + 5H (Aquarius)
+    7:  None,       # Scorpio
+    8:  None,       # Sagittarius
+    9:  "Venus",    # Capricorn — Venus rules 5H (Taurus) + 10H (Libra)
+    10: "Venus",    # Aquarius — Venus rules 4H (Taurus) + 9H (Libra)
+    11: None,       # Pisces
+}
+
+# Secondary yogakaraka-equivalents (double-lordship producing major yoga)
+SECONDARY_YOGAKARAKA = {
+    9: ["Venus", "Saturn"],   # Capricorn — Saturn (1H+2H) also major yoga-producer
+    3: ["Mars"],              # Cancer — Mars is primary, no secondary
+    4: ["Mars"],              # Leo — Mars is primary
+}
+
+# House-to-business-theme mapping for yogakaraka placement
+YOGAKARAKA_HOUSE_THEMES = {
+    1: "self-driven enterprise, personal brand, founder identity",
+    2: "wealth accumulation, family-business, speech/communication-based wealth",
+    3: "self-effort initiative, short-distance networks, writing/media",
+    4: "real estate, property, educational institutions, nurturing services",
+    5: "creative ventures, entertainment, children-related, speculation/investing",
+    6: "service/labor businesses, operational automation, health/medicine, debt/dispute resolution, serving the underserved/masses",
+    7: "partnerships, marriage-based business, public-facing enterprise, dealings-based",
+    8: "transformation businesses, research, hidden resources, inheritance/occult",
+    9: "philosophy/teaching, publishing, long-distance/international, legal/advisory",
+    10: "executive authority, institutional leadership, government-adjacent, large-enterprise",
+    11: "platform gains, networks, community-scale businesses, large-follower ventures",
+    12: "foreign ventures, spiritual/isolation work, research, behind-scenes roles",
 }
 
 
@@ -228,6 +274,219 @@ def _planets_in_house(planets: dict, lagna_idx: int, house_num: int) -> List[str
         if h == house_num:
             result.append(p_name)
     return result
+
+
+# ─── V2 DETECTIONS ───────────────────────────────────────────────────────────
+
+def detect_yogakaraka_activation(chart_data: dict) -> Optional[List[dict]]:
+    """
+    Detect whether the chart's yogakaraka planet is active and well-placed.
+    Yogakaraka in its house of placement determines the primary business theme.
+
+    Returns list of activation dicts, or None if no yogakaraka for this lagna.
+    """
+    planets = chart_data.get("planets", {})
+    lagna_idx = chart_data.get("lagna", {}).get("sign_index", 0)
+
+    primary_yk = YOGAKARAKA_BY_LAGNA.get(lagna_idx)
+    secondary_yks = SECONDARY_YOGAKARAKA.get(lagna_idx, [])
+
+    all_yks = []
+    if primary_yk:
+        all_yks.append((primary_yk, "primary"))
+    for yk in secondary_yks:
+        if yk != primary_yk:
+            all_yks.append((yk, "secondary"))
+
+    if not all_yks:
+        return None
+
+    activations = []
+    for yk_planet, yk_type in all_yks:
+        pdata = planets.get(yk_planet, {})
+        if not pdata:
+            continue
+
+        yk_sign = _get_planet_sign(yk_planet, planets)
+        yk_house = _get_planet_house(yk_planet, planets, lagna_idx)
+        if yk_house is None:
+            continue
+
+        is_own_or_exalted = yk_sign is not None and _is_dignified(yk_planet, yk_sign)
+        is_in_kendra_trikona = yk_house in (1, 4, 5, 7, 9, 10)
+        is_in_dushthana = yk_house in (6, 8, 12)
+
+        # Strength classification
+        if is_own_or_exalted and is_in_kendra_trikona:
+            strength = "peak"
+            weight = 4.0
+        elif is_in_kendra_trikona:
+            strength = "strong"
+            weight = 3.0
+        elif is_in_dushthana:
+            # Dushthana placement is "latent" but H6 is special for service businesses
+            strength = "latent"
+            weight = 1.5 if yk_house == 6 else 1.0
+        else:
+            strength = "moderate"
+            weight = 2.0
+
+        activations.append({
+            "planet": yk_planet,
+            "type": yk_type,
+            "house": yk_house,
+            "sign_dignified": is_own_or_exalted,
+            "strength": strength,
+            "business_theme": YOGAKARAKA_HOUSE_THEMES.get(yk_house, ""),
+            "weight": weight,
+        })
+
+    return activations if activations else None
+
+
+def detect_mahapurusha_stack(chart_data: dict) -> dict:
+    """
+    Count Mahapurusha yogas (planet exalted or own sign in kendra).
+    Checks: Saturn (Sasa), Jupiter (Hamsa), Mercury (Bhadra),
+            Venus (Malavya), Mars (Ruchaka).
+
+    Single = notable success capacity. Stacked (2+) = rare institutional-scale.
+
+    Uses chart_data.yogas if available, else computes from planets.
+    """
+    # Try pre-computed yogas first
+    yogas = chart_data.get("yogas", [])
+    if yogas:
+        mahapurusha = [
+            y for y in yogas
+            if isinstance(y, dict)
+            and y.get("category") == "mahapurusha"
+            and y.get("strength") in ("strong", "moderate")
+        ]
+        if mahapurusha:
+            count = len(mahapurusha)
+            names = [y.get("name", "") for y in mahapurusha]
+            if count >= 2:
+                return {
+                    "count": count,
+                    "weight": 6.0,
+                    "tier": "stacked",
+                    "names": names,
+                    "note": (
+                        f"{count} Mahapurusha yogas stacked — rare institutional-scale "
+                        "capacity. Classical texts reserve this for founders of "
+                        "institutions and major dharmic figures."
+                    ),
+                }
+            else:
+                return {
+                    "count": 1,
+                    "weight": 3.0,
+                    "tier": "single",
+                    "names": names,
+                    "note": f"Mahapurusha yoga ({names[0]}) — notable success capacity in this domain",
+                }
+
+    # Fall back: compute from planets
+    planets = chart_data.get("planets", {})
+    lagna_idx = chart_data.get("lagna", {}).get("sign_index", 0)
+
+    mp_names_map = {
+        "Saturn": "Sasa",
+        "Jupiter": "Hamsa",
+        "Mercury": "Bhadra",
+        "Venus": "Malavya",
+        "Mars": "Ruchaka",
+    }
+    found = []
+    for p_name, yoga_name in mp_names_map.items():
+        pdata = planets.get(p_name, {})
+        if not pdata:
+            continue
+        p_sign = pdata.get("sign_index", -1)
+        if p_sign < 0:
+            continue
+        if not _is_dignified(p_name, p_sign):
+            continue
+        p_house = _get_planet_house(p_name, planets, lagna_idx)
+        if p_house in (1, 4, 7, 10):
+            found.append(yoga_name)
+
+    count = len(found)
+    if count == 0:
+        return {"count": 0, "weight": 0, "tier": "none", "names": [], "note": ""}
+    elif count == 1:
+        return {
+            "count": 1,
+            "weight": 3.0,
+            "tier": "single",
+            "names": found,
+            "note": f"Mahapurusha yoga ({found[0]}) — notable success capacity",
+        }
+    else:
+        return {
+            "count": count,
+            "weight": 6.0,
+            "tier": "stacked",
+            "names": found,
+            "note": (
+                f"{count} Mahapurusha yogas stacked ({', '.join(found)}) — "
+                "rare institutional-scale capacity"
+            ),
+        }
+
+
+def detect_focus_split_risk(chart_data: dict) -> Optional[dict]:
+    """
+    Charts with Rahu in kama houses (3/7/11) + multi-planet 11H stellium
+    are prone to running multiple ventures simultaneously.
+    During Rahu MD/AD, this pattern amplifies.
+
+    Returns risk assessment dict or None if no risk detected.
+    """
+    planets = chart_data.get("planets", {})
+    lagna_idx = chart_data.get("lagna", {}).get("sign_index", 0)
+
+    rahu_house = _get_planet_house("Rahu", planets, lagna_idx)
+
+    # Count planets in 11H
+    h11_all = _planets_in_house(planets, lagna_idx, 11)
+    h11_count = len(h11_all)
+
+    risk_factors = []
+    severity = "low"
+
+    if rahu_house in (3, 7, 11):
+        risk_factors.append(f"Rahu in H{rahu_house} (kama house — desire-amplifier)")
+        severity = "moderate"
+
+    if h11_count >= 3:
+        risk_factors.append(f"{h11_count}-planet stellium in 11H ({', '.join(h11_all)})")
+        severity = "high" if severity == "moderate" else "moderate"
+
+    if rahu_house == 11 and h11_count >= 2:
+        risk_factors.append("Rahu joining 11H stellium = amplified gains-seeking")
+        severity = "high"
+
+    if not risk_factors:
+        return None
+
+    return {
+        "flag": "focus_split_risk",
+        "severity": severity,
+        "factors": risk_factors,
+        "implication": (
+            "Chart architecture attracts multiple business opportunities simultaneously. "
+            "This is a capability — AND a risk. Without conscious focus, ventures compete "
+            "for attention and none compound fully."
+        ),
+        "amplified_during": "Rahu MD, Rahu AD, Rahu PD, Rahu transits to 11H",
+        "guidance": (
+            "Designate ONE primary vehicle, especially during Rahu MD/AD. Secondary "
+            "ventures must be genuinely complementary (feed into primary) or delegated "
+            "(partner or team runs them)."
+        ),
+    }
 
 
 # ─── CATEGORY SCORERS ────────────────────────────────────────────────────────
@@ -968,6 +1227,206 @@ def score_speculation_fit(chart_data: dict) -> dict:
     }
 
 
+# ─── V2 CATEGORY SCORERS ─────────────────────────────────────────────────────
+
+def score_service_masses_fit(chart_data: dict) -> dict:
+    """
+    SERVICE TO MASSES / OPERATIONAL AUTOMATION
+    MSME services, labor augmentation, healthcare, debt resolution,
+    outsourcing, care work platforms.
+
+    Key marker: yogakaraka in H6 = peak fit.
+    Uses D-1, D-10, yogakaraka activation.
+    """
+    score = 0.0
+    reasons = []
+    warnings = []
+
+    planets = chart_data.get("planets", {})
+    lagna_idx = chart_data.get("lagna", {}).get("sign_index", 0)
+
+    # ── Yogakaraka in H6 = peak fit for this category ──
+    yk_activations = detect_yogakaraka_activation(chart_data) or []
+    for act in yk_activations:
+        if act["house"] == 6:
+            score += act["weight"] + 2.0  # bonus for exact category match
+            reasons.append(
+                f"{act['planet']} yogakaraka in H6 ({act['strength']}) — "
+                f"classical 'wealth through serving masses' placement"
+            )
+        elif act["house"] in (10, 11):
+            # Yogakaraka in career/gains houses also supports service-at-scale
+            score += 1.0
+            reasons.append(
+                f"{act['planet']} yogakaraka in H{act['house']} — "
+                f"supports service-business scaling"
+            )
+
+    # ── 6L well-placed ──
+    lord_6 = _get_house_lord(6, lagna_idx)
+    lord_6_house = _get_planet_house(lord_6, planets, lagna_idx)
+    lord_6_sign = _get_planet_sign(lord_6, planets)
+    if lord_6_house in (1, 2, 5, 6, 9, 10, 11):
+        score += 1.5
+        reasons.append(f"6L ({lord_6}) in H{lord_6_house} — service-business lord well-placed")
+
+    # ── Mars or Saturn in 6H = execution capacity for service work ──
+    for p in ("Mars", "Saturn"):
+        p_house = _get_planet_house(p, planets, lagna_idx)
+        if p_house == 6:
+            score += 1.5
+            reasons.append(f"{p} in H6 — discipline/execution capacity for service work")
+
+    # ── Mercury in 6H or 10H = systematic process capability ──
+    mer_house = _get_planet_house("Mercury", planets, lagna_idx)
+    if mer_house in (6, 10):
+        score += 1.0
+        reasons.append(f"Mercury in H{mer_house} — systematic-process capability")
+
+    # ── Rahu in 6H = unconventional service to underserved ──
+    rahu_house = _get_planet_house("Rahu", planets, lagna_idx)
+    if rahu_house == 6:
+        score += 1.5
+        reasons.append("Rahu in H6 — unconventional service to underserved populations")
+
+    # ── D-10 career chart: planets in 6H of D-10 ──
+    d10_planets = _get_d_chart_planets(chart_data, "d10")
+    for p in ("Jupiter", "Mercury", "Saturn"):
+        pdata = d10_planets.get(p, {})
+        ph = pdata.get("house")
+        if ph is not None:
+            try:
+                if int(ph) == 6:
+                    score += 0.5
+                    reasons.append(f"D-10: {p} in H6 — career-path aligns with service work")
+            except (TypeError, ValueError):
+                pass
+
+    # ── D-60 karmic markers on service planets ──
+    d60 = _get_d_chart(chart_data, "d60")
+    planet_analysis = d60.get("planet_analysis", {})
+    if isinstance(planet_analysis, dict):
+        sat_d60 = planet_analysis.get("Saturn", {})
+        if isinstance(sat_d60, dict) and sat_d60.get("is_challenging"):
+            warnings.append(
+                f"D-60 Saturn has {sat_d60.get('karma_name', 'challenging')} karma — "
+                f"service-to-masses work carries karmic tests around authority/discipline"
+            )
+
+    return {
+        "category": CATEGORY_SERVICE_MASSES,
+        "score": round(score, 1),
+        "reasoning": reasons,
+        "warnings": warnings,
+        "vehicles": CATEGORY_VEHICLES[CATEGORY_SERVICE_MASSES],
+    }
+
+
+def score_institutional_authority_fit(chart_data: dict) -> dict:
+    """
+    INSTITUTIONAL AUTHORITY — large-institution leadership, long-structure
+    authority, government/regulatory/academic/legal/financial-institution work.
+
+    Distinct from ADVISORY (which can be solo practitioner).
+    INSTITUTIONAL = systems that persist across decades, hierarchy-based.
+
+    Key markers: Mahapurusha stacking, Saturn in kendra own-sign,
+    Jupiter in kendra.
+    """
+    score = 0.0
+    reasons = []
+    warnings = []
+
+    planets = chart_data.get("planets", {})
+    lagna_idx = chart_data.get("lagna", {}).get("sign_index", 0)
+
+    # ── Mahapurusha detection ──
+    mp_stack = detect_mahapurusha_stack(chart_data)
+    if mp_stack["tier"] == "stacked":
+        score += mp_stack["weight"]
+        reasons.append(
+            f"{mp_stack['count']} Mahapurusha yogas stacked "
+            f"({', '.join(mp_stack['names'])}) — institutional-scale capacity"
+        )
+    elif mp_stack["tier"] == "single":
+        score += mp_stack["weight"]
+        reasons.append(
+            f"Mahapurusha yoga ({mp_stack['names'][0]}) — authority capacity"
+        )
+
+    # ── Saturn in kendra = institutional structure capability ──
+    sat_house = _get_planet_house("Saturn", planets, lagna_idx)
+    sat_sign = _get_planet_sign("Saturn", planets)
+    if sat_house in (1, 4, 7, 10):
+        score += 2.0
+        reasons.append(f"Saturn in H{sat_house} kendra — structural/institutional placement")
+        if sat_sign is not None and sat_sign in (9, 10):  # Capricorn or Aquarius
+            score += 1.5
+            reasons.append("Saturn in own sign — institutional authority is native")
+
+    # ── Jupiter in kendra = wisdom-authority ──
+    jup_house = _get_planet_house("Jupiter", planets, lagna_idx)
+    jup_sign = _get_planet_sign("Jupiter", planets)
+    if jup_house in (1, 4, 7, 10):
+        score += 2.0
+        reasons.append(f"Jupiter in H{jup_house} kendra — wisdom-authority fit")
+        if jup_sign is not None and _is_dignified("Jupiter", jup_sign):
+            score += 1.0
+            reasons.append("Jupiter dignified in kendra — peak wisdom-authority")
+
+    # ── 10H strength: benefics in 10H ──
+    for p in ("Jupiter", "Mercury", "Venus", "Sun", "Saturn"):
+        p_house = _get_planet_house(p, planets, lagna_idx)
+        if p_house == 10:
+            score += 0.5
+            reasons.append(f"{p} in H10 — career authority")
+
+    # ── D-10 institutional markers ──
+    d10_planets = _get_d_chart_planets(chart_data, "d10")
+    sat_d10 = d10_planets.get("Saturn", {})
+    sat_d10_house = sat_d10.get("house")
+    if sat_d10_house is not None:
+        try:
+            sh = int(sat_d10_house)
+            if sh in (10, 11):
+                score += 1.5
+                reasons.append(f"D-10: Saturn in H{sh} — long-structure career authority")
+        except (TypeError, ValueError):
+            pass
+
+    jup_d10 = d10_planets.get("Jupiter", {})
+    jup_d10_house = jup_d10.get("house")
+    if jup_d10_house is not None:
+        try:
+            jh = int(jup_d10_house)
+            if jh == 1:
+                score += 2.0
+                reasons.append("D-10: Jupiter in H1 — career itself is wisdom/dharma")
+            elif jh in (4, 7, 10):
+                score += 1.0
+                reasons.append(f"D-10: Jupiter in kendra H{jh} — career wisdom support")
+        except (TypeError, ValueError):
+            pass
+
+    # ── Yogakaraka in H10 or H7 = institutional authority alignment ──
+    yk_activations = detect_yogakaraka_activation(chart_data) or []
+    for act in yk_activations:
+        if act["house"] in (7, 10):
+            score += act["weight"]
+            reasons.append(
+                f"{act['planet']} yogakaraka in H{act['house']} ({act['strength']}) — "
+                f"institutional authority alignment"
+            )
+
+    return {
+        "category": CATEGORY_INSTITUTIONAL,
+        "score": round(score, 1),
+        "reasoning": reasons,
+        "warnings": warnings,
+        "vehicles": CATEGORY_VEHICLES[CATEGORY_INSTITUTIONAL],
+    }
+
+
 # ─── D-60 KARMIC WARNINGS ────────────────────────────────────────────────────
 
 def _extract_d60_warnings(chart_data: dict) -> List[str]:
@@ -1173,6 +1632,12 @@ def analyze_business_fit(chart_data: dict) -> dict:
             "archetype_business_fit": "...", # archetype summary
         }
     """
+    # ── V2: Run new detections ──
+    yogakaraka = detect_yogakaraka_activation(chart_data)
+    mahapurusha_stack = detect_mahapurusha_stack(chart_data)
+    focus_split = detect_focus_split_risk(chart_data)
+
+    # ── Score all categories (v1 + v2) ──
     categories = [
         score_platform_fit(chart_data),
         score_physical_ops_fit(chart_data),
@@ -1181,6 +1646,8 @@ def analyze_business_fit(chart_data: dict) -> dict:
         score_brokering_fit(chart_data),
         score_creative_fit(chart_data),
         score_speculation_fit(chart_data),
+        score_service_masses_fit(chart_data),
+        score_institutional_authority_fit(chart_data),
     ]
 
     # Sort: high positive score = favored, low/negative = disfavored
@@ -1196,7 +1663,24 @@ def analyze_business_fit(chart_data: dict) -> dict:
     # Archetype-based business fit summary
     archetype_summary = _business_fit_from_archetype(chart_data)
 
+    # ── Build primary activation summary from yogakaraka ──
+    primary_activation = None
+    if yogakaraka:
+        # Pick the strongest activation
+        best = max(yogakaraka, key=lambda a: a["weight"])
+        primary_activation = {
+            "yogakaraka_planet": best["planet"],
+            "yogakaraka_house": best["house"],
+            "yogakaraka_strength": best["strength"],
+            "yogakaraka_type": best["type"],
+            "business_theme": best["business_theme"],
+            "note": "This is the single most important career-success marker in the chart.",
+        }
+
     return {
+        "primary_activation": primary_activation,
+        "mahapurusha_stack": mahapurusha_stack,
+        "focus_split_risk": focus_split,
         "favored_categories": favored,
         "disfavored_categories": disfavored,
         "neutral_categories": neutral,
