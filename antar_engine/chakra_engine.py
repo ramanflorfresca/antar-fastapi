@@ -275,6 +275,56 @@ EXALTATION = {
     "Saturn": "Libra",
 }
 
+# Sleeping planet → felt-sense symptoms + verification prompts
+# Used when LK sleeping planets are passed into chakra reading
+SLEEPING_FELT_SENSE = {
+    "Sun": {
+        "felt": "doubt about your own judgment, shrinking from visibility, confusion about who\'s in charge of your life",
+        "verify": "Notice if you hesitate before making decisions or avoid being seen in professional settings",
+        "practice_focus": "Solar Plexus activation — reclaim your inner authority",
+    },
+    "Moon": {
+        "felt": "emotional reactivity, mood swings, difficulty self-soothing, feeling emotionally numb or overwhelmed",
+        "verify": "Notice if your emotional responses feel disproportionate or if you struggle to comfort yourself",
+        "practice_focus": "Sacral + Heart opening — restore emotional flow",
+    },
+    "Mars": {
+        "felt": "procrastination, conflict avoidance, feeling blocked from starting, buried anger or sudden explosions",
+        "verify": "Notice if you keep postponing action on things you know matter, or avoid necessary confrontations",
+        "practice_focus": "Root + Solar Plexus grounding — restore your ability to act",
+    },
+    "Mercury": {
+        "felt": "mental fog, miscommunications repeating, contracts going sideways, writer\'s block",
+        "verify": "Notice if clear thinking feels unusually hard or if conversations keep going wrong",
+        "practice_focus": "Throat activation — restore clarity and expression",
+    },
+    "Jupiter": {
+        "felt": "ideas feeling dry, mentors unavailable, expansion blocked, belief system wobbly",
+        "verify": "Notice if growth feels stalled despite effort, or if wise counsel seems unavailable",
+        "practice_focus": "Crown + Heart expansion — restore growth and wisdom flow",
+    },
+    "Venus": {
+        "felt": "relationship friction, material comfort blocked, creative stagnation, pleasure guilt",
+        "verify": "Notice if relationships feel harder than they should, or if creative joy has dimmed",
+        "practice_focus": "Sacral + Heart opening — restore beauty and harmony flow",
+    },
+    "Saturn": {
+        "felt": "obstacles recurring, delays multiplying, chronic exhaustion, feeling the universe is against you",
+        "verify": "Notice if the same obstacles keep appearing or if long-term commitments feel impossible",
+        "practice_focus": "Root + Third Eye grounding — restore structure and patience",
+    },
+    "Rahu": {
+        "felt": "scattered obsession, chasing mirages, confusion about what you actually want, addictive patterns",
+        "verify": "Notice if you keep starting things without finishing, or if desires feel insatiable",
+        "practice_focus": "Third Eye clarity — restore discernment and focused ambition",
+    },
+    "Ketu": {
+        "felt": "feeling detached when you should be present, sudden unexpected endings, nothing-matters numbness",
+        "verify": "Notice if you feel disconnected during important moments or if things keep ending abruptly",
+        "practice_focus": "Root + Crown integration — restore presence and spiritual grounding",
+    },
+}
+
 
 def _parse_dt(s: str) -> datetime:
     for fmt in ("%Y-%m-%dT%H:%M:%S", "%Y-%m-%d"):
@@ -368,9 +418,16 @@ def get_chakra_reading(
     chart_data: dict,
     dashas: dict,
     current_transits: list,
+    sleeping_planets: list = None,
 ) -> dict:
     """
     Main entry point. Returns a complete chakra reading.
+
+    Args:
+        sleeping_planets: Optional list of dicts from detect_sleeping_planets().
+            Each has: planet, house, problem, impact, awakening.
+            When provided, the sleeping planet's chakras are marked STRESSED
+            with felt-sense verification and 40-day practice prescription.
 
     Returns:
         {
@@ -380,6 +437,7 @@ def get_chakra_reading(
             "daily_sequence":   [...],   # 3-step daily practice
             "chapter_arc":      str,     # How the chakra system will evolve
             "current_chapter_chakra": str, # The dominant chakra of current life chapter
+            "sleeping_chakra_bridges": [...], # NEW: sleeping planet → chakra connections
         }
     """
     now = datetime.utcnow()
@@ -465,6 +523,32 @@ def get_chakra_reading(
                         f"requires extra conscious attention and practice."
                     )
 
+    # ── Step 3b: Sleeping planets (Lal Kitab) → chakra stress ────────────
+    sleeping_chakra_bridges = []
+    if sleeping_planets:
+        for sp in sleeping_planets:
+            sp_planet = sp.get("planet", "")
+            sp_felt = SLEEPING_FELT_SENSE.get(sp_planet, {})
+            for chakra_id in PLANET_CHAKRAS.get(sp_planet, []):
+                stressed_chakra_ids.add(chakra_id)
+                _chakra_obj = _get_chakra_by_id(chakra_id)
+                _chakra_english = _chakra_obj["english"] if _chakra_obj else chakra_id
+                stress_reasons[chakra_id] = (
+                    f"Your {sp_planet.lower()} energy is dormant (sleeping) — "
+                    f"this directly under-powers your {_chakra_english}. "
+                    f"You may have noticed: {sp_felt.get('felt', 'energy feeling blocked')}."
+                )
+                sleeping_chakra_bridges.append({
+                    "planet": sp_planet,
+                    "chakra_id": chakra_id,
+                    "chakra_english": _chakra_english,
+                    "felt_sense": sp_felt.get("felt", ""),
+                    "verification": sp_felt.get("verify", ""),
+                    "practice_focus": sp_felt.get("practice_focus", ""),
+                    "practice_duration": "40 days",
+                    "awakening_remedy": sp.get("awakening", ""),
+                })
+
     # ── Step 4: Remove duplicates (stressed takes priority) ───────────────
 
     flowing_chakra_ids -= stressed_chakra_ids
@@ -527,6 +611,17 @@ def get_chakra_reading(
         flowing=flowing,
     )
 
+    # Add practice duration and felt-sense verification to primary practice
+    if sleeping_chakra_bridges:
+        _primary_bridge = next(
+            (b for b in sleeping_chakra_bridges if b["chakra_id"] == primary_chakra["id"]),
+            sleeping_chakra_bridges[0] if sleeping_chakra_bridges else None,
+        )
+        if _primary_bridge:
+            primary_practice["practice_duration"] = "40 days"
+            primary_practice["felt_sense_check"] = _primary_bridge.get("verification", "")
+            primary_practice["sleeping_planet"] = _primary_bridge.get("planet", "")
+
     return {
         "stressed_chakras":        stressed[:3],
         "flowing_chakras":         flowing[:3],
@@ -537,6 +632,7 @@ def get_chakra_reading(
         "current_chapter_color":   primary_chakra["color"],
         "total_stressed":          len(stressed),
         "total_flowing":           len(flowing),
+        "sleeping_chakra_bridges": sleeping_chakra_bridges,
         "summary": _build_summary(md_planet, stressed, flowing),
     }
 
@@ -670,6 +766,7 @@ def _build_summary(md_planet: str, stressed: list, flowing: list) -> str:
 def chakra_reading_to_context_block(chakra_reading: dict) -> str:
     """
     Convert chakra reading to LLM context block for prompt_builder.py.
+    Includes sleeping planet → chakra bridge data when available.
     """
     if not chakra_reading:
         return ""
@@ -677,21 +774,58 @@ def chakra_reading_to_context_block(chakra_reading: dict) -> str:
     stressed = chakra_reading.get("stressed_chakras", [])
     flowing  = chakra_reading.get("flowing_chakras", [])
     primary  = chakra_reading.get("primary_practice", {})
+    bridges  = chakra_reading.get("sleeping_chakra_bridges", [])
 
-    lines = ["═══ CHAKRA SYSTEM STATE (current timing) ═══"]
+    lines = ["═══ CHAKRA ENERGY SYSTEM STATE ═══"]
 
     if stressed:
-        lines.append(f"STRESSED/BLOCKED: {', '.join(c['english'] for c in stressed)}")
-        for c in stressed[:2]:
+        lines.append(f"ENERGY CENTERS NEEDING ATTENTION: {', '.join(c['english'] for c in stressed)}")
+        for c in stressed[:3]:
             lines.append(f"  → {c['english']}: {c.get('context_reason', '')}")
 
+    if bridges:
+        lines.append("")
+        lines.append("SLEEPING ENERGY → CHAKRA CONNECTIONS (dormant planets affecting energy centers):")
+        for b in bridges[:4]:
+            lines.append(
+                f"  → {b['planet']} energy dormant → {b['chakra_english']} under-powered"
+            )
+            lines.append(f"    Felt sense: {b['felt_sense']}")
+            lines.append(f"    Self-check: {b['verification']}")
+            lines.append(f"    Focus: {b['practice_focus']}")
+            lines.append(f"    Duration: {b['practice_duration']} daily practice cycle")
+
     if flowing:
-        lines.append(f"ACTIVATED/FLOWING: {', '.join(c['english'] for c in flowing[:3])}")
+        lines.append("")
+        lines.append(f"ENERGY CENTERS FLOWING WELL: {', '.join(c['english'] for c in flowing[:3])}")
 
     if primary:
-        lines.append(f"PRIMARY PRACTICE: {primary.get('chakra_name', '')} — {primary.get('context', '')}")
+        lines.append("")
+        lines.append(f"PRIMARY PRACTICE: {primary.get('english_name', primary.get('chakra_name', ''))}")
+        lines.append(f"  Meditation: {primary.get('meditation', '')}")
+        lines.append(f"  Breath: {primary.get('pranayama', '')}")
+        lines.append(f"  Sound: {primary.get('bija_mantra', '')} mantra")
+        lines.append(f"  Body: {', '.join(primary.get('yoga_poses', []))}")
+        lines.append(f"  Color: {primary.get('color_therapy', '')}")
+        lines.append(f"  Nature: {primary.get('nature_practice', '')}")
+        if primary.get("practice_duration"):
+            lines.append(f"  Duration: {primary['practice_duration']} cycle")
+        if primary.get("felt_sense_check"):
+            lines.append(f"  Verification: {primary['felt_sense_check']}")
 
+    lines.append("")
     lines.append(f"CHAPTER ARC: {chakra_reading.get('chapter_arc', '')}")
+    lines.append("")
+    lines.append(
+        "INSTRUCTION: When prescribing chakra practices, always include: "
+        "(1) what the user is likely feeling (felt sense), "
+        "(2) the specific practice with duration, "
+        "(3) a self-check so they can verify the shift. "
+        "Use energy-systems language — never say chakra Sanskrit names to the user. "
+        "Say 'your root energy center' not 'Muladhara'. "
+        "Say 'your heart energy center' not 'Anahata'. "
+        "Prescribe 40-day practice cycles for sleeping/dormant energy."
+    )
     lines.append("═══ END CHAKRA STATE ═══")
 
     return "\n".join(lines)
