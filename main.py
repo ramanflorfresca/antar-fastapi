@@ -10,7 +10,7 @@ from datetime import datetime, date, timedelta, timezone
 from typing import Optional, List, Dict, Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import FastAPI, HTTPException, Header, Request
+from fastapi import FastAPI, HTTPException, Header, Request, Body
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
@@ -22,6 +22,12 @@ from antar_engine import chart, vimsottari, jaimini, ashtottari, utils, constant
 from antar_engine.karakas import psychological_profile, get_all_karakas
 from antar_engine import transits, divisional, timing_engine, nation_engine, remedy_selector
 from antar_engine.natal_signatures import ensure_signatures, build_signature_context_block, compute_natal_signatures, derive_archetype
+
+# ── Surface B: Life Arc imports ──────────────────────────────────────────────
+from antar_engine.life_arc.phase_analyzer import analyze_current_phase
+from antar_engine.life_arc.signature_matcher import match_signatures
+from antar_engine.life_arc.diagnostic import generate_diagnostic
+from antar_engine.life_arc.timeline_builder import build_timeline
 from antar_engine.country_context import get_country_context
 
 # New modules
@@ -15626,6 +15632,235 @@ async def get_accuracy_dashboard(chart_id: str):
     except Exception as e:
         print(f"[accuracy] Dashboard error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+
+# ============================================================================
+# SURFACE B: LIFE ARC ENDPOINTS
+# ============================================================================
+
+@app.get("/api/v1/life-arc/{chart_id}")
+async def get_life_arc(
+    chart_id: str,
+    horizon_months: int = 12,
+    language: str = "en",
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Surface B — Life Arc endpoint.
+    Returns structured life prediction with current phase, predicted events,
+    diagnostic, timeline, and honesty layer.
+    """
+    import json as _la_json
+    from datetime import datetime as _la_dt
+
+    # ── Auth (optional) ──────────────────────────────────────────────────
+    user_id = None
+    if authorization:
+        try:
+            user_id = verify_token(authorization)
+        except HTTPException:
+            pass
+
+    # ── Validate horizon ─────────────────────────────────────────────────
+    if horizon_months < 1 or horizon_months > 24:
+        raise HTTPException(status_code=400, detail="horizon_months must be 1-24")
+
+    # ── Fetch chart ──────────────────────────────────────────────────────
+    chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+    if not chart_res.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    chart_record = chart_res.data[0]
+    chart_data = _safe_jsonb(chart_record.get("chart_data"))
+    if not chart_data:
+        raise HTTPException(status_code=400, detail="Chart has no chart_data")
+
+    # ── Cache check ──────────────────────────────────────────────────────
+    try:
+        cache_res = supabase.table("life_arc_cache").select("life_arc,generated_at").eq(
+            "chart_id", chart_id
+        ).eq("horizon_months", horizon_months).eq("language", language).execute()
+        if cache_res.data:
+            cached = cache_res.data[0]
+            life_arc = _safe_jsonb(cached.get("life_arc"))
+            if life_arc:
+                print(f"[life_arc] Cache HIT for {chart_id}")
+                return life_arc
+    except Exception as _cache_e:
+        print(f"[life_arc] Cache check error (non-blocking): {_cache_e}")
+
+    print(f"[life_arc] Computing for {chart_id}, horizon={horizon_months}, lang={language}")
+
+    # ── Ensure chart is complete ─────────────────────────────────────────
+    chart_record = await _ensure_chart_complete(chart_id, chart_data, chart_record, supabase)
+
+    # ── Get archetype ────────────────────────────────────────────────────
+    try:
+        _planet_sigs, _char_archetype = ensure_signatures(chart_id, chart_data, supabase)
+        archetype_name = _char_archetype.get("name", "Unknown") if isinstance(_char_archetype, dict) else "Unknown"
+    except Exception:
+        archetype_name = "Unknown"
+
+    # ── Birth JD ─────────────────────────────────────────────────────────
+    birth_jd = chart_data.get("birth_jd")
+    if not birth_jd:
+        from antar_engine import utils as _la_utils
+        birth_date_str = str(chart_record.get("birth_date", ""))[:10]
+        if birth_date_str:
+            parts = birth_date_str.split("-")
+            from datetime import datetime as _bd_dt
+            bd = _bd_dt(int(parts[0]), int(parts[1]), int(parts[2]))
+            birth_jd = _la_utils.julian_day(bd)
+        else:
+            raise HTTPException(status_code=400, detail="Chart has no birth_jd or birth_date")
+
+    birth_date_str = str(chart_record.get("birth_date", chart_data.get("birth_date", "")))[:10]
+
+    # ── 1. Phase Analysis ────────────────────────────────────────────────
+    try:
+        current_phase = await analyze_current_phase(
+            chart_data=chart_data,
+            birth_jd=birth_jd,
+            birth_date_str=birth_date_str,
+            archetype_name=archetype_name,
+            language=language,
+            claude_caller=call_llm_claude,
+        )
+    except Exception as e:
+        print(f"[life_arc] Phase analysis error: {e}")
+        current_phase = {"vimsottari": {}, "jaimini_chara": {}, "transit_overlay": {}, "life_phase_summary": "Phase analysis unavailable."}
+
+    # ── 2. Signature Matching ────────────────────────────────────────────
+    try:
+        predicted_events = await match_signatures(
+            chart_data=chart_data,
+            birth_jd=birth_jd,
+            horizon_months=horizon_months,
+        )
+    except Exception as e:
+        print(f"[life_arc] Signature matching error: {e}")
+        predicted_events = []
+
+    # ── 3. Diagnostic ────────────────────────────────────────────────────
+    try:
+        diagnostic = await generate_diagnostic(
+            chart_data=chart_data,
+            current_phase=current_phase,
+            archetype_name=archetype_name,
+            language=language,
+            claude_caller=call_llm_claude,
+        )
+    except Exception as e:
+        print(f"[life_arc] Diagnostic error: {e}")
+        diagnostic = {"current_stuckness_sources": [], "what_to_lean_into": [], "what_to_avoid": [], "next_phase_shift": {}}
+
+    # ── 4. Timeline ──────────────────────────────────────────────────────
+    try:
+        timeline = build_timeline(
+            current_phase=current_phase,
+            predicted_events=predicted_events,
+            horizon_months=horizon_months,
+            diagnostic=diagnostic,
+        )
+    except Exception as e:
+        print(f"[life_arc] Timeline error: {e}")
+        timeline = {"start": _la_dt.utcnow().strftime("%Y-%m-%d"), "end": "", "landmarks": []}
+
+    # ── 5. Assemble response ─────────────────────────────────────────────
+    from antar_engine.life_arc.signatures.wealth_jump import SIGNATURE_METADATA as _wj_meta
+
+    response = {
+        "chart_id": chart_id,
+        "archetype": archetype_name,
+        "horizon_months": horizon_months,
+        "language": language,
+        "generated_at": _la_dt.utcnow().isoformat() + "Z",
+        "current_phase": current_phase,
+        "predicted_events": predicted_events,
+        "diagnostic": diagnostic,
+        "timeline_visual_data": timeline,
+        "honesty_layer": {
+            "signatures_used": [f"wealth_jump v{_wj_meta['version']}"],
+            "signatures_not_yet_in_library": [
+                "No validated signatures for: job change, marriage, relocation. "
+                "These will be added as signature library expands."
+            ],
+            "confidence_note": (
+                "Surface B predictions are based on validated astrological signatures "
+                "tested against real-world outcomes. High confidence means the pattern "
+                "has held on 80%+ of validation cases. We invite users to confirm or "
+                "deny predictions — this feedback makes Antar more accurate over time."
+            ),
+        },
+    }
+
+    # ── 6. Cache result ──────────────────────────────────────────────────
+    try:
+        from datetime import timedelta as _la_td
+        expires = _la_dt.utcnow() + _la_td(days=30)
+        supabase.table("life_arc_cache").upsert({
+            "chart_id": chart_id,
+            "horizon_months": horizon_months,
+            "language": language,
+            "life_arc": response,
+            "expires_at": expires.isoformat(),
+        }).execute()
+        print(f"[life_arc] Cached result for {chart_id}")
+    except Exception as _cache_w_e:
+        print(f"[life_arc] Cache write error (non-blocking): {_cache_w_e}")
+
+    return response
+
+
+@app.post("/api/v1/life-arc/{chart_id}/feedback")
+async def submit_life_arc_feedback(
+    chart_id: str,
+    request: dict = Body(...),
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Surface B — Life Arc feedback endpoint.
+    Captures user outcome feedback for signature validation.
+    """
+    # ── Auth (optional but tracked) ──────────────────────────────────────
+    user_id = None
+    if authorization:
+        try:
+            user_id = verify_token(authorization)
+        except HTTPException:
+            pass
+
+    sig_name = request.get("signature_name")
+    sig_version = request.get("signature_version")
+    window_start = request.get("predicted_window_start")
+    window_end = request.get("predicted_window_end")
+    outcome = request.get("outcome")  # happened, did_not_happen, partial, unknown
+    details = request.get("outcome_details", "")
+
+    if not all([sig_name, sig_version, window_start, window_end, outcome]):
+        raise HTTPException(
+            status_code=400,
+            detail="Required: signature_name, signature_version, predicted_window_start, predicted_window_end, outcome"
+        )
+
+    if outcome not in ("happened", "did_not_happen", "partial", "unknown"):
+        raise HTTPException(status_code=400, detail="outcome must be: happened, did_not_happen, partial, unknown")
+
+    try:
+        supabase.table("life_arc_feedback").insert({
+            "chart_id": chart_id,
+            "signature_name": sig_name,
+            "signature_version": sig_version,
+            "predicted_window_start": window_start,
+            "predicted_window_end": window_end,
+            "outcome": outcome,
+            "outcome_details": details,
+        }).execute()
+        print(f"[life_arc] Feedback recorded: {chart_id} / {sig_name} / {outcome}")
+        return {"status": "ok", "message": "Feedback recorded. Thank you."}
+    except Exception as e:
+        print(f"[life_arc] Feedback insert error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save feedback: {e}")
 
 
 # ============================================================================
