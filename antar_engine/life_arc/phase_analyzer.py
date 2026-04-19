@@ -64,6 +64,39 @@ def _compute_pratyantardashas(ad: dict) -> list:
     return pds
 
 
+def _compute_sookshma_dashas(pd: dict) -> list:
+    """
+    Compute the 9 Sookshma Dashas (SDs) within a Pratyantardasha.
+    Same Vimsottari proportional subdivision logic, one level below PD.
+    SD duration = (lord_years / 120) * PD_duration.
+    Typically shifts every 2-3 days.
+    """
+    from antar_engine import constants
+    from datetime import timedelta
+
+    seq = constants.VIMSOTTARI_SEQUENCE
+    years_map = constants.VIMSOTTARI_YEARS
+    pd_lord = pd["lord"]
+    start_idx = seq.index(pd_lord)
+    total_seconds = (pd["end_datetime"] - pd["start_datetime"]).total_seconds()
+
+    sds = []
+    current_start = pd["start_datetime"]
+    for i in range(9):
+        lord = seq[(start_idx + i) % 9]
+        lord_years = years_map[lord]
+        sd_seconds = total_seconds * (lord_years / 120.0)
+        sd_end = current_start + timedelta(seconds=sd_seconds)
+        sds.append({
+            "lord": lord,
+            "start_datetime": current_start,
+            "end_datetime": sd_end,
+            "parent_pd_lord": pd_lord,
+        })
+        current_start = sd_end
+    return sds
+
+
 def get_current_vimsottari(chart_data: dict, birth_jd: float, now: datetime = None) -> dict:
     """
     Returns current MD, AD, PD with end dates.
@@ -92,11 +125,22 @@ def get_current_vimsottari(chart_data: dict, birth_jd: float, now: datetime = No
         if current_pd:
             pd_end_date = current_pd["end_datetime"].strftime("%Y-%m-%d")
 
+    # Compute SD within current PD — shifts every 2-3 days, critical for daily
+    current_sd = None
+    sd_end_date = None
+    if current_pd:
+        sds = _compute_sookshma_dashas(current_pd)
+        current_sd = _find_current_period(sds, now)
+        if current_sd:
+            sd_end_date = current_sd["end_datetime"].strftime("%Y-%m-%d")
+
     return {
         "md": current_md["lord"] if current_md else None,
         "md_lord_condition": _assess_lord_condition(current_md["lord"], chart_data) if current_md else None,
         "ad": current_ad["lord"] if current_ad else None,
         "pd": current_pd["lord"] if current_pd else None,
+        "sd": current_sd["lord"] if current_sd else None,
+        "sd_end_date": sd_end_date,
         "md_end_date": current_md["end_datetime"].strftime("%Y-%m-%d") if current_md else None,
         "ad_end_date": current_ad["end_datetime"].strftime("%Y-%m-%d") if current_ad else None,
         "pd_end_date": pd_end_date,
