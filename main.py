@@ -4154,14 +4154,27 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
     except Exception as e:
         print(f"Precision windows error: {e}")
 
-    # ── CHAKRA READING ────────────────────────────────────────────
+    # ── CHAKRA READING (with sleeping planet bridge) ────────────
     chakra_reading_data = None
     try:
+        # Extract sleeping planets from stored LK advanced data
+        _lk_raw = chart_record.get("lal_kitab_data") or {}
+        if isinstance(_lk_raw, str):
+            import json as _lkj
+            _lk_raw = _lkj.loads(_lk_raw)
+        _sleeping_planets = (_lk_raw.get("advanced", {}) or {}).get("sleeping_planets", [])
+        if _sleeping_planets:
+            print(f"[predict] Sleeping planets for chakra bridge: {[s.get('planet') for s in _sleeping_planets]}")
+
         chakra_reading_data = get_chakra_reading(
             chart_data=chart_data,
             dashas=dashas_response,
             current_transits=current_transits,
+            sleeping_planets=_sleeping_planets or None,
         )
+        _n_bridges = len(chakra_reading_data.get("sleeping_chakra_bridges", []))
+        if _n_bridges:
+            print(f"[predict] Chakra bridges: {_n_bridges} sleeping-planet→chakra connections")
     except Exception as e:
         print(f"Chakra engine error: {e}")
 
@@ -4675,7 +4688,7 @@ CRITICAL RULES:
         ("rarity",       rarity_context,       True),
         ("windows",      windows_context,       True),
         ("arc",          arc_context,           True),
-        ("chakra",       chakra_context,        _is_health_spiritual),
+        ("chakra",       chakra_context,        _is_health_spiritual or _question_mode in ("timing", "life_path") or bool(chakra_reading_data and chakra_reading_data.get("sleeping_chakra_bridges"))),
         ("lk",           lk_context,            _is_remedy_lk),
         ("enrichment",   enrichment_context,    _is_enrichment),
         ("sade_sati",    sade_sati_context,     bool(sade_sati_context)),
@@ -7208,10 +7221,18 @@ async def chakra_endpoint(
         if isinstance(_raw_transits, list) else _raw_transits
     )
 
+    # Extract sleeping planets from stored LK data
+    _lk_raw_ch = chart_record.get("lal_kitab_data") or {}
+    if isinstance(_lk_raw_ch, str):
+        import json as _lkjch
+        _lk_raw_ch = _lkjch.loads(_lk_raw_ch)
+    _sleeping_ch = (_lk_raw_ch.get("advanced", {}) or {}).get("sleeping_planets", [])
+
     reading = get_chakra_reading(
         chart_data=chart_data,
         dashas=dashas,
         current_transits=current_transits,
+        sleeping_planets=_sleeping_ch or None,
     )
 
     return ChakraResponse(
