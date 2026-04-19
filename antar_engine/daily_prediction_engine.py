@@ -1,21 +1,11 @@
 """
-daily_prediction_engine.py — 7-Day Daily Signal Generator
+daily_prediction_engine.py — 7-Day Daily Signal Generator (v2 — LLM-backed)
 Antar Intelligence Platform
 
-Generates per-day Moon + Mercury signals for a 7-day window.
-Personalized via user's natal Moon sign.
-
-Data used (ONLY):
-  - Moon nakshatra, sign, degree for each target date
-  - Mercury sign for each target date
-  - User natal Moon sign (from chart)
-  - Weekday + tithi
-
-Data NOT used:
-  - House positions
-  - Dasha periods
-  - Divisional charts
-  - Aspects / conjunctions
+Generates per-day signals for a 7-day window using:
+  - Existing panchang/Moon/Mercury scoring (KEPT from v1)
+  - Claude Sonnet LLM call per day for text generation (NEW)
+  - Full chart context: archetype, dashas, D10, DKP, transits (NEW)
 
 Called by: GET /api/v1/daily-week/{chart_id}
 """
@@ -23,11 +13,13 @@ Called by: GET /api/v1/daily-week/{chart_id}
 from datetime import datetime, timedelta, timezone
 from typing import Optional
 import logging
+import json
+import os
 
 logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────
-# Constants
+# Constants (KEPT from v1)
 # ──────────────────────────────────────────────
 
 NAKSHATRAS = [
@@ -74,8 +66,7 @@ NAKSHATRA_PROFILES = {
     "Revati":            {"energy": "compassionate, completing","aligned": ["closing cycles", "charitable work", "spiritual clarity"],  "friction": ["new ventures", "competitive pressure"]},
 }
 
-# Moon-sign friction map: certain transit signs create friction with certain natal signs
-# Key = natal moon sign, Value = transit signs that create friction
+# Moon-sign friction map
 MOON_FRICTION_MAP = {
     "Aries":       ["Cancer", "Capricorn"],
     "Taurus":      ["Leo", "Aquarius"],
@@ -91,7 +82,6 @@ MOON_FRICTION_MAP = {
     "Pisces":      ["Gemini", "Sagittarius"],
 }
 
-# Weekday energy overlays
 WEEKDAY_OVERLAY = {
     "Monday":    {"boost": "emotional intelligence, intuition", "caution": "logic-heavy analysis"},
     "Tuesday":   {"boost": "courage, direct action, confrontation", "caution": "diplomacy"},
@@ -104,39 +94,28 @@ WEEKDAY_OVERLAY = {
 
 
 # ──────────────────────────────────────────────
-# Core Ephemeris Functions
+# Core Ephemeris Functions (KEPT exactly from v1)
 # ──────────────────────────────────────────────
-
 
 
 def calculate_panchang(dt_utc, lat: float, lon: float) -> dict:
     """
     Calculate the 5 daily Panchang elements for a given datetime + location.
-    
-    Returns:
-        tithi: lunar day (1-30), name, quality
-        vara: weekday lord and themes
-        nakshatra: Moon's star, deity, quality, do/don't
-        yoga: Sun+Moon yoga name and quality
-        karana: half-tithi, quality
-        chandra_rashi: Moon's current sign
     """
     import swisseph as swe
     from datetime import timezone
 
-    # Convert to Julian Day
     jd = swe.julday(
         dt_utc.year, dt_utc.month, dt_utc.day,
         dt_utc.hour + dt_utc.minute/60.0 + dt_utc.second/3600.0
     )
 
-    # Get Sun and Moon longitudes
     sun_lon = swe.calc_ut(jd, swe.SUN)[0][0]
     moon_lon = swe.calc_ut(jd, swe.MOON)[0][0]
 
-    # ── Tithi ──────────────────────────────────────────────────────
+    # Tithi
     tithi_deg = (moon_lon - sun_lon) % 360
-    tithi_num = int(tithi_deg / 12) + 1  # 1-30
+    tithi_num = int(tithi_deg / 12) + 1
 
     TITHI_NAMES = [
         "Pratipada","Dvitiya","Tritiya","Chaturthi","Panchami",
@@ -164,8 +143,8 @@ def calculate_panchang(dt_utc, lat: float, lon: float) -> dict:
         "paksha": "Shukla" if tithi_num <= 15 else "Krishna",
     }
 
-    # ── Vara (weekday) ─────────────────────────────────────────────
-    weekday = dt_utc.weekday()  # 0=Mon, 6=Sun
+    # Vara
+    weekday = dt_utc.weekday()
     VARA = [
         {"lord":"Moon",    "name":"Monday",    "themes":"Emotions, home, mother, mind, water",
          "good_for":"Emotional conversations, family matters, intuitive decisions",
@@ -191,9 +170,9 @@ def calculate_panchang(dt_utc, lat: float, lon: float) -> dict:
     ]
     vara = VARA[weekday]
 
-    # ── Nakshatra (Moon's star) ────────────────────────────────────
-    nakshatra_num = int(moon_lon / (360/27))  # 0-26
-    NAKSHATRAS = [
+    # Nakshatra
+    nakshatra_num = int(moon_lon / (360/27))
+    NAKSHATRAS_FULL = [
         {"name":"Ashwini","deity":"Ashwins","quality":"swift","good_for":"Starting new things, medical matters, travel"},
         {"name":"Bharani","deity":"Yama","quality":"fierce","good_for":"Completing difficult tasks, transformation"},
         {"name":"Krittika","deity":"Agni","quality":"mixed","good_for":"Cooking, purification, sharp actions"},
@@ -222,11 +201,11 @@ def calculate_panchang(dt_utc, lat: float, lon: float) -> dict:
         {"name":"Uttara Bhadrapada","deity":"Ahirbudhnya","quality":"fixed","good_for":"Stability, depth, spiritual practice"},
         {"name":"Revati","deity":"Pushan","quality":"soft","good_for":"Completion, travel, nourishment, spiritual practice"},
     ]
-    nakshatra = NAKSHATRAS[nakshatra_num]
+    nakshatra = NAKSHATRAS_FULL[nakshatra_num]
     nakshatra["number"] = nakshatra_num + 1
     nakshatra["moon_lon"] = round(moon_lon, 2)
 
-    # ── Yoga (Sun + Moon combined) ─────────────────────────────────
+    # Yoga
     yoga_deg = (sun_lon + moon_lon) % 360
     yoga_num = int(yoga_deg / (360/27))
     YOGAS = [
@@ -243,7 +222,7 @@ def calculate_panchang(dt_utc, lat: float, lon: float) -> dict:
     yoga_name, yoga_quality = YOGAS[yoga_num]
     yoga = {"number": yoga_num+1, "name": yoga_name, "quality": yoga_quality}
 
-    # ── Karana (half-tithi) ────────────────────────────────────────
+    # Karana
     karana_num = int(tithi_deg / 6) % 11
     KARANAS = [
         ("Bava","auspicious"),("Balava","auspicious"),("Kaulava","auspicious"),
@@ -254,16 +233,13 @@ def calculate_panchang(dt_utc, lat: float, lon: float) -> dict:
     karana_name, karana_quality = KARANAS[karana_num]
     karana = {"name": karana_name, "quality": karana_quality}
 
-    # ── Moon sign (Chandra Rashi) ──────────────────────────────────
+    # Moon sign
     moon_sign_num = int(moon_lon / 30)
-    SIGNS = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo",
+    SIGNS_LOCAL = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo",
              "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"]
-    moon_sign = SIGNS[moon_sign_num]
+    moon_sign = SIGNS_LOCAL[moon_sign_num]
 
-    # ── Overall day quality from Panchang ─────────────────────────
-    qualities = [
-        tithi["quality"], yoga["quality"], karana["quality"]
-    ]
+    qualities = [tithi["quality"], yoga["quality"], karana["quality"]]
     auspicious_count = qualities.count("auspicious")
     inauspicious_count = qualities.count("inauspicious")
 
@@ -293,17 +269,12 @@ def calculate_panchang(dt_utc, lat: float, lon: float) -> dict:
 def get_chandra_bala(natal_moon_sign: str, current_moon_sign: str) -> dict:
     """
     Calculate Moon's strength relative to natal Moon position.
-    Chandra Bala = strength of transit Moon from natal Moon.
-    
-    Houses 1,3,6,7,10,11 from natal Moon = beneficial
-    Houses 4,8,12 from natal Moon = Chandrashtama (inauspicious ~2.5 days)
     """
-    SIGNS = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo",
+    SIGNS_LOCAL = ["Aries","Taurus","Gemini","Cancer","Leo","Virgo",
              "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"]
-    
     try:
-        natal_idx = SIGNS.index(natal_moon_sign)
-        current_idx = SIGNS.index(current_moon_sign)
+        natal_idx = SIGNS_LOCAL.index(natal_moon_sign)
+        current_idx = SIGNS_LOCAL.index(current_moon_sign)
     except ValueError:
         return {"strength": "neutral", "house_from_moon": 0}
 
@@ -323,7 +294,7 @@ def get_chandra_bala(natal_moon_sign: str, current_moon_sign: str) -> dict:
         "house_from_moon": house_from_moon,
         "is_chandrashtama": is_chandrashtama,
         "plain": (
-            "Moon transiting unfavorably from your natal Moon — be careful with decisions today. Avoid starting new things." 
+            "Moon transiting unfavorably from your natal Moon — be careful with decisions today. Avoid starting new things."
             if is_chandrashtama else
             "Moon well-placed from your natal Moon — your instincts are reliable today."
             if strength == "favorable" else
@@ -348,10 +319,7 @@ def get_planet_sign_for_date(target_date: datetime, planet_id: int) -> str:
 
 
 def get_moon_data_for_date(target_date: datetime) -> dict:
-    """
-    Returns Moon nakshatra, sign, and degree for a given date.
-    Computed at noon UTC for that date.
-    """
+    """Returns Moon nakshatra, sign, and degree for a given date."""
     try:
         import swisseph as swe
         swe.set_sid_mode(swe.SIDM_LAHIRI)
@@ -399,7 +367,7 @@ def get_tithi(target_date: datetime) -> str:
 
 
 # ──────────────────────────────────────────────
-# Signal Builder
+# Scoring (KEPT from v1)
 # ──────────────────────────────────────────────
 
 def _score_day(moon_sign: str, natal_moon_sign: str, nakshatra: str, weekday: str) -> tuple:
@@ -409,7 +377,6 @@ def _score_day(moon_sign: str, natal_moon_sign: str, nakshatra: str, weekday: st
     """
     score = 5  # neutral baseline
 
-    # Nakshatra alignment: high-energy nakshatras boost score
     high_energy = {"Rohini", "Pushya", "Uttara Phalguni", "Uttara Ashadha",
                    "Chitra", "Dhanishta", "Magha", "Punarvasu"}
     friction_nakshatras = {"Ardra", "Ashlesha", "Jyeshtha", "Mula",
@@ -419,51 +386,43 @@ def _score_day(moon_sign: str, natal_moon_sign: str, nakshatra: str, weekday: st
     elif nakshatra in friction_nakshatras:
         score -= 2
 
-    # Moon transit vs natal moon friction
     friction_signs = MOON_FRICTION_MAP.get(natal_moon_sign, [])
     if moon_sign in friction_signs:
         score -= 2
     elif moon_sign == natal_moon_sign:
-        score += 1  # Moon returns to natal sign — emotional clarity
+        score += 1
 
-    # Weekday boosts
     power_days = {"Thursday", "Sunday"}
     if weekday in power_days:
         score += 1
 
     score = max(0, min(10, score))
     is_friction = score < 4
-
     return score, is_friction
 
 
-def _build_signal_text(
-    nakshatra: str,
-    moon_sign: str,
-    mercury_sign: str,
-    natal_moon_sign: str,
-    weekday: str,
-    score: int,
-    is_friction: bool
-) -> dict:
-    """Build the signal, aligned_for, friction_for, move, and wow fields."""
+# ──────────────────────────────────────────────
+# v1 template fallback (used when chart_id is None or LLM fails)
+# ──────────────────────────────────────────────
 
+def _build_signal_text(
+    nakshatra: str, moon_sign: str, mercury_sign: str,
+    natal_moon_sign: str, weekday: str, score: int, is_friction: bool
+) -> dict:
+    """Template-based fallback signal builder (v1 legacy)."""
     profile = NAKSHATRA_PROFILES.get(nakshatra, {
         "energy": "variable", "aligned": ["flexible work"], "friction": ["rigid planning"]
     })
     day_overlay = WEEKDAY_OVERLAY.get(weekday, {})
-    friction_signs = MOON_FRICTION_MAP.get(natal_moon_sign, [])
 
     aligned = profile.get("aligned", [])[:3]
     friction = profile.get("friction", [])[:2]
 
-    # Mercury modifier: if Mercury is in a communication-friendly sign, boost that
     mercury_comm_signs = {"Gemini", "Virgo", "Aquarius", "Libra"}
     mercury_note = None
     if mercury_sign in mercury_comm_signs:
         mercury_note = "Communication and negotiation carry extra weight today."
 
-    # Build 2-sentence signal
     if is_friction:
         signal = (
             f"The energy today creates internal friction — best used for inner work, "
@@ -486,7 +445,6 @@ def _build_signal_text(
             f"Avoid: {', '.join(friction[:1])}."
         )
 
-    # WOW: special alignment notes
     wow = None
     if moon_sign == natal_moon_sign:
         wow = "Moon returns to your natal sign today — emotional clarity peaks. Trust your instincts."
@@ -509,16 +467,378 @@ def _build_signal_text(
 
 
 # ──────────────────────────────────────────────
-# Main 7-Day Generator
+# NEW: Chart context builder for LLM prompts
 # ──────────────────────────────────────────────
 
-def generate_weekly_signals(natal_moon_sign: str, start_date: Optional[datetime] = None) -> list:
+def _safe_json(v):
+    """Parse JSONB that might be stored as a string."""
+    if isinstance(v, str):
+        try:
+            return json.loads(v)
+        except Exception:
+            return {}
+    return v if isinstance(v, dict) else {}
+
+
+def _get_life_stage(birth_date_str: str) -> str:
+    """Compute life stage from birth date string."""
+    try:
+        if not birth_date_str:
+            return "unknown"
+        bd = datetime.strptime(str(birth_date_str)[:10], "%Y-%m-%d")
+        age = (datetime.now() - bd).days / 365.25
+        if age < 25:
+            return "early career (under 25)"
+        elif age < 35:
+            return "establishment phase (25-35)"
+        elif age < 50:
+            return "peak execution (35-50)"
+        elif age < 65:
+            return "consolidation/legacy (50-65)"
+        else:
+            return "wisdom/legacy (65+)"
+    except Exception:
+        return "unknown"
+
+
+def _extract_current_dashas(dashas_dict: dict) -> dict:
+    """Extract current MD/AD/PD from dashas_dict."""
+    result = {"md": "unknown", "ad": "unknown", "pd": "unknown"}
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    vimsottari = dashas_dict.get("vimsottari", [])
+    if not vimsottari:
+        return result
+
+    for d in vimsottari:
+        start = d.get("start_date") or d.get("start", "")
+        end = d.get("end_date") or d.get("end", "")
+        level = d.get("level", "")
+        planet = d.get("planet_or_sign") or d.get("lord_or_sign", "")
+
+        if start <= today <= end:
+            if level in ("mahadasha", 1, "1"):
+                result["md"] = planet
+            elif level in ("antardasha", 2, "2"):
+                result["ad"] = planet
+            elif level in ("pratyantardasha", 3, "3"):
+                result["pd"] = planet
+
+    return result
+
+
+def _extract_chara_dasha(dashas_dict: dict) -> str:
+    """Extract current Jaimini Chara Dasha sign."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    chara = dashas_dict.get("chara_dasha", dashas_dict.get("jaimini_chara", []))
+    if not chara:
+        return "not available"
+
+    for d in chara:
+        start = d.get("start_date") or d.get("start", "")
+        end = d.get("end_date") or d.get("end", "")
+        if start <= today <= end:
+            return d.get("planet_or_sign") or d.get("lord_or_sign", "unknown")
+
+    return "not available"
+
+
+def _extract_natal_moon_info(chart_data: dict) -> dict:
+    """Extract natal Moon sign, nakshatra, and house."""
+    planets = chart_data.get("planets") or chart_data.get("planet_positions", [])
+    result = {"sign": "unknown", "nakshatra": "unknown", "house": 0}
+
+    if isinstance(planets, list):
+        for p in planets:
+            if isinstance(p, dict):
+                name = (p.get("name") or p.get("planet") or "").lower()
+                if name == "moon":
+                    result["sign"] = p.get("sign") or p.get("rashi") or "unknown"
+                    result["nakshatra"] = p.get("nakshatra") or "unknown"
+                    result["house"] = p.get("house") or 0
+                    break
+    elif isinstance(planets, dict):
+        moon = planets.get("Moon") or planets.get("moon", {})
+        if moon:
+            result["sign"] = moon.get("sign") or moon.get("rashi") or "unknown"
+            result["nakshatra"] = moon.get("nakshatra") or "unknown"
+            result["house"] = moon.get("house") or 0
+
+    return result
+
+
+def _extract_lagna(chart_data: dict) -> str:
+    """Extract lagna/rising sign."""
+    lagna = chart_data.get("lagna") or chart_data.get("ascendant", {})
+    if isinstance(lagna, dict):
+        return lagna.get("sign") or lagna.get("rashi") or "unknown"
+    if isinstance(lagna, str):
+        return lagna
+    return "unknown"
+
+
+def _extract_d10_lagna(chart_data: dict) -> str:
+    """Extract D10 lagna from divisional charts."""
+    divs = chart_data.get("divisional_charts") or {}
+    d10 = divs.get("D10") or divs.get("d10", {})
+    if isinstance(d10, dict):
+        lagna = d10.get("lagna") or d10.get("ascendant", {})
+        if isinstance(lagna, dict):
+            return lagna.get("sign") or "unknown"
+        if isinstance(lagna, str):
+            return lagna
+    return "not available"
+
+
+def _extract_sleeping_planets(lk_data: dict) -> str:
+    """Extract sleeping planets from Lal Kitab advanced data."""
+    adv = lk_data.get("advanced", {})
+    sleeping = adv.get("sleeping_planets", [])
+    if not sleeping:
+        return "none detected"
+    if isinstance(sleeping, list):
+        names = []
+        for s in sleeping:
+            if isinstance(s, dict):
+                names.append(s.get("planet", str(s)))
+            else:
+                names.append(str(s))
+        return ", ".join(names) if names else "none detected"
+    return str(sleeping)
+
+
+async def build_daily_context(chart_id: str, supabase_client) -> dict:
+    """
+    Fetch full chart context from Supabase for daily signal generation.
+    Returns a dict ready for prompt injection.
+    """
+    try:
+        res = supabase_client.table("charts").select(
+            "chart_data, jaimini_data, lal_kitab_data, character_archetype, "
+            "current_country, birth_country, birth_date, name"
+        ).eq("id", chart_id).single().execute()
+
+        if not res.data:
+            return None
+
+        row = res.data
+        chart_data = _safe_json(row.get("chart_data") or {})
+        jaimini_data = _safe_json(row.get("jaimini_data") or {})
+        lk_data = _safe_json(row.get("lal_kitab_data") or {})
+        archetype = row.get("character_archetype") or {}
+        if isinstance(archetype, str):
+            archetype = _safe_json(archetype)
+
+        # Get dashas
+        dashas_dict = {}
+        try:
+            dasha_res = supabase_client.table("dasha_periods").select("*").eq(
+                "chart_id", chart_id
+            ).order("sequence").limit(500).execute()
+
+            for d_row in (dasha_res.data or []):
+                system = d_row.get("system", "vimsottari")
+                if system not in dashas_dict:
+                    dashas_dict[system] = []
+                parent_lord = ""
+                if isinstance(d_row.get("metadata"), dict):
+                    parent_lord = d_row["metadata"].get("parent_lord", "")
+                dashas_dict[system].append({
+                    "planet_or_sign": d_row.get("planet_or_sign", ""),
+                    "start_date": d_row.get("start_date", ""),
+                    "end_date": d_row.get("end_date", ""),
+                    "level": d_row.get("type") or d_row.get("level", "mahadasha"),
+                    "parent_lord": parent_lord,
+                })
+        except Exception as de:
+            logger.warning(f"[daily-context] dasha fetch failed: {de}")
+
+        # Extract all pieces
+        current_dashas = _extract_current_dashas(dashas_dict)
+        chara_md = _extract_chara_dasha(dashas_dict)
+        natal_moon = _extract_natal_moon_info(chart_data)
+        lagna_sign = _extract_lagna(chart_data)
+        d10_lagna = _extract_d10_lagna(chart_data)
+        sleeping_planets = _extract_sleeping_planets(lk_data)
+        life_stage = _get_life_stage(row.get("birth_date"))
+        current_country = row.get("current_country") or row.get("birth_country") or ""
+
+        # Get transit report
+        formatted_transits = "No transit data available."
+        try:
+            from antar_engine.transit_engine import get_full_transit_report
+            transit_rpt = get_full_transit_report(chart_data)
+            major = transit_rpt.get("major_transits", [])
+            if major:
+                lines = []
+                for t in major[:6]:
+                    desc = t.get("description") or t.get("type", "")
+                    planet = t.get("planet", "")
+                    lines.append(f"- {planet}: {desc}")
+                formatted_transits = "\n".join(lines)
+        except Exception as te:
+            logger.warning(f"[daily-context] transit computation failed: {te}")
+
+        return {
+            "archetype_name": archetype.get("name", "unknown"),
+            "archetype_voice": archetype.get("voice", archetype.get("description", "")),
+            "md": current_dashas["md"],
+            "ad": current_dashas["ad"],
+            "pd": current_dashas["pd"],
+            "chara_md": chara_md,
+            "natal_moon_sign": natal_moon["sign"],
+            "moon_nakshatra": natal_moon["nakshatra"],
+            "moon_house": natal_moon["house"],
+            "lagna_sign": lagna_sign,
+            "d10_lagna": d10_lagna,
+            "current_country": current_country,
+            "life_stage": life_stage,
+            "sleeping_planets": sleeping_planets,
+            "formatted_transits": formatted_transits,
+        }
+
+    except Exception as e:
+        logger.error(f"[daily-context] build_daily_context failed for {chart_id}: {e}")
+        return None
+
+
+# ──────────────────────────────────────────────
+# NEW: LLM call for daily signal text
+# ──────────────────────────────────────────────
+
+async def _call_claude_daily_signal(
+    context: dict,
+    day_data: dict,
+    language: str = "en",
+) -> Optional[dict]:
+    """
+    Call Claude Sonnet to generate one day's signal text.
+    Returns parsed JSON dict or None on failure.
+    """
+    try:
+        import anthropic
+
+        from antar_engine.daily_system_prompt import (
+            DAILY_SYSTEM_PROMPT_V1,
+            DAILY_USER_PROMPT_TEMPLATE,
+        )
+
+        # Merge context + day data for prompt
+        prompt_vars = {**context, **day_data, "language": language}
+        user_prompt = DAILY_USER_PROMPT_TEMPLATE.format(**prompt_vars)
+
+        client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+
+        # Split system prompt at ## LIVE DATA for KV caching
+        _SPLIT = "## LIVE DATA"
+        if _SPLIT in DAILY_SYSTEM_PROMPT_V1:
+            static_part, dynamic_part = DAILY_SYSTEM_PROMPT_V1.split(_SPLIT, 1)
+            dynamic_part = _SPLIT + dynamic_part
+        else:
+            static_part = DAILY_SYSTEM_PROMPT_V1
+            dynamic_part = ""
+
+        system_blocks = [
+            {
+                "type": "text",
+                "text": static_part,
+                "cache_control": {"type": "ephemeral"}
+            }
+        ]
+        if dynamic_part:
+            system_blocks.append({"type": "text", "text": dynamic_part})
+
+        response = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=800,
+            temperature=0.3,
+            system=system_blocks,
+            messages=[{"role": "user", "content": user_prompt}],
+            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"}
+        )
+
+        raw_text = response.content[0].text.strip()
+        _cache_r = getattr(response.usage, 'cache_read_input_tokens', 0) or 0
+        _cache_w = getattr(response.usage, 'cache_creation_input_tokens', 0) or 0
+        logger.info(f"[daily-llm] cache_hit={_cache_r} cache_write={_cache_w} output={response.usage.output_tokens}")
+
+        # Parse JSON — handle markdown fences
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("```", 2)[1]
+            if raw_text.startswith("json"):
+                raw_text = raw_text[4:]
+        raw_text = raw_text.strip()
+
+        parsed = json.loads(raw_text)
+        return parsed
+
+    except json.JSONDecodeError as je:
+        logger.error(f"[daily-llm] JSON parse failed: {je}")
+        return None
+    except Exception as e:
+        logger.error(f"[daily-llm] Claude call failed: {e}")
+        return None
+
+
+# ──────────────────────────────────────────────
+# NEW: Cache helpers
+# ──────────────────────────────────────────────
+
+async def _get_cached_signal(chart_id: str, date_str: str, language: str, supabase_client) -> Optional[dict]:
+    """Check Supabase daily_signals cache."""
+    try:
+        res = supabase_client.table("daily_signals_cache").select("signal_json").eq(
+            "chart_id", chart_id
+        ).eq("signal_date", date_str).eq("language", language).execute()
+        if res.data:
+            cached = res.data[0].get("signal_json")
+            if cached:
+                return _safe_json(cached) if isinstance(cached, str) else cached
+    except Exception as e:
+        logger.warning(f"[daily-cache] read failed (non-fatal): {e}")
+    return None
+
+
+async def _save_cached_signal(chart_id: str, date_str: str, language: str, signal_json: dict, supabase_client):
+    """Save to Supabase daily_signals_cache (upsert)."""
+    try:
+        supabase_client.table("daily_signals_cache").upsert({
+            "chart_id": chart_id,
+            "signal_date": date_str,
+            "language": language,
+            "signal_json": signal_json,
+            "created_at": datetime.utcnow().isoformat() + "Z",
+        }, on_conflict="chart_id,signal_date,language").execute()
+    except Exception as e:
+        logger.warning(f"[daily-cache] save failed (non-fatal): {e}")
+
+
+# ──────────────────────────────────────────────
+# Main 7-Day Generator (v2 — LLM-backed)
+# ──────────────────────────────────────────────
+
+async def generate_weekly_signals(
+    natal_moon_sign: str,
+    start_date: Optional[datetime] = None,
+    chart_id: Optional[str] = None,
+    supabase_client=None,
+    language: str = "en",
+    tz_offset: int = 0,
+) -> list:
     """
     Generate 7-day daily signal array.
+
+    v2: If chart_id + supabase_client provided, uses Claude LLM for text
+    generation with full chart context. Falls back to v1 templates if
+    chart_id is None or LLM call fails.
 
     Args:
         natal_moon_sign: User's natal Moon sign (e.g., "Scorpio")
         start_date: First day of the 7-day window (defaults to today UTC)
+        chart_id: Chart UUID for full context (NEW)
+        supabase_client: Supabase client instance (NEW)
+        language: "en" or "es" (NEW)
+        tz_offset: Timezone offset in hours (NEW)
 
     Returns:
         List of 7 daily signal dicts
@@ -528,6 +848,19 @@ def generate_weekly_signals(natal_moon_sign: str, start_date: Optional[datetime]
             hour=0, minute=0, second=0, microsecond=0
         )
 
+    # Build chart context if we have chart_id
+    daily_context = None
+    use_llm = chart_id is not None and supabase_client is not None
+    if use_llm:
+        try:
+            daily_context = await build_daily_context(chart_id, supabase_client)
+            if not daily_context:
+                logger.warning(f"[daily-week] Could not build context for {chart_id}, falling back to templates")
+                use_llm = False
+        except Exception as ce:
+            logger.error(f"[daily-week] Context build failed: {ce}")
+            use_llm = False
+
     results = []
 
     try:
@@ -535,39 +868,181 @@ def generate_weekly_signals(natal_moon_sign: str, start_date: Optional[datetime]
         MERCURY = swe.MERCURY
     except ImportError:
         logger.error("swisseph not available")
-        MERCURY = 2  # fallback constant
+        MERCURY = 2
 
     for i in range(7):
         target_date = start_date + timedelta(days=i)
         weekday = target_date.strftime("%A")
         date_str = target_date.strftime("%Y-%m-%d")
 
-        # Compute Moon data
+        # Compute Moon data (KEPT)
         moon_data = get_moon_data_for_date(target_date)
         nakshatra = moon_data["nakshatra"]
         moon_sign = moon_data["sign"]
 
-        # Compute Mercury sign
-        mercury_sign = get_planet_sign_for_date(target_date, 2)  # swe.MERCURY = 2
+        # Compute Mercury sign (KEPT)
+        mercury_sign = get_planet_sign_for_date(target_date, 2)
 
-        # Compute tithi
+        # Compute tithi (KEPT)
         tithi = get_tithi(target_date)
 
-        # Score the day
+        # Compute chandra bala
+        chandra_bala = get_chandra_bala(natal_moon_sign, moon_sign)
+
+        # Score the day (KEPT)
         score, is_friction = _score_day(moon_sign, natal_moon_sign, nakshatra, weekday)
 
-        # Build signal
-        signal_data = _build_signal_text(
-            nakshatra=nakshatra,
-            moon_sign=moon_sign,
-            mercury_sign=mercury_sign,
-            natal_moon_sign=natal_moon_sign,
-            weekday=weekday,
-            score=score,
-            is_friction=is_friction
+        # Compute panchang quality for this day
+        try:
+            panchang = calculate_panchang(target_date, 0.0, 0.0)
+            panchang_quality = panchang.get("panchang_quality", "mixed")
+        except Exception:
+            panchang_quality = "mixed"
+
+        # ── LLM path ──
+        llm_signal = None
+        if use_llm:
+            # Check cache first
+            if supabase_client:
+                llm_signal = await _get_cached_signal(chart_id, date_str, language, supabase_client)
+                if llm_signal:
+                    logger.info(f"[daily-week] Cache HIT for {chart_id}/{date_str}/{language}")
+
+            if not llm_signal:
+                # Build day-specific data for prompt
+                day_prompt_data = {
+                    "iso_date": date_str,
+                    "weekday": weekday,
+                    "today_moon_sign": moon_sign,
+                    "today_moon_nakshatra": nakshatra,
+                    "tithi": tithi,
+                    "chandra_bala": chandra_bala["strength"],
+                    "panchang_quality": panchang_quality,
+                    "score": score,
+                    "is_friction": is_friction,
+                }
+
+                llm_signal = await _call_claude_daily_signal(
+                    context=daily_context,
+                    day_data=day_prompt_data,
+                    language=language,
+                )
+
+                # Cache if successful
+                if llm_signal and supabase_client:
+                    await _save_cached_signal(chart_id, date_str, language, llm_signal, supabase_client)
+                    logger.info(f"[daily-week] Cached LLM signal for {chart_id}/{date_str}/{language}")
+
+        # ── Build result ──
+        if llm_signal:
+            # LLM-generated signal — merge with computed data
+            day_result = {
+                "date": date_str,
+                "day": weekday,
+                "moon_nakshatra": nakshatra,
+                "moon_sign": moon_sign,
+                "moon_degree": moon_data["degree"],
+                "mercury_sign": mercury_sign,
+                "tithi": tithi,
+                "score": score,
+                "is_friction_day": is_friction,
+                # LLM-generated fields
+                "verdict_emoji": llm_signal.get("verdict_emoji", "●"),
+                "verdict_label": llm_signal.get("verdict_label", ""),
+                "verdict_subline": llm_signal.get("verdict_subline", ""),
+                "haz_hoy": llm_signal.get("haz_hoy", []),
+                "evita_hoy": llm_signal.get("evita_hoy", []),
+                "el_movimiento": llm_signal.get("el_movimiento", ""),
+                "observa_hoy_domain": llm_signal.get("observa_hoy_domain", "general"),
+                "observa_hoy_text": llm_signal.get("observa_hoy_text", ""),
+                "senal_de_hoy": llm_signal.get("senal_de_hoy", ""),
+                "windows": llm_signal.get("windows", []),
+                # Backward compat — map to old fields
+                "energy": llm_signal.get("senal_de_hoy", ""),
+                "aligned_for": llm_signal.get("haz_hoy", []),
+                "friction_for": llm_signal.get("evita_hoy", []),
+                "signal": llm_signal.get("senal_de_hoy", ""),
+                "move": llm_signal.get("el_movimiento", ""),
+                "wow": llm_signal.get("observa_hoy_text"),
+                "llm_generated": True,
+                "fallback": False,
+            }
+        else:
+            # Fallback to v1 template
+            signal_data = _build_signal_text(
+                nakshatra=nakshatra,
+                moon_sign=moon_sign,
+                mercury_sign=mercury_sign,
+                natal_moon_sign=natal_moon_sign,
+                weekday=weekday,
+                score=score,
+                is_friction=is_friction
+            )
+
+            day_result = {
+                "date": date_str,
+                "day": weekday,
+                "moon_nakshatra": nakshatra,
+                "moon_sign": moon_sign,
+                "moon_degree": moon_data["degree"],
+                "mercury_sign": mercury_sign,
+                "tithi": tithi,
+                "energy": signal_data["energy"],
+                "aligned_for": signal_data["aligned_for"],
+                "friction_for": signal_data["friction_for"],
+                "signal": signal_data["signal"],
+                "move": signal_data["move"],
+                "wow": signal_data["wow"],
+                "score": score,
+                "is_friction_day": is_friction,
+                "llm_generated": False,
+                "fallback": True,
+            }
+
+        results.append(day_result)
+        logger.info(f"[daily-week] {date_str} {weekday}: {nakshatra} in {moon_sign} | score={score} | llm={'yes' if llm_signal else 'no'}")
+
+    return results
+
+
+# ──────────────────────────────────────────────
+# Sync wrapper for non-async callers (hora endpoints, feedback)
+# ──────────────────────────────────────────────
+
+def generate_weekly_signals_sync(
+    natal_moon_sign: str,
+    start_date: Optional[datetime] = None,
+) -> list:
+    """
+    Synchronous template-only version for callers that only need
+    score/friction (hora endpoints, feedback). No LLM call.
+    """
+    if start_date is None:
+        start_date = datetime.now(timezone.utc).replace(
+            hour=0, minute=0, second=0, microsecond=0
         )
 
-        day_result = {
+    results = []
+
+    for i in range(7):
+        target_date = start_date + timedelta(days=i)
+        weekday = target_date.strftime("%A")
+        date_str = target_date.strftime("%Y-%m-%d")
+
+        moon_data = get_moon_data_for_date(target_date)
+        nakshatra = moon_data["nakshatra"]
+        moon_sign = moon_data["sign"]
+        mercury_sign = get_planet_sign_for_date(target_date, 2)
+        tithi = get_tithi(target_date)
+        score, is_friction = _score_day(moon_sign, natal_moon_sign, nakshatra, weekday)
+
+        signal_data = _build_signal_text(
+            nakshatra=nakshatra, moon_sign=moon_sign, mercury_sign=mercury_sign,
+            natal_moon_sign=natal_moon_sign, weekday=weekday,
+            score=score, is_friction=is_friction
+        )
+
+        results.append({
             "date": date_str,
             "day": weekday,
             "moon_nakshatra": nakshatra,
@@ -583,10 +1058,9 @@ def generate_weekly_signals(natal_moon_sign: str, start_date: Optional[datetime]
             "wow": signal_data["wow"],
             "score": score,
             "is_friction_day": is_friction,
-        }
-
-        results.append(day_result)
-        logger.info(f"[daily-week] {date_str} {weekday}: {nakshatra} in {moon_sign} | score={score}")
+            "llm_generated": False,
+            "fallback": True,
+        })
 
     return results
 
@@ -596,6 +1070,6 @@ def generate_weekly_signals(natal_moon_sign: str, start_date: Optional[datetime]
 # ──────────────────────────────────────────────
 
 if __name__ == "__main__":
-    import json
-    signals = generate_weekly_signals(natal_moon_sign="Scorpio")
+    import asyncio
+    signals = asyncio.run(generate_weekly_signals(natal_moon_sign="Scorpio"))
     print(json.dumps(signals, indent=2))

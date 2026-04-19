@@ -13506,9 +13506,21 @@ async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8, l
         arch = row.get("character_archetype") or {}
         daily_field = arch.get("dominant_field")
 
-        # Check today's daily signal for friction
-        from antar_engine.daily_prediction_engine import generate_weekly_signals
-        _signals = generate_weekly_signals(chart_id, supabase, tz_offset=tz_offset)
+        # Check today's daily signal for friction (v2 sync wrapper)
+        from antar_engine.daily_prediction_engine import generate_weekly_signals_sync
+        import json as _hj
+        _raw_cd = row.get("chart_data") or {}
+        if isinstance(_raw_cd, str):
+            try: _raw_cd = _hj.loads(_raw_cd)
+            except: _raw_cd = {}
+        _hora_moon = "Aries"
+        _hp = _raw_cd.get("planets") or _raw_cd.get("planet_positions") or []
+        if isinstance(_hp, list):
+            for _hpl in _hp:
+                if isinstance(_hpl, dict) and (_hpl.get("name","").lower() == "moon" or _hpl.get("planet","").lower() == "moon"):
+                    _hora_moon = _hpl.get("sign") or _hpl.get("rashi") or "Aries"
+                    break
+        _signals = generate_weekly_signals_sync(natal_moon_sign=_hora_moon)
         if _signals:
             is_friction_day = _signals[0].get("is_friction_day", False)
     except Exception as _de:
@@ -13570,9 +13582,21 @@ async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
         arch = row.get("character_archetype") or {}
         daily_field = arch.get("dominant_field")
 
-        # Check today's daily signal for friction
-        from antar_engine.daily_prediction_engine import generate_weekly_signals
-        _signals = generate_weekly_signals(chart_id, supabase, tz_offset=tz_offset)
+        # Check today's daily signal for friction (v2 sync wrapper)
+        from antar_engine.daily_prediction_engine import generate_weekly_signals_sync
+        import json as _hj
+        _raw_cd = row.get("chart_data") or {}
+        if isinstance(_raw_cd, str):
+            try: _raw_cd = _hj.loads(_raw_cd)
+            except: _raw_cd = {}
+        _hora_moon = "Aries"
+        _hp = _raw_cd.get("planets") or _raw_cd.get("planet_positions") or []
+        if isinstance(_hp, list):
+            for _hpl in _hp:
+                if isinstance(_hpl, dict) and (_hpl.get("name","").lower() == "moon" or _hpl.get("planet","").lower() == "moon"):
+                    _hora_moon = _hpl.get("sign") or _hpl.get("rashi") or "Aries"
+                    break
+        _signals = generate_weekly_signals_sync(natal_moon_sign=_hora_moon)
         if _signals:
             is_friction_day = _signals[0].get("is_friction_day", False)
     except Exception as _de:
@@ -13630,9 +13654,21 @@ async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
         arch = row.get("character_archetype") or {}
         daily_field = arch.get("dominant_field")
 
-        # Check today's daily signal for friction
-        from antar_engine.daily_prediction_engine import generate_weekly_signals
-        _signals = generate_weekly_signals(chart_id, supabase, tz_offset=tz_offset)
+        # Check today's daily signal for friction (v2 sync wrapper)
+        from antar_engine.daily_prediction_engine import generate_weekly_signals_sync
+        import json as _hj
+        _raw_cd = row.get("chart_data") or {}
+        if isinstance(_raw_cd, str):
+            try: _raw_cd = _hj.loads(_raw_cd)
+            except: _raw_cd = {}
+        _hora_moon = "Aries"
+        _hp = _raw_cd.get("planets") or _raw_cd.get("planet_positions") or []
+        if isinstance(_hp, list):
+            for _hpl in _hp:
+                if isinstance(_hpl, dict) and (_hpl.get("name","").lower() == "moon" or _hpl.get("planet","").lower() == "moon"):
+                    _hora_moon = _hpl.get("sign") or _hpl.get("rashi") or "Aries"
+                    break
+        _signals = generate_weekly_signals_sync(natal_moon_sign=_hora_moon)
         if _signals:
             is_friction_day = _signals[0].get("is_friction_day", False)
     except Exception as _de:
@@ -13690,9 +13726,21 @@ async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
         arch = row.get("character_archetype") or {}
         daily_field = arch.get("dominant_field")
 
-        # Check today's daily signal for friction
-        from antar_engine.daily_prediction_engine import generate_weekly_signals
-        _signals = generate_weekly_signals(chart_id, supabase, tz_offset=tz_offset)
+        # Check today's daily signal for friction (v2 sync wrapper)
+        from antar_engine.daily_prediction_engine import generate_weekly_signals_sync
+        import json as _hj
+        _raw_cd = row.get("chart_data") or {}
+        if isinstance(_raw_cd, str):
+            try: _raw_cd = _hj.loads(_raw_cd)
+            except: _raw_cd = {}
+        _hora_moon = "Aries"
+        _hp = _raw_cd.get("planets") or _raw_cd.get("planet_positions") or []
+        if isinstance(_hp, list):
+            for _hpl in _hp:
+                if isinstance(_hpl, dict) and (_hpl.get("name","").lower() == "moon" or _hpl.get("planet","").lower() == "moon"):
+                    _hora_moon = _hpl.get("sign") or _hpl.get("rashi") or "Aries"
+                    break
+        _signals = generate_weekly_signals_sync(natal_moon_sign=_hora_moon)
         if _signals:
             is_friction_day = _signals[0].get("is_friction_day", False)
     except Exception as _de:
@@ -14131,9 +14179,14 @@ async def get_daily_week(chart_id: str, language: str = "en"):
 
         print(f"[daily-week] chart={chart_id} natal_moon={natal_moon_sign}")
 
-        # 3. Generate 7-day Python signals
+        # 3. Generate 7-day Python signals (v2 — LLM-backed)
         from antar_engine.daily_prediction_engine import generate_weekly_signals
-        signals = generate_weekly_signals(natal_moon_sign=natal_moon_sign)
+        signals = await generate_weekly_signals(
+            natal_moon_sign=natal_moon_sign,
+            chart_id=chart_id,
+            supabase_client=supabase,
+            language=language,
+        )
 
         # 5. Get WOW event signal for TODAY — v2 with full matrix
         today_data = signals[0] if signals else {}
@@ -14589,9 +14642,16 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
 
         print(f"[daily-week] chart={chart_id} natal_moon={natal_moon_sign} country={current_country} tz={effective_offset:+d} start={start_date.date()}")
 
-        # 4. Generate 7-day signals from local start date
+        # 4. Generate 7-day signals from local start date (v2 — LLM-backed)
         from antar_engine.daily_prediction_engine import generate_weekly_signals
-        signals = generate_weekly_signals(natal_moon_sign=natal_moon_sign, start_date=start_date)
+        signals = await generate_weekly_signals(
+            natal_moon_sign=natal_moon_sign,
+            start_date=start_date,
+            chart_id=chart_id,
+            supabase_client=supabase,
+            language=language,
+            tz_offset=effective_offset,
+        )
 
         # 5. Get WOW event signal for TODAY only
         today_nakshatra = signals[0].get("moon_nakshatra", "Unknown") if signals else "Unknown"
@@ -15163,7 +15223,7 @@ async def submit_daily_feedback(chart_id: str, body: dict):
         _predicted_score = None
         _predicted_friction = None
         try:
-            from antar_engine.daily_prediction_engine import generate_weekly_signals
+            from antar_engine.daily_prediction_engine import generate_weekly_signals_sync
             _chart_row = supabase.table("charts").select(
                 "chart_data, current_country"
             ).eq("id", chart_id).single().execute()
@@ -15183,7 +15243,7 @@ async def submit_daily_feedback(chart_id: str, body: dict):
                                 _natal_moon = _p.get("sign") or _p.get("rashi") or "Aries"
                                 break
                 _target_date = _df_dt.fromisoformat(_date)
-                _signals = generate_weekly_signals(natal_moon_sign=_natal_moon, start_date=_target_date)
+                _signals = generate_weekly_signals_sync(natal_moon_sign=_natal_moon, start_date=_target_date)
                 if _signals:
                     _today_sig = _signals[0]
                     _predicted_score = _today_sig.get("daily_score", 5)
