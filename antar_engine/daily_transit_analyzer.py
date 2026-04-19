@@ -19,6 +19,12 @@ from antar_engine.tara_bala import compute_tara_bala, find_next_favorable_tara
 from antar_engine.aspects_engine import compute_aspects_to_natal, get_significant_aspects
 from antar_engine.ashtakavarga import get_day_ashtakavarga_analysis
 
+# Phase 3 imports
+from antar_engine.day_chart_engine import cast_day_chart, get_country_coords, format_day_chart_for_prompt
+from antar_engine.yoga_detector import detect_day_yogas, format_day_yogas_for_prompt
+from antar_engine.muhurta_engine import compute_muhurtas, format_muhurtas_for_prompt
+from antar_engine.vedha_engine import check_all_vedhas, format_vedha_for_prompt
+
 logger = logging.getLogger("antar_engine.daily_transit_analyzer")
 
 # ─────────────────────────────────────────────────────────────────
@@ -405,6 +411,7 @@ async def analyze_day_transits(
     chart_data: dict,
     target_date,
     current_md_lord: str = "",
+    current_country: str = "",
 ) -> dict:
     """
     Main function: compute slow-planet transit analysis for one day.
@@ -474,6 +481,43 @@ async def analyze_day_transits(
         except Exception as asp_err:
             logger.warning(f"[transit-analyzer] Aspects failed (non-fatal): {asp_err}")
 
+        # ── Phase 3: Day chart, yogas, muhurta, vedha ──
+        day_chart_data = {}
+        day_yogas_data = []
+        muhurtas_data = {}
+        vedha_data = {}
+
+        try:
+            coords = get_country_coords(current_country) if current_country else None
+            if coords:
+                p3_lat, p3_lon = coords
+
+                # Day chart at dawn
+                day_chart_data = await cast_day_chart(target_date, p3_lat, p3_lon)
+
+                # Day yogas
+                if day_chart_data:
+                    day_yogas_data = detect_day_yogas(day_chart_data)
+
+                # Muhurta windows
+                muhurtas_data = compute_muhurtas(target_date, p3_lat, p3_lon)
+
+                # Vedha analysis on all transits
+                if natal_moon_idx >= 0:
+                    vedha_data = check_all_vedhas(all_transits, natal_moon_idx)
+                    # Annotate transits with vedha info
+                    for tx in all_transits:
+                        planet = tx.get("planet", "")
+                        if planet in vedha_data:
+                            vedha = vedha_data[planet]
+                            tx["vedha"] = vedha
+                            if vedha.get("has_vedha") and tx.get("classical"):
+                                tx["classical"]["essence"] += f" [VEDHA: {vedha['note']}]"
+            else:
+                logger.info(f"[transit-analyzer] No coords for country '{current_country}' — skipping Phase 3")
+        except Exception as p3_err:
+            logger.warning(f"[transit-analyzer] Phase 3 failed (non-fatal): {p3_err}")
+
         # ── Build enhanced synthesis hints ──
         enhanced_synthesis = _build_enhanced_synthesis(
             synthesis_hints, ashtakavarga_data, tara_bala_data,
@@ -501,6 +545,15 @@ async def analyze_day_transits(
             "tara_bala_block": format_tara_bala(tara_bala_data, next_favorable),
             "aspects_block": format_aspects(aspects_to_natal),
             "enhanced_synthesis_block": format_enhanced_synthesis(enhanced_synthesis),
+            # Phase 3 additions
+            "day_chart": day_chart_data,
+            "day_yogas": day_yogas_data,
+            "muhurtas": muhurtas_data,
+            "vedha": vedha_data,
+            "day_chart_block": format_day_chart_for_prompt(day_chart_data),
+            "day_yogas_block": format_day_yogas_for_prompt(day_yogas_data),
+            "muhurtas_block": format_muhurtas_for_prompt(muhurtas_data),
+            "vedha_block": format_vedha_for_prompt(vedha_data),
         }
 
     except Exception as e:
@@ -523,6 +576,15 @@ async def analyze_day_transits(
             "tara_bala_block": "",
             "aspects_block": "",
             "enhanced_synthesis_block": "",
+            # Phase 3 fallbacks
+            "day_chart": {},
+            "day_yogas": [],
+            "muhurtas": {},
+            "vedha": {},
+            "day_chart_block": "",
+            "day_yogas_block": "",
+            "muhurtas_block": "",
+            "vedha_block": "",
         }
 
 

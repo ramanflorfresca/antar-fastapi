@@ -125,6 +125,24 @@ Check which natal house lord is most activated by today's transits:
       planning day, not an execution day. Write down the 3 commitments you're avoiding.
       Don't act on them — Wednesday's Sadhana tara is when you push."
 
+14. **USE MUHURTA WINDOWS FOR TIME RECOMMENDATIONS.** Your windows[] array must reference
+    actual muhurta windows from the data. If Abhijit muhurta is 11:47-12:33, your peak
+    window for important action is 11:47-12:33. Do not invent generic "11 AM - 1 PM" ranges.
+    Every time window you output must come from the muhurta data or Moon transition data.
+
+15. **AVOID INAUSPICIOUS WINDOWS.** When Rahu Kalam or Gulika Kala fall within waking hours,
+    your evita_hoy MUST reference them. Example: "Between 4:30 PM and 6:00 PM is a caution
+    window — don't sign or commit in that period."
+
+16. **DAY YOGAS FLAVOR THE DAY.** When a yoga is active today (Gajakesari, Budhaditya, etc.),
+    reference its effect in senal_de_hoy or el_movimiento. Example: "Intellectual clarity is
+    especially strong today — favoring writing, analysis, and communication." If no yogas
+    are active, do not mention yogas at all.
+
+17. **VEDHA CANCELS TRANSITS.** If a classical transit interpretation has a [VEDHA] annotation,
+    acknowledge the cancellation. Do not promise a benefit that is vedha-canceled. Instead
+    note the muted benefit: "The favorable transit is blocked today — don't count on it."
+
 ## SCORING INTERPRETATION
 
 The rule engine provides a score 0-10:
@@ -179,6 +197,14 @@ TRANSIT ANALYSIS FOR TODAY (all planets):
 {synthesis_hints_block}
 
 {enhanced_synthesis_block}
+
+{day_chart_block}
+
+{day_yogas_block}
+
+{muhurtas_block}
+
+{vedha_block}
 
 Language: {language}
 
