@@ -203,11 +203,16 @@ def check_natal_conditions(chart_data: dict) -> dict:
 def check_dasha_conditions(chart_data: dict, md_lord: str, ad_lord: str) -> dict:
     """
     Check if dasha at target period activates wealth axis:
-    - MD or AD lord rules 2H, 5H, 9H, or 11H
-    - OR MD or AD lord is Jupiter or Venus
+    - MD or AD lord rules 2H, 5H, 9H, or 11H (Parashari house-rulership)
+    - OR MD or AD lord is Jupiter or Venus (natural wealth significators)
+    - OR MD or AD lord is Rahu/Ketu placed in upachaya/wealth houses
+      (shadow planet activation — they don't rule houses but activate
+       whichever they occupy; 3H/6H/10H/11H are upachaya, growing houses;
+       2H/5H/9H add wealth-specific amplification)
     - OR both MD+AD lords touch 2H/11H axis
     """
     lagna_idx = chart_data.get("lagna", {}).get("sign_index", 0)
+    planets = chart_data.get("planets", {}) or {}
 
     # What houses does each lord rule?
     wealth_lords = set()
@@ -221,6 +226,30 @@ def check_dasha_conditions(chart_data: dict, md_lord: str, ad_lord: str) -> dict
     md_is_benefic = md_lord in ("Jupiter", "Venus")
     ad_is_benefic = ad_lord in ("Jupiter", "Venus")
 
+    # Shadow planet activation: Rahu/Ketu in upachaya (3/6/10/11) or
+    # wealth houses (2/5/9/11) classically activate those house themes
+    # during their dasha periods.
+    upachaya_plus_wealth = {2, 3, 5, 6, 9, 10, 11}
+
+    def _shadow_activates_wealth(lord_name: str) -> tuple:
+        """Return (is_shadow_in_wealth_house, house_number_or_none)."""
+        if lord_name not in ("Rahu", "Ketu"):
+            return (False, None)
+        planet_data = planets.get(lord_name, {})
+        if not planet_data:
+            return (False, None)
+        house = planet_data.get("house")
+        if house is None:
+            return (False, None)
+        try:
+            h = int(house)
+        except (TypeError, ValueError):
+            return (False, None)
+        return (h in upachaya_plus_wealth, h)
+
+    md_shadow_active, md_shadow_house = _shadow_activates_wealth(md_lord)
+    ad_shadow_active, ad_shadow_house = _shadow_activates_wealth(ad_lord)
+
     # 2H/11H axis activation (both lords connected)
     lord_2 = _get_house_lord(2, lagna_idx)
     lord_11 = _get_house_lord(11, lagna_idx)
@@ -229,7 +258,11 @@ def check_dasha_conditions(chart_data: dict, md_lord: str, ad_lord: str) -> dict
         (md_rules_wealth or ad_rules_wealth)
     )
 
-    fires = (md_rules_wealth or ad_rules_wealth or md_is_benefic or ad_is_benefic)
+    fires = (
+        md_rules_wealth or ad_rules_wealth or
+        md_is_benefic or ad_is_benefic or
+        md_shadow_active or ad_shadow_active
+    )
 
     detail = []
     if md_rules_wealth:
@@ -240,6 +273,16 @@ def check_dasha_conditions(chart_data: dict, md_lord: str, ad_lord: str) -> dict
         detail.append(f"MD lord is {md_lord} (natural wealth significator)")
     if ad_is_benefic:
         detail.append(f"AD lord is {ad_lord} (natural wealth significator)")
+    if md_shadow_active:
+        detail.append(
+            f"MD lord ({md_lord}) in {md_shadow_house}H "
+            f"(upachaya/wealth — shadow planet activation)"
+        )
+    if ad_shadow_active:
+        detail.append(
+            f"AD lord ({ad_lord}) in {ad_shadow_house}H "
+            f"(upachaya/wealth — shadow planet activation)"
+        )
     if both_touch_axis:
         detail.append("MD+AD lords both touch 2H/11H axis")
 
