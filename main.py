@@ -1311,11 +1311,26 @@ async def call_llm_claude(
         _static_part = system
         _dynamic_part = ""
 
-    # Debug: log cacheable block hash to spot content drift between calls
+    # Debug: log cacheable block hash + chunk hashes to pinpoint drift
     import hashlib as _hashlib
     _static_hash = _hashlib.sha256(_static_part.encode('utf-8')).hexdigest()[:12]
     _dynamic_hash = _hashlib.sha256(_dynamic_part.encode('utf-8')).hexdigest()[:12] if _dynamic_part else "none"
     print(f"[claude-cache-debug] static_len={len(_static_part)} static_hash={_static_hash} dynamic_len={len(_dynamic_part)} dynamic_hash={_dynamic_hash}")
+    
+    # Chunk-level hashing: hash every 2K-char region of the static block
+    # If chunks 0-5 match between calls but chunk 6 differs → we know drift is in bytes 12000-14000
+    _CHUNK = 2000
+    _chunk_hashes = []
+    for _i in range(0, len(_static_part), _CHUNK):
+        _ch = _hashlib.sha256(_static_part[_i:_i+_CHUNK].encode('utf-8')).hexdigest()[:8]
+        _chunk_hashes.append(f"{_i//_CHUNK}:{_ch}")
+    print(f"[claude-cache-chunks] {'|'.join(_chunk_hashes)}")
+    
+    # Also log first 200 and last 200 chars of static
+    _head = _static_part[:200].replace('\n', ' ')
+    _tail = _static_part[-200:].replace('\n', ' ')
+    print(f"[claude-cache-head] {_head[:200]}")
+    print(f"[claude-cache-tail] {_tail[:200]}")
 
     _system_blocks = [
         {
