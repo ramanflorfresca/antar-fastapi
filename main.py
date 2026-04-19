@@ -4406,7 +4406,7 @@ Do not use any planet names or astrological jargon — translate everything into
 
             # Build archetype context
             _arch = _bf_result.get("wealth_archetype", {})
-            _arch_name = _arch.get("name", "") if isinstance(_arch, dict) else ""
+            _arch_name = _arch.get("primary_archetype", "") if isinstance(_arch, dict) else ""
             _arch_honest = _bf_result.get("honest_scale_read", "")
 
             # Build top-3 favored categories
