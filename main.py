@@ -12876,7 +12876,7 @@ YOUR TASK:
 Rewrite the base template as ONE sentence that feels personally relevant to this user.
 - Use their location and life context naturally (not as a label)
 - Reference the day of the week to make it feel live and real
-- Keep it as a HINT — specific enough to be noticed, vague enough to apply
+- NEVER reference deals, projects, agreements, conversations, or plans the user has not mentioned. You know NOTHING about their calendar, inbox, or personal life. Do NOT say "that deal you've been considering" or "the project you've been working on." Speak only to DOMAINS and TIMING.
 - No astrology terms. No planet names. No nakshatra names.
 - Maximum 25 words.
 - Do NOT start with "Today" — vary the opening.
@@ -12952,7 +12952,7 @@ Write a signal that:
 - Acknowledges the friction honestly
 - Shows exactly HOW to use {action_phrase} energy DESPITE the resistance
 - Gives a specific behavioral move, not a general attitude
-- Feels like a trailer — hints at something specific without naming it"""
+- Speaks to a DOMAIN (career, finance, relationships, health) and TIMING — never to fabricated events or deals"""
         else:
             task = f"""The user is in {field} FIELD × {mode} MODE today.
 Their score is {score}/10 — a FLOW day (above their weekly average of {week_avg}).
@@ -12961,7 +12961,7 @@ Action signature: "{action_phrase}" — {base_description}
 The energy is OPEN and available. Write a signal that:
 - Capitalizes on the {action_phrase} energy specifically
 - Tells them what to do TODAY that they cannot do on other days
-- Feels like a trailer — hints at something specific without naming it
+- Speaks to a DOMAIN (career, finance, relationships, health) and a TIME WINDOW — never to fabricated events, deals, or projects
 - Has urgency — this window is time-limited"""
 
         prompt = f"""You are writing a single-sentence WOW signal for a life intelligence app.
@@ -12978,8 +12978,8 @@ RULES:
 - Maximum 25 words
 - No astrology terms. No planet names. No nakshatra names. No "FIELD" or "MODE" labels.
 - Do NOT start with "Today"
-- Write as if you know something they don't — a hint, not a prediction
-- Use their professional/geographic context naturally
+- NEVER reference deals, projects, agreements, conversations, or plans the user has not mentioned. You know NOTHING about their calendar, inbox, or personal life. Do NOT say "that deal you've been considering" or "the project you've been working on" — you have zero knowledge of any such thing. Speak only to DOMAINS (career, finance, relationships, health) and TIMING, never to fabricated specifics.
+- Use their geographic context naturally but do NOT invent personal circumstances
 - Never use double articles. Never write "the your", "a the", "the the", or "but the your". Proofread before returning.
 - {f'Write the entire response in {language}.' if language != 'en' else 'Write in English.'}
 - Output ONLY the single sentence. Nothing else."""
@@ -14258,6 +14258,33 @@ def _translate_daily_signals_es(signals):
         "deep, spiritual": "profundidad espiritual",
         "obstacles, caution": "dia de prueba",
         "fortune, auspicious": "fortuna y energia positiva",
+        # NAKSHATRA_PROFILES energy strings (complete coverage for v1 fallback)
+        "swift, initiating": "velocidad e iniciativa",
+        "intense, transformative": "intensidad y transformacion",
+        "sharp, decisive": "claridad y decision",
+        "creative, nurturing": "creatividad y nutricion",
+        "searching, curious": "busqueda y curiosidad",
+        "stormy, transformative": "tormenta y transformacion",
+        "expansive, restoring": "expansion y restauracion",
+        "nurturing, auspicious": "nutricion y buen augurio",
+        "penetrating, strategic": "penetracion y estrategia",
+        "authoritative, regal": "autoridad y realeza",
+        "creative, pleasure-seeking": "creatividad y placer",
+        "steady, establishing": "estabilidad y consolidacion",
+        "skilled, precise": "habilidad y precision",
+        "creative, brilliant": "creatividad y brillantez",
+        "independent, adaptable": "independencia y adaptabilidad",
+        "goal-oriented, intense": "orientado a metas e intenso",
+        "devoted, disciplined": "devocion y disciplina",
+        "commanding, protective": "mando y proteccion",
+        "uprooting, investigative": "desarraigo e investigacion",
+        "invincible, persuasive": "invencibilidad y persuasion",
+        "victorious, ethical": "victoria y etica",
+        "listening, connecting": "escucha y conexion",
+        "abundant, musical": "abundancia y musicalidad",
+        "fierce, transformative": "fiereza y transformacion",
+        "stable, wise": "estabilidad y sabiduria",
+        "compassionate, completing": "compasion y culminacion",
     }
     ACTIONS = {
         "research": "investigacion",
@@ -14537,6 +14564,19 @@ def _translate_daily_signals_es(signals):
             "good for building": "bueno para construir",
             "favors communication": "favorece la comunicacion",
             "sharp thinking": "pensamiento claro",
+            "vitality, leadership, visibility": "vitalidad, liderazgo y visibilidad",
+            "emotional intelligence, intuition": "inteligencia emocional e intuicion",
+            "courage, direct action, confrontation": "coraje, accion directa y confrontacion",
+            "communication, negotiation, writing": "comunicacion, negociacion y escritura",
+            "expansion, learning, authority": "expansion, aprendizaje y autoridad",
+            "relationships, creativity, partnerships": "relaciones, creatividad y asociaciones",
+            "discipline, structure, long-term planning": "disciplina, estructura y planificacion a largo plazo",
+            "starting projects": "iniciar proyectos",
+            "creative work": "trabajo creativo",
+            "relationship building": "construir relaciones",
+            "cutting losses": "cortar perdidas",
+            "confrontation": "confrontacion",
+            "financial planning": "planificacion financiera",
         }
         for en, es in replacements.items():
             text = text.replace(en, es)
@@ -14563,17 +14603,46 @@ def _translate_daily_signals_es(signals):
             text = text.replace(en, es)
         return text
 
+    # WOW translations (for v1 template fallback)
+    WOW_ES = {
+        "Moon returns to your natal sign today — emotional clarity peaks. Trust your instincts.":
+            "La Luna regresa a tu signo natal hoy — la claridad emocional llega a su maximo. Confia en tus instintos.",
+        "Communication and negotiation carry extra weight today.":
+            "La comunicacion y la negociacion tienen peso extra hoy.",
+    }
+    # Nakshatra WOW patterns
+    WOW_NAK_TEMPLATES = {
+        " is one of the most auspicious nakshatras. Major decisions made today carry positive momentum.":
+            " es una de las estrellas mas auspiciosas. Las decisiones importantes de hoy llevan impulso positivo.",
+        "Mula energy cuts to the root. Any investigation or deep audit today will reveal what's been hidden.":
+            "La energia de Mula corta hasta la raiz. Cualquier investigacion o auditoria profunda hoy revelara lo que estaba oculto.",
+    }
+
     for day in result:
-        if "energy" in day:
+        # Skip text translation for LLM-generated signals — they're already in Spanish
+        is_llm = day.get("llm_generated", False)
+
+        if "energy" in day and not is_llm:
             day["energy"] = ENERGY.get(day["energy"], day["energy"])
-        if "aligned_for" in day:
+        if "aligned_for" in day and not is_llm:
             day["aligned_for"] = t_actions(day["aligned_for"])
-        if "friction_for" in day:
+        if "friction_for" in day and not is_llm:
             day["friction_for"] = t_actions(day["friction_for"])
-        if "signal" in day:
+        if "signal" in day and not is_llm:
             day["signal"] = t_signal(day["signal"])
-        if "move" in day:
+        if "move" in day and not is_llm:
             day["move"] = t_move(day["move"])
+        # Translate wow field (v1 fallback only)
+        if "wow" in day and day.get("wow") and not is_llm:
+            wow_text = day["wow"]
+            if wow_text in WOW_ES:
+                day["wow"] = WOW_ES[wow_text]
+            else:
+                for en_suffix, es_suffix in WOW_NAK_TEMPLATES.items():
+                    if wow_text.endswith(en_suffix.lstrip()):
+                        nak_name = wow_text.replace(en_suffix.lstrip(), "").strip()
+                        day["wow"] = nak_name + es_suffix
+                        break
         if "day" in day:
             day["day_es"] = DAYS.get(day["day"], day["day"])
             day["day_short_es"] = DAY_SHORT.get(day["day"], day["day"][:3].upper())
