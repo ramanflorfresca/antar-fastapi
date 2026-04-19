@@ -317,12 +317,14 @@ DOMAIN_BRIDGE_INSTRUCTION = (
     "Do not leave the user with a dead-end No. "
     "Give them a System Calibration task.\n\n"
     "Example: User asks Can I start a business now?\n"
-    "Audit shows D-10 weak until late 2026.\n"
-    "You say: The Business Launch Signal is blocked until Sept 2026.\n"
+    "Audit shows career blueprint weak until late 2026.\n"
+    "You say: Your launch energy is blocked until Sept 2026.\n"
     "YOUR MOVE: Use this maintenance chapter to learn a specific skill "
     "or secure your personal savings so you have fuel when the road clears.\n\n"
-    "This turns bad news into strategic delay. "
-    "That is what a high-performance user pays for."
+    "REMINDER: In your response, NEVER write raw house numbers or planet names. "
+    "Use the Translation Table. Say 'your transformation area' not '8th house'. "
+    "Say 'your growth energy' not 'Jupiter'. "
+    "The domain audit is your internal analysis — the user sees only energy-systems voice."
 )
 
 
@@ -4904,7 +4906,16 @@ VOCABULARY RULES:
         print(f"[predict] Symptom mode — diagnostic format active (hard constraint bypassed)")
 
     if _domain_rules:
-        prompt = "\n\n" + _domain_rules + "\n\n" + DOMAIN_BRIDGE_INSTRUCTION + "\n\n" + prompt
+        _domain_voice_wrapper = (
+            "IMPORTANT: The domain audit below tells you WHAT TO ANALYZE internally. "
+            "But your OUTPUT must use energy-systems language from the Translation Table. "
+            "DO NOT output raw house numbers (H1, 8th house) or planet names (Jupiter, Saturn). "
+            "Translate every technical term before writing it. "
+            "The audit is your internal checklist — the user sees only translated language.\n"
+            "DO NOT include a 'DOMAIN AUDIT' section in your response. "
+            "Weave the audit findings into your VERDICT and WHY sections naturally.\n\n"
+        )
+        prompt = "\n\n" + _domain_voice_wrapper + _domain_rules + "\n\n" + DOMAIN_BRIDGE_INSTRUCTION + "\n\n" + prompt
         print(f"[predict] Domain audit rules injected for concern={concern}")
 
     _using_master = _full_context and len(_full_context) > 500
