@@ -1311,6 +1311,12 @@ async def call_llm_claude(
         _static_part = system
         _dynamic_part = ""
 
+    # Debug: log cacheable block hash to spot content drift between calls
+    import hashlib as _hashlib
+    _static_hash = _hashlib.sha256(_static_part.encode('utf-8')).hexdigest()[:12]
+    _dynamic_hash = _hashlib.sha256(_dynamic_part.encode('utf-8')).hexdigest()[:12] if _dynamic_part else "none"
+    print(f"[claude-cache-debug] static_len={len(_static_part)} static_hash={_static_hash} dynamic_len={len(_dynamic_part)} dynamic_hash={_dynamic_hash}")
+
     _system_blocks = [
         {
             "type": "text",
@@ -1334,7 +1340,7 @@ async def call_llm_claude(
         tokens = response.usage.output_tokens
         _cache_r = getattr(response.usage, 'cache_read_input_tokens', 0) or 0
         _cache_w = getattr(response.usage, 'cache_creation_input_tokens', 0) or 0
-        print(f"[claude] cache_hit={_cache_r} cache_write={_cache_w} output={tokens}")
+        print(f"[claude] cache_hit={_cache_r} cache_write={_cache_w} output={tokens} total_input={getattr(response.usage, 'input_tokens', 0)}")
         return text, tokens
     except Exception as e:
         print(f"[claude] error, falling back to DeepSeek: {e}")
