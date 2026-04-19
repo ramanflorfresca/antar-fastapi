@@ -741,6 +741,299 @@ DEFAULT_ARCHETYPE = {
     "frequency": "rare",
 }
 
+# ── FIELD Essence Library (21 entries — one per FIELD) ───────────────
+# Fallback step 2: when exact (FIELD, MODE) misses, match on FIELD alone.
+# Each entry captures the essential meaning of a FIELD regardless of MODE.
+FIELD_ESSENCE_LIBRARY = {
+    "IGNITION": {
+        "name": "THE IGNITER",
+        "tagline": "Born to start what doesn't yet exist.",
+        "description": "Whatever mode you operate in, your essential nature is initiation. You carry Ashwini energy — the first breath, the first step, the first spark. You exist to begin things: ventures, movements, conversations nobody else will start. Your value is highest at the zero-to-one moment.",
+        "strength": "Fearless initiation. You move before the path is visible.",
+        "blind_spot": "Can abandon what you start once the novelty fades.",
+        "frequency": "uncommon",
+    },
+    "THRESHOLD": {
+        "name": "THE THRESHOLD-WALKER",
+        "tagline": "Lives at the boundary between what was and what's next.",
+        "description": "Your essential nature is transformation through crossing limits. Bharani energy — the womb and the gate. You carry things across boundaries others won't approach: life/death, old/new, safe/dangerous. You are the one who goes first into the unknown.",
+        "strength": "Transition mastery. You handle what others fear to touch.",
+        "blind_spot": "Can become addicted to intensity and boundary-states.",
+        "frequency": "uncommon",
+    },
+    "EDGE": {
+        "name": "THE EDGE-DWELLER",
+        "tagline": "Finds power at the limit of what's possible.",
+        "description": "Your essential nature is to operate at extremes. Krittika energy — the blade, the flame that separates. You cut through ambiguity to define where the real boundary is. First adopter, limit-tester, frontier-pusher in any domain.",
+        "strength": "Clarity through extremes. You define where the wall is.",
+        "blind_spot": "The edge has a drop on both sides. Know when to step back.",
+        "frequency": "uncommon",
+    },
+    "GROWTH": {
+        "name": "THE GROWER",
+        "tagline": "Makes everything around them flourish.",
+        "description": "Your essential nature is organic expansion. Rohini energy — fertile ground, patient cultivation. You compound slowly and deliberately. Wealth, relationships, organizations — they grow in your presence because you nurture what has potential.",
+        "strength": "Patient abundance. What you cultivate compounds over decades.",
+        "blind_spot": "Can over-nurture and resist pruning what no longer serves.",
+        "frequency": "moderate",
+    },
+    "DISCOVERY": {
+        "name": "THE DISCOVERER",
+        "tagline": "Finds what others walk past.",
+        "description": "Your essential nature is curiosity in motion. Mrigashira energy — the eternal seeker, following the scent of what's new. You orient in unknown territory and find opportunity in the gap. First mover, early adopter, pathfinder.",
+        "strength": "Sees opportunity before the gap closes.",
+        "blind_spot": "Restlessness can prevent you from compounding any single discovery.",
+        "frequency": "moderate",
+    },
+    "STORM": {
+        "name": "THE STORM-BRINGER",
+        "tagline": "Clears what's obsolete so something real can grow.",
+        "description": "Your essential nature is creative destruction. Ardra energy — the tear that cleanses, the storm that renews. You thrive in chaos not because you're chaotic but because you see what needs to break before it can be rebuilt. Crisis is your activation condition.",
+        "strength": "Necessary disruption. You see the dying model before anyone else.",
+        "blind_spot": "Not everything needs to burn. Learn to preserve what still works.",
+        "frequency": "uncommon",
+    },
+    "RECOVERY": {
+        "name": "THE RECOVERER",
+        "tagline": "Restores what others have given up on.",
+        "description": "Your essential nature is renewal. Punarvasu energy — the return of light after the storm. You walk into broken situations and find the path back to wholeness. Businesses, people, relationships — you repair what others have abandoned.",
+        "strength": "Deep repair. You fix what others wrote off.",
+        "blind_spot": "Can take on others' brokenness as your own burden.",
+        "frequency": "moderate",
+    },
+    "ANCHOR": {
+        "name": "THE ANCHOR-POINT",
+        "tagline": "The fixed point others orient around.",
+        "description": "Your essential nature is stability. Pushya energy — nourishment, holding steady. When everything moves, you're the constant. Teams, families, organizations calibrate against your steadiness. Your presence alone reduces chaos.",
+        "strength": "Unshakable reliability. You hold when others fold.",
+        "blind_spot": "Can resist necessary change by anchoring too firmly to the past.",
+        "frequency": "moderate",
+    },
+    "STRATEGY": {
+        "name": "THE STRATEGIST",
+        "tagline": "Thinks three moves ahead in any game.",
+        "description": "Your essential nature is calculated precision. Ashlesha energy — the serpent that coils before it strikes. You see leverage points invisible to others. In any system, you find the move that, when made, changes everything else.",
+        "strength": "Surgical precision. One right move beats ten good moves.",
+        "blind_spot": "Can over-plan and miss the window for action.",
+        "frequency": "moderate",
+    },
+    "AUTHORITY": {
+        "name": "THE AUTHORITY",
+        "tagline": "Carries natural command in any room.",
+        "description": "Your essential nature is leadership. Magha and Jyeshtha energy — ancestral power, earned rank. You don't ask for authority; it accrues to you. People follow your direction because your conviction is structural, not performative.",
+        "strength": "Natural command. Your authority compounds over time.",
+        "blind_spot": "Can become rigid. Authority without flexibility becomes tyranny.",
+        "frequency": "moderate",
+    },
+    "ABUNDANCE": {
+        "name": "THE ABUNDANCE-CARRIER",
+        "tagline": "Attracts resources without force.",
+        "description": "Your essential nature is magnetic prosperity. Purva Phalguni energy — creative pleasure, natural wealth. Scarcity doesn't live in your chart. When you're aligned, people, money, and opportunities find you. Your presence generates surplus.",
+        "strength": "Natural magnetism. Resources flow toward your position.",
+        "blind_spot": "Surplus without structure dissipates. Channel the flow deliberately.",
+        "frequency": "moderate",
+    },
+    "COMPLETION": {
+        "name": "THE COMPLETER",
+        "tagline": "Finishes what others abandon.",
+        "description": "Your essential nature is closure. Uttara Phalguni and Revati energy — the graceful ending, the final bow. You close loops, ship products, resolve conflicts. In a world of starters, you are the rare one who actually delivers.",
+        "strength": "Finishing power. What you touch gets done.",
+        "blind_spot": "Can hold on past the natural endpoint. Know when to release.",
+        "frequency": "moderate",
+    },
+    "EXECUTION": {
+        "name": "THE EXECUTOR",
+        "tagline": "Turns intention into flawless action.",
+        "description": "Your essential nature is precision in action. Hasta energy — the skilled hand, craft mastery. You execute at a level others can only admire. When the difference between winning and losing is in the details, you're the one in the room.",
+        "strength": "Mastery. You get it right when it matters most.",
+        "blind_spot": "Execution without strategic direction is wasted motion.",
+        "frequency": "moderate",
+    },
+    "SIGNAL": {
+        "name": "THE SIGNAL-CARRIER",
+        "tagline": "Picks up what others don't yet hear.",
+        "description": "Your essential nature is to receive and transmit patterns before others see them. Chitra and Shravana energy — the inner ear, the cosmic antenna. Broadcasting, journalism, early investing, cultural criticism — all variants of the same signal-sensing gift.",
+        "strength": "Pattern recognition at scale. You're tuned to the next frequency.",
+        "blind_spot": "Can live so far ahead that others can't follow your signal.",
+        "frequency": "moderate",
+    },
+    "ADAPTATION": {
+        "name": "THE ADAPTER",
+        "tagline": "Becomes what the moment requires.",
+        "description": "Your essential nature is fluid response. Swati energy — the wind that bends but never breaks. You read shifting environments faster than anyone and recalibrate without sentimentality. Where rigid players fail, you thrive.",
+        "strength": "Thrives in volatile, high-change environments.",
+        "blind_spot": "Constant adaptation can erode a fixed sense of self.",
+        "frequency": "moderate",
+    },
+    "VICTORY": {
+        "name": "THE VICTOR",
+        "tagline": "Competes at a level others find exhausting.",
+        "description": "Your essential nature is triumph. Vishakha energy — the forked path, the relentless goal-seeker. Winning isn't an outcome for you; it's a standard. You set targets others consider impossible and hit them through sheer sustained will.",
+        "strength": "Relentless drive. You don't stop when it gets hard.",
+        "blind_spot": "Can win at the wrong things. Make sure the game is worth playing.",
+        "frequency": "moderate",
+    },
+    "ALLIANCE": {
+        "name": "THE ALLIANCE-BUILDER",
+        "tagline": "Builds bonds that become institutions.",
+        "description": "Your essential nature is partnership. Anuradha energy — devotion, loyalty under pressure. You don't just connect people; you construct ecosystems of mutual benefit. Your alliances outlast market cycles because they're built on genuine trust.",
+        "strength": "Network compounds. What you build becomes infrastructure.",
+        "blind_spot": "Loyalty can keep you in alliances that no longer serve anyone.",
+        "frequency": "moderate",
+    },
+    "ROOT": {
+        "name": "THE ROOT-FINDER",
+        "tagline": "Goes to the origin of everything.",
+        "description": "Your essential nature is foundational truth. Mula energy — the root, the primal cause. You don't treat symptoms; you diagnose what's actually driving the outcome. In any system, you find the deepest layer and work from there.",
+        "strength": "Foundational clarity. You solve problems at the source.",
+        "blind_spot": "The root matters less than the next step. Don't get lost in origins.",
+        "frequency": "uncommon",
+    },
+    "MOMENTUM": {
+        "name": "THE MOMENTUM-CARRIER",
+        "tagline": "Once moving, nothing stops you.",
+        "description": "Your essential nature is sustained velocity. Purva Ashadha and Dhanishtha energy — invincibility through forward motion. You accumulate speed across decades. Career, network, wealth — everything compounds because you never fully stop.",
+        "strength": "Sustained acceleration. Compounding is your superpower.",
+        "blind_spot": "Hard to pivot at full speed. Plan your turns well in advance.",
+        "frequency": "moderate",
+    },
+    "FOUNDATION": {
+        "name": "THE FOUNDATION-LAYER",
+        "tagline": "Builds on bedrock, never on sand.",
+        "description": "Your essential nature is structural integrity. Uttara Ashadha energy — the final victory, the unassailable base. Everything you create can hold weight, survive stress, and be built upon. You are the base layer others depend on.",
+        "strength": "What you build lasts. Others build on top of your work.",
+        "blind_spot": "Perfectionism about foundations can delay building what goes on top.",
+        "frequency": "uncommon",
+    },
+    "DEPTH": {
+        "name": "THE DEPTH-SEEKER",
+        "tagline": "Sees through illusion to essence.",
+        "description": "Your essential nature is penetrating insight. Shatabhisha and Uttara Bhadrapada energy — the hundred healers, the deep ocean. You go where others won't look. Surface explanations never satisfy you. Truth lives at the bottom, and that's where you operate.",
+        "strength": "Unmatched insight. You find what stays hidden from everyone else.",
+        "blind_spot": "Depth without surfacing is isolation. Bring your findings back up.",
+        "frequency": "uncommon",
+    },
+}
+
+# ── MODE Essence Library (12 entries — one per MODE) ─────────────────
+# Fallback step 3: when FIELD-only also misses, match on MODE alone.
+# Each entry captures the essential meaning of a MODE regardless of FIELD.
+MODE_ESSENCE_LIBRARY = {
+    "DRIVE": {
+        "name": "THE DRIVER",
+        "tagline": "Moves first and fastest.",
+        "description": "Whatever domain you operate in, your natural move is forward — fast, direct, and with full commitment. Aries energy at your core. You initiate, you push, you accelerate. Hesitation is not in your vocabulary. Your speed is your edge.",
+        "strength": "Action bias. You create results while others are still planning.",
+        "blind_spot": "Speed without direction is just motion. Pause to aim.",
+        "frequency": "moderate",
+    },
+    "BUILD": {
+        "name": "THE BUILDER",
+        "tagline": "Constructs what lasts.",
+        "description": "Whatever domain you operate in, your natural move is to construct something durable. Taurus energy at your core. You accumulate, compound, and solidify. You don't chase — you build, and what you build holds weight over time.",
+        "strength": "Patience and accumulation. Your work compounds.",
+        "blind_spot": "Can over-invest in what exists rather than building what's next.",
+        "frequency": "moderate",
+    },
+    "CONNECT": {
+        "name": "THE CONNECTOR",
+        "tagline": "Bridges people, ideas, and worlds.",
+        "description": "Whatever domain you operate in, your natural move is to link things together. Gemini energy at your core. You see the relationship between disparate elements. Your network, your communication, your ability to translate — these are your real assets.",
+        "strength": "Bridging. You access rooms others can't enter.",
+        "blind_spot": "Connecting without depth can spread you too thin.",
+        "frequency": "moderate",
+    },
+    "PROTECT": {
+        "name": "THE PROTECTOR",
+        "tagline": "Shields what matters from what would break it.",
+        "description": "Whatever domain you operate in, your natural move is to safeguard. Cancer energy at your core. You build walls around what's valuable — people, resources, institutions. Your loyalty and defensive instinct make you the person others trust with what matters most.",
+        "strength": "Institutional memory and fierce loyalty. You don't abandon your post.",
+        "blind_spot": "Over-protection can become control. Let things breathe.",
+        "frequency": "moderate",
+    },
+    "EXPAND": {
+        "name": "THE EXPANDER",
+        "tagline": "Makes everything bigger than it was.",
+        "description": "Whatever domain you operate in, your natural move is to scale. Leo energy at your core. You think in trajectories, not positions. Every win becomes the next launching pad. Your vision is naturally larger than the current frame.",
+        "strength": "Vision at scale. You see the big version before anyone else.",
+        "blind_spot": "Expansion without consolidation creates fragility.",
+        "frequency": "moderate",
+    },
+    "REFINE": {
+        "name": "THE REFINER",
+        "tagline": "Makes good things excellent.",
+        "description": "Whatever domain you operate in, your natural move is to improve. Virgo energy at your core. You take raw material and optimize it. You see what's missing, what's inefficient, what could be better — and you fix it with precision.",
+        "strength": "Quality elevation. Everything you touch gets better.",
+        "blind_spot": "Perfectionism can paralyze. Ship before it's perfect.",
+        "frequency": "moderate",
+    },
+    "BALANCE": {
+        "name": "THE BALANCER",
+        "tagline": "Holds the center while others pick sides.",
+        "description": "Whatever domain you operate in, your natural move is to find equilibrium. Libra energy at your core. Mediators, diplomats, jurists, relationship-builders — you win by not losing anyone. Sustainable trust is your currency.",
+        "strength": "Sustainable trust. You don't burn bridges.",
+        "blind_spot": "Balance-seeking can delay necessary breaks.",
+        "frequency": "moderate",
+    },
+    "PENETRATE": {
+        "name": "THE PENETRATOR",
+        "tagline": "Cuts through to what's real.",
+        "description": "Whatever domain you operate in, your natural move is to go deeper. Scorpio energy at your core. You don't accept surface answers. You investigate, you probe, you find what's hidden. Your intensity is your instrument.",
+        "strength": "Depth access. You reach truth others can't or won't.",
+        "blind_spot": "Intensity can push people away. Not everything requires excavation.",
+        "frequency": "moderate",
+    },
+    "SEEK": {
+        "name": "THE SEEKER",
+        "tagline": "Always looking for what's beyond the horizon.",
+        "description": "Whatever domain you operate in, your natural move is to explore beyond the known. Sagittarius energy at your core. You need meaning, expansion, and new territory. You're driven by questions larger than any single answer.",
+        "strength": "Philosophical range. You see patterns across domains.",
+        "blind_spot": "Seeking can become avoidance of commitment. Land somewhere.",
+        "frequency": "moderate",
+    },
+    "STRUCTURE": {
+        "name": "THE STRUCTURER",
+        "tagline": "Builds the frame that holds everything together.",
+        "description": "Whatever domain you operate in, your natural move is to organize and systematize. Capricorn energy at your core. You create the bones of things — processes, hierarchies, rules, plans. What you structure survives without you.",
+        "strength": "Durability. Your systems outlast the people who built them.",
+        "blind_spot": "Over-structuring kills flexibility. Leave room for the unexpected.",
+        "frequency": "moderate",
+    },
+    "DISRUPT": {
+        "name": "THE DISRUPTOR",
+        "tagline": "Breaks the pattern so something better can emerge.",
+        "description": "Whatever domain you operate in, your natural move is to challenge the existing order. Aquarius energy at your core. You see what's outdated before anyone else and you act on it. Convention is a suggestion, not a rule.",
+        "strength": "Innovation. You create the future by breaking the present.",
+        "blind_spot": "Disruption for its own sake is destructive, not creative.",
+        "frequency": "moderate",
+    },
+    "DISSOLVE": {
+        "name": "THE DISSOLVER",
+        "tagline": "Releases what no longer serves.",
+        "description": "Whatever domain you operate in, your natural move is to let go of what's finished. Pisces energy at your core. You see through illusion, you release attachment, you allow endings. Your power is in surrender — not weakness, but wisdom.",
+        "strength": "Transcendence. You access dimensions others can't reach.",
+        "blind_spot": "Dissolution without grounding becomes drift. Keep one foot on earth.",
+        "frequency": "uncommon",
+    },
+}
+
+# ── Planet weights for dominance computation ─────────────────────────
+# Moon and Sun are primary (soul + mind). Lagna lord and atmakaraka
+# get elevated weight. Nodes are structural modifiers, not core identity.
+PLANET_WEIGHTS = {
+    "moon": 3.0,
+    "sun": 3.0,
+    "lagna_lord": 2.5,
+    "atmakaraka": 2.5,
+    "mars": 1.0,
+    "mercury": 1.0,
+    "jupiter": 1.0,
+    "venus": 1.0,
+    "saturn": 1.0,
+    "rahu": 0.8,
+    "ketu": 0.8,
+}
+
 
 def compute_natal_signatures(chart_data: dict) -> dict:
     """
@@ -782,21 +1075,28 @@ def compute_natal_signatures(chart_data: dict) -> dict:
 
 def derive_archetype(signatures: dict) -> dict:
     """
-    From planet signatures, derive dominant FIELD and MODE.
-    Tie-breaking: FIELD tie → Sun's FIELD, MODE tie → Moon's MODE.
+    From planet signatures, derive dominant FIELD and MODE using weighted
+    planet significance (Sun/Moon/lagna_lord/atmakaraka weighted higher).
 
-    Returns full archetype dict.
+    Fallback chain for archetype lookup:
+      Step 1: exact (FIELD, MODE) in ARCHETYPE_LIBRARY
+      Step 2: FIELD-only in FIELD_ESSENCE_LIBRARY
+      Step 3: MODE-only in MODE_ESSENCE_LIBRARY
+      Step 4: DEFAULT_ARCHETYPE (NAVIGATOR) — genuine last resort
+
+    Returns full archetype dict with match_level indicator.
     """
     from collections import Counter
 
-    field_counts = Counter()
-    mode_counts  = Counter()
+    field_counts: Counter = Counter()
+    mode_counts: Counter  = Counter()
 
     for planet, sig in signatures.items():
+        weight = PLANET_WEIGHTS.get(planet.lower(), 1.0)
         if sig.get("field"):
-            field_counts[sig["field"]] += 1
+            field_counts[sig["field"]] += weight
         if sig.get("mode"):
-            mode_counts[sig["mode"]] += 1
+            mode_counts[sig["mode"]] += weight
 
     # Dominant FIELD — tie goes to Sun
     sun_field  = signatures.get("sun", {}).get("field", "AUTHORITY")
@@ -810,11 +1110,30 @@ def derive_archetype(signatures: dict) -> dict:
     top_modes  = [m for m, c in mode_counts.items() if c == max_mode_count]
     dominant_mode = moon_mode if moon_mode in top_modes else top_modes[0]
 
-    # Lookup archetype
-    archetype = ARCHETYPE_LIBRARY.get(
-        (dominant_field, dominant_mode),
-        DEFAULT_ARCHETYPE
-    )
+    # ── 4-step fallback chain ────────────────────────────────────────
+    match_level = "default"
+    archetype = None
+
+    # Step 1: exact (FIELD, MODE) lookup
+    if (dominant_field, dominant_mode) in ARCHETYPE_LIBRARY:
+        archetype = ARCHETYPE_LIBRARY[(dominant_field, dominant_mode)]
+        match_level = "exact"
+
+    # Step 2: FIELD-only lookup
+    if archetype is None and dominant_field in FIELD_ESSENCE_LIBRARY:
+        archetype = FIELD_ESSENCE_LIBRARY[dominant_field]
+        match_level = "field_only"
+
+    # Step 3: MODE-only lookup
+    if archetype is None and dominant_mode in MODE_ESSENCE_LIBRARY:
+        archetype = MODE_ESSENCE_LIBRARY[dominant_mode]
+        match_level = "mode_only"
+
+    # Step 4: DEFAULT (should almost never fire with complete libraries)
+    if archetype is None:
+        archetype = DEFAULT_ARCHETYPE
+        match_level = "default"
+        print(f"[signatures] ALL FALLBACKS MISSED for (FIELD={dominant_field}, MODE={dominant_mode})")
 
     return {
         "name":            archetype["name"],
@@ -825,6 +1144,7 @@ def derive_archetype(signatures: dict) -> dict:
         "frequency":       archetype["frequency"],
         "dominant_field":  dominant_field,
         "dominant_mode":   dominant_mode,
+        "match_level":     match_level,
         "field_counts":    dict(field_counts),
         "mode_counts":     dict(mode_counts),
     }
