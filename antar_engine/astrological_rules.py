@@ -664,7 +664,8 @@ def detect_concern(question: str) -> str:
     # ── Speculation / Gambling / Lottery ──────────────────────
     specul_words = ["specul","gambl","lotter","casino","bet ","betting","poker",
                     "stock market","stocks","trading","crypto","invest in","should i buy",
-                    "should i sell","day trad","options trad","forex","penny stock"]
+                    "should i sell","day trad","options trad","forex","penny stock",
+                    "mutual fund","sip","nifty","sensex","share market"]
     if any(w in q for w in specul_words):
         return "speculation"
 
@@ -733,7 +734,8 @@ def detect_concern(question: str) -> str:
                     "salary","savings","property","real estate","assets","net worth",
                     "financial freedom","passive income","when will i be rich",
                     "money problem","money situation","financial situation",
-                    "profit"]
+                    "profit","billionaire","millionaire","fortune","abundance",
+                    "prosperity","crore","lakh","net worth","affluent","opulent"]
     if any(w in q for w in wealth_words):
         return "wealth"
 
@@ -746,23 +748,30 @@ def detect_concern(question: str) -> str:
     # ── Health ─────────────────────────────────────────────────
     health_words = ["health","sick","illness","disease","hospital","surgery",
                     "recover","pain","body","energy level","fatigue","tired",
-                    "stress","anxiety","mental health","depression","healing"]
+                    "stress","anxiety","mental health","depression","healing",
+                    "sleep","exhaustion","chronic","doctor","medication",
+                    "therapy","wellbeing","well-being","fitness","weight",
+                    "diet","insomnia","burnout","headache","migraine"]
     if any(w in q for w in health_words):
         return "health"
 
     # ── Career / Work ──────────────────────────────────────────
     career_words = ["career","job","work","profession","business","promotion",
-                    "promotion","startup","company","office","boss","colleague",
+                    "startup","company","office","boss","colleague",
                     "fired","resign","quit","new job","better job","professional",
                     "interview","opportunity","recognition","success","achieve",
-                    "entrepreneur"]
+                    "entrepreneur","leadership","power","authority","founder",
+                    "ceo","cto","coo","corporate","advancement","raise",
+                    "appraisal","designation","transfer","posting"]
     if any(w in q for w in career_words):
         return "career"
 
     # ── Spiritual ──────────────────────────────────────────────
     spiritual_words = ["spiritual","meditation","dharma","karma","moksha","purpose",
                        "meaning","soul","life purpose","why am i here","destiny",
-                       "higher self","awakening","consciousness"]
+                       "higher self","awakening","consciousness","enlightenment",
+                       "mission","calling","divine","prayer","mantra","sadhana",
+                       "inner peace","detachment","renunciation","self-realization"]
     if any(w in q for w in spiritual_words):
         return "spiritual"
 

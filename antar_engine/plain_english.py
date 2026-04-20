@@ -546,7 +546,8 @@ def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
         domains.insert(0, concern)
     result["all_domains"] = domains if domains else ["general"]
 
-    # PROBABILITY ENFORCEMENT — inject if user asked "will I" and Claude forgot
+    # PROBABILITY ENFORCEMENT — inject only for finance-family domains
+    # FIX 6: Percentages are misleading on love/health/spiritual — use confidence language instead
     _raw_q = (chart_context or {}).get("question", "") or (chart_context or {}).get("concern", "")
     _raw_q_lower = str(_raw_q).lower()
     _will_triggers = ["will i", "will my", "will this", "what are my chances",
@@ -555,7 +556,12 @@ def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
                       "probability", "likelihood", "odds"]
     _is_probability_q = any(t in _raw_q_lower for t in _will_triggers)
 
-    if _is_probability_q:
+    # Only inject percentages for domains where they have empirical backing
+    _prob_concern = (chart_context or {}).get("concern", "general")
+    _finance_family = {"finance", "career", "speculation", "wealth", "loss", "funding"}
+    _allow_pct = _prob_concern in _finance_family
+
+    if _is_probability_q and _allow_pct:
         _summary = (result.get("plain_summary") or "") + " " + (result.get("signal_line") or "")
         _has_pct = any(c in _summary for c in ["%", "percent", "por ciento"])
         if not _has_pct:
@@ -573,6 +579,20 @@ def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
                 result["plain_summary"] = f"PROBABILITY: {_pct}%. " + result["plain_summary"]
             if result.get("signal_line") and "%" not in result["signal_line"]:
                 result["signal_line"] = f"{_pct}% — " + result["signal_line"]
+    elif _is_probability_q and not _allow_pct:
+        # Non-finance domains: replace any stray percentage with confidence language
+        _conf = result.get("confidence", "medium")
+        if isinstance(_conf, str):
+            _conf_lang_map = {"very high": "very strong signal", "high": "strong signal",
+                              "medium": "moderate signal", "low": "mild signal", "very low": "faint signal"}
+            _conf_lang = _conf_lang_map.get(_conf.lower(), "moderate signal")
+        else:
+            _conf_lang = "moderate signal"
+        if result.get("plain_summary") and "PROBABILITY:" in result.get("plain_summary", ""):
+            import re as _re_fix6
+            result["plain_summary"] = _re_fix6.sub(r"PROBABILITY:\s*\d+%\.?\s*", "", result["plain_summary"]).strip()
+        if result.get("plain_summary") and _conf_lang not in result.get("plain_summary", ""):
+            result["plain_summary"] = f"CONFIDENCE: {_conf_lang}. " + result["plain_summary"]
 
     # why_this — new field from v6 prompt
     why_this = parsed.get("why_this", "")

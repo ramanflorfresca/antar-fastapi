@@ -5066,7 +5066,12 @@ VOCABULARY RULES:
             "If ANY 'planet of (' construction appears, REWRITE that sentence.\n"
             "9. NEVER say: 'You must', 'You should', 'guaranteed', 'cursed', 'evil', 'Lal Kitab'.\n"
             "10. Tone: thoughtful friend with deep wisdom. Not astrologer, guru, or therapist.\n"
-            "11. If the chart has a wealth archetype, mention it in Line 0 as context — but never let the archetype label override the chart's actual planet placements, yogas, dashas, and divisional charts. Archetype is ONE signal, not the verdict.\n"
+            "11. ARCHETYPE IS NOT A VERDICT. The wealth archetype label describes a structural pattern — "
+            "it must NEVER drive your recommendation to enter or exit a business. "
+            "Form your verdict FIRST from the chart's actual planet placements, yogas, dashas, "
+            "D-10, and transits. Then mention the archetype as background context AFTER the verdict. "
+            "If the chart's specific signals support a business vehicle that the archetype label "
+            "wouldn't predict, TRUST THE CHART over the archetype.\n"
             "\n"
             "EXAMPLES OF CORRECT TRANSLATION:\n"
             "  BAD:  'Jupiter in your 5th house is weak'\n"
@@ -5080,14 +5085,11 @@ VOCABULARY RULES:
         )
         # ── Archetype definitions for Line 0 ──
         _archetype_defs = (
-            "\n═══ CHART ARCHETYPE (contextual signal, not verdict) ═══\n"
-            "The archetype label is a structural pattern match describing the "
-            "WEALTH ARCHITECTURE TYPE — it is NOT a business-vehicle verdict.\n"
-            "Read the chart's actual planet placements, yogas, dasha transits, "
-            "and D-10 career chart as PRIMARY evidence. If archetype suggests one "
-            "direction but the chart's specific signals clearly support another, "
-            "trust the specific chart analysis. Archetype explains the wealth "
-            "architecture type; the chart explains the current vehicle's fit.\n\n"
+            "\n═══ CHART ARCHETYPE (background context only) ═══\n"
+            "CRITICAL: The archetype label MUST NOT drive your verdict. "
+            "NEVER say 'exit [business]' or 'enter [business]' because of archetype. "
+            "Form your verdict from planet placements, yogas, dashas, D-10 career chart, "
+            "and transits FIRST. Mention archetype only in Line 8 as background framing.\n\n"
             "MASS-SERVER: wealth architecture serves many at scale — industrial, "
             "infrastructure, mass-market.\n"
             "SYSTEMATIC: wealth architecture builds through systems, IP, durable "
@@ -5098,24 +5100,33 @@ VOCABULARY RULES:
             "INSTITUTIONAL: wealth architecture compounds through institutions, "
             "partnerships, long-horizon institutional building.\n"
         )
+        # FIX 7: Suppress archetype line for non-wealth domains
+        _wealth_domains = {"finance", "career", "speculation", "wealth", "loss", "funding"}
+        _show_archetype_line = concern in _wealth_domains
         _format_rules = (
             "RESPONSE FORMAT (always follow):\n"
-            "Line 0: ◈ ARCHETYPE: [NAME — brief context note, not the verdict]\n"
-            "Line 1: ✦ VERDICT: [ACTION VERB]. [Direct call in 8 words or less]\n"
+            "Line 1: ✦ VERDICT: [ACTION VERB]. [Direct call in 8 words or less] "
+            "— base this ONLY on chart signals (planets, yogas, dashas, D-10), NOT archetype.\n"
             "Lines 2-3: 2-3 sentences WHY in energy-systems language (no astrology jargon).\n"
             "Lines 4-6: YOUR MOVE — three numbered actions (this week / next 2 weeks / next 30 days).\n"
             "Line 7: TIMING: [exact window].\n"
         )
+        if _show_archetype_line:
+            _format_rules += (
+                "Line 8: ◈ ARCHETYPE CONTEXT: [NAME — how this structural pattern relates to the "
+                "verdict you already gave. This is background framing, not the driver.]\n"
+            )
         # Append WHAT NOT TO DO + ACTIVATE sections if Phase 2 produced findings
         if _phase2_context:
             _format_rules += (
-                "Line 8: ⚡ ACTIVATE: [one practice from the chart's remedy data — "
+                "Line 9: ⚡ ACTIVATE: [one practice from the chart's remedy data — "
                 "describe in plain action terms, no tradition-naming].\n"
-                "Line 9: 🛑 PAUSE THIS: [one thing to stop doing, from the actionability data].\n"
+                "Line 10: 🛑 PAUSE THIS: [one thing to stop doing, from the actionability data].\n"
             )
         _format_rules += (
             "TOTAL: under 180 words. No markdown headers. No poetic language.\n"
-            "If user asks will/chances/probability: lead with PROBABILITY: XX%.\n"
+            "If user asks will/chances/probability AND the question is about finance/career/wealth: lead with PROBABILITY: XX%.\n"
+            "If user asks will/chances/probability about love/health/spiritual: use confidence language (strong signal, moderate signal) instead of percentages.\n"
         )
         _format_rules = _voice_rules + "\n" + (_archetype_defs if _phase2_context else "") + _format_rules
         _master_system = (_domain_system if _domain_system else (
@@ -5490,9 +5501,23 @@ State a specific year. Never predict past events as future windows.
     # ── end C1 ───────────────────────────────────────────────────
 
     confidence = predictions["highest_confidence"] or 0.75
+    # FIX 9: Layer 2 counter should reflect actual transit injection, not just predictions['layer_2']
+    _layer2_count = len(predictions['layer_2'])
+    if _layer2_count == 0:
+        # Check if live transit data was injected (transit_engine path)
+        try:
+            if '_live_transit' in dir() and _live_transit:
+                _lt_aspects = _live_transit.get("top_aspects", [])
+                _lt_major = _live_transit.get("major_transits", [])
+                _lt_areas = _live_transit.get("activated_areas", [])
+                _layer2_count = len(_lt_aspects) + len(_lt_major) + len(_lt_areas)
+                if _layer2_count == 0 and _live_transit.get("transit_positions"):
+                    _layer2_count = len(_live_transit["transit_positions"])
+        except Exception:
+            pass
     factors = [
         f"Layer 1: Dasha timing ({len(predictions['layer_1'])} signals)",
-        f"Layer 2: Transit confluence ({len(predictions['layer_2'])} signals)",
+        f"Layer 2: Transit confluence ({_layer2_count} signals)",
         f"Layer 3: Yoga activation ({len(predictions['layer_3'])} signals)",
         f"Layer 4: Personal mirror ({len(predictions['layer_4'])} signals)",
         f"Concern: {concern}",
@@ -5671,9 +5696,7 @@ State a specific year. Never predict past events as future windows.
         conversation_id=saved_conv_id,
         message_id=saved_msg_id,
         plain_summary=(
-            f"[{_char_archetype.get('name')}] " + _pe.get("plain_summary")
-            if _pe and _pe.get("plain_summary") and _char_archetype and _char_archetype.get("name")
-            else (_pe.get("plain_summary") if _pe else None)
+            _pe.get("plain_summary") if _pe else None
         ),
         action_item=_pe.get("action_item") if _pe else None,
         signal_line=_pe.get("signal_line") if _pe else None,
@@ -5684,7 +5707,7 @@ State a specific year. Never predict past events as future windows.
         bridge_practice_note=_pe.get("bridge_practice_note") if _pe else None,
         contradiction_detected=_contradiction_detected if '_contradiction_detected' in dir() else False,
         oracle_context=_oracle_context if '_oracle_context' in dir() else None,
-        archetype_name=_char_archetype.get("name") if _char_archetype else None,
+        archetype_name=_arch_name if _arch_name else (_char_archetype.get("name") if _char_archetype else None),
         rating_prompt=_rating_prompt,
     )
 
