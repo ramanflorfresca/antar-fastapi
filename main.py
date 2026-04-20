@@ -15241,18 +15241,26 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
             print(f"[daily-week] Transit computation failed (non-fatal): {_dte}")
         # === END LIVE TRANSIT HIGHLIGHTS ===
 
-        return {
-            "chart_id": chart_id,
-            "natal_moon_sign": natal_moon_sign,
-            "language": language,
-            "timezone_offset": effective_offset,
-            "local_date": start_date.strftime("%Y-%m-%d"),
-            "generated_at": datetime.utcnow().isoformat() + "Z",
-            "days": signals,
-            "transit_highlights": _transit_highlights,
-            "transit_positions": _transit_positions,
-            "activated_areas": _transit_activated_areas,
-        }
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            content={
+                "chart_id": chart_id,
+                "natal_moon_sign": natal_moon_sign,
+                "language": language,
+                "timezone_offset": effective_offset,
+                "local_date": start_date.strftime("%Y-%m-%d"),
+                "generated_at": datetime.utcnow().isoformat() + "Z",
+                "days": signals,
+                "transit_highlights": _transit_highlights,
+                "transit_positions": _transit_positions,
+                "activated_areas": _transit_activated_areas,
+            },
+            headers={
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
 
     except HTTPException:
         raise
