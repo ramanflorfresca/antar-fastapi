@@ -13319,7 +13319,10 @@ def _get_wow_cache(chart_id: str, instrument_name: str, local_date_str: str = No
     """
     try:
         from datetime import datetime
-        today_str = local_date_str or datetime.utcnow().strftime("%Y-%m-%d")
+        today_str = local_date_str
+        if not today_str:
+            print("[daily-week] WARNING: _get_wow_cache called without local_date_str — returning empty (cache MISS)")
+            return {}
         result = supabase.table("charts").select("daily_wow_cache").eq("id", chart_id).single().execute()
         cache = result.data.get("daily_wow_cache") if result.data else None
         if cache and isinstance(cache, dict):
@@ -13347,7 +13350,7 @@ def _save_wow_cache(chart_id: str, instrument_name: str, wow_data: dict, local_d
     try:
         from datetime import datetime
         cache_payload = {
-            "date": local_date_str or datetime.utcnow().strftime("%Y-%m-%d"),
+            "date": local_date_str,  # Must be user local date — no UTC fallback
             "instrument": instrument_name,
             "language": language,
             **wow_data
@@ -13656,7 +13659,7 @@ async def _get_wow_signal_for_chart_v2(
             confidence = sd.get("confidence", "MEDIUM")
 
         # Check 24hr cache
-        cached = _get_wow_cache(chart_id, inst_name)
+        cached = _get_wow_cache(chart_id, inst_name, local_date_str=local_date_str, language=language)
         if cached.get("hint"):
             print(f"[daily-week] v2 WOW cache HIT")
             return {
@@ -13716,7 +13719,7 @@ async def _get_wow_signal_for_chart_v2(
             "cached": False,
         }
 
-        _save_wow_cache(chart_id, inst_name, result)
+        _save_wow_cache(chart_id, inst_name, result, local_date_str=local_date_str, language=language)
         return result
 
     except Exception as e:

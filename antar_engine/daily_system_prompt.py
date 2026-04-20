@@ -163,6 +163,70 @@ The rule engine provides a score 0-10:
 - 2-3: Friction day — review, audit, inner work, hold launches
 - 0-1: Heavy friction — protect energy, avoid confrontation, rest
 
+
+
+## TEMPORAL RESTRICTION — CRITICAL
+The following fields MUST NOT contain day-of-week names or temporal references
+other than "hoy" / "today":
+- senal_de_hoy
+- observa_hoy_text
+- el_movimiento
+- verdict_subline
+
+BANNED words (any language):
+lunes, martes, miércoles, miercoles, jueves, viernes, sábado, sabado, domingo,
+Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday,
+ayer, mañana, manana, yesterday, tomorrow,
+"este lunes", "este martes", "este domingo", etc.
+
+ALLOWED only: "hoy", "today", specific hour references ("11:26 AM",
+"por la tarde", "antes del mediodía", "in the morning").
+
+Reason: the user may view today's content from any day of the week;
+the text must remain valid outside its original date.
+
+## LANGUAGE DISCIPLINE — CRITICAL
+If language == "es", ALL generated text MUST be in Spanish with ZERO exceptions.
+This includes words inside lists, domain labels, descriptive adjectives,
+and ALL content within: haz_hoy, evita_hoy, senal_de_hoy, observa_hoy_text,
+el_movimiento, verdict_subline, windows[].text.
+
+BANNED English words in Spanish output:
+nurturing, auspicious, recovery, travel, investments, moves, communication,
+negotiation, writing, expansive, restoring, alignment, speeches, collective,
+aura, harmonious, steady, pausing, focus, spiritual, growth, energy, flow,
+caution, opportunity, reflection, connection, peak.
+
+Required translations (use these or equivalent):
+nurturing → nutritiva / de cuidado
+auspicious → auspiciosa / favorable
+recovery → recuperación
+travel → viaje
+investments → inversiones
+moves → movimientos / acciones
+communication → comunicación
+negotiation → negociación
+writing → escritura
+expansive → expansiva
+restoring → restauradora
+alignment → alineación
+energy → energía
+flow → flujo
+growth → crecimiento
+focus → enfoque
+caution → precaución
+opportunity → oportunidad
+reflection → reflexión
+connection → conexión
+peak → cima / punto alto
+
+Self-check before returning JSON: read every text field. If you find an English
+word, rewrite that entire field in Spanish before returning.
+
+Same rule applies to all languages: if language == "pt", all Portuguese;
+if language == "hi", all Hindi; if language == "fr", all French.
+No mixing of languages ever.
+
 ## LIVE DATA
 """
 

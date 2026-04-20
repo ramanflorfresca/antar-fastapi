@@ -722,6 +722,78 @@ async def build_daily_context(chart_id: str, supabase_client) -> dict:
         return None
 
 
+
+# ──────────────────────────────────────────────
+# FIX 14b+14c: Post-generation validators
+# ──────────────────────────────────────────────
+
+import re as _re_val
+
+_BANNED_TEMPORAL_ES = _re_val.compile(
+    r'\b(lunes|martes|mi[eé]rcoles|miercoles|jueves|viernes|s[aá]bado|sabado|domingo|ayer|ma[nñ]ana|manana)\b',
+    _re_val.IGNORECASE
+)
+_BANNED_TEMPORAL_EN = _re_val.compile(
+    r'\b(monday|tuesday|wednesday|thursday|friday|saturday|sunday|yesterday|tomorrow)\b',
+    _re_val.IGNORECASE
+)
+
+_ENGLISH_LEAK_WORDS = {
+    'nurturing', 'auspicious', 'recovery', 'travel', 'investments',
+    'moves', 'communication', 'negotiation', 'writing', 'expansive',
+    'restoring', 'alignment', 'speeches', 'collective', 'aura',
+    'harmonious', 'steady', 'pausing', 'focus', 'spiritual',
+    'growth', 'energy', 'flow', 'caution', 'opportunity',
+    'reflection', 'connection', 'peak',
+}
+
+_VALIDATED_FIELDS = ['senal_de_hoy', 'observa_hoy_text', 'el_movimiento', 'verdict_subline']
+
+
+def _validate_no_day_names(signal_json: dict, language: str) -> list:
+    """FIX 14b: Check for forbidden day-of-week names in regulated fields."""
+    banned = _BANNED_TEMPORAL_ES if language == 'es' else _BANNED_TEMPORAL_EN
+    violations = []
+    for f in _VALIDATED_FIELDS:
+        val = signal_json.get(f, '')
+        if isinstance(val, str) and banned.search(val):
+            violations.append(f)
+    return violations
+
+
+def _detect_english_leak(signal_json: dict, language: str) -> list:
+    """FIX 14c: Detect English words leaking into non-English output."""
+    if language == 'en':
+        return []
+    all_text = ' '.join([
+        str(signal_json.get(f, '')) for f in _VALIDATED_FIELDS
+    ]).lower()
+    # Also check haz_hoy and evita_hoy (lists)
+    for list_field in ['haz_hoy', 'evita_hoy']:
+        items = signal_json.get(list_field, [])
+        if isinstance(items, list):
+            all_text += ' ' + ' '.join(str(x) for x in items).lower()
+    # Also check windows text
+    for w in signal_json.get('windows', []):
+        if isinstance(w, dict):
+            all_text += ' ' + str(w.get('text', '')).lower()
+    words_in_text = set(_re_val.findall(r'\b[a-záéíóúñüàèìòù]+\b', all_text))
+    leaks = _ENGLISH_LEAK_WORDS & words_in_text
+    return list(leaks)
+
+
+def _strip_day_names_from_signal(signal_json: dict, language: str) -> dict:
+    """Last-resort: regex-strip day names from regulated fields."""
+    banned = _BANNED_TEMPORAL_ES if language == 'es' else _BANNED_TEMPORAL_EN
+    for f in _VALIDATED_FIELDS:
+        val = signal_json.get(f, '')
+        if isinstance(val, str) and banned.search(val):
+            cleaned = banned.sub('', val)
+            cleaned = _re_val.sub(r'\s{2,}', ' ', cleaned).strip()
+            cleaned = _re_val.sub(r'^[,\s—–-]+', '', cleaned).strip()
+            signal_json[f] = cleaned or val
+    return signal_json
+
 # ──────────────────────────────────────────────
 # NEW: LLM call for daily signal text
 # ──────────────────────────────────────────────
@@ -1001,6 +1073,42 @@ async def generate_weekly_signals(
                     day_data=day_prompt_data,
                     language=language,
                 )
+
+                # ── FIX 14b+14c: Validate LLM output ──
+                if llm_signal:
+                    day_violations = _validate_no_day_names(llm_signal, language)
+                    eng_leaks = _detect_english_leak(llm_signal, language)
+
+                    if day_violations or eng_leaks:
+                        logger.warning(f"[daily-week] Validation failed for {date_str}: day_names={day_violations} eng_leaks={eng_leaks}")
+
+                        # Retry once with stronger constraint
+                        retry_signal = await _call_claude_daily_signal(
+                            context=daily_context,
+                            day_data=day_prompt_data,
+                            language=language,
+                        )
+                        if retry_signal:
+                            retry_day = _validate_no_day_names(retry_signal, language)
+                            retry_eng = _detect_english_leak(retry_signal, language)
+                            if not retry_day and not retry_eng:
+                                llm_signal = retry_signal
+                                logger.info(f"[daily-week] Retry succeeded for {date_str}")
+                            else:
+                                # Accept but strip day names + add warnings
+                                retry_signal = _strip_day_names_from_signal(retry_signal, language)
+                                retry_signal['_validation_warnings'] = {
+                                    'day_names': retry_day, 'english_leaks': retry_eng
+                                }
+                                llm_signal = retry_signal
+                                logger.warning(f"[daily-week] Retry still has issues for {date_str}, accepting with warnings")
+                        else:
+                            # First attempt had issues, strip what we can
+                            llm_signal = _strip_day_names_from_signal(llm_signal, language)
+                            llm_signal['_validation_warnings'] = {
+                                'day_names': day_violations, 'english_leaks': eng_leaks
+                            }
+
 
                 # Cache if successful
                 if llm_signal and supabase_client:
