@@ -383,17 +383,28 @@ def _classify_question_weight(question: str) -> str:
     if any(s in q for s in _brevity_signals):
         return "short"
 
+    # Medium-floor signals — these questions need room even if short
+    # Timing, funding, "when", "how" questions are never short
+    _medium_floor = [
+        "when will", "when can", "when should", "how long", "how soon",
+        "funding", "investor", "capital", "raise", "loan", "cashflow",
+        "what should i do", "what do i do", "what is happening",
+        "startup", "business", "company", "career", "job",
+        "marriage", "relationship", "health",
+    ]
+    _needs_medium = any(s in q for s in _medium_floor)
+
     # Capability / potential checks — yes/no by nature
     _capability_patterns = [
         "do i have", "am i", "can i", "will i ever", "is it possible",
         "is there any", "do i", "should i", "will i", "could i",
     ]
-    # Only treat as short if question is also brief (<12 words)
-    if word_count <= 12 and any(q.startswith(p) or p in q for p in _capability_patterns):
+    # Only treat as short if question is also brief AND not a medium-floor topic
+    if word_count <= 12 and not _needs_medium and any(q.startswith(p) or p in q for p in _capability_patterns):
         return "short"
 
-    # Very short questions (<10 words) without complex framing
-    if word_count < 10:
+    # Very short questions (<10 words) without complex framing or medium-floor topics
+    if word_count < 10 and not _needs_medium:
         return "short"
 
     # Complex signals — multiple concerns, restructuring, long narrative
@@ -5637,7 +5648,7 @@ State a specific year. Never predict past events as future windows.
         # === END KV CACHE FIX ===
 
         # FIX 10: Set max_tokens ceiling based on question weight
-        _weight_token_map = {"short": 250, "medium": 450, "complex": 1200}
+        _weight_token_map = {"short": 350, "medium": 600, "complex": 1200}
         _max_tok = _weight_token_map.get(_question_weight, 1200)
         print(f"[predict] FIX 10: weight={_question_weight}, max_tokens={_max_tok}")
 
