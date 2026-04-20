@@ -5050,7 +5050,7 @@ VOCABULARY RULES:
             "If ANY 'planet of (' construction appears, REWRITE that sentence.\n"
             "9. NEVER say: 'You must', 'You should', 'guaranteed', 'cursed', 'evil', 'Lal Kitab'.\n"
             "10. Tone: thoughtful friend with deep wisdom. Not astrologer, guru, or therapist.\n"
-            "11. If the chart has a wealth archetype, name it naturally.\n"
+            "11. If the chart has a wealth archetype, you MUST name it in Line 0 of your response. Use the archetype definitions below.\n"
             "\n"
             "EXAMPLES OF CORRECT TRANSLATION:\n"
             "  BAD:  'Jupiter in your 5th house is weak'\n"
@@ -5062,8 +5062,26 @@ VOCABULARY RULES:
             "  BAD:  'Venus planet of (love, partnership, money) in house 11'\n"
             "  GOOD: 'Your beauty-and-harmony energy (Venus) in your gains area'\n"
         )
+        # ── Archetype definitions for Line 0 ──
+        _archetype_defs = (
+            "\n═══ CHART ARCHETYPE DEFINITIONS ═══\n"
+            "The chart context includes the user's classified wealth archetype. "
+            "ALWAYS name it explicitly in Line 0 of your response.\n\n"
+            "MASS-SERVER: wealth architecture serves many at scale — industrial, "
+            "infrastructure, mass-market. Built on persistence and operational discipline.\n"
+            "SYSTEMATIC: wealth architecture builds through systems, IP, durable "
+            "intellectual work. Needs disciplined scaling.\n"
+            "DISRUPTOR: wealth architecture rises through adversity and unconventional "
+            "paths. Crisis becomes the engine.\n"
+            "CHARISMA: wealth architecture channels through presence, relationships, "
+            "and personal brand — NOT through building operations. "
+            "Needs consulting/advisory/brokerage. AVOID manufacturing.\n"
+            "INSTITUTIONAL: wealth architecture compounds through institutions, "
+            "partnerships, long-horizon institutional building. Needs partner-track work.\n"
+        )
         _format_rules = (
             "RESPONSE FORMAT (always follow):\n"
+            "Line 0: ◈ ARCHETYPE: [NAME — one-line descriptor linking archetype to question]\n"
             "Line 1: ✦ VERDICT: [ACTION VERB]. [Direct call in 8 words or less]\n"
             "Lines 2-3: 2-3 sentences WHY in energy-systems language (no astrology jargon).\n"
             "Lines 4-6: YOUR MOVE — three numbered actions (this week / next 2 weeks / next 30 days).\n"
@@ -5080,7 +5098,7 @@ VOCABULARY RULES:
             "TOTAL: under 180 words. No markdown headers. No poetic language.\n"
             "If user asks will/chances/probability: lead with PROBABILITY: XX%.\n"
         )
-        _format_rules = _voice_rules + "\n" + _format_rules
+        _format_rules = _voice_rules + "\n" + (_archetype_defs if _phase2_context else "") + _format_rules
         _master_system = (_domain_system if _domain_system else (
             "You are Antar — a precise Vedic astrology AI. "
             "Answer directly using the data provided. "
