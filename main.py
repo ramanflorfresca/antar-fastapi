@@ -362,6 +362,55 @@ async def send_email(to: str, subject: str, html: str) -> bool:
         return False
 
 
+def _classify_question_weight(question: str) -> str:
+    """
+    FIX 10: Classify question complexity for response-length calibration.
+    Returns: "short", "medium", or "complex"
+
+    SHORT (60-120 words): yes/no, capability checks, one-liners, <10 words
+    MEDIUM (150-250 words): single specific concern with time horizon
+    COMPLEX (300-450 words): multi-part, restructuring, life-direction
+    """
+    q = (question or "").lower().strip()
+    word_count = len(q.split())
+
+    # Explicit brevity requests
+    _brevity_signals = [
+        "short", "brief", "quick", "one line", "one-line", "yes or no",
+        "tldr", "tl;dr", "just tell me", "simple answer", "in a word",
+        "bottom line", "cut to the chase",
+    ]
+    if any(s in q for s in _brevity_signals):
+        return "short"
+
+    # Capability / potential checks — yes/no by nature
+    _capability_patterns = [
+        "do i have", "am i", "can i", "will i ever", "is it possible",
+        "is there any", "do i", "should i", "will i", "could i",
+    ]
+    # Only treat as short if question is also brief (<12 words)
+    if word_count <= 12 and any(q.startswith(p) or p in q for p in _capability_patterns):
+        return "short"
+
+    # Very short questions (<10 words) without complex framing
+    if word_count < 10:
+        return "short"
+
+    # Complex signals — multiple concerns, restructuring, long narrative
+    _complex_signals = [
+        " and ", " but ", "pivoted", "restructur", "multiple",
+        "on one hand", "everything is", "entire", "whole life",
+        "draining everything", "falling apart", "what do i do",
+        "complete picture", "full reading", "detailed", "in-depth",
+        "comprehensive", "life direction", "major decision",
+    ]
+    if word_count > 25 or sum(1 for s in _complex_signals if s in q) >= 2:
+        return "complex"
+
+    # Default: medium
+    return "medium"
+
+
 def _detect_concern(question: str) -> str:
     """Use detect_concern (already pointed at richer version if available)."""
     return detect_concern(question)
@@ -4346,7 +4395,8 @@ Do not use any planet names or astrological jargon — translate everything into
             _planet_sigs, _char_archetype, _signature_block = {}, {}, ""
 
         _question_mode = _classify_question_mode(request.question)
-        print(f"[predict] Question mode: {_question_mode} for: {request.question[:60]}")
+        _question_weight = _classify_question_weight(request.question)
+        print(f"[predict] Question mode: {_question_mode}, weight: {_question_weight} for: {request.question[:60]}")
 
         if _question_mode == "life_path":
             _tr_data = {}
@@ -5103,30 +5153,79 @@ VOCABULARY RULES:
         # FIX 7: Suppress archetype line for non-wealth domains
         _wealth_domains = {"finance", "career", "speculation", "wealth", "loss", "funding"}
         _show_archetype_line = concern in _wealth_domains
-        _format_rules = (
-            "RESPONSE FORMAT (always follow):\n"
-            "Line 1: ✦ VERDICT: [ACTION VERB]. [Direct call in 8 words or less] "
-            "— base this ONLY on chart signals (planets, yogas, dashas, D-10), NOT archetype.\n"
-            "Lines 2-3: 2-3 sentences WHY in energy-systems language (no astrology jargon).\n"
-            "Lines 4-6: YOUR MOVE — three numbered actions (this week / next 2 weeks / next 30 days).\n"
-            "Line 7: TIMING: [exact window].\n"
-        )
-        if _show_archetype_line:
-            _format_rules += (
-                "Line 8: ◈ ARCHETYPE CONTEXT: [NAME — how this structural pattern relates to the "
-                "verdict you already gave. This is background framing, not the driver.]\n"
+
+        # FIX 10: Response length calibration based on question weight
+        if _question_weight == "short":
+            _format_rules = (
+                "RESPONSE FORMAT — SHORT (user asked a direct question, give a direct answer):\n"
+                "Line 1: ✦ VERDICT: [YES/NO or ACTION VERB]. [Direct answer in 8 words or less].\n"
+                "2-3 sentences WHY — the key reasoning in energy-systems language (no jargon).\n"
+                "ONE action item: the single most important thing to do right now.\n"
             )
-        # Append WHAT NOT TO DO + ACTIVATE sections if Phase 2 produced findings
-        if _phase2_context:
+            if _show_archetype_line:
+                _format_rules += (
+                    "If relevant, add ONE sentence of archetype context. Do NOT repeat "
+                    "the verdict or re-explain it.\n"
+                )
             _format_rules += (
-                "Line 9: ⚡ ACTIVATE: [one practice from the chart's remedy data — "
-                "describe in plain action terms, no tradition-naming].\n"
-                "Line 10: 🛑 PAUSE THIS: [one thing to stop doing, from the actionability data].\n"
+                "TOTAL: 60-120 words MAXIMUM. No markdown headers. No poetic language.\n"
+                "Do NOT use the full template. Do NOT add ACTIVATE/PAUSE/YOUR MOVE sections.\n"
+                "Never duplicate content — if VERDICT states the answer, do not re-explain it.\n"
             )
+        elif _question_weight == "medium":
+            _format_rules = (
+                "RESPONSE FORMAT — MEDIUM:\n"
+                "Line 1: ✦ VERDICT: [ACTION VERB]. [Direct call in 8 words or less] "
+                "— base this ONLY on chart signals (planets, yogas, dashas, D-10), NOT archetype.\n"
+                "Lines 2-3: 2-3 sentences WHY in energy-systems language (no astrology jargon).\n"
+                "YOUR MOVE — two actions max (1 sentence each): one now, one within 30 days.\n"
+                "TIMING: [exact window].\n"
+            )
+            if _show_archetype_line:
+                _format_rules += (
+                    "◈ ARCHETYPE CONTEXT: [NAME — one sentence relating pattern to verdict. "
+                    "Do NOT re-explain the verdict.]\n"
+                )
+            # Only add ACTIVATE/PAUSE if Phase 2 context AND question warrants it
+            if _phase2_context and concern in _wealth_domains:
+                _format_rules += (
+                    "⚡ ACTIVATE: [one practice in plain action terms].\n"
+                )
+            _format_rules += (
+                "TOTAL: 150-250 words. No markdown headers. No poetic language.\n"
+                "Never duplicate content — one archetype mention maximum per response.\n"
+            )
+        else:
+            # Complex — full template
+            _format_rules = (
+                "RESPONSE FORMAT (always follow):\n"
+                "Line 1: ✦ VERDICT: [ACTION VERB]. [Direct call in 8 words or less] "
+                "— base this ONLY on chart signals (planets, yogas, dashas, D-10), NOT archetype.\n"
+                "Lines 2-3: 2-3 sentences WHY in energy-systems language (no astrology jargon).\n"
+                "Lines 4-6: YOUR MOVE — three numbered actions (this week / next 2 weeks / next 30 days).\n"
+                "Line 7: TIMING: [exact window].\n"
+            )
+            if _show_archetype_line:
+                _format_rules += (
+                    "Line 8: ◈ ARCHETYPE CONTEXT: [NAME — how this structural pattern relates to the "
+                    "verdict you already gave. This is background framing, not the driver.]\n"
+                )
+            # Append WHAT NOT TO DO + ACTIVATE sections if Phase 2 produced findings
+            if _phase2_context:
+                _format_rules += (
+                    "Line 9: ⚡ ACTIVATE: [one practice from the chart's remedy data — "
+                    "describe in plain action terms, no tradition-naming].\n"
+                    "Line 10: 🛑 PAUSE THIS: [one thing to stop doing, from the actionability data].\n"
+                )
+            _format_rules += (
+                "TOTAL: 300-450 words. No markdown headers. No poetic language.\n"
+            )
+
+        # Common rules for all weights
         _format_rules += (
-            "TOTAL: under 180 words. No markdown headers. No poetic language.\n"
             "If user asks will/chances/probability AND the question is about finance/career/wealth: lead with PROBABILITY: XX%.\n"
             "If user asks will/chances/probability about love/health/spiritual: use confidence language (strong signal, moderate signal) instead of percentages.\n"
+            "CRITICAL: Never duplicate content. If you stated the answer in VERDICT, do not re-explain it in another section. One archetype mention maximum per response.\n"
         )
         _format_rules = _voice_rules + "\n" + (_archetype_defs if _phase2_context else "") + _format_rules
         _master_system = (_domain_system if _domain_system else (
