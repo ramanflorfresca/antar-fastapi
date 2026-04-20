@@ -747,6 +747,23 @@ _ENGLISH_LEAK_WORDS = {
     'reflection', 'connection', 'peak',
 }
 
+# FIX E: Instrument names that must never appear in non-English output
+_INSTRUMENT_NAMES_EN = {
+    'intuition compass', 'emotional radar', 'authority engine',
+    'authority signal', 'processing speed', 'fortune vector',
+    'relationship channel', 'magnetism field', 'impulse',
+    'expansion field', 'structure field', 'vitality',
+    'love signal', 'wealth signal', 'career signal',
+    'power windows', 'signal detected', 'action drive',
+    'ambition engine', 'structural load', 'growth amplifier',
+    'revenue pipeline', 'alliance sync', 'capital runway',
+    'hungry becoming', 'creative pulse', 'velocity engine',
+    'foundation shield', 'wisdom lens', 'health matrix',
+    'resource grid', 'system vitals', 'capital reserves',
+    'action capacity', 'creation engine', 'conflict shield',
+    'global vector', 'real estate radar',
+}
+
 _VALIDATED_FIELDS = ['senal_de_hoy', 'observa_hoy_text', 'el_movimiento', 'verdict_subline']
 
 
@@ -762,7 +779,7 @@ def _validate_no_day_names(signal_json: dict, language: str) -> list:
 
 
 def _detect_english_leak(signal_json: dict, language: str) -> list:
-    """FIX 14c: Detect English words leaking into non-English output."""
+    """FIX 14c+E: Detect English words AND instrument names leaking into non-English output."""
     if language == 'en':
         return []
     all_text = ' '.join([
@@ -778,8 +795,12 @@ def _detect_english_leak(signal_json: dict, language: str) -> list:
         if isinstance(w, dict):
             all_text += ' ' + str(w.get('text', '')).lower()
     words_in_text = set(_re_val.findall(r'\b[a-záéíóúñüàèìòù]+\b', all_text))
-    leaks = _ENGLISH_LEAK_WORDS & words_in_text
-    return list(leaks)
+    leaks = list(_ENGLISH_LEAK_WORDS & words_in_text)
+    # FIX E: Also detect instrument name phrases (multi-word)
+    for inst in _INSTRUMENT_NAMES_EN:
+        if inst in all_text:
+            leaks.append(inst)
+    return leaks
 
 
 def _strip_day_names_from_signal(signal_json: dict, language: str) -> dict:
@@ -797,6 +818,105 @@ def _strip_day_names_from_signal(signal_json: dict, language: str) -> dict:
 # ──────────────────────────────────────────────
 # NEW: LLM call for daily signal text
 # ──────────────────────────────────────────────
+
+async def _call_claude_daily_signal_retry(
+    context: dict,
+    day_data: dict,
+    language: str,
+    violations: dict,
+    failed_signal: dict,
+) -> Optional[dict]:
+    """
+    FIX D: Corrective retry — feeds specific violations back to LLM.
+    Instead of re-rolling the same prompt, tells Claude exactly what it
+    did wrong and demands correction.
+    """
+    try:
+        import anthropic
+
+        from antar_engine.daily_system_prompt import (
+            DAILY_SYSTEM_PROMPT_V1,
+            DAILY_USER_PROMPT_TEMPLATE,
+        )
+
+        prompt_vars = {**context, **day_data, "language": language}
+        user_prompt = DAILY_USER_PROMPT_TEMPLATE.format(**prompt_vars)
+
+        # Extract the actual offending words from the failed output
+        caught_day_words = []
+        banned = _BANNED_TEMPORAL_ES if language == 'es' else _BANNED_TEMPORAL_EN
+        for f in violations.get('day_names', []):
+            val = failed_signal.get(f, '')
+            if isinstance(val, str):
+                found = banned.findall(val)
+                caught_day_words.extend(found)
+        caught_day_words = list(set(caught_day_words))
+
+        caught_eng_words = violations.get('eng_leaks', [])
+
+        # Build corrective block
+        corrective_parts = []
+        corrective_parts.append("YOUR PREVIOUS OUTPUT WAS REJECTED. You violated hard restrictions.")
+        corrective_parts.append("")
+        corrective_parts.append("Specific violations:")
+
+        if caught_day_words:
+            corrective_parts.append(f"- You used day-of-week words: {caught_day_words}")
+            corrective_parts.append(f"- In fields: {violations['day_names']}")
+        if caught_eng_words:
+            corrective_parts.append(f"- English words leaked into {language} output: {caught_eng_words}")
+
+        corrective_parts.append("")
+        corrective_parts.append(f"REGENERATE the entire signal_json for {day_data.get('iso_date', '')}. This time:")
+        corrective_parts.append("")
+
+        if caught_day_words:
+            corrective_parts.append(f"1. The words {caught_day_words} must NOT appear anywhere in your output.")
+            corrective_parts.append("2. Do NOT open any sentence with a day-of-week name in any language.")
+            corrective_parts.append("3. Do NOT reference any day of the week. The only temporal word allowed is \"hoy\"/\"today\".")
+            corrective_parts.append("4. If you need to reference timing, use hours only (\"antes de las 11 AM\", \"por la tarde\", \"al atardecer\").")
+
+        if caught_eng_words:
+            corrective_parts.append(f"5. The English words {caught_eng_words} must NOT appear. Write ONLY in {language}.")
+            corrective_parts.append(f"6. Every single word must be in {language}. Zero English.")
+
+        corrective_parts.append("")
+        corrective_parts.append("This is a strict correction. Zero tolerance. Produce valid JSON with the same schema.")
+
+        corrective_block = "\n".join(corrective_parts)
+        retry_prompt = user_prompt + "\n\n" + corrective_block
+
+        client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+
+        # Use full system prompt (no cache split for retry — it's rare)
+        response = await client.messages.create(
+            model="claude-sonnet-4-6",
+            max_tokens=1500,
+            temperature=0.2,  # Lower temp for correction
+            system=DAILY_SYSTEM_PROMPT_V1,
+            messages=[{"role": "user", "content": retry_prompt}],
+        )
+
+        raw_text = response.content[0].text.strip()
+        logger.info(f"[daily-llm-retry] output_tokens={response.usage.output_tokens}")
+
+        # Parse JSON
+        if raw_text.startswith("```"):
+            raw_text = raw_text.split("```", 2)[1]
+            if raw_text.startswith("json"):
+                raw_text = raw_text[4:]
+        raw_text = raw_text.strip()
+
+        parsed = json.loads(raw_text)
+        return parsed
+
+    except json.JSONDecodeError as je:
+        logger.error(f"[daily-llm-retry] JSON parse failed: {je}")
+        return None
+    except Exception as e:
+        logger.error(f"[daily-llm-retry] Retry call failed: {e}")
+        return None
+
 
 async def _call_claude_daily_signal(
     context: dict,
@@ -1074,19 +1194,45 @@ async def generate_weekly_signals(
                     language=language,
                 )
 
-                # ── FIX 14b+14c: Validate + sanitize LLM output ──
-                # Always strip day names (fast regex) — no retry LLM call needed.
-                # Claude sees "Weekday: Wednesday" in the user prompt so it naturally
-                # echoes the day name; prompting alone can't reliably prevent it.
+                # ── FIX D: Validate + corrective retry ──
                 if llm_signal:
-                    # Always strip day-of-week names from regulated fields
-                    llm_signal = _strip_day_names_from_signal(llm_signal, language)
-
-                    # Check for English leaks in non-English output
+                    day_violations = _validate_no_day_names(llm_signal, language)
                     eng_leaks = _detect_english_leak(llm_signal, language)
-                    if eng_leaks:
-                        logger.warning(f"[daily-week] English leak in {date_str}: {eng_leaks}")
-                        llm_signal['_validation_warnings'] = {'english_leaks': eng_leaks}
+
+                    if day_violations or eng_leaks:
+                        logger.warning(f"[daily-week] Validation failed for {date_str}: day_names={day_violations} eng_leaks={eng_leaks}")
+
+                        # Build corrective retry prompt with specific violations
+                        retry_signal = await _call_claude_daily_signal_retry(
+                            context=daily_context,
+                            day_data=day_prompt_data,
+                            language=language,
+                            violations={'day_names': day_violations, 'eng_leaks': eng_leaks},
+                            failed_signal=llm_signal,
+                        )
+                        if retry_signal:
+                            retry_day = _validate_no_day_names(retry_signal, language)
+                            retry_eng = _detect_english_leak(retry_signal, language)
+                            if not retry_day and not retry_eng:
+                                llm_signal = retry_signal
+                                logger.info(f"[daily-week] Retry succeeded for {date_str}")
+                            else:
+                                # Strip what we can, accept with warnings
+                                retry_signal = _strip_day_names_from_signal(retry_signal, language)
+                                retry_signal['_validation_warnings'] = {
+                                    'day_names': retry_day, 'english_leaks': retry_eng
+                                }
+                                llm_signal = retry_signal
+                                logger.warning(f"[daily-week] Retry still has issues for {date_str}, accepting with warnings")
+                        else:
+                            # Retry failed entirely — strip first attempt
+                            llm_signal = _strip_day_names_from_signal(llm_signal, language)
+                            llm_signal['_validation_warnings'] = {
+                                'day_names': day_violations, 'english_leaks': eng_leaks
+                            }
+                    else:
+                        # First pass clean — still strip as safety net
+                        llm_signal = _strip_day_names_from_signal(llm_signal, language)
 
 
                 # Cache if successful

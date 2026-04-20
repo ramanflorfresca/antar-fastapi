@@ -13386,6 +13386,54 @@ def _sanitize_wow_hint(hint: str) -> str:
     return cleaned or hint  # fallback to original if cleaning emptied it
 
 
+
+# ──────────────────────────────────────────────
+# FIX E Part 2: Translate instrument names before LLM injection
+# ──────────────────────────────────────────────
+
+_INSTRUMENT_TRANSLATIONS = {
+    'es': {
+        'SYSTEM VITALS': 'SEÑALES VITALES',
+        'CAPITAL RESERVES': 'RESERVAS DE CAPITAL',
+        'ACTION CAPACITY': 'CAPACIDAD DE ACCIÓN',
+        'REAL ESTATE RADAR': 'RADAR INMOBILIARIO',
+        'CREATION ENGINE': 'MOTOR CREATIVO',
+        'CONFLICT SHIELD': 'ESCUDO DE CONFLICTOS',
+        'ALLIANCE SYNC': 'SINCRONIZACIÓN DE ALIANZAS',
+        'CAPITAL RUNWAY': 'PISTA DE CAPITAL',
+        'FORTUNE VECTOR': 'VECTOR DE FORTUNA',
+        'AUTHORITY ENGINE': 'MOTOR DE AUTORIDAD',
+        'REVENUE PIPELINE': 'FLUJO DE INGRESOS',
+        'GLOBAL VECTOR': 'VECTOR GLOBAL',
+        'INTUITION COMPASS': 'BRÚJULA DE INTUICIÓN',
+        'EMOTIONAL RADAR': 'RADAR EMOCIONAL',
+        'PROCESSING SPEED': 'VELOCIDAD DE PROCESAMIENTO',
+        'MAGNETISM FIELD': 'CAMPO MAGNÉTICO',
+        'ACTION DRIVE': 'IMPULSO DE ACCIÓN',
+        'AMBITION ENGINE': 'MOTOR DE AMBICIÓN',
+        'STRUCTURAL LOAD': 'CARGA ESTRUCTURAL',
+        'GROWTH AMPLIFIER': 'AMPLIFICADOR DE CRECIMIENTO',
+        'AUTHORITY SIGNAL': 'SEÑAL DE AUTORIDAD',
+    },
+}
+
+
+def _translate_instrument_name(name: str, language: str) -> str:
+    """Translate instrument label for non-English LLM prompts."""
+    if language == 'en' or not name:
+        return name
+    translations = _INSTRUMENT_TRANSLATIONS.get(language, {})
+    # Try exact match (case-insensitive lookup)
+    translated = translations.get(name.upper(), None)
+    if translated:
+        return translated
+    # Try matching with different casing
+    for en, loc in translations.items():
+        if en.lower() == name.lower():
+            return loc
+    return name  # fallback: pass through untranslated
+
+
 async def _call_claude_wow_hint(
     base_template: str,
     category: str,
@@ -13698,7 +13746,7 @@ async def _get_wow_signal_for_chart_v2(
             birth_city=birth_city,
             gender=gender,
             weekday=weekday,
-            instrument_name=inst_name,
+            instrument_name=_translate_instrument_name(inst_name, language),
             signal_score=inst_score,
             instrument_strength=inst_strength,
             language=language,
@@ -13864,7 +13912,7 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
         hint = await _call_claude_wow_hint(
             base_template=base_template,
             category=category,
-            instrument_name=inst_name,
+            instrument_name=_translate_instrument_name(inst_name, language),
             user_first_name=user_first_name,
             user_age=user_age,
             current_country=current_country,
