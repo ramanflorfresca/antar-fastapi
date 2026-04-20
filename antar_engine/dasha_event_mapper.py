@@ -121,15 +121,15 @@ EVENT_DESCRIPTION = {
 # Plain-language planet descriptions for energy_explanation
 # ---------------------------------------------------------------------------
 PLANET_PARENTHETICAL = {
-    "Sun":     "identity, authority, father, vitality",
-    "Moon":    "emotions, mind, mother, nurturing",
-    "Mars":    "action, energy, courage, conflict",
-    "Mercury": "communication, intellect, business, travel",
-    "Jupiter": "growth, wisdom, children, expansion",
-    "Venus":   "love, beauty, partnership, money",
-    "Saturn":  "discipline, time, structure, hard lessons",
-    "Rahu":    "ambition, illusion, foreign, obsession",
-    "Ketu":    "detachment, liberation, past karma, spirituality",
+    "Sun":     "identity-and-authority",
+    "Moon":    "emotional-and-responsive",
+    "Mars":    "action-and-drive",
+    "Mercury": "communication-and-clarity",
+    "Jupiter": "growth-and-wisdom",
+    "Venus":   "beauty-and-harmony",
+    "Saturn":  "structure-and-persistence",
+    "Rahu":    "desire-and-amplification",
+    "Ketu":    "release-and-dissolution",
 }
 
 # ---------------------------------------------------------------------------
@@ -170,23 +170,23 @@ def build_energy_explanation(prediction: dict, event_type: str, lagna_sign: str 
     if md_lord:
         parens = PLANET_PARENTHETICAL.get(md_lord, "")
         parts.append(
-            f"{md_lord} planet of ({parens}) was leading this chapter, "
+            f"Your {parens} energy ({md_lord}) was leading this chapter, "
             f"activating {life_area}."
         )
     if ad_lord and ad_lord != md_lord:
         parens = PLANET_PARENTHETICAL.get(ad_lord, "")
         parts.append(
-            f"{ad_lord} planet of ({parens}) deepened the activation."
+            f"Your {parens} energy ({ad_lord}) deepened the activation."
         )
     if pd_lord and pd_lord not in (md_lord, ad_lord):
         parens = PLANET_PARENTHETICAL.get(pd_lord, "")
         parts.append(
-            f"{pd_lord} planet of ({parens}) was the spark that crystallized the moment."
+            f"Your {parens} energy ({pd_lord}) was the spark that crystallized the moment."
         )
     if transit_planet:
         parens = PLANET_PARENTHETICAL.get(transit_planet, "")
         parts.append(
-            f"{transit_planet} planet of ({parens}) was passing through the relevant area "
+            f"Your {parens} energy ({transit_planet}) was passing through the relevant area "
             f"of your sky at this exact time, confirming the timing."
         )
     return " ".join(parts)

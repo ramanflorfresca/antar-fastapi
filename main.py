@@ -2592,8 +2592,9 @@ Everything should sound like it's describing a part of THEM, not external forces
 ══════════════════════════════════════════════
 VOICE MODE: MENTOR (this user is familiar with Vedic terminology)
 ══════════════════════════════════════════════
-Use planet names with parenthetical on first mention:
-  "Saturn planet of (discipline, structure)" — then "Saturn" alone after.
+Use energy-first language with planet name as parenthetical anchor:
+  "Your structure-and-persistence energy (Saturn) sits in your gains area"
+  NEVER write "Saturn planet of (discipline, structure)" — lead with energy name.
 Use area labels: "your gains and networks area".
 Use dasha translations: chapter, sub-chapter, inner window.
 The user has built vocabulary through prior sessions — speak to their knowledge.
@@ -2664,9 +2665,10 @@ You have three layers of context:
 VOCABULARY RULES (STRICT — violating these is a failure):
 ══════════════════════════════════════════════
 
-PLANET NAMES:
-  First mention: "Mars planet of (action, drive, energy)" — full parenthetical
-  Subsequent mentions: "Mars" alone
+PLANET NAMES — ENERGY-FIRST (MANDATORY):
+  ALWAYS: "Your action-and-drive energy (Mars)" — energy name leads, planet in parentheses
+  NEVER: "Mars planet of (action, drive, energy)" — this format is BANNED
+  Subsequent mentions: "your action-and-drive energy" or just the energy name
 
 HOUSE AREAS — NEVER use house numbers. Always say:
   H1="your identity and self area"  H2="your wealth and family area"
@@ -2774,17 +2776,16 @@ UPCOMING WINDOWS (from mapper):
 
 REFERENCE EXAMPLE (for tone and structure — do NOT copy content):
 HEADLINE: Your 18-Year Expansion Chapter Ignites
-BODY: What you've been building under Mars planet of (action, drive, courage) — the
+BODY: What you've been building under your action-and-drive energy (Mars) — the
 infrastructure, the co-founder relationship, the 17-country payment system — was
-preparation. August 2026 is not a transition. It is an ignition. Rahu planet of
-(ambition, breakthrough, foreign) begins its 18-year chapter activating the most
-powerful cluster in your chart: three planets gathered in your gains and networks
-area fire simultaneously. Your Third Eye center — where vision and breakthrough
-live — is the energy channel opening here.
-CAUTION: Rahu amplifies everything including overextension — the first 6 months
-can feel like drinking from a firehose.
+preparation. August 2026 is not a transition. It is an ignition. Your desire-and-amplification
+energy (Rahu) begins its 18-year chapter activating the most powerful cluster in your chart:
+three energies gathered in your gains and networks area fire simultaneously. Your Third Eye
+center — where vision and breakthrough live — is the energy channel opening here.
+CAUTION: Your desire-and-amplification energy amplifies everything including overextension —
+the first 6 months can feel like drinking from a firehose.
 YOUR MOVE: Lock one anchor market before August — a specific target, a specific
-segment — so when Rahu ignites, you're accelerating something already moving.
+segment — so when this chapter ignites, you're accelerating something already moving.
 """
     return prompt
 
@@ -4756,13 +4757,13 @@ CRITICAL RULES:
     # HARD JARGON CONSTRAINT — prepended to EVERY prompt
     _hard_constraint = """
 ABSOLUTE RULES (violating these rules means the response is rejected):
-1. USE planet names with parenthetical context on first mention:
-   Sun planet of (identity, authority, vitality), Moon planet of (emotion, mind, nurturing),
-   Mars planet of (action, drive, energy), Mercury planet of (communication, intellect, adaptability),
-   Jupiter planet of (growth, wisdom, expansion), Venus planet of (love, partnership, money),
-   Saturn planet of (discipline, structure, time), Rahu planet of (ambition, breakthrough, foreign),
-   Ketu planet of (intuition, release, spirituality).
-   After first mention, use planet name alone.
+1. USE energy-first language for ALL planet references. NEVER write "Planet planet of (X, Y, Z)":
+   "Your identity-and-authority energy" (Sun), "Your emotional-and-responsive energy" (Moon),
+   "Your action-and-drive energy" (Mars), "Your communication-and-clarity energy" (Mercury),
+   "Your growth-and-wisdom energy" (Jupiter), "Your beauty-and-harmony energy" (Venus),
+   "Your structure-and-persistence energy" (Saturn), "Your desire-and-amplification energy" (Rahu),
+   "Your release-and-dissolution energy" (Ketu).
+   Always lead with the energy name. Planet name in parentheses only as optional anchor.
 2. NEVER use house numbers (1st house, 10th house). Use area labels:
    1st = identity area, 2nd = wealth area, 3rd = courage area, 4th = home area,
    5th = creativity area, 6th = work area, 7th = partnership area, 8th = transformation area,
@@ -4804,8 +4805,8 @@ RESPONSE PATTERN:
 5. End with YOUR MOVE — one specific action. Never end with a question.
 
 VOCABULARY RULES:
-- Use planet names with parenthetical on first mention: "Saturn planet of (discipline, structure, time)"
-- After first mention, use planet name alone: "Saturn"
+- ALWAYS use energy-first names: "Your structure-and-persistence energy" (not "Saturn planet of...")
+- Planet name in parentheses ONLY as anchor: "Your growth-and-wisdom energy (Jupiter)"
 - Never use house numbers. Use area labels: identity, wealth, courage, home, creativity, work, partnership, transformation, luck, career, gains, foreign.
 - Never use: MD, AD, PD, mahadasha, antardasha, pratyantar. Use: chapter, sub-chapter, inner window.
 - Never use FIELD×MODE codenames (deprecated).
@@ -4869,10 +4870,10 @@ VOCABULARY RULES:
 25. NO ASTROLOGY METAPHORS OR CODENAMES. Banned:
     - Any FIELD×MODE codename (Magnetism Field, Revenue Pipeline, Ambition Engine, Authority Signal, etc)
     - "Capital Reserves under pressure", "Action Drive sub-cycle"
-    Replace with plain language using planet names + area labels:
-    - "Venus planet of (love, partnership) is active in your career area"
-    - "Saturn is tightening your wealth area until June"
-    - "Mars energy is high through May"
+    Replace with energy-first language:
+    - "Your beauty-and-harmony energy (Venus) is active in your career area"
+    - "Your structure-and-persistence energy is tightening your wealth area until June"
+    - "Your action-and-drive energy is high through May"
 """
     # ── Symptom → Practice Bridge ────────────────────────────────────────────
     if _question_mode == "symptom":
@@ -4913,12 +4914,13 @@ VOCABULARY RULES:
     _today_str = __import__('datetime').datetime.utcnow().strftime("%B %d, %Y")
     _jargon_only = (
         "ABSOLUTE RULES (no exceptions):\n"
-        "1. USE planet names with parenthetical on first mention: "
-        "Sun planet of (identity, authority, vitality), Moon planet of (emotion, mind, nurturing), "
-        "Mars planet of (action, drive, energy), Jupiter planet of (growth, wisdom, expansion), "
-        "Venus planet of (love, partnership, money), Saturn planet of (discipline, structure, time), "
-        "Rahu planet of (ambition, breakthrough, foreign), Ketu planet of (intuition, release, spirituality). "
-        "After first mention, use planet name alone.\n"
+        "1. USE energy-first language. NEVER write 'Planet planet of (X, Y, Z)'. "
+        "Lead with energy name: Your identity-and-authority energy (Sun), "
+        "Your emotional-and-responsive energy (Moon), Your action-and-drive energy (Mars), "
+        "Your communication-and-clarity energy (Mercury), Your growth-and-wisdom energy (Jupiter), "
+        "Your beauty-and-harmony energy (Venus), Your structure-and-persistence energy (Saturn), "
+        "Your desire-and-amplification energy (Rahu), Your release-and-dissolution energy (Ketu). "
+        "Planet name in parentheses only as optional anchor.\n"
         "2. NEVER use house numbers. Use area labels: "
         "1st=identity area, 2nd=wealth area, 3rd=courage area, 4th=home area, "
         "5th=creativity area, 6th=work area, 7th=partnership area, 8th=transformation area, "
@@ -4933,7 +4935,7 @@ VOCABULARY RULES:
     prompt = _jargon_only + "\n\n" + prompt
     if False:  # dead code block — keeps old symptom path reference intact
         _jargon_only = """ABSOLUTE RULES (no exceptions):
-1. USE planet names with parenthetical on first mention (e.g. "Jupiter planet of (growth, wisdom)"). After first mention, planet name alone.
+1. USE energy-first language (e.g. "Your growth-and-wisdom energy (Jupiter)"). NEVER use "Planet planet of (X, Y)" format.
 2. NEVER use house numbers. Use area labels (identity area, wealth area, career area, etc). NEVER use FIELD×MODE codenames.
 3. NEVER use Sanskrit terms (Dasha, Nakshatra, Lagna, Yoga, Rashi, etc).
 4. The current year is 2026. Today is """ + __import__('datetime').datetime.utcnow().strftime("%B %d, %Y") + """.
@@ -4947,7 +4949,7 @@ VOCABULARY RULES:
         _domain_voice_wrapper = (
             "IMPORTANT: The domain audit below tells you WHAT TO ANALYZE internally. "
             "But your OUTPUT must use energy-systems language from the Translation Table. "
-            "DO NOT output raw house numbers (H1, 8th house) or planet names (Jupiter, Saturn). "
+            "DO NOT output raw house numbers (H1, 8th house) or raw planet names (Jupiter, Saturn). Use energy-first names instead. "
             "Translate every technical term before writing it. "
             "The audit is your internal checklist — the user sees only translated language.\n"
             "DO NOT include a 'DOMAIN AUDIT' section in your response. "
@@ -4978,20 +4980,20 @@ VOCABULARY RULES:
 
         # v5.1 voice-enriched format rules + translation glossary
         _voice_rules = (
-            "═══ MANDATORY TRANSLATION TABLE ═══\n"
-            "The chart data below uses technical planet/house names. "
-            "You MUST translate them in your response using this table:\n"
+            "═══ MANDATORY VOICE RULE — ENERGY-FIRST LANGUAGE ═══\n"
+            "When referring to ANY planet, ALWAYS lead with its energy name. "
+            "NEVER use the format 'Planet planet of (X, Y, Z)'.\n"
             "\n"
-            "PLANETS → ENERGY NAMES (always use the right column):\n"
-            "  Sun → identity and authority energy\n"
-            "  Moon → emotional and responsive energy\n"
-            "  Mars → action and drive energy\n"
-            "  Mercury → communication and clarity energy\n"
-            "  Jupiter → growth and wisdom energy\n"
-            "  Venus → beauty and harmony energy\n"
-            "  Saturn → structure and persistence energy\n"
-            "  Rahu → desire and amplification energy\n"
-            "  Ketu → release and dissolution energy\n"
+            "ENERGY VOCABULARY (use these as PRIMARY names — planet name only as parenthetical anchor):\n"
+            "  Sun → Your identity-and-authority energy\n"
+            "  Moon → Your emotional-and-responsive energy\n"
+            "  Mars → Your action-and-drive energy\n"
+            "  Mercury → Your communication-and-clarity energy\n"
+            "  Jupiter → Your growth-and-wisdom energy\n"
+            "  Venus → Your beauty-and-harmony energy\n"
+            "  Saturn → Your structure-and-persistence energy\n"
+            "  Rahu → Your desire-and-amplification energy\n"
+            "  Ketu → Your release-and-dissolution energy\n"
             "\n"
             "HOUSES → LIFE AREAS (always use the right column):\n"
             "  1st house/H1/lagna → your identity area\n"
@@ -5028,42 +5030,37 @@ VOCABULARY RULES:
             "  Moon hora/Sun hora → receptive-wealth style / active-wealth style\n"
             "\n"
             "═══ HARD VOICE RULES ═══\n"
-            "1. TRANSLATE EVERY planet name, house number, and technical term "
-            "using the tables above. No exceptions.\n"
+            "1. TRANSLATE EVERY planet name into its energy name. No exceptions.\n"
             "2. The data section uses raw planet names for YOUR reference — "
-            "the user must NEVER see them in your response.\n"
-            "3. NEVER write: 'Jupiter planet of (growth, wisdom, expansion)' — "
-            "just say 'your growth and wisdom energy'.\n"
-            "4. NEVER write: 'Mars chapter' — say 'your action-and-drive chapter'.\n"
-            "5. NEVER write: '8th house' or 'H8' — say 'your transformation area'.\n"
-            "6. NEVER write: 'Ketu transiting' — say 'your release energy is currently moving through'.\n"
-            "7. ALWAYS lead with the energy name, then add the planet name in parentheses as an anchor.\n"
-            "   Format: [energy name] ([Planet Name, plain-language descriptor])\n"
-            "   PLANET ANCHOR TABLE — use these exact parenthetical descriptors:\n"
-            "     Sun → (Sun, star of identity and vitality)\n"
-            "     Moon → (Moon, luminary of emotions)\n"
-            "     Mars → (Mars, planet of action and courage)\n"
-            "     Mercury → (Mercury, planet of communication)\n"
-            "     Jupiter → (Jupiter, planet of wisdom and expansion)\n"
-            "     Venus → (Venus, planet of wealth and luxury)\n"
-            "     Saturn → (Saturn, planet of discipline and time)\n"
-            "     Rahu → (Rahu, north node of the moon)\n"
-            "     Ketu → (Ketu, south node of the moon)\n"
-            "   NEVER write the planet name first: NOT 'Rahu (desire energy)'.\n"
-            "   NEVER write the planet name alone without the energy name before it.\n"
-            "8. NEVER say: 'You must', 'You should', 'guaranteed', 'cursed', 'evil', 'Lal Kitab'.\n"
-            "9. Tone: thoughtful friend with deep wisdom. Not astrologer, guru, or therapist.\n"
-            "10. If the chart has a wealth archetype, name it naturally.\n"
+            "the user must NEVER see raw planet names in your response.\n"
+            "3. FORBIDDEN PATTERN — if you write ANY of these, STOP and REWRITE:\n"
+            "   ❌ 'Saturn planet of (discipline, structure, time)'\n"
+            "   ❌ 'Jupiter planet of (growth, wisdom, expansion)'\n"
+            "   ❌ 'Venus planet of (love, partnership, money)'\n"
+            "   ❌ ANY '[Planet] planet of (X, Y, Z)' construction\n"
+            "   ❌ Any sentence starting with a capitalized planet name\n"
+            "4. REQUIRED PATTERN — always use this format:\n"
+            "   ✓ 'Your structure-and-persistence energy' (standalone)\n"
+            "   ✓ 'Your growth-and-wisdom energy (Jupiter)' (with planet anchor)\n"
+            "   ✓ 'Your desire-and-amplification energy amplifies every opportunity'\n"
+            "5. NEVER write: 'Mars chapter' — say 'your action-and-drive chapter'.\n"
+            "6. NEVER write: '8th house' or 'H8' — say 'your transformation area'.\n"
+            "7. NEVER write: 'Ketu transiting' — say 'your release energy is currently moving through'.\n"
+            "8. FINAL SELF-CHECK: Before submitting, scan your entire response. "
+            "If ANY 'planet of (' construction appears, REWRITE that sentence.\n"
+            "9. NEVER say: 'You must', 'You should', 'guaranteed', 'cursed', 'evil', 'Lal Kitab'.\n"
+            "10. Tone: thoughtful friend with deep wisdom. Not astrologer, guru, or therapist.\n"
+            "11. If the chart has a wealth archetype, name it naturally.\n"
             "\n"
             "EXAMPLES OF CORRECT TRANSLATION:\n"
             "  BAD:  'Jupiter in your 5th house is weak'\n"
-            "  GOOD: 'Your growth-and-wisdom energy (Jupiter, planet of wisdom and expansion) in your creativity area is running dim right now'\n"
+            "  GOOD: 'Your growth-and-wisdom energy (Jupiter) in your creativity area is running dim right now'\n"
             "  BAD:  'Mars chapter ends August 2026, then Rahu chapter begins'\n"
-            "  GOOD: 'Your action-and-drive chapter (Mars, planet of action and courage) closes August 2026, then your desire-and-amplification chapter (Rahu, north node of the moon) opens'\n"
+            "  GOOD: 'Your action-and-drive chapter (Mars) closes August 2026, then your desire-and-amplification chapter (Rahu) opens'\n"
             "  BAD:  'Ketu transiting through your 11th house'\n"
-            "  GOOD: 'Your release energy (Ketu, south node of the moon) is currently moving through your gains area'\n"
+            "  GOOD: 'Your release-and-dissolution energy (Ketu) is currently moving through your gains area'\n"
             "  BAD:  'Venus planet of (love, partnership, money) in house 11'\n"
-            "  GOOD: 'Your beauty-and-harmony energy (Venus, planet of wealth and luxury) in your gains area'\n"
+            "  GOOD: 'Your beauty-and-harmony energy (Venus) in your gains area'\n"
         )
         _format_rules = (
             "RESPONSE FORMAT (always follow):\n"

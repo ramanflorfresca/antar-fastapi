@@ -59,10 +59,10 @@ OWN   = {0:[4],1:[3],2:[0,7],3:[2,5],4:[8,11],5:[1,6],6:[9,10]}
 MALEFICS = {"sun","mars","saturn","rahu","ketu"}
 
 ENERGY = {
-    "Sun":"Sun planet of (identity, authority, vitality)","Moon":"Moon planet of (emotion, mind, nurturing)","Mars":"Mars planet of (action, drive, energy)",
-    "Mercury":"Mercury planet of (communication, intellect, adaptability)","Jupiter":"Jupiter planet of (growth, wisdom, expansion)",
-    "Venus":"Venus planet of (love, partnership, money)","Saturn":"Saturn planet of (discipline, structure, time)",
-    "Rahu":"Rahu planet of (ambition, breakthrough, foreign)","Ketu":"Ketu planet of (intuition, release, spirituality)",
+    "Sun":"identity-and-authority energy","Moon":"emotional-and-responsive energy","Mars":"action-and-drive energy",
+    "Mercury":"communication-and-clarity energy","Jupiter":"growth-and-wisdom energy",
+    "Venus":"beauty-and-harmony energy","Saturn":"structure-and-persistence energy",
+    "Rahu":"desire-and-amplification energy","Ketu":"release-and-dissolution energy",
 }
 
 # 12 Strategic Instruments (houses are deprecated in UI)
