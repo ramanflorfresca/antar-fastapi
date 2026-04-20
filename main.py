@@ -13308,12 +13308,14 @@ def _compute_user_age(birth_date_str: str) -> int:
         return 0
 
 
-def _get_wow_cache(chart_id: str, instrument_name: str, local_date_str: str = None) -> dict:
+def _get_wow_cache(chart_id: str, instrument_name: str, local_date_str: str = None, language: str = "en") -> dict:
     """Check if we have a cached WOW hint for this chart+instrument from today.
 
     Args:
         local_date_str: The user's LOCAL date (YYYY-MM-DD) from their timezone.
                         Falls back to UTC if not provided (legacy callers).
+        language: Language code — cache is language-specific because Claude
+                  generates the hint text in the requested language.
     """
     try:
         from datetime import datetime
@@ -13321,30 +13323,33 @@ def _get_wow_cache(chart_id: str, instrument_name: str, local_date_str: str = No
         result = supabase.table("charts").select("daily_wow_cache").eq("id", chart_id).single().execute()
         cache = result.data.get("daily_wow_cache") if result.data else None
         if cache and isinstance(cache, dict):
-            if cache.get("date") == today_str and cache.get("instrument") == instrument_name:
-                print(f"[daily-week] WOW cache HIT for {chart_id} — {instrument_name} (date={today_str})")
+            _cached_date = cache.get("date", "?")
+            _cached_lang = cache.get("language", "en")
+            if cache.get("date") == today_str and cache.get("instrument") == instrument_name and _cached_lang == language:
+                print(f"[daily-week] WOW cache HIT for {chart_id} — {instrument_name} (date={today_str}, lang={language})")
                 return cache
             else:
-                _cached_date = cache.get("date", "?")
-                print(f"[daily-week] WOW cache MISS for {chart_id} — cached date={_cached_date} vs local today={today_str}")
+                print(f"[daily-week] WOW cache MISS for {chart_id} — cached date={_cached_date}/lang={_cached_lang} vs local today={today_str}/lang={language}")
     except Exception as e:
         print(f"[daily-week] WOW cache read failed (non-fatal): {e}")
     return {}
 
 
-def _save_wow_cache(chart_id: str, instrument_name: str, wow_data: dict, local_date_str: str = None):
+def _save_wow_cache(chart_id: str, instrument_name: str, wow_data: dict, local_date_str: str = None, language: str = "en"):
     """Save WOW hint to Supabase cache.
 
     Args:
         local_date_str: The user's LOCAL date (YYYY-MM-DD). Used as cache key
                         so the hint expires at midnight in the user's timezone,
                         not UTC midnight.
+        language: Language code stored alongside so cache is language-aware.
     """
     try:
         from datetime import datetime
         cache_payload = {
             "date": local_date_str or datetime.utcnow().strftime("%Y-%m-%d"),
             "instrument": instrument_name,
+            "language": language,
             **wow_data
         }
         supabase.table("charts").update(
@@ -13807,7 +13812,7 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
 
         # Check cache first (skipped when force_refresh)
         if not force_refresh:
-            cached = _get_wow_cache(chart_id, inst_name, local_date_str=local_date_str)
+            cached = _get_wow_cache(chart_id, inst_name, local_date_str=local_date_str, language=language)
             if cached.get("hint"):
                 return {
                     "fires": True,
@@ -13856,8 +13861,8 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
             "cached": False,
         }
 
-        # Save to cache (keyed by user's local date, not UTC)
-        _save_wow_cache(chart_id, inst_name, wow_result, local_date_str=local_date_str)
+        # Save to cache (keyed by user's local date + language)
+        _save_wow_cache(chart_id, inst_name, wow_result, local_date_str=local_date_str, language=language)
 
         return wow_result
 
