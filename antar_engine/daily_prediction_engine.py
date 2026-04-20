@@ -1074,40 +1074,19 @@ async def generate_weekly_signals(
                     language=language,
                 )
 
-                # ── FIX 14b+14c: Validate LLM output ──
+                # ── FIX 14b+14c: Validate + sanitize LLM output ──
+                # Always strip day names (fast regex) — no retry LLM call needed.
+                # Claude sees "Weekday: Wednesday" in the user prompt so it naturally
+                # echoes the day name; prompting alone can't reliably prevent it.
                 if llm_signal:
-                    day_violations = _validate_no_day_names(llm_signal, language)
+                    # Always strip day-of-week names from regulated fields
+                    llm_signal = _strip_day_names_from_signal(llm_signal, language)
+
+                    # Check for English leaks in non-English output
                     eng_leaks = _detect_english_leak(llm_signal, language)
-
-                    if day_violations or eng_leaks:
-                        logger.warning(f"[daily-week] Validation failed for {date_str}: day_names={day_violations} eng_leaks={eng_leaks}")
-
-                        # Retry once with stronger constraint
-                        retry_signal = await _call_claude_daily_signal(
-                            context=daily_context,
-                            day_data=day_prompt_data,
-                            language=language,
-                        )
-                        if retry_signal:
-                            retry_day = _validate_no_day_names(retry_signal, language)
-                            retry_eng = _detect_english_leak(retry_signal, language)
-                            if not retry_day and not retry_eng:
-                                llm_signal = retry_signal
-                                logger.info(f"[daily-week] Retry succeeded for {date_str}")
-                            else:
-                                # Accept but strip day names + add warnings
-                                retry_signal = _strip_day_names_from_signal(retry_signal, language)
-                                retry_signal['_validation_warnings'] = {
-                                    'day_names': retry_day, 'english_leaks': retry_eng
-                                }
-                                llm_signal = retry_signal
-                                logger.warning(f"[daily-week] Retry still has issues for {date_str}, accepting with warnings")
-                        else:
-                            # First attempt had issues, strip what we can
-                            llm_signal = _strip_day_names_from_signal(llm_signal, language)
-                            llm_signal['_validation_warnings'] = {
-                                'day_names': day_violations, 'english_leaks': eng_leaks
-                            }
+                    if eng_leaks:
+                        logger.warning(f"[daily-week] English leak in {date_str}: {eng_leaks}")
+                        llm_signal['_validation_warnings'] = {'english_leaks': eng_leaks}
 
 
                 # Cache if successful
