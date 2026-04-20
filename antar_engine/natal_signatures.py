@@ -1240,7 +1240,7 @@ def build_signature_context_block(planet_signatures: dict, character_archetype: 
             lines.append(f"  {label}: {sig.get('field','?')} × {sig.get('mode','?')}")
 
     lines.append("")
-    lines.append("INSTRUCTION: Reference the user's archetype and dominant pattern when answering.")
+    lines.append("CONTEXT: The archetype and dominant pattern are background context — base your verdict on specific chart signals.")
     lines.append(f"Frame advice through their {dom_field}×{dom_mode} wiring — not generic.")
     lines.append("=== END CORE SIGNATURE ===")
 

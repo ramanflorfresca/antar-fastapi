@@ -915,7 +915,7 @@ CHART ARCHETYPE (Phase 2 Classification)
 {_arch_evidence_block}
 {_arch_vehicles}
 
-INSTRUCTION: Line 0 of your response MUST name this archetype.
+CONTEXT NOTE: This archetype describes the wealth architecture TYPE — it is one signal among many. Base your verdict on the chart's actual planet placements, yogas, dasha timing, and divisional charts. If the chart's specific signals support a vehicle that the archetype label wouldn't predict, trust the chart.
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 ''' if _arch_primary_line else ''}
 
