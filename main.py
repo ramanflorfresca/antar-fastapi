@@ -13360,6 +13360,29 @@ def _save_wow_cache(chart_id: str, instrument_name: str, wow_data: dict, local_d
         print(f"[daily-week] WOW cache save failed (non-fatal): {e}")
 
 
+import re as _re_wow
+
+_FORBIDDEN_DAY_WORDS = _re_wow.compile(
+    r'\b(?:Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday'
+    r'|lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo'
+    r'|yesterday|tomorrow|ayer|mañana)\b',
+    _re_wow.IGNORECASE,
+)
+
+def _sanitize_wow_hint(hint: str) -> str:
+    """FIX 14b: Strip any day-of-week or forbidden temporal words from WOW hint.
+    Prompt instructions tell Claude not to use them, but this is a safety net."""
+    if not hint:
+        return hint
+    cleaned = _FORBIDDEN_DAY_WORDS.sub('', hint)
+    # Collapse double spaces / leading punctuation left by removal
+    cleaned = _re_wow.sub(r'\s{2,}', ' ', cleaned).strip()
+    cleaned = _re_wow.sub(r'^[,\s—–-]+', '', cleaned).strip()
+    if cleaned and cleaned != hint:
+        print(f"[daily-week] WOW hint sanitized: removed day-of-week word(s)")
+    return cleaned or hint  # fallback to original if cleaning emptied it
+
+
 async def _call_claude_wow_hint(
     base_template: str,
     category: str,
@@ -13396,17 +13419,16 @@ TODAY'S SIGNAL:
 - Instrument: {instrument_name} (score: {signal_score}/100, strength: {strength_note})
 - Category: {category}
 - Base template: "{base_template}"
-- Today is {weekday_ctx}
 - Astrological quality today: {nakshatra} energy — precise, commanding, strategic
 
 YOUR TASK:
 Rewrite the base template as ONE sentence that feels personally relevant to this user.
 - Use their location and life context naturally (not as a label)
-- Reference the day of the week to make it feel live and real
 - NEVER reference deals, projects, agreements, conversations, or plans the user has not mentioned. You know NOTHING about their calendar, inbox, or personal life. Do NOT say "that deal you've been considering" or "the project you've been working on." Speak only to DOMAINS and TIMING.
 - No astrology terms. No planet names. No nakshatra names.
 - Maximum 25 words.
 - Do NOT start with "Today" — vary the opening.
+- FORBIDDEN WORDS: Never use any day-of-week name (Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday, lunes, martes, miércoles, jueves, viernes, sábado, domingo). Never use "yesterday/ayer" or "tomorrow/mañana". The word "today/hoy" is the ONLY temporal reference allowed.
 - Never use double articles. Never write "the your", "a the", "the the", or "but the your". Proofread before returning.
 - {f'Write the entire response in {language}.' if language != 'en' else 'Write in English.'}
 - Output ONLY the single sentence. Nothing else."""
@@ -13421,6 +13443,7 @@ Rewrite the base template as ONE sentence that feels personally relevant to this
             messages=[{"role": "user", "content": prompt}]
         )
         hint = response.content[0].text.strip().strip('"').strip("'")
+        hint = _sanitize_wow_hint(hint)
         print(f"[daily-week] Claude WOW hint generated: {hint[:80]}...")
         return hint
 
@@ -13494,7 +13517,6 @@ The energy is OPEN and available. Write a signal that:
         prompt = f"""You are writing a single-sentence WOW signal for a life intelligence app.
 
 USER: {user_first_name}, {user_age} years old, based in {current_country}
-TODAY: {weekday_ctx}
 FIELD × MODE: {field} × {mode} = "{action_phrase}"
 CHART SIGNAL: {instrument_name} at {signal_score}/100 ({instrument_strength})
 CONFIDENCE: {sd_confidence}
@@ -13505,6 +13527,7 @@ RULES:
 - Maximum 25 words
 - No astrology terms. No planet names. No nakshatra names. No "FIELD" or "MODE" labels.
 - Do NOT start with "Today"
+- FORBIDDEN WORDS: Never use any day-of-week name (Monday, Tuesday, Wednesday, Thursday, Friday, Saturday, Sunday, lunes, martes, miércoles, jueves, viernes, sábado, domingo). Never use "yesterday/ayer" or "tomorrow/mañana". The word "today/hoy" is the ONLY temporal reference allowed.
 - NEVER reference deals, projects, agreements, conversations, or plans the user has not mentioned. You know NOTHING about their calendar, inbox, or personal life. Do NOT say "that deal you've been considering" or "the project you've been working on" — you have zero knowledge of any such thing. Speak only to DOMAINS (career, finance, relationships, health) and TIMING, never to fabricated specifics.
 - Use their geographic context naturally but do NOT invent personal circumstances
 - Never use double articles. Never write "the your", "a the", "the the", or "but the your". Proofread before returning.
@@ -13521,6 +13544,7 @@ RULES:
             messages=[{"role": "user", "content": prompt}]
         )
         hint = response.content[0].text.strip().strip('"').strip("'")
+        hint = _sanitize_wow_hint(hint)
         print(f"[daily-week] WOW v2 hint: {hint[:80]}...")
         return hint
 
