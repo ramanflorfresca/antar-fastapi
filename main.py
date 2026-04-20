@@ -13308,35 +13308,49 @@ def _compute_user_age(birth_date_str: str) -> int:
         return 0
 
 
-def _get_wow_cache(chart_id: str, instrument_name: str) -> dict:
-    """Check if we have a cached WOW hint for this chart+instrument from today."""
+def _get_wow_cache(chart_id: str, instrument_name: str, local_date_str: str = None) -> dict:
+    """Check if we have a cached WOW hint for this chart+instrument from today.
+
+    Args:
+        local_date_str: The user's LOCAL date (YYYY-MM-DD) from their timezone.
+                        Falls back to UTC if not provided (legacy callers).
+    """
     try:
         from datetime import datetime
-        today_str = datetime.utcnow().strftime("%Y-%m-%d")
+        today_str = local_date_str or datetime.utcnow().strftime("%Y-%m-%d")
         result = supabase.table("charts").select("daily_wow_cache").eq("id", chart_id).single().execute()
         cache = result.data.get("daily_wow_cache") if result.data else None
         if cache and isinstance(cache, dict):
             if cache.get("date") == today_str and cache.get("instrument") == instrument_name:
-                print(f"[daily-week] WOW cache HIT for {chart_id} — {instrument_name}")
+                print(f"[daily-week] WOW cache HIT for {chart_id} — {instrument_name} (date={today_str})")
                 return cache
+            else:
+                _cached_date = cache.get("date", "?")
+                print(f"[daily-week] WOW cache MISS for {chart_id} — cached date={_cached_date} vs local today={today_str}")
     except Exception as e:
         print(f"[daily-week] WOW cache read failed (non-fatal): {e}")
     return {}
 
 
-def _save_wow_cache(chart_id: str, instrument_name: str, wow_data: dict):
-    """Save WOW hint to Supabase cache."""
+def _save_wow_cache(chart_id: str, instrument_name: str, wow_data: dict, local_date_str: str = None):
+    """Save WOW hint to Supabase cache.
+
+    Args:
+        local_date_str: The user's LOCAL date (YYYY-MM-DD). Used as cache key
+                        so the hint expires at midnight in the user's timezone,
+                        not UTC midnight.
+    """
     try:
         from datetime import datetime
         cache_payload = {
-            "date": datetime.utcnow().strftime("%Y-%m-%d"),
+            "date": local_date_str or datetime.utcnow().strftime("%Y-%m-%d"),
             "instrument": instrument_name,
             **wow_data
         }
         supabase.table("charts").update(
             {"daily_wow_cache": cache_payload}
         ).eq("id", chart_id).execute()
-        print(f"[daily-week] WOW cache SAVED for {chart_id}")
+        print(f"[daily-week] WOW cache SAVED for {chart_id} (date={cache_payload['date']})")
     except Exception as e:
         print(f"[daily-week] WOW cache save failed (non-fatal): {e}")
 
@@ -13698,7 +13712,7 @@ def _map_instrument_to_category(inst_name: str) -> str:
     return "opportunity"
 
 
-async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: str, weekday: str, language: str = "en", force_refresh: bool = False) -> dict:
+async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: str, weekday: str, language: str = "en", force_refresh: bool = False, local_date_str: str = None) -> dict:
     """
     Main WOW signal builder.
     1. Load executive summary
@@ -13793,7 +13807,7 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
 
         # Check cache first (skipped when force_refresh)
         if not force_refresh:
-            cached = _get_wow_cache(chart_id, inst_name)
+            cached = _get_wow_cache(chart_id, inst_name, local_date_str=local_date_str)
             if cached.get("hint"):
                 return {
                     "fires": True,
@@ -13842,8 +13856,8 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
             "cached": False,
         }
 
-        # Save to cache
-        _save_wow_cache(chart_id, inst_name, wow_result)
+        # Save to cache (keyed by user's local date, not UTC)
+        _save_wow_cache(chart_id, inst_name, wow_result, local_date_str=local_date_str)
 
         return wow_result
 
@@ -15166,9 +15180,11 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
         )
 
         # 5. Get WOW event signal for TODAY only
+        # Use start_date (user's local today) as cache key — NOT utcnow()
+        _local_today_str = start_date.strftime("%Y-%m-%d")
         today_nakshatra = signals[0].get("moon_nakshatra", "Unknown") if signals else "Unknown"
         today_weekday = signals[0].get("day", "Monday") if signals else "Monday"
-        wow_signal = await _get_wow_signal_for_chart(chart_id, chart_data, today_nakshatra, today_weekday, language=language, force_refresh=force_refresh)
+        wow_signal = await _get_wow_signal_for_chart(chart_id, chart_data, today_nakshatra, today_weekday, language=language, force_refresh=force_refresh, local_date_str=_local_today_str)
 
         # 6. Attach WOW to today only
         for i, day in enumerate(signals):
