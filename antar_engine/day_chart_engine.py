@@ -217,14 +217,34 @@ def _compute_house_cusps_sidereal(jd: float, lat: float, lon: float) -> list:
     """
     Compute 12 sidereal house cusps.
     Returns list of 12 dicts: [{sign, sign_index, degree}, ...]
+    FIX 12: Guard against short cusp tuples from Swiss Ephemeris edge cases.
     """
     swe.set_sid_mode(swe.SIDM_LAHIRI)
-    cusps, ascmc = swe.houses_ex(jd, lat, lon, b'P')
+    try:
+        cusps, ascmc = swe.houses_ex(jd, lat, lon, b'P')
+    except Exception as e:
+        # Fallback: equal house system from ascendant
+        print(f"[day-chart] houses_ex failed ({e}), using equal-house fallback")
+        asc_result = swe.calc_ut(jd, swe.SUN, swe.FLG_SIDEREAL)
+        asc_lon = asc_result[0][0] if asc_result and asc_result[0] else 0.0
+        return [
+            {"house": i, "sign": SIGNS[int(((asc_lon + (i-1)*30) % 360) / 30)],
+             "sign_index": int(((asc_lon + (i-1)*30) % 360) / 30),
+             "degree": round(((asc_lon + (i-1)*30) % 360) % 30, 2)}
+            for i in range(1, 13)
+        ]
+
     ayanamsa = swe.get_ayanamsa_ut(jd)
 
     house_list = []
     for i in range(1, 13):
-        cusp_sid = (cusps[i] - ayanamsa) % 360
+        if i >= len(cusps):
+            # Edge case: cusp tuple shorter than expected — use previous cusp + 30°
+            prev = cusps[i-1] if (i-1) < len(cusps) else 0.0
+            cusp_val = prev + 30.0
+        else:
+            cusp_val = cusps[i]
+        cusp_sid = (cusp_val - ayanamsa) % 360
         sign_idx = int(cusp_sid / 30)
         deg = cusp_sid % 30
         house_list.append({

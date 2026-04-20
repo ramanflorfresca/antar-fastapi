@@ -768,9 +768,12 @@ async def _call_claude_daily_signal(
         if dynamic_part:
             system_blocks.append({"type": "text", "text": dynamic_part})
 
+        # FIX 13: Bumped from 800 → 1500 to prevent JSON truncation
+        # (daily signal JSON has 10+ fields including arrays — 800 tokens caused
+        # "Unterminated string" parse errors in production logs)
         response = await client.messages.create(
             model="claude-sonnet-4-6",
-            max_tokens=800,
+            max_tokens=1500,
             temperature=0.3,
             system=system_blocks,
             messages=[{"role": "user", "content": user_prompt}],
