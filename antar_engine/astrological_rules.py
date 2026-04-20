@@ -653,6 +653,11 @@ def detect_concern(question: str) -> str:
     Returns one of: career, finance, marriage, love, divorce, health,
                     foreign, speculation, loss, wealth, spiritual, general
     Order matters — more specific matches before general ones.
+
+    BUSINESS-CONTEXT OVERRIDE: when business/finance keywords co-occur
+    with love/relationship keywords, skip the love block so the question
+    routes to loss/finance/career instead. Prevents "relationships" in
+    "money, energy, relationships drained" from triggering love.
     """
     q = question.lower()
 
@@ -671,19 +676,31 @@ def detect_concern(question: str) -> str:
     if any(w in q for w in divorce_words):
         return "divorce"
 
+    # ── Business-context check (computed once, used below) ────
+    _biz_words = ["business","venture","company","firm","startup","revenue",
+                  "capital","funding","investor","manufacturing","platform",
+                  "operations","supply chain","consulting","pivot","exit",
+                  "scale","overhead","profit","margin","burn rate",
+                  "customer","client","supplier","vendor","enterprise",
+                  "product","market","industry","sector","3-wheeler",
+                  "three-wheeler","ride","delivery"]
+    _has_biz = any(w in q for w in _biz_words)
+
     # ── Love / Romance ─────────────────────────────────────────
+    # OVERRIDE: skip if business keywords also present
     love_words = ["love","romance","romantic","crush","dating","date","relationship",
                   "boyfriend","girlfriend","partner","soulmate","when will i meet",
                   "when will i find love","find someone","marriage prospects",
                   "will i get married","arranged marriage","love marriage","ex ",
                   "ex-","heartbreak","fall in love","in love"]
-    if any(w in q for w in love_words):
+    if any(w in q for w in love_words) and not _has_biz:
         return "love"
 
     # ── Marriage (distinct from love — existing partnership) ──
+    # OVERRIDE: skip if business keywords also present
     marriage_words = ["marriage","married","wedding","husband","wife","spouse",
                       "my relationship","my marriage","my partner"]
-    if any(w in q for w in marriage_words):
+    if any(w in q for w in marriage_words) and not _has_biz:
         return "marriage"
 
     # ── Foreign / Travel ───────────────────────────────────────
@@ -696,7 +713,8 @@ def detect_concern(question: str) -> str:
 
     # ── Loss / Financial ruin ──────────────────────────────────
     loss_words = ["loss","losing money","lost money","financial loss","debt trap",
-                  "bankruptcy","ruined","drained","money gone","savings gone",
+                  "bankruptcy","ruined","drained","everything drained","money drained",
+                  "money gone","savings gone",
                   "why am i losing","why do i lose","bad luck with money",
                   "expenses","expenditure","spending too much","losing everything"]
     if any(w in q for w in loss_words):
@@ -747,6 +765,11 @@ def detect_concern(question: str) -> str:
                        "higher self","awakening","consciousness"]
     if any(w in q for w in spiritual_words):
         return "spiritual"
+
+    # ── Business fallback — if biz keywords present but nothing
+    #    more specific matched, route to finance ────────────────
+    if _has_biz:
+        return "finance"
 
     return "general"
 
