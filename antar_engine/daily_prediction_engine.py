@@ -847,6 +847,7 @@ async def generate_weekly_signals(
     supabase_client=None,
     language: str = "en",
     tz_offset: int = 0,
+    force_refresh: bool = False,
 ) -> list:
     """
     Generate 7-day daily signal array.
@@ -925,8 +926,18 @@ async def generate_weekly_signals(
         # ── LLM path ──
         llm_signal = None
         if use_llm:
-            # Check cache first
-            if supabase_client:
+            # FIX 14: force_refresh — delete stale cache + skip read
+            if force_refresh and supabase_client:
+                try:
+                    supabase_client.table("daily_signals_cache").delete().eq(
+                        "chart_id", chart_id
+                    ).eq("signal_date", date_str).eq("language", language).execute()
+                    logger.info(f"[daily-week] force_refresh: deleted cache for {chart_id}/{date_str}/{language}")
+                except Exception as _fr_e:
+                    logger.warning(f"[daily-week] force_refresh delete failed (non-fatal): {_fr_e}")
+
+            # Check cache first (skipped when force_refresh)
+            if supabase_client and not force_refresh:
                 llm_signal = await _get_cached_signal(chart_id, date_str, language, supabase_client)
                 if llm_signal:
                     logger.info(f"[daily-week] Cache HIT for {chart_id}/{date_str}/{language}")

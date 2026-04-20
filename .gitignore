@@ -47,3 +47,5 @@ b_*_v3.json
 billionaire_*.json
 extract.py
 billionaire.py
+.env.find_chartid
+.env.find_chartid

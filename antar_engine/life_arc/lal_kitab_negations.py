@@ -18,7 +18,7 @@ Three detection areas:
 Author: Antar Engine · April 2026
 """
 
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, Optional, Any, Tuple
 
 
 # ─── PLANET-CATEGORY MAPPING ────────────────────────────────────────────────
@@ -367,7 +367,91 @@ def detect_enemy_house_conditions(planets: dict, lagna_idx: int) -> List[dict]:
 
 # ─── MAIN FUNCTION ──────────────────────────────────────────────────────────
 
-def check_lal_kitab_negations(chart_data: dict) -> dict:
+def _detect_condition_dependent_negations(
+    planets: dict, lagna_idx: int, user_context: Optional[Dict] = None,
+    lal_kitab_data: Optional[Dict] = None
+) -> Tuple[List[dict], List[dict]]:
+    """
+    Lal Kitab condition-dependent yoga cancellations.
+    Without user_context, returns warnings only.
+    With user_context, returns confirmed negations.
+    """
+    negations = []
+    warnings = []
+
+    # ── Gurmukh yoga: Sun+Mercury+Jupiter in 10H → sleeps if first child is daughter ──
+    h10 = _planets_in_house(planets, lagna_idx, 10)
+    if all(p in h10 for p in ("Sun", "Mercury", "Jupiter")):
+        if user_context and user_context.get("first_child_gender") == "daughter":
+            negations.append({
+                "yoga": "Gurmukh (Sun+Mercury+Jupiter 10H)",
+                "condition": "first child is daughter",
+                "effect": "Yoga goes sleeping. Business losses likely despite appearance of Raj Yoga.",
+                "affected_categories": ["PLATFORM", "ADVISORY", "INSTITUTIONAL_AUTHORITY"],
+                "severity": "high",
+            })
+        else:
+            warnings.append({
+                "yoga": "Sun+Mercury+Jupiter in 10H",
+                "warning": (
+                    "This yoga is powerful BUT Lal Kitab warns it sleeps if first child "
+                    "is daughter. If daughter is first child, classical Raj Yoga does NOT "
+                    "deliver — business losses instead."
+                ),
+                "affected_categories": ["PLATFORM", "ADVISORY", "INSTITUTIONAL_AUTHORITY"],
+                "severity": "medium",
+            })
+
+    # ── Moon-4H + Saturn-10H: cancels if mother is unhappy ──
+    h4 = _planets_in_house(planets, lagna_idx, 4)
+    if "Moon" in h4 and "Saturn" in h10:
+        if user_context and user_context.get("mother_emotional_state") == "unhappy":
+            negations.append({
+                "yoga": "Moon-4H strength",
+                "condition": "mother is unhappy in chart-owner's life",
+                "effect": "Moon power cancels. Home/property/emotional-nurturing blessings reverse.",
+                "affected_categories": ["REAL_ESTATE", "SERVICE_MASSES_AUTOMATION"],
+                "severity": "high",
+            })
+        else:
+            warnings.append({
+                "yoga": "Moon in 4H + Saturn in 10H",
+                "warning": (
+                    "Lal Kitab: Moon-4H blessings reverse if mother is unhappy. "
+                    "Property and nurturing businesses affected."
+                ),
+                "affected_categories": ["REAL_ESTATE", "SERVICE_MASSES_AUTOMATION"],
+                "severity": "medium",
+            })
+
+    # ── Read pre-computed lal_kitab_data if available ──
+    lk_data = lal_kitab_data or {}
+    if isinstance(lk_data, dict):
+        for sp in lk_data.get("sleeping_planets", []):
+            if isinstance(sp, str):
+                affected = PLANET_CATEGORY_MAP.get(sp, [])
+                negations.append({
+                    "yoga": f"{sp} effects",
+                    "condition": "Lal Kitab sleeping state (from chart data)",
+                    "effect": f"{sp} is in sleeping (cursed/dormant) state per Lal Kitab. "
+                              f"Any yogas involving {sp} do not deliver classical results.",
+                    "affected_categories": affected,
+                    "severity": "high",
+                })
+
+        for debt in lk_data.get("rin_debts", []):
+            if isinstance(debt, str):
+                warnings.append({
+                    "yoga": "Lal Kitab Rin",
+                    "warning": f"Karmic debt: {debt}. Specific life areas may underperform until addressed.",
+                    "affected_categories": [],
+                    "severity": "medium",
+                })
+
+    return negations, warnings
+
+
+def check_lal_kitab_negations(chart_data: dict, user_context: Optional[Dict] = None) -> dict:
     """
     Run all Lal Kitab negation checks and return structured warnings.
 
@@ -377,20 +461,18 @@ def check_lal_kitab_negations(chart_data: dict) -> dict:
 
     Args:
         chart_data: Chart data dict with planets, lagna, etc.
+        user_context: Optional dict with first_child_gender, mother_emotional_state, etc.
 
     Returns:
         {
             "sleeping_planets": [...],
             "rin_debts": [...],
             "enemy_houses": [...],
+            "condition_negations": [...],
+            "condition_warnings": [...],
             "has_warnings": bool,
-            "categories_with_warnings": {
-                "PLATFORM": ["sleeping: Mercury", "rin: Pitru Rin"],
-                ...
-            },
-            "meta": {
-                "note": str,
-            }
+            "categories_with_warnings": {...},
+            "meta": {"note": str},
         }
     """
     planets = chart_data.get("planets", {})
@@ -399,6 +481,12 @@ def check_lal_kitab_negations(chart_data: dict) -> dict:
     sleeping = detect_sleeping_planets(planets, lagna_idx)
     rins = detect_rin_debts(planets, lagna_idx)
     enemies = detect_enemy_house_conditions(planets, lagna_idx)
+    lk_data = chart_data.get("lal_kitab_data", {})
+    if not isinstance(lk_data, dict):
+        lk_data = {}
+    cond_negations, cond_warnings = _detect_condition_dependent_negations(
+        planets, lagna_idx, user_context, lk_data
+    )
 
     # Aggregate warnings by category
     category_warnings: Dict[str, List[str]] = {}
@@ -418,12 +506,24 @@ def check_lal_kitab_negations(chart_data: dict) -> dict:
             category_warnings.setdefault(cat, [])
             category_warnings[cat].append(f"enemy: {enemy['planet']} in {enemy['sign']}")
 
-    has_warnings = bool(sleeping or rins or enemies)
+    for neg in cond_negations:
+        for cat in neg.get("affected_categories", []):
+            category_warnings.setdefault(cat, [])
+            category_warnings[cat].append(f"negation: {neg['yoga']} ({neg['condition']})")
+
+    for warn in cond_warnings:
+        for cat in warn.get("affected_categories", []):
+            category_warnings.setdefault(cat, [])
+            category_warnings[cat].append(f"conditional: {warn['yoga']}")
+
+    has_warnings = bool(sleeping or rins or enemies or cond_negations or cond_warnings)
 
     return {
         "sleeping_planets": sleeping,
         "rin_debts": rins,
         "enemy_houses": enemies,
+        "condition_negations": cond_negations,
+        "condition_warnings": cond_warnings,
         "has_warnings": has_warnings,
         "categories_with_warnings": category_warnings,
         "meta": {
@@ -433,7 +533,8 @@ def check_lal_kitab_negations(chart_data: dict) -> dict:
                 "are not score adjustments — they are conditional flags. A category "
                 "with a sleeping planet or rin debt warning may still score well "
                 "structurally, but activation depends on addressing the blocking "
-                "condition."
+                "condition. Condition-dependent negations require user context "
+                "(first_child_gender, mother_emotional_state, etc.) for full activation."
             ),
         },
     }

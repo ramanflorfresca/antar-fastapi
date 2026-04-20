@@ -13698,7 +13698,7 @@ def _map_instrument_to_category(inst_name: str) -> str:
     return "opportunity"
 
 
-async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: str, weekday: str, language: str = "en") -> dict:
+async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: str, weekday: str, language: str = "en", force_refresh: bool = False) -> dict:
     """
     Main WOW signal builder.
     1. Load executive summary
@@ -13781,19 +13781,30 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
 
         category, base_template = template_data
 
-        # Check cache first
-        cached = _get_wow_cache(chart_id, inst_name)
-        if cached.get("hint"):
-            return {
-                "fires": True,
-                "strength": cached.get("strength", strength),
-                "category": cached.get("category", category),
-                "instrument": inst_name,
-                "signal_score": sig_score,
-                "hint": cached["hint"],
-                "follow_up": "If something happens today in this area — ask Antar about it.",
-                "cached": True,
-            }
+        # FIX 14: force_refresh — clear WOW cache + skip read
+        if force_refresh:
+            try:
+                supabase.table("charts").update(
+                    {"daily_wow_cache": None}
+                ).eq("id", chart_id).execute()
+                print(f"[daily-week] force_refresh: cleared WOW cache for {chart_id}")
+            except Exception as _fr_e:
+                print(f"[daily-week] force_refresh WOW cache clear failed (non-fatal): {_fr_e}")
+
+        # Check cache first (skipped when force_refresh)
+        if not force_refresh:
+            cached = _get_wow_cache(chart_id, inst_name)
+            if cached.get("hint"):
+                return {
+                    "fires": True,
+                    "strength": cached.get("strength", strength),
+                    "category": cached.get("category", category),
+                    "instrument": inst_name,
+                    "signal_score": sig_score,
+                    "hint": cached["hint"],
+                    "follow_up": "If something happens today in this area — ask Antar about it.",
+                    "cached": True,
+                }
 
         # Extract user profile
         user_first_name = chart_data.get("first_name") or chart_data.get("name") or "you"
@@ -15083,7 +15094,7 @@ def _translate_daily_signals_es(signals):
 
 
 @app.get("/api/v1/daily-week/{chart_id}")
-async def get_daily_week(chart_id: str, tz_offset: float = None, language: str = "en"):
+async def get_daily_week(chart_id: str, tz_offset: float = None, language: str = "en", force_refresh: bool = False):
     """
     Returns 7-day daily signal array starting from TODAY in user's local timezone.
 
@@ -15140,7 +15151,7 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
             current_country.upper(), 0
         )
 
-        print(f"[daily-week] chart={chart_id} natal_moon={natal_moon_sign} country={current_country} tz={effective_offset:+d} start={start_date.date()}")
+        print(f"[daily-week] chart={chart_id} natal_moon={natal_moon_sign} country={current_country} tz={effective_offset:+d} start={start_date.date()} force_refresh={force_refresh}")
 
         # 4. Generate 7-day signals from local start date (v2 — LLM-backed)
         from antar_engine.daily_prediction_engine import generate_weekly_signals
@@ -15151,12 +15162,13 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
             supabase_client=supabase,
             language=language,
             tz_offset=effective_offset,
+            force_refresh=force_refresh,
         )
 
         # 5. Get WOW event signal for TODAY only
         today_nakshatra = signals[0].get("moon_nakshatra", "Unknown") if signals else "Unknown"
         today_weekday = signals[0].get("day", "Monday") if signals else "Monday"
-        wow_signal = await _get_wow_signal_for_chart(chart_id, chart_data, today_nakshatra, today_weekday, language=language)
+        wow_signal = await _get_wow_signal_for_chart(chart_id, chart_data, today_nakshatra, today_weekday, language=language, force_refresh=force_refresh)
 
         # 6. Attach WOW to today only
         for i, day in enumerate(signals):

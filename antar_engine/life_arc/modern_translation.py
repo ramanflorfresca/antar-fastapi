@@ -162,6 +162,12 @@ def _detect_kemadruma(planets, lagna_idx):
             return False  # flanking planet found — not Kemadruma
     return True
 
+def _detect_jupiter_exalted_cancer_h1(planets, lagna_idx):
+    """Jupiter exalted in Cancer in H1 (Hamsa Mahapurusha)."""
+    jup = planets.get("Jupiter", {})
+    return (jup.get("sign_index") == 3  # Cancer = exaltation
+            and _get_planet_house("Jupiter", planets, lagna_idx) == 1)
+
 def _detect_10h_stellium_sun_mer_jup(planets, lagna_idx):
     h10 = _planets_in_house(planets, lagna_idx, 10)
     return all(p in h10 for p in ("Sun", "Mercury", "Jupiter"))
@@ -179,6 +185,13 @@ RESCALING_RULES = [
             "Classical: respected-advisor career. Modern: professor/priest/mentor roles. "
             "Moderate income, low equity accumulation. NOT a founder-scale marker."
         ),
+        "exception_detect": lambda planets, lagna_idx: (
+            _get_planet_house("Rahu", planets, lagna_idx) == 11
+            or _get_planet_house("Jupiter", planets, lagna_idx) == 10
+            and _get_planet_house("Saturn", planets, lagna_idx) in (10, 11)
+        ),
+        "exception_modern": 2.0,
+        "exception_notes": "Upgraded: paired with Rahu-11H or Saturn in 10H/11H — wisdom-platform founder potential.",
     },
     {
         "key": "jupiter_2h",
@@ -239,6 +252,19 @@ RESCALING_RULES = [
         "notes": (
             "Jupiter in 12H = moksha wisdom. Modern: foreign-education wealth, "
             "spiritual-commerce, publishing-for-global-audience."
+        ),
+    },
+
+    {
+        "key": "jupiter_exalted_cancer_h1",
+        "detect": _detect_jupiter_exalted_cancer_h1,
+        "classical": 5.0,
+        "modern": 4.0,
+        "notes": (
+            "Hamsa Mahapurusha (Jupiter exalted Cancer H1). Modern: still strong — "
+            "dharmic wisdom-authority, institutional leadership, nurturing-platform "
+            "founders. Slight modern discount because Hamsa wisdom can resist "
+            "aggressive scaling."
         ),
     },
 
@@ -447,6 +473,15 @@ def compute_modern_corrections(chart_data: dict) -> dict:
         if rule["detect"](planets, lagna_idx):
             classical = rule["classical"]
             modern = rule["modern"]
+
+            # Check exception conditions (conditional upgrades)
+            exception_fn = rule.get("exception_detect")
+            if exception_fn and exception_fn(planets, lagna_idx):
+                modern = rule.get("exception_modern", modern)
+                notes = rule.get("exception_notes", rule["notes"])
+            else:
+                notes = rule["notes"]
+
             adjustment = modern - classical
 
             corrections.append({
@@ -454,7 +489,7 @@ def compute_modern_corrections(chart_data: dict) -> dict:
                 "classical_score": classical,
                 "modern_score": modern,
                 "adjustment": round(adjustment, 1),
-                "notes": rule["notes"],
+                "notes": notes,
             })
 
             total_classical += classical
