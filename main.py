@@ -5282,11 +5282,12 @@ VOCABULARY RULES:
             _format_rules = (
                 "RESPONSE FORMAT — SHORT ANSWER MODE:\n"
                 "The user asked a short, direct question. Match their energy. Be concise.\n"
-                "✦ VERDICT: [YES/NO or one direct sentence].\n"
-                "WHY: 2-3 sentences max. No elaboration beyond what's needed.\n"
-                "DO THIS: One action, one sentence.\n"
+                "Structure: ONE paragraph only. No sections, no headers, no line breaks.\n"
+                "Start with ✦ VERDICT: YES/NO + one sentence why.\n"
+                "Then 2-3 more sentences of reasoning. End with one action sentence.\n"
+                "That's it. ONE paragraph, 4-6 sentences total.\n"
                 "\n"
-                "HARD LIMIT: 80 words. Stop writing at 80 words. Count them.\n"
+                "HARD LIMIT: 120 words. Do not exceed 120 words.\n"
                 "Do NOT add sections like YOUR MOVE, TIMING, ACTIVATE, PAUSE, or ARCHETYPE.\n"
                 "Do NOT use bold formatting or numbered lists.\n"
                 "Do NOT repeat or rephrase the verdict.\n"
@@ -5648,7 +5649,7 @@ State a specific year. Never predict past events as future windows.
         # === END KV CACHE FIX ===
 
         # FIX 10: Set max_tokens ceiling based on question weight
-        _weight_token_map = {"short": 350, "medium": 600, "complex": 1200}
+        _weight_token_map = {"short": 500, "medium": 700, "complex": 1200}
         _max_tok = _weight_token_map.get(_question_weight, 1200)
         print(f"[predict] FIX 10: weight={_question_weight}, max_tokens={_max_tok}")
 
