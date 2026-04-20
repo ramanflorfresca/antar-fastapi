@@ -4546,6 +4546,114 @@ Do not use any planet names or astrological jargon — translate everything into
             _cw = _bf_result.get("critical_warnings", [])
             _cw_lines = [f"- {w}" for w in _cw] if _cw else []
 
+            # ── FIX 11: Business-type validation ──────────────────────
+            # Extract business type from question, map to category, check fit
+            _BUSINESS_TYPE_MAP = {
+                # PHYSICAL_OPS
+                "ride hailing": "PHYSICAL_OPS", "ride-hailing": "PHYSICAL_OPS",
+                "delivery": "PHYSICAL_OPS", "logistics": "PHYSICAL_OPS",
+                "manufacturing": "PHYSICAL_OPS", "restaurant": "PHYSICAL_OPS",
+                "food": "PHYSICAL_OPS", "hotel": "PHYSICAL_OPS",
+                "hospitality": "PHYSICAL_OPS", "retail": "PHYSICAL_OPS",
+                "construction": "PHYSICAL_OPS", "warehouse": "PHYSICAL_OPS",
+                "fleet": "PHYSICAL_OPS", "transport": "PHYSICAL_OPS",
+                "cab": "PHYSICAL_OPS", "taxi": "PHYSICAL_OPS",
+                "3-wheeler": "PHYSICAL_OPS", "three-wheeler": "PHYSICAL_OPS",
+                "ev": "PHYSICAL_OPS", "electric vehicle": "PHYSICAL_OPS",
+                # PLATFORM
+                "saas": "PLATFORM", "software": "PLATFORM", "app": "PLATFORM",
+                "ai": "PLATFORM", "tech": "PLATFORM", "platform": "PLATFORM",
+                "edtech": "PLATFORM", "fintech": "PLATFORM", "healthtech": "PLATFORM",
+                "marketplace": "PLATFORM", "ecommerce": "PLATFORM",
+                "e-commerce": "PLATFORM", "data": "PLATFORM", "cloud": "PLATFORM",
+                # ADVISORY
+                "consulting": "ADVISORY", "advisory": "ADVISORY",
+                "coaching": "ADVISORY", "legal": "ADVISORY", "law firm": "ADVISORY",
+                "accounting": "ADVISORY", "financial planning": "ADVISORY",
+                "teaching": "ADVISORY", "training": "ADVISORY", "mentoring": "ADVISORY",
+                # REAL_ESTATE
+                "real estate": "REAL_ESTATE", "property": "REAL_ESTATE",
+                "land": "REAL_ESTATE", "reit": "REAL_ESTATE",
+                # BROKERING
+                "brokerage": "BROKERING", "broker": "BROKERING",
+                "dealmaking": "BROKERING", "deal-making": "BROKERING",
+                "sales": "BROKERING", "agency": "BROKERING",
+                # CREATIVE
+                "music": "CREATIVE", "film": "CREATIVE", "design": "CREATIVE",
+                "content": "CREATIVE", "media": "CREATIVE", "brand": "CREATIVE",
+                "entertainment": "CREATIVE", "art": "CREATIVE", "writing": "CREATIVE",
+                # SPECULATION
+                "trading": "SPECULATION", "crypto": "SPECULATION",
+                "investing": "SPECULATION", "hedge fund": "SPECULATION",
+                "stock": "SPECULATION", "forex": "SPECULATION",
+                # SERVICE_MASSES_AUTOMATION
+                "healthcare": "SERVICE_MASSES_AUTOMATION",
+                "outsourcing": "SERVICE_MASSES_AUTOMATION",
+                "franchise": "SERVICE_MASSES_AUTOMATION",
+                "staffing": "SERVICE_MASSES_AUTOMATION",
+                "labor": "SERVICE_MASSES_AUTOMATION",
+                "cleaning": "SERVICE_MASSES_AUTOMATION",
+                # INSTITUTIONAL_AUTHORITY
+                "institution": "INSTITUTIONAL_AUTHORITY",
+                "government": "INSTITUTIONAL_AUTHORITY",
+                "ngo": "INSTITUTIONAL_AUTHORITY", "foundation": "INSTITUTIONAL_AUTHORITY",
+            }
+
+            _q_lower = request.question.lower()
+            _detected_biz_type = None
+            _detected_category = None
+            for _biz_kw, _biz_cat in _BUSINESS_TYPE_MAP.items():
+                if _biz_kw in _q_lower:
+                    _detected_biz_type = _biz_kw
+                    _detected_category = _biz_cat
+                    break  # first match wins (longest keywords listed first)
+
+            _biz_fit_alert = ""
+            if _detected_category:
+                # Find this category in favored/disfavored/neutral
+                _all_cats = (
+                    _bf_result.get("favored_categories", [])
+                    + _bf_result.get("disfavored_categories", [])
+                    + _bf_result.get("neutral_categories", [])
+                )
+                _matched_cat = next(
+                    (c for c in _all_cats if c.get("category") == _detected_category), None
+                )
+                if _matched_cat:
+                    _cat_score = _matched_cat.get("score", 0)
+                    _cat_warnings = _matched_cat.get("warnings", [])
+                    _cat_reasoning = _matched_cat.get("reasoning", [])[:3]
+
+                    if _cat_score <= -1.0:
+                        _biz_fit_alert = (
+                            f"\n⚠️ BUSINESS-FIT ALERT: User mentioned '{_detected_biz_type}' "
+                            f"which maps to {_detected_category} (score: {_cat_score:.1f} — DISFAVORED). "
+                            f"Reasons: {'; '.join(_cat_reasoning[:2])}. "
+                            f"{'Warnings: ' + '; '.join(_cat_warnings[:2]) if _cat_warnings else ''}\n"
+                            "INSTRUCTION: Before answering the user's timing/funding question, "
+                            "proactively flag that this business type has structural misalignment "
+                            "with their chart. Suggest what category IS favored instead. "
+                            "Be direct but not discouraging — frame as 'your chart suggests a "
+                            "different vehicle would compound faster'.\n"
+                        )
+                    elif _cat_score < 3.0:
+                        _biz_fit_alert = (
+                            f"\n📊 BUSINESS-FIT NOTE: User mentioned '{_detected_biz_type}' "
+                            f"which maps to {_detected_category} (score: {_cat_score:.1f} — NEUTRAL). "
+                            "This is neither strongly favored nor blocked. "
+                            "Mention this neutrality briefly when answering.\n"
+                        )
+                    else:
+                        _biz_fit_alert = (
+                            f"\n✅ BUSINESS-FIT MATCH: User mentioned '{_detected_biz_type}' "
+                            f"which maps to {_detected_category} (score: {_cat_score:.1f} — FAVORED). "
+                            "This aligns with their chart architecture. "
+                            "Reinforce this alignment briefly when answering.\n"
+                        )
+                    print(f"[predict] FIX 11: biz='{_detected_biz_type}' → "
+                          f"{_detected_category} score={_cat_score:.1f}")
+            # ── end FIX 11 ────────────────────────────────────────────
+
             # Assemble Phase 2 context block
             _p2_parts = ["\n## BUSINESS-FIT SIGNATURE (Phase 2)"]
             if _arch_name:
@@ -4558,6 +4666,8 @@ Do not use any planet names or astrological jargon — translate everything into
                 _p2_parts.append("Actionable Findings:\n" + "\n".join(_act_lines))
             if _cw_lines:
                 _p2_parts.append("Critical Warnings:\n" + "\n".join(_cw_lines))
+            if _biz_fit_alert:
+                _p2_parts.append(_biz_fit_alert)
 
             _phase2_context = "\n".join(_p2_parts)
             _full_context = _full_context + "\n" + _phase2_context
