@@ -4414,6 +4414,22 @@ Do not use any planet names or astrological jargon — translate everything into
         _gender_v  = _chart_rec.data[0].get("gender", "") if _chart_rec.data else ""
         _name_v    = _chart_rec.data[0].get("name", "") if _chart_rec.data else ""
         _fname     = _name_v.split()[0] if _name_v else ""
+
+        # ── FIX 2.1: Classify archetype BEFORE context build ──────────
+        # So build_complete_context() can include it in the cacheable block.
+        try:
+            from antar_engine.life_arc.archetype_classifier import classify_wealth_archetype
+            _early_arch = classify_wealth_archetype(_cd)
+            _cd['phase2_archetype'] = _early_arch
+            chart_data['phase2_archetype'] = _early_arch
+            print(f"[predict] Early archetype: {_early_arch.get('primary_archetype','?')} "
+                  f"(score={_early_arch.get('primary_score',0):.1f})")
+        except Exception as _ea_err:
+            print(f"[predict] Early archetype failed (non-fatal): {_ea_err}")
+            _cd['phase2_archetype'] = None
+            chart_data['phase2_archetype'] = None
+        # ── END FIX 2.1 ──────────────────────────────────────────────
+
         _full_context = build_complete_context(
             chart_data=chart_data,
             dashas={"vimsottari": dashas_response} if isinstance(dashas_response, list) else (dashas_response if isinstance(dashas_response, dict) else {"vimsottari": []}),

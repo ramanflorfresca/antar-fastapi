@@ -692,6 +692,32 @@ WEALTH ANALYSIS CONTEXT:
         'Example: \"Note: Jaimini layer unavailable — timing precision is reduced.\"'
     )
 
+    # ── FIX 2.1: Phase 2 archetype variables for context block ──
+    _p2_arch = chart_data.get('phase2_archetype') or {}
+    if isinstance(_p2_arch, dict) and _p2_arch.get('primary_archetype'):
+        _arch_primary_line = f"PRIMARY: {_p2_arch['primary_archetype']} (score {_p2_arch.get('primary_score', 0):.1f})"
+        _arch_label = _p2_arch.get('primary_label', '')
+        _arch_desc = _p2_arch.get('primary_description', '')
+        _arch_secondary = _p2_arch.get('secondary_archetype')
+        _arch_secondary_line = f"SECONDARY: {_arch_secondary} (score {_p2_arch.get('secondary_score', 0):.1f})" if _arch_secondary else ""
+        _arch_reasons = _p2_arch.get('primary_reasons', [])
+        _arch_evidence_block = "EVIDENCE:\n" + "\n".join(f"  - {r}" for r in _arch_reasons[:5]) if _arch_reasons else ""
+        _arch_favored = ", ".join(_p2_arch.get('favored_vehicles', [])[:4])
+        _arch_disfavored = ", ".join(_p2_arch.get('disfavored_vehicles', [])[:3])
+        _arch_vehicles = ""
+        if _arch_favored:
+            _arch_vehicles += f"FAVORED VEHICLES: {_arch_favored}"
+        if _arch_disfavored:
+            _arch_vehicles += f"\nDISFAVORED VEHICLES: {_arch_disfavored}"
+    else:
+        _arch_primary_line = ""
+        _arch_label = ""
+        _arch_desc = ""
+        _arch_secondary_line = ""
+        _arch_evidence_block = ""
+        _arch_vehicles = ""
+    # ── END FIX 2.1 archetype prep ──
+
     context = f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║         COMPLETE ASTROLOGICAL CONTEXT — ANTAR ENGINE         ║
@@ -879,6 +905,19 @@ ANTI-HALLUCINATION INSTRUCTIONS
 8. Transit effects must reference the transit section above
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{f'''
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+CHART ARCHETYPE (Phase 2 Classification)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+{_arch_primary_line}
+{_arch_label}: {_arch_desc}
+{_arch_secondary_line}
+{_arch_evidence_block}
+{_arch_vehicles}
+
+INSTRUCTION: Line 0 of your response MUST name this archetype.
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+''' if _arch_primary_line else ''}
 
 ## LIVE DATA
 
