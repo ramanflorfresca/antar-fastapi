@@ -13670,7 +13670,7 @@ async def _get_wow_signal_for_chart_v2(
                 "mode": sig["mode"],
                 "action_phrase": sig["action_phrase"],
                 "hint": cached["hint"],
-                "follow_up": "If something happens today in this area — ask Antar about it.",
+                "follow_up": "Si algo sucede hoy en esta area, preguntale a Antar." if language == "es" else "If something happens today in this area — ask Antar about it.",
                 "cached": True,
             }
 
@@ -13712,7 +13712,7 @@ async def _get_wow_signal_for_chart_v2(
             "mode": sig["mode"],
             "action_phrase": sig["action_phrase"],
             "hint": hint,
-            "follow_up": "If something happens today in this area — ask Antar about it.",
+            "follow_up": "Si algo sucede hoy en esta area, preguntale a Antar." if language == "es" else "If something happens today in this area — ask Antar about it.",
             "cached": False,
         }
 
@@ -13845,7 +13845,7 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
                     "instrument": inst_name,
                     "signal_score": sig_score,
                     "hint": cached["hint"],
-                    "follow_up": "If something happens today in this area — ask Antar about it.",
+                    "follow_up": "Si algo sucede hoy en esta area, preguntale a Antar." if language == "es" else "If something happens today in this area — ask Antar about it.",
                     "cached": True,
                 }
 
@@ -13881,7 +13881,7 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
             "instrument": inst_name,
             "signal_score": sig_score,
             "hint": hint,
-            "follow_up": "If something happens today in this area — ask Antar about it.",
+            "follow_up": "Si algo sucede hoy en esta area, preguntale a Antar." if language == "es" else "If something happens today in this area — ask Antar about it.",
             "cached": False,
         }
 
