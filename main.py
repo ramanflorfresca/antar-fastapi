@@ -1335,11 +1335,13 @@ async def call_llm_claude(
     prompt: str,
     history: Optional[List[Dict[str, str]]] = None,
     system_override: str = "",
+    max_tokens_override: Optional[int] = None,
 ) -> tuple[str, Optional[int]]:
     """
     Calls Claude Sonnet for high-quality predictions.
     Used for: plain English summaries, career/wealth predictions, Prashna verdicts.
     Falls back to DeepSeek if Claude unavailable.
+    max_tokens_override: FIX 10 — pass a lower ceiling for short/medium questions.
     """
     if not _CLAUDE_AVAILABLE or not claude_client:
         return await call_llm(prompt, history, DEEPSEEK_FALLBACK_PROMPT)
@@ -1398,7 +1400,7 @@ async def call_llm_claude(
     try:
         response = await claude_client.messages.create(
             model="claude-sonnet-4-5",
-            max_tokens=1200,
+            max_tokens=max_tokens_override or 1200,
             temperature=0.35,
             system=_system_blocks,
             messages=messages,
@@ -5524,10 +5526,16 @@ State a specific year. Never predict past events as future windows.
 
         # === END KV CACHE FIX ===
 
+        # FIX 10: Set max_tokens ceiling based on question weight
+        _weight_token_map = {"short": 250, "medium": 450, "complex": 1200}
+        _max_tok = _weight_token_map.get(_question_weight, 1200)
+        print(f"[predict] FIX 10: weight={_question_weight}, max_tokens={_max_tok}")
+
         prediction_text, tokens_used = await call_llm_claude(
             prompt,
             history=request.conversation_history or [],
             system_override=_master_system,
+            max_tokens_override=_max_tok,
         )
 
 
