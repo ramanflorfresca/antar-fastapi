@@ -5157,43 +5157,35 @@ VOCABULARY RULES:
         # FIX 10: Response length calibration based on question weight
         if _question_weight == "short":
             _format_rules = (
-                "RESPONSE FORMAT — SHORT (user asked a direct question, give a direct answer):\n"
-                "Line 1: ✦ VERDICT: [YES/NO or ACTION VERB]. [Direct answer in 8 words or less].\n"
-                "2-3 sentences WHY — the key reasoning in energy-systems language (no jargon).\n"
-                "ONE action item: the single most important thing to do right now.\n"
-            )
-            if _show_archetype_line:
-                _format_rules += (
-                    "If relevant, add ONE sentence of archetype context. Do NOT repeat "
-                    "the verdict or re-explain it.\n"
-                )
-            _format_rules += (
-                "TOTAL: 60-120 words MAXIMUM. No markdown headers. No poetic language.\n"
-                "Do NOT use the full template. Do NOT add ACTIVATE/PAUSE/YOUR MOVE sections.\n"
-                "Never duplicate content — if VERDICT states the answer, do not re-explain it.\n"
+                "RESPONSE FORMAT — SHORT ANSWER MODE:\n"
+                "The user asked a short, direct question. Match their energy. Be concise.\n"
+                "✦ VERDICT: [YES/NO or one direct sentence].\n"
+                "WHY: 2-3 sentences max. No elaboration beyond what's needed.\n"
+                "DO THIS: One action, one sentence.\n"
+                "\n"
+                "HARD LIMIT: 80 words. Stop writing at 80 words. Count them.\n"
+                "Do NOT add sections like YOUR MOVE, TIMING, ACTIVATE, PAUSE, or ARCHETYPE.\n"
+                "Do NOT use bold formatting or numbered lists.\n"
+                "Do NOT repeat or rephrase the verdict.\n"
+                "Treat this like a text message from a trusted advisor, not an essay.\n"
             )
         elif _question_weight == "medium":
             _format_rules = (
-                "RESPONSE FORMAT — MEDIUM:\n"
-                "Line 1: ✦ VERDICT: [ACTION VERB]. [Direct call in 8 words or less] "
-                "— base this ONLY on chart signals (planets, yogas, dashas, D-10), NOT archetype.\n"
-                "Lines 2-3: 2-3 sentences WHY in energy-systems language (no astrology jargon).\n"
-                "YOUR MOVE — two actions max (1 sentence each): one now, one within 30 days.\n"
-                "TIMING: [exact window].\n"
+                "RESPONSE FORMAT — MEDIUM ANSWER MODE:\n"
+                "✦ VERDICT: [ACTION VERB]. [Direct call in 8 words or less].\n"
+                "WHY: 2-3 sentences in energy-systems language (no astrology jargon).\n"
+                "YOUR MOVE: Two actions max, one sentence each.\n"
+                "TIMING: One line with the exact window.\n"
             )
             if _show_archetype_line:
                 _format_rules += (
-                    "◈ ARCHETYPE CONTEXT: [NAME — one sentence relating pattern to verdict. "
-                    "Do NOT re-explain the verdict.]\n"
-                )
-            # Only add ACTIVATE/PAUSE if Phase 2 context AND question warrants it
-            if _phase2_context and concern in _wealth_domains:
-                _format_rules += (
-                    "⚡ ACTIVATE: [one practice in plain action terms].\n"
+                    "◈ ARCHETYPE: One sentence max. Do NOT re-explain the verdict.\n"
                 )
             _format_rules += (
-                "TOTAL: 150-250 words. No markdown headers. No poetic language.\n"
-                "Never duplicate content — one archetype mention maximum per response.\n"
+                "\nHARD LIMIT: 180 words. Stop at 180.\n"
+                "No bold formatting. No numbered sub-lists within actions.\n"
+                "Each YOUR MOVE action = exactly one sentence, no elaboration.\n"
+                "Do NOT add ACTIVATE or PAUSE sections.\n"
             )
         else:
             # Complex — full template
