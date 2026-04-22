@@ -19,6 +19,9 @@ import re
 from datetime import datetime, timezone
 from typing import Optional
 
+# [output-strips] migrate annual_planning
+from antar_engine.output_strips import apply_user_facing_strips
+
 logger = logging.getLogger(__name__)
 
 ANNUAL_TABLE = "annual_plans"
@@ -119,6 +122,76 @@ async def generate_annual_plan(
         yt = result["year_theme"]
         if not yt.startswith(first_name):
             result["year_theme"] = f"{first_name}: {yt}"  
+
+    # [output-strips] strip annual_plan
+    # Route every user-facing narrative field through the central
+    # output-strip layer BEFORE cache upsert so cached rows stay
+    # clean.  Hard-coded 'en' — matches current prompt behavior.
+    #
+    # Plain fields (full strip):
+    #   year_theme, year_summary, year_mantra,
+    #   peak_windows[<domain>].signal,
+    #   build_this_year[], protect_this_year[], release_this_year[],
+    #   yearly_remedies[].practice,
+    #   critical_dates[].event
+    # Skipped (ints / enums / dates / proper nouns / metadata):
+    #   year, year_quality,
+    #   peak_windows[<domain>].months,
+    #   yearly_remedies[].planet,
+    #   critical_dates[].date,
+    #   chart_id, year_key
+    _lang = 'en'
+
+    # Scalar plain fields
+    for _f in ('year_theme', 'year_summary', 'year_mantra'):
+        _v = result.get(_f)
+        if isinstance(_v, str) and _v:
+            result[_f] = apply_user_facing_strips(
+                _v, language=_lang, field_type='plain'
+            )
+
+    # peak_windows[<domain>].signal — plain per domain
+    _pw = result.get('peak_windows')
+    if isinstance(_pw, dict):
+        for _domain, _win in list(_pw.items()):
+            if isinstance(_win, dict):
+                _sig = _win.get('signal')
+                if isinstance(_sig, str) and _sig:
+                    _win['signal'] = apply_user_facing_strips(
+                        _sig, language=_lang, field_type='plain'
+                    )
+
+    # build / protect / release string arrays — each item is plain
+    for _arr_key in ('build_this_year', 'protect_this_year', 'release_this_year'):
+        _arr = result.get(_arr_key)
+        if isinstance(_arr, list):
+            result[_arr_key] = [
+                apply_user_facing_strips(_x, language=_lang, field_type='plain')
+                if isinstance(_x, str) and _x else _x
+                for _x in _arr
+            ]
+
+    # yearly_remedies[].practice — planet field left untouched
+    _rems = result.get('yearly_remedies')
+    if isinstance(_rems, list):
+        for _r in _rems:
+            if isinstance(_r, dict):
+                _pr = _r.get('practice')
+                if isinstance(_pr, str) and _pr:
+                    _r['practice'] = apply_user_facing_strips(
+                        _pr, language=_lang, field_type='plain'
+                    )
+
+    # critical_dates[].event — date field left untouched
+    _crit = result.get('critical_dates')
+    if isinstance(_crit, list):
+        for _c in _crit:
+            if isinstance(_c, dict):
+                _ev = _c.get('event')
+                if isinstance(_ev, str) and _ev:
+                    _c['event'] = apply_user_facing_strips(
+                        _ev, language=_lang, field_type='plain'
+                    )
 
     # Save to cache
     try:
