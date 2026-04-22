@@ -16,13 +16,158 @@ Cached per chart per year. Available via GET /api/v1/annual-plan/{chart_id}
 import logging
 import json
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
+
+# [cp-day4b] transit events import
+from antar_engine.transit_events import compute_transit_events_in_range
 
 # [output-strips] migrate annual_planning
 from antar_engine.output_strips import apply_user_facing_strips
 
 logger = logging.getLogger(__name__)
+
+# [cp-day4b] annual transit helpers
+_HOUSE_TO_DOMAIN_ANNUAL = {
+    1:  'health',        2:  'wealth',          3:  'career',
+    4:  'home',          5:  'learning',        6:  'health',
+    7:  'relationships', 8:  'health',          9:  'spiritual',
+    10: 'career',        11: 'wealth',          12: 'foreign',
+}
+# Annual plan's canonical domains (schema-aligned)
+_ANNUAL_DOMAINS = (
+    'career', 'wealth', 'relationships', 'health', 'foreign', 'spiritual',
+)
+_EVENT_WEIGHT_ANNUAL = {
+    'aspect':          3,
+    'ingress':         2,
+    'retro_start':     2,
+    'retro_end':       2,
+    'nakshatra_shift': 1,
+}
+_MONTH_NAMES = (
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December',
+)
+
+def _format_month_run(months_sorted: list) -> str:
+    """
+    Compress a sorted list of month indices (1-12) into a human range.
+      [3,4,5,6,7]    → 'March–July'
+      [3,7]          → 'March, July'
+      [3,4,7,8]      → 'March–April, July–August'
+      [3]            → 'March'
+      []             → ''
+    """
+    if not months_sorted:
+        return ''
+    runs = []
+    start = months_sorted[0]
+    prev  = start
+    for m in months_sorted[1:]:
+        if m == prev + 1:
+            prev = m
+            continue
+        runs.append((start, prev))
+        start = m; prev = m
+    runs.append((start, prev))
+    parts = []
+    for s, e in runs:
+        if s == e:
+            parts.append(_MONTH_NAMES[s-1])
+        else:
+            parts.append(f'{_MONTH_NAMES[s-1]}–{_MONTH_NAMES[e-1]}')
+    return ', '.join(parts)
+
+def _aggregate_year_peak_windows(events: list) -> dict:
+    """
+    Returns {domain: {'months': 'March–July', 'active_months': [...],
+                       'score': N, 'event_count': N}} for every
+    canonical annual domain.  Domains with zero events still appear
+    with months='' so downstream JSON keys are always present.
+    """
+    tally: dict = {d: {'months_score': {}, 'score': 0, 'event_count': 0}
+                   for d in _ANNUAL_DOMAINS}
+    for ev in (events or []):
+        house = ev.get('natal_house')
+        etype = ev.get('event_type')
+        if not isinstance(house, int) or not 1 <= house <= 12:
+            continue
+        domain = _HOUSE_TO_DOMAIN_ANNUAL.get(house)
+        if domain not in tally:
+            continue
+        try:
+            mo = int(ev['date'].split('-')[1])
+        except Exception:
+            continue
+        weight = _EVENT_WEIGHT_ANNUAL.get(etype, 1)
+        slot = tally[domain]
+        slot['months_score'][mo] = slot['months_score'].get(mo, 0) + weight
+        slot['score']       += weight
+        slot['event_count'] += 1
+    out = {}
+    for domain, slot in tally.items():
+        active = sorted(slot['months_score'].keys())
+        out[domain] = {
+            'months':        _format_month_run(active),
+            'active_months': active,
+            'score':         slot['score'],
+            'event_count':   slot['event_count'],
+        }
+    return out
+
+def _compute_critical_dates(events: list, top_n: int = 4) -> list:
+    """
+    Pick the top N most-significant events of the year for the
+    critical_dates field.  Scoring:
+      ingress       : 3  (slow planet changes sign → major arc shift)
+      retro_start   : 3
+      retro_end     : 2
+      aspect        : 4 - orb  (tighter orb = higher)
+      nakshatra_shift: 0.5
+    Returns a list of dicts ready for JSON: {date: 'April 2026',
+    event_summary: str, raw_date: ISO, planet, type}.
+    """
+    scored = []
+    for ev in (events or []):
+        etype = ev.get('event_type')
+        if etype == 'ingress':
+            s = 3.0
+        elif etype == 'retro_start':
+            s = 3.0
+        elif etype == 'retro_end':
+            s = 2.0
+        elif etype == 'aspect':
+            orb = ev.get('orb') or 2.0
+            s = max(0.5, 4.0 - float(orb))
+        elif etype == 'nakshatra_shift':
+            s = 0.5
+        else:
+            s = 0.0
+        # De-prioritize inner-planet Moon events
+        if ev.get('planet') == 'Moon':
+            s *= 0.3
+        scored.append((s, ev))
+    scored.sort(key=lambda x: (-x[0], x[1].get('date','')))
+    top = [ev for s, ev in scored[:top_n]]
+    # Resort chronologically for user-facing output
+    top.sort(key=lambda e: e.get('date',''))
+    out = []
+    for ev in top:
+        iso = ev.get('date','')
+        try:
+            yr, mo = int(iso[:4]), int(iso[5:7])
+            pretty = f'{_MONTH_NAMES[mo-1]} {yr}'
+        except Exception:
+            pretty = iso
+        out.append({
+            'date':          pretty,
+            'event_summary': ev.get('detail',''),
+            'raw_date':      iso,
+            'planet':        ev.get('planet'),
+            'event_type':    ev.get('event_type'),
+        })
+    return out
 
 ANNUAL_TABLE = "annual_plans"
 
@@ -35,6 +180,17 @@ RULES:
 - ALWAYS start year_summary with the user's first name if provided e.g. "Ramandeep, this year..."
 - Plain English throughout. Zero jargon.
 - Specific timing windows: name months, not vague periods
+- [cp-day4b] peak_windows + critical_dates rule — if the user context
+  below contains COMPUTED JSON VALUES with 'peak_windows_months' and
+  'critical_dates_dates', the following JSON fields MUST be filled
+  verbatim from those computed values:
+    * peak_windows.<domain>.months  copies peak_windows_months[<domain>]
+    * critical_dates[i].date        copies critical_dates_dates[i]
+  Do not invent months outside the computed ranges.  Do not invent
+  critical dates not in the provided list.  The narrative fields
+  (peak_windows.<domain>.signal, critical_dates[i].event) can be
+  your own phrasing but must be grounded in the transit events
+  listed in the YEAR TRANSIT SUMMARY block.
 - Peak windows per domain: at least 4 domains covered
 - Be specific to the chart data — actual planetary periods and positions
 - ALWAYS address the user by first name in year_summary e.g. 'Ramandeep, this year...'
@@ -281,11 +437,74 @@ def _build_annual_context(
         lines.append("\nLAL KITAB ANNUAL CONTEXT:")
         lines.extend(lk_lines)
 
+    # [cp-day4b] annual transit context injection
+    # Compute 12 months of slow-planet transit events, aggregate by
+    # natal-house-based domain → months, and surface top critical dates.
+    try:
+        from datetime import date as _date
+        _y_start = _date(year, 1, 1)
+        _y_end   = _date(year, 12, 31)
+        _year_events = compute_transit_events_in_range(
+            chart_data, _y_start, _y_end, include_fast=False,
+        )
+        _peak   = _aggregate_year_peak_windows(_year_events)
+        _crit   = _compute_critical_dates(_year_events, top_n=4)
+        # Server log — use print so Railway's log-level filter won't hide it
+        _log_peaks = {d: _peak[d]["months"] for d in _peak}
+        _log_crits = [c["date"] for c in _crit]
+        print(
+            f'[annual-day4b] events={len(_year_events)} '
+            f'peak_months={_log_peaks} '
+            f'critical_dates={_log_crits}'
+        )
+
+        lines.append('')
+        lines.append('YEAR TRANSIT SUMMARY — per-domain activity (from Swiss Ephemeris):')
+        for _d in _ANNUAL_DOMAINS:
+            _entry = _peak.get(_d, {})
+            _months = _entry.get('months', '')
+            _score  = _entry.get('score', 0)
+            _count  = _entry.get('event_count', 0)
+            if _months:
+                lines.append(
+                    f'  {_d}: {_months} — {_count} events, score {_score}'
+                )
+            else:
+                lines.append(f'  {_d}: (no concentrated transit activity this year)')
+
+        lines.append('')
+        lines.append('TOP CRITICAL DATES THIS YEAR (slow-planet ingresses + tight aspects):')
+        for _c in _crit:
+            lines.append(
+                f'  {_c["date"]} — {_c.get("event_summary","")} '
+                f'(raw: {_c.get("raw_date")})'
+            )
+
+        # Machine-readable block Claude must copy verbatim
+        import json as _json_ann
+        _pw_map = {d: _peak[d]['months'] for d in _ANNUAL_DOMAINS}
+        _cd_list = [c['date'] for c in _crit]
+        lines.append('')
+        lines.append('COMPUTED JSON VALUES — peak_windows and critical_dates MUST use these:')
+        lines.append(f'  peak_windows_months:   {_json_ann.dumps(_pw_map)}')
+        lines.append(f'  critical_dates_dates:  {_json_ann.dumps(_cd_list)}')
+        lines.append(
+            '(Each peak_windows.<domain>.months MUST equal peak_windows_months[<domain>] '
+            'verbatim. Each critical_dates[i].date MUST equal critical_dates_dates[i] '
+            'verbatim. Narrative signal/event fields can be your own phrasing.)'
+        )
+    except Exception as _ann_err:
+        # Never block the annual plan on transit computation failure
+        logger.warning(f'[annual-day4b] transit context skipped: {_ann_err}')
+
     lines.append(
         f"\nGenerate a complete annual plan for {year}. "
         "Identify the year's dominant theme from the current dasha and transits. "
-        "Give specific monthly windows for each major life domain. "
-        "Identify 2-3 critical dates or transition points in the year. "
+        "[cp-day4b] peak_windows.<domain>.months MUST match peak_windows_months "
+        "from COMPUTED JSON VALUES above, verbatim.  critical_dates[i].date MUST "
+        "match critical_dates_dates[i] verbatim in the same order.  Do not invent "
+        "months or dates outside these lists.  Narrative fields (signal, event, "
+        "remedies) can be your own phrasing but must cite the YEAR TRANSIT SUMMARY. "
         "Give year-long remedies that are practical and maintainable."
     )
 
