@@ -723,6 +723,261 @@ def _strip_jargon(text: str) -> str:
     return text.strip()
 
 
+# ════════════════════════════════════════════════════════════════
+# /daily-week jargon defense — added by patch_daily_week_jargon.py
+# ════════════════════════════════════════════════════════════════
+# Vedic/Sanskrit term softeners.  NOT applied to el_movimiento
+# (that field keeps technical depth for the "why" expandable).
+# The substitutions below are ORDER-DEPENDENT — more specific
+# patterns come first so they win before fallback rules fire.
+
+_VEDIC_JARGON_SUBS_ES = [
+    # Named yoga types → plain language
+    (r'\byoga Gajakesari\b',      'alineación Luna–Júpiter favorable'),
+    (r'\byoga Shubha Kartari\b',  'alineación favorable de benéficos'),
+    (r'\byoga Ubhayachari\b',     'alineación bilateral favorable'),
+    (r'\bGajakesari\b',           'alineación Luna–Júpiter favorable'),
+    (r'\bShubha Kartari\b',       'alineación favorable de benéficos'),
+    (r'\bUbhayachari\b',          'alineación bilateral favorable'),
+    (r'\bLakshmi yoga\b',         'alineación de prosperidad'),
+    (r'\bChandra-Mangala\b',      'alineación Luna–Marte'),
+    (r'\bDhana yoga\b',           'alineación de abundancia'),
+    (r'\bHamsa yoga\b',           'alineación de sabiduría'),
+    (r'\bRuchaka yoga\b',         'alineación de autoridad'),
+
+    # Named tara types → plain language
+    (r'\btara Ati-Mitra\b',       'energía lunar muy favorable'),
+    (r'\btara Ati Mitra\b',       'energía lunar muy favorable'),
+    (r'\btara Mitra\b',           'energía lunar favorable'),
+    (r'\btara Sadhana\b',         'energía lunar de realización'),
+    (r'\btara Sampat\b',          'energía lunar de abundancia'),
+    (r'\btara Janma\b',           'energía lunar de introspección'),
+    (r'\btara Vipat\b',           'energía lunar cautelosa'),
+    (r'\btara Kshema\b',          'energía lunar protectora'),
+    (r'\btara Pratyari\b',        'energía lunar de resistencia'),
+    (r'\btara Vadha\b',           'energía lunar de obstáculo'),
+
+    # Generic "la tara" uses
+    (r'\bla tara favorable\b',    'la energía lunar favorable'),
+    (r'\bla tara desfavorable\b', 'la energía lunar desfavorable'),
+    (r'\bla tara activa\b',       'la energía lunar activa'),
+    (r'\btara\b',                 'energía lunar'),          # fallback last
+
+    # Named Panchang periods (plain fields only; windows[].text is NOT stripped for these)
+    (r'\bAbhijit Muhurta\b',      'ventana favorable del mediodía'),
+    (r'\bRahu Kalam\b',           'ventana de precaución'),
+    (r'\bGulika Kala\b',          'zona de interferencia'),
+    (r'\bYamagandam\b',           'zona desfavorable'),
+    (r'\bMuhurta\b',              'ventana'),
+    (r'\bKalam\b',                'período'),
+
+    # Dasha abbreviations and jargon
+    (r'\bMahadasha\b',            'período mayor'),
+    (r'\bAntardasha\b',           'subperíodo'),
+    (r'\bPratyantardasha\b',      'sub-subperíodo'),
+    (r'\bSookshma dasha\b',       'ciclo menor'),
+    (r'\b(\w+) MD \+ (\w+) AD\b', r'\1 en período mayor con \2 en subperíodo'),
+    (r'\b(\w+) MD\b',             r'\1, tu planeta del período mayor'),
+    (r'\b(\w+) AD\b',             r'\1 en subperíodo'),
+    (r'\b(\w+) PD\b',             r'\1 en sub-subperíodo'),
+    (r'\b(\w+) SD\b',             r'\1 en ciclo menor'),
+
+    # Sanskrit nouns
+    (r'\bnakshatra lunar\b',      'la energía lunar del día'),
+    (r'\bnakshatra\b',            'la energía lunar'),
+    (r'\bashtakavarga\b',         'puntaje planetario'),
+    (r'\bupagraha\b',             'influencia sutil'),
+
+    # Yoga as generic — scoped: only the Vedic sense, not modern/exercise yoga
+    (r'\bdos yogas muy auspiciosos\b',  'dos alineaciones muy favorables'),
+    (r'\btres yogas muy auspiciosos\b', 'tres alineaciones muy favorables'),
+    (r'\byogas muy auspiciosos\b',      'alineaciones muy favorables'),
+    (r'\byogas auspiciosos\b',          'alineaciones favorables'),
+    (r'\byogas activos\b',              'alineaciones activas'),
+    (r'\byogas\b',                      'alineaciones'),
+]
+
+_VEDIC_JARGON_SUBS_EN = [
+    # Named yogas
+    (r'\byoga Gajakesari\b',      'favorable Moon–Jupiter alignment'),
+    (r'\byoga Shubha Kartari\b',  'benefic protective alignment'),
+    (r'\byoga Ubhayachari\b',     'bilateral benefic alignment'),
+    (r'\bGajakesari\b',           'favorable Moon–Jupiter alignment'),
+    (r'\bShubha Kartari\b',       'benefic protective alignment'),
+    (r'\bUbhayachari\b',          'bilateral benefic alignment'),
+    (r'\bLakshmi yoga\b',         'prosperity alignment'),
+    (r'\bChandra-Mangala\b',      'Moon–Mars alignment'),
+    (r'\bDhana yoga\b',           'abundance alignment'),
+    (r'\bHamsa yoga\b',           'wisdom alignment'),
+    (r'\bRuchaka yoga\b',         'authority alignment'),
+
+    # Named taras
+    (r'\btara Ati-Mitra\b',       'very favorable lunar energy'),
+    (r'\btara Ati Mitra\b',       'very favorable lunar energy'),
+    (r'\btara Mitra\b',           'favorable lunar energy'),
+    (r'\btara Sadhana\b',         'lunar energy for completion'),
+    (r'\btara Sampat\b',          'abundant lunar energy'),
+    (r'\btara Janma\b',           'inward lunar energy'),
+    (r'\btara Vipat\b',           'cautious lunar energy'),
+    (r'\btara Kshema\b',          'protective lunar energy'),
+    (r'\btara Pratyari\b',        'resistant lunar energy'),
+    (r'\btara Vadha\b',           'obstructed lunar energy'),
+    (r'\bfavorable tara\b',       'favorable lunar energy'),
+    (r'\bunfavorable tara\b',     'unfavorable lunar energy'),
+    (r'\btara\b',                 'lunar energy'),           # fallback last
+
+    # Panchang periods
+    (r'\bAbhijit Muhurta\b',      'favorable midday window'),
+    (r'\bRahu Kalam\b',           'caution window'),
+    (r'\bGulika Kala\b',          'interference zone'),
+    (r'\bYamagandam\b',           'unfavorable zone'),
+    (r'\bMuhurta\b',              'window'),
+    (r'\bKalam\b',                'period'),
+
+    # Dasha jargon
+    (r'\bMahadasha\b',            'major period'),
+    (r'\bAntardasha\b',           'sub-period'),
+    (r'\bPratyantardasha\b',      'sub-sub-period'),
+    (r'\bSookshma dasha\b',       'minor cycle'),
+    (r'\b(\w+) MD \+ (\w+) AD\b', r'\1 major period with \2 sub-period'),
+    (r'\b(\w+) MD\b',             r'\1, your major-period planet'),
+    (r'\b(\w+) AD\b',             r'\1 sub-period'),
+    (r'\b(\w+) PD\b',             r'\1 sub-sub-period'),
+    (r'\b(\w+) SD\b',             r'\1 minor cycle'),
+
+    # Sanskrit nouns
+    (r'\bnakshatra lunar\b',      "the day's lunar energy"),
+    (r'\bnakshatra\b',            'lunar energy'),
+    (r'\bashtakavarga\b',         'planetary strength score'),
+    (r'\bupagraha\b',             'subtle influence'),
+
+    # Generic yogas
+    (r'\btwo highly auspicious yogas\b',   'two strongly favorable alignments'),
+    (r'\bthree highly auspicious yogas\b', 'three strongly favorable alignments'),
+    (r'\bhighly auspicious yogas\b',       'strongly favorable alignments'),
+    (r'\bauspicious yogas\b',              'favorable alignments'),
+    (r'\bactive yogas\b',                  'active alignments'),
+    (r'\byogas\b',                         'alignments'),
+]
+
+_SCORE_PATTERN = re.compile(r'\s*\((\d{1,2})/56\)\s*')
+
+
+# ────────────────────────────────────────────────────────────────
+# Instrument-name translations — ES (mirrors main.py _INSTRUMENT_TRANSLATIONS)
+# Applied inline anywhere the English phrase leaks into Spanish prose.
+# Case-insensitive, longer phrases first to avoid partial shadowing.
+# The EN map is intentionally empty — English output keeps these terms.
+# ────────────────────────────────────────────────────────────────
+_INSTRUMENT_SUBS_ES = [
+    # Two-word + qualifier phrases first
+    (r'\bReal Estate Radar\b',  'radar inmobiliario'),
+    (r'\bCapital Reserves\b',   'reservas de capital'),
+    (r'\bCapital Runway\b',     'pista de capital'),
+    (r'\bAction Capacity\b',    'capacidad de acción'),
+    (r'\bAction Drive\b',       'impulso de acción'),
+    (r'\bAlliance Sync\b',      'sincronización de alianzas'),
+    (r'\bAmbition Engine\b',    'motor de ambición'),
+    (r'\bAuthority Engine\b',   'motor de autoridad'),
+    (r'\bAuthority Signal\b',   'señal de autoridad'),
+    (r'\bConflict Shield\b',    'escudo de conflictos'),
+    (r'\bCreation Engine\b',    'motor creativo'),
+    (r'\bCreative Pulse\b',     'pulso creativo'),
+    (r'\bEmotional Radar\b',    'radar emocional'),
+    (r'\bExpansion Field\b',    'campo de expansión'),
+    (r'\bFoundation Shield\b',  'escudo de fundamentos'),
+    (r'\bFortune Vector\b',     'vector de fortuna'),
+    (r'\bGlobal Vector\b',      'vector global'),
+    (r'\bGrowth Amplifier\b',   'amplificador de crecimiento'),
+    (r'\bHealth Matrix\b',      'matriz de salud'),
+    (r'\bHungry Becoming\b',    'impulso de búsqueda'),
+    (r'\bIntuition Compass\b',  'brújula de intuición'),
+    (r'\bMagnetism Field\b',    'campo magnético'),
+    (r'\bPower Windows\b',      'ventanas de poder'),
+    (r'\bProcessing Speed\b',   'velocidad de procesamiento'),
+    (r'\bRelationship Channel\b','canal de relaciones'),
+    (r'\bResource Grid\b',      'red de recursos'),
+    (r'\bRevenue Pipeline\b',   'flujo de ingresos'),
+    (r'\bSignal Detected\b',    'señal detectada'),
+    (r'\bStructural Load\b',    'carga estructural'),
+    (r'\bStructure Field\b',    'campo de estructura'),
+    (r'\bSystem Vitals\b',      'señales vitales'),
+    (r'\bVelocity Engine\b',    'motor de velocidad'),
+    (r'\bWisdom Lens\b',        'lente de sabiduría'),
+    (r'\bCareer Signal\b',      'señal de carrera'),
+    (r'\bLove Signal\b',        'señal de relaciones'),
+    (r'\bWealth Signal\b',      'señal de abundancia'),
+    # Single-word fallbacks (scoped; don't catch everyday words)
+    (r'\bVitality\b',           'vitalidad'),
+]
+
+_INSTRUMENT_SUBS_EN = []  # English output keeps instrument names as-is
+
+
+def _strip_instrument_names(text: str, language: str = 'es') -> str:
+    """
+    Translate English instrument labels (Magnetism Field, Ambition Engine, …)
+    to plain-language equivalents when they leak into non-English output.
+    No-op for English.
+    """
+    if not text or not isinstance(text, str):
+        return text
+    if language == 'en':
+        return text
+    subs = _INSTRUMENT_SUBS_ES if language == 'es' else _INSTRUMENT_SUBS_EN
+    result = text
+    for pattern, replacement in subs:
+        result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+    # Strip any stray possessive pronouns left in English before the phrase
+    # (e.g. "your campo magnético" → "tu campo magnético")
+    result = re.sub(r'\byour\s+(campo|motor|vector|señal|radar|pulso|flujo|red|ventanas|pista|impulso|brújula|velocidad|matriz|escudo|canal|sincronización|amplificador|lente|carga|reservas|capacidad|vitalidad)\b',
+                    r'tu \1', result, flags=re.IGNORECASE)
+    return result.strip()
+
+
+def _strip_vedic_jargon(text: str, language: str = 'es') -> str:
+    """
+    Replace Vedic/Sanskrit technical terms with plain-language equivalents.
+    Called on user-facing plain fields only — NOT on el_movimiento.
+    """
+    if not text or not isinstance(text, str):
+        return text
+
+    subs = _VEDIC_JARGON_SUBS_ES if language == 'es' else _VEDIC_JARGON_SUBS_EN
+
+    result = text
+    for pattern, replacement in subs:
+        result = re.sub(pattern, replacement, result, flags=re.IGNORECASE)
+
+    # Tidy up any double spaces / orphaned punctuation introduced by the subs
+    result = re.sub(r'  +', ' ', result)
+    result = re.sub(r' ,', ',', result)
+    result = re.sub(r' \.', '.', result)
+    return result.strip()
+
+
+def _strip_raw_scores(text: str) -> str:
+    """
+    Remove raw ashtakavarga-style score fractions like "(23/56)" from
+    user-facing plain fields.  Prose context already carries the verdict
+    (fuerte / moderada / baja) so the parenthetical score adds nothing
+    but jargon for the reader.  el_movimiento is NOT stripped.
+    """
+    if not text or not isinstance(text, str):
+        return text
+    # Drop every (X/56) fragment wholesale — score banding is already
+    # conveyed by the surrounding prose.
+    cleaned = _SCORE_PATTERN.sub(' ', text)
+    cleaned = re.sub(r'  +', ' ', cleaned)
+    cleaned = re.sub(r' ,', ',', cleaned)
+    cleaned = re.sub(r' \.', '.', cleaned)
+    return cleaned.strip()
+
+# ════════════════════════════════════════════════════════════════
+# End /daily-week jargon defense
+# ════════════════════════════════════════════════════════════════
+
+
 def _starts_with_verb(text: str) -> bool:
     """Heuristic: action items should start with a capital verb."""
     common_verbs = [

@@ -16,6 +16,14 @@ import logging
 import json
 import os
 
+# [jargon-defense] import stripers
+from antar_engine.plain_english import (
+    _strip_jargon,
+    _strip_vedic_jargon,
+    _strip_raw_scores,
+    _strip_instrument_names,
+)
+
 logger = logging.getLogger(__name__)
 
 # ──────────────────────────────────────────────
@@ -815,6 +823,74 @@ def _strip_day_names_from_signal(signal_json: dict, language: str) -> dict:
             signal_json[f] = cleaned or val
     return signal_json
 
+
+def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
+    """
+    Apply all post-generation jargon defenses to user-facing fields.
+    Called immediately after LLM returns signal_json, in parallel with
+    _strip_day_names_from_signal, before cache write.
+
+    Mirrors the defense pattern used on the /predict path in
+    plain_english.py, with four layers applied in a specific order:
+      1. _strip_instrument_names — EN instrument phrases → plain ES
+      2. _strip_vedic_jargon     — Sanskrit/Vedic technical terms
+      3. _strip_jargon           — planet-name → energy translations
+      4. _strip_raw_scores       — raw "X/56" ashtakavarga fractions
+
+    Order matters: Vedic compounds like "Abhijit Muhurta" and
+    "Rahu Kalam" must be translated BEFORE _strip_jargon runs,
+    otherwise _strip_jargon's BANNED_TERMS list (which contains
+    "muhurta") would strip the tail of the compound and leave a
+    dangling fragment.
+
+    IMPORTANT:
+      * el_movimiento is NOT stripped — that field is the "why"
+        expandable and keeps full technical depth for power users.
+      * windows[].text gets the instrument strip only.  Named
+        Panchang terms (Abhijit Muhurta, Rahu Kalam) stay intact
+        there because they appear with gloss and are user-searchable.
+    """
+    if not signal_json or not isinstance(signal_json, dict):
+        return signal_json
+
+    def _full_pipeline(s: str) -> str:
+        s = _strip_instrument_names(s, language)
+        s = _strip_vedic_jargon(s, language)
+        s = _strip_jargon(s)
+        s = _strip_raw_scores(s)
+        return s
+
+    # Scalar fields that receive the full treatment
+    _PLAIN_SCALAR_FIELDS = ('senal_de_hoy', 'observa_hoy_text', 'verdict_subline')
+    # List fields that receive the full treatment
+    _PLAIN_ARRAY_FIELDS  = ('haz_hoy', 'evita_hoy')
+
+    for f in _PLAIN_SCALAR_FIELDS:
+        val = signal_json.get(f)
+        if isinstance(val, str) and val:
+            signal_json[f] = _full_pipeline(val)
+
+    for f in _PLAIN_ARRAY_FIELDS:
+        arr = signal_json.get(f)
+        if isinstance(arr, list):
+            signal_json[f] = [
+                _full_pipeline(item) if isinstance(item, str) and item else item
+                for item in arr
+            ]
+
+    # el_movimiento intentionally left untouched — depth preserved.
+
+    # windows[].text — instrument strip only (Panchang terms remain)
+    windows = signal_json.get('windows') or []
+    if isinstance(windows, list):
+        for w in windows:
+            if isinstance(w, dict):
+                t = w.get('text')
+                if isinstance(t, str) and t:
+                    w['text'] = _strip_instrument_names(t, language)
+
+    return signal_json
+
 # ──────────────────────────────────────────────
 # NEW: LLM call for daily signal text
 # ──────────────────────────────────────────────
@@ -1219,6 +1295,7 @@ async def generate_weekly_signals(
                             else:
                                 # Strip what we can, accept with warnings
                                 retry_signal = _strip_day_names_from_signal(retry_signal, language)
+                                retry_signal = _strip_all_jargon_from_signal(retry_signal, language)
                                 retry_signal['_validation_warnings'] = {
                                     'day_names': retry_day, 'english_leaks': retry_eng
                                 }
@@ -1227,12 +1304,14 @@ async def generate_weekly_signals(
                         else:
                             # Retry failed entirely — strip first attempt
                             llm_signal = _strip_day_names_from_signal(llm_signal, language)
+                            llm_signal = _strip_all_jargon_from_signal(llm_signal, language)
                             llm_signal['_validation_warnings'] = {
                                 'day_names': day_violations, 'english_leaks': eng_leaks
                             }
                     else:
                         # First pass clean — still strip as safety net
                         llm_signal = _strip_day_names_from_signal(llm_signal, language)
+                        llm_signal = _strip_all_jargon_from_signal(llm_signal, language)
 
 
                 # Cache if successful
