@@ -873,7 +873,9 @@ def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
             if isinstance(w, dict):
                 t = w.get('text')
                 if isinstance(t, str) and t:
-                    w['text'] = _strip_instrument_names(t, language)
+                    w['text'] = apply_user_facing_strips(
+                        t, language=language, field_type='window'
+                    )
 
     return signal_json
 
