@@ -180,6 +180,34 @@ _VEDIC_SUBS_ES: list[tuple[str, str]] = [
     (r'\b(\w+) PD\b',             r'\1 en sub-subperíodo'),
     (r'\b(\w+) SD\b',             r'\1 en ciclo menor'),
     # Sanskrit nouns
+    # [polish] named nakshatras — added via patch_polish_content_tables.py
+    (r'\bPurva\s+Phalguni\b', 'la energía lunar'),
+    (r'\bUttara\s+Phalguni\b', 'la energía lunar'),
+    (r'\bPurva\s+Ashadha\b', 'la energía lunar'),
+    (r'\bUttara\s+Ashadha\b', 'la energía lunar'),
+    (r'\bPurva\s+Bhadrapada\b', 'la energía lunar'),
+    (r'\bUttara\s+Bhadrapada\b', 'la energía lunar'),
+    (r'\bAshwini\b', 'la energía lunar'),
+    (r'\bBharani\b', 'la energía lunar'),
+    (r'\bKrittika\b', 'la energía lunar'),
+    (r'\bRohini\b', 'la energía lunar'),
+    (r'\bMrigashira\b', 'la energía lunar'),
+    (r'\bArdra\b', 'la energía lunar'),
+    (r'\bPunarvasu\b', 'la energía lunar'),
+    (r'\bPushya\b', 'la energía lunar'),
+    (r'\bAshlesha\b', 'la energía lunar'),
+    (r'\bMagha\b', 'la energía lunar'),
+    (r'\bHasta\b', 'la energía lunar'),
+    (r'\bChitra\b', 'la energía lunar'),
+    (r'\bSwati\b', 'la energía lunar'),
+    (r'\bVishakha\b', 'la energía lunar'),
+    (r'\bAnuradha\b', 'la energía lunar'),
+    (r'\bJyeshtha\b', 'la energía lunar'),
+    (r'\bMula\b', 'la energía lunar'),
+    (r'\bShravana\b', 'la energía lunar'),
+    (r'\bDhanishta\b', 'la energía lunar'),
+    (r'\bShatabhisha\b', 'la energía lunar'),
+    (r'\bRevati\b', 'la energía lunar'),
     (r'\bnakshatra lunar\b',      'la energía lunar del día'),
     (r'\bnakshatra\b',            'la energía lunar'),
     (r'\bashtakavarga\b',         'puntaje planetario'),
@@ -233,6 +261,34 @@ _VEDIC_SUBS_EN: list[tuple[str, str]] = [
     (r'\b(\w+) AD\b',             r'\1 sub-period'),
     (r'\b(\w+) PD\b',             r'\1 sub-sub-period'),
     (r'\b(\w+) SD\b',             r'\1 minor cycle'),
+    # [polish] named nakshatras — added via patch_polish_content_tables.py
+    (r'\bPurva\s+Phalguni\b', 'lunar energy'),
+    (r'\bUttara\s+Phalguni\b', 'lunar energy'),
+    (r'\bPurva\s+Ashadha\b', 'lunar energy'),
+    (r'\bUttara\s+Ashadha\b', 'lunar energy'),
+    (r'\bPurva\s+Bhadrapada\b', 'lunar energy'),
+    (r'\bUttara\s+Bhadrapada\b', 'lunar energy'),
+    (r'\bAshwini\b', 'lunar energy'),
+    (r'\bBharani\b', 'lunar energy'),
+    (r'\bKrittika\b', 'lunar energy'),
+    (r'\bRohini\b', 'lunar energy'),
+    (r'\bMrigashira\b', 'lunar energy'),
+    (r'\bArdra\b', 'lunar energy'),
+    (r'\bPunarvasu\b', 'lunar energy'),
+    (r'\bPushya\b', 'lunar energy'),
+    (r'\bAshlesha\b', 'lunar energy'),
+    (r'\bMagha\b', 'lunar energy'),
+    (r'\bHasta\b', 'lunar energy'),
+    (r'\bChitra\b', 'lunar energy'),
+    (r'\bSwati\b', 'lunar energy'),
+    (r'\bVishakha\b', 'lunar energy'),
+    (r'\bAnuradha\b', 'lunar energy'),
+    (r'\bJyeshtha\b', 'lunar energy'),
+    (r'\bMula\b', 'lunar energy'),
+    (r'\bShravana\b', 'lunar energy'),
+    (r'\bDhanishta\b', 'lunar energy'),
+    (r'\bShatabhisha\b', 'lunar energy'),
+    (r'\bRevati\b', 'lunar energy'),
     (r'\bnakshatra lunar\b',      "the day's lunar energy"),
     (r'\bnakshatra\b',            'lunar energy'),
     (r'\bashtakavarga\b',         'planetary strength score'),
@@ -481,7 +537,30 @@ def _translate_instrument_name(name: str, language: str = 'es') -> str:
 # ════════════════════════════════════════════════════════════════
 
 def _tidy(text: str) -> str:
-    """Collapse double spaces and orphaned punctuation after substitutions."""
+    """Collapse double spaces, orphaned punctuation, and chain-translation
+    artifacts after substitutions.
+
+    Chain-translation artifacts happen when the Vedic sub translates a
+    compound (e.g. 'Rahu Kalam' → 'ventana de precaución') and the
+    surrounding sentence already carries a similar word.  Examples:
+      'tu Sol'     → 'tu tu energía de identidad'   (ES possessive dup)
+      'Saturn energy' → '…energy energy'            (EN noun dup)
+      'la ventana de Rahu Kalam' → 'la ventana de ventana de precaución'
+    Dedup rules are surgical — they only collapse the exact
+    stuttered phrase, not any legitimate repetition.
+    """
+    # [polish] dedup chain-translation artifacts
+    # Possessive stutter (Spanish)
+    text = re.sub(r'\btu\s+tu\b', 'tu', text, flags=re.IGNORECASE)
+    text = re.sub(r'\btus\s+tus\b', 'tus', text, flags=re.IGNORECASE)
+    # Noun stutter (English) — 'energy energy', 'cycle cycle', etc.
+    text = re.sub(r'\b(energy)\s+\1\b', r'\1', text, flags=re.IGNORECASE)
+    text = re.sub(r'\b(cycle|phase|window|alignment)\s+\1\b', r'\1', text, flags=re.IGNORECASE)
+    # Panchang-of-panchang stutter (Spanish)
+    text = re.sub(r'\bventana\s+de\s+ventana\b', 'ventana', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bla\s+la\b', 'la', text, flags=re.IGNORECASE)
+    text = re.sub(r'\bel\s+el\b', 'el', text, flags=re.IGNORECASE)
+    # Standard whitespace / punctuation normalization
     text = re.sub(r' {2,}', ' ', text)
     text = re.sub(r'\s+([,.;:])', r'\1', text)
     return text.strip()

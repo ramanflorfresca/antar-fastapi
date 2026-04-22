@@ -409,3 +409,58 @@ def test_day_names_qualified_spanish_collapses_to_hoy():
     assert 'sábado' not in out.lower()
     assert 'sabado' not in out.lower()
     assert 'hoy' in out.lower()
+
+
+# [polish] content-table regression tests
+# ═══════════════════════════════════════════════════════════════
+
+def test_named_nakshatra_pushya_stripped_es():
+    out = apply_user_facing_strips(
+        'Hoy la energía de Pushya te apoya', 'es', field_type='plain'
+    )
+    assert 'Pushya' not in out
+    assert 'pushya' not in out.lower()
+
+
+def test_named_nakshatra_revati_stripped_en():
+    out = apply_user_facing_strips(
+        'Strong under Revati today', 'en', field_type='plain'
+    )
+    assert 'Revati' not in out
+    assert 'lunar energy' in out.lower()
+
+
+def test_named_nakshatra_two_word_stripped():
+    """Uttara Phalguni — two-word names must match as a unit."""
+    out = apply_user_facing_strips(
+        'Bajo Uttara Phalguni el día pide calma', 'es', field_type='plain'
+    )
+    assert 'uttara phalguni' not in out.lower()
+    assert 'phalguni' not in out.lower()
+
+
+def test_tidy_collapses_spanish_possessive_stutter():
+    """'tu Sol' → 'tu tu energía de identidad' → fixed to 'tu energía…'."""
+    out = apply_user_facing_strips('bajo tu Sol natal', 'es', field_type='plain')
+    assert 'tu tu' not in out
+    assert 'tu energía de identidad' in out.lower()
+
+
+def test_tidy_collapses_english_energy_stutter():
+    out = apply_user_facing_strips('Saturn energy peaks today', 'en', field_type='plain')
+    assert 'energy energy' not in out
+
+
+def test_tidy_collapses_ventana_de_ventana():
+    """Rahu Kalam → 'ventana de precaución' adjacent to 'ventana de' prefix."""
+    out = apply_user_facing_strips(
+        'la ventana de Rahu Kalam se cierra', 'es', field_type='plain'
+    )
+    assert 'ventana de ventana' not in out
+
+
+def test_tidy_noop_on_clean_text():
+    """Guard: no change to legitimately clean text."""
+    clean = 'Hoy es un día fuerte para decisiones importantes.'
+    out = apply_user_facing_strips(clean, 'es', field_type='plain')
+    assert out == clean
