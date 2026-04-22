@@ -404,6 +404,67 @@ Return EXACTLY this JSON and nothing else — no markdown, no backticks, no prea
 {{"signal_1": {{"type": "mirror", "headline": "<12 words max>", "body": "..."}}, "signal_2": {{"type": "chapter", "headline": "<chapter name 3-5 words>", "body": "...", "timing": "<Month YYYY>"}}, "signal_3": {{"type": "signal", "headline": "<12 words max>", "body": "...", "domain": "{signal_domain}", "watch_for": "..."}}}}"""
 
 
+WELCOME_SYSTEM_PROMPT_ES = """Eres Antar — un guía de navegación de vida preciso y empático.
+
+Genera tres señales para {first_name}. Esta es su primera impresión de Antar.  Debe ser inolvidable.
+
+SOBRE ESTA PERSONA:
+- Edad: {current_age} años
+- Energía ascendente: {lagna_sign}
+- Procesamiento emocional: {moon_sign} ({moon_nakshatra})
+- Significador del alma: {ak_planet} ({ak_meaning})
+- Significador de carrera: {amk_planet}
+- ADN profesional: {career_dna}
+- Capítulo de vida actual (tiempo por signo): período {chapter_sign} ({chapter_years} años, termina {chapter_end})
+- Sub-capítulo actual: {sub_period_sign} (termina {sub_period_end})
+- Signos bajo influencia ahora mismo: {rashi_drishti_str}
+- Punto de imagen pública: {al_sign}
+- Punto de pareja: {ul_sign}
+- Efectos activos de vida: {ml_effects_str}
+- Activaciones por edad próximas: {umra_str}
+
+BLOQUES PARA CONSTRUIR EL CARÁCTER (úsalos para crear la Señal 1):
+Arquetipo ascendente: "{lagna_archetype}"
+Firma emocional: "{moon_modifier}"
+
+SEÑAL 1 — EL ESPEJO
+Una observación precisa sobre su carácter. Personal. Ligeramente incómoda por su precisión. Esta es sobre quién ES {first_name} — no sobre lo que ocurrirá.  Usa los bloques de arriba como materia prima pero reescríbelos con tu propia voz — NO los copies literalmente.  2-3 frases. Debe sentirse como algo que solo alguien que realmente la conoce diría.
+
+SEÑAL 2 — EL CAPÍTULO: Nombra el capítulo de vida exacto en el que está {first_name}.
+Su período {chapter_sign} gobierna la próxima fase. El sub-capítulo es {sub_period_sign}.
+Efectos activos en este período: {ml_effects_str}
+{signal_event_context}
+Nombra el capítulo en 3-5 palabras. Incluye lo que este período le está pidiendo y un evento o decisión específica que llega antes de una fecha nombrada.  La fecha DEBE ser futura (posterior a {today}).  3-4 frases.
+
+SEÑAL 3 — LA SEÑAL
+Una cosa específica que vigilar en los próximos 60-90 días.
+Dominio: {signal_domain}
+{signal_conditions_str}
+Nombra el dominio. Da un rango de fechas específico. Termina con una cosa concreta que vigilar o hacer.  2-3 frases.
+
+REGLAS ABSOLUTAS:
+1. {first_name} tiene {current_age} años.  NUNCA hagas referencia a eventos o temas de antes de los {floor_age} años.
+2. Cero términos en sánscrito. Cero jerga astrológica. Solo español claro.
+3. Cada señal tiene 2-4 frases. Sin relleno. Sin titubeo. Nada de "tu carta muestra".
+4. Declara los hechos directamente. No digas "astrológicamente hablando" ni "las estrellas sugieren".
+5. Todas las fechas en la Señal 2 y la Señal 3 DEBEN ser futuras (posteriores a {today}). Nunca referencies una fecha pasada.
+6. La Señal 2 DEBE incluir un campo `timing` con el formato "Mes YYYY" (en inglés como "December 2026" para compatibilidad con el parser).
+7. La Señal 3 DEBE incluir `domain` (uno de: career/relationship/financial/health/travel/legal) y `watch_for`.
+8. NO copies los bloques de construcción de carácter palabra por palabra. Úsalos como materia prima y reescríbelos.
+9. Todo el texto narrativo (headline, body, watch_for, timing chapter-name) va en ESPAÑOL.  Los valores de `domain` y `type` se mantienen en inglés (son identificadores internos). El valor de `timing` mantiene el mes en inglés para que el parser lo lea (ej. "December 2026").
+
+Devuelve EXACTAMENTE este JSON y nada más — sin markdown, sin backticks, sin preámbulo:
+{{"signal_1": {{"type": "mirror", "headline": "<máx 12 palabras>", "body": "..."}}, "signal_2": {{"type": "chapter", "headline": "<nombre del capítulo 3-5 palabras>", "body": "...", "timing": "<Month YYYY en inglés>"}}, "signal_3": {{"type": "signal", "headline": "<máx 12 palabras>", "body": "...", "domain": "{signal_domain}", "watch_for": "..."}}}}"""
+
+
+def _select_system_prompt_v2(language: Optional[str]) -> str:
+    """Pick the v2 system prompt template for the user's language. English fallback."""
+    code = (language or "en").lower()[:2]
+    if code == "es":
+        return WELCOME_SYSTEM_PROMPT_ES
+    return WELCOME_SYSTEM_PROMPT
+
+
 def build_system_prompt(ctx: Dict[str, Any]) -> str:
     """Interpolate the context into the system prompt."""
     # Format list fields
@@ -421,7 +482,9 @@ def build_system_prompt(ctx: Dict[str, Any]) -> str:
     if ctx.get("signal_event"):
         signal_event_context = f"Jaimini event signal: {ctx['signal_event']}"
 
-    return WELCOME_SYSTEM_PROMPT.format(
+    # [i18n] pick English/Spanish template based on ctx['language'] (threaded from generate_welcome_signal_v2)
+    _tpl = _select_system_prompt_v2(ctx.get("language"))
+    return _tpl.format(
         first_name=ctx.get("first_name", "this person"),
         current_age=ctx.get("current_age", 30),
         floor_age=ctx.get("floor_age", 16),
@@ -542,6 +605,7 @@ async def generate_welcome_signal_v2(
     chart_data: Dict[str, Any],
     birth_date: Optional[str] = None,
     anthropic_client=None,
+    language: Optional[str] = "en",
 ) -> Dict[str, Any]:
     """
     Generate the 3-signal welcome experience.
@@ -570,11 +634,15 @@ async def generate_welcome_signal_v2(
         birth_date = chart_data.get("birth_date", "")
     if not birth_date:
         logger.error(f"No birth_date for chart {chart_id}")
-        return _fallback_response(chart_id)
+        return _fallback_response(chart_id, language=language)
 
     try:
         # Build context with Jaimini + age intelligence
         ctx = build_welcome_context_v2(chart_data, birth_date)
+
+        # [i18n] thread user language into ctx so build_system_prompt picks the ES template
+        _lang_code = (language or "en").lower()[:2]
+        ctx["language"] = _lang_code
 
         # Build the system prompt
         system_prompt = build_system_prompt(ctx)
@@ -582,7 +650,7 @@ async def generate_welcome_signal_v2(
         # Call Claude Sonnet
         if anthropic_client is None:
             logger.error("No Anthropic client provided")
-            return _fallback_response(chart_id)
+            return _fallback_response(chart_id, language=_lang_code)
 
         response = await anthropic_client.messages.create(
             model="claude-sonnet-4-5-20250929",
@@ -601,7 +669,7 @@ async def generate_welcome_signal_v2(
         parsed = parse_welcome_response(raw_text)
         if not parsed:
             logger.error(f"Failed to parse welcome signal for {chart_id}")
-            return _fallback_response(chart_id)
+            return _fallback_response(chart_id, language=_lang_code)
 
         # Validate
         validated = validate_welcome_signals(parsed, ctx["current_age"])
@@ -609,9 +677,8 @@ async def generate_welcome_signal_v2(
         # [output-strips] strip welcome plain fields
         # Route every user-facing text field through the centralized
         # output-strip layer before returning to the /welcome endpoint.
-        # Hard-coded 'en' because the v2 prompt is English-only today;
-        # read chart_data['language'] here when /welcome goes multilingual.
-        _lang = 'en'
+        # Language is threaded from generate_welcome_signal_v2 → here.
+        _lang = _lang_code
         for _key in ('signal_1', 'signal_2', 'signal_3'):
             _sig = validated.get(_key)
             if isinstance(_sig, dict):
@@ -630,11 +697,41 @@ async def generate_welcome_signal_v2(
 
     except Exception as e:
         logger.error(f"Welcome signal generation failed for {chart_id}: {e}")
-        return _fallback_response(chart_id)
+        return _fallback_response(chart_id, language=language)
 
 
-def _fallback_response(chart_id: str) -> Dict[str, Any]:
-    """Safe fallback if generation fails. Generic but structurally correct."""
+def _fallback_response(chart_id: str, language: Optional[str] = "en") -> Dict[str, Any]:
+    """Safe fallback if generation fails. Generic but structurally correct.
+
+    Localized for en/es so Spanish users don't see English text if generation
+    fails before Claude returns (network errors, no client, JSON parse fail).
+    """
+    code = (language or "en").lower()[:2]
+    if code == "es":
+        return {
+            "signal_1": {
+                "type": "mirror",
+                "headline": "Tu patrón es precisión, no velocidad",
+                "body": "Procesas antes de responder. Esto no es vacilación — es exactitud. Las personas que importan han aprendido a esperar tu respuesta."
+            },
+            "signal_2": {
+                "type": "chapter",
+                "headline": "La Fase de Consolidación",
+                "body": "Estás en un período de afianzar lo que has construido. Los próximos 12 meses te piden fortalecer cimientos, no perseguir nuevos horizontes. Una decisión sobre tu camino actual llega pronto.",
+                "timing": "December 2026"
+            },
+            "signal_3": {
+                "type": "signal",
+                "headline": "Un reconocimiento llega antes de parecer ganado",
+                "body": "Una oportunidad o reconocimiento de alguien en una posición de autoridad llega en los próximos 60 días. Se sentirá prematuro. Actúa.",
+                "domain": "career",
+                "watch_for": "Una oferta o reconocimiento inesperado de una figura superior en los próximos 60 días."
+            },
+            "chart_id": chart_id,
+            "generated_at": datetime.now().isoformat(),
+            "_fallback": True,
+        }
+    # default: English
     return {
         "signal_1": {
             "type": "mirror",

@@ -11934,11 +11934,71 @@ async def get_welcome(chart_id: str):
                 "signal_3": None,
             }
 
+        # [i18n] thread chart's language_preference into v2 generation so
+        # Spanish users don't fall back to the English prompt on regeneration
+        _v2_lang = str(
+            chart_record.get("language_preference")
+            or (chart_data.get("language") if isinstance(chart_data, dict) else None)
+            or "en"
+        ).lower()[:2]
         result = await generate_welcome_signal_v2(
                 chart_data=chart_record,
                 birth_date=_bd,
                 anthropic_client=claude_client,
+                language=_v2_lang,
             )
+
+        # [welcome-cache] persist v2 result to welcome_signals so subsequent
+        # /welcome/{chart_id} hits serve from cache instead of re-calling Claude.
+        # Skip fallback results (generation didn't actually succeed).
+        try:
+            if result and not result.get("_fallback"):
+                import json as _json
+                from datetime import datetime as _dt, timezone as _tz
+                _s1 = result.get("signal_1", {}) or {}
+                _s2 = result.get("signal_2", {}) or {}
+                _s3 = result.get("signal_3", {}) or {}
+                _s2_type = _s2.get("type", "chapter")
+                # v2 emits signal_2.type == "chapter" with headline/body/timing.
+                # v1 emits signal_2.type == "proof" with events[]/thread.
+                # Schema supports both via _reconstruct_signal_2 in welcome_signal.py.
+                if _s2_type == "proof":
+                    _s2_headline_col = _s2.get("thread", "")
+                    _s2_body_col     = _json.dumps(_s2.get("events", []))
+                    _s2_timing_col   = ""
+                else:
+                    _s2_headline_col = _s2.get("headline", "")
+                    _s2_body_col     = _s2.get("body", "")
+                    _s2_timing_col   = _s2.get("timing", "")
+                _welcome_row = {
+                    "chart_id":           chart_id,
+                    "signal_1_type":      _s1.get("type", "mirror"),
+                    "signal_1_headline":  _s1.get("headline", ""),
+                    "signal_1_body":      _s1.get("body", ""),
+                    "signal_2_type":      _s2_type,
+                    "signal_2_headline":  _s2_headline_col,
+                    "signal_2_body":      _s2_body_col,
+                    "signal_2_timing":    _s2_timing_col,
+                    "signal_3_type":      _s3.get("type", "signal"),
+                    "signal_3_headline":  _s3.get("headline", ""),
+                    "signal_3_body":      _s3.get("body", ""),
+                    "signal_3_domain":    _s3.get("domain", ""),
+                    "signal_3_watch_for": _s3.get("watch_for", ""),
+                    # Legacy columns (kept for frontend backward compat)
+                    "headline":           _s1.get("headline", ""),
+                    "summary":            _s2.get("body", ""),
+                    "action":             _s3.get("watch_for", ""),
+                    "signal_type":        _s3.get("domain", "opportunity"),
+                    "chapter_name":       _s2.get("headline", ""),
+                    "created_at":         _dt.now(_tz.utc).isoformat(),
+                }
+                supabase.table("welcome_signals").insert(_welcome_row).execute()
+                print(f"[welcome] v2 cached for {chart_id[:8]} lang={_v2_lang}")
+        except Exception as _cache_err:
+            # Race condition (unique-violation on concurrent request) or
+            # transient Supabase error — swallow, we still have `result`.
+            print(f"[welcome] v2 cache write failed (non-fatal): {_cache_err}")
+
         return result
     except HTTPException:
         raise
