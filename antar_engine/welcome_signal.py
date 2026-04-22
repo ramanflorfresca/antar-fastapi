@@ -33,6 +33,9 @@ from antar_engine.age_utils import (
     format_timing_pill,
 )
 
+# [output-strips] migrate welcome_signal v1
+from antar_engine.output_strips import apply_user_facing_strips
+
 logger = logging.getLogger(__name__)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -838,6 +841,44 @@ async def _call_claude(context: str, claude_client) -> dict:
         s3_domain = result.get("signal_3", {}).get("domain", "")
         if s3_domain and s3_domain.lower() not in valid_domains:
             result["signal_3"]["domain"] = "career"  # Safe default
+
+        # [output-strips] strip welcome v1 plain fields
+        # Route every user-facing narrative field through the centralized
+        # output-strip layer.  v1 is English-only today — when /welcome goes
+        # multilingual, pass chart_data['language'] through to _call_claude()
+        # and use it here instead of the hard-coded 'en'.
+        _lang = 'en'
+
+        # signal_1 + signal_3: headline/body/watch_for
+        for _key in ('signal_1', 'signal_3'):
+            _sig = result.get(_key)
+            if isinstance(_sig, dict):
+                for _f in ('headline', 'body', 'watch_for'):
+                    _v = _sig.get(_f)
+                    if isinstance(_v, str) and _v:
+                        _sig[_f] = apply_user_facing_strips(
+                            _v, language=_lang, field_type='plain'
+                        )
+
+        # signal_2: thread + each events[].{chapter, question, meaning}
+        # (events[].period and events[].age are date strings — skip)
+        _s2 = result.get('signal_2')
+        if isinstance(_s2, dict):
+            _thread = _s2.get('thread')
+            if isinstance(_thread, str) and _thread:
+                _s2['thread'] = apply_user_facing_strips(
+                    _thread, language=_lang, field_type='plain'
+                )
+            _events = _s2.get('events')
+            if isinstance(_events, list):
+                for _ev in _events:
+                    if isinstance(_ev, dict):
+                        for _f in ('chapter', 'question', 'meaning'):
+                            _v = _ev.get(_f)
+                            if isinstance(_v, str) and _v:
+                                _ev[_f] = apply_user_facing_strips(
+                                    _v, language=_lang, field_type='plain'
+                                )
 
         return result
 
