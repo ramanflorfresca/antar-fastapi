@@ -28,6 +28,46 @@ from antar_engine.output_strips import apply_user_facing_strips
 logger = logging.getLogger(__name__)
 
 # [cp-day4b] annual transit helpers
+# [cp-day5] annual remedy helpers
+# [cp-day5] canonical remedy practice builder
+def _canonical_practice(planet: str) -> str:
+    """
+    Build a chart-agnostic canonical practice string from
+    remedies.PLANET_MANTRAS.  Returns '' for unknown planets.
+    """
+    try:
+        from antar_engine.remedies import PLANET_MANTRAS
+    except Exception:
+        return ''
+    m = PLANET_MANTRAS.get(planet) if isinstance(planet, str) else None
+    if not m:
+        return ''
+    mantra  = m.get('simple', '')
+    purpose = (m.get('purpose') or '').strip().rstrip('.').lower()
+    count   = m.get('count', 108)
+    day     = m.get('recommended_day', 'any day')
+    return f"{mantra} — for {purpose}. Chant {count} times on {day}."
+
+def _pick_yearly_remedy_planets(current_dasha: str | None) -> list[str]:
+    """
+    Canonical classical pattern: current dasha lord + Saturn + Jupiter.
+    De-dup if dasha lord is already Saturn/Jupiter; substitute Mars to
+    keep the list at 3.
+    """
+    # Accept dasha strings like 'Mars', 'Mars MD', 'Mars / Mercury'.
+    lord = ''
+    if isinstance(current_dasha, str) and current_dasha.strip():
+        lord = current_dasha.strip().split()[0].split('/')[0].strip()
+    picks = []
+    if lord and lord not in picks:
+        picks.append(lord)
+    for p in ('Saturn', 'Jupiter', 'Mars'):
+        if len(picks) >= 3:
+            break
+        if p not in picks:
+            picks.append(p)
+    return picks[:3]
+
 _HOUSE_TO_DOMAIN_ANNUAL = {
     1:  'health',        2:  'wealth',          3:  'career',
     4:  'home',          5:  'learning',        6:  'health',
@@ -57,10 +97,12 @@ def _format_month_run(months_sorted: list) -> str:
       [3,7]          → 'March, July'
       [3,4,7,8]      → 'March–April, July–August'
       [3]            → 'March'
-      []             → ''
+      []             → 'Throughout the year (steady focus)'
     """
+    # [cp-day5] empty months fallback — give Claude a literal string to
+    # copy rather than '' which it treats as a license to invent.
     if not months_sorted:
-        return ''
+        return 'Throughout the year (steady focus)'
     runs = []
     start = months_sorted[0]
     prev  = start
@@ -191,6 +233,13 @@ RULES:
   (peak_windows.<domain>.signal, critical_dates[i].event) can be
   your own phrasing but must be grounded in the transit events
   listed in the YEAR TRANSIT SUMMARY block.
+- [cp-day5] yearly_remedies rule — if the context contains a
+  'yearly_remedies_list' in COMPUTED JSON VALUES, the yearly_remedies
+  array in your response MUST be a character-for-character copy of
+  that list — same length, same planets in the same order, same
+  practice text verbatim.  Do not substitute planets.  Do not rewrite
+  practice text.  These values are canonical classical mantras —
+  paraphrasing them loses meaning.
 - Peak windows per domain: at least 4 domains covered
 - Be specific to the chart data — actual planetary periods and positions
 - ALWAYS address the user by first name in year_summary e.g. 'Ramandeep, this year...'
@@ -493,6 +542,22 @@ def _build_annual_context(
             'verbatim. Each critical_dates[i].date MUST equal critical_dates_dates[i] '
             'verbatim. Narrative signal/event fields can be your own phrasing.)'
         )
+
+        # [cp-day5] annual yearly_remedies injection
+        _remedy_planets = _pick_yearly_remedy_planets(current_dasha)
+        _remedy_list = [
+            {'planet': _p, 'practice': _canonical_practice(_p)}
+            for _p in _remedy_planets
+        ]
+        print(f'[annual-day5] yearly_remedies={_remedy_planets}')
+        lines.append('')
+        lines.append('CANONICAL YEARLY REMEDIES — from classical planetary mantras:')
+        for _r in _remedy_list:
+            lines.append(f'  {_r["planet"]}: {_r["practice"]}')
+        lines.append('')
+        lines.append('COMPUTED JSON VALUES — yearly_remedies array MUST be exactly this list:')
+        lines.append(f'  yearly_remedies_list: {_json_ann.dumps(_remedy_list)}')
+        lines.append('(Each entry {planet, practice} must be a character-for-character copy.)')
     except Exception as _ann_err:
         # Never block the annual plan on transit computation failure
         logger.warning(f'[annual-day4b] transit context skipped: {_ann_err}')

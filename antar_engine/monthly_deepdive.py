@@ -30,6 +30,51 @@ from antar_engine.transit_events import compute_transit_events_in_range, bucket_
 logger = logging.getLogger(__name__)
 
 # [cp-day4a] hot-domain aggregation helper
+# [cp-day6] monthly remedy helpers
+# [cp-day5] canonical remedy practice builder
+def _canonical_practice(planet: str) -> str:
+    """
+    Build a chart-agnostic canonical practice string from
+    remedies.PLANET_MANTRAS.  Returns '' for unknown planets.
+    """
+    try:
+        from antar_engine.remedies import PLANET_MANTRAS
+    except Exception:
+        return ''
+    m = PLANET_MANTRAS.get(planet) if isinstance(planet, str) else None
+    if not m:
+        return ''
+    mantra  = m.get('simple', '')
+    purpose = (m.get('purpose') or '').strip().rstrip('.').lower()
+    count   = m.get('count', 108)
+    day     = m.get('recommended_day', 'any day')
+    return f"{mantra} — for {purpose}. Chant {count} times on {day}."
+
+def _pick_monthly_remedy_planets(masik_weak: list, current_dasha: str | None,
+                                  top_n: int = 3) -> list[str]:
+    """
+    Prefer the month's weak planets (from Masik Phal) first.  Pad with
+    current_dasha lord then Saturn if short.
+    ``masik_weak`` is the 'weak_planets' list from calculate_masik_phal,
+    where each entry is a dict {planet: 'Sun', house: 6, ...}.
+    """
+    picks: list[str] = []
+    for entry in (masik_weak or []):
+        if len(picks) >= top_n:
+            break
+        name = entry.get('planet') if isinstance(entry, dict) else entry
+        if isinstance(name, str) and name and name not in picks:
+            picks.append(name)
+    # Pad with dasha lord if missing
+    if len(picks) < top_n and isinstance(current_dasha, str) and current_dasha.strip():
+        lord = current_dasha.strip().split()[0].split('/')[0].strip()
+        if lord and lord not in picks:
+            picks.append(lord)
+    # Final pad with Saturn (classical universal discipline remedy)
+    if len(picks) < top_n and 'Saturn' not in picks:
+        picks.append('Saturn')
+    return picks[:top_n]
+
 # Map each natal house to a user-facing domain the priority_actions
 # schema expects.  H3 (effort/initiative) folds into career so users
 # see actionable advice instead of abstract 'communication'.  H8
@@ -122,6 +167,12 @@ RULES:
   Write one specific, verb-first action per domain that references
   the concrete transit events listed in the WEEKLY TRANSIT SCHEDULE
   for that domain's houses.
+- [cp-day6] monthly remedies rule — if the context contains a
+  'monthly_remedies_list' in COMPUTED JSON VALUES, the remedies
+  array in your response MUST be a character-for-character copy of
+  that list — same length, same planets in the same order, same
+  practice text verbatim.  Do not substitute planets.  Do not
+  rewrite practice text.  These are canonical classical mantras.
 
 Return ONLY this JSON:
 {
@@ -338,6 +389,26 @@ def _build_deepdive_context(
             lines.append(f'  strong_planets: {_json_inner.dumps(_strong_names)}')
             lines.append(f'  weak_planets:   {_json_inner.dumps(_weak_names)}')
             lines.append('(Do not substitute. Do not reorder. Do not add or remove planets.)')
+
+            # [cp-day6] monthly remedies injection
+            _mon_remedy_planets = _pick_monthly_remedy_planets(
+                _masik_data.get('weak_planets', []),
+                current_dasha,
+                top_n=3,
+            )
+            _mon_remedy_list = [
+                {'planet': _p, 'practice': _canonical_practice(_p)}
+                for _p in _mon_remedy_planets
+            ]
+            print(f'[monthly-day6] remedies={_mon_remedy_planets}')
+            lines.append('')
+            lines.append('CANONICAL MONTHLY REMEDIES — from classical planetary mantras:')
+            for _r in _mon_remedy_list:
+                lines.append(f'  {_r["planet"]}: {_r["practice"]}')
+            lines.append('')
+            lines.append('COMPUTED JSON VALUES — remedies array MUST be exactly this list:')
+            lines.append(f'  monthly_remedies_list: {_json_inner.dumps(_mon_remedy_list)}')
+            lines.append('(Each entry {planet, practice} must be a character-for-character copy.)')
         except Exception as _mp_err:
             # Never block the deep-dive on masik phal failure
             logger.warning(f'[monthly] masik phal block skipped: {_mp_err}')
