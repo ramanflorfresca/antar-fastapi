@@ -2917,6 +2917,27 @@ async def _get_or_generate_upcoming_themes_llm(
         # Tag with voice mode so cache can be invalidated on mode change
         result["_voice_mode"] = voice_mode
 
+        # [output-strips] upcoming-themes strip (Phase 3.8)
+        # voice_mode='coach' → plain (full scrub).
+        # voice_mode='mentor' → evidence (keep planet names + Vedic terms
+        # for depth; strip only instruments + day names).  energy_tags[]
+        # always get full plain strip — tags should never carry jargon.
+        _lang = 'en'
+        _body_ft = 'plain' if voice_mode == 'coach' else 'evidence'
+        for _f in ('headline', 'body', 'caution', 'your_move'):
+            _v = result.get(_f)
+            if isinstance(_v, str) and _v:
+                result[_f] = apply_user_facing_strips(
+                    _v, language=_lang, field_type=_body_ft
+                )
+        _tags = result.get('energy_tags')
+        if isinstance(_tags, list):
+            result['energy_tags'] = [
+                apply_user_facing_strips(_t, language=_lang, field_type='plain')
+                if isinstance(_t, str) and _t else _t
+                for _t in _tags
+            ]
+
         # Cache in Supabase (fire-and-forget — don't block on failure)
         try:
             supabase.table("charts").update({
@@ -13092,6 +13113,11 @@ Output all {len(transit_contexts)} transit(s) in this format. Nothing else."""
             messages=[{"role": "user", "content": prompt}]
         )
         raw = response.content[0].text.strip()
+        # [output-strips] defense-in-depth strip for transit block
+        # Block's own prompt says 'plain English only, no planet names'.
+        # This is the safety net if the LLM disobeys — catches leaks
+        # BEFORE the block gets embedded in /predict's prompt.
+        raw = apply_user_facing_strips(raw, language='en', field_type='plain')
         print(f"[transit-lang] Generated plain-English block for {len(transit_contexts)} transit(s)")
         return f"\n[BEHAVIORAL TRANSIT CONTEXT]\n{raw}\n"
     except Exception as e:
