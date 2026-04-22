@@ -27,6 +27,9 @@ import logging
 from datetime import datetime, date
 from typing import Dict, Any, Optional, List
 
+# [output-strips] migrate welcome_signal_v2
+from antar_engine.output_strips import apply_user_facing_strips
+
 logger = logging.getLogger("antar.welcome_signal")
 
 # =============================================================================
@@ -602,6 +605,22 @@ async def generate_welcome_signal_v2(
 
         # Validate
         validated = validate_welcome_signals(parsed, ctx["current_age"])
+
+        # [output-strips] strip welcome plain fields
+        # Route every user-facing text field through the centralized
+        # output-strip layer before returning to the /welcome endpoint.
+        # Hard-coded 'en' because the v2 prompt is English-only today;
+        # read chart_data['language'] here when /welcome goes multilingual.
+        _lang = 'en'
+        for _key in ('signal_1', 'signal_2', 'signal_3'):
+            _sig = validated.get(_key)
+            if isinstance(_sig, dict):
+                for _f in ('headline', 'body', 'watch_for'):
+                    _v = _sig.get(_f)
+                    if isinstance(_v, str) and _v:
+                        _sig[_f] = apply_user_facing_strips(
+                            _v, language=_lang, field_type='plain'
+                        )
 
         # Add metadata
         validated["chart_id"] = chart_id

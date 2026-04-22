@@ -33,10 +33,10 @@ landmark function names when writing Phase 3 patch scripts.
 | `antar_engine/welcome_signal_v2.py:584` | `/welcome/{id}` v2 — onboarding 3-signal payload | JSON object (3-signal structure) | `signal_1.headline`, `signal_1.body`, `signal_2.headline`, `signal_2.body`, `signal_3.headline`, `signal_3.body`, `three_findings[].headline`, `three_findings[].body` | — | — | None | All headline/body/list text → `plain` · `chapter_name` treat as `headline` (short, user-visible) · metadata fields → `skip` |
 | `antar_engine/system_prompt_builder.py:320` | utility Claude call — **only referenced from a possibly dead `/api/chat` path; verify before migrating** | Plain-text string | Full response if user-facing | — | — | None | If confirmed dead: mark for deletion. If alive: `plain` |
 
-## Call sites needing a quick decision
+## Call sites needing a quick decision — **RESOLVED**
 
-1. **`system_prompt_builder.py:320`** — appears to be a test/utility call, not a live endpoint. Before Phase 3, `grep -rn "system_prompt_builder.generate" main.py antar_engine/` to confirm it's actually called at runtime. If not, drop from migration plan and delete in a cleanup PR.
-2. **`welcome_signal.py:805` vs `welcome_signal_v2.py:584`** — the brief lists both. Confirm whether v1 is still reachable through `/welcome/…`, or if the endpoint always routes through v2 now. If v1 is dead, skip its migration and deprecate the file.
+1. ~~`system_prompt_builder.py:320`~~ — **ORPHAN, skipped.** `grep -rn system_prompt_builder main.py antar_engine/` returns zero callers. Drop from the migration plan; a separate cleanup PR can delete the file.
+2. ~~`welcome_signal.py:805` vs `welcome_signal_v2.py:584`~~ — **both live, both migrate.** GET `/api/v1/welcome/{chart_id}` (main.py:11468) reads via v1's `get_welcome_signal` and regenerates via v2's `generate_welcome_signal_v2`. v1's `generate_welcome_signal` is also fire-and-forget-invoked at main.py:7021 (post-chart-creation). Both v1 and v2 write to the same `welcome_signals` cache table, so leaving either un-migrated would leak.
 3. **`main.py:13086` (`build_transit_behavioral_block`)** — technically intermediate (goes into a prompt, not to the user). Applying `field_type='plain'` here is cheap defense-in-depth but not strictly required, since the downstream `/predict` Claude call runs its own strip via `plain_english.py`. Treat as **low priority** in the Phase 3 migration order.
 
 ## Phase 3 migration order (safety-first)
