@@ -127,6 +127,116 @@ Return EXACTLY this JSON and nothing else:
 }"""
 
 
+WELCOME_SYSTEM_PROMPT_ES = """Eres Antar — un guía de navegación de vida preciso y empático.
+
+Un usuario nuevo acaba de registrar sus datos de nacimiento. Genera tres señales.
+Esta es su PRIMERA impresión de Antar. Debe ser inolvidable.
+
+SEÑAL 1 — EL ESPEJO
+Una observación precisa sobre su carácter, basada en el signo ascendente,
+el signo lunar y el nakshatra. Esto trata de la IDENTIDAD — quién es la
+persona, cómo procesa el mundo. Personal. Ligeramente incómodo por la
+precisión. NO es un evento — es una verdad.
+2-3 frases. Sin fechas. Sin predicciones. Sin eventos.
+
+SEÑAL 2 — LA PRUEBA
+Tu contexto contiene EVENTOS DE PRUEBA — momentos de convergencia en el pasado
+donde dos sistemas independientes de temporalidad activaron la misma área de
+vida al mismo tiempo. Úsalos.
+
+Para cada evento de prueba (hasta 3):
+- PREGUNTA al usuario si ocurrió (formato pregunta — "Entre X e Y, ¿...?")
+- Luego CONECTA con el arco — una frase explicando POR QUÉ ocurrió en su historia
+- Usa el nombre del capítulo proporcionado (ej. "La ruptura", "El ajuste")
+
+Después de todos los eventos, añade EL HILO: conecta todos los eventos con el
+momento presente. El usuario debe sentir que cada capítulo condujo directamente
+a lo que está haciendo ahora mismo.  Máximo 2 frases para el hilo.
+
+Si no hay eventos de prueba en el contexto, nombra el capítulo actual de su vida
+con una fecha futura específica.
+
+SEÑAL 3 — LA RECOMPENSA
+Este es el capítulo 4 de la historia que acabas de contar en la Señal 2.
+Los eventos de prueba mostraron lo que pasó. La Señal 3 muestra a qué conducía todo.
+
+Una cosa específica que vigilar en los próximos 60-90 días.
+Basada en el período planetario actual + tránsitos de planetas lentos.
+Nombra el dominio. Nombra el rango de fechas. Termina con una acción o algo
+que vigilar.
+
+CRÍTICO: Conecta esto con el hilo de la Señal 2. Referencia el arco.
+NO: "Una puerta financiera se abre en abril."
+SÍ: "Todo lo que esos capítulos te costaron empieza a devolverse ahora. Entre
+abril y junio, se abre una puerta financiera a través de tu red — actúa dentro
+de la primera semana."
+
+2-3 frases. El usuario debe sentir que este es el destino, no un consejo aleatorio.
+
+REGLAS ABSOLUTAS:
+1. Esta persona tiene {{current_age}} años. NUNCA hagas referencia a eventos o
+   temas de antes de los {{floor_age}} años.
+2. Cero términos en sánscrito. Cero jerga. Solo español claro.
+3. Cada señal tiene 2-4 frases. Sin relleno. Sin titubeo. Sin paja.
+4. NO digas "tu carta muestra" ni "astrológicamente hablando". Declara los
+   hechos directamente.
+5. Las fechas de la Señal 2 son eventos PASADOS (prueba). Las fechas de la
+   Señal 3 deben estar en el FUTURO.
+6. Los eventos de prueba de la Señal 2 deben usar los períodos exactos
+   proporcionados en el contexto — no inventes fechas.
+7. El dominio de la Señal 3 debe ser uno de: career / relationship / financial /
+   health / travel / legal  (mantén el valor del campo `domain` en inglés para
+   el enrutamiento — el resto del texto debe estar en español).
+8. El `watch_for` de la Señal 3 debe ser una frase concreta — qué vigilar o hacer.
+9. Si se proporciona el nombre del usuario, empieza el `headline` de la Señal 1
+   con su nombre.
+10. Señales de carrera para 55+ = autoridad, legado, sucesión — NO "empezando".
+11. Señales de relación para 60+ = profundidad, compañía — NO "primera relación".
+12. Nunca referencies infancia, adolescencia o juventud temprana para usuarios
+    mayores de 40.
+
+Devuelve EXACTAMENTE este JSON y nada más.  Todo el texto narrativo
+(`headline`, `body`, `thread`, `chapter`, `question`, `meaning`, `watch_for`)
+debe estar en español.  Los valores del campo `domain` y `type` permanecen en
+inglés (son identificadores internos).
+
+{
+  "signal_1": {
+    "type": "mirror",
+    "headline": "<nombre del usuario si se proporciona>, <observación en menos de 12 palabras>",
+    "body": "2-3 frases. Solo carácter/identidad. Sin eventos. Sin fechas."
+  },
+  "signal_2": {
+    "type": "proof",
+    "events": [
+      {
+        "chapter": "La ruptura",
+        "period": "2006–2009",
+        "age": "32–35",
+        "question": "Entre 2006 y 2009, ¿algo que habías construido o de lo que dependías terminó — de repente y no en tus términos?",
+        "meaning": "Esto no fue mala suerte. Fue una demolición programada — despejar el terreno para lo que viene."
+      }
+    ],
+    "thread": "Cada uno de esos capítulos despejó el terreno para lo que estás creando ahora mismo. El patrón no es aleatorio — y este momento tampoco."
+  },
+  "signal_3": {
+    "type": "signal",
+    "headline": "<una frase de menos de 12 palabras>",
+    "body": "2-3 frases. Dominio específico + rango de fechas + qué hacer.",
+    "domain": "career",
+    "watch_for": "Una frase — lo concreto que vigilar o hacer."
+  }
+}"""
+
+
+def _select_system_prompt(language: Optional[str]) -> str:
+    """Return the system prompt for the user's language.  English fallback."""
+    code = (language or "en").lower()[:2]
+    if code == "es":
+        return WELCOME_SYSTEM_PROMPT_ES
+    return WELCOME_SYSTEM_PROMPT
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Main entry point — same signature as before so main.py needs zero changes
 # ─────────────────────────────────────────────────────────────────────────────
@@ -144,6 +254,7 @@ async def generate_welcome_signal(
     supabase,
     claude_client,
     birth_date:    Optional[str] = None,
+    language:      Optional[str] = "en",
 ) -> dict:
     """
     Generate and save the 3-signal welcome for a new chart.
@@ -181,15 +292,16 @@ async def generate_welcome_signal(
             birth_date=birth_date,
             chart_id=chart_id,
             supabase=supabase,
+            language=language,
         )
     except Exception as _ctx_err:
         logger.error(f"[welcome] Context build failed: {_ctx_err}")
         context = None
 
     # ── Call Claude ───────────────────────────────────────────────
-    result = await _call_claude(context, claude_client)
+    result = await _call_claude(context, claude_client, language=language)
     if result is None:
-        result = _fallback_signal()
+        result = _fallback_signal(language=language)
 
     # ── Inject first_name into Signal 1 headline if missing ──────
     if first_name and result:
@@ -201,7 +313,7 @@ async def generate_welcome_signal(
 
     # ── Save to DB (flattened for Supabase) ──────────────────────
     if result is None:
-        result = _fallback_signal()
+        result = _fallback_signal(language=language)
     try:
         s1 = result.get("signal_1", {})
         s2 = result.get("signal_2", {})
@@ -644,6 +756,7 @@ def _build_welcome_context(
     birth_date:    Optional[str] = None,
     chart_id:      Optional[str] = None,
     supabase=None,
+    language:      Optional[str] = "en",
 ) -> str:
     # ── Age intelligence (Sprint W) ───────────────────────────────
     if birth_date:
@@ -794,6 +907,17 @@ def _build_welcome_context(
         f"All content must be age-appropriate. All dates must be in the future."
     )
 
+    # [i18n] When the user's language is Spanish, pin the output language here.
+    # The system prompt is already localized, but this reinforces it inside the
+    # user-turn context so nothing English slips through the JSON.
+    _lang_code = (language or "en").lower()[:2]
+    if _lang_code == "es":
+        lines.append("")
+        lines.append("IMPORTANTE: Responde en ESPAÑOL. Todo el contenido narrativo "
+                     "(headline, body, thread, chapter, question, meaning, watch_for) "
+                     "debe estar en español natural — no traducción literal. "
+                     "Mantén los valores de `domain` y `type` en inglés (son IDs internos).")
+
     return "\n".join(lines)
 
 
@@ -801,14 +925,15 @@ def _build_welcome_context(
 # Claude call — parse 3-signal JSON
 # ─────────────────────────────────────────────────────────────────────────────
 
-async def _call_claude(context: str, claude_client) -> dict:
+async def _call_claude(context: str, claude_client, language: Optional[str] = "en") -> dict:
     """Call Claude Sonnet and parse the 3-signal welcome JSON."""
     try:
-        # Interpolate age into system prompt
+        # [i18n] pick system prompt based on user language (en/es)
+        _system_prompt = _select_system_prompt(language)
         response = await claude_client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=1200,
-            system=WELCOME_SYSTEM_PROMPT,
+            system=_system_prompt,
             messages=[{"role": "user", "content": context}],
         )
         text = response.content[0].text.strip()
@@ -823,7 +948,7 @@ async def _call_claude(context: str, claude_client) -> dict:
         # Validate structure — must have all 3 signals
         if "signal_1" not in result or "signal_2" not in result or "signal_3" not in result:
             logger.warning("[welcome] Claude returned incomplete 3-signal structure, using fallback")
-            return _fallback_signal()
+            return _fallback_signal(language=language)
 
         # Validate Signal 2 timing is future
         timing = result.get("signal_2", {}).get("timing", "")
@@ -844,10 +969,8 @@ async def _call_claude(context: str, claude_client) -> dict:
 
         # [output-strips] strip welcome v1 plain fields
         # Route every user-facing narrative field through the centralized
-        # output-strip layer.  v1 is English-only today — when /welcome goes
-        # multilingual, pass chart_data['language'] through to _call_claude()
-        # and use it here instead of the hard-coded 'en'.
-        _lang = 'en'
+        # output-strip layer.  Threaded from generate_welcome_signal → here.
+        _lang = (language or "en").lower()[:2]
 
         # signal_1 + signal_3: headline/body/watch_for
         for _key in ('signal_1', 'signal_3'):
@@ -884,17 +1007,43 @@ async def _call_claude(context: str, claude_client) -> dict:
 
     except json.JSONDecodeError as e:
         logger.error(f"[welcome] JSON parse failed: {e}")
-        return _fallback_signal()
+        return _fallback_signal(language=language)
     except Exception as e:
         import traceback
         print(f"[welcome] Claude call FAILED: {type(e).__name__}: {e}")
         print(f"[welcome] Traceback: {traceback.format_exc()}")
         logger.error(f"[welcome] Claude call failed: {e}")
-        return _fallback_signal()
+        return _fallback_signal(language=language)
 
 
-def _fallback_signal() -> dict:
-    """Fallback if Claude fails — returns valid 3-signal structure."""
+def _fallback_signal(language: Optional[str] = "en") -> dict:
+    """Fallback if Claude fails — returns valid 3-signal structure.
+
+    Localized for en/es so Spanish users don't see English text if Claude
+    fails before generating output.
+    """
+    code = (language or "en").lower()[:2]
+    if code == "es":
+        return {
+            "signal_1": {
+                "type": "mirror",
+                "headline": "Tu carta está calculada — esto es lo que muestra ahora mismo.",
+                "body": "Tu carta natal revela un patrón específico en cómo procesas decisiones y relaciones. Hazle a Antar cualquier pregunta para explorar lo que tu carta dice sobre tu vida en este momento.",
+            },
+            "signal_2": {
+                "type": "proof",
+                "events": [],
+                "thread": "Tu carta tiene un patrón claro a lo largo de las últimas dos décadas. Hazle una pregunta a Antar para ver cómo se conecta con lo que viene.",
+            },
+            "signal_3": {
+                "type": "signal",
+                "headline": "Haz tu primera pregunta para activar tu señal.",
+                "body": "Tu carta tiene señales específicas para los próximos 90 días. Pregúntale a Antar sobre carrera, relaciones, finanzas o cualquier área de tu vida para ver qué está llegando y cuándo.",
+                "domain": "career",
+                "watch_for": "Haz tu primera pregunta para obtener una señal específica con tiempos.",
+            },
+        }
+    # default: English
     return {
         "signal_1": {
             "type": "mirror",

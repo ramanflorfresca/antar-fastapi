@@ -7285,6 +7285,15 @@ async def create_chart(
         except Exception:
             _welcome_age = None
 
+        # [i18n] thread user language into welcome signal so INFORME DE CAPÍTULO
+        # renders in Spanish for es users instead of the hardcoded English output
+        _welcome_lang = (
+            getattr(request, "language_preference", None)
+            or getattr(request, "language", None)
+            or (chart_data.get("language") if isinstance(chart_data, dict) else None)
+            or "en"
+        )
+        _welcome_lang = str(_welcome_lang).lower()[:2]
         _asyncio.create_task(generate_welcome_signal(
             chart_id=chart_id,
             chart_data=chart_data,
@@ -7298,6 +7307,7 @@ async def create_chart(
             country_code=getattr(request, "birth_country", "") or "",
             supabase=supabase,
             claude_client=claude_client,
+            language=_welcome_lang,
         ))
         print(f"[chart/create] Welcome signal task fired for {chart_id[:8]}")
     except Exception as _we:
