@@ -11213,57 +11213,179 @@ async def update_preferences(request: Request):
         )
 
 
-@app.get("/api/v1/auth/restore/{google_id}")
-async def restore_chart(google_id: str):
+# [auth-restore-fix] user_id-based lookup with Case A/B/C handling
+@app.get("/api/v1/auth/restore/{user_id}")
+async def restore_chart(
+    user_id: str,
+    chart_id: Optional[str] = None,
+    language: str = "en",
+):
     """
-    Restores chart_id for a returning Google user.
+    Restore the returning user's session data.
+
     Called on app load when Supabase session exists but localStorage is empty.
+    The path parameter is a Supabase auth.users UUID, which maps to
+    charts.user_id (NOT charts.google_id — previous bug).
+
+    Response contract:
+
+      200 + {chart_id, ..., charts, active_chart, needs_onboarding: False}
+        Normal restore, user has at least one chart.  All legacy top-level
+        keys (chart_id, first_name, display_name, etc.) are preserved.
+
+      200 + {charts: [], active_chart: None, needs_onboarding: True}
+        User exists in auth.users but has no charts yet — abandoned
+        onboarding.  Frontend MUST keep the session and route to
+        onboarding instead of clearing localStorage.
+
+      400 + {detail: {code: "INVALID_ID", action: "clear_session_and_login"}}
+        user_id is not a valid UUID.
+
+      404 + {detail: {code: "USER_NOT_FOUND", action: "clear_session_and_login"}}
+        user_id is not present in auth.users — stale localStorage.
+        This is the ONLY case where the frontend should clear session.
     """
-    res = supabase.table("charts").select(
-        "id,first_name,display_name,avatar_url,email,"
-        "lagna_sign,moon_sign,moon_nakshatra,sun_sign"
-    ).eq("google_id", google_id).order(
-        "created_at", desc=True
-    ).limit(1).execute()
-
-    if not res.data:
-        raise HTTPException(404, "No chart found for this account")
-
-    row = res.data[0]
-
-    # Get current dasha
+    import logging as _logging
+    import uuid as _uuid
     from datetime import datetime, timezone
+    _log = _logging.getLogger("antar.auth.restore")
+
+    # Normalise input — frontend sometimes sends chart_id as empty string
+    user_id  = (user_id  or "").strip()
+    chart_id = (chart_id or "").strip() or None
+
+    # 1. Validate UUID
+    try:
+        _uuid.UUID(user_id)
+    except (ValueError, TypeError, AttributeError):
+        _log.info(f"[auth/restore] user={user_id!r} result=INVALID_ID")
+        raise HTTPException(
+            status_code=400,
+            detail={
+                "code": "INVALID_ID",
+                "message": "user_id is not a valid UUID",
+                "action": "clear_session_and_login",
+            },
+        )
+
+    # 2. Look up user's charts by user_id (the correct column)
+    charts_res = supabase.table("charts").select(
+        "id,user_id,first_name,display_name,avatar_url,email,"
+        "lagna_sign,moon_sign,moon_nakshatra,sun_sign,created_at"
+    ).eq("user_id", user_id).order("created_at", desc=True).execute()
+
+    charts = charts_res.data or []
+
+    # 3. No charts → distinguish Case A (abandoned onboarding) from
+    #    Case C (user truly gone) by consulting Supabase auth.users.
+    if not charts:
+        user_exists = False
+        try:
+            _u = supabase.auth.admin.get_user_by_id(user_id)
+            user_exists = bool(_u and getattr(_u, "user", None))
+        except Exception as _e:
+            _log.info(f"[auth/restore] user={user_id} auth_check_failed: {_e}")
+            user_exists = False
+
+        if not user_exists:
+            _log.info(f"[auth/restore] user={user_id} result=USER_NOT_FOUND")
+            raise HTTPException(
+                status_code=404,
+                detail={
+                    "code": "USER_NOT_FOUND",
+                    "message": "No active session for this ID",
+                    "action": "clear_session_and_login",
+                },
+            )
+
+        # Abandoned onboarding — keep session, route to onboarding.
+        _log.info(f"[auth/restore] user={user_id} result=NO_CHARTS")
+        return {
+            "user_id":          user_id,
+            "chart_id":         None,
+            "charts":           [],
+            "active_chart":     None,
+            "needs_onboarding": True,
+            "language":         language,
+            "code":             "NO_CHARTS",
+            "action":           "go_to_onboarding",
+        }
+
+    # 4. Pick active chart — explicit chart_id wins if it matches one of
+    #    the user's charts; otherwise most recent.
+    active = None
+    if chart_id:
+        active = next((c for c in charts if str(c.get("id")) == chart_id), None)
+    if not active:
+        active = charts[0]   # ordered desc by created_at
+
+    # 5. Current Vimsottari MD / AD for the active chart
     now = datetime.now(timezone.utc)
     dasha_res = supabase.table("dasha_periods").select(
-        "level,planet_or_sign,system"
-    ).eq("chart_id", row["id"]).eq("system","vimsottari").execute()
+        "level,planet_or_sign,system,start_date,end_date"
+    ).eq("chart_id", active["id"]).eq("system", "vimsottari").execute()
 
     current_md = current_ad = ""
     for d in (dasha_res.data or []):
         try:
-            sd = datetime.fromisoformat(str(d.get("start_date",""))[:10].replace("Z",""))
-            ed = datetime.fromisoformat(str(d.get("end_date",""))[:10].replace("Z",""))
+            sd = datetime.fromisoformat(str(d.get("start_date", ""))[:10].replace("Z", ""))
+            ed = datetime.fromisoformat(str(d.get("end_date",   ""))[:10].replace("Z", ""))
             if sd.date() <= now.date() <= ed.date():
-                level = d.get("level",0)
-                lord  = d.get("planet_or_sign","")
-                if level == 1:   current_md = lord
+                level = d.get("level", 0)
+                lord  = d.get("planet_or_sign", "")
+                if   level == 1: current_md = lord
                 elif level == 2: current_ad = lord
         except Exception:
             pass
-
     dasha = f"{current_md}-{current_ad}" if current_ad else current_md
 
+    def _first_name(row: dict) -> str:
+        fn = (row.get("first_name") or "").strip()
+        if fn:
+            return fn
+        dn = (row.get("display_name") or "").strip()
+        return dn.split()[0] if dn else ""
+
+    charts_summary = [
+        {
+            "chart_id":     c["id"],
+            "first_name":   _first_name(c),
+            "display_name": c.get("display_name", ""),
+            "avatar_url":   c.get("avatar_url", ""),
+            "lagna":        c.get("lagna_sign", ""),
+            "moon_sign":    c.get("moon_sign", ""),
+        }
+        for c in charts
+    ]
+
+    _log.info(
+        f"[auth/restore] user={user_id} chart_id={chart_id!r} "
+        f"user_exists=True charts={len(charts)} active={active['id']} "
+        f"result=OK"
+    )
+
+    # 6. Full restore payload — legacy keys preserved for backward compat,
+    #    new structured keys added for the frontend contract.
     return {
-        "chart_id":       row["id"],
-        "first_name":     row.get("first_name","") or row.get("display_name","").split()[0] if row.get("display_name") else "",
-        "display_name":   row.get("display_name",""),
-        "avatar_url":     row.get("avatar_url",""),
-        "email":          row.get("email",""),
-        "lagna":          row.get("lagna_sign",""),
-        "moon_sign":      row.get("moon_sign",""),
-        "moon_nakshatra": row.get("moon_nakshatra",""),
-        "sun_sign":       row.get("sun_sign",""),
+        # Legacy top-level keys (preserved)
+        "chart_id":       active["id"],
+        "first_name":     _first_name(active),
+        "display_name":   active.get("display_name", ""),
+        "avatar_url":     active.get("avatar_url", ""),
+        "email":          active.get("email", ""),
+        "lagna":          active.get("lagna_sign", ""),
+        "moon_sign":      active.get("moon_sign", ""),
+        "moon_nakshatra": active.get("moon_nakshatra", ""),
+        "sun_sign":       active.get("sun_sign", ""),
         "current_dasha":  dasha,
+        # New structured keys
+        "user_id":          user_id,
+        "charts":           charts_summary,
+        "active_chart":     active["id"],
+        "needs_onboarding": False,
+        "language":         language,
+        "code":             "OK",
+        "action":           None,
     }
 
 
