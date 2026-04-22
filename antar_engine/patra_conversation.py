@@ -437,7 +437,54 @@ def extract_patra_from_text(text: str) -> dict:
 
 # ── Onboarding conversational flow ───────────────────────────────────────────
 
-def get_onboarding_conversation(chart_data: dict, dashas: dict) -> list[dict]:
+# [i18n] framing copy for the patra onboarding flow.  Framing-only —
+# the chart-driven questions themselves still live in get_smart_patra_questions()
+# and are English-only as of 2026-04-22 (see patch_patra_framing_language.py).
+# The CLOSING message deliberately does NOT reference the dasha planet name
+# (e.g. "Saturn period") — that violated project rule #12 (no Sanskrit /
+# astrological jargon in user-facing text).  The jargon-free phrasing still
+# lands the "this moment" beat.
+_PATRA_FRAMING = {
+    "en": {
+        "opening": (
+            "Your chart is calculated. Before I give you your first reading, "
+            "let me ask you three quick things. "
+            "The more I understand about your life right now, "
+            "the more specific I can be."
+        ),
+        "interstitial": "Good. One more:",
+        "closing": (
+            "Perfect. That helps me understand where you are in your life. "
+            "Let me show you what your chart says about this moment for you specifically."
+        ),
+    },
+    "es": {
+        "opening": (
+            "Tu carta está calculada. Antes de darte tu primera lectura, "
+            "déjame hacerte tres preguntas rápidas. "
+            "Cuanto más entienda sobre tu vida ahora mismo, "
+            "más específico puedo ser."
+        ),
+        "interstitial": "Bien. Una más:",
+        "closing": (
+            "Perfecto. Eso me ayuda a entender dónde estás en tu vida. "
+            "Déjame mostrarte lo que tu carta dice sobre este momento para ti en específico."
+        ),
+    },
+}
+
+
+def _patra_framing(language: Optional[str]) -> dict:
+    """Pick the framing strings for en/es.  Defaults to English."""
+    code = (language or "en").lower()[:2]
+    return _PATRA_FRAMING.get(code) or _PATRA_FRAMING["en"]
+
+
+def get_onboarding_conversation(
+    chart_data: dict,
+    dashas: dict,
+    language: Optional[str] = "en",
+) -> list[dict]:
     """
     Returns a short guided conversation for onboarding.
     Max 3 questions. Feels like a consultation, not a form.
@@ -447,23 +494,19 @@ def get_onboarding_conversation(chart_data: dict, dashas: dict) -> list[dict]:
       content: the text shown
       question_id: for questions, the ID
       options: for questions, the tap options
+
+    `language` controls the framing messages only.  The chart-driven
+    question bodies in get_smart_patra_questions() are still English-only
+    and will be localized in a separate pass.
     """
     questions = get_smart_patra_questions(chart_data, dashas)
-
-    lagna     = chart_data["lagna"]["sign"]
-    vim_dasha = dashas.get("vimsottari", [{}])[0].get("lord_or_sign", "")
-    vim_end   = dashas.get("vimsottari", [{}])[0].get("end", "")
+    framing = _patra_framing(language)
 
     # Opening message
     flow = [
         {
             "type":    "message",
-            "content": (
-                f"Your chart is calculated. Before I give you your first reading, "
-                f"let me ask you three quick things. "
-                f"The more I understand about your life right now, "
-                f"the more specific I can be."
-            ),
+            "content": framing["opening"],
         }
     ]
 
@@ -472,7 +515,7 @@ def get_onboarding_conversation(chart_data: dict, dashas: dict) -> list[dict]:
         if i > 0:
             flow.append({
                 "type":    "message",
-                "content": "Good. One more:",
+                "content": framing["interstitial"],
             })
         flow.append({
             "type":       "question",
@@ -482,14 +525,10 @@ def get_onboarding_conversation(chart_data: dict, dashas: dict) -> list[dict]:
             "extracts":   q["extracts"],
         })
 
-    # Closing before first reading
+    # Closing before first reading — jargon-free (no dasha planet name)
     flow.append({
         "type":    "message",
-        "content": (
-            f"Perfect. That helps me understand where you are in your life. "
-            f"You're currently in your {vim_dasha} period. "
-            f"Let me show you what that means for you specifically."
-        ),
+        "content": framing["closing"],
     })
 
     return flow

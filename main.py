@@ -6189,9 +6189,12 @@ async def delete_conversation(
 # ── Patra Onboarding Conversation ─────────────────────────────────────────────
 
 @app.get("/api/v1/predict/patra-onboarding")
-async def get_patra_onboarding(chart_id: str):
+async def get_patra_onboarding(chart_id: str, language: Optional[str] = None):
     """
     Returns chart-specific conversational questions for onboarding.
+
+    `language` query param overrides the chart's stored language_preference.
+    Falls back to chart.language_preference, then "en".
     """
     chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
     if not chart_res.data:
@@ -6201,8 +6204,16 @@ async def get_patra_onboarding(chart_id: str):
     chart_data   = chart_record["chart_data"]
     dashas       = get_dashas_for_chart(chart_id)
 
-    conversation = get_onboarding_conversation(chart_data, dashas)
-    return {"conversation": conversation}
+    # [i18n] resolve language: query param → chart.language_preference → "en"
+    _patra_lang = str(
+        language
+        or chart_record.get("language_preference")
+        or (chart_data.get("language") if isinstance(chart_data, dict) else None)
+        or "en"
+    ).lower()[:2]
+
+    conversation = get_onboarding_conversation(chart_data, dashas, language=_patra_lang)
+    return {"conversation": conversation, "language": _patra_lang}
 
 # ── Locale ────────────────────────────────────────────────────────────────────
 
