@@ -39,6 +39,8 @@ from antar_engine.welcome_signal import generate_welcome_signal, get_welcome_sig
 from antar_engine.weekly_briefing import generate_weekly_briefing
 from antar_engine.monthly_deepdive import generate_monthly_deepdive
 from antar_engine.annual_planning import generate_annual_plan
+# [output-strips] centralized strip module (Phase 3.6+)
+from antar_engine.output_strips import apply_user_facing_strips
 
 from antar_engine.predictions import (
     build_layered_predictions,
@@ -13494,7 +13496,8 @@ Rewrite the base template as ONE sentence that feels personally relevant to this
             messages=[{"role": "user", "content": prompt}]
         )
         hint = response.content[0].text.strip().strip('"').strip("'")
-        hint = _sanitize_wow_hint(hint)
+        # [output-strips] WOW v1 strip
+        hint = apply_user_facing_strips(hint, language=language, field_type='plain')
         print(f"[daily-week] Claude WOW hint generated: {hint[:80]}...")
         return hint
 
@@ -13595,7 +13598,8 @@ RULES:
             messages=[{"role": "user", "content": prompt}]
         )
         hint = response.content[0].text.strip().strip('"').strip("'")
-        hint = _sanitize_wow_hint(hint)
+        # [output-strips] WOW v2 strip
+        hint = apply_user_facing_strips(hint, language=language, field_type='plain')
         print(f"[daily-week] WOW v2 hint: {hint[:80]}...")
         return hint
 
