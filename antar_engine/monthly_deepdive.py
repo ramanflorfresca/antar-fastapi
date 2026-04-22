@@ -29,6 +29,58 @@ from antar_engine.transit_events import compute_transit_events_in_range, bucket_
 
 logger = logging.getLogger(__name__)
 
+# [cp-day4a] hot-domain aggregation helper
+# Map each natal house to a user-facing domain the priority_actions
+# schema expects.  H3 (effort/initiative) folds into career so users
+# see actionable advice instead of abstract 'communication'.  H8
+# (transformation/hidden stress) folds into health.
+_HOUSE_TO_DOMAIN = {
+    1:  'health',        2:  'wealth',          3:  'career',
+    4:  'home',          5:  'learning',        6:  'health',
+    7:  'relationships', 8:  'health',          9:  'spiritual',
+    10: 'career',        11: 'wealth',          12: 'spiritual',
+}
+_EVENT_WEIGHT = {
+    'aspect':          3,
+    'ingress':         2,
+    'retro_start':     2,
+    'retro_end':       2,
+    'nakshatra_shift': 1,
+}
+# Safe fallback ordering — if aggregation yields < 3 distinct
+# domains, pad with these in priority.
+_FALLBACK_DOMAINS = ('career', 'wealth', 'health', 'relationships')
+
+def _aggregate_hot_domains(events: list, top_n: int = 3) -> tuple[list, dict]:
+    """
+    Return (domain_list, score_map).  domain_list is the top_n domains
+    by weighted event score, padded from _FALLBACK_DOMAINS if fewer
+    than top_n have nonzero score.  score_map is {domain: {score, event_count}}
+    for every domain that had at least one event.
+    """
+    tally: dict[str, dict] = {}
+    for ev in (events or []):
+        house = ev.get('natal_house')
+        etype = ev.get('event_type')
+        if not isinstance(house, int) or house < 1 or house > 12:
+            continue
+        domain = _HOUSE_TO_DOMAIN.get(house)
+        if not domain:
+            continue
+        weight = _EVENT_WEIGHT.get(etype, 1)
+        slot = tally.setdefault(domain, {'score': 0, 'event_count': 0})
+        slot['score']       += weight
+        slot['event_count'] += 1
+    ranked = sorted(tally.items(), key=lambda kv: (-kv[1]['score'], kv[0]))
+    ordered = [d for d, _ in ranked]
+    # Pad with fallback domains if we don't have enough
+    for d in _FALLBACK_DOMAINS:
+        if len(ordered) >= top_n:
+            break
+        if d not in ordered:
+            ordered.append(d)
+    return ordered[:top_n], tally
+
 DEEPDIVE_TABLE = "monthly_deepdives"
 
 MONTHLY_SYSTEM_PROMPT = """You are Antar — a precise, warm life navigation advisor.
@@ -61,6 +113,15 @@ RULES:
   pick caution_week based on challenging aspects / retrograde stations /
   malefic ingresses.  The reason clause after the em-dash can be your own
   phrasing but must cite events from that week's schedule.
+- [cp-day4a] HOT DOMAINS rule — if the user context contains a
+  'priority_action_domains' array in COMPUTED JSON VALUES, the
+  priority_actions JSON array in your response MUST contain exactly
+  len(priority_action_domains) entries, and the 'domain' field of each
+  entry MUST equal priority_action_domains[i] in that exact order.
+  Do not substitute other domains.  Do not add or remove entries.
+  Write one specific, verb-first action per domain that references
+  the concrete transit events listed in the WEEKLY TRANSIT SCHEDULE
+  for that domain's houses.
 
 Return ONLY this JSON:
 {
@@ -331,6 +392,27 @@ def _build_deepdive_context(
             lines.append('COMPUTED JSON VALUES — best_week and caution_week must reference one of these:')
             lines.append(f'  available_weeks: {_json_sch.dumps(_available_week_starts)}')
             lines.append('(Format as "Week of <Month> <D> — <reason>" using one of the above dates.)')
+
+            # [cp-day4a] HOT DOMAINS injection
+            _hot_domains, _tally = _aggregate_hot_domains(_events, top_n=3)
+            logger.info(
+                f'[monthly-day4a] hot domains: {_hot_domains} '
+                f'(scores={_tally})'
+            )
+            lines.append('')
+            lines.append('HOT DOMAINS THIS MONTH (by transit-to-natal-house activation score):')
+            _rank = 1
+            for _d in _hot_domains:
+                _slot = _tally.get(_d, {'score': 0, 'event_count': 0})
+                lines.append(
+                    f'  {_rank}. {_d} — score {_slot["score"]} '
+                    f'across {_slot["event_count"]} events'
+                )
+                _rank += 1
+            lines.append('')
+            lines.append('COMPUTED JSON VALUES — priority_actions MUST cover exactly these domains in this order:')
+            lines.append(f'  priority_action_domains: {_json_sch.dumps(_hot_domains)}')
+            lines.append('(Write one verb-first action per domain, citing the transit events above.)')
     except Exception as _te_err:
         # Never block monthly generation on transit-event failure
         logger.warning(f'[monthly-day3] weekly schedule skipped: {_te_err}')
@@ -343,8 +425,10 @@ def _build_deepdive_context(
         "substitute other planets.  [cp-day3] best_week and caution_week MUST "
         "reference a week_start date from the available_weeks list above — "
         "do not invent weeks that are not in the WEEKLY TRANSIT SCHEDULE. "
-        "Give 3 specific priority actions across different domains that "
-        "align with the strong and weak planets and the week's events."
+        "[cp-day4a] final instruction domains — priority_actions MUST contain "
+        "exactly 3 entries whose domain fields equal priority_action_domains "
+        "in that exact order.  Write one verb-first, chart-specific action "
+        "per domain citing the transit events in that domain's houses."
     )
 
     return "\n".join(lines)
