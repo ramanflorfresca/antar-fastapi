@@ -18,6 +18,9 @@ import re
 from datetime import datetime, timezone
 from typing import Optional
 
+# [output-strips] migrate monthly_deepdive
+from antar_engine.output_strips import apply_user_facing_strips
+
 logger = logging.getLogger(__name__)
 
 DEEPDIVE_TABLE = "monthly_deepdives"
@@ -107,6 +110,44 @@ async def generate_monthly_deepdive(
         mt = result["month_theme"]
         if not mt.startswith(first_name):
             result["month_theme"] = f"{first_name}: {mt}"  
+
+    # [output-strips] strip monthly_deepdive
+    # Route every user-facing narrative field through the central
+    # output-strip layer BEFORE the cache upsert so cached rows stay
+    # clean.  Hard-coded 'en' — match current prompt behavior.
+    #
+    # Plain fields (full strip):
+    #   month_theme, overview, best_week, caution_week, monthly_mantra,
+    #   priority_actions[].action, remedies[].practice
+    # Skipped (enums / dates / proper-noun arrays):
+    #   month, energy_level, priority_actions[].domain,
+    #   strong_planets[], weak_planets[], remedies[].planet,
+    #   chart_id, month_key
+    _lang = 'en'
+    for _f in ('month_theme', 'overview', 'best_week', 'caution_week', 'monthly_mantra'):
+        _v = result.get(_f)
+        if isinstance(_v, str) and _v:
+            result[_f] = apply_user_facing_strips(
+                _v, language=_lang, field_type='plain'
+            )
+    _pas = result.get('priority_actions')
+    if isinstance(_pas, list):
+        for _pa in _pas:
+            if isinstance(_pa, dict):
+                _action = _pa.get('action')
+                if isinstance(_action, str) and _action:
+                    _pa['action'] = apply_user_facing_strips(
+                        _action, language=_lang, field_type='plain'
+                    )
+    _rems = result.get('remedies')
+    if isinstance(_rems, list):
+        for _r in _rems:
+            if isinstance(_r, dict):
+                _pr = _r.get('practice')
+                if isinstance(_pr, str) and _pr:
+                    _r['practice'] = apply_user_facing_strips(
+                        _pr, language=_lang, field_type='plain'
+                    )
 
     # Save to cache
     try:
