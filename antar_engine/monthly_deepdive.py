@@ -24,6 +24,9 @@ from antar_engine.output_strips import apply_user_facing_strips
 # [cp-day1] masik phal import
 from antar_engine.lal_kitab_masik import build_masik_context_block, calculate_masik_phal
 
+# [cp-day3] transit events import
+from antar_engine.transit_events import compute_transit_events_in_range, bucket_events_by_week
+
 logger = logging.getLogger(__name__)
 
 DEEPDIVE_TABLE = "monthly_deepdives"
@@ -49,6 +52,15 @@ RULES:
   your job is to narrate the priority_actions, overview, and monthly_mantra
   that flow from them.  If the COMPUTED JSON VALUES block is absent, fall back
   to your own judgment — but when present, it overrides.
+- [cp-day3] WEEKLY TRANSIT SCHEDULE rule — if the user context contains a
+  'WEEKLY TRANSIT SCHEDULE' block followed by 'available_weeks' in COMPUTED
+  JSON VALUES, the best_week and caution_week JSON fields MUST begin with
+  'Week of <Month> <D>' where the date is one of the week_start entries
+  listed in available_weeks.  Do not invent weeks outside this list.  Pick
+  best_week based on supportive aspects / benefic ingresses in the schedule;
+  pick caution_week based on challenging aspects / retrograde stations /
+  malefic ingresses.  The reason clause after the em-dash can be your own
+  phrasing but must cite events from that week's schedule.
 
 Return ONLY this JSON:
 {
@@ -271,15 +283,68 @@ def _build_deepdive_context(
     else:
         logger.info('[monthly-day1] no birth_date — masik block skipped')
 
+    # [cp-day3] WEEKLY TRANSIT SCHEDULE block — Day 2 event engine output
+    # bucketed into Monday-start weeks.  Best/caution weeks must be picked
+    # from this list rather than invented by Claude.
+    try:
+        # Target the calendar month the prompt is about
+        from datetime import date as _date, timedelta as _td
+        _m_start = now.replace(day=1).date()
+        if now.month == 12:
+            _next_first = now.replace(year=now.year + 1, month=1, day=1)
+        else:
+            _next_first = now.replace(month=now.month + 1, day=1)
+        _m_end = (_next_first - _td(days=1)).date()
+
+        _events = compute_transit_events_in_range(chart_data, _m_start, _m_end)
+        _weeks  = bucket_events_by_week(_events, _m_start)
+        logger.info(
+            f'[monthly-day3] weekly schedule: {len(_weeks)} weeks, '
+            f'{len(_events)} events total, range {_m_start}..{_m_end}'
+        )
+
+        if _weeks:
+            import json as _json_sch
+            lines.append('')
+            lines.append('WEEKLY TRANSIT SCHEDULE — pick best_week and caution_week from here:')
+            _available_week_starts = []
+            for _wk in _weeks:
+                _wstart = _wk['week_start']
+                _wend   = _wk['week_end']
+                _wlabel = _wk['week_label']
+                _wevs   = _wk['events']
+                _available_week_starts.append(_wstart)
+                lines.append('')
+                lines.append(f'  {_wlabel} ({_wstart} → {_wend}): {len(_wevs)} events')
+                # Show up to 6 highest-signal events per week
+                _shown = 0
+                for _ev in _wevs:
+                    if _shown >= 6: break
+                    _det = _ev.get('detail', '')
+                    _edate = _ev.get('date', '')
+                    _etype = _ev.get('event_type', '')
+                    lines.append(f'    • {_edate}  [{_etype}]  {_det}')
+                    _shown += 1
+                if len(_wevs) > 6:
+                    lines.append(f'    … and {len(_wevs) - 6} more events this week')
+            lines.append('')
+            lines.append('COMPUTED JSON VALUES — best_week and caution_week must reference one of these:')
+            lines.append(f'  available_weeks: {_json_sch.dumps(_available_week_starts)}')
+            lines.append('(Format as "Week of <Month> <D> — <reason>" using one of the above dates.)')
+    except Exception as _te_err:
+        # Never block monthly generation on transit-event failure
+        logger.warning(f'[monthly-day3] weekly schedule skipped: {_te_err}')
+
     lines.append(
         f"\nGenerate a complete monthly deep-dive for {month_str}. "
         "[cp-day1b] final instruction — if a COMPUTED JSON VALUES block is "
         "present above, the strong_planets and weak_planets fields MUST be "
         "exact copies of the arrays shown there.  Do not re-derive.  Do not "
-        "substitute other planets. "
+        "substitute other planets.  [cp-day3] best_week and caution_week MUST "
+        "reference a week_start date from the available_weeks list above — "
+        "do not invent weeks that are not in the WEEKLY TRANSIT SCHEDULE. "
         "Give 3 specific priority actions across different domains that "
-        "align with the strong and weak planets. "
-        "Name specific weeks for best timing and caution periods."
+        "align with the strong and weak planets and the week's events."
     )
 
     return "\n".join(lines)
