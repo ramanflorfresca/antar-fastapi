@@ -320,3 +320,50 @@ def test_day_names_qualified_plural_collapses_to_today_en():
     # 'the Saturdays' → qualified form collapses to 'today'
     assert 'saturday' not in out.lower()
     assert 'today' in out.lower()
+
+
+# [non-canonical-scores] regression tests
+# ═══════════════════════════════════════════════════════════════
+# Phase 3.5 annual_plan curl caught '(48/56 peak)' leaking because
+# the old _SCORE_PATTERN required the closing ')' to sit immediately
+# after '/56'.  The strip now uses two passes:
+#   1) any parenthetical containing X/56
+#   2) bare \b\d{1,2}/56\b
+
+def test_score_canonical_parens_still_stripped():
+    out = _strip_raw_scores('foo (48/56) bar')
+    assert '48/56' not in out
+    assert 'foo' in out and 'bar' in out
+
+
+def test_score_parens_with_extra_text_stripped():
+    out = _strip_raw_scores('year_theme (48/56 peak) landing')
+    assert '48/56' not in out
+    assert 'peak' not in out          # the whole parenthetical goes
+    assert 'year_theme' in out and 'landing' in out
+
+
+def test_score_bare_form_stripped():
+    out = _strip_raw_scores('energy 48/56 today')
+    assert '48/56' not in out
+    assert 'energy' in out and 'today' in out
+
+
+def test_score_hyphen_joined_stripped():
+    out = _strip_raw_scores('48/56-peak momentum')
+    assert '48/56' not in out
+    # '-peak' may remain as a fragment — that's acceptable
+    assert 'momentum' in out
+
+
+def test_score_apply_plain_catches_all_forms():
+    text = 'Saturn MD (48/56 peak) with 36/56 momentum.'
+    out = apply_user_facing_strips(text, 'en', field_type='plain')
+    assert '48/56' not in out
+    assert '36/56' not in out
+
+
+def test_score_no_false_positive_on_other_fractions():
+    # Only /56 should be stripped — other denominators stay untouched
+    out = _strip_raw_scores('scored 23/30 on that test')
+    assert '23/30' in out

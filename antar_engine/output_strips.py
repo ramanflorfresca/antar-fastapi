@@ -318,7 +318,13 @@ _DAY_NAMES_EN: tuple[str, ...] = (
     "saturday", "sunday", "yesterday", "tomorrow",
 )
 
-_SCORE_PATTERN = re.compile(r'\s*\((\d{1,2})/56\)\s*')
+# [non-canonical-scores] two-pass strip — parens first, bare second.
+# Pass 1: any parenthetical whose interior contains 'X/56'.
+# Pass 2: bare 'X/56' at word boundaries.
+_SCORE_PATTERN_PARENS = re.compile(r'\s*\([^()]*?\d{1,2}/56[^()]*?\)\s*')
+_SCORE_PATTERN_BARE   = re.compile(r'\b\d{1,2}/56\b')
+# Back-compat alias for any external caller still referencing _SCORE_PATTERN.
+_SCORE_PATTERN = _SCORE_PATTERN_PARENS
 _HOUSE_PATTERN_A = re.compile(r'\b\d{1,2}(?:st|nd|rd|th)\s+house\s*(?:lord)?', re.IGNORECASE)
 _HOUSE_PATTERN_B = re.compile(r'\bhouse\s+\d{1,2}\b', re.IGNORECASE)
 
@@ -362,10 +368,22 @@ def _strip_vedic_jargon(text: str, language: str = 'es') -> str:
 
 
 def _strip_raw_scores(text: str) -> str:
-    """Remove raw ``(X/56)`` score fractions from user-facing prose."""
+    """Two-pass strip of ashtakavarga-style scores.
+
+    Handles:
+      (48/56)         — canonical
+      (48/56 peak)    — extra text inside parens
+      48/56           — bare, no parens
+      48/56-peak      — hyphen-joined to a reason word
+
+    Order: parens sweep first, then bare-form sweep.  Otherwise
+    the bare sweep would kill the digits inside a parenthetical
+    and leave orphan parens behind.
+    """
     if not isinstance(text, str) or not text:
         return text
-    cleaned = _SCORE_PATTERN.sub(' ', text)
+    cleaned = _SCORE_PATTERN_PARENS.sub(' ', text)
+    cleaned = _SCORE_PATTERN_BARE.sub(' ', cleaned)
     return _tidy(cleaned)
 
 
