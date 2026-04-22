@@ -431,7 +431,7 @@ async def generate_annual_plan(
             "year_key":  year_key,
             "plan":      result,
             "created_at": now.isoformat(),
-        }).execute()
+        }, on_conflict="chart_id,year_key").execute()
         logger.info(f"[annual] Plan saved for {chart_id[:8]} {year_key}")
     except Exception as e:
         logger.warning(f"[annual] Cache save failed: {e}")

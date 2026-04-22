@@ -140,7 +140,7 @@ async def generate_weekly_briefing(
             "week_start": week_start.isoformat(),
             "briefing":   result,
             "created_at": now.isoformat(),
-        }).execute()
+        }, on_conflict="chart_id,week_start").execute()
         logger.info(f"[weekly] Briefing saved for chart {chart_id[:8]}")
     except Exception as e:
         logger.warning(f"[weekly] Cache save failed: {e}")

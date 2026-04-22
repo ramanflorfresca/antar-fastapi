@@ -384,7 +384,7 @@ async def generate_monthly_deepdive(
             "month_key": month_key,
             "deepdive":  result,
             "created_at": now.isoformat(),
-        }).execute()
+        }, on_conflict="chart_id,month_key").execute()
         logger.info(f"[monthly] Deep-dive saved for {chart_id[:8]} {month_key}")
     except Exception as e:
         logger.warning(f"[monthly] Cache save failed: {e}")
