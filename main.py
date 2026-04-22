@@ -5744,6 +5744,32 @@ State a specific year. Never predict past events as future windows.
         _pe = None
     # ── end C1 ───────────────────────────────────────────────────
 
+    # [output-strips] /predict post-pass (Phase 3.10)
+    # Additive defense on top of plain_english._strip_jargon — catches
+    # Spanish planet names, non-canonical (X/56 peak) formats, and plural
+    # day-of-week leaks that the legacy plain_english regex misses.
+    # All strippers are idempotent, so this never over-strips fields
+    # that plain_english already cleaned.
+    if _pe:
+        try:
+            _lang_pp = getattr(request, "language", "en") or "en"
+            for _f in ("plain_summary", "action_item", "signal_line",
+                       "timing_window", "bridge_practice_note"):
+                _v = _pe.get(_f)
+                if isinstance(_v, str) and _v:
+                    _pe[_f] = apply_user_facing_strips(
+                        _v, language=_lang_pp, field_type="plain"
+                    )
+            _why = _pe.get("why_this")
+            if isinstance(_why, str) and _why:
+                _pe["why_this"] = apply_user_facing_strips(
+                    _why, language=_lang_pp, field_type="evidence"
+                )
+        except Exception as _pp_err:
+            # Never crash /predict over a cosmetic strip failure.  Log
+            # and continue with the plain_english-cleaned fields.
+            print(f"[predict] central strip post-pass failed (non-fatal): {_pp_err}")
+
     confidence = predictions["highest_confidence"] or 0.75
     # FIX 9: Layer 2 counter should reflect actual transit injection, not just predictions['layer_2']
     _layer2_count = len(predictions['layer_2'])
