@@ -31,6 +31,86 @@ logger = logging.getLogger(__name__)
 
 # [cp-day4a] hot-domain aggregation helper
 # [cp-day6] monthly remedy helpers
+# [cp-day7] monthly energy + week-tone helpers
+
+def _compute_energy_level(strong_count: int, weak_count: int) -> str:
+    """
+    Deterministic enum from masik strong / weak planet counts.
+      strong ≥ 2 and weak ≥ 2              → 'mixed'
+      strong ≥ weak + 2                    → 'high'
+      weak   ≥ strong + 2                  → 'low'
+      otherwise                            → 'moderate'
+    """
+    s = max(0, int(strong_count or 0))
+    w = max(0, int(weak_count   or 0))
+    if s >= 2 and w >= 2:
+        return 'mixed'
+    if s >= w + 2:
+        return 'high'
+    if w >= s + 2:
+        return 'low'
+    return 'moderate'
+
+# Which planets are 'benefic' vs 'malefic' for tone scoring
+_BENEFIC = frozenset(('Jupiter', 'Venus', 'Mercury', 'Moon'))
+_MALEFIC = frozenset(('Saturn', 'Mars', 'Rahu', 'Ketu', 'Sun'))
+
+def _score_event_tone(ev: dict) -> float:
+    """
+    Return signed tone score for a single transit event.
+    Benefic trine/sextile/conjunction → positive.
+    Malefic square/opposition         → negative.
+    Retro start (any planet)          → mild negative.
+    Ingress / nakshatra_shift         → near zero.
+    Magnitude grows with tightness of orb for aspects.
+    """
+    etype  = ev.get('event_type')
+    planet = ev.get('planet', '')
+    if etype == 'aspect':
+        kind = ev.get('aspect_kind', '')
+        orb  = float(ev.get('orb') or 2.0)
+        magnitude = max(0.2, 3.0 - orb)
+        if kind in ('trine', 'sextile', 'conjunction'):
+            # Benefic planet making a soft aspect → clearly positive.
+            # Malefic planet making a soft aspect → mild positive.
+            return magnitude if planet in _BENEFIC else magnitude * 0.4
+        if kind in ('square', 'opposition'):
+            # Malefic hard aspect → clearly negative.
+            # Benefic hard aspect → mild negative.
+            return -magnitude if planet in _MALEFIC else -magnitude * 0.4
+        return 0.0
+    if etype == 'retro_start':
+        return -0.5 if planet in _MALEFIC else -0.2
+    if etype == 'retro_end':
+        return 0.3
+    if etype == 'ingress':
+        # Benefic moving forward = slightly positive, malefic = neutral
+        return 0.4 if planet in _BENEFIC else 0.0
+    return 0.0
+
+def _pick_best_and_caution_weeks(weeks: list) -> tuple[str, str]:
+    """
+    Given a list of week buckets (from bucket_events_by_week), score
+    each week by summed event tone and return:
+        (best_week_start_iso, caution_week_start_iso)
+    If fewer than 2 weeks, best and caution may both be the same week.
+    Empty input returns ('', '').
+    """
+    if not weeks:
+        return ('', '')
+    scored = []
+    for wk in weeks:
+        total = sum(_score_event_tone(e) for e in (wk.get('events') or []))
+        scored.append((wk.get('week_start', ''), total))
+    # Best = highest tone score, caution = lowest.
+    best    = max(scored, key=lambda t: t[1])[0]
+    caution = min(scored, key=lambda t: t[1])[0]
+    # Edge case: if both end up the same, pick second-lowest for caution
+    if best == caution and len(scored) > 1:
+        others = sorted([s for s in scored if s[0] != best], key=lambda t: t[1])
+        caution = others[0][0]
+    return (best, caution)
+
 # [cp-day5] canonical remedy practice builder
 def _canonical_practice(planet: str) -> str:
     """
@@ -173,6 +253,15 @@ RULES:
   that list — same length, same planets in the same order, same
   practice text verbatim.  Do not substitute planets.  Do not
   rewrite practice text.  These are canonical classical mantras.
+- [cp-day7] energy_level + best/caution week rule —
+  (a) energy_level MUST equal the computed value shown under
+      'COMPUTED JSON VALUES — energy_level MUST be:' verbatim.
+  (b) If best_week_start / caution_week_start are provided,
+      the best_week and caution_week JSON fields MUST begin with
+      'Week of <Month> <D>' where the date equals the computed
+      start date.  Reason clause after the em-dash is your own
+      phrasing but must cite events from that specific week's
+      schedule.
 
 Return ONLY this JSON:
 {
@@ -484,6 +573,31 @@ def _build_deepdive_context(
             lines.append('COMPUTED JSON VALUES — priority_actions MUST cover exactly these domains in this order:')
             lines.append(f'  priority_action_domains: {_json_sch.dumps(_hot_domains)}')
             lines.append('(Write one verb-first action per domain, citing the transit events above.)')
+
+            # [cp-day7] monthly energy + week picks injection
+            # energy_level from masik strong/weak counts (pinned to fix regression)
+            _energy = _compute_energy_level(
+                len(_strong_names or []), len(_weak_names or []),
+            )
+            # best_week / caution_week picked deterministically from
+            # aspect-tone scoring of the weekly schedule.
+            _best_ws, _caution_ws = _pick_best_and_caution_weeks(_weeks)
+            print(
+                f'[monthly-day7] energy={_energy!r} '
+                f'best_week_start={_best_ws!r} '
+                f'caution_week_start={_caution_ws!r}'
+            )
+            lines.append('')
+            lines.append(f'COMPUTED JSON VALUES — energy_level MUST be: {_json_sch.dumps(_energy)}')
+            lines.append('(Copy this enum value into the energy_level field verbatim.)')
+            if _best_ws or _caution_ws:
+                lines.append('')
+                lines.append('COMPUTED JSON VALUES — best_week and caution_week week_start dates MUST be:')
+                lines.append(f'  best_week_start:    {_json_sch.dumps(_best_ws)}')
+                lines.append(f'  caution_week_start: {_json_sch.dumps(_caution_ws)}')
+                lines.append('(best_week begins with "Week of <Month> <D>" from best_week_start; '
+                              'caution_week begins with "Week of <Month> <D>" from caution_week_start. '
+                              'Reason clause after the em-dash is your own phrasing.)')
     except Exception as _te_err:
         # Never block monthly generation on transit-event failure
         logger.warning(f'[monthly-day3] weekly schedule skipped: {_te_err}')

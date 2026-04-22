@@ -29,6 +29,29 @@ logger = logging.getLogger(__name__)
 
 # [cp-day4b] annual transit helpers
 # [cp-day5] annual remedy helpers
+# [cp-day7] year_quality helper
+_DASHA_TO_YEAR_QUALITY = {
+    'Jupiter':  'expansion',
+    'Saturn':   'consolidation',
+    'Mars':     'building',
+    'Sun':      'building',
+    'Rahu':     'transformation',
+    'Ketu':     'transformation',
+    'Venus':    'harvest',
+    'Moon':     'harvest',
+    'Mercury':  'harvest',
+}
+
+def _pick_year_quality(current_dasha: str | None) -> str:
+    """
+    Map current dasha lord to one of the canonical year_quality enum
+    values.  Returns 'building' as a neutral default when unknown.
+    """
+    if not isinstance(current_dasha, str) or not current_dasha.strip():
+        return 'building'
+    lord = current_dasha.strip().split()[0].split('/')[0].strip().capitalize()
+    return _DASHA_TO_YEAR_QUALITY.get(lord, 'building')
+
 # [cp-day5] canonical remedy practice builder
 def _canonical_practice(planet: str) -> str:
     """
@@ -240,6 +263,9 @@ RULES:
   practice text verbatim.  Do not substitute planets.  Do not rewrite
   practice text.  These values are canonical classical mantras —
   paraphrasing them loses meaning.
+- [cp-day7] year_quality rule — if the context contains a
+  'year_quality MUST be:' computed enum value, the year_quality
+  field in your response MUST equal that string verbatim.
 - Peak windows per domain: at least 4 domains covered
 - Be specific to the chart data — actual planetary periods and positions
 - ALWAYS address the user by first name in year_summary e.g. 'Ramandeep, this year...'
@@ -558,6 +584,13 @@ def _build_annual_context(
         lines.append('COMPUTED JSON VALUES — yearly_remedies array MUST be exactly this list:')
         lines.append(f'  yearly_remedies_list: {_json_ann.dumps(_remedy_list)}')
         lines.append('(Each entry {planet, practice} must be a character-for-character copy.)')
+
+        # [cp-day7] year_quality injection — deterministic from dasha lord
+        _year_quality = _pick_year_quality(current_dasha)
+        print(f'[annual-day7] year_quality={_year_quality!r} (from dasha={current_dasha!r})')
+        lines.append('')
+        lines.append(f'COMPUTED JSON VALUES — year_quality MUST be: {_json_ann.dumps(_year_quality)}')
+        lines.append('(Copy this enum value into the year_quality field verbatim.)')
     except Exception as _ann_err:
         # Never block the annual plan on transit computation failure
         logger.warning(f'[annual-day4b] transit context skipped: {_ann_err}')
