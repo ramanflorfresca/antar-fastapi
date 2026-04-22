@@ -866,7 +866,9 @@ def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
 
     # el_movimiento intentionally left untouched — depth preserved.
 
-    # windows[].text — 'window' strip keeps Panchang terms glossed by UI
+    # [3.7c] windows[].text uses 'plain' — UI does not gloss Panchang
+    # terms, so translate Rahu Kalam / Abhijit Muhurta / Gulika Kala
+    # to their plain-Spanish equivalents just like every other field.
     windows = signal_json.get('windows') or []
     if isinstance(windows, list):
         for w in windows:
@@ -874,7 +876,7 @@ def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
                 t = w.get('text')
                 if isinstance(t, str) and t:
                     w['text'] = apply_user_facing_strips(
-                        t, language=language, field_type='window'
+                        t, language=language, field_type='plain'
                     )
 
     return signal_json
@@ -1278,6 +1280,11 @@ async def generate_weekly_signals(
                             retry_day = _validate_no_day_names(retry_signal, language)
                             retry_eng = _detect_english_leak(retry_signal, language)
                             if not retry_day and not retry_eng:
+                                # [3.7c] strip even on retry-success — the day-name/eng
+                                # validators only check two leak classes; Vedic jargon,
+                                # Spanish planet names, and X/56 scores still need scrubbing.
+                                retry_signal = _strip_day_names_from_signal(retry_signal, language)
+                                retry_signal = _strip_all_jargon_from_signal(retry_signal, language)
                                 llm_signal = retry_signal
                                 logger.info(f"[daily-week] Retry succeeded for {date_str}")
                             else:
