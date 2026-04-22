@@ -367,3 +367,45 @@ def test_score_no_false_positive_on_other_fractions():
     # Only /56 should be stripped — other denominators stay untouched
     out = _strip_raw_scores('scored 23/30 on that test')
     assert '23/30' in out
+
+
+# [3.10b] cross-language day-name tests
+# ═══════════════════════════════════════════════════════════════
+# Phase 3.10 simulation caught 'Las Saturdays son fuertes' leaking
+# through when language='es'.  Fix: non-English calls now sweep both
+# the requested language's day list AND the English list.
+
+def test_day_names_english_word_in_spanish_prose():
+    """LLM bias: English day names sometimes leak into Spanish output."""
+    out = apply_user_facing_strips(
+        'Las Saturdays son fuertes en este ciclo', 'es', field_type='plain'
+    )
+    assert 'saturday' not in out.lower()
+    assert 'los Saturdays'.lower() not in out.lower()
+
+
+def test_day_names_english_mixed_in_spanish():
+    out = _strip_day_names(
+        'Practica los Thursdays antes del trabajo', 'es'
+    )
+    assert 'thursday' not in out.lower()
+
+
+def test_day_names_english_preserved_in_english_no_regression():
+    """language='en' behavior unchanged — English days still stripped."""
+    out = _strip_day_names('Focus on Tuesdays', 'en')
+    assert 'tuesday' not in out.lower()
+
+
+def test_day_names_spanish_word_in_english_prose_NOT_stripped():
+    """By design: Spanish day names in English prose stay (rare + risky)."""
+    out = _strip_day_names('Meeting on lunes night', 'en')
+    assert 'lunes' in out.lower()   # Spanish days NOT swept in EN path
+
+
+def test_day_names_qualified_spanish_collapses_to_hoy():
+    """Regression guard: 'los sábados' still collapses to 'hoy'."""
+    out = _strip_day_names('los sábados son tranquilos', 'es')
+    assert 'sábado' not in out.lower()
+    assert 'sabado' not in out.lower()
+    assert 'hoy' in out.lower()

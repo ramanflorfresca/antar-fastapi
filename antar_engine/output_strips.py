@@ -391,18 +391,32 @@ def _strip_day_names(text: str, language: str = 'es') -> str:
     """Remove day-of-week name leaks from sentences.
 
     Matches both singular and plural forms (Saturday / Saturdays /
-    sábado / sábados) via an optional trailing 's' — see
-    [plural-days] regex handles trailing 's'.
+    sábado / sábados) via an optional trailing 's'.
+
+    Phase 3.10b — cross-language sweep.  LLM output in non-English
+    languages frequently embeds English day names ('Las Saturdays
+    son fuertes').  When language != 'en' we run BOTH the requested
+    language's list AND the English list, catching the cross-language
+    leak without regressing the same-language case.
     """
     if not isinstance(text, str) or not text:
         return text
-    days = _DAY_NAMES_ES if language == 'es' else _DAY_NAMES_EN
-    filler = 'hoy' if language == 'es' else 'today'
+    # [3.10b] cross-language day-name sweep
+    primary = _DAY_NAMES_ES if language == 'es' else _DAY_NAMES_EN
+    filler  = 'hoy' if language == 'es' else 'today'
+    # Non-English languages also sweep English day names (LLM bias).
+    # English stays single-pass because Spanish day names in EN prose
+    # are extremely rare and risk false positives on proper nouns.
+    all_days = tuple(primary) + (_DAY_NAMES_EN if language != 'en' else ())
+    # De-dup while preserving order (English-in-EN path would otherwise
+    # sweep each day twice).
+    seen = set()
+    dedup_days = tuple(d for d in all_days if not (d in seen or seen.add(d)))
     result = text
-    for day in days:
-        # Qualified forms collapse to "hoy/today" — supports plural too
+    for day in dedup_days:
+        # Qualified forms collapse to 'hoy/today' — supports plural too
         result = re.sub(
-            rf'\b(este|esta|un|una|the|this|a)\s+{re.escape(day)}s?\b',
+            rf'\b(este|esta|un|una|the|this|a|los|las)\s+{re.escape(day)}s?\b',
             filler, result, flags=re.IGNORECASE
         )
         # Bare day names (singular or plural) drop
