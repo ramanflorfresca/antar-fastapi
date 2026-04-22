@@ -40,12 +40,15 @@ RULES:
 - 3 priority actions: specific, actionable, different domains
 - Remedies: practical and tied to specific chart placements
 - Timing windows: name specific weeks, not vague periods
-- [cp-day1] STRUCTURAL FACTS instruction — if the user context below contains a
-  MASIK PHAL block, the JSON fields strong_planets and weak_planets MUST contain
-  ONLY the planet names listed there, in that exact order. Do not add other
-  planets. Do not remove any. Do not translate or rename. This block is computed
-  from the chart — your job is to narrate what it shows, not to invent parallel
-  assessments.
+- [cp-day1b] COMPUTED JSON VALUES rule — at the end of the user context below
+  you will find a block labeled 'COMPUTED JSON VALUES — COPY THESE ARRAYS INTO
+  YOUR RESPONSE'.  The strong_planets and weak_planets arrays in your JSON
+  response MUST be character-for-character copies of the arrays in that block.
+  Do not add planets.  Do not remove planets.  Do not reorder.  Do not re-derive
+  the assessment.  These values are computed deterministically from the chart;
+  your job is to narrate the priority_actions, overview, and monthly_mantra
+  that flow from them.  If the COMPUTED JSON VALUES block is absent, fall back
+  to your own judgment — but when present, it overrides.
 
 Return ONLY this JSON:
 {
@@ -236,25 +239,46 @@ def _build_deepdive_context(
     if lk_note:
         lines.append(lk_note)
 
-    # [cp-day1] append masik phal block — pre-computed strong/weak planets
-    # injected as STRUCTURAL FACTS so Claude echoes them verbatim instead of
-    # inventing parallel assessments each run.
+    # [cp-day1b] explicit COMPUTED JSON VALUES injection
+    # Day 1 proved the masik block reaches Claude but the narrative format
+    # gave Claude too much room to cherry-pick.  Now we ALSO append a
+    # ready-made arrays block that mirrors the JSON schema exactly.
     if birth_date:
         try:
             _masik_block = build_masik_context_block(birth_date, planets)
+            _masik_data  = calculate_masik_phal(birth_date, planets)
+            _strong_names = [p['planet'] for p in _masik_data.get('strong_planets', [])]
+            _weak_names   = [p['planet'] for p in _masik_data.get('weak_planets',   [])]
+            # Server log — shows up in Railway; confirms compute and prompt wiring
+            logger.info(
+                f'[monthly-day1] masik computed: strong={_strong_names} '
+                f'weak={_weak_names} month={_masik_data.get("month_name")}'
+            )
             if _masik_block:
                 lines.append('')
-                lines.append('STRUCTURAL FACTS — use these exactly as JSON values:')
+                lines.append('STRUCTURAL FACTS — chart-computed monthly assessment:')
                 lines.append(_masik_block)
+            # Machine-readable block Claude must copy verbatim
+            import json as _json_inner
+            lines.append('')
+            lines.append('COMPUTED JSON VALUES — COPY THESE ARRAYS INTO YOUR RESPONSE:')
+            lines.append(f'  strong_planets: {_json_inner.dumps(_strong_names)}')
+            lines.append(f'  weak_planets:   {_json_inner.dumps(_weak_names)}')
+            lines.append('(Do not substitute. Do not reorder. Do not add or remove planets.)')
         except Exception as _mp_err:
             # Never block the deep-dive on masik phal failure
             logger.warning(f'[monthly] masik phal block skipped: {_mp_err}')
+    else:
+        logger.info('[monthly-day1] no birth_date — masik block skipped')
 
     lines.append(
         f"\nGenerate a complete monthly deep-dive for {month_str}. "
-        "The strong_planets and weak_planets JSON fields MUST match the MASIK "
-        "PHAL block above verbatim if present. "
-        "Give 3 specific priority actions across different domains. "
+        "[cp-day1b] final instruction — if a COMPUTED JSON VALUES block is "
+        "present above, the strong_planets and weak_planets fields MUST be "
+        "exact copies of the arrays shown there.  Do not re-derive.  Do not "
+        "substitute other planets. "
+        "Give 3 specific priority actions across different domains that "
+        "align with the strong and weak planets. "
         "Name specific weeks for best timing and caution periods."
     )
 
