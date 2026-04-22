@@ -454,7 +454,7 @@ def _tidy(text: str) -> str:
 # Public entry point
 # ════════════════════════════════════════════════════════════════
 
-_VALID_FIELD_TYPES = ('plain', 'headline', 'evidence', 'window')
+_VALID_FIELD_TYPES = ('plain', 'headline', 'evidence', 'window', 'timing')
 _VALID_DEPTHS = ('user', 'power_user')
 
 
@@ -523,6 +523,17 @@ def apply_user_facing_strips(
         result = _strip_instrument_names(result, language)
         result = _strip_day_names(result, language)
         # (no vedic / no score / no planet strip)
+
+    elif field_type == 'timing':
+        # Same as 'plain' EXCEPT day-of-week names are preserved.
+        # Used for fields where the weekday IS the answer, e.g. the
+        # weekly_briefing.best_day field ("Wednesday — mid-week clarity").
+        result = _strip_instrument_names(result, language)
+        if depth == 'user':
+            result = _strip_vedic_jargon(result, language)
+        result = _strip_planet_names(result, language)
+        result = _strip_raw_scores(result)
+        # (no day-name strip — that's the whole point of this field type)
 
     return result
 

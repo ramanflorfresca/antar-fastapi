@@ -239,3 +239,48 @@ def test_evidence_el_movimiento_preserves_full_depth():
     out = apply_user_facing_strips(em, 'es', field_type='evidence')
     for token in ('Saturno', 'Marte', 'MD', 'AD', 'Tara', 'Gulika Kala', '23/56'):
         assert token in out, f'{token!r} lost from evidence output: {out!r}'
+
+
+# [output-strips] timing field tests
+# ═══════════════════════════════════════════════════════════════
+# Added with Phase 3.3 (weekly_briefing migration): field_type='timing'
+# is 'plain' minus the day-name strip.  Used for best_day / best_week
+# style fields where the weekday is the information.
+
+def test_timing_preserves_day_names():
+    out = apply_user_facing_strips('Wednesday — mid-week clarity', 'en', field_type='timing')
+    assert 'Wednesday' in out
+
+
+def test_timing_still_strips_vedic():
+    out = apply_user_facing_strips(
+        'Tuesday — Gajakesari yoga active', 'en', field_type='timing'
+    )
+    assert 'Tuesday' in out
+    assert 'Gajakesari' not in out
+
+
+def test_timing_still_strips_instruments_in_spanish():
+    out = apply_user_facing_strips(
+        'Miércoles — tu Magnetism Field fuerte', 'es', field_type='timing'
+    )
+    assert 'Miércoles' in out            # day preserved
+    assert 'Magnetism Field' not in out  # instrument translated
+    assert 'campo magnético' in out.lower()
+
+
+def test_timing_still_strips_raw_scores():
+    out = apply_user_facing_strips(
+        'Friday — strong flow (48/56)', 'en', field_type='timing'
+    )
+    assert 'Friday' in out
+    assert '48/56' not in out
+
+
+def test_timing_translates_planet_names():
+    out = apply_user_facing_strips(
+        'Monday — Saturn pressure eases', 'en', field_type='timing'
+    )
+    assert 'Monday' in out
+    # Saturn → energy phrase
+    assert 'Saturn' not in out or 'discipline' in out.lower()

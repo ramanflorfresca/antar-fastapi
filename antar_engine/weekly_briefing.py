@@ -20,6 +20,9 @@ import re
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
+# [output-strips] migrate weekly_briefing
+from antar_engine.output_strips import apply_user_facing_strips
+
 logger = logging.getLogger(__name__)
 
 BRIEFING_TABLE = "weekly_briefings"
@@ -104,6 +107,31 @@ async def generate_weekly_briefing(
         oa = result["one_action"]
         if not oa.startswith(first_name):
             result["one_action"] = oa  # action stays verb-first
+
+    # [output-strips] strip weekly_briefing
+    # Route every user-facing narrative field through the central
+    # output-strip layer BEFORE the cache upsert, so cached rows are
+    # clean.  Language is hard-coded to 'en' because weekly_briefing
+    # is currently English-only; wire chart language through when
+    # /weekly-briefing goes multilingual.
+    _lang = 'en'
+    # weekly_focus + one_action: full plain strip
+    for _f in ('weekly_focus', 'one_action'):
+        _v = result.get(_f)
+        if isinstance(_v, str) and _v:
+            result[_f] = apply_user_facing_strips(_v, language=_lang, field_type='plain')
+    # best_day: 'timing' — keeps the weekday (prompt requires it), strips the rest
+    _bd = result.get('best_day')
+    if isinstance(_bd, str) and _bd:
+        result['best_day'] = apply_user_facing_strips(_bd, language=_lang, field_type='timing')
+    # domains.* — each 2-sentence domain body is a plain field
+    _domains = result.get('domains')
+    if isinstance(_domains, dict):
+        for _dk, _dv in list(_domains.items()):
+            if isinstance(_dv, str) and _dv:
+                _domains[_dk] = apply_user_facing_strips(
+                    _dv, language=_lang, field_type='plain'
+                )
 
     # Save to cache
     try:
