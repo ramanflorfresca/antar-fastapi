@@ -284,3 +284,39 @@ def test_timing_translates_planet_names():
     assert 'Monday' in out
     # Saturn → energy phrase
     assert 'Saturn' not in out or 'discipline' in out.lower()
+
+
+# [plural-days] regression tests
+# ═══════════════════════════════════════════════════════════════
+# Phase 3.4 production curl caught 'saturdays' leaking because
+# \b{day}\b doesn't match when the trailing 's' is a word-char.
+# Pattern now allows \b{day}s?\b so both forms are stripped.
+
+def test_day_names_plural_en():
+    out = _strip_day_names('Saturdays are the strongest days', 'en')
+    assert 'saturday' not in out.lower()
+
+
+def test_day_names_plural_lowercase_en():
+    out = _strip_day_names('three saturdays of momentum', 'en')
+    assert 'saturday' not in out.lower()
+
+
+def test_day_names_plural_es():
+    out = _strip_day_names('Los sábados son fuertes', 'es')
+    assert 'sábado' not in out.lower()
+    assert 'sabado' not in out.lower()
+
+
+def test_day_names_apply_plain_catches_plural_en():
+    out = apply_user_facing_strips(
+        'On Saturdays the window opens', 'en', field_type='plain'
+    )
+    assert 'saturday' not in out.lower()
+
+
+def test_day_names_qualified_plural_collapses_to_today_en():
+    out = _strip_day_names('the Saturdays ahead', 'en')
+    # 'the Saturdays' → qualified form collapses to 'today'
+    assert 'saturday' not in out.lower()
+    assert 'today' in out.lower()

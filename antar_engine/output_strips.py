@@ -370,20 +370,25 @@ def _strip_raw_scores(text: str) -> str:
 
 
 def _strip_day_names(text: str, language: str = 'es') -> str:
-    """Remove day-of-week name leaks from sentences."""
+    """Remove day-of-week name leaks from sentences.
+
+    Matches both singular and plural forms (Saturday / Saturdays /
+    sábado / sábados) via an optional trailing 's' — see
+    [plural-days] regex handles trailing 's'.
+    """
     if not isinstance(text, str) or not text:
         return text
     days = _DAY_NAMES_ES if language == 'es' else _DAY_NAMES_EN
     filler = 'hoy' if language == 'es' else 'today'
     result = text
     for day in days:
-        # Qualified forms collapse to "hoy/today"
+        # Qualified forms collapse to "hoy/today" — supports plural too
         result = re.sub(
-            rf'\b(este|esta|un|una|the|this|a)\s+{re.escape(day)}\b',
+            rf'\b(este|esta|un|una|the|this|a)\s+{re.escape(day)}s?\b',
             filler, result, flags=re.IGNORECASE
         )
-        # Bare day names drop
-        result = re.sub(rf'\b{re.escape(day)}\b', '', result, flags=re.IGNORECASE)
+        # Bare day names (singular or plural) drop
+        result = re.sub(rf'\b{re.escape(day)}s?\b', '', result, flags=re.IGNORECASE)
     return _tidy(result)
 
 
