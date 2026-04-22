@@ -10,8 +10,11 @@ from datetime import datetime, date, timedelta, timezone
 from typing import Optional, List, Dict, Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import FastAPI, HTTPException, Header, Request, Body
+from fastapi import FastAPI, HTTPException, Header, Request, Body, status
 from fastapi.middleware.cors import CORSMiddleware
+# [chart-create-422] validation error support
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse as _ValidationJSONResponse
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -1059,11 +1062,61 @@ class ChartResponse(BaseModel):
     lagna: Dict[str, Any]
     planets: Dict[str, Any]
 
+# [chart-create-422] lat/lng optional + birth_time validator
+from pydantic import field_validator as _chart_field_validator
+import re as _chart_re
+
+def _parse_birth_time_permissive(v: str) -> str:
+    """
+    Accept many natural birth-time formats, return canonical HH:MM:SS.
+    Examples:
+        '7:55 a.m.'  → '07:55:00'
+        '7:55 AM'    → '07:55:00'
+        '07:55'      → '07:55:00'
+        '7:55 p.m.'  → '19:55:00'
+        '19:55'      → '19:55:00'
+    """
+    if not v or not isinstance(v, str):
+        raise ValueError('birth_time is required')
+    s = _chart_re.sub(r'\s+', ' ', v.strip().lower())
+    # Normalize: drop periods first, then collapse internal spaces inside
+    # AM/PM markers ('a.m.' / 'a. m.' / 'a m' / 'am' → 'am').  Easier
+    # than trying to match every punctuation variant with word boundaries.
+    s = s.replace('.', '')
+    s = _chart_re.sub(r'\b([ap])\s*m\b', r'\1m', s)
+    s = _chart_re.sub(r'\s+', ' ', s).strip()
+    is_pm = bool(_chart_re.search(r'\bpm\b', s))
+    is_am = bool(_chart_re.search(r'\bam\b', s))
+    # Strip AM/PM markers from the string before numeric parse
+    s = _chart_re.sub(r'\b[ap]m\b', '', s).strip()
+    parts = s.split(':')
+    if len(parts) < 2 or len(parts) > 3:
+        raise ValueError(f'Invalid time format: {v!r}')
+    try:
+        hour   = int(parts[0])
+        minute = int(parts[1])
+        second = int(parts[2]) if len(parts) == 3 else 0
+    except ValueError:
+        raise ValueError(f'Invalid time format: {v!r}')
+    # 12-hour → 24-hour conversion
+    if is_pm and hour < 12:
+        hour += 12
+    elif is_am and hour == 12:
+        hour = 0
+    if not (0 <= hour < 24 and 0 <= minute < 60 and 0 <= second < 60):
+        raise ValueError(f'Time out of range: {v!r}')
+    return f'{hour:02d}:{minute:02d}:{second:02d}'
+
 class ChartCreateRequest(BaseModel):
     birth_date:      str   = Field(..., example="1990-03-15")
     birth_time:      str   = Field(..., example="14:30")
-    latitude:        float = Field(..., example=28.6139)
-    longitude:       float = Field(..., example=77.2090)
+    latitude:        Optional[float] = Field(None, example=28.6139)
+    longitude:       Optional[float] = Field(None, example=77.2090)
+
+    @_chart_field_validator('birth_time', mode='before')
+    @classmethod
+    def _normalise_birth_time(cls, v):
+        return _parse_birth_time_permissive(v)
     timezone_offset: Optional[float] = Field(None, example=5.5)
     timezone_name:   Optional[str] = Field(None, example="Asia/Kolkata")
     timezone:        Optional[str] = Field(None, example="America/Caracas")
@@ -1201,6 +1254,81 @@ def verify_token(authorization: str) -> str:
         return user.user.id
     except Exception:
         raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+
+# [chart-create-422] validation exception handler
+def _chart_create_validation_code(pydantic_type: str) -> str:
+    """Map Pydantic error 'type' to a frontend-friendly code.
+    Handles both Pydantic v1 and v2 naming.
+    """
+    if not pydantic_type:
+        return 'FIELD_INVALID'
+    t = pydantic_type.lower()
+    if 'missing' in t:
+        return 'FIELD_REQUIRED'
+    if 'none' in t and 'not_allowed' in t:
+        return 'FIELD_REQUIRED'
+    if 'regex' in t or 'pattern' in t or 'format' in t:
+        return 'FIELD_FORMAT_INVALID'
+    if 'too_short' in t or 'min_length' in t:
+        return 'FIELD_TOO_SHORT'
+    if 'too_long' in t or 'max_length' in t:
+        return 'FIELD_TOO_LONG'
+    if 'integer' in t or 'int_' in t:
+        return 'FIELD_TYPE_INVALID'
+    if 'float' in t or 'float_' in t or 'decimal' in t:
+        return 'FIELD_TYPE_INVALID'
+    if 'bool' in t:
+        return 'FIELD_TYPE_INVALID'
+    if 'enum' in t or 'literal' in t:
+        return 'FIELD_VALUE_NOT_ALLOWED'
+    if 'type' in t:
+        return 'FIELD_TYPE_INVALID'
+    return 'FIELD_INVALID'
+
+
+@app.exception_handler(RequestValidationError)
+async def _validation_exception_handler(request: Request, exc: RequestValidationError):
+    """
+    Chart-create gets a structured, frontend-dispatchable 422 body.
+    Every other endpoint keeps the FastAPI default (list of pydantic errors).
+    """
+    import logging as _vlog
+    _log = _vlog.getLogger('antar.chart_create')
+    errors = exc.errors() or []
+
+    if request.url.path.endswith('/chart/create'):
+        # Structured logging — each 422 pinpoints the blocking fields
+        _log.error(
+            f'[chart/create] 422 validation failed: '
+            f'n_errors={len(errors)} '
+            f'fields={[e.get("loc") for e in errors]} '
+            f'messages={[e.get("msg") for e in errors]}'
+        )
+        field_errors = []
+        for err in errors:
+            loc = err.get('loc') or []
+            field = str(loc[-1]) if (loc and len(loc) > 1) else str(loc)
+            field_errors.append({
+                'field':   field,
+                'code':    _chart_create_validation_code(err.get('type', '')),
+                'message': err.get('msg', 'Invalid value'),
+            })
+        return _ValidationJSONResponse(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            content={
+                'code':         'VALIDATION_FAILED',
+                'message':      'One or more fields need attention',
+                'field_errors': field_errors,
+                'action':       'show_inline_errors',
+            },
+        )
+
+    # Default behavior for every other route — unchanged FastAPI shape
+    return _ValidationJSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={'detail': errors},
+    )
 
 def get_dashas_for_chart(chart_id: str) -> dict:
     result = supabase.table("dasha_periods").select("*").eq("chart_id", chart_id).order("sequence").limit(500).execute()
@@ -10901,12 +11029,22 @@ async def _get_dashboard_inner(chart_id: str, language: str = "es"):
         except: panchanga = {}
 
     # Panchang from daily-week
+    # [chart-create-422] panchang via calculate_panchang
+    # build_daily_week was removed in a prior refactor; use the
+    # sync calculate_panchang(dt_utc, lat, lon) helper directly.
+    # The dashboard card only needs today's panchang — not the whole week.
     _pc = {}
     try:
-        from antar_engine.daily_prediction_engine import build_daily_week
-        _dw = build_daily_week(chart_id=chart_id, tz_offset=-5, language=language)
-        _days = _dw.get('days', [])
-        if _days: _pc = _build_panchang_card(_days[0], language)
+        from antar_engine.daily_prediction_engine import calculate_panchang as _calc_p
+        from datetime import datetime as _dt_p, timezone as _tz_p
+        _chart_row = supabase.table('charts').select('latitude,longitude,timezone_offset') \
+            .eq('id', chart_id).single().execute()
+        _cd = _chart_row.data or {}
+        _lat = float(_cd.get('latitude')  or 0.0)
+        _lon = float(_cd.get('longitude') or 0.0)
+        _dw_day = _calc_p(_dt_p.now(_tz_p.utc), _lat, _lon) if (_lat or _lon) else {}
+        if _dw_day:
+            _pc = _build_panchang_card(_dw_day, language)
     except Exception as _pe:
         print(f'[dashboard] panchang: {_pe}')
 
