@@ -16,13 +16,14 @@ import logging
 import json
 import os
 
-# [jargon-defense] import stripers
-from antar_engine.plain_english import (
-    _strip_jargon,
-    _strip_vedic_jargon,
-    _strip_raw_scores,
-    _strip_instrument_names,
-)
+# [output-strips] migrate daily_prediction_engine (Phase 3.7)
+# Legacy import retained commented-out for one deploy cycle in case
+# we need to roll back.  Once 3.7 is verified, this can be deleted.
+# from antar_engine.plain_english import (
+#     _strip_jargon, _strip_vedic_jargon, _strip_raw_scores,
+#     _strip_instrument_names,
+# )
+from antar_engine.output_strips import apply_user_facing_strips
 
 logger = logging.getLogger(__name__)
 
@@ -826,61 +827,46 @@ def _strip_day_names_from_signal(signal_json: dict, language: str) -> dict:
 
 def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
     """
-    Apply all post-generation jargon defenses to user-facing fields.
-    Called immediately after LLM returns signal_json, in parallel with
-    _strip_day_names_from_signal, before cache write.
+    Apply centralized output strips to user-facing fields before cache write.
 
-    Mirrors the defense pattern used on the /predict path in
-    plain_english.py, with four layers applied in a specific order:
-      1. _strip_instrument_names — EN instrument phrases → plain ES
-      2. _strip_vedic_jargon     — Sanskrit/Vedic technical terms
-      3. _strip_jargon           — planet-name → energy translations
-      4. _strip_raw_scores       — raw "X/56" ashtakavarga fractions
+    Delegates to antar_engine.output_strips.apply_user_facing_strips, which
+    handles Spanish planet names, non-canonical X/56 scores, plural day
+    names, compound Vedic terms, and instrument codenames — all in one
+    place, shared with every other migrated endpoint.
 
-    Order matters: Vedic compounds like "Abhijit Muhurta" and
-    "Rahu Kalam" must be translated BEFORE _strip_jargon runs,
-    otherwise _strip_jargon's BANNED_TERMS list (which contains
-    "muhurta") would strip the tail of the compound and leave a
-    dangling fragment.
-
-    IMPORTANT:
-      * el_movimiento is NOT stripped — that field is the "why"
-        expandable and keeps full technical depth for power users.
-      * windows[].text gets the instrument strip only.  Named
-        Panchang terms (Abhijit Muhurta, Rahu Kalam) stay intact
-        there because they appear with gloss and are user-searchable.
+    Field → field_type mapping:
+      'plain'   senal_de_hoy, observa_hoy_text, verdict_subline,
+                haz_hoy[], evita_hoy[]
+      'window'  windows[].text   (keeps Panchang terms like Abhijit
+                                  Muhurta, Rahu Kalam)
+      (untouched) el_movimiento  — retains technical depth for the
+                                    'why' expandable
+      (untouched) verdict_emoji, verdict_label, domain, dates, etc.
     """
     if not signal_json or not isinstance(signal_json, dict):
         return signal_json
 
-    def _full_pipeline(s: str) -> str:
-        s = _strip_instrument_names(s, language)
-        s = _strip_vedic_jargon(s, language)
-        s = _strip_jargon(s)
-        s = _strip_raw_scores(s)
-        return s
+    # Scalar plain fields
+    for _f in ('senal_de_hoy', 'observa_hoy_text', 'verdict_subline'):
+        _v = signal_json.get(_f)
+        if isinstance(_v, str) and _v:
+            signal_json[_f] = apply_user_facing_strips(
+                _v, language=language, field_type='plain'
+            )
 
-    # Scalar fields that receive the full treatment
-    _PLAIN_SCALAR_FIELDS = ('senal_de_hoy', 'observa_hoy_text', 'verdict_subline')
-    # List fields that receive the full treatment
-    _PLAIN_ARRAY_FIELDS  = ('haz_hoy', 'evita_hoy')
-
-    for f in _PLAIN_SCALAR_FIELDS:
-        val = signal_json.get(f)
-        if isinstance(val, str) and val:
-            signal_json[f] = _full_pipeline(val)
-
-    for f in _PLAIN_ARRAY_FIELDS:
-        arr = signal_json.get(f)
-        if isinstance(arr, list):
-            signal_json[f] = [
-                _full_pipeline(item) if isinstance(item, str) and item else item
-                for item in arr
+    # List plain fields
+    for _f in ('haz_hoy', 'evita_hoy'):
+        _arr = signal_json.get(_f)
+        if isinstance(_arr, list):
+            signal_json[_f] = [
+                apply_user_facing_strips(_x, language=language, field_type='plain')
+                if isinstance(_x, str) and _x else _x
+                for _x in _arr
             ]
 
     # el_movimiento intentionally left untouched — depth preserved.
 
-    # windows[].text — instrument strip only (Panchang terms remain)
+    # windows[].text — 'window' strip keeps Panchang terms glossed by UI
     windows = signal_json.get('windows') or []
     if isinstance(windows, list):
         for w in windows:
