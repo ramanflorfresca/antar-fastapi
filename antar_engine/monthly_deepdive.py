@@ -21,6 +21,9 @@ from typing import Optional
 # [output-strips] migrate monthly_deepdive
 from antar_engine.output_strips import apply_user_facing_strips
 
+# [cp-day1] masik phal import
+from antar_engine.lal_kitab_masik import build_masik_context_block, calculate_masik_phal
+
 logger = logging.getLogger(__name__)
 
 DEEPDIVE_TABLE = "monthly_deepdives"
@@ -37,6 +40,12 @@ RULES:
 - 3 priority actions: specific, actionable, different domains
 - Remedies: practical and tied to specific chart placements
 - Timing windows: name specific weeks, not vague periods
+- [cp-day1] STRUCTURAL FACTS instruction — if the user context below contains a
+  MASIK PHAL block, the JSON fields strong_planets and weak_planets MUST contain
+  ONLY the planet names listed there, in that exact order. Do not add other
+  planets. Do not remove any. Do not translate or rename. This block is computed
+  from the chart — your job is to narrate what it shows, not to invent parallel
+  assessments.
 
 Return ONLY this JSON:
 {
@@ -75,6 +84,7 @@ async def generate_monthly_deepdive(
     supabase,
     claude_client,
     force_refresh: bool = False,
+    birth_date:    Optional[str] = None,   # [cp-day1] birth_date kwarg
 ) -> dict:
     """
     Generate or return cached monthly deep-dive.
@@ -90,10 +100,12 @@ async def generate_monthly_deepdive(
             return cached
 
     # Build context
+    # [cp-day1] pass birth_date to context builder
+    _bd = birth_date or chart_data.get('birth_date') or ''
     context = _build_deepdive_context(
         chart_data, dashas, first_name, lagna,
         moon_sign, current_dasha, age, country_code,
-        lk_context, now
+        lk_context, now, _bd,
     )
 
     # Call Claude
@@ -189,6 +201,7 @@ def _build_deepdive_context(
     country_code:  Optional[str],
     lk_context:    Optional[str],
     now:           datetime,
+    birth_date:    str = '',   # [cp-day1] accept birth_date
 ) -> str:
     month_str = now.strftime("%B %Y")
     planets   = chart_data.get("planets", {})
@@ -223,9 +236,24 @@ def _build_deepdive_context(
     if lk_note:
         lines.append(lk_note)
 
+    # [cp-day1] append masik phal block — pre-computed strong/weak planets
+    # injected as STRUCTURAL FACTS so Claude echoes them verbatim instead of
+    # inventing parallel assessments each run.
+    if birth_date:
+        try:
+            _masik_block = build_masik_context_block(birth_date, planets)
+            if _masik_block:
+                lines.append('')
+                lines.append('STRUCTURAL FACTS — use these exactly as JSON values:')
+                lines.append(_masik_block)
+        except Exception as _mp_err:
+            # Never block the deep-dive on masik phal failure
+            logger.warning(f'[monthly] masik phal block skipped: {_mp_err}')
+
     lines.append(
         f"\nGenerate a complete monthly deep-dive for {month_str}. "
-        "Identify which planets are strong and weak this month. "
+        "The strong_planets and weak_planets JSON fields MUST match the MASIK "
+        "PHAL block above verbatim if present. "
         "Give 3 specific priority actions across different domains. "
         "Name specific weeks for best timing and caution periods."
     )

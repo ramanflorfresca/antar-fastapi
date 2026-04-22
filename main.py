@@ -11711,6 +11711,7 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False):
             supabase=supabase,
             claude_client=claude_client,
             force_refresh=refresh,
+            birth_date=chart_record.get("birth_date", ""),  # [cp-day1] pass birth_date for masik phal
         )
         return result
     except HTTPException:
