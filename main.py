@@ -1105,7 +1105,10 @@ def _parse_birth_time_permissive(v: str) -> str:
         hour = 0
     if not (0 <= hour < 24 and 0 <= minute < 60 and 0 <= second < 60):
         raise ValueError(f'Time out of range: {v!r}')
-    return f'{hour:02d}:{minute:02d}:{second:02d}'
+    # [chart422-fup] birth_time normalises to HH:MM — matches
+    # downstream strptime('%Y-%m-%d %H:%M').  Seconds dropped;
+    # Moon moves 0.008° per 30s which is below chart resolution.
+    return f'{hour:02d}:{minute:02d}'
 
 class ChartCreateRequest(BaseModel):
     birth_date:      str   = Field(..., example="1990-03-15")
@@ -6755,7 +6758,11 @@ CITY_COORDS_LOOKUP = {
     "buenos aires":(-34.6037,-58.3816,"America/Argentina/Buenos_Aires"),
     "cairo":(30.0444,31.2357,"Africa/Cairo"),
 }
+# [chart422-fup] COUNTRY_CAPITALS expanded — capital-city fallback coords
+# for chart computation when city geocode fails.  Precise enough for
+# natal chart (ayanamsa + house cusps) within the country's timezone.
 COUNTRY_CAPITALS = {
+    # Original set
     "IN":(20.5937,78.9629,"Asia/Kolkata"),
     "US":(39.7392,-104.9903,"America/New_York"),
     "GB":(51.5074,-0.1278,"Europe/London"),
@@ -6767,6 +6774,59 @@ COUNTRY_CAPITALS = {
     "FR":(48.8566,2.3522,"Europe/Paris"),
     "BR":(-23.5505,-46.6333,"America/Sao_Paulo"),
     "MX":(19.4326,-99.1332,"America/Mexico_City"),
+    # Latin America (added to unblock Spanish-speaking users)
+    "VE":(10.4806,-66.9036,"America/Caracas"),
+    "CO":(4.7110,-74.0721,"America/Bogota"),
+    "AR":(-34.6037,-58.3816,"America/Argentina/Buenos_Aires"),
+    "CL":(-33.4489,-70.6693,"America/Santiago"),
+    "PE":(-12.0464,-77.0428,"America/Lima"),
+    "EC":(-0.1807,-78.4678,"America/Guayaquil"),
+    "BO":(-16.5000,-68.1500,"America/La_Paz"),
+    "UY":(-34.9011,-56.1645,"America/Montevideo"),
+    "PY":(-25.2637,-57.5759,"America/Asuncion"),
+    "CR":(9.9281,-84.0907,"America/Costa_Rica"),
+    "GT":(14.6349,-90.5069,"America/Guatemala"),
+    "PA":(8.9824,-79.5199,"America/Panama"),
+    "DO":(18.4861,-69.9312,"America/Santo_Domingo"),
+    "CU":(23.1136,-82.3666,"America/Havana"),
+    "ES":(40.4168,-3.7038,"Europe/Madrid"),
+    "PR":(18.4655,-66.1057,"America/Puerto_Rico"),
+    "HN":(14.0723,-87.1921,"America/Tegucigalpa"),
+    "SV":(13.6929,-89.2182,"America/El_Salvador"),
+    "NI":(12.1149,-86.2362,"America/Managua"),
+    # Asia (other common origins)
+    "JP":(35.6762,139.6503,"Asia/Tokyo"),
+    "CN":(39.9042,116.4074,"Asia/Shanghai"),
+    "ID":(-6.2088,106.8456,"Asia/Jakarta"),
+    "MY":(3.1390,101.6869,"Asia/Kuala_Lumpur"),
+    "TH":(13.7563,100.5018,"Asia/Bangkok"),
+    "PH":(14.5995,120.9842,"Asia/Manila"),
+    "VN":(21.0285,105.8542,"Asia/Ho_Chi_Minh"),
+    "PK":(33.6844,73.0479,"Asia/Karachi"),
+    "BD":(23.8103,90.4125,"Asia/Dhaka"),
+    "LK":(6.9271,79.8612,"Asia/Colombo"),
+    "NP":(27.7172,85.3240,"Asia/Kathmandu"),
+    # Europe (additional)
+    "IT":(41.9028,12.4964,"Europe/Rome"),
+    "NL":(52.3676,4.9041,"Europe/Amsterdam"),
+    "PT":(38.7223,-9.1393,"Europe/Lisbon"),
+    "SE":(59.3293,18.0686,"Europe/Stockholm"),
+    "NO":(59.9139,10.7522,"Europe/Oslo"),
+    "CH":(46.9480,7.4474,"Europe/Zurich"),
+    "IE":(53.3498,-6.2603,"Europe/Dublin"),
+    "PL":(52.2297,21.0122,"Europe/Warsaw"),
+    # Africa
+    "ZA":(-33.9249,18.4241,"Africa/Johannesburg"),
+    "NG":(9.0579,7.4951,"Africa/Lagos"),
+    "KE":(-1.2864,36.8172,"Africa/Nairobi"),
+    "EG":(30.0444,31.2357,"Africa/Cairo"),
+    "MA":(33.9716,-6.8498,"Africa/Casablanca"),
+    # Rest
+    "NZ":(-41.2866,174.7756,"Pacific/Auckland"),
+    "KR":(37.5665,126.9780,"Asia/Seoul"),
+    "TR":(39.9334,32.8597,"Europe/Istanbul"),
+    "IL":(31.7683,35.2137,"Asia/Jerusalem"),
+    "RU":(55.7558,37.6173,"Europe/Moscow"),
 }
 
 async def _geocode_city(city: str, country: str) -> tuple:
@@ -6799,7 +6859,30 @@ async def _geocode_city(city: str, country: str) -> tuple:
             print(f"Geocode error: {ge}")
     if country.upper() in COUNTRY_CAPITALS:
         return COUNTRY_CAPITALS[country.upper()]
-    raise HTTPException(400, f"Could not geocode '{city}'. Please provide birth_lat and birth_lng.")
+    # [chart422-fup] structured geocode-failure response
+    # Same {code, message, field_errors, action} contract as
+    # the /chart/create validation handler so the frontend
+    # dispatches on body shape, not just HTTP status.
+    raise HTTPException(
+        status_code=400,
+        detail={
+            "code":    "GEOCODE_FAILED",
+            "message": (
+                f"Could not geocode '{city}' in country {country!r}. "
+                "Please provide latitude and longitude, or choose "
+                "a different birth place."
+            ),
+            "field_errors": [
+                {
+                    "field":   "birth_place",
+                    "code":    "LOCATION_UNKNOWN",
+                    "message": f"{city!r} was not found in our geocoder.",
+                },
+            ],
+            "action":  "prompt_for_coordinates",
+            "hint":    "Supply latitude (-90..90) and longitude (-180..180) in the POST body.",
+        },
+    )
 
 def _ak_amk(planets: dict):
     degs = [(p, d.get("degree",0)) for p,d in planets.items() if p not in ("Rahu","Ketu")]
@@ -6850,7 +6933,11 @@ def _get_utc_offset_from_coords(lat: float, lng: float, birth_date: str, birth_t
         if not tz_name:
             return 0.0
         tz = pytz.timezone(tz_name)
-        dt_naive = _dt.strptime(f"{birth_date} {birth_time}", "%Y-%m-%d %H:%M")
+        # [chart422-fup] permissive strptime A
+        try:
+            dt_naive = _dt.strptime(f"{birth_date} {birth_time}", "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            dt_naive = _dt.strptime(f"{birth_date} {birth_time}", "%Y-%m-%d %H:%M")
         dt_local = tz.localize(dt_naive, is_dst=None)
         return dt_local.utcoffset().total_seconds() / 3600
     except Exception as e:
@@ -6888,6 +6975,9 @@ async def create_chart(
         import pytz as _pytz_cr
         _tz_cr = _pytz_cr.timezone(timezone)
         _dt_naive_cr = datetime.strptime(
+            # [chart422-fup] permissive strptime B
+            f"{request.birth_date} {request.birth_time}", "%Y-%m-%d %H:%M:%S"
+        ) if len((request.birth_time or '').split(':')) == 3 else _dt.strptime(
             f"{request.birth_date} {request.birth_time}", "%Y-%m-%d %H:%M"
         )
         _dt_local_cr = _tz_cr.localize(_dt_naive_cr, is_dst=None)
