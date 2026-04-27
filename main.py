@@ -1125,6 +1125,7 @@ class ChartCreateRequest(BaseModel):
     timezone:        Optional[str] = Field(None, example="America/Caracas")
     full_name:       Optional[str] = Field(None, example="Arjun Sharma")
     birth_place:     Optional[str] = Field(None, example="New Delhi, India")
+    birth_city:      Optional[str] = Field(None, example="New Delhi")
     birth_country:   Optional[str] = Field(None, example="IN")
     country_code:    Optional[str] = Field(None, example="IN")
     language_preference: Optional[str] = Field(None, example="en")
@@ -6841,6 +6842,8 @@ COUNTRY_CAPITALS = {
 }
 
 async def _geocode_city(city: str, country: str) -> tuple:
+    if not city:
+        raise HTTPException(status_code=422, detail="birth_city/birth_place is required and cannot be empty")
     city_lower = city.lower().strip()
     if city_lower in CITY_COORDS_LOOKUP:
         return CITY_COORDS_LOOKUP[city_lower]
@@ -6974,7 +6977,8 @@ async def create_chart(
         lat, lng = request.latitude, request.longitude
         timezone = getattr(request, "timezone_name", None) or getattr(request, "timezone", None) or "UTC"
     else:
-        lat, lng, timezone = await _geocode_city(request.birth_place, request.birth_country)
+        city_value = request.birth_place or getattr(request, 'birth_city', None)
+        lat, lng, timezone = await _geocode_city(city_value, request.birth_country)
 
     # ── TZ FIX: resolve UTC offset from the birth datetime, not utcnow() ─────
     # _tz_name_to_offset() in chart.py used datetime.utcnow() which gives the
