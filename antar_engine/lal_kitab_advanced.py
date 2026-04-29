@@ -695,7 +695,7 @@ def compute_lk_daily_diagnostic(
         hint_es = f"Día moderado para los dominios de {' y '.join(amplified_es)}. Esfuerzo constante, sin necesidad de movimientos drásticos."
 
     # Evidence for el_movimiento (technical depth layer)
-    evidence = f"{day_lord} (day-lord for {target_date.strftime('%A')}) is {dignity} in your LK chart, House {lk_house} ({house_theme})"
+    evidence = f"{day_lord} (today's day-lord) is {dignity} in your LK chart, House {lk_house} ({house_theme})"
     if is_sleeping:
         evidence += ", currently sleeping (dormant significations)"
     if rin_active:
