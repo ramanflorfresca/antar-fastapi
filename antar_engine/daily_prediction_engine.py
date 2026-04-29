@@ -724,6 +724,7 @@ async def build_daily_context(chart_id: str, supabase_client) -> dict:
             "sleeping_planets": sleeping_planets,
             "formatted_transits": formatted_transits,
             "chart_data": chart_data,  # raw natal data for transit analyzer
+            "lk_data": lk_data,  # raw LK data for daily diagnostic
         }
 
     except Exception as e:
@@ -1253,6 +1254,46 @@ async def generate_weekly_signals(
                     day_prompt_data["day_yogas_block"] = ""
                     day_prompt_data["muhurtas_block"] = ""
                     day_prompt_data["vedha_block"] = ""
+
+                # ── LK Daily Diagnostic — personalized weekday × chart ──
+                try:
+                    from antar_engine.lal_kitab_advanced import compute_lk_daily_diagnostic
+                    _lk_raw = daily_context.get("lk_data", {})
+                    _chart_raw = daily_context.get("chart_data", {})
+                    lk_daily = compute_lk_daily_diagnostic(
+                        lk_data=_lk_raw,
+                        chart_data=_chart_raw,
+                        target_date=target_date,
+                        language=language,
+                    )
+                    if lk_daily.get("available"):
+                        _status = lk_daily.get("day_lord_status", {})
+                        _lang_key = "summary_es" if language == "es" else "summary_en"
+                        _hint_key = "user_facing_hint_es" if language == "es" else "user_facing_hint_en"
+                        lk_block_lines = [
+                            "## DAY-LORD DIAGNOSTIC (Lal Kitab)",
+                            f"Day-lord planet: {lk_daily['day_lord']}",
+                            f"Condition for this user: {_status.get(_lang_key, '')}",
+                            f"Day quality for user: {lk_daily.get('day_quality_for_user', 'neutral')}",
+                            f"Domains amplified: {', '.join(lk_daily.get('domains_amplified_today', []))}",
+                            f"Domains to avoid: {', '.join(lk_daily.get('domains_to_avoid_today', []))}",
+                            f"Diagnostic hint: {lk_daily.get(_hint_key, '')}",
+                            f"Evidence: {lk_daily.get('evidence_for_movement', '')}",
+                            "",
+                            "Use this in:",
+                            "- haz_hoy: prefer actions in amplified domains",
+                            "- evita_hoy: caution in avoided domains",
+                            "- el_movimiento: include LK evidence as one strategic reason",
+                            "- senal_de_hoy: tone reflects day_quality_for_user",
+                            "DO NOT use 'Lal Kitab', 'day-lord', or weekday names in user-facing fields.",
+                            "For el_movimiento (the 'why' layer), you MAY reference the planet name and LK evidence.",
+                        ]
+                        day_prompt_data["lk_daily_block"] = "\n".join(lk_block_lines)
+                    else:
+                        day_prompt_data["lk_daily_block"] = ""
+                except Exception as lk_err:
+                    logger.warning(f"[daily-week] LK daily diagnostic failed for {date_str}: {lk_err}")
+                    day_prompt_data["lk_daily_block"] = ""
 
                 llm_signal = await _call_claude_daily_signal(
                     context=daily_context,

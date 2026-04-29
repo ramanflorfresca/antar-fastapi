@@ -9760,6 +9760,58 @@ async def get_transit_alerts_endpoint(chart_id: str = None, request: dict = {}):
 
 
 
+
+# ── LK Daily Diagnostic Debug ──
+@app.get("/api/v1/debug/lk-daily/{chart_id}")
+async def debug_lk_daily(chart_id: str, date: str = None, language: str = "en"):
+    """Returns raw LK daily diagnostic for a chart on a given date. No LLM, no strip."""
+    from datetime import date as _date_cls
+    try:
+        chart_res = supabase.table("charts").select(
+            "chart_data, lal_kitab_data"
+        ).eq("id", chart_id).single().execute()
+        if not chart_res.data:
+            raise HTTPException(404, "Chart not found")
+
+        _cd = chart_res.data.get("chart_data") or {}
+        if isinstance(_cd, str):
+            import json as _dj
+            _cd = _dj.loads(_cd)
+
+        _lk = chart_res.data.get("lal_kitab_data") or {}
+        if isinstance(_lk, str):
+            import json as _dj2
+            _lk = _dj2.loads(_lk)
+
+        if date:
+            try:
+                target = _date_cls.fromisoformat(date)
+            except ValueError:
+                raise HTTPException(400, f"Invalid date format: {date}. Use YYYY-MM-DD.")
+        else:
+            target = _date_cls.today()
+
+        from antar_engine.lal_kitab_advanced import compute_lk_daily_diagnostic
+        diag = compute_lk_daily_diagnostic(
+            lk_data=_lk,
+            chart_data=_cd,
+            target_date=target,
+            language=language,
+        )
+        diag["_debug_meta"] = {
+            "chart_id": chart_id,
+            "target_date": str(target),
+            "weekday": target.strftime("%A"),
+            "lk_data_present": bool(_lk),
+            "chart_data_present": bool(_cd),
+        }
+        return diag
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"LK daily diagnostic error: {str(e)}")
+
+
 @app.get("/api/v1/debug-predict-context/{chart_id}")
 async def debug_predict_context(
     chart_id: str,

@@ -473,3 +473,262 @@ def build_lk_advanced_context(
     ]
 
     return "\n".join(lines)
+
+
+# ──────────────────────────────────────────────────────────────
+# LK Daily Diagnostic — weekday × user chart → personalized day read
+# ──────────────────────────────────────────────────────────────
+
+LK_DAY_LORDS = {
+    0: "Moon",     # Monday
+    1: "Mars",     # Tuesday
+    2: "Mercury",  # Wednesday
+    3: "Jupiter",  # Thursday
+    4: "Venus",    # Friday
+    5: "Saturn",   # Saturday
+    6: "Sun",      # Sunday
+}
+
+LK_DAY_DOMAINS = {
+    "Sun":     ["authority", "leadership", "self-expression", "vitality", "father"],
+    "Moon":    ["emotion", "home", "mother", "comfort", "intuition"],
+    "Mars":    ["action", "courage", "property", "initiative", "conflict"],
+    "Mercury": ["communication", "trade", "writing", "learning", "negotiation"],
+    "Jupiter": ["wisdom", "teaching", "wealth-growth", "children", "law"],
+    "Venus":   ["relationships", "beauty", "creativity", "luxury", "diplomacy"],
+    "Saturn":  ["discipline", "structure", "labor", "elders", "long-term"],
+}
+
+LK_DAY_DOMAINS_ES = {
+    "Sun":     ["autoridad", "liderazgo", "autoexpresión", "vitalidad", "padre"],
+    "Moon":    ["emoción", "hogar", "madre", "confort", "intuición"],
+    "Mars":    ["acción", "coraje", "propiedad", "iniciativa", "conflicto"],
+    "Mercury": ["comunicación", "comercio", "escritura", "aprendizaje", "negociación"],
+    "Jupiter": ["sabiduría", "enseñanza", "crecimiento financiero", "hijos", "ley"],
+    "Venus":   ["relaciones", "belleza", "creatividad", "lujo", "diplomacia"],
+    "Saturn":  ["disciplina", "estructura", "trabajo", "mayores", "largo plazo"],
+}
+
+
+def _get_planet_lk_house(planet: str, lk_data: dict, chart_data: dict) -> int:
+    """Get the LK house for a planet, checking lk_data.natal_planets first, then chart_data.planets."""
+    # Try LK natal_planets first
+    natal_planets = lk_data.get("natal_planets", {})
+    if planet in natal_planets:
+        h = natal_planets[planet].get("house", 0)
+        if h:
+            return h
+    # Fallback to chart_data.planets
+    planets = chart_data.get("planets", {})
+    if planet in planets:
+        h = planets[planet].get("house", 0)
+        if h:
+            return h
+    return 0
+
+
+def _get_planet_sign(planet: str, lk_data: dict, chart_data: dict) -> str:
+    """Get sign for a planet."""
+    natal_planets = lk_data.get("natal_planets", {})
+    if planet in natal_planets:
+        s = natal_planets[planet].get("sign", "")
+        if s:
+            return s
+    planets = chart_data.get("planets", {})
+    if planet in planets:
+        return planets[planet].get("sign", "")
+    return ""
+
+
+def _assess_dignity(planet: str, sign: str, house: int) -> str:
+    """
+    Assess planet dignity in LK terms.
+    Returns: 'dignified', 'neutral', or 'afflicted'
+    """
+    if not sign or not house:
+        return "neutral"
+    # Exalted
+    if EXALTATION.get(planet) == sign:
+        return "dignified"
+    # Debilitated
+    if DEBILITATION.get(planet) == sign:
+        return "afflicted"
+    # Own sign
+    if sign in OWN_SIGNS.get(planet, []):
+        return "dignified"
+    # Friend's sign
+    sign_lord = SIGN_LORDS.get(sign, "")
+    if sign_lord in PLANET_FRIENDS.get(planet, []):
+        return "dignified"
+    # Enemy's sign
+    if sign_lord in PLANET_ENEMIES.get(planet, []):
+        return "afflicted"
+    # Dusthana house
+    if house in DUSTHANA:
+        return "afflicted"
+    return "neutral"
+
+
+def _is_planet_sleeping(planet: str, lk_data: dict) -> bool:
+    """Check if planet is sleeping based on stored advanced data."""
+    adv = lk_data.get("advanced", {})
+    sleeping_list = adv.get("sleeping_planets", [])
+    if isinstance(sleeping_list, list):
+        for s in sleeping_list:
+            if isinstance(s, dict) and s.get("planet") == planet:
+                return True
+            elif isinstance(s, str) and s == planet:
+                return True
+    return False
+
+
+def _has_active_rin(planet: str, lk_data: dict) -> tuple:
+    """Check if planet has active rin. Returns (bool, rin_name or '')."""
+    adv = lk_data.get("advanced", {})
+    rin_list = adv.get("rin_debts", [])
+    if isinstance(rin_list, list):
+        for r in rin_list:
+            if isinstance(r, dict) and r.get("planet") == planet:
+                return True, r.get("rin", "karmic debt")
+    return False, ""
+
+
+def compute_lk_daily_diagnostic(
+    lk_data: dict,
+    chart_data: dict,
+    target_date: "date",
+    language: str = "en",
+) -> dict:
+    """
+    Compute today's LK diagnostic for this user.
+
+    Combines:
+    - Today's weekday -> ruling planet (LK day-lord)
+    - User's LK condition for that planet
+    - Sleeping/awake status of that planet for this user
+    - LK rin status involving that planet
+    - LK favorability for today's domains based on this combination
+
+    Returns a structured diagnostic ready for prompt injection.
+    NOT user-facing text. NOT a Claude call. Pure computation.
+    """
+    # Guard: no LK data
+    if not lk_data or (not lk_data.get("natal_planets") and not chart_data.get("planets")):
+        day_lord = LK_DAY_LORDS.get(target_date.weekday(), "Sun")
+        return {
+            "day_lord": day_lord,
+            "available": False,
+        }
+
+    day_lord = LK_DAY_LORDS.get(target_date.weekday(), "Sun")
+    lk_house = _get_planet_lk_house(day_lord, lk_data, chart_data)
+    sign = _get_planet_sign(day_lord, lk_data, chart_data)
+
+    # Guard: day-lord planet missing from chart
+    if not lk_house:
+        return {
+            "day_lord": day_lord,
+            "available": False,
+        }
+
+    # Assess condition
+    dignity = _assess_dignity(day_lord, sign, lk_house)
+    is_sleeping = _is_planet_sleeping(day_lord, lk_data)
+    rin_active, rin_name = _has_active_rin(day_lord, lk_data)
+
+    # Determine day quality
+    if is_sleeping:
+        day_quality = "caution"
+    elif dignity == "afflicted" or rin_active:
+        day_quality = "caution" if rin_active else "neutral"
+        if dignity == "afflicted" and rin_active:
+            day_quality = "caution"
+        elif dignity == "afflicted":
+            day_quality = "neutral"
+    elif dignity == "dignified":
+        day_quality = "favorable"
+    else:
+        day_quality = "neutral"
+
+    # Domains
+    domains_en = LK_DAY_DOMAINS.get(day_lord, [])
+    domains_es = LK_DAY_DOMAINS_ES.get(day_lord, [])
+
+    # Pick top 2 amplified domains when favorable, top 2 to avoid when caution
+    if day_quality == "favorable":
+        amplified = domains_en[:2]
+        amplified_es = domains_es[:2]
+        avoid = []
+        avoid_es = []
+    elif day_quality == "caution":
+        amplified = []
+        amplified_es = []
+        avoid = domains_en[:2]
+        avoid_es = domains_es[:2]
+    else:  # neutral
+        amplified = domains_en[:1]
+        amplified_es = domains_es[:1]
+        avoid = domains_en[3:4] if len(domains_en) > 3 else []
+        avoid_es = domains_es[3:4] if len(domains_es) > 3 else []
+
+    # Build summaries
+    house_theme = _house_theme_lk(lk_house)
+    sleeping_note = ", sleeping (dormant)" if is_sleeping else ", awake"
+    rin_note = f", rin active ({rin_name})" if rin_active else ", no debts"
+
+    summary_en = f"{day_lord} is {dignity} in House {lk_house} ({house_theme}){sleeping_note}{rin_note}."
+    summary_es = _translate_summary_es(day_lord, dignity, lk_house, house_theme, is_sleeping, rin_active, rin_name)
+
+    # User-facing hints (for prompt injection, NOT direct card text)
+    if day_quality == "favorable":
+        hint_en = f"Today amplifies your {' and '.join(amplified)} moves. The energy supports initiative in these areas."
+        hint_es = f"Hoy se amplifican tus movimientos de {' y '.join(amplified_es)}. La energía apoya la iniciativa en estas áreas."
+    elif day_quality == "caution":
+        if is_sleeping:
+            hint_en = f"Today's energy needs activation — the day's natural ruler is dormant in your chart. Proceed with awareness in {' and '.join(avoid)}."
+            hint_es = f"La energía de hoy necesita activación — el regente natural del día está dormido en tu carta. Procede con conciencia en {' y '.join(avoid_es)}."
+        else:
+            hint_en = f"Today calls for caution in {' and '.join(avoid)}. Review and prepare rather than initiate."
+            hint_es = f"Hoy se requiere precaución en {' y '.join(avoid_es)}. Revisa y prepara en lugar de iniciar."
+    else:
+        hint_en = f"Moderate day for {' and '.join(amplified)} domains. Steady effort, no dramatic moves needed."
+        hint_es = f"Día moderado para los dominios de {' y '.join(amplified_es)}. Esfuerzo constante, sin necesidad de movimientos drásticos."
+
+    # Evidence for el_movimiento (technical depth layer)
+    evidence = f"{day_lord} (day-lord for {target_date.strftime('%A')}) is {dignity} in your LK chart, House {lk_house} ({house_theme})"
+    if is_sleeping:
+        evidence += ", currently sleeping (dormant significations)"
+    if rin_active:
+        evidence += f", with active {rin_name}"
+    if not is_sleeping and not rin_active and dignity == "dignified":
+        evidence += ", with no obstructions"
+    evidence += "."
+
+    return {
+        "day_lord": day_lord,
+        "available": True,
+        "day_lord_status": {
+            "lk_house": lk_house,
+            "sign": sign,
+            "dignity": dignity,
+            "sleeping": is_sleeping,
+            "rin_active": rin_active,
+            "rin_name": rin_name if rin_active else "",
+            "summary_en": summary_en,
+            "summary_es": summary_es,
+        },
+        "day_quality_for_user": day_quality,
+        "domains_amplified_today": amplified if language != "es" else amplified_es,
+        "domains_to_avoid_today": avoid if language != "es" else avoid_es,
+        "user_facing_hint_en": hint_en,
+        "user_facing_hint_es": hint_es,
+        "evidence_for_movement": evidence,
+    }
+
+
+def _translate_summary_es(day_lord, dignity, lk_house, house_theme, is_sleeping, rin_active, rin_name):
+    """Build Spanish summary."""
+    dignity_es = {"dignified": "dignificado", "neutral": "neutral", "afflicted": "afligido"}.get(dignity, dignity)
+    sleeping_es = ", dormido (dormido)" if is_sleeping else ", activo"
+    rin_es = f", rin activo ({rin_name})" if rin_active else ", sin deudas"
+    return f"{day_lord} está {dignity_es} en la Casa {lk_house} ({house_theme}){sleeping_es}{rin_es}."

@@ -227,6 +227,32 @@ Same rule applies to all languages: if language == "pt", all Portuguese;
 if language == "hi", all Hindi; if language == "fr", all French.
 No mixing of languages ever.
 
+## INPUT LAYER PRECEDENCE
+Three astrological layers feed today's read:
+1. Vimsottari Mahadasha + Antardasha — your overarching life chapter (years)
+2. Panchang Muhurta windows — universally good/bad time slots (hours)
+3. Lal Kitab day-lord diagnostic — TODAY-specific for this user (one day)
+
+When they agree → high confidence, strong recommendation.
+When LK is favorable but Vimsottari pressure is heavy → caution + use the
+LK window precisely (e.g., act only inside Abhijit Muhurta).
+When LK is caution but Vimsottari is favorable → don't override the day's
+specific caution; use today for review/preparation, not initiation.
+When Panchang Rahu Kalam overlaps with LK favorable hours → Panchang
+wins. Avoid the Rahu Kalam regardless of LK.
+Always reflect the FINEST-grained constraint in the recommendation.
+
+## LK DAY-LORD DIAGNOSTIC RULES
+If a DAY-LORD DIAGNOSTIC block is present in the data:
+- Use it in haz_hoy: prefer actions in the amplified domains listed
+- Use it in evita_hoy: caution in the avoided domains listed
+- Use it in el_movimiento: include the LK evidence as one of the strategic reasons
+- Use it in senal_de_hoy: reflect the day_quality_for_user in the tone
+- DO NOT use the words "Lal Kitab", "day-lord", or any weekday name in
+  user-facing fields. The strip layer handles planet-name removal in plain fields.
+- For el_movimiento (the "why" expandable), you MAY reference the day-lord
+  planet by name and the LK evidence. That field keeps technical depth.
+
 ## LIVE DATA
 """
 
@@ -280,6 +306,8 @@ TRANSIT ANALYSIS FOR TODAY (all planets):
 {muhurtas_block}
 
 {vedha_block}
+
+{lk_daily_block}
 
 Language: {language}
 
