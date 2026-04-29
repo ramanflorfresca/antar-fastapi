@@ -9762,6 +9762,204 @@ async def get_transit_alerts_endpoint(chart_id: str = None, request: dict = {}):
 
 
 # ── LK Daily Diagnostic Debug ──
+
+# ── Dasha Debug — raw computation from all sources ──
+@app.get("/api/v1/debug/chart-dasha/{chart_id}")
+async def debug_chart_dasha(chart_id: str):
+    """
+    Returns raw Vimsottari + Ashtottari dasha computation for a chart.
+    Shows data from all three sources used across the system:
+    1. Live Vimsottari (phase_analyzer — used by /daily-week)
+    2. dasha_periods table (used by AC / /predict)
+    3. Live Ashtottari
+
+    Diagnostic-only. No LLM. No strip. No caching.
+    """
+    from datetime import datetime, timezone, date as _date_cls
+    import json as _dj
+
+    # 1. Fetch chart record
+    try:
+        chart_res = supabase.table("charts").select("*").eq("id", chart_id).single().execute()
+    except Exception as e:
+        raise HTTPException(500, f"Chart fetch error: {e}")
+    if not chart_res.data:
+        raise HTTPException(404, "Chart not found")
+    chart_rec = chart_res.data
+
+    chart_data = chart_rec.get("chart_data") or {}
+    if isinstance(chart_data, str):
+        chart_data = _dj.loads(chart_data)
+
+    birth_jd = chart_data.get("birth_jd")
+    moon_data_raw = chart_data.get("planets", {}).get("Moon", {})
+
+    natal_info = {
+        "moon_longitude": moon_data_raw.get("longitude"),
+        "moon_sign": moon_data_raw.get("sign"),
+        "moon_nakshatra": moon_data_raw.get("nakshatra"),
+        "moon_nakshatra_index": moon_data_raw.get("nakshatra_index"),
+        "moon_house": moon_data_raw.get("house"),
+        "birth_jd": birth_jd,
+        "birth_date": chart_rec.get("birth_date"),
+    }
+
+    # ── SOURCE 1: Live Vimsottari (phase_analyzer — same as /daily-week) ──
+    live_vim = {"source": "phase_analyzer.get_current_vimsottari", "error": None}
+    try:
+        from antar_engine.life_arc.phase_analyzer import get_current_vimsottari
+        if birth_jd is not None:
+            vim = get_current_vimsottari(chart_data, birth_jd)
+            if vim.get("error"):
+                live_vim["error"] = vim["error"]
+            else:
+                live_vim["current_md"] = {"planet": vim.get("md"), "ends": vim.get("md_end_date")}
+                live_vim["current_ad"] = {"planet": vim.get("ad"), "ends": vim.get("ad_end_date")}
+                live_vim["current_pd"] = {"planet": vim.get("pd"), "ends": vim.get("pd_end_date")}
+                live_vim["current_sd"] = {"planet": vim.get("sd"), "ends": vim.get("sd_end_date")}
+                live_vim["md_lord_condition"] = vim.get("md_lord_condition")
+        else:
+            live_vim["error"] = "No birth_jd in chart_data"
+    except Exception as e:
+        live_vim["error"] = str(e)
+
+    # ── SOURCE 2: dasha_periods table (same as AC / /predict) ──
+    db_vim = {"source": "dasha_periods table via _fetch_dashas", "error": None}
+    try:
+        from antar_engine.chart_context_builder_json import _fetch_dashas
+        fetched = _fetch_dashas(chart_id, supabase)
+        vim_from_db = fetched.get("vimsottari", {})
+        db_vim["current_md"] = vim_from_db.get("current_md")
+        db_vim["current_ad"] = vim_from_db.get("current_ad")
+        db_vim["current_pd"] = vim_from_db.get("current_pd")
+        db_vim["upcoming_md"] = vim_from_db.get("upcoming_md", [])
+        # Also include Jaimini and Ashtottari from DB
+        db_vim["jaimini_from_db"] = fetched.get("jaimini", {})
+        db_vim["ashtottari_from_db"] = fetched.get("ashtottari", {})
+    except Exception as e:
+        db_vim["error"] = str(e)
+
+    # ── SOURCE 3: Live Ashtottari ──
+    live_ash = {"source": "ashtottari.calculate_ashtottari_from_chart", "error": None}
+    try:
+        ash_result = ashtottari.calculate_ashtottari_from_chart(chart_data, birth_jd)
+        ash_mds = ash_result.get("mahadashas", [])
+        now_dt = datetime.now(timezone.utc)
+
+        ash_current_md = None
+        ash_next_md = None
+        for amd in ash_mds:
+            start = amd.get("start_datetime")
+            end = amd.get("end_datetime")
+            if start and end and start <= now_dt <= end:
+                ash_current_md = {
+                    "planet": amd.get("lord"),
+                    "started": start.strftime("%Y-%m-%d"),
+                    "ends": end.strftime("%Y-%m-%d"),
+                    "duration_years": round(amd.get("duration_years", 0), 2),
+                }
+            elif ash_current_md and ash_next_md is None and start and start > now_dt:
+                ash_next_md = {
+                    "planet": amd.get("lord"),
+                    "starts": start.strftime("%Y-%m-%d"),
+                    "ends": end.strftime("%Y-%m-%d") if end else None,
+                    "duration_years": round(amd.get("duration_years", 0), 2),
+                }
+        live_ash["current_md"] = ash_current_md
+        live_ash["next_md"] = ash_next_md
+    except Exception as e:
+        live_ash["error"] = str(e)
+
+    # ── SOURCE 4: Full Vimsottari timeline (for next_md + dates) ──
+    full_vim_timeline = {"error": None}
+    try:
+        vim_full = vimsottari.calculate_vimsottari_from_chart(chart_data, birth_jd)
+        vim_mds = vim_full.get("mahadashas", [])
+        now_dt = datetime.now(timezone.utc)
+
+        vim_current_md_full = None
+        vim_next_md = None
+        timeline = []
+        for md in vim_mds:
+            start = md.get("start_datetime")
+            end = md.get("end_datetime")
+            entry = {
+                "planet": md.get("lord"),
+                "started": start.strftime("%Y-%m-%d") if start else None,
+                "ends": end.strftime("%Y-%m-%d") if end else None,
+                "duration_years": round(md.get("duration_years", 0), 2),
+            }
+            timeline.append(entry)
+            if start and end and start <= now_dt <= end:
+                vim_current_md_full = entry.copy()
+                remaining_days = (end - now_dt).days
+                vim_current_md_full["days_remaining"] = remaining_days
+                vim_current_md_full["years_remaining"] = round(remaining_days / 365.25, 2)
+            elif vim_current_md_full and vim_next_md is None and start and start > now_dt:
+                vim_next_md = entry.copy()
+
+        full_vim_timeline["current_md"] = vim_current_md_full
+        full_vim_timeline["next_md"] = vim_next_md
+        full_vim_timeline["full_timeline"] = timeline
+    except Exception as e:
+        full_vim_timeline["error"] = str(e)
+
+    # ── DISCREPANCY CHECK ──
+    discrepancies = []
+    live_md_planet = (live_vim.get("current_md") or {}).get("planet")
+    db_md_planet = (db_vim.get("current_md") or {}).get("planet")
+    full_md_planet = (full_vim_timeline.get("current_md") or {}).get("planet")
+
+    if live_md_planet and db_md_planet and live_md_planet != db_md_planet:
+        discrepancies.append({
+            "field": "vimsottari_current_md",
+            "live_compute": live_md_planet,
+            "dasha_periods_table": db_md_planet,
+            "severity": "CRITICAL — /daily-week and /predict see different dashas",
+        })
+
+    if live_md_planet and full_md_planet and live_md_planet != full_md_planet:
+        discrepancies.append({
+            "field": "vimsottari_current_md_live_vs_full",
+            "phase_analyzer": live_md_planet,
+            "full_compute": full_md_planet,
+            "severity": "BUG — two live compute paths disagree",
+        })
+
+    live_ad_planet = (live_vim.get("current_ad") or {}).get("planet")
+    db_ad_planet = (db_vim.get("current_ad") or {}).get("planet")
+    if live_ad_planet and db_ad_planet and live_ad_planet != db_ad_planet:
+        discrepancies.append({
+            "field": "vimsottari_current_ad",
+            "live_compute": live_ad_planet,
+            "dasha_periods_table": db_ad_planet,
+            "severity": "HIGH — AD mismatch between sources",
+        })
+
+    agreement = len(discrepancies) == 0 and live_md_planet and db_md_planet
+
+    return {
+        "chart_id": chart_id,
+        "natal": natal_info,
+        "vimsottari_live_compute": live_vim,
+        "vimsottari_from_db": db_vim,
+        "vimsottari_full_timeline": full_vim_timeline,
+        "ashtottari_live_compute": live_ash,
+        "agreement": agreement,
+        "discrepancies": discrepancies,
+        "_debug_meta": {
+            "computed_at": datetime.now(timezone.utc).isoformat(),
+            "ayanamsa": "Lahiri",
+            "sources": [
+                "phase_analyzer.get_current_vimsottari (used by /daily-week)",
+                "dasha_periods table via _fetch_dashas (used by AC / /predict)",
+                "vimsottari.calculate_vimsottari_from_chart (raw computation)",
+                "ashtottari.calculate_ashtottari_from_chart (live)",
+            ],
+        },
+    }
+
+
 @app.get("/api/v1/debug/lk-daily/{chart_id}")
 async def debug_lk_daily(chart_id: str, date: str = None, language: str = "en"):
     """Returns raw LK daily diagnostic for a chart on a given date. No LLM, no strip."""
