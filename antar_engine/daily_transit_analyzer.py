@@ -412,6 +412,7 @@ async def analyze_day_transits(
     target_date,
     current_md_lord: str = "",
     current_country: str = "",
+    tz_offset: float = 0,
 ) -> dict:
     """
     Main function: compute slow-planet transit analysis for one day.
@@ -500,7 +501,7 @@ async def analyze_day_transits(
                     day_yogas_data = detect_day_yogas(day_chart_data)
 
                 # Muhurta windows
-                muhurtas_data = compute_muhurtas(target_date, p3_lat, p3_lon)
+                muhurtas_data = compute_muhurtas(target_date, p3_lat, p3_lon, tz_offset=tz_offset)
 
                 # Vedha analysis on all transits
                 if natal_moon_idx >= 0:

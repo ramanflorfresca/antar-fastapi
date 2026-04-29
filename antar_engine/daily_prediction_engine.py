@@ -312,12 +312,13 @@ def get_chandra_bala(natal_moon_sign: str, current_moon_sign: str) -> dict:
     }
 
 
-def get_planet_sign_for_date(target_date: datetime, planet_id: int) -> str:
-    """Compute sidereal sign of a planet for a given date."""
+def get_planet_sign_for_date(target_date: datetime, planet_id: int, tz_offset: float = 0) -> str:
+    """Compute sidereal sign of a planet for a given date at user's local noon."""
     try:
         import swisseph as swe
         swe.set_sid_mode(swe.SIDM_LAHIRI)
-        jd = swe.julday(target_date.year, target_date.month, target_date.day, 12.0)
+        utc_hour_for_local_noon = 12.0 - tz_offset
+        jd = swe.julday(target_date.year, target_date.month, target_date.day, utc_hour_for_local_noon)
         pos, _ = swe.calc_ut(jd, planet_id)
         ayanamsa = swe.get_ayanamsa(jd)
         sidereal = (pos[0] - ayanamsa) % 360
@@ -327,12 +328,21 @@ def get_planet_sign_for_date(target_date: datetime, planet_id: int) -> str:
         return "Unknown"
 
 
-def get_moon_data_for_date(target_date: datetime) -> dict:
-    """Returns Moon nakshatra, sign, and degree for a given date."""
+def get_moon_data_for_date(target_date: datetime, tz_offset: float = 0) -> dict:
+    """Returns Moon nakshatra, sign, and degree for a given date at user's LOCAL noon.
+
+    Args:
+        target_date: The calendar date (user's local date)
+        tz_offset: UTC offset in hours (e.g., -5 for Colombia, 5.5 for India).
+                   Moon is computed at user's local noon = UTC (12 - tz_offset).
+    """
     try:
         import swisseph as swe
         swe.set_sid_mode(swe.SIDM_LAHIRI)
-        jd = swe.julday(target_date.year, target_date.month, target_date.day, 12.0)
+        # Compute Moon at user's LOCAL noon:
+        # Local noon = 12:00 local = (12 - tz_offset) UTC
+        utc_hour_for_local_noon = 12.0 - tz_offset
+        jd = swe.julday(target_date.year, target_date.month, target_date.day, utc_hour_for_local_noon)
         pos, _ = swe.calc_ut(jd, swe.MOON)
         ayanamsa = swe.get_ayanamsa(jd)
         sidereal = (pos[0] - ayanamsa) % 360
@@ -351,12 +361,13 @@ def get_moon_data_for_date(target_date: datetime) -> dict:
         return {"nakshatra": "Unknown", "sign": "Unknown", "degree": 0.0, "sidereal_longitude": 0.0}
 
 
-def get_tithi(target_date: datetime) -> str:
-    """Compute approximate tithi (lunar day 1-30) for a date."""
+def get_tithi(target_date: datetime, tz_offset: float = 0) -> str:
+    """Compute approximate tithi (lunar day 1-30) for a date at user's local noon."""
     try:
         import swisseph as swe
         swe.set_sid_mode(swe.SIDM_LAHIRI)
-        jd = swe.julday(target_date.year, target_date.month, target_date.day, 12.0)
+        utc_hour_for_local_noon = 12.0 - tz_offset
+        jd = swe.julday(target_date.year, target_date.month, target_date.day, utc_hour_for_local_noon)
         moon_pos, _ = swe.calc_ut(jd, swe.MOON)
         sun_pos, _ = swe.calc_ut(jd, swe.SUN)
         diff = (moon_pos[0] - sun_pos[0]) % 360
@@ -725,6 +736,7 @@ async def build_daily_context(chart_id: str, supabase_client) -> dict:
             "formatted_transits": formatted_transits,
             "chart_data": chart_data,  # raw natal data for transit analyzer
             "lk_data": lk_data,  # raw LK data for daily diagnostic
+            "tz_offset": 0,  # placeholder — actual tz_offset passed separately at call site
         }
 
     except Exception as e:
@@ -1105,7 +1117,7 @@ async def generate_weekly_signals(
     chart_id: Optional[str] = None,
     supabase_client=None,
     language: str = "en",
-    tz_offset: int = 0,
+    tz_offset: float = 0,
     force_refresh: bool = False,
 ) -> list:
     """
@@ -1121,7 +1133,7 @@ async def generate_weekly_signals(
         chart_id: Chart UUID for full context (NEW)
         supabase_client: Supabase client instance (NEW)
         language: "en" or "es" (NEW)
-        tz_offset: Timezone offset in hours (NEW)
+        tz_offset: Timezone offset in hours, supports half-hours e.g. 5.5 for India (NEW)
 
     Returns:
         List of 7 daily signal dicts
@@ -1159,15 +1171,15 @@ async def generate_weekly_signals(
         date_str = target_date.strftime("%Y-%m-%d")
 
         # Compute Moon data (KEPT)
-        moon_data = get_moon_data_for_date(target_date)
+        moon_data = get_moon_data_for_date(target_date, tz_offset=tz_offset)
         nakshatra = moon_data["nakshatra"]
         moon_sign = moon_data["sign"]
 
         # Compute Mercury sign (KEPT)
-        mercury_sign = get_planet_sign_for_date(target_date, 2)
+        mercury_sign = get_planet_sign_for_date(target_date, 2, tz_offset=tz_offset)
 
         # Compute tithi (KEPT)
-        tithi = get_tithi(target_date)
+        tithi = get_tithi(target_date, tz_offset=tz_offset)
 
         # Compute chandra bala
         chandra_bala = get_chandra_bala(natal_moon_sign, moon_sign)
@@ -1206,6 +1218,7 @@ async def generate_weekly_signals(
                 day_prompt_data = {
                     "iso_date": date_str,
                     "weekday": weekday,
+                    "tz_display": f"{tz_offset:+.1f}".rstrip("0").rstrip(".") if tz_offset else "+0",
                     "today_moon_sign": moon_sign,
                     "today_moon_nakshatra": nakshatra,
                     "tithi": tithi,
@@ -1226,6 +1239,7 @@ async def generate_weekly_signals(
                         target_date=target_date,
                         current_md_lord=md_lord,
                         current_country=user_country,
+                        tz_offset=tz_offset,
                     )
                     # Phase 1 blocks (kept)
                     day_prompt_data["transit_analysis_block"] = transit_result["transit_analysis_block"]
@@ -1434,6 +1448,7 @@ async def generate_weekly_signals(
 def generate_weekly_signals_sync(
     natal_moon_sign: str,
     start_date: Optional[datetime] = None,
+    tz_offset: float = 0,
 ) -> list:
     """
     Synchronous template-only version for callers that only need
@@ -1451,11 +1466,11 @@ def generate_weekly_signals_sync(
         weekday = target_date.strftime("%A")
         date_str = target_date.strftime("%Y-%m-%d")
 
-        moon_data = get_moon_data_for_date(target_date)
+        moon_data = get_moon_data_for_date(target_date, tz_offset=tz_offset)
         nakshatra = moon_data["nakshatra"]
         moon_sign = moon_data["sign"]
-        mercury_sign = get_planet_sign_for_date(target_date, 2)
-        tithi = get_tithi(target_date)
+        mercury_sign = get_planet_sign_for_date(target_date, 2, tz_offset=tz_offset)
+        tithi = get_tithi(target_date, tz_offset=tz_offset)
         score, is_friction = _score_day(moon_sign, natal_moon_sign, nakshatra, weekday)
 
         signal_data = _build_signal_text(

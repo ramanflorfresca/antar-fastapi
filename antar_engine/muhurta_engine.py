@@ -477,6 +477,7 @@ def compute_muhurtas(
     target_date: datetime,
     latitude: float,
     longitude: float,
+    tz_offset: float = None,
 ) -> dict:
     """
     Compute today's classical muhurta windows.
@@ -496,8 +497,11 @@ def compute_muhurtas(
         sunrise, sunset = _compute_sunrise_sunset(target_date, latitude, longitude)
         weekday = target_date.weekday() if hasattr(target_date, 'weekday') else 0
 
-        # Approximate local offset for display
-        utc_offset = round(longitude / 15.0)
+        # Use explicit tz_offset if provided; fall back to longitude approximation
+        if tz_offset is not None:
+            utc_offset = tz_offset
+        else:
+            utc_offset = round(longitude / 15.0)
 
         def utc_to_local_str(dt: datetime) -> str:
             local = dt + timedelta(hours=utc_offset)

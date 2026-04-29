@@ -14004,7 +14004,7 @@ _COUNTRY_TZ_OFFSETS = {
     "NL": 1,
     "PT": 0,
     # Asia / Middle East
-    "IN": 5,    # India (+5:30 — use 5)
+    "IN": 5.5,  # India (+5:30)
     "AE": 4,    # UAE
     "SG": 8,    # Singapore
     "JP": 9,    # Japan
@@ -14017,7 +14017,7 @@ _COUNTRY_TZ_OFFSETS = {
     "DEFAULT": 0,
 }
 
-def _get_local_start_date(tz_offset: int = None, current_country: str = None):
+def _get_local_start_date(tz_offset: float = None, current_country: str = None):
     """
     Returns today's date in the user's local timezone.
     Priority: explicit tz_offset > country lookup > UTC
@@ -15980,14 +15980,14 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
         # 3. Compute local start date
         current_country = chart_data.get("current_country") or chart_data.get("birth_country") or ""
         start_date = _get_local_start_date(
-            tz_offset=int(tz_offset) if tz_offset is not None else None,
+            tz_offset=float(tz_offset) if tz_offset is not None else None,
             current_country=current_country
         )
-        effective_offset = int(tz_offset) if tz_offset is not None else _COUNTRY_TZ_OFFSETS.get(
+        effective_offset = float(tz_offset) if tz_offset is not None else _COUNTRY_TZ_OFFSETS.get(
             current_country.upper(), 0
         )
 
-        print(f"[daily-week] chart={chart_id} natal_moon={natal_moon_sign} country={current_country} tz={effective_offset:+d} start={start_date.date()} force_refresh={force_refresh}")
+        print(f"[daily-week] chart={chart_id} natal_moon={natal_moon_sign} country={current_country} tz={effective_offset:+.1f} start={start_date.date()} force_refresh={force_refresh}")
 
         # 4. Generate 7-day signals from local start date (v2 — LLM-backed)
         from antar_engine.daily_prediction_engine import generate_weekly_signals

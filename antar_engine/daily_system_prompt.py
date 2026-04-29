@@ -227,6 +227,13 @@ Same rule applies to all languages: if language == "pt", all Portuguese;
 if language == "hi", all Hindi; if language == "fr", all French.
 No mixing of languages ever.
 
+## TIMEZONE AWARENESS
+All time-based data (Moon transitions, muhurta windows, hora, Rahu Kalam)
+is computed for the user's LOCAL timezone. When you generate time windows
+in the windows[] array, use the times as provided — they are already local.
+Do NOT adjust them. The user in India sees different muhurta windows than
+the user in Colombia because sunrise/sunset differ by location AND timezone.
+
 ## INPUT LAYER PRECEDENCE
 Three astrological layers feed today's read:
 1. Vimsottari Mahadasha + Antardasha — your overarching life chapter (years)
@@ -273,6 +280,7 @@ USER CONTEXT:
 
 TODAY'S PANCHANG:
 - Date: {iso_date}, Weekday: {weekday}
+- User timezone: UTC{tz_display} — all times below are in the user's LOCAL time
 - Moon sign today: {today_moon_sign}
 - Moon nakshatra today: {today_moon_nakshatra}
 - Tithi: {tithi}
