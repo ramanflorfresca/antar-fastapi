@@ -786,7 +786,8 @@ _INSTRUMENT_NAMES_EN = {
     'global vector', 'real estate radar',
 }
 
-_VALIDATED_FIELDS = ['senal_de_hoy', 'observa_hoy_text', 'el_movimiento', 'verdict_subline']
+_VALIDATED_FIELDS = ['senal_de_hoy', 'observa_hoy_text', 'verdict_subline']
+# el_movimiento excluded — it's the evidence layer behind "¿Por qué hoy?", retains technical depth by design
 
 
 def _validate_no_day_names(signal_json: dict, language: str) -> list:
