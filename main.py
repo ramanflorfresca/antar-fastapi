@@ -10,7 +10,7 @@ from datetime import datetime, date, timedelta, timezone
 from typing import Optional, List, Dict, Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import FastAPI, HTTPException, Header, Request, Body, status
+from fastapi import FastAPI, HTTPException, Header, Request, Body, status, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 # [chart-create-422] validation error support
 from fastapi.exceptions import RequestValidationError
@@ -11565,10 +11565,53 @@ async def _get_dashboard_inner(chart_id: str, language: str = "es"):
     }
 
 
+# ── FIX 15-lite: Daily-week cache pre-warm (background task) ─────
+async def _prewarm_daily_week_cache(chart_id: str, tz_offset: Optional[float] = None, language: str = "en"):
+    """
+    Background task — trigger daily-week generation for a chart so its
+    executive-summary + WOW caches are warm by the time the user lands
+    on /today.
+
+    Idempotent: the underlying generators check cache and skip work on a
+    hit. Failures are logged and swallowed so a Claude timeout or DB
+    hiccup never blocks the auth response.
+    """
+    try:
+        eff_tz = tz_offset
+        if eff_tz is None:
+            try:
+                _row = supabase.table("charts").select(
+                    "current_country,birth_country"
+                ).eq("id", chart_id).single().execute()
+                _data = _row.data or {}
+                _cc = (_data.get("current_country") or _data.get("birth_country") or "")
+                eff_tz = _COUNTRY_TZ_OFFSETS.get(
+                    (_cc or "").upper(),
+                    _COUNTRY_TZ_OFFSETS["DEFAULT"],
+                )
+            except Exception as _e:
+                print(f"[prewarm] tz lookup failed for chart={chart_id} ({_e}) — defaulting to 0")
+                eff_tz = _COUNTRY_TZ_OFFSETS["DEFAULT"]
+        print(f"[prewarm] daily-week started chart={chart_id} tz={eff_tz} lang={language}")
+        await get_daily_week(
+            chart_id=chart_id,
+            tz_offset=eff_tz,
+            language=language,
+            force_refresh=False,
+        )
+        print(f"[prewarm] daily-week complete chart={chart_id}")
+    except Exception as _e:
+        print(f"[prewarm] daily-week FAILED (non-fatal) chart={chart_id}: {_e}")
+
+
 # ── Google Auth Endpoints ─────────────────────────────────────────
 
 @app.post("/api/v1/auth/link-chart")
-async def link_chart_to_google(request: dict):
+async def link_chart_to_google(
+    request: dict,
+    background_tasks: BackgroundTasks,
+    tz_offset: Optional[float] = None,
+):
     """
     Links an anonymous chart to a Google-authenticated user.
     Called after Google Sign-in succeeds on the frontend.
@@ -11608,6 +11651,12 @@ async def link_chart_to_google(request: dict):
             "first_name":   display_name.split()[0] if display_name else "",
         }).eq("id", existing_chart_id).execute()
 
+        # FIX 15-lite — pre-warm daily-week cache so /today is fast on next mount
+        try:
+            if background_tasks is not None:
+                background_tasks.add_task(_prewarm_daily_week_cache, existing_chart_id, tz_offset)
+        except Exception as _pe:
+            print(f"[prewarm] schedule failed (non-fatal) chart={existing_chart_id}: {_pe}")
         return {
             "success":  True,
             "chart_id": existing_chart_id,
@@ -11624,6 +11673,12 @@ async def link_chart_to_google(request: dict):
         "first_name":   display_name.split()[0] if display_name else "",
     }).eq("id", chart_id).execute()
 
+    # FIX 15-lite — pre-warm daily-week cache so /today is fast on next mount
+    try:
+        if background_tasks is not None:
+            background_tasks.add_task(_prewarm_daily_week_cache, chart_id, tz_offset)
+    except Exception as _pe:
+        print(f"[prewarm] schedule failed (non-fatal) chart={chart_id}: {_pe}")
     return {
         "success":  True,
         "chart_id": chart_id,
@@ -11720,8 +11775,10 @@ async def update_preferences(request: Request):
 @app.get("/api/v1/auth/restore/{user_id}")
 async def restore_chart(
     user_id: str,
+    background_tasks: BackgroundTasks,
     chart_id: Optional[str] = None,
     language: str = "en",
+    tz_offset: Optional[float] = None,
 ):
     """
     Restore the returning user's session data.
@@ -11866,6 +11923,13 @@ async def restore_chart(
         f"user_exists=True charts={len(charts)} active={active['id']} "
         f"result=OK"
     )
+
+    # FIX 15-lite — pre-warm daily-week cache so /today is fast on next mount
+    try:
+        if background_tasks is not None:
+            background_tasks.add_task(_prewarm_daily_week_cache, active["id"], tz_offset)
+    except Exception as _pe:
+        print(f"[prewarm] schedule failed (non-fatal) chart={active.get('id')}: {_pe}")
 
     # 6. Full restore payload — legacy keys preserved for backward compat,
     #    new structured keys added for the frontend contract.
