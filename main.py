@@ -11694,8 +11694,11 @@ async def link_chart_to_google(
         # (don't create duplicate — just return the one they already have)
         existing_chart_id = existing.data[0]["id"]
 
-        # Update profile info in case it changed
+        # Update profile info in case it changed. Also writes user_id
+        # (same value as google_id — both are the OAuth subject UUID) so
+        # future /auth/restore lookups by user_id succeed.
         supabase.table("charts").update({
+            "user_id":      google_id,
             "email":        email,
             "display_name": display_name,
             "avatar_url":   avatar_url,
@@ -11715,8 +11718,11 @@ async def link_chart_to_google(
             "message":  "Welcome back — your chart has been restored",
         }
 
-    # New user — link the anonymous chart to their Google account
+    # New user — link the anonymous chart to their Google account.
+    # Writes user_id and google_id to the SAME value (the OAuth subject UUID)
+    # so /auth/restore lookups by either column succeed.
     supabase.table("charts").update({
+        "user_id":      google_id,
         "google_id":    google_id,
         "email":        email,
         "display_name": display_name,
@@ -11879,11 +11885,20 @@ async def restore_chart(
             },
         )
 
-    # 2. Look up user's charts by user_id (the correct column)
+    # 2. Look up user's charts. The path param is the OAuth subject UUID
+    # (Supabase auth.users.id). In the charts table this value can live in
+    # either `user_id` or `google_id`:
+    #   - `google_id` is set by /auth/link-chart on every Google sign-in
+    #   - `user_id` is set by /auth/link-chart (after this patch) and by
+    #     other historical signup flows
+    # Existing rows linked before this patch have user_id = NULL but
+    # google_id populated — querying both keeps them visible.
     charts_res = supabase.table("charts").select(
         "id,user_id,first_name,display_name,avatar_url,email,"
         "lagna_sign,moon_sign,moon_nakshatra,sun_sign,created_at"
-    ).eq("user_id", user_id).order("created_at", desc=True).execute()
+    ).or_(
+        f"user_id.eq.{user_id},google_id.eq.{user_id}"
+    ).order("created_at", desc=True).execute()
 
     charts = charts_res.data or []
 
