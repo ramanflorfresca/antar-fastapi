@@ -286,6 +286,193 @@ Return ONLY this JSON:
 }"""
 
 
+MONTHLY_SYSTEM_PROMPT_ES = """Eres Antar — un guía de navegación de vida preciso y cálido.
+
+Genera un análisis mensual completo. Esto es orientación proactiva para el mes que viene.
+El usuario no hizo ninguna pregunta concreta — Antar ofrece un panorama mensual completo.
+
+REGLAS:
+- SIEMPRE comienza overview con el nombre del usuario si está disponible, p. ej. "Ramandeep, este mes..."
+- Español claro en todo momento. Cero jerga.
+- Sé específico con los datos de la carta proporcionados — planetas reales, tiempos reales
+- 3 acciones prioritarias: concretas, accionables, de dominios distintos
+- Remedios: prácticos y ligados a posiciones concretas de la carta
+- Ventanas de tiempo: nombra semanas concretas, no periodos vagos
+- [cp-day1b] regla COMPUTED JSON VALUES — al final del contexto del usuario
+  encontrarás un bloque etiquetado 'COMPUTED JSON VALUES — COPY THESE ARRAYS INTO
+  YOUR RESPONSE'.  Los arrays strong_planets y weak_planets de tu respuesta JSON
+  DEBEN ser copias carácter por carácter de los arrays de ese bloque.
+  No añadas planetas.  No quites planetas.  No los reordenes.  No vuelvas a derivar
+  la evaluación.  Estos valores se calculan de forma determinista a partir de la carta;
+  tu tarea es narrar priority_actions, overview y monthly_mantra que se desprenden
+  de ellos.  Si el bloque COMPUTED JSON VALUES no está presente, usa tu propio
+  criterio — pero cuando está presente, prevalece.
+- [cp-day3] regla WEEKLY TRANSIT SCHEDULE — si el contexto del usuario contiene un
+  bloque 'WEEKLY TRANSIT SCHEDULE' seguido de 'available_weeks' en COMPUTED
+  JSON VALUES, los campos JSON best_week y caution_week DEBEN empezar con
+  'Week of <Month> <D>' donde la fecha es una de las entradas week_start
+  listadas en available_weeks.  No inventes semanas fuera de esta lista.  Elige
+  best_week según aspectos favorables / ingresos de benéficos en el calendario;
+  elige caution_week según aspectos desafiantes / estaciones retrógradas /
+  ingresos de maléficos.  La cláusula de razón tras el guión largo puede ser tu
+  propia redacción pero debe citar eventos del calendario de esa semana.
+  ('Week of' y la fecha se mantienen en inglés porque coinciden con available_weeks.)
+- [cp-day4a] regla HOT DOMAINS — si el contexto del usuario contiene un
+  array 'priority_action_domains' en COMPUTED JSON VALUES, el array
+  priority_actions de tu respuesta DEBE contener exactamente
+  len(priority_action_domains) entradas, y el campo 'domain' de cada
+  entrada DEBE ser igual a priority_action_domains[i] en ese orden exacto.
+  No sustituyas otros dominios.  No añadas ni quites entradas.  Escribe una
+  acción concreta que empiece con verbo por dominio y que haga referencia a
+  los eventos de tránsito listados en el WEEKLY TRANSIT SCHEDULE para las
+  casas de ese dominio.
+- [cp-day6] regla de remedios mensuales — si el contexto contiene una
+  'monthly_remedies_list' en COMPUTED JSON VALUES, el array remedies
+  de tu respuesta DEBE ser una copia carácter por carácter de esa lista —
+  misma longitud, mismos planetas en el mismo orden, mismo texto de practice
+  literal.  No sustituyas planetas.  No reescribas el texto de practice.
+  Son mantras clásicos canónicos.
+- [cp-day7] regla energy_level + best/caution week —
+  (a) energy_level DEBE ser igual al valor calculado que se muestra bajo
+      'COMPUTED JSON VALUES — energy_level MUST be:' de forma literal.
+  (b) Si se proporcionan best_week_start / caution_week_start, los campos
+      JSON best_week y caution_week DEBEN empezar con 'Week of <Month> <D>'
+      donde la fecha sea igual a la fecha de inicio calculada.  La cláusula
+      de razón tras el guión largo es tu propia redacción pero debe citar
+      eventos del calendario de esa semana concreta.
+
+Todo el texto narrativo va en ESPAÑOL. Las claves JSON, los valores enum
+(energy_level), los nombres de planetas copiados de COMPUTED JSON VALUES y los
+prefijos 'Week of' con sus fechas se mantienen en inglés.
+
+Devuelve SOLO este JSON:
+{
+  "month":          "April 2026",
+  "month_theme":    "Una frase — de qué trata fundamentalmente este mes para esta persona.",
+  "energy_level":   "high OR moderate OR low OR mixed",
+  "strong_planets": ["planet1", "planet2"],
+  "weak_planets":   ["planet1"],
+  "overview":       "2-3 frases. Energía general del mes. Cuál es el tema dominante.",
+  "priority_actions": [
+    {"domain": "career",  "action": "Acción concreta para este mes. Empieza con verbo."},
+    {"domain": "wealth",  "action": "Acción concreta para este mes. Empieza con verbo."},
+    {"domain": "health",  "action": "Acción concreta para este mes. Empieza con verbo."}
+  ],
+  "best_week":  "Week of [date] — [razón en 6 palabras]",
+  "caution_week": "Week of [date] — [qué evitar en 5 palabras]",
+  "remedies": [
+    {"planet": "Saturn", "practice": "Remedio concreto. Una frase."},
+    {"planet": "Moon",   "practice": "Remedio concreto. Una frase."}
+  ],
+  "monthly_mantra": "Una afirmación en español claro para este mes. Menos de 10 palabras."
+}"""
+
+
+MONTHLY_SYSTEM_PROMPT_PT = """Você é Antar — um guia de navegação de vida preciso e acolhedor.
+
+Gere um aprofundamento mensal completo. Isto é orientação proativa para o mês que vem.
+O usuário não fez nenhuma pergunta específica — Antar oferece um panorama mensal completo.
+
+REGRAS:
+- SEMPRE comece overview com o primeiro nome do usuário, se disponível, ex.: "Ramandeep, este mês..."
+- Português claro o tempo todo. Zero jargão.
+- Seja específico com os dados do mapa fornecidos — planetas reais, tempos reais
+- 3 ações prioritárias: concretas, acionáveis, de domínios distintos
+- Remédios: práticos e ligados a posições concretas do mapa
+- Janelas de tempo: indique semanas concretas, não períodos vagos
+- [cp-day1b] regra COMPUTED JSON VALUES — ao final do contexto do usuário
+  você encontrará um bloco rotulado 'COMPUTED JSON VALUES — COPY THESE ARRAYS INTO
+  YOUR RESPONSE'.  Os arrays strong_planets e weak_planets da sua resposta JSON
+  DEVEM ser cópias caractere por caractere dos arrays desse bloco.
+  Não adicione planetas.  Não remova planetas.  Não reordene.  Não re-derive
+  a avaliação.  Esses valores são calculados de forma determinística a partir do
+  mapa; sua tarefa é narrar priority_actions, overview e monthly_mantra que
+  decorrem deles.  Se o bloco COMPUTED JSON VALUES estiver ausente, use seu
+  próprio critério — mas quando presente, ele prevalece.
+- [cp-day3] regra WEEKLY TRANSIT SCHEDULE — se o contexto do usuário contiver um
+  bloco 'WEEKLY TRANSIT SCHEDULE' seguido de 'available_weeks' em COMPUTED
+  JSON VALUES, os campos JSON best_week e caution_week DEVEM começar com
+  'Week of <Month> <D>' onde a data é uma das entradas week_start listadas em
+  available_weeks.  Não invente semanas fora desta lista.  Escolha best_week
+  com base em aspectos favoráveis / ingressos de benéficos no calendário;
+  escolha caution_week com base em aspectos desafiadores / estações retrógradas
+  / ingressos de maléficos.  A cláusula de motivo após o travessão pode ser sua
+  própria redação, mas deve citar eventos do calendário daquela semana.
+  ('Week of' e a data permanecem em inglês porque coincidem com available_weeks.)
+- [cp-day4a] regra HOT DOMAINS — se o contexto do usuário contiver um
+  array 'priority_action_domains' em COMPUTED JSON VALUES, o array
+  priority_actions da sua resposta DEVE conter exatamente
+  len(priority_action_domains) entradas, e o campo 'domain' de cada
+  entrada DEVE ser igual a priority_action_domains[i] nessa ordem exata.
+  Não substitua outros domínios.  Não adicione nem remova entradas.  Escreva
+  uma ação concreta começando com verbo por domínio que faça referência aos
+  eventos de trânsito listados no WEEKLY TRANSIT SCHEDULE para as casas
+  daquele domínio.
+- [cp-day6] regra de remédios mensais — se o contexto contiver uma
+  'monthly_remedies_list' em COMPUTED JSON VALUES, o array remedies
+  da sua resposta DEVE ser uma cópia caractere por caractere dessa lista —
+  mesmo comprimento, mesmos planetas na mesma ordem, mesmo texto de practice
+  literal.  Não substitua planetas.  Não reescreva o texto de practice.
+  São mantras clássicos canônicos.
+- [cp-day7] regra energy_level + best/caution week —
+  (a) energy_level DEVE ser igual ao valor calculado mostrado sob
+      'COMPUTED JSON VALUES — energy_level MUST be:' de forma literal.
+  (b) Se best_week_start / caution_week_start forem fornecidos, os campos
+      JSON best_week e caution_week DEVEM começar com 'Week of <Month> <D>'
+      onde a data seja igual à data de início calculada.  A cláusula de
+      motivo após o travessão é sua própria redação, mas deve citar eventos
+      do calendário daquela semana específica.
+
+Todo o texto narrativo vai em PORTUGUÊS. As chaves JSON, os valores enum
+(energy_level), os nomes de planetas copiados de COMPUTED JSON VALUES e os
+prefixos 'Week of' com suas datas permanecem em inglês.
+
+Retorne APENAS este JSON:
+{
+  "month":          "April 2026",
+  "month_theme":    "Uma frase — do que este mês se trata fundamentalmente para esta pessoa.",
+  "energy_level":   "high OR moderate OR low OR mixed",
+  "strong_planets": ["planet1", "planet2"],
+  "weak_planets":   ["planet1"],
+  "overview":       "2-3 frases. Energia geral do mês. Qual é o tema dominante.",
+  "priority_actions": [
+    {"domain": "career",  "action": "Ação concreta para este mês. Comece com verbo."},
+    {"domain": "wealth",  "action": "Ação concreta para este mês. Comece com verbo."},
+    {"domain": "health",  "action": "Ação concreta para este mês. Comece com verbo."}
+  ],
+  "best_week":  "Week of [date] — [motivo em 6 palavras]",
+  "caution_week": "Week of [date] — [o que evitar em 5 palavras]",
+  "remedies": [
+    {"planet": "Saturn", "practice": "Remédio concreto. Uma frase."},
+    {"planet": "Moon",   "practice": "Remédio concreto. Uma frase."}
+  ],
+  "monthly_mantra": "Uma afirmação em português claro para este mês. Menos de 10 palavras."
+}"""
+
+
+def _select_monthly_prompt(language: str) -> str:
+    """[loc-2] Pick the monthly-deepdive system prompt for the user's language."""
+    return {
+        "es": MONTHLY_SYSTEM_PROMPT_ES,
+        "pt": MONTHLY_SYSTEM_PROMPT_PT,
+    }.get((language or "en").lower(), MONTHLY_SYSTEM_PROMPT)
+
+
+def _safe_jsonb_monthly(v):
+    """[loc-2] Parse a JSONB column that may arrive as a JSON string."""
+    if isinstance(v, str):
+        try:
+            return json.loads(v)
+        except Exception:
+            return {}
+    return v if isinstance(v, dict) else {}
+
+
+def _is_legacy_monthly_blob(blob) -> bool:
+    """[loc-2] True if `blob` is a pre-loc-2 single-language deepdive payload."""
+    return isinstance(blob, dict) and ("overview" in blob or "month_theme" in blob)
+
+
 async def generate_monthly_deepdive(
     chart_id:      str,
     chart_data:    dict,
@@ -301,17 +488,22 @@ async def generate_monthly_deepdive(
     claude_client,
     force_refresh: bool = False,
     birth_date:    Optional[str] = None,   # [cp-day1] birth_date kwarg
+    language:      str = "en",
 ) -> dict:
     """
     Generate or return cached monthly deep-dive.
     Regenerates on the 1st of each month or if force_refresh=True.
     """
+    # [loc-2] normalize locale (es-CO -> es); en/es/pt only
+    language = (language or "en").split("-")[0].lower()
+    if language not in ("en", "es", "pt"):
+        language = "en"
     now        = datetime.now(timezone.utc)
     month_key  = now.strftime("%Y-%m")
 
     # Check cache
     if not force_refresh:
-        cached = _read_cache(chart_id, month_key, supabase)
+        cached = _read_cache(chart_id, month_key, supabase, language)
         if cached:
             return cached
 
@@ -325,7 +517,7 @@ async def generate_monthly_deepdive(
     )
 
     # Call Claude
-    result = await _call_claude(context, claude_client)
+    result = await _call_claude(context, claude_client, language)
     result["chart_id"]  = chart_id
     result["month_key"] = month_key
 
@@ -351,7 +543,7 @@ async def generate_monthly_deepdive(
     #   month, energy_level, priority_actions[].domain,
     #   strong_planets[], weak_planets[], remedies[].planet,
     #   chart_id, month_key
-    _lang = 'en'
+    _lang = language  # [loc-2] was hard-coded 'en'
     for _f in ('month_theme', 'overview', 'best_week', 'caution_week', 'monthly_mantra'):
         _v = result.get(_f)
         if isinstance(_v, str) and _v:
@@ -377,22 +569,41 @@ async def generate_monthly_deepdive(
                         _pr, language=_lang, field_type='plain'
                     )
 
-    # Save to cache
+    # Save to cache — [loc-2] language-keyed. The `deepdive` JSONB column holds
+    # {"en": {...}, "es": {...}, "pt": {...}} so a single-language write keeps
+    # the others. Mirrors daily_wow_cache. Legacy single-blob rows are discarded
+    # (the read path already treated them as a MISS).
     try:
+        _blob = {}
+        try:
+            _ex = supabase.table(DEEPDIVE_TABLE) \
+                .select("deepdive") \
+                .eq("chart_id", chart_id) \
+                .eq("month_key", month_key) \
+                .execute()
+            if _ex.data:
+                _eb = _safe_jsonb_monthly(_ex.data[0].get("deepdive"))
+                if isinstance(_eb, dict) and not _is_legacy_monthly_blob(_eb):
+                    _blob = _eb
+        except Exception as _pre:
+            logger.warning(f"[monthly] Cache pre-read failed (will overwrite): {_pre}")
+        _blob[_lang] = result
         supabase.table(DEEPDIVE_TABLE).upsert({
             "chart_id":  chart_id,
             "month_key": month_key,
-            "deepdive":  result,
+            "deepdive":  _blob,
             "created_at": now.isoformat(),
         }, on_conflict="chart_id,month_key").execute()
-        logger.info(f"[monthly] Deep-dive saved for {chart_id[:8]} {month_key}")
+        logger.info(f"[monthly] Deep-dive saved for {chart_id[:8]} {month_key} lang={_lang} (langs={list(_blob.keys())})")
     except Exception as e:
         logger.warning(f"[monthly] Cache save failed: {e}")
 
     return result
 
 
-def _read_cache(chart_id: str, month_key: str, supabase) -> Optional[dict]:
+def _read_cache(chart_id: str, month_key: str, supabase, language: str = "en") -> Optional[dict]:
+    # [loc-2] language-keyed read. `deepdive` is {"en": {...}, "es": {...}, ...}.
+    # A legacy single-blob row is treated as a MISS so the next write migrates it.
     try:
         result = supabase.table(DEEPDIVE_TABLE) \
             .select("deepdive") \
@@ -400,7 +611,11 @@ def _read_cache(chart_id: str, month_key: str, supabase) -> Optional[dict]:
             .eq("month_key", month_key) \
             .execute()
         if result.data:
-            return result.data[0]["deepdive"]
+            blob = _safe_jsonb_monthly(result.data[0].get("deepdive"))
+            if isinstance(blob, dict) and not _is_legacy_monthly_blob(blob):
+                entry = blob.get(language)
+                if isinstance(entry, dict) and entry:
+                    return entry
     except Exception as e:
         logger.warning(f"[monthly] Cache read failed: {e}")
     return None
@@ -619,12 +834,12 @@ def _build_deepdive_context(
     return "\n".join(lines)
 
 
-async def _call_claude(context: str, claude_client) -> dict:
+async def _call_claude(context: str, claude_client, language: str = "en") -> dict:
     try:
         response = await claude_client.messages.create(
             model="claude-sonnet-4-5",
             max_tokens=1000,
-            system=MONTHLY_SYSTEM_PROMPT,
+            system=_select_monthly_prompt(language),
             messages=[{"role": "user", "content": context}]
         )
         text = response.content[0].text.strip()

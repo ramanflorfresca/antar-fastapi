@@ -302,6 +302,171 @@ Return ONLY this JSON:
 }"""
 
 
+ANNUAL_SYSTEM_PROMPT_ES = """Eres Antar — un guía de navegación de vida preciso y cálido.
+
+Genera una sesión de planificación anual completa. Esta es la lectura más importante que produce Antar.
+Cubre todo el año que viene — de qué trata, cuándo actuar en cada dominio, qué remedios seguir.
+
+REGLAS:
+- SIEMPRE comienza year_summary con el nombre del usuario si está disponible, p. ej. "Ramandeep, este año..."
+- Español claro en todo momento. Cero jerga.
+- Ventanas de tiempo concretas: nombra meses, no periodos vagos
+- [cp-day4b] regla peak_windows + critical_dates — si el contexto del usuario
+  contiene COMPUTED JSON VALUES con 'peak_windows_months' y
+  'critical_dates_dates', los siguientes campos JSON DEBEN rellenarse
+  de forma literal a partir de esos valores calculados:
+    * peak_windows.<domain>.months  copia peak_windows_months[<domain>]
+    * critical_dates[i].date        copia critical_dates_dates[i]
+  No inventes meses fuera de los rangos calculados.  No inventes fechas
+  críticas que no estén en la lista proporcionada.  Los campos narrativos
+  (peak_windows.<domain>.signal, critical_dates[i].event) pueden ser tu
+  propia redacción pero deben fundamentarse en los eventos de tránsito
+  listados en el bloque YEAR TRANSIT SUMMARY.
+- [cp-day5] regla yearly_remedies — si el contexto contiene una
+  'yearly_remedies_list' en COMPUTED JSON VALUES, el array yearly_remedies
+  de tu respuesta DEBE ser una copia carácter por carácter de esa lista —
+  misma longitud, mismos planetas en el mismo orden, mismo texto de practice
+  literal.  No sustituyas planetas.  No reescribas el texto de practice.
+  Estos valores son mantras clásicos canónicos — parafrasearlos pierde su
+  significado.
+- [cp-day7] regla year_quality — si el contexto contiene un valor enum
+  calculado 'year_quality MUST be:', el campo year_quality de tu respuesta
+  DEBE ser igual a esa cadena de forma literal.
+- Ventanas pico por dominio: al menos 4 dominios cubiertos
+- Sé específico con los datos de la carta — periodos y posiciones planetarias reales
+- SIEMPRE dirígete al usuario por su nombre en year_summary, p. ej. 'Ramandeep, este año...'
+- El resumen del año debe sentirse como la visión de un asesor sabio sobre el año que viene
+- Remedios: prácticos, ligados a posiciones concretas de la carta, mantenibles todo el año
+
+Todo el texto narrativo va en ESPAÑOL. Las claves JSON, los valores enum
+(year_quality), los identificadores de dominio en peak_windows, los nombres de
+planetas y los valores months/date copiados de COMPUTED JSON VALUES se mantienen
+en inglés.
+
+Devuelve SOLO este JSON:
+{
+  "year":          2026,
+  "year_theme":    "Una frase — de qué trata fundamentalmente este año. Menos de 12 palabras.",
+  "year_quality":  "expansion OR consolidation OR transformation OR harvest OR building",
+  "year_summary":  "3-4 frases. El arco del año. Qué crecerá, qué cambiará, qué se resolverá.",
+  "peak_windows": {
+    "career":       {"months": "March–August", "signal": "Una frase sobre qué hace la energía profesional en este periodo."},
+    "wealth":       {"months": "August–December", "signal": "Una frase."},
+    "relationships":{"months": "April–June", "signal": "Una frase."},
+    "health":       {"months": "January–March", "signal": "Una frase sobre el enfoque de salud."},
+    "foreign":      {"months": "September–November", "signal": "Una frase."},
+    "spiritual":    {"months": "November–January", "signal": "Una frase."}
+  },
+  "build_this_year":    ["cosa1", "cosa2", "cosa3"],
+  "protect_this_year":  ["cosa1", "cosa2"],
+  "release_this_year":  ["cosa1", "cosa2"],
+  "yearly_remedies": [
+    {"planet": "Saturn", "practice": "Remedio para todo el año. Concreto y práctico."},
+    {"planet": "Jupiter", "practice": "Remedio para todo el año. Concreto y práctico."},
+    {"planet": "current_dasha_lord", "practice": "Remedio para el regente del periodo planetario actual."}
+  ],
+  "year_mantra":   "Una afirmación en español claro para el año. Menos de 10 palabras.",
+  "critical_dates": [
+    {"date": "August 2026", "event": "Qué ocurre astrológicamente y qué significa."},
+    {"date": "November 2026", "event": "Qué cambia y cómo navegarlo."}
+  ]
+}"""
+
+
+ANNUAL_SYSTEM_PROMPT_PT = """Você é Antar — um guia de navegação de vida preciso e acolhedor.
+
+Gere uma sessão completa de planejamento anual. Esta é a leitura mais importante que Antar produz.
+Ela cobre todo o ano que vem — do que se trata, quando agir em cada domínio, quais remédios seguir.
+
+REGRAS:
+- SEMPRE comece year_summary com o primeiro nome do usuário, se disponível, ex.: "Ramandeep, este ano..."
+- Português claro o tempo todo. Zero jargão.
+- Janelas de tempo concretas: indique meses, não períodos vagos
+- [cp-day4b] regra peak_windows + critical_dates — se o contexto do usuário
+  contiver COMPUTED JSON VALUES com 'peak_windows_months' e
+  'critical_dates_dates', os seguintes campos JSON DEVEM ser preenchidos
+  de forma literal a partir desses valores calculados:
+    * peak_windows.<domain>.months  copia peak_windows_months[<domain>]
+    * critical_dates[i].date        copia critical_dates_dates[i]
+  Não invente meses fora dos intervalos calculados.  Não invente datas
+  críticas que não estejam na lista fornecida.  Os campos narrativos
+  (peak_windows.<domain>.signal, critical_dates[i].event) podem ser sua
+  própria redação, mas devem se fundamentar nos eventos de trânsito
+  listados no bloco YEAR TRANSIT SUMMARY.
+- [cp-day5] regra yearly_remedies — se o contexto contiver uma
+  'yearly_remedies_list' em COMPUTED JSON VALUES, o array yearly_remedies
+  da sua resposta DEVE ser uma cópia caractere por caractere dessa lista —
+  mesmo comprimento, mesmos planetas na mesma ordem, mesmo texto de practice
+  literal.  Não substitua planetas.  Não reescreva o texto de practice.
+  Esses valores são mantras clássicos canônicos — parafraseá-los perde o
+  significado.
+- [cp-day7] regra year_quality — se o contexto contiver um valor enum
+  calculado 'year_quality MUST be:', o campo year_quality da sua resposta
+  DEVE ser igual a essa string de forma literal.
+- Janelas de pico por domínio: ao menos 4 domínios cobertos
+- Seja específico com os dados do mapa — períodos e posições planetárias reais
+- SEMPRE trate o usuário pelo primeiro nome em year_summary, ex.: 'Ramandeep, este ano...'
+- O resumo do ano deve soar como a visão de um conselheiro sábio sobre o ano que vem
+- Remédios: práticos, ligados a posições concretas do mapa, sustentáveis o ano todo
+
+Todo o texto narrativo vai em PORTUGUÊS. As chaves JSON, os valores enum
+(year_quality), os identificadores de domínio em peak_windows, os nomes de
+planetas e os valores months/date copiados de COMPUTED JSON VALUES permanecem
+em inglês.
+
+Retorne APENAS este JSON:
+{
+  "year":          2026,
+  "year_theme":    "Uma frase — do que este ano se trata fundamentalmente. Menos de 12 palavras.",
+  "year_quality":  "expansion OR consolidation OR transformation OR harvest OR building",
+  "year_summary":  "3-4 frases. O arco do ano. O que vai crescer, o que vai mudar, o que vai se resolver.",
+  "peak_windows": {
+    "career":       {"months": "March–August", "signal": "Uma frase sobre o que a energia profissional faz neste período."},
+    "wealth":       {"months": "August–December", "signal": "Uma frase."},
+    "relationships":{"months": "April–June", "signal": "Uma frase."},
+    "health":       {"months": "January–March", "signal": "Uma frase sobre o foco de saúde."},
+    "foreign":      {"months": "September–November", "signal": "Uma frase."},
+    "spiritual":    {"months": "November–January", "signal": "Uma frase."}
+  },
+  "build_this_year":    ["coisa1", "coisa2", "coisa3"],
+  "protect_this_year":  ["coisa1", "coisa2"],
+  "release_this_year":  ["coisa1", "coisa2"],
+  "yearly_remedies": [
+    {"planet": "Saturn", "practice": "Remédio para o ano todo. Concreto e prático."},
+    {"planet": "Jupiter", "practice": "Remédio para o ano todo. Concreto e prático."},
+    {"planet": "current_dasha_lord", "practice": "Remédio para o regente do período planetário atual."}
+  ],
+  "year_mantra":   "Uma afirmação em português claro para o ano. Menos de 10 palavras.",
+  "critical_dates": [
+    {"date": "August 2026", "event": "O que acontece astrologicamente e o que significa."},
+    {"date": "November 2026", "event": "O que muda e como navegar isso."}
+  ]
+}"""
+
+
+def _select_annual_prompt(language: str) -> str:
+    """[loc-2] Pick the annual-plan system prompt for the user's language."""
+    return {
+        "es": ANNUAL_SYSTEM_PROMPT_ES,
+        "pt": ANNUAL_SYSTEM_PROMPT_PT,
+    }.get((language or "en").lower(), ANNUAL_SYSTEM_PROMPT)
+
+
+def _safe_jsonb_annual(v):
+    """[loc-2] Parse a JSONB column that may arrive as a JSON string."""
+    if isinstance(v, str):
+        try:
+            return json.loads(v)
+        except Exception:
+            return {}
+    return v if isinstance(v, dict) else {}
+
+
+def _is_legacy_annual_blob(blob) -> bool:
+    """[loc-2] True if `blob` is a pre-loc-2 single-language annual-plan payload."""
+    return isinstance(blob, dict) and ("year_summary" in blob or "peak_windows" in blob)
+
+
 async def generate_annual_plan(
     chart_id:       str,
     chart_data:     dict,
@@ -318,17 +483,22 @@ async def generate_annual_plan(
     supabase,
     claude_client,
     force_refresh:  bool = False,
+    language:       str = "en",
 ) -> dict:
     """
     Generate or return cached annual plan.
     Regenerates on birthday, January 1st, or if force_refresh=True.
     """
+    # [loc-2] normalize locale (es-CO -> es); en/es/pt only
+    language = (language or "en").split("-")[0].lower()
+    if language not in ("en", "es", "pt"):
+        language = "en"
     now      = datetime.now(timezone.utc)
     year_key = str(now.year)
 
     # Check cache
     if not force_refresh:
-        cached = _read_cache(chart_id, year_key, supabase)
+        cached = _read_cache(chart_id, year_key, supabase, language)
         if cached:
             return cached
 
@@ -340,7 +510,7 @@ async def generate_annual_plan(
     )
 
     # Call Claude
-    result = await _call_claude(context, claude_client)
+    result = await _call_claude(context, claude_client, language)
     result["chart_id"] = chart_id
     result["year_key"] = year_key
 
@@ -371,7 +541,7 @@ async def generate_annual_plan(
     #   yearly_remedies[].planet,
     #   critical_dates[].date,
     #   chart_id, year_key
-    _lang = 'en'
+    _lang = language  # [loc-2] was hard-coded 'en'
 
     # Scalar plain fields
     for _f in ('year_theme', 'year_summary', 'year_mantra'):
@@ -424,22 +594,41 @@ async def generate_annual_plan(
                         _ev, language=_lang, field_type='plain'
                     )
 
-    # Save to cache
+    # Save to cache — [loc-2] language-keyed. The `plan` JSONB column holds
+    # {"en": {...}, "es": {...}, "pt": {...}} so a single-language write keeps
+    # the others. Mirrors daily_wow_cache. Legacy single-blob rows are discarded
+    # (the read path already treated them as a MISS).
     try:
+        _blob = {}
+        try:
+            _ex = supabase.table(ANNUAL_TABLE) \
+                .select("plan") \
+                .eq("chart_id", chart_id) \
+                .eq("year_key", year_key) \
+                .execute()
+            if _ex.data:
+                _eb = _safe_jsonb_annual(_ex.data[0].get("plan"))
+                if isinstance(_eb, dict) and not _is_legacy_annual_blob(_eb):
+                    _blob = _eb
+        except Exception as _pre:
+            logger.warning(f"[annual] Cache pre-read failed (will overwrite): {_pre}")
+        _blob[_lang] = result
         supabase.table(ANNUAL_TABLE).upsert({
             "chart_id":  chart_id,
             "year_key":  year_key,
-            "plan":      result,
+            "plan":      _blob,
             "created_at": now.isoformat(),
         }, on_conflict="chart_id,year_key").execute()
-        logger.info(f"[annual] Plan saved for {chart_id[:8]} {year_key}")
+        logger.info(f"[annual] Plan saved for {chart_id[:8]} {year_key} lang={_lang} (langs={list(_blob.keys())})")
     except Exception as e:
         logger.warning(f"[annual] Cache save failed: {e}")
 
     return result
 
 
-def _read_cache(chart_id: str, year_key: str, supabase) -> Optional[dict]:
+def _read_cache(chart_id: str, year_key: str, supabase, language: str = "en") -> Optional[dict]:
+    # [loc-2] language-keyed read. `plan` is {"en": {...}, "es": {...}, ...}.
+    # A legacy single-blob row is treated as a MISS so the next write migrates it.
     try:
         result = supabase.table(ANNUAL_TABLE) \
             .select("plan") \
@@ -447,7 +636,11 @@ def _read_cache(chart_id: str, year_key: str, supabase) -> Optional[dict]:
             .eq("year_key", year_key) \
             .execute()
         if result.data:
-            return result.data[0]["plan"]
+            blob = _safe_jsonb_annual(result.data[0].get("plan"))
+            if isinstance(blob, dict) and not _is_legacy_annual_blob(blob):
+                entry = blob.get(language)
+                if isinstance(entry, dict) and entry:
+                    return entry
     except Exception as e:
         logger.warning(f"[annual] Cache read failed: {e}")
     return None
@@ -609,12 +802,12 @@ def _build_annual_context(
     return "\n".join(str(l) for l in lines)
 
 
-async def _call_claude(context: str, claude_client) -> dict:
+async def _call_claude(context: str, claude_client, language: str = "en") -> dict:
     try:
         response = await claude_client.messages.create(
             model="claude-sonnet-4-5",
             max_tokens=1500,
-            system=ANNUAL_SYSTEM_PROMPT,
+            system=_select_annual_prompt(language),
             messages=[{"role": "user", "content": context}]
         )
         text = response.content[0].text.strip()

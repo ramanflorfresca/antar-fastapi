@@ -57,6 +57,93 @@ Return ONLY this JSON:
 }"""
 
 
+WEEKLY_SYSTEM_PROMPT_ES = """Eres Antar — un guía de navegación de vida preciso y cálido.
+
+Genera un informe semanal para la semana que viene. Esto es orientación proactiva —
+el usuario no hizo ninguna pregunta. Antar observa su carta y señala lo que importa.
+
+REGLAS:
+- SIEMPRE comienza weekly_focus con el nombre del usuario si está disponible, p. ej. "Ramandeep, esta semana..."
+- Cada señal de dominio: 2 frases como máximo. Español claro. Cero jerga.
+- El enfoque semanal: un párrafo, el único tema más importante de esta semana
+- Best day: nombra un día concreto de la semana para las acciones importantes
+- SIEMPRE dirígete al usuario por su nombre en weekly_focus, p. ej. 'Ramandeep, esta semana...'
+- Sé específico con los datos de la carta proporcionados — nada de lenguaje genérico de horóscopo
+- Cálido pero preciso. Como el mensaje de un lunes por la mañana de un asesor de confianza.
+
+Todo el texto narrativo va en ESPAÑOL. Las claves JSON se mantienen en inglés.
+
+Devuelve SOLO este JSON:
+{
+  "week_of": "March 31, 2026",
+  "weekly_focus": "Un párrafo — el tema dominante de esta semana y lo que significa en la práctica.",
+  "best_day": "Miércoles — [razón en 5 palabras]",
+  "domains": {
+    "career":       "2 frases. Qué energía laboral/profesional está activa esta semana.",
+    "wealth":       "2 frases. Qué energía financiera está activa esta semana.",
+    "relationships":"2 frases. Qué energía de relaciones está activa esta semana.",
+    "health":       "2 frases. Qué energía de salud/cuerpo está activa esta semana.",
+    "spirit":       "2 frases. Qué energía espiritual/interior está activa esta semana."
+  },
+  "one_action": "La única acción más importante a realizar antes del domingo. Empieza con un verbo."
+}"""
+
+
+WEEKLY_SYSTEM_PROMPT_PT = """Você é Antar — um guia de navegação de vida preciso e acolhedor.
+
+Gere um resumo semanal para a semana que vem. Isto é orientação proativa —
+o usuário não fez nenhuma pergunta. Antar observa o mapa dele e sinaliza o que importa.
+
+REGRAS:
+- SEMPRE comece weekly_focus com o primeiro nome do usuário, se disponível, ex.: "Ramandeep, esta semana..."
+- Cada sinal de domínio: no máximo 2 frases. Português claro. Zero jargão.
+- O foco semanal: um parágrafo, o tema mais importante desta semana
+- Best day: indique um dia específico da semana para as ações importantes
+- SEMPRE trate o usuário pelo primeiro nome em weekly_focus, ex.: 'Ramandeep, esta semana...'
+- Seja específico com os dados do mapa fornecidos — nada de linguagem genérica de horóscopo
+- Acolhedor, mas preciso. Como a mensagem de uma segunda de manhã de um conselheiro de confiança.
+
+Todo o texto narrativo vai em PORTUGUÊS. As chaves JSON permanecem em inglês.
+
+Retorne APENAS este JSON:
+{
+  "week_of": "March 31, 2026",
+  "weekly_focus": "Um parágrafo — o tema dominante desta semana e o que ele significa na prática.",
+  "best_day": "Quarta-feira — [motivo em 5 palavras]",
+  "domains": {
+    "career":       "2 frases. Que energia profissional/de trabalho está ativa esta semana.",
+    "wealth":       "2 frases. Que energia financeira está ativa esta semana.",
+    "relationships":"2 frases. Que energia de relacionamentos está ativa esta semana.",
+    "health":       "2 frases. Que energia de saúde/corpo está ativa esta semana.",
+    "spirit":       "2 frases. Que energia espiritual/interior está ativa esta semana."
+  },
+  "one_action": "A única ação mais importante a realizar antes de domingo. Comece com um verbo."
+}"""
+
+
+def _select_weekly_prompt(language: str) -> str:
+    """[loc-2] Pick the weekly-briefing system prompt for the user's language."""
+    return {
+        "es": WEEKLY_SYSTEM_PROMPT_ES,
+        "pt": WEEKLY_SYSTEM_PROMPT_PT,
+    }.get((language or "en").lower(), WEEKLY_SYSTEM_PROMPT)
+
+
+def _safe_jsonb_weekly(v):
+    """[loc-2] Parse a JSONB column that may arrive as a JSON string."""
+    if isinstance(v, str):
+        try:
+            return json.loads(v)
+        except Exception:
+            return {}
+    return v if isinstance(v, dict) else {}
+
+
+def _is_legacy_weekly_blob(blob) -> bool:
+    """[loc-2] True if `blob` is a pre-loc-2 single-language briefing payload."""
+    return isinstance(blob, dict) and ("weekly_focus" in blob or "domains" in blob)
+
+
 async def generate_weekly_briefing(
     chart_id:      str,
     chart_data:    dict,
@@ -71,17 +158,22 @@ async def generate_weekly_briefing(
     supabase,
     claude_client,
     force_refresh: bool = False,
+    language: str = "en",
 ) -> dict:
     """
     Generate or return cached weekly briefing for a chart.
     Regenerates on Mondays or if force_refresh=True.
     """
+    # [loc-2] normalize locale (es-CO -> es); en/es/pt only
+    language = (language or "en").split("-")[0].lower()
+    if language not in ("en", "es", "pt"):
+        language = "en"
     now       = datetime.now(timezone.utc)
     week_start = _get_week_start(now)
 
     # Check cache
     if not force_refresh:
-        cached = _read_cache(chart_id, week_start, supabase)
+        cached = _read_cache(chart_id, week_start, supabase, language)
         if cached:
             return cached
 
@@ -93,7 +185,7 @@ async def generate_weekly_briefing(
     )
 
     # Call Claude
-    result = await _call_claude(context, claude_client)
+    result = await _call_claude(context, claude_client, language)
     result["chart_id"]   = chart_id
     result["week_start"] = week_start.isoformat()
     result["week_of"]    = week_start.strftime("%B %d, %Y")
@@ -114,7 +206,7 @@ async def generate_weekly_briefing(
     # clean.  Language is hard-coded to 'en' because weekly_briefing
     # is currently English-only; wire chart language through when
     # /weekly-briefing goes multilingual.
-    _lang = 'en'
+    _lang = language  # [loc-2] was hard-coded 'en'
     # weekly_focus + one_action: full plain strip
     for _f in ('weekly_focus', 'one_action'):
         _v = result.get(_f)
@@ -133,15 +225,32 @@ async def generate_weekly_briefing(
                     _dv, language=_lang, field_type='plain'
                 )
 
-    # Save to cache
+    # Save to cache — [loc-2] language-keyed. The `briefing` JSONB column holds
+    # {"en": {...}, "es": {...}, "pt": {...}} so a single-language write keeps
+    # the others. Mirrors daily_wow_cache. Legacy single-blob rows are discarded
+    # (the read path already treated them as a MISS).
     try:
+        _blob = {}
+        try:
+            _ex = supabase.table(BRIEFING_TABLE) \
+                .select("briefing") \
+                .eq("chart_id", chart_id) \
+                .eq("week_start", week_start.isoformat()) \
+                .execute()
+            if _ex.data:
+                _eb = _safe_jsonb_weekly(_ex.data[0].get("briefing"))
+                if isinstance(_eb, dict) and not _is_legacy_weekly_blob(_eb):
+                    _blob = _eb
+        except Exception as _pre:
+            logger.warning(f"[weekly] Cache pre-read failed (will overwrite): {_pre}")
+        _blob[_lang] = result
         supabase.table(BRIEFING_TABLE).upsert({
             "chart_id":   chart_id,
             "week_start": week_start.isoformat(),
-            "briefing":   result,
+            "briefing":   _blob,
             "created_at": now.isoformat(),
         }, on_conflict="chart_id,week_start").execute()
-        logger.info(f"[weekly] Briefing saved for chart {chart_id[:8]}")
+        logger.info(f"[weekly] Briefing saved for chart {chart_id[:8]} lang={_lang} (langs={list(_blob.keys())})")
     except Exception as e:
         logger.warning(f"[weekly] Cache save failed: {e}")
 
@@ -156,7 +265,9 @@ def _get_week_start(dt: datetime) -> datetime:
     )
 
 
-def _read_cache(chart_id: str, week_start: datetime, supabase) -> Optional[dict]:
+def _read_cache(chart_id: str, week_start: datetime, supabase, language: str = "en") -> Optional[dict]:
+    # [loc-2] language-keyed read. `briefing` is {"en": {...}, "es": {...}, ...}.
+    # A legacy single-blob row is treated as a MISS so the next write migrates it.
     try:
         result = supabase.table(BRIEFING_TABLE) \
             .select("briefing") \
@@ -164,7 +275,11 @@ def _read_cache(chart_id: str, week_start: datetime, supabase) -> Optional[dict]
             .eq("week_start", week_start.isoformat()) \
             .execute()
         if result.data:
-            return result.data[0]["briefing"]
+            blob = _safe_jsonb_weekly(result.data[0].get("briefing"))
+            if isinstance(blob, dict) and not _is_legacy_weekly_blob(blob):
+                entry = blob.get(language)
+                if isinstance(entry, dict) and entry:
+                    return entry
     except Exception as e:
         logger.warning(f"[weekly] Cache read failed: {e}")
     return None
@@ -222,12 +337,12 @@ def _build_briefing_context(
     return "\n".join(l for l in lines if l)
 
 
-async def _call_claude(context: str, claude_client) -> dict:
+async def _call_claude(context: str, claude_client, language: str = "en") -> dict:
     try:
         response = await claude_client.messages.create(
             model="claude-sonnet-4-5",
             max_tokens=800,
-            system=WEEKLY_SYSTEM_PROMPT,
+            system=_select_weekly_prompt(language),
             messages=[{"role": "user", "content": context}]
         )
         text = response.content[0].text.strip()

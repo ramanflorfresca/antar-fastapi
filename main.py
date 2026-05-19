@@ -12425,11 +12425,17 @@ async def get_welcome(chart_id: str, language: str = "en"):
 
 # ── Sprint E: Weekly briefing ─────────────────────────────────────────────────
 @app.get("/api/v1/weekly-briefing/{chart_id}")
-async def get_weekly_briefing(chart_id: str, refresh: bool = False):
+async def get_weekly_briefing(chart_id: str, refresh: bool = False, language: str = "en"):
     """
     Returns the weekly briefing for the current week.
     Auto-generated every Monday. Sprint E.
+
+    [loc-2] Honors the `language` query param (en/es/pt), caches per-language.
     """
+    # [loc-2] normalize locale codes (es-CO -> es); query param is source of truth
+    language = (language or "en").split("-")[0].lower()
+    if language not in ("en", "es", "pt"):
+        language = "en"
     try:
         chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
         if not chart_res.data:
@@ -12485,6 +12491,7 @@ async def get_weekly_briefing(chart_id: str, refresh: bool = False):
             supabase=supabase,
             claude_client=claude_client,
             force_refresh=refresh,
+            language=language,
         )
         return result
     except HTTPException:
@@ -12496,11 +12503,17 @@ async def get_weekly_briefing(chart_id: str, refresh: bool = False):
 
 # ── Sprint E: Monthly deep-dive ───────────────────────────────────────────────
 @app.get("/api/v1/monthly-deepdive/{chart_id}")
-async def get_monthly_deepdive(chart_id: str, refresh: bool = False):
+async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: str = "en"):
     """
     Returns the monthly deep-dive for the current month.
     Auto-generated on the 1st. Sprint E.
+
+    [loc-2] Honors the `language` query param (en/es/pt), caches per-language.
     """
+    # [loc-2] normalize locale codes (es-CO -> es); query param is source of truth
+    language = (language or "en").split("-")[0].lower()
+    if language not in ("en", "es", "pt"):
+        language = "en"
     try:
         chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
         if not chart_res.data:
@@ -12547,6 +12560,7 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False):
             supabase=supabase,
             claude_client=claude_client,
             force_refresh=refresh,
+            language=language,
             birth_date=chart_record.get("birth_date", ""),  # [cp-day1] pass birth_date for masik phal
         )
         return result
@@ -12559,11 +12573,17 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False):
 
 # ── Sprint E: Annual plan ─────────────────────────────────────────────────────
 @app.get("/api/v1/annual-plan/{chart_id}")
-async def get_annual_plan(chart_id: str, refresh: bool = False):
+async def get_annual_plan(chart_id: str, refresh: bool = False, language: str = "en"):
     """
     Returns the annual plan for the current year.
     Auto-generated on birthday and January 1st. Sprint E.
+
+    [loc-2] Honors the `language` query param (en/es/pt), caches per-language.
     """
+    # [loc-2] normalize locale codes (es-CO -> es); query param is source of truth
+    language = (language or "en").split("-")[0].lower()
+    if language not in ("en", "es", "pt"):
+        language = "en"
     try:
         chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
         if not chart_res.data:
@@ -12626,6 +12646,7 @@ async def get_annual_plan(chart_id: str, refresh: bool = False):
             supabase=supabase,
             claude_client=claude_client,
             force_refresh=refresh,
+            language=language,
         )
         return result
     except HTTPException:
