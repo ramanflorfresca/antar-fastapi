@@ -345,8 +345,20 @@ async def generate_welcome_signal(
             "created_at":        datetime.now(timezone.utc).isoformat(),
         }
 
+        # [loc-1] Seed content_by_language so the per-language cache works for
+        # charts created via the background pre-warm path too. Without this the
+        # first /welcome GET would always MISS and regenerate synchronously.
+        _v1_lang = (language or "en").split("-")[0].lower()
+        if _v1_lang not in ("en", "es", "pt"):
+            _v1_lang = "en"
+        row["content_by_language"] = {
+            _v1_lang: {
+                _k: _v for _k, _v in row.items()
+                if _k not in ("chart_id", "created_at", "content_by_language")
+            }
+        }
         supabase.table("welcome_signals").insert(row).execute()
-        logger.info(f"[welcome] 3-signal saved for chart {chart_id[:8]}")
+        logger.info(f"[welcome] 3-signal saved for chart {chart_id[:8]} lang={_v1_lang}")
         return _row_to_response(row)
 
     except Exception as e:
@@ -1069,8 +1081,31 @@ def _fallback_signal(language: Optional[str] = "en") -> dict:
 # Sync reader — for GET /api/v1/welcome/{chart_id}
 # ─────────────────────────────────────────────────────────────────────────────
 
-def get_welcome_signal(chart_id: str, supabase) -> Optional[dict]:
-    """Read cached welcome signal. Returns None if not yet generated."""
+def _safe_jsonb_welcome(v):
+    """Parse a Supabase JSONB column that may arrive as a JSON string.
+
+    welcome_signals.content_by_language is JSONB, but the client occasionally
+    hands it back as a raw JSON string — always parse defensively.
+    """
+    if isinstance(v, str):
+        try:
+            return json.loads(v)
+        except Exception:
+            return {}
+    return v if isinstance(v, dict) else {}
+
+
+def get_welcome_signal(chart_id: str, supabase, language: str = "en") -> Optional[dict]:
+    """Read the cached welcome signal for a specific language.
+
+    [loc-1] Looks up content_by_language[language]. Returns None (cache MISS)
+    when that language has not been generated yet, so the endpoint regenerates
+    fresh in the requested language. The legacy top-level flat columns are NOT
+    used for the language match — they only ever held one language of content.
+    """
+    language = (language or "en").split("-")[0].lower()
+    if language not in ("en", "es", "pt"):
+        language = "en"
     try:
         result = supabase.table("welcome_signals") \
             .select("*") \
@@ -1079,10 +1114,12 @@ def get_welcome_signal(chart_id: str, supabase) -> Optional[dict]:
         if not result.data:
             return None
         row = result.data[0]
-        # Check if it's the new 3-signal format
-        if row.get("signal_1_type"):
-            return _row_to_response(row)
-        # Old format — return None so the endpoint regenerates
+        cbl = _safe_jsonb_welcome(row.get("content_by_language"))
+        lang_content = cbl.get(language) if isinstance(cbl, dict) else None
+        if isinstance(lang_content, dict) and lang_content.get("signal_1_type"):
+            # Cache HIT for this specific language
+            return _row_to_response({**lang_content, "chart_id": chart_id})
+        # Cache MISS for this language — endpoint will regenerate
         return None
     except Exception as e:
         logger.warning(f"[welcome] Read failed: {e}")

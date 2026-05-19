@@ -12270,14 +12270,22 @@ async def get_pattern_summary(chart_id: str):
 
 # ── Sprint E: Welcome signal ──────────────────────────────────────────────────
 @app.get("/api/v1/welcome/{chart_id}")
-async def get_welcome(chart_id: str):
+async def get_welcome(chart_id: str, language: str = "en"):
     """
     Returns the welcome signal for a chart.
     Generated automatically after chart creation.
     Sprint E.
+
+    [loc-1] Honors the `language` query param and caches content per-language
+    in welcome_signals.content_by_language. Mirrors the /daily-week pattern.
     """
+    # [loc-1] Normalize locale codes (es-CO -> es, pt-BR -> pt). The query
+    # param is the source of truth - NOT the chart's stored language_preference.
+    language = (language or "en").split("-")[0].lower()
+    if language not in ("en", "es", "pt"):
+        language = "en"
     try:
-        signal = get_welcome_signal(chart_id, supabase)
+        signal = get_welcome_signal(chart_id, supabase, language)
         if signal:
             return signal
         # Not ready yet — generate now synchronously
@@ -12329,13 +12337,11 @@ async def get_welcome(chart_id: str):
                 "signal_3": None,
             }
 
-        # [i18n] thread chart's language_preference into v2 generation so
-        # Spanish users don't fall back to the English prompt on regeneration
-        _v2_lang = str(
-            chart_record.get("language_preference")
-            or (chart_data.get("language") if isinstance(chart_data, dict) else None)
-            or "en"
-        ).lower()[:2]
+        # [loc-1] The language query param is the source of truth for which
+        # language to generate in - NOT chart_record["language_preference"].
+        # A user can request ?language=es on a chart whose stored preference
+        # is English; the param wins.
+        _v2_lang = language
         result = await generate_welcome_signal_v2(
                 chart_data=chart_record,
                 birth_date=_bd,
@@ -12387,8 +12393,23 @@ async def get_welcome(chart_id: str):
                     "chapter_name":       _s2.get("headline", ""),
                     "created_at":         _dt.now(_tz.utc).isoformat(),
                 }
-                supabase.table("welcome_signals").insert(_welcome_row).execute()
-                print(f"[welcome] v2 cached for {chart_id[:8]} lang={_v2_lang}")
+                # [loc-1] Per-language cache: merge this language's content into
+                # content_by_language so other languages on the row survive.
+                # Pre-read defensively with _safe_jsonb (Supabase sometimes
+                # hands JSONB columns back as JSON strings).
+                try:
+                    _existing_w = supabase.table("welcome_signals").select("content_by_language").eq("chart_id", chart_id).execute()
+                    _cbl = _safe_jsonb(_existing_w.data[0].get("content_by_language")) if _existing_w.data else {}
+                except Exception:
+                    _cbl = {}
+                if not isinstance(_cbl, dict):
+                    _cbl = {}
+                _cbl[_v2_lang] = {_k: _v for _k, _v in _welcome_row.items() if _k not in ("chart_id", "created_at", "content_by_language")}
+                _welcome_row["content_by_language"] = _cbl
+                # upsert (not insert): a row may already exist from the background
+                # pre-warm or from a prior request in a different language.
+                supabase.table("welcome_signals").upsert(_welcome_row, on_conflict="chart_id").execute()
+                print(f"[welcome] v2 cached for {chart_id[:8]} lang={_v2_lang} langs={list(_cbl.keys())}")
         except Exception as _cache_err:
             # Race condition (unique-violation on concurrent request) or
             # transient Supabase error — swallow, we still have `result`.
