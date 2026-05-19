@@ -857,6 +857,7 @@ def build_layered_predictions(
     supabase: Client,
     concern: str = "general",
     detected_yogas: list[str] = None,
+    chart_id: Optional[str] = None,
 ) -> dict:
     """
     Main entry point. Call this from your /predict endpoint.
@@ -889,7 +890,7 @@ def build_layered_predictions(
 
     # Store high-confidence predictions for fulfillment tracking
     if user_id and all_preds:
-        _store_predictions(user_id, all_preds, supabase)
+        _store_predictions(user_id, all_preds, supabase, chart_id=chart_id)
 
     result = {
         "layer_1":            l1,
@@ -1191,8 +1192,16 @@ def _build_correlations(
 
     return correlations
 
-def _store_predictions(user_id: str, predictions: list, supabase: Client):
-    """Store high-confidence predictions for fulfillment tracking."""
+def _store_predictions(user_id: str, predictions: list, supabase: Client, chart_id: Optional[str] = None):
+    """Store high-confidence predictions for fulfillment tracking.
+
+    chart_id is required to populate the user_predictions.chart_id column. If
+    it's not supplied we SKIP the write and log a warning rather than create
+    yet another orphaned row — the prior bug was silently writing NULL here.
+    """
+    if not chart_id:
+        print(f"[predictions] _store_predictions SKIPPED — chart_id missing for user={user_id} (would have written {len(predictions)} preds as orphans)")
+        return
     now = datetime.utcnow()
     for pred in predictions:
         if pred.get("confidence", 0) < 0.75:
@@ -1200,6 +1209,7 @@ def _store_predictions(user_id: str, predictions: list, supabase: Client):
         try:
             supabase.table("user_predictions").upsert({
                 "user_id":               user_id,
+                "chart_id":              chart_id,
                 "generated_at":          now.isoformat(),
                 "prediction_window_end": (now + timedelta(days=180)).isoformat(),
                 "category":              pred.get("type", "general"),

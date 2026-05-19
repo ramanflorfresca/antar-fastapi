@@ -830,6 +830,7 @@ async def _monthly_briefing_job():
                     life_events=life_events,
                     supabase=supabase,
                     concern="general",
+                    chart_id=chart_id,
                 )
                 predictions_context = predictions_to_context_block(predictions, chart_data, "general")
 
@@ -4481,6 +4482,7 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
         supabase=supabase,
         concern=concern,
         detected_yogas=detected_yogas,
+        chart_id=request.chart_id,
     )
     predictions_context = predictions_to_context_block(predictions, chart_data, concern)
 
@@ -6238,6 +6240,54 @@ async def get_locale(
         "ui_strings":            locale.ui,
     }
 
+@app.get("/api/v1/geo/country")
+async def geo_country(request: Request, country: Optional[str] = None):
+    """
+    Server-side country + currency detection for the marketing-site pricing
+    block. Anonymous endpoint — must respond fast on every page load.
+
+    Detection priority:
+      1. ?country=CC override (testing / when frontend already knows it)
+      2. X-Forwarded-For first hop → MaxMind GeoLite2 lookup
+      3. Fallback to US/USD on any failure (never 500s)
+
+    Response shape:
+      {
+        "country_code": "CO",
+        "country_name": "Colombia",
+        "currency": "COP",
+        "in_stripe_supported_list": true,
+        "fallback_currency": "USD"
+      }
+
+    The in_stripe_supported_list flag reads from payment_engine.PLAN_AMOUNTS_BY_COUNTRY
+    so it cannot drift from what /payments/stripe/create-checkout will actually
+    charge.
+    """
+    try:
+        from antar_engine.geo_lookup import (
+            country_to_pricing_info,
+            extract_client_ip,
+            lookup_country,
+        )
+        if country:
+            return country_to_pricing_info(country)
+        ip = extract_client_ip(request)
+        cc = lookup_country(ip)
+        return country_to_pricing_info(cc)
+    except Exception as _e:
+        # Belt-and-braces — any unexpected failure returns USD fallback,
+        # never propagates a 500 to the marketing site.
+        print(f"[geo] /geo/country failed (non-fatal): {_e}")
+        return {
+            "country_code":             "US",
+            "country_name":             "United States",
+            "currency":                 "USD",
+            "in_stripe_supported_list": False,
+            "fallback_currency":        "USD",
+        }
+
+
 @app.post("/api/v1/user/set-language")
 async def set_language(
     request: LanguageSetRequest,
@@ -6332,6 +6382,7 @@ async def monthly_briefing(
         life_events=life_events,
         supabase=supabase,
         concern=concern,
+        chart_id=request.chart_id,
     )
     predictions_context = predictions_to_context_block(predictions, chart_data, concern)
 
@@ -14115,54 +14166,92 @@ def _compute_user_age(birth_date_str: str) -> int:
 def _get_wow_cache(chart_id: str, instrument_name: str, local_date_str: str = None, language: str = "en") -> dict:
     """Check if we have a cached WOW hint for this chart+instrument from today.
 
+    New shape (post language-cache-keys sprint): the daily_wow_cache JSONB is a
+    top-level dict keyed by normalized language code:
+        { "en": {date, instrument, hint, ...},
+          "es": {date, instrument, hint, ...} }
+
+    Locale codes like "es-CO", "pt-BR", "en-US" are normalized to "es", "pt",
+    "en" so country variants don't blow up the cache.
+
+    Legacy single-language shape (top-level "date"/"instrument" with optional
+    "language" sibling) is treated as a MISS so the next write migrates it.
+    The deploy-time SQL wipe also handles this — defensive double-check.
+
     Args:
         local_date_str: The user's LOCAL date (YYYY-MM-DD) from their timezone.
-                        Falls back to UTC if not provided (legacy callers).
-        language: Language code — cache is language-specific because Claude
-                  generates the hint text in the requested language.
+                        Required — without it we cannot validate cache freshness.
+        language: Language code or locale (es-CO, pt-BR, etc.) — normalized
+                  to a base lang for cache lookup.
     """
     try:
-        from datetime import datetime
         today_str = local_date_str
         if not today_str:
             print("[daily-week] WARNING: _get_wow_cache called without local_date_str — returning empty (cache MISS)")
             return {}
+        # Normalize locale code (es-CO → es, pt-BR → pt)
+        lang = (language or "en").split("-")[0].lower()
         result = supabase.table("charts").select("daily_wow_cache").eq("id", chart_id).single().execute()
         cache = result.data.get("daily_wow_cache") if result.data else None
         if cache and isinstance(cache, dict):
-            _cached_date = cache.get("date", "?")
-            _cached_lang = cache.get("language", "en")
-            if cache.get("date") == today_str and cache.get("instrument") == instrument_name and _cached_lang == language:
-                print(f"[daily-week] WOW cache HIT for {chart_id} — {instrument_name} (date={today_str}, lang={language})")
-                return cache
+            # Detect legacy single-language shape — top-level "date" + "instrument"
+            # means this is the OLD payload, not a language-keyed dict. Treat as MISS;
+            # the next save will migrate it to the new shape.
+            if "date" in cache and "instrument" in cache:
+                print(f"[daily-week] WOW cache MISS for {chart_id} — legacy single-lang shape detected, ignoring (lang={lang})")
+                return {}
+            entry = cache.get(lang)
+            if isinstance(entry, dict) and entry.get("date") == today_str and entry.get("instrument") == instrument_name:
+                print(f"[daily-week] WOW cache HIT for {chart_id} — {instrument_name} (date={today_str}, lang={lang})")
+                return entry
             else:
-                print(f"[daily-week] WOW cache MISS for {chart_id} — cached date={_cached_date}/lang={_cached_lang} vs local today={today_str}/lang={language}")
+                _e_date = entry.get("date", "?") if isinstance(entry, dict) else "<none>"
+                _e_inst = entry.get("instrument", "?") if isinstance(entry, dict) else "<none>"
+                print(f"[daily-week] WOW cache MISS for {chart_id} — lang={lang}, cached date={_e_date}/inst={_e_inst} vs today={today_str}/inst={instrument_name}")
     except Exception as e:
         print(f"[daily-week] WOW cache read failed (non-fatal): {e}")
     return {}
 
 
 def _save_wow_cache(chart_id: str, instrument_name: str, wow_data: dict, local_date_str: str = None, language: str = "en"):
-    """Save WOW hint to Supabase cache.
+    """Save WOW hint to Supabase cache under the requested language only.
 
-    Args:
-        local_date_str: The user's LOCAL date (YYYY-MM-DD). Used as cache key
-                        so the hint expires at midnight in the user's timezone,
-                        not UTC midnight.
-        language: Language code stored alongside so cache is language-aware.
+    Pre-reads the existing daily_wow_cache so we preserve other languages'
+    entries (e.g. saving 'es' must not blow away 'en'). Detects legacy
+    single-language shape and discards it on first write — the next read
+    will then see the new shape.
+
+    Race-window note: two concurrent saves for the SAME chart but DIFFERENT
+    languages could clobber each other's entry (read-modify-write without
+    locking). Acceptable at current scale — multi-language race on the same
+    chart is rare. If it becomes an issue, switch to a Postgres jsonb_set RPC.
     """
     try:
-        from datetime import datetime
-        cache_payload = {
-            "date": local_date_str,  # Must be user local date — no UTC fallback
+        lang = (language or "en").split("-")[0].lower()
+        existing = {}
+        try:
+            _r = supabase.table("charts").select("daily_wow_cache").eq("id", chart_id).single().execute()
+            _ec = _r.data.get("daily_wow_cache") if _r.data else None
+            if isinstance(_ec, dict):
+                # Discard legacy single-language shape on first write
+                if "date" in _ec and "instrument" in _ec:
+                    print(f"[daily-week] WOW cache: migrating legacy single-lang shape for {chart_id}")
+                    existing = {}
+                else:
+                    existing = _ec
+        except Exception as _re:
+            print(f"[daily-week] WOW cache pre-read failed (will overwrite): {_re}")
+            existing = {}
+
+        existing[lang] = {
+            "date": local_date_str,
             "instrument": instrument_name,
-            "language": language,
-            **wow_data
+            **wow_data,
         }
         supabase.table("charts").update(
-            {"daily_wow_cache": cache_payload}
+            {"daily_wow_cache": existing}
         ).eq("id", chart_id).execute()
-        print(f"[daily-week] WOW cache SAVED for {chart_id} (date={cache_payload['date']})")
+        print(f"[daily-week] WOW cache SAVED for {chart_id} (date={local_date_str}, lang={lang}, total_langs={len(existing)})")
     except Exception as e:
         print(f"[daily-week] WOW cache save failed (non-fatal): {e}")
 
