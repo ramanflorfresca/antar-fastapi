@@ -5530,6 +5530,12 @@ VOCABULARY RULES:
             _master_system = _lang_block + _master_system
             print(f"[predict] Language injection: {_lang}")
         # --- end Sprint L ---
+        # --- Sprint EN-GLOSS-1: English Sanskrit-gloss block ---
+        if _lang == "en":
+            from antar_engine.english_glossary import build_english_glossary_block
+            _master_system = _master_system + "\n\n" + build_english_glossary_block("coach")
+            print("[predict] EN-GLOSS-1: English glossary block injected (voice=coach)")
+        # --- end Sprint EN-GLOSS-1 ---
 
 
         # ================================================================
@@ -9672,7 +9678,7 @@ async def debug_context(request: dict):
 @app.post("/api/v1/daily-signal")
 @app.get("/api/v1/daily-signal/{chart_id}")
 @translate_response(
-    fields_to_translate=["signal_text", "vibe", "do_today", "dont_today"],
+    fields_to_translate=["vibe", "do_today", "dont_today"],
     endpoint_name="daily-signal",
 )
 async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, language: str = "en"):
@@ -9680,38 +9686,75 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
     if not cid:
         raise HTTPException(400, "chart_id required")
     try:
-        from antar_engine.daily_prediction_engine import generate_daily_signal
+        # [daily-signal-fix] generate_daily_signal() was removed in commit
+        # 176a27f when the engine moved to a 7-day generator. Delegate to
+        # generate_weekly_signals() — the engine /daily-week uses — and return
+        # today's entry (signals[0]). generate_weekly_signals honors `language`
+        # natively, so weekly-signal fields come back already localized;
+        # @translate_response only fills in the English panchanga block.
+        from antar_engine.daily_prediction_engine import generate_weekly_signals
         from antar_engine.daily_panchanga import calculate_panchanga, format_daily_for_user
-        res = supabase.table("charts").select("chart_data,birth_date,name,gender,latitude,longitude").eq("id",cid).execute()
-        if not res.data: raise HTTPException(404,"Chart not found")
+        res = supabase.table("charts").select(
+            "chart_data,birth_date,name,gender,latitude,longitude,current_country,birth_country"
+        ).eq("id", cid).execute()
+        if not res.data: raise HTTPException(404, "Chart not found")
         row = res.data[0]
         cd  = row["chart_data"]
-        dashas = get_dashas_for_chart(cid) if callable(get_dashas_for_chart) else []
-        dashas_dict = {"vimsottari":dashas} if isinstance(dashas,list) else dashas
-        name = row.get("name","")
-        result = await generate_daily_signal(
-            natal_chart=cd, dashas=dashas_dict,
-            birth_date=row.get("birth_date",""),
+        if isinstance(cd, str):
+            try:
+                cd = json.loads(cd)
+            except Exception:
+                cd = {}
+
+        # Natal Moon sign — supports both planet storage formats (see /daily-week)
+        natal_moon_sign = None
+        _planets = (cd.get("planets") or cd.get("planet_positions")) if isinstance(cd, dict) else None
+        if isinstance(_planets, dict):
+            for _k, _v in _planets.items():
+                if isinstance(_k, str) and _k.lower() == "moon" and isinstance(_v, dict):
+                    natal_moon_sign = _v.get("sign") or _v.get("rashi")
+                    break
+        elif isinstance(_planets, list):
+            for _p in _planets:
+                if isinstance(_p, dict) and (_p.get("name") or _p.get("planet") or "").lower() == "moon":
+                    natal_moon_sign = _p.get("sign") or _p.get("rashi")
+                    break
+        if not natal_moon_sign:
+            natal_moon_sign = "Aries"
+
+        # Local "today" — same helpers /daily-week uses
+        current_country = row.get("current_country") or row.get("birth_country") or ""
+        start_date = _get_local_start_date(tz_offset=None, current_country=current_country)
+        effective_offset = _COUNTRY_TZ_OFFSETS.get((current_country or "").upper(), 0)
+
+        signals = await generate_weekly_signals(
+            natal_moon_sign=natal_moon_sign,
+            start_date=start_date,
             chart_id=cid,
-            first_name=name.split()[0] if name else "",
-            gender=row.get("gender",""),
+            supabase_client=supabase,
+            language=language,
+            tz_offset=effective_offset,
         )
-        lat = float(row.get("latitude",28.6) or 28.6)
-        lng = float(row.get("longitude",77.2) or 77.2)
+        if language == "es":
+            signals = _translate_daily_signals_es(signals)
+        result = dict(signals[0]) if signals else {"chart_id": cid, "signal": "", "fallback": True}
+        result.setdefault("chart_id", cid)
+
+        # Today's panchanga timing block (carried over from the original endpoint)
+        lat = float(row.get("latitude", 28.6) or 28.6)
+        lng = float(row.get("longitude", 77.2) or 77.2)
         panchanga = calculate_panchanga(lat=lat, lng=lng)
-        formatted  = format_daily_for_user(panchanga)
+        formatted = format_daily_for_user(panchanga)
         result.update({
             "panchanga":   formatted,
-            "rahu_kalam":  panchanga.get("rahu_kalam",""),
-            "abhijit":     panchanga.get("abhijit_muhurta",""),
-            "lucky_hours": panchanga.get("lucky_hours",{}),
-            "do_today":    panchanga.get("do_today",[]),
-            "dont_today":  panchanga.get("dont_today",[]),
-            "day_color":   panchanga.get("day_color",""),
-            "day_number":  panchanga.get("day_number",""),
-            "day_mantra":  panchanga.get("day_mantra",""),
-            "tithi":       panchanga.get("tithi",""),
-            "yoga":        panchanga.get("yoga",""),
+            "rahu_kalam":  panchanga.get("rahu_kalam", ""),
+            "abhijit":     panchanga.get("abhijit_muhurta", ""),
+            "lucky_hours": panchanga.get("lucky_hours", {}),
+            "do_today":    panchanga.get("do_today", []),
+            "dont_today":  panchanga.get("dont_today", []),
+            "day_color":   panchanga.get("day_color", ""),
+            "day_number":  panchanga.get("day_number", ""),
+            "day_mantra":  panchanga.get("day_mantra", ""),
         })
         return result
     except HTTPException: raise
