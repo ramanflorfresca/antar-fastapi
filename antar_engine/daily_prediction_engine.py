@@ -969,11 +969,17 @@ async def _call_claude_daily_signal_retry(
         client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
         # Use full system prompt (no cache split for retry — it's rare)
+        # --- Sprint EN-GLOSS-1: English Sanskrit-gloss block ---
+        _daily_system_retry = DAILY_SYSTEM_PROMPT_V1
+        if language == "en":
+            from antar_engine.english_glossary import build_english_glossary_block
+            _daily_system_retry = _daily_system_retry + "\n\n" + build_english_glossary_block("coach")
+        # --- end Sprint EN-GLOSS-1 ---
         response = await client.messages.create(
             model="claude-sonnet-4-6",
             max_tokens=1500,
             temperature=0.2,  # Lower temp for correction
-            system=DAILY_SYSTEM_PROMPT_V1,
+            system=_daily_system_retry,
             messages=[{"role": "user", "content": retry_prompt}],
         )
 
@@ -1022,12 +1028,19 @@ async def _call_claude_daily_signal(
         client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
 
         # Split system prompt at ## LIVE DATA for KV caching
+        # --- Sprint EN-GLOSS-1: English Sanskrit-gloss block ---
+        _daily_system = DAILY_SYSTEM_PROMPT_V1
+        if language == "en":
+            from antar_engine.english_glossary import build_english_glossary_block
+            _daily_system = _daily_system + "\n\n" + build_english_glossary_block("coach")
+            logger.info("[daily-llm] EN-GLOSS-1: English glossary block injected (voice=coach)")
+        # --- end Sprint EN-GLOSS-1 ---
         _SPLIT = "## LIVE DATA"
-        if _SPLIT in DAILY_SYSTEM_PROMPT_V1:
-            static_part, dynamic_part = DAILY_SYSTEM_PROMPT_V1.split(_SPLIT, 1)
+        if _SPLIT in _daily_system:
+            static_part, dynamic_part = _daily_system.split(_SPLIT, 1)
             dynamic_part = _SPLIT + dynamic_part
         else:
-            static_part = DAILY_SYSTEM_PROMPT_V1
+            static_part = _daily_system
             dynamic_part = ""
 
         system_blocks = [
