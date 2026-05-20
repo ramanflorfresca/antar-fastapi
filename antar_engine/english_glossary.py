@@ -9,10 +9,9 @@ the English prompt, NOT via the translator (which is untouched).
 """
 
 ALLOWED_WITH_GLOSS = {
-    # Proper-noun planet nodes with no clean English equivalent.
-    # Gloss appears on FIRST mention only, bare term after.
-    # Voice tier matters: Coach voice translates these entirely.
-    # Mentor voice uses the term with gloss.
+    # Proper-noun lunar nodes with no clean English equivalent.
+    # Coach voice translates these entirely (no Sanskrit at all).
+    # Mentor voice uses the term with a first-mention bracket gloss.
     "Rahu": "your karmic amplifier node",
     "Ketu": "your karmic release point",
 }
@@ -62,20 +61,30 @@ def build_english_glossary_block(voice_tier: str = "coach") -> str:
             f"{allowed_lines}"
         )
     else:
-        # Coach voice: Rahu/Ketu must be translated, not named.
+        # Coach voice: Rahu/Ketu must be translated completely, never named.
         coach_lines = "\n".join(
-            f'  - "{term}" -> use "{gloss}" (do not use the Sanskrit term)'
+            f'  - "{term}": never write the word "{term}" anywhere. Use energy language '
+            f'such as "{gloss}". When the chart data labels a dasha, sub-cycle, period '
+            f'or "chapter" by "{term}", name that period ONLY by its energy quality '
+            f'(for example: an amplification chapter, a release-and-detachment chapter). '
+            f'Never append "{term}" in parentheses after the energy phrase.'
             for term, gloss in ALLOWED_WITH_GLOSS.items()
         )
         allowed_section = (
-            "COACH VOICE - translate these terms, do not name them:\n"
+            "COACH VOICE - HARD RULE FOR THE LUNAR NODES (Rahu, Ketu):\n"
+            'The words "Rahu" and "Ketu" must NEVER appear in your output - not as a\n'
+            "bare word, not inside parentheses, not as a gloss, not even once.\n"
+            'This OVERRIDES any energy-first "energy name (Planet)" formatting rule\n'
+            "stated earlier in this prompt: that parenthetical-planet format does NOT\n"
+            "apply to Rahu or Ketu. Replace them with energy language entirely.\n"
             f"{coach_lines}"
         )
 
     return f"""
 ## ENGLISH LANGUAGE RULES (Sanskrit handling)
 
-You are writing in English. Apply these rules strictly:
+You are writing in English. Apply these rules strictly. Where they conflict
+with any formatting rule stated earlier in this prompt, THESE RULES WIN.
 
 FORBIDDEN SANSKRIT TERMS (must be replaced - never appear in output, even with gloss):
 {forbidden_lines}

@@ -5530,12 +5530,6 @@ VOCABULARY RULES:
             _master_system = _lang_block + _master_system
             print(f"[predict] Language injection: {_lang}")
         # --- end Sprint L ---
-        # --- Sprint EN-GLOSS-1: English Sanskrit-gloss block ---
-        if _lang == "en":
-            from antar_engine.english_glossary import build_english_glossary_block
-            _master_system = _master_system + "\n\n" + build_english_glossary_block("coach")
-            print("[predict] EN-GLOSS-1: English glossary block injected (voice=coach)")
-        # --- end Sprint EN-GLOSS-1 ---
 
 
         # ================================================================
@@ -5834,6 +5828,12 @@ State a specific year. Never predict past events as future windows.
         _max_tok = _weight_token_map.get(_question_weight, 1200)
         print(f"[predict] FIX 10: weight={_question_weight}, max_tokens={_max_tok}")
 
+        # --- Sprint EN-GLOSS-1: English Sanskrit-gloss block (appended LAST, after chart context, for authority) ---
+        if _lang == "en":
+            from antar_engine.english_glossary import build_english_glossary_block
+            _master_system = _master_system + "\n\n" + build_english_glossary_block("coach")
+            print("[predict] EN-GLOSS-1: English glossary block injected (voice=coach)")
+        # --- end Sprint EN-GLOSS-1 ---
         prediction_text, tokens_used = await call_llm_claude(
             prompt,
             history=request.conversation_history or [],
