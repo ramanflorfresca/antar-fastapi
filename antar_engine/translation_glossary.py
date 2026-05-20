@@ -8,9 +8,11 @@ terms are preserved, but on FIRST use within each individual string they get a
 brief parenthetical explanation; planet names are localized (Rahu/Ketu kept).
 
 NOTE: this file is the glossary half of Loc-4. The translation middleware
-(decorator, cache, _call_translator, per-endpoint rollout) is defined by the
-main Loc-4 brief (COWORK_Loc4_LLM_Translation_Middleware.md) and is not wired
-in yet — this module is inert until that middleware imports it.
+(decorator, cache, _call_translator, per-endpoint rollout) lives in
+antar_engine/translation_middleware.py, which imports
+build_translation_system_prompt from this module. The middleware is wired
+into the /remedies endpoint in main.py as the Loc-4 pilot; further
+endpoints are rolled out per the main Loc-4 brief.
 """
 
 VEDIC_GLOSSARY = {
