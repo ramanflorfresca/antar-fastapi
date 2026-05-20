@@ -580,7 +580,7 @@ async def generate_annual_plan(
                 _pr = _r.get('practice')
                 if isinstance(_pr, str) and _pr:
                     _r['practice'] = apply_user_facing_strips(
-                        _pr, language=_lang, field_type='plain'
+                        _pr, language=_lang, field_type='timing'
                     )
 
     # critical_dates[].event — date field left untouched

@@ -566,7 +566,7 @@ async def generate_monthly_deepdive(
                 _pr = _r.get('practice')
                 if isinstance(_pr, str) and _pr:
                     _r['practice'] = apply_user_facing_strips(
-                        _pr, language=_lang, field_type='plain'
+                        _pr, language=_lang, field_type='timing'
                     )
 
     # Save to cache — [loc-2] language-keyed. The `deepdive` JSONB column holds
