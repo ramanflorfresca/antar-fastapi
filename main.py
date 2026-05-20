@@ -12603,6 +12603,10 @@ async def get_weekly_briefing(chart_id: str, refresh: bool = False, language: st
 
 # ── Sprint E: Monthly deep-dive ───────────────────────────────────────────────
 @app.get("/api/v1/monthly-deepdive/{chart_id}")
+@translate_response(
+    fields_to_translate=["practice"],
+    endpoint_name="monthly-deepdive",
+)
 async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: str = "en"):
     """
     Returns the monthly deep-dive for the current month.
@@ -12673,6 +12677,10 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
 
 # ── Sprint E: Annual plan ─────────────────────────────────────────────────────
 @app.get("/api/v1/annual-plan/{chart_id}")
+@translate_response(
+    fields_to_translate=["practice"],
+    endpoint_name="annual-plan",
+)
 async def get_annual_plan(chart_id: str, refresh: bool = False, language: str = "en"):
     """
     Returns the annual plan for the current year.
