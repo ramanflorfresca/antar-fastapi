@@ -960,11 +960,51 @@ app = FastAPI(title="Antar API", version="2.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["https://antar.world"],
+    allow_origin_regex=r"https://([a-z0-9-]+\.)+antar\.world",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# [cors-on-errors] Unhandled exceptions are caught by Starlette ServerErrorMiddleware,
+# which sits OUTSIDE the CORS middleware -- so a raw 500 reaches the browser with NO
+# Access-Control-Allow-Origin header and gets misreported by the browser as a
+# "CORS error", hiding the real backend exception. This handler logs the full
+# traceback (visible in Railway logs) and returns a JSON 500 with CORS headers
+# injected manually. Mirrors the origin policy of the CORSMiddleware above.
+import re as _cors_err_re
+_ANTAR_ORIGIN_RE = _cors_err_re.compile(r"https://([a-z0-9-]+\.)+antar\.world")
+
+
+@app.exception_handler(Exception)
+async def _unhandled_exception_handler(request: Request, exc: Exception):
+    import logging as _elog
+    import traceback as _etb
+    _elog.getLogger("antar.errors").error(
+        "Unhandled exception on %s %s\n%s",
+        request.method,
+        request.url.path,
+        "".join(_etb.format_exception(type(exc), exc, exc.__traceback__)),
+    )
+    origin = request.headers.get("origin", "") or ""
+    cors_headers = {}
+    if origin == "https://antar.world" or _ANTAR_ORIGIN_RE.fullmatch(origin):
+        cors_headers = {
+            "Access-Control-Allow-Origin": origin,
+            "Access-Control-Allow-Credentials": "true",
+            "Vary": "Origin",
+        }
+    return _ValidationJSONResponse(
+        status_code=500,
+        content={
+            "error": "internal_server_error",
+            "detail": "An unexpected error occurred. The team has been notified.",
+            "path": request.url.path,
+        },
+        headers=cors_headers,
+    )
 
 # ── Pydantic Models ───────────────────────────────────────────────────────────
 
