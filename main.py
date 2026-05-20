@@ -5653,13 +5653,15 @@ State a specific year. Never predict past events as future windows.
                 # ## LIVE DATA marker = split point for KV cache
                 _hist_suffix = _json_ctx.get("_historical_dasha", "") if isinstance(_json_ctx, dict) else ""
                 _json_system = (
-                    PREDICT_SYSTEM_PROMPT_V2
+                    _lang_block
+                    + PREDICT_SYSTEM_PROMPT_V2
                     + "\n\n## CHART DATA (JSON)\n"
                     + _static_json
                     + "\n\n## LIVE DATA\n"
                     + _live_json
                     + (_hist_suffix if _hist_suffix else "")
                 )
+                print(f"[predict] JSON path language={_lang} lang_block_applied={bool(_lang_block)}")
 
                 # User message = just the question
                 _json_user_prompt = (
@@ -7929,7 +7931,7 @@ async def chapter_arc_endpoint(
         primary_concern="general",
     )
 
-    arc = build_chapter_arc(chart_data=chart_data, dashas=dashas, patra=patra)
+    arc = build_chapter_arc(chart_data=chart_data, dashas=dashas, patra=patra, language=request.language or "en")
     return arc
 
 
@@ -10263,7 +10265,7 @@ def _default_signal(language: str = "es") -> dict:
     }
 
 @app.get("/api/v1/executive-summary/{chart_id}")
-async def get_executive_summary(chart_id: str, language: str = "es"):
+async def get_executive_summary(chart_id: str, language: str = "en"):
     try:
         from antar_engine.symptom_library import build_executive_summary
         from datetime import datetime as _exdt
@@ -11317,7 +11319,7 @@ def _build_panchang_card(day_data, language="es"):
 
 
 @app.get("/api/v1/dashboard/{chart_id}")
-async def get_dashboard(chart_id: str, language: str = 'es', ):
+async def get_dashboard(chart_id: str, language: str = 'en'):
     """
     Single endpoint that returns all dashboard data.
     Powers the home page with all 6 sections.
@@ -11340,7 +11342,7 @@ async def get_dashboard(chart_id: str, language: str = 'es', ):
         import traceback
         raise HTTPException(500, f"Dashboard error: {str(e)} | {traceback.format_exc()[-300:]}")
 
-async def _get_dashboard_inner(chart_id: str, language: str = "es"):
+async def _get_dashboard_inner(chart_id: str, language: str = "en"):
     import asyncio
     from datetime import date, timezone as _tz
 

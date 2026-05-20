@@ -330,6 +330,7 @@ def build_chapter_arc(
     chart_data: dict,
     dashas: dict,
     patra: object = None,
+    language: str = "en",
 ) -> dict:
     """
     Main entry point. Builds a full chapter arc narrative.
@@ -352,12 +353,16 @@ def build_chapter_arc(
             "patra_note":         str,   # How life stage intersects
         }
     """
+    # `language` is accepted so the /chapter-arc endpoint's language field
+    # is wired through; narrative text stays English until the Loc-4
+    # @translate_response middleware covers this endpoint. The resolved
+    # language round-trips into the returned dict under the "language" key.
     now = datetime.utcnow()
     vim = dashas.get("vimsottari", [])
 
     current_md = _current_period(vim, now)
     if not current_md:
-        return _empty_arc()
+        return _empty_arc(language)
 
     planet = current_md["lord_or_sign"]
     md_start = _parse_dt(current_md["start"])
@@ -486,10 +491,11 @@ def build_chapter_arc(
         "next_chapter_months":  remaining_months,
         "patra_note":           patra_note,
         "planet":               planet,
+        "language":             language,
     }
 
 
-def _empty_arc() -> dict:
+def _empty_arc(language: str = "en") -> dict:
     return {
         "chapter_theme":     "Your chapter is being calculated.",
         "current_energy":    "Unknown",
@@ -509,6 +515,7 @@ def _empty_arc() -> dict:
         "next_chapter_months": 0,
         "patra_note":        "",
         "planet":            "",
+        "language":          language,
     }
 
 
