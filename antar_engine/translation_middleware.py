@@ -56,6 +56,12 @@ GLOBAL_SKIP_FIELDS = {
 
 _anthropic_client = None
 
+# Lightweight per-process cache metrics, keyed by (endpoint_name, language).
+# Resets on each deploy; with `--workers 4` each worker keeps its own copy, so
+# treat the rolling rate as a rough real-time signal. The translation_cache
+# table (created_at / last_accessed_at) is the durable source of truth.
+_CACHE_METRICS = {}
+
 
 def _get_anthropic():
     """Lazily create the AsyncAnthropic client. Reused across calls."""
@@ -64,6 +70,63 @@ def _get_anthropic():
         from anthropic import AsyncAnthropic
         _anthropic_client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
     return _anthropic_client
+
+
+def compute_content_hash(translatable: dict) -> str:
+    """
+    Stable cache key for a set of extracted translatable strings.
+
+    Hashes ONLY the {path: english_string} pairs from _extract_translatable —
+    never the full response — so volatile metadata (generated_at, timestamps)
+    can never bust the cache. The JSON is fully canonicalised:
+      * sort_keys=True       — key insertion order is irrelevant
+      * separators=(",",":") — no incidental whitespace, fixed regardless of
+                               any future json default change
+      * ensure_ascii=False   — accented text serialised consistently as UTF-8
+      * default=str          — defensive; translatable is already all-strings
+    So two requests with identical translatable content always produce an
+    identical hash and resolve to the same translation_cache row.
+    """
+    canonical = json.dumps(
+        translatable,
+        sort_keys=True,
+        separators=(",", ":"),
+        ensure_ascii=False,
+        default=str,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+
+
+def _record_cache_event(endpoint_name, language, chart_id, content_hash, hit, n_strings=0):
+    """
+    Record a translation-cache hit/miss and emit one structured, greppable log
+    line carrying all three dimensions: endpoint_name, language, chart_id
+    (plus content_hash and a rolling per-(endpoint,language) hit rate).
+
+    Verify caching effectiveness in production from the logs, e.g.:
+        grep '[translation] cache=' <logs>
+        grep 'cache=HIT'  <logs> | wc -l   vs   grep 'cache=MISS' <logs> | wc -l
+        grep 'endpoint=remedies lang=es'   <logs>
+    """
+    counts = _CACHE_METRICS.setdefault((endpoint_name, language), {"hit": 0, "miss": 0})
+    counts["hit" if hit else "miss"] += 1
+    total = counts["hit"] + counts["miss"]
+    rate = (counts["hit"] / total * 100.0) if total else 0.0
+    logger.info(
+        f"[translation] cache={'HIT' if hit else 'MISS'} "
+        f"endpoint={endpoint_name} lang={language} "
+        f"chart={(chart_id or 'none')[:8]} hash={content_hash} strings={n_strings} "
+        f"rolling_hit_rate[{endpoint_name}/{language}]={counts['hit']}/{total} ({rate:.0f}%)"
+    )
+
+
+def get_cache_metrics() -> dict:
+    """Snapshot of this worker's cache hit/miss counters, keyed 'endpoint/language'."""
+    return {
+        f"{ep}/{lang}": {**c, "hit_rate": round(c["hit"] / (c["hit"] + c["miss"]), 3)}
+        for (ep, lang), c in _CACHE_METRICS.items()
+        if (c["hit"] + c["miss"]) > 0
+    }
 
 
 def translate_response(fields_to_translate=None, fields_to_skip=None, endpoint_name=None):
@@ -87,6 +150,18 @@ def translate_response(fields_to_translate=None, fields_to_skip=None, endpoint_n
             response = await func(*args, **kwargs)
             if language not in SUPPORTED_LANGUAGES:
                 return response
+            # [loc-4 clusterF] Unwrap a Pydantic response_model object
+            # (ChakraResponse, ProofPointsResponse, ...) into a plain dict so
+            # its user-facing strings can be translated. FastAPI re-coerces the
+            # returned dict back through the route's response_model on the way
+            # out. The English passthrough above is left untouched.
+            if not isinstance(response, (dict, list)):
+                _dump = getattr(response, "model_dump", None) or getattr(response, "dict", None)
+                if callable(_dump):
+                    try:
+                        response = _dump()
+                    except Exception:
+                        return response
             if not response or not isinstance(response, (dict, list)):
                 return response
             try:
@@ -126,25 +201,21 @@ async def translate_dict(
     if not translatable:
         return data
 
-    # Hash the translatable STRINGS — not the whole response — so volatile
-    # metadata fields don't bust the cache. (Deviation #1, see module docstring.)
-    content_hash = hashlib.sha256(
-        json.dumps(translatable, sort_keys=True, ensure_ascii=False).encode("utf-8")
-    ).hexdigest()[:16]
+    # Stable cache key over the extracted strings only — see compute_content_hash.
+    content_hash = compute_content_hash(translatable)
 
     cached = await get_cached_translation(
         endpoint_name=endpoint_name, chart_id=chart_id,
         language=language, content_hash=content_hash,
     )
     if cached:
-        logger.info(f"[translation] cache HIT {endpoint_name}/{language}/{content_hash}")
+        _record_cache_event(endpoint_name, language, chart_id, content_hash,
+                            hit=True, n_strings=len(translatable))
         # Re-apply onto the current response so metadata stays fresh (deviation #2).
         return _apply_translations(data, cached, skip_set)
 
-    logger.info(
-        f"[translation] cache MISS {endpoint_name}/{language}/{content_hash} "
-        f"— translating {len(translatable)} strings"
-    )
+    _record_cache_event(endpoint_name, language, chart_id, content_hash,
+                        hit=False, n_strings=len(translatable))
     translated = await _call_translator(translatable, language)
 
     await save_translation(

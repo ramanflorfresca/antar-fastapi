@@ -44,6 +44,8 @@ from antar_engine.monthly_deepdive import generate_monthly_deepdive
 from antar_engine.annual_planning import generate_annual_plan
 # [output-strips] centralized strip module (Phase 3.6+)
 from antar_engine.output_strips import apply_user_facing_strips
+# [loc-4] translation middleware — Cluster F localized endpoints
+from antar_engine.translation_middleware import translate_response
 
 from antar_engine.predictions import (
     build_layered_predictions,
@@ -2371,7 +2373,11 @@ async def health():
 # ── Chart ─────────────────────────────────────────────────────────────────────
 
 @app.get("/api/v1/chart/{chart_id}/signature")
-async def get_chart_signature(chart_id: str, authorization: Optional[str] = Header(None)):
+@translate_response(
+    fields_to_translate=["tagline", "description", "strength", "blind_spot"],
+    endpoint_name="chart-signature",
+)
+async def get_chart_signature(chart_id: str, language: str = "en", authorization: Optional[str] = Header(None)):
     """
     Returns natal planet signatures + character archetype for Blueprint tab.
     Computes and stores on first call if not already cached.
@@ -2416,10 +2422,15 @@ async def get_chart_signature(chart_id: str, authorization: Optional[str] = Head
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/api/v1/chart/{chart_id}/past-events")
+@translate_response(
+    fields_to_translate=["description", "display_label", "explanation_short", "energy_explanation", "fallback_message"],
+    endpoint_name="past-events",
+)
 async def get_past_events(
     chart_id: str,
     min_confidence: int = 5,
     max_predictions: int = 5,
+    language: str = "en",
     authorization: Optional[str] = Header(None),
 ):
     """
@@ -3088,12 +3099,17 @@ async def _get_or_generate_upcoming_themes_llm(
 
 
 @app.get("/api/v1/chart/{chart_id}/upcoming-themes")
+@translate_response(
+    fields_to_translate=["display_label", "description", "energy_explanation", "transit_details", "d9_signal", "d10_signal", "stable_message", "headline", "body", "caution", "your_move", "center_link", "energy_tags"],
+    endpoint_name="upcoming-themes",
+)
 async def get_upcoming_themes(
     chart_id: str,
     min_confidence: int = 5,
     max_predictions: int = 3,
     months_ahead: int = 24,
     refresh: bool = False,
+    language: str = "en",
     authorization: Optional[str] = Header(None),
 ):
     """
@@ -7853,8 +7869,13 @@ class ChakraResponse(BaseModel):
     summary:              str
 
 @app.post("/api/v1/chakra", response_model=ChakraResponse)
+@translate_response(
+    fields_to_translate=["summary", "chapter_arc", "context_reason", "context", "meditation", "affirmation", "pranayama", "nature_practice", "color_therapy", "instruction", "timing", "practice", "english", "english_name", "felt_sense", "felt_sense_check", "verification", "practice_focus", "awakening_remedy", "yoga_poses", "foods", "crystal"],
+    endpoint_name="chakra",
+)
 async def chakra_endpoint(
     request: ChakraRequest,
+    language: str = "en",
     authorization: Optional[str] = Header(None),
 ):
     chart_res = supabase.table("charts").select("*").eq("id", request.chart_id).execute()
@@ -7951,7 +7972,11 @@ class ProofEvalRequest(BaseModel):
     responses: List[str]
 
 @app.post("/api/v1/proof-points", response_model=ProofPointsResponse)
-async def get_proof_points(request: ProofPointsRequest):
+@translate_response(
+    fields_to_translate=["statement", "follow_up", "domain_label"],
+    endpoint_name="proof-points",
+)
+async def get_proof_points(request: ProofPointsRequest, language: str = "en"):
     chart_res = supabase.table("charts").select("*").eq("id", request.chart_id).execute()
     if not chart_res.data:
         raise HTTPException(404, "Chart not found")
@@ -8036,10 +8061,15 @@ async def evaluate_proof_points(
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.get("/api/v1/chart/{chart_id}/remedies")
+@translate_response(
+    fields_to_translate=["name", "instruction", "duration", "timing", "contraindication", "materials", "system_label", "cycle_note", "message", "planet_energy"],
+    endpoint_name="chart-remedies",
+)
 async def get_lk_remedies(
     chart_id: str,
     concern: str = "career",
     locale: str = "US",
+    language: str = "en",
 ):
     chart_res = supabase.table("charts").select("lal_kitab_data, country_code").eq("id", chart_id).execute()
     if not chart_res.data:
@@ -9094,7 +9124,11 @@ async def get_compatibility_session(session_id: str):
 
 @app.get("/api/v1/panchanga")
 @app.post("/api/v1/panchanga")
-async def get_panchanga(request: dict = {}):
+@translate_response(
+    fields_to_translate=["vibe", "do_today", "dont_today"],
+    endpoint_name="panchanga",
+)
+async def get_panchanga(request: dict = {}, language: str = "en"):
     """
     Today's Panchanga — 5 limbs of the day.
     Includes lucky hours, do/don't, Rahu Kalam, Abhijit Muhurta.
@@ -9637,7 +9671,11 @@ async def debug_context(request: dict):
 # ── DAILY SIGNAL ──────────────────────────────────────────────────
 @app.post("/api/v1/daily-signal")
 @app.get("/api/v1/daily-signal/{chart_id}")
-async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}):
+@translate_response(
+    fields_to_translate=["signal_text", "vibe", "do_today", "dont_today"],
+    endpoint_name="daily-signal",
+)
+async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, language: str = "en"):
     cid = chart_id or (request.get("chart_id") if request else None)
     if not cid:
         raise HTTPException(400, "chart_id required")
@@ -9693,7 +9731,11 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}):
 
 # ── MUHURTA ───────────────────────────────────────────────────────
 @app.post("/api/v1/muhurta/best-times")
-async def get_muhurta_endpoint(request: dict):
+@translate_response(
+    fields_to_translate=["general_advice", "note", "best_day"],
+    endpoint_name="muhurta",
+)
+async def get_muhurta_endpoint(request: dict, language: str = "en"):
     chart_id = request.get("chart_id")
     event    = request.get("event","general")
     if not chart_id: raise HTTPException(400,"chart_id required")
@@ -9784,7 +9826,11 @@ async def get_varshphal_endpoint(request: dict):
 # ── TRANSIT ALERTS ────────────────────────────────────────────────
 @app.post("/api/v1/transit-alerts")
 @app.get("/api/v1/transit-alerts/{chart_id}")
-async def get_transit_alerts_endpoint(chart_id: str = None, request: dict = {}):
+@translate_response(
+    fields_to_translate=["headline", "summary", "action", "caution", "remedy", "house_area", "key_insight", "do_list", "dont_list", "duration"],
+    endpoint_name="transit-alerts",
+)
+async def get_transit_alerts_endpoint(chart_id: str = None, request: dict = {}, language: str = "en"):
     cid = chart_id or (request.get("chart_id") if request else None)
     if not cid: raise HTTPException(400,"chart_id required")
     try:
@@ -10392,7 +10438,11 @@ async def get_prediction_accuracy_endpoint(chart_id: str):
 # ── Alert System Endpoints ────────────────────────────────────────
 
 @app.get("/api/v1/alerts/{chart_id}")
-async def get_alerts(chart_id: str, unread_only: bool = False):
+@translate_response(
+    fields_to_translate=["title", "message", "body", "action_text"],
+    endpoint_name="alerts",
+)
+async def get_alerts(chart_id: str, unread_only: bool = False, language: str = "en"):
     """Get personal alerts for a chart — powers in-app badge."""
     query = supabase.table("user_alerts").select("*").eq(
         "chart_id", chart_id
@@ -10837,9 +10887,6 @@ async def handle_razorpay_webhook(request: Request):
 
 
 # ── Remedies & Practices Endpoint ────────────────────────────────
-
-# [loc-4] translation middleware — pilot endpoint
-from antar_engine.translation_middleware import translate_response
 
 @app.get("/api/v1/remedies/{chart_id}")
 @translate_response(
