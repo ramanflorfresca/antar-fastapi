@@ -10836,11 +10836,19 @@ async def handle_razorpay_webhook(request: Request):
 
 # ── Remedies & Practices Endpoint ────────────────────────────────
 
+# [loc-4] translation middleware — pilot endpoint
+from antar_engine.translation_middleware import translate_response
+
 @app.get("/api/v1/remedies/{chart_id}")
+@translate_response(
+    fields_to_translate=["why", "what", "how", "ritual", "priority_label", "diagnosis"],
+    endpoint_name="remedies",
+)
 async def get_personal_remedies(
     chart_id: str,
     concern:  str = "general",
     question: str = "",
+    language: str = "en",
 ):
     """
     Returns 2-3 structured remedies specific to this chart right now.
