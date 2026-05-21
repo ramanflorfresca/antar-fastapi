@@ -13157,6 +13157,50 @@ def _translate_practice_schedule_es(sched):
     }
     def _translate_practice_card(p):
         if not p: return
+        # AWAKENING (sleeping-planet) why/action come straight from
+        # practice_engine.py and are NOT in REMEDY_ACTION_ES -- exact-match them.
+        _AWK_ES = {
+            "Your ability to be seen and recognized is dormant. Opportunities exist but you're invisible to them.":
+                "Tu capacidad de ser visto y reconocido esta inactiva. Las oportunidades existen pero eres invisible para ellas.",
+            "Stand in morning sunlight for 5 minutes daily. Take one action this week that makes you visible — publish, present, or speak up.":
+                "Ponte al sol de la manana 5 minutos al dia. Haz una accion esta semana que te haga visible — publica, presenta o alza la voz.",
+            "Your emotional intelligence is blocked. Decisions feel cloudy and relationships feel distant.":
+                "Tu inteligencia emocional esta bloqueada. Las decisiones se sienten nubladas y las relaciones distantes.",
+            "Journal for 10 minutes before bed each night this week. Name three emotions you felt today.":
+                "Escribe en un diario 10 minutos antes de dormir cada noche esta semana. Nombra tres emociones que sentiste hoy.",
+            "Your ability to take decisive action is stuck. You know what to do but can't seem to start.":
+                "Tu capacidad de actuar con decision esta estancada. Sabes que hacer pero no logras empezar.",
+            "Do something physically challenging this week — a hard workout, a cold shower, a brave conversation. Break the inertia.":
+                "Haz algo fisicamente exigente esta semana — un entrenamiento duro, una ducha fria, una conversacion valiente. Rompe la inercia.",
+            "Your communication and analytical abilities are foggy. Words don't land, deals stall, ideas feel stuck.":
+                "Tu capacidad de comunicacion esta nublada. Las palabras no llegan, los tratos se frenan, las ideas se atascan.",
+            "Write 500 words about anything — a journal entry, a letter, a plan. Clear the mental blockage through writing.":
+                "Escribe 500 palabras sobre cualquier cosa — una entrada de diario, una carta, un plan. Despeja el bloqueo mental escribiendo.",
+            "Your wisdom energy is dormant. Growth opportunities pass by because the learning channel is blocked.":
+                "Tu energia de sabiduria esta inactiva. Las oportunidades de crecimiento pasan de largo porque el canal de aprendizaje esta bloqueado.",
+            "Express gratitude to a mentor this week. Wear yellow on Thursday. Read something that expands your thinking.":
+                "Expresa gratitud a un mentor esta semana. Viste de amarillo el jueves. Lee algo que expanda tu pensamiento.",
+            "Your ability to attract — love, beauty, resources — is suppressed. Life feels functional but joyless.":
+                "Tu capacidad de atraer — amor, belleza, recursos — esta bloqueada. La vida se siente funcional pero sin alegria.",
+            "Create something beautiful this week. Take yourself somewhere aesthetically inspiring. Wear white on Friday.":
+                "Crea algo hermoso esta semana. Llevate a un lugar que te inspire por su belleza. Viste de blanco el viernes.",
+            "Your discipline and long-term building capacity is blocked. Hard work isn't compounding into results.":
+                "Tu disciplina y tu capacidad de construir a largo plazo estan bloqueadas. El esfuerzo no se acumula en resultados.",
+            "Volunteer your time this Saturday. Help someone who does hard physical work. Wear black or navy.":
+                "Dedica tu tiempo como voluntario este sabado. Ayuda a alguien que hace trabajo fisico duro. Viste de negro o azul marino.",
+            "Your ability to break through into new territory is stuck. Ambition exists but the path forward is unclear.":
+                "Tu capacidad de abrirte camino hacia nuevo territorio esta estancada. La ambicion existe pero el camino no esta claro.",
+            "Identify one unconventional approach to your biggest current challenge. Meditate on what you're truly chasing vs. what you need.":
+                "Identifica un enfoque poco convencional para tu mayor desafio actual. Medita sobre lo que de verdad persigues frente a lo que necesitas.",
+            "Your intuition and ability to release the past is blocked. You're holding on to something that's holding you back.":
+                "Tu intuicion y tu capacidad de soltar el pasado estan bloqueadas. Estas aferrandote a algo que te esta frenando.",
+            "Spend 20 minutes in complete silence. Identify one thing you need to let go of and take one concrete step to release it.":
+                "Pasa 20 minutos en completo silencio. Identifica algo que necesitas soltar y da un paso concreto para liberarlo.",
+        }
+        for _awk_fld in ("why", "what"):
+            _awk_v = p.get(_awk_fld)
+            if isinstance(_awk_v, str) and _awk_v in _AWK_ES:
+                p[_awk_fld] = _AWK_ES[_awk_v]
         if "what" in p: p["what"] = t_remedy(p["what"])
         if "practice_why" in p:
             p["practice_why"] = PRACTICE_WHY_ES.get(p["practice_why"], t(p["practice_why"]))
@@ -16246,6 +16290,42 @@ def _translate_daily_signals_es(signals):
             "La energia de Mula corta hasta la raiz. Cualquier investigacion o auditoria profunda hoy revelara lo que estaba oculto.",
     }
 
+    # WOW event_signal.instrument is a raw English UPPERCASE 12-channel label
+    # (e.g. "PROCESSING SPEED"). _translate_instrument_name() only touches the
+    # LLM prompt, never the response field -- translate it here. Accents
+    # stripped; frontend re-applies them via fixAccents on render.
+    _INST_ES = {
+        "SYSTEM VITALS": "SENALES VITALES",
+        "CAPITAL RESERVES": "RESERVAS DE CAPITAL",
+        "ACTION CAPACITY": "CAPACIDAD DE ACCION",
+        "REAL ESTATE RADAR": "RADAR INMOBILIARIO",
+        "CREATION ENGINE": "MOTOR CREATIVO",
+        "CONFLICT SHIELD": "ESCUDO DE CONFLICTOS",
+        "ALLIANCE SYNC": "SINCRONIZACION DE ALIANZAS",
+        "CAPITAL RUNWAY": "PISTA DE CAPITAL",
+        "FORTUNE VECTOR": "VECTOR DE FORTUNA",
+        "AUTHORITY ENGINE": "MOTOR DE AUTORIDAD",
+        "REVENUE PIPELINE": "FLUJO DE INGRESOS",
+        "GLOBAL VECTOR": "VECTOR GLOBAL",
+        "INTUITION COMPASS": "BRUJULA DE INTUICION",
+        "EMOTIONAL RADAR": "RADAR EMOCIONAL",
+        "PROCESSING SPEED": "VELOCIDAD DE PROCESAMIENTO",
+        "MAGNETISM FIELD": "CAMPO MAGNETICO",
+        "ACTION DRIVE": "IMPULSO DE ACCION",
+        "AMBITION ENGINE": "MOTOR DE AMBICION",
+        "STRUCTURAL LOAD": "CARGA ESTRUCTURAL",
+        "GROWTH AMPLIFIER": "AMPLIFICADOR DE CRECIMIENTO",
+        "AUTHORITY SIGNAL": "SENAL DE AUTORIDAD",
+    }
+
+    def _t_event_signal(es):
+        if not es or not isinstance(es, dict):
+            return es
+        _inst = es.get("instrument")
+        if _inst and isinstance(_inst, str):
+            es["instrument"] = _INST_ES.get(_inst.upper().strip(), _inst)
+        return es
+
     for day in result:
         # Skip text translation for LLM-generated signals — they're already in Spanish
         is_llm = day.get("llm_generated", False)
@@ -16271,6 +16351,9 @@ def _translate_daily_signals_es(signals):
                         nak_name = wow_text.replace(en_suffix.lstrip(), "").strip()
                         day["wow"] = nak_name + es_suffix
                         break
+        # Translate WOW event_signal instrument label (jargon -> Spanish)
+        if day.get("event_signal"):
+            _t_event_signal(day["event_signal"])
         if "day" in day:
             day["day_es"] = DAYS.get(day["day"], day["day"])
             day["day_short_es"] = DAY_SHORT.get(day["day"], day["day"][:3].upper())
