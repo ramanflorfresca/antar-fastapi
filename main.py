@@ -13119,6 +13119,47 @@ def _translate_practice_schedule_es(sched):
 
     # Apply full-text remedy_why translations
     # Translate sleeping_alerts and rin_cards
+    # AWAKENING (sleeping-planet) why/action strings come straight from
+    # practice_engine.py and are not in REMEDY_ACTION_ES / TX. Defined once
+    # here; shared by the sleeping_alerts loop and _translate_practice_card().
+    _AWK_ES = {
+        "Your ability to be seen and recognized is dormant. Opportunities exist but you're invisible to them.":
+            "Tu capacidad de ser visto y reconocido esta inactiva. Las oportunidades existen pero eres invisible para ellas.",
+        "Stand in morning sunlight for 5 minutes daily. Take one action this week that makes you visible — publish, present, or speak up.":
+            "Ponte al sol de la manana 5 minutos al dia. Haz una accion esta semana que te haga visible — publica, presenta o alza la voz.",
+        "Your emotional intelligence is blocked. Decisions feel cloudy and relationships feel distant.":
+            "Tu inteligencia emocional esta bloqueada. Las decisiones se sienten nubladas y las relaciones distantes.",
+        "Journal for 10 minutes before bed each night this week. Name three emotions you felt today.":
+            "Escribe en un diario 10 minutos antes de dormir cada noche esta semana. Nombra tres emociones que sentiste hoy.",
+        "Your ability to take decisive action is stuck. You know what to do but can't seem to start.":
+            "Tu capacidad de actuar con decision esta estancada. Sabes que hacer pero no logras empezar.",
+        "Do something physically challenging this week — a hard workout, a cold shower, a brave conversation. Break the inertia.":
+            "Haz algo fisicamente exigente esta semana — un entrenamiento duro, una ducha fria, una conversacion valiente. Rompe la inercia.",
+        "Your communication and analytical abilities are foggy. Words don't land, deals stall, ideas feel stuck.":
+            "Tu capacidad de comunicacion esta nublada. Las palabras no llegan, los tratos se frenan, las ideas se atascan.",
+        "Write 500 words about anything — a journal entry, a letter, a plan. Clear the mental blockage through writing.":
+            "Escribe 500 palabras sobre cualquier cosa — una entrada de diario, una carta, un plan. Despeja el bloqueo mental escribiendo.",
+        "Your wisdom energy is dormant. Growth opportunities pass by because the learning channel is blocked.":
+            "Tu energia de sabiduria esta inactiva. Las oportunidades de crecimiento pasan de largo porque el canal de aprendizaje esta bloqueado.",
+        "Express gratitude to a mentor this week. Wear yellow on Thursday. Read something that expands your thinking.":
+            "Expresa gratitud a un mentor esta semana. Viste de amarillo el jueves. Lee algo que expanda tu pensamiento.",
+        "Your ability to attract — love, beauty, resources — is suppressed. Life feels functional but joyless.":
+            "Tu capacidad de atraer — amor, belleza, recursos — esta bloqueada. La vida se siente funcional pero sin alegria.",
+        "Create something beautiful this week. Take yourself somewhere aesthetically inspiring. Wear white on Friday.":
+            "Crea algo hermoso esta semana. Llevate a un lugar que te inspire por su belleza. Viste de blanco el viernes.",
+        "Your discipline and long-term building capacity is blocked. Hard work isn't compounding into results.":
+            "Tu disciplina y tu capacidad de construir a largo plazo estan bloqueadas. El esfuerzo no se acumula en resultados.",
+        "Volunteer your time this Saturday. Help someone who does hard physical work. Wear black or navy.":
+            "Dedica tu tiempo como voluntario este sabado. Ayuda a alguien que hace trabajo fisico duro. Viste de negro o azul marino.",
+        "Your ability to break through into new territory is stuck. Ambition exists but the path forward is unclear.":
+            "Tu capacidad de abrirte camino hacia nuevo territorio esta estancada. La ambicion existe pero el camino no esta claro.",
+        "Identify one unconventional approach to your biggest current challenge. Meditate on what you're truly chasing vs. what you need.":
+            "Identifica un enfoque poco convencional para tu mayor desafio actual. Medita sobre lo que de verdad persigues frente a lo que necesitas.",
+        "Your intuition and ability to release the past is blocked. You're holding on to something that's holding you back.":
+            "Tu intuicion y tu capacidad de soltar el pasado estan bloqueadas. Estas aferrandote a algo que te esta frenando.",
+        "Spend 20 minutes in complete silence. Identify one thing you need to let go of and take one concrete step to release it.":
+            "Pasa 20 minutos en completo silencio. Identifica algo que necesitas soltar y da un paso concreto para liberarlo.",
+    }
     if "sleeping_alerts" in s:
         for sa in s["sleeping_alerts"]:
             if "energy_label" in sa: sa["energy_label"]=L.get(sa["energy_label"],sa["energy_label"])
@@ -13128,7 +13169,8 @@ def _translate_practice_schedule_es(sched):
             if "duration" in sa: sa["duration"]=DURATION_LABEL_ES.get(sa["duration"], sa["duration"])
             if "duration_reason" in sa: sa["duration_reason"]=DURATION_REASON_SNIPPETS_ES.get(sa["duration_reason"], t(sa["duration_reason"]))
             for f in ("why","practice"):
-                if f in sa: sa[f]=t(sa[f])
+                if f in sa and isinstance(sa[f], str):
+                    sa[f] = _AWK_ES.get(sa[f]) or t(sa[f])
     if "rin_cards" in s:
         for rc in s["rin_cards"]:
             if "clearing_practice" in rc: rc["clearing_practice"]=t_remedy(rc["clearing_practice"])
@@ -13157,50 +13199,21 @@ def _translate_practice_schedule_es(sched):
     }
     def _translate_practice_card(p):
         if not p: return
-        # AWAKENING (sleeping-planet) why/action come straight from
-        # practice_engine.py and are NOT in REMEDY_ACTION_ES -- exact-match them.
-        _AWK_ES = {
-            "Your ability to be seen and recognized is dormant. Opportunities exist but you're invisible to them.":
-                "Tu capacidad de ser visto y reconocido esta inactiva. Las oportunidades existen pero eres invisible para ellas.",
-            "Stand in morning sunlight for 5 minutes daily. Take one action this week that makes you visible — publish, present, or speak up.":
-                "Ponte al sol de la manana 5 minutos al dia. Haz una accion esta semana que te haga visible — publica, presenta o alza la voz.",
-            "Your emotional intelligence is blocked. Decisions feel cloudy and relationships feel distant.":
-                "Tu inteligencia emocional esta bloqueada. Las decisiones se sienten nubladas y las relaciones distantes.",
-            "Journal for 10 minutes before bed each night this week. Name three emotions you felt today.":
-                "Escribe en un diario 10 minutos antes de dormir cada noche esta semana. Nombra tres emociones que sentiste hoy.",
-            "Your ability to take decisive action is stuck. You know what to do but can't seem to start.":
-                "Tu capacidad de actuar con decision esta estancada. Sabes que hacer pero no logras empezar.",
-            "Do something physically challenging this week — a hard workout, a cold shower, a brave conversation. Break the inertia.":
-                "Haz algo fisicamente exigente esta semana — un entrenamiento duro, una ducha fria, una conversacion valiente. Rompe la inercia.",
-            "Your communication and analytical abilities are foggy. Words don't land, deals stall, ideas feel stuck.":
-                "Tu capacidad de comunicacion esta nublada. Las palabras no llegan, los tratos se frenan, las ideas se atascan.",
-            "Write 500 words about anything — a journal entry, a letter, a plan. Clear the mental blockage through writing.":
-                "Escribe 500 palabras sobre cualquier cosa — una entrada de diario, una carta, un plan. Despeja el bloqueo mental escribiendo.",
-            "Your wisdom energy is dormant. Growth opportunities pass by because the learning channel is blocked.":
-                "Tu energia de sabiduria esta inactiva. Las oportunidades de crecimiento pasan de largo porque el canal de aprendizaje esta bloqueado.",
-            "Express gratitude to a mentor this week. Wear yellow on Thursday. Read something that expands your thinking.":
-                "Expresa gratitud a un mentor esta semana. Viste de amarillo el jueves. Lee algo que expanda tu pensamiento.",
-            "Your ability to attract — love, beauty, resources — is suppressed. Life feels functional but joyless.":
-                "Tu capacidad de atraer — amor, belleza, recursos — esta bloqueada. La vida se siente funcional pero sin alegria.",
-            "Create something beautiful this week. Take yourself somewhere aesthetically inspiring. Wear white on Friday.":
-                "Crea algo hermoso esta semana. Llevate a un lugar que te inspire por su belleza. Viste de blanco el viernes.",
-            "Your discipline and long-term building capacity is blocked. Hard work isn't compounding into results.":
-                "Tu disciplina y tu capacidad de construir a largo plazo estan bloqueadas. El esfuerzo no se acumula en resultados.",
-            "Volunteer your time this Saturday. Help someone who does hard physical work. Wear black or navy.":
-                "Dedica tu tiempo como voluntario este sabado. Ayuda a alguien que hace trabajo fisico duro. Viste de negro o azul marino.",
-            "Your ability to break through into new territory is stuck. Ambition exists but the path forward is unclear.":
-                "Tu capacidad de abrirte camino hacia nuevo territorio esta estancada. La ambicion existe pero el camino no esta claro.",
-            "Identify one unconventional approach to your biggest current challenge. Meditate on what you're truly chasing vs. what you need.":
-                "Identifica un enfoque poco convencional para tu mayor desafio actual. Medita sobre lo que de verdad persigues frente a lo que necesitas.",
-            "Your intuition and ability to release the past is blocked. You're holding on to something that's holding you back.":
-                "Tu intuicion y tu capacidad de soltar el pasado estan bloqueadas. Estas aferrandote a algo que te esta frenando.",
-            "Spend 20 minutes in complete silence. Identify one thing you need to let go of and take one concrete step to release it.":
-                "Pasa 20 minutos en completo silencio. Identifica algo que necesitas soltar y da un paso concreto para liberarlo.",
-        }
+        # AWAKENING why/what exact-match (es). _AWK_ES is hoisted to the
+        # enclosing scope (defined above, shared with the sleeping_alerts loop).
         for _awk_fld in ("why", "what"):
             _awk_v = p.get(_awk_fld)
             if isinstance(_awk_v, str) and _awk_v in _AWK_ES:
                 p[_awk_fld] = _AWK_ES[_awk_v]
+        # `how` is a composite built by _build_how_text() ("Best day ... ->
+        # <action> -> ...") that embeds the raw English action verbatim, so
+        # exact-match cannot work -- substring-replace each AWAKENING action.
+        _how_v = p.get("how")
+        if isinstance(_how_v, str):
+            for _en, _es in _AWK_ES.items():
+                if _en in _how_v:
+                    _how_v = _how_v.replace(_en, _es)
+            p["how"] = _how_v
         if "what" in p: p["what"] = t_remedy(p["what"])
         if "practice_why" in p:
             p["practice_why"] = PRACTICE_WHY_ES.get(p["practice_why"], t(p["practice_why"]))
