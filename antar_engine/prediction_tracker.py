@@ -6,6 +6,7 @@ user feedback (yes / partial / no) to build an accuracy score.
 """
 
 import re
+import uuid
 from datetime import datetime, timedelta, timezone
 
 
@@ -106,8 +107,34 @@ def get_pending_feedback(chart_id: str, sb) -> list:
     return res.data or []
 
 
-def record_feedback(correlation_id: str, status: str, note: str, sb) -> dict:
-    """Persist yes / no / partial / skipped feedback."""
+def _looks_like_uuid(value) -> bool:
+    """True if value parses as a UUID. Distinguishes a real
+    user_correlations.id from a frontend pattern-card slug like 'jaimini-0'."""
+    try:
+        uuid.UUID(str(value))
+        return True
+    except (ValueError, AttributeError, TypeError):
+        return False
+
+
+def record_feedback(
+    correlation_id: str,
+    status: str,
+    note: str,
+    sb,
+    chart_id: str = None,
+) -> dict:
+    """Persist yes / no / partial / skipped feedback.
+
+    correlation_id may be either:
+      * a real user_correlations.id (UUID) -> update that row in place. This
+        is the existing prediction-tracking flow (rows created by
+        save_trackable_claim, surfaced via /pending-feedback).
+      * a frontend pattern-card slug, e.g. 'jaimini-0' -> the card is computed
+        on the fly and has no pre-existing row, so the first feedback click
+        creates a row keyed by (chart_id, correlation_key). The slug is only
+        unique within a chart, hence chart_id is required.
+    """
     score_map = {"yes": 1.0, "partial": 0.5, "no": 0.0, "skipped": None}
     score = score_map.get(status)
     update = {
@@ -117,7 +144,26 @@ def record_feedback(correlation_id: str, status: str, note: str, sb) -> dict:
     }
     if score is not None:
         update["accuracy_score"] = score
-    res = sb.table("user_correlations").update(update).eq("id", correlation_id).execute()
+
+    # Path 1 -- real UUID id: update the existing row directly.
+    if _looks_like_uuid(correlation_id):
+        res = sb.table("user_correlations").update(update).eq("id", correlation_id).execute()
+        return res.data[0] if res.data else {}
+
+    # Path 2 -- pattern-card slug (e.g. 'jaimini-0'): scope it to the chart and
+    # upsert. First click inserts the trackable row, repeat clicks update it.
+    if not chart_id:
+        raise ValueError(
+            "chart_id is required to record feedback for a pattern-card slug"
+        )
+    row = dict(update)
+    row["chart_id"]        = chart_id
+    row["correlation_key"] = str(correlation_id)
+    res = (
+        sb.table("user_correlations")
+        .upsert(row, on_conflict="chart_id,correlation_key")
+        .execute()
+    )
     return res.data[0] if res.data else {}
 
 

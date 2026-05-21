@@ -10492,14 +10492,21 @@ async def debug_env():
 
 @app.post("/api/v1/predictions/feedback")
 async def submit_prediction_feedback(request: dict):
-    """User submits yes/no/partial on a prediction claim."""
+    """User submits yes/no/partial on a prediction claim or a pattern card."""
     from antar_engine.prediction_tracker import record_feedback
-    correlation_id = request.get("correlation_id")
+    # Frontend sends camelCase; accept snake_case too for safety.
+    correlation_id = request.get("correlation_id") or request.get("correlationId")
+    chart_id       = request.get("chart_id")       or request.get("chartId")
     status         = request.get("status")
     note           = request.get("note", "")
     if not correlation_id or status not in ("yes", "no", "partial", "skipped"):
         raise HTTPException(400, "correlation_id and valid status required")
-    result = record_feedback(correlation_id, status, note, supabase)
+    try:
+        result = record_feedback(
+            correlation_id, status, note, supabase, chart_id=chart_id
+        )
+    except ValueError as e:
+        raise HTTPException(400, str(e))
     return {"success": True, "updated": result}
 
 
