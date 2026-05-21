@@ -7527,6 +7527,18 @@ async def create_chart(
     except Exception as _sig_create_e:
         print(f"[chart/create] Signatures non-fatal: {_sig_create_e}")
 
+    # ── Brief B — pre-warm the Life Arc cache so the arc card is instant ──
+    try:
+        _la_pw_lang = (
+            getattr(request, "language_preference", None)
+            or getattr(request, "language", None)
+            or "es"
+        )
+        _dispatch_life_arc_prewarm(chart_id, _la_pw_lang)
+        print(f"[chart/create] Life Arc prewarm fired for {chart_id[:8]}")
+    except Exception as _la_pw_e:
+        print(f"[chart/create] Life Arc prewarm failed (non-fatal): {_la_pw_e}")
+
     return ChartCreateResponse(
         chart_id=chart_id,
         lagna=chart_data["lagna"]["sign"],
@@ -12143,6 +12155,12 @@ async def restore_chart(
             background_tasks.add_task(_prewarm_daily_week_cache, active["id"], tz_offset)
     except Exception as _pe:
         print(f"[prewarm] schedule failed (non-fatal) chart={active.get('id')}: {_pe}")
+
+    # Brief B — pre-warm the Life Arc cache so the arc card is instant on next mount
+    try:
+        _dispatch_life_arc_prewarm(active["id"], language)
+    except Exception as _la_pe:
+        print(f"[prewarm] life-arc schedule failed (non-fatal) chart={active.get('id')}: {_la_pe}")
 
     # 6. Full restore payload — legacy keys preserved for backward compat,
     #    new structured keys added for the frontend contract.
@@ -17140,66 +17158,26 @@ async def get_accuracy_dashboard(chart_id: str):
 # SURFACE B: LIFE ARC ENDPOINTS
 # ============================================================================
 
-@app.get("/api/v1/life-arc/{chart_id}")
-async def get_life_arc(
-    chart_id: str,
-    horizon_months: int = 12,
-    language: str = "en",
-    authorization: Optional[str] = Header(None),
-):
+# ═══════════════════════════════════════════════════════════════════
+# LIFE ARC — async compute + cache + prewarm  (Brief B, Issue 2)
+# The heavy computation (~30s) runs in a background task; the GET endpoint
+# returns {"status":"generating"} on cache miss and the full payload once
+# the cache is warm.
+# ═══════════════════════════════════════════════════════════════════
+
+# In-flight registry: key=(chart_id, horizon_months, language) -> asyncio.Task
+_life_arc_inflight = {}
+# Holds prewarm-dispatch tasks so they are not garbage-collected before they run.
+_life_arc_prewarm_tasks = set()
+
+
+async def _life_arc_compute(chart_id, horizon_months, language,
+                            chart_record, chart_data, _lib_version):
     """
-    Surface B — Life Arc endpoint.
-    Returns structured life prediction with current phase, predicted events,
-    diagnostic, timeline, and honesty layer.
+    Heavy Life Arc computation (~30s). Runs inside a background task.
+    Writes the assembled payload to life_arc_cache and returns it.
     """
-    import json as _la_json
     from datetime import datetime as _la_dt
-
-    # ── Auth (optional) ──────────────────────────────────────────────────
-    user_id = None
-    if authorization:
-        try:
-            user_id = verify_token(authorization)
-        except HTTPException:
-            pass
-
-    # ── Validate horizon ─────────────────────────────────────────────────
-    if horizon_months < 1 or horizon_months > 24:
-        raise HTTPException(status_code=400, detail="horizon_months must be 1-24")
-
-    # ── Fetch chart ──────────────────────────────────────────────────────
-    chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
-    if not chart_res.data:
-        raise HTTPException(status_code=404, detail="Chart not found")
-    chart_record = chart_res.data[0]
-    chart_data = _safe_jsonb(chart_record.get("chart_data"))
-    if not chart_data:
-        raise HTTPException(status_code=400, detail="Chart has no chart_data")
-
-    # ── Library version (for cache invalidation) ────────────────────────
-    from antar_engine.life_arc.signatures import get_library_version
-    _lib_version = get_library_version()
-
-    # ── Cache check ──────────────────────────────────────────────────────
-    try:
-        cache_res = supabase.table("life_arc_cache").select("life_arc,generated_at").eq(
-            "chart_id", chart_id
-        ).eq("horizon_months", horizon_months).eq("language", language).execute()
-        if cache_res.data:
-            cached = cache_res.data[0]
-            life_arc = _safe_jsonb(cached.get("life_arc"))
-            if life_arc:
-                # Invalidate if library version changed since cache was written
-                cached_lib_ver = life_arc.get("_library_version")
-                if cached_lib_ver and cached_lib_ver == _lib_version:
-                    print(f"[life_arc] Cache HIT for {chart_id} (lib={_lib_version})")
-                    return life_arc
-                else:
-                    print(f"[life_arc] Cache STALE for {chart_id} "
-                          f"(cached={cached_lib_ver}, current={_lib_version})")
-    except Exception as _cache_e:
-        print(f"[life_arc] Cache check error (non-blocking): {_cache_e}")
-
     print(f"[life_arc] Computing for {chart_id}, horizon={horizon_months}, lang={language}")
 
     # ── Ensure chart is complete ─────────────────────────────────────────
@@ -17322,6 +17300,157 @@ async def get_life_arc(
         print(f"[life_arc] Cache write error (non-blocking): {_cache_w_e}")
 
     return response
+
+
+async def _life_arc_background(key, chart_id, horizon_months, language,
+                               chart_record, chart_data, _lib_version):
+    """Background wrapper — runs the compute, always clears the in-flight key."""
+    try:
+        await _life_arc_compute(chart_id, horizon_months, language,
+                                chart_record, chart_data, _lib_version)
+        print(f"[life_arc] Background compute complete for {chart_id} (lang={language})")
+    except Exception as _bg_e:
+        print(f"[life_arc] Background compute FAILED for {chart_id} (lang={language}): {_bg_e}")
+    finally:
+        _life_arc_inflight.pop(key, None)
+
+
+async def _prewarm_life_arc(chart_id, language="es", horizon_months=12):
+    """
+    Fire-and-forget cache warmer. Called after chart-create / auth-restore so
+    the Life Arc card is ready by the time the user navigates to it.
+    """
+    try:
+        from antar_engine.life_arc.signatures import get_library_version
+        _lib_version = get_library_version()
+
+        # Skip if already cached at the current library version.
+        try:
+            _cr = supabase.table("life_arc_cache").select("life_arc").eq(
+                "chart_id", chart_id).eq("horizon_months", horizon_months).eq(
+                "language", language).execute()
+            if _cr.data:
+                _cached = _safe_jsonb(_cr.data[0].get("life_arc"))
+                if _cached and _cached.get("_library_version") == _lib_version:
+                    print(f"[life_arc] Prewarm skip — already warm for {chart_id} ({language})")
+                    return
+        except Exception:
+            pass
+
+        _key = (chart_id, horizon_months, language)
+        if _key in _life_arc_inflight:
+            return
+
+        _cr2 = supabase.table("charts").select("*").eq("id", chart_id).execute()
+        if not _cr2.data:
+            print(f"[life_arc] Prewarm skip — chart {chart_id} not found")
+            return
+        _chart_record = _cr2.data[0]
+        _chart_data = _safe_jsonb(_chart_record.get("chart_data"))
+        if not _chart_data:
+            print(f"[life_arc] Prewarm skip — chart {chart_id} has no chart_data")
+            return
+
+        _task = asyncio.create_task(
+            _life_arc_background(_key, chart_id, horizon_months, language,
+                                 _chart_record, _chart_data, _lib_version)
+        )
+        _life_arc_inflight[_key] = _task
+        print(f"[life_arc] Prewarm dispatched for {chart_id} ({language})")
+    except Exception as _pw_e:
+        print(f"[life_arc] Prewarm error (non-blocking) for {chart_id}: {_pw_e}")
+
+
+def _dispatch_life_arc_prewarm(chart_id, language="es", horizon_months=12):
+    """Schedule _prewarm_life_arc without blocking the caller (async endpoints only)."""
+    try:
+        _lang = (str(language or "es").lower() or "es")[:2]
+        _t = asyncio.create_task(_prewarm_life_arc(chart_id, _lang, horizon_months))
+        _life_arc_prewarm_tasks.add(_t)
+        _t.add_done_callback(_life_arc_prewarm_tasks.discard)
+    except Exception as _d_e:
+        print(f"[life_arc] Prewarm dispatch failed (non-blocking) for {chart_id}: {_d_e}")
+
+
+@app.get("/api/v1/life-arc/{chart_id}")
+async def get_life_arc(
+    chart_id: str,
+    horizon_months: int = 12,
+    language: str = "en",
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Surface B — Life Arc endpoint.
+    Returns structured life prediction with current phase, predicted events,
+    diagnostic, timeline, and honesty layer.
+    """
+    import json as _la_json
+    from datetime import datetime as _la_dt
+
+    # ── Auth (optional) ──────────────────────────────────────────────────
+    user_id = None
+    if authorization:
+        try:
+            user_id = verify_token(authorization)
+        except HTTPException:
+            pass
+
+    # ── Validate horizon ─────────────────────────────────────────────────
+    if horizon_months < 1 or horizon_months > 24:
+        raise HTTPException(status_code=400, detail="horizon_months must be 1-24")
+
+    # ── Fetch chart ──────────────────────────────────────────────────────
+    chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+    if not chart_res.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    chart_record = chart_res.data[0]
+    chart_data = _safe_jsonb(chart_record.get("chart_data"))
+    if not chart_data:
+        raise HTTPException(status_code=400, detail="Chart has no chart_data")
+
+    # ── Library version (for cache invalidation) ────────────────────────
+    from antar_engine.life_arc.signatures import get_library_version
+    _lib_version = get_library_version()
+
+    # ── Cache check ──────────────────────────────────────────────────────
+    try:
+        cache_res = supabase.table("life_arc_cache").select("life_arc,generated_at").eq(
+            "chart_id", chart_id
+        ).eq("horizon_months", horizon_months).eq("language", language).execute()
+        if cache_res.data:
+            cached = cache_res.data[0]
+            life_arc = _safe_jsonb(cached.get("life_arc"))
+            if life_arc:
+                # Invalidate if library version changed since cache was written
+                cached_lib_ver = life_arc.get("_library_version")
+                if cached_lib_ver and cached_lib_ver == _lib_version:
+                    print(f"[life_arc] Cache HIT for {chart_id} (lib={_lib_version})")
+                    return life_arc
+                else:
+                    print(f"[life_arc] Cache STALE for {chart_id} "
+                          f"(cached={cached_lib_ver}, current={_lib_version})")
+    except Exception as _cache_e:
+        print(f"[life_arc] Cache check error (non-blocking): {_cache_e}")
+
+    # ── Cache miss — dispatch heavy compute as a background task ──────────
+    # The full computation (phase analysis, signature matching, diagnostic
+    # Claude call, timeline) takes ~30s. Returning it synchronously blocks the
+    # frontend, so we kick the work off in the background and return a fast
+    # "generating" status. The frontend polls every retry_after_ms until the
+    # cache is warm, at which point this endpoint returns the full payload.
+    _la_key = (chart_id, horizon_months, language)
+    _la_running = _life_arc_inflight.get(_la_key)
+    if _la_running is not None and not _la_running.done():
+        print(f"[life_arc] Generation already in progress for {chart_id} (lang={language})")
+        return {"status": "generating", "retry_after_ms": 3000}
+
+    print(f"[life_arc] Cache miss — dispatching background compute for {chart_id} (lang={language})")
+    _la_task = asyncio.create_task(
+        _life_arc_background(_la_key, chart_id, horizon_months, language,
+                             chart_record, chart_data, _lib_version)
+    )
+    _life_arc_inflight[_la_key] = _la_task
+    return {"status": "generating", "retry_after_ms": 3000}
 
 
 @app.post("/api/v1/life-arc/{chart_id}/feedback")
