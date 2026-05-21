@@ -12827,7 +12827,7 @@ def _safe_jsonb(v):
 
 from pydantic import BaseModel as _PracticeBaseModel
 from antar_engine.symptom_library import scan_chart_symptoms, get_domain_status, build_diagnostic_prompt_block, get_primary_symptom, get_domain_vocabulary
-from antar_engine.verification_engine import generate_verification_queue, calculate_precision_score, get_verification_data
+from antar_engine.verification_engine import generate_verification_queue, calculate_precision_score, get_verification_data, store_verification_rating
 
 class _PracticeCompleteReq(_PracticeBaseModel):
     practice_id: str
@@ -13429,6 +13429,66 @@ async def get_verification(chart_id: str):
             "has_pending": False,
             "message": "Verification data unavailable.",
         }
+
+
+@app.post("/api/v1/verification/{chart_id}/rate")
+async def rate_verification_item(chart_id: str, body: dict):
+    """
+    Rate a verification-queue item directly by its identifying fields.
+
+    Queue items returned by GET /api/v1/verification/{chart_id} are generated
+    on the fly from dasha history and carry no row id, so the frontend rates
+    them by (event_type, event_date). The rating is upserted into
+    verification_ratings — idempotent on (chart_id, event_type, event_date),
+    so re-rating the same item overwrites instead of double-counting.
+
+    Body: { event_type, event_date, domain, dasha_period, accuracy_rating }
+    accuracy_rating must be 0 or 1.
+    """
+    rating = body.get("accuracy_rating")
+    if rating not in (0, 1):
+        raise HTTPException(status_code=400, detail="rating must be 0 or 1")
+
+    event_type = str(body.get("event_type") or "").strip()
+    event_date = str(body.get("event_date") or "").strip()
+    if not event_type or not event_date:
+        raise HTTPException(status_code=400, detail="event_type and event_date are required")
+
+    # Confirm the chart exists before storing a rating against it.
+    try:
+        chart_res = supabase.table("charts").select("id").eq("id", chart_id).execute()
+    except Exception as e:
+        logger.error(f"[verification/rate] chart lookup failed for {chart_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to look up chart")
+    if not chart_res.data:
+        raise HTTPException(status_code=404, detail="chart not found")
+
+    # Upsert the rating (idempotent on chart_id + event_type + event_date).
+    try:
+        store_verification_rating(
+            chart_id=chart_id,
+            event_type=event_type,
+            event_date=event_date,
+            domain=str(body.get("domain") or "").strip(),
+            dasha_period=str(body.get("dasha_period") or "").strip(),
+            accuracy_rating=int(rating),
+            supabase=supabase,
+        )
+    except Exception as e:
+        logger.error(f"[verification/rate] store failed for {chart_id}: {e}")
+        raise HTTPException(status_code=500, detail="Failed to store rating")
+
+    # Recompute precision score so the frontend can update the level widget
+    # without a second fetch.
+    score = await calculate_precision_score(chart_id, supabase)
+    return {
+        "status": "rated",
+        "precision_score": {
+            "level": score.get("level", 1),
+            "next_level_in": score.get("next_level_in", 2),
+            "total_rated": score.get("total_rated", 0),
+        },
+    }
 
 
 

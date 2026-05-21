@@ -244,6 +244,19 @@ async def generate_verification_queue(
             q["event_date"]
         ), reverse=False)
         
+        # Brief B — drop items the user has already rated via
+        # POST /verification/{chart_id}/rate so the queue shrinks as they rate.
+        _rated_rows = _fetch_verification_ratings(chart_id, supabase)
+        if _rated_rows:
+            _rated_keys = {
+                (r.get("event_type"), r.get("event_date")) for r in _rated_rows
+            }
+            unique_queue = [
+                q for q in unique_queue
+                if (q.get("event_type"), q.get("event_date")) not in _rated_keys
+            ]
+            total_rated += len(_rated_rows)
+
         # Add metadata
         for q in unique_queue:
             q["total_rated"] = total_rated
@@ -355,6 +368,50 @@ def _generate_fallback_queue(chart_id: str) -> List[Dict]:
 # PRECISION SCORE CALCULATOR
 # ═══════════════════════════════════════════════════════════════════
 
+# ═══════════════════════════════════════════════════════════════════
+# VERIFICATION RATINGS STORE  (Brief B, Issue 1)
+# Queue items are generated dynamically and carry no row id, so ratings
+# are keyed by (chart_id, event_type, event_date) in verification_ratings.
+# Migration SQL lives in patch_b1.py's docstring.
+# ═══════════════════════════════════════════════════════════════════
+
+def _fetch_verification_ratings(chart_id, supabase):
+    """
+    Return verification_ratings rows for a chart.
+    Defensive: returns [] if the table does not exist yet (pre-migration).
+    """
+    try:
+        res = supabase.table("verification_ratings").select(
+            "event_type, event_date, accuracy_rating"
+        ).eq("chart_id", chart_id).execute()
+        return res.data or []
+    except Exception as e:
+        logger.warning(f"verification_ratings fetch failed (table may be missing): {e}")
+        return []
+
+
+def store_verification_rating(chart_id, event_type, event_date,
+                              domain, dasha_period, accuracy_rating, supabase):
+    """
+    Upsert a verification-queue rating.
+    Idempotent on (chart_id, event_type, event_date) — re-rating overwrites.
+    """
+    from datetime import datetime, timezone
+    row = {
+        "chart_id": chart_id,
+        "event_type": event_type,
+        "event_date": event_date,
+        "domain": domain or None,
+        "dasha_period": dasha_period or None,
+        "accuracy_rating": int(accuracy_rating),
+        "rated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    supabase.table("verification_ratings").upsert(
+        row, on_conflict="chart_id,event_type,event_date"
+    ).execute()
+    return row
+
+
 async def calculate_precision_score(chart_id: str, supabase) -> Dict:
     """
     Calculate the user's Precision Score based on verified predictions.
@@ -377,7 +434,8 @@ async def calculate_precision_score(chart_id: str, supabase) -> Dict:
             "accuracy_rating", "null"
         ).execute()
         
-        if not result.data:
+        _ver_rows = _fetch_verification_ratings(chart_id, supabase)
+        if not result.data and not _ver_rows:
             return {
                 "level": 1,
                 "level_display": "1",
@@ -388,8 +446,12 @@ async def calculate_precision_score(chart_id: str, supabase) -> Dict:
                 "max_level": 10,
             }
         
-        total_rated = len(result.data)
-        total_accurate = sum(1 for r in result.data if r.get("accuracy_rating") == 1)
+        _pred_rows = result.data or []
+        total_rated = len(_pred_rows) + len(_ver_rows)
+        total_accurate = (
+            sum(1 for r in _pred_rows if r.get("accuracy_rating") == 1)
+            + sum(1 for r in _ver_rows if r.get("accuracy_rating") == 1)
+        )
         accuracy_pct = round((total_accurate / total_rated) * 100) if total_rated > 0 else 0
         
         level = min(10, total_rated // 2 + 1)
