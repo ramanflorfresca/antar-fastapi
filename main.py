@@ -16223,6 +16223,121 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
 
 
 # ══════════════════════════════════════════════════════════════════════════════
+
+# ══════════════════════════════════════════════════════════════════════════════
+# HOME — One composition endpoint, four horizons (today · month · year · cycle)
+# See HOME_API_Contract.md for the exact response shape.
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.get("/api/v1/home/{chart_id}")
+@translate_response(
+    fields_to_translate=[
+        "headline", "gist", "do", "dont", "use", "remedy",
+        "info", "note", "governs", "text", "steps", "tab",
+    ],
+    fields_to_skip=["cycleName", "name", "planet"],
+    endpoint_name="home",
+)
+async def get_home(
+    chart_id: str,
+    language: str = "en",
+    tz_offset: int = 0,
+):
+    """
+    Returns the four-horizon Home payload in a single call.
+    Shape: HOME_API_Contract.md (top-level `user` + `horizons.{today,month,year,cycle}`).
+    Thin orchestration — no LLM calls; each horizon is composed from existing
+    engine math (masik phal, varshphal rotation, current dasha, muhurta windows).
+    """
+    # ── language normalize (matches monthly-deepdive / annual-plan pattern) ──
+    language = (language or "en").split("-")[0].lower()
+    if language not in ("en", "es", "pt"):
+        language = "en"
+
+    # ── load chart row ──
+    res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    row = res.data[0]
+
+    from antar_engine.home_composer import _safe_json as _hsj, compose_home_payload as _home_compose
+
+    # ── cache read (best-effort; table may not yet exist) ──
+    try:
+        cr = supabase.table("home_cache").select("payload,updated_at") \
+            .eq("chart_id", chart_id).eq("language", language).limit(1).execute()
+        if cr.data:
+            cached = _hsj(cr.data[0].get("payload"))
+            gen_at = (cached.get("generated_at") or "") if isinstance(cached, dict) else ""
+            today_utc = datetime.utcnow().strftime("%Y-%m-%d")
+            if cached and gen_at.startswith(today_utc):
+                return cached
+    except Exception as _ce:
+        print(f"[home] cache read skipped (table may be missing): {_ce}")
+
+    # ── parse JSONB blobs (chart_data / lal_kitab_data may be JSON strings) ──
+    chart_data = _hsj(row.get("chart_data"))
+    lk_data    = _hsj(row.get("lal_kitab_data"))
+
+    # ── current mahadasha + antardasha from dasha_periods ──
+    current_md_row = None
+    current_ad_row = None
+    try:
+        from datetime import date as _date
+        _today = str(_date.today())
+        _md = supabase.table("dasha_periods") \
+            .select("planet_or_sign,start_date,end_date,level,system") \
+            .eq("chart_id", chart_id).eq("system", "vimsottari") \
+            .eq("level", 1).lte("start_date", _today).gte("end_date", _today) \
+            .limit(1).execute()
+        if _md.data:
+            current_md_row = _md.data[0]
+        _ad = supabase.table("dasha_periods") \
+            .select("planet_or_sign,start_date,end_date,level,system") \
+            .eq("chart_id", chart_id).eq("system", "vimsottari") \
+            .eq("level", 2).lte("start_date", _today).gte("end_date", _today) \
+            .limit(1).execute()
+        if _ad.data:
+            current_ad_row = _ad.data[0]
+    except Exception as _de:
+        print(f"[home] dasha lookup non-fatal: {_de}")
+
+    # ── compose payload (no LLM; static maps + classical math) ──
+    try:
+        payload = _home_compose(
+            chart_id=chart_id,
+            chart_row=row,
+            chart_data=chart_data,
+            lk_data=lk_data,
+            current_md_row=current_md_row,
+            current_ad_row=current_ad_row,
+            language=language,
+            tz_offset=int(tz_offset or 0),
+        )
+    except Exception as e:
+        print(f"[home] compose error for {chart_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Home composition failed: {e}")
+
+    # ── strip any residual jargon (defense-in-depth — composer is English source) ──
+    try:
+        payload = apply_user_facing_strips(payload, language="en", field_type="plain", depth="user")
+    except Exception as _se:
+        print(f"[home] strip warning: {_se}")
+
+    # ── cache write (best-effort) ──
+    try:
+        supabase.table("home_cache").upsert({
+            "chart_id":   chart_id,
+            "language":   language,
+            "payload":    payload,
+            "updated_at": datetime.utcnow().isoformat() + "Z",
+        }, on_conflict="chart_id,language").execute()
+    except Exception as _we:
+        print(f"[home] cache write skipped (table may be missing): {_we}")
+
+    return payload
+
+
 # CONNECTIONS — Saved compatibility relationships for Ask Antar context
 # ══════════════════════════════════════════════════════════════════════════════
 
