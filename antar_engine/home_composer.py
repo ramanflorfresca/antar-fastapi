@@ -139,6 +139,21 @@ PLANET_DONT = {
     "Ketu":    "Do not drift. Pick one anchor for the day before letting go.",
 }
 
+# Short plain-English phrase per AD planet — used to express the MD->AD
+# sub-chapter in the Cycle horizon. Replaced by real LK interpretation in
+# Phase 2. No planet names leak: the planet is mapped to an energy theme.
+AD_PLANET_THEMES = {
+    "Sun":     "self & visibility",
+    "Moon":    "feeling & nurturing",
+    "Mars":    "energy & action",
+    "Mercury": "communication & exchange",
+    "Jupiter": "growth & meaning",
+    "Venus":   "connection & comfort",
+    "Saturn":  "discipline & structure",
+    "Rahu":    "ambition & the unfamiliar",
+    "Ketu":    "release & inward turn",
+}
+
 PLANET_AREAS = {
     "Sun":     ["Identity", "Career"],
     "Moon":    ["Family", "Wellbeing"],
@@ -544,6 +559,13 @@ def _compose_for_horizon(horizon: str,
     bd = chart_row.get("birth_date", "") or ""
     md_planet = (current_md_row or {}).get("planet_or_sign", "") or ""
 
+    # AD sub-chapter context (cycle horizon only; harmless defaults elsewhere).
+    # Field is `planet_or_sign` on the dasha_periods row (same as MD).
+    ad_planet  = None
+    ad_house   = 0
+    md_end_iso = (current_md_row or {}).get("end_date")
+    ad_end_iso = (current_ad_row or {}).get("end_date")
+
     if horizon == "today" or horizon == "month":
         placements = _masik_placements(bd, natal)
     elif horizon == "year":
@@ -559,6 +581,11 @@ def _compose_for_horizon(horizon: str,
             strong, weak = [], [(md_planet, natal_house)]
         else:
             strong, weak = [(md_planet, natal_house or 1)], []
+
+        # Read the AD planet (already loaded in main.py, passed through).
+        if current_ad_row:
+            ad_planet = current_ad_row.get("planet_or_sign") or None
+        ad_house = natal.get(ad_planet, 0) if ad_planet else 0
     else:
         strong, weak = _classify(placements)
 
@@ -567,6 +594,10 @@ def _compose_for_horizon(horizon: str,
     sp = _dominant_strong_planet(strong, md_planet) or (md_planet if horizon == "cycle" else "Mercury")
 
     headline, gist = _build_headline_gist(horizon, polarity)
+    # MD->AD sub-chapter: only when there is a distinct AD planet.
+    if horizon == "cycle" and ad_planet and ad_planet != md_planet:
+        _theme = AD_PLANET_THEMES.get(ad_planet, "a new phase")
+        gist = f"{gist} Right now, the {_theme} chapter inside it."
     chain = (_build_chain_negative(wp, _planet_charge(chart_data, wp)) if polarity == "negative" and wp
              else _build_chain_positive(sp, horizon))
 
@@ -594,6 +625,14 @@ def _compose_for_horizon(horizon: str,
         do_text = dont_text = None
         tab = "Current Cycle"
 
+    phase_block = None
+    if horizon == "cycle":
+        phase_block = {
+            "mahadasha":  {"planet": md_planet, "ends": md_end_iso},
+            "antardasha": ({"planet": ad_planet, "ends": ad_end_iso}
+                           if ad_planet else None),
+        }
+
     view = {
         "tab":       tab,
         "range":     range_str,
@@ -608,6 +647,7 @@ def _compose_for_horizon(horizon: str,
         "avoidTime": avoid_t,
         "areas":     _build_areas(strong, weak),
         "stretch":   (_year_stretch_dynamic(chart_data, now) if horizon == "year" else _build_stretch(horizon)),
+        "phase":     phase_block,
     }
     # Polarity XOR — chain merged last
     view.update(chain)
