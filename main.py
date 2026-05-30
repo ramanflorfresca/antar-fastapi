@@ -7912,6 +7912,583 @@ async def astrocartography_waitlist(request: WaitlistRequest):
 # CHAKRA ENDPOINT
 # ══════════════════════════════════════════════════════════════════════════════
 
+# ════════════════════════════════════════════════════════════════════
+# ANTAR SETTINGS ENDPOINTS — patched
+# SETTINGS surface. Profile/Charts/Language/Notifications/Billing/SignOut.
+# Identity = Supabase Auth. No valid Bearer token => guest (only GET /me).
+# `is_primary` is derived from profiles.primary_chart_id (one primary per user).
+# ════════════════════════════════════════════════════════════════════
+import time as _st_time
+
+SETTINGS_AVAILABLE_LANGS = ["en", "es", "pt", "hi", "hinglish"]
+_SETTINGS_PORTAL_RETURN_URL = "https://antar.world/settings?billing=back"
+
+_SETTINGS_DEFAULT_NOTIFS = {
+    "channels": {"push": False, "email": True},
+    "preferences": {
+        "daily_reading": True, "transit_alerts": True,
+        "prescription_nudge": True, "yesno_unlocked": True, "weekly_outlook": True,
+    },
+}
+_SETTINGS_NOTIF_LABELS = {
+    "daily_reading": "Daily reading",
+    "transit_alerts": "Transit alerts",
+    "prescription_nudge": "Practice reminders",
+    "yesno_unlocked": "Yes/No unlocked",
+    "weekly_outlook": "Weekly outlook",
+    "push": "Push notifications",
+    "email": "Email",
+}
+
+# ── short-TTL cache (30s) for /me, /me/language, /me/notifications ──
+_SETTINGS_CACHE = {}
+
+
+def _st_cache_get(key):
+    e = _SETTINGS_CACHE.get(key)
+    if not e:
+        return None
+    if e[0] < _st_time.time():
+        _SETTINGS_CACHE.pop(key, None)
+        return None
+    return e[1]
+
+
+def _st_cache_set(key, val, ttl=30):
+    _SETTINGS_CACHE[key] = (_st_time.time() + ttl, val)
+    return val
+
+
+def _st_cache_bust(user_id):
+    for k in list(_SETTINGS_CACHE.keys()):
+        if isinstance(k, tuple) and len(k) > 1 and k[1] == user_id:
+            _SETTINGS_CACHE.pop(k, None)
+
+
+def _st_guest_401():
+    from fastapi.responses import JSONResponse
+    return JSONResponse(status_code=401, content={"error": "guest_session", "hint": "sign_in_to_save"})
+
+
+def _st_identity(authorization):
+    """Returns (user_id, email) for a valid Supabase token, else (None, None) = guest."""
+    if not authorization:
+        return None, None
+    try:
+        token = authorization[7:] if authorization.startswith("Bearer ") else authorization
+        u = supabase.auth.get_user(token)
+        return u.user.id, getattr(u.user, "email", None)
+    except Exception:
+        return None, None
+
+
+def _st_get_profile(user_id):
+    """Get-or-create the profiles row for this user."""
+    try:
+        r = supabase.table("profiles").select("*").eq("user_id", user_id).limit(1).execute()
+        if r.data:
+            return r.data[0]
+    except Exception as _e:
+        import logging as _l
+        _l.getLogger("antar.settings").warning(f"[settings] profile read failed: {_e}")
+    row = {
+        "user_id": user_id, "interface_lang": "en", "analysis_lang": "en",
+        "notifications": _SETTINGS_DEFAULT_NOTIFS,
+    }
+    try:
+        ins = supabase.table("profiles").insert(row).execute()
+        return ins.data[0] if ins.data else row
+    except Exception:
+        return row
+
+
+def _st_user_charts(user_id):
+    try:
+        r = supabase.table("charts").select(
+            "id, first_name, name, birth_date, birth_time, birth_city, birth_place, relationship, created_at"
+        ).eq("user_id", user_id).order("created_at", desc=False).execute()
+        return r.data or []
+    except Exception as _e:
+        import logging as _l
+        _l.getLogger("antar.settings").warning(f"[settings] charts read failed: {_e}")
+        return []
+
+
+def _st_chart_shape(row, primary_chart_id):
+    place = row.get("birth_city") or row.get("birth_place") or ""
+    summary = f"Born {str(row.get('birth_date') or '')[:10]}"
+    if place:
+        summary += f" in {place}"
+    return {
+        "id": row.get("id"),
+        "name": row.get("first_name") or row.get("name") or "",
+        "birth_date": row.get("birth_date"),
+        "birth_time": row.get("birth_time"),
+        "birth_place": place,
+        "relationship": row.get("relationship"),
+        "is_primary": row.get("id") == primary_chart_id,
+        "computed_summary": summary,  # plain — no signs / planets / nakshatras
+    }
+
+
+async def _st_localize(payload, language, fields):
+    """Translate user-visible labels/hints at response time (es/pt). User-entered text untouched."""
+    lang = (language or "en").split("-")[0].lower()
+    if lang in ("es", "pt"):
+        try:
+            from antar_engine.translation_middleware import translate_dict as _st_td
+            payload = await _st_td(
+                payload, language=lang, fields_to_translate=fields,
+                endpoint_name="settings",
+            )
+        except Exception as _te:
+            print(f"[settings] translation non-fatal: {_te}")
+    return payload
+
+
+def _st_bust_prediction_cache(user_id, analysis_lang):
+    """
+    Analysis-language change: make the next prediction fetch come back translated.
+    translate_response-decorated endpoints already key on language; the pieces that
+    freeze text are (a) per-chart language_preference used at generation time and
+    (b) any prewarmed daily/week cache. We update the former and best-effort clear
+    the latter. (balance/prescription/ask recompute live — nothing to bust there.)
+    """
+    import logging as _l
+    log = _l.getLogger("antar.settings")
+    try:
+        charts = _st_user_charts(user_id)
+        ids = [c["id"] for c in charts if c.get("id")]
+        for cid in ids:
+            try:
+                supabase.table("charts").update(
+                    {"language_preference": analysis_lang, "language": analysis_lang}
+                ).eq("id", cid).execute()
+            except Exception as _ue:
+                log.warning(f"[settings] chart lang update failed {cid}: {_ue}")
+        # Best-effort cache-table clears (no-op if the table doesn't exist).
+        for _tbl in ("daily_week_cache", "prediction_cache", "prewarm_cache"):
+            try:
+                if ids:
+                    supabase.table(_tbl).delete().in_("chart_id", ids).execute()
+            except Exception:
+                pass
+    except Exception as _e:
+        log.warning(f"[settings] prediction cache bust failed: {_e}")
+
+
+# ════════════════════════════════ PROFILE ════════════════════════════════
+@app.get("/api/v1/me")
+async def settings_me(authorization: Optional[str] = Header(None), language: str = "en"):
+    user_id, email = _st_identity(authorization)
+    if not user_id:
+        return {"guest": True, "user_id": None, "name": "Guest", "email": None,
+                "avatar_url": "", "primary_chart_id": None,
+                "interface_language": "en", "analysis_language": "en"}
+    cached = _st_cache_get(("me", user_id))
+    if cached:
+        return cached
+    p = _st_get_profile(user_id)
+    payload = {
+        "guest": False,
+        "user_id": user_id,
+        "name": p.get("name") or "",
+        "email": email,
+        "avatar_url": p.get("avatar_url") or "",
+        "primary_chart_id": p.get("primary_chart_id"),
+        "interface_language": p.get("interface_lang") or "en",
+        "analysis_language": p.get("analysis_lang") or "en",
+    }
+    return _st_cache_set(("me", user_id), payload)
+
+
+@app.patch("/api/v1/me")
+async def settings_me_patch(request: Request, authorization: Optional[str] = Header(None)):
+    from fastapi.responses import JSONResponse
+    user_id, email = _st_identity(authorization)
+    if not user_id:
+        return _st_guest_401()
+    body = await request.json()
+    updates = {}
+    for f in ("name", "avatar_url"):
+        if f in body and isinstance(body[f], (str, type(None))):
+            updates[f] = body[f]
+    if body.get("email") and isinstance(body["email"], str):
+        # Email is canonical in Supabase Auth, not in profiles. Best-effort update.
+        try:
+            supabase.auth.admin.update_user_by_id(user_id, {"email": body["email"]})
+        except Exception as _ee:
+            import logging as _l
+            _l.getLogger("antar.settings").warning(f"[settings] auth email update failed: {_ee}")
+    if "primary_chart_id" in body and body["primary_chart_id"]:
+        pcid = body["primary_chart_id"]
+        owned = supabase.table("charts").select("id").eq("id", pcid).eq("user_id", user_id).limit(1).execute()
+        if not owned.data:
+            return JSONResponse(status_code=400, content={"error": "primary_chart_id does not belong to this user"})
+        updates["primary_chart_id"] = pcid
+    if not updates:
+        return JSONResponse(status_code=400, content={"error": "no updatable fields provided"})
+    _st_get_profile(user_id)  # ensure row exists
+    updates["updated_at"] = datetime.utcnow().isoformat()
+    try:
+        supabase.table("profiles").update(updates).eq("user_id", user_id).execute()
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": "update failed", "detail": str(e)})
+    _st_cache_bust(user_id)
+    return await settings_me(authorization=authorization)
+
+
+# ════════════════════════════════ CHARTS ════════════════════════════════
+@app.get("/api/v1/me/charts")
+async def settings_charts(authorization: Optional[str] = Header(None)):
+    user_id, _ = _st_identity(authorization)
+    if not user_id:
+        return _st_guest_401()
+    p = _st_get_profile(user_id)
+    charts = _st_user_charts(user_id)
+    primary = p.get("primary_chart_id")
+    # default the primary to the oldest chart if unset
+    if not primary and charts:
+        primary = charts[0]["id"]
+        try:
+            supabase.table("profiles").update({"primary_chart_id": primary}).eq("user_id", user_id).execute()
+            _st_cache_bust(user_id)
+        except Exception:
+            pass
+    return {"charts": [_st_chart_shape(c, primary) for c in charts], "count": len(charts)}
+
+
+@app.post("/api/v1/me/charts")
+async def settings_charts_create(request: Request, authorization: Optional[str] = Header(None)):
+    from fastapi.responses import JSONResponse
+    user_id, _ = _st_identity(authorization)
+    if not user_id:
+        return _st_guest_401()
+    body = await request.json()
+    try:
+        req = ChartCreateRequest(
+            birth_date=body.get("birth_date"),
+            birth_time=body.get("birth_time"),
+            birth_place=body.get("birth_place"),
+            birth_city=body.get("birth_city") or body.get("birth_place"),
+            birth_country=body.get("birth_country") or body.get("country_code") or "",
+            full_name=body.get("name"),
+        )
+    except Exception as e:
+        return JSONResponse(status_code=422, content={"error": "invalid chart fields", "detail": str(e)})
+
+    # Reuse the full Swiss-Ephemeris creation pipeline.
+    created = await create_chart(req, authorization)
+    new_id = created.chart_id if hasattr(created, "chart_id") else (
+        created.get("chart_id") if isinstance(created, dict) else None)
+    if not new_id:
+        return JSONResponse(status_code=500, content={"error": "chart creation failed"})
+
+    # Partner metadata: name + relationship (+ ensure ownership).
+    try:
+        supabase.table("charts").update({
+            "first_name": body.get("name") or "",
+            "name": body.get("name") or "",
+            "relationship": body.get("relationship"),
+            "user_id": user_id,
+        }).eq("id", new_id).execute()
+    except Exception as _ue:
+        import logging as _l
+        _l.getLogger("antar.settings").warning(f"[settings] partner meta update failed: {_ue}")
+
+    p = _st_get_profile(user_id)
+    row = supabase.table("charts").select(
+        "id, first_name, name, birth_date, birth_time, birth_city, birth_place, relationship"
+    ).eq("id", new_id).single().execute().data
+    return {"chart": _st_chart_shape(row, p.get("primary_chart_id"))}
+
+
+@app.patch("/api/v1/me/charts/{chart_id}")
+async def settings_charts_update(chart_id: str, request: Request, authorization: Optional[str] = Header(None)):
+    from fastapi.responses import JSONResponse
+    user_id, _ = _st_identity(authorization)
+    if not user_id:
+        return _st_guest_401()
+    owned = supabase.table("charts").select("*").eq("id", chart_id).eq("user_id", user_id).limit(1).execute()
+    if not owned.data:
+        return JSONResponse(status_code=404, content={"error": "chart not found"})
+    body = await request.json()
+
+    updates = {}
+    if "name" in body:
+        updates["first_name"] = body["name"] or ""
+        updates["name"] = body["name"] or ""
+    if "relationship" in body:
+        updates["relationship"] = body["relationship"]
+
+    birth_changed = any(k in body for k in ("birth_date", "birth_time", "birth_place", "birth_city"))
+    if birth_changed:
+        try:
+            from antar_engine import chart as _chart_module
+            cur = owned.data[0]
+            bd = body.get("birth_date") or cur.get("birth_date")
+            bt = body.get("birth_time") or cur.get("birth_time")
+            place = body.get("birth_place") or body.get("birth_city") or cur.get("birth_city") or cur.get("birth_place")
+            country = body.get("birth_country") or cur.get("birth_country") or ""
+            lat, lng, tzname = await _geocode_city(place, country)
+            try:
+                import pytz as _pz
+                _dtn = datetime.strptime(f"{bd} {bt}", "%Y-%m-%d %H:%M:%S") if len((bt or '').split(':')) == 3 \
+                    else datetime.strptime(f"{bd} {bt}", "%Y-%m-%d %H:%M")
+                _off = _pz.timezone(tzname).localize(_dtn, is_dst=None).utcoffset().total_seconds() / 3600
+            except Exception:
+                _off = float(cur.get("timezone_offset") or 0.0)
+            new_chart = _chart_module.calculate_chart(birth_date=bd, birth_time=bt, lat=lat, lng=lng,
+                                                      tz_offset=_off, ayanamsa="lahiri")
+            updates.update({
+                "birth_date": bd, "birth_time": bt, "birth_city": place,
+                "latitude": lat, "longitude": lng, "timezone_offset": _off,
+                "chart_data": new_chart,
+                "lagna_sign": new_chart.get("lagna", {}).get("sign", ""),
+                "moon_sign": new_chart.get("planets", {}).get("Moon", {}).get("sign", ""),
+                "sun_sign": new_chart.get("planets", {}).get("Sun", {}).get("sign", ""),
+            })
+            # NOTE: jaimini_data / lal_kitab_data are NOT re-derived on edit (deferred).
+        except Exception as e:
+            return JSONResponse(status_code=500, content={"error": "recompute failed", "detail": str(e)})
+
+    if updates:
+        supabase.table("charts").update(updates).eq("id", chart_id).execute()
+
+    p = _st_get_profile(user_id)
+    row = supabase.table("charts").select(
+        "id, first_name, name, birth_date, birth_time, birth_city, birth_place, relationship"
+    ).eq("id", chart_id).single().execute().data
+    return {"chart": _st_chart_shape(row, p.get("primary_chart_id"))}
+
+
+@app.delete("/api/v1/me/charts/{chart_id}")
+async def settings_charts_delete(chart_id: str, authorization: Optional[str] = Header(None)):
+    from fastapi.responses import JSONResponse
+    user_id, _ = _st_identity(authorization)
+    if not user_id:
+        return _st_guest_401()
+    p = _st_get_profile(user_id)
+    if p.get("primary_chart_id") == chart_id:
+        return JSONResponse(status_code=400, content={
+            "error": "cannot_delete_primary",
+            "hint": "Set another chart as primary before deleting this one.",
+        })
+    owned = supabase.table("charts").select("id").eq("id", chart_id).eq("user_id", user_id).limit(1).execute()
+    if not owned.data:
+        return JSONResponse(status_code=404, content={"error": "chart not found"})
+    # Unlink from this user; the underlying row survives if referenced elsewhere.
+    try:
+        supabase.table("charts").update({"user_id": None}).eq("id", chart_id).execute()
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": "delete failed", "detail": str(e)})
+    return {"ok": True}
+
+
+# ════════════════════════════════ LANGUAGE ════════════════════════════════
+@app.get("/api/v1/me/language")
+async def settings_language(authorization: Optional[str] = Header(None)):
+    user_id, _ = _st_identity(authorization)
+    if not user_id:
+        return _st_guest_401()
+    cached = _st_cache_get(("lang", user_id))
+    if cached:
+        return cached
+    p = _st_get_profile(user_id)
+    payload = {
+        "interface": p.get("interface_lang") or "en",
+        "analysis": p.get("analysis_lang") or "en",
+        "available": SETTINGS_AVAILABLE_LANGS,
+    }
+    return _st_cache_set(("lang", user_id), payload)
+
+
+@app.patch("/api/v1/me/language")
+async def settings_language_patch(request: Request, authorization: Optional[str] = Header(None)):
+    from fastapi.responses import JSONResponse
+    user_id, _ = _st_identity(authorization)
+    if not user_id:
+        return _st_guest_401()
+    body = await request.json()
+    updates = {}
+    for key, col in (("interface", "interface_lang"), ("analysis", "analysis_lang")):
+        if key in body:
+            if body[key] not in SETTINGS_AVAILABLE_LANGS:
+                return JSONResponse(status_code=400, content={
+                    "error": f"unsupported language for {key}", "available": SETTINGS_AVAILABLE_LANGS})
+            updates[col] = body[key]
+    if not updates:
+        return JSONResponse(status_code=400, content={"error": "nothing to update"})
+    _st_get_profile(user_id)
+    updates["updated_at"] = datetime.utcnow().isoformat()
+    supabase.table("profiles").update(updates).eq("user_id", user_id).execute()
+    _st_cache_bust(user_id)
+    if "analysis_lang" in updates:
+        _st_bust_prediction_cache(user_id, updates["analysis_lang"])
+    return await settings_language(authorization=authorization)
+
+
+# ════════════════════════════════ NOTIFICATIONS ════════════════════════════════
+def _st_notif_shape(notifs):
+    channels = notifs.get("channels", {}) or {}
+    prefs = notifs.get("preferences", {}) or {}
+    return {
+        "channels": [
+            {"key": k, "enabled": bool(channels.get(k, False)),
+             "label": _SETTINGS_NOTIF_LABELS.get(k, k)}
+            for k in ("push", "email")
+        ],
+        "preferences": [
+            {"key": k, "enabled": bool(prefs.get(k, False)),
+             "label": _SETTINGS_NOTIF_LABELS.get(k, k)}
+            for k in ("daily_reading", "transit_alerts", "prescription_nudge",
+                      "yesno_unlocked", "weekly_outlook")
+        ],
+    }
+
+
+@app.get("/api/v1/me/notifications")
+async def settings_notifications(authorization: Optional[str] = Header(None), language: str = "en"):
+    user_id, _ = _st_identity(authorization)
+    if not user_id:
+        return _st_guest_401()
+    cached = _st_cache_get(("notif", user_id, language))
+    if cached:
+        return cached
+    p = _st_get_profile(user_id)
+    notifs = _safe_jsonb(p.get("notifications")) or _SETTINGS_DEFAULT_NOTIFS
+    payload = await _st_localize(_st_notif_shape(notifs), language, ["label"])
+    return _st_cache_set(("notif", user_id, language), payload)
+
+
+@app.patch("/api/v1/me/notifications")
+async def settings_notifications_patch(request: Request, authorization: Optional[str] = Header(None), language: str = "en"):
+    from fastapi.responses import JSONResponse
+    user_id, _ = _st_identity(authorization)
+    if not user_id:
+        return _st_guest_401()
+    body = await request.json()
+    p = _st_get_profile(user_id)
+    notifs = _safe_jsonb(p.get("notifications")) or dict(_SETTINGS_DEFAULT_NOTIFS)
+    channels = dict(notifs.get("channels", {}) or {})
+    prefs = dict(notifs.get("preferences", {}) or {})
+
+    # deep-merge channels
+    for k, v in (body.get("channels") or {}).items():
+        if k in ("push", "email"):
+            channels[k] = bool(v)
+    # deep-merge preferences — reject enabling a pref whose channel is off
+    for k, v in (body.get("preferences") or {}).items():
+        if k not in prefs and k not in _SETTINGS_DEFAULT_NOTIFS["preferences"]:
+            continue
+        if bool(v) and not (channels.get("push") or channels.get("email")):
+            return JSONResponse(status_code=422, content={
+                "error": "channel_disabled",
+                "hint": "Enable push or email before turning on this notification.",
+            })
+        prefs[k] = bool(v)
+
+    merged = {"channels": channels, "preferences": prefs}
+    supabase.table("profiles").update(
+        {"notifications": merged, "updated_at": datetime.utcnow().isoformat()}
+    ).eq("user_id", user_id).execute()
+    _st_cache_bust(user_id)
+    payload = await _st_localize(_st_notif_shape(merged), language, ["label"])
+    return payload
+
+
+# ════════════════════════════════ BILLING ════════════════════════════════
+@app.get("/api/v1/me/billing")
+async def settings_billing(authorization: Optional[str] = Header(None), language: str = "en"):
+    from fastapi.responses import JSONResponse
+    user_id, email = _st_identity(authorization)
+    if not user_id:
+        return _st_guest_401()
+    p = _st_get_profile(user_id)
+    pcid = p.get("primary_chart_id")
+
+    plan_id, status, currency, next_invoice = "free", "none", "usd", None
+    try:
+        from antar_engine.subscription_engine import get_subscription, PLANS
+        sub = get_subscription(pcid, supabase) if pcid else {}
+        if isinstance(sub, dict) and sub:
+            plan_id = sub.get("plan") or sub.get("plan_id") or "free"
+            status = sub.get("status") or ("active" if plan_id != "free" else "none")
+            currency = sub.get("currency") or "usd"
+            next_invoice = sub.get("current_period_end") or sub.get("next_billing_date")
+    except Exception as _se:
+        import logging as _l
+        _l.getLogger("antar.settings").warning(f"[settings] subscription read failed: {_se}")
+        from antar_engine.subscription_engine import PLANS  # noqa
+
+    plan_def = PLANS.get(plan_id, PLANS.get("free", {}))
+    payload = {
+        "plan": {
+            "id": plan_id,
+            "status": status,
+            "name": plan_def.get("name", "Free"),
+            "label": plan_def.get("name", "Free"),
+            "features": plan_def.get("features", []),
+        },
+        "payment": None,  # card details are never persisted — Stripe portal is canonical
+        "currency": currency,
+        "next_invoice": next_invoice,
+        "has_stripe_customer": bool(p.get("stripe_customer_id")),
+    }
+    return await _st_localize(payload, language, ["label", "name", "features"])
+
+
+@app.post("/api/v1/me/billing/portal")
+async def settings_billing_portal(authorization: Optional[str] = Header(None)):
+    from fastapi.responses import JSONResponse
+    import os as _os
+    user_id, email = _st_identity(authorization)
+    if not user_id:
+        return _st_guest_401()
+    p = _st_get_profile(user_id)
+    try:
+        import stripe
+        stripe.api_key = _os.getenv("STRIPE_SECRET_KEY", "")
+        cid = p.get("stripe_customer_id")
+        if not cid:
+            cust = stripe.Customer.create(email=email or None, metadata={"user_id": user_id})
+            cid = cust.id
+            supabase.table("profiles").update(
+                {"stripe_customer_id": cid, "updated_at": datetime.utcnow().isoformat()}
+            ).eq("user_id", user_id).execute()
+            _st_cache_bust(user_id)
+        session = stripe.billing_portal.Session.create(
+            customer=cid, return_url=_SETTINGS_PORTAL_RETURN_URL,
+        )
+        return {"url": session.url}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": "portal_failed", "detail": str(e)})
+
+
+# ════════════════════════════════ SIGN OUT ════════════════════════════════
+@app.post("/api/v1/auth/signout")
+async def settings_signout(authorization: Optional[str] = Header(None)):
+    from fastapi.responses import JSONResponse
+    user_id, _ = _st_identity(authorization)
+    if not user_id:
+        return _st_guest_401()
+    token = authorization[7:] if authorization and authorization.startswith("Bearer ") else authorization
+    revoked = False
+    # Revoke the session / refresh tokens via Supabase Auth admin.
+    try:
+        supabase.auth.admin.sign_out(token)
+        revoked = True
+    except Exception:
+        try:
+            supabase.auth.sign_out()
+            revoked = True
+        except Exception as _e2:
+            import logging as _l
+            _l.getLogger("antar.settings").warning(f"[settings] signout revoke failed: {_e2}")
+    _st_cache_bust(user_id)
+    return {"ok": True, "revoked": revoked}
+
+
 class ChakraRequest(BaseModel):
     chart_id: str
     language: str = "en"
