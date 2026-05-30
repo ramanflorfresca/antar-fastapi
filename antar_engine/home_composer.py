@@ -361,14 +361,77 @@ USE_MAPS = {
 }
 
 
-def _build_chain_negative(weak_planet: str) -> dict:
+_DIGNITY_CHARGE = {
+    "exalted": 0.92, "own": 0.78, "friendly": 0.60,
+    "neutral": 0.45, "debilitated": 0.18,
+}
+
+
+def _planet_charge(chart_data: dict, planet: str) -> float:
+    """Real per-chart chakra charge from planetary dignity (0..1)."""
+    if not planet:
+        return 0.40
+    try:
+        from antar_engine.antar_ephemeris import _planet_strength as _dignity
+        planets = chart_data.get("planets") or chart_data.get("planet_positions") or {}
+        pdata = planets.get(planet) if isinstance(planets, dict) else None
+        sign = (pdata.get("sign", "") if isinstance(pdata, dict) else "") or ""
+        return _DIGNITY_CHARGE.get(_dignity(planet, sign), 0.45)
+    except Exception:
+        return 0.40
+
+
+def _year_stretch_dynamic(chart_data: dict, now: datetime) -> dict:
+    """
+    Best/worst sub-windows of the coming year from real transit events.
+    best  = highest-activity peak-window month run.
+    worst = the month of the year's single most significant critical date.
+    Falls back to the static season pair on any failure (e.g. no swisseph).
+    """
+    static = {"best": "Spring", "worst": "Autumn"}
+    try:
+        from antar_engine.transit_events import compute_transit_events_in_range
+        from antar_engine.annual_planning import (
+            _aggregate_year_peak_windows, _compute_critical_dates,
+        )
+        start = now.date()
+        try:
+            end = start.replace(year=start.year + 1)
+        except ValueError:
+            end = start.replace(year=start.year + 1, day=28)
+        events = compute_transit_events_in_range(chart_data, start, end, include_fast=False)
+        if not events:
+            return static
+        peaks = _aggregate_year_peak_windows(events)
+        best_dom = max(
+            (d for d in peaks.values() if d.get("months")),
+            key=lambda d: d.get("score", 0), default=None,
+        )
+        best = best_dom["months"] if best_dom and best_dom.get("months") else static["best"]
+        worst = static["worst"]
+        crit = _compute_critical_dates(events, top_n=1)
+        if crit:
+            iso = (crit[0].get("raw_date") or "")[:10]
+            try:
+                cd = date.fromisoformat(iso)
+                _mon = cd.strftime("%B")
+                worst = (f"Early {_mon}" if cd.day <= 10
+                         else f"Late {_mon}" if cd.day >= 20 else _mon)
+            except Exception:
+                pass
+        return {"best": best, "worst": worst}
+    except Exception:
+        return static
+
+
+def _build_chain_negative(weak_planet: str, charge: float = 0.40) -> dict:
     chakra = PLANET_TO_CHAKRA.get(weak_planet) or PLANET_TO_CHAKRA["Mercury"]
     name, minutes, steps = PRACTICE_BY_PLANET.get(weak_planet) or PRACTICE_BY_PLANET["Mercury"]
     return {
         "use":      None,
         "cause":    {"planet": weak_planet, "text": CAUSE_TEXT.get(weak_planet, "")},
         "remedy":   REMEDY_TEXT.get(weak_planet, "Pause, breathe, and confirm what matters in writing."),
-        "chakra":   {"name": chakra["name"], "governs": chakra["governs"], "charge": 0.40},
+        "chakra":   {"name": chakra["name"], "governs": chakra["governs"], "charge": round(charge, 2)},
         "practice": {"name": name, "minutes": minutes, "steps": list(steps)},
     }
 
@@ -504,7 +567,7 @@ def _compose_for_horizon(horizon: str,
     sp = _dominant_strong_planet(strong, md_planet) or (md_planet if horizon == "cycle" else "Mercury")
 
     headline, gist = _build_headline_gist(horizon, polarity)
-    chain = (_build_chain_negative(wp) if polarity == "negative" and wp
+    chain = (_build_chain_negative(wp, _planet_charge(chart_data, wp)) if polarity == "negative" and wp
              else _build_chain_positive(sp, horizon))
 
     now = _now_local(tz_offset_min if horizon == "today" else 0)
@@ -544,7 +607,7 @@ def _compose_for_horizon(horizon: str,
         "bestTime":  best_t,
         "avoidTime": avoid_t,
         "areas":     _build_areas(strong, weak),
-        "stretch":   _build_stretch(horizon),
+        "stretch":   (_year_stretch_dynamic(chart_data, now) if horizon == "year" else _build_stretch(horizon)),
     }
     # Polarity XOR — chain merged last
     view.update(chain)
