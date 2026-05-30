@@ -16240,13 +16240,16 @@ async def predict_year_attention(request: dict):
 
     No LLM. Composes from existing engine math:
       - year      -> home_composer._compose_for_horizon("year", ...)
-      - attention -> practice_engine convergence scorer (REAL 0..1 charge)
+      - attention -> convergence picks the signaled planet; charge is that
+                     planet's REAL dignity-based strength (0..1), flagged only
+                     when the planet is genuinely weak.
     """
     from antar_engine import home_composer as _hc
     from antar_engine import practice_engine as _pe
     from antar_engine.chakra_engine import CHAKRAS as _CHAKRAS
     from antar_engine.translation_middleware import translate_dict as _translate_dict
-    from datetime import date as _date
+    from antar_engine.antar_ephemeris import _planet_strength as _dignity
+    from datetime import date as _date, timedelta as _timedelta
 
     chart_id = (request or {}).get("chart_id")
     if not chart_id:
@@ -16298,8 +16301,29 @@ async def predict_year_attention(request: dict):
         "year", row, chart_data, lk_data,
         current_md_row, current_ad_row, tz_offset,
     )
+
+    # Birthday -> birthday solar-return window (contract format), overriding the
+    # composer's "YEAR N" age label. Leaves /home untouched.
+    def _bday_range(bd: str, tz_min: int) -> str:
+        try:
+            b = _date.fromisoformat(bd[:10])
+            t = (datetime.utcnow() + _timedelta(minutes=tz_min)).date()
+            try:
+                bday = b.replace(year=t.year)
+            except ValueError:
+                bday = b.replace(year=t.year, day=28)
+            start = bday if bday <= t else b.replace(year=t.year - 1)
+            try:
+                end = start.replace(year=start.year + 1) - _timedelta(days=1)
+            except ValueError:
+                end = start.replace(year=start.year + 1, day=28) - _timedelta(days=1)
+            _f = lambda d: d.strftime("%b %d '%y").upper()
+            return f"{_f(start)} \u2013 {_f(end)}"
+        except Exception:
+            return ""
+
     year = {
-        "range":    yv.get("range"),
+        "range":    _bday_range(birth_date, tz_offset) or yv.get("range"),
         "polarity": yv.get("polarity"),
         "headline": yv.get("headline"),
         "gist":     yv.get("gist"),
@@ -16313,7 +16337,7 @@ async def predict_year_attention(request: dict):
         "practice": yv.get("practice"),
     }
 
-    # ── NEEDS-ATTENTION BLOCK (real convergence charge) ──
+    # ── NEEDS-ATTENTION BLOCK (real per-chart strength → charge) ──
     attention = None
     try:
         planets       = _pe._extract_planets(chart_data)
@@ -16329,24 +16353,33 @@ async def predict_year_attention(request: dict):
             vimsottari_md=current_md_row, vimsottari_ad=current_ad_row, next_md=next_md_row,
         )
         primary = _pe._select_primary_planet(convergence, sleeping)
-        charge  = round(float((convergence.get(primary) or {}).get("score", 0.0)), 2)
 
-        # Flag only on a real weakness signal (sleeping OR difficult natal/annual house).
+        # REAL strength = dignity, NOT the convergence score.
+        _DIGNITY_CHARGE = {
+            "exalted": 0.92, "own": 0.78, "friendly": 0.60,
+            "neutral": 0.45, "debilitated": 0.18,
+        }
+        _pdata = planets.get(primary) if isinstance(planets, dict) else None
+        _sign = (_pdata.get("sign", "") if isinstance(_pdata, dict) else "") or ""
+        charge = _DIGNITY_CHARGE.get(_dignity(primary, _sign), 0.45) if primary else 0.45
+
+        # Flag only when the signaled planet is genuinely weak.
         sleeping_names = [s.get("planet") for s in (sleeping or [])]
         natal = _hc._natal_houses(chart_data)
         vph   = _hc._varshphal_placements(birth_date, natal) if birth_date else {}
         weak_signal = bool(primary) and (
-            primary in sleeping_names
+            charge < 0.50
+            or primary in sleeping_names
             or natal.get(primary, 0) in _hc.DIFFICULT_HOUSES
             or vph.get(primary, 0) in _hc.DIFFICULT_HOUSES
         )
 
         if weak_signal:
-            ch       = _hc.PLANET_TO_CHAKRA.get(primary) or _hc.PLANET_TO_CHAKRA["Mercury"]
-            ch_name  = ch["name"]
-            by_name  = {c["english"].replace(" Chakra", ""): c for c in _CHAKRAS}
-            meta     = by_name.get(ch_name, {})
-            human    = {
+            ch      = _hc.PLANET_TO_CHAKRA.get(primary) or _hc.PLANET_TO_CHAKRA["Mercury"]
+            ch_name = ch["name"]
+            by_name = {c["english"].replace(" Chakra", ""): c for c in _CHAKRAS}
+            meta    = by_name.get(ch_name, {})
+            human   = {
                 "Root": "Foundation", "Sacral": "Flow", "Solar Plexus": "Personal Power",
                 "Heart": "Open Heart", "Throat": "True Voice", "Third Eye": "Inner Sight",
                 "Crown": "Higher Connection",
@@ -16365,9 +16398,9 @@ async def predict_year_attention(request: dict):
                     "name":     ch_name,
                     "human":    human,
                     "color":    meta.get("color", "#999999"),
-                    "charge":   charge,
+                    "charge":   round(charge, 2),
                     "level":    max(1, min(7, int(round(charge * 7)))),
-                    "mastered": charge >= 0.85,
+                    "mastered": False,
                     "governs":  ch["governs"],
                 },
                 "practice": {"name": pr_name, "minutes": pr_min, "steps": list(pr_steps)},
