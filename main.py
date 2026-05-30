@@ -16229,6 +16229,183 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
 # See HOME_API_Contract.md for the exact response shape.
 # ══════════════════════════════════════════════════════════════════════════════
 
+
+# ── YEAR + NEEDS-ATTENTION (fourth-horizon Home call) ────────────────────────
+@app.post("/api/v1/predict/year-attention")
+async def predict_year_attention(request: dict):
+    """
+    Year horizon (Varshphal) + cross-horizon Needs-Attention block in one call.
+
+    Body: {"chart_id": "uuid", "language": "en", "tz_offset": -300}
+
+    No LLM. Composes from existing engine math:
+      - year      -> home_composer._compose_for_horizon("year", ...)
+      - attention -> practice_engine convergence scorer (REAL 0..1 charge)
+    """
+    from antar_engine import home_composer as _hc
+    from antar_engine import practice_engine as _pe
+    from antar_engine.chakra_engine import CHAKRAS as _CHAKRAS
+    from antar_engine.translation_middleware import translate_dict as _translate_dict
+    from datetime import date as _date
+
+    chart_id = (request or {}).get("chart_id")
+    if not chart_id:
+        raise HTTPException(status_code=400, detail="chart_id required")
+    tz_offset = int((request or {}).get("tz_offset") or 0)
+    language = ((request or {}).get("language") or "en").split("-")[0].lower()
+    if language not in ("en", "es", "pt"):
+        language = "en"
+
+    # ── load chart row ──
+    res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    row = res.data[0]
+
+    # ── parse JSONB blobs (may arrive as JSON strings) ──
+    chart_data   = _hc._safe_json(row.get("chart_data"))
+    jaimini_data = _hc._safe_json(row.get("jaimini_data"))
+    lk_data      = _hc._safe_json(row.get("lal_kitab_data"))
+    birth_date   = str(row.get("birth_date") or "")[:10]
+
+    # ── current/next dasha rows (Vimsottari) ──
+    current_md_row = current_ad_row = next_md_row = None
+    try:
+        _today = str(_date.today())
+        _md = supabase.table("dasha_periods") \
+            .select("planet_or_sign,start_date,end_date,level,system") \
+            .eq("chart_id", chart_id).eq("system", "vimsottari").eq("level", 1) \
+            .lte("start_date", _today).gte("end_date", _today).limit(1).execute()
+        if _md.data:
+            current_md_row = _md.data[0]
+        _ad = supabase.table("dasha_periods") \
+            .select("planet_or_sign,start_date,end_date,level,system") \
+            .eq("chart_id", chart_id).eq("system", "vimsottari").eq("level", 2) \
+            .lte("start_date", _today).gte("end_date", _today).limit(1).execute()
+        if _ad.data:
+            current_ad_row = _ad.data[0]
+        _nm = supabase.table("dasha_periods") \
+            .select("planet_or_sign,start_date,end_date,level,system") \
+            .eq("chart_id", chart_id).eq("system", "vimsottari").eq("level", 1) \
+            .gt("start_date", _today).order("start_date").limit(1).execute()
+        if _nm.data:
+            next_md_row = _nm.data[0]
+    except Exception as _de:
+        print(f"[year-attention] dasha lookup non-fatal: {_de}")
+
+    # ── YEAR BLOCK (reuse the home composer's year horizon) ──
+    yv = _hc._compose_for_horizon(
+        "year", row, chart_data, lk_data,
+        current_md_row, current_ad_row, tz_offset,
+    )
+    year = {
+        "range":    yv.get("range"),
+        "polarity": yv.get("polarity"),
+        "headline": yv.get("headline"),
+        "gist":     yv.get("gist"),
+        "areas":    yv.get("areas"),
+        "stretch":  yv.get("stretch"),
+        # polarity XOR chain (positive => use set, chain four null; negative => reverse)
+        "use":      yv.get("use"),
+        "cause":    yv.get("cause"),
+        "remedy":   yv.get("remedy"),
+        "chakra":   yv.get("chakra"),
+        "practice": yv.get("practice"),
+    }
+
+    # ── NEEDS-ATTENTION BLOCK (real convergence charge) ──
+    attention = None
+    try:
+        planets       = _pe._extract_planets(chart_data)
+        karakas       = _pe._extract_karakas(jaimini_data)
+        current_dasha = _pe._extract_current_dasha(jaimini_data)
+        varshphal     = _pe._extract_varshphal(lk_data)
+        sleeping      = _pe._extract_sleeping_planets(lk_data)
+        masik_phal    = _pe._extract_masik_phal(lk_data)
+        age           = _pe._calculate_age(birth_date) if birth_date else None
+
+        convergence = _pe._score_planet_convergence(
+            planets, karakas, current_dasha, varshphal, sleeping, masik_phal, age,
+            vimsottari_md=current_md_row, vimsottari_ad=current_ad_row, next_md=next_md_row,
+        )
+        primary = _pe._select_primary_planet(convergence, sleeping)
+        charge  = round(float((convergence.get(primary) or {}).get("score", 0.0)), 2)
+
+        # Flag only on a real weakness signal (sleeping OR difficult natal/annual house).
+        sleeping_names = [s.get("planet") for s in (sleeping or [])]
+        natal = _hc._natal_houses(chart_data)
+        vph   = _hc._varshphal_placements(birth_date, natal) if birth_date else {}
+        weak_signal = bool(primary) and (
+            primary in sleeping_names
+            or natal.get(primary, 0) in _hc.DIFFICULT_HOUSES
+            or vph.get(primary, 0) in _hc.DIFFICULT_HOUSES
+        )
+
+        if weak_signal:
+            ch       = _hc.PLANET_TO_CHAKRA.get(primary) or _hc.PLANET_TO_CHAKRA["Mercury"]
+            ch_name  = ch["name"]
+            by_name  = {c["english"].replace(" Chakra", ""): c for c in _CHAKRAS}
+            meta     = by_name.get(ch_name, {})
+            human    = {
+                "Root": "Foundation", "Sacral": "Flow", "Solar Plexus": "Personal Power",
+                "Heart": "Open Heart", "Throat": "True Voice", "Third Eye": "Inner Sight",
+                "Crown": "Higher Connection",
+            }.get(ch_name, ch_name)
+            pr_name, pr_min, pr_steps = (
+                _hc.PRACTICE_BY_PLANET.get(primary) or _hc.PRACTICE_BY_PLANET["Mercury"]
+            )
+            attention = {
+                "flagged": True,
+                "planet":  primary,
+                "issue":   _hc.CAUSE_TEXT.get(primary, ""),
+                "remedy":  _hc.REMEDY_TEXT.get(
+                    primary, "Pause, breathe, and confirm what matters in writing."),
+                "chakra": {
+                    "key":      ch_name.lower().replace(" ", "_"),
+                    "name":     ch_name,
+                    "human":    human,
+                    "color":    meta.get("color", "#999999"),
+                    "charge":   charge,
+                    "level":    max(1, min(7, int(round(charge * 7)))),
+                    "mastered": charge >= 0.85,
+                    "governs":  ch["governs"],
+                },
+                "practice": {"name": pr_name, "minutes": pr_min, "steps": list(pr_steps)},
+            }
+    except Exception as _ae:
+        print(f"[year-attention] attention build non-fatal: {_ae}")
+        attention = None
+
+    payload = {
+        "chart_id":     chart_id,
+        "language":     language,
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "year":         year,
+        "attention":    attention,
+    }
+
+    # ── translate at response time (English source; planet/name/key/colour kept) ──
+    if language in ("es", "pt"):
+        try:
+            payload = await _translate_dict(
+                payload,
+                language=language,
+                fields_to_translate=[
+                    "headline", "gist", "use", "remedy", "issue",
+                    "note", "text", "governs", "steps", "best", "worst",
+                ],
+                fields_to_skip=[
+                    "planet", "name", "key", "human", "color", "range", "tab",
+                ],
+                endpoint_name="year-attention",
+                chart_id=chart_id,
+            )
+        except Exception as _te:
+            print(f"[year-attention] translation non-fatal, serving English: {_te}")
+
+    return payload
+
+
 @app.get("/api/v1/home/{chart_id}")
 @translate_response(
     fields_to_translate=[
