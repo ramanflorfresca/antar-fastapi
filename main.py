@@ -9553,6 +9553,333 @@ async def ask_prashna(request: PrashnaRequest):
         })
 
 
+# ════════════════════════════════════════════════════════════════════
+# ANTAR ASK ENDPOINT (explore + yesno) — patched
+# One screen, one endpoint. `mode` decides the engine and the response shape.
+# Yes/No is horary: ONE per 24h per chart, GLOBALLY (not per topic). The server
+# is the source of truth — the frontend countdown is only UX.
+# ════════════════════════════════════════════════════════════════════
+
+# Global Yes/No lock window (hours), per chart_id. Matches the horary cooldown.
+ASK_YESNO_COOLDOWN_HOURS = 24
+
+
+def _ask_norm_lang(language):
+    lang = (language or "en").split("-")[0].lower()
+    return lang if lang in ("en", "es", "pt") else "en"
+
+
+async def _ask_localize(payload, language, fields, chart_id=None):
+    """
+    Translate at response time from the English source.
+      1. apply_user_facing_strips  -> rule 12 (no Sanskrit / planet / score jargon)
+      2. translate_dict for es/pt  -> rule 11 (respect the language param)
+    `verdict` ("YES"/"NO") and `mode` are NEVER touched.
+    """
+    lang = _ask_norm_lang(language)
+    for _f in fields:
+        _val = payload.get(_f)
+        if isinstance(_val, str) and _val:
+            _ftype = "timing" if _f == "timing" else "plain"
+            payload[_f] = apply_user_facing_strips(_val, language=lang, field_type=_ftype)
+    if lang in ("es", "pt"):
+        try:
+            from antar_engine.translation_middleware import translate_dict as _ask_td
+            payload = await _ask_td(
+                payload,
+                language=lang,
+                fields_to_translate=fields,
+                fields_to_skip=["verdict", "mode"],
+                endpoint_name="ask",
+                chart_id=chart_id,
+            )
+        except Exception as _te:
+            print(f"[ask] translation non-fatal, serving English: {_te}")
+    return payload
+
+
+class AskRequest(BaseModel):
+    question:  str
+    chart_id:  str
+    mode:      Optional[str] = "explore"
+    language:  Optional[str] = "en"
+    tz_offset: Optional[int] = 0
+
+
+@app.post("/api/v1/ask")
+async def ask_endpoint(request: AskRequest):
+    """
+    Unified ASK endpoint.
+      mode="explore" -> open coaching: {mode, read, next, locked:false}
+      mode="yesno"   -> binary horary: {mode, locked, verdict, why, timing, locked_until, question}
+    """
+    import traceback
+    import logging
+    from fastapi.responses import JSONResponse
+    from datetime import datetime, timezone, timedelta
+    logger = logging.getLogger("antar.ask")
+
+    chart_id = (request.chart_id or "").strip()
+    question = (request.question or "").strip()
+    mode     = (request.mode or "explore").strip().lower()
+    language = _ask_norm_lang(request.language)
+
+    if not chart_id:
+        return JSONResponse(status_code=400, content={"error": "chart_id is required"})
+    if not question:
+        return JSONResponse(status_code=400, content={"error": "Question is required"})
+
+    # ───────────────────────── EXPLORATION ─────────────────────────
+    if mode == "explore":
+        try:
+            chart_row = supabase.table("charts") \
+                .select("chart_data, first_name") \
+                .eq("id", chart_id).single().execute()
+            if not chart_row.data:
+                return JSONResponse(status_code=404, content={"error": "Chart not found"})
+
+            chart_data = _safe_jsonb(chart_row.data.get("chart_data"))
+
+            diagnostic_block = ""
+            try:
+                from antar_engine.symptom_library import build_diagnostic_prompt_block
+                if isinstance(chart_data, dict) and chart_data:
+                    diagnostic_block = build_diagnostic_prompt_block(chart_data, question, None) or ""
+            except Exception as _de:
+                logger.warning(f"[ask] diagnostic block failed (non-fatal): {_de}")
+
+            _sys = (
+                "You are Antar, a grounded life coach. The user asked an open question. "
+                "Using the diagnostic context below, reply with STRICT JSON only: "
+                '{"read": "...", "next": "..."}. '
+                "read = 2 to 4 short sentences of plain, warm, practical coaching that speaks "
+                "directly to their question. next = ONE concrete action they can take this week, "
+                "or null if none fits. Never mention astrology, planets, houses, signs, "
+                "nakshatras, dashas, scores, or any Sanskrit or technical term — plain everyday "
+                "language only. Output JSON only, no prose, no code fences."
+                f"\n\n{diagnostic_block}"
+            )
+
+            raw = ""
+            try:
+                _t = await call_llm_claude(prompt=question, system_override=_sys)
+                raw = _t[0] if isinstance(_t, tuple) else _t
+            except Exception as _ce:
+                logger.error(f"[ask] explore LLM failed: {_ce}")
+
+            read_txt, next_txt = "", None
+            try:
+                if raw and "{" in raw and "}" in raw:
+                    _parsed = json.loads(raw[raw.find("{"): raw.rfind("}") + 1])
+                    read_txt = (_parsed.get("read") or "").strip()
+                    _n = _parsed.get("next")
+                    next_txt = _n.strip() if isinstance(_n, str) and _n.strip() else None
+                else:
+                    read_txt = (raw or "").strip()
+            except Exception:
+                read_txt = (raw or "").strip()
+
+            if not read_txt:
+                read_txt = "I couldn't read a clear signal just now — try asking again in a moment."
+
+            payload = {"mode": "explore", "read": read_txt, "next": next_txt, "locked": False}
+            payload = await _ask_localize(payload, language, ["read", "next"], chart_id)
+            return payload
+
+        except Exception as e:
+            logger.error(f"[ask] explore error: {traceback.format_exc()}")
+            return JSONResponse(status_code=500, content={"error": "ask explore failed", "detail": str(e)})
+
+    # ─────────────────────────── YES / NO ───────────────────────────
+    if mode == "yesno":
+        try:
+            # 1. AUTHORITATIVE LOCK — recompute from stored asked_at, never trust the client.
+            last = None
+            try:
+                last = supabase.table("prashna_log") \
+                    .select("created_at, question, verdict, timing, explanation") \
+                    .eq("chart_id", chart_id) \
+                    .order("created_at", desc=True) \
+                    .limit(1).execute()
+            except Exception as _le:
+                logger.warning(f"[ask] lock lookup failed (treating as unlocked): {_le}")
+
+            last_time = last.data[0]["created_at"] if (last and last.data) else None
+            cd = check_cooldown(last_time, cooldown_hours=ASK_YESNO_COOLDOWN_HOURS)
+
+            if (not cd["allowed"]) and last and last.data:
+                # Locked: return the PREVIOUS answer. No new chart, no LLM, no new verdict.
+                prev = last.data[0]
+                _pv = str(prev.get("verdict") or "NO").strip().upper()
+                payload = {
+                    "mode": "yesno",
+                    "locked": True,
+                    "verdict": "YES" if _pv.startswith("Y") else "NO",
+                    "why": (prev.get("explanation") or "").strip(),
+                    "timing": prev.get("timing"),
+                    "locked_until": cd.get("cooldown_until"),
+                    "question": prev.get("question"),
+                }
+                payload = await _ask_localize(payload, language, ["why", "timing"], chart_id)
+                return payload
+
+            # 2. NOT LOCKED — cast a fresh chart at the moment of asking.
+            chart_row = supabase.table("charts") \
+                .select("chart_data, jaimini_data, first_name, current_country, latitude, longitude") \
+                .eq("id", chart_id).single().execute()
+            if not chart_row.data:
+                return JSONResponse(status_code=404, content={"error": "Chart not found"})
+            cdata = chart_row.data
+
+            jaimini_data    = _safe_jsonb(cdata.get("jaimini_data")) or None
+            natal_chart     = _safe_jsonb(cdata.get("chart_data")) or None
+            first_name      = cdata.get("first_name") or "User"
+            current_country = cdata.get("current_country") or ""
+            lat = cdata.get("latitude") or 40.8215
+            lng = cdata.get("longitude") or -73.9876
+
+            natal_dasha = "unknown"
+            try:
+                _now_iso = datetime.now(timezone.utc).isoformat()
+                _dr = supabase.table("dasha_periods") \
+                    .select("planet_or_sign, level") \
+                    .eq("chart_id", chart_id).eq("system", "vimsottari") \
+                    .lte("start_date", _now_iso).gte("end_date", _now_iso) \
+                    .order("level").execute()
+                if _dr.data:
+                    _md = next((r["planet_or_sign"] for r in _dr.data if r.get("level") == 1), None)
+                    _ad = next((r["planet_or_sign"] for r in _dr.data if r.get("level") == 2), None)
+                    natal_dasha = f"{_md}-{_ad}" if (_md and _ad) else (_md or "unknown")
+            except Exception as _dde:
+                logger.warning(f"[ask] dasha lookup failed (non-fatal): {_dde}")
+
+            cast_ts = datetime.now(timezone.utc)
+            locale = "IN" if current_country and current_country.upper() in ("IN", "INDIA") else "global"
+
+            engine_result = run_prashna_engine(
+                question=question,
+                lat=lat,
+                lng=lng,
+                timestamp=cast_ts,
+                jaimini_data=jaimini_data,
+                natal_dasha=natal_dasha,
+                natal_chart_data=natal_chart,
+                user_name=first_name,
+                locale=locale,
+            )
+
+            # Coerce to a STRICT binary — never "maybe", never a percentage.
+            _v = str(engine_result.get("verdict") or "NO").strip().upper()
+            verdict = "YES" if _v.startswith("Y") else "NO"
+            timing = engine_result.get("timing")
+
+            # ONE plain-English sentence of "why" (no jargon, no scores).
+            _why_sys = (
+                "You are Antar. Explain a yes/no answer to the user's question. Reply with ONE "
+                "plain-English sentence only. No astrology, no planets, houses, signs, nakshatras, "
+                "Sanskrit, numbers, or scores. Do not enumerate factors. "
+                f"The answer is {verdict}. Base your single sentence on this internal reasoning: "
+                f"{(engine_result.get('claude_prompt') or '')[:1500]}"
+            )
+            why = ""
+            try:
+                _wt = await call_llm_claude(prompt=question, system_override=_why_sys)
+                why = (_wt[0] if isinstance(_wt, tuple) else _wt) or ""
+                why = why.strip()
+            except Exception as _we:
+                logger.error(f"[ask] why LLM failed: {_we}")
+            if why:
+                why = why.split("\n")[0].strip()
+                _parts = why.split(". ")
+                if len(_parts) > 1:
+                    why = _parts[0].strip().rstrip(".") + "."
+            if not why:
+                why = ("The timing supports moving ahead." if verdict == "YES"
+                       else "The timing does not support this right now.")
+
+            asked_at = cast_ts.isoformat()
+            locked_until = (cast_ts + timedelta(hours=ASK_YESNO_COOLDOWN_HOURS)).isoformat()
+
+            # Persist to the SHARED lock store so the next ask within 24h hits the lock.
+            try:
+                wp = engine_result.get("weakest_planet", {}) or {}
+                supabase.table("prashna_log").insert({
+                    "chart_id":       chart_id,
+                    "question":       question,
+                    "domain":         engine_result.get("domain"),
+                    "verdict":        verdict,
+                    "score":          engine_result.get("score"),
+                    "label":          engine_result.get("label"),
+                    "timing":         timing,
+                    "explanation":    why,
+                    "breakdown":      json.dumps(engine_result.get("breakdown", {}), default=str),
+                    "prashna_chart":  json.dumps(engine_result.get("prashna_chart", {}), default=str),
+                    "weakest_planet": wp.get("planet"),
+                    "cooldown_until": engine_result.get("cooldown_until") or locked_until,
+                }).execute()
+            except Exception as _ie:
+                logger.warning(f"[ask] prashna_log insert failed (non-blocking): {_ie}")
+
+            payload = {
+                "mode": "yesno",
+                "locked": False,
+                "verdict": verdict,
+                "why": why,
+                "timing": timing,
+                "locked_until": locked_until,
+                "question": question,
+            }
+            payload = await _ask_localize(payload, language, ["why", "timing"], chart_id)
+            return payload
+
+        except Exception as e:
+            logger.error(f"[ask] yesno error: {traceback.format_exc()}")
+            return JSONResponse(status_code=500, content={"error": "ask yesno failed", "detail": str(e)})
+
+    return JSONResponse(status_code=400, content={"error": f"unknown mode: {mode}"})
+
+
+@app.get("/api/v1/ask/state")
+async def ask_state(chart_id: str):
+    """Fast, read-only Yes/No lock state for screen mount."""
+    import logging
+    from fastapi.responses import JSONResponse
+    logger = logging.getLogger("antar.ask")
+
+    chart_id = (chart_id or "").strip()
+    if not chart_id:
+        return JSONResponse(status_code=400, content={"error": "chart_id is required"})
+
+    try:
+        last = supabase.table("prashna_log") \
+            .select("created_at, question, verdict, timing, explanation") \
+            .eq("chart_id", chart_id) \
+            .order("created_at", desc=True) \
+            .limit(1).execute()
+    except Exception as _le:
+        logger.warning(f"[ask/state] lookup failed: {_le}")
+        return {"yesno_locked": False, "locked_until": None, "previous": None}
+
+    if not last.data:
+        return {"yesno_locked": False, "locked_until": None, "previous": None}
+
+    prev = last.data[0]
+    cd = check_cooldown(prev.get("created_at"), cooldown_hours=ASK_YESNO_COOLDOWN_HOURS)
+    if not cd["allowed"]:
+        _pv = str(prev.get("verdict") or "NO").strip().upper()
+        return {
+            "yesno_locked": True,
+            "locked_until": cd.get("cooldown_until"),
+            "previous": {
+                "verdict": "YES" if _pv.startswith("Y") else "NO",
+                "why": (prev.get("explanation") or "").strip(),
+                "timing": prev.get("timing"),
+                "question": prev.get("question"),
+            },
+        }
+    return {"yesno_locked": False, "locked_until": None, "previous": None}
+
+
 class PrashnaFollowupRequest(BaseModel):
     session_id:  str
     question:    str
