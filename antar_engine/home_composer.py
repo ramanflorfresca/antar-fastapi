@@ -580,19 +580,38 @@ def _strip_home_payload(payload, language: str = "en"):
     # turning phase.*.planet / cycleName (e.g. "Saturn") into an energy phrase.
     _KEEP = {"planet", "cycleName"}
 
+    def _walk_curated(node):
+        """lkRead subtree (Step 6): source='curated_static' — keep planet names
+        as actors (Path B), still strip house numbers / Sanskrit / raw scores."""
+        if isinstance(node, dict):
+            return {kk: _walk_curated(vv) for kk, vv in node.items()}
+        if isinstance(node, list):
+            return [_walk_curated(x) for x in node]
+        if isinstance(node, str):
+            return _apply(node, language=language, field_type="plain",
+                          source="curated_static", depth="user")
+        return node
+
     def _walk(node):
         if isinstance(node, dict):
             out = {}
             for k, v in node.items():
                 if k in _KEEP:
                     out[k] = v
+                elif k == "lkRead":
+                    out[k] = _walk_curated(v)
                 elif k == "remedy":
+                    # UPAAY_LIBRARY curated (Step 6): timing keeps the weekday,
+                    # source='curated_static' keeps planet-as-actor (Path B);
+                    # houses/Sanskrit/scores still stripped.
                     if isinstance(v, str):
                         out[k] = _apply(v, language=language,
-                                        field_type="timing", depth="user")
+                                        field_type="timing", source="curated_static",
+                                        depth="user")
                     elif isinstance(v, dict):
                         out[k] = {kk: (_apply(vv, language=language,
-                                              field_type="timing", depth="user")
+                                              field_type="timing", source="curated_static",
+                                              depth="user")
                                        if isinstance(vv, str) else vv)
                                   for kk, vv in v.items()}
                     else:
@@ -1133,6 +1152,37 @@ def _compose_for_horizon(horizon: str,
         "stretch":   (_year_stretch_dynamic(chart_data, now) if horizon == "year" else _build_stretch(horizon)),
         "phase":     phase_block,
     }
+    # ── LK conditions read (Step 5) — additive, zero-regression ────────────
+    # Specific Lal Kitab condition read for Today, attached as `lkRead`. When a
+    # non-flat condition fires it carries the precise headline / cause / use /
+    # do / dont + gentling_prefix / crisis_footer / modifiers from the curated
+    # LK_CONDITIONS library. Additive by default — does NOT overwrite the shipped
+    # template fields; the frontend promotes lkRead to primary once verified.
+    # The whole block is guarded: any failure leaves lkRead=None and the existing
+    # card untouched. recent_headlines=[] for now (no 14-day history yet; source
+    # it from chart_daily_headlines to make gentling/crisis live).
+    if horizon == "today":
+        view["lkRead"] = None
+        try:
+            from antar_engine.lk_conditions import LK_CONDITIONS
+            from antar_engine.lk_trigger import matches_trigger
+            from antar_engine.composition import compose_daily_card
+            from antar_engine.transits_engine import calculate_current_transits
+            _tr = (calculate_current_transits(chart_data) or {}).get("current_transits", [])
+            _dasha = {"md_lord": md_planet}
+            _fired = []
+            for _cid, _cond in LK_CONDITIONS.items():
+                try:
+                    if matches_trigger(_cond["trigger"], chart_data, _tr, _dasha):
+                        _fired.append({**_cond, "id": _cid})
+                except Exception:
+                    continue
+            _card = compose_daily_card(_fired, md_planet, [], now_today.date())
+            if _card.get("polarity") != "flat":
+                view["lkRead"] = _card
+        except Exception as _lke:
+            print(f"[home_composer] lkRead skipped (non-fatal): {_lke}")
+
     # Polarity XOR — chain merged last
     view.update(chain)
     return view

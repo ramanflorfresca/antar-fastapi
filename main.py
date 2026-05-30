@@ -912,6 +912,18 @@ def _build_briefing_email_html(briefing_text: str, month_year: str, chart_id: st
 </div>
 """
 
+async def _daily_polarity_log_job():
+    """Daily 03:00 UTC — write each chart's headline polarity to
+    chart_daily_headlines. Server-side + chart-wide so the crisis floor
+    works for withdrawn users (import inside so a missing module can't
+    break app startup)."""
+    try:
+        from antar_engine.daily_polarity_log import run_daily_polarity_log
+        run_daily_polarity_log(supabase)
+    except Exception as e:
+        print(f"[polarity_log] job FATAL: {e}")
+
+
 scheduler = AsyncIOScheduler(timezone="UTC")
 scheduler.add_job(_birthday_recompute_job, "cron", hour=2, minute=0,
                   id="birthday_lk_recompute", replace_existing=True)
@@ -919,6 +931,8 @@ scheduler.add_job(_ping_checkin_job, "cron", hour=8, minute=0,
                   id="ping_checkin_daily", replace_existing=True)
 scheduler.add_job(_monthly_briefing_job, "cron", day=1, hour=6, minute=0,
                   id="monthly_briefing_send", replace_existing=True)
+scheduler.add_job(_daily_polarity_log_job, "cron", hour=3, minute=0,
+                  id="daily_polarity_log", replace_existing=True)
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
