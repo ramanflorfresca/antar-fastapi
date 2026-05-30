@@ -439,12 +439,13 @@ def _year_stretch_dynamic(chart_data: dict, now: datetime) -> dict:
         return static
 
 
-def _build_chain_negative(weak_planet: str, charge: float = 0.40) -> dict:
+def _build_chain_negative(weak_planet: str, charge: float = 0.40,
+                          cause_override: str = None) -> dict:
     chakra = PLANET_TO_CHAKRA.get(weak_planet) or PLANET_TO_CHAKRA["Mercury"]
     name, minutes, steps = PRACTICE_BY_PLANET.get(weak_planet) or PRACTICE_BY_PLANET["Mercury"]
     return {
         "use":      None,
-        "cause":    {"planet": weak_planet, "text": CAUSE_TEXT.get(weak_planet, "")},
+        "cause":    {"planet": weak_planet, "text": (cause_override or CAUSE_TEXT.get(weak_planet, ""))},
         "remedy":   REMEDY_TEXT.get(weak_planet, "Pause, breathe, and confirm what matters in writing."),
         "chakra":   {"name": chakra["name"], "governs": chakra["governs"], "charge": round(charge, 2)},
         "practice": {"name": name, "minutes": minutes, "steps": list(steps)},
@@ -488,9 +489,20 @@ def _build_headline_gist(horizon: str, polarity: str) -> Tuple[str, str]:
     }[horizon]
 
 
-def _build_areas(strong: list, weak: list) -> list:
+def _build_areas(strong: list, weak: list,
+                 dignity: dict = None, flagged: set = None) -> list:
+    """When `dignity` is provided (Today branch), bars reflect real LK dignity
+    and `care` reflects the flagged set. Otherwise behaviour is unchanged
+    (Month/Year/Cycle keep their constant bars)."""
+    flagged = flagged or set()
     areas: list = []
     seen: set = set()
+
+    def _bars(p, default):
+        if dignity is not None and p in dignity:
+            return _bars_from_dignity(dignity[p])
+        return default
+
     for p, _ in strong[:2]:
         nm = (PLANET_AREAS.get(p) or [p])[0]
         if nm in seen:
@@ -498,7 +510,7 @@ def _build_areas(strong: list, weak: list) -> list:
         seen.add(nm)
         first_theme = (PLANET_NATURE.get(p, "") or "").split(",")[0].strip() or "this area"
         areas.append({
-            "name": nm, "bars": 3, "care": False,
+            "name": nm, "bars": _bars(p, 3), "care": p in flagged,
             "note": f"Strong — favourable for {first_theme}.",
         })
     if weak:
@@ -506,7 +518,8 @@ def _build_areas(strong: list, weak: list) -> list:
         nm = (PLANET_AREAS.get(wp) or [wp])[0]
         if nm not in seen:
             areas.append({
-                "name": nm, "bars": 0, "care": True,
+                "name": nm, "bars": _bars(wp, 0),
+                "care": (wp in flagged) if flagged else True,
                 "note": "Under pressure — postpone decisions in this area.",
             })
             seen.add(nm)
@@ -551,6 +564,170 @@ def _muhurta_windows(chart_row: dict, chart_data: dict,
         return None, None
 
 
+# ── Today: real transits over natal, read through Lal Kitab ──────────────────
+
+KENDRA_TRIKONA_HOUSES = {1, 4, 5, 7, 9, 10}
+DUSHTHANA_HOUSES      = {6, 8, 12}
+SLOW_MOVERS           = {"Saturn", "Rahu", "Ketu"}
+
+# LK dignity word → 0..1 score
+_LK_DIGNITY_SCORE = {"dignified": 0.85, "neutral": 0.45, "afflicted": 0.20}
+
+# Natal house → plain-English life sector (no jargon, no house numbers leak)
+HOUSE_SECTOR = {
+    1:  "your sense of self",
+    2:  "your finances and security",
+    3:  "your communication and courage",
+    4:  "your home and inner peace",
+    5:  "your creativity and joy",
+    6:  "your work and health",
+    7:  "your relationships",
+    8:  "shared matters and change",
+    9:  "your luck and beliefs",
+    10: "your career and public life",
+    11: "your goals and gains",
+    12: "your rest and letting go",
+}
+
+
+def _bars_from_dignity(d: float) -> int:
+    if d >= 0.75:
+        return 3
+    if d >= 0.50:
+        return 2
+    if d >= 0.25:
+        return 1
+    return 0
+
+
+def _today_transit_signal(chart_data: dict, lk_data: dict, natal: dict,
+                          now: datetime, tz_offset_min: int,
+                          md_planet: str = "") -> dict:
+    """
+    Build the Today signal from TODAY'S real transits over the natal chart,
+    read through the Lal Kitab day-lord diagnostic.
+
+    Returns the shape the Today branch of _compose_for_horizon consumes:
+      { strong:[(planet,house)], weak:[(planet,house)], polarity:str,
+        conditions:{planet:plain_cause}, dignity:{planet:0..1}, flagged:set }
+    """
+    strong: list = []
+    weak: list = []
+    conditions: dict = {}
+    dignity: dict = {}
+    flagged: set = set()
+
+    if lk_data is None:
+        print("[home_composer] _today_transit_signal: lk_data is None — "
+              "LK overlay degraded to transit-only (graceful default)")
+
+    # 1. Today's real transits over the natal chart.
+    report = {}
+    try:
+        from antar_engine import transit_engine as _te
+        report = _te.get_full_transit_report(chart_data, date=now) or {}
+    except Exception as e:
+        print(f"[home_composer] _today_transit_signal: transit report failed: {e}")
+
+    # house_activation: {natal_house: [transiting planets]} (whole-sign from lagna)
+    house_activation = report.get("house_activation") or {}
+    transit_house: dict = {}
+    for h, planets in house_activation.items():
+        try:
+            hi = int(h)
+        except Exception:
+            continue
+        for p in (planets or []):
+            transit_house[p] = hi
+
+    # 2. Lal Kitab day-lord diagnostic for today (arg order: lk_data, chart_data).
+    lk = {}
+    try:
+        from antar_engine.lal_kitab_advanced import compute_lk_daily_diagnostic
+        lk = compute_lk_daily_diagnostic(
+            lk_data=lk_data or {}, chart_data=chart_data,
+            target_date=now.date(), language="en",
+        ) or {}
+    except Exception as e:
+        print(f"[home_composer] _today_transit_signal: lk diagnostic failed: {e}")
+
+    lk_available = bool(lk.get("available"))
+    day_lord     = lk.get("day_lord")
+    lk_status    = lk.get("day_lord_status") or {}
+    lk_dignity   = lk_status.get("dignity")          # dignified/neutral/afflicted
+    lk_sleeping  = bool(lk_status.get("sleeping"))
+    day_quality  = lk.get("day_quality_for_user")    # favorable/neutral/caution
+
+    # 3. Classify each transiting planet by transit house + LK overlay.
+    for p, h in transit_house.items():
+        d = _planet_charge(chart_data, p)
+        if lk_available and day_lord and p == day_lord:
+            d = _LK_DIGNITY_SCORE.get(lk_dignity, d)
+            if lk_sleeping:
+                d = min(d, 0.20)
+        dignity[p] = round(d, 2)
+
+        day_lord_flagged = (
+            lk_available and day_lord == p and
+            (lk_sleeping or lk_dignity == "afflicted" or day_quality == "caution")
+        )
+        if day_lord_flagged:
+            weak.append((p, h)); flagged.add(p); continue
+        if h in DUSHTHANA_HOUSES:
+            weak.append((p, h)); flagged.add(p); continue
+        if h in KENDRA_TRIKONA_HOUSES and d >= 0.5:
+            strong.append((p, h))
+
+    # 4. Plain-English cause text for flagged planets (no jargon, no planet names).
+    for p in list(flagged):
+        sector = HOUSE_SECTOR.get(transit_house.get(p, 0),
+                                  "an important part of your life")
+        energy = ENERGY_LANG.get(p, "your energy")
+        conditions[p] = (f"{energy[0].upper()}{energy[1:]} is moving through a "
+                         f"slower phase around {sector} today.")
+
+    # defensive: strip any jargon that could leak (built clean, but enforce)
+    try:
+        from antar_engine.output_strips import apply_user_facing_strips
+        conditions = apply_user_facing_strips(
+            conditions, language="en", field_type="plain",
+        )
+    except Exception as e:
+        print(f"[home_composer] _today_transit_signal: strips skipped: {e}")
+
+    # 5. Ordering — MD planet first, then day-lord, then slow-movers.
+    def _rank(item):
+        p = item[0]
+        s = 0
+        if md_planet and p.lower() == md_planet.lower():
+            s -= 100
+        if day_lord and p == day_lord:
+            s -= 50
+        if p in SLOW_MOVERS:
+            s -= 10
+        return s
+    weak.sort(key=_rank)
+    strong.sort(key=_rank)
+
+    # 6. Polarity — LK day quality dominant; transit count is the tiebreaker.
+    if lk_available and day_quality == "caution":
+        polarity = "negative"
+    elif lk_available and day_quality == "favorable":
+        polarity = "positive"
+    else:
+        polarity = "negative" if len(weak) > len(strong) else "positive"
+
+    return {
+        "strong": strong,
+        "weak": weak,
+        "polarity": polarity,
+        "conditions": conditions,
+        "dignity": dignity,
+        "flagged": flagged,
+        "available": lk_available or bool(house_activation),
+    }
+
+
 def _compose_for_horizon(horizon: str,
                           chart_row: dict, chart_data: dict, lk_data: dict,
                           current_md_row: Optional[dict], current_ad_row: Optional[dict],
@@ -566,7 +743,14 @@ def _compose_for_horizon(horizon: str,
     md_end_iso = (current_md_row or {}).get("end_date")
     ad_end_iso = (current_ad_row or {}).get("end_date")
 
-    if horizon == "today" or horizon == "month":
+    today_signal = None
+    now_today = _now_local(tz_offset_min)
+    if horizon == "today":
+        today_signal = _today_transit_signal(
+            chart_data, lk_data, natal, now_today, tz_offset_min, md_planet,
+        )
+        placements = {}
+    elif horizon == "month":
         placements = _masik_placements(bd, natal)
     elif horizon == "year":
         placements = _varshphal_placements(bd, natal)
@@ -586,10 +770,15 @@ def _compose_for_horizon(horizon: str,
         if current_ad_row:
             ad_planet = current_ad_row.get("planet_or_sign") or None
         ad_house = natal.get(ad_planet, 0) if ad_planet else 0
+    elif today_signal is not None:
+        strong, weak = today_signal["strong"], today_signal["weak"]
     else:
         strong, weak = _classify(placements)
 
-    polarity = _resolve_polarity(strong, weak)
+    if today_signal is not None:
+        polarity = today_signal["polarity"]
+    else:
+        polarity = _resolve_polarity(strong, weak)
     wp = _dominant_weak_planet(weak, md_planet)
     sp = _dominant_strong_planet(strong, md_planet) or (md_planet if horizon == "cycle" else "Mercury")
 
@@ -598,7 +787,10 @@ def _compose_for_horizon(horizon: str,
     if horizon == "cycle" and ad_planet and ad_planet != md_planet:
         _theme = AD_PLANET_THEMES.get(ad_planet, "a new phase")
         gist = f"{gist} Right now, the {_theme} chapter inside it."
-    chain = (_build_chain_negative(wp, _planet_charge(chart_data, wp)) if polarity == "negative" and wp
+    lk_cause = None
+    if today_signal is not None and wp:
+        lk_cause = (today_signal.get("conditions") or {}).get(wp)
+    chain = (_build_chain_negative(wp, _planet_charge(chart_data, wp), lk_cause) if polarity == "negative" and wp
              else _build_chain_positive(sp, horizon))
 
     now = _now_local(tz_offset_min if horizon == "today" else 0)
@@ -645,7 +837,11 @@ def _compose_for_horizon(horizon: str,
         "dont":      dont_text,
         "bestTime":  best_t,
         "avoidTime": avoid_t,
-        "areas":     _build_areas(strong, weak),
+        "areas":     _build_areas(
+            strong, weak,
+            today_signal.get("dignity") if today_signal else None,
+            today_signal.get("flagged") if today_signal else None,
+        ),
         "stretch":   (_year_stretch_dynamic(chart_data, now) if horizon == "year" else _build_stretch(horizon)),
         "phase":     phase_block,
     }
