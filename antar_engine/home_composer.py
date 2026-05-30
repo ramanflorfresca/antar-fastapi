@@ -659,22 +659,27 @@ def _today_transit_signal(chart_data: dict, lk_data: dict, natal: dict,
     day_quality  = lk.get("day_quality_for_user")    # favorable/neutral/caution
 
     # 3. Classify each transiting planet by transit house + LK overlay.
+    #    `dignity[p]` is TODAY'S effective favorability (drives areas.bars),
+    #    not raw natal dignity: a flagged/weak transit caps it low so an
+    #    "under pressure" area never renders high bars.
     for p, h in transit_house.items():
         d = _planet_charge(chart_data, p)
         if lk_available and day_lord and p == day_lord:
             d = _LK_DIGNITY_SCORE.get(lk_dignity, d)
             if lk_sleeping:
                 d = min(d, 0.20)
-        dignity[p] = round(d, 2)
 
         day_lord_flagged = (
             lk_available and day_lord == p and
             (lk_sleeping or lk_dignity == "afflicted" or day_quality == "caution")
         )
         if day_lord_flagged:
+            dignity[p] = round(min(d, 0.20), 2)
             weak.append((p, h)); flagged.add(p); continue
         if h in DUSHTHANA_HOUSES:
+            dignity[p] = round(min(d, 0.25), 2)
             weak.append((p, h)); flagged.add(p); continue
+        dignity[p] = round(d, 2)
         if h in KENDRA_TRIKONA_HOUSES and d >= 0.5:
             strong.append((p, h))
 
