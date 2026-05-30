@@ -524,7 +524,7 @@ def _muhurta_windows(chart_row: dict, chart_data: dict,
         if not lat or not lon:
             return None, None
         muh = compute_muhurtas(now, lat, lon, tz_offset=float(tz_offset_min) / 60.0)
-        ab = (muh or {}).get("abhijit") or {}
+        ab = (muh or {}).get("abhijit_muhurta") or {}
         rk = (muh or {}).get("rahu_kalam") or {}
         best  = (f"{ab['start_local']} – {ab['end_local']}"
                  if ab.get("start_local") and ab.get("end_local") else None)
