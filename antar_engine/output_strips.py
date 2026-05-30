@@ -504,7 +504,7 @@ def _strip_day_names(text: str, language: str = 'es') -> str:
     return _tidy(result)
 
 
-def _strip_planet_names(text: str, language: str = 'es') -> str:
+def _strip_planet_names(text: str, language: str = 'es', keep_planet_actors: bool = False) -> str:
     """
     Replace planet names with energy-frequency phrases and drop stray
     Sanskrit / house references.  Canonical copy of the original
@@ -523,9 +523,12 @@ def _strip_planet_names(text: str, language: str = 'es') -> str:
         )
 
     # 2. Planet names → energy phrases (per-language)
-    planet_map = _PLANET_ENERGY_MAP_ES if language == 'es' else _PLANET_ENERGY_MAP_EN
-    for planet, energy in planet_map.items():
-        result = re.sub(rf'\b{re.escape(planet)}\b', energy, result, flags=re.IGNORECASE)
+    #    Skipped when keep_planet_actors (source='curated_static'): curated
+    #    canonical statics are editorially reviewed and may name planets as actors.
+    if not keep_planet_actors:
+        planet_map = _PLANET_ENERGY_MAP_ES if language == 'es' else _PLANET_ENERGY_MAP_EN
+        for planet, energy in planet_map.items():
+            result = re.sub(rf'\b{re.escape(planet)}\b', energy, result, flags=re.IGNORECASE)
 
     # 3. Residual banned Sanskrit terms → drop
     for term in _BANNED_SANSKRIT_TERMS:
@@ -620,6 +623,7 @@ def apply_user_facing_strips(
     language: str = 'es',
     field_type: str = 'plain',
     depth: str = 'user',
+    source: str = 'llm',
 ) -> Any:
     """
     Single enforcement point for all user-facing LLM output.
@@ -638,17 +642,22 @@ def apply_user_facing_strips(
         raise ValueError(
             f"depth={depth!r} invalid; expected one of {_VALID_DEPTHS}"
         )
+    if source not in ('llm', 'curated_static'):
+        raise ValueError(
+            f"source={source!r} invalid; expected 'llm' or 'curated_static'"
+        )
+    keep_planet_actors = (source == 'curated_static')
 
     if content is None:
         return None
     if isinstance(content, list):
         return [
-            apply_user_facing_strips(item, language, field_type, depth)
+            apply_user_facing_strips(item, language, field_type, depth, source)
             for item in content
         ]
     if isinstance(content, dict):
         return {
-            k: apply_user_facing_strips(v, language, field_type, depth)
+            k: apply_user_facing_strips(v, language, field_type, depth, source)
             for k, v in content.items()
         }
     if not isinstance(content, str):
@@ -666,7 +675,7 @@ def apply_user_facing_strips(
         if depth == 'user':
             result = _strip_vedic_jargon(result, language)
         result = _strip_day_names(result, language)
-        result = _strip_planet_names(result, language)
+        result = _strip_planet_names(result, language, keep_planet_actors=keep_planet_actors)
         result = _strip_raw_scores(result)
 
     elif field_type == 'evidence':
@@ -688,7 +697,7 @@ def apply_user_facing_strips(
         result = _strip_instrument_names(result, language)
         if depth == 'user':
             result = _strip_vedic_jargon(result, language)
-        result = _strip_planet_names(result, language)
+        result = _strip_planet_names(result, language, keep_planet_actors=keep_planet_actors)
         result = _strip_raw_scores(result)
         # (no day-name strip — that's the whole point of this field type)
 
