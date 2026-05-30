@@ -17295,8 +17295,7 @@ async def predict_year_attention(request: dict):
                 "flagged": True,
                 "planet":  primary,
                 "issue":   _hc.CAUSE_TEXT.get(primary, ""),
-                "remedy":  _hc.REMEDY_TEXT.get(
-                    primary, "Pause, breathe, and confirm what matters in writing."),
+                "remedy":  _hc._resolve_remedy(primary),
                 "chakra": {
                     "key":      ch_name.lower().replace(" ", "_"),
                     "name":     ch_name,
@@ -17374,7 +17373,7 @@ async def get_home(
         raise HTTPException(status_code=404, detail="Chart not found")
     row = res.data[0]
 
-    from antar_engine.home_composer import _safe_json as _hsj, compose_home_payload as _home_compose
+    from antar_engine.home_composer import _safe_json as _hsj, compose_home_payload as _home_compose, _strip_home_payload as _home_strip
 
     # ── cache read (best-effort; table may not yet exist) ──
     try:
@@ -17433,8 +17432,10 @@ async def get_home(
         raise HTTPException(status_code=500, detail=f"Home composition failed: {e}")
 
     # ── strip any residual jargon (defense-in-depth — composer is English source) ──
+    # remedy carries a curated upaay whose weekday must survive -> _strip_home_payload
+    # routes the remedy field through field_type='timing' (plain elsewhere).
     try:
-        payload = apply_user_facing_strips(payload, language="en", field_type="plain", depth="user")
+        payload = _home_strip(payload, language="en")
     except Exception as _se:
         print(f"[home] strip warning: {_se}")
 

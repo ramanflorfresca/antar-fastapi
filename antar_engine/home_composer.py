@@ -328,6 +328,289 @@ REMEDY_TEXT = {
     "Ketu":    "Pick one anchor (a meal, a walk, a person) and show up to it.",
 }
 
+
+# ── Curated Upaay Library (single, locale-independent) ───────────────────────
+# Replaces the IN/GLOBAL locale fork for Home surfaces. Each row keeps the
+# verbatim source string in `traditional_original` (retained for a future
+# "advanced traditional" toggle, NOT emitted) and the universalised `curated`
+# string (emitted). Every curated string is authored strip-safe under
+# field_type='timing': it keeps its day-of-week and contains no planet/deity
+# names. Founder-approved 2026-05-30.
+UPAAY_LIBRARY = {'Sun': {'day': 'Sunday',
+         'primary': {'traditional_original': 'Offer water to the Sun every morning. Donate wheat '
+                                             'on Sundays.',
+                     'curated': 'On Sunday morning, stand outside facing the sunrise and pour a '
+                                'small cup of clean water onto the earth. During the week, give a '
+                                'portion of wheat, whole grain, or golden food (bread, honey, '
+                                'fresh fruit) to someone older than you.'},
+         'awakening': {'traditional_original': 'Offer water to Sun daily at sunrise for 43 days',
+                       'curated': 'For 7 weeks, on each Sunday at sunrise, offer water to the '
+                                  'rising sunlight by pouring it slowly onto the earth or into a '
+                                  'flowing stream while facing east. On the first Sunday, also '
+                                  'place a small piece of copper or red-toned metal into running '
+                                  'water.'},
+         'rin_clearing': {'traditional_original': 'Offer water to the Sun for 43 days. Respect '
+                                                  'father figures.',
+                          'curated': 'For 7 weeks, on each Sunday morning, offer water to the '
+                                     'rising sunlight by pouring it onto earth at sunrise. During '
+                                     'those weeks, find one specific way to honor your father, a '
+                                     "father-figure, or any older man you've been at odds with — "
+                                     'speak respectfully to him, ask his advice, give him '
+                                     'something useful.'}},
+ 'Moon': {'day': 'Monday',
+          'primary': {'traditional_original': 'Offer milk to a Shiva temple on Monday. Keep silver '
+                                              'with you.',
+                      'curated': 'On Monday evening, pour a small amount of milk onto the roots of '
+                                 'a tree or into flowing water. Carry a small silver object — a '
+                                 'coin, a ring, a thin chain — somewhere on your person through '
+                                 'the week. Keep fresh white flowers in the room where you sleep.'},
+          'awakening': {'traditional_original': 'Offer milk to Shiva on Mondays. Keep silver '
+                                                'article.',
+                        'curated': 'For 4 weeks, on each Monday evening, pour a small amount of '
+                                   'milk onto the roots of a living tree or into a stream. Keep a '
+                                   'small silver object on you continuously through those 4 weeks '
+                                   '— only remove it to bathe.'},
+          'rin_clearing': {'traditional_original': 'Offer milk on Monday. Serve your mother or a '
+                                                   'mother figure.',
+                           'curated': 'On Monday evening, pour milk onto the roots of a tree. That '
+                                      'same week, do one tangible act of service for your mother, '
+                                      'a mother-figure, or any woman who has cared for you — cook '
+                                      'a meal for her, help with her errands, sit and listen to '
+                                      'her without your phone.'}},
+ 'Mars': {'day': 'Tuesday',
+          'primary': {'traditional_original': 'Donate red lentils on Tuesday. Carry a copper coin.',
+                      'curated': 'On Tuesday, give away something red and edible — red lentils, '
+                                 'red apples, a pomegranate, tomatoes — to someone who needs it. '
+                                 'Carry a small piece of copper (a coin, a wire ring, a small '
+                                 'charm) in your pocket through the week. Give a piece of sweet '
+                                 'bread to a dog if one is near you.'},
+          'awakening': {'traditional_original': 'Visit Hanuman temple on Tuesdays. Donate blood '
+                                                'once.',
+                        'curated': 'For 6 weeks, on each Tuesday, give away red food (lentils, '
+                                   'fruit, tomatoes) to someone who needs it, and carry a copper '
+                                   'object through the week.'},
+          'rin_clearing': {'traditional_original': '',
+                           'curated': 'For 6 weeks, on each Tuesday morning, recite or write out '
+                                      'one acknowledgment of a moment where your anger caused harm '
+                                      '— to someone you spoke harshly to, someone you cut off, '
+                                      "someone you fought with. You don't have to send it. Then "
+                                      'give away something red and edible to someone in need. The '
+                                      'act clears the anger-debt this cycle has been carrying.'}},
+ 'Mercury': {'day': 'Wednesday',
+             'primary': {'traditional_original': 'Feed green vegetables to a cow on Wednesday. '
+                                                 'Donate to an education cause.',
+                         'curated': 'On Wednesday, give fresh green leaves or vegetables to a '
+                                    'four-legged animal — a cow, a goat, a horse — or feed green '
+                                    'moong (whole green mung beans) to birds. That same week, give '
+                                    "money or time to an education cause: a school, a teacher's "
+                                    "classroom fund, a child's tuition, a book donation."},
+             'awakening': {'traditional_original': 'Donate books to students. Feed green grass to '
+                                                   'cow.',
+                           'curated': 'For 7 weeks, on each Wednesday, feed green moong or fresh '
+                                      'green plant matter to birds or a four-legged animal. Once '
+                                      'during these 7 weeks, donate at least one book to a '
+                                      'student, library, or learning space.'},
+             'rin_clearing': {'traditional_original': '',
+                              'curated': 'For 7 weeks, on each Wednesday, write one truthful '
+                                         "message you've been avoiding — an apology for a lie, a "
+                                         'clarification you owe, a half-finished promise — and '
+                                         'send at least one. That same Wednesday, give green food '
+                                         'to an animal or a bird. The act clears the speech-debt '
+                                         'this cycle has been carrying.'}},
+ 'Jupiter': {'day': 'Thursday',
+             'primary': {'traditional_original': 'Donate yellow sweets on Thursday. Touch the feet '
+                                                 'of an elder or teacher.',
+                         'curated': 'On Thursday, give a yellow-toned gift — sweets, turmeric, a '
+                                    "yellow flower, a book, money for someone's education — to a "
+                                    'teacher, mentor, healer, or any elder whose wisdom you '
+                                    'respect. On Thursday morning, place a small mark of turmeric '
+                                    'or a yellow pigment on your forehead, between the brows.'},
+             'awakening': {'traditional_original': 'Donate yellow sweets on Thursdays. Respect '
+                                                   'teachers.',
+                           'curated': 'For 7 weeks, on each Thursday, give something yellow '
+                                      '(sweets, turmeric, a flower, a book) to a teacher, mentor, '
+                                      'or elder. Wear something yellow on those Thursdays. By the '
+                                      "seventh Thursday, write down one thing you've learned from "
+                                      'any of these elders during the cycle.'},
+             'rin_clearing': {'traditional_original': 'Donate yellow items on Thursday. Touch the '
+                                                      'feet of a teacher. Visit a temple.',
+                              'curated': 'For 7 weeks, on each Thursday, give a yellow gift to a '
+                                         'teacher or mentor — past or present. Once during these 7 '
+                                         'weeks, return to a teacher who shaped you and either '
+                                         'thank them in writing, visit them, or send them a gift. '
+                                         'If they are no longer alive, leave the gift at a place '
+                                         'of learning in their name (a library, school, or '
+                                         'classroom).'}},
+ 'Venus': {'day': 'Friday',
+           'primary': {'traditional_original': 'Donate white clothes to a woman on Friday. Offer '
+                                               'white flowers.',
+                       'curated': 'On Friday, give a soft white gift — white clothes, white '
+                                  'flowers, silk, cream, white sweets — to a woman who is not '
+                                  'family (a friend, colleague, someone you meet kindly). That '
+                                  'same Friday, scatter a small handful of uncooked rice mixed '
+                                  'with sugar near an anthill, a garden bed, or any patch of earth '
+                                  'where small creatures gather.'},
+           'awakening': {'traditional_original': 'Gift wife white clothes. Donate on Fridays.',
+                         'curated': 'For 6 weeks, on each Friday, give a small white or soft gift '
+                                    'to a woman who matters to you — a partner, mother, sister, '
+                                    'friend, daughter. If your situation makes that hard, give a '
+                                    'small luxury to yourself that brings comfort (self-comfort '
+                                    'and pleasure count here too). The pattern is what counts: 6 '
+                                    'Fridays of gentle generosity.'},
+           'rin_clearing': {'traditional_original': 'Donate white items on Friday. Serve your '
+                                                    'partner with respect.',
+                            'curated': 'For 6 weeks, on each Friday, do one tangible act of care '
+                                       'for your partner — cook for them, clean something they '
+                                       'normally clean, give them an hour of your full presence '
+                                       'without phone or distraction. Give a white gift to them or '
+                                       'to a woman in your life on the first and last Friday of '
+                                       'the cycle.'}},
+ 'Saturn': {'day': 'Saturday',
+            'primary': {'traditional_original': 'Donate mustard oil on Saturday. Serve food to '
+                                                'workers.',
+                        'curated': 'On Saturday, give a dark-toned, practical gift — oil, black '
+                                   'sesame seeds, dark cloth, coffee, dark chocolate, money — to '
+                                   'someone who labors in service (a cleaner, delivery worker, '
+                                   'security guard, gardener, anyone whose work is repetitive and '
+                                   'undervalued). On Saturday afternoon, place a small piece of '
+                                   'iron (a nail, an old key, a horseshoe nail) at the base of a '
+                                   'tree and leave it there.'},
+            'awakening': {'traditional_original': 'Serve workers and poor on Saturdays. Donate '
+                                                  'oil.',
+                          'curated': 'For 7 weeks, on each Saturday afternoon, give something '
+                                     'tangible — food, money, warm clothing, oil, coffee — to a '
+                                     'worker who serves and is rarely thanked. On the first '
+                                     "Saturday, place a small piece of iron at a tree's base and "
+                                     'leave it there for the full 7 weeks.'},
+            'rin_clearing': {'traditional_original': '',
+                             'curated': 'For 7 weeks, on each Saturday morning, do one piece of '
+                                        "work you've been avoiding — the boring task, the call you "
+                                        "owe, the form that's been waiting, the apology that needs "
+                                        'writing. Do not do it for praise or recognition. You may '
+                                        'tell one accountability partner (a therapist, coach, or '
+                                        'trusted friend) that you are doing the practice, but do '
+                                        'not seek their validation for completing it. On Saturday '
+                                        'afternoon, give a dark-toned gift (oil, coffee, money) to '
+                                        'a worker. The act clears the labor-debt that accrues — '
+                                        'work avoided becomes work owed.'}},
+ 'Rahu': {'day': 'Saturday',
+          'primary': {'traditional_original': 'Donate blue clothes to a sweeper. Keep silver '
+                                              'square piece.',
+                      'curated': 'On Saturday, give a dark blue or grey gift (clothes, a blanket, '
+                                 'money) to a cleaner, sweeper, or anyone whose work removes dirt '
+                                 'and disorder from public spaces. Keep a small square piece of '
+                                 'silver in your wallet or on your desk. On Saturday at sunset, '
+                                 'release a piece of charcoal, ash, or burnt wood into flowing '
+                                 'water — a stream, river, drain, or running tap — and as it goes, '
+                                 'name aloud one obsession or anxious loop you want to release.'},
+          'awakening': {'traditional_original': 'Feed crows. Keep elephant figurine. Donate on '
+                                                'Saturdays.',
+                        'curated': 'For 6 weeks, on each Saturday, scatter food (bread, grain, '
+                                   'leftover rice) for crows or any black birds in your area. Keep '
+                                   'a small figure or image of an elephant, or a sandalwood '
+                                   "object, somewhere you'll see it daily. On Saturdays, give a "
+                                   'blue or grey gift to a cleaner or sweeper.'},
+          'rin_clearing': {'traditional_original': '',
+                           'curated': 'For 6 weeks, on each Saturday at sunset, write down one '
+                                      'obsession, fantasy, or fear that has been running your mind '
+                                      'on repeat — then burn the paper or release it into flowing '
+                                      'water. Tell no one. The act clears the shadow-debt of '
+                                      'obsession — what we feed in private accumulates as weight '
+                                      'on the hidden mind.'}},
+ 'Ketu': {'day': 'Tuesday/Thursday',
+          'primary': {'traditional_original': 'Feed a stray dog. Donate a brown blanket.',
+                      'curated': 'On Tuesday or Thursday, give food to a stray dog — your own, a '
+                                 "neighbor's, or one in your neighborhood. Once a year, donate a "
+                                 'brown or earth-toned blanket to a shelter or a person sleeping '
+                                 'outside. On Tuesday, leave a small offering of bananas, fruit, '
+                                 'or food at a place that holds spiritual meaning for you — a '
+                                 'small altar at home, a tree you sit under, any space that feels '
+                                 'sacred to you.'},
+          'awakening': {'traditional_original': 'Keep cat. Donate blankets. Spiritual practice '
+                                                'daily.',
+                        'curated': 'For 7 weeks, on each Tuesday or Thursday, feed a stray dog or '
+                                   'care for an animal that lives near humans without belonging to '
+                                   'them. Donate at least one warm blanket during the cycle. '
+                                   'Establish a 5-minute daily silent practice — sitting quietly, '
+                                   'breathing, prayer in your own tradition, or simply staring at '
+                                   "nothing — and don't break it."},
+          'rin_clearing': {'traditional_original': '',
+                           'curated': 'For 7 weeks, on each Tuesday or Thursday, reclaim 30 '
+                                      'minutes of silent solitude — no phone, no music, no input. '
+                                      'Sit alone or walk alone. During the cycle, give one '
+                                      'possession away to someone who needs it more — not what you '
+                                      "don't want, but something you have some attachment to. The "
+                                      'act clears the release-debt of holding on — what we cling '
+                                      'to past its time becomes weight on the planet of letting '
+                                      'go.'}}}
+
+
+def _resolve_remedy(planet: str, variant: str = "primary") -> str:
+    """Curated upaay string for a planet (single, locale-independent).
+
+    Emits UPAAY_LIBRARY[planet][variant]["curated"]. traditional_original is
+    retained in the data but never emitted here. Falls back to the legacy
+    REMEDY_TEXT one-liner if the library lacks a row. Returns a STRING — the
+    response shape is unchanged (remedy was already a string).
+    """
+    if not planet:
+        return REMEDY_TEXT.get("Mercury", "")
+    row = (UPAAY_LIBRARY.get(planet) or {}).get(variant) or {}
+    curated = row.get("curated")
+    if curated:
+        return curated
+    return REMEDY_TEXT.get(
+        planet, "Pause, breathe, and confirm what matters in writing.")
+
+
+def _strip_home_payload(payload, language: str = "en"):
+    """User-facing strips for a Home payload, with `remedy` routed through
+    field_type='timing' (weekday-preserving) instead of 'plain'.
+
+    The curated upaay in `remedy` intentionally carries a day-of-week
+    ("On Tuesday, ..."). The 'plain' sweep deletes day names; 'timing' keeps
+    them while still stripping planet names + Vedic jargon as defense-in-depth.
+    Every other string keeps the standard 'plain' treatment, matching prior
+    behaviour exactly.
+    """
+    from antar_engine.output_strips import apply_user_facing_strips as _apply
+
+    # Structured planet-label fields — pass through unstripped, mirroring the
+    # @translate_response fields_to_skip on /home. Prevents the strip from
+    # turning phase.*.planet / cycleName (e.g. "Saturn") into an energy phrase.
+    _KEEP = {"planet", "cycleName"}
+
+    def _walk(node):
+        if isinstance(node, dict):
+            out = {}
+            for k, v in node.items():
+                if k in _KEEP:
+                    out[k] = v
+                elif k == "remedy":
+                    if isinstance(v, str):
+                        out[k] = _apply(v, language=language,
+                                        field_type="timing", depth="user")
+                    elif isinstance(v, dict):
+                        out[k] = {kk: (_apply(vv, language=language,
+                                              field_type="timing", depth="user")
+                                       if isinstance(vv, str) else vv)
+                                  for kk, vv in v.items()}
+                    else:
+                        out[k] = v
+                elif isinstance(v, (dict, list)):
+                    out[k] = _walk(v)
+                elif isinstance(v, str):
+                    out[k] = _apply(v, language=language,
+                                    field_type="plain", depth="user")
+                else:
+                    out[k] = v
+            return out
+        if isinstance(node, list):
+            return [_walk(x) for x in node]
+        return node
+
+    return _walk(payload)
+
 USE_MAPS = {
     "today": {
         "Sun":     "Lead with your own initiative — make the visible move.",
@@ -446,7 +729,7 @@ def _build_chain_negative(weak_planet: str, charge: float = 0.40,
     return {
         "use":      None,
         "cause":    {"planet": weak_planet, "text": (cause_override or CAUSE_TEXT.get(weak_planet, ""))},
-        "remedy":   REMEDY_TEXT.get(weak_planet, "Pause, breathe, and confirm what matters in writing."),
+        "remedy":   _resolve_remedy(weak_planet),
         "chakra":   {"name": chakra["name"], "governs": chakra["governs"], "charge": round(charge, 2)},
         "practice": {"name": name, "minutes": minutes, "steps": list(steps)},
     }
