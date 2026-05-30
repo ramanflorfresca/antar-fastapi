@@ -157,6 +157,18 @@ _VEDIC_SUBS_ES: list[tuple[str, str]] = [
     (r'\btara Kshema\b',          'energía lunar protectora'),
     (r'\btara Pratyari\b',        'energía lunar de resistencia'),
     (r'\btara Vadha\b',           'energía lunar de obstáculo'),
+    # [tara-leak-fix] formas invertidas y simples en cualquier orden, antes del
+    # reemplazo genérico \btara\b de más abajo.
+    (r'\b(?:tara\s+)?Ati[-\s]?Mitra(?:\s+tara)?\b', 'energía lunar muy favorable'),
+    (r'\b(?:tara\s+)?Sadhana(?:\s+tara)?\b',  'energía lunar de realización'),
+    (r'\b(?:tara\s+)?Sampat(?:\s+tara)?\b',   'energía lunar de abundancia'),
+    (r'\b(?:tara\s+)?Janma(?:\s+tara)?\b',    'energía lunar de introspección'),
+    (r'\b(?:tara\s+)?Vipat(?:\s+tara)?\b',    'energía lunar cautelosa'),
+    (r'\b(?:tara\s+)?Kshema(?:\s+tara)?\b',   'energía lunar protectora'),
+    (r'\b(?:tara\s+)?Pratyari(?:\s+tara)?\b', 'energía lunar de resistencia'),
+    (r'\b(?:tara\s+)?Vadha(?:\s+tara)?\b',    'energía lunar de obstáculo'),
+    (r'\b(?:tara\s+)?Naidhana(?:\s+tara)?\b', 'energía lunar de transformación'),
+    (r'\b(?:tara\s+)?Mitra(?:\s+tara)?\b',    'energía lunar favorable'),
     # Generic "la tara …"
     (r'\bla tara favorable\b',    'la energía lunar favorable'),
     (r'\bla tara desfavorable\b', 'la energía lunar desfavorable'),
@@ -243,6 +255,18 @@ _VEDIC_SUBS_EN: list[tuple[str, str]] = [
     (r'\btara Kshema\b',          'protective lunar energy'),
     (r'\btara Pratyari\b',        'resistant lunar energy'),
     (r'\btara Vadha\b',           'obstructed lunar energy'),
+    # [tara-leak-fix] reversed ('Sadhana tara') and bare ('Sadhana') forms in any
+    # word order, caught BEFORE the generic \btara\b fallback further down.
+    (r'\b(?:tara\s+)?Ati[-\s]?Mitra(?:\s+tara)?\b', 'very favorable lunar energy'),
+    (r'\b(?:tara\s+)?Sadhana(?:\s+tara)?\b',  'lunar energy for completion'),
+    (r'\b(?:tara\s+)?Sampat(?:\s+tara)?\b',   'abundant lunar energy'),
+    (r'\b(?:tara\s+)?Janma(?:\s+tara)?\b',    'inward lunar energy'),
+    (r'\b(?:tara\s+)?Vipat(?:\s+tara)?\b',    'cautious lunar energy'),
+    (r'\b(?:tara\s+)?Kshema(?:\s+tara)?\b',   'protective lunar energy'),
+    (r'\b(?:tara\s+)?Pratyari(?:\s+tara)?\b', 'resistant lunar energy'),
+    (r'\b(?:tara\s+)?Vadha(?:\s+tara)?\b',    'obstructed lunar energy'),
+    (r'\b(?:tara\s+)?Naidhana(?:\s+tara)?\b', 'transformative lunar energy'),
+    (r'\b(?:tara\s+)?Mitra(?:\s+tara)?\b',    'favorable lunar energy'),
     (r'\bfavorable tara\b',       'favorable lunar energy'),
     (r'\bunfavorable tara\b',     'unfavorable lunar energy'),
     (r'\btara\b',                 'lunar energy'),
@@ -560,6 +584,23 @@ def _tidy(text: str) -> str:
     text = re.sub(r'\bventana\s+de\s+ventana\b', 'ventana', text, flags=re.IGNORECASE)
     text = re.sub(r'\bla\s+la\b', 'la', text, flags=re.IGNORECASE)
     text = re.sub(r'\bel\s+el\b', 'el', text, flags=re.IGNORECASE)
+    # [planet-sub-garble-fix] _strip_planet_names inserts a possessive phrase
+    # ('your ... energy') where a bare noun stood, stranding a determiner:
+    #   'the dual Moon aspects' -> 'the dual your ... energy aspects'.
+    # Collapse determiner+possessive collisions (loop for stacks like 'the dual your').
+    _prev = None
+    while _prev != text:
+        _prev = text
+        text = re.sub(
+            r'\b(?:the|a|an|this|that|these|those|its|his|her|their|dual)\s+your\b',
+            'your', text, flags=re.IGNORECASE,
+        )
+    text = re.sub(r'\byour\s+your\b', 'your', text, flags=re.IGNORECASE)
+    # [score-strip-garble-fix] orphaned opener left when an 'X/56' score was removed
+    # mid-sentence ('sits at 21/56,' -> 'sits at,').
+    text = re.sub(r'\bsits?\s+at\s*,\s*', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\s*,\s*and\s*,\s*', ' and ', text)
+    text = re.sub(r'\s+,\s+,\s+', ' ', text)
     # Standard whitespace / punctuation normalization
     text = re.sub(r' {2,}', ' ', text)
     text = re.sub(r'\s+([,.;:])', r'\1', text)
