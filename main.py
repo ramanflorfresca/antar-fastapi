@@ -6698,6 +6698,24 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
             )
         except Exception:
             pass
+    # [gemstone] Gemstone prose is authored in English and the stone NAME is
+    # localised deterministically; translate the gemstone block's prose for
+    # es/pt via the existing cached pipeline (disjoint from the fields above).
+    _gem_lang = str(request.language or "").split("_")[0].split("-")[0].lower()
+    if _gem_lang in ("es", "pt"):
+        _tp = resp.get("today_priority") or {}
+        _gem = _tp.get("gemstone")
+        if isinstance(_gem, dict):
+            try:
+                from antar_engine.translation_middleware import translate_dict
+                from antar_engine.practice_library import GEMSTONE_TRANSLATABLE_FIELDS
+                _tp["gemstone"] = await translate_dict(
+                    _gem, language=_gem_lang,
+                    fields_to_translate=GEMSTONE_TRANSLATABLE_FIELDS,
+                    endpoint_name="daily-practice-gemstone", chart_id=request.chart_id,
+                )
+            except Exception as _ge:
+                print(f"[gemstone i18n] {_ge}")
     _PRACTICE_CACHE[ckey] = (_prac_time.time() + _PRACTICE_TTL, resp)
     return resp
 

@@ -16,7 +16,9 @@ from __future__ import annotations
 
 from typing import Optional
 
-from antar_engine.practice_library import PRACTICE_LIBRARY, get_planet_content
+from antar_engine.practice_library import (
+    PRACTICE_LIBRARY, get_planet_content, personalize_gemstone, GEMSTONE_SCOPES,
+)
 from antar_engine.practice_scopes import SCOPES
 from antar_engine.practice_chakras import compute_chakra_states
 
@@ -163,6 +165,13 @@ def compose_practice_response(
             "chakras_to_balance": content.get("chakras_balanced"),
             "why_this_works": content.get("why_this_works"),
         }
+        # [gemstone] Advanced permanent-wear remedy. Only durable scopes get a
+        # stone; transient triggers (daily_transit / monthly_lk) return null so
+        # the frontend renders its empty state.
+        today_priority["gemstone"] = (
+            personalize_gemstone(pl, scope, language, chart=chart, conditions=conditions)
+            if scope in GEMSTONE_SCOPES else None
+        )
 
     # ── active (summaries only) ─────────────────────────────────────────────
     active = []

@@ -281,3 +281,329 @@ def get_planet_content(planet: str, language: str = "en") -> dict:
         "why_this_works": _loc(entry["why_this_works"], language),
         "frequency_hz": entry["frequency_hz"],
     }
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# GEMSTONE (RATNA) LAYER — appended by patch_gemstone_practice.py. Additive.
+# ───────────────────────────────────────────────────────────────────────────
+# Permanent-wear remedial layer for the Practice surface. NOT daily practice.
+# Order of remediation is always: mantra (mandatory) -> yantra -> ONLY THEN the
+# stone (optional). Prose fields are authored in English and translated to
+# es/pt via the existing translate_dict pipeline; gemstone NAMES are localized
+# deterministically from GEMSTONE_NAME_I18N; Sanskrit names stay Sanskrit.
+# ═══════════════════════════════════════════════════════════════════════════
+
+# Durable scopes that justify a permanent-wear recommendation. Transient
+# triggers (daily_transit / monthly_lk) must NOT surface a gemstone.
+GEMSTONE_SCOPES = {"natal_weakness", "dasha_period", "varshphal_year"}
+
+# Leaf prose keys the translation pipeline may translate (es/pt). Names,
+# Sanskrit, color_hex and risk_level are deliberately excluded.
+GEMSTONE_TRANSLATABLE_FIELDS = [
+    "description", "why_for_this_user", "preparation", "recommended_order",
+    "sourcing", "weight_guideline", "weight_carats_range",
+    "metal_primary", "metal_alternate", "finger", "hand",
+    "first_wear_day", "first_wear_time", "cautions", "note",
+]
+
+# Stone names — the one field translated by a controlled map, not the LLM.
+GEMSTONE_NAME_I18N = {
+    "Ruby":            {"en": "Ruby",            "es": "Rub\u00ed",          "pt": "Rubi"},
+    "Pearl":           {"en": "Pearl",           "es": "Perla",         "pt": "P\u00e9rola"},
+    "Red Coral":       {"en": "Red Coral",       "es": "Coral Rojo",    "pt": "Coral Vermelho"},
+    "Emerald":         {"en": "Emerald",         "es": "Esmeralda",     "pt": "Esmeralda"},
+    "Yellow Sapphire": {"en": "Yellow Sapphire", "es": "Zafiro Amarillo","pt": "Safira Amarela"},
+    "Diamond":         {"en": "Diamond",         "es": "Diamante",      "pt": "Diamante"},
+    "Blue Sapphire":   {"en": "Blue Sapphire",   "es": "Zafiro Azul",   "pt": "Safira Azul"},
+    "Hessonite Garnet":{"en": "Hessonite Garnet","es": "Granate Hesonita","pt": "Granada Hessonita"},
+    "Cat's Eye":       {"en": "Cat's Eye",       "es": "Ojo de Gato",   "pt": "Olho de Gato"},
+}
+
+
+GEMSTONE_LIBRARY = {
+    "Sun": {
+        "name": "Ruby", "sanskrit": "Manik", "color_hex": "#C72E48",
+        "risk_level": "low",
+        "metal_primary": "Gold", "metal_alternate": "Panchadhatu (5-metal alloy)",
+        "finger": "Ring finger", "hand": "Right hand (left for left-handed people)",
+        "weight_carats_range": "3-6 carats",
+        "weight_guideline": "Rule of thumb: 1/12th of body weight in grams; 3-5 carats suits most adults.",
+        "first_wear_day": "Sunday", "first_wear_time": "At sunrise on Sunday, in the Sun hora",
+        "preparation": "Soak the ring in raw cow's milk, Ganga water and tulsi leaves for 30 minutes. Holding the ring, recite Om Suryaya Namaha 108 times. Wear it at sunrise without showing it to others on the first day.",
+        "description": "The Sun rules vitality, confidence, authority and recognition. Ruby amplifies the Sun's fire — it strengthens a favorable Sun and steadies the felt sense of self-worth.",
+        "why_for_this_user": "",
+        "substitutes": [
+            {"name": "Red Garnet", "note": "Affordable Sun substitute — warm red family, gentle vitality boost"},
+            {"name": "Red Spinel", "note": "Closest natural alternative to Ruby — similar fire, lower cost"},
+            {"name": "Sunstone", "note": "Lowest-cost option — soft, supportive solar warmth"},
+        ],
+        "cautions": [
+            "Ruby amplifies both sides of the Sun — if your natal Sun is afflicted, consult a qualified astrologer first.",
+            "Avoid combining with Blue Sapphire, Hessonite, or Cat's Eye in the same hand — these are the Sun's adversaries.",
+            "Use only natural, certified, untreated Ruby — glass-filled or heat-treated stones are energetically inert.",
+        ],
+        "sourcing": "Look for GIA, IGI, or GRS certification. Burmese (Mogok) rubies are the classical origin; Ceylon stones are also valued. Expect $150-$1500+ per carat for natural, untreated stone.",
+        "recommended_order": "Mantra (Om Suryaya Namaha, 108 daily) → Gold Sun yantra → copper Sun pendant → ONLY THEN consider Ruby. The mantra is mandatory. The stone is optional.",
+    },
+    "Moon": {
+        "name": "Pearl", "sanskrit": "Moti", "color_hex": "#F4F4F4",
+        "risk_level": "low",
+        "metal_primary": "Silver", "metal_alternate": "Panchadhatu (5-metal alloy) or White Gold",
+        "finger": "Little finger", "hand": "Right hand (left for left-handed people)",
+        "weight_carats_range": "4-7 carats",
+        "weight_guideline": "Pearls are worn generously — 4-7 carats (or larger) is common, sized to the finger.",
+        "first_wear_day": "Monday", "first_wear_time": "Monday morning in the Moon hora, ideally on a waxing-moon Monday",
+        "preparation": "Soak the ring in raw cow's milk, Ganga water and tulsi leaves for 30 minutes. Holding the ring, recite Om Chandraya Namaha 108 times. Wear it on Monday morning, calmly and privately.",
+        "description": "The Moon rules emotion, mind, comfort and how you are received. Pearl cools and steadies the Moon — it softens emotional reactivity and supports rest and inner safety.",
+        "why_for_this_user": "",
+        "substitutes": [
+            {"name": "Moonstone", "note": "Affordable Moon substitute — calming, classically lunar"},
+            {"name": "White Coral", "note": "Gentle lunar support — steadies mood at low cost"},
+            {"name": "Rainbow Moonstone", "note": "Lowest-cost option — soft, soothing Moon vibration"},
+        ],
+        "cautions": [
+            "Pearl is gentle, but if your natal Moon is severely afflicted, confirm suitability with an astrologer.",
+            "Avoid combining with Hessonite or Cat's Eye in the same hand — the nodes unsettle the Moon.",
+            "Choose natural, certified pearls (not plastic or shell-coated imitations).",
+        ],
+        "sourcing": "Natural or cultured saltwater pearls (Basra, South Sea). Look for a lab certificate of natural/cultured origin. Expect $30-$400+ per carat depending on luster and origin.",
+        "recommended_order": "Mantra (Om Chandraya Namaha, 108 daily) → Silver Moon yantra → silver pendant → ONLY THEN consider Pearl. The mantra is mandatory. The stone is optional.",
+    },
+    "Mars": {
+        "name": "Red Coral", "sanskrit": "Moonga", "color_hex": "#D14A3A",
+        "risk_level": "low",
+        "metal_primary": "Copper or Gold", "metal_alternate": "Panchadhatu (5-metal alloy)",
+        "finger": "Ring finger", "hand": "Right hand (left for left-handed people)",
+        "weight_carats_range": "6-12 carats",
+        "weight_guideline": "Red Coral is worn fairly large — 6-12 carats is typical, sized to the finger.",
+        "first_wear_day": "Tuesday", "first_wear_time": "Tuesday at sunrise, in the Mars hora",
+        "preparation": "Soak the ring in raw cow's milk, Ganga water and tulsi leaves for 30 minutes. Holding the ring, recite Om Angarakaya Namaha 108 times. Wear it on Tuesday at sunrise.",
+        "description": "Mars rules drive, courage, energy and clean boundaries. Red Coral strengthens Mars — it supports steady stamina and channels force into aim rather than friction.",
+        "why_for_this_user": "",
+        "substitutes": [
+            {"name": "Carnelian", "note": "Affordable Mars substitute — warm, energizing, grounding"},
+            {"name": "Red Jasper", "note": "Steady Mars support — endurance and courage at low cost"},
+            {"name": "Bloodstone", "note": "Lowest-cost option — classical Mars vitality stone"},
+        ],
+        "cautions": [
+            "Red Coral can heat an already-fiery temperament — if your Mars is strong or afflicted, consult first.",
+            "Avoid combining with Emerald in the same hand — Mercury and Mars are adversaries.",
+            "Use natural, untreated coral; dyed or reconstituted coral is energetically inert.",
+        ],
+        "sourcing": "Natural Italian (Mediterranean) or Japanese coral, undyed. Look for a gemological certificate of natural origin. Expect $20-$200+ per carat.",
+        "recommended_order": "Mantra (Om Angarakaya Namaha, 108 daily) → Copper Mars yantra → copper pendant → ONLY THEN consider Red Coral. The mantra is mandatory. The stone is optional.",
+    },
+    "Mercury": {
+        "name": "Emerald", "sanskrit": "Panna", "color_hex": "#4FAE5F",
+        "risk_level": "low",
+        "metal_primary": "Gold", "metal_alternate": "Panchadhatu (5-metal alloy) or Silver",
+        "finger": "Little finger", "hand": "Right hand (left for left-handed people)",
+        "weight_carats_range": "3-6 carats",
+        "weight_guideline": "3-6 carats suits most adults; emerald is potent, so moderate weights are common.",
+        "first_wear_day": "Wednesday", "first_wear_time": "Wednesday morning, in the Mercury hora",
+        "preparation": "Soak the ring in raw cow's milk, Ganga water and tulsi leaves for 30 minutes. Holding the ring, recite Om Budhaya Namaha 108 times. Wear it on Wednesday morning.",
+        "description": "Mercury rules communication, analysis, learning and exchange. Emerald clears Mercury's channels — it supports clear speech, steady focus and sound judgment.",
+        "why_for_this_user": "",
+        "substitutes": [
+            {"name": "Green Tourmaline", "note": "Affordable Mercury substitute — clear green family, mentally supportive"},
+            {"name": "Peridot", "note": "Gentle Mercury support — clarity and ease at lower cost"},
+            {"name": "Aventurine", "note": "Lowest-cost option — soft, supportive Mercury vibration"},
+        ],
+        "cautions": [
+            "Emerald is potent — if your natal Mercury is heavily afflicted, confirm suitability with an astrologer.",
+            "Avoid combining with Pearl or Red Coral in the same hand — these clash with Mercury.",
+            "Choose natural, certified emerald; heavily oil-/resin-filled stones are weaker and may fracture.",
+        ],
+        "sourcing": "Colombian, Zambian, or Brazilian emerald with GIA/IGI/GRS certification noting treatment level. Expect $100-$2000+ per carat depending on clarity and origin.",
+        "recommended_order": "Mantra (Om Budhaya Namaha, 108 daily) → Gold Mercury yantra → bronze pendant → ONLY THEN consider Emerald. The mantra is mandatory. The stone is optional.",
+    },
+    "Jupiter": {
+        "name": "Yellow Sapphire", "sanskrit": "Pukhraj", "color_hex": "#E0A23B",
+        "risk_level": "low",
+        "metal_primary": "Gold", "metal_alternate": "Panchadhatu (5-metal alloy)",
+        "finger": "Index finger", "hand": "Right hand (left for left-handed people)",
+        "weight_carats_range": "3-6 carats",
+        "weight_guideline": "Rule of thumb: 1/12th of body weight in grams; 3-5 carats suits most adults.",
+        "first_wear_day": "Thursday", "first_wear_time": "Thursday at sunrise, in the Jupiter hora",
+        "preparation": "Soak the ring in raw cow's milk, Ganga water and tulsi leaves for 30 minutes. Holding the ring, recite Om Gurave Namaha 108 times. Wear it on Thursday at sunrise.",
+        "description": "Jupiter rules wisdom, growth, fortune and faith. Yellow Sapphire expands Jupiter's grace — it supports optimism, good counsel and a felt sense of opportunity opening.",
+        "why_for_this_user": "",
+        "substitutes": [
+            {"name": "Yellow Topaz (Sunela)", "note": "Affordable Jupiter substitute — same golden family, gentler effect"},
+            {"name": "Citrine", "note": "Warm Jupiter support — abundance and optimism at low cost"},
+            {"name": "Heliodor", "note": "Lowest-cost option — soft golden Jupiter vibration"},
+        ],
+        "cautions": [
+            "Yellow Sapphire is broadly benefic, but if your natal Jupiter is afflicted, confirm with an astrologer.",
+            "Avoid combining with Diamond, Emerald, or Blue Sapphire in the same hand — these oppose Jupiter.",
+            "Use only natural, certified, untreated Yellow Sapphire — diffusion-treated stones are inert.",
+        ],
+        "sourcing": "Ceylon (Sri Lanka) yellow sapphire with GIA/IGI/GRS certification. Expect $80-$1000+ per carat for natural, untreated stone.",
+        "recommended_order": "Mantra (Om Gurave Namaha, 108 daily) → Gold Jupiter yantra → gold pendant → ONLY THEN consider Yellow Sapphire. The mantra is mandatory. The stone is optional.",
+    },
+    "Venus": {
+        "name": "Diamond", "sanskrit": "Heera", "color_hex": "#DFE5F0",
+        "risk_level": "medium",
+        "metal_primary": "White Gold or Platinum", "metal_alternate": "Silver",
+        "finger": "Middle finger", "hand": "Right hand (left for left-handed people)",
+        "weight_carats_range": "0.5-1.5 carats",
+        "weight_guideline": "Diamond is worn small — even 0.3-1 carat is effective; weight matters far less than purity.",
+        "first_wear_day": "Friday", "first_wear_time": "Friday at sunrise, in the Venus hora",
+        "preparation": "Soak the ring in raw cow's milk, Ganga water and tulsi leaves for 30 minutes. Holding the ring, recite Om Shukraya Namaha 108 times. Wear it on Friday at sunrise.",
+        "description": "Venus rules love, beauty, pleasure, art and the flow of value. Diamond amplifies Venus — it supports harmony, refinement and ease in relating and resources.",
+        "why_for_this_user": "",
+        "substitutes": [
+            {"name": "White Sapphire", "note": "Affordable Venus substitute — colorless and brilliant, very close in effect"},
+            {"name": "White Zircon", "note": "Bright Venus support — diamond-like sparkle at a fraction of the cost"},
+            {"name": "Clear Quartz", "note": "Lowest-cost option — gentle, clarifying Venus vibration"},
+        ],
+        "cautions": [
+            "Diamond is rarely harmful but cost-prohibitive — a White Sapphire does similar work for far less.",
+            "Watch Sun–Saturn–Venus combinations: if Venus sits with the Sun or Saturn in difficult ways, have a qualified astrologer review before committing.",
+            "Use only natural, certified diamond — lab-grown and treated stones differ energetically in this tradition.",
+        ],
+        "sourcing": "GIA-certified natural diamond; even a small, clean stone works. Expect $1000-$8000+ per carat — which is exactly why the substitutes below are recommended first.",
+        "recommended_order": "Mantra (Om Shukraya Namaha, 108 daily) → Silver Venus yantra → White Sapphire (honest substitute) → ONLY THEN consider Diamond. The mantra is mandatory. The stone is optional.",
+    },
+    "Saturn": {
+        "name": "Blue Sapphire", "sanskrit": "Neelam", "color_hex": "#3D5BC9",
+        "risk_level": "high",
+        "metal_primary": "Silver", "metal_alternate": "Panchadhatu (5-metal alloy) or Iron",
+        "finger": "Middle finger", "hand": "Right hand (left for left-handed people)",
+        "weight_carats_range": "4-6 carats",
+        "weight_guideline": "Rule of thumb: 1/12th of body weight in grams. Start at the lower end during the trial.",
+        "first_wear_day": "Saturday", "first_wear_time": "Before sunrise on Saturday, in the Saturn hora",
+        "preparation": "Soak the ring in raw cow's milk, Ganga water and tulsi leaves for 30 minutes. Holding the ring, recite Om Sham Shanaye Namaha 108 times. Wear it silently before sunrise on Saturday, without showing it to others on the first day.",
+        "description": "Saturn rules slow-build, discipline, structure and karmic patience. Blue Sapphire amplifies Saturn's energy — both its benefic and malefic sides. When the chart's Saturn is favorable the stone accelerates rewards; when unfavorable, it amplifies losses.",
+        "why_for_this_user": "",
+        "substitutes": [
+            {"name": "Amethyst (Jamuniya)", "note": "Affordable Saturn substitute — same color family, gentler effect"},
+            {"name": "Iolite (Kaka Neeli)", "note": "Often called 'water sapphire' — softer Saturn energy"},
+            {"name": "Lapis Lazuli", "note": "Lowest-cost option — minimal but supportive Saturn vibration"},
+        ],
+        "cautions": [
+            "TEST FIRST — wear for 3-7 days before any permanent commitment. If you experience nightmares, sudden financial loss, illness, accidents, or family conflict, remove it immediately.",
+            "Avoid combining with Diamond, Pearl, or Red Coral in the same hand — these are Saturn's enemies.",
+            "Do NOT wear if your natal Saturn is a functional malefic for your lagna without expert consultation.",
+            "Only natural, certified, untreated Blue Sapphire. Heat-treated or synthetic stones are energetically inert.",
+        ],
+        "sourcing": "GIA, IGI, or GRS certification. Origin matters — Kashmir/Ceylon (Sri Lanka) sapphires are traditional. Expect $200-$2000+ per carat for natural stone.",
+        "recommended_order": "Mantra (Om Sham Shanaye Namaha, 108 daily) → Silver Saturn yantra → Iron pendant → ONLY THEN consider Blue Sapphire. The mantra is mandatory. The stone is optional.",
+    },
+    "Rahu": {
+        "name": "Hessonite Garnet", "sanskrit": "Gomed", "color_hex": "#C97A2F",
+        "risk_level": "high",
+        "metal_primary": "Silver or Panchadhatu (5-metal alloy)", "metal_alternate": "Ashtadhatu (8-metal alloy)",
+        "finger": "Middle finger", "hand": "Right hand (left for left-handed people)",
+        "weight_carats_range": "6-9 carats",
+        "weight_guideline": "Hessonite is worn fairly large — 6-9 carats is typical. Start at the lower end during the trial.",
+        "first_wear_day": "Saturday", "first_wear_time": "Saturday at dusk / during Rahu kaal, worn with care",
+        "preparation": "Soak the ring in raw cow's milk, Ganga water and tulsi leaves for 30 minutes. Holding the ring, recite Om Rahave Namaha 108 times. Wear it quietly at dusk on Saturday, without showing it to others on the first day.",
+        "description": "Rahu rules ambition, the unconventional, obsession and sudden change. Hessonite channels Rahu — it can sharpen focus and worldly drive, but on a wrong chart it amplifies anxiety and disruption.",
+        "why_for_this_user": "",
+        "substitutes": [
+            {"name": "Spessartite Garnet", "note": "Affordable Rahu substitute — warm orange family, gentler nodal effect"},
+            {"name": "Honey Topaz", "note": "Softer Rahu support — steadies ambition at lower cost"},
+            {"name": "Brown Tourmaline", "note": "Lowest-cost option — grounding, minimal Rahu vibration"},
+        ],
+        "cautions": [
+            "TEST FIRST — wear for 3-7 days before any permanent commitment. If you experience anxiety, nightmares, sudden losses, accidents, or scattered confusion, remove it immediately.",
+            "Avoid combining with Ruby, Pearl, or Red Coral in the same hand — the luminaries and Mars clash with Rahu.",
+            "Do NOT wear if Rahu is poorly placed for your lagna without expert consultation — nodal stones are unforgiving.",
+            "Only natural, certified, untreated Hessonite. Treated or synthetic stones are energetically inert.",
+        ],
+        "sourcing": "Ceylon (Sri Lanka) hessonite with GIA/IGI/GRS certification. Expect $20-$150+ per carat for natural stone.",
+        "recommended_order": "Mantra (Om Rahave Namaha, 108 daily) → Silver Rahu yantra → Ashtadhatu pendant → ONLY THEN consider Hessonite. The mantra is mandatory. The stone is optional.",
+    },
+    "Ketu": {
+        "name": "Cat's Eye", "sanskrit": "Lehsuniya", "color_hex": "#B8A04A",
+        "risk_level": "high",
+        "metal_primary": "Silver or Panchadhatu (5-metal alloy)", "metal_alternate": "Ashtadhatu (8-metal alloy)",
+        "finger": "Middle finger", "hand": "Right hand (left for left-handed people)",
+        "weight_carats_range": "3-6 carats",
+        "weight_guideline": "3-6 carats is typical. Start at the lower end during the trial.",
+        "first_wear_day": "Tuesday or Thursday", "first_wear_time": "Tuesday or Thursday at sunrise, in a quiet hora",
+        "preparation": "Soak the ring in raw cow's milk, Ganga water and tulsi leaves for 30 minutes. Holding the ring, recite Om Ketave Namaha 108 times. Wear it quietly at sunrise, without showing it to others on the first day.",
+        "description": "Ketu rules detachment, focus, spirituality and what falls away. Cat's Eye channels Ketu — it can deepen intuition and protection, but on a wrong chart it amplifies sudden endings and rootlessness.",
+        "why_for_this_user": "",
+        "substitutes": [
+            {"name": "Chrysoberyl", "note": "Affordable Cat's Eye substitute — same family, gentler nodal effect"},
+            {"name": "Tiger's Eye", "note": "Softer Ketu support — grounding focus at low cost"},
+            {"name": "Hawk's Eye", "note": "Lowest-cost option — calm, minimal Ketu vibration"},
+        ],
+        "cautions": [
+            "TEST FIRST — wear for 3-7 days before any permanent commitment. If you experience sudden endings, illness, accidents, or a sense of rootlessness, remove it immediately.",
+            "Avoid combining with Ruby, Pearl, or Red Coral in the same hand — the luminaries and Mars clash with Ketu.",
+            "Do NOT wear if Ketu is poorly placed for your lagna without expert consultation — nodal stones are unforgiving.",
+            "Only natural, certified, untreated Cat's Eye (chrysoberyl). Fibre-optic glass imitations are energetically inert.",
+        ],
+        "sourcing": "Natural chrysoberyl cat's eye with a sharp, centred band, GIA/IGI/GRS certified. Expect $50-$500+ per carat depending on the eye's clarity.",
+        "recommended_order": "Mantra (Om Ketave Namaha, 108 daily) → Silver Ketu yantra → Ashtadhatu pendant → ONLY THEN consider Cat's Eye. The mantra is mandatory. The stone is optional.",
+    },
+}
+
+# Literally attach a `gemstone` block to every PRACTICE_LIBRARY entry, so
+# PRACTICE_LIBRARY[planet]["gemstone"] is populated for all 9 planets.
+for _gp, _gdata in GEMSTONE_LIBRARY.items():
+    if _gp in PRACTICE_LIBRARY:
+        PRACTICE_LIBRARY[_gp]["gemstone"] = _gdata
+
+
+def _gem_base_lang(language):
+    l = str(language or "en").lower().split("_")[0].split("-")[0]
+    return l if l in ("en", "es", "pt") else "en"
+
+
+def build_gemstone_response(planet, language="en"):
+    """Localised gemstone block for one planet (independent deep copy).
+
+    Stone NAME is localised from GEMSTONE_NAME_I18N; Sanskrit, color_hex and
+    risk_level stay verbatim; all prose stays English here and is translated to
+    es/pt downstream by the translate_dict pipeline.
+    """
+    g = (PRACTICE_LIBRARY.get(planet) or {}).get("gemstone")
+    if not g:
+        return None
+    base = _gem_base_lang(language)
+    out = dict(g)
+    out["name"] = GEMSTONE_NAME_I18N.get(g["name"], {}).get(base, g["name"])
+    out["substitutes"] = [dict(s) for s in g.get("substitutes", [])]
+    out["cautions"] = list(g.get("cautions", []))
+    return out
+
+
+def build_personalization(planet, scope, chart=None, conditions=None, language="en"):
+    """One-sentence, chart-aware reason for `why_for_this_user`, framed by scope.
+
+    Authored in English; translated to es/pt by the pipeline. Mantra-first,
+    stone-optional framing is preserved in every variant.
+    """
+    g = (PRACTICE_LIBRARY.get(planet) or {}).get("gemstone", {})
+    stone = g.get("name", "the stone")
+    cond = ((conditions or {}).get(planet) or {}).get("condition")
+    weak = isinstance(cond, str) and cond.lower() in (
+        "debilitated", "combust", "weak", "afflicted", "fallen", "enemy")
+    cond_clause = f" (currently reading as {cond})" if weak else ""
+
+    if scope == "dasha_period":
+        return (f"You are in a {planet} period right now{cond_clause} — {stone} prepares the "
+                f"body and mind for this chapter. The mantra comes first; the stone is an "
+                f"optional amplifier, never a replacement.")
+    if scope == "varshphal_year":
+        return (f"{planet} is emphasised in your year ahead{cond_clause} — {stone} is a "
+                f"year-bounded support, not a permanent fixture. Begin with the mantra; the "
+                f"stone is optional.")
+    # natal_weakness (permanent recommendation) and any default.
+    return (f"{planet} is weak in your birth chart{cond_clause}. Your daily practice already "
+            f"strengthens it — the gemstone is an OPTIONAL advanced amplifier you may add later, "
+            f"never a replacement for the practice.")
+
+
+def personalize_gemstone(planet, scope="natal_weakness", language="en", chart=None, conditions=None):
+    """PRACTICE_LIBRARY[planet]['gemstone'] localised + personalised for the user."""
+    base = build_gemstone_response(planet, language)
+    if not base:
+        return None
+    base["why_for_this_user"] = build_personalization(
+        planet, scope, chart=chart, conditions=conditions, language=language)
+    return base
