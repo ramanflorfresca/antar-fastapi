@@ -972,13 +972,29 @@ def _lang_from_country(country_code):
 
 app = FastAPI(title="Antar API", version="2.1.0", lifespan=lifespan)
 
+# [cors] Single source of truth for allowed browser origins. Used by BOTH the
+# CORSMiddleware below AND the manual CORS-on-errors mirror further down so the
+# two never drift. Regex (not exact allow_origins) so Lovable per-PR preview URLs
+# (https://<uuid>.lovableproject.com / .lovable.app) match without allow-listing.
+# Keeps every antar.world (sub)domain, plus localhost for local dev.
+_ANTAR_CORS_ORIGIN_REGEX = (
+    r"^https://("
+    r"([a-z0-9-]+\.)*antar\.world|"
+    r"antar-world\.lovable\.app|"
+    r"[a-z0-9-]+\.lovableproject\.com|"
+    r"[a-z0-9-]+\.lovable\.app|"
+    r"localhost(:\d+)?"
+    r")$"
+)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["https://antar.world"],
-    allow_origin_regex=r"https://([a-z0-9-]+\.)+antar\.world",
+    allow_origin_regex=_ANTAR_CORS_ORIGIN_REGEX,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=["*"],
+    max_age=600,
 )
 
 
@@ -989,7 +1005,7 @@ app.add_middleware(
 # traceback (visible in Railway logs) and returns a JSON 500 with CORS headers
 # injected manually. Mirrors the origin policy of the CORSMiddleware above.
 import re as _cors_err_re
-_ANTAR_ORIGIN_RE = _cors_err_re.compile(r"https://([a-z0-9-]+\.)+antar\.world")
+_ANTAR_ORIGIN_RE = _cors_err_re.compile(_ANTAR_CORS_ORIGIN_REGEX)
 
 
 @app.exception_handler(Exception)
