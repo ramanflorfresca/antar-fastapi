@@ -8440,8 +8440,10 @@ class PlacesCityCoord(BaseModel):
     name: str
     country: Optional[str] = None
     country_code: Optional[str] = None
-    lat: float
-    lon: float
+    # [places-typed-city] lat/lon optional: name-only requests are
+    # geocoded in places_city_endpoint before scoring (part C).
+    lat: Optional[float] = None
+    lon: Optional[float] = None
     timezone: Optional[str] = None
 
 
@@ -8555,9 +8557,85 @@ async def places_lines_endpoint(chart_id: str, language: str = "en"):
     return out
 
 
+# [places-typed-city] Benefics for favourable relocated-house hits.
+# (MALEFICS lives in places_concern; benefics are its natural complement.)
+_PLACES_BENEFICS = {"Jupiter", "Venus", "Mercury", "Moon"}
+
+
+def _places_house_positive_line(concern, language):
+    """Warm, generic 'the ground supports your <domain>' line for a
+    favourable relocated-house hit. No planet or house number is named."""
+    L = (language or "en").lower().split("-")[0]
+    if L not in ("en", "es", "pt"):
+        L = "en"
+    try:
+        from antar_engine.places_templates import DOMAIN
+        _dmap = DOMAIN.get(L) or DOMAIN.get("en", {})
+        dom = _dmap.get(concern, concern)
+    except Exception:
+        dom = concern
+    frames = {
+        "en": f"The ground here quietly supports your {dom} — this place is set up to "
+              f"hold that part of life with a little less effort.",
+        "es": f"El terreno aquí apoya en silencio tu {dom} — este lugar está dispuesto "
+              f"para sostener esa parte de tu vida con un poco menos de esfuerzo.",
+        "pt": f"O terreno aqui apoia em silêncio o seu {dom} — este lugar está disposto "
+              f"para sustentar essa parte da vida com um pouco menos de esforço.",
+    }
+    return frames[L]
+
+
+def _places_compose_positive(concern, scored, language, limit=3):
+    """'What this place lifts' — supportive karaka lines (strongest first)
+    then favourable relocated-house hits. Each line is composed with the
+    existing places_composer translation and passed through _places_strip,
+    so planet names / house numbers / Sanskrit never surface. Capped at
+    `limit`; returns [] when nothing supportive is present."""
+    out, seen = [], set()
+    # 1) Supportive karaka-line signals (_signals is sorted strongest-first).
+    supportive = [s for s in scored.get("_signals", [])
+                  if s.get("polarity") == "supportive"]
+    try:
+        lines = _pcomp.compose_secondary_reasons(concern, supportive, language, limit=limit)
+    except Exception as _pe:
+        print(f"[places positive signals] {_pe}")
+        lines = []
+    for line in lines:
+        s = _places_strip(line, language)
+        if s and s not in seen:
+            seen.add(s)
+            out.append(s)
+        if len(out) >= limit:
+            return out
+    # 2) Favourable relocated-house hits (benefic or karaka, not friction).
+    fav = [h for h in scored.get("_house_hits", [])
+           if h.get("polarity") != "friction"
+           and (h.get("is_karaka") or h.get("planet") in _PLACES_BENEFICS)]
+    if fav:
+        try:
+            s = _places_strip(_places_house_positive_line(concern, language), language)
+        except Exception as _he:
+            print(f"[places positive house] {_he}")
+            s = None
+        if s and s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out[:limit]
+
+
 @app.post("/api/v1/places/city")
 async def places_city_endpoint(req: PlacesCityReq):
     req.concern = _pcn.resolve_concern(req.concern)  # legacy wealth/rest -> money/peace
+    # [places-typed-city] Any city must work: if autocomplete didn't supply
+    # coordinates, geocode by name + country before scoring (part C). A miss
+    # raises the existing structured GEOCODE_FAILED response.
+    if req.city.lat is None or req.city.lon is None:
+        _gc_country = req.city.country or req.city.country_code or ""
+        _glat, _glon, _gtz = await _geocode_city(req.city.name, _gc_country)
+        req.city.lat = _glat
+        req.city.lon = _glon
+        if not req.city.timezone:
+            req.city.timezone = _gtz
     ckey = ("places_city", req.chart_id, round(req.city.lat, 4), round(req.city.lon, 4),
             req.concern or "", req.language, bool(req.deep_read))
     cached = _places_cache_get(ckey)
@@ -8572,6 +8650,9 @@ async def places_city_endpoint(req: PlacesCityReq):
     conditions = _pc.compute_all_conditions(chart)
     relocation = _prel.compute_relocated_chart(chart, req.city.lat, req.city.lon)
     city_dict = req.city.dict()
+    # [places-typed-city] Velocity parity (part B): typed dataset cities get
+    # the health slow-pace nudge too; novel cities -> None -> no nudge.
+    city_dict["velocity"] = _places_velocity(req.city.name, req.city.country_code)
     active = _pcn.find_lines_near_city(all_lines, req.city.lat, req.city.lon, max_distance_km=700.0)
 
     if req.concern and req.concern in _pcn.VALID_CONCERNS:
@@ -8603,6 +8684,16 @@ async def places_city_endpoint(req: PlacesCityReq):
         "detail": _places_strip(detail, req.language),
         "watch_outs": _places_strip(watch, req.language),
     }
+    # [places-typed-city] Explicit positive / negative split (part A, additive).
+    # Domain frame: the concern when set, else a general ("career") frame —
+    # matching the existing balanced-branch convention for watch-outs.
+    _posneg_concern = (req.concern if (req.concern and req.concern in _pcn.VALID_CONCERNS)
+                       else "career")
+    out["positive"] = _places_compose_positive(_posneg_concern, scored, req.language, limit=3)
+    out["negative"] = _places_strip(
+        _pcomp.compose_watch_outs(_posneg_concern, scored.get("_watch", []), req.language, limit=3),
+        req.language,
+    )
     # Phase 2: parans near the city + optional LLM deep_read.
     out["parans"] = _pp.parans_near_city(
         _pp.compute_parans(all_lines, conditions), req.city.lat, req.city.lon
