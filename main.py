@@ -17795,6 +17795,210 @@ async def get_home(
     return payload
 
 
+@app.get("/api/v1/predict/week")
+@translate_response(
+    fields_to_translate=["headline", "one_line"],
+    endpoint_name="predict_week",
+)
+async def get_predict_week(
+    chart_id: str,
+    language: str = "en",
+    tz_offset: int = 0,
+):
+    """
+    7-day forward-looking headline strip for the TODAY tab (sits between the
+    attention card and the Today card).
+
+    Each day reuses the EXACT Today composition chain
+    (calculate_current_transits -> matches_trigger over LK_CONDITIONS ->
+    compose_daily_card), evaluated for a future local date. No LLM calls;
+    fully deterministic and template-driven. Returns exactly 7 entries,
+    index 0 == the user's local today.
+    """
+    from datetime import datetime, timedelta
+    import re as _re
+
+    # ── language normalize (matches home / monthly patterns) ──
+    language = (language or "en").split("-")[0].lower()
+    if language not in ("en", "es", "pt"):
+        language = "en"
+    tzo = int(tz_offset or 0)
+
+    # ── user's local "today" + the 6 following local days ──
+    now_local   = datetime.utcnow() + timedelta(minutes=tzo)
+    local_today = now_local.date()
+    dates       = [local_today + timedelta(days=i) for i in range(7)]
+    _WD = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+
+    # ── load chart row ──
+    res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    row = res.data[0]
+
+    from antar_engine.home_composer import _safe_json as _hsj
+
+    # ── dasha lord(s) covering the window (level-1 vimsottari, queried once) ──
+    md_rows = []
+    try:
+        first_d, last_d = str(dates[0]), str(dates[-1])
+        _md = supabase.table("dasha_periods") \
+            .select("planet_or_sign,start_date,end_date,level,system") \
+            .eq("chart_id", chart_id).eq("system", "vimsottari").eq("level", 1) \
+            .lte("start_date", last_d).gte("end_date", first_d).execute()
+        md_rows = _md.data or []
+    except Exception as _de:
+        print(f"[predict_week] dasha lookup non-fatal: {_de}")
+
+    def _md_for(d):
+        ds = str(d)
+        for r in md_rows:
+            if (r.get("start_date") or "0000") <= ds <= (r.get("end_date") or "9999"):
+                return r.get("planet_or_sign") or ""
+        return (md_rows[0].get("planet_or_sign") if md_rows else "") or ""
+
+    # dasha boundary for the cache key = end_date of the MD covering local today
+    dasha_boundary = ""
+    for r in md_rows:
+        if (r.get("start_date") or "0000") <= str(local_today) <= (r.get("end_date") or "9999"):
+            dasha_boundary = r.get("end_date") or ""
+            break
+
+    # ── cache read (best-effort; predict_week_cache may not yet exist) ──
+    try:
+        cr = supabase.table("predict_week_cache") \
+            .select("payload,local_date,dasha_boundary,updated_at") \
+            .eq("chart_id", chart_id).eq("language", language).limit(1).execute()
+        if cr.data:
+            crow   = cr.data[0]
+            cached = _hsj(crow.get("payload"))
+            same_day = crow.get("local_date") == str(local_today)
+            same_md  = (crow.get("dasha_boundary") or "") == (dasha_boundary or "")
+            fresh = False
+            try:
+                _u = (crow.get("updated_at") or "").replace("Z", "")
+                fresh = (datetime.utcnow() - datetime.fromisoformat(_u)).total_seconds() < 12 * 3600
+            except Exception:
+                fresh = False
+            if cached and same_day and same_md and fresh:
+                return cached
+    except Exception as _ce:
+        print(f"[predict_week] cache read skipped (table may be missing): {_ce}")
+
+    # ── parse natal chart ONCE (JSONB may be a JSON string — project rule 8) ──
+    chart_data = _hsj(row.get("chart_data"))
+
+    # ── primitives (same chain as home_composer Today lkRead) ──
+    from antar_engine.lk_conditions import LK_CONDITIONS
+    from antar_engine.lk_trigger import matches_trigger
+    from antar_engine.composition import compose_daily_card, HEAVY_FRICTION_CONDITIONS
+    from antar_engine.transits_engine import calculate_current_transits
+    from antar_engine.output_strips import apply_user_facing_strips
+
+    def _first_sentence(s):
+        s = (s or "").strip()
+        if not s:
+            return ""
+        m = _re.match(r"^(.*?[.!?])(\s|$)", s)
+        return (m.group(1) if m else s).strip()
+
+    days = []
+    for i, d in enumerate(dates):
+        # noon UTC of the target date — a safe midpoint for sign-boundary days
+        target_dt = datetime(d.year, d.month, d.day, 12, 0, 0)
+        md_planet = _md_for(d)
+        try:
+            _tr = (calculate_current_transits(chart_data, as_of=target_dt) or {}).get("current_transits", [])
+        except Exception as _te:
+            print(f"[predict_week] transit calc failed for {d}: {_te}")
+            _tr = []
+        _dasha = {"md_lord": md_planet}
+        _fired = []
+        for _cid, _cond in LK_CONDITIONS.items():
+            try:
+                if matches_trigger(_cond["trigger"], chart_data, _tr, _dasha, now=target_dt):
+                    _fired.append({**_cond, "id": _cid})
+            except Exception:
+                continue
+        card = compose_daily_card(_fired, md_planet, [], d)
+
+        cid = card.get("condition_id")
+        if cid in HEAVY_FRICTION_CONDITIONS:
+            intensity = "heavy"
+        elif cid == "flat_day":
+            intensity = "light"
+        else:
+            intensity = "moderate"
+
+        polarity = card.get("polarity") or "flat"
+        do_txt   = card.get("do") or ""
+        use_txt  = card.get("use") or ""
+        # one_line: first sentence of `do`; if positive with no `do`, use `use`.
+        base = use_txt if (polarity == "positive" and not do_txt) else do_txt
+        if not base:
+            base = card.get("headline", "")   # flat days have neither do nor use
+        one_line = _first_sentence(base)
+
+        # headline: prefer the card's headline. compose_daily_card returns
+        # headline=None for `neutral` polarity (it only reads headline_positive
+        # then), yet those rows DO carry a one-line headline in headline_*; fall
+        # back to the condition row, then to the gist's first sentence.
+        headline = (card.get("headline") or "").strip()
+        if not headline:
+            _crow = LK_CONDITIONS.get(cid, {})
+            headline = (_crow.get("headline_negative") or _crow.get("headline_positive") or "").strip()
+        if not headline:
+            headline = _first_sentence(card.get("gist") or "")
+
+        # ── strip user-facing strings (curated LK content => keep_planet_actors) ──
+        try:
+            headline = apply_user_facing_strips(headline, "en", "plain", "user", "curated_static")
+            one_line = apply_user_facing_strips(one_line, "en", "plain", "user", "curated_static")
+        except Exception as _se:
+            print(f"[predict_week] strip warning for {d}: {_se}")
+
+        if i == 0:
+            day_label = "Today"
+        elif i == 1:
+            day_label = "Tomorrow"
+        else:
+            day_label = _WD[d.weekday()]
+
+        days.append({
+            "date":         str(d),
+            "day_label":    day_label,
+            "is_today":     (i == 0),
+            "polarity":     polarity,
+            "intensity":    intensity,
+            "headline":     headline,
+            "one_line":     one_line,
+            "condition_id": cid,
+        })
+
+    payload = {
+        "chart_id":     chart_id,
+        "language":     language,
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "tz_offset":    tzo,
+        "days":         days,
+    }
+
+    # ── cache write (best-effort) ──
+    try:
+        supabase.table("predict_week_cache").upsert({
+            "chart_id":       chart_id,
+            "language":       language,
+            "local_date":     str(local_today),
+            "dasha_boundary": dasha_boundary or None,
+            "payload":        payload,
+            "updated_at":     datetime.utcnow().isoformat() + "Z",
+        }, on_conflict="chart_id,language").execute()
+    except Exception as _we:
+        print(f"[predict_week] cache write skipped (table may be missing): {_we}")
+
+    return payload
+
+
 # CONNECTIONS — Saved compatibility relationships for Ask Antar context
 # ══════════════════════════════════════════════════════════════════════════════
 

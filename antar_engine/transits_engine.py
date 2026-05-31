@@ -73,7 +73,7 @@ TRANSIT_HOUSE_EFFECTS = {
 }
 
 
-def calculate_current_transits(natal_chart: dict) -> dict:
+def calculate_current_transits(natal_chart: dict, as_of: datetime = None) -> dict:
     """
     Calculate current planetary positions and their transit effects.
     Uses Swiss Ephemeris for current sky positions.
@@ -95,7 +95,7 @@ def calculate_current_transits(natal_chart: dict) -> dict:
         'Rahu': swe.MEAN_NODE,
     }
 
-    now    = datetime.utcnow()
+    now    = as_of or datetime.utcnow()
     jd_now = swe.julday(now.year, now.month, now.day,
                          now.hour + now.minute/60.0)
 
