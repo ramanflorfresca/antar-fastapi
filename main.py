@@ -8455,6 +8455,7 @@ class PlacesCityReq(BaseModel):
 
 @app.post("/api/v1/places/concern")
 async def places_concern_endpoint(req: PlacesConcernReq):
+    req.concern = _pcn.resolve_concern(req.concern)  # legacy wealth/rest -> money/peace
     if req.concern not in _pcn.VALID_CONCERNS:
         raise HTTPException(422, f"concern must be one of {_pcn.VALID_CONCERNS}")
     ckey = ("places_concern", req.chart_id, req.concern, req.language, req.region_filter or "")
@@ -8556,6 +8557,7 @@ async def places_lines_endpoint(chart_id: str, language: str = "en"):
 
 @app.post("/api/v1/places/city")
 async def places_city_endpoint(req: PlacesCityReq):
+    req.concern = _pcn.resolve_concern(req.concern)  # legacy wealth/rest -> money/peace
     ckey = ("places_city", req.chart_id, round(req.city.lat, 4), round(req.city.lon, 4),
             req.concern or "", req.language, bool(req.deep_read))
     cached = _places_cache_get(ckey)

@@ -26,12 +26,32 @@ from antar_engine.places_conditions import compute_all_conditions
 # ─────────────────────────────────────────────────────────────────────────────
 
 CONCERN_MAP: dict[str, dict] = {
+    "money":  {"karakas": ["Jupiter", "Venus", "Mercury"], "angles": ["MC", "AC"], "houses": [2, 11, 9],  "weights": {"karakas": 0.40, "angles": 0.35, "houses": 0.25}},
     "career": {"karakas": ["Sun", "Saturn", "Mercury"],    "angles": ["MC", "AC"], "houses": [10, 6, 11], "weights": {"karakas": 0.45, "angles": 0.35, "houses": 0.20}},
     "love":   {"karakas": ["Venus", "Mars", "Moon"],       "angles": ["AC", "DC"], "houses": [7, 5, 2],   "weights": {"karakas": 0.40, "angles": 0.40, "houses": 0.20}},
-    "rest":   {"karakas": ["Moon", "Jupiter", "Ketu"],     "angles": ["IC"],       "houses": [4, 12, 8],  "weights": {"karakas": 0.50, "angles": 0.30, "houses": 0.20}},
-    "wealth": {"karakas": ["Jupiter", "Venus", "Mercury"], "angles": ["MC", "AC"], "houses": [2, 11, 9],  "weights": {"karakas": 0.40, "angles": 0.35, "houses": 0.25}},
+    "health": {"karakas": ["Sun", "Mars", "Saturn"],       "angles": ["AC"],       "houses": [1, 6],      "weights": {"karakas": 0.45, "angles": 0.30, "houses": 0.25}},
+    "peace":  {"karakas": ["Moon", "Jupiter", "Ketu"],     "angles": ["IC"],       "houses": [4, 12],     "weights": {"karakas": 0.50, "angles": 0.30, "houses": 0.20}},
     "family": {"karakas": ["Moon", "Sun", "Jupiter"],      "angles": ["IC", "AC"], "houses": [4, 9, 7],   "weights": {"karakas": 0.45, "angles": 0.30, "houses": 0.25}},
 }
+
+# Legacy aliases accepted for one release, then drop. resolve_concern() maps
+# these to the canonical key and logs a deprecation warning.
+CONCERN_ALIASES = {"wealth": "money", "rest": "peace"}
+
+
+def resolve_concern(concern):
+    """Map a legacy alias to its canonical concern key (logging deprecation)."""
+    if not concern:
+        return concern
+    canon = CONCERN_ALIASES.get(concern)
+    if canon:
+        import logging
+        logging.getLogger(__name__).warning(
+            f"[places] deprecated concern alias {concern!r} -> {canon!r}; update the client"
+        )
+        return canon
+    return concern
+
 
 VALID_CONCERNS = list(CONCERN_MAP.keys())
 
@@ -224,6 +244,14 @@ def score_city_for_concern(
         + w["angles"] * angle_score
         + w["houses"] * house_score
     )
+    # Health favours slow-pace places (recovery / rest): LOW velocity lifts the
+    # score, HIGH dampens it, MEDIUM is neutral. Concern-specific; others unchanged.
+    if concern == "health":
+        _vel = str(city.get("velocity") or "").upper()
+        if _vel == "LOW":
+            combined += 0.08
+        elif _vel == "HIGH":
+            combined -= 0.08
     score = int(round(max(0.0, min(1.0, combined)) * 100))
 
     # tier
