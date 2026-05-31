@@ -235,7 +235,7 @@ def _yoni_score(chart_a: dict, chart_b: dict) -> dict:
         "Bharani":"Elephant","Revati":"Elephant",
         "Pushya":"Goat","Krittika":"Goat",
         "Rohini":"Serpent","Mrigashira":"Serpent",
-        "Moola":"Dog","Ardra":"Dog",
+        "Moola":"Dog","Mula":"Dog","Ardra":"Dog",
         "Ashlesha":"Cat","Punarvasu":"Cat",
         "Magha":"Rat","Purva Phalguni":"Rat",
         "Uttara Phalguni":"Cow","Uttara Bhadrapada":"Cow",

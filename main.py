@@ -8985,8 +8985,134 @@ async def get_compatibility(request: dict):
         birth_date_a=birth_date_a,
         birth_date_b=birth_date_b,
         compatibility_type=compat_type,
+        language=request.get("language", "en"),
     )
+    # AUDIT FIX: this endpoint returned raw jargon. Strip user-facing strings
+    # (curated_static keeps planet actors). Shape is unchanged.
+    try:
+        result = apply_user_facing_strips(result, request.get("language", "en"), field_type="plain", source="curated_static")
+    except Exception as _se:
+        print(f"[compat] strip non-fatal: {_se}")
     return result
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6-LAYER COMPATIBILITY SURFACE  (Phase 1)  — POST /api/v1/compat
+# Maps the existing calculate_compatibility engine to the 6-layer contract.
+# ─────────────────────────────────────────────────────────────────────────────
+from antar_engine import compatibility_layers as _cl
+
+
+class CompatRequest(BaseModel):
+    chart_a_id: str
+    chart_b: dict
+    reason: str = "romantic"
+    role: Optional[str] = None
+    language: Optional[str] = "en"
+    tz_offset: Optional[int] = None
+
+
+# In-process caches (per-worker; reset on deploy). Day + dasha-aware key.
+_COMPAT_CACHE = {}
+_COMPAT_RATE = {}
+_COMPAT_RATE_LIMIT = 30
+
+
+def _compat_day() -> str:
+    return datetime.utcnow().date().isoformat()
+
+
+@app.post("/api/v1/compat")
+async def compat_six_layer(request: CompatRequest):
+    reason = (request.reason or "").strip()
+    role = request.role or None
+    language = (request.language or "en").split("-")[0].lower()
+
+    if reason not in _cl.VALID_REASONS:
+        raise HTTPException(422, f"reason must be one of {_cl.VALID_REASONS}")
+    if reason in _cl.ROLE_REQUIRED_REASONS:
+        if not role:
+            raise HTTPException(422, f"role is required for reason '{reason}'")
+        if role not in _cl.VALID_ROLES:
+            raise HTTPException(422, f"role must be one of {_cl.VALID_ROLES}")
+    else:
+        role = None  # ignore any stray role on the other 5 reasons
+
+    _rk = (request.chart_a_id, _compat_day())
+    if _COMPAT_RATE.get(_rk, 0) >= _COMPAT_RATE_LIMIT:
+        raise HTTPException(429, "Daily compatibility read limit reached. Try again tomorrow.")
+
+    # ── Chart A (always a stored UUID) ──
+    res_a = supabase.table("charts").select("chart_data,birth_date,name").eq("id", request.chart_a_id).execute()
+    if not res_a.data:
+        raise HTTPException(404, f"Chart {request.chart_a_id} not found")
+    chart_a = _safe_jsonb(res_a.data[0]["chart_data"])
+    birth_a = res_a.data[0].get("birth_date", "")
+    a_name = (res_a.data[0].get("name", "") or "").split()[0] or "You"
+    chart_a["current_dasha"] = _current_dasha_str(get_dashas_for_chart(request.chart_a_id))
+
+    # ── Chart B (stored UUID or raw birth data) ──
+    cb = request.chart_b or {}
+    chart_b_id = cb.get("chart_id")
+    if chart_b_id:
+        res_b = supabase.table("charts").select("chart_data,birth_date,name").eq("id", chart_b_id).execute()
+        if not res_b.data:
+            raise HTTPException(404, f"Chart {chart_b_id} not found")
+        chart_b = _safe_jsonb(res_b.data[0]["chart_data"])
+        b_name = cb.get("name") or (res_b.data[0].get("name", "") or "").split()[0] or "Partner"
+        chart_b["current_dasha"] = _current_dasha_str(get_dashas_for_chart(chart_b_id))
+        _cb_key = chart_b_id
+        _birth_b = res_b.data[0].get("birth_date", "")
+    else:
+        _date = cb.get("date"); _time = cb.get("time")
+        place = cb.get("place") or {}
+        if not _date or place.get("lat") is None or place.get("lon") is None:
+            raise HTTPException(422, "chart_b requires either chart_id or {date, time, place:{lat,lon,tz}}")
+        b_name = cb.get("name") or "Partner"
+        chart_b = _cl.build_chart_from_raw(b_name, _date, _time, place.get("lat"), place.get("lon"), place.get("tz", "UTC"))
+        chart_b_id = None
+        _cb_key = f"raw:{_date}:{_time}:{place.get('lat')}:{place.get('lon')}"
+        _birth_b = _date or ""
+
+    # ── Cache key — day-scoped + dasha-aware (busts on dasha boundary) ──
+    _ck = (request.chart_a_id, _cb_key, reason, role, language, _compat_day(),
+           chart_a.get("current_dasha", ""), chart_b.get("current_dasha", ""))
+    if _ck in _COMPAT_CACHE:
+        return _COMPAT_CACHE[_ck]
+
+    # ── Engine + 6-layer mapping ──
+    from antar_engine.Compatibility import calculate_compatibility
+    engine_result = calculate_compatibility(
+        chart_a=chart_a, chart_b=chart_b, name_a=a_name, name_b=b_name,
+        birth_date_a=birth_a, birth_date_b=_birth_b,
+        compatibility_type=reason, language=language,
+    )
+    response = _cl.build_compat_response(
+        engine_result=engine_result, reason=reason, role=role,
+        chart_a=chart_a, chart_b=chart_b, a_name=a_name, b_name=b_name,
+        chart_a_id=request.chart_a_id, chart_b_id=chart_b_id, chart_b_label=b_name,
+        language=language, strip_fn=apply_user_facing_strips,
+    )
+
+    # Drop any underscore-prefixed engine leakage (defensive).
+    response = {k: v for k, v in response.items() if not str(k).startswith("_")}
+
+    # ── Translate user-facing fields for es/pt ──
+    if language in ("es", "pt"):
+        try:
+            from antar_engine.translation_middleware import translate_dict
+            response = await translate_dict(
+                response, language=language,
+                fields_to_translate={"headline", "detail", "line", "label", "name"},
+                endpoint_name="compat", chart_id=request.chart_a_id,
+            )
+        except Exception as _te:
+            print(f"[compat] translate non-fatal: {_te}")
+            response["_translation_status"] = "fallback_to_english"
+
+    _COMPAT_CACHE[_ck] = response
+    _COMPAT_RATE[_rk] = _COMPAT_RATE.get(_rk, 0) + 1
+    return response
 
 
 @app.post("/api/v1/timing/windows")

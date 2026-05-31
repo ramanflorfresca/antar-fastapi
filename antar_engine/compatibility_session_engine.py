@@ -434,11 +434,8 @@ Be clear: "Based on available data (birth time not provided for X)..."
     EMPLOYEE_ROLE_LENS = {
         "sales": "the drive, persuasion, resilience to rejection, and relationship-building a sales role demands",
         "marketing": "the creative instinct, narrative sense, audience-reading, and big-picture vision a marketing role demands",
-        "product": "the judgment, synthesis, user-empathy, and prioritization under ambiguity a product role demands",
-        "leadership": "the decision-making under pressure, accountability, steadiness, and ability to carry a team a leadership role demands",
-        "operations": "the reliability, process discipline, follow-through, and detail-orientation an operations role demands",
-        "engineering": "the focus, depth, problem-solving stamina, and precision an engineering role demands",
-        "customer_support": "the patience, empathy, composure under friction, and communication clarity a customer-support role demands",
+        "finance": "the rigor, discipline, accuracy, and trustworthiness with detail a finance role demands",
+        "managerial": "the decision-making under pressure, accountability, steadiness, and ability to carry a team a managerial role demands",
     }
     role_directive = ""
     if compat_type == "employee":
