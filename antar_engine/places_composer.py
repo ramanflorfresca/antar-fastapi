@@ -17,7 +17,7 @@ from __future__ import annotations
 from typing import Optional
 
 from antar_engine.places_templates import (
-    PLACES_TEMPLATES, DOMAIN, AXIS, _GLOBAL, PLANET_NAME,
+    PLACES_TEMPLATES, DOMAIN, AXIS, _GLOBAL, PLANET_NAME, LAYER_TEMPLATES,
 )
 
 
@@ -109,6 +109,18 @@ def compose_headline(concern: str, tier: str, city_name: str, lang: str) -> str:
     frame = PLACES_TEMPLATES["headlines"].get((lang, concern, tier)) \
         or PLACES_TEMPLATES["headlines"].get((lang, concern, "MIXED"))
     return frame.format(city=city_name, domain=_domain(concern, lang))
+
+
+def compose_one_line(concern: str, tier: str, lang: str) -> str:
+    lang = _lang(lang)
+    return (LAYER_TEMPLATES["one_line"].get((lang, concern, tier))
+            or LAYER_TEMPLATES["one_line"].get((lang, concern, "MIXED"), ""))
+
+
+def compose_watch_single(concern: str, watch_list: list[dict], lang: str):
+    """Most important watch-out as a single string, or None (never an array)."""
+    outs = compose_watch_outs(concern, watch_list, lang, limit=1)
+    return outs[0] if outs else None
 
 
 def enrich_ranked_city(concern: str, scored: dict, lang: str) -> dict:

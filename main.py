@@ -8105,20 +8105,53 @@ async def places_concern_endpoint(req: PlacesConcernReq):
     scored = _pcn.rank_cities_for_concern(
         chart, req.concern, _places_cities(), region_filter=req.region_filter
     )
-    ranked = [_pcomp.enrich_ranked_city(req.concern, s, req.language) for s in scored]
-    for c in ranked:
+    # Phase 3: per-chart context for the 4-layer reasoning.
+    _p3_name = rec.get("first_name") or rec.get("name") or None
+    _p3_age = _pintel.compute_age(rec.get("birth_date"))
+    try:
+        _p3_dctx = _pintel.get_dasha_context(get_dashas_for_chart(req.chart_id), req.language)
+    except Exception as _p3e:
+        print(f"[places dasha_ctx] {_p3e}")
+        _p3_dctx = None
+
+    ranked = []
+    for _i, s in enumerate(scored):
+        c = _pcomp.enrich_ranked_city(req.concern, s, req.language)
+        c["rank"] = _i + 1
+        c["one_line"] = _places_strip(
+            _pcomp.compose_one_line(req.concern, s["tier"], req.language), req.language)
+        _reasons = _pcn.compose_city_reasons(
+            chart, s.get("city", {}), req.concern, _p3_dctx, _p3_age,
+            scored=s, relocation=s.get("_relocation", {}),
+            conditions=conditions, language=req.language,
+        )
+        for _r in _reasons:
+            _r["text"] = _places_strip(_r["text"], req.language)
+        c["reasons"] = _reasons
+        c["watch"] = _places_strip(
+            _pcomp.compose_watch_single(req.concern, s.get("_watch", []), req.language), req.language)
         c["primary_reason"] = _places_strip(c["primary_reason"], req.language)
         c["secondary_reasons"] = _places_strip(c["secondary_reasons"], req.language)
         c["watch_outs"] = _places_strip(c["watch_outs"], req.language)
+        ranked.append(c)
 
     concern_lines = _pcn.filter_concern_lines(all_lines, req.concern)
     out = {
         "chart_id": req.chart_id,
         "concern": req.concern,
         "language": req.language,
+        "user_name": _p3_name,
+        "user_age": _p3_age,
         "generated_at": _places_iso_now(),
         "texture_line": _places_strip(
             _pcomp.compose_texture_line(req.concern, ranked, req.language), req.language
+        ),
+        "chart_intelligence": _places_strip(
+            _pintel.build_chart_intelligence(chart, req.concern, conditions, req.language), req.language
+        ),
+        "dasha_context": _places_strip(_p3_dctx, req.language) if _p3_dctx else None,
+        "life_stage_context": _places_strip(
+            _pintel.build_life_stage_context(_p3_age, req.concern, req.language), req.language
         ),
         "ranked_cities": ranked,
         "map_lines": _places_serialize_lines(concern_lines, conditions, req.language),
@@ -8206,6 +8239,31 @@ async def places_city_endpoint(req: PlacesCityReq):
     out["parans"] = _pp.parans_near_city(
         _pp.compute_parans(all_lines, conditions), req.city.lat, req.city.lon
     )
+    # Phase 3: 4-layer reasoning on the city drill-down.
+    _p3_name = rec.get("first_name") or rec.get("name") or None
+    _p3_age = _pintel.compute_age(rec.get("birth_date"))
+    try:
+        _p3_dctx = _pintel.get_dasha_context(get_dashas_for_chart(req.chart_id), req.language)
+    except Exception as _p3e:
+        print(f"[places dasha_ctx] {_p3e}")
+        _p3_dctx = None
+    _p3_concern = req.concern if (req.concern and req.concern in _pcn.VALID_CONCERNS) else None
+    _p3_city = {**req.city.dict(), "velocity": _places_velocity(req.city.name, req.city.country_code)}
+    _p3_reasons = _pcn.compose_city_reasons(
+        chart, _p3_city, _p3_concern, _p3_dctx, _p3_age,
+        scored=scored, relocation=relocation, conditions=conditions, language=req.language,
+    )
+    for _r in _p3_reasons:
+        _r["text"] = _places_strip(_r["text"], req.language)
+    out["user_name"] = _p3_name
+    out["user_age"] = _p3_age
+    out["reasons"] = _p3_reasons
+    out["one_line"] = (_places_strip(
+        _pcomp.compose_one_line(_p3_concern, scored["tier"], req.language), req.language)
+        if _p3_concern else None)
+    out["watch"] = _places_strip(
+        _pcomp.compose_watch_single(_p3_concern or "career", scored.get("_watch", []), req.language),
+        req.language)
     if req.deep_read and req.concern and req.concern in _pcn.VALID_CONCERNS:
         try:
             _dr_prompt = _pdr.build_deep_read_prompt(scored, relocation, active, req.concern, req.language)
@@ -8302,6 +8360,27 @@ async def places_saved_delete(saved_id: str, authorization: Optional[str] = Head
     user_id = verify_token(authorization or "")
     supabase.table("places_saved_cities").delete().eq("id", saved_id).eq("user_id", user_id).execute()
     return {"status": "deleted", "id": saved_id}
+
+
+
+# ════════════════════════════════════════════════════════════════════
+# ── PLACES Phase 3 (4-layer chart intelligence) ──
+# ════════════════════════════════════════════════════════════════════
+from antar_engine import places_intel as _pintel
+
+_PLACES_VEL = None
+
+
+def _places_velocity(name, cc):
+    global _PLACES_VEL
+    if _PLACES_VEL is None:
+        _PLACES_VEL = {}
+        for _c in _places_cities():
+            _n = str(_c.get("name", "")).lower()
+            _PLACES_VEL[(_n, str(_c.get("country_code", "")).lower())] = _c.get("velocity")
+            _PLACES_VEL.setdefault((_n, ""), _c.get("velocity"))
+    return (_PLACES_VEL.get((str(name or "").lower(), str(cc or "").lower()))
+            or _PLACES_VEL.get((str(name or "").lower(), "")))
 
 
 @app.post("/api/v1/astrocartography/waitlist")

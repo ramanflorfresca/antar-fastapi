@@ -260,6 +260,7 @@ def score_city_for_concern(
             "country_code": city.get("country_code"),
             "lat": lat, "lon": lon,
             "timezone": city.get("timezone"),
+            "velocity": city.get("velocity"),
         },
         "score": score,
         "tier": tier,
@@ -315,6 +316,108 @@ def rank_cities_for_concern(
     return scored[:max(5, min(top_n, 8))]
 
 
+_CHAPTER_NAME = {
+    "en": {"foundation": "foundation", "ascending": "ascending",
+           "consolidation": "consolidation", "culmination": "culmination", "wisdom": "wisdom"},
+    "es": {"foundation": "cimientos", "ascending": "ascenso",
+           "consolidation": "consolidación", "culmination": "culminación", "wisdom": "sabiduría"},
+}
+
+
+def compose_city_reasons(
+    chart: dict,
+    city: dict,
+    concern: Optional[str],
+    dasha_ctx: Optional[dict],
+    age: Optional[int],
+    *,
+    scored: dict,
+    relocation: dict,
+    conditions: dict,
+    language: str = "en",
+) -> list[dict]:
+    """
+    Build the ordered 4-layer reasoning array for a city:
+        [{"layer": "NATAL"|"DASHA"|"AGE"|"INTENT", "text": ...}]
+    Layers with nothing salient are skipped (2-4 entries typical). When there
+    is no concern the INTENT layer is omitted.
+    """
+    from antar_engine.places_composer import _lang, _domain, _planet, compose_primary_reason
+    from antar_engine.places_templates import (
+        _NATAL_FRAMES, _DASHA_FRAMES, _AGE_FRAMES, _PLACED_CLAUSE,
+    )
+    from antar_engine.places_intel import life_stage_for_age, velocity_match
+
+    lang = _lang(language)
+    reasons: list[dict] = []
+    signals = scored.get("_signals", [])
+    reloc_idx = relocation.get("relocated_lagna_index")
+    has_concern = bool(concern and concern in CONCERN_MAP)
+    domain = _domain(concern, lang) if has_concern else (
+        "your life overall" if lang == "en" else "tu vida en general")
+
+    def _reloc_house(planet: str) -> Optional[int]:
+        rec = chart.get("planets", {}).get(planet)
+        if not rec or reloc_idx is None:
+            return None
+        psi = rec.get("sign_index")
+        if psi is None and rec.get("longitude") is not None:
+            psi = int((float(rec["longitude"]) % 360.0) // 30.0)
+        if psi is None:
+            return None
+        return ((int(psi) - int(reloc_idx)) % 12) + 1
+
+    # ── NATAL ───────────────────────────────────────────────────────────────
+    # Strongest karaka for the concern, or strongest planet overall (no concern).
+    if has_concern:
+        pool = [(k, conditions.get(k, {})) for k in CONCERN_MAP[concern]["karakas"] if k in conditions]
+        concern_houses = set(CONCERN_MAP[concern]["houses"])
+    else:
+        pool = list(conditions.items())
+        concern_houses = set()
+    if pool:
+        kp, meta = max(pool, key=lambda kc: kc[1].get("weight", 0.9))
+        cond = meta.get("condition", "neutral")
+        placed = _PLACED_CLAUSE[lang] if (_reloc_house(kp) in concern_houses) else ""
+        frame = _NATAL_FRAMES[lang].get(cond)
+        if frame:
+            reasons.append({"layer": "NATAL", "text": frame.format(
+                planet=_planet(kp, lang), domain=domain, placed=placed)})
+
+    # ── DASHA ───────────────────────────────────────────────────────────────
+    if dasha_ctx:
+        within = dasha_ctx.get("within_12mo_transition")
+        target = dasha_ctx.get("next_md_lord") if within else dasha_ctx.get("md_lord")
+        if target:
+            strong_planets = {s["planet"] for s in signals if s.get("band") in ("strong", "moderate")}
+            houses_for_activation = (concern_houses | {1, 10}) if has_concern else {1, 10}
+            activated = (target in strong_planets) or (_reloc_house(target) in houses_for_activation)
+            kind = None
+            if within and activated:
+                kind = "upcoming"
+            elif within and not activated:
+                kind = "building"
+            elif (not within) and activated:
+                kind = "current"
+            if kind:
+                reasons.append({"layer": "DASHA", "text": _DASHA_FRAMES[lang][kind].format(
+                    planet=_planet(target, lang))})
+
+    # ── AGE ─────────────────────────────────────────────────────────────────
+    if age is not None:
+        chapter = life_stage_for_age(age)
+        mk = velocity_match(chapter, city.get("velocity"))
+        if chapter:
+            reasons.append({"layer": "AGE", "text": _AGE_FRAMES[lang][mk].format(
+                chapter=_CHAPTER_NAME[lang].get(chapter, chapter), city=city.get("name", ""))})
+
+    # ── INTENT (only with a concern) ─────────────────────────────────────────
+    if has_concern and signals:
+        reasons.append({"layer": "INTENT", "text": compose_primary_reason(concern, signals[0], lang)})
+
+    return reasons[:4]
+
+
 def balanced_score(
     chart: dict,
     city: dict,
@@ -367,6 +470,7 @@ def balanced_score(
             "country_code": city.get("country_code"),
             "lat": float(city["lat"]), "lon": float(city["lon"]),
             "timezone": city.get("timezone"),
+            "velocity": city.get("velocity"),
         },
         "score": score,
         "tier": tier,

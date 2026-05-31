@@ -8,7 +8,8 @@
   "population": 24874500,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Beijing",
@@ -19,7 +20,8 @@
   "population": 18960744,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Shenzhen",
@@ -30,7 +32,8 @@
   "population": 17494398,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Guangzhou",
@@ -41,7 +44,8 @@
   "population": 16096724,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Kinshasa",
@@ -52,7 +56,8 @@
   "population": 16000000,
   "timezone": "Africa/Kinshasa",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "HIGH"
  },
  {
   "name": "Istanbul",
@@ -63,7 +68,8 @@
   "population": 15701602,
   "timezone": "Europe/Istanbul",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "HIGH"
  },
  {
   "name": "Lagos",
@@ -74,7 +80,8 @@
   "population": 15388000,
   "timezone": "Africa/Lagos",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "HIGH"
  },
  {
   "name": "Ho Chi Minh City",
@@ -85,7 +92,8 @@
   "population": 14002598,
   "timezone": "Asia/Ho_Chi_Minh",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Chengdu",
@@ -96,7 +104,8 @@
   "population": 13568357,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Lahore",
@@ -107,7 +116,8 @@
   "population": 13004135,
   "timezone": "Asia/Karachi",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Mumbai",
@@ -118,7 +128,8 @@
   "population": 12691836,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "São Paulo",
@@ -129,7 +140,8 @@
   "population": 12400232,
   "timezone": "America/Sao_Paulo",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "HIGH"
  },
  {
   "name": "Mexico City",
@@ -140,7 +152,8 @@
   "population": 12294193,
   "timezone": "America/Mexico_City",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "HIGH"
  },
  {
   "name": "Karachi",
@@ -151,7 +164,8 @@
   "population": 11624219,
   "timezone": "Asia/Karachi",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Tianjin",
@@ -162,7 +176,8 @@
   "population": 11090314,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Delhi",
@@ -173,7 +188,8 @@
   "population": 11034555,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Wuhan",
@@ -184,7 +200,8 @@
   "population": 10392693,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Moscow",
@@ -195,7 +212,8 @@
   "population": 10381222,
   "timezone": "Europe/Moscow",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "HIGH"
  },
  {
   "name": "Dhaka",
@@ -206,7 +224,8 @@
   "population": 10356500,
   "timezone": "Asia/Dhaka",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Seoul",
@@ -217,7 +236,8 @@
   "population": 10349312,
   "timezone": "Asia/Seoul",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Tokyo",
@@ -228,7 +248,8 @@
   "population": 9733276,
   "timezone": "Asia/Tokyo",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Dongguan",
@@ -239,7 +260,8 @@
   "population": 9644871,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Cairo",
@@ -250,7 +272,8 @@
   "population": 9606916,
   "timezone": "Africa/Cairo",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "HIGH"
  },
  {
   "name": "Xi’an",
@@ -261,7 +284,8 @@
   "population": 9600000,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Johannesburg",
@@ -272,7 +296,8 @@
   "population": 9418183,
   "timezone": "Africa/Johannesburg",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "HIGH"
  },
  {
   "name": "Nanjing",
@@ -283,7 +308,8 @@
   "population": 9314685,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Hangzhou",
@@ -294,7 +320,8 @@
   "population": 9236032,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Foshan",
@@ -305,7 +332,8 @@
   "population": 9042509,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "London",
@@ -316,7 +344,8 @@
   "population": 8961989,
   "timezone": "Europe/London",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "New York City",
@@ -327,7 +356,8 @@
   "population": 8804190,
   "timezone": "America/New_York",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "HIGH"
  },
  {
   "name": "Jakarta",
@@ -338,7 +368,8 @@
   "population": 8540121,
   "timezone": "Asia/Jakarta",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Bengaluru",
@@ -349,7 +380,8 @@
   "population": 8495492,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Hanoi",
@@ -360,7 +392,8 @@
   "population": 8053663,
   "timezone": "Asia/Bangkok",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Taipei",
@@ -371,7 +404,8 @@
   "population": 7871900,
   "timezone": "Asia/Taipei",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Lima",
@@ -382,7 +416,8 @@
   "population": 7737002,
   "timezone": "America/Lima",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Bogotá",
@@ -393,7 +428,8 @@
   "population": 7674366,
   "timezone": "America/Bogota",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Chongqing",
@@ -404,7 +440,8 @@
   "population": 7457599,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Hong Kong",
@@ -415,7 +452,8 @@
   "population": 7396076,
   "timezone": "Asia/Hong_Kong",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "HIGH"
  },
  {
   "name": "Baghdad",
@@ -426,7 +464,8 @@
   "population": 7216000,
   "timezone": "Asia/Baghdad",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Qingdao",
@@ -437,7 +476,8 @@
   "population": 7172451,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Tehran",
@@ -448,7 +488,8 @@
   "population": 7153309,
   "timezone": "Asia/Tehran",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Shenyang",
@@ -459,7 +500,8 @@
   "population": 7050000,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Hyderabad",
@@ -470,7 +512,8 @@
   "population": 6993262,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Rio de Janeiro",
@@ -481,7 +524,8 @@
   "population": 6747815,
   "timezone": "America/Sao_Paulo",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Ahmedabad",
@@ -492,7 +536,8 @@
   "population": 6357693,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Abidjan",
@@ -503,7 +548,8 @@
   "population": 6321017,
   "timezone": "Africa/Abidjan",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Singapore",
@@ -514,7 +560,8 @@
   "population": 5638700,
   "timezone": "Asia/Singapore",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Sydney",
@@ -525,7 +572,8 @@
   "population": 5557233,
   "timezone": "Australia/Sydney",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Dar es Salaam",
@@ -536,7 +584,8 @@
   "population": 5383728,
   "timezone": "Africa/Dar_es_Salaam",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Saint Petersburg",
@@ -547,7 +596,8 @@
   "population": 5351935,
   "timezone": "Europe/Moscow",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Melbourne",
@@ -558,7 +608,8 @@
   "population": 5350705,
   "timezone": "Australia/Melbourne",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Alexandria",
@@ -569,7 +620,8 @@
   "population": 5263542,
   "timezone": "Africa/Cairo",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Harbin",
@@ -580,7 +632,8 @@
   "population": 5242897,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Bangkok",
@@ -591,7 +644,8 @@
   "population": 5104476,
   "timezone": "Asia/Bangkok",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Hefei",
@@ -602,7 +656,8 @@
   "population": 5050000,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Dalian",
@@ -613,7 +668,8 @@
   "population": 4913879,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kano",
@@ -624,7 +680,8 @@
   "population": 4910000,
   "timezone": "Africa/Lagos",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Santiago",
@@ -635,7 +692,8 @@
   "population": 4837295,
   "timezone": "America/Santiago",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Cape Town",
@@ -646,7 +704,8 @@
   "population": 4772846,
   "timezone": "Africa/Johannesburg",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Peshawar",
@@ -657,7 +716,8 @@
   "population": 4758762,
   "timezone": "Asia/Karachi",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Changchun",
@@ -668,7 +728,8 @@
   "population": 4714996,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Jeddah",
@@ -679,7 +740,8 @@
   "population": 4697000,
   "timezone": "Asia/Riyadh",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Chennai",
@@ -690,7 +752,8 @@
   "population": 4681087,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kolkata",
@@ -701,7 +764,8 @@
   "population": 4631392,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Xiamen",
@@ -712,7 +776,8 @@
   "population": 4617251,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Surat",
@@ -723,7 +788,8 @@
   "population": 4591246,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Yangon",
@@ -734,7 +800,8 @@
   "population": 4477638,
   "timezone": "Asia/Yangon",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Bao'an",
@@ -745,7 +812,8 @@
   "population": 4476554,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kabul",
@@ -756,7 +824,8 @@
   "population": 4434550,
   "timezone": "Asia/Kabul",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Nairobi",
@@ -767,7 +836,8 @@
   "population": 4397073,
   "timezone": "Africa/Nairobi",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Wuxi",
@@ -778,7 +848,8 @@
   "population": 4396835,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Giza",
@@ -789,7 +860,8 @@
   "population": 4367343,
   "timezone": "Africa/Cairo",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Jinan",
@@ -800,7 +872,8 @@
   "population": 4335989,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Taiyuan",
@@ -811,7 +884,8 @@
   "population": 4303673,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Zhengzhou",
@@ -822,7 +896,8 @@
   "population": 4253913,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Bamako",
@@ -833,7 +908,8 @@
   "population": 4227569,
   "timezone": "Africa/Bamako",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Riyadh",
@@ -844,7 +920,8 @@
   "population": 4205961,
   "timezone": "Asia/Riyadh",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "New Taipei City",
@@ -855,7 +932,8 @@
   "population": 4004367,
   "timezone": "Asia/Taipei",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "New Territories",
@@ -866,7 +944,8 @@
   "population": 3984077,
   "timezone": "Asia/Hong_Kong",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Shijiazhuang",
@@ -877,7 +956,8 @@
   "population": 3938513,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Chattogram",
@@ -888,7 +968,8 @@
   "population": 3920222,
   "timezone": "Asia/Dhaka",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Addis Ababa",
@@ -899,7 +980,8 @@
   "population": 3860000,
   "timezone": "Africa/Addis_Ababa",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kunming",
@@ -910,7 +992,8 @@
   "population": 3855346,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Zhongshan",
@@ -921,7 +1004,8 @@
   "population": 3841873,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Nanning",
@@ -932,7 +1016,8 @@
   "population": 3839800,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Shantou",
@@ -943,7 +1028,8 @@
   "population": 3838900,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Los Angeles",
@@ -954,7 +1040,8 @@
   "population": 3820914,
   "timezone": "America/Los_Angeles",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Faisalabad",
@@ -965,7 +1052,8 @@
   "population": 3800193,
   "timezone": "Asia/Karachi",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Dubai",
@@ -976,7 +1064,8 @@
   "population": 3790000,
   "timezone": "Asia/Dubai",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "HIGH"
  },
  {
   "name": "Yokohama",
@@ -987,7 +1076,8 @@
   "population": 3777491,
   "timezone": "Asia/Tokyo",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Fuzhou",
@@ -998,7 +1088,8 @@
   "population": 3740000,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Ningbo",
@@ -1009,7 +1100,8 @@
   "population": 3731203,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Casablanca",
@@ -1020,7 +1112,8 @@
   "population": 3665954,
   "timezone": "Africa/Casablanca",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Ibadan",
@@ -1031,7 +1124,8 @@
   "population": 3649000,
   "timezone": "Africa/Lagos",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Puyang",
@@ -1042,7 +1136,8 @@
   "population": 3590000,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Ankara",
@@ -1053,7 +1148,8 @@
   "population": 3517182,
   "timezone": "Europe/Istanbul",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Shiyan",
@@ -1064,7 +1160,8 @@
   "population": 3460000,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Berlin",
@@ -1075,7 +1172,8 @@
   "population": 3426354,
   "timezone": "Europe/Berlin",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Tangshan",
@@ -1086,7 +1184,8 @@
   "population": 3372102,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Rawalpindi",
@@ -1097,7 +1196,8 @@
   "population": 3357612,
   "timezone": "Asia/Karachi",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Lüliang",
@@ -1108,7 +1208,8 @@
   "population": 3346500,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Busan",
@@ -1119,7 +1220,8 @@
   "population": 3343903,
   "timezone": "Asia/Seoul",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Durban",
@@ -1130,7 +1232,8 @@
   "population": 3338026,
   "timezone": "Africa/Johannesburg",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Changzhou",
@@ -1141,7 +1244,8 @@
   "population": 3290918,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Madrid",
@@ -1152,7 +1256,8 @@
   "population": 3255944,
   "timezone": "Europe/Madrid",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Pyongyang",
@@ -1163,7 +1268,8 @@
   "population": 3222000,
   "timezone": "Asia/Pyongyang",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Zibo",
@@ -1174,7 +1280,8 @@
   "population": 3129228,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Pune",
@@ -1185,7 +1292,8 @@
   "population": 3124458,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Bursa",
@@ -1196,7 +1304,8 @@
   "population": 3101833,
   "timezone": "Europe/Istanbul",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Changsha",
@@ -1207,7 +1316,8 @@
   "population": 3093980,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Jaipur",
@@ -1218,7 +1328,8 @@
   "population": 3046163,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Guiyang",
@@ -1229,7 +1340,8 @@
   "population": 3037159,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Ürümqi",
@@ -1240,7 +1352,8 @@
   "population": 3029372,
   "timezone": "Asia/Urumqi",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Incheon",
@@ -1251,7 +1364,8 @@
   "population": 3016250,
   "timezone": "Asia/Seoul",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Caracas",
@@ -1262,7 +1376,8 @@
   "population": 3000000,
   "timezone": "America/Caracas",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Lanzhou",
@@ -1273,7 +1388,8 @@
   "population": 3000000,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Quezon City",
@@ -1284,7 +1400,8 @@
   "population": 2960048,
   "timezone": "Asia/Manila",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Huizhou",
@@ -1295,7 +1412,8 @@
   "population": 2900113,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Buenos Aires",
@@ -1306,7 +1424,8 @@
   "population": 2891082,
   "timezone": "America/Argentina/Buenos_Aires",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Surabaya",
@@ -1317,7 +1436,8 @@
   "population": 2874314,
   "timezone": "Asia/Jakarta",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Haikou",
@@ -1328,7 +1448,8 @@
   "population": 2873358,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Taichung",
@@ -1339,7 +1460,8 @@
   "population": 2850285,
   "timezone": "Asia/Taipei",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kanpur",
@@ -1350,7 +1472,8 @@
   "population": 2823249,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kyiv",
@@ -1361,7 +1484,8 @@
   "population": 2797553,
   "timezone": "Europe/Kyiv",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Toronto",
@@ -1372,7 +1496,8 @@
   "population": 2794356,
   "timezone": "America/Toronto",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Quito",
@@ -1383,7 +1508,8 @@
   "population": 2781641,
   "timezone": "America/Guayaquil",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Brisbane",
@@ -1394,7 +1520,8 @@
   "population": 2780063,
   "timezone": "Australia/Brisbane",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Luanda",
@@ -1405,7 +1532,8 @@
   "population": 2776168,
   "timezone": "Africa/Luanda",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Osaka",
@@ -1416,7 +1544,8 @@
   "population": 2753862,
   "timezone": "Asia/Tokyo",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Linyi",
@@ -1427,7 +1556,8 @@
   "population": 2743843,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Baoding",
@@ -1438,7 +1568,8 @@
   "population": 2739887,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kaohsiung",
@@ -1449,7 +1580,8 @@
   "population": 2737660,
   "timezone": "Asia/Taipei",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Brooklyn",
@@ -1460,7 +1592,8 @@
   "population": 2736074,
   "timezone": "America/New_York",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Guayaquil",
@@ -1471,7 +1604,8 @@
   "population": 2723665,
   "timezone": "America/Guayaquil",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Belo Horizonte",
@@ -1482,7 +1616,8 @@
   "population": 2721564,
   "timezone": "America/Sao_Paulo",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Salvador",
@@ -1493,7 +1628,8 @@
   "population": 2711840,
   "timezone": "America/Bahia",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Abuja",
@@ -1504,7 +1640,8 @@
   "population": 2690000,
   "timezone": "Africa/Lagos",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Gazipur",
@@ -1515,7 +1652,8 @@
   "population": 2674697,
   "timezone": "Asia/Dhaka",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Chicago",
@@ -1526,7 +1664,8 @@
   "population": 2664452,
   "timezone": "America/Chicago",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Wenzhou",
@@ -1537,7 +1676,8 @@
   "population": 2650000,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Dakar",
@@ -1548,7 +1688,8 @@
   "population": 2646503,
   "timezone": "Africa/Dakar",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Haiphong",
@@ -1559,7 +1700,8 @@
   "population": 2625200,
   "timezone": "Asia/Bangkok",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Yunfu",
@@ -1570,7 +1712,8 @@
   "population": 2612800,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Navi Mumbai",
@@ -1581,7 +1724,8 @@
   "population": 2600000,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Mogadishu",
@@ -1592,7 +1736,8 @@
   "population": 2587183,
   "timezone": "Africa/Mogadishu",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Bekasi",
@@ -1603,7 +1748,8 @@
   "population": 2564940,
   "timezone": "Asia/Jakarta",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kumasi",
@@ -1614,7 +1760,8 @@
   "population": 2544530,
   "timezone": "Africa/Accra",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Gujranwala",
@@ -1625,7 +1772,8 @@
   "population": 2511118,
   "timezone": "Asia/Karachi",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "İzmir",
@@ -1636,7 +1784,8 @@
   "population": 2500603,
   "timezone": "Europe/Istanbul",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Huai'an",
@@ -1647,7 +1796,8 @@
   "population": 2494013,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Lucknow",
@@ -1658,7 +1808,8 @@
   "population": 2472011,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Bandung",
@@ -1669,7 +1820,8 @@
   "population": 2444160,
   "timezone": "Asia/Jakarta",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Medan",
@@ -1680,7 +1832,8 @@
   "population": 2435252,
   "timezone": "Asia/Jakarta",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Ouagadougou",
@@ -1691,7 +1844,8 @@
   "population": 2415266,
   "timezone": "Africa/Ouagadougou",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Nagpur",
@@ -1702,7 +1856,8 @@
   "population": 2405665,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Fortaleza",
@@ -1713,7 +1868,8 @@
   "population": 2400000,
   "timezone": "America/Fortaleza",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Cali",
@@ -1724,7 +1880,8 @@
   "population": 2392877,
   "timezone": "America/Bogota",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Daegu",
@@ -1735,7 +1892,8 @@
   "population": 2365523,
   "timezone": "Asia/Seoul",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Algiers",
@@ -1746,7 +1904,8 @@
   "population": 2364230,
   "timezone": "Africa/Algiers",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Nanchang",
@@ -1757,7 +1916,8 @@
   "population": 2357839,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Hohhot",
@@ -1768,7 +1928,8 @@
   "population": 2350000,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Nagoya",
@@ -1779,7 +1940,8 @@
   "population": 2332176,
   "timezone": "Asia/Tokyo",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Rome",
@@ -1790,7 +1952,8 @@
   "population": 2318895,
   "timezone": "Europe/Rome",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Queens",
@@ -1801,7 +1964,8 @@
   "population": 2316841,
   "timezone": "America/New_York",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Houston",
@@ -1812,7 +1976,8 @@
   "population": 2314157,
   "timezone": "America/Chicago",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Perth",
@@ -1823,7 +1988,8 @@
   "population": 2309338,
   "timezone": "Australia/Perth",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Mashhad",
@@ -1834,7 +2000,8 @@
   "population": 2307177,
   "timezone": "Asia/Tehran",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Shaoxing",
@@ -1845,7 +2012,8 @@
   "population": 2300000,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Nantong",
@@ -1856,7 +2024,8 @@
   "population": 2273326,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kowloon",
@@ -1867,7 +2036,8 @@
   "population": 2232339,
   "timezone": "Asia/Hong_Kong",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Yantai",
@@ -1878,7 +2048,8 @@
   "population": 2227733,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Lubumbashi",
@@ -1889,7 +2060,8 @@
   "population": 2221925,
   "timezone": "Africa/Lubumbashi",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Manaus",
@@ -1900,7 +2072,8 @@
   "population": 2219580,
   "timezone": "America/Manaus",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Lusaka",
@@ -1911,7 +2084,8 @@
   "population": 2212301,
   "timezone": "Africa/Lusaka",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Brasília",
@@ -1922,7 +2096,8 @@
   "population": 2207718,
   "timezone": "America/Sao_Paulo",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Zhuhai",
@@ -1933,7 +2108,8 @@
   "population": 2207090,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Santo Domingo",
@@ -1944,7 +2120,8 @@
   "population": 2201941,
   "timezone": "America/Santo_Domingo",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Lomé",
@@ -1955,7 +2132,8 @@
   "population": 2188376,
   "timezone": "Africa/Lome",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Multan",
@@ -1966,7 +2144,8 @@
   "population": 2169915,
   "timezone": "Asia/Karachi",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Havana",
@@ -1977,7 +2156,8 @@
   "population": 2163824,
   "timezone": "America/Havana",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Baotou",
@@ -1988,7 +2168,8 @@
   "population": 2150000,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Depok",
@@ -1999,7 +2180,8 @@
   "population": 2145400,
   "timezone": "Asia/Jakarta",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Paris",
@@ -2010,7 +2192,8 @@
   "population": 2138551,
   "timezone": "Europe/Paris",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Coimbatore",
@@ -2021,7 +2204,8 @@
   "population": 2136916,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Gaziantep",
@@ -2032,7 +2216,8 @@
   "population": 2130432,
   "timezone": "Europe/Istanbul",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Qingyang",
@@ -2043,7 +2228,8 @@
   "population": 2125400,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Port Harcourt",
@@ -2054,7 +2240,8 @@
   "population": 2120000,
   "timezone": "Africa/Lagos",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Pretoria",
@@ -2065,7 +2252,8 @@
   "population": 2112693,
   "timezone": "Africa/Johannesburg",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Córdoba",
@@ -2076,7 +2264,8 @@
   "population": 2106734,
   "timezone": "America/Argentina/Cordoba",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Mbuji-Mayi",
@@ -2087,7 +2276,8 @@
   "population": 2101332,
   "timezone": "Africa/Lubumbashi",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Aleppo",
@@ -2098,7 +2288,8 @@
   "population": 2098210,
   "timezone": "Asia/Damascus",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kunshan",
@@ -2109,7 +2300,8 @@
   "population": 2092496,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Al Mawşil al Jadīdah",
@@ -2120,7 +2312,8 @@
   "population": 2065597,
   "timezone": "Asia/Baghdad",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Weifang",
@@ -2131,7 +2324,8 @@
   "population": 2044028,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Zunyi",
@@ -2142,7 +2336,8 @@
   "population": 2037775,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Al Başrah al Qadīmah",
@@ -2153,7 +2348,8 @@
   "population": 2015483,
   "timezone": "Asia/Baghdad",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "La Paz",
@@ -2164,7 +2360,8 @@
   "population": 2004652,
   "timezone": "America/La_Paz",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Lianyungang",
@@ -2175,7 +2372,8 @@
   "population": 2001009,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Medellín",
@@ -2186,7 +2384,8 @@
   "population": 1999979,
   "timezone": "America/Bogota",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Indore",
@@ -2197,7 +2396,8 @@
   "population": 1994397,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Brazzaville",
@@ -2208,7 +2408,8 @@
   "population": 1982000,
   "timezone": "Africa/Brazzaville",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Tashkent",
@@ -2219,7 +2420,8 @@
   "population": 1978028,
   "timezone": "Asia/Tashkent",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Ganzhou",
@@ -2230,7 +2432,8 @@
   "population": 1977253,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Almaty",
@@ -2241,7 +2444,8 @@
   "population": 1977011,
   "timezone": "Asia/Almaty",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Khartoum",
@@ -2252,7 +2456,8 @@
   "population": 1974647,
   "timezone": "Africa/Khartoum",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Sapporo",
@@ -2263,7 +2468,8 @@
   "population": 1973832,
   "timezone": "Asia/Tokyo",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Accra",
@@ -2274,7 +2480,8 @@
   "population": 1963264,
   "timezone": "Africa/Accra",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Curitiba",
@@ -2285,7 +2492,8 @@
   "population": 1948626,
   "timezone": "America/Sao_Paulo",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Ordos",
@@ -2296,7 +2504,8 @@
   "population": 1940653,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Sanaa",
@@ -2307,7 +2516,8 @@
   "population": 1937451,
   "timezone": "Asia/Aden",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Conakry",
@@ -2318,7 +2528,8 @@
   "population": 1928389,
   "timezone": "Africa/Conakry",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Tijuana",
@@ -2329,7 +2540,8 @@
   "population": 1922523,
   "timezone": "America/Tijuana",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Hyderabad",
@@ -2340,7 +2552,8 @@
   "population": 1921275,
   "timezone": "Asia/Karachi",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Beirut",
@@ -2351,7 +2564,8 @@
   "population": 1916100,
   "timezone": "Asia/Beirut",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Tangerang",
@@ -2362,7 +2576,8 @@
   "population": 1912679,
   "timezone": "Asia/Jakarta",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Jieyang",
@@ -2373,7 +2588,8 @@
   "population": 1899394,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Jilin",
@@ -2384,7 +2600,8 @@
   "population": 1895865,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Bucharest",
@@ -2395,7 +2612,8 @@
   "population": 1877155,
   "timezone": "Europe/Bucharest",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Camayenne",
@@ -2406,7 +2624,8 @@
   "population": 1871242,
   "timezone": "Africa/Conakry",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kakamega",
@@ -2417,7 +2636,8 @@
   "population": 1867579,
   "timezone": "Africa/Nairobi",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Nanchong",
@@ -2428,7 +2648,8 @@
   "population": 1858875,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Tainan",
@@ -2439,7 +2660,8 @@
   "population": 1856642,
   "timezone": "Asia/Taipei",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Datong",
@@ -2450,7 +2672,8 @@
   "population": 1850000,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kaduna",
@@ -2461,7 +2684,8 @@
   "population": 1850000,
   "timezone": "Africa/Lagos",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Omdurman",
@@ -2472,7 +2696,8 @@
   "population": 1849659,
   "timezone": "Africa/Khartoum",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Hamburg",
@@ -2483,7 +2708,8 @@
   "population": 1845229,
   "timezone": "Europe/Berlin",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Thāne",
@@ -2494,7 +2720,8 @@
   "population": 1841488,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Santa Cruz de la Sierra",
@@ -2505,7 +2732,8 @@
   "population": 1831434,
   "timezone": "America/La_Paz",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Vadodara",
@@ -2516,7 +2744,8 @@
   "population": 1822221,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Adana",
@@ -2527,7 +2756,8 @@
   "population": 1816750,
   "timezone": "Europe/Istanbul",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Iztapalapa",
@@ -2538,7 +2768,8 @@
   "population": 1815786,
   "timezone": "America/Mexico_City",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Nanyang",
@@ -2549,7 +2780,8 @@
   "population": 1811812,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Abu Dhabi",
@@ -2560,7 +2792,8 @@
   "population": 1807000,
   "timezone": "Asia/Dubai",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Sharjah",
@@ -2571,7 +2804,8 @@
   "population": 1800000,
   "timezone": "Asia/Dubai",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Bhopal",
@@ -2582,7 +2816,8 @@
   "population": 1798218,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Jiangmen",
@@ -2593,7 +2828,8 @@
   "population": 1795459,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Diyarbakır",
@@ -2604,7 +2840,8 @@
   "population": 1791373,
   "timezone": "Europe/Istanbul",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Benin City",
@@ -2615,7 +2852,8 @@
   "population": 1782000,
   "timezone": "Africa/Lagos",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Jiangyin",
@@ -2626,7 +2864,8 @@
   "population": 1779515,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Davao",
@@ -2637,7 +2876,8 @@
   "population": 1776949,
   "timezone": "Asia/Manila",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Fuyang",
@@ -2648,7 +2888,8 @@
   "population": 1768947,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Montréal",
@@ -2659,7 +2900,8 @@
   "population": 1762949,
   "timezone": "America/Toronto",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Bayan Nur",
@@ -2670,7 +2912,8 @@
   "population": 1760000,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Maracaibo",
@@ -2681,7 +2924,8 @@
   "population": 1752602,
   "timezone": "America/Caracas",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Chaozhou",
@@ -2692,7 +2936,8 @@
   "population": 1750945,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Minsk",
@@ -2703,7 +2948,8 @@
   "population": 1742124,
   "timezone": "Europe/Minsk",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Budapest",
@@ -2714,7 +2960,8 @@
   "population": 1741041,
   "timezone": "Europe/Budapest",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Qingyuan",
@@ -2725,7 +2972,8 @@
   "population": 1738424,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Tai’an",
@@ -2736,7 +2984,8 @@
   "population": 1735425,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Rasapūdipalem",
@@ -2747,7 +2996,8 @@
   "population": 1728128,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Pimpri-Chinchwad",
@@ -2758,7 +3008,8 @@
   "population": 1727692,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Warsaw",
@@ -2769,7 +3020,8 @@
   "population": 1702139,
   "timezone": "Europe/Warsaw",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Soweto",
@@ -2780,7 +3032,8 @@
   "population": 1695047,
   "timezone": "Africa/Johannesburg",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Puebla",
@@ -2791,7 +3044,8 @@
   "population": 1692181,
   "timezone": "America/Mexico_City",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Vienna",
@@ -2802,7 +3056,8 @@
   "population": 1691468,
   "timezone": "Europe/Vienna",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Patna",
@@ -2813,7 +3068,8 @@
   "population": 1684297,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Mosul",
@@ -2824,7 +3080,8 @@
   "population": 1683000,
   "timezone": "Asia/Baghdad",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kallakurichi",
@@ -2835,7 +3092,8 @@
   "population": 1682687,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kampala",
@@ -2846,7 +3104,8 @@
   "population": 1680600,
   "timezone": "Africa/Kampala",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Xining",
@@ -2857,7 +3116,8 @@
   "population": 1677177,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Changshu",
@@ -2868,7 +3128,8 @@
   "population": 1677050,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Palembang",
@@ -2879,7 +3140,8 @@
   "population": 1668848,
   "timezone": "Asia/Jakarta",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Huainan",
@@ -2890,7 +3152,8 @@
   "population": 1666826,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Caloocan City",
@@ -2901,7 +3164,8 @@
   "population": 1661584,
   "timezone": "Asia/Manila",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Rabat",
@@ -2912,7 +3176,8 @@
   "population": 1655753,
   "timezone": "Africa/Casablanca",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Semarang",
@@ -2923,7 +3188,8 @@
   "population": 1653524,
   "timezone": "Asia/Jakarta",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Recife",
@@ -2934,7 +3200,8 @@
   "population": 1653461,
   "timezone": "America/Recife",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Phoenix",
@@ -2945,7 +3212,8 @@
   "population": 1650070,
   "timezone": "America/Phoenix",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Suzhou",
@@ -2956,7 +3224,8 @@
   "population": 1647642,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Ecatepec de Morelos",
@@ -2967,7 +3236,8 @@
   "population": 1645352,
   "timezone": "America/Mexico_City",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Lu’an",
@@ -2978,7 +3248,8 @@
   "population": 1644344,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Barcelona",
@@ -2989,7 +3260,8 @@
   "population": 1620343,
   "timezone": "Europe/Madrid",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Valencia",
@@ -3000,7 +3272,8 @@
   "population": 1619470,
   "timezone": "America/Caracas",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Ludhiana",
@@ -3011,7 +3284,8 @@
   "population": 1618879,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Yancheng",
@@ -3022,7 +3296,8 @@
   "population": 1615717,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Novosibirsk",
@@ -3033,7 +3308,8 @@
   "population": 1612833,
   "timezone": "Asia/Novosibirsk",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Erbil",
@@ -3044,7 +3320,8 @@
   "population": 1612700,
   "timezone": "Asia/Baghdad",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Fukuoka",
@@ -3055,7 +3332,8 @@
   "population": 1612392,
   "timezone": "Asia/Tokyo",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Daqing",
@@ -3066,7 +3344,8 @@
   "population": 1604027,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Manila",
@@ -3077,7 +3356,8 @@
   "population": 1600000,
   "timezone": "Asia/Manila",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Wuhu",
@@ -3088,7 +3368,8 @@
   "population": 1598165,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Santiago de Querétaro",
@@ -3099,7 +3380,8 @@
   "population": 1594212,
   "timezone": "America/Mexico_City",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Dazhou",
@@ -3110,7 +3392,8 @@
   "population": 1589435,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Yangzhou",
@@ -3121,7 +3404,8 @@
   "population": 1584237,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "León de los Aldama",
@@ -3132,7 +3416,8 @@
   "population": 1579803,
   "timezone": "America/Mexico_City",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Makkah",
@@ -3143,7 +3428,8 @@
   "population": 1578722,
   "timezone": "Asia/Riyadh",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Philadelphia",
@@ -3154,7 +3440,8 @@
   "population": 1573916,
   "timezone": "America/New_York",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Phnom Penh",
@@ -3165,7 +3452,8 @@
   "population": 1573544,
   "timezone": "Asia/Phnom_Penh",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Guilin",
@@ -3176,7 +3464,8 @@
   "population": 1572300,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Damascus",
@@ -3187,7 +3476,8 @@
   "population": 1569394,
   "timezone": "Asia/Damascus",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Quetta",
@@ -3198,7 +3488,8 @@
   "population": 1565546,
   "timezone": "Asia/Karachi",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Zhaoqing",
@@ -3209,7 +3500,8 @@
   "population": 1553109,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Onitsha",
@@ -3220,7 +3512,8 @@
   "population": 1553000,
   "timezone": "Africa/Lagos",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Mianyang",
@@ -3231,7 +3524,8 @@
   "population": 1550000,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Isfahan",
@@ -3242,7 +3536,8 @@
   "population": 1547164,
   "timezone": "Asia/Tehran",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Wanzhou",
@@ -3253,7 +3548,8 @@
   "population": 1545900,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Harare",
@@ -3264,7 +3560,8 @@
   "population": 1542813,
   "timezone": "Africa/Harare",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Monrovia",
@@ -3275,7 +3572,8 @@
   "population": 1542549,
   "timezone": "Africa/Monrovia",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Putian",
@@ -3286,7 +3584,8 @@
   "population": 1539389,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kawasaki",
@@ -3297,7 +3596,8 @@
   "population": 1538262,
   "timezone": "Asia/Tokyo",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Shangqiu",
@@ -3308,7 +3608,8 @@
   "population": 1536392,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Goiânia",
@@ -3319,7 +3620,8 @@
   "population": 1536097,
   "timezone": "America/Sao_Paulo",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Auckland",
@@ -3330,7 +3632,8 @@
   "population": 1530500,
   "timezone": "Pacific/Auckland",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "MEDIUM"
  },
  {
   "name": "San Antonio",
@@ -3341,7 +3644,8 @@
   "population": 1526656,
   "timezone": "America/Chicago",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kobe",
@@ -3352,7 +3656,8 @@
   "population": 1525152,
   "timezone": "Asia/Tokyo",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Stockholm",
@@ -3363,7 +3668,8 @@
   "population": 1515017,
   "timezone": "Europe/Stockholm",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Ciudad Juárez",
@@ -3374,7 +3680,8 @@
   "population": 1512450,
   "timezone": "America/Ciudad_Juarez",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Cần Thơ",
@@ -3385,7 +3692,8 @@
   "population": 1507187,
   "timezone": "Asia/Ho_Chi_Minh",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Khulna",
@@ -3396,7 +3704,8 @@
   "population": 1500689,
   "timezone": "Asia/Dhaka",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Belém",
@@ -3407,7 +3716,8 @@
   "population": 1499641,
   "timezone": "America/Belem",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Yekaterinburg",
@@ -3418,7 +3728,8 @@
   "population": 1495066,
   "timezone": "Asia/Yekaterinburg",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Porto Alegre",
@@ -3429,7 +3740,8 @@
   "population": 1488252,
   "timezone": "America/Sao_Paulo",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Yinchuan",
@@ -3440,7 +3752,8 @@
   "population": 1487579,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Manhattan",
@@ -3451,7 +3764,8 @@
   "population": 1487536,
   "timezone": "America/New_York",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Nashik",
@@ -3462,7 +3776,8 @@
   "population": 1486053,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Taizhou",
@@ -3473,7 +3788,8 @@
   "population": 1485502,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Asunción",
@@ -3484,7 +3800,8 @@
   "population": 1482200,
   "timezone": "America/Asuncion",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Yiwu",
@@ -3495,7 +3812,8 @@
   "population": 1481384,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Zapopan",
@@ -3506,7 +3824,8 @@
   "population": 1476491,
   "timezone": "America/Mexico_City",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Daejeon",
@@ -3517,7 +3836,8 @@
   "population": 1470336,
   "timezone": "Asia/Seoul",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Adelaide",
@@ -3528,7 +3848,8 @@
   "population": 1469163,
   "timezone": "Australia/Adelaide",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Quanzhou",
@@ -3539,7 +3860,8 @@
   "population": 1469157,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Madurai",
@@ -3550,7 +3872,8 @@
   "population": 1465625,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Jinhua",
@@ -3561,7 +3884,8 @@
   "population": 1463990,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kyoto",
@@ -3572,7 +3896,8 @@
   "population": 1463723,
   "timezone": "Asia/Tokyo",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "LOW"
  },
  {
   "name": "Cixi",
@@ -3583,7 +3908,8 @@
   "population": 1457510,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Changde",
@@ -3594,7 +3920,8 @@
   "population": 1457419,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kuala Lumpur",
@@ -3605,7 +3932,8 @@
   "population": 1453975,
   "timezone": "Asia/Kuala_Lumpur",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kaifeng",
@@ -3616,7 +3944,8 @@
   "population": 1451741,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Anshan",
@@ -3627,7 +3956,8 @@
   "population": 1450000,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Karaj",
@@ -3638,7 +3968,8 @@
   "population": 1448075,
   "timezone": "Asia/Tehran",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kathmandu",
@@ -3649,7 +3980,8 @@
   "population": 1442271,
   "timezone": "Asia/Kathmandu",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Baoji",
@@ -3660,7 +3992,8 @@
   "population": 1437802,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Suqian",
@@ -3671,7 +4004,8 @@
   "population": 1437685,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Liuzhou",
@@ -3682,7 +4016,8 @@
   "population": 1436599,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Tirunelveli",
@@ -3693,7 +4028,8 @@
   "population": 1435844,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kayseri",
@@ -3704,7 +4040,8 @@
   "population": 1434357,
   "timezone": "Europe/Istanbul",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Kharkiv",
@@ -3715,7 +4052,8 @@
   "population": 1433886,
   "timezone": "Europe/Kyiv",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Konya",
@@ -3726,7 +4064,8 @@
   "population": 1433861,
   "timezone": "Europe/Istanbul",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Zhangjiagang",
@@ -3737,7 +4076,8 @@
   "population": 1432044,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Agra",
@@ -3748,7 +4088,8 @@
   "population": 1430055,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Tabriz",
@@ -3759,7 +4100,8 @@
   "population": 1424641,
   "timezone": "Asia/Tehran",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Makassar",
@@ -3770,7 +4112,8 @@
   "population": 1423877,
   "timezone": "Asia/Makassar",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Jinjiang",
@@ -3781,7 +4124,8 @@
   "population": 1416151,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Faridabad",
@@ -3792,7 +4136,8 @@
   "population": 1414050,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Gwangju",
@@ -3803,7 +4148,8 @@
   "population": 1411357,
   "timezone": "Asia/Seoul",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Bozhou",
@@ -3814,7 +4160,8 @@
   "population": 1409436,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Qujing",
@@ -3825,7 +4172,8 @@
   "population": 1408500,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "South Tangerang",
@@ -3836,7 +4184,8 @@
   "population": 1404785,
   "timezone": "Asia/Jakarta",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "San Diego",
@@ -3847,7 +4196,8 @@
   "population": 1404452,
   "timezone": "America/Los_Angeles",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Zhanjiang",
@@ -3858,7 +4208,8 @@
   "population": 1400709,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Fushun",
@@ -3869,7 +4220,8 @@
   "population": 1400646,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Rājkot",
@@ -3880,7 +4232,8 @@
   "population": 1390640,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Luoyang",
@@ -3891,7 +4244,8 @@
   "population": 1390581,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Guadalajara",
@@ -3902,7 +4256,8 @@
   "population": 1385629,
   "timezone": "America/Mexico_City",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "The Bronx",
@@ -3913,7 +4268,8 @@
   "population": 1385108,
   "timezone": "America/New_York",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Guankou",
@@ -3924,7 +4280,8 @@
   "population": 1380000,
   "timezone": "Asia/Shanghai",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Huế",
@@ -3935,7 +4292,8 @@
   "population": 1380000,
   "timezone": "Asia/Bangkok",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Milan",
@@ -3946,7 +4304,8 @@
   "population": 1371498,
   "timezone": "Europe/Rome",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "N'Djamena",
@@ -3957,7 +4316,8 @@
   "population": 1359526,
   "timezone": "Africa/Ndjamena",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Antananarivo",
@@ -3968,7 +4328,8 @@
   "population": 1349501,
   "timezone": "Indian/Antananarivo",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Niamey",
@@ -3979,7 +4340,8 @@
   "population": 1323691,
   "timezone": "Africa/Niamey",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Tripoli",
@@ -3990,7 +4352,8 @@
   "population": 1302947,
   "timezone": "Africa/Tripoli",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Yaoundé",
@@ -4001,7 +4364,8 @@
   "population": 1299369,
   "timezone": "Africa/Douala",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Amman",
@@ -4012,7 +4376,8 @@
   "population": 1275857,
   "timezone": "Asia/Amman",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Belgrade",
@@ -4023,7 +4388,8 @@
   "population": 1273651,
   "timezone": "Europe/Belgrade",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Montevideo",
@@ -4034,7 +4400,8 @@
   "population": 1270737,
   "timezone": "America/Montevideo",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Maputo",
@@ -4045,7 +4412,8 @@
   "population": 1254837,
   "timezone": "Africa/Maputo",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Port-au-Prince",
@@ -4056,7 +4424,8 @@
   "population": 1234742,
   "timezone": "America/Port-au-Prince",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "MEDIUM"
  },
  {
   "name": "Nouakchott",
@@ -4067,7 +4436,8 @@
   "population": 1184530,
   "timezone": "Africa/Nouakchott",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Prague",
@@ -4078,7 +4448,8 @@
   "population": 1165581,
   "timezone": "Europe/Prague",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Copenhagen",
@@ -4089,7 +4460,8 @@
   "population": 1153615,
   "timezone": "Europe/Copenhagen",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Sofia",
@@ -4100,7 +4472,8 @@
   "population": 1152556,
   "timezone": "Europe/Sofia",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Yerevan",
@@ -4111,7 +4484,8 @@
   "population": 1141100,
   "timezone": "Asia/Yerevan",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "LOW"
  },
  {
   "name": "Kigali",
@@ -4122,7 +4496,8 @@
   "population": 1132686,
   "timezone": "Africa/Kigali",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Baku",
@@ -4133,7 +4508,8 @@
   "population": 1116513,
   "timezone": "Asia/Baku",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "LOW"
  },
  {
   "name": "Lilongwe",
@@ -4144,7 +4520,8 @@
   "population": 1115815,
   "timezone": "Africa/Blantyre",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Oslo",
@@ -4155,7 +4532,8 @@
   "population": 1082575,
   "timezone": "Europe/Oslo",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Tbilisi",
@@ -4166,7 +4544,8 @@
   "population": 1049498,
   "timezone": "Asia/Tbilisi",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "LOW"
  },
  {
   "name": "Dublin",
@@ -4177,7 +4556,8 @@
   "population": 1024027,
   "timezone": "Europe/Dublin",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Brussels",
@@ -4188,7 +4568,8 @@
   "population": 1019022,
   "timezone": "Europe/Brussels",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Ottawa",
@@ -4199,7 +4580,8 @@
   "population": 1017449,
   "timezone": "America/Toronto",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Guatemala City",
@@ -4210,7 +4592,8 @@
   "population": 994938,
   "timezone": "America/Guatemala",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Managua",
@@ -4221,7 +4604,8 @@
   "population": 973087,
   "timezone": "America/Managua",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Jerusalem",
@@ -4232,7 +4616,8 @@
   "population": 971800,
   "timezone": "Asia/Jerusalem",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "LOW"
  },
  {
   "name": "Kingston",
@@ -4243,7 +4628,8 @@
   "population": 937700,
   "timezone": "America/Jamaica",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Nay Pyi Taw",
@@ -4254,7 +4640,8 @@
   "population": 925000,
   "timezone": "Asia/Yangon",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "LOW"
  },
  {
   "name": "Bishkek",
@@ -4265,7 +4652,8 @@
   "population": 900000,
   "timezone": "Asia/Bishkek",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "LOW"
  },
  {
   "name": "Tegucigalpa",
@@ -4276,7 +4664,8 @@
   "population": 850848,
   "timezone": "America/Tegucigalpa",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Libreville",
@@ -4287,7 +4676,8 @@
   "population": 846090,
   "timezone": "Africa/Libreville",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Bangui",
@@ -4298,7 +4688,8 @@
   "population": 812407,
   "timezone": "Africa/Bangui",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Freetown",
@@ -4309,7 +4700,8 @@
   "population": 802639,
   "timezone": "Africa/Freetown",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Muscat",
@@ -4320,7 +4712,8 @@
   "population": 797000,
   "timezone": "Asia/Muscat",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "LOW"
  },
  {
   "name": "Dodoma",
@@ -4331,7 +4724,8 @@
   "population": 765179,
   "timezone": "Africa/Dar_es_Salaam",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Riga",
@@ -4342,7 +4736,8 @@
   "population": 742572,
   "timezone": "Europe/Riga",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Amsterdam",
@@ -4353,7 +4748,8 @@
   "population": 741636,
   "timezone": "Europe/Amsterdam",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Ashgabat",
@@ -4364,7 +4760,8 @@
   "population": 727700,
   "timezone": "Asia/Ashgabat",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "LOW"
  },
  {
   "name": "Sarajevo",
@@ -4375,7 +4772,8 @@
   "population": 696731,
   "timezone": "Europe/Sarajevo",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Tunis",
@@ -4386,7 +4784,8 @@
   "population": 693210,
   "timezone": "Africa/Tunis",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Dushanbe",
@@ -4397,7 +4796,8 @@
   "population": 679400,
   "timezone": "Asia/Dushanbe",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "LOW"
  },
  {
   "name": "Athens",
@@ -4408,7 +4808,8 @@
   "population": 664046,
   "timezone": "Europe/Athens",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Zagreb",
@@ -4419,7 +4820,8 @@
   "population": 663592,
   "timezone": "Europe/Zagreb",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Helsinki",
@@ -4430,7 +4832,8 @@
   "population": 658864,
   "timezone": "Europe/Helsinki",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Colombo",
@@ -4441,7 +4844,8 @@
   "population": 648034,
   "timezone": "Asia/Colombo",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "LOW"
  },
  {
   "name": "Chisinau",
@@ -4452,7 +4856,8 @@
   "population": 635994,
   "timezone": "Europe/Chisinau",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Djibouti",
@@ -4463,7 +4868,8 @@
   "population": 626512,
   "timezone": "Africa/Djibouti",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Islamabad",
@@ -4474,7 +4880,8 @@
   "population": 601600,
   "timezone": "Asia/Karachi",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "LOW"
  },
  {
   "name": "Asmara",
@@ -4485,7 +4892,8 @@
   "population": 563930,
   "timezone": "Africa/Asmara",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Pristina",
@@ -4496,7 +4904,8 @@
   "population": 550000,
   "timezone": "Europe/Belgrade",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Vilnius",
@@ -4507,7 +4916,8 @@
   "population": 542366,
   "timezone": "Europe/Vilnius",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "San Salvador",
@@ -4518,7 +4928,8 @@
   "population": 525990,
   "timezone": "America/El_Salvador",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Lisbon",
@@ -4529,7 +4940,8 @@
   "population": 517802,
   "timezone": "Europe/Lisbon",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Skopje",
@@ -4540,7 +4952,8 @@
   "population": 474889,
   "timezone": "Europe/Skopje",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Juba",
@@ -4551,7 +4964,8 @@
   "population": 450000,
   "timezone": "Africa/Juba",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Bissau",
@@ -4562,7 +4976,8 @@
   "population": 439704,
   "timezone": "Africa/Bissau",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "East Jerusalem",
@@ -4573,7 +4988,8 @@
   "population": 428304,
   "timezone": "Asia/Hebron",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "LOW"
  },
  {
   "name": "Bratislava",
@@ -4584,7 +5000,8 @@
   "population": 423737,
   "timezone": "Europe/Bratislava",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Tirana",
@@ -4595,7 +5012,8 @@
   "population": 418495,
   "timezone": "Europe/Tirane",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "San Juan",
@@ -4606,7 +5024,8 @@
   "population": 418140,
   "timezone": "America/Puerto_Rico",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Tallinn",
@@ -4617,7 +5036,8 @@
   "population": 394024,
   "timezone": "Europe/Tallinn",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Windhoek",
@@ -4628,7 +5048,8 @@
   "population": 386219,
   "timezone": "Africa/Windhoek",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Wellington",
@@ -4639,7 +5060,8 @@
   "population": 381900,
   "timezone": "Pacific/Auckland",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "LOW"
  },
  {
   "name": "Canberra",
@@ -4650,7 +5072,8 @@
   "population": 367752,
   "timezone": "Australia/Sydney",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "LOW"
  },
  {
   "name": "Maseru",
@@ -4661,7 +5084,8 @@
   "population": 359753,
   "timezone": "Africa/Maseru",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Doha",
@@ -4672,7 +5096,8 @@
   "population": 344939,
   "timezone": "Asia/Qatar",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "LOW"
  },
  {
   "name": "San José",
@@ -4683,7 +5108,8 @@
   "population": 335007,
   "timezone": "America/Costa_Rica",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "New Delhi",
@@ -4694,7 +5120,8 @@
   "population": 317797,
   "timezone": "Asia/Kolkata",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "LOW"
  },
  {
   "name": "Port Moresby",
@@ -4705,7 +5132,8 @@
   "population": 283733,
   "timezone": "Pacific/Port_Moresby",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "LOW"
  },
  {
   "name": "Yamoussoukro",
@@ -4716,7 +5144,8 @@
   "population": 275686,
   "timezone": "Africa/Abidjan",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Ljubljana",
@@ -4727,7 +5156,8 @@
   "population": 272220,
   "timezone": "Europe/Ljubljana",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Porto-Novo",
@@ -4738,7 +5168,8 @@
   "population": 264320,
   "timezone": "Africa/Porto-Novo",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Gaborone",
@@ -4749,7 +5180,8 @@
   "population": 246325,
   "timezone": "Africa/Gaborone",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Podgorica",
@@ -4760,7 +5192,8 @@
   "population": 236852,
   "timezone": "Europe/Podgorica",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Georgetown",
@@ -4771,7 +5204,8 @@
   "population": 235017,
   "timezone": "America/Guyana",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "LOW"
  },
  {
   "name": "Nassau",
@@ -4782,7 +5216,8 @@
   "population": 227940,
   "timezone": "America/Nassau",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Sucre",
@@ -4793,7 +5228,8 @@
   "population": 224838,
   "timezone": "America/La_Paz",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "LOW"
  },
  {
   "name": "Paramaribo",
@@ -4804,7 +5240,8 @@
   "population": 223757,
   "timezone": "America/Paramaribo",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "LOW"
  },
  {
   "name": "Nicosia",
@@ -4815,7 +5252,8 @@
   "population": 200452,
   "timezone": "Asia/Nicosia",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Vientiane",
@@ -4826,7 +5264,8 @@
   "population": 196731,
   "timezone": "Asia/Vientiane",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "LOW"
  },
  {
   "name": "Malabo",
@@ -4837,7 +5276,8 @@
   "population": 155963,
   "timezone": "Africa/Malabo",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Port Louis",
@@ -4848,7 +5288,8 @@
   "population": 155226,
   "timezone": "Indian/Mauritius",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Saint-Denis",
@@ -4859,7 +5300,8 @@
   "population": 154765,
   "timezone": "Indian/Reunion",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Dili",
@@ -4870,7 +5312,8 @@
   "population": 150000,
   "timezone": "Asia/Dili",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "LOW"
  },
  {
   "name": "Manama",
@@ -4881,7 +5324,8 @@
   "population": 147074,
   "timezone": "Asia/Bahrain",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "LOW"
  },
  {
   "name": "Praia",
@@ -4892,7 +5336,8 @@
   "population": 137868,
   "timezone": "Atlantic/Cape_Verde",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Willemstad",
@@ -4903,7 +5348,8 @@
   "population": 125000,
   "timezone": "America/Curacao",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Bern",
@@ -4914,7 +5360,8 @@
   "population": 121631,
   "timezone": "Europe/Zurich",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Reykjavík",
@@ -4925,7 +5372,8 @@
   "population": 118918,
   "timezone": "Atlantic/Reykjavik",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Male",
@@ -4936,7 +5384,8 @@
   "population": 103693,
   "timezone": "Indian/Maldives",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "LOW"
  },
  {
   "name": "Thimphu",
@@ -4947,7 +5396,8 @@
   "population": 98676,
   "timezone": "Asia/Thimphu",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "LOW"
  },
  {
   "name": "Bridgetown",
@@ -4958,7 +5408,8 @@
   "population": 98511,
   "timezone": "America/Barbados",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Nouméa",
@@ -4969,7 +5420,8 @@
   "population": 93060,
   "timezone": "Pacific/Noumea",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "LOW"
  },
  {
   "name": "Fort-de-France",
@@ -4980,7 +5432,8 @@
   "population": 89995,
   "timezone": "America/Martinique",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Suva",
@@ -4991,7 +5444,8 @@
   "population": 77366,
   "timezone": "Pacific/Fiji",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "LOW"
  },
  {
   "name": "Luxembourg",
@@ -5002,7 +5456,8 @@
   "population": 76684,
   "timezone": "Europe/Luxembourg",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Mbabane",
@@ -5013,7 +5468,8 @@
   "population": 76218,
   "timezone": "Africa/Mbabane",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Moroni",
@@ -5024,7 +5480,8 @@
   "population": 74749,
   "timezone": "Indian/Comoro",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Gitega",
@@ -5035,7 +5492,8 @@
   "population": 64904,
   "timezone": "Africa/Bujumbura",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Bandar Seri Begawan",
@@ -5046,7 +5504,8 @@
   "population": 64409,
   "timezone": "Asia/Brunei",
   "region": "asia",
-  "region_group": "asia"
+  "region_group": "asia",
+  "velocity": "LOW"
  },
  {
   "name": "Cayenne",
@@ -5057,7 +5516,8 @@
   "population": 61550,
   "timezone": "America/Cayenne",
   "region": "south_america",
-  "region_group": "south_america"
+  "region_group": "south_america",
+  "velocity": "LOW"
  },
  {
   "name": "Kuwait City",
@@ -5068,7 +5528,8 @@
   "population": 60064,
   "timezone": "Asia/Kuwait",
   "region": "middle_east",
-  "region_group": "middle_east"
+  "region_group": "middle_east",
+  "velocity": "LOW"
  },
  {
   "name": "Honiara",
@@ -5079,7 +5540,8 @@
   "population": 56298,
   "timezone": "Pacific/Guadalcanal",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "LOW"
  },
  {
   "name": "Mamoudzou",
@@ -5090,7 +5552,8 @@
   "population": 54831,
   "timezone": "Indian/Mayotte",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "São Tomé",
@@ -5101,7 +5564,8 @@
   "population": 53300,
   "timezone": "Africa/Sao_Tome",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Port of Spain",
@@ -5112,7 +5576,8 @@
   "population": 49031,
   "timezone": "America/Port_of_Spain",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Saipan",
@@ -5123,7 +5588,8 @@
   "population": 48220,
   "timezone": "Pacific/Saipan",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "LOW"
  },
  {
   "name": "Apia",
@@ -5134,7 +5600,8 @@
   "population": 40407,
   "timezone": "Pacific/Apia",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "LOW"
  },
  {
   "name": "Tarawa",
@@ -5145,7 +5612,8 @@
   "population": 40311,
   "timezone": "Pacific/Tarawa",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "LOW"
  },
  {
   "name": "Banjul",
@@ -5156,7 +5624,8 @@
   "population": 37274,
   "timezone": "Africa/Banjul",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Monaco",
@@ -5167,7 +5636,8 @@
   "population": 32965,
   "timezone": "Europe/Monaco",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Oranjestad",
@@ -5178,7 +5648,8 @@
   "population": 29998,
   "timezone": "America/Aruba",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "George Town",
@@ -5189,7 +5660,8 @@
   "population": 29370,
   "timezone": "America/Cayman",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Saint Helier",
@@ -5200,7 +5672,8 @@
   "population": 28000,
   "timezone": "Europe/Jersey",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Gibraltar",
@@ -5211,7 +5684,8 @@
   "population": 26544,
   "timezone": "Europe/Gibraltar",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Papeete",
@@ -5222,7 +5696,8 @@
   "population": 26357,
   "timezone": "Pacific/Tahiti",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "LOW"
  },
  {
   "name": "Douglas",
@@ -5233,7 +5708,8 @@
   "population": 26218,
   "timezone": "Europe/Isle_of_Man",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Majuro",
@@ -5244,7 +5720,8 @@
   "population": 25400,
   "timezone": "Pacific/Majuro",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "LOW"
  },
  {
   "name": "Kingstown",
@@ -5255,7 +5732,8 @@
   "population": 24518,
   "timezone": "America/St_Vincent",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Washington",
@@ -5266,7 +5744,8 @@
   "population": 24299,
   "timezone": "America/Denver",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Victoria",
@@ -5277,7 +5756,8 @@
   "population": 22881,
   "timezone": "Indian/Mahe",
   "region": "africa",
-  "region_group": "africa"
+  "region_group": "africa",
+  "velocity": "LOW"
  },
  {
   "name": "Andorra la Vella",
@@ -5288,7 +5768,8 @@
   "population": 20430,
   "timezone": "Europe/Andorra",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Castries",
@@ -5299,7 +5780,8 @@
   "population": 20000,
   "timezone": "America/St_Lucia",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Charlotte Amalie",
@@ -5310,7 +5792,8 @@
   "population": 20000,
   "timezone": "America/St_Thomas",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Roseau",
@@ -5321,7 +5804,8 @@
   "population": 16571,
   "timezone": "America/Dominica",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Nuuk",
@@ -5332,7 +5816,8 @@
   "population": 14798,
   "timezone": "America/Nuuk",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Belmopan",
@@ -5343,7 +5828,8 @@
   "population": 13381,
   "timezone": "America/Belize",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Avarua",
@@ -5354,7 +5840,8 @@
   "population": 13373,
   "timezone": "Pacific/Rarotonga",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "LOW"
  },
  {
   "name": "Tórshavn",
@@ -5365,7 +5852,8 @@
   "population": 13200,
   "timezone": "Atlantic/Faroe",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Basseterre",
@@ -5376,7 +5864,8 @@
   "population": 12920,
   "timezone": "America/St_Kitts",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Pago Pago",
@@ -5387,7 +5876,8 @@
   "population": 11500,
   "timezone": "Pacific/Pago_Pago",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "LOW"
  },
  {
   "name": "Basse-Terre",
@@ -5398,7 +5888,8 @@
   "population": 11472,
   "timezone": "America/Guadeloupe",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Mariehamn",
@@ -5409,7 +5900,8 @@
   "population": 10682,
   "timezone": "Europe/Mariehamn",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Road Town",
@@ -5420,7 +5912,8 @@
   "population": 8449,
   "timezone": "America/Tortola",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Palikir",
@@ -5431,7 +5924,8 @@
   "population": 6942,
   "timezone": "Pacific/Pohnpei",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "LOW"
  },
  {
   "name": "Valletta",
@@ -5442,7 +5936,8 @@
   "population": 6794,
   "timezone": "Europe/Malta",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  },
  {
   "name": "Funafuti",
@@ -5453,7 +5948,8 @@
   "population": 6320,
   "timezone": "Pacific/Funafuti",
   "region": "oceania",
-  "region_group": "oceania"
+  "region_group": "oceania",
+  "velocity": "LOW"
  },
  {
   "name": "Saint-Pierre",
@@ -5464,7 +5960,8 @@
   "population": 6200,
   "timezone": "America/Miquelon",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Gustavia",
@@ -5475,7 +5972,8 @@
   "population": 5988,
   "timezone": "America/St_Barthelemy",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Marigot",
@@ -5486,7 +5984,8 @@
   "population": 5700,
   "timezone": "America/Marigot",
   "region": "north_america",
-  "region_group": "north_america"
+  "region_group": "north_america",
+  "velocity": "LOW"
  },
  {
   "name": "Vaduz",
@@ -5497,6 +5996,7 @@
   "population": 5197,
   "timezone": "Europe/Vaduz",
   "region": "europe",
-  "region_group": "europe"
+  "region_group": "europe",
+  "velocity": "LOW"
  }
 ]

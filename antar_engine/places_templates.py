@@ -193,3 +193,130 @@ def _materialise() -> dict:
 
 
 PLACES_TEMPLATES = _materialise()
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# Phase 3 — 4-layer reasoning (NATAL / DASHA / AGE / INTENT) template banks
+# ═════════════════════════════════════════════════════════════════════════════
+
+CONDITIONS = ["exalted", "own_sign", "friend", "neutral", "enemy",
+              "debilitated", "combust", "sleeping"]
+
+# NATAL — keyed by condition; {planet},{domain},{placed} interpolated.
+_NATAL_FRAMES = {
+    "en": {
+        "exalted":     "Your {planet} — exalted in your chart — is one of your real strengths for {domain}{placed}.",
+        "own_sign":    "Your {planet} — already in its own sign — gives {domain} dependable ground here{placed}.",
+        "friend":      "Your {planet} sits in friendly territory, lending quiet support to {domain} here{placed}.",
+        "neutral":     "Your {planet} is steady but unremarkable for {domain} here — neither lift nor drag{placed}.",
+        "enemy":       "Your {planet} works against some resistance for {domain} here — it delivers, but it costs{placed}.",
+        "debilitated": "Your {planet} is weakened in your chart, so {domain} in a place like this asks more of you than it returns{placed}.",
+        "combust":     "Your {planet} is easily overshadowed in your chart — its signal for {domain} can get drowned out here{placed}.",
+        "sleeping":    "Your {planet} is dormant in your chart — {domain} here needs you to wake it deliberately{placed}.",
+    },
+    "es": {
+        "exalted":     "Tu {planet} — exaltado en tu carta — es una de tus verdaderas fortalezas para {domain}{placed}.",
+        "own_sign":    "Tu {planet} — ya en su propio signo — le da a {domain} terreno confiable aquí{placed}.",
+        "friend":      "Tu {planet} está en territorio amigo, dando apoyo silencioso a {domain} aquí{placed}.",
+        "neutral":     "Tu {planet} es estable pero discreto para {domain} aquí — ni impulso ni lastre{placed}.",
+        "enemy":       "Tu {planet} trabaja con cierta resistencia para {domain} aquí — cumple, pero cuesta{placed}.",
+        "debilitated": "Tu {planet} está debilitado en tu carta, así que {domain} en un lugar así te pide más de lo que devuelve{placed}.",
+        "combust":     "Tu {planet} se eclipsa con facilidad en tu carta — su señal para {domain} puede ahogarse aquí{placed}.",
+        "sleeping":    "Tu {planet} está dormido en tu carta — {domain} aquí necesita que lo despiertes deliberadamente{placed}.",
+    },
+}
+
+# Relocated-house clause ("placed") appended when the karaka lands in a
+# concern-relevant house at this relocation. No house numbers — domain words.
+_PLACED_CLAUSE = {
+    "en": ", and here it rises to the top of your relocated chart",
+    "es": ", y aquí sube a lo alto de tu carta reubicada",
+}
+
+# DASHA — kind ∈ current | upcoming | building | neutral; {planet} interpolated.
+_DASHA_FRAMES = {
+    "en": {
+        "current":  "Your {planet} period is live, and this relocation puts that energy front and centre — the chapter you're in literally takes its visible form here.",
+        "upcoming": "{planet} opens the long chapter you're about to enter, and this place gives that next chapter its visible form — you'd be arriving early to your own future.",
+        "building": "{planet} is on your horizon, and this place is tuned to the chapter building toward you rather than the one you're leaving.",
+        "neutral":  "The timing here is quiet — no major period lord is amplified by this relocation, so the place works on chart strength alone.",
+    },
+    "es": {
+        "current":  "Tu periodo de {planet} está activo, y esta reubicación pone esa energía en primer plano — el capítulo en el que estás toma aquí su forma visible.",
+        "upcoming": "{planet} abre el largo capítulo en el que estás a punto de entrar, y este lugar le da forma visible a ese próximo capítulo — llegarías temprano a tu propio futuro.",
+        "building": "{planet} está en tu horizonte, y este lugar está afinado al capítulo que se acerca, no al que dejas.",
+        "neutral":  "El momento aquí es tranquilo — ningún regente de periodo mayor se amplifica con esta reubicación, así que el lugar funciona por la fuerza de la carta sola.",
+    },
+}
+
+# AGE — match_kind ∈ match | mismatch | quiet | neutral; {chapter},{city}.
+_AGE_FRAMES = {
+    "en": {
+        "match":    "The pace of {city} aligns with the {chapter} phase you're in — the city's rhythm matches your chapter's rhythm.",
+        "mismatch": "{city} runs at sprint pace, but you're in the {chapter} phase — the place pushes faster than your chapter wants.",
+        "quiet":    "{city} offers quiet compounding — a gentle fit for the {chapter} phase you're in.",
+        "neutral":  "{city}'s tempo neither helps nor fights the {chapter} phase you're in.",
+    },
+    "es": {
+        "match":    "El ritmo de {city} encaja con la fase de {chapter} en la que estás — el pulso de la ciudad coincide con el de tu capítulo.",
+        "mismatch": "{city} va a ritmo de sprint, pero estás en la fase de {chapter} — el lugar empuja más rápido de lo que tu capítulo quiere.",
+        "quiet":    "{city} ofrece una capitalización tranquila — un encaje suave para la fase de {chapter} en la que estás.",
+        "neutral":  "El tempo de {city} ni ayuda ni pelea con la fase de {chapter} en la que estás.",
+    },
+}
+
+# ONE-LINE headline per concern x tier.
+_ONE_LINE = {
+    "en": {
+        ("career", "FLOW"):   "Where your strongest working planet meets the rhythm of the place.",
+        ("career", "MIXED"):  "A working fit with edges worth knowing.",
+        ("career", "STRAIN"): "A place that asks before it gives, for your working life.",
+        ("love", "FLOW"):     "Where your relating planets are met, not tested.",
+        ("love", "MIXED"):    "Closeness and challenge in the same air.",
+        ("love", "STRAIN"):   "A place that asks your relating life to slow down.",
+        ("rest", "FLOW"):     "Where your inner ground finally exhales.",
+        ("rest", "MIXED"):    "Quiet is here, but not automatic.",
+        ("rest", "STRAIN"):   "Calm you'd have to build, not find.",
+        ("wealth", "FLOW"):   "Where the way value flows to you is backed.",
+        ("wealth", "MIXED"):  "Growth that wants steadier hands.",
+        ("wealth", "STRAIN"): "Resources that reward patience over speed.",
+        ("family", "FLOW"):   "Where roots and home are held close.",
+        ("family", "MIXED"):  "Belonging that takes some tending.",
+        ("family", "STRAIN"): "Warmth that here takes real effort.",
+    },
+    "es": {
+        ("career", "FLOW"):   "Donde tu planeta laboral más fuerte se encuentra con el ritmo del lugar.",
+        ("career", "MIXED"):  "Un encaje laboral con bordes que conviene conocer.",
+        ("career", "STRAIN"): "Un lugar que pide antes de dar, para tu vida laboral.",
+        ("love", "FLOW"):     "Donde tus planetas afectivos son recibidos, no probados.",
+        ("love", "MIXED"):    "Cercanía y reto en el mismo aire.",
+        ("love", "STRAIN"):   "Un lugar que le pide a tu vida afectiva ir más despacio.",
+        ("rest", "FLOW"):     "Donde tu terreno interior por fin respira.",
+        ("rest", "MIXED"):    "Hay calma, pero no automática.",
+        ("rest", "STRAIN"):   "Una calma que tendrías que construir, no encontrar.",
+        ("wealth", "FLOW"):   "Donde se respalda la forma en que el valor fluye hacia ti.",
+        ("wealth", "MIXED"):  "Un crecimiento que pide manos más firmes.",
+        ("wealth", "STRAIN"): "Recursos que premian la paciencia sobre la velocidad.",
+        ("family", "FLOW"):   "Donde las raíces y el hogar se sostienen de cerca.",
+        ("family", "MIXED"):  "Una pertenencia que requiere cuidado.",
+        ("family", "STRAIN"): "Una calidez que aquí cuesta esfuerzo real.",
+    },
+}
+
+
+def _materialise_layers() -> dict:
+    out = {"natal": {}, "dasha": {}, "age": {}, "one_line": {}}
+    for lang in ("en", "es"):
+        for concern in CONCERNS:
+            for cond in CONDITIONS:
+                out["natal"][(lang, concern, cond)] = _NATAL_FRAMES[lang][cond]
+            for kind in ("current", "upcoming", "building", "neutral"):
+                out["dasha"][(lang, concern, kind)] = _DASHA_FRAMES[lang][kind]
+            for tier in TIERS:
+                out["one_line"][(lang, concern, tier)] = _ONE_LINE[lang][(concern, tier)]
+        for mk in ("match", "mismatch", "quiet", "neutral"):
+            out["age"][(lang, mk)] = _AGE_FRAMES[lang][mk]
+    return out
+
+
+LAYER_TEMPLATES = _materialise_layers()
