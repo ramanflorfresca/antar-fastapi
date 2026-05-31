@@ -6681,6 +6681,146 @@ async def daily_practice_complete(request: DailyPracticeCompleteRequest,
         "streak_best": _pcomp2.compute_best_streak(dates),
     }
 
+
+# ════════════════════════════════════════════════════════════════════
+# PRACTICE AUDIO (sessions / chakra mantra)
+# ════════════════════════════════════════════════════════════════════
+import uuid as _prac_uuid
+from antar_engine import practice_chakras as _prac_chakras
+
+
+class PracticeSessionStartReq(BaseModel):
+    chart_id: str
+    planet: str
+    scope: str = "natal_weakness"
+    mode: str = "auto"
+    target_count: int = 108
+    tz_offset: Optional[int] = None
+
+
+class PracticeSessionCompleteReq(BaseModel):
+    session_id: str
+    final_count: int
+    elapsed_seconds: int = 0
+    mode: Optional[str] = None
+    tz_offset: Optional[int] = None
+
+
+class PracticeSessionAbandonReq(BaseModel):
+    session_id: str
+    final_count: int = 0
+    elapsed_seconds: int = 0
+
+
+def _prac_auth_user(authorization):
+    if authorization:
+        try:
+            return verify_token(authorization)
+        except Exception:
+            return None
+    return None
+
+
+@app.post("/api/v1/predict/daily-practice/session/start")
+async def daily_practice_session_start(request: PracticeSessionStartReq,
+                                       authorization: Optional[str] = Header(None)):
+    sid = str(_prac_uuid.uuid4())
+    started = _prac_dt.now(_prac_tz.utc).isoformat()
+    row = {
+        "id": sid, "user_id": _prac_auth_user(authorization), "chart_id": request.chart_id,
+        "planet": request.planet, "scope": request.scope, "mode": request.mode,
+        "target_count": request.target_count, "started_at": started, "abandoned": False,
+    }
+    try:
+        supabase.table("practice_sessions").insert(row).execute()
+    except Exception as _e:
+        print(f"[practice session start] {_e}")
+        raise HTTPException(500, "Could not start session")
+    return {"session_id": sid, "started_at": started}
+
+
+@app.post("/api/v1/predict/daily-practice/session/complete")
+async def daily_practice_session_complete(request: PracticeSessionCompleteReq,
+                                          authorization: Optional[str] = Header(None)):
+    sres = supabase.table("practice_sessions").select("*").eq("id", request.session_id).execute()
+    if not sres.data:
+        raise HTTPException(404, "Session not found")
+    sess = sres.data[0]
+    chart_id = sess.get("chart_id")
+    planet = sess.get("planet")
+    scope = sess.get("scope") or "natal_weakness"
+    target = int(sess.get("target_count") or 108)
+    local_today = _prac_local_date(request.tz_offset)
+
+    try:
+        supabase.table("practice_sessions").update({
+            "completed_at": _prac_dt.now(_prac_tz.utc).isoformat(),
+            "final_count": request.final_count,
+            "elapsed_seconds": request.elapsed_seconds,
+            "abandoned": False,
+        }).eq("id", request.session_id).execute()
+    except Exception as _e:
+        print(f"[practice session complete] {_e}")
+
+    # Prior best (before today's credit) for new_personal_best detection.
+    prior = (supabase.table("practice_completions").select("local_date")
+             .eq("chart_id", chart_id).eq("practice_planet", planet).execute()).data or []
+    prior_best = _pcomp2.compute_best_streak([r["local_date"] for r in prior if r.get("local_date")])
+
+    completed = request.final_count >= target
+    if completed:
+        # Idempotent: PK (chart_id, practice_planet, local_date) prevents double-count.
+        try:
+            supabase.table("practice_completions").upsert({
+                "chart_id": chart_id, "practice_planet": planet, "practice_scope": scope,
+                "completed_at": _prac_dt.now(_prac_tz.utc).isoformat(),
+                "local_date": local_today.isoformat(),
+            }, on_conflict="chart_id,practice_planet,local_date").execute()
+        except Exception as _e:
+            print(f"[practice completion upsert] {_e}")
+        # Bust cached daily-practice for this chart.
+        for k in [k for k in _PRACTICE_CACHE if k[1] == chart_id]:
+            _PRACTICE_CACHE.pop(k, None)
+
+    rows = (supabase.table("practice_completions").select("local_date")
+            .eq("chart_id", chart_id).eq("practice_planet", planet).execute()).data or []
+    dates = [r["local_date"] for r in rows if r.get("local_date")]
+    streak_days = _pcomp2.compute_streak(dates, local_today)
+    streak_best = _pcomp2.compute_best_streak(dates)
+    return {
+        "completed": bool(completed),
+        "streak_days": streak_days,
+        "streak_best": streak_best,
+        "new_personal_best": bool(completed and streak_best > prior_best),
+    }
+
+
+@app.post("/api/v1/predict/daily-practice/session/abandon")
+async def daily_practice_session_abandon(request: PracticeSessionAbandonReq,
+                                         authorization: Optional[str] = Header(None)):
+    try:
+        supabase.table("practice_sessions").update({
+            "completed_at": _prac_dt.now(_prac_tz.utc).isoformat(),
+            "final_count": request.final_count,
+            "elapsed_seconds": request.elapsed_seconds,
+            "abandoned": True,
+        }).eq("id", request.session_id).execute()
+    except Exception as _e:
+        print(f"[practice session abandon] {_e}")
+        raise HTTPException(500, "Could not record abandon")
+    return {"abandoned": True}
+
+
+@app.get("/api/v1/predict/daily-practice/chakra/{chakra_key}")
+async def daily_practice_chakra_mantra(chakra_key: str, chart_id: Optional[str] = None,
+                                       language: str = "en"):
+    if chakra_key not in _prac_chakras.CHAKRA_MANTRAS:
+        raise HTTPException(404, f"unknown chakra {chakra_key}")
+    return {
+        "chakra_key": chakra_key,
+        "balance_mantra": _prac_chakras.build_chakra_mantra_response(chakra_key, language),
+    }
+
 # ── Prediction Fulfillment ────────────────────────────────────────────────────
 
 @app.post("/api/v1/predict/fulfill")

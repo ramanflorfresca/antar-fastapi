@@ -15,6 +15,20 @@ technical (English); they are short and instruction-like.
 
 from __future__ import annotations
 
+import os
+
+# Public Supabase storage bucket for pre-generated mantra audio (one rep, looped
+# client-side).  Derived from SUPABASE_URL so it follows the environment.
+AUDIO_BASE = (
+    os.getenv("SUPABASE_URL", "https://ovszdbymflpwnynmpgqk.supabase.co").rstrip("/")
+    + "/storage/v1/object/public/practice-audio"
+)
+
+
+def _audio_lang(language: str) -> str:
+    l = str(language or "en").lower().split("-")[0]
+    return l if l in ("en", "es", "pt") else "en"
+
 
 def _loc(field, lang: str):
     """Pick en/es from a bilingual field; pass through plain values."""
@@ -226,6 +240,29 @@ PRACTICE_LIBRARY = {
 }
 
 
+def build_mantra_response(planet: str, language: str = "en") -> dict:
+    """
+    Mantra block in the API shape: name / sanskrit / transliteration / count /
+    duration_minutes / when / audio_url / tone_hz.  audio_url points at the
+    pre-generated, language-specific file (one rep, looped client-side); tone_hz
+    is the planet's classical pitch for the client-side Web Audio oscillator.
+    """
+    entry = PRACTICE_LIBRARY.get(planet, {})
+    m = entry.get("mantra", {})
+    lang = _audio_lang(language)
+    audio_path = m.get("audio_path", planet.lower())
+    return {
+        "name": m.get("primary"),
+        "sanskrit": m.get("sanskrit"),
+        "transliteration": m.get("translit"),
+        "count": m.get("count"),
+        "duration_minutes": m.get("duration_minutes"),
+        "when": m.get("when"),
+        "audio_url": f"{AUDIO_BASE}/{audio_path}-{lang}.mp3",
+        "tone_hz": entry.get("frequency_hz"),
+    }
+
+
 def get_planet_content(planet: str, language: str = "en") -> dict:
     """Localised content block for one planet — every piece from the same entry."""
     entry = PRACTICE_LIBRARY.get(planet)
@@ -235,7 +272,7 @@ def get_planet_content(planet: str, language: str = "en") -> dict:
     return {
         "what_it_governs": _loc(entry["what_it_governs"], language),
         "when_weak_symptoms": _loc(entry["when_weak_symptoms"], language),
-        "mantra": dict(entry["mantra"]),
+        "mantra": build_mantra_response(planet, language),
         "body": dict(entry["body"]),
         "breath": dict(entry["breath"]),
         "daily_action": {"title": da["title"], "detail": _loc(da["detail"], language), "frequency": da["frequency"]},

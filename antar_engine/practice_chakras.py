@@ -39,6 +39,36 @@ _COND_WORD = {
 }
 
 
+# ── Chakra balancing mantras (bija) + Solfeggio tone for the chakra sheet ────
+CHAKRA_MANTRAS = {
+    "root":         {"name": "Om Lam",  "sanskrit": "ॐ लं",  "translit": "OM LAM",  "tone_hz": 396},
+    "sacral":       {"name": "Om Vam",  "sanskrit": "ॐ वं",  "translit": "OM VAM",  "tone_hz": 417},
+    "solar_plexus": {"name": "Om Ram",  "sanskrit": "ॐ रं",  "translit": "OM RAM",  "tone_hz": 528},
+    "heart":        {"name": "Om Yam",  "sanskrit": "ॐ यं",  "translit": "OM YAM",  "tone_hz": 639},
+    "throat":       {"name": "Om Aim",  "sanskrit": "ॐ ऐं",  "translit": "OM AIM",  "tone_hz": 741},
+    "third_eye":    {"name": "Om Ksham","sanskrit": "ॐ क्षं", "translit": "OM KSHAM","tone_hz": 852},
+    "crown":        {"name": "Om",      "sanskrit": "ॐ",     "translit": "OM",      "tone_hz": 963},
+}
+
+
+def build_chakra_mantra_response(chakra_key: str, language: str = "en") -> dict:
+    """Chakra-specific balancing mantra with audio_url + tone_hz, or {}."""
+    from antar_engine.practice_library import AUDIO_BASE, _audio_lang
+    m = CHAKRA_MANTRAS.get(chakra_key)
+    if not m:
+        return {}
+    lang = _audio_lang(language)
+    return {
+        "name": m["name"],
+        "sanskrit": m["sanskrit"],
+        "transliteration": m["translit"],
+        "count": 108,
+        "duration_minutes": 12,
+        "audio_url": f"{AUDIO_BASE}/chakra-{chakra_key}-{lang}.mp3",
+        "tone_hz": m["tone_hz"],
+    }
+
+
 def _lang(language: str) -> str:
     return "es" if str(language).lower().startswith("es") else "en"
 
