@@ -9037,6 +9037,7 @@ class CompatibilityStartRequest(BaseModel):
     name_a:             str = "Person A"
     name_b:             str = "Person B"
     compatibility_type: str = "cofounder"
+    employee_role:      Optional[str] = None   # role for compat_type=="employee"
     birth_date_b:       Optional[str] = None
     birth_time_b:       Optional[str] = None
     birth_city_b:       Optional[str] = None
@@ -9482,10 +9483,11 @@ async def compatibility_start(request: CompatibilityStartRequest):
         birth_b = request.birth_date_b
 
     _compat_type = request.compatibility_type or "cofounder"
-    brief_a = build_person_brief(name_a, chart_a, dashas_a, birth_a, has_time_a, _compat_type)
+    _emp_role = (request.employee_role or "") if _compat_type == "employee" else ""
+    brief_a = build_person_brief(name_a, chart_a, dashas_a, birth_a, has_time_a, _compat_type, _emp_role)
     brief_b = build_person_brief(request.name_b, chart_b, dashas_b,
                                   birth_b if request.chart_id_b else request.birth_date_b,
-                                  has_time_b, _compat_type)
+                                  has_time_b, _compat_type, _emp_role)
 
     # ── FIX 3: Pre-compute timing and inject into briefs for Claude ──
     _pre_timing = _compute_combined_timing(dashas_a, dashas_b, name_a, request.name_b)
@@ -9504,6 +9506,7 @@ IMPORTANT: Lead with timing analysis — is NOW a good time for this {_compat_ty
         name_a=name_a, name_b=request.name_b,
         compat_type=request.compatibility_type,
         has_time_a=has_time_a, has_time_b=has_time_b,
+        employee_role=_emp_role,
     )
 
     # Extract score from layer1 text
@@ -9617,6 +9620,11 @@ IMPORTANT: Lead with timing analysis — is NOW a good time for this {_compat_ty
             "score_b_label": "Runway Alignment",
             "score_c_label": "Operating Rhythm",
         },
+        "employee": {
+            "score_a_label": "Role Fit",
+            "score_b_label": "Reliability",
+            "score_c_label": "Working Rhythm",
+        },
     }.get(request.compatibility_type, {
         "score_a_label": "Personality Match",
         "score_b_label": "Timing Alignment",
@@ -9636,6 +9644,7 @@ IMPORTANT: Lead with timing analysis — is NOW a good time for this {_compat_ty
         "score_b_label":  _type_labels["score_b_label"],
         "score_c_label":  _type_labels["score_c_label"],
         "compat_type":    request.compatibility_type,
+        "employee_role":  request.employee_role or "",
         "nakshatra_dynamic": _nakshatra_layer.get("dynamic_name", "") if _nakshatra_layer else "",
     }
 

@@ -143,6 +143,7 @@ def build_person_brief(
     birth_date: str,
     has_birth_time: bool = True,
     compat_type: str = "cofounder",
+    employee_role: str = "",
 ) -> str:
     """
     Build a compact astrological brief for one person.
@@ -267,6 +268,20 @@ def build_person_brief(
             lines.append(f"  D10 (career chart): Lagna={d10_lagna}, Sun in house {d10_sun}")
             lines.append(f"  Darakaraka: {dk} — partnership significator")
 
+    # ── EMPLOYEE / ROLE-FIT factors (employer evaluating candidate) ───────────
+    elif compat_type == "employee":
+        lines.append("── EMPLOYEE / ROLE-FIT FACTORS ──")
+        lines.append(f"  6th house lord: {lord_6} — work ethic, service orientation, daily grind")
+        lines.append(f"  10th house lord: {lord_10} ({planets.get(lord_10,{}).get('sign','')} house {planets.get(lord_10,{}).get('house','?') if has_birth_time else '?'}) — role, authority, career fit")
+        lines.append(f"  Saturn: {saturn.get('sign','')} house {saturn.get('house','?') if has_birth_time else '?'} — reliability, discipline, staying power")
+        lines.append(f"  Mars: {planets.get('Mars',{}).get('sign','')} house {planets.get('Mars',{}).get('house','?') if has_birth_time else '?'} — drive, execution, initiative")
+        lines.append(f"  Mercury: {mercury.get('sign','')} house {mercury.get('house','?') if has_birth_time else '?'} — communication, learning, taking direction")
+        lines.append(f"  3rd house lord: {lord_3} — effort, initiative, daily communication")
+        if employee_role:
+            lines.append(f"  >> ROLE BEING EVALUATED: {employee_role.replace('_',' ').title()}")
+        if has_birth_time:
+            lines.append(f"  D10 (career chart): Lagna={d10_lagna}, Sun in house {d10_sun}")
+
     # ── Strong yogas (all types) ──────────────────────────────────────────────
     strong = [y for y in yogas if y.get("strength") == "strong"]
     if strong:
@@ -298,9 +313,10 @@ def build_layer1_prompt(
     brief_b: str,
     name_a: str,
     name_b: str,
-    compat_type: str,  # "relationship" | "business" | "cofounder"
+    compat_type: str,  # "relationship" | "business" | "cofounder" | "employee"
     has_time_a: bool,
     has_time_b: bool,
+    employee_role: str = "",
 ) -> str:
     """Layer 1 prompt — personal + professional compatibility."""
 
@@ -389,15 +405,60 @@ Be clear: "Based on available data (birth time not provided for X)..."
 [Will this partnership survive the first major dasha transition? Name the exact year and what shifts]""",
             "score_note": "Score 85-100: Rare cofounder alignment — build without hesitation. 70-84: Strong fit with clear equity + role structure. 55-69: Possible but high maintenance. Below 55: Different chapters, different missions.",
         },
+        "employee": {
+            "focus_planets": "6th house lord (work ethic), 10th house lord (role authority), Saturn (reliability/longevity), Mercury (communication/learning), Mars (drive/execution)",
+            "score_weights": "Role fit + work ethic (6th/10th/Mars) 35% + Reliability + longevity (Saturn) 25% + Communication + ability to take direction (Mercury/3rd) 20% + Dasha timing for steady tenure 20%",
+            "key_questions": [
+                "Does this person's chart show the work ethic and discipline the role requires (6th house, Saturn, Mars)?",
+                "Is their natural role-orientation aligned with what this position needs (10th house, D10)?",
+                "Will they stay and grow, or is this likely a short chapter for them (dasha runway, Saturn)?",
+                "Can they take direction and communicate well under pressure (Mercury, 3rd house)?",
+                "Where will they need support, structure, or supervision to thrive in this role?",
+            ],
+            "extra_sections": f"""
+## Role Fit
+[Is this person built for the demands of this specific role? Reference work-ethic and career factors. Be concrete about strengths and gaps.]
+
+## Reliability & Tenure
+[Will they show up consistently and stay? Reference discipline/staying-power factors and dasha runway. Name the likely tenure window.]
+
+## How to Get the Best From Them
+[Practical guidance for the employer: how to manage this person, where they need structure, what motivates them, what to watch for.]""",
+            "score_note": "Score 85-100: Excellent role fit — hire/retain with confidence. 70-84: Strong fit, set clear expectations. 55-69: Workable with structure and support. Below 55: Likely a role mismatch.",
+        },
     }
 
     cfg = TYPE_CONFIG.get(compat_type, TYPE_CONFIG["cofounder"])
+
+    # Employee role-fit direction + role-specific lens (employer evaluating candidate)
+    EMPLOYEE_ROLE_LENS = {
+        "sales": "the drive, persuasion, resilience to rejection, and relationship-building a sales role demands",
+        "marketing": "the creative instinct, narrative sense, audience-reading, and big-picture vision a marketing role demands",
+        "product": "the judgment, synthesis, user-empathy, and prioritization under ambiguity a product role demands",
+        "leadership": "the decision-making under pressure, accountability, steadiness, and ability to carry a team a leadership role demands",
+        "operations": "the reliability, process discipline, follow-through, and detail-orientation an operations role demands",
+        "engineering": "the focus, depth, problem-solving stamina, and precision an engineering role demands",
+        "customer_support": "the patience, empathy, composure under friction, and communication clarity a customer-support role demands",
+    }
+    role_directive = ""
+    if compat_type == "employee":
+        _role_key = (employee_role or "").lower().strip()
+        _role_label = employee_role.replace("_", " ") if employee_role else "the role"
+        role_directive = (
+            f"\nDIRECTION: {name_a} is the employer/senior evaluating whether {name_b} "
+            f"is the right fit for a {_role_label} role. Assess this as a hiring / role-fit "
+            f"read from {name_a}'s side — not a peer partnership. Be honest about gaps; this "
+            f"decision has real stakes for {name_a}'s team.\n"
+        )
+        _lens = EMPLOYEE_ROLE_LENS.get(_role_key)
+        if _lens:
+            role_directive += f"ROLE LENS: Weigh {name_b}'s chart specifically for {_lens}.\n"
 
     return f"""You are a master Vedic astrologer with 30 years of experience advising entrepreneurs and couples.
 
 You are analyzing compatibility between {name_a} and {name_b}.
 Compatibility type: {compat_type.upper()}
-
+{role_directive}
 {brief_a}
 
 {brief_b}
@@ -640,12 +701,13 @@ async def run_layer1_llm(
     compat_type: str,
     has_time_a: bool,
     has_time_b: bool,
+    employee_role: str = "",
 ) -> str:
     """Call LLM for Layer 1 analysis."""
     import openai
     prompt = build_layer1_prompt(
         brief_a, brief_b, name_a, name_b,
-        compat_type, has_time_a, has_time_b
+        compat_type, has_time_a, has_time_b, employee_role
     )
     client = openai.AsyncOpenAI(
         api_key=os.getenv("DEEPSEEK_API_KEY"),
