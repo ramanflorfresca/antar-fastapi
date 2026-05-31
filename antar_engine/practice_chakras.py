@@ -28,6 +28,83 @@ _STRONG = {"exalted", "own_sign", "friend"}
 _WEAK = {"debilitated", "combust", "sleeping"}
 _AFFLICTED = {"debilitated", "combust", "sleeping", "enemy"}
 
+# ── Quantitative scoring (score_pct) ─────────────────────────────────────────
+SIGNS_12 = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra",
+            "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
+_BENEFICS = {"Jupiter", "Venus", "Mercury", "Moon"}
+_BENEFIC_ASPECTS = {"Jupiter": (5, 7, 9), "Venus": (7,), "Mercury": (7,), "Moon": (7,)}
+_KENDRA_TRIKONA = {1, 4, 5, 7, 9, 10}
+
+PLANET_STRENGTH_PCT = {
+    "exalted": 95, "own_sign": 85, "moolatrikona": 80, "friend": 70,
+    "neutral": 55, "enemy": 38, "debilitated": 18, "combust": 22, "sleeping": 25,
+}
+
+
+def _planet_house(chart, planet):
+    """House (1-12) of a planet; uses chart's house field, else whole-sign fallback."""
+    pdata = ((chart or {}).get("planets") or {}).get(planet) or {}
+    h = pdata.get("house")
+    if isinstance(h, int) and 1 <= h <= 12:
+        return h
+    sign = pdata.get("sign")
+    lagna = (chart or {}).get("lagna") or {}
+    lsign = lagna.get("sign") if isinstance(lagna, dict) else None
+    if sign in SIGNS_12 and lsign in SIGNS_12:
+        return ((SIGNS_12.index(sign) - SIGNS_12.index(lsign)) % 12) + 1
+    return None
+
+
+def _benefic_aspect_info(chart, target_house):
+    """(aspected_by_benefic, benefic_in_kendra_or_trikona) for `target_house`."""
+    if not target_house:
+        return (False, False)
+    planets = (chart or {}).get("planets") or {}
+    aspected = from_kt = False
+    for b in _BENEFICS:
+        if b not in planets:
+            continue
+        hb = _planet_house(chart, b)
+        if not hb:
+            continue
+        offset = ((target_house - hb) % 12) + 1
+        if offset in _BENEFIC_ASPECTS[b]:
+            aspected = True
+            if hb in _KENDRA_TRIKONA:
+                from_kt = True
+    return (aspected, from_kt)
+
+
+def _ruler_strength(planet, condition, chart):
+    """0-100 strength of one ruling planet, with house + benefic-aspect modifiers."""
+    s = PLANET_STRENGTH_PCT.get(condition, 55)
+    h = _planet_house(chart, planet)
+    if h is not None:
+        aspected, from_kt = _benefic_aspect_info(chart, h)
+        if h in (6, 8, 12) and not aspected:
+            s -= 10
+        if aspected and from_kt:
+            s += 5
+    return max(0, min(100, s))
+
+
+def _chakra_score_pct(states, chart):
+    """Average of the chakra's ruling planets' strengths, 0-100 int."""
+    vals = [_ruler_strength(p, c, chart) for p, c in states]
+    if not vals:
+        return 55
+    return int(round(max(0, min(100, sum(vals) / len(vals)))))
+
+
+def _state_from_score(score_pct):
+    if score_pct >= 80:
+        return "strong"
+    if score_pct >= 60:
+        return "balanced"
+    if score_pct >= 35:
+        return "weak"
+    return "blocked"
+
 # Plain-language condition word for the reason string.
 _COND_WORD = {
     "en": {"exalted": "exalted", "own_sign": "in its own sign", "friend": "well-placed",
@@ -117,21 +194,11 @@ def compute_chakra_states(
             if c:
                 states.append((p, c))
         if not states:
-            out[chakra] = {"state": "balanced", "reason": "", "priority": "none"}
+            out[chakra] = {"state": "balanced", "score_pct": 55, "reason": "", "priority": "none"}
             continue
 
-        conds = [c for _p, c in states]
-        afflicted = [c for c in conds if c in _AFFLICTED]
-        if len(afflicted) >= 2 or (afflicted and len(afflicted) == len(conds)):
-            state = "blocked"
-        elif any(c in _WEAK for c in conds):
-            state = "weak"
-        elif all(c in _STRONG for c in conds):
-            state = "strong"
-        elif all(c == "neutral" for c in conds):
-            state = "balanced"
-        else:
-            state = "balanced"
+        score_pct = _chakra_score_pct(states, chart)
+        state = _state_from_score(score_pct)
 
         if priority_planet and priority_planet in rulers:
             priority = "primary"
@@ -140,5 +207,6 @@ def compute_chakra_states(
         else:
             priority = "none"
 
-        out[chakra] = {"state": state, "reason": _reason(states, state, lang), "priority": priority}
+        out[chakra] = {"state": state, "score_pct": score_pct,
+                       "reason": _reason(states, state, lang), "priority": priority}
     return out

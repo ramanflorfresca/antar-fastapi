@@ -6816,10 +6816,28 @@ async def daily_practice_chakra_mantra(chakra_key: str, chart_id: Optional[str] 
                                        language: str = "en"):
     if chakra_key not in _prac_chakras.CHAKRA_MANTRAS:
         raise HTTPException(404, f"unknown chakra {chakra_key}")
-    return {
+    out = {
         "chakra_key": chakra_key,
         "balance_mantra": _prac_chakras.build_chakra_mantra_response(chakra_key, language),
     }
+    # score_pct + state for this chakra (needs the chart)
+    if chart_id:
+        try:
+            _cres = supabase.table("charts").select("chart_data").eq("id", chart_id).execute()
+            if _cres.data:
+                _chart = _prac_safe(_cres.data[0]["chart_data"])
+                _states = _prac_chakras.compute_chakra_states(_chart, language=language)
+                _cs = _states.get(chakra_key, {}) or {}
+                out["state"] = _cs.get("state")
+                out["score_pct"] = _cs.get("score_pct")
+                out["priority"] = _cs.get("priority")
+                try:
+                    out["reason"] = apply_user_facing_strips(_cs.get("reason", ""), language=language, field_type="plain", source="curated_static")
+                except Exception:
+                    out["reason"] = _cs.get("reason", "")
+        except Exception as _cde:
+            print(f"[chakra detail] score non-fatal: {_cde}")
+    return out
 
 # ── Prediction Fulfillment ────────────────────────────────────────────────────
 
