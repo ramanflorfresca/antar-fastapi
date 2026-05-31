@@ -9883,6 +9883,12 @@ async def compat_six_layer(request: CompatRequest):
     return response
 
 
+@app.get("/api/v1/compatibility/reasons")
+async def get_compatibility_reasons():
+    from antar_engine import compatibility_reasons as _R
+    return _R.reasons_directory()
+
+
 @app.post("/api/v1/timing/windows")
 async def get_timing_windows(request: dict):
     """
@@ -9931,7 +9937,10 @@ class CompatibilityStartRequest(BaseModel):
     name_a:             str = "Person A"
     name_b:             str = "Person B"
     compatibility_type: str = "cofounder"
-    employee_role:      Optional[str] = None   # role for compat_type=="employee"
+    employee_role:      Optional[str] = None   # legacy role field
+    compat_type:        Optional[str] = None   # V2: preferred reason field
+    mode:               Optional[str] = None   # V2: legacy alias for compat_type
+    role:               Optional[str] = None   # V2: sales|marketing|finance|managerial
     birth_date_b:       Optional[str] = None
     birth_time_b:       Optional[str] = None
     birth_city_b:       Optional[str] = None
@@ -10181,6 +10190,27 @@ async def compatibility_start(request: CompatibilityStartRequest):
             "upgrade_url": "https://antar.world/upgrade",
         })
 
+    # ── V2: identical-chart guard ──
+    if request.chart_id_b and request.chart_id_b == request.chart_id_a:
+        raise HTTPException(400, "Cannot run compatibility against the same chart.")
+
+    # ── V2: resolve reason (compat_type preferred, mode legacy alias) + role/direction ──
+    from antar_engine import compatibility_reasons as _R
+    if request.mode and not request.compat_type:
+        print(f"[compat] DEPRECATION: 'mode' received ('{request.mode}'); use 'compat_type'.")
+    _v2_reason = _R.normalize_reason(request.compat_type, request.mode,
+                                     default=(request.compatibility_type or "romantic"))
+    _v2_def = _R.REASON_DEFINITIONS[_v2_reason]
+    _v2_role = (request.role or request.employee_role or None)
+    if _v2_def["needs_role"]:
+        if not _v2_role:
+            raise HTTPException(422, {"error": "role_required", "message": f"reason '{_v2_reason}' requires a role: {_R.VALID_ROLES}"})
+        if _v2_role not in _R.VALID_ROLES:
+            raise HTTPException(422, {"error": "invalid_role", "message": f"role must be one of {_R.VALID_ROLES}"})
+    else:
+        _v2_role = None
+    _v2_direction = _v2_def["direction"]
+
     res_a = supabase.table("charts").select("chart_data,birth_date,name").eq("id", request.chart_id_a).execute()
     if not res_a.data:
         raise HTTPException(404, f"Chart {request.chart_id_a} not found")
@@ -10375,6 +10405,100 @@ async def compatibility_start(request: CompatibilityStartRequest):
             dashas_b = {"vimsottari": _vim_b, "ashtottari": _ash_b}
             print(f"[compat] Created sub-chart {chart_id_b} for {request.name_b} (parent={request.chart_id_a})")
         birth_b = request.birth_date_b
+
+    # ════════════════════════════════════════════════════════════════════
+    # V2 — 6-layer structured compatibility (replaces the legacy LLM path)
+    # ════════════════════════════════════════════════════════════════════
+    import uuid as _uuid2
+    from antar_engine.Compatibility import calculate_compatibility as _calc_compat
+    from antar_engine import compatibility_layers as _CL
+
+    try:
+        _ca = _safe_jsonb(chart_a) if isinstance(chart_a, str) else (chart_a or {})
+        _cb = _safe_jsonb(chart_b) if isinstance(chart_b, str) else (chart_b or {})
+        _ca["current_dasha"] = _current_dasha_str(dashas_a)
+        _cb["current_dasha"] = _current_dasha_str(dashas_b)
+    except Exception as _die:
+        print(f"[compat] dasha inject non-fatal: {_die}")
+        _ca, _cb = (chart_a or {}), (chart_b or {})
+
+    _name_b = request.name_b or "Partner"
+    _compat_raw = _calc_compat(
+        chart_a=_ca, chart_b=_cb, name_a=name_a, name_b=_name_b,
+        birth_date_a=birth_a, birth_date_b=(birth_b if request.chart_id_b else request.birth_date_b) or "",
+        compatibility_type=_v2_reason, language=request.language or "en",
+    )
+    _v2 = _CL.compose_compat_v2(_compat_raw, _ca, _cb, _v2_reason, _v2_role,
+                                a_name=name_a, b_name=_name_b, strip_fn=apply_user_facing_strips)
+
+    _fml = {}
+    try:
+        from antar_engine.synastry_engine import compute_field_mode_synastry, get_or_compute_archetype
+        _aa = get_or_compute_archetype(request.chart_id_a, _ca, supabase)
+        _ab = get_or_compute_archetype(chart_id_b, _cb, supabase)
+        if _aa and _ab:
+            _fml = compute_field_mode_synastry(_aa, _ab, name_a, _name_b)
+    except Exception as _fe2:
+        print(f"[compat] field_mode (decorative) non-fatal: {_fe2}")
+
+    increment_usage(request.chart_id_a, "compat", supabase)
+    _sid = str(_uuid2.uuid4())
+    _layer_scores = {l["layer_key"]: l["score"] for l in _v2["layers"]}
+    _v2_breakdown = {
+        "overall": _v2["score"], "badge": _v2["badge"], "passed": _v2["passed"],
+        "compat_type": _v2_reason, "role": _v2_role, "direction": _v2_direction,
+        "headline": _v2["headline"], "v2_layers": _layer_scores, "v2": True,
+    }
+
+    try:
+        supabase.table("compatibility_sessions").insert({
+            "id": _sid, "chart_id_a": request.chart_id_a, "chart_id_b": chart_id_b,
+            "name_a": name_a, "name_b": _name_b, "compat_type": _v2_reason,
+            "layer1_analysis": _v2["summary"], "has_time_a": has_time_a, "has_time_b": has_time_b,
+            "current_layer": 1, "score": _v2["score"], "field_mode_synastry": _fml or {},
+        }).execute()
+    except Exception as _se2:
+        print(f"[compat] V2 session save non-fatal: {_se2}")
+
+    try:
+        _existing = supabase.table("chart_connections").select("id") \
+            .eq("chart_id_a", request.chart_id_a).eq("chart_id_b", chart_id_b) \
+            .eq("compat_type", _v2_reason).execute()
+        _conn = {
+            "chart_id_a": request.chart_id_a, "chart_id_b": chart_id_b,
+            "name_a": name_a, "name_b": _name_b, "compat_type": _v2_reason,
+            "session_id": _sid, "overall_score": _v2["score"],
+            "pairing_name": _fml.get("pairing_name", "") if _fml else "",
+            "verdict": _v2["badge"], "analysis_summary": _v2["summary"],
+            "score_breakdown": _v2_breakdown, "field_mode_layer": _fml or {},
+            "updated_at": "now()",
+        }
+        if _existing.data:
+            supabase.table("chart_connections").update(_conn).eq("id", _existing.data[0]["id"]).execute()
+        else:
+            supabase.table("chart_connections").insert(_conn).execute()
+    except Exception as _ce3:
+        print(f"[compat] V2 connection save non-fatal: {_ce3}")
+
+    _resp = {
+        "session_id": _sid, "chart_id_a": request.chart_id_a, "chart_id_b": chart_id_b,
+        "name_a": name_a, "name_b": _name_b,
+        "compat_type": _v2_reason, "role": _v2_role, "direction": _v2_direction,
+        "score": _v2["score"], "badge": _v2["badge"], "passed": _v2["passed"],
+        "headline": _v2["headline"], "summary": _v2["summary"],
+        "layers": _v2["layers"], "watch_points": _v2["watch_points"], "catalysts": _v2["catalysts"],
+        "field_mode_layer": _fml or None, "score_breakdown": _v2_breakdown,
+        "language": request.language or "en",
+    }
+    if (request.language or "en") in ("es", "pt"):
+        try:
+            from antar_engine.translation_middleware import translate_dict
+            _resp = await translate_dict(_resp, language=request.language,
+                fields_to_translate={"headline", "summary", "detail", "layer_label"},
+                endpoint_name="compat_start", chart_id=request.chart_id_a)
+        except Exception as _te2:
+            print(f"[compat] V2 translate non-fatal: {_te2}")
+    return _resp
 
     _compat_type = request.compatibility_type or "cofounder"
     _emp_role = (request.employee_role or "") if _compat_type == "employee" else ""
@@ -18761,16 +18885,27 @@ async def get_connections(chart_id: str):
 
         connections = []
         for row in (res.data or []):
+            _sb = row.get("score_breakdown", {}) or {}
+            _ov = row.get("overall_score", 0) or 0
+            from antar_engine import compatibility_reasons as _R2
+            _bdg = _sb.get("badge") or _R2.badge(_ov)
+            _psd = _sb.get("passed") if isinstance(_sb.get("passed"), bool) else (_ov >= 65)
+            _hl = _sb.get("headline") or row.get("verdict", "") or (row.get("analysis_summary", "") or "")[:120]
             connections.append({
                 "id":             row["id"],
                 "chart_id_b":     row["chart_id_b"],
                 "name_b":         row.get("name_b", ""),
                 "compat_type":    row.get("compat_type", ""),
-                "overall_score":  row.get("overall_score", 0),
+                "role":           _sb.get("role"),
+                "overall_score":  _ov,
+                "badge":          _bdg,
+                "passed":         _psd,
+                "headline":       _hl,
+                "layer_scores":   _sb.get("v2_layers", {}) or {},
                 "pairing_name":   row.get("pairing_name", ""),
                 "verdict":        row.get("verdict", ""),
                 "analysis_summary": row.get("analysis_summary", ""),
-                "score_breakdown":  row.get("score_breakdown", {}),
+                "score_breakdown":  _sb,
                 "field_mode_layer": row.get("field_mode_layer", {}),
                 "updated_at":     row.get("updated_at", ""),
             })

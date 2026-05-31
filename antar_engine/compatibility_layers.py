@@ -348,6 +348,91 @@ def _current_dasha_from_vim(vim_rows: list) -> str:
     return "Unknown"
 
 
+# ════════════════════════════════════════════════════════════════════════════
+# V2 SURFACE — compose_six_layers / compose_compat_v2 for /api/v1/compatibility/start
+# Uses the locked taxonomy + weights in compatibility_reasons (NOT the Phase-1
+# REASON_WEIGHTS above, which drive the older /api/v1/compat endpoint).
+# Role modifiers are applied to layer SCORES (per the V2 spec), then capped 0-100.
+# ════════════════════════════════════════════════════════════════════════════
+
+def compose_six_layers(compat_raw: dict, chart_a: dict, chart_b: dict,
+                       reason: str, role=None,
+                       a_name: str = "You", b_name: str = "they") -> list:
+    """Map the raw Compatibility.py output to the 6-layer V2 contract."""
+    from antar_engine import compatibility_reasons as R
+
+    layers = []
+    weights = R.REASON_WEIGHTS.get(reason, R.REASON_WEIGHTS["romantic"])
+    role_mods = R.ROLE_MODIFIERS.get(role, {}) if reason in R.ROLE_REQUIRED_REASONS else {}
+
+    for key in R.LAYER_ORDER:
+        srcs = R.V2_LAYER_SOURCES[key]
+        wsum = sum(w for _, w in srcs) or 1.0
+        raw = sum(resolve_source(name, compat_raw, chart_a, chart_b) * w for name, w in srcs) / wsum
+        raw += role_mods.get(key, 0)            # role modifier on the SCORE
+        score = int(round(max(0, min(100, raw))))
+        b = R.badge(score)
+        headline, detail = TPL.v2_layer_prose(reason, key, b, role, a_name, b_name)
+        layers.append({
+            "layer_key": key,
+            "layer_label": R.LAYER_LABELS[key],
+            "score": score,
+            "passed": score >= R.LAYER_PASS_THRESHOLD,
+            "headline": headline,
+            "detail": detail,
+            "weight_in_this_reason": weights.get(key, 0),
+            "badges": [],
+        })
+    return layers
+
+
+def compose_compat_v2(compat_raw: dict, chart_a: dict, chart_b: dict,
+                      reason: str, role=None,
+                      a_name: str = "You", b_name: str = "they",
+                      strip_fn=None) -> dict:
+    """Full V2 payload: weighted score, badge, passed, headline, summary, 6 layers,
+    watch_points, catalysts, direction. English; endpoint translates after."""
+    from antar_engine import compatibility_reasons as R
+
+    layers = compose_six_layers(compat_raw, chart_a, chart_b, reason, role, a_name, b_name)
+    weights = R.REASON_WEIGHTS.get(reason, R.REASON_WEIGHTS["romantic"])
+    overall = sum(l["score"] * weights.get(l["layer_key"], 0) for l in layers) / 100.0
+    score = int(round(max(0, min(100, overall))))
+    ov_badge = R.badge(score)
+    headline, summary = TPL.v2_overall(reason, ov_badge, a_name, b_name)
+
+    watch_points = [l["detail"] for l in layers if l["score"] < 50][:3]
+    catalysts = [l["detail"] for l in layers if l["score"] >= 75][:3]
+    direction = R.REASON_DEFINITIONS.get(reason, {}).get("direction")
+
+    payload = {
+        "score": score,
+        "badge": ov_badge,
+        "passed": score >= 65,
+        "headline": headline,
+        "summary": summary,
+        "layers": layers,
+        "watch_points": watch_points,
+        "catalysts": catalysts,
+        "direction": direction,
+    }
+
+    if strip_fn is not None:
+        def _s(t):
+            try:
+                return strip_fn(t, "en", field_type="plain", source="curated_static")
+            except Exception:
+                return t
+        payload["headline"] = _s(payload["headline"])
+        payload["summary"] = _s(payload["summary"])
+        payload["watch_points"] = [_s(x) for x in payload["watch_points"]]
+        payload["catalysts"] = [_s(x) for x in payload["catalysts"]]
+        for l in payload["layers"]:
+            l["headline"] = _s(l["headline"])
+            l["detail"] = _s(l["detail"])
+    return payload
+
+
 def build_chart_from_raw(name: str, date: str, time: str, lat: float, lon: float, tz: str) -> dict:
     """
     Compute a chart from raw birth data and inject chart['current_dasha']

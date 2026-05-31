@@ -420,6 +420,74 @@ def get_detail(reason: str, tier: str, a_name: str, b_name: str) -> str:
     return _fmt(tmpl, a_name, b_name)
 
 
+# ── V2: per-layer short headlines (6 layers x 3 badges = 18) ────────────────
+_LAYER_HEADLINES = {
+    "soul": {
+        "FLOW": "Deep values resonance.", "MIXED": "Shared ground, real differences.",
+        "STRAIN": "Values pull apart.",
+    },
+    "chemistry": {
+        "FLOW": "Natural, easy attraction.", "MIXED": "Real spark, needs tending.",
+        "STRAIN": "Off-beat rhythm.",
+    },
+    "public": {
+        "FLOW": "Read well by the world.", "MIXED": "A mixed public picture.",
+        "STRAIN": "Mixed signals to others.",
+    },
+    "lifepath": {
+        "FLOW": "Timing moves in step.", "MIXED": "Seasons partly overlap.",
+        "STRAIN": "Different life seasons.",
+    },
+    "communication": {
+        "FLOW": "You understand each other.", "MIXED": "Works with deliberate effort.",
+        "STRAIN": "You talk past each other.",
+    },
+    "friction": {
+        "FLOW": "Little hidden friction.", "MIXED": "Manageable friction underneath.",
+        "STRAIN": "Real friction to navigate.",
+    },
+}
+
+# Tier (HIGH/MID/LOW) <-> badge (FLOW/MIXED/STRAIN) for V2 template keys.
+_TIER_TO_BADGE = {"HIGH": "FLOW", "MID": "MIXED", "LOW": "STRAIN"}
+
+
+def v2_layer_headline(layer: str, badge: str) -> str:
+    return _LAYER_HEADLINES.get(layer, {}).get(badge, "")
+
+
+def v2_layer_prose(reason: str, layer: str, badge: str, role, a_name: str, b_name: str) -> tuple:
+    """(headline, detail) for one layer. detail reuses the authored line set."""
+    headline = v2_layer_headline(layer, badge)
+    detail = get_line(reason, layer, badge, role, a_name, b_name)
+    return headline, detail
+
+
+def v2_overall(reason: str, badge: str, a_name: str, b_name: str) -> tuple:
+    """(headline, summary) for the overall read."""
+    return get_headline(reason, badge, a_name, b_name), get_detail(reason, badge, a_name, b_name)
+
+
+def _build_v2_templates() -> dict:
+    """
+    Coverage artifact keyed (reason, layer, TIER) — composed from the authored
+    line sets so the V2 deliverable exposes the documented TEMPLATES table.
+    """
+    out = {}
+    for reason in ("romantic", "business", "cofounder", "friend", "family"):
+        for layer in LAYER_ORDER:
+            for tier, badge in _TIER_TO_BADGE.items():
+                out[(reason, layer, tier)] = _BASE_LINES[reason][layer][badge]
+    for reason in ("employee", "boss-or-manager"):
+        for layer in LAYER_ORDER:
+            for tier, badge in _TIER_TO_BADGE.items():
+                out[(reason, layer, tier)] = _NEW_LINES[reason]["managerial"][layer][badge]
+    return out
+
+
+TEMPLATES = _build_v2_templates()  # 7 x 6 x 3 = 126 line templates
+
+
 def template_counts() -> dict:
     """Self-report authored coverage (used by the verification harness)."""
     base = sum(len(b) for r in _BASE_LINES.values() for b in r.values())
