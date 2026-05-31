@@ -19,6 +19,7 @@ from typing import Optional
 from antar_engine.practice_library import (
     PRACTICE_LIBRARY, get_planet_content, personalize_gemstone, GEMSTONE_SCOPES,
     personalize_food, FOOD_SCOPES,
+    personalize_remedy, YANTRA_SCOPES, DAAN_SCOPES, VRAT_SCOPES,
 )
 from antar_engine.practice_scopes import SCOPES
 from antar_engine.practice_chakras import compute_chakra_states
@@ -178,6 +179,21 @@ def compose_practice_response(
         today_priority["food"] = (
             personalize_food(pl, scope, language, chart=chart, conditions=conditions)
             if scope in FOOD_SCOPES else None
+        )
+        # [remedy3] Yantra / Daan / Vrat — per-remedy scope gates. Yantra and
+        # vrat are durable-only; daan additionally fires on monthly_lk. Out of
+        # scope -> null.
+        today_priority["yantra"] = (
+            personalize_remedy("yantra", pl, scope, language, chart=chart, conditions=conditions)
+            if scope in YANTRA_SCOPES else None
+        )
+        today_priority["daan"] = (
+            personalize_remedy("daan", pl, scope, language, chart=chart, conditions=conditions)
+            if scope in DAAN_SCOPES else None
+        )
+        today_priority["vrat"] = (
+            personalize_remedy("vrat", pl, scope, language, chart=chart, conditions=conditions)
+            if scope in VRAT_SCOPES else None
         )
 
     # ── active (summaries only) ─────────────────────────────────────────────

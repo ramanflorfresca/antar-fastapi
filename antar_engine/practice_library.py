@@ -1015,3 +1015,642 @@ def personalize_food(planet, scope="natal_weakness", language="en", chart=None, 
     base["why_for_this_user"] = build_food_personalization(
         planet, scope, chart=chart, conditions=conditions, language=language)
     return base
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# YANTRA + DAAN + VRAT LAYER — appended by patch_remedies3_practice.py. Additive.
+# ───────────────────────────────────────────────────────────────────────────
+# Completes the 9-piece remedy stack. Cultural form is incidental; the principle
+# is universal. Each remedy carries explicit Western/LATAM adaptation: yantras
+# offer Hermetic-sigil + sacred-geometry + Catholic-medallion alternates; daan
+# gives region-appropriate places to give (iglesia / comedor / shelter / mosque
+# / a person on the street); vrat is voluntary, three-tier, and fronted by a
+# hard medical disclaimer. Prose is authored in English and translated to es/pt
+# via translate_dict; proper nouns stay in their original form.
+# ═══════════════════════════════════════════════════════════════════════════
+import copy as _r3_copy
+
+# Per-remedy durable-scope gates. Daan additionally applies to monthly_lk
+# (one Saturday of giving is meaningful even in a month window); yantra and
+# vrat are too commitment-heavy for transient triggers.
+YANTRA_SCOPES = {"natal_weakness", "dasha_period", "varshphal_year"}
+VRAT_SCOPES = {"natal_weakness", "dasha_period", "varshphal_year"}
+DAAN_SCOPES = {"natal_weakness", "dasha_period", "varshphal_year", "monthly_lk"}
+
+# Translatable leaf keys per remedy (es/pt). Proper nouns are excluded:
+# yantra `name`/`sanskrit`/`mantra`, western_alternates[].name, magic-square and
+# sigil names, religious medallion names — all stay in their original form.
+YANTRA_TRANSLATABLE_FIELDS = [
+    "why_for_this_user", "type", "description", "size", "placement_traditional",
+    "energization", "daily_practice", "rationale_western", "cautions", "sourcing",
+    "metal_primary", "metal_alternate",
+]
+DAAN_TRANSLATABLE_FIELDS = [
+    "one_line", "why_for_this_user", "day", "best_time", "principle",
+    "rationale_universal", "frequency", "item", "quantity",
+    "recipients_traditional", "traditional", "universal", "region", "form",
+]
+VRAT_TRANSLATABLE_FIELDS = [
+    "one_line", "why_for_this_user", "day", "type_traditional", "type_modified",
+    "type_minimal", "duration", "what_to_eat", "avoid", "intention",
+    "medical_disclaimer", "catholic_parallel", "rationale_universal", "benefits",
+]
+
+# EXACT medical disclaimer — byte-identical across all 9 vrat entries.
+_VRAT_MED_DISCLAIMER = (
+    "Fasting is contraindicated for: diabetes (Type 1 and uncontrolled Type 2), "
+    "pregnancy and breastfeeding, eating disorders or history of them, blood "
+    "pressure medication, blood thinners, kidney conditions, and certain other "
+    "medical conditions. ALWAYS consult your physician before beginning any "
+    "fasting practice. If you cannot fast safely, the principle is still available "
+    "through reduced consumption, simpler meals, or skipping one item — intention "
+    "over strictness."
+)
+
+_VRAT_CATHOLIC_PARALLEL = (
+    "If you are Catholic or Christian, Lent and Friday abstinence from meat operate "
+    "on the same principle — voluntary restraint that refines the spirit. Apply that "
+    "familiar discipline on this day; the form you already know carries the intention."
+)
+
+_VRAT_RATIONALE = (
+    "Fasting is universal — Islamic Ramadan, Christian Lent, Jewish Yom Kippur, "
+    "Buddhist Uposatha and Hindu vrat all use voluntary restraint to clarify body "
+    "and mind. Some traditions observe it; none require it. Choose your own level."
+)
+
+_DAAN_RATIONALE = (
+    "Daan is not Hindu-only. Christianity has limosna and tithing, Islam has zakat "
+    "and sadaqah, Judaism has tzedakah, Buddhism has dana (the same Sanskrit root). "
+    "The act — give the right thing to the right person on the right day — is "
+    "universal; the location is incidental. A coin to someone in need on the street "
+    "is as valid as any temple donation."
+)
+
+_DAAN_REGIONS = [
+    {"region": "South Asia",    "form": "Temple, mandir, dharmshala, or ashram"},
+    {"region": "Latin America", "form": "Iglesia, comedor popular, asilo de ancianos, or albergue"},
+    {"region": "United States", "form": "Homeless shelter, food bank, senior center, or parish church"},
+    {"region": "Middle East",   "form": "Mosque, charitable organization, or refugee aid center"},
+    {"region": "Anywhere",      "form": "Directly to a person in need on the street"},
+]
+
+_DAAN_FREQUENCY = (
+    "Weekly during a dasha; monthly for a natal weakness. Seven consecutive givings "
+    "is the traditional minimum."
+)
+
+
+def _yantra(name, ytype, metal_primary, metal_alternate, mantra, alts,
+            description, energization, daily_practice, placement, cautions, sourcing):
+    return {
+        "name": name, "sanskrit": name, "type": ytype,
+        "description": description, "why_for_this_user": "",
+        "metal_primary": metal_primary, "metal_alternate": metal_alternate,
+        "size": "About 7.5cm x 7.5cm (3in) for the altar; a 2.5cm (1in) pendant for wear",
+        "placement_traditional": placement,
+        "energization": energization, "daily_practice": daily_practice,
+        "mantra": mantra,
+        "western_alternates": alts,
+        "rationale_western": (
+            "Sacred geometry is universal. The planet's frequency does not require "
+            "Sanskrit to be received — what matters is the metal, the geometric "
+            "coherence, and the daily intention. Pick the lineage that resonates "
+            "with you; the metal, day, and mantra count stay the same."
+        ),
+        "cautions": cautions, "sourcing": sourcing,
+    }
+
+
+def _alt(name, description):
+    return {"name": name, "description": description}
+
+
+REMEDY3_LIBRARY = {
+    "Sun": {
+        "yantra": _yantra(
+            "Surya Yantra", "3x3 magic square (every line sums to 15)",
+            "Gold", "Copper", "Om Suryaya Namaha",
+            [
+                _alt("Sun cross / solar wheel", "An equal-armed cross within a circle — the oldest Western solar emblem, carrying the same centred, radiant geometry as the Surya Yantra."),
+                _alt("Sun sigil (Hermetic)", "The classical solar glyph (a dot within a circle) engraved on gold or copper — the alchemical carrier of the Sun's frequency."),
+                _alt("Sacred Heart medal (Catholic)", "The radiant Sacred Heart echoes solar vitality and the dignified, life-giving centre the Sun rules."),
+            ],
+            "A 3x3 magic square whose rows, columns and diagonals each sum to 15, engraved on gold or copper. A small altar plate or pendant; expect roughly $15-$120 depending on metal and size.",
+            "On a Sunday at sunrise, wash the plate in clean water, place it facing east, light a ghee lamp, and recite Om Suryaya Namaha 108 times with the rising sun in view.",
+            "Each morning, glance at the plate, take one slow breath, and silently recite Om Suryaya Namaha three times before the day begins.",
+            "East-facing, on the eastern side of the altar or by a window that catches the morning sun.",
+            ["A yantra supports practice; it does not replace it.", "Keep it clean and undisturbed — treat it as a focal object, not decoration."],
+            "Any reputable metal-craft or devotional shop; for a pendant choose solid gold or copper rather than plated.",
+        ),
+        "daan": {
+            "one_line": "Give golden, warming things to those who carry authority or have renounced it — on Sunday morning.",
+            "why_for_this_user": "", "day": "Sunday",
+            "best_time": "Sunday morning before noon; the Sun hora at sunrise is best.",
+            "items_to_give": [
+                {"item": "Wheat", "quantity": "1 kg"},
+                {"item": "Jaggery (gur)", "quantity": "250 g"},
+                {"item": "Red cloth", "quantity": "1 piece"},
+                {"item": "A copper item or coin", "quantity": "1"},
+            ],
+            "recipients_traditional": [
+                "Brahmins or priests", "Your father or father-figures", "Leaders and public servants", "Wandering ascetics",
+            ],
+            "where_to_give": {
+                "traditional": "Hindu temple grounds, a Surya shrine, or an ashram.",
+                "universal": "Anywhere people in need actually are — your local context determines the form, not the principle.",
+                "examples_by_region": _DAAN_REGIONS,
+            },
+            "principle": "The Sun rules authority, recognition and vitality. Giving warmth and gold-coloured staples honours and redistributes solar dignity.",
+            "rationale_universal": _DAAN_RATIONALE, "frequency": _DAAN_FREQUENCY,
+        },
+        "vrat": {
+            "one_line": "Voluntary restraint on Sunday — fruits and milk by day, a simple meal, to steady vitality and ego.",
+            "why_for_this_user": "", "day": "Sunday",
+            "type_traditional": "Sunrise to sunset on fruits and milk only, no salt; a simple meal after sunset.",
+            "type_modified": "Skip lunch; a light fruit breakfast and a simple, lightly-salted dinner.",
+            "type_minimal": "Eat one less item than usual and choose simpler food. Intention matters more than strictness.",
+            "duration": "Minimum 7 consecutive Sundays.",
+            "what_to_eat": ["Fresh fruit", "Milk", "A little jaggery", "Wheat-based simple food after sunset"],
+            "avoid": ["Salt (traditionally)", "Meat", "Alcohol", "Heavy fried food"],
+            "intention": "Set silently at sunrise: 'I voluntarily restrict today to steady my vitality and quiet my ego.'",
+            "medical_disclaimer": _VRAT_MED_DISCLAIMER, "catholic_parallel": _VRAT_CATHOLIC_PARALLEL,
+            "rationale_universal": _VRAT_RATIONALE,
+            "benefits": ["Steadier energy and confidence", "A calmer relationship with recognition", "A simple weekly reset"],
+        },
+    },
+    "Moon": {
+        "yantra": _yantra(
+            "Chandra Yantra", "4x4 magic square",
+            "Silver", "Panchadhatu (5-metal alloy)", "Om Chandraya Namaha",
+            [
+                _alt("Crescent / vesica piscis", "The crescent and the vesica piscis are the West's enduring lunar and feminine geometries — soft, receptive, watery."),
+                _alt("Moon sigil (Hermetic)", "The crescent glyph engraved on silver — the alchemical carrier of the Moon's cool, reflective frequency."),
+                _alt("Virgin Mary medal (Catholic)", "The Marian medal carries the nurturing, maternal, consoling quality the Moon rules."),
+            ],
+            "A 4x4 magic square engraved on silver. A small altar plate or pendant; expect roughly $15-$120 depending on metal and size.",
+            "On a Monday evening near water or moonlight, wash the plate in milk then water, light a lamp, and recite Om Chandraya Namaha 108 times.",
+            "Each evening, hold the plate a moment, breathe slowly, and recite Om Chandraya Namaha three times.",
+            "Northwest of the altar, or near a window that receives moonlight.",
+            ["A yantra supports practice; it does not replace it.", "Keep silver clean; tarnish dulls the focal quality."],
+            "Choose solid silver rather than plated; any reputable devotional or silversmith shop.",
+        ),
+        "daan": {
+            "one_line": "Give rice, milk and white things to mothers and the thirsty — on Monday morning.",
+            "why_for_this_user": "", "day": "Monday",
+            "best_time": "Monday morning before noon; the Moon hora is best.",
+            "items_to_give": [
+                {"item": "Rice", "quantity": "1 kg"},
+                {"item": "Milk", "quantity": "1 litre"},
+                {"item": "White cloth", "quantity": "1 piece"},
+                {"item": "Sugar", "quantity": "250 g"},
+            ],
+            "recipients_traditional": [
+                "Mothers and caregivers", "Women in need", "Those who give water to others", "Anyone thirsty or unwell",
+            ],
+            "where_to_give": {
+                "traditional": "A Shiva or Devi temple, or a place that serves water and food.",
+                "universal": "Anywhere people in need actually are — your local context determines the form, not the principle.",
+                "examples_by_region": _DAAN_REGIONS,
+            },
+            "principle": "The Moon rules the mother principle, comfort and emotional safety. Giving nourishing white staples feeds the Moon's caring quality.",
+            "rationale_universal": _DAAN_RATIONALE, "frequency": _DAAN_FREQUENCY,
+        },
+        "vrat": {
+            "one_line": "Voluntary restraint on Monday — fruits, milk and curd by day — to soothe the mind.",
+            "why_for_this_user": "", "day": "Monday",
+            "type_traditional": "Sunrise to sunset on fruits, milk and curd; a simple meal after sunset.",
+            "type_modified": "Skip lunch; a light dairy-and-fruit breakfast and a simple dinner.",
+            "type_minimal": "Eat one less item than usual and choose simpler, soothing food. Intention over strictness.",
+            "duration": "Minimum 7 consecutive Mondays.",
+            "what_to_eat": ["Fresh fruit", "Milk and curd", "Rice", "Coconut water"],
+            "avoid": ["Salt (traditionally)", "Stale or leftover food", "Alcohol", "Heavy fried food"],
+            "intention": "Set silently at sunrise: 'I voluntarily restrict today to soothe and steady my mind.'",
+            "medical_disclaimer": _VRAT_MED_DISCLAIMER, "catholic_parallel": _VRAT_CATHOLIC_PARALLEL,
+            "rationale_universal": _VRAT_RATIONALE,
+            "benefits": ["Calmer mood and easier rest", "Less emotional reactivity", "A gentle weekly reset"],
+        },
+    },
+    "Mars": {
+        "yantra": _yantra(
+            "Mangal Yantra", "Triangular (fire) geometry",
+            "Copper", "Gold or panchadhatu", "Om Angarakaya Namaha",
+            [
+                _alt("Mars sigil (Hermetic)", "The classical Mars glyph engraved on copper — the alchemical carrier of martial drive and protective force."),
+                _alt("Pentagram (5-point, fire)", "The upright five-point star, a Western fire-and-protection geometry that mirrors Mars's directed energy."),
+                _alt("St. Michael medal (Catholic)", "St. Michael the warrior-archangel carries Mars's protective courage and clean fighting spirit."),
+            ],
+            "A triangular fire-geometry yantra engraved on copper. A small altar plate or pendant; expect roughly $15-$110 depending on metal and size.",
+            "On a Tuesday morning facing south, wash the plate in water, light a lamp, and recite Om Angarakaya Namaha 108 times.",
+            "Each morning, look at the plate, take one strong breath, and recite Om Angarakaya Namaha three times.",
+            "South-facing, on the southern side of the altar.",
+            ["A yantra supports practice; it does not replace it.", "Mars energy is strong — pair the plate with the calming breath rather than over-charging it."],
+            "Solid copper is traditional and inexpensive; any reputable metal-craft shop.",
+        ),
+        "daan": {
+            "one_line": "Give red, energetic staples to soldiers, athletes and laborers — on Tuesday.",
+            "why_for_this_user": "", "day": "Tuesday",
+            "best_time": "Tuesday morning; the Mars hora is best.",
+            "items_to_give": [
+                {"item": "Red lentils (masoor dal)", "quantity": "500 g"},
+                {"item": "Jaggery", "quantity": "250 g"},
+                {"item": "A copper item", "quantity": "1"},
+                {"item": "Red cloth", "quantity": "1 piece"},
+            ],
+            "recipients_traditional": [
+                "Soldiers and security workers", "Brothers and younger men", "Athletes", "Manual laborers",
+            ],
+            "where_to_give": {
+                "traditional": "A Hanuman or Murugan temple, or a place that serves working men.",
+                "universal": "Anywhere people in need actually are — your local context determines the form, not the principle.",
+                "examples_by_region": _DAAN_REGIONS,
+            },
+            "principle": "Mars rules courage, energy and the warrior-worker. Giving red, building staples to the physically active settles Mars's charge.",
+            "rationale_universal": _DAAN_RATIONALE, "frequency": _DAAN_FREQUENCY,
+        },
+        "vrat": {
+            "one_line": "Voluntary restraint on Tuesday — one simple meal — to temper heat into clean drive.",
+            "why_for_this_user": "", "day": "Tuesday",
+            "type_traditional": "One meal at sunset, no salt, and no grain in some traditions.",
+            "type_modified": "Skip lunch; a light breakfast and a simple, low-spice dinner.",
+            "type_minimal": "Eat one less item than usual and cut the spice. Intention over strictness.",
+            "duration": "Minimum 7 consecutive Tuesdays.",
+            "what_to_eat": ["Fruit", "Lentil-based simple food", "Jaggery", "Plenty of water"],
+            "avoid": ["Salt (traditionally)", "Red meat", "Alcohol", "Very spicy or fried food"],
+            "intention": "Set silently at sunrise: 'I voluntarily restrict today to temper my heat into clean, aimed energy.'",
+            "medical_disclaimer": _VRAT_MED_DISCLAIMER, "catholic_parallel": _VRAT_CATHOLIC_PARALLEL,
+            "rationale_universal": _VRAT_RATIONALE,
+            "benefits": ["Cooler temper, cleaner boundaries", "Energy directed by aim, not heat", "A weekly discipline of restraint"],
+        },
+    },
+    "Mercury": {
+        "yantra": _yantra(
+            "Budh Yantra", "Hexagonal geometry",
+            "Brass or gold", "Bronze or panchadhatu", "Om Budhaya Namaha",
+            [
+                _alt("Caduceus", "The twin-serpent staff is the West's emblem of Mercury — communication, exchange and the meeting of opposites."),
+                _alt("Mercury sigil (Hermetic)", "The classical Mercury glyph engraved on brass — the alchemical carrier of intellect and quicksilver clarity."),
+                _alt("St. Christopher medal (Catholic)", "St. Christopher, patron of travelers and messengers, carries Mercury's quality of safe passage and clear exchange."),
+            ],
+            "A hexagonal-geometry yantra engraved on brass or gold. A small altar plate or pendant; expect roughly $15-$120 depending on metal and size.",
+            "On a Wednesday morning, wash the plate in water, light a lamp, and recite Om Budhaya Namaha 108 times before any important conversation.",
+            "Each morning, glance at the plate, breathe once, and recite Om Budhaya Namaha three times.",
+            "North-facing, on the northern side of the altar.",
+            ["A yantra supports practice; it does not replace it.", "Keep the plate near your study or work desk for daily contact."],
+            "Solid brass or gold; any reputable metal-craft or devotional shop.",
+        ),
+        "daan": {
+            "one_line": "Give green staples and learning materials to students and scholars — on Wednesday.",
+            "why_for_this_user": "", "day": "Wednesday",
+            "best_time": "Wednesday morning; the Mercury hora is best.",
+            "items_to_give": [
+                {"item": "Green moong dal", "quantity": "500 g"},
+                {"item": "Green leafy vegetables", "quantity": "1 bunch"},
+                {"item": "Green cloth", "quantity": "1 piece"},
+                {"item": "Books or pens", "quantity": "as you can"},
+            ],
+            "recipients_traditional": [
+                "Students", "Scholars and teachers", "Accountants and clerks", "Writers and scribes",
+            ],
+            "where_to_give": {
+                "traditional": "A temple, a school, or a place of learning.",
+                "universal": "Anywhere people in need actually are — your local context determines the form, not the principle.",
+                "examples_by_region": _DAAN_REGIONS,
+            },
+            "principle": "Mercury rules intellect, communication and commerce. Giving green staples and learning tools to the studious feeds Mercury.",
+            "rationale_universal": _DAAN_RATIONALE, "frequency": _DAAN_FREQUENCY,
+        },
+        "vrat": {
+            "one_line": "Voluntary restraint on Wednesday — one light vegetarian meal — to clear the mind.",
+            "why_for_this_user": "", "day": "Wednesday",
+            "type_traditional": "One meal, green and vegetarian, no meat.",
+            "type_modified": "Skip a meal; keep the day light, fresh and vegetarian.",
+            "type_minimal": "Eat one less item than usual and keep it fresh and green. Intention over strictness.",
+            "duration": "Minimum 7 consecutive Wednesdays.",
+            "what_to_eat": ["Green vegetables", "Moong dal", "Fresh salads and sprouts", "Fruit"],
+            "avoid": ["Meat", "Heavy or stale food", "Alcohol", "Over-rich dishes"],
+            "intention": "Set silently at sunrise: 'I voluntarily restrict today to clear and sharpen my mind.'",
+            "medical_disclaimer": _VRAT_MED_DISCLAIMER, "catholic_parallel": _VRAT_CATHOLIC_PARALLEL,
+            "rationale_universal": _VRAT_RATIONALE,
+            "benefits": ["Clearer thinking and speech", "Lighter, more focused energy", "A fresh weekly reset"],
+        },
+    },
+    "Jupiter": {
+        "yantra": _yantra(
+            "Guru Yantra", "4x4 magic square",
+            "Gold", "Panchadhatu", "Om Gurave Namaha",
+            [
+                _alt("Hexagram / Solomon's Seal", "The six-point star, the West's emblem of divine wisdom and the union of heaven and earth — Jupiter's expansive grace."),
+                _alt("Jupiter sigil (Hermetic)", "The classical Jupiter glyph engraved on gold — the alchemical carrier of fortune, growth and benevolence."),
+                _alt("St. Anthony medal (Catholic)", "St. Anthony, the great teacher and finder of what is lost, carries Jupiter's guiding, restoring wisdom."),
+            ],
+            "A 4x4 magic square engraved on gold. A small altar plate or pendant; expect roughly $20-$150 depending on metal and size.",
+            "On a Thursday morning facing northeast, wash the plate in water, light a ghee lamp, and recite Om Gurave Namaha 108 times.",
+            "Each morning, look at the plate, breathe once with gratitude, and recite Om Gurave Namaha three times.",
+            "Northeast-facing, on the northeastern side of the altar.",
+            ["A yantra supports practice; it does not replace it.", "Thursday is the ideal day to keep it clean and re-light its lamp."],
+            "Solid gold or gold-plated brass; any reputable devotional shop.",
+        ),
+        "daan": {
+            "one_line": "Give yellow staples and books to teachers, gurus and students — on Thursday.",
+            "why_for_this_user": "", "day": "Thursday",
+            "best_time": "Thursday morning; the Jupiter hora is best.",
+            "items_to_give": [
+                {"item": "Chana dal", "quantity": "500 g"},
+                {"item": "Turmeric", "quantity": "100 g"},
+                {"item": "Yellow cloth", "quantity": "1 piece"},
+                {"item": "Bananas", "quantity": "a bunch"},
+            ],
+            "recipients_traditional": [
+                "Teachers and mentors", "Priests and clergy", "Gurus and spiritual guides", "Students",
+            ],
+            "where_to_give": {
+                "traditional": "A temple, an ashram, or a place of teaching.",
+                "universal": "Anywhere people in need actually are — your local context determines the form, not the principle.",
+                "examples_by_region": _DAAN_REGIONS,
+            },
+            "principle": "Jupiter rules wisdom, growth and the wisdom-givers. Giving yellow staples and learning to teachers feeds Jupiter most directly.",
+            "rationale_universal": _DAAN_RATIONALE, "frequency": _DAAN_FREQUENCY,
+        },
+        "vrat": {
+            "one_line": "Voluntary restraint on Thursday — one meal, no grain, fruit and banana — to invite growth.",
+            "why_for_this_user": "", "day": "Thursday",
+            "type_traditional": "One meal, no grains, banana and fruits.",
+            "type_modified": "Skip lunch; a light fruit breakfast and a simple grain-free dinner.",
+            "type_minimal": "Eat one less item than usual and favour fruit. Intention over strictness.",
+            "duration": "Minimum 7 consecutive Thursdays.",
+            "what_to_eat": ["Banana and fruit", "Milk", "A little ghee", "Yellow foods like chana"],
+            "avoid": ["Grains (traditionally)", "Alcohol", "Refined sugar", "Leftover food"],
+            "intention": "Set silently at sunrise: 'I voluntarily restrict today to make room for growth and grace.'",
+            "medical_disclaimer": _VRAT_MED_DISCLAIMER, "catholic_parallel": _VRAT_CATHOLIC_PARALLEL,
+            "rationale_universal": _VRAT_RATIONALE,
+            "benefits": ["A sense of opening and optimism", "More room for growth", "A weekly practice of faith"],
+        },
+    },
+    "Venus": {
+        "yantra": _yantra(
+            "Shukra Yantra", "7x7 geometry",
+            "Silver or platinum", "White gold or panchadhatu", "Om Shukraya Namaha",
+            [
+                _alt("Rose cross", "The rose upon the cross, a Western emblem of beauty, love and refined feeling — Venus's harmonising grace."),
+                _alt("Venus sigil (Hermetic)", "The classical Venus glyph engraved on silver — the alchemical carrier of love, beauty and value."),
+                _alt("Virgin of Guadalupe medal (Catholic)", "The Guadalupana carries Venus's tender, beautiful, devotional feminine grace, deeply loved across Latin America."),
+            ],
+            "A 7x7 geometry yantra engraved on silver or platinum. A small altar plate or pendant; expect roughly $20-$160 depending on metal and size.",
+            "On a Friday morning facing southeast, wash the plate in rose water then clean water, light a lamp, and recite Om Shukraya Namaha 108 times.",
+            "Each day, glance at the plate, breathe softly, and recite Om Shukraya Namaha three times.",
+            "Southeast-facing, on the southeastern side of the altar.",
+            ["A yantra supports practice; it does not replace it.", "Keep it with something fragrant or floral to honour Venus's quality."],
+            "Solid silver or platinum; any reputable silversmith or devotional shop.",
+        ),
+        "daan": {
+            "one_line": "Give sweet, white and beautiful things to women, girls and artists — on Friday.",
+            "why_for_this_user": "", "day": "Friday",
+            "best_time": "Friday morning or early evening; the Venus hora is best.",
+            "items_to_give": [
+                {"item": "Rice", "quantity": "1 kg"},
+                {"item": "Sugar or white sweets", "quantity": "250 g"},
+                {"item": "Perfume or flowers", "quantity": "1"},
+                {"item": "White cloth", "quantity": "1 piece"},
+            ],
+            "recipients_traditional": [
+                "Women and girls", "Brides and young mothers", "Artists and musicians", "Performers",
+            ],
+            "where_to_give": {
+                "traditional": "A Lakshmi or Devi temple, or a place that supports women and the arts.",
+                "universal": "Anywhere people in need actually are — your local context determines the form, not the principle.",
+                "examples_by_region": _DAAN_REGIONS,
+            },
+            "principle": "Venus rules beauty, the feminine and the arts. Giving sweet, beautiful things to those who embody them feeds Venus.",
+            "rationale_universal": _DAAN_RATIONALE, "frequency": _DAAN_FREQUENCY,
+        },
+        "vrat": {
+            "one_line": "Voluntary restraint on Friday — one white, simple meal — to restore sweetness and harmony.",
+            "why_for_this_user": "", "day": "Friday",
+            "type_traditional": "One meal of white food (rice and milk), no spice.",
+            "type_modified": "Skip a meal; keep the day's food simple, white and mild.",
+            "type_minimal": "Eat one less item than usual and keep it mild. Intention over strictness.",
+            "duration": "Minimum 7 consecutive Fridays.",
+            "what_to_eat": ["Rice", "Milk and mild dairy", "Sweet fruit", "A little sugar or jaggery"],
+            "avoid": ["Heavy spice", "Garlic (traditionally)", "Alcohol", "Sour ferments"],
+            "intention": "Set silently at sunrise: 'I voluntarily restrict today to restore sweetness and harmony.'",
+            "medical_disclaimer": _VRAT_MED_DISCLAIMER, "catholic_parallel": _VRAT_CATHOLIC_PARALLEL,
+            "rationale_universal": _VRAT_RATIONALE,
+            "benefits": ["More ease and sweetness in relating", "A softer, more harmonious week", "A gentle aesthetic reset"],
+        },
+    },
+    "Saturn": {
+        "yantra": _yantra(
+            "Shani Yantra", "5x5 magic square (every row, column and diagonal sums to 15)",
+            "Silver or iron", "Iron (most traditional) or copper", "Om Sham Shanaye Namaha",
+            [
+                _alt("Sator Square", "A Latin 5x5 word square found in 1st-century Roman ruins (SATOR AREPO TENET OPERA ROTAS), mathematically and structurally equivalent to the Shani Yantra — a palindromic grid of disciplined order."),
+                _alt("Saturn sigil (Hermetic)", "The classical Saturn glyph engraved on lead or iron — the alchemical carrier of Saturn's slow, structuring frequency."),
+                _alt("St. Joseph medal (Catholic)", "St. Joseph, patron of patient labor, quiet discipline and the working craftsman, carries exactly Saturn's virtues."),
+            ],
+            "A 5x5 magic square whose every row, column and diagonal sums to 15, engraved on silver or iron. A small altar plate or pendant; expect roughly $15-$120 depending on metal and size.",
+            "On a Saturday before sunrise, wash the plate in water, place it facing west, light a sesame-oil lamp, and recite Om Sham Shanaye Namaha 108 times silently.",
+            "Each evening before sunset, touch the plate, take one long slow breath, and recite Om Sham Shanaye Namaha three times.",
+            "Northwest corner of the altar, facing east.",
+            ["A yantra supports practice; it does not replace it.", "Iron is the most traditional metal but rusts — keep it dry and oiled.", "Treat it as a focal object, kept clean and undisturbed."],
+            "Iron or silver from any reputable metal-craft shop; the Sator Square can also be hand-engraved on an iron disc.",
+        ),
+        "daan": {
+            "one_line": "Give dark, grounding staples to the elderly, laborers and the marginalized — on Saturday.",
+            "why_for_this_user": "", "day": "Saturday",
+            "best_time": "Saturday morning before noon; during the Saturn hora is best.",
+            "items_to_give": [
+                {"item": "Black sesame seeds (til)", "quantity": "250 g"},
+                {"item": "Urad dal (black lentils)", "quantity": "250 g"},
+                {"item": "Mustard oil", "quantity": "500 ml"},
+                {"item": "An iron item", "quantity": "1"},
+                {"item": "A black blanket", "quantity": "1"},
+            ],
+            "recipients_traditional": [
+                "Elderly people, especially anyone older than your father",
+                "Manual laborers and day-wage workers",
+                "Beggars and those who ask",
+                "The marginalized and overlooked",
+            ],
+            "where_to_give": {
+                "traditional": "Hindu temple grounds, a Shani Mandir, or an ashram.",
+                "universal": "Anywhere people in need actually are — your local context determines the form, not the principle.",
+                "examples_by_region": _DAAN_REGIONS,
+            },
+            "principle": "Saturn rules age, labor, patience and karmic weight. Giving dark, grounding staples to those who already carry weight discharges Saturn karma.",
+            "rationale_universal": _DAAN_RATIONALE, "frequency": _DAAN_FREQUENCY,
+        },
+        "vrat": {
+            "one_line": "Voluntary restraint on Saturday — one simple meal, the discipline that builds patience over time.",
+            "why_for_this_user": "", "day": "Saturday",
+            "type_traditional": "Eka-bhukta (one meal) at sunset, simple khichdi, no salt.",
+            "type_modified": "Skip lunch; a simple breakfast and a light, lightly-salted dinner. No strict no-salt rule.",
+            "type_minimal": "Eat one less item than usual and choose simpler food. Intention matters more than strictness.",
+            "duration": "Minimum 7 consecutive Saturdays. 49 Saturdays for full Sade Sati support.",
+            "what_to_eat": ["Simple khichdi", "Whole grains like millet or barley", "Sesame", "Water and warm fluids"],
+            "avoid": ["Salt (traditionally)", "Sugar and refined food", "Alcohol", "Late-night eating after sunset"],
+            "intention": "Set silently at sunrise: 'I voluntarily restrict today to build patience, structure and endurance.'",
+            "medical_disclaimer": _VRAT_MED_DISCLAIMER, "catholic_parallel": _VRAT_CATHOLIC_PARALLEL,
+            "rationale_universal": _VRAT_RATIONALE,
+            "benefits": ["Greater patience and steadiness", "A trained capacity for restraint", "Support through Saturn's pressure periods"],
+        },
+    },
+    "Rahu": {
+        "yantra": _yantra(
+            "Rahu Yantra", "Bindu (central-dot) point pattern",
+            "Silver / panchadhatu", "Ashtadhatu (8-metal alloy)", "Om Rahave Namaha",
+            [
+                _alt("Ouroboros", "The serpent swallowing its own tail — the West's emblem of cycles, hunger and the endless turning Rahu rules."),
+                _alt("Dragon's Head sigil", "In Western astrology Rahu is the Dragon's Head (Caput Draconis); its sigil engraved on silver carries the node's forward pull."),
+                _alt("St. Jude medal (Catholic)", "St. Jude, patron of lost and desperate causes, carries Rahu's themes of the outsider and the seemingly impossible."),
+            ],
+            "A bindu (central-dot) point-pattern yantra engraved on silver or panchadhatu. A small altar plate or pendant; expect roughly $15-$120 depending on metal and size.",
+            "On a Saturday at dusk facing southwest, wash the plate in water, light a lamp, and recite Om Rahave Namaha 108 times.",
+            "Each day, look at the central point, breathe slowly to settle, and recite Om Rahave Namaha three times.",
+            "Southwest-facing, on the southwestern side of the altar.",
+            ["A yantra supports practice; it does not replace it.", "Rahu is unsettling energy — pair the plate with grounding breath, not over-charging."],
+            "Silver or panchadhatu from a reputable devotional shop; nodal yantras are best sourced certified.",
+        ),
+        "daan": {
+            "one_line": "Give dark, warming things to outcasts, the homeless and foreigners — on Saturday, in Rahu Kalam.",
+            "why_for_this_user": "", "day": "Saturday (during Rahu Kalam)",
+            "best_time": "Saturday during Rahu Kalam, the daily 1.5-hour Rahu window.",
+            "items_to_give": [
+                {"item": "A black blanket", "quantity": "1"},
+                {"item": "Mustard oil", "quantity": "500 ml"},
+                {"item": "Incense / smoke offering", "quantity": "1 pack"},
+                {"item": "Black sesame", "quantity": "250 g"},
+            ],
+            "recipients_traditional": [
+                "Outcasts and the socially excluded", "The homeless", "The chronically ill and shunned", "Foreigners and migrants",
+            ],
+            "where_to_give": {
+                "traditional": "Given directly in Rahu Kalam — to stray dogs, beggars, or temple sweepers.",
+                "universal": "Anywhere people in need actually are — your local context determines the form, not the principle.",
+                "examples_by_region": _DAAN_REGIONS,
+            },
+            "principle": "Rahu rules the outsider, the foreign and the marginalized. Feeding and clothing those at the edges grounds Rahu's restless charge.",
+            "rationale_universal": _DAAN_RATIONALE, "frequency": _DAAN_FREQUENCY,
+        },
+        "vrat": {
+            "one_line": "Voluntary restraint on Saturday — a short, complete fast in Rahu Kalam — to settle scattered energy.",
+            "why_for_this_user": "", "day": "Saturday (during Rahu Kalam)",
+            "type_traditional": "A complete 1.5-hour fast during Rahu Kalam.",
+            "type_modified": "Eat nothing through the Rahu Kalam window; keep the rest of the day simple.",
+            "type_minimal": "During Rahu Kalam, pause eating and sit quietly for a few minutes. Intention over strictness.",
+            "duration": "Minimum 7 consecutive Saturdays.",
+            "what_to_eat": ["Outside Rahu Kalam: simple grounding food", "Khichdi", "Water", "Warm, settling fluids"],
+            "avoid": ["Onion and garlic (traditionally)", "Alcohol and substances", "Processed food", "Important new ventures during Rahu Kalam"],
+            "intention": "Set silently at sunrise: 'During Rahu Kalam I pause and restrict, to settle my scattered energy.'",
+            "medical_disclaimer": _VRAT_MED_DISCLAIMER, "catholic_parallel": _VRAT_CATHOLIC_PARALLEL,
+            "rationale_universal": _VRAT_RATIONALE,
+            "benefits": ["Calmer, less anxious energy", "Less compulsive chasing", "A grounded weekly pause"],
+        },
+    },
+    "Ketu": {
+        "yantra": _yantra(
+            "Ketu Yantra", "Triangular (descending) geometry",
+            "Silver / panchadhatu", "Ashtadhatu (8-metal alloy)", "Om Ketave Namaha",
+            [
+                _alt("Ouroboros (tail)", "The serpent's tail half of the Ouroboros — the West's emblem of completion, release and what falls away, which Ketu rules."),
+                _alt("Dragon's Tail sigil", "In Western astrology Ketu is the Dragon's Tail (Cauda Draconis); its sigil engraved on silver carries the node's letting-go."),
+                _alt("St. Francis medal (Catholic)", "St. Francis, who renounced wealth for simplicity and the spirit, carries Ketu's detachment and inward turn."),
+            ],
+            "A descending-triangle geometry yantra engraved on silver or panchadhatu. A small altar plate or pendant; expect roughly $15-$120 depending on metal and size.",
+            "On a Tuesday or Thursday evening in stillness, wash the plate in water, light a lamp, and recite Om Ketave Namaha 108 times.",
+            "Each evening, rest your gaze on the plate, breathe and let go, and recite Om Ketave Namaha three times.",
+            "On the altar in a quiet corner; Ketu does not require a fixed direction.",
+            ["A yantra supports practice; it does not replace it.", "Ketu's quality is renunciation — keep the plate simple and undecorated."],
+            "Silver or panchadhatu from a reputable devotional shop.",
+        ),
+        "daan": {
+            "one_line": "Give simple, ascetic things to sadhus and spiritual seekers — on Tuesday or Thursday.",
+            "why_for_this_user": "", "day": "Tuesday or Thursday",
+            "best_time": "Tuesday or Thursday, in a quiet part of the day.",
+            "items_to_give": [
+                {"item": "A brown or grey blanket", "quantity": "1"},
+                {"item": "Red lentils (masoor)", "quantity": "500 g"},
+                {"item": "Sesame", "quantity": "250 g"},
+            ],
+            "recipients_traditional": [
+                "Sadhus and renunciates", "Ascetics and monks", "Those on a spiritual path", "The quietly devout",
+            ],
+            "where_to_give": {
+                "traditional": "An ashram, a monastery, or wherever renunciates gather.",
+                "universal": "Anywhere people in need actually are — your local context determines the form, not the principle.",
+                "examples_by_region": _DAAN_REGIONS,
+            },
+            "principle": "Ketu rules detachment, the spiritual and what falls away. Giving simple things to those who have renounced feeds Ketu.",
+            "rationale_universal": _DAAN_RATIONALE, "frequency": _DAAN_FREQUENCY,
+        },
+        "vrat": {
+            "one_line": "Voluntary restraint on Tuesday or Thursday — a half-day fast, simple food — for focus and detachment.",
+            "why_for_this_user": "", "day": "Tuesday or Thursday",
+            "type_traditional": "Half-day fast, then simple sattvic food.",
+            "type_modified": "Skip one meal; keep the day's food plain and minimal.",
+            "type_minimal": "Eat one less item than usual and keep it simple. Intention over strictness.",
+            "duration": "Minimum 7 consecutive observances on your chosen day.",
+            "what_to_eat": ["Simple sattvic food", "Fruit", "Sabudana or fasting grains", "Water"],
+            "avoid": ["Heavy meats", "Alcohol", "Over-eating", "Complex, heavily-spiced dishes"],
+            "intention": "Set silently at sunrise: 'I voluntarily restrict today to sharpen my focus and loosen my grip.'",
+            "medical_disclaimer": _VRAT_MED_DISCLAIMER, "catholic_parallel": _VRAT_CATHOLIC_PARALLEL,
+            "rationale_universal": _VRAT_RATIONALE,
+            "benefits": ["Sharper focus and inner quiet", "An easier time letting go", "A weekly turn inward"],
+        },
+    },
+}
+
+# Attach yantra / daan / vrat to every PRACTICE_LIBRARY entry (all 9 planets).
+for _r3p, _r3data in REMEDY3_LIBRARY.items():
+    if _r3p in PRACTICE_LIBRARY:
+        for _rk in ("yantra", "daan", "vrat"):
+            PRACTICE_LIBRARY[_r3p][_rk] = _r3data[_rk]
+
+
+_REMEDY3_KEYS = ("yantra", "daan", "vrat")
+
+
+def build_remedy_response(remedy_type, planet, language="en"):
+    """Independent deep copy of one planet's yantra / daan / vrat block."""
+    if remedy_type not in _REMEDY3_KEYS:
+        return None
+    block = (PRACTICE_LIBRARY.get(planet) or {}).get(remedy_type)
+    if not block:
+        return None
+    return _r3_copy.deepcopy(block)
+
+
+def build_remedy_personalization(remedy_type, planet, scope, chart=None,
+                                 conditions=None, language="en"):
+    """Chart-aware why_for_this_user for yantra / daan / vrat, framed by scope."""
+    cond = ((conditions or {}).get(planet) or {}).get("condition")
+    weak = isinstance(cond, str) and cond.lower() in (
+        "debilitated", "combust", "weak", "afflicted", "fallen", "enemy")
+    cc = f" (currently {cond} in your chart)" if weak else ""
+
+    if remedy_type == "yantra":
+        body = (f"a {planet} yantra is a daily geometric anchor — energize it once and let it "
+                f"hold {planet}'s frequency in your space while your practice does the deeper work")
+    elif remedy_type == "daan":
+        body = (f"giving the right thing to the right person on {planet}'s day discharges {planet} "
+                f"karma directly — the most active remedy in the stack, and it costs only intention")
+    else:  # vrat
+        body = (f"a voluntary {planet}-day fast builds the discipline {planet} rewards — keep it "
+                f"gentle and safe; intention matters far more than strictness")
+
+    if scope == "dasha_period":
+        return f"You are in a {planet} period right now{cc} — {body}."
+    if scope == "varshphal_year":
+        return f"This year's annual chart highlights {planet}{cc} — {body}."
+    return f"{planet} is weak in your birth chart{cc}. Here {body}."
+
+
+def personalize_remedy(remedy_type, planet, scope="natal_weakness", language="en",
+                       chart=None, conditions=None):
+    """PRACTICE_LIBRARY[planet][remedy_type] (deep copy) with why_for_this_user set."""
+    base = build_remedy_response(remedy_type, planet, language)
+    if not base:
+        return None
+    base["why_for_this_user"] = build_remedy_personalization(
+        remedy_type, planet, scope, chart=chart, conditions=conditions, language=language)
+    return base

@@ -6732,6 +6732,26 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
                 )
             except Exception as _fe:
                 print(f"[food i18n] {_fe}")
+    # [remedy3] prose: translate yantra/daan/vrat blocks for es/pt. Proper
+    # nouns (yantra/sigil/medallion names) stay in their original form.
+    if _gem_lang in ("es", "pt"):
+        _tpr = resp.get("today_priority") or {}
+        try:
+            from antar_engine.translation_middleware import translate_dict
+            from antar_engine.practice_library import (
+                YANTRA_TRANSLATABLE_FIELDS, DAAN_TRANSLATABLE_FIELDS, VRAT_TRANSLATABLE_FIELDS,
+            )
+            for _rk, _rfields in (("yantra", YANTRA_TRANSLATABLE_FIELDS),
+                                  ("daan", DAAN_TRANSLATABLE_FIELDS),
+                                  ("vrat", VRAT_TRANSLATABLE_FIELDS)):
+                _blk = _tpr.get(_rk)
+                if isinstance(_blk, dict):
+                    _tpr[_rk] = await translate_dict(
+                        _blk, language=_gem_lang, fields_to_translate=_rfields,
+                        endpoint_name=f"daily-practice-{_rk}", chart_id=request.chart_id,
+                    )
+        except Exception as _re:
+            print(f"[remedy3 i18n] {_re}")
     _PRACTICE_CACHE[ckey] = (_prac_time.time() + _PRACTICE_TTL, resp)
     return resp
 
