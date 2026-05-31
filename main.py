@@ -11918,7 +11918,7 @@ async def debug_context(request: dict):
 @app.post("/api/v1/daily-signal")
 @app.get("/api/v1/daily-signal/{chart_id}")
 @translate_response(
-    fields_to_translate=["vibe", "do_today", "dont_today"],
+    fields_to_translate=["vibe", "do_today", "dont_today", "text"],
     endpoint_name="daily-signal",
 )
 async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, language: str = "en"):
@@ -11935,7 +11935,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         from antar_engine.daily_prediction_engine import generate_weekly_signals
         from antar_engine.daily_panchanga import calculate_panchanga, format_daily_for_user
         res = supabase.table("charts").select(
-            "chart_data,birth_date,name,gender,latitude,longitude,current_country,birth_country"
+            "chart_data,birth_date,name,gender,latitude,longitude,current_country,birth_country,lal_kitab_data"
         ).eq("id", cid).execute()
         if not res.data: raise HTTPException(404, "Chart not found")
         row = res.data[0]
@@ -11996,6 +11996,66 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             "day_number":  panchanga.get("day_number", ""),
             "day_mantra":  panchanga.get("day_mantra", ""),
         })
+
+        # ── Layer-2 concrete signals (highlights) — Phase 1: Today ──────
+        try:
+            from antar_engine.highlight_composer import build_highlights
+            from antar_engine.lal_kitab_advanced import compute_lk_daily_diagnostic
+            from antar_engine.daily_prediction_engine import NAKSHATRA_PROFILES
+            from datetime import datetime as _hl_dt
+
+            _hl_sig0 = dict(signals[0]) if signals else {}
+            _hl_lk_data = _safe_jsonb(row.get("lal_kitab_data"))
+            _hl_target = start_date.date() if hasattr(start_date, "date") else start_date
+            try:
+                _hl_lk_daily = compute_lk_daily_diagnostic(
+                    lk_data=_hl_lk_data,
+                    chart_data=cd if isinstance(cd, dict) else {},
+                    target_date=_hl_target,
+                    language=language,
+                )
+            except Exception:
+                _hl_lk_daily = {}
+
+            # Active life-chapter lords (current major + sub period)
+            _hl_md = _hl_ad = ""
+            try:
+                _hl_ds = get_dashas_for_chart(cid)
+                _hl_vim = _hl_ds.get("vimsottari", []) if isinstance(_hl_ds, dict) else (_hl_ds or [])
+                _hl_now = _hl_dt.utcnow()
+                for _hl_r in _hl_vim:
+                    _hl_lvl = (_hl_r.get("level") or "").lower()
+                    try:
+                        _hl_sd = _hl_dt.strptime(str(_hl_r.get("start_date", ""))[:10], "%Y-%m-%d")
+                        _hl_ed = _hl_dt.strptime(str(_hl_r.get("end_date", ""))[:10], "%Y-%m-%d")
+                    except Exception:
+                        continue
+                    if _hl_sd <= _hl_now <= _hl_ed:
+                        if _hl_lvl == "mahadasha" and not _hl_md:
+                            _hl_md = _hl_r.get("lord_or_sign") or _hl_r.get("planet_or_sign") or ""
+                        elif _hl_lvl in ("antardasha", "bhukti") and not _hl_ad:
+                            _hl_ad = _hl_r.get("lord_or_sign") or _hl_r.get("planet_or_sign") or ""
+            except Exception:
+                pass
+
+            _hl_nak = _hl_sig0.get("today_moon_nakshatra") or ""
+            _hl_ctx = {
+                "lk_daily": _hl_lk_daily,
+                "signal0": _hl_sig0,
+                "panchanga": {
+                    "abhijit":     panchanga.get("abhijit_muhurta", ""),
+                    "rahu_kalam":  panchanga.get("rahu_kalam", ""),
+                    "lucky_hours": panchanga.get("lucky_hours", {}),
+                },
+                "dasha_md": _hl_md,
+                "dasha_ad": _hl_ad,
+                "nakshatra_profile": NAKSHATRA_PROFILES.get(_hl_nak, {}),
+            }
+            result["highlights"] = build_highlights("today", language, _hl_ctx)
+        except Exception as _hl_err:
+            print(f"[daily-signal] highlights failed for {cid}: {_hl_err}")
+            result.setdefault("highlights", [])
+
         return result
     except HTTPException: raise
     except Exception as e:
