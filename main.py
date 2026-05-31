@@ -1265,6 +1265,14 @@ class MonthlyBriefingResponse(BaseModel):
 class DailyPracticeRequest(BaseModel):
     chart_id: str
     language: str = "en"
+    tz_offset: Optional[int] = None   # minutes from UTC (e.g. -300 = UTC-5)
+
+
+class DailyPracticeCompleteRequest(BaseModel):
+    chart_id: str
+    planet: str
+    scope: str = "natal_weakness"
+    tz_offset: Optional[int] = None
 
 class DailyPracticeResponse(BaseModel):
     practice: str
@@ -6513,27 +6521,165 @@ async def monthly_briefing(
 
 # ── Daily Practice ────────────────────────────────────────────────────────────
 
-@app.post("/api/v1/predict/daily-practice", response_model=DailyPracticeResponse)
-async def daily_practice(
-    request: DailyPracticeRequest,
-    authorization: Optional[str] = Header(None)
-):
+# ════════════════════════════════════════════════════════════════════
+# PRACTICE ENGINE v2 (negative-anchored / multi-scale / planet-coherent)
+# ════════════════════════════════════════════════════════════════════
+import time as _prac_time
+from datetime import datetime as _prac_dt, timezone as _prac_tz, timedelta as _prac_td
+from antar_engine import practice_scopes as _ps
+from antar_engine import practice_composer as _pcomp2
+from antar_engine.places_conditions import compute_all_conditions as _prac_conditions
+from antar_engine.places_intel import compute_age as _prac_age
+
+_PRACTICE_CACHE = {}
+_PRACTICE_TTL = 86400
+
+
+def _prac_safe(v):
+    if isinstance(v, str):
+        try:
+            import json as _pj
+            return _pj.loads(v)
+        except Exception:
+            return {}
+    return v if isinstance(v, dict) else {}
+
+
+def _prac_local_date(tz_offset):
+    now = _prac_dt.now(_prac_tz.utc)
+    if tz_offset:
+        now = now + _prac_td(minutes=int(tz_offset))
+    return now.date()
+
+
+def _prac_strip_prose(resp, language):
+    """Path-B strip on prose fields only (keeps planet names; no Sanskrit corruption)."""
+    def s(x):
+        try:
+            return apply_user_facing_strips(x, language=language, field_type="plain", source="curated_static")
+        except Exception:
+            return x
+    tp = resp.get("today_priority")
+    if tp:
+        for k in ("why", "affirmation", "why_this_works"):
+            if tp.get(k):
+                tp[k] = s(tp[k])
+    for a in resp.get("active", []):
+        if a.get("one_line"):
+            a["one_line"] = s(a["one_line"])
+    for v in resp.get("chakra_states", {}).values():
+        if v.get("reason"):
+            v["reason"] = s(v["reason"])
+    return resp
+
+
+def _prac_streaks(chart_id, local_today):
+    """Per-planet streak + best + completed-today from practice_completions."""
+    try:
+        rows = (supabase.table("practice_completions").select("practice_planet, local_date")
+                .eq("chart_id", chart_id).execute()).data or []
+    except Exception as _e:
+        print(f"[practice streaks] {_e}")
+        rows = []
+    by_planet = {}
+    for r in rows:
+        p = r.get("practice_planet")
+        d = r.get("local_date")
+        if p and d:
+            by_planet.setdefault(p, []).append(d)
+    streaks, completed = {}, {}
+    tISO = local_today.isoformat()
+    for p, dates in by_planet.items():
+        streaks[p] = {"days": _pcomp2.compute_streak(dates, local_today),
+                      "best": _pcomp2.compute_best_streak(dates)}
+        completed[p] = tISO in {str(d)[:10] for d in dates}
+    return streaks, completed
+
+
+@app.post("/api/v1/predict/daily-practice")
+async def daily_practice(request: DailyPracticeRequest, authorization: Optional[str] = Header(None)):
     chart_res = supabase.table("charts").select("*").eq("id", request.chart_id).execute()
     if not chart_res.data:
         raise HTTPException(404, "Chart not found")
-    chart_record = chart_res.data[0]
-    chart_data   = chart_record["chart_data"]
-    dashas       = get_dashas_for_chart(request.chart_id)
+    rec = chart_res.data[0]
+    chart = _prac_safe(rec.get("chart_data"))
+    if not chart.get("planets"):
+        raise HTTPException(422, "chart_data has no planets")
 
-    today = datetime.utcnow().strftime("%A, %B %d %Y")
-    prompt = build_daily_practice_prompt(
-        chart_data=chart_data,
-        dashas=dashas,
-        date=today,
-        country_code=chart_record.get("country_code", "US"),
+    local_today = _prac_local_date(request.tz_offset)
+    ckey = ("practice", request.chart_id, request.language, local_today.isoformat())
+    cached = _PRACTICE_CACHE.get(ckey)
+    if cached and cached[0] >= _prac_time.time():
+        # refresh only the streak/completion fields (cheap) so a same-day
+        # completion reflects without recomputing the whole engine
+        return cached[1]
+
+    conditions = _prac_conditions(chart)
+    try:
+        dashas = get_dashas_for_chart(request.chart_id)
+    except Exception:
+        dashas = {}
+    name = rec.get("first_name") or rec.get("name") or None
+    age = _prac_age(rec.get("birth_date"))
+    streaks, completed = _prac_streaks(request.chart_id, local_today)
+
+    actives = _ps.detect_all_scopes(
+        chart, local_today, request.language,
+        conditions=conditions, dashas=dashas, birth_date=rec.get("birth_date"),
     )
-    practice_text, _ = await call_llm(prompt)
-    return DailyPracticeResponse(practice=practice_text, date=today)
+    resp = _pcomp2.compose_practice_response(
+        chart, actives,
+        chart_id=request.chart_id, user_name=name, user_age=age,
+        language=request.language, today_str=local_today.strftime("%B %d, %Y"),
+        today_date=local_today, conditions=conditions,
+        streaks=streaks, completed_today=completed,
+        generated_at=_prac_dt.now(_prac_tz.utc).isoformat(),
+    )
+    resp = _prac_strip_prose(resp, request.language)
+    _PRACTICE_CACHE[ckey] = (_prac_time.time() + _PRACTICE_TTL, resp)
+    return resp
+
+
+@app.post("/api/v1/predict/daily-practice/complete")
+async def daily_practice_complete(request: DailyPracticeCompleteRequest,
+                                  authorization: Optional[str] = Header(None)):
+    user_id = None
+    if authorization:
+        try:
+            user_id = verify_token(authorization)
+        except Exception:
+            user_id = None
+    local_today = _prac_local_date(request.tz_offset)
+    row = {
+        "user_id": user_id,
+        "chart_id": request.chart_id,
+        "practice_planet": request.planet,
+        "practice_scope": request.scope,
+        "completed_at": _prac_dt.now(_prac_tz.utc).isoformat(),
+        "local_date": local_today.isoformat(),
+    }
+    try:
+        supabase.table("practice_completions").upsert(
+            row, on_conflict="chart_id,practice_planet,local_date"
+        ).execute()
+    except Exception as _e:
+        print(f"[practice complete] {_e}")
+        raise HTTPException(500, "Could not record completion")
+
+    # Bust this chart's cached practice (all languages / today).
+    for k in [k for k in _PRACTICE_CACHE if k[1] == request.chart_id]:
+        _PRACTICE_CACHE.pop(k, None)
+
+    rows = (supabase.table("practice_completions").select("local_date")
+            .eq("chart_id", request.chart_id).eq("practice_planet", request.planet).execute()).data or []
+    dates = [r["local_date"] for r in rows if r.get("local_date")]
+    return {
+        "status": "completed",
+        "planet": request.planet,
+        "scope": request.scope,
+        "streak_days": _pcomp2.compute_streak(dates, local_today),
+        "streak_best": _pcomp2.compute_best_streak(dates),
+    }
 
 # ── Prediction Fulfillment ────────────────────────────────────────────────────
 
