@@ -25,6 +25,7 @@ from datetime import datetime, timezone
 
 from antar_engine.Compatibility import SIGNS, SIGN_RULER
 from antar_engine import compatibility_templates as TPL
+from antar_engine import compatibility_synastry as SYN
 
 VALID_REASONS = ("romantic", "business", "cofounder", "friend", "family",
                  "employee", "boss-or-manager")
@@ -39,7 +40,7 @@ LAYER_DEFINITIONS = {
     "public":        {"sources": ["house_7", "house_10", "house_11"],                "weights": [0.40, 0.40, 0.20]},
     "lifepath":      {"sources": ["dasha_timing", "bhakoot"],                         "weights": [0.70, 0.30]},
     "communication": {"sources": ["mercury_compatibility", "graha_maitri", "gana"],   "weights": [0.40, 0.30, 0.30]},
-    "friction":      {"sources": ["mutual_6_8", "nadi_dosha", "growth_areas_count"],  "weights": [0.45, 0.35, 0.20]},
+    "friction":      {"sources": ["mutual_6_8", "nadi_dosha", "growth_areas_count", "cross_aspect_harmony"], "weights": [0.35, 0.25, 0.15, 0.25]},
 }
 
 # Per-reason weighting of the 6 layers (sum to 1.0 each).
@@ -146,14 +147,14 @@ def resolve_source(name: str, engine_result: dict, chart_a: dict, chart_b: dict)
     if name == "mars_compatibility":
         return float(_COMPAT_MAP.get(d9.get("mars_compatibility"), 50))
     if name == "mercury_compatibility":
-        # Engine doesn't compute Mercury cross-compat today (Phase 2). Default 50.
-        return 50.0
+        # Phase 2: real Mercury-to-Mercury cross-compat (was a 50 stub).
+        return SYN.mercury_cross_compat(chart_a, chart_b)["score"]
     if name == "house_7":
-        return _house_score(engine_result, 7)
+        return SYN.house_quality_score(chart_a, chart_b, 7)
     if name == "house_10":
-        return _house_score(engine_result, 10)   # absent today -> 50 (Phase 2)
+        return SYN.house_quality_score(chart_a, chart_b, 10)   # Phase 2: real (engine never computed 10/11)
     if name == "house_11":
-        return _house_score(engine_result, 11)   # absent today -> 50 (Phase 2)
+        return SYN.house_quality_score(chart_a, chart_b, 11)
     if name == "dasha_timing":
         return float(engine_result.get("dasha_timing", {}).get("score", 50))
     if name == "mutual_6_8":
@@ -163,6 +164,9 @@ def resolve_source(name: str, engine_result: dict, chart_a: dict, chart_b: dict)
     if name == "growth_areas_count":
         n = len(engine_result.get("growth_areas", []) or [])
         return float(max(0, 100 - n * 15))
+    if name == "cross_aspect_harmony":
+        # Phase 2: cross-chart graha drishti to lagna/7th (benefic up, malefic down).
+        return SYN.cross_aspect_harmony(chart_a, chart_b)["score"]
     return 50.0
 
 
@@ -247,12 +251,27 @@ def build_compat_response(
     language: str = "en",
     generated_at: str | None = None,
     strip_fn=None,
+    deep_read_details: dict | None = None,
+    lk_insights: list | None = None,
 ) -> dict:
     """
     Full English (untranslated) 6-layer response, jargon-stripped.
     Translation (es/pt) is applied by the endpoint after this returns.
+
+    Phase 2:
+      - deep_read_details {layer_key: paragraph} populates each layer's `detail`.
+      - lk_insights (already gated/founder-confirmed upstream) attach as a
+        top-level `lk_insights` list ONLY when non-empty (contract stays stable
+        while the LK library is disabled).
     """
     layers, scores = build_layers(engine_result, reason, role, chart_a, chart_b, a_name, b_name)
+
+    # Phase 2: attach deep_read prose to the reserved per-layer `detail` field.
+    if deep_read_details:
+        for layer in layers:
+            d = deep_read_details.get(layer["key"])
+            if isinstance(d, str) and d.strip():
+                layer["detail"] = d.strip()
 
     weights = effective_weights(reason, role)
     overall = sum(scores[k] * weights.get(k, 0.0) for k in LAYER_ORDER)
@@ -285,8 +304,14 @@ def build_compat_response(
         for layer in response["layers"]:
             try:
                 layer["line"] = strip_fn(layer["line"], "en", field_type="plain", source="curated_static")
+                if layer.get("detail"):
+                    layer["detail"] = strip_fn(layer["detail"], "en", field_type="plain", source="curated_static")
             except Exception:
                 pass
+
+    # Phase 2: attach gated LK insights only when present (disabled => no key).
+    if lk_insights:
+        response["lk_insights"] = lk_insights
     return response
 
 

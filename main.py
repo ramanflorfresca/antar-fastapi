@@ -9010,6 +9010,7 @@ class CompatRequest(BaseModel):
     role: Optional[str] = None
     language: Optional[str] = "en"
     tz_offset: Optional[int] = None
+    deep_read: bool = False
 
 
 # In-process caches (per-worker; reset on deploy). Day + dasha-aware key.
@@ -9076,7 +9077,7 @@ async def compat_six_layer(request: CompatRequest):
 
     # ── Cache key — day-scoped + dasha-aware (busts on dasha boundary) ──
     _ck = (request.chart_a_id, _cb_key, reason, role, language, _compat_day(),
-           chart_a.get("current_dasha", ""), chart_b.get("current_dasha", ""))
+           chart_a.get("current_dasha", ""), chart_b.get("current_dasha", ""), bool(request.deep_read))
     if _ck in _COMPAT_CACHE:
         return _COMPAT_CACHE[_ck]
 
@@ -9096,6 +9097,29 @@ async def compat_six_layer(request: CompatRequest):
 
     # Drop any underscore-prefixed engine leakage (defensive).
     response = {k: v for k, v in response.items() if not str(k).startswith("_")}
+
+    # ── Phase 2: gated LK cross-conditions (no-op while ENABLED is False) ──
+    try:
+        from antar_engine import lk_cross_conditions as _lk
+        _lkc = _lk.evaluate_cross_conditions(chart_a, chart_b, a_name=a_name, b_name=b_name)
+        if _lkc:
+            response["lk_insights"] = _lkc
+    except Exception as _le:
+        print(f"[compat] lk non-fatal: {_le}")
+
+    # ── Phase 2: deep_read per-layer detail synthesis (Claude Sonnet) ──
+    if request.deep_read:
+        try:
+            from antar_engine.compatibility_deepread import build_deep_read
+            _details = await build_deep_read(
+                claude_client, response["layers"], reason, role, a_name, b_name, response["score"],
+            )
+            for _layer in response["layers"]:
+                _d = _details.get(_layer["key"]) if _details else None
+                if isinstance(_d, str) and _d.strip():
+                    _layer["detail"] = apply_user_facing_strips(_d.strip(), "en", field_type="plain", source="curated_static")
+        except Exception as _de:
+            print(f"[compat] deep_read non-fatal: {_de}")
 
     # ── Translate user-facing fields for es/pt ──
     if language in ("es", "pt"):
