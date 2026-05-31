@@ -7925,6 +7925,287 @@ async def get_astrocartography(chart_id: str, concern: str = "career", limit: in
         }
 
 
+
+# ════════════════════════════════════════════════════════════════════
+# ── PLACES (Astrocartography v2) endpoints — Phase 1 ──
+# Contract paths: /api/v1/places/concern, /lines/{chart_id}, /city
+# Vedic-conditioned lines (9 planets x 4 angles). Template-composed, NO LLM.
+# Path B strips (source="curated_static"); planet names allowed as actors;
+# no house numbers / Sanskrit reach the response.
+# ════════════════════════════════════════════════════════════════════
+import time as _places_time
+from datetime import datetime as _places_dt, timezone as _places_tz
+from antar_engine import places_lines as _pl
+from antar_engine import places_conditions as _pc
+from antar_engine import places_relocation as _prel
+from antar_engine import places_concern as _pcn
+from antar_engine import places_composer as _pcomp
+
+_PLACES_CITIES = None
+_PLACES_CACHE = {}
+_PLACES_TTL = 86400  # 24h
+
+
+def _places_safe(v):
+    # JSONB columns are sometimes stored as JSON strings (project rule 8).
+    if isinstance(v, str):
+        try:
+            import json as _pj
+            return _pj.loads(v)
+        except Exception:
+            return {}
+    return v if isinstance(v, dict) else {}
+
+
+def _places_cities():
+    global _PLACES_CITIES
+    if _PLACES_CITIES is None:
+        import json as _pj
+        _path = os.path.join(os.path.dirname(_pl.__file__), "places_cities.json")
+        with open(_path, encoding="utf-8") as _f:
+            _PLACES_CITIES = _pj.load(_f)
+    return _PLACES_CITIES
+
+
+def _places_iso_now():
+    return _places_dt.now(_places_tz.utc).isoformat()
+
+
+def _places_cache_get(key):
+    e = _PLACES_CACHE.get(key)
+    if not e:
+        return None
+    if e[0] < _places_time.time():
+        _PLACES_CACHE.pop(key, None)
+        return None
+    return e[1]
+
+
+def _places_cache_set(key, val):
+    _PLACES_CACHE[key] = (_places_time.time() + _PLACES_TTL, val)
+
+
+def _places_load_chart(chart_id):
+    res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+    if not res.data:
+        raise HTTPException(404, "Chart not found")
+    rec = res.data[0]
+    chart = _places_safe(rec.get("chart_data"))
+    return rec, chart
+
+
+def _places_strip(content, language):
+    try:
+        return apply_user_facing_strips(
+            content, language=language, field_type="plain", source="curated_static"
+        )
+    except Exception:
+        return content
+
+
+def _places_serialize_lines(lines, conditions, language):
+    out = []
+    for ln in lines:
+        cond = conditions.get(ln["planet"], {})
+        out.append({
+            "planet": ln["planet"],
+            "angle": ln["angle"],
+            "polyline": ln["polyline"],
+            "natal_condition": cond.get("condition", "neutral"),
+            "color": cond.get("color", "neutral_grey"),
+            "weight": cond.get("weight", 0.9),
+            "polarity": cond.get("polarity", "mixed"),
+        })
+    return out
+
+
+def _places_public_relocation(relocation):
+    # Sign names + a 0-11 shift count only. No house numbers leak.
+    return {
+        "natal_lagna": relocation.get("natal_lagna"),
+        "relocated_lagna": relocation.get("relocated_lagna"),
+        "lagna_shift_houses": relocation.get("lagna_shift_houses"),
+        "relocated_house_cusps": relocation.get("relocated_house_cusps", []),
+    }
+
+
+def _places_echoes(concern, conditions, ranked):
+    # Lightweight tie-back to Layer 1 (the main reading). No LLM, verdict-free.
+    karakas = _pcn.CONCERN_MAP.get(concern, {}).get("karakas", [])
+    dominant = None
+    for k in karakas:
+        if k in conditions:
+            dominant = k
+            break
+    return {
+        "concern": concern,
+        "dominant_karaka": dominant,
+        "dominant_condition": (conditions.get(dominant, {}) or {}).get("condition") if dominant else None,
+        "top_tier": ranked[0]["tier"] if ranked else None,
+    }
+
+
+def _places_balanced_headline(tier, city_name, language):
+    L = (language or "en").lower().split("-")[0]
+    if L == "es":
+        m = {
+            "FLOW": f"{city_name} tiene una textura general favorable para ti.",
+            "MIXED": f"{city_name} mezcla apoyo y fricción en tu mapa.",
+            "STRAIN": f"{city_name} pide cuidado a través de varios temas.",
+        }
+    else:
+        m = {
+            "FLOW": f"{city_name} carries a broadly supportive texture for you.",
+            "MIXED": f"{city_name} mixes support and friction across your map.",
+            "STRAIN": f"{city_name} asks for care across several threads.",
+        }
+    return m.get(tier, m["MIXED"])
+
+
+class PlacesConcernReq(BaseModel):
+    chart_id: str
+    concern: str
+    language: str = "en"
+    region_filter: Optional[str] = None
+    tz_offset: Optional[int] = None
+
+
+class PlacesCityCoord(BaseModel):
+    name: str
+    country: Optional[str] = None
+    country_code: Optional[str] = None
+    lat: float
+    lon: float
+    timezone: Optional[str] = None
+
+
+class PlacesCityReq(BaseModel):
+    chart_id: str
+    city: PlacesCityCoord
+    concern: Optional[str] = None
+    language: str = "en"
+    deep_read: bool = False
+
+
+@app.post("/api/v1/places/concern")
+async def places_concern_endpoint(req: PlacesConcernReq):
+    if req.concern not in _pcn.VALID_CONCERNS:
+        raise HTTPException(422, f"concern must be one of {_pcn.VALID_CONCERNS}")
+    ckey = ("places_concern", req.chart_id, req.concern, req.language, req.region_filter or "")
+    cached = _places_cache_get(ckey)
+    if cached is not None:
+        return cached
+
+    rec, chart = _places_load_chart(req.chart_id)
+    if not chart.get("birth_jd"):
+        raise HTTPException(422, "chart missing birth_jd; cannot compute astrocartography lines")
+
+    all_lines = _pl.compute_all_lines(chart.get("birth_jd"), chart)
+    conditions = _pc.compute_all_conditions(chart)
+    scored = _pcn.rank_cities_for_concern(
+        chart, req.concern, _places_cities(), region_filter=req.region_filter
+    )
+    ranked = [_pcomp.enrich_ranked_city(req.concern, s, req.language) for s in scored]
+    for c in ranked:
+        c["primary_reason"] = _places_strip(c["primary_reason"], req.language)
+        c["secondary_reasons"] = _places_strip(c["secondary_reasons"], req.language)
+        c["watch_outs"] = _places_strip(c["watch_outs"], req.language)
+
+    concern_lines = _pcn.filter_concern_lines(all_lines, req.concern)
+    out = {
+        "chart_id": req.chart_id,
+        "concern": req.concern,
+        "language": req.language,
+        "generated_at": _places_iso_now(),
+        "texture_line": _places_strip(
+            _pcomp.compose_texture_line(req.concern, ranked, req.language), req.language
+        ),
+        "ranked_cities": ranked,
+        "map_lines": _places_serialize_lines(concern_lines, conditions, req.language),
+        "global_pattern": _places_strip(
+            _pcomp.compose_global_pattern(req.concern, ranked, req.language), req.language
+        ),
+        "echoes_layer_1": _places_echoes(req.concern, conditions, ranked),
+    }
+    _places_cache_set(ckey, out)
+    return out
+
+
+@app.get("/api/v1/places/lines/{chart_id}")
+async def places_lines_endpoint(chart_id: str, language: str = "en"):
+    ckey = ("places_lines", chart_id, language)
+    cached = _places_cache_get(ckey)
+    if cached is not None:
+        return cached
+
+    rec, chart = _places_load_chart(chart_id)
+    if not chart.get("birth_jd"):
+        raise HTTPException(422, "chart missing birth_jd; cannot compute astrocartography lines")
+
+    all_lines = _pl.compute_all_lines(chart.get("birth_jd"), chart)
+    conditions = _pc.compute_all_conditions(chart)
+    out = {
+        "chart_id": chart_id,
+        "language": language,
+        "generated_at": _places_iso_now(),
+        "lines": _places_serialize_lines(all_lines, conditions, language),
+    }
+    _places_cache_set(ckey, out)
+    return out
+
+
+@app.post("/api/v1/places/city")
+async def places_city_endpoint(req: PlacesCityReq):
+    ckey = ("places_city", req.chart_id, round(req.city.lat, 4), round(req.city.lon, 4),
+            req.concern or "", req.language)
+    cached = _places_cache_get(ckey)
+    if cached is not None:
+        return cached
+
+    rec, chart = _places_load_chart(req.chart_id)
+    if not chart.get("birth_jd"):
+        raise HTTPException(422, "chart missing birth_jd; cannot compute astrocartography lines")
+
+    all_lines = _pl.compute_all_lines(chart.get("birth_jd"), chart)
+    conditions = _pc.compute_all_conditions(chart)
+    relocation = _prel.compute_relocated_chart(chart, req.city.lat, req.city.lon)
+    city_dict = req.city.dict()
+    active = _pcn.find_lines_near_city(all_lines, req.city.lat, req.city.lon, max_distance_km=700.0)
+
+    if req.concern and req.concern in _pcn.VALID_CONCERNS:
+        scored = _pcn.score_city_for_concern(
+            chart, city_dict, req.concern,
+            all_lines=all_lines, conditions=conditions, relocation=relocation,
+        )
+        detail = _pcomp.compose_city_detail(req.concern, scored, req.language)
+        headline = _pcomp.compose_headline(req.concern, scored["tier"], req.city.name, req.language)
+        watch = _pcomp.compose_watch_outs(req.concern, scored.get("_watch", []), req.language)
+    else:
+        scored = _pcn.balanced_score(
+            chart, city_dict, all_lines=all_lines, conditions=conditions, relocation=relocation,
+        )
+        detail = _pcomp.compose_city_detail(None, scored, req.language)
+        headline = _places_balanced_headline(scored["tier"], req.city.name, req.language)
+        watch = _pcomp.compose_watch_outs("career", scored.get("_watch", []), req.language)
+
+    out = {
+        "chart_id": req.chart_id,
+        "language": req.language,
+        "generated_at": _places_iso_now(),
+        "concern": req.concern,
+        "relocation": _places_public_relocation(relocation),
+        "active_lines": active,
+        "score": scored["score"],
+        "tier": scored["tier"],
+        "headline": _places_strip(headline, req.language),
+        "detail": _places_strip(detail, req.language),
+        "watch_outs": _places_strip(watch, req.language),
+    }
+    # Phase 1: no deep_read field (Phase 2 will populate it when req.deep_read).
+    _places_cache_set(ckey, out)
+    return out
+
+
 @app.post("/api/v1/astrocartography/waitlist")
 async def astrocartography_waitlist(request: WaitlistRequest):
     try:
