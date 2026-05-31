@@ -6716,6 +6716,22 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
                 )
             except Exception as _ge:
                 print(f"[gemstone i18n] {_ge}")
+    # [food] Food prose is authored in English; dish names stay canonical.
+    # Translate the food block's prose for es/pt via the existing cached pipeline.
+    if _gem_lang in ("es", "pt"):
+        _tpf = resp.get("today_priority") or {}
+        _food = _tpf.get("food")
+        if isinstance(_food, dict):
+            try:
+                from antar_engine.translation_middleware import translate_dict
+                from antar_engine.practice_library import FOOD_TRANSLATABLE_FIELDS
+                _tpf["food"] = await translate_dict(
+                    _food, language=_gem_lang,
+                    fields_to_translate=FOOD_TRANSLATABLE_FIELDS,
+                    endpoint_name="daily-practice-food", chart_id=request.chart_id,
+                )
+            except Exception as _fe:
+                print(f"[food i18n] {_fe}")
     _PRACTICE_CACHE[ckey] = (_prac_time.time() + _PRACTICE_TTL, resp)
     return resp
 

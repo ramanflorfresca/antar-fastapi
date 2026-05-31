@@ -18,6 +18,7 @@ from typing import Optional
 
 from antar_engine.practice_library import (
     PRACTICE_LIBRARY, get_planet_content, personalize_gemstone, GEMSTONE_SCOPES,
+    personalize_food, FOOD_SCOPES,
 )
 from antar_engine.practice_scopes import SCOPES
 from antar_engine.practice_chakras import compute_chakra_states
@@ -171,6 +172,12 @@ def compose_practice_response(
         today_priority["gemstone"] = (
             personalize_gemstone(pl, scope, language, chart=chart, conditions=conditions)
             if scope in GEMSTONE_SCOPES else None
+        )
+        # [food] Ayurveda Ahar — daily dietary remedy. Same durable-scope gate
+        # as the gemstone; transient triggers (daily_transit / monthly_lk) -> null.
+        today_priority["food"] = (
+            personalize_food(pl, scope, language, chart=chart, conditions=conditions)
+            if scope in FOOD_SCOPES else None
         )
 
     # ── active (summaries only) ─────────────────────────────────────────────
