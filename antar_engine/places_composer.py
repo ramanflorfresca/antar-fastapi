@@ -158,6 +158,32 @@ def compose_global_pattern(concern: str, ranked: list[dict], lang: str) -> str:
     return frame.format(domain=_domain(concern, lang))
 
 
+def compose_compare_summary(concern: str, enriched: list[dict], lang: str) -> str:
+    """
+    Verdict-free comparison line across 2-3 cities (already enriched + sorted
+    by score desc).  Names the steadier current; never says 'move here'.
+    """
+    lang = _lang(lang)
+    dom = _domain(concern, lang)
+    if not enriched:
+        return ""
+    lead = enriched[0]
+    if len(enriched) == 1:
+        return lead.get("primary_reason", "")
+    spread = lead["score"] - enriched[-1]["score"]
+    if lang == "es":
+        if spread <= 6:
+            return (f"Para {dom}, estos lugares se sienten parecidos en fuerza — "
+                    f"la diferencia está en el matiz, no en el grado.")
+        return (f"Para {dom}, {lead['city']} lleva la corriente más estable del grupo; "
+                f"{enriched[-1]['city']} pide más de ti por el mismo tema.")
+    if spread <= 6:
+        return (f"For {dom}, these places feel close in strength — the difference is "
+                f"in flavour, not degree.")
+    return (f"For {dom}, {lead['city']} carries the steadier current of the group; "
+            f"{enriched[-1]['city']} asks more of you for the same thread.")
+
+
 def compose_city_detail(concern: Optional[str], scored: dict, lang: str) -> str:
     """Detail paragraph for the /city drill-down (concern optional)."""
     lang = _lang(lang)

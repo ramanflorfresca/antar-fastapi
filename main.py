@@ -8149,6 +8149,7 @@ async def places_lines_endpoint(chart_id: str, language: str = "en"):
         "language": language,
         "generated_at": _places_iso_now(),
         "lines": _places_serialize_lines(all_lines, conditions, language),
+        "parans": _pp.compute_parans(all_lines, conditions),
     }
     _places_cache_set(ckey, out)
     return out
@@ -8157,7 +8158,7 @@ async def places_lines_endpoint(chart_id: str, language: str = "en"):
 @app.post("/api/v1/places/city")
 async def places_city_endpoint(req: PlacesCityReq):
     ckey = ("places_city", req.chart_id, round(req.city.lat, 4), round(req.city.lon, 4),
-            req.concern or "", req.language)
+            req.concern or "", req.language, bool(req.deep_read))
     cached = _places_cache_get(ckey)
     if cached is not None:
         return cached
@@ -8201,9 +8202,106 @@ async def places_city_endpoint(req: PlacesCityReq):
         "detail": _places_strip(detail, req.language),
         "watch_outs": _places_strip(watch, req.language),
     }
-    # Phase 1: no deep_read field (Phase 2 will populate it when req.deep_read).
+    # Phase 2: parans near the city + optional LLM deep_read.
+    out["parans"] = _pp.parans_near_city(
+        _pp.compute_parans(all_lines, conditions), req.city.lat, req.city.lon
+    )
+    if req.deep_read and req.concern and req.concern in _pcn.VALID_CONCERNS:
+        try:
+            _dr_prompt = _pdr.build_deep_read_prompt(scored, relocation, active, req.concern, req.language)
+            _dr_text, _ = await call_llm_claude(_dr_prompt, system_override=_pdr.DEEP_READ_SYSTEM)
+            out["deep_read"] = apply_user_facing_strips(
+                _dr_text, language=req.language, field_type="plain", source="llm"
+            )
+        except Exception as _dre:
+            print(f"[places deep_read] {_dre}")
+            out["deep_read"] = None
     _places_cache_set(ckey, out)
     return out
+
+
+
+# ════════════════════════════════════════════════════════════════════
+# ── PLACES Phase 2 (parans / deep_read / compare / saved) ──
+# ════════════════════════════════════════════════════════════════════
+from antar_engine import places_parans as _pp
+from antar_engine import places_deepread as _pdr
+
+
+class PlacesCompareReq(BaseModel):
+    chart_id: str
+    concern: str
+    cities: List[PlacesCityCoord]
+    language: str = "en"
+
+
+class PlacesSavedReq(BaseModel):
+    chart_id: str
+    city: PlacesCityCoord
+    concern: Optional[str] = None
+    note: Optional[str] = None
+
+
+@app.post("/api/v1/places/compare")
+async def places_compare_endpoint(req: PlacesCompareReq):
+    if req.concern not in _pcn.VALID_CONCERNS:
+        raise HTTPException(422, f"concern must be one of {_pcn.VALID_CONCERNS}")
+    if not (2 <= len(req.cities) <= 3):
+        raise HTTPException(422, "compare requires 2 or 3 cities")
+    rec, chart = _places_load_chart(req.chart_id)
+    if not chart.get("birth_jd"):
+        raise HTTPException(422, "chart missing birth_jd; cannot compute astrocartography lines")
+    all_lines = _pl.compute_all_lines(chart.get("birth_jd"), chart)
+    conditions = _pc.compute_all_conditions(chart)
+    enriched = []
+    for c in req.cities:
+        s = _pcn.score_city_for_concern(chart, c.dict(), req.concern, all_lines=all_lines, conditions=conditions)
+        e = _pcomp.enrich_ranked_city(req.concern, s, req.language)
+        e["primary_reason"] = _places_strip(e["primary_reason"], req.language)
+        e["secondary_reasons"] = _places_strip(e["secondary_reasons"], req.language)
+        e["watch_outs"] = _places_strip(e["watch_outs"], req.language)
+        enriched.append(e)
+    enriched.sort(key=lambda x: -x["score"])
+    return {
+        "chart_id": req.chart_id,
+        "concern": req.concern,
+        "language": req.language,
+        "generated_at": _places_iso_now(),
+        "cities": enriched,
+        "summary": _places_strip(
+            _pcomp.compose_compare_summary(req.concern, enriched, req.language), req.language
+        ),
+    }
+
+
+@app.post("/api/v1/places/saved")
+async def places_saved_add(req: PlacesSavedReq, authorization: Optional[str] = Header(None)):
+    user_id = verify_token(authorization or "")
+    row = {
+        "user_id": user_id,
+        "chart_id": req.chart_id,
+        "city": req.city.dict(),
+        "concern": req.concern,
+        "note": req.note,
+    }
+    res = supabase.table("places_saved_cities").insert(row).execute()
+    return {"status": "saved", "saved": (res.data[0] if res.data else row)}
+
+
+@app.get("/api/v1/places/saved/{chart_id}")
+async def places_saved_list(chart_id: str, authorization: Optional[str] = Header(None)):
+    user_id = verify_token(authorization or "")
+    res = (supabase.table("places_saved_cities").select("*")
+           .eq("user_id", user_id).eq("chart_id", chart_id)
+           .order("created_at", desc=True).execute())
+    return {"chart_id": chart_id, "saved_cities": res.data or []}
+
+
+@app.delete("/api/v1/places/saved/{saved_id}")
+async def places_saved_delete(saved_id: str, authorization: Optional[str] = Header(None)):
+    user_id = verify_token(authorization or "")
+    supabase.table("places_saved_cities").delete().eq("id", saved_id).eq("user_id", user_id).execute()
+    return {"status": "deleted", "id": saved_id}
 
 
 @app.post("/api/v1/astrocartography/waitlist")
