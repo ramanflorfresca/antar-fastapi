@@ -6596,6 +6596,55 @@ def _prac_streaks(chart_id, local_today):
     return streaks, completed
 
 
+
+# ── Language preference endpoints (patch_language_fidelity, vector 9) ───────
+# charts.language is the column resolve_language() already reads, so persisting
+# here makes the preference take effect across every endpoint that resolves
+# language from the chart row. Mirrored into the optional user_preferences table.
+class _UserPrefBody(BaseModel):
+    chart_id: str
+    language: str
+
+
+@app.put("/api/v1/user/preferences")
+async def set_user_preferences(body: _UserPrefBody):
+    from language_utils import VALID_LANGUAGES
+    from antar_engine.i18n import i18n_error
+    lang = (body.language or "en").split("-")[0].split("_")[0].lower()
+    if lang not in VALID_LANGUAGES:
+        raise HTTPException(status_code=400,
+                            detail=i18n_error("language_invalid",
+                                              lang if lang in ("es", "pt") else "en"))
+    try:
+        supabase.table("charts").update({"language": lang}).eq("id", body.chart_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+    try:
+        supabase.table("user_preferences").upsert(
+            {"chart_id": body.chart_id, "language": lang, "updated_at": "now()"},
+            on_conflict="chart_id",
+        ).execute()
+    except Exception:
+        pass  # table is optional; charts.language is the effective source of truth
+    return {"ok": True, "language": lang}
+
+
+@app.get("/api/v1/user/preferences/{chart_id}")
+async def get_user_preferences(chart_id: str):
+    lang = "en"
+    try:
+        r = supabase.table("user_preferences").select("language").eq("chart_id", chart_id).execute()
+        if r.data and r.data[0].get("language"):
+            lang = r.data[0]["language"]
+        else:
+            r2 = supabase.table("charts").select("language").eq("id", chart_id).execute()
+            if r2.data and r2.data[0].get("language"):
+                lang = r2.data[0]["language"]
+    except Exception:
+        pass
+    return {"chart_id": chart_id, "language": lang}
+
+
 @app.post("/api/v1/predict/daily-practice")
 async def daily_practice(request: DailyPracticeRequest, authorization: Optional[str] = Header(None)):
     chart_res = supabase.table("charts").select("*").eq("id", request.chart_id).execute()
@@ -6636,6 +6685,19 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
         generated_at=_prac_dt.now(_prac_tz.utc).isoformat(),
     )
     resp = _prac_strip_prose(resp, request.language)
+    # pt has no authored practice content -> translate English prose via the
+    # existing (tested, cached) pipeline. Any failure serves English unchanged.
+    if str(request.language or "").split("_")[0].split("-")[0].lower() == "pt":
+        try:
+            from antar_engine.translation_middleware import translate_dict
+            resp = await translate_dict(
+                resp, language="pt",
+                fields_to_translate=["why", "affirmation", "why_this_works",
+                                     "one_line", "reason", "daily_action", "cue"],
+                endpoint_name="daily-practice", chart_id=request.chart_id,
+            )
+        except Exception:
+            pass
     _PRACTICE_CACHE[ckey] = (_prac_time.time() + _PRACTICE_TTL, resp)
     return resp
 

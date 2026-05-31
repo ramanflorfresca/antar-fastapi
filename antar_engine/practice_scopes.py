@@ -47,6 +47,12 @@ def _lang(language: str) -> str:
     return "es" if str(language).lower().startswith("es") else "en"
 
 
+def _dur3(language, en, es, pt):
+    """3-language duration string (patch_language_fidelity). pt no longer falls to en."""
+    b = str(language).split("_")[0].split("-")[0].lower()
+    return {"en": en, "es": es, "pt": pt}.get(b, en)
+
+
 def _planets(chart: dict) -> dict:
     return (chart or {}).get("planets", {}) or {}
 
@@ -135,7 +141,7 @@ def detect_natal_weakness(chart: dict, language: str = "en", conditions: Optiona
         out[planet] = {
             "scope": "natal_weakness", "planet": planet, "supporting_planets": [],
             "severity": sev, "trigger_detail": detail,
-            "duration_label": ("Diario, continuo" if lang == "es" else "Daily, ongoing"),
+            "duration_label": _dur3(language, "Daily, ongoing", "Diario, continuo", "Diário, contínuo"),
             "ttl_days": None, "why_paragraph": _why("natal_weakness", planet, kind, lang),
         }
 
@@ -207,7 +213,7 @@ def detect_dasha_negatives(chart: dict, today_date: date, language: str = "en",
             "scope": "dasha_period", "planet": md, "supporting_planets": [],
             "severity": 0.72,
             "trigger_detail": f"Major-period lord {md} runs strained ({_bad(md)})",
-            "duration_label": (f"Hasta {dctx.get('md_ends')}" if lang == "es" else f"Until {dctx.get('md_ends')}") if dctx.get("md_ends") else ("Periodo actual" if lang == "es" else "Current period"),
+            "duration_label": _dur3(language, f"Until {dctx.get('md_ends')}", f"Hasta {dctx.get('md_ends')}", f"Até {dctx.get('md_ends')}") if dctx.get("md_ends") else _dur3(language, "Current period", "Periodo actual", "Período atual"),
             "ttl_days": "varies", "why_paragraph": _why("dasha_period", md, "md", lang),
             "_md_ends": dctx.get("md_ends"),
         })
@@ -217,7 +223,7 @@ def detect_dasha_negatives(chart: dict, today_date: date, language: str = "en",
             "scope": "dasha_period", "planet": ad, "supporting_planets": [],
             "severity": 0.62,
             "trigger_detail": f"Sub-period lord {ad} runs strained ({_bad(ad)})",
-            "duration_label": (f"Hasta {dctx.get('ad_ends')}" if lang == "es" else f"Until {dctx.get('ad_ends')}") if dctx.get("ad_ends") else ("Subperiodo actual" if lang == "es" else "Current sub-period"),
+            "duration_label": _dur3(language, f"Until {dctx.get('ad_ends')}", f"Hasta {dctx.get('ad_ends')}", f"Até {dctx.get('ad_ends')}") if dctx.get("ad_ends") else _dur3(language, "Current sub-period", "Subperiodo actual", "Subperíodo atual"),
             "ttl_days": "varies", "why_paragraph": _why("dasha_period", ad, "ad", lang),
         })
     return out
@@ -269,8 +275,7 @@ def detect_varshphal_negatives(chart: dict, today_date: date, language: str = "e
             next_label = nxt.strftime("%b %Y")
         except Exception:
             pass
-    dur = (f"{start_label} a {next_label}" if lang == "es" else f"{start_label} to {next_label}") if start_label else \
-          ("Este año solar" if lang == "es" else "This solar year")
+    dur = _dur3(language, f"{start_label} to {next_label}", f"{start_label} a {next_label}", f"{start_label} a {next_label}") if start_label else _dur3(language, "This solar year", "Este año solar", "Este ano solar")
 
     out = []
     seen = set()
@@ -347,7 +352,7 @@ def detect_monthly_lk_negatives(chart: dict, today_date: date, language: str = "
             out.append({
                 "scope": "monthly_lk", "planet": planet, "supporting_planets": [],
                 "severity": 0.5, "trigger_detail": f"{planet} transits a sensitive area of your chart this month",
-                "duration_label": ("Este mes" if lang == "es" else "This month"), "ttl_days": 30,
+                "duration_label": _dur3(language, "This month", "Este mes", "Este mês"), "ttl_days": 30,
                 "why_paragraph": _why("monthly_lk", planet, "transit", lang),
             })
     return out[:2]
@@ -387,7 +392,7 @@ def detect_daily_transit_negatives(chart: dict, today_date: date, language: str 
                 out.append({
                     "scope": "daily_transit", "planet": planet, "supporting_planets": [agent],
                     "severity": 0.5, "trigger_detail": f"{agent} presses on your natal {planet} point today",
-                    "duration_label": ("Solo hoy" if lang == "es" else "Today only"), "ttl_days": 1,
+                    "duration_label": _dur3(language, "Today only", "Solo hoy", "Apenas hoje"), "ttl_days": 1,
                     "why_paragraph": _why("daily_transit", planet, "hit", lang, agent=agent),
                 })
     return out[:2]

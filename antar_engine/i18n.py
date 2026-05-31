@@ -762,3 +762,174 @@ INDIA_REGIONAL_LANGUAGES = {
 # 4. DeepSeek handles all Indian languages natively
 """
 
+
+# === LANGFID LOCK-DOWN BLOCK ===
+# Added by patch_language_fidelity.py. Additive only.
+# Three supported languages; anything else falls back to English.
+from datetime import date as _date, datetime as _datetime
+
+
+def _base_lang(language):
+    return (language or "en").split("_")[0].split("-")[0].lower()
+
+
+# ── Vector 2: explicit LLM language directive ──────────────────────────────
+LANGUAGE_DIRECTIVE = {
+    "en": ("Respond in clear, plain English. No Sanskrit unless quoting a mantra. "
+           "No astrological jargon: no planet names, house numbers, or nakshatra names."),
+    "es": ("Responde EN ESPAÑOL claro y natural (español latinoamericano). No uses "
+           "sánscrito salvo para citar un mantra. Sin jerga astrológica: nada de nombres "
+           "de planetas, números de casas ni nombres de nakshatras. Nunca cambies al inglés."),
+    "pt": ("Responda EM PORTUGUÊS claro e natural (português brasileiro). Não use "
+           "sânscrito exceto para citar um mantra. Sem jargão astrológico: nada de nomes "
+           "de planetas, números de casas ou nomes de nakshatras. Nunca mude para o inglês."),
+}
+
+
+def language_directive(language):
+    """Return the language directive string to append to any LLM system prompt."""
+    return LANGUAGE_DIRECTIVE.get(_base_lang(language), LANGUAGE_DIRECTIVE["en"])
+
+
+# ── Vector 7: localized validation error messages ──────────────────────────
+ERROR_MESSAGES = {
+    "chart_not_found": {
+        "en": "Chart not found.",
+        "es": "No se encontró la carta.",
+        "pt": "Mapa não encontrado.",
+    },
+    "chart_no_planets": {
+        "en": "This chart has no planetary data.",
+        "es": "Esta carta no tiene datos planetarios.",
+        "pt": "Este mapa não tem dados planetários.",
+    },
+    "chart_id_required": {
+        "en": "A chart_id is required.",
+        "es": "Se requiere un chart_id.",
+        "pt": "É necessário um chart_id.",
+    },
+    "country_iso_required": {
+        "en": "Country must be a 2-letter ISO code (e.g., 'IN', 'US', 'CO').",
+        "es": "El país debe ser un código ISO de 2 letras (ej. 'IN', 'US', 'CO').",
+        "pt": "O país deve ser um código ISO de 2 letras (ex. 'IN', 'US', 'CO').",
+    },
+    "concern_invalid": {
+        "en": "That concern is not recognized.",
+        "es": "Esa preocupación no es reconocida.",
+        "pt": "Essa preocupação não é reconhecida.",
+    },
+    "response_invalid": {
+        "en": "Response must be one of: yes, close, or no.",
+        "es": "La respuesta debe ser: sí, casi, o no.",
+        "pt": "A resposta deve ser: sim, quase, ou não.",
+    },
+    "birth_city_required": {
+        "en": "Birth city is required and cannot be empty.",
+        "es": "La ciudad de nacimiento es obligatoria y no puede estar vacía.",
+        "pt": "A cidade de nascimento é obrigatória e não pode ficar vazia.",
+    },
+    "no_fields_to_update": {
+        "en": "No fields to update.",
+        "es": "No hay campos para actualizar.",
+        "pt": "Nenhum campo para atualizar.",
+    },
+    "language_invalid": {
+        "en": "Unsupported language. Use one of: en, es, pt.",
+        "es": "Idioma no soportado. Usa uno de: en, es, pt.",
+        "pt": "Idioma não suportado. Use um de: en, es, pt.",
+    },
+}
+
+
+def i18n_error(code, language, **fmt):
+    """
+    Build a localized FastAPI error detail:
+        raise HTTPException(400, detail=i18n_error("country_iso_required", language))
+    Frontend reads detail.message to display, detail.code for tracking.
+    """
+    base = _base_lang(language)
+    table = ERROR_MESSAGES.get(code, {})
+    msg = table.get(base) or table.get("en") or code
+    if fmt:
+        try:
+            msg = msg.format(**fmt)
+        except Exception:
+            pass
+    return {"code": code, "message": msg}
+
+
+# ── Vectors 3 & 4: scope labels + constructed duration strings ──────────────
+SCOPE_LABELS = {
+    "natal_weakness": {"en": "Natal weakness",        "es": "Debilidad natal",      "pt": "Fraqueza natal"},
+    "dasha_period":   {"en": "Dasha period",          "es": "Período de Dasha",     "pt": "Período Dasha"},
+    "varshphal_year": {"en": "Varshphal (yearly LK)", "es": "Varshphal (LK anual)", "pt": "Varshphal (LK anual)"},
+    "monthly_lk":     {"en": "Monthly chart (LK)",    "es": "Carta mensual (LK)",   "pt": "Carta mensal (LK)"},
+    "daily_transit":  {"en": "Today's transit",       "es": "Tránsito de hoy",      "pt": "Trânsito de hoje"},
+}
+
+
+def scope_label(scope, language):
+    base = _base_lang(language)
+    table = SCOPE_LABELS.get(scope)
+    if not table:
+        return scope
+    return table.get(base) or table["en"]
+
+
+# ── Vector 5: locale-aware date formatting (babel) ──────────────────────────
+_BABEL_LOCALE = {"en": "en_US", "es": "es_ES", "pt": "pt_BR"}
+
+
+def format_date(d, language, fmt="MMMM yyyy"):
+    """
+    Locale-aware month/date formatting.
+        format_date(date(2026, 8, 13), "es")  -> "agosto de 2026"
+    Accepts a date/datetime, or a string already formatted as English "%B %Y".
+    Falls back to str(d) if babel is unavailable or parsing fails.
+    """
+    if isinstance(d, str):
+        try:
+            d = _datetime.strptime(d, "%B %Y").date()
+        except Exception:
+            try:
+                d = _datetime.strptime(d, "%Y-%m-%d").date()
+            except Exception:
+                return d
+    try:
+        from babel.dates import format_date as _bf
+        loc = _BABEL_LOCALE.get(_base_lang(language), "en_US")
+        return _bf(d, format=fmt, locale=loc)
+    except Exception:
+        return str(d)
+
+
+def duration_label(scope, end_date, language, today=None):
+    """
+    Build a localized human-readable duration string for a practice scope.
+        duration_label("natal_weakness", None, "es") -> "Diario, continuo"
+        duration_label("dasha_period", date(2026,8,13), "en") -> "Until August 2026 (~3 months left)"
+    """
+    base = _base_lang(language)
+    if scope == "natal_weakness":
+        return {"en": "Daily, ongoing", "es": "Diario, continuo", "pt": "Diário, contínuo"}.get(base, "Daily, ongoing")
+    if scope == "daily_transit":
+        return {"en": "Today only", "es": "Solo hoy", "pt": "Apenas hoje"}.get(base, "Today only")
+    if scope in ("dasha_period", "varshphal_year", "monthly_lk") and end_date:
+        if isinstance(end_date, str):
+            try:
+                end_date = _datetime.strptime(end_date, "%B %Y").date()
+            except Exception:
+                try:
+                    end_date = _datetime.strptime(end_date, "%Y-%m-%d").date()
+                except Exception:
+                    return scope_label(scope, language)
+        today = today or _date.today()
+        ml = max(0, (end_date.year - today.year) * 12 + (end_date.month - today.month))
+        ds = format_date(end_date, language)
+        return {
+            "en": f"Until {ds} (~{ml} months left)",
+            "es": f"Hasta {ds} (~{ml} meses restantes)",
+            "pt": f"Até {ds} (~{ml} meses restantes)",
+        }.get(base, f"Until {ds} (~{ml} months left)")
+    return scope_label(scope, language)
+# === END LANGFID LOCK-DOWN BLOCK ===

@@ -29,6 +29,22 @@ def _lang(language: str) -> str:
     return "es" if str(language).lower().startswith("es") else "en"
 
 
+def _scope_label_i18n(scope, language):
+    """3-language scope label (patch_language_fidelity). Falls back to SCOPES."""
+    try:
+        from antar_engine.i18n import scope_label as _sl
+        return _sl(scope, language)
+    except Exception:
+        return SCOPES.get(scope, {}).get("label", scope)
+
+
+def _months_suffix_i18n(ml, language):
+    base = str(language).split("_")[0].split("-")[0].lower()
+    if base in ("es", "pt"):
+        return f" (~{ml} meses)"
+    return f" (~{ml} months left)"
+
+
 def select_today_priority(
     actives: list[dict],
     sticky_key: Optional[tuple] = None,
@@ -129,11 +145,11 @@ def compose_practice_response(
         if scope == "dasha_period" and priority.get("_md_ends"):
             ml = _months_left(priority["_md_ends"], today_date)
             if ml is not None:
-                dur += (f" (~{ml} meses)" if lang == "es" else f" (~{ml} months left)")
+                dur += _months_suffix_i18n(ml, language)
         today_priority = {
             "planet": pl,
             "scope": scope,
-            "scope_label": SCOPES.get(scope, {}).get("label", scope),
+            "scope_label": _scope_label_i18n(scope, language),
             "duration_label": dur,
             "why": priority.get("why_paragraph", ""),
             "streak_days": int(st.get("days", 0)),
@@ -158,11 +174,11 @@ def compose_practice_response(
         if scope == "dasha_period" and e.get("_md_ends"):
             ml = _months_left(e["_md_ends"], today_date)
             if ml is not None:
-                dur += (f" (~{ml} meses)" if lang == "es" else f" (~{ml} months left)")
+                dur += _months_suffix_i18n(ml, language)
         active.append({
             "planet": p,
             "scope": scope,
-            "scope_label": SCOPES.get(scope, {}).get("label", scope),
+            "scope_label": _scope_label_i18n(scope, language),
             "duration_label": dur,
             "one_line": _one_line(e, lang),
             "streak_days": int(st.get("days", 0)),
