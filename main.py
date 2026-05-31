@@ -17356,6 +17356,159 @@ async def predict_year_attention(request: dict):
     return payload
 
 
+
+# ══════════════════════════════════════════════════════════════════════════════
+# DAY DEEP READ — Layer 3 prose synthesis (POST /api/v1/predict/day-deep)
+# Composition + ONE cache-gated LLM call on top of the shipped LK engine.
+# echoes_layer_1 == the Today card compose_daily_card output (cross-screen invariant).
+# ══════════════════════════════════════════════════════════════════════════════
+
+class DeepReadRequest(BaseModel):
+    chart_id: str
+    language: str = "en"
+    tz_offset: int = 0
+
+
+# In-memory deep-read cache (durable cross-worker layer = deep_read_cache table
+# when present). key -> {payload, generated_at, date, bypass_count}
+_DEEP_READ_MEM_CACHE: dict = {}
+_DEEP_READ_BYPASS_LIMIT = 5
+
+
+@app.post("/api/v1/predict/day-deep")
+async def predict_day_deep(request: DeepReadRequest, refresh: int = 0):
+    """
+    Layer 3 Deep Read. Reuses compose_daily_card EXACTLY like home_composer so
+    echoes_layer_1 matches the Today card. ONE Claude call, cache-gated:
+    never calls the LLM when the cache is valid. Cache key:
+    (chart_id, date, language, dasha_boundary_date); stale = full local day.
+    5 cache-bypass requests per chart per day, then cached. ?refresh=1 bypasses.
+    """
+    from datetime import datetime as _dt, timedelta as _td
+    from antar_engine import deep_read as _dr
+    from antar_engine.home_composer import _safe_json as _hsj
+
+    language = (request.language or "en").split("-")[0].lower()
+    if language not in ("en", "es", "pt"):
+        language = "en"
+    chart_id = request.chart_id
+    tz_offset = int(request.tz_offset or 0)
+
+    now_local = _dt.utcnow() + _td(minutes=tz_offset)
+    today_str = now_local.strftime("%Y-%m-%d")
+
+    # ── load chart row ──
+    res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    row = res.data[0]
+    chart_data = _hsj(row.get("chart_data"))
+    lk_data = _hsj(row.get("lal_kitab_data"))
+
+    # ── current MD + its end_date (the dasha boundary drives cache invalidation) ──
+    md_lord = ""
+    dasha_boundary = ""
+    try:
+        _md = supabase.table("dasha_periods") \
+            .select("planet_or_sign,start_date,end_date,level,system") \
+            .eq("chart_id", chart_id).eq("system", "vimsottari") \
+            .eq("level", 1).lte("start_date", today_str).gte("end_date", today_str) \
+            .limit(1).execute()
+        if _md.data:
+            md_lord = _md.data[0].get("planet_or_sign", "") or ""
+            dasha_boundary = str(_md.data[0].get("end_date", "") or "")[:10]
+    except Exception as _de:
+        print(f"[day-deep] dasha lookup non-fatal: {_de}")
+
+    cache_key = (chart_id, today_str, language, dasha_boundary)
+
+    # ── cache read (in-memory primary; DB durable best-effort) ──
+    def _read_cache():
+        ent = _DEEP_READ_MEM_CACHE.get(cache_key)
+        if ent and ent.get("date") == today_str:
+            return ent
+        try:
+            cr = supabase.table("deep_read_cache") \
+                .select("payload,generated_at,bypass_count,dasha_boundary") \
+                .eq("chart_id", chart_id).eq("language", language) \
+                .eq("date", today_str).limit(1).execute()
+            if cr.data:
+                drow = cr.data[0]
+                if str(drow.get("dasha_boundary") or "") == dasha_boundary:
+                    cpay = _hsj(drow.get("payload"))
+                    if cpay:
+                        ent = {"payload": cpay,
+                               "generated_at": cpay.get("generated_at"),
+                               "date": today_str,
+                               "bypass_count": int(drow.get("bypass_count") or 0)}
+                        _DEEP_READ_MEM_CACHE[cache_key] = ent
+                        return ent
+        except Exception as _cre:
+            print(f"[day-deep] cache read skipped (table may be missing): {_cre}")
+        return None
+
+    cached = _read_cache()
+    bypass_count = cached.get("bypass_count", 0) if cached else 0
+    want_fresh = bool(refresh) and (bypass_count < _DEEP_READ_BYPASS_LIMIT)
+
+    if cached and not want_fresh:
+        return cached["payload"]
+
+    # ── compute (cache miss OR allowed bypass) ──
+    try:
+        payload = await _dr.build_deep_read(
+            chart_id=chart_id, chart_row=row, chart_data=chart_data, lk_data=lk_data,
+            md_lord=md_lord, tz_offset=tz_offset, today_str=today_str,
+            claude_client=(claude_client if _CLAUDE_AVAILABLE else None),
+        )
+    except Exception as e:
+        print(f"[day-deep] build error for {chart_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Deep read failed: {e}")
+
+    # ── strips: echoes -> curated_static; LLM fields -> llm (full scrub) ──
+    try:
+        payload = _dr.strip_deep_read_payload(payload, language="en")
+    except Exception as _se:
+        print(f"[day-deep] strip warning: {_se}")
+
+    # ── translate at response time (English is the source of truth) ──
+    if language in ("es", "pt"):
+        try:
+            from antar_engine.translation_middleware import translate_dict as _tdict
+            payload = await _tdict(
+                payload, language=language,
+                fields_to_translate=["opening", "closing", "paragraph", "note",
+                                     "headline", "gist", "do", "dont", "use",
+                                     "cause", "title", "body_part"],
+                fields_to_skip=["chart_id", "language", "date", "generated_at",
+                                "key", "state", "tone", "house", "condition_id",
+                                "domain"],
+                endpoint_name="day-deep", chart_id=chart_id,
+            )
+        except Exception as _te:
+            print(f"[day-deep] translation skipped: {_te}")
+
+    payload["language"] = language
+    new_bypass = (bypass_count + 1) if (cached and want_fresh) else bypass_count
+    generated_at = payload.get("generated_at")
+
+    # ── cache write ──
+    _DEEP_READ_MEM_CACHE[cache_key] = {
+        "payload": payload, "generated_at": generated_at,
+        "date": today_str, "bypass_count": new_bypass,
+    }
+    try:
+        supabase.table("deep_read_cache").upsert({
+            "chart_id": chart_id, "language": language, "date": today_str,
+            "dasha_boundary": dasha_boundary, "payload": payload,
+            "generated_at": generated_at, "bypass_count": new_bypass,
+        }, on_conflict="chart_id,language,date").execute()
+    except Exception as _we:
+        print(f"[day-deep] cache write skipped (table may be missing): {_we}")
+
+    return payload
+
+
 @app.get("/api/v1/home/{chart_id}")
 @translate_response(
     fields_to_translate=[
