@@ -90,6 +90,22 @@ def _detect_today(ctx) -> List[Condition]:
     # 3) Active life-chapter (money/work/people grounding)
     conds += _current_dasha_signature(ctx)
 
+    # 3b) Broaden domain coverage from the day-signal's own aligned/friction
+    #     lines ("In career: …", "In finance: …") — same LK+transit+dasha
+    #     synthesis Deep Read uses, so Today matches its breadth.
+    _seen_amp = set()
+    for line in (sig0.get("aligned_for") or [])[:3]:
+        d = T.in_domain_from_prefix(line if isinstance(line, str) else "")
+        if d in T.AMPLIFIED_BY_DOMAIN and d not in _seen_amp:
+            _seen_amp.add(d)
+            conds.append(Condition(domain=d, text=T.AMPLIFIED_BY_DOMAIN[d],
+                                   intensity=2.7, source="aligned_for"))
+    for line in (sig0.get("friction_for") or [])[:2]:
+        d = T.in_domain_from_prefix(line if isinstance(line, str) else "")
+        if d in T.AVOID_BY_DOMAIN:
+            conds.append(Condition(domain="risk", text=T.AVOID_BY_DOMAIN[d],
+                                   intensity=2.5, source="friction_for"))
+
     # 4) MIND from today's nakshatra energy
     energy = prof.get("energy") or ""
     if energy:
@@ -319,6 +335,14 @@ def _detect_year(ctx) -> List[Condition]:
 def _detect_cycle(ctx) -> List[Condition]:
     """Cycle from current-phase + predicted events + next phase shift."""
     conds: List[Condition] = []
+
+    # 2-of-3 timing-system convergence (Vimshottari + Chara + Naisargika).
+    # Highest-priority cycle signal — fires only when >= 2 systems agree.
+    xc = ctx.get("cross_check") or {}
+    if xc.get("agreed_planet") and xc.get("agreement_count", 0) >= 2:
+        d, text = T.cycle_convergence(xc["agreed_planet"], xc["agreement_count"])
+        conds.append(Condition(domain=d, text=text, intensity=3.2, source="cycle_convergence"))
+
     phase = (ctx.get("phase") or "").strip().lower()
     if phase in T.CYCLE_PHASE:
         conds.append(Condition(domain="timing", text=T.CYCLE_PHASE[phase],

@@ -15017,6 +15017,18 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
             if isinstance(result, dict):
                 result.setdefault("highlights", [])
 
+        # ── Period boundary (birth-day-of-month -> next) ──
+        try:
+            from antar_engine.jyotish_periods import month_period as _mp
+            _m_bd = chart_record.get("birth_date", "")
+            if isinstance(result, dict) and _m_bd:
+                _m_ps, _m_pe = _mp(_m_bd)
+                result["period_start"] = _m_ps
+                result["period_end"] = _m_pe
+                result["period_method"] = "birth_day_of_month"
+        except Exception as _mpe:
+            print(f"[monthly-deepdive] period failed: {_mpe}")
+
         return result
     except HTTPException:
         raise
@@ -18772,6 +18784,34 @@ async def predict_year_attention(request: dict):
         print(f"[year-attention] highlights failed: {_hly_err}")
         payload["highlights"] = []
 
+    # ── Period boundary (birthday anniversary) + Muntha (Tajika marker) ──
+    try:
+        from antar_engine.jyotish_periods import year_period as _yp, muntha_sign as _ymu
+        if birth_date:
+            _y_ps, _y_pe, _y_meth = _yp(birth_date)
+            payload["period_start"] = _y_ps
+            payload["period_end"] = _y_pe
+            payload["period_method"] = _y_meth
+            _y_lagna = ""
+            _ycd = chart_data if isinstance(chart_data, dict) else {}
+            for _yk in ("lagna", "ascendant", "asc", "rising_sign"):
+                _yv = _ycd.get(_yk)
+                if isinstance(_yv, dict) and (_yv.get("sign") or _yv.get("rashi")):
+                    _y_lagna = _yv.get("sign") or _yv.get("rashi"); break
+                if isinstance(_yv, str) and _yv:
+                    _y_lagna = _yv; break
+            if not _y_lagna:
+                _yp_pl = _ycd.get("planets") or _ycd.get("planet_positions") or {}
+                _yit = _yp_pl.items() if isinstance(_yp_pl, dict) else [((p.get("name") or p.get("planet")), p) for p in _yp_pl if isinstance(p, dict)]
+                for _ynm, _yd in _yit:
+                    if isinstance(_yd, dict) and int(_yd.get("house") or 0) == 1:
+                        _y_lagna = _yd.get("sign") or _yd.get("rashi") or ""; break
+            _y_mu = _ymu(_y_lagna, birth_date) if _y_lagna else ""
+            if _y_mu:
+                payload["muntha"] = _y_mu
+    except Exception as _ype:
+        print(f"[year-attention] period/muntha failed: {_ype}")
+
     # ── translate at response time (English source; planet/name/key/colour kept) ──
     if language in ("es", "pt"):
         try:
@@ -20378,6 +20418,35 @@ async def _life_arc_compute(chart_id, horizon_months, language,
             ),
         },
     }
+
+    # ── Layer-2 highlights — Cycle (2-of-3 timing convergence) ──
+    try:
+        from antar_engine.highlight_composer import build_highlights as _bc
+        from antar_engine.jyotish_periods import age_on as _bc_age, naisargika_planet as _bc_nais, cycle_cross_check as _bc_xc
+        _bc_cp = current_phase if isinstance(current_phase, dict) else {}
+        _bc_vim = (_bc_cp.get("vimsottari") or {}).get("md") or ""
+        _bc_chara = (_bc_cp.get("jaimini_chara") or {}).get("md") or ""
+        _bc_age_v = _bc_age(birth_date_str) if birth_date_str else 0
+        response["naisargika_active_planet"] = _bc_nais(_bc_age_v)
+        _bc_cross = _bc_xc(_bc_vim, _bc_chara, _bc_age_v)
+        response["cycle_cross_check"] = _bc_cross
+        _bc_phase = (_bc_cp.get("vimsottari") or {}).get("phase") or ""
+        _bc_events = []
+        for _bc_ev in (predicted_events or [])[:4]:
+            if isinstance(_bc_ev, dict):
+                _bc_events.append({"domain": _bc_ev.get("domain") or _bc_ev.get("signature_name") or "",
+                                   "window": _bc_ev.get("predicted_window_start") or _bc_ev.get("window") or ""})
+        _bc_next = ((diagnostic or {}).get("next_phase_shift") or {}).get("start_date") or ""
+        response["highlights"] = _bc("cycle", language, {
+            "phase": _bc_phase,
+            "dasha_md": _bc_vim,
+            "cross_check": _bc_cross,
+            "events": _bc_events,
+            "next_shift_when": str(_bc_next)[:10] if _bc_next else "",
+        })
+    except Exception as _bc_err:
+        print(f"[life_arc] highlights failed: {_bc_err}")
+        response.setdefault("highlights", [])
 
     # ── 6. Cache result ──────────────────────────────────────────────────
     try:

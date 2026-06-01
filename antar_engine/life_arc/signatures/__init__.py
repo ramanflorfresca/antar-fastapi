@@ -34,4 +34,4 @@ def get_library_version() -> str:
         meta = getattr(module, "SIGNATURE_METADATA", {})
         if meta.get("enabled_in_library"):
             parts.append(f"{name}={meta.get('version', '?')}")
-    return "|".join(parts) if parts else "empty"
+    return ("|".join(parts) if parts else "empty") + "|hl=1"

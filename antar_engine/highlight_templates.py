@@ -420,6 +420,30 @@ def cycle_event(domain: str, when: str) -> str:
     return domain, f"{base} within this arc — position for it early rather than scrambling late."
 
 
+_CONVERGENCE_AREA = {
+    "money": "wealth and resources", "work": "work and standing",
+    "relationships": "relationships and alliances", "body": "health and vitality",
+    "mind": "inner growth and clarity", "opportunity": "bold new ventures",
+}
+
+
+def cycle_convergence(planet: str, count: int):
+    """2-of-3 (or 3-of-3) timing-system agreement -> the dominant multi-year theme."""
+    dom = PLANET_PRIMARY_DOMAIN.get((planet or "").strip().title(), "work")
+    area = _CONVERGENCE_AREA.get(dom, "this part of life")
+    lead = "All three of your long-cycle timers" if count >= 3 else "Two of your three long-cycle timers"
+    return dom, f"{lead} converge on {area} — that's the dominant theme of these years; build the chapter around it."
+
+
+def in_domain_from_prefix(text: str) -> str:
+    """Map a 'In career: ...' / 'In finance: ...' day-signal line to a locked domain."""
+    t = (text or "").strip().lower()
+    if not t.startswith("in "):
+        return ""
+    head = t[3:].split(":", 1)[0].strip()
+    return area_to_domain(head)
+
+
 def cycle_next_shift(when: str) -> str:
     when = (when or "").strip()
     if when:
