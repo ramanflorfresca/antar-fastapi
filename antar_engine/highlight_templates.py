@@ -227,3 +227,178 @@ def get_seed(scope: str, domain: str, condition: str, **params) -> str:
         return tmpl.format(**params)
     except Exception:
         return tmpl
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  LONGER-SCOPE BANKS (Week / Month / Year / Cycle)
+#  All English primitives. The month/year engines localize their OWN prose, so
+#  highlights are built from non-prose primitives (planet names, enums, dasha
+#  lords, dates) and translated downstream by @translate_response — never by
+#  re-translating engine prose.
+# ════════════════════════════════════════════════════════════════════════════
+
+# Planet -> its dominant life domain (for month strong/weak planet lists).
+PLANET_PRIMARY_DOMAIN = {
+    "Sun":     "work",
+    "Moon":    "mind",
+    "Mars":    "work",
+    "Mercury": "work",
+    "Jupiter": "money",
+    "Venus":   "relationships",
+    "Saturn":  "work",
+    "Rahu":    "opportunity",
+    "Ketu":    "mind",
+}
+
+
+def planet_to_domain(planet: str) -> str:
+    return PLANET_PRIMARY_DOMAIN.get((planet or "").strip().title(), "work")
+
+
+# Free-text "area" label (year.areas, priority_actions[].domain) -> locked domain.
+_AREA_KEYWORDS = [
+    ("money", ("wealth", "money", "finance", "income", "cash", "dinero", "riqueza", "finanz")),
+    ("work", ("career", "work", "profession", "job", "business", "carrera", "trabajo", "negocio")),
+    ("body", ("health", "body", "vitality", "fitness", "salud", "cuerpo", "vitalidad")),
+    ("relationships", ("relationship", "love", "family", "people", "partner", "relacion", "amor", "familia", "pareja")),
+    ("mind", ("mind", "spirit", "inner", "peace", "mental", "mente", "espiritu", "paz")),
+]
+
+
+def area_to_domain(area: str) -> str:
+    a = (area or "").strip().lower()
+    for dom, keys in _AREA_KEYWORDS:
+        if any(k in a for k in keys):
+            return dom
+    return "work"
+
+
+# ── MONTH banks ─────────────────────────────────────────────────────────────
+MONTH_STRONG_BY_DOMAIN = {
+    "money":         "Money has momentum this month — push income-generating work and chase what you're owed.",
+    "work":          "Work is where the month rewards you — take on the visible, high-stakes projects now.",
+    "relationships": "Relationships deepen this month — invest in the people who actually matter.",
+    "body":          "Your body holds up well this month — a strong window to build a habit that sticks.",
+    "mind":          "Your head is clear this month — plan, learn, and make the calls you've been delaying.",
+    "opportunity":   "An unusual opening is live this month — move on it before the window closes.",
+}
+MONTH_WEAK_BY_DOMAIN = {
+    "money":         "Money runs tight this month — defer big purchases and keep a cushion.",
+    "work":          "Work feels heavier this month — protect your energy and don't overcommit.",
+    "relationships": "Relationships need patience this month — listen more, react less.",
+    "body":          "Your body needs more rest this month — don't push through warning signs.",
+    "mind":          "Focus scatters this month — simplify and do one thing at a time.",
+}
+MONTH_ENERGY = {
+    "high":     "Energy runs high this month — front-load the ambitious work into the first half.",
+    "low":      "Energy runs low this month — pace yourself and guard your recovery.",
+    "mixed":    "The month swings between high and low — match effort to the day, not the calendar.",
+    "moderate": "The month is steady — consistent effort will outrun any big burst.",
+}
+
+
+# ── YEAR banks ──────────────────────────────────────────────────────────────
+YEAR_AREA_BY_DOMAIN = {
+    "money":         "Money is a defining theme this year — the chart points to real movement in income.",
+    "work":          "Career is where the year concentrates — position early for a step up.",
+    "relationships": "Relationships carry weight this year — major bonds form, deepen, or resolve.",
+    "body":          "Health earns its place on the list this year — the habits you build now compound.",
+    "mind":          "This is an inner-growth year — clarity and perspective are the real gains.",
+    "opportunity":   "A door opens this year that wasn't there before — be ready to walk through it.",
+}
+YEAR_POLARITY = {
+    "positive": "The year tilts in your favor — be bold with the big moves, not timid.",
+    "negative": "The year asks for discipline — consolidate, and don't expand on credit.",
+    "neutral":  "A mixed year — the wins are real, but so are the speed bumps; plan for both.",
+    "mixed":    "A mixed year — the wins are real, but so are the speed bumps; plan for both.",
+}
+
+
+def year_chapter(lord: str) -> str:
+    """Reframe the current life-chapter signature for the year horizon."""
+    sig = DASHA_SIGNATURE.get((lord or "").strip().title())
+    if not sig:
+        return ""
+    domain, text = sig
+    # Keep only the lead clause (drops any 'today'-anchored tail), re-anchor to year.
+    text = text.split("—")[0].strip().rstrip(".")
+    return domain, f"{text} — that's the backdrop for the whole year."
+
+
+def year_transition(when: str) -> str:
+    when = (when or "").strip()
+    if when:
+        return f"A new life chapter opens around {when} — the ground shifts, so prepare rather than react."
+    return "A new life chapter opens later this year — the ground shifts, so prepare rather than react."
+
+
+# ── WEEK banks (sourced from the 7-day signal array) ────────────────────────
+def week_peak(day_label: str) -> str:
+    day_label = (day_label or "").strip()
+    if day_label:
+        return f"{day_label} is the week's strongest day — schedule the thing that matters most then."
+    return "Mid-week is the strongest stretch — schedule the thing that matters most then."
+
+
+def week_watch(day_label: str) -> str:
+    day_label = (day_label or "").strip()
+    if day_label:
+        return f"Go light on {day_label} — it's the week's friction point; leave margin."
+    return "One day this week runs rough — keep your calendar loose so you can absorb it."
+
+
+WEEK_ENERGY = {
+    "high": "The week runs high overall — push your boldest work into it.",
+    "low":  "The week runs low overall — protect recovery and keep commitments light.",
+    "even": "The week is even — steady, unspectacular progress is the play.",
+}
+
+
+def week_chapter(lord: str) -> str:
+    sig = DASHA_SIGNATURE.get((lord or "").strip().title())
+    if not sig:
+        return ""
+    domain, text = sig
+    text = text.split("—")[0].strip().rstrip(".")
+    return domain, f"{text} — let that steer where this week's effort goes."
+
+
+# ── CYCLE banks (multi-year arc) ────────────────────────────────────────────
+CYCLE_PHASE = {
+    "opening":  "You're early in a multi-year chapter — this is the foundation-laying stretch, not the harvest.",
+    "building": "You're in the build-out of a multi-year chapter — effort now compounds for years.",
+    "peak":     "You're at the peak of a multi-year chapter — cash in what you've built; don't coast.",
+    "closing":  "You're closing out a multi-year chapter — tie off loose ends and prepare for the shift.",
+}
+
+
+def cycle_chapter(lord: str) -> str:
+    sig = DASHA_SIGNATURE.get((lord or "").strip().title())
+    if not sig:
+        return ""
+    domain, text = sig
+    text = text.split("—")[0].strip().rstrip(".")
+    return domain, f"{text} — it shapes the whole multi-year arc you're in."
+
+
+def cycle_event(domain: str, when: str) -> str:
+    domain = domain if domain in VALID_DOMAINS else "opportunity"
+    when = (when or "").strip()
+    base = {
+        "money":         "A real money shift is likely",
+        "work":          "A career shift is likely",
+        "relationships": "A major relationship shift is likely",
+        "body":          "A health turning point is likely",
+        "mind":          "An inner turning point is likely",
+        "opportunity":   "A door is likely to open",
+    }.get(domain, "A significant shift is likely")
+    if when:
+        return domain, f"{base} around {when} — position for it early rather than scrambling late."
+    return domain, f"{base} within this arc — position for it early rather than scrambling late."
+
+
+def cycle_next_shift(when: str) -> str:
+    when = (when or "").strip()
+    if when:
+        return f"The next big turn lands around {when} — the chapter's whole tone changes then."
+    return "The next big turn is on the horizon — the chapter's whole tone changes when it lands."

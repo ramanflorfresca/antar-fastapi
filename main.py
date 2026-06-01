@@ -14917,7 +14917,7 @@ async def get_weekly_briefing(chart_id: str, refresh: bool = False, language: st
 # ── Sprint E: Monthly deep-dive ───────────────────────────────────────────────
 @app.get("/api/v1/monthly-deepdive/{chart_id}")
 @translate_response(
-    fields_to_translate=["practice"],
+    fields_to_translate=["practice", "text"],
     endpoint_name="monthly-deepdive",
 )
 async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: str = "en"):
@@ -14980,6 +14980,43 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
             language=language,
             birth_date=chart_record.get("birth_date", ""),  # [cp-day1] pass birth_date for masik phal
         )
+
+        # ── Layer-2 concrete signals (highlights) — Month ──────────────
+        try:
+            from antar_engine.highlight_composer import build_highlights as _bh_month
+            from datetime import datetime as _hlm_dt
+            _hlm_md = _hlm_ad = ""
+            try:
+                _hlm_ds = get_dashas_for_chart(chart_id)
+                _hlm_vim = _hlm_ds.get("vimsottari", []) if isinstance(_hlm_ds, dict) else (_hlm_ds or [])
+                _hlm_now = _hlm_dt.utcnow()
+                for _hlm_r in _hlm_vim:
+                    _hlm_lvl = (_hlm_r.get("level") or "").lower()
+                    try:
+                        _hlm_sd = _hlm_dt.strptime(str(_hlm_r.get("start_date", ""))[:10], "%Y-%m-%d")
+                        _hlm_ed = _hlm_dt.strptime(str(_hlm_r.get("end_date", ""))[:10], "%Y-%m-%d")
+                    except Exception:
+                        continue
+                    if _hlm_sd <= _hlm_now <= _hlm_ed:
+                        if _hlm_lvl == "mahadasha" and not _hlm_md:
+                            _hlm_md = _hlm_r.get("lord_or_sign") or _hlm_r.get("planet_or_sign") or ""
+                        elif _hlm_lvl in ("antardasha", "bhukti") and not _hlm_ad:
+                            _hlm_ad = _hlm_r.get("lord_or_sign") or _hlm_r.get("planet_or_sign") or ""
+            except Exception:
+                pass
+            if isinstance(result, dict):
+                result["highlights"] = _bh_month("month", language, {
+                    "energy_level":   result.get("energy_level"),
+                    "strong_planets": result.get("strong_planets"),
+                    "weak_planets":   result.get("weak_planets"),
+                    "dasha_md": _hlm_md,
+                    "dasha_ad": _hlm_ad,
+                })
+        except Exception as _hlm_err:
+            print(f"[monthly-deepdive] highlights failed: {_hlm_err}")
+            if isinstance(result, dict):
+                result.setdefault("highlights", [])
+
         return result
     except HTTPException:
         raise
@@ -18663,6 +18700,31 @@ async def predict_year_attention(request: dict):
         "year":         year,
         "attention":    attention,
     }
+
+    # ── Layer-2 concrete signals (highlights) — Year ───────────────────
+    try:
+        from antar_engine.highlight_composer import build_highlights as _bh_year
+        _hly_year = year if isinstance(year, dict) else {}
+        _hly_md = (current_md_row or {}).get("planet_or_sign", "") if isinstance(current_md_row, dict) else ""
+        _hly_nl = (next_md_row or {}).get("planet_or_sign", "") if isinstance(next_md_row, dict) else ""
+        _hly_when = ""
+        try:
+            _hly_raw = (next_md_row or {}).get("start_date", "") if isinstance(next_md_row, dict) else ""
+            if _hly_raw:
+                from datetime import datetime as _hly_dt
+                _hly_when = _hly_dt.strptime(str(_hly_raw)[:10], "%Y-%m-%d").strftime("%b %Y")
+        except Exception:
+            _hly_when = ""
+        payload["highlights"] = _bh_year("year", language, {
+            "polarity": _hly_year.get("polarity"),
+            "areas":    _hly_year.get("areas"),
+            "dasha_md": _hly_md,
+            "next_dasha_lord": _hly_nl,
+            "next_dasha_when": _hly_when,
+        })
+    except Exception as _hly_err:
+        print(f"[year-attention] highlights failed: {_hly_err}")
+        payload["highlights"] = []
 
     # ── translate at response time (English source; planet/name/key/colour kept) ──
     if language in ("es", "pt"):
