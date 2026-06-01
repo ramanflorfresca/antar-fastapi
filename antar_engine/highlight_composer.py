@@ -343,7 +343,7 @@ def _detect_cycle(ctx) -> List[Condition]:
     xc = ctx.get("cross_check") or {}
     if xc.get("agreed_planet") and xc.get("agreement_count", 0) >= 2:
         d, text = T.cycle_convergence(xc["agreed_planet"], xc["agreement_count"])
-        conds.append(Condition(domain=d, text=text, intensity=3.2, source="cycle_convergence"))
+        conds.append(Condition(domain=d, text=text, intensity=3.2, source="cycle_convergence", backed_by=list(xc.get("agreeing_systems") or []), confidence=("high" if xc.get("agreement_count", 0) >= 3 else "medium")))
 
     # Sade Sati — a genuine 7.5-year pressure cycle (top multi-year marker).
     ss = (ctx.get("sade_sati") or "").strip()
@@ -354,17 +354,17 @@ def _detect_cycle(ctx) -> List[Condition]:
     phase = (ctx.get("phase") or "").strip().lower()
     if phase in T.CYCLE_PHASE:
         conds.append(Condition(domain="timing", text=T.CYCLE_PHASE[phase],
-                               intensity=2.7, source="cycle_phase"))
+                               intensity=2.7, source="cycle_phase", backed_by=["vimshottari"], confidence="low"))
 
     cc = T.cycle_chapter(ctx.get("dasha_md") or "")
     if cc:
         d, text = cc
-        conds.append(Condition(domain=d, text=text, intensity=2.4, source="cycle_chapter"))
+        conds.append(Condition(domain=d, text=text, intensity=2.4, source="cycle_chapter", backed_by=["vimshottari"], confidence="low"))
 
     nxt = ctx.get("next_shift_when") or ctx.get("md_end_date") or ""
     if nxt:
         conds.append(Condition(domain="timing", text=T.cycle_next_shift(str(nxt)[:10]),
-                               intensity=2.6, source="cycle_next_shift"))
+                               intensity=2.6, source="cycle_next_shift", backed_by=["vimshottari"], confidence="low"))
 
     for ev in (ctx.get("events") or [])[:3]:
         if not isinstance(ev, dict):
@@ -372,7 +372,7 @@ def _detect_cycle(ctx) -> List[Condition]:
         dom = T.area_to_domain(ev.get("domain") or "")
         when = ev.get("window") or ev.get("predicted_window_start") or ev.get("when") or ""
         d, text = T.cycle_event(dom, str(when)[:10] if when else "")
-        conds.append(Condition(domain=d, text=text, intensity=2.2, source="cycle_event"))
+        conds.append(Condition(domain=d, text=text, intensity=2.2, source="cycle_event", backed_by=["vimshottari"], confidence="low"))
 
     if (ctx.get("stuckness_count") or 0) >= 1:
         conds.append(Condition(domain="watch", text=T.cycle_stuckness(ctx.get("stuckness_count")),

@@ -20452,6 +20452,29 @@ async def _life_arc_compute(chart_id, horizon_months, language,
             "stuckness_count": len(_bc_diag.get("current_stuckness_sources") or []),
             "lean_count": len(_bc_diag.get("what_to_lean_into") or []),
         })
+
+        # ── Cycle triangulation spec keys (additive; Rule-12 safe) ──────────
+        # period_* = ISO boundaries; tensions/single_system_notes present (empty
+        # in this slice); system_readings holds raw jargon-bearing reads, stripped
+        # from the HTTP response unless ?include_readings=1.
+        _cy_vim_block   = _bc_vimd
+        _cy_chara_block = (_bc_cp.get("jaimini_chara") or {})
+        _cy_chara_start = _cy_chara_block.get("md_start_date") or ""
+        _cy_ends = [d for d in (_cy_chara_block.get("md_end_date"),
+                                _cy_vim_block.get("md_end_date"),
+                                _cy_vim_block.get("ad_end_date")) if d]
+        response["scope"]               = "cycle"
+        response["period_start"]        = _cy_chara_start or None
+        response["period_end"]          = (min(_cy_ends) if _cy_ends else None)
+        response["tensions"]            = []
+        response["single_system_notes"] = []
+        response["system_readings"]     = {
+            "vimshottari": _cy_vim_block,
+            "chara":       _cy_chara_block,
+            "naisargika":  {"active_planet": response.get("naisargika_active_planet"),
+                            "age": _bc_age_v},
+            "cross_check": _bc_cross,
+        }
     except Exception as _bc_err:
         print(f"[life_arc] highlights failed: {_bc_err}")
         response.setdefault("highlights", [])

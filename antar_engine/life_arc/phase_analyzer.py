@@ -222,6 +222,7 @@ def get_current_jaimini(chart_data: dict, birth_date_str: str, now: datetime = N
         if current_md:
             return {
                 "md": current_md.sign_name,
+                "md_start_date": current_md.start_date.strftime("%Y-%m-%d"),
                 "md_end_date": current_md.end_date.strftime("%Y-%m-%d"),
             }
     except Exception as e:
