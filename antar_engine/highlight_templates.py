@@ -354,6 +354,29 @@ WEEK_ENERGY = {
 }
 
 
+WEEK_THEME_BY_DOMAIN = {
+    "money":         "Money is the week's recurring thread — most decisions circle back to it, so handle it deliberately.",
+    "work":          "Work dominates the week — protect blocks of focus time and don't let it bleed everywhere.",
+    "relationships": "People run through the whole week — a few key conversations decide how it goes.",
+    "body":          "Your body sets the pace this week — energy management matters more than ambition.",
+    "mind":          "The week is mentally demanding — guard your clarity and don't overschedule.",
+}
+
+
+def week_load(friction_count: int) -> str:
+    return f"Most of the week runs rough ({friction_count} of 7 days) — keep commitments light and pick your spots."
+
+
+def week_peak_window(day_label: str, start: str, end: str) -> str:
+    day_label = (day_label or "").strip()
+    win = " ".join(x for x in [(start or "").strip(), "–" if start and end else "", (end or "").strip()] if x).strip(" –")
+    if day_label and win:
+        return f"On {day_label}, your clearest window is {win} — line up anything important then."
+    if day_label:
+        return f"On {day_label}, do the most important thing in the late morning, before the afternoon dip."
+    return "Mid-week late mornings are the clearest windows — line up anything important then."
+
+
 def week_chapter(lord: str) -> str:
     sig = DASHA_SIGNATURE.get((lord or "").strip().title())
     if not sig:

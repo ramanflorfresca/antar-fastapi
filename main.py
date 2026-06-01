@@ -18478,6 +18478,51 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
             print(f"[daily-week] Transit computation failed (non-fatal): {_dte}")
         # === END LIVE TRANSIT HIGHLIGHTS ===
 
+        # ── Layer-2 highlights — Week (per-day tiles + aggregate summary) ──
+        _week_highlights_agg = []
+        try:
+            from antar_engine.highlight_composer import build_highlights as _bw
+            from datetime import datetime as _bw_dt
+            _bw_md = _bw_ad = ""
+            try:
+                _bw_ds = get_dashas_for_chart(chart_id)
+                _bw_vim = _bw_ds.get("vimsottari", []) if isinstance(_bw_ds, dict) else (_bw_ds or [])
+                _bw_now = _bw_dt.utcnow()
+                for _bw_r in _bw_vim:
+                    _bw_lvl = (_bw_r.get("level") or "").lower()
+                    try:
+                        _bw_sd = _bw_dt.strptime(str(_bw_r.get("start_date", ""))[:10], "%Y-%m-%d")
+                        _bw_ed = _bw_dt.strptime(str(_bw_r.get("end_date", ""))[:10], "%Y-%m-%d")
+                    except Exception:
+                        continue
+                    if _bw_sd <= _bw_now <= _bw_ed:
+                        if _bw_lvl == "mahadasha" and not _bw_md:
+                            _bw_md = _bw_r.get("lord_or_sign") or _bw_r.get("planet_or_sign") or ""
+                        elif _bw_lvl in ("antardasha", "bhukti") and not _bw_ad:
+                            _bw_ad = _bw_r.get("lord_or_sign") or _bw_r.get("planet_or_sign") or ""
+            except Exception:
+                pass
+            _bw_days = signals if isinstance(signals, list) else []
+            _bw_per = [_bw("weekday", language, _d) if isinstance(_d, dict) else [] for _d in _bw_days]
+            _bw_agg = _bw("week", language, {"days": _bw_days, "dasha_md": _bw_md, "dasha_ad": _bw_ad})
+            if language in ("es", "pt"):
+                try:
+                    from antar_engine.translation_middleware import translate_dict as _bwt
+                    _bw_bundle = await _bwt({"agg": _bw_agg, "per": _bw_per}, language=language,
+                                            fields_to_translate=["text"],
+                                            endpoint_name="daily-week-highlights", chart_id=chart_id)
+                    _bw_agg = _bw_bundle.get("agg", _bw_agg)
+                    _bw_per = _bw_bundle.get("per", _bw_per)
+                except Exception as _bwte:
+                    print(f"[daily-week] highlight translation skipped: {_bwte}")
+            for _bi, _bd in enumerate(_bw_days):
+                if isinstance(_bd, dict):
+                    _bd["highlights"] = _bw_per[_bi] if _bi < len(_bw_per) else []
+            _week_highlights_agg = _bw_agg
+        except Exception as _bw_err:
+            print(f"[daily-week] highlights failed: {_bw_err}")
+            _week_highlights_agg = []
+
         from fastapi.responses import JSONResponse
         return JSONResponse(
             content={
@@ -18488,6 +18533,7 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
                 "local_date": start_date.strftime("%Y-%m-%d"),
                 "generated_at": datetime.utcnow().isoformat() + "Z",
                 "days": signals,
+                "highlights": _week_highlights_agg,
                 "transit_highlights": _transit_highlights,
                 "transit_positions": _transit_positions,
                 "activated_areas": _transit_activated_areas,
@@ -20574,3 +20620,44 @@ async def debug_context(chart_id: str, question: str = "What is my career direct
     )
     return ctx
 
+
+
+# ── SPEC-PATH ALIASES — frontend reads /api/v1/predict/* per the highlights spec.
+#    Thin POST wrappers delegating to the canonical handlers. Backend-only.
+@app.post("/api/v1/predict/daily")
+async def _alias_predict_daily(request: dict):
+    return await get_daily_signal_endpoint(
+        chart_id=request.get("chart_id"),
+        request=request,
+        language=(request.get("language") or "en"),
+    )
+
+
+@app.post("/api/v1/predict/daily-week")
+async def _alias_predict_daily_week(request: dict):
+    return await get_daily_week(
+        chart_id=request.get("chart_id"),
+        tz_offset=request.get("tz_offset"),
+        language=(request.get("language") or "en"),
+    )
+
+
+@app.post("/api/v1/predict/monthly")
+async def _alias_predict_monthly(request: dict):
+    return await get_monthly_deepdive(
+        chart_id=request.get("chart_id"),
+        language=(request.get("language") or "en"),
+    )
+
+
+@app.post("/api/v1/predict/yearly")
+async def _alias_predict_yearly(request: dict):
+    return await predict_year_attention(request)
+
+
+@app.post("/api/v1/predict/dasha-cycle")
+async def _alias_predict_dasha_cycle(request: dict):
+    return await get_life_arc(
+        chart_id=request.get("chart_id"),
+        language=(request.get("language") or "en"),
+    )

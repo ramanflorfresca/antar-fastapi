@@ -143,43 +143,113 @@ def _detect_tomorrow(ctx) -> List[Condition]:
     return conds
 
 
+def _day_label(d):
+    return (d.get("weekday") or d.get("day") or d.get("iso_date") or d.get("date") or "").strip()
+
+
+def _day_friction(d):
+    return bool(d.get("is_friction_day") if "is_friction_day" in d else d.get("is_friction"))
+
+
 def _detect_week(ctx) -> List[Condition]:
-    """Week summary from the 7-day signal array.
-    ctx["days"] = [{score, is_friction, weekday/day, iso_date, ...}, ...]
+    """Week SUMMARY (aggregate) from the 7-day signal array.
+    ctx["days"] = [{score, is_friction_day, day, windows, observa_hoy_domain, ...}, ...]
     """
     conds: List[Condition] = []
-    days = ctx.get("days") or []
-    rows = [d for d in days if isinstance(d, dict)]
-
-    def _label(d):
-        return (d.get("weekday") or d.get("day") or d.get("iso_date") or "").strip()
-
+    rows = [d for d in (ctx.get("days") or []) if isinstance(d, dict)]
     if rows:
-        # Peak day = highest score; watch day = friction flag or lowest score.
         scored = [(float(d.get("score", 0) or 0), d) for d in rows]
         peak = max(scored, key=lambda x: x[0])[1]
-        conds.append(Condition(domain="timing", text=T.week_peak(_label(peak)),
+        conds.append(Condition(domain="timing", text=T.week_peak(_day_label(peak)),
                                intensity=3.0, source="week_peak"))
 
-        watch = next((d for d in rows if d.get("is_friction")), None)
-        if watch is None:
-            watch = min(scored, key=lambda x: x[0])[1]
-        if _label(watch) != _label(peak):
-            conds.append(Condition(domain="watch", text=T.week_watch(_label(watch)),
+        # Best concrete window on the peak day (its "connection"/"peak" window).
+        win = None
+        for w in (peak.get("windows") or []):
+            if isinstance(w, dict) and w.get("type") in ("connection", "peak"):
+                win = w
+                break
+        if win:
+            conds.append(Condition(domain="timing",
+                                   text=T.week_peak_window(_day_label(peak), win.get("start", ""), win.get("end", "")),
+                                   intensity=2.5, source="week_peak_window"))
+
+        friction_rows = [d for d in rows if _day_friction(d)]
+        watch = friction_rows[0] if friction_rows else min(scored, key=lambda x: x[0])[1]
+        if _day_label(watch) != _day_label(peak):
+            conds.append(Condition(domain="watch", text=T.week_watch(_day_label(watch)),
                                    intensity=2.6, source="week_watch"))
+        if len(friction_rows) >= 4:
+            conds.append(Condition(domain="watch", text=T.week_load(len(friction_rows)),
+                                   intensity=2.3, source="week_load"))
 
-        # Overall energy from mean score (scores are typically 0..10-ish).
+        # Recurring domain across the week (observa_hoy_domain tally).
+        tally = {}
+        for d in rows:
+            dom = T.area_to_domain(d.get("observa_hoy_domain") or "")
+            if dom in T.WEEK_THEME_BY_DOMAIN:
+                tally[dom] = tally.get(dom, 0) + 1
+        if tally:
+            top_dom = max(tally, key=tally.get)
+            if tally[top_dom] >= 2:
+                conds.append(Condition(domain=top_dom, text=T.WEEK_THEME_BY_DOMAIN[top_dom],
+                                       intensity=2.0, source="week_theme"))
+
         avg = sum(s for s, _ in scored) / max(1, len(scored))
-        band = "high" if avg >= 6.5 else ("low" if avg <= 4.0 else "even")
+        band = "high" if avg >= 6.0 else ("low" if avg <= 3.5 else "even")
         conds.append(Condition(domain="mind", text=T.WEEK_ENERGY[band],
-                               intensity=1.8, source="week_energy"))
+                               intensity=1.7, source="week_energy"))
 
-    # Active life-chapter steer.
     lord = ctx.get("dasha_ad") or ctx.get("dasha_md") or ""
     wc = T.week_chapter(lord)
     if wc:
         d, text = wc
-        conds.append(Condition(domain=d, text=text, intensity=1.5, source="week_chapter"))
+        conds.append(Condition(domain=d, text=text, intensity=1.4, source="week_chapter"))
+    return conds
+
+
+def _detect_weekday(day) -> List[Condition]:
+    """Per-day tile signals (4-5, lighter than Today). Consumes ONE day dict
+    from daily-week days[]. Neutral framing (no 'today') since each is a named day."""
+    conds: List[Condition] = []
+    if not isinstance(day, dict):
+        return conds
+    verdict = (day.get("verdict_label") or "").strip().lower()
+    dom = T.area_to_domain(day.get("observa_hoy_domain") or "")
+
+    if dom in T.VALID_DOMAINS:
+        if verdict == "good":
+            txt = T.AMPLIFIED_BY_DOMAIN.get(dom) or T.AMPLIFIED_BY_DOMAIN["opportunity"]
+            conds.append(Condition(domain=dom, text=txt.replace(" today", ""), intensity=2.6, source="wd_amp"))
+        elif verdict == "caution":
+            txt = T.AVOID_BY_DOMAIN.get(dom) or T.AVOID_BY_DOMAIN["work"]
+            conds.append(Condition(domain="risk", text=txt.replace(" today", ""), intensity=2.6, source="wd_avoid"))
+        elif dom in T.WEEK_THEME_BY_DOMAIN:
+            conds.append(Condition(domain=dom, text=T.WEEK_THEME_BY_DOMAIN[dom], intensity=2.2, source="wd_theme"))
+
+    win = None
+    for w in (day.get("windows") or []):
+        if isinstance(w, dict) and w.get("type") in ("connection", "peak"):
+            win = w
+            break
+    if win:
+        rng = f"{win.get('start', '')}–{win.get('end', '')}".strip("–")
+        conds.append(Condition(domain="timing", text=T.best_window(rng), intensity=2.4, source="wd_window"))
+
+    sc = day.get("score")
+    if isinstance(sc, (int, float)):
+        band = "strong" if sc >= 6 else ("weak" if sc <= 3 else "")
+        conds.append(Condition(domain="body", text=T.body_from_chandra(band).replace(" today", ""),
+                               intensity=1.6, source="wd_body"))
+
+    if _day_friction(day):
+        conds.append(Condition(domain="watch",
+                               text="Friction runs through this day — leave buffer time and don't force outcomes.",
+                               intensity=2.0, source="wd_friction"))
+    elif verdict == "good":
+        conds.append(Condition(domain="opportunity",
+                               text="A clear day — use it for the move you've been holding back.",
+                               intensity=2.0, source="wd_good"))
     return conds
 
 
@@ -345,6 +415,8 @@ def build_highlights(scope: str, language: str, ctx: Dict[str, Any]) -> List[Dic
             conds = _detect_tomorrow(ctx)
         elif scope == "week":
             conds = _detect_week(ctx)
+        elif scope == "weekday":
+            conds = _detect_weekday(ctx)
         elif scope == "month":
             conds = _detect_month(ctx)
         elif scope == "year":
