@@ -20436,13 +20436,21 @@ async def _life_arc_compute(chart_id, horizon_months, language,
             if isinstance(_bc_ev, dict):
                 _bc_events.append({"domain": _bc_ev.get("domain") or _bc_ev.get("signature_name") or "",
                                    "window": _bc_ev.get("predicted_window_start") or _bc_ev.get("window") or ""})
-        _bc_next = ((diagnostic or {}).get("next_phase_shift") or {}).get("start_date") or ""
+        _bc_diag = diagnostic if isinstance(diagnostic, dict) else {}
+        _bc_nps = _bc_diag.get("next_phase_shift") or {}
+        _bc_next = _bc_nps.get("date") or _bc_nps.get("start_date") or ""
+        _bc_vimd = _bc_cp.get("vimsottari") or {}
+        _bc_overlay = _bc_cp.get("transit_overlay") or {}
         response["highlights"] = _bc("cycle", language, {
             "phase": _bc_phase,
             "dasha_md": _bc_vim,
             "cross_check": _bc_cross,
             "events": _bc_events,
             "next_shift_when": str(_bc_next)[:10] if _bc_next else "",
+            "md_end_date": _bc_vimd.get("md_end_date") or "",
+            "sade_sati": _bc_overlay.get("sade_sati_status") or "",
+            "stuckness_count": len(_bc_diag.get("current_stuckness_sources") or []),
+            "lean_count": len(_bc_diag.get("what_to_lean_into") or []),
         })
     except Exception as _bc_err:
         print(f"[life_arc] highlights failed: {_bc_err}")
@@ -20542,6 +20550,7 @@ async def get_life_arc(
     chart_id: str,
     horizon_months: int = 12,
     language: str = "en",
+    include_readings: int = 0,
     authorization: Optional[str] = Header(None),
 ):
     """
@@ -20590,6 +20599,8 @@ async def get_life_arc(
                 cached_lib_ver = life_arc.get("_library_version")
                 if cached_lib_ver and cached_lib_ver == _lib_version:
                     print(f"[life_arc] Cache HIT for {chart_id} (lib={_lib_version})")
+                    if not include_readings and isinstance(life_arc, dict):
+                        life_arc.pop("system_readings", None)
                     return life_arc
                 else:
                     print(f"[life_arc] Cache STALE for {chart_id} "

@@ -451,6 +451,26 @@ def cycle_next_shift(when: str) -> str:
     return "The next big turn is on the horizon — the chapter's whole tone changes when it lands."
 
 
+def cycle_sade_sati(status: str) -> str:
+    """A real multi-year pressure cycle marker. status e.g. 'peak phase, 41 months remaining'."""
+    import re as _re
+    s = (status or "").lower()
+    m = _re.search(r"(\d+)\s*month", s)
+    months = m.group(1) if m else ""
+    phase = "peak" if "peak" in s else ("first" if "first" in s or "rising" in s else ("final" if "final" in s or "waning" in s else ""))
+    lead = f"You're in the {phase} of a 7.5-year pressure cycle" if phase else "You're inside a long pressure cycle"
+    tail = f" — about {months} months remain; build resilience and don't expand on credit." if months else " — build resilience and don't expand on credit."
+    return lead + tail
+
+
+def cycle_stuckness(n: int) -> str:
+    return "Several long-running pressures are active at once right now — work with them deliberately rather than fighting them."
+
+
+def cycle_lean(n: int) -> str:
+    return "There are clear ways to work with this period — lean into them instead of forcing a brand-new direction."
+
+
 # ════════════════════════════════════════════════════════════════════════════
 #  DEEP READ migration — the old FOUNDATION/RELATIONSHIPS/EXPANSION/INNER prose
 #  themes collapse into one concise highlight per active theme. Theme keys come

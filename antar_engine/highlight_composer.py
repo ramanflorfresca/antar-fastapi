@@ -39,6 +39,8 @@ class Condition:
     intensity: float = 1.0
     source: str = ""          # debugging only; not serialized
     _seen_key: str = ""       # dedupe key (domain is usually enough)
+    backed_by: List[str] = field(default_factory=list)  # which timing systems agreed
+    confidence: str = ""      # high | medium | low (cycle scope only)
 
 
 def _norm_lk_domains(values) -> List[str]:
@@ -343,17 +345,28 @@ def _detect_cycle(ctx) -> List[Condition]:
         d, text = T.cycle_convergence(xc["agreed_planet"], xc["agreement_count"])
         conds.append(Condition(domain=d, text=text, intensity=3.2, source="cycle_convergence"))
 
+    # Sade Sati — a genuine 7.5-year pressure cycle (top multi-year marker).
+    ss = (ctx.get("sade_sati") or "").strip()
+    if ss and ss.lower() not in ("none", "inactive", "not active", "n/a"):
+        conds.append(Condition(domain="watch", text=T.cycle_sade_sati(ss),
+                               intensity=3.0, source="cycle_sade_sati"))
+
     phase = (ctx.get("phase") or "").strip().lower()
     if phase in T.CYCLE_PHASE:
         conds.append(Condition(domain="timing", text=T.CYCLE_PHASE[phase],
-                               intensity=2.8, source="cycle_phase"))
+                               intensity=2.7, source="cycle_phase"))
 
     cc = T.cycle_chapter(ctx.get("dasha_md") or "")
     if cc:
         d, text = cc
         conds.append(Condition(domain=d, text=text, intensity=2.4, source="cycle_chapter"))
 
-    for ev in (ctx.get("events") or [])[:4]:
+    nxt = ctx.get("next_shift_when") or ctx.get("md_end_date") or ""
+    if nxt:
+        conds.append(Condition(domain="timing", text=T.cycle_next_shift(str(nxt)[:10]),
+                               intensity=2.6, source="cycle_next_shift"))
+
+    for ev in (ctx.get("events") or [])[:3]:
         if not isinstance(ev, dict):
             continue
         dom = T.area_to_domain(ev.get("domain") or "")
@@ -361,9 +374,12 @@ def _detect_cycle(ctx) -> List[Condition]:
         d, text = T.cycle_event(dom, str(when)[:10] if when else "")
         conds.append(Condition(domain=d, text=text, intensity=2.2, source="cycle_event"))
 
-    if ctx.get("next_shift_when"):
-        conds.append(Condition(domain="timing", text=T.cycle_next_shift(ctx.get("next_shift_when")),
-                               intensity=1.8, source="cycle_next_shift"))
+    if (ctx.get("stuckness_count") or 0) >= 1:
+        conds.append(Condition(domain="watch", text=T.cycle_stuckness(ctx.get("stuckness_count")),
+                               intensity=1.9, source="cycle_stuckness"))
+    if (ctx.get("lean_count") or 0) >= 1:
+        conds.append(Condition(domain="opportunity", text=T.cycle_lean(ctx.get("lean_count")),
+                               intensity=1.7, source="cycle_lean"))
     return conds
 
 
@@ -459,7 +475,12 @@ def build_highlights(scope: str, language: str, ctx: Dict[str, Any]) -> List[Dic
         # with filler (anti-hallucination > hitting a count).
         out = []
         for i, c in enumerate(conds):
-            out.append({"domain": c.domain, "text": c.text.strip(), "priority": i + 1})
+            item = {"domain": c.domain, "text": c.text.strip(), "priority": i + 1}
+            if c.backed_by:
+                item["backed_by"] = list(c.backed_by)
+            if c.confidence:
+                item["confidence"] = c.confidence
+            out.append(item)
         return out
     except Exception as e:  # pragma: no cover - defensive
         try:
