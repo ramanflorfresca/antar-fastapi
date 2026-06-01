@@ -18863,6 +18863,52 @@ async def predict_day_deep(request: DeepReadRequest, refresh: int = 0):
     except Exception as _se:
         print(f"[day-deep] strip warning: {_se}")
 
+    # ── Layer-2 concrete signals (highlights) — Deep Read (Option A) ──
+    try:
+        from antar_engine.highlight_composer import build_highlights as _bh_deep
+        from antar_engine.daily_panchanga import calculate_panchanga as _hd_panch
+        from datetime import datetime as _hd_dt
+        _hd_lat = float(row.get("latitude", 28.6) or 28.6)
+        _hd_lng = float(row.get("longitude", 77.2) or 77.2)
+        try:
+            _hd_pan = _hd_panch(lat=_hd_lat, lng=_hd_lng)
+        except Exception:
+            _hd_pan = {}
+        _hd_md = _hd_ad = ""
+        try:
+            _hd_ds = get_dashas_for_chart(chart_id)
+            _hd_vim = _hd_ds.get("vimsottari", []) if isinstance(_hd_ds, dict) else (_hd_ds or [])
+            _hd_now = _hd_dt.utcnow()
+            for _hd_r in _hd_vim:
+                _hd_lvl = (_hd_r.get("level") or "").lower()
+                try:
+                    _hd_sd = _hd_dt.strptime(str(_hd_r.get("start_date", ""))[:10], "%Y-%m-%d")
+                    _hd_ed = _hd_dt.strptime(str(_hd_r.get("end_date", ""))[:10], "%Y-%m-%d")
+                except Exception:
+                    continue
+                if _hd_sd <= _hd_now <= _hd_ed:
+                    if _hd_lvl == "mahadasha" and not _hd_md:
+                        _hd_md = _hd_r.get("lord_or_sign") or _hd_r.get("planet_or_sign") or ""
+                    elif _hd_lvl in ("antardasha", "bhukti") and not _hd_ad:
+                        _hd_ad = _hd_r.get("lord_or_sign") or _hd_r.get("planet_or_sign") or ""
+        except Exception:
+            pass
+        if isinstance(payload, dict):
+            payload["highlights"] = _bh_deep("deep", language, {
+                "themes": payload.get("themes") or [],
+                "panchanga": {
+                    "abhijit":     _hd_pan.get("abhijit_muhurta", ""),
+                    "rahu_kalam":  _hd_pan.get("rahu_kalam", ""),
+                    "lucky_hours": _hd_pan.get("lucky_hours", {}),
+                },
+                "dasha_md": _hd_md,
+                "dasha_ad": _hd_ad,
+            })
+    except Exception as _hd_err:
+        print(f"[day-deep] highlights failed: {_hd_err}")
+        if isinstance(payload, dict):
+            payload.setdefault("highlights", [])
+
     # ── translate at response time (English is the source of truth) ──
     if language in ("es", "pt"):
         try:
@@ -18871,7 +18917,7 @@ async def predict_day_deep(request: DeepReadRequest, refresh: int = 0):
                 payload, language=language,
                 fields_to_translate=["opening", "closing", "paragraph", "note",
                                      "headline", "gist", "do", "dont", "use",
-                                     "cause", "title", "body_part"],
+                                     "cause", "title", "body_part", "text"],
                 fields_to_skip=["chart_id", "language", "date", "generated_at",
                                 "key", "state", "tone", "house", "condition_id",
                                 "domain"],

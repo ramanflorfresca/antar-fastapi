@@ -268,6 +268,8 @@ def compose_daily_card(
             "polarity": "flat",
             "condition_id": "flat_day",
             "headline": "A quiet day. Neither pushed nor blocked. Useful for ordinary work.",
+            "do": "Use the quiet for ordinary, useful work — clear the backlog, tidy loose ends, rest a little.",
+            "dont": "Don't force a big decision or a hard conversation today — there is no wind behind it.",
             "modifiers": [],
             "gentling_prefix": None,
             "crisis_footer": crisis["footer_text"],

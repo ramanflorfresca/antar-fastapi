@@ -402,3 +402,50 @@ def cycle_next_shift(when: str) -> str:
     if when:
         return f"The next big turn lands around {when} — the chapter's whole tone changes then."
     return "The next big turn is on the horizon — the chapter's whole tone changes when it lands."
+
+
+# ════════════════════════════════════════════════════════════════════════════
+#  DEEP READ migration — the old FOUNDATION/RELATIONSHIPS/EXPANSION/INNER prose
+#  themes collapse into one concise highlight per active theme. Theme keys come
+#  from deep_read.py THEME_HOUSES; tone is "supportive" | "friction" | "mixed".
+# ════════════════════════════════════════════════════════════════════════════
+THEME_DOMAIN = {
+    "foundation":    "mind",
+    "relationships": "relationships",
+    "work":          "work",
+    "expansion":     "opportunity",
+    "money":         "money",
+    "body":          "body",
+    "inner":         "mind",
+}
+THEME_SUPPORTIVE = {
+    "foundation":    "Your foundations feel solid today — a good day for home, family, or anything that needs a stable base.",
+    "relationships": "Relationships flow today — reach out, repair, or deepen a connection that matters.",
+    "work":          "Work has momentum today — push the project that's been waiting for a green light.",
+    "expansion":     "Growth is favored today — say yes to the opportunity, the trip, the bigger ask.",
+    "money":         "Money matters go smoothly today — handle payments and follow up on what you're owed.",
+    "body":          "Your body has good energy today — use it for movement or something you've been putting off.",
+    "inner":         "Your inner world is clear today — reflect, release, and let go of what's already done.",
+}
+THEME_FRICTION = {
+    "foundation":    "Foundations feel shaky today — don't overhaul home or living setup; steady the base first.",
+    "relationships": "Relationships need care today — listen more than you speak and don't force resolution.",
+    "work":          "Work feels uphill today — protect your focus and hold off on big decisions.",
+    "expansion":     "Hold back on bold expansion today — the timing for the big move isn't ripe yet.",
+    "money":         "Money needs caution today — defer large purchases and double-check the numbers.",
+    "body":          "Your body is asking for rest today — ease off and don't push through fatigue.",
+    "inner":         "Your inner world feels heavy today — be gentle with yourself; postpone emotional decisions.",
+}
+
+
+def theme_signal(key: str, tone: str):
+    """Return (domain, text) for a deep-read theme, or None to skip a flat theme."""
+    key = (key or "").strip().lower()
+    tone = (tone or "").strip().lower()
+    if key not in THEME_DOMAIN:
+        return None
+    if tone == "friction":
+        return "risk", THEME_FRICTION.get(key, "")
+    if tone in ("supportive", "mixed"):
+        return THEME_DOMAIN[key], THEME_SUPPORTIVE.get(key, "")
+    return None  # neutral / unscored themes contribute nothing

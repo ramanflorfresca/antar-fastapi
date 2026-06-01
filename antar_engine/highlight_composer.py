@@ -273,6 +273,48 @@ def _detect_cycle(ctx) -> List[Condition]:
     return conds
 
 
+def _detect_deepread(ctx) -> List[Condition]:
+    """Deep Read: migrate the FOUNDATION/RELATIONSHIPS/EXPANSION/INNER prose
+    themes into one concise signal each, plus WHEN/hora windows.
+    ctx["themes"] = [{key, tone, ...}, ...]   (deep_read.py theme objects)
+    ctx["panchanga"] = {abhijit, rahu_kalam, lucky_hours}
+    """
+    conds: List[Condition] = []
+    for t in (ctx.get("themes") or []):
+        if not isinstance(t, dict):
+            continue
+        sig = T.theme_signal(t.get("key"), t.get("tone"))
+        if not sig or not sig[1]:
+            continue
+        domain, text = sig
+        inten = 2.6 if domain == "risk" else 2.4
+        conds.append(Condition(domain=domain, text=text, intensity=inten, source="deep_theme"))
+
+    # WHEN / hora — best window + window to avoid.
+    pan = ctx.get("panchanga") or {}
+    best = pan.get("abhijit") or pan.get("abhijit_muhurta") or ""
+    if not best:
+        lucky = pan.get("lucky_hours")
+        if isinstance(lucky, dict) and lucky:
+            best = next(iter(lucky.values()))
+        elif isinstance(lucky, list) and lucky:
+            best = lucky[0]
+    conds.append(Condition(domain="timing", text=T.best_window(best if isinstance(best, str) else ""),
+                           intensity=2.7, source="deep_best_window"))
+    rahu = pan.get("rahu_kalam") or ""
+    if rahu:
+        conds.append(Condition(domain="timing", text=T.avoid_window(rahu),
+                               intensity=2.2, source="deep_avoid_window"))
+
+    # Active life-chapter steer (low priority backstop so we never look thin).
+    lord = ctx.get("dasha_ad") or ctx.get("dasha_md") or ""
+    sig = T.DASHA_SIGNATURE.get((lord or "").strip().title())
+    if sig:
+        d, text = sig
+        conds.append(Condition(domain=d, text=text, intensity=1.3, source="deep_chapter"))
+    return conds
+
+
 def _dedupe_and_rank(conds: List[Condition], scope: str) -> List[Condition]:
     # Rank by intensity desc, stable.
     conds = [c for c in conds if c.domain in T.VALID_DOMAINS and (c.text or "").strip()]
@@ -309,6 +351,8 @@ def build_highlights(scope: str, language: str, ctx: Dict[str, Any]) -> List[Dic
             conds = _detect_year(ctx)
         elif scope == "cycle":
             conds = _detect_cycle(ctx)
+        elif scope in ("deep", "deepread", "day-deep"):
+            conds = _detect_deepread(ctx)
         else:
             return []
 
