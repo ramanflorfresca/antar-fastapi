@@ -68,6 +68,14 @@ _MODERATE_KM = 700.0
 _TIER_FLOW = 60
 _TIER_STRAIN = 35
 
+# Result de-clustering (Fix B). Astrocartography lines are meridians/curves, so
+# a naive top-N concentrates on whichever line threads the densest city region.
+# Cap how many returned cities may share the same dominant line (planet+angle)
+# or the same country, so the next-best lines surface. Caps are relaxed only if
+# they would leave fewer than the requested count.
+_MAX_PER_LINE = 2
+_MAX_PER_COUNTRY = 2
+
 
 def _proximity(distance_km: float) -> float:
     """Graded proximity so distance variance reaches the score.
@@ -311,6 +319,47 @@ def score_city_for_concern(
     }
 
 
+def _dominant_line(s: dict):
+    """The (planet, angle) of a scored city's strongest karaka-line hit, or None
+    when the city lies off every concern line (signals empty)."""
+    sig = s.get("_signals") or []
+    return (sig[0]["planet"], sig[0]["angle"]) if sig else None
+
+
+def _select_diverse(scored: list[dict], n: int) -> list[dict]:
+    """Pick n cities from a score-sorted list, capping cities per dominant line
+    and per country so one meridian can't fill every slot. Falls back to raw
+    score order to complete the count if the caps are too tight. The returned
+    set is re-sorted into score order for display."""
+    picked: list[dict] = []
+    deferred: list[dict] = []
+    line_ct: dict = {}
+    country_ct: dict = {}
+    for s in scored:
+        dl = _dominant_line(s)
+        city = s.get("city", {}) or {}
+        cc = city.get("country_code") or city.get("country")
+        line_full = dl is not None and line_ct.get(dl, 0) >= _MAX_PER_LINE
+        country_full = cc is not None and country_ct.get(cc, 0) >= _MAX_PER_COUNTRY
+        if line_full or country_full:
+            deferred.append(s)
+            continue
+        picked.append(s)
+        if dl is not None:
+            line_ct[dl] = line_ct.get(dl, 0) + 1
+        if cc is not None:
+            country_ct[cc] = country_ct.get(cc, 0) + 1
+        if len(picked) >= n:
+            break
+    if len(picked) < n:
+        for s in deferred:  # relax caps, still highest-score-first
+            picked.append(s)
+            if len(picked) >= n:
+                break
+    picked.sort(key=lambda s: (-s["score"], -(s["_signals"][0]["strength"] if s["_signals"] else 0)))
+    return picked[:n]
+
+
 def rank_cities_for_concern(
     chart: dict,
     concern: str,
@@ -348,7 +397,8 @@ def rank_cities_for_concern(
     ]
     # Highest score first; break ties by stronger top signal then population.
     scored.sort(key=lambda s: (-s["score"], -(s["_signals"][0]["strength"] if s["_signals"] else 0)))
-    return scored[:max(5, min(top_n, 8))]
+    # De-cluster so one planetary line / country can't fill every slot (Fix B).
+    return _select_diverse(scored, max(5, min(top_n, 8)))
 
 
 _CHAPTER_NAME = {
