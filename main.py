@@ -11294,6 +11294,201 @@ async def get_panchanga(request: dict = {}, language: str = "en"):
 
 
 
+# ════════════════════════════════════════════════════════════════════
+# ONBOARDING WELCOME PREDICTION — first-impression Prashna hook
+# "What brought you to Antar?" → horary chart cast at the moment of
+# answering, tied to the chosen concern. Fires ONCE per chart
+# (onboarding_completed_at). NEVER writes prashna_log — that would
+# consume the user's 24h oracle cooldown on their very first login.
+# ════════════════════════════════════════════════════════════════════
+
+class OnboardingWelcomeRequest(BaseModel):
+    chart_id:  str
+    concern:   Optional[str] = None          # chip slug or literal label
+    concerns:  Optional[List[str]] = None    # multi-select tolerant; first wins
+    free_text: Optional[str] = ""
+    timestamp: Optional[str] = None          # ISO-8601 moment of answering; default now
+    lat:       Optional[float] = None
+    lng:       Optional[float] = None
+    language:  Optional[str] = "en"
+
+
+@app.post("/api/v1/onboarding/welcome-prediction")
+async def onboarding_welcome_prediction(request: OnboardingWelcomeRequest):
+    """
+    The onboarding reveal: cast a horary chart for the exact moment the
+    user answered "What brought you to Antar?", score it against their
+    chosen concern, and return one short, striking welcome prediction.
+    Idempotent — re-posting returns the stored reveal, never recasts.
+    """
+    from datetime import datetime as _odt, timezone as _otz
+    from antar_engine.onboarding_welcome import (
+        normalize_concern, build_welcome_question, build_welcome_prompt,
+        concern_label, fallback_prediction,
+    )
+    from antar_engine.prashna_engine import run_prashna_engine as _run_pe
+    from antar_engine.output_strips import apply_user_facing_strips as _ow_strips
+
+    language = (request.language or "en").lower()[:2]
+    raw_concern = (request.concerns[0] if request.concerns else None) or request.concern
+    slug = normalize_concern(raw_concern)
+
+    # ─── 1. Chart row ───
+    try:
+        _row = supabase.table("charts").select(
+            "id, first_name, chart_data, jaimini_data, latitude, longitude, "
+            "onboarding_completed_at, onboarding_prediction"
+        ).eq("id", request.chart_id).single().execute()
+    except Exception:
+        _row = None
+    if not _row or not _row.data:
+        raise HTTPException(404, "Chart not found")
+    _chart_row = _row.data
+
+    # ─── 2. Idempotent: answered before → return stored reveal ───
+    if _chart_row.get("onboarding_prediction"):
+        _stored = _safe_jsonb(_chart_row["onboarding_prediction"])
+        if _stored.get("prediction"):
+            _stored["already_completed"] = True
+            return _stored
+
+    # ─── 3. Moment of asking (the Prashna timestamp) ───
+    _ts = _odt.now(_otz.utc)
+    if request.timestamp:
+        try:
+            _ts = _odt.fromisoformat(str(request.timestamp).replace("Z", "+00:00"))
+            if _ts.tzinfo is None:
+                _ts = _ts.replace(tzinfo=_otz.utc)
+        except Exception:
+            _ts = _odt.now(_otz.utc)
+
+    # ─── 4. Location: request > chart birth location > Delhi ───
+    _lat = request.lat if request.lat else (_chart_row.get("latitude") or 28.6139)
+    _lng = request.lng if request.lng else (_chart_row.get("longitude") or 77.2090)
+
+    question, _domain_label = build_welcome_question(slug, request.free_text)
+
+    # ─── 5. Cast + score + narrate ───
+    payload = None
+    try:
+        _natal_chart = _safe_jsonb(_chart_row.get("chart_data"))
+        _jaimini = _safe_jsonb(_chart_row.get("jaimini_data"))
+        engine_result = _run_pe(
+            question=question,
+            lat=float(_lat),
+            lng=float(_lng),
+            timestamp=_ts,
+            jaimini_data=_jaimini or None,
+            natal_dasha=None,
+            natal_chart_data=_natal_chart or None,
+            user_name=_chart_row.get("first_name") or "User",
+            locale="global",
+        )
+
+        _sys_prompt = build_welcome_prompt(
+            engine_result,
+            first_name=_chart_row.get("first_name") or "",
+            slug=slug,
+            free_text=request.free_text,
+            language=language,
+        )
+        prediction = ""
+        try:
+            _llm_res = await call_llm_claude(prompt=question, system_override=_sys_prompt)
+            prediction = _llm_res[0] if isinstance(_llm_res, tuple) else _llm_res
+        except Exception as _llm_e:
+            print(f"[onboarding/welcome] LLM failed (using fallback): {_llm_e}")
+        if not (prediction or "").strip():
+            prediction = fallback_prediction(slug, language)
+
+        prediction = _ow_strips(prediction, language=language, field_type='plain')
+
+        _moon = (engine_result.get("breakdown") or {}).get("moon_validation", {})
+        payload = {
+            "prediction":        prediction,
+            "verdict":           engine_result.get("verdict"),
+            "score":             engine_result.get("score"),
+            "label":             engine_result.get("label"),
+            "timing":            engine_result.get("timing"),
+            "domain":            engine_result.get("domain"),
+            "concern":           slug,
+            "concern_label":     concern_label(slug, language),
+            "free_text":         (request.free_text or "")[:500],
+            "moon_building":     bool(_moon.get("waxing")),
+            "language":          language,
+            "generated_at":      _ts.isoformat(),
+            "already_completed": False,
+        }
+    except Exception as _eng_e:
+        print(f"[onboarding/welcome] Engine failed (static fallback): {_eng_e}")
+        payload = {
+            "prediction":        fallback_prediction(slug, language),
+            "verdict":           None,
+            "score":             None,
+            "label":             None,
+            "timing":            None,
+            "domain":            _domain_label,
+            "concern":           slug,
+            "concern_label":     concern_label(slug, language),
+            "free_text":         (request.free_text or "")[:500],
+            "moon_building":     None,
+            "language":          language,
+            "generated_at":      _ts.isoformat(),
+            "already_completed": False,
+        }
+
+    # ─── 6. Persist fire-once flag + the reveal (never blocks response) ───
+    try:
+        supabase.table("charts").update({
+            "onboarding_concern":      slug,
+            "onboarding_free_text":    (request.free_text or "")[:500],
+            "onboarding_completed_at": _odt.now(_otz.utc).isoformat(),
+            "onboarding_prediction":   payload,
+        }).eq("id", request.chart_id).execute()
+    except Exception as _save_e:
+        print(f"[onboarding/welcome] Flag save failed (non-fatal): {_save_e}")
+
+    return payload
+
+
+class OnboardingSkipRequest(BaseModel):
+    chart_id: str
+
+
+@app.post("/api/v1/onboarding/skip")
+async def onboarding_skip(request: OnboardingSkipRequest):
+    """User dismissed 'What brought you to Antar?' — never show it again."""
+    from datetime import datetime as _odt, timezone as _otz
+    try:
+        supabase.table("charts").update({
+            "onboarding_concern":      "skipped",
+            "onboarding_completed_at": _odt.now(_otz.utc).isoformat(),
+        }).eq("id", request.chart_id).execute()
+    except Exception as _e:
+        raise HTTPException(500, f"Could not save skip: {_e}")
+    return {"ok": True, "onboarding_completed": True}
+
+
+@app.get("/api/v1/onboarding/status/{chart_id}")
+async def onboarding_status(chart_id: str):
+    """Frontend gate: show the onboarding question only when completed=False."""
+    try:
+        _r = supabase.table("charts").select(
+            "onboarding_completed_at, onboarding_concern, onboarding_prediction"
+        ).eq("id", chart_id).single().execute()
+    except Exception:
+        _r = None
+    if not _r or not _r.data:
+        raise HTTPException(404, "Chart not found")
+    d = _r.data
+    return {
+        "completed":    d.get("onboarding_completed_at") is not None,
+        "completed_at": d.get("onboarding_completed_at"),
+        "concern":      d.get("onboarding_concern"),
+        "prediction":   _safe_jsonb(d.get("onboarding_prediction")) or None,
+    }
+
+
 class PrashnaRequest(BaseModel):
     question:       str
     chart_id:       Optional[str] = None
@@ -14950,7 +15145,7 @@ async def restore_chart(
     # google_id populated — querying both keeps them visible.
     charts_res = supabase.table("charts").select(
         "id,user_id,first_name,display_name,avatar_url,email,"
-        "lagna_sign,moon_sign,moon_nakshatra,sun_sign,created_at"
+        "lagna_sign,moon_sign,moon_nakshatra,sun_sign,created_at,onboarding_completed_at"
     ).or_(
         f"user_id.eq.{user_id},google_id.eq.{user_id}"
     ).order("created_at", desc=True).execute()
@@ -15077,6 +15272,7 @@ async def restore_chart(
         "charts":           charts_summary,
         "active_chart":     active["id"],
         "needs_onboarding": False,
+        "onboarding_question_pending": active.get("onboarding_completed_at") is None,
         "language":         language,
         "code":             "OK",
         "action":           None,

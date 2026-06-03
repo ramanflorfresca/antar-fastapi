@@ -149,6 +149,8 @@ DOMAIN_HOUSE_MAP = {
     "series":       [8, 11],
     "raise":        [8, 11],
     "wealth":       [2, 11],
+    "purpose":      [9, 10],
+    "direction":    [9, 10],
     "relationship": [7],
     "marriage":     [7],
     "love":         [7],
