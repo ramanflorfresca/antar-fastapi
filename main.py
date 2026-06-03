@@ -11601,7 +11601,7 @@ def _ask_get_practices(chart_id, chart_data, jaimini_data, lal_kitab_data,
                 "practice_type": c.get("practice_type", ""),
             }
 
-        _rel = [p.lower() for p in (relevant_planets or []) if p]
+        _rel = [p for p in (relevant_planets or []) if p]
         pool = []
         _pp = (_sched or {}).get("primary_practice") or {}
         for c in [_pp] + list((_sched or {}).get("supporting_practices") or []):
@@ -11611,26 +11611,44 @@ def _ask_get_practices(chart_id, chart_data, jaimini_data, lal_kitab_data,
         def _planet_of(c):
             return str(c.get("practice_id", "")).split("_")[0].lower()
 
-        # Domain-aware ordering: cards for the convergence planets first
-        if _rel:
-            pool.sort(key=lambda c: _rel.index(_planet_of(c)) if _planet_of(c) in _rel else 99)
-            # No card for any domain planet? Synthesize one with the engine's
-            # own builder — still a real markable PracticeCard.
-            if pool and _planet_of(pool[0]) not in _rel:
-                try:
-                    from antar_engine.practice_engine import _build_primary_practice
-                    from dataclasses import asdict as _pa_asdict
-                    _locale = "IN" if (current_country or "US") == "IN" else "GLOBAL"
-                    _lk_adv = (lal_kitab_data or {}).get("advanced", {}) if isinstance(lal_kitab_data, dict) else {}
-                    _sleeping = _lk_adv.get("sleeping_planets", []) or []
-                    _top = relevant_planets[0]
-                    _card = _build_primary_practice(_top, {}, _sleeping, _locale)
-                    pool.insert(0, _pa_asdict(_card))
-                    print(f"[ask] practices: synthesized domain card for {_top}")
-                except Exception as _se:
-                    print(f"[ask] practice synthesis non-fatal: {_se}")
+        # No domain signal -> generic weekly cards (non-consultation path)
+        if not _rel:
+            return [_lean(c) for c in pool[:limit]]
 
-        return [_lean(c) for c in pool[:limit]]
+        # Domain-aware selection (2026-06-04): ONE card per domain-relevant
+        # planet — weekly-pool card when it exists, otherwise synthesized via
+        # the engine's own builder (real markable practice_id either way).
+        # This makes funding and love prescribe DIFFERENT remedies instead of
+        # the same weekly three reordered.
+        _by_planet = {}
+        for c in pool:
+            _by_planet.setdefault(_planet_of(c), c)
+        _sleeping = []
+        try:
+            _lk_adv = (lal_kitab_data or {}).get("advanced", {}) if isinstance(lal_kitab_data, dict) else {}
+            _sleeping = _lk_adv.get("sleeping_planets", []) or []
+        except Exception:
+            pass
+        _locale = "IN" if (current_country or "US") == "IN" else "GLOBAL"
+
+        cards = []
+        for _planet in _rel:
+            if len(cards) >= limit:
+                break
+            _hit = _by_planet.get(str(_planet).lower())
+            if _hit:
+                cards.append(_hit)
+                continue
+            try:
+                from antar_engine.practice_engine import _build_primary_practice
+                from dataclasses import asdict as _pa_asdict
+                _card = _build_primary_practice(_planet, {}, _sleeping, _locale)
+                cards.append(_pa_asdict(_card))
+                print(f"[ask] practices: synthesized domain card for {_planet}")
+            except Exception as _se:
+                print(f"[ask] practice synthesis non-fatal: {_se}")
+
+        return [_lean(c) for c in cards[:limit]]
     except Exception as _pe:
         print(f"[ask] practices non-fatal: {_pe}")
         return []
