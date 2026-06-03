@@ -6675,7 +6675,7 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
     if cached and cached[0] >= _prac_time.time():
         # refresh only the streak/completion fields (cheap) so a same-day
         # completion reflects without recomputing the whole engine
-        return cached[1]
+        return _ent_practice_view(cached[1], request.chart_id)
 
     conditions = _prac_conditions(chart)
     try:
@@ -6767,7 +6767,7 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
         except Exception as _re:
             print(f"[remedy3 i18n] {_re}")
     _PRACTICE_CACHE[ckey] = (_prac_time.time() + _PRACTICE_TTL, resp)
-    return resp
+    return _ent_practice_view(resp, request.chart_id)
 
 
 @app.post("/api/v1/predict/daily-practice/complete")
@@ -8524,6 +8524,162 @@ class PlacesCityReq(BaseModel):
     deep_read: bool = False
 
 
+
+# ════════════════════ ENTITLEMENT GATING HELPERS ════════════════════
+# Backend feature-gating per the subscription tiers matrix. View helpers
+# transform FULL payloads into preview/teaser/headline shapes for
+# under-tier users (never a bare denial where the spec wants a preview);
+# deny helpers return a consistent 402 upgrade_required signal.
+# Today (daily-signal) is NEVER gated.
+
+def _ent_402(block):
+    from fastapi.responses import JSONResponse
+    return JSONResponse(status_code=402, content=block)
+
+
+def _ent_feature_gate(chart_id: str, feature: str):
+    """402 JSONResponse when this tier's access is not 'full'; else None."""
+    from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
+    tier = get_entitlement(chart_id, supabase)
+    if feature_access(tier, feature) == "full":
+        return None
+    return _ent_402(upgrade_block(feature, tier))
+
+
+def _ent_places_deny(chart_id: str):
+    return _ent_feature_gate(chart_id, "places")
+
+
+def _ent_places_concern_view(payload, chart_id: str):
+    """Places preview: top-1 city fully enriched, rest names-only, layers locked."""
+    from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
+    tier = get_entitlement(chart_id, supabase)
+    if feature_access(tier, "places") == "full" or not isinstance(payload, dict):
+        return payload
+    ranked = payload.get("ranked_cities") or []
+    top = ranked[0] if ranked else None
+    locked_cities = [
+        {"city": c.get("city"), "country": c.get("country"),
+         "country_code": c.get("country_code"), "tier": c.get("tier"), "locked": True}
+        for c in ranked[1:6] if isinstance(c, dict)
+    ]
+    return {
+        "chart_id": payload.get("chart_id"),
+        "concern": payload.get("concern"),
+        "language": payload.get("language"),
+        "generated_at": payload.get("generated_at"),
+        "texture_line": payload.get("texture_line"),
+        "top_city": top,
+        "locked_cities": locked_cities,
+        "access": "preview",
+        "locked": upgrade_block("places", tier, locked_fields=[
+            "ranked_cities", "map_lines", "global_pattern", "chart_intelligence",
+            "dasha_context", "life_stage_context", "echoes_layer_1",
+        ]),
+    }
+
+
+def _ent_places_city_view(payload, chart_id: str):
+    """City drill-down preview: verdict only; reasons/detail/parans locked."""
+    from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
+    tier = get_entitlement(chart_id, supabase)
+    if feature_access(tier, "places") == "full" or not isinstance(payload, dict):
+        return payload
+    keep = ("chart_id", "language", "generated_at", "concern", "score",
+            "tier", "headline", "one_line")
+    out = {k: payload.get(k) for k in keep}
+    out["access"] = "preview"
+    out["locked"] = upgrade_block("places", tier, locked_fields=[
+        "detail", "watch_outs", "watch", "reasons", "relocation",
+        "active_lines", "parans", "deep_read",
+    ])
+    return out
+
+
+def _ent_month_view(payload, chart_id: str):
+    """Month headline view for free: theme + period only; deepdive locked."""
+    from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
+    tier = get_entitlement(chart_id, supabase)
+    if feature_access(tier, "month") == "full" or not isinstance(payload, dict):
+        return payload
+    keep = ("month", "month_theme", "overview",
+            "period_start", "period_end", "period_method")
+    out = {k: payload.get(k) for k in keep if k in payload}
+    out["access"] = "headline"
+    out["locked"] = upgrade_block("month", tier, locked_fields=[
+        "energy_level", "strong_planets", "weak_planets", "priority_actions",
+        "best_week", "caution_week", "remedies", "monthly_mantra", "highlights",
+    ])
+    return out
+
+
+def _ent_year_view(payload, chart_id: str):
+    """Year teaser for free: theme line only; year detail + attention locked."""
+    from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
+    tier = get_entitlement(chart_id, supabase)
+    if feature_access(tier, "year") == "full" or not isinstance(payload, dict):
+        return payload
+    year = payload.get("year") or {}
+    teaser = {k: year.get(k) for k in ("id", "tab", "range", "headline")
+              if isinstance(year, dict) and k in year}
+    out = {
+        "chart_id": payload.get("chart_id"),
+        "language": payload.get("language"),
+        "year": teaser,
+        "attention": None,
+        "access": "teaser",
+        "locked": upgrade_block("year", tier, locked_fields=[
+            "year.gist", "year.areas", "year.do", "year.dont",
+            "attention", "highlights", "muntha",
+        ]),
+    }
+    for k in ("period_start", "period_end", "period_method"):
+        if k in payload:
+            out[k] = payload[k]
+    return out
+
+
+def _ent_cycle_view(payload, chart_id: str):
+    """Cycle preview for free: current phase only; events/diagnostic locked."""
+    from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
+    tier = get_entitlement(chart_id, supabase)
+    if feature_access(tier, "cycle") == "full" or not isinstance(payload, dict):
+        return payload
+    if payload.get("status") == "generating":   # poll passthrough
+        return payload
+    events = payload.get("predicted_events") or []
+    return {
+        "chart_id": payload.get("chart_id"),
+        "archetype": payload.get("archetype"),
+        "horizon_months": payload.get("horizon_months"),
+        "language": payload.get("language"),
+        "generated_at": payload.get("generated_at"),
+        "current_phase": payload.get("current_phase"),
+        "predicted_events_count": len(events) if isinstance(events, list) else 0,
+        "access": "preview",
+        "locked": upgrade_block("cycle", tier, locked_fields=[
+            "predicted_events", "diagnostic", "timeline_visual_data",
+            "honesty_layer", "highlights",
+        ]),
+    }
+
+
+def _ent_practice_view(payload, chart_id: str):
+    """Practice sample for free: today_priority stays; the stack is locked."""
+    from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
+    tier = get_entitlement(chart_id, supabase)
+    if feature_access(tier, "practice") == "full" or not isinstance(payload, dict):
+        return payload
+    out = dict(payload)            # shallow copy — never mutate the cache
+    locked_count = len(out.get("active") or [])
+    out["active"] = []
+    out["access"] = "sample"
+    out["locked"] = upgrade_block(
+        "practice", tier, locked_fields=["active"], locked_count=locked_count,
+    )
+    return out
+
+
 @app.post("/api/v1/places/concern")
 async def places_concern_endpoint(req: PlacesConcernReq):
     req.concern = _pcn.resolve_concern(req.concern)  # legacy wealth/rest -> money/peace
@@ -8532,7 +8688,7 @@ async def places_concern_endpoint(req: PlacesConcernReq):
     ckey = ("places_concern", req.chart_id, req.concern, req.language, req.region_filter or "")
     cached = _places_cache_get(ckey)
     if cached is not None:
-        return cached
+        return _ent_places_concern_view(cached, req.chart_id)
 
     rec, chart = _places_load_chart(req.chart_id)
     if not chart.get("birth_jd"):
@@ -8605,11 +8761,14 @@ async def places_concern_endpoint(req: PlacesConcernReq):
         "echoes_layer_1": _places_echoes(req.concern, conditions, ranked),
     }
     _places_cache_set(ckey, out)
-    return out
+    return _ent_places_concern_view(out, req.chart_id)
 
 
 @app.get("/api/v1/places/lines/{chart_id}")
 async def places_lines_endpoint(chart_id: str, language: str = "en"):
+    _ent_deny = _ent_places_deny(chart_id)
+    if _ent_deny is not None:
+        return _ent_deny
     ckey = ("places_lines", chart_id, language)
     cached = _places_cache_get(ckey)
     if cached is not None:
@@ -8715,7 +8874,7 @@ async def places_city_endpoint(req: PlacesCityReq):
             req.concern or "", req.language, bool(req.deep_read))
     cached = _places_cache_get(ckey)
     if cached is not None:
-        return cached
+        return _ent_places_city_view(cached, req.chart_id)
 
     rec, chart = _places_load_chart(req.chart_id)
     if not chart.get("birth_jd"):
@@ -8809,7 +8968,7 @@ async def places_city_endpoint(req: PlacesCityReq):
             print(f"[places deep_read] {_dre}")
             out["deep_read"] = None
     _places_cache_set(ckey, out)
-    return out
+    return _ent_places_city_view(out, req.chart_id)
 
 
 
@@ -8836,6 +8995,9 @@ class PlacesSavedReq(BaseModel):
 
 @app.post("/api/v1/places/compare")
 async def places_compare_endpoint(req: PlacesCompareReq):
+    _ent_deny = _ent_places_deny(req.chart_id)
+    if _ent_deny is not None:
+        return _ent_deny
     if req.concern not in _pcn.VALID_CONCERNS:
         raise HTTPException(422, f"concern must be one of {_pcn.VALID_CONCERNS}")
     if not (2 <= len(req.cities) <= 3):
@@ -8869,6 +9031,9 @@ async def places_compare_endpoint(req: PlacesCompareReq):
 @app.post("/api/v1/places/saved")
 async def places_saved_add(req: PlacesSavedReq, authorization: Optional[str] = Header(None)):
     user_id = verify_token(authorization or "")
+    _ent_deny = _ent_places_deny(req.chart_id)
+    if _ent_deny is not None:
+        return _ent_deny
     row = {
         "user_id": user_id,
         "chart_id": req.chart_id,
@@ -8883,6 +9048,9 @@ async def places_saved_add(req: PlacesSavedReq, authorization: Optional[str] = H
 @app.get("/api/v1/places/saved/{chart_id}")
 async def places_saved_list(chart_id: str, authorization: Optional[str] = Header(None)):
     user_id = verify_token(authorization or "")
+    _ent_deny = _ent_places_deny(chart_id)
+    if _ent_deny is not None:
+        return _ent_deny
     res = (supabase.table("places_saved_cities").select("*")
            .eq("user_id", user_id).eq("chart_id", chart_id)
            .order("created_at", desc=True).execute())
@@ -9457,7 +9625,33 @@ async def settings_billing(authorization: Optional[str] = Header(None), language
         "next_invoice": next_invoice,
         "has_stripe_customer": bool(p.get("stripe_customer_id")),
     }
-    return await _st_localize(payload, language, ["label", "name", "features"])
+    payload = await _st_localize(payload, language, ["label", "name", "features"])
+    # ── Entitlement block — attached AFTER localization so the access
+    #    enums (full/headline/teaser/...) stay machine-readable. ──
+    try:
+        from antar_engine.entitlements import entitlement_summary, FEATURE_MATRIX
+        if pcid:
+            payload["entitlement"] = entitlement_summary(pcid, supabase)
+        else:
+            payload["entitlement"] = {
+                "tier": "free", "ask_used": 0, "ask_limit": 3, "ask_remaining": 3,
+                "features": {f: FEATURE_MATRIX[f]["free"] for f in FEATURE_MATRIX},
+            }
+    except Exception as _ent_e:
+        import logging as _l
+        _l.getLogger("antar.settings").warning(f"[settings] entitlement read failed: {_ent_e}")
+    return payload
+
+
+@app.get("/api/v1/entitlements/{chart_id}")
+async def get_entitlements_endpoint(chart_id: str):
+    """
+    Chart-keyed entitlement state for the frontend: tier, per-feature
+    access map, and remaining lifetime Ask quota. Same shape as the
+    'entitlement' block in /me/billing.
+    """
+    from antar_engine.entitlements import entitlement_summary
+    return entitlement_summary(chart_id, supabase)
 
 
 @app.post("/api/v1/me/billing/portal")
@@ -10426,17 +10620,14 @@ async def compatibility_start(request: CompatibilityStartRequest):
     )
     import uuid as _uuid
 
-    # Check compatibility limit
+    # ── Entitlement: full compatibility is Navigator-only; free/seeker
+    #    get a preview (score + badge + headline) — never a bare denial. ──
     from antar_engine.subscription_engine import check_limit, increment_usage
-    compat_check = check_limit(request.chart_id_a, "compat", supabase)
-    if not compat_check["allowed"]:
-        raise HTTPException(429, {
-            "error": "compat_limit_reached",
-            "message": f"Free plan includes 1 compatibility check. Upgrade for more.",
-            "used": compat_check["used"],
-            "limit": compat_check["limit"],
-            "upgrade_url": "https://antar.world/upgrade",
-        })
+    from antar_engine.entitlements import (
+        get_entitlement as _ent_tier_fn, feature_access as _ent_axs_fn,
+    )
+    _compat_tier = _ent_tier_fn(request.chart_id_a, supabase)
+    _compat_preview = _ent_axs_fn(_compat_tier, "compatibility") != "full"
 
     # ── V2: identical-chart guard ──
     if request.chart_id_b and request.chart_id_b == request.chart_id_a:
@@ -10746,6 +10937,16 @@ async def compatibility_start(request: CompatibilityStartRequest):
                 endpoint_name="compat_start", chart_id=request.chart_id_a)
         except Exception as _te2:
             print(f"[compat] V2 translate non-fatal: {_te2}")
+    if _compat_preview:
+        from antar_engine.entitlements import upgrade_block as _ent_upg_fn
+        _keep = {"session_id", "chart_id_a", "chart_id_b", "name_a", "name_b",
+                 "compat_type", "role", "direction", "score", "badge",
+                 "headline", "language"}
+        _locked = sorted(set(_resp.keys()) - _keep)
+        _resp = {k: v for k, v in _resp.items() if k in _keep}
+        _resp["access"] = "preview"
+        _resp["locked"] = _ent_upg_fn("compatibility", _compat_tier,
+                                      locked_fields=_locked)
     return _resp
 
     _compat_type = request.compatibility_type or "cofounder"
@@ -10996,6 +11197,10 @@ async def compatibility_continue(request: CompatibilityContinueRequest):
     if not res.data:
         raise HTTPException(404, "Compatibility session not found")
     session = res.data[0]
+    # ── Entitlement: layers 2-3 are Navigator-only ──
+    _ent_deny = _ent_feature_gate(session.get("chart_id_a") or "", "compatibility")
+    if _ent_deny is not None:
+        return _ent_deny
     brief_a = session["brief_a"]
     brief_b = session["brief_b"]
     name_a  = session["name_a"]
@@ -11719,6 +11924,21 @@ async def ask_endpoint(request: AskRequest):
     if not question:
         return JSONResponse(status_code=400, content={"error": "Question is required"})
 
+    # ── Entitlement: lifetime Ask quota (3) for free tier ──────────
+    from antar_engine.entitlements import (
+        get_entitlement as _ent_tier_fn, ask_quota as _ent_ask_quota,
+        increment_ask_usage as _ent_ask_inc, upgrade_block as _ent_upgrade,
+    )
+    _ask_tier = _ent_tier_fn(chart_id, supabase)
+    if _ask_tier == "free":
+        _ask_q = _ent_ask_quota(chart_id, supabase, "free")
+        if (_ask_q.get("remaining") or 0) <= 0:
+            return JSONResponse(status_code=402, content=_ent_upgrade(
+                "ask", "free",
+                ask_used=_ask_q.get("used"), ask_limit=_ask_q.get("limit"),
+                ask_remaining=0,
+            ))
+
     # ───────────────────────── EXPLORATION ─────────────────────────
     if mode == "explore":
         try:
@@ -11872,6 +12092,8 @@ async def ask_endpoint(request: AskRequest):
             if not read_txt:
                 read_txt = "I couldn't read a clear signal just now — try asking again in a moment."
 
+            if _ask_tier == "free":
+                _ent_ask_inc(chart_id, supabase)
             payload = {"mode": "explore", "read": read_txt, "next": next_txt, "locked": False}
             if _ask_decision:
                 # Deterministic fields win over model output where we have them
@@ -12071,6 +12293,8 @@ async def ask_endpoint(request: AskRequest):
                 relevant_planets=_yn_conv.get("relevant_planets") if _yn_conv else None,
             )
 
+            if _ask_tier == "free":
+                _ent_ask_inc(chart_id, supabase)
             payload = {
                 "mode": "yesno",
                 "locked": False,
@@ -13520,7 +13744,7 @@ async def handle_stripe_webhook(request: Request):
             chart_id = obj.get("metadata", {}).get("chart_id", "")
             if chart_id:
                 supabase.table("subscriptions").update({
-                    "plan": "free", "is_paid": False, "period_end": None,
+                    "plan": "free", "status": "cancelled", "is_paid": False, "period_end": None, "current_period_end": None,
                 }).eq("chart_id", chart_id).execute()
                 print(f"[stripe webhook] Cancelled {chart_id} → free")
 
@@ -13544,7 +13768,7 @@ async def handle_stripe_webhook(request: Request):
                 else:
                     period_end_iso = (datetime.now(timezone.utc) + timedelta(days=32)).isoformat()
                 supabase.table("subscriptions").update({
-                    "period_end": period_end_iso, "is_paid": True,
+                    "period_end": period_end_iso, "current_period_end": period_end_iso, "is_paid": True,
                 }).eq("chart_id", chart_id).execute()
                 print(f"[stripe webhook] Renewed {chart_id} (next: {period_end_iso})")
 
@@ -14952,6 +15176,9 @@ async def generate_life_report(chart_id: str):
 @app.get("/api/v1/predictions/{chart_id}")
 async def get_prediction_history(chart_id: str, limit: int = 20):
     """Last N predictions for a chart with plain English output. Sprint C1-03."""
+    _ent_deny = _ent_feature_gate(chart_id, "history")
+    if _ent_deny is not None:
+        return _ent_deny
     try:
         result = supabase.table("predictions") \
             .select(
@@ -15453,7 +15680,7 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
         except Exception as _mpe:
             print(f"[monthly-deepdive] period failed: {_mpe}")
 
-        return result
+        return _ent_month_view(result, chart_id)
     except HTTPException:
         raise
     except Exception as e:
@@ -15975,6 +16202,9 @@ def _translate_practice_schedule_es(sched):
 
 @app.get("/api/v1/practices/{chart_id}/schedule")
 async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", refresh: bool = False):
+    _ent_deny = _ent_feature_gate(chart_id, "practice")
+    if _ent_deny is not None:
+        return _ent_deny
     try:
         from datetime import date as _d, timedelta as _td
         _today = _d.today()
@@ -19255,7 +19485,7 @@ async def predict_year_attention(request: dict):
         except Exception as _te:
             print(f"[year-attention] translation non-fatal, serving English: {_te}")
 
-    return payload
+    return _ent_year_view(payload, chart_id)
 
 
 
@@ -21048,7 +21278,7 @@ async def get_life_arc(
                     print(f"[life_arc] Cache HIT for {chart_id} (lib={_lib_version})")
                     if not include_readings and isinstance(life_arc, dict):
                         life_arc.pop("system_readings", None)
-                    return life_arc
+                    return _ent_cycle_view(life_arc, chart_id)
                 else:
                     print(f"[life_arc] Cache STALE for {chart_id} "
                           f"(cached={cached_lib_ver}, current={_lib_version})")
