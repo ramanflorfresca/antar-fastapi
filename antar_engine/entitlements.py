@@ -124,7 +124,7 @@ def upgrade_block(feature: str, current_tier: str, locked_fields: Optional[list]
 def _resolve_user_id(chart_id: str, sb) -> Optional[str]:
     try:
         r = sb.table("profiles").select("user_id").eq(
-            "primary_chart_id", chart_id
+            "chart_id", chart_id
         ).limit(1).execute()
         if r.data:
             return r.data[0].get("user_id")

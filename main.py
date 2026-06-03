@@ -9643,6 +9643,26 @@ async def settings_billing(authorization: Optional[str] = Header(None), language
     return payload
 
 
+@app.get("/api/v1/me/entitlements")
+async def me_entitlements_endpoint(authorization: Optional[str] = Header(None)):
+    """
+    JWT-keyed twin of /entitlements/{chart_id}. Resolves the signed-in
+    user's chart from profiles and returns the same entitlement_summary
+    shape the frontend's useEntitlements expects. Anonymous users have no
+    profile row — they should call /entitlements/{chart_id} directly.
+    """
+    from antar_engine.entitlements import entitlement_summary
+    user_id, _ = _st_identity(authorization)
+    if not user_id:
+        return _st_guest_401()
+    prof = _st_get_profile(user_id) or {}
+    chart_id = prof.get("chart_id")
+    if not chart_id:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=404, content={"error": "no_chart_for_user"})
+    return entitlement_summary(chart_id, supabase)
+
+
 @app.get("/api/v1/entitlements/{chart_id}")
 async def get_entitlements_endpoint(chart_id: str):
     """
@@ -13900,7 +13920,7 @@ async def handle_stripe_webhook(request: Request):
                     elif chart_id:
                         supabase.table("profiles").update(
                             {"stripe_customer_id": _cust_id}
-                        ).eq("primary_chart_id", chart_id).execute()
+                        ).eq("chart_id", chart_id).execute()
             except Exception as _bf:
                 print(f"[stripe webhook] customer backfill non-fatal: {_bf}")
 
@@ -13930,7 +13950,7 @@ async def handle_stripe_webhook(request: Request):
                     print(f"[stripe webhook] Updated {chart_id} to {plan} (period_end: {period_end})")
             elif chart_id and status in ("canceled", "unpaid", "past_due"):
                 supabase.table("subscriptions").update({
-                    "plan": "free", "is_paid": False,
+                    "plan": "free", "status": "expired",
                 }).eq("chart_id", chart_id).execute()
                 print(f"[stripe webhook] Downgraded {chart_id} to free (status: {status})")
 
@@ -13939,7 +13959,7 @@ async def handle_stripe_webhook(request: Request):
             chart_id = obj.get("metadata", {}).get("chart_id", "")
             if chart_id:
                 supabase.table("subscriptions").update({
-                    "plan": "free", "status": "cancelled", "is_paid": False, "period_end": None, "current_period_end": None,
+                    "plan": "free", "status": "cancelled", "current_period_end": None,
                 }).eq("chart_id", chart_id).execute()
                 print(f"[stripe webhook] Cancelled {chart_id} → free")
 
