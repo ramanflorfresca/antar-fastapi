@@ -70,11 +70,18 @@ _TIER_STRAIN = 35
 
 
 def _proximity(distance_km: float) -> float:
-    """1.0 within 300km, linear taper to 0 at 700km, 0 beyond."""
-    if distance_km < _STRONG_KM:
+    """Graded proximity so distance variance reaches the score.
+
+    1.0 on the line, falling continuously: strong band (<300km) tapers
+    1.0 -> 0.70, moderate band (300-700km) tapers 0.70 -> 0.0, 0 beyond.
+    (Previously a flat step returning 1.0 for every distance under 300km,
+    which collapsed all near-line cities to one score.)"""
+    if distance_km <= 0.0:
         return 1.0
+    if distance_km < _STRONG_KM:
+        return 1.0 - 0.30 * (distance_km / _STRONG_KM)
     if distance_km <= _MODERATE_KM:
-        return (_MODERATE_KM - distance_km) / (_MODERATE_KM - _STRONG_KM)
+        return 0.70 * (_MODERATE_KM - distance_km) / (_MODERATE_KM - _STRONG_KM)
     return 0.0
 
 
