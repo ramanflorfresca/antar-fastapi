@@ -8360,6 +8360,7 @@ from antar_engine import places_conditions as _pc
 from antar_engine import places_relocation as _prel
 from antar_engine import places_concern as _pcn
 from antar_engine import places_composer as _pcomp
+from antar_engine import places_lk_relocation as _plkr  # Layer 3: LK relocation
 
 _PLACES_CITIES = None
 _PLACES_CACHE = {}
@@ -8556,6 +8557,12 @@ async def places_concern_endpoint(req: PlacesConcernReq):
         c["primary_reason"] = _places_strip(c["primary_reason"], req.language)
         c["secondary_reasons"] = _places_strip(c["secondary_reasons"], req.language)
         c["watch_outs"] = _places_strip(c["watch_outs"], req.language)
+        # Layer 3 — Lal Kitab relocation findings (planet-as-actor,
+        # no house numbers / Sanskrit; stripped via Path-B curated_static).
+        _lk_find = _plkr.lk_relocation_findings(s.get("_relocation", {}), req.language)
+        for _f in _lk_find:
+            _f["text"] = _places_strip(_f["text"], req.language)
+        c["lk_relocation_findings"] = _lk_find
         ranked.append(c)
 
     concern_lines = _pcn.filter_concern_lines(all_lines, req.concern)

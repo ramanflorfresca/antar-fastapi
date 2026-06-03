@@ -112,6 +112,58 @@ def _fallback_priority(chart: dict, conditions: dict, language: str) -> Optional
     }
 
 
+def build_derivation_layers(actives: list, priority) -> dict:
+    """Audit view of today_priority's derivation. Pure structured diagnostic
+    data (no user-facing prose): which scopes fired, at what intensity, and
+    which scope/planet was selected. Additive — changes no decision logic."""
+    actives = actives or []
+
+    def _sub(scope_name):
+        hits = [e for e in actives if e.get("scope") == scope_name]
+        if not hits:
+            return {"fired": False, "intensity": 0.0, "planet": None, "count": 0}
+        top = max(hits, key=lambda e: e.get("severity", 0.0))
+        return {
+            "fired": True,
+            "intensity": round(float(top.get("severity", 0.0)), 2),
+            "planet": top.get("planet"),
+            "count": len(hits),
+        }
+
+    layers = {
+        "natal_weakness": _sub("natal_weakness"),
+        "dasha_period":   _sub("dasha_period"),
+        "varshphal_year": _sub("varshphal_year"),
+        "monthly_lk":     _sub("monthly_lk"),
+        "daily_transit":  _sub("daily_transit"),
+    }
+
+    # lk_sleeping is a kind inside natal_weakness, not its own scope.
+    sleeping = [e for e in actives
+                if e.get("scope") == "natal_weakness"
+                and "sleeping" in (e.get("trigger_detail") or "").lower()]
+    if sleeping:
+        top = max(sleeping, key=lambda e: e.get("severity", 0.0))
+        layers["lk_sleeping"] = {
+            "fired": True,
+            "intensity": round(float(top.get("severity", 0.0)), 2),
+            "planet": top.get("planet"),
+            "count": len(sleeping),
+        }
+    else:
+        layers["lk_sleeping"] = {"fired": False, "intensity": 0.0,
+                                 "planet": None, "count": 0}
+
+    selected = None
+    if priority:
+        selected = {
+            "scope": priority.get("scope"),
+            "planet": priority.get("planet"),
+            "intensity": round(float(priority.get("severity", 0.0)), 2),
+        }
+    return {"selected": selected, "layers": layers}
+
+
 def compose_practice_response(
     chart: dict,
     actives: list[dict],
@@ -195,6 +247,8 @@ def compose_practice_response(
             personalize_remedy("vrat", pl, scope, language, chart=chart, conditions=conditions)
             if scope in VRAT_SCOPES else None
         )
+        # Auditability — which scopes fired and which was chosen.
+        today_priority["derivation_layers"] = build_derivation_layers(actives, priority)
 
     # ── active (summaries only) ─────────────────────────────────────────────
     active = []
