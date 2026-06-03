@@ -50,9 +50,10 @@ that generates one structured daily signal for a SPECIFIC user on a SPECIFIC day
     texture. When these planets combine in notable ways (e.g., benefic PD 
     within malefic MD = window of relief within pressure; malefic SD within 
     benefic PD = friction within flow), reference that combination in 
-    el_movimiento. Example: "Mars MD + Moon AD + Jupiter PD + Saturn SD = 
-    Mars drive channeled through Moon sensitivity, Jupiter opening 
-    possibility, Saturn demanding discipline today."
+    el_movimiento — but ALWAYS in plain energy language, never the
+    planet names or MD/AD/PD/SD labels. Example: "Your drive is filtered
+    through heightened sensitivity today — possibility is opening, but
+    discipline sets the pace."
 
 
 ## OUTPUT FORMAT (strict JSON — no markdown, no explanation outside the JSON)
@@ -79,7 +80,9 @@ that generates one structured daily signal for a SPECIFIC user on a SPECIFIC day
   Good: "Initiate the financial conversation you've been postponing"
   Bad: "starting projects · health actions · speed decisions"
 - **evita_hoy**: 2 specific avoidances tied to today's friction.
-- **el_movimiento**: The ONE concrete move. 2 sentences max. Must reference the transit or dasha driving it.
+- **el_movimiento**: The ONE concrete move. 2 sentences max. Explain WHY in plain
+  coach language — energy words and life areas only. NEVER planet names, house
+  numbers, tara/nakshatra names, MD/AD/PD/SD labels, or internal codenames.
 - **observa_hoy_domain**: Pick the domain where today's transit hits the user's chart hardest.
   Transit Mars aspects user's 2H lord → "finance". Transit Venus activates 7H → "relationships".
   Only ONE domain per day. Must rotate across days based on actual transits — not always the same.
@@ -261,8 +264,10 @@ If a DAY-LORD DIAGNOSTIC block is present in the data:
 - Use it in senal_de_hoy: reflect the day_quality_for_user in the tone
 - DO NOT use the words "Lal Kitab", "day-lord", or any weekday name in
   user-facing fields. The strip layer handles planet-name removal in plain fields.
-- For el_movimiento (the "why" expandable), you MAY reference the day-lord
-  planet by name and the LK evidence. That field keeps technical depth.
+- el_movimiento (the "why" expandable) is USER-FACING: use the same plain
+  energy language as every other field. Refer to the day's ruler as
+  "today's natural ruling energy" — never by planet name, codename, house
+  number, or Sanskrit term.
 
 ## LIVE DATA
 """

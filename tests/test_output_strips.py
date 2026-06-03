@@ -32,9 +32,11 @@ def test_instrument_strip_handles_your_possessive():
     assert 'motor de ambición' in out.lower()
 
 
-def test_instrument_strip_noop_for_english():
-    s = 'your Magnetism Field is active'
-    assert _strip_instrument_names(s, 'en') == s
+def test_instrument_strip_translates_english_codenames():
+    # [why-block-leak-fix] EN was a no-op — deprecated codenames leaked raw.
+    out = _strip_instrument_names('your Magnetism Field is active', 'en')
+    assert 'Magnetism Field' not in out
+    assert 'love and partnership' in out
 
 
 # ─── _strip_vedic_jargon ──────────────────────────────────────
@@ -464,3 +466,56 @@ def test_tidy_noop_on_clean_text():
     clean = 'Hoy es un día fuerte para decisiones importantes.'
     out = apply_user_facing_strips(clean, 'es', field_type='plain')
     assert out == clean
+
+
+# ─── [why-block-leak-fix] el_movimiento Today-card leak ───────────
+
+LEAKED_WHY_BLOCK = (
+    "Your current major planetary cycle is your Structural Load, and your "
+    "Structural Load transiting your 5th house from your rising sign is "
+    "favorable — but Naidhana tara (the most introspective tara of the cycle) "
+    "is active today. Your Processing Speed as today's natural ruling planet "
+    "is dormant and carrying intellectual debt — hold your launch energy for "
+    "tomorrow when Mitra tara arrives."
+)
+
+
+def test_why_block_leak_fully_cleaned_en():
+    out = apply_user_facing_strips(LEAKED_WHY_BLOCK, 'en', field_type='plain')
+    for banned in ('Structural Load', 'Processing Speed', 'Naidhana', 'Mitra',
+                   'tara', '5th house', 'rising sign', 'intellectual debt'):
+        assert banned not in out, f"leaked: {banned!r} in {out!r}"
+
+
+def test_en_codenames_stripped_in_plain():
+    out = apply_user_facing_strips(
+        'Structural Load presses while Processing Speed is dormant',
+        'en', field_type='plain')
+    assert 'Structural Load' not in out
+    assert 'Processing Speed' not in out
+    assert 'discipline and structure' in out
+    assert 'communication and intellect' in out
+
+
+def test_ordinal_house_translates_to_area_label_en():
+    out = apply_user_facing_strips(
+        'transiting your 5th house from your rising sign is favorable',
+        'en', field_type='plain')
+    assert '5th' not in out
+    assert 'house' not in out.lower()
+    assert 'creativity area' in out
+
+
+def test_intellectual_debt_translated_en():
+    out = apply_user_facing_strips(
+        'dormant and carrying intellectual debt', 'en', field_type='plain')
+    assert 'intellectual debt' not in out
+    assert 'backlog' in out
+
+
+def test_en_codenames_stripped_in_evidence_fields_too():
+    # 'evidence' keeps Vedic depth by design but codenames must still die.
+    out = apply_user_facing_strips(
+        'Structural Load returns in your 10th house', 'en',
+        field_type='evidence')
+    assert 'Structural Load' not in out

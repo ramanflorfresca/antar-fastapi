@@ -786,8 +786,11 @@ _INSTRUMENT_NAMES_EN = {
     'global vector', 'real estate radar',
 }
 
-_VALIDATED_FIELDS = ['senal_de_hoy', 'observa_hoy_text', 'verdict_subline']
-# el_movimiento excluded — it's the evidence layer behind "¿Por qué hoy?", retains technical depth by design
+_VALIDATED_FIELDS = ['senal_de_hoy', 'observa_hoy_text', 'verdict_subline', 'el_movimiento']
+# [why-block-leak-fix] el_movimiento is rendered VERBATIM by the frontend as
+# the italic "why" block under the verdict — it is user-facing display, not an
+# internal evidence layer. It gets the same validation + strips as every other
+# plain field.
 
 
 def _validate_no_day_names(signal_json: dict, language: str) -> list:
@@ -853,15 +856,16 @@ def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
                 haz_hoy[], evita_hoy[]
       'window'  windows[].text   (keeps Panchang terms like Abhijit
                                   Muhurta, Rahu Kalam)
-      (untouched) el_movimiento  — retains technical depth for the
-                                    'why' expandable
+      'plain'   el_movimiento — [why-block-leak-fix] the frontend renders
+                this verbatim as the italic "why" block; it must be coach
+                voice like everything else
       (untouched) verdict_emoji, verdict_label, domain, dates, etc.
     """
     if not signal_json or not isinstance(signal_json, dict):
         return signal_json
 
     # Scalar plain fields
-    for _f in ('senal_de_hoy', 'observa_hoy_text', 'verdict_subline'):
+    for _f in ('senal_de_hoy', 'observa_hoy_text', 'verdict_subline', 'el_movimiento'):
         _v = signal_json.get(_f)
         if isinstance(_v, str) and _v:
             signal_json[_f] = apply_user_facing_strips(
@@ -878,7 +882,8 @@ def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
                 for _x in _arr
             ]
 
-    # el_movimiento intentionally left untouched — depth preserved.
+    # [why-block-leak-fix] el_movimiento now stripped above — it renders
+    # directly on the Today card and must never carry raw jargon.
 
     # [3.7c] windows[].text uses 'plain' — UI does not gloss Panchang
     # terms, so translate Rahu Kalam / Abhijit Muhurta / Gulika Kala
@@ -1226,6 +1231,11 @@ async def generate_weekly_signals(
                 llm_signal = await _get_cached_signal(chart_id, date_str, language, supabase_client)
                 if llm_signal:
                     logger.info(f"[daily-week] Cache HIT for {chart_id}/{date_str}/{language}")
+                    # [why-block-leak-fix] rows cached BEFORE the el_movimiento
+                    # strip-exemption was removed still carry raw jargon —
+                    # re-strip on read. All strippers are idempotent.
+                    llm_signal = _strip_day_names_from_signal(llm_signal, language)
+                    llm_signal = _strip_all_jargon_from_signal(llm_signal, language)
 
             if not llm_signal:
                 # Build day-specific data for prompt
@@ -1314,7 +1324,7 @@ async def generate_weekly_signals(
                             "- el_movimiento: include LK evidence as one strategic reason",
                             "- senal_de_hoy: tone reflects day_quality_for_user",
                             "DO NOT use 'Lal Kitab', 'day-lord', or weekday names in user-facing fields.",
-                            "For el_movimiento (the 'why' layer), you MAY reference the planet name and LK evidence.",
+                            "el_movimiento is USER-FACING: plain energy language only — no planet names, no codenames, no Sanskrit. Refer to the day's ruler as \"today's natural ruling energy\".",
                         ]
                         day_prompt_data["lk_daily_block"] = "\n".join(lk_block_lines)
                     else:

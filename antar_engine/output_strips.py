@@ -130,7 +130,46 @@ _INSTRUMENT_SUBS_ES: list[tuple[str, str]] = [
     (r'\bWealth Signal\b',       'señal de abundancia'),
     (r'\bVitality\b',            'vitalidad'),
 ]
-_INSTRUMENT_SUBS_EN: list[tuple[str, str]] = []   # no-op in English
+# [why-block-leak-fix] English codenames are DEPRECATED FIELD×MODE names —
+# they must never reach the user in ANY language. Translate to the same
+# energy phrases the rest of the product uses. Ordered longer-first.
+_INSTRUMENT_SUBS_EN: list[tuple[str, str]] = [
+    (r'\bReal Estate Radar\b',    'your property area'),
+    (r'\bCapital Reserves\b',     'your financial reserves'),
+    (r'\bCapital Runway\b',       'your financial runway'),
+    (r'\bAction Capacity\b',      'your capacity to act'),
+    (r'\bAction Drive\b',         'your action and drive energy'),
+    (r'\bAlliance Sync\b',        'your partnership area'),
+    (r'\bAmbition Engine\b',      'your ambition and breakthrough energy'),
+    (r'\bAuthority Engine\b',     'your identity and authority energy'),
+    (r'\bAuthority Signal\b',     'your identity and authority energy'),
+    (r'\bConflict Shield\b',      'your resilience under pressure'),
+    (r'\bCreation Engine\b',      'your creativity area'),
+    (r'\bCreative Pulse\b',       'your creativity area'),
+    (r'\bEmotional Radar\b',      'your emotional and nurturing energy'),
+    (r'\bExpansion Field\b',      'your growth area'),
+    (r'\bFoundation Shield\b',    'your home and stability area'),
+    (r'\bFortune Vector\b',       'your luck area'),
+    (r'\bGlobal Vector\b',        'your foreign-connections area'),
+    (r'\bGrowth Amplifier\b',     'your growth and wisdom energy'),
+    (r'\bHealth Matrix\b',        'your health area'),
+    (r'\bHungry Becoming\b',      'your drive to grow'),
+    (r'\bIntuition Compass\b',    'your intuition and release energy'),
+    (r'\bMagnetism Field\b',      'your love and partnership energy'),
+    (r'\bPower Windows\b',        'your strongest time windows'),
+    (r'\bProcessing Speed\b',     'your communication and intellect energy'),
+    (r'\bRelationship Channel\b', 'your relationships area'),
+    (r'\bResource Grid\b',        'your resource base'),
+    (r'\bRevenue Pipeline\b',     'your income flow'),
+    (r'\bStructural Load\b',      'your discipline and structure energy'),
+    (r'\bStructure Field\b',      'your discipline and structure area'),
+    (r'\bSystem Vitals\b',        'your health and vitality'),
+    (r'\bVelocity Engine\b',      'your momentum'),
+    (r'\bWisdom Lens\b',          'your wisdom and learning area'),
+    (r'\bCareer Signal\b',        'your career area'),
+    (r'\bLove Signal\b',          'your relationships area'),
+    (r'\bWealth Signal\b',        'your wealth area'),
+]
 
 # Vedic / Sanskrit softeners — order matters (specific before generic)
 _VEDIC_SUBS_ES: list[tuple[str, str]] = [
@@ -174,6 +213,9 @@ _VEDIC_SUBS_ES: list[tuple[str, str]] = [
     (r'\bla tara desfavorable\b', 'la energía lunar desfavorable'),
     (r'\bla tara activa\b',       'la energía lunar activa'),
     (r'\btara\b',                 'energía lunar'),         # fallback last
+    # [why-block-leak-fix] LK / chart-frame jargon (paridad ES)
+    (r'\bdeuda intelectual\b',  'un atraso pendiente'),
+    (r'\bsigno ascendente\b',   'identidad central'),
     # Named Panchang periods (plain fields only; windows keep these via field_type='window')
     (r'\bAbhijit Muhurta\b',      'ventana favorable del mediodía'),
     (r'\bRahu Kalam\b',           'ventana de precaución'),
@@ -270,6 +312,12 @@ _VEDIC_SUBS_EN: list[tuple[str, str]] = [
     (r'\bfavorable tara\b',       'favorable lunar energy'),
     (r'\bunfavorable tara\b',     'unfavorable lunar energy'),
     (r'\btara\b',                 'lunar energy'),
+    # [why-block-leak-fix] LK / chart-frame jargon
+    (r'\bcarrying intellectual debt\b', 'working through an old backlog'),
+    (r'\bintellectual debt\b',  'an old backlog'),
+    (r'\bkarmic debt\b',        'an old pattern to resolve'),
+    (r'\bfrom your rising sign\b', ''),
+    (r'\brising sign\b',        'core identity'),
     (r'\bAbhijit Muhurta\b',      'favorable midday window'),
     (r'\bRahu Kalam\b',           'caution window'),
     (r'\bGulika Kala\b',          'interference zone'),
@@ -405,6 +453,21 @@ _SCORE_PATTERN_PARENS = re.compile(r'\s*\([^()]*?\d{1,2}/56[^()]*?\)\s*')
 _SCORE_PATTERN_BARE   = re.compile(r'\b\d{1,2}/56\b')
 # Back-compat alias for any external caller still referencing _SCORE_PATTERN.
 _SCORE_PATTERN = _SCORE_PATTERN_PARENS
+# [why-block-leak-fix] ordinal house references TRANSLATE to area labels
+# (the voice rule: "your creativity area", never "5th house"). Dropping them
+# garbles the sentence; translating preserves it. Consumes optional "lord"
+# and "from your rising sign/lagna/ascendant" so no orphan fragments remain.
+_HOUSE_AREA_EN: dict[int, str] = {
+    1: 'identity area',       2: 'wealth area',     3: 'courage area',
+    4: 'home area',           5: 'creativity area', 6: 'work area',
+    7: 'partnership area',    8: 'transformation area',
+    9: 'luck area',          10: 'career area',    11: 'gains area',
+    12: 'foreign area',
+}
+_HOUSE_ORDINAL_EN = re.compile(
+    r'\b(\d{1,2})(?:st|nd|rd|th)\s+house(?:\s+lord)?'
+    r'(?:\s+from\s+(?:your\s+)?(?:rising\s+sign|lagna|ascendant))?',
+    re.IGNORECASE)
 _HOUSE_PATTERN_A = re.compile(r'\b\d{1,2}(?:st|nd|rd|th)\s+house\s*(?:lord)?', re.IGNORECASE)
 _HOUSE_PATTERN_B = re.compile(r'\bhouse\s+\d{1,2}\b', re.IGNORECASE)
 
@@ -420,8 +483,8 @@ def _strip_instrument_names(text: str, language: str = 'es') -> str:
     """
     if not isinstance(text, str) or not text:
         return text
-    if language == 'en':
-        return text
+    # [why-block-leak-fix] EN is no longer a no-op: deprecated codenames
+    # (Structural Load, Processing Speed, …) must be translated in English too.
     subs = _INSTRUMENT_SUBS_ES if language == 'es' else _INSTRUMENT_SUBS_EN
     result = text
     for pattern, replacement in subs:
@@ -534,7 +597,12 @@ def _strip_planet_names(text: str, language: str = 'es', keep_planet_actors: boo
     for term in _BANNED_SANSKRIT_TERMS:
         result = re.sub(rf'\b{re.escape(term)}\b', '', result, flags=re.IGNORECASE)
 
-    # 4. House-number references → drop (e.g. "10th house", "house 8")
+    # 4. House-number references — EN translates to area labels first
+    #    ("5th house" → "creativity area"); drop patterns remain as the
+    #    residual fallback (e.g. "house 8", Spanish prose).
+    if language != 'es':
+        result = _HOUSE_ORDINAL_EN.sub(
+            lambda m: _HOUSE_AREA_EN.get(int(m.group(1)), 'life area'), result)
     result = _HOUSE_PATTERN_A.sub('', result)
     result = _HOUSE_PATTERN_B.sub('', result)
 
