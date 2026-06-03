@@ -4301,10 +4301,17 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
     diagnostic_block = ""
     try:
         if chart_data and isinstance(chart_data, dict):
+            # Bug-1 fix (2026-06-03): pass the already-resolved MD/AD so the
+            # pre-scan's Vimsottari Clock layer stops running blind
+            # ("ACTIVE DASHA: unknown").
+            _diag_dasha = _current_dasha_str(dashas_response) if isinstance(dashas_response, dict) else ""
+            if _diag_dasha in ("", "Unknown"):
+                _diag_dasha = None
             diagnostic_block = build_diagnostic_prompt_block(
                 chart_data,
                 request.question if hasattr(request, 'question') else "",
-                concern if 'concern' in dir() else None
+                concern if 'concern' in dir() else None,
+                current_dasha=_diag_dasha,
             )
             if diagnostic_block:
                 # Will be injected into prompt via extra context
@@ -4953,7 +4960,11 @@ Do not use any planet names or astrological jargon — translate everything into
         if "id" not in chart_data:
             chart_data["id"] = request.chart_id
         try:
-            _vim_md = dashas_response.get("vimsottari", [{}])[0].get("lord_or_sign", "") if dashas_response else ""
+            # Bug-4 fix (2026-06-03): row[0] is the FIRST MD of the birth
+            # sequence (Mercury 1974 for the test chart), NOT the current MD.
+            # Resolve the actual current Vimsottari MD by date instead.
+            _cur_md_ad = _current_dasha_str(dashas_response) if isinstance(dashas_response, dict) else ""
+            _vim_md = _cur_md_ad.split("-")[0] if _cur_md_ad and _cur_md_ad != "Unknown" else ""
             _use_jaimini = _vimsottari_is_ambiguous(chart_data, _vim_md, request.question)
 
             if _use_jaimini and chart_record.get("jaimini_data"):
@@ -5185,7 +5196,10 @@ CRITICAL RULES:
             continue
         prompt += f"\n\n{_block}"
     # Inject the diagnostic pre-scan block (Sprint 1.2)
-    if diagnostic_block:
+    # Bug-2 fix (2026-06-03): fallback only. The master-context path already
+    # injects diagnostic_block into _full_context; unconditionally appending
+    # here sent the identical ~1.5K-char block to Claude TWICE per request.
+    if diagnostic_block and diagnostic_block not in (_full_context or "") and diagnostic_block not in prompt:
         prompt += f"\n\n{diagnostic_block}"
     # ── end C3+C4 injection ───────────────────────────────────────
 
@@ -11432,6 +11446,196 @@ async def ask_prashna(request: PrashnaRequest):
 ASK_YESNO_COOLDOWN_HOURS = 24
 
 
+def _ask_build_layer_context(chart_data, dashas, birth_date, concern):
+    """
+    Lean 5-layer conclusions block for /ask (explore mode).
+    Shares /predict's primitives (dasha_periods rows via get_dashas_for_chart,
+    varshaphal_table.get_annual_house, stored chart yogas, transits engine)
+    but renders CONCLUSIONS ONLY — a few lines per layer, never the full
+    /predict context. concern is accepted for future per-domain weighting.
+    """
+    from datetime import datetime as _adt
+    lines = ["=== CHART TIMING LAYERS (internal reference — translate everything to plain language) ==="]
+    today = _adt.utcnow().strftime("%Y-%m-%d")
+
+    def _row_lord(r):
+        return r.get("lord_or_sign") or r.get("planet_or_sign", "")
+
+    def _row_window(r):
+        return (str(r.get("start_date") or r.get("start", ""))[:10],
+                str(r.get("end_date") or r.get("end", ""))[:10])
+
+    # 1. Vimsottari MD/AD + next MD
+    try:
+        vim = (dashas or {}).get("vimsottari", [])
+        cur_md = cur_ad = None
+        for r in vim:
+            lv = r.get("level") or r.get("type", "")
+            s, e = _row_window(r)
+            if not s or not e or not (s <= today <= e):
+                continue
+            if lv == "mahadasha" and not cur_md:
+                cur_md = (_row_lord(r), s, e)
+            elif lv in ("antardasha", "antar") and not cur_ad:
+                cur_ad = (_row_lord(r), s, e)
+        if cur_md:
+            _l = "1. LIFE CHAPTER (Vimsottari): " + cur_md[0] + " chapter until " + cur_md[2]
+            if cur_ad:
+                _l += " | sub-chapter " + cur_ad[0] + " until " + cur_ad[2]
+            lines.append(_l)
+            nxt = None
+            for r in vim:
+                lv = r.get("level") or r.get("type", "")
+                s, e = _row_window(r)
+                if lv == "mahadasha" and s and s >= cur_md[2] and s != cur_md[1]:
+                    if nxt is None or s < nxt[1]:
+                        nxt = (_row_lord(r), s, e)
+            if nxt:
+                lines.append("   NEXT CHAPTER: " + nxt[0] + " starts " + nxt[1] + " — major energy shift")
+    except Exception:
+        pass
+
+    # 2. Chara dasha (Jaimini sign periods)
+    try:
+        for r in (dashas or {}).get("jaimini", []):
+            lv = r.get("level") or r.get("type", "")
+            s, e = _row_window(r)
+            if lv == "mahadasha" and s and e and s <= today <= e:
+                lines.append("2. LIFE-AREA CYCLE (Chara dasha): " + _row_lord(r) + " period until " + e)
+                break
+    except Exception:
+        pass
+
+    # 3. Varshphal annual chart — same get_annual_house as /predict
+    try:
+        from antar_engine.varshaphal_table import get_annual_house
+        from datetime import date as _ad_date
+        if birth_date:
+            _born = _ad_date.fromisoformat(str(birth_date)[:10])
+            _age = (_ad_date.today() - _born).days // 365
+            moved = []
+            for p, d in (chart_data.get("planets") or {}).items():
+                nh = d.get("house", 0) if isinstance(d, dict) else 0
+                if nh and 1 <= nh <= 12:
+                    ah = get_annual_house(nh, _age)
+                    if ah != nh:
+                        moved.append(p + " H" + str(nh) + "->H" + str(ah))
+            if moved:
+                lines.append("3. THIS YEAR'S CHART (Varshphal, running year " + str(_age + 1) + "): " + ", ".join(moved[:9]))
+    except Exception:
+        pass
+
+    # 4. Yogas (stored combinations)
+    try:
+        yogas = chart_data.get("yogas") or []
+        ynames = []
+        for y in yogas:
+            if isinstance(y, dict) and y.get("name"):
+                ynames.append(y.get("name", "") + " (" + y.get("strength", "") + ")")
+        if ynames:
+            lines.append("4. BIRTH COMBINATIONS (Yogas): " + "; ".join(ynames[:5]))
+    except Exception:
+        pass
+
+    # 5. Transits — same engine as /predict
+    try:
+        _raw_tr = transits.calculate_transits(chart_data, target_date=None, ayanamsa_mode=1)
+        _tr_summary = transits.summarize_transits(_raw_tr)
+        if _tr_summary:
+            lines.append("5. CURRENT SKY (Transits): " + str(_tr_summary)[:600])
+    except Exception:
+        pass
+
+    if len(lines) <= 1:
+        return ""
+    lines.append("=== END CHART TIMING LAYERS ===")
+    return "\n".join(lines)
+
+
+def _ask_get_practices(chart_id, chart_data, jaimini_data, lal_kitab_data,
+                       current_country, birth_date, limit=3,
+                       relevant_planets=None):
+    """
+    Markable practice cards for /ask — REAL PracticeCards from the practice
+    engine (practice_id is what practice_log marks), never invented strings.
+    Uses the same weekly cache as /predict's symptom bridge.
+
+    relevant_planets (from the convergence check) makes selection DOMAIN-AWARE:
+    cards for the planets driving this question's domain rank first, and if
+    the weekly schedule has no card for them, one is synthesized via the
+    practice engine's own card builder (still a real, markable PracticeCard).
+    """
+    try:
+        from antar_engine.practice_engine import generate_practice_schedule
+        from datetime import date as _pa_date, timedelta as _pa_td
+        _week_of = _pa_date.today() - _pa_td(days=_pa_date.today().weekday())
+        _sched = None
+        try:
+            _pc = supabase.table("practice_schedule_cache") \
+                .select("schedule_data") \
+                .eq("chart_id", chart_id) \
+                .eq("week_of", _week_of.isoformat()) \
+                .execute()
+            if _pc.data:
+                _sched = _pc.data[0]["schedule_data"]
+        except Exception:
+            _sched = None
+        if not _sched:
+            _sched = generate_practice_schedule(
+                chart_data=chart_data or {},
+                jaimini_data=jaimini_data or {},
+                lal_kitab_data=lal_kitab_data or {},
+                current_country=current_country or "US",
+                birth_date=str(birth_date or ""),
+            )
+        if isinstance(_sched, str):
+            _sched = json.loads(_sched)
+
+        def _lean(c):
+            return {
+                "practice_id":   c.get("practice_id"),
+                "energy_label":  c.get("energy_label", ""),
+                "what":          c.get("what", ""),
+                "day":           c.get("day", ""),
+                "duration":      c.get("duration_label") or c.get("duration", ""),
+                "practice_type": c.get("practice_type", ""),
+            }
+
+        _rel = [p.lower() for p in (relevant_planets or []) if p]
+        pool = []
+        _pp = (_sched or {}).get("primary_practice") or {}
+        for c in [_pp] + list((_sched or {}).get("supporting_practices") or []):
+            if isinstance(c, dict) and c.get("practice_id"):
+                pool.append(c)
+
+        def _planet_of(c):
+            return str(c.get("practice_id", "")).split("_")[0].lower()
+
+        # Domain-aware ordering: cards for the convergence planets first
+        if _rel:
+            pool.sort(key=lambda c: _rel.index(_planet_of(c)) if _planet_of(c) in _rel else 99)
+            # No card for any domain planet? Synthesize one with the engine's
+            # own builder — still a real markable PracticeCard.
+            if pool and _planet_of(pool[0]) not in _rel:
+                try:
+                    from antar_engine.practice_engine import _build_primary_practice
+                    from dataclasses import asdict as _pa_asdict
+                    _locale = "IN" if (current_country or "US") == "IN" else "GLOBAL"
+                    _lk_adv = (lal_kitab_data or {}).get("advanced", {}) if isinstance(lal_kitab_data, dict) else {}
+                    _sleeping = _lk_adv.get("sleeping_planets", []) or []
+                    _top = relevant_planets[0]
+                    _card = _build_primary_practice(_top, {}, _sleeping, _locale)
+                    pool.insert(0, _pa_asdict(_card))
+                    print(f"[ask] practices: synthesized domain card for {_top}")
+                except Exception as _se:
+                    print(f"[ask] practice synthesis non-fatal: {_se}")
+
+        return [_lean(c) for c in pool[:limit]]
+    except Exception as _pe:
+        print(f"[ask] practices non-fatal: {_pe}")
+        return []
+
+
 def _ask_norm_lang(language):
     lang = (language or "en").split("-")[0].lower()
     return lang if lang in ("en", "es", "pt") else "en"
@@ -11501,32 +11705,125 @@ async def ask_endpoint(request: AskRequest):
     if mode == "explore":
         try:
             chart_row = supabase.table("charts") \
-                .select("chart_data, first_name") \
+                .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country") \
                 .eq("id", chart_id).single().execute()
             if not chart_row.data:
                 return JSONResponse(status_code=404, content={"error": "Chart not found"})
 
             chart_data = _safe_jsonb(chart_row.data.get("chart_data"))
+            _ask_jd    = _safe_jsonb(chart_row.data.get("jaimini_data"))
+            _ask_lk    = _safe_jsonb(chart_row.data.get("lal_kitab_data"))
+            _ask_bdate = str(chart_row.data.get("birth_date") or "")[:10]
+
+            # ── Layer parity with /predict (2026-06-03) ──────────────────
+            # Same intent classifier + same dasha resolution as /predict, so
+            # the pre-scan stops running DOMAIN: GENERAL / DASHA: unknown.
+            _ask_concern = "general"
+            try:
+                _ask_concern = _detect_concern(question)
+            except Exception as _ce:
+                logger.warning(f"[ask] concern detection failed (non-fatal): {_ce}")
+
+            _ask_dashas = {}
+            _ask_dasha_str = ""
+            try:
+                _ask_dashas = get_dashas_for_chart(chart_id)
+                _ask_dasha_str = _current_dasha_str(_ask_dashas)
+                if _ask_dasha_str == "Unknown":
+                    _ask_dasha_str = ""
+            except Exception as _ade:
+                logger.warning(f"[ask] dasha resolution failed (non-fatal): {_ade}")
 
             diagnostic_block = ""
             try:
                 from antar_engine.symptom_library import build_diagnostic_prompt_block
                 if isinstance(chart_data, dict) and chart_data:
-                    diagnostic_block = build_diagnostic_prompt_block(chart_data, question, None) or ""
+                    from antar_engine.ask_consultation import prescan_domain
+                    diagnostic_block = build_diagnostic_prompt_block(
+                        chart_data, question,
+                        prescan_domain(_ask_concern),
+                        jd=_ask_jd or None,
+                        lk=_ask_lk or None,
+                        current_dasha=_ask_dasha_str or None,
+                    ) or ""
             except Exception as _de:
                 logger.warning(f"[ask] diagnostic block failed (non-fatal): {_de}")
 
-            _sys = (
-                "You are Antar, a grounded life coach. The user asked an open question. "
-                "Using the diagnostic context below, reply with STRICT JSON only: "
-                '{"read": "...", "next": "..."}. '
-                "read = 2 to 4 short sentences of plain, warm, practical coaching that speaks "
-                "directly to their question. next = ONE concrete action they can take this week, "
-                "or null if none fits. Never mention astrology, planets, houses, signs, "
-                "nakshatras, dashas, scores, or any Sanskrit or technical term — plain everyday "
-                "language only. Output JSON only, no prose, no code fences."
-                f"\n\n{diagnostic_block}"
-            )
+            _ask_layers_block = ""
+            try:
+                if isinstance(chart_data, dict) and chart_data:
+                    _ask_layers_block = _ask_build_layer_context(
+                        chart_data, _ask_dashas, _ask_bdate, _ask_concern
+                    )
+            except Exception as _ale:
+                logger.warning(f"[ask] layer context failed (non-fatal): {_ale}")
+            print(f"[ask] concern={_ask_concern} dasha={_ask_dasha_str or 'unknown'} "
+                  f"layers={len(_ask_layers_block)}ch prescan={len(diagnostic_block)}ch")
+
+            # ── Consultation path (2026-06-03): a timing/decision question
+            #    must get verdict + convergence-derived timing + practices
+            #    even when the Exploration toggle is selected — the mode
+            #    toggle must not gate accuracy. ──────────────────────────
+            _ask_decision = False
+            _ask_conv = {}
+            _ask_conv_block = ""
+            _ask_practices = []
+            try:
+                from antar_engine.ask_consultation import (
+                    is_decision_question, build_convergence_timing,
+                    consultation_prompt_block,
+                )
+                _ask_decision = is_decision_question(question)
+                if _ask_decision:
+                    _ask_conv = build_convergence_timing(
+                        _ask_concern, chart_data, _ask_dashas, _ask_bdate
+                    )
+                    _ask_conv_block = consultation_prompt_block(
+                        _ask_conv, _ask_concern, _ask_dasha_str
+                    )
+                    _ask_practices = _ask_get_practices(
+                        chart_id, chart_data, _ask_jd, _ask_lk,
+                        chart_row.data.get("current_country"), _ask_bdate,
+                        relevant_planets=_ask_conv.get("relevant_planets"),
+                    )
+                    print(f"[ask] consultation: locks={_ask_conv.get('lock_count')} "
+                          f"window={_ask_conv.get('window_label')} "
+                          f"practices={len(_ask_practices)}")
+            except Exception as _dqe:
+                logger.warning(f"[ask] consultation path failed (non-fatal): {_dqe}")
+
+            if _ask_decision:
+                _sys = (
+                    "You are Antar, a grounded life coach. The user asked a timing/decision "
+                    "question. Using ONLY the consultation facts and chart context below, "
+                    "reply with STRICT JSON only: "
+                    '{"read": "...", "verdict": "...", "timing": "...", "actions": ["...", "..."], "next": "..."}. '
+                    "read = 2 to 4 warm sentences that answer the question DIRECTLY and "
+                    "include the timing window. verdict = one of YES, LIKELY, NOT_YET, NO. "
+                    "timing = the TIMING WINDOW from the consultation facts restated plainly — "
+                    "NEVER invent dates; if the facts say no window, describe a building phase. "
+                    "actions = 2 or 3 concrete moves tied to the chart signals that raise the "
+                    "odds. next = the single most important action this week. "
+                    "Never mention astrology, planets, houses, signs, nakshatras, dashas, "
+                    "scores, or any Sanskrit or technical term — plain everyday language only. "
+                    "Output JSON only, no prose, no code fences."
+                    f"\n\n{_ask_conv_block}"
+                    f"\n\n{_ask_layers_block}"
+                    f"\n\n{diagnostic_block}"
+                )
+            else:
+                _sys = (
+                    "You are Antar, a grounded life coach. The user asked an open question. "
+                    "Using the diagnostic context below, reply with STRICT JSON only: "
+                    '{"read": "...", "next": "..."}. '
+                    "read = 2 to 4 short sentences of plain, warm, practical coaching that speaks "
+                    "directly to their question. next = ONE concrete action they can take this week, "
+                    "or null if none fits. Never mention astrology, planets, houses, signs, "
+                    "nakshatras, dashas, scores, or any Sanskrit or technical term — plain everyday "
+                    "language only. Output JSON only, no prose, no code fences."
+                    f"\n\n{_ask_layers_block}"
+                    f"\n\n{diagnostic_block}"
+                )
 
             raw = ""
             try:
@@ -11536,12 +11833,19 @@ async def ask_endpoint(request: AskRequest):
                 logger.error(f"[ask] explore LLM failed: {_ce}")
 
             read_txt, next_txt = "", None
+            _ask_verdict, _ask_actions = None, []
             try:
                 if raw and "{" in raw and "}" in raw:
                     _parsed = json.loads(raw[raw.find("{"): raw.rfind("}") + 1])
                     read_txt = (_parsed.get("read") or "").strip()
                     _n = _parsed.get("next")
                     next_txt = _n.strip() if isinstance(_n, str) and _n.strip() else None
+                    _v = _parsed.get("verdict")
+                    if isinstance(_v, str) and _v.strip():
+                        _ask_verdict = _v.strip().upper()
+                    _a = _parsed.get("actions")
+                    if isinstance(_a, list):
+                        _ask_actions = [str(x).strip() for x in _a if str(x).strip()][:3]
                 else:
                     read_txt = (raw or "").strip()
             except Exception:
@@ -11551,7 +11855,14 @@ async def ask_endpoint(request: AskRequest):
                 read_txt = "I couldn't read a clear signal just now — try asking again in a moment."
 
             payload = {"mode": "explore", "read": read_txt, "next": next_txt, "locked": False}
-            payload = await _ask_localize(payload, language, ["read", "next"], chart_id)
+            if _ask_decision:
+                # Deterministic fields win over model output where we have them
+                payload["verdict"]  = _ask_verdict or ("LIKELY" if _ask_conv.get("convergence_met") else "NOT_YET")
+                payload["timing"]   = _ask_conv.get("window_label")
+                payload["actions"]  = _ask_actions
+                payload["practices"] = _ask_practices
+                payload["convergence"] = _ask_conv.get("public_summary")
+            payload = await _ask_localize(payload, language, ["read", "next", "timing"], chart_id)
             return payload
 
         except Exception as e:
@@ -11593,7 +11904,7 @@ async def ask_endpoint(request: AskRequest):
 
             # 2. NOT LOCKED — cast a fresh chart at the moment of asking.
             chart_row = supabase.table("charts") \
-                .select("chart_data, jaimini_data, first_name, current_country, latitude, longitude") \
+                .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, latitude, longitude") \
                 .eq("id", chart_id).single().execute()
             if not chart_row.data:
                 return JSONResponse(status_code=404, content={"error": "Chart not found"})
@@ -11621,6 +11932,18 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _dde:
                 logger.warning(f"[ask] dasha lookup failed (non-fatal): {_dde}")
 
+            # ── Triple-lock input fix (2026-06-03): stored jaimini_data lacks
+            # current_mahadasha / current_chara_dasha / karakas-as-dict /
+            # arudha sign_index — all three Jaimini locks silently never
+            # fired. Enrich from dasha_periods before the engine runs.
+            _yn_dashas = {}
+            try:
+                from antar_engine.ask_consultation import enrich_jaimini_for_locks
+                _yn_dashas = get_dashas_for_chart(chart_id)
+                jaimini_data = enrich_jaimini_for_locks(jaimini_data, _yn_dashas)
+            except Exception as _ele:
+                logger.warning(f"[ask] jaimini lock enrichment failed (non-fatal): {_ele}")
+
             cast_ts = datetime.now(timezone.utc)
             locale = "IN" if current_country and current_country.upper() in ("IN", "INDIA") else "global"
 
@@ -11641,19 +11964,54 @@ async def ask_endpoint(request: AskRequest):
             verdict = "YES" if _v.startswith("Y") else "NO"
             timing = engine_result.get("timing")
 
-            # ONE plain-English sentence of "why" (no jargon, no scores).
+            # ── Convergence-derived timing (2026-06-03): 2-of-3 across
+            # Vimshottari + Chara + Varshphal. When the locks agree, the
+            # deterministic window replaces the generic Ithasala estimate.
+            _yn_conv = {}
+            _yn_conv_block = ""
+            try:
+                from antar_engine.ask_consultation import (
+                    build_convergence_timing, consultation_prompt_block,
+                )
+                _yn_concern = _detect_concern(question)
+                _yn_conv = build_convergence_timing(
+                    _yn_concern, natal_chart or {}, _yn_dashas,
+                    str(cdata.get("birth_date") or ""),
+                )
+                _yn_conv_block = consultation_prompt_block(_yn_conv, _yn_concern, natal_dasha)
+                if _yn_conv.get("convergence_met") and _yn_conv.get("window_label"):
+                    timing = _yn_conv["window_label"]
+                print(f"[ask] yesno concern={_yn_concern} locks={_yn_conv.get('lock_count')} "
+                      f"window={_yn_conv.get('window_label')}")
+            except Exception as _cve:
+                logger.warning(f"[ask] convergence failed (non-fatal): {_cve}")
+
+            # "why" + ACTIONS in one call (2026-06-03) — pinned to the
+            # convergence facts so the model cannot invent timing.
             _why_sys = (
-                "You are Antar. Explain a yes/no answer to the user's question. Reply with ONE "
-                "plain-English sentence only. No astrology, no planets, houses, signs, nakshatras, "
-                "Sanskrit, numbers, or scores. Do not enumerate factors. "
-                f"The answer is {verdict}. Base your single sentence on this internal reasoning: "
-                f"{(engine_result.get('claude_prompt') or '')[:1500]}"
+                "You are Antar. The user asked a yes/no question. Reply with STRICT JSON only: "
+                '{"why": "...", "actions": ["...", "..."]}. '
+                f"why = ONE plain-English sentence explaining why the answer is {verdict}. "
+                "actions = 2 or 3 concrete moves, tied to the signals below, that raise the "
+                "odds of a good outcome. No astrology, no planets, houses, signs, nakshatras, "
+                "Sanskrit, numbers, or scores anywhere. JSON only, no code fences. "
+                f"Internal reasoning: {(engine_result.get('claude_prompt') or '')[:1200]}"
+                f"\n\n{_yn_conv_block}"
             )
             why = ""
+            _yn_actions = []
             try:
                 _wt = await call_llm_claude(prompt=question, system_override=_why_sys)
-                why = (_wt[0] if isinstance(_wt, tuple) else _wt) or ""
-                why = why.strip()
+                _wraw = (_wt[0] if isinstance(_wt, tuple) else _wt) or ""
+                _wraw = _wraw.strip()
+                try:
+                    _wparsed = json.loads(_wraw[_wraw.find("{"): _wraw.rfind("}") + 1])
+                    why = (_wparsed.get("why") or "").strip()
+                    _wa = _wparsed.get("actions")
+                    if isinstance(_wa, list):
+                        _yn_actions = [str(x).strip() for x in _wa if str(x).strip()][:3]
+                except Exception:
+                    why = _wraw
             except Exception as _we:
                 logger.error(f"[ask] why LLM failed: {_we}")
             if why:
@@ -11688,6 +12046,13 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _ie:
                 logger.warning(f"[ask] prashna_log insert failed (non-blocking): {_ie}")
 
+            _yn_practices = _ask_get_practices(
+                chart_id, natal_chart or {}, jaimini_data,
+                _safe_jsonb(cdata.get("lal_kitab_data")), current_country,
+                str(cdata.get("birth_date") or ""),
+                relevant_planets=_yn_conv.get("relevant_planets") if _yn_conv else None,
+            )
+
             payload = {
                 "mode": "yesno",
                 "locked": False,
@@ -11696,6 +12061,9 @@ async def ask_endpoint(request: AskRequest):
                 "timing": timing,
                 "locked_until": locked_until,
                 "question": question,
+                "actions": _yn_actions,
+                "practices": _yn_practices,
+                "convergence": _yn_conv.get("public_summary"),
             }
             payload = await _ask_localize(payload, language, ["why", "timing"], chart_id)
             return payload
@@ -12953,38 +13321,18 @@ async def verify_subscription(request: dict):
 
 @app.post("/api/v1/subscription/stripe-webhook")
 async def stripe_webhook(request: Request):
-    """Handle Stripe webhook — auto-activate on payment."""
-    import json
-    body = await request.body()
-    try:
-        event = json.loads(body)
-        if event["type"] == "checkout.session.completed":
-            session  = event["data"]["object"]
-            chart_id = session.get("client_reference_id", "")
-            sub_id   = session.get("subscription", "")
-            if chart_id and sub_id:
-                from antar_engine.subscription_engine import activate_subscription
-                from datetime import timedelta
-                period_end = (
-                    datetime.now(timezone.utc) + timedelta(days=30)
-                ).isoformat()
-                activate_subscription(
-                    chart_id=chart_id,
-                    plan="seeker",
-                    provider="stripe",
-                    provider_sub_id=sub_id,
-                    period_end_iso=period_end,
-                    sb=supabase,
-                )
-        return {"received": True}
-    except Exception as e:
-        raise HTTPException(400, str(e))
+    """
+    LEGACY webhook URL — delegates to the canonical signature-verified
+    handler (/api/v1/payments/stripe/webhook). Delete this route once the
+    Stripe dashboard is confirmed to register only the canonical URL.
+    """
+    return await handle_stripe_webhook(request)
 
 
 # ── Payment Checkout Endpoints ────────────────────────────────────
 
 @app.post("/api/v1/payments/stripe/create-checkout")
-async def create_stripe_checkout_session(request: dict):
+async def create_stripe_checkout_session(request: dict, authorization: Optional[str] = Header(None)):
     """
     Create Stripe checkout session.
     Body: { chart_id, plan_key, success_url?, cancel_url? }
@@ -13001,7 +13349,32 @@ async def create_stripe_checkout_session(request: dict):
 
     # Sprint L: Country-aware pricing — pass country for LATAM local currency
     country_code = request.get("current_country", "US")
-    result = create_stripe_checkout(chart_id, plan_key, success_url, cancel_url, country_code=country_code)
+
+    # Billing P0: resolve the signed-in user's Stripe customer so the
+    # subscription lands on the SAME customer the billing portal opens.
+    customer_id, user_id = "", ""
+    try:
+        _uid, _email = _st_identity(authorization)
+        if _uid:
+            user_id = _uid
+            _prof = _st_get_profile(_uid)
+            customer_id = _prof.get("stripe_customer_id") or ""
+            if not customer_id:
+                import stripe as _s
+                _s.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+                _cust = _s.Customer.create(email=_email or None, metadata={"user_id": _uid})
+                customer_id = _cust.id
+                supabase.table("profiles").update(
+                    {"stripe_customer_id": customer_id, "updated_at": datetime.utcnow().isoformat()}
+                ).eq("user_id", _uid).execute()
+                _st_cache_bust(_uid)
+    except Exception as _ce:
+        print(f"[checkout] customer resolution non-fatal: {_ce}")
+
+    result = create_stripe_checkout(
+        chart_id, plan_key, success_url, cancel_url,
+        country_code=country_code, customer=customer_id, user_id=user_id,
+    )
     if result.get("error"):
         raise HTTPException(500, f"Stripe error: {result['error']}")
     return result
@@ -13042,12 +13415,21 @@ async def verify_stripe_payment(request: dict):
 
 @app.post("/api/v1/payments/stripe/webhook")
 async def handle_stripe_webhook(request: Request):
-    """Stripe webhook — handles all subscription lifecycle events."""
+    """Stripe webhook — signature-verified; handles all subscription lifecycle events."""
     import json
     from antar_engine.subscription_engine import activate_subscription
     body = await request.body()
+    sig_header = request.headers.get("stripe-signature", "")
+    _wh_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "")
+    if not _wh_secret:
+        # Fail closed: Stripe retries failed deliveries, so events are not lost.
+        raise HTTPException(503, "stripe webhook secret not configured")
+    import stripe as _stripe_wh
     try:
-        event = json.loads(body)
+        event = _stripe_wh.Webhook.construct_event(body, sig_header, _wh_secret)
+    except Exception as _sig_err:
+        raise HTTPException(400, f"invalid stripe signature: {_sig_err}")
+    try:
         event_type = event["type"]
         obj = event["data"]["object"]
 
@@ -13067,6 +13449,23 @@ async def handle_stripe_webhook(request: Request):
                     period_end_iso=period_end, sb=supabase,
                 )
                 print(f"[stripe webhook] Activated {plan} for {chart_id} (period: {days}d)")
+            # Billing P0: customer backfill — link profile to the Stripe
+            # customer created at checkout so the portal sees the subscription.
+            try:
+                _cust_id = obj.get("customer") or ""
+                _uid = (obj.get("metadata") or {}).get("user_id", "")
+                if _cust_id:
+                    if _uid:
+                        supabase.table("profiles").update(
+                            {"stripe_customer_id": _cust_id}
+                        ).eq("user_id", _uid).execute()
+                        _st_cache_bust(_uid)
+                    elif chart_id:
+                        supabase.table("profiles").update(
+                            {"stripe_customer_id": _cust_id}
+                        ).eq("primary_chart_id", chart_id).execute()
+            except Exception as _bf:
+                print(f"[stripe webhook] customer backfill non-fatal: {_bf}")
 
         # ── SUBSCRIPTION UPDATED (plan change: monthly↔yearly, upgrade/downgrade) ──
         elif event_type == "customer.subscription.updated":

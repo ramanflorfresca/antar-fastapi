@@ -214,7 +214,7 @@ def _format_dr(sd: datetime, ed: datetime) -> str:
 
 
 def _audit_chart_completeness(chart_data: dict, jaimini_data: dict,
-                               lk_data: dict) -> dict:
+                               lk_data: dict, ashtottari_rows: list = None) -> dict:
     """
     Check which layers have real data vs are empty/missing.
     Returns audit dict that gets injected into Claude's context.
@@ -228,8 +228,16 @@ def _audit_chart_completeness(chart_data: dict, jaimini_data: dict,
         "d9":          bool(_div.get("d9", _div.get("D9", {}))),
         "d10":         bool(_div.get("d10", _div.get("D10", {}))),
         "varshaphal":  bool(chart_data.get("planets")),  # varshaphal computable if planets exist
-        "lal_kitab":   bool(lk_data and (lk_data.get("planets") or lk_data.get("planet_in_house_analysis"))),
-        "ashtottari":  bool(chart_data.get("ashtottari_dashas")),
+        # Bug-3 fix (2026-06-03): stored lal_kitab_data uses natal_planets /
+        # placements / advanced keys (no "planets" key), and ashtottari lives
+        # in dasha_periods rows, not chart_data. Both layers false-negatived
+        # on every chart, capping confidence at 75% for no reason.
+        "lal_kitab":   bool(lk_data and (lk_data.get("planets")
+                                         or lk_data.get("planet_in_house_analysis")
+                                         or lk_data.get("natal_planets")
+                                         or lk_data.get("placements")
+                                         or lk_data.get("advanced"))),
+        "ashtottari":  bool(ashtottari_rows or chart_data.get("ashtottari_dashas")),
     }
     active = sum(layers.values())
     missing = [k for k, v in layers.items() if not v]
@@ -681,7 +689,9 @@ WEALTH ANALYSIS CONTEXT:
     _jk_pk  = jaimini_karakas.get('Putrakaraka',{}).get('planet','?')
     _jk_mk  = jaimini_karakas.get('Matrukaraka',{}).get('planet','?')
     # ── Data Completeness Audit ───────────────────────────
-    _audit = _audit_chart_completeness(chart_data, jaimini_data or {}, lk_raw_data or lk_analysis or {})
+    _audit = _audit_chart_completeness(chart_data, jaimini_data or {},
+                                       lk_raw_data or lk_analysis or {},
+                                       ashtottari_rows=ash)
     _completeness_block = (
         "DATA COMPLETENESS AUDIT\n"
         f"Layers active: {_audit['layers_active']}/{_audit['layers_total']}\n"

@@ -134,6 +134,8 @@ def create_stripe_checkout(
     success_url: str,
     cancel_url: str,
     country_code: str = "US",
+    customer: str = "",
+    user_id: str = "",
 ) -> dict:
     """
     Create Stripe checkout session with global country-aware pricing.
@@ -181,7 +183,9 @@ def create_stripe_checkout(
                 success_url=success_url + "?session_id={CHECKOUT_SESSION_ID}",
                 cancel_url=cancel_url,
                 client_reference_id=chart_id,
-                metadata={"chart_id": chart_id, "plan": plan_key, "country": country_code},
+                metadata={"chart_id": chart_id, "plan": plan_key, "country": country_code, "user_id": user_id},
+                subscription_data={"metadata": {"chart_id": chart_id, "plan": plan_key, "user_id": user_id}},
+                **({"customer": customer} if customer else {}),
                 payment_method_types=["card"],
             )
         else:
@@ -191,7 +195,9 @@ def create_stripe_checkout(
                 success_url=success_url + "?session_id={CHECKOUT_SESSION_ID}",
                 cancel_url=cancel_url,
                 client_reference_id=chart_id,
-                metadata={"chart_id": chart_id, "plan": plan_key, "country": country_code},
+                metadata={"chart_id": chart_id, "plan": plan_key, "country": country_code, "user_id": user_id},
+                subscription_data={"metadata": {"chart_id": chart_id, "plan": plan_key, "user_id": user_id}},
+                **({"customer": customer} if customer else {}),
                 payment_method_types=["card"],
             )
         return {
@@ -215,9 +221,22 @@ def verify_stripe_session(session_id: str) -> dict:
             plan_key = session.metadata.get("plan", "seeker_monthly")
             plan     = plan_key.split("_")[0]  # "seeker" or "navigator"
             sub_id   = session.subscription or session.payment_intent or ""
-            period_end = (
-                datetime.now(timezone.utc) + timedelta(days=30)
-            ).isoformat()
+            # P1 fix: derive the real period from the Stripe subscription.
+            # Previously hardcoded 30 days, so annual plans expired early in the DB.
+            period_end = None
+            try:
+                if session.subscription:
+                    _sub = stripe.Subscription.retrieve(str(session.subscription))
+                    _cpe = _sub.get("current_period_end")
+                    if _cpe:
+                        period_end = datetime.fromtimestamp(_cpe, tz=timezone.utc).isoformat()
+            except Exception:
+                period_end = None
+            if not period_end:
+                _days = 366 if ("annual" in plan_key or "yearly" in plan_key) else 32
+                period_end = (
+                    datetime.now(timezone.utc) + timedelta(days=_days)
+                ).isoformat()
             return {
                 "verified":   True,
                 "chart_id":   chart_id,
