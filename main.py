@@ -20354,6 +20354,50 @@ async def predict_year_attention(request: dict):
     except Exception as _ype:
         print(f"[year-attention] period/muntha failed: {_ype}")
 
+    # ── [year-varshphal] Claude-narrated annual body. The engine has already
+    # decided the year state above; Claude only narrates it (headline + 4-6
+    # line body + watch line, GPS-coach voice, zero jargon). Cached per
+    # (chart, birthday-period, en) with an engine fingerprint. ANY failure
+    # leaves the template headline/gist in place.
+    try:
+        from antar_engine.year_narration import (
+            build_year_engine_state, build_year_narration_system,
+            parse_and_validate_year, year_narration_cache_read,
+            year_narration_cache_write,
+        )
+        _yn_state = build_year_engine_state(
+            year=year,
+            attention=attention,
+            muntha=payload.get("muntha", ""),
+            highlights=payload.get("highlights") or [],
+            chart_data=chart_data,
+            lk_data=lk_data,
+            birth_date=birth_date,
+            current_md_row=current_md_row,
+            next_md_row=next_md_row,
+        )
+        _yn_ps = str(payload.get("period_start") or year.get("range") or "")
+        _yn = year_narration_cache_read(supabase, chart_id, _yn_ps, _yn_state)
+        if not _yn:
+            _yn_sys = build_year_narration_system(
+                _yn_state, first_name=(row.get("first_name") or ""),
+            )
+            _yn_raw, _ = await call_llm_claude(
+                prompt="Write the Year narration JSON now.",
+                system_override=_yn_sys,
+                max_tokens_override=600,
+            )
+            _yn = parse_and_validate_year(_yn_raw, language="en")
+            if _yn:
+                year_narration_cache_write(supabase, chart_id, _yn_ps, _yn_state, _yn)
+        if _yn:
+            year["headline"] = _yn["headline"]
+            year["gist"] = _yn["body"]
+            year["watch"] = _yn["watch"]
+            payload["narration_source"] = "claude"
+    except Exception as _yn_err:
+        print(f"[year-attention] narration skipped (template fallback): {_yn_err}")
+
     # ── translate at response time (English source; planet/name/key/colour kept) ──
     if language in ("es", "pt"):
         try:
@@ -20361,7 +20405,7 @@ async def predict_year_attention(request: dict):
                 payload,
                 language=language,
                 fields_to_translate=[
-                    "headline", "gist", "use", "remedy", "issue",
+                    "headline", "gist", "use", "remedy", "issue", "watch",
                     "note", "text", "governs", "steps", "best", "worst",
                 ],
                 fields_to_skip=[
