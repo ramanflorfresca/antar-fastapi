@@ -12890,6 +12890,32 @@ async def debug_context(request: dict):
 
 
 # ── DAILY SIGNAL ──────────────────────────────────────────────────
+class OnboardingReasonRequest(BaseModel):
+    chart_id: str
+    reason:   str
+
+
+@app.post("/api/v1/onboarding/reason")
+async def save_onboarding_reason(request: OnboardingReasonRequest):
+    """Store the onboarding concern ("why you came to Antar") on the chart.
+
+    The frontend already holds this in localStorage (antar_signup_reason_category,
+    e.g. "career_money"); it POSTs it once here. Feeds the Today-highlight
+    patra prior (Layer B). Idempotent — re-posting overwrites.
+    """
+    from fastapi.responses import JSONResponse
+    cid = (request.chart_id or "").strip()
+    reason = (request.reason or "").strip()[:80]
+    if not cid or not reason:
+        return JSONResponse(status_code=400, content={"error": "chart_id and reason required"})
+    try:
+        supabase.table("charts").update({"signup_reason": reason}).eq("id", cid).execute()
+        return {"success": True, "stored": reason}
+    except Exception as e:
+        # Most likely: signup_reason column not added yet (run sql_slice2_patra_prior.sql)
+        return JSONResponse(status_code=500, content={"error": "store_failed", "detail": str(e)[:200]})
+
+
 @app.post("/api/v1/daily-signal")
 @app.get("/api/v1/daily-signal/{chart_id}")
 @translate_response(
@@ -13067,11 +13093,22 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 )
             except Exception:
                 _th_lk = {}
+            # Layer B — patra prior (who this person is): recent Ask domains
+            # beat the stated signup concern; life-stage adds a gentle lean.
+            # Soft tilt only — select_today_highlight caps it and layer C
+            # (chart reality) keeps the veto. Fail-open: missing tables or a
+            # missing signup_reason column degrade to {}.
+            try:
+                from antar_engine.patra_prior import build_patra_tilt
+                _th_tilt = build_patra_tilt(cid, supabase, birth_date=row.get("birth_date"))
+            except Exception:
+                _th_tilt = {}
             _th = select_today_highlight(
                 signal0=dict(signals[0]) if signals else {},
                 lk_daily=_th_lk,
                 natal_chart=cd if isinstance(cd, dict) else {},
                 panchanga=panchanga,
+                patra_tilt=_th_tilt,
             )
             _th_dbg = _th.pop("_debug_reasoning", {})
             _th_dbg["_prev_el_movimiento"] = result.get("el_movimiento", "")
