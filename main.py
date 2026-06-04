@@ -11322,6 +11322,15 @@ async def compatibility_start(request: CompatibilityStartRequest):
         except Exception as _te2:
             print(f"[compat] V2 translate non-fatal: {_te2}")
     if _compat_preview:
+        # [compat-slots] an included (navigator) or purchased slot for THIS
+        # pair unlocks the full report; an unused purchase binds permanently.
+        try:
+            from antar_engine.entitlements import compat_slot_allows as _csa_fn
+            if _csa_fn(request.chart_id_a, chart_id_b, _compat_tier, supabase):
+                _compat_preview = False
+        except Exception as _cse:
+            print(f"[compat-slots] start check non-fatal: {_cse}")
+    if _compat_preview:
         from antar_engine.entitlements import upgrade_block as _ent_upg_fn
         _keep = {"session_id", "chart_id_a", "chart_id_b", "name_a", "name_b",
                  "compat_type", "role", "direction", "score", "badge",
@@ -11581,8 +11590,20 @@ async def compatibility_continue(request: CompatibilityContinueRequest):
     if not res.data:
         raise HTTPException(404, "Compatibility session not found")
     session = res.data[0]
-    # ── Entitlement: layers 2-3 are Navigator-only ──
+    # ── Entitlement: layers 2-3 need a covered slot or navigator ──
     _ent_deny = _ent_feature_gate(session.get("chart_id_a") or "", "compatibility")
+    if _ent_deny is not None:
+        # [compat-slots] a bound/included slot for this pair keeps layers open
+        try:
+            from antar_engine.entitlements import (
+                get_entitlement as _cc_tier_fn, compat_slot_allows as _cc_allows,
+            )
+            _cc_a = session.get("chart_id_a") or ""
+            if _cc_allows(_cc_a, session.get("chart_id_b"),
+                          _cc_tier_fn(_cc_a, supabase), supabase, consume=False):
+                _ent_deny = None
+        except Exception as _cce:
+            print(f"[compat-slots] continue check non-fatal: {_cce}")
     if _ent_deny is not None:
         return _ent_deny
     brief_a = session["brief_a"]
@@ -14462,6 +14483,35 @@ async def verify_subscription(request: dict):
     return {"success": True, "subscription": result}
 
 
+@app.post("/api/v1/compat/slots/checkout")
+async def compat_slot_checkout(request: dict, authorization: Optional[str] = Header(None)):
+    """[compat-slots] One-time checkout for one additional compatibility chart.
+    Body: { chart_id, success_url?, cancel_url?, current_country? }"""
+    from antar_engine.payment_engine import create_compat_slot_checkout
+    chart_id = request.get("chart_id", "")
+    if not chart_id:
+        raise HTTPException(400, "chart_id required")
+    success_url = request.get("success_url", "https://antar.world/compat/unlocked")
+    cancel_url = request.get("cancel_url", "https://antar.world/compat")
+    country_code = request.get("current_country", "US")
+    customer_id, user_id = "", ""
+    try:
+        _uid, _email = _st_identity(authorization)
+        if _uid:
+            user_id = _uid
+            _prof = _st_get_profile(_uid)
+            customer_id = _prof.get("stripe_customer_id") or ""
+    except Exception as _ce:
+        print(f"[compat-slots checkout] customer resolution non-fatal: {_ce}")
+    result = create_compat_slot_checkout(
+        chart_id, success_url, cancel_url,
+        country_code=country_code, customer=customer_id, user_id=user_id,
+    )
+    if result.get("error"):
+        raise HTTPException(500, f"Stripe error: {result['error']}")
+    return result
+
+
 @app.post("/api/v1/subscription/stripe-webhook")
 async def stripe_webhook(request: Request):
     """
@@ -14576,8 +14626,28 @@ async def handle_stripe_webhook(request: Request):
         event_type = event["type"]
         obj = event["data"]["object"]
 
+        # ── COMPAT SLOT PURCHASE [compat-slots] — must run BEFORE the
+        #    subscription branch: a one-time payment session would otherwise
+        #    fall through and wrongly activate a seeker plan. ──
+        if (event_type == "checkout.session.completed"
+                and (obj.get("metadata") or {}).get("type") == "compat_slot"):
+            _cs_chart = ((obj.get("metadata") or {}).get("chart_id")
+                         or obj.get("client_reference_id") or "")
+            if _cs_chart:
+                try:
+                    supabase.table("compat_slot_purchases").upsert({
+                        "chart_id": _cs_chart,
+                        "stripe_session_id": obj.get("id", ""),
+                        "amount_cents": obj.get("amount_total"),
+                        "currency": obj.get("currency"),
+                        "status": "paid",
+                    }, on_conflict="stripe_session_id").execute()
+                    print(f"[stripe webhook] compat slot purchased for {_cs_chart}")
+                except Exception as _cse:
+                    print(f"[stripe webhook] compat slot insert FAILED: {_cse}")
+
         # ── NEW SUBSCRIPTION or PAYMENT COMPLETED ──
-        if event_type in ("checkout.session.completed", "customer.subscription.created"):
+        elif event_type in ("checkout.session.completed", "customer.subscription.created"):
             chart_id = (obj.get("client_reference_id") or
                         obj.get("metadata", {}).get("chart_id", ""))
             sub_id = (obj.get("subscription") or obj.get("id", ""))

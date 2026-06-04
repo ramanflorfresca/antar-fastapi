@@ -209,6 +209,48 @@ def create_stripe_checkout(
         return {"error": str(e)}
 
 
+def create_compat_slot_checkout(
+    chart_id: str,
+    success_url: str,
+    cancel_url: str,
+    country_code: str = "US",
+    customer: str = "",
+    user_id: str = "",
+) -> dict:
+    """[compat-slots] One-time $1.99 payment for one additional compatibility
+    chart slot. mode="payment" — the webhook routes on metadata.type, so this
+    can NEVER activate a subscription. Single global USD price at launch;
+    IN/Razorpay localisation is a follow-up."""
+    try:
+        import stripe
+        stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+        session = stripe.checkout.Session.create(
+            line_items=[{
+                "price_data": {
+                    "currency": "usd",
+                    "unit_amount": 199,
+                    "product_data": {
+                        "name": "Antar — additional compatibility chart",
+                        "description": "Permanently unlock full compatibility with one more chart",
+                    },
+                },
+                "quantity": 1,
+            }],
+            mode="payment",
+            success_url=success_url + "?session_id={CHECKOUT_SESSION_ID}",
+            cancel_url=cancel_url,
+            client_reference_id=chart_id,
+            metadata={"type": "compat_slot", "chart_id": chart_id,
+                      "country": country_code, "user_id": user_id},
+            **({"customer": customer} if customer else {}),
+            payment_method_types=["card"],
+        )
+        return {"provider": "stripe", "checkout_url": session.url,
+                "session_id": session.id}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 def verify_stripe_session(session_id: str) -> dict:
     """Verify a completed Stripe checkout session."""
     try:

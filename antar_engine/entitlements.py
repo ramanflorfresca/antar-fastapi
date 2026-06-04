@@ -62,6 +62,93 @@ FEATURE_REQUIRED_TIER = {
     "history":       "seeker",
 }
 
+# ── Compatibility chart slots [compat-slots] ──────────────────────
+# Navigator includes N charts; additional charts are one-time purchases
+# (compat_slot_purchases). A purchase binds permanently to one partner
+# chart on first full compatibility run. Fail-open on DB errors so a
+# missing table never breaks compatibility.
+
+COMPAT_INCLUDED_SLOTS = {"free": 0, "seeker": 0, "navigator": 2}
+COMPAT_SLOT_PRICE = {"usd_cents": 199, "label": "$1.99"}
+
+
+def _compat_partners(chart_id: str, sb) -> list:
+    """Distinct partner chart ids for this owner, oldest connection first."""
+    try:
+        rows = sb.table("chart_connections").select("chart_id_b,created_at")             .eq("chart_id_a", chart_id).order("created_at").execute().data or []
+    except Exception:
+        try:
+            rows = sb.table("chart_connections").select("chart_id_b")                 .eq("chart_id_a", chart_id).execute().data or []
+        except Exception:
+            return []
+    seen, out = set(), []
+    for r in rows:
+        b = r.get("chart_id_b")
+        if b and b not in seen:
+            seen.add(b)
+            out.append(b)
+    return out
+
+
+def compat_slots(chart_id: str, sb, tier: Optional[str] = None) -> dict:
+    """{included, purchased, bound, partners_used} for the frontend."""
+    tier = tier or get_entitlement(chart_id, sb)
+    included = COMPAT_INCLUDED_SLOTS.get(tier, 0)
+    purchased = bound = 0
+    try:
+        rows = sb.table("compat_slot_purchases").select("connection_chart_id,status")             .eq("chart_id", chart_id).eq("status", "paid").execute().data or []
+        purchased = len(rows)
+        bound = sum(1 for r in rows if r.get("connection_chart_id"))
+    except Exception:
+        pass
+    return {
+        "included": included,
+        "purchased": purchased,
+        "bound": bound,
+        "partners_used": len(_compat_partners(chart_id, sb)),
+        "price": COMPAT_SLOT_PRICE["label"],
+    }
+
+
+def compat_slot_allows(chart_id_a: str, chart_id_b: Optional[str], tier: str,
+                       sb, consume: bool = True) -> bool:
+    """True when full compatibility with chart_id_b is covered by an included
+    (navigator) slot, an already-bound purchase, or an unused purchase (which
+    is then consumed/bound permanently when consume=True)."""
+    if not chart_id_a or not chart_id_b:
+        return False
+    try:
+        rows = sb.table("compat_slot_purchases")             .select("id,connection_chart_id,status")             .eq("chart_id", chart_id_a).eq("status", "paid").execute().data or []
+    except Exception:
+        rows = []
+    # 1. already bound to this exact partner
+    for r in rows:
+        if r.get("connection_chart_id") == chart_id_b:
+            return True
+    # 2. included slots (navigator): existing partner, or room for a new one
+    included = COMPAT_INCLUDED_SLOTS.get(tier, 0)
+    if included:
+        partners = _compat_partners(chart_id_a, sb)
+        if chart_id_b in partners[:included]:
+            return True
+        if chart_id_b not in partners and len(partners) < included:
+            return True
+    # 3. consume an unused purchase — permanent binding
+    for r in rows:
+        if not r.get("connection_chart_id"):
+            if consume:
+                try:
+                    from datetime import datetime, timezone
+                    sb.table("compat_slot_purchases").update({
+                        "connection_chart_id": chart_id_b,
+                        "used_at": datetime.now(timezone.utc).isoformat(),
+                    }).eq("id", r["id"]).execute()
+                except Exception:
+                    return False
+            return True
+    return False
+
+
 # ── Entitlement resolution (60s in-process TTL cache) ─────────────
 
 _ENT_CACHE: dict = {}
@@ -291,4 +378,5 @@ def entitlement_summary(chart_id: str, sb) -> dict:
         "ask_remaining": quota["remaining"],
         "ask_trial": quota.get("trial"),
         "features": {f: FEATURE_MATRIX[f][tier] for f in FEATURE_MATRIX},
+        "compat_slots": compat_slots(chart_id, sb, tier),
     }
