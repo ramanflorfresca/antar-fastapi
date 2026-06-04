@@ -9656,7 +9656,8 @@ async def settings_billing(authorization: Optional[str] = Header(None), language
             payload["entitlement"] = entitlement_summary(pcid, supabase)
         else:
             payload["entitlement"] = {
-                "tier": "free", "ask_used": 0, "ask_limit": 3, "ask_remaining": 3,
+                "tier": "free", "ask_used": 0, "ask_limit": 20, "ask_remaining": 20,
+                "ask_trial": None,
                 "features": {f: FEATURE_MATRIX[f]["free"] for f in FEATURE_MATRIX},
             }
     except Exception as _ent_e:
@@ -12237,20 +12238,35 @@ async def ask_endpoint(request: AskRequest):
     if not question:
         return JSONResponse(status_code=400, content={"error": "Question is required"})
 
-    # ── Entitlement: lifetime Ask quota (3) for free tier ──────────
+    # ── Entitlement: 30-day Ask trial (lifetime-3 cap retired) ──────
+    # Order: paid plan → unlimited; in-trial under the daily cap → allow;
+    # at the cap → 402 reason=daily_cap (soft — resets tomorrow, NOT an
+    # upgrade wall); past 30 days with no plan → 402 reason=trial_expired
+    # (upgrade CTA). `reason` is machine-readable by contract.
     from antar_engine.entitlements import (
-        get_entitlement as _ent_tier_fn, ask_quota as _ent_ask_quota,
+        get_entitlement as _ent_tier_fn, ask_trial_state as _ent_trial,
         increment_ask_usage as _ent_ask_inc, upgrade_block as _ent_upgrade,
     )
     _ask_tier = _ent_tier_fn(chart_id, supabase)
     if _ask_tier == "free":
-        _ask_q = _ent_ask_quota(chart_id, supabase, "free")
-        if (_ask_q.get("remaining") or 0) <= 0:
+        _tr = _ent_trial(chart_id, supabase)
+        if not _tr.get("trial_active"):
             return JSONResponse(status_code=402, content=_ent_upgrade(
                 "ask", "free",
-                ask_used=_ask_q.get("used"), ask_limit=_ask_q.get("limit"),
-                ask_remaining=0,
+                reason="trial_expired",
+                trial_start=_tr.get("trial_start"),
+                trial_ended_at=_tr.get("trial_ends_at"),
             ))
+        if int(_tr.get("used_today") or 0) >= int(_tr.get("daily_limit") or 0):
+            return JSONResponse(status_code=402, content={
+                "error": "daily_cap",
+                "reason": "daily_cap",
+                "feature": "ask",
+                "used_today": _tr.get("used_today"),
+                "daily_limit": _tr.get("daily_limit"),
+                "resets": "tomorrow",
+                "trial_days_left": _tr.get("days_left"),
+            })
 
     # ───────────────────────── EXPLORATION ─────────────────────────
     if mode == "explore":

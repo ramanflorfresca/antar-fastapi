@@ -24,8 +24,11 @@ from antar_engine.subscription_engine import get_subscription
 TIER_RANK = {"free": 0, "seeker": 1, "navigator": 2}
 UPGRADE_URL = "https://antar.world/upgrade"
 
-# Lifetime (not monthly) Ask quota for free users.
-ASK_FREE_LIFETIME_LIMIT = 3
+# 30-day Ask trial (replaced the lifetime-3 cap on 2026-06-05).
+# Existing users' clocks start at launch; new users at signup.
+ASK_TRIAL_DAYS = 30
+ASK_TRIAL_DAILY_LIMIT = 20
+ASK_TRIAL_LAUNCH_ISO = "2026-06-05T00:00:00+00:00"
 
 # Feature matrix — source of truth: ANTAR subscription tiers spec.
 # Values are access levels the frontend can render directly.
@@ -112,13 +115,16 @@ def upgrade_block(feature: str, current_tier: str, locked_fields: Optional[list]
     return block
 
 
-# ── Ask lifetime quota ────────────────────────────────────────────
+# ── Ask 30-day trial ──────────────────────────────────────────────
 # Stored in the ask_usage table (chart_id PK, user_id backfilled from
-# profiles.primary_chart_id).  When a user_id is known, usage is summed
-# across all of that user's chart rows so a free user can't reset the
-# quota by casting a new chart.  NOTE: the post-launch Ask history
-# table can reuse/replace this — counter reads should then move to
-# count(*) over that table.
+# profiles).  Usage is user-scoped: when a user_id is known, today's
+# count is summed across all of that user's chart rows so a free user
+# can't reset the cap by casting a new chart.  The lifetime ask_count
+# column remains as analytics; it no longer gates anything.
+# Daily window reckons on UTC dates (a tz-local reset is a frontend
+# nicety, not a fairness issue at 20/day).
+
+_ASK_USAGE_COLS = "chart_id,user_id,ask_count,ask_count_today,ask_count_date,ask_trial_start"
 
 
 def _resolve_user_id(chart_id: str, sb) -> Optional[str]:
@@ -133,58 +139,132 @@ def _resolve_user_id(chart_id: str, sb) -> Optional[str]:
     return None
 
 
-def get_ask_used(chart_id: str, sb) -> int:
-    """Lifetime Ask answers consumed (summed across the user's charts when linkable)."""
+def _parse_ts(v):
+    from datetime import datetime, timezone
     try:
-        r = sb.table("ask_usage").select("user_id,ask_count").eq(
+        dt = datetime.fromisoformat(str(v).replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        return None
+
+
+def _user_ask_rows(chart_id: str, sb) -> list:
+    """This chart's ask_usage row + the user's sibling rows."""
+    rows = []
+    try:
+        r = sb.table("ask_usage").select(_ASK_USAGE_COLS).eq(
             "chart_id", chart_id
         ).execute()
-        row = r.data[0] if r.data else None
-        uid = (row or {}).get("user_id") or _resolve_user_id(chart_id, sb)
+        rows = list(r.data or [])
+        uid = (rows[0].get("user_id") if rows else None) or _resolve_user_id(chart_id, sb)
         if uid:
-            r2 = sb.table("ask_usage").select("ask_count").eq(
+            r2 = sb.table("ask_usage").select(_ASK_USAGE_COLS).eq(
                 "user_id", uid
             ).execute()
-            if r2.data:
-                return sum(int(x.get("ask_count") or 0) for x in r2.data)
-        return int((row or {}).get("ask_count") or 0)
+            seen = {x.get("chart_id") for x in rows}
+            rows += [x for x in (r2.data or []) if x.get("chart_id") not in seen]
     except Exception as e:
         print(f"[entitlements] ask_usage read failed (fail-open): {e}")
-        return 0
+    return rows
+
+
+def _trial_anchor(chart_id: str, sb, rows: list):
+    """Earliest ask_trial_start across the user's rows; else the chart's
+    signup date clamped to launch — existing users start 2026-06-05, new
+    users at signup, including users with no ask_usage row yet."""
+    starts = [_parse_ts(r.get("ask_trial_start")) for r in (rows or [])]
+    starts = [s for s in starts if s]
+    if starts:
+        return min(starts)
+    launch = _parse_ts(ASK_TRIAL_LAUNCH_ISO)
+    try:
+        r = sb.table("charts").select("created_at").eq(
+            "id", chart_id
+        ).single().execute()
+        created = _parse_ts((r.data or {}).get("created_at"))
+        if created:
+            return max(created, launch)
+    except Exception:
+        pass
+    return launch
+
+
+def ask_trial_state(chart_id: str, sb) -> dict:
+    """Trial window + today's usage for the free tier."""
+    from datetime import datetime, timedelta, timezone
+    rows = _user_ask_rows(chart_id, sb)
+    start = _trial_anchor(chart_id, sb, rows)
+    now = datetime.now(timezone.utc)
+    ends = start + timedelta(days=ASK_TRIAL_DAYS)
+    today = now.date().isoformat()
+    used_today = 0
+    for r in rows:
+        if str(r.get("ask_count_date") or "")[:10] == today:
+            used_today += int(r.get("ask_count_today") or 0)
+    return {
+        "trial_active": now < ends,
+        "trial_start": start.isoformat(),
+        "trial_ends_at": ends.isoformat(),
+        "days_left": max(0, (ends - now).days),
+        "used_today": used_today,
+        "daily_limit": ASK_TRIAL_DAILY_LIMIT,
+    }
 
 
 def increment_ask_usage(chart_id: str, sb) -> None:
-    """Count one consultation answer. Non-blocking — never breaks the answer path."""
+    """Count one consultation answer. Maintains the trial's per-day counter
+    (ask_count_today/ask_count_date) and backfills ask_trial_start; the
+    lifetime ask_count keeps counting as analytics. Non-blocking — never
+    breaks the answer path."""
     from datetime import datetime, timezone
     try:
         uid = _resolve_user_id(chart_id, sb)
-        existing = sb.table("ask_usage").select("ask_count").eq(
-            "chart_id", chart_id
-        ).execute()
-        now = datetime.now(timezone.utc).isoformat()
+        now_dt = datetime.now(timezone.utc)
+        today = now_dt.date().isoformat()
+        existing = sb.table("ask_usage").select(
+            "ask_count,ask_count_today,ask_count_date,ask_trial_start"
+        ).eq("chart_id", chart_id).execute()
         if existing.data:
-            cur = int(existing.data[0].get("ask_count") or 0)
-            sb.table("ask_usage").update(
-                {"ask_count": cur + 1, "user_id": uid, "updated_at": now}
-            ).eq("chart_id", chart_id).execute()
+            row = existing.data[0]
+            cur = int(row.get("ask_count") or 0)
+            same_day = str(row.get("ask_count_date") or "")[:10] == today
+            today_n = (int(row.get("ask_count_today") or 0) + 1) if same_day else 1
+            upd = {"ask_count": cur + 1, "ask_count_today": today_n,
+                   "ask_count_date": today, "user_id": uid,
+                   "updated_at": now_dt.isoformat()}
+            if not row.get("ask_trial_start"):
+                upd["ask_trial_start"] = _trial_anchor(chart_id, sb, []).isoformat()
+            sb.table("ask_usage").update(upd).eq("chart_id", chart_id).execute()
         else:
-            sb.table("ask_usage").insert(
-                {"chart_id": chart_id, "user_id": uid, "ask_count": 1}
-            ).execute()
+            sb.table("ask_usage").insert({
+                "chart_id": chart_id, "user_id": uid, "ask_count": 1,
+                "ask_count_today": 1, "ask_count_date": today,
+                "ask_trial_start": _trial_anchor(chart_id, sb, []).isoformat(),
+            }).execute()
     except Exception as e:
         print(f"[entitlements] ask_usage increment failed (non-blocking): {e}")
 
 
 def ask_quota(chart_id: str, sb, tier: Optional[str] = None) -> dict:
-    """{used, limit, remaining} — limit/remaining are None for paid tiers (unlimited)."""
+    """{used, limit, remaining, trial} — paid tiers are unlimited. Free tier
+    reports TODAY's usage against the trial's daily cap; the lifetime-3
+    cap is retired."""
     tier = tier or get_entitlement(chart_id, sb)
     if tier in ("seeker", "navigator"):
-        return {"used": None, "limit": None, "remaining": None}
-    used = get_ask_used(chart_id, sb)
+        return {"used": None, "limit": None, "remaining": None, "trial": None}
+    st = ask_trial_state(chart_id, sb)
+    remaining = (max(0, st["daily_limit"] - st["used_today"])
+                 if st["trial_active"] else 0)
     return {
-        "used": used,
-        "limit": ASK_FREE_LIFETIME_LIMIT,
-        "remaining": max(0, ASK_FREE_LIFETIME_LIMIT - used),
+        "used": st["used_today"],
+        "limit": st["daily_limit"],
+        "remaining": remaining,
+        "trial": {
+            "active": st["trial_active"],
+            "start": st["trial_start"],
+            "ends_at": st["trial_ends_at"],
+            "days_left": st["days_left"],
+        },
     }
 
 
@@ -204,5 +284,6 @@ def entitlement_summary(chart_id: str, sb) -> dict:
         "ask_used": quota["used"],
         "ask_limit": quota["limit"],
         "ask_remaining": quota["remaining"],
+        "ask_trial": quota.get("trial"),
         "features": {f: FEATURE_MATRIX[f][tier] for f in FEATURE_MATRIX},
     }
