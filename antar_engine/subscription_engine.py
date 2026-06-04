@@ -38,7 +38,7 @@ PLANS = {
         "price_inr_annual": 2999,
         "features": [
             "Unlimited life readings",
-            "Unlimited Ask Antar",
+            "Ask Antar — up to 20/day",
             "Unlimited compatibility checks",
             "All transit alerts",
             "Monthly life briefing",
@@ -56,6 +56,7 @@ PLANS = {
         "price_inr":     1499,
         "features": [
             "Everything in Seeker",
+            "Unlimited Ask Antar",
             "Priority responses",
             "Astrocartography",
             "Annual chart reading",

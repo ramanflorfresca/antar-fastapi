@@ -12556,19 +12556,19 @@ async def ask_endpoint(request: AskRequest):
     if not question:
         return JSONResponse(status_code=400, content={"error": "Question is required"})
 
-    # ── Entitlement: 30-day Ask trial (lifetime-3 cap retired) ──────
-    # Order: paid plan → unlimited; in-trial under the daily cap → allow;
-    # at the cap → 402 reason=daily_cap (soft — resets tomorrow, NOT an
-    # upgrade wall); past 30 days with no plan → 402 reason=trial_expired
-    # (upgrade CTA). `reason` is machine-readable by contract.
+    # ── Entitlement: unlimited Ask = navigator ONLY [ask-nav-gate] ──
+    # navigator → unlimited; seeker → allowed under the same ~20/day cap
+    # as the trial (soft 402 daily_cap, no upgrade_url); free in-trial →
+    # capped; free past 30 days → 402 trial_expired (upgrade → navigator).
+    # `reason` is machine-readable by contract.
     from antar_engine.entitlements import (
         get_entitlement as _ent_tier_fn, ask_trial_state as _ent_trial,
         increment_ask_usage as _ent_ask_inc, upgrade_block as _ent_upgrade,
     )
     _ask_tier = _ent_tier_fn(chart_id, supabase)
-    if _ask_tier == "free":
+    if _ask_tier != "navigator":
         _tr = _ent_trial(chart_id, supabase)
-        if not _tr.get("trial_active"):
+        if _ask_tier == "free" and not _tr.get("trial_active"):
             return JSONResponse(status_code=402, content=_ent_upgrade(
                 "ask", "free",
                 reason="trial_expired",
@@ -12576,15 +12576,18 @@ async def ask_endpoint(request: AskRequest):
                 trial_ended_at=_tr.get("trial_ends_at"),
             ))
         if int(_tr.get("used_today") or 0) >= int(_tr.get("daily_limit") or 0):
-            return JSONResponse(status_code=402, content={
+            _cap_body = {
                 "error": "daily_cap",
                 "reason": "daily_cap",
                 "feature": "ask",
+                "tier": _ask_tier,
                 "used_today": _tr.get("used_today"),
                 "daily_limit": _tr.get("daily_limit"),
                 "resets": "tomorrow",
-                "trial_days_left": _tr.get("days_left"),
-            })
+            }
+            if _ask_tier == "free":
+                _cap_body["trial_days_left"] = _tr.get("days_left")
+            return JSONResponse(status_code=402, content=_cap_body)
 
     # ───────────────────────── EXPLORATION ─────────────────────────
     if mode == "explore":
@@ -12763,7 +12766,7 @@ async def ask_endpoint(request: AskRequest):
             if not read_txt:
                 read_txt = "I couldn't read a clear signal just now — try asking again in a moment."
 
-            if _ask_tier == "free" and _ask_answered:
+            if _ask_tier != "navigator" and _ask_answered:  # [ask-nav-gate]
                 _ent_ask_inc(chart_id, supabase)
             payload = {"mode": "explore", "read": read_txt, "next": next_txt, "locked": False}
             if _ask_decision:
@@ -12992,7 +12995,7 @@ async def ask_endpoint(request: AskRequest):
                 relevant_planets=_yn_conv.get("relevant_planets") if _yn_conv else None,
             )
 
-            if _ask_tier == "free" and bool(why):
+            if _ask_tier != "navigator" and bool(why):  # [ask-nav-gate]
                 _ent_ask_inc(chart_id, supabase)
             payload = {
                 "mode": "yesno",

@@ -50,7 +50,7 @@ FEATURE_REQUIRED_TIER = {
     "month":         "seeker",
     "year":          "seeker",
     "cycle":         "seeker",
-    "ask":           "seeker",
+    "ask":           "navigator",  # [ask-nav-gate] unlimited Ask = navigator only
     "compatibility": "navigator",
     "places":        "navigator",
     "practice":      "seeker",
@@ -250,9 +250,18 @@ def ask_quota(chart_id: str, sb, tier: Optional[str] = None) -> dict:
     reports TODAY's usage against the trial's daily cap; the lifetime-3
     cap is retired."""
     tier = tier or get_entitlement(chart_id, sb)
-    if tier in ("seeker", "navigator"):
+    if tier == "navigator":
         return {"used": None, "limit": None, "remaining": None, "trial": None}
     st = ask_trial_state(chart_id, sb)
+    if tier == "seeker":
+        # [ask-nav-gate] seeker: same ~20/day cap as the trial, but no
+        # trial clock — the cap never expires, it just resets daily.
+        return {
+            "used": st["used_today"],
+            "limit": st["daily_limit"],
+            "remaining": max(0, st["daily_limit"] - st["used_today"]),
+            "trial": None,
+        }
     remaining = (max(0, st["daily_limit"] - st["used_today"])
                  if st["trial_active"] else 0)
     return {
