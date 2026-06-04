@@ -3200,6 +3200,7 @@ async def get_upcoming_themes(
     max_predictions: int = 3,
     months_ahead: int = 24,
     refresh: bool = False,
+    force_refresh: bool = False,
     language: str = "en",
     authorization: Optional[str] = Header(None),
 ):
@@ -3212,6 +3213,7 @@ async def get_upcoming_themes(
       max_predictions: cap on number returned (default 3)
       months_ahead   : look-ahead window in months (default 24)
     """
+    refresh = bool(refresh or force_refresh)
     try:
         from antar_engine.dasha_event_mapper import (
             map_future_events,
@@ -14237,6 +14239,7 @@ def _default_signal(language: str = "es") -> dict:
 
 @app.get("/api/v1/executive-summary/{chart_id}")
 async def get_executive_summary(chart_id: str, language: str = "en"):
+    language = _pt_gate("executive-summary", language)  # [pt-gate]
     try:
         from antar_engine.symptom_library import build_executive_summary
         from datetime import datetime as _exdt
@@ -15387,6 +15390,7 @@ async def get_dashboard(chart_id: str, language: str = 'en'):
     Powers the home page with all 6 sections.
     Parallel fetches for speed.
     """
+    language = _pt_gate("dashboard", language)  # [pt-gate]
     try:
         # ── Wire 5: Inject jaimini + lal_kitab into dashboard response ──
         _w5_result = await _get_dashboard_inner(chart_id, language=language)
@@ -16366,7 +16370,7 @@ async def get_pattern_summary(chart_id: str):
 
 # ── Sprint E: Welcome signal ──────────────────────────────────────────────────
 @app.get("/api/v1/welcome/{chart_id}")
-async def get_welcome(chart_id: str, language: str = "en"):
+async def get_welcome(chart_id: str, language: str = "en", force_refresh: bool = False):
     """
     Returns the welcome signal for a chart.
     Generated automatically after chart creation.
@@ -16380,8 +16384,9 @@ async def get_welcome(chart_id: str, language: str = "en"):
     language = (language or "en").split("-")[0].lower()
     if language not in ("en", "es", "pt"):
         language = "en"
+    language = _pt_gate("welcome", language)  # [pt-gate]
     try:
-        signal = get_welcome_signal(chart_id, supabase, language)
+        signal = None if force_refresh else get_welcome_signal(chart_id, supabase, language)
         if signal:
             return signal
         # Not ready yet — generate now synchronously
@@ -16521,7 +16526,7 @@ async def get_welcome(chart_id: str, language: str = "en"):
 
 # ── Sprint E: Weekly briefing ─────────────────────────────────────────────────
 @app.get("/api/v1/weekly-briefing/{chart_id}")
-async def get_weekly_briefing(chart_id: str, refresh: bool = False, language: str = "en"):
+async def get_weekly_briefing(chart_id: str, refresh: bool = False, language: str = "en", force_refresh: bool = False):
     """
     Returns the weekly briefing for the current week.
     Auto-generated every Monday. Sprint E.
@@ -16532,6 +16537,9 @@ async def get_weekly_briefing(chart_id: str, refresh: bool = False, language: st
     language = (language or "en").split("-")[0].lower()
     if language not in ("en", "es", "pt"):
         language = "en"
+    language = _pt_gate("weekly-briefing", language)  # [pt-gate]
+
+    refresh = bool(refresh or force_refresh)
     try:
         chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
         if not chart_res.data:
@@ -16603,7 +16611,7 @@ async def get_weekly_briefing(chart_id: str, refresh: bool = False, language: st
     fields_to_translate=["practice", "text"],
     endpoint_name="monthly-deepdive",
 )
-async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: str = "en"):
+async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: str = "en", force_refresh: bool = False):
     """
     Returns the monthly deep-dive for the current month.
     Auto-generated on the 1st. Sprint E.
@@ -16614,6 +16622,8 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
     language = (language or "en").split("-")[0].lower()
     if language not in ("en", "es", "pt"):
         language = "en"
+
+    refresh = bool(refresh or force_refresh)
     try:
         chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
         if not chart_res.data:
@@ -16726,7 +16736,7 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
     fields_to_translate=["practice"],
     endpoint_name="annual-plan",
 )
-async def get_annual_plan(chart_id: str, refresh: bool = False, language: str = "en"):
+async def get_annual_plan(chart_id: str, refresh: bool = False, language: str = "en", force_refresh: bool = False):
     """
     Returns the annual plan for the current year.
     Auto-generated on birthday and January 1st. Sprint E.
@@ -16737,6 +16747,8 @@ async def get_annual_plan(chart_id: str, refresh: bool = False, language: str = 
     language = (language or "en").split("-")[0].lower()
     if language not in ("en", "es", "pt"):
         language = "en"
+
+    refresh = bool(refresh or force_refresh)
     try:
         chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
         if not chart_res.data:
@@ -16816,6 +16828,7 @@ async def get_annual_plan(chart_id: str, refresh: bool = False, language: str = 
 # ═══════════════════════════════════════════════════════════════
 
 from antar_engine.practice_engine import generate_practice_schedule, format_practice_for_predict_prompt
+from antar_engine.pt_readiness import gate_language as _pt_gate  # [pt-gate]
 import json as _pjson
 def _safe_jsonb(v):
     if isinstance(v, str):
@@ -17233,7 +17246,9 @@ def _translate_practice_schedule_es(sched):
     return s
 
 @app.get("/api/v1/practices/{chart_id}/schedule")
-async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", refresh: bool = False):
+async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", refresh: bool = False, force_refresh: bool = False):
+    refresh = bool(refresh or force_refresh)
+    language = _pt_gate("practices-schedule", language)  # [pt-gate]
     _ent_deny = _ent_feature_gate(chart_id, "practice")
     if _ent_deny is not None:
         return _ent_deny
@@ -19957,6 +19972,7 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
 
     WOW event signal fires for today when executive summary shows PEAK/ACTIVE instrument.
     """
+    language = _pt_gate("daily-week", language)  # [pt-gate]
     try:
         # 1. Fetch chart
         chart_resp = supabase.table("charts").select("*").eq("id", chart_id).single().execute()
@@ -20501,7 +20517,7 @@ _DEEP_READ_BYPASS_LIMIT = 5
 
 
 @app.post("/api/v1/predict/day-deep")
-async def predict_day_deep(request: DeepReadRequest, refresh: int = 0):
+async def predict_day_deep(request: DeepReadRequest, refresh: int = 0, force_refresh: int = 0):
     """
     Layer 3 Deep Read. Reuses compose_daily_card EXACTLY like home_composer so
     echoes_layer_1 matches the Today card. ONE Claude call, cache-gated:
@@ -20509,6 +20525,7 @@ async def predict_day_deep(request: DeepReadRequest, refresh: int = 0):
     (chart_id, date, language, dasha_boundary_date); stale = full local day.
     5 cache-bypass requests per chart per day, then cached. ?refresh=1 bypasses.
     """
+    refresh = int(refresh or force_refresh)
     from datetime import datetime as _dt, timedelta as _td
     from antar_engine import deep_read as _dr
     from antar_engine.home_composer import _safe_json as _hsj
@@ -20516,6 +20533,7 @@ async def predict_day_deep(request: DeepReadRequest, refresh: int = 0):
     language = (request.language or "en").split("-")[0].lower()
     if language not in ("en", "es", "pt"):
         language = "en"
+    language = _pt_gate("day-deep", language)  # [pt-gate]
     chart_id = request.chart_id
     tz_offset = int(request.tz_offset or 0)
     # MINUTES convention; |v| <= 14 means the client sent HOURS → convert.
@@ -20718,6 +20736,7 @@ async def get_home(
     chart_id: str,
     language: str = "en",
     tz_offset: int = 0,
+    force_refresh: bool = False,
 ):
     """
     Returns the four-horizon Home payload in a single call.
@@ -20751,9 +20770,9 @@ async def get_home(
 
     # ── cache read (best-effort; table may not yet exist) ──
     try:
-        cr = supabase.table("home_cache").select("payload,updated_at") \
+        cr = None if force_refresh else supabase.table("home_cache").select("payload,updated_at") \
             .eq("chart_id", chart_id).eq("language", language).limit(1).execute()
-        if cr.data:
+        if cr is not None and cr.data:
             cached = _hsj(cr.data[0].get("payload"))
             gen_at = (cached.get("generated_at") or "") if isinstance(cached, dict) else ""
             # Local-midnight rollover: a payload generated yesterday LOCAL
@@ -20846,6 +20865,7 @@ async def get_predict_week(
     chart_id: str,
     language: str = "en",
     tz_offset: int = 0,
+    force_refresh: bool = False,
 ):
     """
     7-day forward-looking headline strip for the TODAY tab (sits between the
@@ -20908,10 +20928,10 @@ async def get_predict_week(
 
     # ── cache read (best-effort; predict_week_cache may not yet exist) ──
     try:
-        cr = supabase.table("predict_week_cache") \
+        cr = None if force_refresh else supabase.table("predict_week_cache") \
             .select("payload,local_date,dasha_boundary,updated_at") \
             .eq("chart_id", chart_id).eq("language", language).limit(1).execute()
-        if cr.data:
+        if cr is not None and cr.data:
             crow   = cr.data[0]
             cached = _hsj(crow.get("payload"))
             same_day = crow.get("local_date") == str(local_today)
@@ -22266,6 +22286,7 @@ async def get_life_arc(
     chart_id: str,
     horizon_months: int = 12,
     language: str = "en",
+    force_refresh: bool = False,
     include_readings: int = 0,
     authorization: Optional[str] = Header(None),
 ):
@@ -22276,6 +22297,13 @@ async def get_life_arc(
     """
     import json as _la_json
     from datetime import datetime as _la_dt
+
+    # [lang-cache] normalize locale codes (pt-BR -> pt) so the cache key always
+    # uses the base lang; un-whitelisted codes fall back to en.
+    language = (language or "en").split("-")[0].lower()
+    if language not in ("en", "es", "pt"):
+        language = "en"
+    language = _pt_gate("life-arc", language)  # [pt-gate]
 
     # ── Auth (optional) ──────────────────────────────────────────────────
     user_id = None
@@ -22304,10 +22332,10 @@ async def get_life_arc(
 
     # ── Cache check ──────────────────────────────────────────────────────
     try:
-        cache_res = supabase.table("life_arc_cache").select("life_arc,generated_at").eq(
-            "chart_id", chart_id
-        ).eq("horizon_months", horizon_months).eq("language", language).execute()
-        if cache_res.data:
+        cache_res = None if force_refresh else supabase.table("life_arc_cache").select(
+            "life_arc,generated_at"
+        ).eq("chart_id", chart_id).eq("horizon_months", horizon_months).eq("language", language).execute()
+        if cache_res is not None and cache_res.data:
             cached = cache_res.data[0]
             life_arc = _safe_jsonb(cached.get("life_arc"))
             if life_arc:

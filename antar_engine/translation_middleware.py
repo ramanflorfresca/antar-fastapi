@@ -152,6 +152,17 @@ def translate_response(fields_to_translate=None, fields_to_skip=None, endpoint_n
         @wraps(func)
         async def wrapper(*args, **kwargs):
             language = (kwargs.get("language") or "en").split("-")[0].lower()
+            # [pt-gate] per-surface PT readiness: serve EN on surfaces not yet
+            # verified clean in Portuguese. kwargs["language"] is overwritten so
+            # the endpoint body and this decorator agree on the served language
+            # (body generates + caches in the gated language; no mixed output).
+            try:
+                from antar_engine.pt_readiness import gate_language as _ptg
+                language = _ptg(endpoint_name or func.__name__, language)
+                if isinstance(kwargs.get("language"), str):
+                    kwargs["language"] = language
+            except Exception:
+                pass
             response = await func(*args, **kwargs)
             if language not in SUPPORTED_LANGUAGES:
                 return response
