@@ -13145,6 +13145,47 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             result["el_movimiento"] = ""
             result["move"] = ""
             result["_debug_reasoning"] = _th_dbg
+
+            # [today-v2 Part 6] Claude narration of the ENGINE-chosen
+            # highlight. The engine picks domains + direction; Claude only
+            # narrates them (committed headline + 3-4 lines, GPS-coach
+            # voice, zero jargon). Quiet days keep the honest template.
+            # Cached per (chart_id, local-date, en) with an engine
+            # fingerprint; EN-source only — @translate_response localizes.
+            # ANY failure leaves the engine template text in place.
+            try:
+                if _th["direction"] in ("positive", "adverse"):
+                    from antar_engine.today_narration import (
+                        build_narration_system, parse_and_validate,
+                        narration_cache_read, narration_cache_write,
+                    )
+                    _nar_date = (start_date.date() if hasattr(start_date, "date")
+                                 else start_date).isoformat()
+                    _nar = narration_cache_read(supabase, cid, _nar_date, _th)
+                    if not _nar:
+                        _nar_sys = build_narration_system(
+                            engine=_th,
+                            nudge=result.get("todays_nudge"),
+                            first_name=row.get("name") or "",
+                            patra_domains=(sorted(_th_tilt.keys())
+                                           if isinstance(_th_tilt, dict) else []),
+                            lk_daily=_th_lk,
+                            date_str=_nar_date,
+                        )
+                        _nar_raw, _ = await call_llm_claude(
+                            prompt="Write the Today narration JSON now.",
+                            system_override=_nar_sys,
+                            max_tokens_override=350,
+                        )
+                        _nar = parse_and_validate(_nar_raw, language="en")
+                        if _nar:
+                            narration_cache_write(supabase, cid, _nar_date, _th, _nar)
+                    if _nar:
+                        result["headline"]  = _nar["headline"]
+                        result["highlight"] = _nar["highlight"]
+                        result["narration_source"] = "claude"
+            except Exception as _nar_err:
+                print(f"[daily-signal] narration skipped (template fallback): {_nar_err}")
         except Exception as _th_err:
             print(f"[daily-signal] highlight selection failed for {cid}: {_th_err}")
 
