@@ -13193,6 +13193,30 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                         result["narration_source"] = "claude"
             except Exception as _nar_err:
                 print(f"[daily-signal] narration skipped (template fallback): {_nar_err}")
+
+            # [one-signal] Commit the day's selection (domains + direction +
+            # the DISPLAYED headline/highlight + BODY state) so the Deep Read
+            # opens from the SAME snapshot instead of re-deriving its own.
+            try:
+                from antar_engine.today_signal import commit_today_signal
+                _ts_date = (start_date.date() if hasattr(start_date, "date")
+                            else start_date).isoformat()
+                commit_today_signal(
+                    supabase, cid, _ts_date,
+                    engine=_th,
+                    displayed_headline=result.get("headline") or "",
+                    displayed_highlight=result.get("highlight") or "",
+                    chandra_bala=((signals[0].get("chandra_bala") if signals else "") or ""),
+                )
+            except Exception as _ts_err:
+                print(f"[daily-signal] today-signal commit skipped: {_ts_err}")
+            # [one-signal] Pre-warm the Deep Read for this date+language so
+            # Layer 3 opens instantly (deduped by its own cache).
+            try:
+                import asyncio as _ds_aio
+                _ds_aio.create_task(_prewarm_deep_read(cid, language, effective_offset))
+            except Exception as _pw_err:
+                print(f"[daily-signal] deep-read prewarm skipped: {_pw_err}")
         except Exception as _th_err:
             print(f"[daily-signal] highlight selection failed for {cid}: {_th_err}")
 
@@ -19900,6 +19924,24 @@ async def predict_year_attention(request: dict):
 # echoes_layer_1 == the Today card compose_daily_card output (cross-screen invariant).
 # ══════════════════════════════════════════════════════════════════════════════
 
+async def _prewarm_deep_read(chart_id: str, language: str, tz_offset_hours: float):
+    """[one-signal] Fire-and-forget Deep Read warmer scheduled from
+    /daily-signal. predict_day_deep's own cache layers dedupe — when the
+    deep read for (chart, local-date, language) is already cached this
+    returns without an LLM call, so the marginal cost is at most one Sonnet
+    call per chart per day (which the user would otherwise pay on open)."""
+    try:
+        req = DeepReadRequest(
+            chart_id=chart_id,
+            language=(language or "en"),
+            tz_offset=int(float(tz_offset_hours or 0) * 60),
+        )
+        await predict_day_deep(req, refresh=0)
+        print(f"[deep-read-prewarm] warm chart={chart_id[:8]} lang={language}")
+    except Exception as _e:
+        print(f"[deep-read-prewarm] non-fatal: {_e}")
+
+
 class DeepReadRequest(BaseModel):
     chart_id: str
     language: str = "en"
@@ -19964,6 +20006,15 @@ async def predict_day_deep(request: DeepReadRequest, refresh: int = 0):
     except Exception as _de:
         print(f"[day-deep] dasha lookup non-fatal: {_de}")
 
+    # [one-signal] The committed Today selection — the Deep Read must open
+    # from the same signal the Today card showed (cross-surface invariant).
+    _dr_committed = None
+    try:
+        from antar_engine.today_signal import read_today_signal
+        _dr_committed = read_today_signal(supabase, chart_id, today_str)
+    except Exception as _cre2:
+        print(f"[day-deep] committed-signal read skipped: {_cre2}")
+
     cache_key = (chart_id, today_str, language, dasha_boundary)
 
     # ── cache read (in-memory primary; DB durable best-effort) ──
@@ -19996,7 +20047,15 @@ async def predict_day_deep(request: DeepReadRequest, refresh: int = 0):
     want_fresh = bool(refresh) and (bypass_count < _DEEP_READ_BYPASS_LIMIT)
 
     if cached and not want_fresh:
-        return cached["payload"]
+        # [one-signal] If the engine's committed pick shifted intra-day, the
+        # cached prose no longer matches the Today card — rebuild once.
+        _fp_now = ({"domains": list(_dr_committed.get("highlight_domains") or []),
+                    "direction": _dr_committed.get("direction")}
+                   if _dr_committed else None)
+        _fp_cached = (cached.get("payload") or {}).get("_committed_fp")
+        if _fp_now is None or _fp_cached == _fp_now:
+            return cached["payload"]
+        print(f"[day-deep] committed pick shifted — rebuilding {chart_id[:8]}")
 
     # ── compute (cache miss OR allowed bypass) ──
     try:
@@ -20004,6 +20063,7 @@ async def predict_day_deep(request: DeepReadRequest, refresh: int = 0):
             chart_id=chart_id, chart_row=row, chart_data=chart_data, lk_data=lk_data,
             md_lord=md_lord, tz_offset=tz_offset, today_str=today_str,
             claude_client=(claude_client if _CLAUDE_AVAILABLE else None),
+            committed=_dr_committed,
         )
     except Exception as e:
         print(f"[day-deep] build error for {chart_id}: {e}")

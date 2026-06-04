@@ -340,7 +340,8 @@ def build_body_signals(chart_data: dict, transits: list, natal_planets: dict,
 
 # ── 4. theme grouper ─────────────────────────────────────────────────────────
 
-def build_themes(house_scan: List[dict], polarity: str) -> List[dict]:
+def build_themes(house_scan: List[dict], polarity: str,
+                 lead_keys: Optional[List[str]] = None) -> List[dict]:
     state_by = {r["house"]: r["state"] for r in house_scan}
     note_by = {r["house"]: r["note"] for r in house_scan}
 
@@ -370,11 +371,23 @@ def build_themes(house_scan: List[dict], polarity: str) -> List[dict]:
              else {"supportive": 0, "mixed": 1, "friction": 2})
     qualifying.sort(key=lambda c: order.get(c["tone"], 1))
 
-    # Enforce 4..6: pad with skipped neutral themes if needed, then cap at 6.
+    # [one-signal] The committed Today lead theme(s) open the Deep Read —
+    # same signal, expanded; never silently replaced.
+    lead_keys = [k for k in (lead_keys or []) if k in THEME_HOUSES]
+    if lead_keys:
+        by_key = {c["key"]: c for c in candidates}
+        front = [by_key[k] for k in lead_keys if k in by_key]
+        rest = [c for c in qualifying if c["key"] not in set(lead_keys)]
+        qualifying = front + rest
+
+    # Enforce a floor of 4: pad with skipped neutral themes if needed.
     if len(qualifying) < 4:
-        extras = [c for c in candidates if c["_all_neutral"]]
+        extras = [c for c in candidates if c["_all_neutral"]
+                  and c["key"] not in {q["key"] for q in qualifying}]
         qualifying = qualifying + extras[: (4 - len(qualifying))]
-    return qualifying[:6]
+    # [one-signal] Expansion, not re-derivation: cap at 4 when a committed
+    # lead exists (lead + up to 3 supporting), else the legacy 6.
+    return qualifying[: 4 if lead_keys else 6]
 
 
 # ── 5. LLM synthesizer wrapper ───────────────────────────────────────────────
@@ -397,7 +410,12 @@ _SYNTH_RULES = (
     "No gendered framing. Use 'close people' or 'allies' or 'supportive people', "
     "never 'close men' or 'close women'.\n"
     "No occupation-specific guesses. If the input doesn't say what the user does, "
-    "don't guess."
+    "don't guess.\n"
+    "When a committed_today block is present in the structured input, it is what "
+    "the user already saw on the Today card. Your opening sentence must surface "
+    "the SAME lead theme as committed_today.headline - expand it, never replace "
+    "it. Nothing you write may contradict committed_today.body_text; the body "
+    "theme paragraph must open from that state."
 )
 
 
@@ -413,8 +431,26 @@ def _echo_block(echoes: dict) -> dict:
     }
 
 
-def _build_synth_prompt(echoes: dict, themes: List[dict],
-                        body_signals: List[dict], house_scan: List[dict]) -> str:
+# [one-signal] Static system block — byte-stable across calls and charts so
+# the KV-cache split applies (rules above, "## LIVE DATA" below; same pattern
+# as call_llm_claude).
+_SYNTH_STATIC = (
+    "You are writing the daily Deep Read for a life-navigation app. You are "
+    "given a structured day-reading below the ## LIVE DATA marker. Synthesize "
+    "it into plain prose.\n\n"
+    "RULES:\n" + _SYNTH_RULES
+    + "\n\nReturn ONLY valid JSON, no preamble, no code fence, exactly:\n"
+    "{\"opening\": \"<one sentence>\", "
+    "\"themes\": [{\"key\": \"<theme key>\", \"paragraph\": \"<2-3 sentences>\"}], "
+    "\"closing\": \"<one paragraph, 3-4 sentences>\"}\n"
+    "Provide exactly one themes entry for each key listed in "
+    "theme_keys_in_order, in that order."
+)
+
+
+def _build_synth_live(echoes: dict, themes: List[dict],
+                      body_signals: List[dict], house_scan: List[dict],
+                      committed: Optional[dict] = None) -> str:
     structured = {
         "echoes_layer_1": _echo_block(echoes),
         "house_scan": [{"domain": r["domain"], "state": r["state"], "note": r["note"]}
@@ -422,20 +458,16 @@ def _build_synth_prompt(echoes: dict, themes: List[dict],
         "themes": [{"key": t["key"], "title": t["title"], "tone": t["tone"],
                     "notes": t["notes"]} for t in themes],
         "body_signals": [{"note": b["note"]} for b in body_signals],
+        "theme_keys_in_order": [t["key"] for t in themes],
     }
-    keys = ", ".join(t["key"] for t in themes)
-    return (
-        "You are writing the daily Deep Read for a life-navigation app. You are "
-        "given a structured day-reading. Synthesize it into plain prose.\n\n"
-        "STRUCTURED INPUT:\n"
-        + json.dumps(structured, ensure_ascii=False, indent=2)
-        + "\n\nRULES:\n" + _SYNTH_RULES
-        + "\n\nReturn ONLY valid JSON, no preamble, no code fence, exactly:\n"
-        "{\"opening\": \"<one sentence>\", "
-        "\"themes\": [{\"key\": \"<theme key>\", \"paragraph\": \"<2-3 sentences>\"}], "
-        "\"closing\": \"<one paragraph, 3-4 sentences>\"}\n"
-        f"Provide exactly one themes entry for each of these keys, in this order: {keys}."
-    )
+    if committed:
+        structured["committed_today"] = {
+            "headline": committed.get("headline") or "",
+            "lead_domains": committed.get("highlight_domains") or [],
+            "direction": committed.get("direction") or "",
+            "body_text": committed.get("body_text") or "",
+        }
+    return "## LIVE DATA\n" + json.dumps(structured, ensure_ascii=False, indent=2)
 
 
 def _extract_json(raw: str) -> dict:
@@ -457,7 +489,10 @@ def _extract_json(raw: str) -> dict:
         return {}
 
 
-def _fallback_opening(echoes: dict) -> str:
+def _fallback_opening(echoes: dict, committed: Optional[dict] = None) -> str:
+    chl = ((committed or {}).get("headline") or "").strip()
+    if chl:
+        return chl if chl.endswith(".") else chl + "."
     hl = (echoes.get("headline") or "").strip()
     if hl:
         return hl if hl.endswith(".") else hl + "."
@@ -484,9 +519,10 @@ def _fallback_paragraph(theme: dict) -> str:
 
 
 def _fallback_synth(echoes: dict, themes: List[dict],
-                    body_signals: List[dict]) -> dict:
+                    body_signals: List[dict],
+                    committed: Optional[dict] = None) -> dict:
     return {
-        "opening": _fallback_opening(echoes),
+        "opening": _fallback_opening(echoes, committed),
         "themes": [{"key": t["key"], "title": t["title"], "tone": t["tone"],
                     "paragraph": _fallback_paragraph(t)} for t in themes],
         "closing": _fallback_closing(echoes),
@@ -494,20 +530,38 @@ def _fallback_synth(echoes: dict, themes: List[dict],
 
 
 async def synthesize(claude_client, echoes: dict, themes: List[dict],
-                     body_signals: List[dict], house_scan: List[dict]) -> dict:
+                     body_signals: List[dict], house_scan: List[dict],
+                     committed: Optional[dict] = None) -> dict:
     if claude_client is None:
-        return _fallback_synth(echoes, themes, body_signals)
-    prompt = _build_synth_prompt(echoes, themes, body_signals, house_scan)
+        return _fallback_synth(echoes, themes, body_signals, committed)
+    live = _build_synth_live(echoes, themes, body_signals, house_scan, committed)
     try:
+        import time as _time_dr
+        _t0 = _time_dr.monotonic()
         resp = await claude_client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=1600,
-            temperature=0.5,
-            messages=[{"role": "user", "content": prompt}],
+            max_tokens=1000,
+            temperature=0.4,
+            system=[
+                {"type": "text", "text": _SYNTH_STATIC,
+                 "cache_control": {"type": "ephemeral"}},
+                {"type": "text", "text": live},
+            ],
+            messages=[{"role": "user", "content": "Write the Deep Read JSON now."}],
+            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
         )
+        try:
+            _u = resp.usage
+            print(f"[deep_read] synth {_time_dr.monotonic() - _t0:.2f}s "
+                  f"in={getattr(_u, 'input_tokens', 0)} "
+                  f"out={getattr(_u, 'output_tokens', 0)} "
+                  f"cache_hit={getattr(_u, 'cache_read_input_tokens', 0) or 0} "
+                  f"cache_write={getattr(_u, 'cache_creation_input_tokens', 0) or 0}")
+        except Exception:
+            pass
         raw = resp.content[0].text.strip()
         data = _extract_json(raw)
-        opening = (data.get("opening") or "").strip() or _fallback_opening(echoes)
+        opening = (data.get("opening") or "").strip() or _fallback_opening(echoes, committed)
         closing = (data.get("closing") or "").strip() or _fallback_closing(echoes)
         pmap = {}
         for d in (data.get("themes") or []):
@@ -521,14 +575,15 @@ async def synthesize(claude_client, echoes: dict, themes: List[dict],
         return {"opening": opening, "themes": out_themes, "closing": closing}
     except Exception as e:
         print(f"[deep_read] synth failed (fallback): {e}")
-        return _fallback_synth(echoes, themes, body_signals)
+        return _fallback_synth(echoes, themes, body_signals, committed)
 
 
 # ── orchestrator ─────────────────────────────────────────────────────────────
 
 async def build_deep_read(chart_id: str, chart_row: dict, chart_data: dict,
                           lk_data: dict, md_lord: str, tz_offset: int,
-                          today_str: str, claude_client=None) -> dict:
+                          today_str: str, claude_client=None,
+                          committed: Optional[dict] = None) -> dict:
     """English-source Deep Read payload (unstripped, untranslated)."""
     from antar_engine.transits_engine import calculate_current_transits
     from antar_engine.lk_trigger import _natal_planets
@@ -546,9 +601,40 @@ async def build_deep_read(chart_id: str, chart_row: dict, chart_data: dict,
     house_scan = build_house_scan(chart_data, transits, natal_planets, echoes)
     body_signals = build_body_signals(chart_data, transits, natal_planets, house_scan)
     polarity = echoes.get("polarity", "flat")
-    themes = build_themes(house_scan, polarity)
 
-    synth = await synthesize(claude_client, echoes, themes, body_signals, house_scan)
+    # [one-signal] The committed Today selection (today_signal) is canon:
+    # its lead theme(s) open the Deep Read, and its BODY state is the single
+    # source for body narration — never re-derived into a contradiction.
+    _lead_keys: List[str] = []
+    if committed:
+        try:
+            from antar_engine.today_signal import DOMAIN_TO_THEME
+            _lead_keys = [DOMAIN_TO_THEME[d]
+                          for d in (committed.get("highlight_domains") or [])
+                          if d in DOMAIN_TO_THEME]
+        except Exception:
+            _lead_keys = []
+
+    themes = build_themes(house_scan, polarity, lead_keys=_lead_keys)
+
+    if committed and (committed.get("body_text") or "").strip():
+        _btxt = committed["body_text"].strip()
+        _bstate = committed.get("body_state") or "even"
+        for _t in themes:
+            if _t["key"] == "body":
+                if _bstate in ("even", "high"):
+                    _t["tone"] = "supportive" if _bstate == "high" else "mixed"
+                    _t["notes"] = [_btxt]
+                else:
+                    _t["tone"] = "friction"
+                    _t["notes"] = [_btxt] + [n for n in _t["notes"] if n][:2]
+        if _bstate in ("even", "high"):
+            # Today told the user energy is fine — care-notes derived from a
+            # different model must not contradict that on the same day.
+            body_signals = []
+
+    synth = await synthesize(claude_client, echoes, themes, body_signals,
+                             house_scan, committed)
 
     return {
         "chart_id": chart_id,
@@ -561,6 +647,9 @@ async def build_deep_read(chart_id: str, chart_row: dict, chart_data: dict,
         "body_signals": body_signals,   # [] not null when empty
         "house_scan": house_scan,       # exactly 12
         "echoes_layer_1": echoes,
+        "_committed_fp": ({"domains": list(committed.get("highlight_domains") or []),
+                           "direction": committed.get("direction")}
+                          if committed else None),
     }
 
 
