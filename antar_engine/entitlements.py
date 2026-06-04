@@ -33,33 +33,35 @@ ASK_TRIAL_LAUNCH_ISO = "2026-06-05T00:00:00+00:00"
 
 # Feature matrix — source of truth: ANTAR subscription tiers spec.
 # Values are access levels the frontend can render directly.
+# [final-launch 2026-06-04] EVERYTHING is free, forever. The only paid
+# levers are Ask volume (soft-capped below) and ADDITIONAL compatibility
+# charts (per-chart one-time purchase — see compat_slots). No content
+# feature is ever gated.
 FEATURE_MATRIX = {
     "today":         {"free": "full",     "seeker": "full",    "navigator": "full"},
     "month":         {"free": "full",     "seeker": "full",    "navigator": "full"},
     "year":          {"free": "full",     "seeker": "full",    "navigator": "full"},
     "cycle":         {"free": "full",     "seeker": "full",    "navigator": "full"},
     "ask":           {"free": "limited",  "seeker": "full",    "navigator": "full"},
-    "compatibility": {"free": "preview",  "seeker": "preview", "navigator": "full"},
-    "places":        {"free": "preview",  "seeker": "preview", "navigator": "full"},
+    "compatibility": {"free": "full",     "seeker": "full",    "navigator": "full"},
+    "places":        {"free": "full",     "seeker": "full",    "navigator": "full"},
     "practice":      {"free": "full",     "seeker": "full",    "navigator": "full"},
-    "history":       {"free": "locked",   "seeker": "full",    "navigator": "full"},
-    # [launch-ent] prescription layer: gemstone/daan/yantra/food, chakra
-    # BALANCING, and dedicated remedy objects inside predictions.
-    "remedies":      {"free": "locked",   "seeker": "locked",  "navigator": "full"},
+    "history":       {"free": "full",     "seeker": "full",    "navigator": "full"},
+    "remedies":      {"free": "full",     "seeker": "full",    "navigator": "full"},
 }
 
 # Lowest tier at which the feature is "full".
 FEATURE_REQUIRED_TIER = {
     "today":         "free",
-    "month":         "free",      # [launch-ent] the READ is free
-    "year":          "free",      # [launch-ent]
-    "cycle":         "free",      # [launch-ent]
-    "ask":           "seeker",    # [ask-launch] unlimited Ask starts at seeker
-    "compatibility": "navigator",
-    "places":        "navigator",
-    "practice":      "free",      # [launch-ent] habitual practices are free
-    "remedies":      "navigator", # [launch-ent] the PRESCRIPTION is paid
-    "history":       "seeker",
+    "month":         "free",
+    "year":          "free",
+    "cycle":         "free",
+    "ask":           "seeker",    # unlimited Ask = any active Ask subscription
+    "compatibility": "free",      # [final-launch] feature open; extra charts per-chart
+    "places":        "free",      # [final-launch]
+    "practice":      "free",
+    "remedies":      "free",      # [final-launch] remedies free for everyone
+    "history":       "free",      # [final-launch]
 }
 
 # ── Compatibility chart slots [compat-slots] ──────────────────────
@@ -68,8 +70,10 @@ FEATURE_REQUIRED_TIER = {
 # chart on first full compatibility run. Fail-open on DB errors so a
 # missing table never breaks compatibility.
 
-COMPAT_INCLUDED_SLOTS = {"free": 0, "seeker": 0, "navigator": 2}
-COMPAT_SLOT_PRICE = {"usd_cents": 199, "label": "$1.99"}
+# [final-launch] every user gets 1 compatibility chart free; navigator
+# keeps the 2 it was sold with (grandfathered until the SKU collapse).
+COMPAT_INCLUDED_SLOTS = {"free": 1, "seeker": 1, "navigator": 2}
+COMPAT_SLOT_PRICE = {"usd_cents": 99, "label": "$0.99"}
 
 
 def _compat_partners(chart_id: str, sb) -> list:
@@ -187,6 +191,22 @@ def get_entitlement(chart_id: str, sb) -> str:
 def feature_access(tier: str, feature: str) -> str:
     """Access level for (tier, feature): full/headline/teaser/preview/sample/limited/locked."""
     return FEATURE_MATRIX.get(feature, {}).get(tier, "full")
+
+
+def has_unlimited_ask(chart_id: str, sb) -> bool:
+    """[final-launch] ANY active/trialing PAID subscription => unlimited Ask.
+    Keyed on subscription status, not the plan name, so it survives the plan
+    collapse to a single "unlimited Ask" SKU (get_subscription returns
+    plan=free/status=active when there is no row, hence the plan check)."""
+    if not chart_id:
+        return False
+    try:
+        sub = get_subscription(chart_id, sb) or {}
+        plan = str(sub.get("plan") or "free").lower()
+        status = str(sub.get("status") or "").lower()
+        return plan not in ("", "free") and status in ("active", "trialing")
+    except Exception:
+        return False
 
 
 def upgrade_block(feature: str, current_tier: str, locked_fields: Optional[list] = None, **extra) -> dict:
@@ -343,7 +363,7 @@ def ask_quota(chart_id: str, sb, tier: Optional[str] = None) -> dict:
     unlimited. Free reports TODAY's usage against 20/day in the 30-day trial,
     then 1/day forever (soft cap, never expires)."""
     tier = tier or get_entitlement(chart_id, sb)
-    if tier in ("seeker", "navigator"):
+    if tier in ("seeker", "navigator") or has_unlimited_ask(chart_id, sb):
         return {"used": None, "limit": None, "remaining": None, "trial": None}
     st = ask_trial_state(chart_id, sb)
     remaining = max(0, st["daily_limit"] - st["used_today"])

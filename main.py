@@ -8592,11 +8592,13 @@ def _ent_feature_gate(chart_id: str, feature: str):
 
 
 def _ent_places_deny(chart_id: str):
-    return _ent_feature_gate(chart_id, "places")
+    """[final-launch] Places/astrocartography fully free — never deny."""
+    return None
 
 
 def _ent_places_concern_view(payload, chart_id: str):
-    """Places preview: top-1 city fully enriched, rest names-only, layers locked."""
+    """[final-launch] Places fully free — passthrough."""
+    return payload
     from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
     tier = get_entitlement(chart_id, supabase)
     if feature_access(tier, "places") == "full" or not isinstance(payload, dict):
@@ -8625,7 +8627,8 @@ def _ent_places_concern_view(payload, chart_id: str):
 
 
 def _ent_places_city_view(payload, chart_id: str):
-    """City drill-down preview: verdict only; reasons/detail/parans locked."""
+    """[final-launch] Places fully free — passthrough."""
+    return payload
     from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
     tier = get_entitlement(chart_id, supabase)
     if feature_access(tier, "places") == "full" or not isinstance(payload, dict):
@@ -8642,8 +8645,8 @@ def _ent_places_city_view(payload, chart_id: str):
 
 
 def _ent_month_view(payload, chart_id: str):
-    """[launch-ent] Month READ free for all tiers; the dedicated remedy
-    objects (prescription) are navigator-only."""
+    """[final-launch] Month fully free incl. remedies — passthrough."""
+    return payload
     from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
     tier = get_entitlement(chart_id, supabase)
     if feature_access(tier, "remedies") == "full" or not isinstance(payload, dict):
@@ -8658,7 +8661,9 @@ def _ent_year_view(payload, chart_id: str):
     """[launch-ent] Year READ (headline/gist/areas/use/stretch/highlights/
     muntha + attention diagnosis incl. chakra MAP) free for all tiers; the
     cure chain (cause→remedy, chakra BALANCING, practice) and
-    attention.remedy/practice are navigator-only."""
+    attention.remedy/practice are navigator-only.
+    [final-launch] Fully free — passthrough."""
+    return payload
     from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
     tier = get_entitlement(chart_id, supabase)
     if feature_access(tier, "remedies") == "full" or not isinstance(payload, dict):
@@ -8695,7 +8700,9 @@ def _ent_practice_view(payload, chart_id: str):
     """[launch-ent] Habitual practices (mantra/breath/body/daily-action/vrat),
     the active stack and the chakra MAP (chakra_states) are free; remedy
     objects (gemstone, food, yantra, daan) + chakra BALANCING are
-    navigator-only."""
+    navigator-only.
+    [final-launch] Fully free — passthrough."""
+    return payload
     from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
     tier = get_entitlement(chart_id, supabase)
     if feature_access(tier, "remedies") == "full" or not isinstance(payload, dict):
@@ -8719,7 +8726,9 @@ def _ent_practice_view(payload, chart_id: str):
 def _ent_home_view(payload, chart_id: str):
     """[launch-ent] /home: the four-horizon READ is free for all tiers; the
     negative-polarity cure chain (cause/remedy/chakra/practice) on the
-    month/year/cycle horizons is navigator-only. Today is NEVER gated."""
+    month/year/cycle horizons is navigator-only. Today is NEVER gated.
+    [final-launch] Fully free — passthrough."""
+    return payload
     from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
     tier = get_entitlement(chart_id, supabase)
     if feature_access(tier, "remedies") == "full" or not isinstance(payload, dict):
@@ -11011,7 +11020,13 @@ async def compatibility_start(request: CompatibilityStartRequest):
         get_entitlement as _ent_tier_fn, feature_access as _ent_axs_fn,
     )
     _compat_tier = _ent_tier_fn(request.chart_id_a, supabase)
-    _compat_preview = _ent_axs_fn(_compat_tier, "compatibility") != "full"
+    # [final-launch] compatibility is open to EVERY tier. Whether THIS
+    # partner chart is covered (1st chart free via included slot, additional
+    # charts via one-time purchase) is decided by compat_slot_allows once
+    # chart_id_b is resolved — start with preview=True and let coverage
+    # flip it. Never a tier upsell.
+    _compat_preview = True
+    _ = _ent_axs_fn  # retained import; tier no longer gates the feature
 
     # ── V2: identical-chart guard ──
     if request.chart_id_b and request.chart_id_b == request.chart_id_a:
@@ -11338,8 +11353,12 @@ async def compatibility_start(request: CompatibilityStartRequest):
         _locked = sorted(set(_resp.keys()) - _keep)
         _resp = {k: v for k, v in _resp.items() if k in _keep}
         _resp["access"] = "preview"
+        from antar_engine.entitlements import COMPAT_SLOT_PRICE as _csp_price
         _resp["locked"] = _ent_upg_fn("compatibility", _compat_tier,
-                                      locked_fields=_locked)
+                                      locked_fields=_locked,
+                                      reason="chart_slot_required",
+                                      price=_csp_price["label"],
+                                      purchase_url="/api/v1/compat/slots/checkout")
     return _resp
 
     _compat_type = request.compatibility_type or "cofounder"
@@ -11590,22 +11609,27 @@ async def compatibility_continue(request: CompatibilityContinueRequest):
     if not res.data:
         raise HTTPException(404, "Compatibility session not found")
     session = res.data[0]
-    # ── Entitlement: layers 2-3 need a covered slot or navigator ──
-    _ent_deny = _ent_feature_gate(session.get("chart_id_a") or "", "compatibility")
-    if _ent_deny is not None:
-        # [compat-slots] a bound/included slot for this pair keeps layers open
-        try:
-            from antar_engine.entitlements import (
-                get_entitlement as _cc_tier_fn, compat_slot_allows as _cc_allows,
-            )
-            _cc_a = session.get("chart_id_a") or ""
-            if _cc_allows(_cc_a, session.get("chart_id_b"),
-                          _cc_tier_fn(_cc_a, supabase), supabase, consume=False):
-                _ent_deny = None
-        except Exception as _cce:
-            print(f"[compat-slots] continue check non-fatal: {_cce}")
-    if _ent_deny is not None:
-        return _ent_deny
+    # ── [final-launch] layers 2-3 need THIS pair covered: the included
+    #    free chart or a purchased slot. The feature is never tier-blocked;
+    #    fail-open on DB errors so a hiccup never breaks compatibility. ──
+    try:
+        from antar_engine.entitlements import (
+            get_entitlement as _cc_tier_fn, compat_slot_allows as _cc_allows,
+            upgrade_block as _cc_upg, COMPAT_SLOT_PRICE as _cc_price,
+        )
+        _cc_a = session.get("chart_id_a") or ""
+        _cc_covered = _cc_allows(_cc_a, session.get("chart_id_b"),
+                                 _cc_tier_fn(_cc_a, supabase), supabase,
+                                 consume=False)
+    except Exception as _cce:
+        print(f"[compat-slots] continue check non-fatal: {_cce}")
+        _cc_covered = True
+    if not _cc_covered:
+        return _ent_402(_cc_upg("compatibility",
+                                _cc_tier_fn(_cc_a, supabase),
+                                reason="chart_slot_required",
+                                price=_cc_price["label"],
+                                purchase_url="/api/v1/compat/slots/checkout"))
     brief_a = session["brief_a"]
     brief_b = session["brief_b"]
     name_a  = session["name_a"]
@@ -12608,9 +12632,11 @@ async def ask_endpoint(request: AskRequest):
     from antar_engine.entitlements import (
         get_entitlement as _ent_tier_fn, ask_trial_state as _ent_trial,
         increment_ask_usage as _ent_ask_inc, UPGRADE_URL as _ent_upgrade_url,
+        has_unlimited_ask as _ent_unlim,
     )
     _ask_tier = _ent_tier_fn(chart_id, supabase)
-    if _ask_tier not in ("seeker", "navigator"):
+    # [final-launch] any active Ask subscription => unlimited (SKU-rename-proof)
+    if _ask_tier not in ("seeker", "navigator") and not _ent_unlim(chart_id, supabase):
         _tr = _ent_trial(chart_id, supabase)
         _limit = int(_tr.get("daily_limit") or 1)
         if int(_tr.get("used_today") or 0) >= _limit:

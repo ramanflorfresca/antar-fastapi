@@ -217,10 +217,10 @@ def create_compat_slot_checkout(
     customer: str = "",
     user_id: str = "",
 ) -> dict:
-    """[compat-slots] One-time $1.99 payment for one additional compatibility
+    """[compat-slots] One-time $0.99 payment for one additional compatibility
     chart slot. mode="payment" — the webhook routes on metadata.type, so this
     can NEVER activate a subscription. Single global USD price at launch;
-    IN/Razorpay localisation is a follow-up."""
+    IN/Razorpay + LATAM (Nequi/PSE/PIX) localisation is a follow-up."""
     try:
         import stripe
         stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
@@ -228,7 +228,7 @@ def create_compat_slot_checkout(
             line_items=[{
                 "price_data": {
                     "currency": "usd",
-                    "unit_amount": 199,
+                    "unit_amount": 99,
                     "product_data": {
                         "name": "Antar — additional compatibility chart",
                         "description": "Permanently unlock full compatibility with one more chart",
