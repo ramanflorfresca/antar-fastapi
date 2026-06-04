@@ -13084,8 +13084,10 @@ async def ask_endpoint(request: AskRequest):
 
 
 @app.get("/api/v1/ask/state")
-async def ask_state(chart_id: str):
-    """Fast, read-only Yes/No lock state for screen mount."""
+async def ask_state(chart_id: str, language: str = "en"):
+    """Fast, read-only Yes/No lock state for screen mount.
+    [ask-suggestions] Also carries the 4 chart-aware landing prompts the
+    frontend renders (2-3 base + 1-2 promoted from live chart state)."""
     import logging
     from fastapi.responses import JSONResponse
     logger = logging.getLogger("antar.ask")
@@ -13093,6 +13095,17 @@ async def ask_state(chart_id: str):
     chart_id = (chart_id or "").strip()
     if not chart_id:
         return JSONResponse(status_code=400, content={"error": "chart_id is required"})
+
+    # [ask-suggestions] backend returns the prompts; frontend only renders.
+    # Cheap committed-state reads only (today signal / current MD / patra
+    # tilt) — fail-open to the fixed base set, never blocks the mount.
+    try:
+        from antar_engine.ask_suggestions import build_suggested_prompts
+        _sugg = build_suggested_prompts(chart_id, supabase, language=language)
+    except Exception as _sge:
+        logger.warning(f"[ask/state] suggestions degraded: {_sge}")
+        from antar_engine.ask_suggestions import _base_prompts, _norm_lang
+        _sugg = _base_prompts(_norm_lang(language))[:4]
 
     try:
         last = supabase.table("prashna_log") \
@@ -13102,10 +13115,12 @@ async def ask_state(chart_id: str):
             .limit(1).execute()
     except Exception as _le:
         logger.warning(f"[ask/state] lookup failed: {_le}")
-        return {"yesno_locked": False, "locked_until": None, "previous": None}
+        return {"yesno_locked": False, "locked_until": None, "previous": None,
+                "suggested_prompts": _sugg}
 
     if not last.data:
-        return {"yesno_locked": False, "locked_until": None, "previous": None}
+        return {"yesno_locked": False, "locked_until": None, "previous": None,
+                "suggested_prompts": _sugg}
 
     prev = last.data[0]
     cd = check_cooldown(prev.get("created_at"), cooldown_hours=ASK_YESNO_COOLDOWN_HOURS)
@@ -13120,8 +13135,10 @@ async def ask_state(chart_id: str):
                 "timing": prev.get("timing"),
                 "question": prev.get("question"),
             },
+            "suggested_prompts": _sugg,
         }
-    return {"yesno_locked": False, "locked_until": None, "previous": None}
+    return {"yesno_locked": False, "locked_until": None, "previous": None,
+                "suggested_prompts": _sugg}
 
 
 class PrashnaFollowupRequest(BaseModel):
