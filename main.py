@@ -12177,6 +12177,22 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _ce:
                 logger.warning(f"[ask] concern detection failed (non-fatal): {_ce}")
 
+            # ── Haiku intent classifier (shadow-first, 2026-06-03).
+            #    shadow: logs only, keyword drives. primary: overrides
+            #    concern/is_decision; keyword stays the fallback.
+            #    NEVER touches verdict/timing. Mode stays client-toggle-only.
+            _ask_intent = None
+            try:
+                from antar_engine.ask_intent import classify_intent, intent_concern
+                _ask_intent = await classify_intent(
+                    question, language, chart_id=chart_id,
+                    supabase=supabase, surface="explore",
+                )
+                if _ask_intent.get("active_source") == "haiku":
+                    _ask_concern = intent_concern(_ask_intent.get("domain")) or _ask_concern
+            except Exception as _ice:
+                logger.warning(f"[ask] intent classify failed (non-fatal): {_ice}")
+
             _ask_dashas = {}
             _ask_dasha_str = ""
             try:
@@ -12227,6 +12243,8 @@ async def ask_endpoint(request: AskRequest):
                     consultation_prompt_block,
                 )
                 _ask_decision = is_decision_question(question)
+                if _ask_intent and _ask_intent.get("active_source") == "haiku":
+                    _ask_decision = bool(_ask_intent.get("is_decision"))
                 if _ask_decision:
                     _ask_conv = build_convergence_timing(
                         _ask_concern, chart_data, _ask_dashas, _ask_bdate
@@ -12400,6 +12418,21 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _ele:
                 logger.warning(f"[ask] jaimini lock enrichment failed (non-fatal): {_ele}")
 
+            # ── Haiku intent classifier (shadow-first, 2026-06-03).
+            #    shadow: logs only. primary: domain_override feeds the
+            #    deterministic engine's house routing — verdict math unchanged.
+            _yn_domain_override = None
+            try:
+                from antar_engine.ask_intent import classify_intent
+                _yn_intent = await classify_intent(
+                    question, language, chart_id=chart_id,
+                    supabase=supabase, surface="yesno",
+                )
+                if _yn_intent.get("active_source") == "haiku":
+                    _yn_domain_override = _yn_intent.get("domain")
+            except Exception as _ice:
+                logger.warning(f"[ask] intent classify failed (non-fatal): {_ice}")
+
             cast_ts = datetime.now(timezone.utc)
             locale = "IN" if current_country and current_country.upper() in ("IN", "INDIA") else "global"
 
@@ -12413,6 +12446,7 @@ async def ask_endpoint(request: AskRequest):
                 natal_chart_data=natal_chart,
                 user_name=first_name,
                 locale=locale,
+                domain_override=_yn_domain_override,
             )
 
             # Coerce to a STRICT binary — never "maybe", never a percentage.

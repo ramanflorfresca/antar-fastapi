@@ -1724,6 +1724,7 @@ def compute_prashna_verdict(
     jaimini_data: Optional[dict] = None,
     natal_dasha: Optional[str] = None,
     natal_chart_data: Optional[dict] = None,
+    domain_override: Optional[str] = None,
 ) -> dict:
     """
     Master scoring function v2.
@@ -1731,8 +1732,14 @@ def compute_prashna_verdict(
     NEW: domain_audit, proof_bars, confluence added after base scoring.
     NEW param: natal_chart_data for intent-birth sync.
     """
-    # Detect domain
-    domain, houses = detect_domain(question)
+    # Detect domain (classifier override wins when valid; houses always
+    # come from the canonical DOMAIN_HOUSE_MAP — single source of truth)
+    if domain_override and domain_override in DOMAIN_HOUSE_MAP:
+        domain = domain_override
+        _h = DOMAIN_HOUSE_MAP[domain_override]
+        houses = list(_h) if isinstance(_h, list) else [_h]
+    else:
+        domain, houses = detect_domain(question)
 
     # Determine significators
     lagna_sign = chart["lagna_sign"]
@@ -2177,6 +2184,7 @@ def run_prashna_engine(
     natal_chart_data: Optional[dict] = None,
     user_name: str = "User",
     locale: str = "global",
+    domain_override: Optional[str] = None,
 ) -> dict:
     """
     Full Prashna pipeline v2.
@@ -2194,6 +2202,7 @@ def run_prashna_engine(
         jaimini_data=jaimini_data,
         natal_dasha=natal_dasha,
         natal_chart_data=natal_chart_data,
+        domain_override=domain_override,
     )
 
     claude_prompt = build_prashna_prompt(
