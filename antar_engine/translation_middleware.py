@@ -69,6 +69,11 @@ def _get_anthropic():
     if _anthropic_client is None:
         from anthropic import AsyncAnthropic
         _anthropic_client = AsyncAnthropic(api_key=os.getenv("ANTHROPIC_API_KEY"))
+        try:
+            from antar_engine.llm_log import wrap_claude_client as _wcc
+            _anthropic_client = _wcc(_anthropic_client)
+        except Exception:
+            pass
     return _anthropic_client
 
 

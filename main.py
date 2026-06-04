@@ -10,7 +10,7 @@ from datetime import datetime, date, timedelta, timezone
 from typing import Optional, List, Dict, Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
-from fastapi import FastAPI, HTTPException, Header, Request, Body, status, BackgroundTasks
+from fastapi import FastAPI, HTTPException, Header, Request, Body, status, BackgroundTasks, Depends
 from fastapi.middleware.cors import CORSMiddleware
 # [chart-create-422] validation error support
 from fastapi.exceptions import RequestValidationError
@@ -504,6 +504,13 @@ try:
     import anthropic as _anthropic
     _anthropic_key = os.getenv("ANTHROPIC_API_KEY")
     claude_client = _anthropic.AsyncAnthropic(api_key=_anthropic_key)
+    # [admin-llm-log] every call through this client is logged to
+    # llm_call_log (endpoint=module:function, tokens, success). Fail-open.
+    try:
+        from antar_engine.llm_log import wrap_claude_client as _wcc_main
+        claude_client = _wcc_main(claude_client, lambda: globals().get("supabase"))
+    except Exception as _llw:
+        print(f"[llm-log] wrap skipped: {_llw}")
     _CLAUDE_AVAILABLE = bool(_anthropic_key)
     print(f"[startup] Claude client initialized OK — key prefix: {(_anthropic_key or '')[:12]}")
 except Exception as _ce:
@@ -1205,6 +1212,12 @@ class ChartCreateRequest(BaseModel):
     gender:          Optional[str] = Field(None, example="female")
     current_city:    Optional[str] = Field(None, example="Mumbai")
     current_country: Optional[str] = Field(None, example="IN")
+    # [admin-acq] acquisition attribution — accepted when the consumer app
+    # forwards them; stored fail-open (columns: sql_admin_api.sql)
+    utm_source:   Optional[str] = None
+    utm_medium:   Optional[str] = None
+    utm_campaign: Optional[str] = None
+    landing_path: Optional[str] = None
     marital_status:   Optional[str] = Field(None, example="single")
     children_status:  Optional[str] = Field(None, example="no_children_unsure")
     career_stage:     Optional[str] = Field(None, example="mid_career")
@@ -6073,6 +6086,16 @@ State a specific year. Never predict past events as future windows.
             "all_domains":       _pe.get("all_domains")     if _pe else [],
         }).execute()
 
+        # [admin] stamp the question language for the admin questions feed —
+        # separate fail-open update (column: sql_admin_api.sql)
+        try:
+            if pred_res.data:
+                supabase.table("predictions").update(
+                    {"language": (getattr(request, "language", None) or "en")[:5]}
+                ).eq("id", pred_res.data[0].get("id")).execute()
+        except Exception:
+            pass
+
         # ── Prediction tracking hook ──────────────────────────────
         try:
             from antar_engine.prediction_tracker import save_trackable_claim
@@ -7541,6 +7564,7 @@ def _get_utc_offset_from_coords(lat: float, lng: float, birth_date: str, birth_t
 async def create_chart(
     request: ChartCreateRequest,
     authorization: Optional[str] = Header(None),
+    http_request: Request = None,
 ):
     from antar_engine import chart as chart_module
     from antar_engine import vimsottari, jaimini, ashtottari
@@ -7733,6 +7757,24 @@ async def create_chart(
     }
     try:
         supabase.table("charts").insert(chart_row).execute()
+
+        # [admin-acq] acquisition attribution — SEPARATE fail-open update so
+        # a missing column can never break signup. Referrer comes from the
+        # request header (zero frontend change); UTM fields when forwarded.
+        try:
+            _acq = {
+                "referrer": ((http_request.headers.get("referer")
+                              if http_request is not None else "") or "")[:500],
+                "utm_source": (getattr(request, "utm_source", None) or "")[:120],
+                "utm_medium": (getattr(request, "utm_medium", None) or "")[:120],
+                "utm_campaign": (getattr(request, "utm_campaign", None) or "")[:120],
+                "landing_path": (getattr(request, "landing_path", None) or "")[:300],
+            }
+            _acq = {k: v for k, v in _acq.items() if v}
+            if _acq:
+                supabase.table("charts").update(_acq).eq("id", chart_id).execute()
+        except Exception as _acq_e:
+            print(f"[chart/create] acquisition capture skipped (non-fatal): {_acq_e}")
 
         # --- Jaimini v2: Compute and store Chara Dasha ---
         _jaimini_bd = str(request.birth_date)[:10] if request.birth_date else ""
@@ -9695,6 +9737,282 @@ async def get_entitlements_endpoint(chart_id: str):
     """
     from antar_engine.entitlements import entitlement_summary
     return entitlement_summary(chart_id, supabase)
+
+
+# ════════════════════════════════════════════════════════════════════
+# ADMIN API — read-only, auth-gated (admin.antar.world frontend).
+# Gate: verified Supabase JWT AND email allowlist. The allowlist HERE is
+# the security boundary — the frontend is never trusted.
+#   401 = missing/invalid token; 403 = valid token, not an admin.
+# Env: ANTAR_ADMIN_EMAILS (comma-sep exact emails),
+#      ANTAR_ADMIN_DOMAINS (comma-sep domains, e.g. antar.world).
+# All routes are READ-ONLY by contract.
+# ════════════════════════════════════════════════════════════════════
+
+
+def _admin_allowlists():
+    emails = {e.strip().lower()
+              for e in (os.getenv("ANTAR_ADMIN_EMAILS") or "").split(",") if e.strip()}
+    domains = {d.strip().lower().lstrip("@")
+               for d in (os.getenv("ANTAR_ADMIN_DOMAINS") or "").split(",") if d.strip()}
+    return emails, domains
+
+
+async def require_admin(authorization: Optional[str] = Header(None)) -> str:
+    """FastAPI dependency: Supabase-verified JWT + admin email allowlist."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing bearer token")
+    token = authorization[7:]
+    try:
+        u = supabase.auth.get_user(token)  # server-side verification (same path as verify_token)
+        email = ((getattr(u, "user", None) and u.user.email) or "").strip().lower()
+    except Exception:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    if not email:
+        raise HTTPException(status_code=401, detail="Token carries no email")
+    emails, domains = _admin_allowlists()
+    if email in emails or email.split("@")[-1] in domains:
+        return email
+    raise HTTPException(status_code=403, detail="Not an admin")
+
+
+@app.get("/api/v1/admin/overview")
+async def admin_overview(admin_email: str = Depends(require_admin)):
+    from datetime import datetime as _adt, timedelta as _atd, timezone as _atz
+    from collections import Counter as _aC
+    now = _adt.now(_atz.utc)
+    now_s = now.isoformat()[:19]
+
+    def _charts_count(since=None):
+        try:
+            q = supabase.table("charts").select("id", count="exact")
+            if since:
+                q = q.gte("created_at", since)
+            return q.limit(1).execute().count or 0
+        except Exception:
+            return 0
+
+    total_users = _charts_count()
+    signups = {
+        "today": _charts_count(now.strftime("%Y-%m-%dT00:00:00+00:00")),
+        "last_7d": _charts_count((now - _atd(days=7)).isoformat()),
+        "last_30d": _charts_count((now - _atd(days=30)).isoformat()),
+    }
+
+    plan_breakdown = {"free": total_users, "seeker": 0, "navigator": 0}
+    active_subscribers = 0
+    try:
+        subs = supabase.table("subscriptions").select(
+            "chart_id,plan,status,current_period_end").limit(10000).execute().data or []
+        _seen = set()
+        for s in subs:
+            cid = s.get("chart_id")
+            if not cid or cid in _seen:
+                continue
+            _seen.add(cid)
+            plan = str(s.get("plan") or "").lower()
+            alive = (str(s.get("status") or "").lower() in ("active", "trialing")
+                     and str(s.get("current_period_end") or "")[:19] > now_s)
+            if plan in ("seeker", "navigator") and alive:
+                plan_breakdown[plan] += 1
+                plan_breakdown["free"] = max(0, plan_breakdown["free"] - 1)
+                active_subscribers += 1
+    except Exception as e:
+        print(f"[admin] subscriptions read failed: {e}")
+
+    language_split, top_countries = {}, []
+    try:
+        rows = supabase.table("charts").select(
+            "language_preference,current_country").limit(20000).execute().data or []
+        language_split = dict(_aC(
+            str(r.get("language_preference") or "en").lower()[:2] for r in rows))
+        cc = _aC((str(r.get("current_country") or "").upper() or "??") for r in rows)
+        top_countries = [{"country": c, "users": n} for c, n in cc.most_common(10)]
+    except Exception as e:
+        print(f"[admin] charts split read failed: {e}")
+
+    try:
+        arows = supabase.table("charts").select(
+            "utm_source,referrer").limit(20000).execute().data or []
+
+        def _src(r):
+            if r.get("utm_source"):
+                return str(r["utm_source"]).lower()[:40]
+            ref = str(r.get("referrer") or "")
+            if ref:
+                try:
+                    from urllib.parse import urlparse
+                    return urlparse(ref).netloc or "referral"
+                except Exception:
+                    return "referral"
+            return "direct/unknown"
+
+        acquisition = dict(_aC(_src(r) for r in arows))
+    except Exception:
+        acquisition = {"_note": "acquisition columns missing — run sql_admin_api.sql"}
+
+    return {
+        "total_users": total_users,
+        "signups": signups,
+        "plan_breakdown": plan_breakdown,
+        "active_subscribers": active_subscribers,
+        "language_split": language_split,
+        "top_countries": top_countries,
+        "acquisition_breakdown": acquisition,
+        "generated_at": now.isoformat(),
+    }
+
+
+@app.get("/api/v1/admin/users")
+async def admin_users(limit: int = 50, offset: int = 0, plan: str = "",
+                      q: str = "", admin_email: str = Depends(require_admin)):
+    from datetime import datetime as _adt, timezone as _atz
+    limit = max(1, min(int(limit or 50), 200))
+    offset = max(0, int(offset or 0))
+    plan = (plan or "").strip().lower()
+    now_s = _adt.now(_atz.utc).isoformat()[:19]
+
+    sub_by_chart = {}
+    try:
+        subs = supabase.table("subscriptions").select(
+            "chart_id,plan,status,current_period_end").limit(10000).execute().data or []
+        for s in subs:
+            cid = s.get("chart_id")
+            if not cid:
+                continue
+            alive = (str(s.get("status") or "").lower() in ("active", "trialing")
+                     and str(s.get("current_period_end") or "")[:19] > now_s)
+            cur = sub_by_chart.get(cid)
+            if cur is None or (alive and not cur.get("_alive")):
+                sub_by_chart[cid] = {
+                    "plan": str(s.get("plan") or "free").lower() if alive else "free",
+                    "period_end": s.get("current_period_end") if alive else None,
+                    "_alive": alive,
+                }
+    except Exception as e:
+        print(f"[admin] subscriptions read failed: {e}")
+
+    paid_ids = [cid for cid, s in sub_by_chart.items()
+                if s["plan"] in ("seeker", "navigator")]
+
+    base_sel = "id, first_name, current_country, language_preference, created_at"
+
+    def _run(sel):
+        qq = supabase.table("charts").select(sel, count="exact")
+        if q:
+            qq = qq.ilike("first_name", f"%{q}%")
+        if plan in ("seeker", "navigator"):
+            ids = [c for c in paid_ids if sub_by_chart[c]["plan"] == plan]
+            if not ids:
+                return [], 0
+            qq = qq.in_("id", ids[:1000])
+        elif plan == "free" and paid_ids:
+            qq = qq.not_.in_("id", paid_ids[:1000])
+        r = qq.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+        return (r.data or []), (r.count or 0)
+
+    try:
+        rows, total = _run(base_sel + ", referrer, utm_source")
+    except Exception:
+        rows, total = _run(base_sel)
+
+    ids = [r["id"] for r in rows]
+    pred_used, last_active = {}, {}
+    if ids:
+        try:
+            ut = supabase.table("usage_tracking").select(
+                "chart_id,pred_count").in_("chart_id", ids).execute().data or []
+            for u in ut:
+                pred_used[u["chart_id"]] = pred_used.get(u["chart_id"], 0) + int(u.get("pred_count") or 0)
+        except Exception:
+            pass
+        try:
+            preds = supabase.table("predictions").select("chart_id,created_at") \
+                .in_("chart_id", ids).order("created_at", desc=True) \
+                .limit(2000).execute().data or []
+            for p in preds:
+                last_active.setdefault(p.get("chart_id"), p.get("created_at"))
+        except Exception:
+            pass
+
+    users = []
+    for r in rows:
+        cid = r["id"]
+        sub = sub_by_chart.get(cid) or {}
+        users.append({
+            "chart_id": cid,
+            "first_name": r.get("first_name") or "",
+            "current_country": r.get("current_country") or "",
+            "language": str(r.get("language_preference") or "en").lower()[:2],
+            "plan": sub.get("plan") or "free",
+            "source": (r.get("utm_source") or r.get("referrer") or ""),
+            "created_at": r.get("created_at"),
+            "period_end": sub.get("period_end"),
+            "pred_used": pred_used.get(cid, 0),
+            "last_active": last_active.get(cid),
+        })
+    return {"users": users, "total": total, "limit": limit, "offset": offset}
+
+
+@app.get("/api/v1/admin/questions")
+async def admin_questions(limit: int = 50, offset: int = 0, language: str = "",
+                          admin_email: str = Depends(require_admin)):
+    limit = max(1, min(int(limit or 50), 200))
+    offset = max(0, int(offset or 0))
+    language = (language or "").strip().lower()[:2]
+    note = None
+
+    def _run(sel, with_lang):
+        qq = supabase.table("predictions").select(sel, count="exact")
+        if language and with_lang:
+            qq = qq.eq("language", language)
+        return qq.order("created_at", desc=True).range(offset, offset + limit - 1).execute()
+
+    try:
+        r = _run("created_at, chart_id, concern, query, language, "
+                 "signal_confidence, accuracy_rating", True)
+        rows = r.data or []
+    except Exception:
+        # pre-migration: language/accuracy_rating columns may be missing
+        r = _run("created_at, chart_id, concern, query, signal_confidence", False)
+        rows = [{**x, "language": None, "accuracy_rating": None} for x in (r.data or [])]
+        note = "predictions.language missing — run sql_admin_api.sql (filter inactive)"
+
+    return {"questions": rows, "total": r.count or 0,
+            "limit": limit, "offset": offset, "note": note}
+
+
+@app.get("/api/v1/admin/llm-usage")
+async def admin_llm_usage(days: int = 30, admin_email: str = Depends(require_admin)):
+    from datetime import datetime as _adt, timedelta as _atd, timezone as _atz
+    from fastapi.responses import JSONResponse as _AJR
+    days = max(1, min(int(days or 30), 90))
+    since = (_adt.now(_atz.utc) - _atd(days=days)).isoformat()
+    try:
+        rows = supabase.table("llm_call_log").select(
+            "endpoint,created_at,success,input_tokens,output_tokens"
+        ).gte("created_at", since).limit(50000).execute().data or []
+    except Exception as e:
+        return _AJR(status_code=501, content={
+            "error": "llm_call_log_unavailable",
+            "detail": ("LLM call log table missing — run sql_admin_api.sql; "
+                       "logging starts at the next deploy."),
+        })
+    by_endpoint, by_day = {}, {}
+    for r in rows:
+        ep = r.get("endpoint") or "unknown"
+        d = str(r.get("created_at") or "")[:10]
+        e = by_endpoint.setdefault(ep, {"calls": 0, "failures": 0,
+                                        "input_tokens": 0, "output_tokens": 0})
+        e["calls"] += 1
+        if r.get("success") is False:
+            e["failures"] += 1
+        e["input_tokens"] += int(r.get("input_tokens") or 0)
+        e["output_tokens"] += int(r.get("output_tokens") or 0)
+        by_day[d] = by_day.get(d, 0) + 1
+    return {"days": days, "total_calls": len(rows),
+            "by_endpoint": by_endpoint,
+            "by_day": [{"date": k, "calls": v} for k, v in sorted(by_day.items())]}
 
 
 @app.post("/api/v1/me/billing/portal")

@@ -972,6 +972,11 @@ async def _call_claude_daily_signal_retry(
         retry_prompt = user_prompt + "\n\n" + corrective_block
 
         client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        try:
+            from antar_engine.llm_log import wrap_claude_client as _wcc
+            client = _wcc(client)
+        except Exception:
+            pass
 
         # Use full system prompt (no cache split for retry — it's rare)
         # --- Sprint EN-GLOSS-1: English Sanskrit-gloss block ---
@@ -1031,6 +1036,11 @@ async def _call_claude_daily_signal(
         user_prompt = DAILY_USER_PROMPT_TEMPLATE.format(**prompt_vars)
 
         client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
+        try:
+            from antar_engine.llm_log import wrap_claude_client as _wcc
+            client = _wcc(client)
+        except Exception:
+            pass
 
         # Split system prompt at ## LIVE DATA for KV caching
         # --- Sprint EN-GLOSS-1: English Sanskrit-gloss block ---
