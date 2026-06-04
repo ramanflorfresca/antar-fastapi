@@ -218,15 +218,15 @@ REMEDY_DURATION_RULES = {
 # ════════════════════════════════════════════
 
 PLANET_ENERGY = {
-    "Sun":     {"label": "Sun",   "domain": "career",       "color": "#F59E0B", "day": "Sunday",    "chakra": "Solar Plexus",  "element": "Fire"},
-    "Moon":    {"label": "Moon",       "domain": "wellbeing",    "color": "#94A3B8", "day": "Monday",    "chakra": "Sacral",        "element": "Water"},
-    "Mars":    {"label": "Mars",        "domain": "career",       "color": "#EF4444", "day": "Tuesday",   "chakra": "Root",          "element": "Fire"},
-    "Mercury": {"label": "Mercury", "domain": "career",       "color": "#22C55E", "day": "Wednesday", "chakra": "Throat",        "element": "Earth"},
-    "Jupiter": {"label": "Jupiter",      "domain": "growth",       "color": "#F59E0B", "day": "Thursday",  "chakra": "Crown",         "element": "Ether"},
-    "Venus":   {"label": "Venus",       "domain": "relationship", "color": "#EC4899", "day": "Friday",    "chakra": "Heart",         "element": "Water"},
-    "Saturn":  {"label": "Saturn",   "domain": "career",       "color": "#8B5CF6", "day": "Saturday",  "chakra": "Root",          "element": "Air"},
-    "Rahu":    {"label": "Rahu",  "domain": "growth",       "color": "#6366F1", "day": "Saturday",  "chakra": "Third Eye",     "element": "Air"},
-    "Ketu":    {"label": "Ketu",      "domain": "spiritual",    "color": "#A78BFA", "day": "Tuesday",   "chakra": "Crown",         "element": "Fire"},
+    "Sun":     {"label": "Vitality & Purpose",   "domain": "career",       "color": "#F59E0B", "day": "Sunday",    "chakra": "Solar Plexus",  "element": "Fire"},
+    "Moon":    {"label": "Emotional Clarity",       "domain": "wellbeing",    "color": "#94A3B8", "day": "Monday",    "chakra": "Sacral",        "element": "Water"},
+    "Mars":    {"label": "Courage & Drive",        "domain": "career",       "color": "#EF4444", "day": "Tuesday",   "chakra": "Root",          "element": "Fire"},
+    "Mercury": {"label": "Communication & Clarity", "domain": "career",       "color": "#22C55E", "day": "Wednesday", "chakra": "Throat",        "element": "Earth"},
+    "Jupiter": {"label": "Wisdom & Expansion",      "domain": "growth",       "color": "#F59E0B", "day": "Thursday",  "chakra": "Crown",         "element": "Ether"},
+    "Venus":   {"label": "Harmony & Connection",       "domain": "relationship", "color": "#EC4899", "day": "Friday",    "chakra": "Heart",         "element": "Water"},
+    "Saturn":  {"label": "Discipline & Structure",   "domain": "career",       "color": "#8B5CF6", "day": "Saturday",  "chakra": "Root",          "element": "Air"},
+    "Rahu":    {"label": "Amplification & Ambition",  "domain": "growth",       "color": "#6366F1", "day": "Saturday",  "chakra": "Third Eye",     "element": "Air"},
+    "Ketu":    {"label": "Release & Insight",      "domain": "spiritual",    "color": "#A78BFA", "day": "Tuesday",   "chakra": "Crown",         "element": "Fire"},
 }
 
 # Jaimini Karaka → Chakra mapping (from user's spec)
@@ -629,12 +629,213 @@ def generate_practice_schedule(
         convergence_summary=convergence_summary,
     )
 
-    return _schedule_to_dict(schedule)
+    _sched_out = _schedule_to_dict(schedule)
+    # [gemstone-engine] chart-level primary stone from the ENGINE planet.
+    # Additive + guarded: any failure leaves chart_gemstone=None and the
+    # schedule payload otherwise byte-identical to before.
+    try:
+        _sched_out["chart_gemstone"] = select_chart_gemstone(planets, lagna)
+    except Exception as _gem_err:
+        print(f"[gemstone-engine] non-fatal: {_gem_err}")
+        _sched_out["chart_gemstone"] = None
+    return _sched_out
 
 
 # ════════════════════════════════════════════
 # 6. CONVERGENCE SCORING
 # ════════════════════════════════════════════
+
+
+# ════════════════════════════════════════════
+# 5.5 GEMSTONE (RATNA) ENGINE — chart-level
+# ════════════════════════════════════════════
+# Deterministic primary-stone selector. ONE stone, from the chart's ENGINE
+# planet — never "strengthen everything", never a functional malefic.
+# Selection order: yogakaraka -> lagna lord (if it functions benefic and is
+# not debilitated) -> strongest benefic-functioning kendra/trikona lord.
+# Output dict is INTERNAL: the `planet` field and `why` note are for the
+# narrator/translation layer and must never reach the UI raw.
+
+GEM_SIGN_LORDS = {
+    "Aries": "Mars", "Taurus": "Venus", "Gemini": "Mercury", "Cancer": "Moon",
+    "Leo": "Sun", "Virgo": "Mercury", "Libra": "Venus", "Scorpio": "Mars",
+    "Sagittarius": "Jupiter", "Capricorn": "Saturn", "Aquarius": "Saturn",
+    "Pisces": "Jupiter",
+}
+GEM_SIGN_ORDER = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+                  "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius",
+                  "Pisces"]
+GEM_EXALTATION = {"Sun": "Aries", "Moon": "Taurus", "Mars": "Capricorn",
+                  "Mercury": "Virgo", "Jupiter": "Cancer", "Venus": "Pisces",
+                  "Saturn": "Libra"}
+GEM_DEBILITATION = {"Sun": "Libra", "Moon": "Scorpio", "Mars": "Cancer",
+                    "Mercury": "Pisces", "Jupiter": "Capricorn",
+                    "Venus": "Virgo", "Saturn": "Aries"}
+GEM_OWN_SIGNS = {"Sun": ["Leo"], "Moon": ["Cancer"],
+                 "Mars": ["Aries", "Scorpio"], "Mercury": ["Gemini", "Virgo"],
+                 "Jupiter": ["Sagittarius", "Pisces"],
+                 "Venus": ["Taurus", "Libra"],
+                 "Saturn": ["Capricorn", "Aquarius"]}
+
+# planet -> stone / metal / first-wear weekday (brief-specified table)
+GEM_BY_PLANET = {
+    "Sun":     {"stone": "Ruby",            "metal": "gold",            "weekday": "Sunday"},
+    "Moon":    {"stone": "Pearl",           "metal": "silver",          "weekday": "Monday"},
+    "Mars":    {"stone": "Red Coral",       "metal": "gold/copper",     "weekday": "Tuesday"},
+    "Mercury": {"stone": "Emerald",         "metal": "gold/silver",     "weekday": "Wednesday"},
+    "Jupiter": {"stone": "Yellow Sapphire", "metal": "gold",            "weekday": "Thursday"},
+    "Venus":   {"stone": "Diamond",         "metal": "silver/platinum", "weekday": "Friday"},
+    "Saturn":  {"stone": "Blue Sapphire",   "metal": "silver",          "weekday": "Saturday"},
+    "Rahu":    {"stone": "Hessonite",       "metal": "silver",          "weekday": "Saturday"},
+    "Ketu":    {"stone": "Cat's Eye",       "metal": "silver",          "weekday": "contextual"},
+}
+
+# Saturn / Rahu / Ketu stones are trial-wear: watch for adverse effects.
+# Blue Sapphire is the single riskiest stone — even when Saturn is a
+# legitimate engine planet (yogakaraka for Taurus/Libra, lagna lord for
+# Capricorn/Aquarius) it stays test_first, never casually defaulted to.
+GEM_TEST_FIRST = {"Saturn", "Rahu", "Ketu"}
+
+# Classical yogakarakas (single planet ruling both a kendra and a trikona).
+GEM_YOGAKARAKA_BY_LAGNA = {
+    "Taurus": "Saturn", "Libra": "Saturn",
+    "Cancer": "Mars", "Leo": "Mars",
+    "Capricorn": "Venus", "Aquarius": "Venus",
+}
+
+# Parashari functional malefics per lagna (Rahu/Ketu always excluded too).
+GEM_FUNCTIONAL_MALEFICS = {
+    "Aries":       {"Mercury", "Saturn"},
+    "Taurus":      {"Moon", "Jupiter", "Mars"},
+    "Gemini":      {"Mars", "Sun", "Jupiter"},
+    "Cancer":      {"Mercury", "Venus", "Saturn"},
+    "Leo":         {"Mercury", "Venus", "Saturn"},
+    "Virgo":       {"Mars", "Jupiter", "Moon"},
+    "Libra":       {"Jupiter", "Sun", "Mars"},
+    "Scorpio":     {"Mercury", "Venus"},
+    "Sagittarius": {"Venus", "Saturn"},
+    "Capricorn":   {"Mars", "Jupiter", "Moon"},
+    "Aquarius":    {"Moon", "Mars", "Jupiter"},
+    "Pisces":      {"Sun", "Venus", "Saturn", "Mercury"},
+}
+
+# Internal life-domain notes for the narrator to translate (never to UI raw).
+GEM_DOMAINS = {
+    "Sun":     "leadership, visibility, vitality",
+    "Moon":    "emotional steadiness, intuition, rest",
+    "Mars":    "drive, courage, decisive action",
+    "Mercury": "communication, commerce, learning",
+    "Jupiter": "growth, wisdom, mentorship, fortune",
+    "Venus":   "creativity, relationships, wealth, refinement",
+    "Saturn":  "discipline, endurance, long-term structure",
+    "Rahu":    "ambition, unconventional gains",
+    "Ketu":    "insight, detachment, inner depth",
+}
+
+
+def _gem_lagna_sign(lagna):
+    """Normalize lagna to a capitalized sign name ('Capricorn')."""
+    if isinstance(lagna, dict):
+        lagna = lagna.get("sign") or lagna.get("rashi") or ""
+    if not isinstance(lagna, str):
+        return ""
+    lagna = lagna.strip().capitalize()
+    return lagna if lagna in GEM_SIGN_LORDS else ""
+
+
+def _gem_planet_sign(planets, planet):
+    """Placement sign of a planet from the stored planets dict."""
+    p = (planets or {}).get(planet)
+    if isinstance(p, dict):
+        return (p.get("sign") or p.get("rashi") or "").strip().capitalize()
+    return ""
+
+
+def _gem_dignity_rank(planet, sign):
+    """5 exalted / 4 own / 3 friendly / 2 neutral / 1 debilitated.
+    Friendly/neutral split mirrors antar_ephemeris._planet_strength."""
+    if not sign:
+        return 2
+    if sign == GEM_EXALTATION.get(planet):
+        return 5
+    if sign == GEM_DEBILITATION.get(planet):
+        return 1
+    if sign in GEM_OWN_SIGNS.get(planet, []):
+        return 4
+    lord = GEM_SIGN_LORDS.get(sign, "")
+    return 3 if lord in ("Jupiter", "Venus", "Moon") else 2
+
+
+def select_chart_gemstone(planets, lagna):
+    """ONE primary stone from the chart's ENGINE planet. Deterministic, no LLM.
+
+    Engine-planet selection (in order):
+      1. Yogakaraka, if the lagna has one.
+      2. Lagna lord, only if it functions benefic AND is not debilitated.
+      3. Strongest benefic-functioning kendra/trikona lord (dignity-ranked;
+         trikona lordship breaks ties, then fixed planet order).
+    Functional malefics for the lagna (and Rahu/Ketu) are never selected.
+
+    Returns {stone, planet, risk_tier, metal, weekday, why} or None.
+    INTERNAL — `planet` and `why` are for the narrator, never the UI.
+    """
+    lagna_sign = _gem_lagna_sign(lagna)
+    if not lagna_sign:
+        return None
+    malefics = set(GEM_FUNCTIONAL_MALEFICS.get(lagna_sign, set())) | {"Rahu", "Ketu"}
+
+    engine, basis = None, ""
+
+    # 1. Yogakaraka
+    yk = GEM_YOGAKARAKA_BY_LAGNA.get(lagna_sign)
+    if yk and yk not in malefics:
+        engine, basis = yk, "yogakaraka"
+
+    # 2. Lagna lord (functions benefic by definition; skip if debilitated)
+    if engine is None:
+        ll = GEM_SIGN_LORDS.get(lagna_sign)
+        if ll and ll not in malefics:
+            if _gem_dignity_rank(ll, _gem_planet_sign(planets, ll)) > 1:
+                engine, basis = ll, "lagna lord (functions benefic)"
+
+    # 3. Strongest benefic-functioning kendra/trikona lord
+    if engine is None:
+        lagna_idx = GEM_SIGN_ORDER.index(lagna_sign)
+        trikona_bonus = {9: 0.3, 5: 0.2, 1: 0.1}  # tie-break only
+        fixed = ["Jupiter", "Venus", "Mercury", "Moon", "Sun", "Mars", "Saturn"]
+        best, best_key = None, None
+        for house in (1, 4, 5, 7, 9, 10):
+            sign = GEM_SIGN_ORDER[(lagna_idx + house - 1) % 12]
+            lord = GEM_SIGN_LORDS[sign]
+            if lord in malefics:
+                continue
+            rank = _gem_dignity_rank(lord, _gem_planet_sign(planets, lord))
+            key = (rank + trikona_bonus.get(house, 0.0),
+                   -fixed.index(lord) if lord in fixed else -99)
+            if best_key is None or key > best_key:
+                best, best_key = lord, key
+        if best:
+            engine, basis = best, "strongest benefic kendra/trikona lord"
+
+    if engine is None or engine not in GEM_BY_PLANET:
+        return None
+
+    g = GEM_BY_PLANET[engine]
+    risk = "test_first" if engine in GEM_TEST_FIRST else "safe"
+    why = (
+        f"Engine planet {engine} ({basis}) for {lagna_sign} lagna — "
+        f"{g['stone']} feeds its domains: {GEM_DOMAINS.get(engine, '')}. "
+        f"Internal note for the narrator; planet name never reaches the UI."
+    )
+    return {
+        "stone": g["stone"],
+        "planet": engine,
+        "risk_tier": risk,
+        "metal": g["metal"],
+        "weekday": g["weekday"],
+        "why": why,
+    }
+
 
 def _score_planet_convergence(planets, karakas, current_dasha, varshphal, sleeping, masik_phal, age, vimsottari_md=None, vimsottari_ad=None, next_md=None):
     """
