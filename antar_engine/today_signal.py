@@ -10,7 +10,7 @@ BODY state line (chandra-bala model). This module persists that selection so
 every other surface — the Deep Read first — reads the SAME snapshot instead
 of re-deriving its own. That is the cross-surface no-drift invariant.
 
-Storage: today_narration_cache with language='engine' sentinel. The table
+Storage: today_narration_cache with a language-sentinel row. The table
 already exists (Today v2 Part 6) and is keyed (chart_id, narration_date,
 language), so no schema migration is needed. Fail-open everywhere: a missing
 table or row simply means the Deep Read proceeds without the committed block.
@@ -20,7 +20,9 @@ from __future__ import annotations
 import json
 from typing import Optional
 
-_SENTINEL_LANG = "engine"
+# NOTE: today_narration_cache.language is VARCHAR(5) — the sentinel must fit
+# ("engine" was 6 chars and made every commit upsert fail silently).
+_SENTINEL_LANG = "sig"
 
 # Today SELECTABLE domains -> Deep Read theme keys
 DOMAIN_TO_THEME = {
