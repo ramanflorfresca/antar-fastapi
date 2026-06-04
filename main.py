@@ -12960,6 +12960,23 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         lng = float(row.get("longitude", 77.2) or 77.2)
         panchanga = calculate_panchanga(lat=lat, lng=lng)
         formatted = format_daily_for_user(panchanga)
+        # [no-jargon] format_daily_for_user's display strings leak vara/
+        # nakshatra/tithi and planet names (e.g. "Jupiterday · Uttara Ashadha ·
+        # Chaturthi"). Replace ONLY the two user-facing strings with plain
+        # equivalents; every computed field stays intact.
+        try:
+            _pq = (panchanga.get("day_quality") or "neutral").lower()
+            formatted["headline"] = panchanga.get("date", "")
+            if panchanga.get("yoga_quality") == "inauspicious":
+                formatted["vibe"] = "A day to be thoughtful — avoid forcing big new starts."
+            elif _pq == "excellent":
+                formatted["vibe"] = "A powerful day — the energy strongly supports action."
+            elif _pq == "good":
+                formatted["vibe"] = "A supportive day — steady action lands well."
+            else:
+                formatted["vibe"] = "An even day — keep it simple and steady."
+        except Exception:
+            pass
         result.update({
             "panchanga":   formatted,
             "rahu_kalam":  panchanga.get("rahu_kalam", ""),
