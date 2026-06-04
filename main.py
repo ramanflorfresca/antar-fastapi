@@ -11324,9 +11324,13 @@ async def get_panchanga(request: dict = {}, language: str = "en"):
     """
     lat = request.get("lat", 28.6) if request else 28.6
     lng = request.get("lng", 77.2) if request else 77.2
+    _pan_tz = request.get("tz_offset") if request else None
 
     from antar_engine.daily_panchanga import calculate_panchanga, format_daily_for_user
-    panchanga = calculate_panchanga(lat=lat, lng=lng)
+    panchanga = calculate_panchanga(
+        lat=lat, lng=lng,
+        tz_offset=float(_pan_tz) if _pan_tz is not None else None,
+    )
     if panchanga.get("error"):
         raise HTTPException(500, f"Panchanga error: {panchanga['error']}")
 
@@ -12987,7 +12991,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         # Today's panchanga timing block (carried over from the original endpoint)
         _pan_lat, _pan_lng, _pan_src = _resolve_moment_coords(row)
         lat, lng = float(_pan_lat), float(_pan_lng)
-        panchanga = calculate_panchanga(lat=lat, lng=lng)
+        panchanga = calculate_panchanga(lat=lat, lng=lng, tz_offset=effective_offset)
         formatted = format_daily_for_user(panchanga)
         # [no-jargon] format_daily_for_user's display strings leak vara/
         # nakshatra/tithi and planet names (e.g. "Jupiterday · Uttara Ashadha ·
@@ -15407,6 +15411,7 @@ async def update_preferences(request: Request):
 async def restore_chart(
     user_id: str,
     background_tasks: BackgroundTasks,
+    request: Request = None,
     chart_id: Optional[str] = None,
     language: str = "en",
     tz_offset: Optional[float] = None,
@@ -15570,6 +15575,18 @@ async def restore_chart(
             background_tasks.add_task(_prewarm_daily_week_cache, active["id"], tz_offset)
     except Exception as _pe:
         print(f"[prewarm] schedule failed (non-fatal) chart={active.get('id')}: {_pe}")
+
+    # [geo-persist] refresh current_country from the request IP (MaxMind) —
+    # keeps the moment-chart location frame current for relocated users.
+    try:
+        from antar_engine.geo_lookup import extract_client_ip
+        _geo_ip = extract_client_ip(request) if request is not None else ""
+        if _geo_ip and background_tasks is not None:
+            background_tasks.add_task(
+                _persist_current_country_from_ip,
+                [c["id"] for c in charts], _geo_ip)
+    except Exception as _ge:
+        print(f"[geo-persist] schedule failed (non-fatal): {_ge}")
 
     # Brief B — pre-warm the Life Arc cache so the arc card is instant on next mount
     try:
@@ -17951,6 +17968,36 @@ _COUNTRY_TZ_OFFSETS = {
 }
 
 
+
+def _persist_current_country_from_ip(chart_ids, client_ip: str):
+    """
+    [geo-persist] Background task: derive the user's CURRENT country from
+    the request IP (MaxMind GeoLite2 — same path as /geo/country) and
+    persist charts.current_country when empty or stale. This feeds
+    _resolve_moment_coords() so moment-chart ascendants localize correctly
+    for relocated users. Lookup failure writes nothing; never raises.
+    """
+    try:
+        from antar_engine.geo_lookup import lookup_country
+        cc = (lookup_country(client_ip) or "").strip().upper()
+        if not cc or len(cc) != 2:
+            return
+        for _cid in (chart_ids or []):
+            try:
+                _r = supabase.table("charts").select("current_country") \
+                    .eq("id", _cid).single().execute()
+                _cur = ((_r.data or {}).get("current_country") or "").strip().upper()
+                if _cur == cc:
+                    continue
+                supabase.table("charts").update({"current_country": cc}) \
+                    .eq("id", _cid).execute()
+                print(f"[geo-persist] chart={_cid} current_country {_cur or 'EMPTY'} -> {cc}")
+            except Exception as _ce:
+                print(f"[geo-persist] chart={_cid} skipped: {_ce}")
+    except Exception as _e:
+        print(f"[geo-persist] non-fatal: {_e}")
+
+
 def _resolve_moment_coords(chart_row: dict, req_lat=None, req_lng=None,
                            default=(28.6139, 77.2090)):
     """
@@ -18922,220 +18969,10 @@ async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8, l
     return result
 
 
-@app.get("/api/v1/hora/{chart_id}")
-async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
-    """
-    Kala Hora — Planetary Hour Timing Engine.
-    Returns current hora + upcoming N horas with FIELD×MODE guidance.
-    Includes WOW convergence if daily signal is available.
-    """
-    from antar_engine.hora_engine import get_hora_schedule, get_next_power_hora
-
-    # Fetch chart for lat/lng and archetype
-    chart_res = supabase.table("charts").select(
-        "latitude, longitude, current_country, birth_country, country_code, character_archetype"
-    ).eq("id", chart_id).single().execute()
-
-    if not chart_res.data:
-        raise HTTPException(status_code=404, detail="Chart not found")
-
-    row = chart_res.data
-    # Sunrise/hora anchor to the user's CURRENT location, not birthplace.
-    lat, lng, _hora_src = _resolve_moment_coords(row, default=(4.7110, -74.0721))
-
-    # Auto-detect tz_offset from country if not provided
-    if tz_offset is None:
-        country = row.get("current_country", "")
-        from main import _COUNTRY_TZ_OFFSETS
-        tz_offset = _COUNTRY_TZ_OFFSETS.get(country, 0)
-
-    # Get daily field + friction from daily signal (non-fatal)
-    daily_field = None
-    is_friction_day = False
-    try:
-        arch = row.get("character_archetype") or {}
-        daily_field = arch.get("dominant_field")
-
-        # Check today's daily signal for friction (v2 sync wrapper)
-        from antar_engine.daily_prediction_engine import generate_weekly_signals_sync
-        import json as _hj
-        _raw_cd = row.get("chart_data") or {}
-        if isinstance(_raw_cd, str):
-            try: _raw_cd = _hj.loads(_raw_cd)
-            except: _raw_cd = {}
-        _hora_moon = "Aries"
-        _hp = _raw_cd.get("planets") or _raw_cd.get("planet_positions") or []
-        if isinstance(_hp, list):
-            for _hpl in _hp:
-                if isinstance(_hpl, dict) and (_hpl.get("name","").lower() == "moon" or _hpl.get("planet","").lower() == "moon"):
-                    _hora_moon = _hpl.get("sign") or _hpl.get("rashi") or "Aries"
-                    break
-        _signals = generate_weekly_signals_sync(natal_moon_sign=_hora_moon)
-        if _signals:
-            is_friction_day = _signals[0].get("is_friction_day", False)
-    except Exception as _de:
-        pass  # non-fatal — hora works without daily integration
-
-    result = get_hora_schedule(
-        lat=lat,
-        lng=lng,
-        tz_offset=tz_offset,
-        n_horas=n,
-        daily_field=daily_field,
-        is_friction_day=is_friction_day,
-    )
-
-    # Add next power hora for friction days
-    if is_friction_day and daily_field and result.get("upcoming_horas"):
-        result["next_power_hora"] = get_next_power_hora(
-            result["upcoming_horas"], daily_field
-        )
-
-    return result
 
 
-@app.get("/api/v1/hora/{chart_id}")
-async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
-    """
-    Kala Hora — Planetary Hour Timing Engine.
-    Returns current hora + upcoming N horas with FIELD×MODE guidance.
-    Includes WOW convergence if daily signal is available.
-    """
-    from antar_engine.hora_engine import get_hora_schedule, get_next_power_hora
-
-    # Fetch chart for lat/lng and archetype
-    chart_res = supabase.table("charts").select(
-        "latitude, longitude, current_country, birth_country, country_code, character_archetype"
-    ).eq("id", chart_id).single().execute()
-
-    if not chart_res.data:
-        raise HTTPException(status_code=404, detail="Chart not found")
-
-    row = chart_res.data
-    # Sunrise/hora anchor to the user's CURRENT location, not birthplace.
-    lat, lng, _hora_src = _resolve_moment_coords(row, default=(4.7110, -74.0721))
-
-    # Auto-detect tz_offset from country if not provided
-    if tz_offset is None:
-        country = row.get("current_country", "")
-        from main import _COUNTRY_TZ_OFFSETS
-        tz_offset = _COUNTRY_TZ_OFFSETS.get(country, 0)
-
-    # Get daily field + friction from daily signal (non-fatal)
-    daily_field = None
-    is_friction_day = False
-    try:
-        arch = row.get("character_archetype") or {}
-        daily_field = arch.get("dominant_field")
-
-        # Check today's daily signal for friction (v2 sync wrapper)
-        from antar_engine.daily_prediction_engine import generate_weekly_signals_sync
-        import json as _hj
-        _raw_cd = row.get("chart_data") or {}
-        if isinstance(_raw_cd, str):
-            try: _raw_cd = _hj.loads(_raw_cd)
-            except: _raw_cd = {}
-        _hora_moon = "Aries"
-        _hp = _raw_cd.get("planets") or _raw_cd.get("planet_positions") or []
-        if isinstance(_hp, list):
-            for _hpl in _hp:
-                if isinstance(_hpl, dict) and (_hpl.get("name","").lower() == "moon" or _hpl.get("planet","").lower() == "moon"):
-                    _hora_moon = _hpl.get("sign") or _hpl.get("rashi") or "Aries"
-                    break
-        _signals = generate_weekly_signals_sync(natal_moon_sign=_hora_moon)
-        if _signals:
-            is_friction_day = _signals[0].get("is_friction_day", False)
-    except Exception as _de:
-        pass  # non-fatal — hora works without daily integration
-
-    result = get_hora_schedule(
-        lat=lat,
-        lng=lng,
-        tz_offset=tz_offset,
-        n_horas=n,
-        daily_field=daily_field,
-        is_friction_day=is_friction_day,
-    )
-
-    # Add next power hora for friction days
-    if is_friction_day and daily_field and result.get("upcoming_horas"):
-        result["next_power_hora"] = get_next_power_hora(
-            result["upcoming_horas"], daily_field
-        )
-
-    return result
 
 
-@app.get("/api/v1/hora/{chart_id}")
-async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
-    """
-    Kala Hora — Planetary Hour Timing Engine.
-    Returns current hora + upcoming N horas with FIELD×MODE guidance.
-    Includes WOW convergence if daily signal is available.
-    """
-    from antar_engine.hora_engine import get_hora_schedule, get_next_power_hora
-
-    # Fetch chart for lat/lng and archetype
-    chart_res = supabase.table("charts").select(
-        "latitude, longitude, current_country, birth_country, country_code, character_archetype"
-    ).eq("id", chart_id).single().execute()
-
-    if not chart_res.data:
-        raise HTTPException(status_code=404, detail="Chart not found")
-
-    row = chart_res.data
-    # Sunrise/hora anchor to the user's CURRENT location, not birthplace.
-    lat, lng, _hora_src = _resolve_moment_coords(row, default=(4.7110, -74.0721))
-
-    # Auto-detect tz_offset from country if not provided
-    if tz_offset is None:
-        country = row.get("current_country", "")
-        from main import _COUNTRY_TZ_OFFSETS
-        tz_offset = _COUNTRY_TZ_OFFSETS.get(country, 0)
-
-    # Get daily field + friction from daily signal (non-fatal)
-    daily_field = None
-    is_friction_day = False
-    try:
-        arch = row.get("character_archetype") or {}
-        daily_field = arch.get("dominant_field")
-
-        # Check today's daily signal for friction (v2 sync wrapper)
-        from antar_engine.daily_prediction_engine import generate_weekly_signals_sync
-        import json as _hj
-        _raw_cd = row.get("chart_data") or {}
-        if isinstance(_raw_cd, str):
-            try: _raw_cd = _hj.loads(_raw_cd)
-            except: _raw_cd = {}
-        _hora_moon = "Aries"
-        _hp = _raw_cd.get("planets") or _raw_cd.get("planet_positions") or []
-        if isinstance(_hp, list):
-            for _hpl in _hp:
-                if isinstance(_hpl, dict) and (_hpl.get("name","").lower() == "moon" or _hpl.get("planet","").lower() == "moon"):
-                    _hora_moon = _hpl.get("sign") or _hpl.get("rashi") or "Aries"
-                    break
-        _signals = generate_weekly_signals_sync(natal_moon_sign=_hora_moon)
-        if _signals:
-            is_friction_day = _signals[0].get("is_friction_day", False)
-    except Exception as _de:
-        pass  # non-fatal — hora works without daily integration
-
-    result = get_hora_schedule(
-        lat=lat,
-        lng=lng,
-        tz_offset=tz_offset,
-        n_horas=n,
-        daily_field=daily_field,
-        is_friction_day=is_friction_day,
-    )
-
-    # Add next power hora for friction days
-    if is_friction_day and daily_field and result.get("upcoming_horas"):
-        result["next_power_hora"] = get_next_power_hora(
-            result["upcoming_horas"], daily_field
-        )
-
-    return result
 
 
 
@@ -20186,7 +20023,7 @@ async def predict_day_deep(request: DeepReadRequest, refresh: int = 0):
         _hd_lat, _hd_lng, _hd_src = _resolve_moment_coords(row)
         _hd_lat, _hd_lng = float(_hd_lat), float(_hd_lng)
         try:
-            _hd_pan = _hd_panch(lat=_hd_lat, lng=_hd_lng)
+            _hd_pan = _hd_panch(lat=_hd_lat, lng=_hd_lng, tz_offset=float(tz_offset) / 60.0)
         except Exception:
             _hd_pan = {}
         _hd_md = _hd_ad = ""

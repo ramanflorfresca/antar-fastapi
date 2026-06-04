@@ -255,15 +255,16 @@ NAKSHATRA_DO_DONT = {
 }
 
 
-def calculate_panchanga(lat: float = 28.6, lng: float = 77.2) -> dict:
+def calculate_panchanga(lat: float = 28.6, lng: float = 77.2, tz_offset: float = None) -> dict:
     """Calculate today's Panchanga using Swiss Ephemeris."""
     try:
         import swisseph as swe
         swe.set_sid_mode(swe.SIDM_LAHIRI)
 
         now = datetime.utcnow()
-        # Adjust for IST (UTC+5:30) as default — would use user's timezone in production
-        local_offset = (lng / 15.0)  # rough timezone from longitude
+        # Local clock: explicit tz_offset (hours) when the caller knows it,
+        # else rough longitude-derived offset as a fallback.
+        local_offset = float(tz_offset) if tz_offset is not None else (lng / 15.0)
         local_time = now + timedelta(hours=local_offset)
 
         jd = swe.julday(now.year, now.month, now.day,
@@ -312,11 +313,26 @@ def calculate_panchanga(lat: float = 28.6, lng: float = 77.2) -> dict:
         day_lords = ["Moon","Mars","Mercury","Jupiter","Venus","Saturn","Sun"]
         vara = day_lords[weekday]
 
-        # Calculate time windows
-        # Approximate sunrise/sunset (simplified — 6am/6pm local)
-        sunrise_hour = 6.0
-        sunset_hour  = 18.0
-        day_duration = sunset_hour - sunrise_hour  # 12 hours
+        # Calculate time windows from REAL sunrise/sunset (Swiss Ephemeris)
+        # at the resolved location, expressed in local clock hours.
+        # Falls back to 6:00/18:00 only if the ephemeris call fails
+        # (e.g. polar latitudes where the sun doesn't rise).
+        sunrise_hour, sunset_hour = 6.0, 18.0
+        sunrise_str = sunset_str = ""
+        try:
+            from antar_engine.hora_engine import _get_sunrise_sunset
+            _sr_utc, _ss_utc = _get_sunrise_sunset(lat, lng, local_time)
+            _sr_loc = _sr_utc.replace(tzinfo=None) + timedelta(hours=local_offset)
+            _ss_loc = _ss_utc.replace(tzinfo=None) + timedelta(hours=local_offset)
+            _sr_h = _sr_loc.hour + _sr_loc.minute / 60.0
+            _ss_h = _ss_loc.hour + _ss_loc.minute / 60.0
+            if _ss_h > _sr_h:
+                sunrise_hour, sunset_hour = _sr_h, _ss_h
+                sunrise_str = _sr_loc.strftime("%H:%M")
+                sunset_str  = _ss_loc.strftime("%H:%M")
+        except Exception:
+            pass
+        day_duration = sunset_hour - sunrise_hour
 
         part_duration = day_duration / 8.0  # each part = 1.5 hours
 
@@ -420,6 +436,8 @@ def calculate_panchanga(lat: float = 28.6, lng: float = 77.2) -> dict:
             "day_gem":      day_props.get("gem",""),
             "day_favorable_for": day_props.get("favorable_for",[])[:4],
             "day_avoid":    day_props.get("avoid",[])[:2],
+            "sunrise_local": sunrise_str,
+            "sunset_local":  sunset_str,
             "sun_sign":     SIGNS[int(sun_sid/30)],
             "sun_longitude": round(sun_sid, 2),
             "moon_longitude": round(moon_sid, 2),
