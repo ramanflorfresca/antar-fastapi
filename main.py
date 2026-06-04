@@ -12249,9 +12249,14 @@ async def ask_endpoint(request: AskRequest):
     # ───────────────────────── EXPLORATION ─────────────────────────
     if mode == "explore":
         try:
-            chart_row = supabase.table("charts") \
-                .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country") \
-                .eq("id", chart_id).single().execute()
+            try:
+                chart_row = supabase.table("charts") \
+                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country") \
+                    .eq("id", chart_id).single().execute()
+            except Exception as _nfe:
+                if "PGRST116" in str(_nfe) or "0 rows" in str(_nfe):
+                    return JSONResponse(status_code=404, content={"error": "Chart not found"})
+                raise
             if not chart_row.data:
                 return JSONResponse(status_code=404, content={"error": "Chart not found"})
 
@@ -12469,9 +12474,14 @@ async def ask_endpoint(request: AskRequest):
                 return payload
 
             # 2. NOT LOCKED — cast a fresh chart at the moment of asking.
-            chart_row = supabase.table("charts") \
-                .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, latitude, longitude") \
-                .eq("id", chart_id).single().execute()
+            try:
+                chart_row = supabase.table("charts") \
+                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, latitude, longitude") \
+                    .eq("id", chart_id).single().execute()
+            except Exception as _nfe:
+                if "PGRST116" in str(_nfe) or "0 rows" in str(_nfe):
+                    return JSONResponse(status_code=404, content={"error": "Chart not found"})
+                raise
             if not chart_row.data:
                 return JSONResponse(status_code=404, content={"error": "Chart not found"})
             cdata = chart_row.data
