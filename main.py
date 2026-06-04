@@ -9168,7 +9168,16 @@ def _st_identity(authorization):
         token = authorization[7:] if authorization.startswith("Bearer ") else authorization
         u = supabase.auth.get_user(token)
         return u.user.id, getattr(u.user, "email", None)
-    except Exception:
+    except Exception as _ident_e:
+        # [lang-401] Surface WHY a bearer was rejected (expired vs malformed)
+        # so Railway logs can pin 401s on /me/* to a concrete cause.
+        try:
+            import logging as _l
+            _l.getLogger("antar.settings").info(
+                f"[settings] bearer rejected ({type(_ident_e).__name__}): {str(_ident_e)[:160]}"
+            )
+        except Exception:
+            pass
         return None, None
 
 
@@ -9477,8 +9486,18 @@ async def settings_charts_delete(chart_id: str, authorization: Optional[str] = H
 
 # ════════════════════════════════ LANGUAGE ════════════════════════════════
 @app.get("/api/v1/me/language")
-async def settings_language(authorization: Optional[str] = Header(None)):
+async def settings_language(authorization: Optional[str] = Header(None), chart_id: Optional[str] = None):
     user_id, _ = _st_identity(authorization)
+    if not user_id and chart_id:
+        # [lang-401] Restore-based sessions can hold a stale/absent JWT while
+        # the app still knows its chart_id. A language-preference READ is the
+        # same trust level as the public /entitlements/{chart_id} — resolve
+        # the owner via profiles.chart_id (same mapping entitlements uses).
+        try:
+            from antar_engine.entitlements import _resolve_user_id as _lang_uid
+            user_id = _lang_uid(chart_id, supabase)
+        except Exception:
+            user_id = None
     if not user_id:
         return _st_guest_401()
     cached = _st_cache_get(("lang", user_id))
@@ -11366,11 +11385,35 @@ async def onboarding_welcome_prediction(request: OnboardingWelcomeRequest):
     _chart_row = _row.data
 
     # ─── 2. Idempotent: answered before → return stored reveal ───
+    # [lang-fix] The stored reveal is language-stamped. Serve it verbatim
+    # only when the requested language matches (or a cached variant exists
+    # in prediction_by_language). On a miss, regenerate the narration for
+    # the SAME stored moment/concern — idempotent in substance, never a new
+    # prashna cast date, never writes prashna_log.
+    _relang_stored = None
     if _chart_row.get("onboarding_prediction"):
         _stored = _safe_jsonb(_chart_row["onboarding_prediction"])
         if _stored.get("prediction"):
-            _stored["already_completed"] = True
-            return _stored
+            _stored_lang = (_stored.get("language") or "en").lower()[:2]
+            _pbl = _stored.get("prediction_by_language")
+            if not isinstance(_pbl, dict):
+                _pbl = {}
+            _pbl.setdefault(_stored_lang, _stored["prediction"])
+            if language in _pbl:
+                _out = dict(_stored)
+                _out["prediction"] = _pbl[language]
+                _out["language"] = language
+                _out["concern_label"] = concern_label(
+                    normalize_concern(_stored.get("concern")), language)
+                _out["prediction_by_language"] = _pbl
+                _out["already_completed"] = True
+                return _out
+            # Requested language missing → regenerate for the stored moment.
+            _relang_stored = {**_stored, "prediction_by_language": _pbl}
+            slug = normalize_concern(_stored.get("concern"))
+            if _stored.get("generated_at"):
+                request.timestamp = _stored["generated_at"]
+            request.free_text = _stored.get("free_text") or request.free_text
 
     # ─── 3. Moment of asking (the Prashna timestamp) ───
     _ts = _odt.now(_otz.utc)
@@ -11458,13 +11501,32 @@ async def onboarding_welcome_prediction(request: OnboardingWelcomeRequest):
         }
 
     # ─── 6. Persist fire-once flag + the reveal (never blocks response) ───
-    try:
-        supabase.table("charts").update({
+    # [lang-fix] Stamp every reveal with its per-language variants so a later
+    # request in another language is served from prediction_by_language.
+    if _relang_stored is not None:
+        _pbl = _relang_stored.get("prediction_by_language") or {}
+        _new_pred = (payload or {}).get("prediction") or ""
+        if _new_pred:
+            _pbl[language] = _new_pred
+        payload = {
+            **_relang_stored,
+            "prediction":             _pbl.get(language) or _relang_stored.get("prediction"),
+            "language":               language,
+            "concern_label":          concern_label(slug, language),
+            "prediction_by_language": _pbl,
+            "already_completed":      True,
+        }
+        _persist_updates = {"onboarding_prediction": payload}
+    else:
+        payload["prediction_by_language"] = {language: payload.get("prediction") or ""}
+        _persist_updates = {
             "onboarding_concern":      slug,
             "onboarding_free_text":    (request.free_text or "")[:500],
             "onboarding_completed_at": _odt.now(_otz.utc).isoformat(),
             "onboarding_prediction":   payload,
-        }).eq("id", request.chart_id).execute()
+        }
+    try:
+        supabase.table("charts").update(_persist_updates).eq("id", request.chart_id).execute()
     except Exception as _save_e:
         print(f"[onboarding/welcome] Flag save failed (non-fatal): {_save_e}")
 
@@ -12117,6 +12179,37 @@ class AskRequest(BaseModel):
 
 
 @app.post("/api/v1/ask")
+
+# ── Timing tense: compute ACTIVE / OPENS_SOON / OPENS_LATER deterministically ──
+# already-started ALWAYS wins over the 90-day test (the 90d split is for
+# not-yet-started windows only). The LLM must never do this date math.
+def _timing_state(window_start, window_end, today=None):
+    """Return (state, phrasing_hint) for a window. Dates are date/datetime or None."""
+    from datetime import date as _date, datetime as _dt
+    def _d(x):
+        if x is None: return None
+        if isinstance(x, _dt): return x.date()
+        if isinstance(x, _date): return x
+        try: return _dt.fromisoformat(str(x)[:10]).date()
+        except Exception: return None
+    today = _d(today) or _dt.utcnow().date()
+    ws, we = _d(window_start), _d(window_end)
+    if ws is None:
+        return ("UNKNOWN", "Describe a building phase; do not state specific dates.")
+    if today >= ws:
+        return ("ACTIVE",
+                "This window is OPEN NOW. Use present tense. NEVER say 'wait until' a "
+                "date that has already arrived; if there is an end date, say it runs "
+                "through then.")
+    days = (ws - today).days
+    if days <= 90:
+        return ("OPENS_SOON",
+                "This window has NOT started yet but opens soon. Use near-future "
+                "framing (e.g. 'in the coming weeks' / 'next month').")
+    return ("OPENS_LATER",
+            "This window opens later. Name the month or season; use future framing.")
+
+
 async def ask_endpoint(request: AskRequest):
     """
     Unified ASK endpoint.
@@ -12478,7 +12571,13 @@ async def ask_endpoint(request: AskRequest):
 
             # "why" + ACTIONS in one call (2026-06-03) — pinned to the
             # convergence facts so the model cannot invent timing.
+            _yn_state, _yn_state_hint = _timing_state(
+                (_yn_conv or {}).get("window_start"),
+                (_yn_conv or {}).get("window_end"),
+            )
             _why_sys = (
+                f"Today is {datetime.now(timezone.utc).date().isoformat()}. "
+                f"Timing window state: {_yn_state}. {_yn_state_hint} "
                 "You are Antar. The user asked a yes/no question. Reply with STRICT JSON only: "
                 '{"why": "...", "actions": ["...", "..."]}. '
                 f"why = ONE plain-English sentence explaining why the answer is {verdict}. "
