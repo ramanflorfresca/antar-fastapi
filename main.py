@@ -12893,7 +12893,7 @@ async def debug_context(request: dict):
 @app.post("/api/v1/daily-signal")
 @app.get("/api/v1/daily-signal/{chart_id}")
 @translate_response(
-    fields_to_translate=["vibe", "do_today", "dont_today", "text"],
+    fields_to_translate=["vibe", "do_today", "dont_today", "text", "headline", "highlight"],
     endpoint_name="daily-signal",
 )
 async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, language: str = "en"):
@@ -13030,6 +13030,46 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         except Exception as _hl_err:
             print(f"[daily-signal] highlights failed for {cid}: {_hl_err}")
             result.setdefault("highlights", [])
+
+        # ── "Highlight, not horoscope" (Slice 1): committed 1–2 domain pick ──
+        # The ENGINE chooses the dominant domain(s) + direction deterministically
+        # (layers A=Moon-from-lagna + C=Lal-Kitab per-domain truth/day score) and
+        # builds a committed headline + hora. Claude does NOT choose the domain.
+        # The internal "why" block (el_movimiento/move) is relocated to a
+        # debug-only field so it can never reach the UI.
+        try:
+            from antar_engine.today_highlight import select_today_highlight
+            from antar_engine.lal_kitab_advanced import compute_lk_daily_diagnostic as _th_lkfn
+            _th_target = start_date.date() if hasattr(start_date, "date") else start_date
+            try:
+                _th_lk = _th_lkfn(
+                    lk_data=_safe_jsonb(row.get("lal_kitab_data")),
+                    chart_data=cd if isinstance(cd, dict) else {},
+                    target_date=_th_target,
+                    language=language,
+                )
+            except Exception:
+                _th_lk = {}
+            _th = select_today_highlight(
+                signal0=dict(signals[0]) if signals else {},
+                lk_daily=_th_lk,
+                natal_chart=cd if isinstance(cd, dict) else {},
+                panchanga=panchanga,
+            )
+            _th_dbg = _th.pop("_debug_reasoning", {})
+            _th_dbg["_prev_el_movimiento"] = result.get("el_movimiento", "")
+            result["headline"]          = _th["headline"]
+            result["highlight"]         = _th["highlight"]
+            result["highlight_domains"] = _th["highlight_domains"]
+            result["direction"]         = _th["direction"]
+            result["strength"]          = _th["strength"]
+            result["hora"]              = _th["hora"]
+            # Part 3 — internal reasoning must not reach the UI.
+            result["el_movimiento"] = ""
+            result["move"] = ""
+            result["_debug_reasoning"] = _th_dbg
+        except Exception as _th_err:
+            print(f"[daily-signal] highlight selection failed for {cid}: {_th_err}")
 
         return result
     except HTTPException: raise
