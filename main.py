@@ -7959,11 +7959,14 @@ async def create_chart(
     try:
         from antar_engine.prashna_intent import detect_signup_intent
         from datetime import datetime as _dt_tele, timezone as _tz_tele
+        # Signup happens where the user IS — current_country capital,
+        # falling back to birth coords (lat/lng here are BIRTH coords).
+        _si_lat, _si_lng, _si_src = _resolve_moment_coords(chart_row)
         _signup_intent = detect_signup_intent(
             birth_lagna=chart_data["lagna"]["sign"],
             signup_timestamp=_dt_tele.now(_tz_tele.utc),
-            signup_lat=float(lat),
-            signup_lng=float(lng),
+            signup_lat=float(_si_lat),
+            signup_lng=float(_si_lng),
             first_name=getattr(request, "first_name", "") or "",
         )
         if _signup_intent and "error" not in _signup_intent:
@@ -11376,6 +11379,7 @@ async def onboarding_welcome_prediction(request: OnboardingWelcomeRequest):
     try:
         _row = supabase.table("charts").select(
             "id, first_name, chart_data, jaimini_data, latitude, longitude, "
+            "current_country, birth_country, country_code, "
             "onboarding_completed_at, onboarding_prediction"
         ).eq("id", request.chart_id).single().execute()
     except Exception:
@@ -11425,9 +11429,9 @@ async def onboarding_welcome_prediction(request: OnboardingWelcomeRequest):
         except Exception:
             _ts = _odt.now(_otz.utc)
 
-    # ─── 4. Location: request > chart birth location > Delhi ───
-    _lat = request.lat if request.lat else (_chart_row.get("latitude") or 28.6139)
-    _lng = request.lng if request.lng else (_chart_row.get("longitude") or 77.2090)
+    # ─── 4. Location: request device coords > current_country capital >
+    #      birth coords > Delhi. Only the ascendant localizes. ───
+    _lat, _lng, _ow_loc_src = _resolve_moment_coords(_chart_row, request.lat, request.lng)
 
     question, _domain_label = build_welcome_question(slug, request.free_text)
 
@@ -11626,7 +11630,7 @@ async def ask_prashna(request: PrashnaRequest):
 
         # ─── 2. Fetch Chart Data ───
         chart_row = supabase.table("charts") \
-            .select("user_id, chart_data, jaimini_data, lal_kitab_data, first_name, current_country, lagna_sign, latitude, longitude") \
+            .select("user_id, chart_data, jaimini_data, lal_kitab_data, first_name, current_country, birth_country, country_code, lagna_sign, latitude, longitude") \
             .eq("id", chart_id) \
             .single() \
             .execute()
@@ -11665,13 +11669,11 @@ async def ask_prashna(request: PrashnaRequest):
             except Exception:
                 jaimini_data = None
 
-        # ─── 3. Coordinates: request > chart > default ───
-        lat = request.lat
-        lng = request.lng
-        if not lat or lat == 28.6139:
-            lat = chart_data.get("latitude") or 40.8215
-        if not lng or lng == 77.2090:
-            lng = chart_data.get("longitude") or -73.9876
+        # ─── 3. Coordinates: request device coords > current_country
+        #      capital > birth coords. Positions are UTC-universal; ONLY the
+        #      ascendant localizes — it must use where the user IS NOW. ───
+        lat, lng, _loc_src = _resolve_moment_coords(chart_data, request.lat, request.lng)
+        logger.info(f"[prashna] moment coords source={_loc_src} ({lat},{lng})")
 
         # ─── 4. Run Prashna Engine (Ithasala + 4-step scoring) ───
         timestamp = datetime.now(timezone.utc)
@@ -12476,7 +12478,7 @@ async def ask_endpoint(request: AskRequest):
             # 2. NOT LOCKED — cast a fresh chart at the moment of asking.
             try:
                 chart_row = supabase.table("charts") \
-                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, latitude, longitude") \
+                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, birth_country, country_code, latitude, longitude") \
                     .eq("id", chart_id).single().execute()
             except Exception as _nfe:
                 if "PGRST116" in str(_nfe) or "0 rows" in str(_nfe):
@@ -12490,8 +12492,9 @@ async def ask_endpoint(request: AskRequest):
             natal_chart     = _safe_jsonb(cdata.get("chart_data")) or None
             first_name      = cdata.get("first_name") or "User"
             current_country = cdata.get("current_country") or ""
-            lat = cdata.get("latitude") or 40.8215
-            lng = cdata.get("longitude") or -73.9876
+            # Moment-chart ascendant: current-location frame, never raw
+            # birth coords for relocated users.
+            lat, lng, _yn_loc_src = _resolve_moment_coords(cdata)
 
             natal_dasha = "unknown"
             try:
@@ -12982,8 +12985,8 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         result.setdefault("chart_id", cid)
 
         # Today's panchanga timing block (carried over from the original endpoint)
-        lat = float(row.get("latitude", 28.6) or 28.6)
-        lng = float(row.get("longitude", 77.2) or 77.2)
+        _pan_lat, _pan_lng, _pan_src = _resolve_moment_coords(row)
+        lat, lng = float(_pan_lat), float(_pan_lng)
         panchanga = calculate_panchanga(lat=lat, lng=lng)
         formatted = format_daily_for_user(panchanga)
         # [no-jargon] format_daily_for_user's display strings leak vara/
@@ -17947,6 +17950,54 @@ _COUNTRY_TZ_OFFSETS = {
     "DEFAULT": 0,
 }
 
+
+def _resolve_moment_coords(chart_row: dict, req_lat=None, req_lng=None,
+                           default=(28.6139, 77.2090)):
+    """
+    Location for MOMENT-chart ascendants (Prashna, welcome prediction,
+    signup intent) and sunrise-anchored timing (hora, muhurta, panchanga).
+
+    Astronomy rule: planetary positions are UTC-universal — never localize
+    them. The ascendant/houses/sunrise are location-dependent and must use
+    where the user IS NOW, not where they were born.
+
+    Priority:
+      1. explicit request coords — ignored when they equal the Delhi
+         sentinel default (28.6139/77.2090) old clients send blindly
+      2. current_country capital (day_chart_engine.COUNTRY_COORDS) —
+         unless current_country == birth country, where the precise birth
+         coords are better
+      3. birth coords
+      4. `default`
+    Returns (lat, lng, source).
+    """
+    _row = chart_row or {}
+    try:
+        if req_lat is not None and req_lng is not None:
+            _la, _lo = float(req_lat), float(req_lng)
+            _is_sentinel = abs(_la - 28.6139) < 1e-6 and abs(_lo - 77.2090) < 1e-6
+            if (_la or _lo) and not _is_sentinel:
+                return _la, _lo, "request"
+    except (TypeError, ValueError):
+        pass
+    _cc = (_row.get("current_country") or "").strip().upper()
+    _bcc = (_row.get("birth_country") or _row.get("country_code") or "").strip().upper()
+    _blat, _blng = _row.get("latitude"), _row.get("longitude")
+    if _cc and not (_bcc and _cc == _bcc and _blat and _blng):
+        try:
+            from antar_engine.day_chart_engine import COUNTRY_COORDS as _MCC
+            if _cc in _MCC:
+                return float(_MCC[_cc][0]), float(_MCC[_cc][1]), "current_country"
+        except Exception:
+            pass
+    try:
+        if _blat and _blng:
+            return float(_blat), float(_blng), "birth"
+    except (TypeError, ValueError):
+        pass
+    return float(default[0]), float(default[1]), "default"
+
+
 def _get_local_start_date(tz_offset: float = None, current_country: str = None):
     """
     Returns today's date in the user's local timezone.
@@ -18806,15 +18857,15 @@ async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8, l
 
     # Fetch chart for lat/lng and archetype
     chart_res = supabase.table("charts").select(
-        "latitude, longitude, current_country, character_archetype"
+        "latitude, longitude, current_country, birth_country, country_code, character_archetype"
     ).eq("id", chart_id).single().execute()
 
     if not chart_res.data:
         raise HTTPException(status_code=404, detail="Chart not found")
 
     row = chart_res.data
-    lat = row.get("latitude") or 4.7110    # default Bogotá
-    lng = row.get("longitude") or -74.0721
+    # Sunrise/hora anchor to the user's CURRENT location, not birthplace.
+    lat, lng, _hora_src = _resolve_moment_coords(row, default=(4.7110, -74.0721))
 
     # Auto-detect tz_offset from country if not provided
     if tz_offset is None:
@@ -18882,15 +18933,15 @@ async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
 
     # Fetch chart for lat/lng and archetype
     chart_res = supabase.table("charts").select(
-        "latitude, longitude, current_country, character_archetype"
+        "latitude, longitude, current_country, birth_country, country_code, character_archetype"
     ).eq("id", chart_id).single().execute()
 
     if not chart_res.data:
         raise HTTPException(status_code=404, detail="Chart not found")
 
     row = chart_res.data
-    lat = row.get("latitude") or 4.7110    # default Bogotá
-    lng = row.get("longitude") or -74.0721
+    # Sunrise/hora anchor to the user's CURRENT location, not birthplace.
+    lat, lng, _hora_src = _resolve_moment_coords(row, default=(4.7110, -74.0721))
 
     # Auto-detect tz_offset from country if not provided
     if tz_offset is None:
@@ -18954,15 +19005,15 @@ async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
 
     # Fetch chart for lat/lng and archetype
     chart_res = supabase.table("charts").select(
-        "latitude, longitude, current_country, character_archetype"
+        "latitude, longitude, current_country, birth_country, country_code, character_archetype"
     ).eq("id", chart_id).single().execute()
 
     if not chart_res.data:
         raise HTTPException(status_code=404, detail="Chart not found")
 
     row = chart_res.data
-    lat = row.get("latitude") or 4.7110    # default Bogotá
-    lng = row.get("longitude") or -74.0721
+    # Sunrise/hora anchor to the user's CURRENT location, not birthplace.
+    lat, lng, _hora_src = _resolve_moment_coords(row, default=(4.7110, -74.0721))
 
     # Auto-detect tz_offset from country if not provided
     if tz_offset is None:
@@ -19026,15 +19077,15 @@ async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8):
 
     # Fetch chart for lat/lng and archetype
     chart_res = supabase.table("charts").select(
-        "latitude, longitude, current_country, character_archetype"
+        "latitude, longitude, current_country, birth_country, country_code, character_archetype"
     ).eq("id", chart_id).single().execute()
 
     if not chart_res.data:
         raise HTTPException(status_code=404, detail="Chart not found")
 
     row = chart_res.data
-    lat = row.get("latitude") or 4.7110    # default Bogotá
-    lng = row.get("longitude") or -74.0721
+    # Sunrise/hora anchor to the user's CURRENT location, not birthplace.
+    lat, lng, _hora_src = _resolve_moment_coords(row, default=(4.7110, -74.0721))
 
     # Auto-detect tz_offset from country if not provided
     if tz_offset is None:
@@ -20042,15 +20093,22 @@ async def predict_day_deep(request: DeepReadRequest, refresh: int = 0):
         language = "en"
     chart_id = request.chart_id
     tz_offset = int(request.tz_offset or 0)
+    # MINUTES convention; |v| <= 14 means the client sent HOURS → convert.
+    if 0 < abs(tz_offset) <= 14:
+        tz_offset *= 60
 
-    now_local = _dt.utcnow() + _td(minutes=tz_offset)
-    today_str = now_local.strftime("%Y-%m-%d")
-
-    # ── load chart row ──
+    # ── load chart row (needed for the country tz fallback) ──
     res = supabase.table("charts").select("*").eq("id", chart_id).execute()
     if not res.data:
         raise HTTPException(status_code=404, detail="Chart not found")
     row = res.data[0]
+
+    if tz_offset == 0:
+        _dd_cc = (row.get("current_country") or row.get("birth_country") or "").upper()
+        tz_offset = int(_COUNTRY_TZ_OFFSETS.get(_dd_cc, 0) * 60)
+
+    now_local = _dt.utcnow() + _td(minutes=tz_offset)
+    today_str = now_local.strftime("%Y-%m-%d")
     chart_data = _hsj(row.get("chart_data"))
     lk_data = _hsj(row.get("lal_kitab_data"))
 
@@ -20125,8 +20183,8 @@ async def predict_day_deep(request: DeepReadRequest, refresh: int = 0):
         from antar_engine.highlight_composer import build_highlights as _bh_deep
         from antar_engine.daily_panchanga import calculate_panchanga as _hd_panch
         from datetime import datetime as _hd_dt
-        _hd_lat = float(row.get("latitude", 28.6) or 28.6)
-        _hd_lng = float(row.get("longitude", 77.2) or 77.2)
+        _hd_lat, _hd_lng, _hd_src = _resolve_moment_coords(row)
+        _hd_lat, _hd_lng = float(_hd_lat), float(_hd_lng)
         try:
             _hd_pan = _hd_panch(lat=_hd_lat, lng=_hd_lng)
         except Exception:
@@ -20237,6 +20295,17 @@ async def get_home(
 
     from antar_engine.home_composer import _safe_json as _hsj, compose_home_payload as _home_compose, _strip_home_payload as _home_strip
 
+    # ── tz_offset normalization: composer expects MINUTES east of UTC.
+    #    |v| <= 14 means the client sent HOURS → convert. 0/absent → fall
+    #    back to current_country so the Today card rolls over at the
+    #    user's local midnight, not UTC midnight.
+    tz_offset = int(tz_offset or 0)
+    if 0 < abs(tz_offset) <= 14:
+        tz_offset *= 60
+    if tz_offset == 0:
+        _home_cc = (row.get("current_country") or row.get("birth_country") or "").upper()
+        tz_offset = int(_COUNTRY_TZ_OFFSETS.get(_home_cc, 0) * 60)
+
     # ── cache read (best-effort; table may not yet exist) ──
     try:
         cr = supabase.table("home_cache").select("payload,updated_at") \
@@ -20244,8 +20313,18 @@ async def get_home(
         if cr.data:
             cached = _hsj(cr.data[0].get("payload"))
             gen_at = (cached.get("generated_at") or "") if isinstance(cached, dict) else ""
-            today_utc = datetime.utcnow().strftime("%Y-%m-%d")
-            if cached and gen_at.startswith(today_utc):
+            # Local-midnight rollover: a payload generated yesterday LOCAL
+            # time must not survive past the user's midnight even when its
+            # UTC date matches (bug: "WED · JUN 3" card shown on Jun 4).
+            _lc_now = datetime.utcnow() + timedelta(minutes=tz_offset)
+            _lc_today = _lc_now.strftime("%Y-%m-%d")
+            _lc_gen = ""
+            try:
+                _g = datetime.fromisoformat(str(gen_at).replace("Z", "+00:00")).replace(tzinfo=None)
+                _lc_gen = (_g + timedelta(minutes=tz_offset)).strftime("%Y-%m-%d")
+            except Exception:
+                pass
+            if cached and _lc_gen == _lc_today:
                 return cached
     except Exception as _ce:
         print(f"[home] cache read skipped (table may be missing): {_ce}")

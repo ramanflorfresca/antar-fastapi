@@ -853,8 +853,22 @@ def _muhurta_windows(chart_row: dict, chart_data: dict,
     """Return (bestTime, avoidTime) localized strings, or (None, None) on failure."""
     try:
         from antar_engine.muhurta_engine import compute_muhurtas
-        lat = float(chart_row.get("latitude") or chart_data.get("latitude") or 0)
-        lon = float(chart_row.get("longitude") or chart_data.get("longitude") or 0)
+        # Muhurta windows anchor to the user's CURRENT location —
+        # country capital when known (and different from birth country),
+        # else birth coords.
+        _cc = (chart_row.get("current_country") or "").strip().upper()
+        _bcc = (chart_row.get("birth_country") or chart_row.get("country_code") or "").strip().upper()
+        lat = lon = 0.0
+        if _cc and _cc != _bcc:
+            try:
+                from antar_engine.day_chart_engine import COUNTRY_COORDS as _MCC
+                if _cc in _MCC:
+                    lat, lon = float(_MCC[_cc][0]), float(_MCC[_cc][1])
+            except Exception:
+                lat = lon = 0.0
+        if not lat or not lon:
+            lat = float(chart_row.get("latitude") or chart_data.get("latitude") or 0)
+            lon = float(chart_row.get("longitude") or chart_data.get("longitude") or 0)
         if not lat or not lon:
             return None, None
         muh = compute_muhurtas(now, lat, lon, tz_offset=float(tz_offset_min) / 60.0)
