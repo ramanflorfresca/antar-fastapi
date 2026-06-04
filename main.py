@@ -12304,10 +12304,11 @@ async def ask_endpoint(request: AskRequest):
             except Exception:
                 read_txt = (raw or "").strip()
 
+            _ask_answered = bool(read_txt)
             if not read_txt:
                 read_txt = "I couldn't read a clear signal just now — try asking again in a moment."
 
-            if _ask_tier == "free":
+            if _ask_tier == "free" and _ask_answered:
                 _ent_ask_inc(chart_id, supabase)
             payload = {"mode": "explore", "read": read_txt, "next": next_txt, "locked": False}
             if _ask_decision:
@@ -12508,7 +12509,7 @@ async def ask_endpoint(request: AskRequest):
                 relevant_planets=_yn_conv.get("relevant_planets") if _yn_conv else None,
             )
 
-            if _ask_tier == "free":
+            if _ask_tier == "free" and bool(why):
                 _ent_ask_inc(chart_id, supabase)
             payload = {
                 "mode": "yesno",
