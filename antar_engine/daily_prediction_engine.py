@@ -1148,6 +1148,7 @@ async def generate_weekly_signals(
     language: str = "en",
     tz_offset: float = 0,
     force_refresh: bool = False,
+    fast_mode: bool = False,
 ) -> list:
     """
     Generate 7-day daily signal array.
@@ -1247,7 +1248,12 @@ async def generate_weekly_signals(
                     llm_signal = _strip_day_names_from_signal(llm_signal, language)
                     llm_signal = _strip_all_jargon_from_signal(llm_signal, language)
 
-            if not llm_signal:
+            # [async-fast] fast_mode: never call Claude inline on a cache
+            # miss — fall through to the v1 template branch (differentiated
+            # per day) and let the route's background full pass fill the cache.
+            if not llm_signal and fast_mode:
+                logger.info(f"[daily-week] fast_mode: deferring LLM generation for {date_str}")
+            if not llm_signal and not fast_mode:
                 # Build day-specific data for prompt
                 day_prompt_data = {
                     "iso_date": date_str,
@@ -1468,6 +1474,10 @@ async def generate_weekly_signals(
                 "llm_generated": False,
                 "fallback": True,
             }
+            # [async-fast] mark fast-path days so the route schedules a
+            # background full pass and the frontend can poll for the upgrade.
+            if fast_mode:
+                day_result["pending"] = True
 
         results.append(day_result)
         logger.info(f"[daily-week] {date_str} {weekday}: {nakshatra} in {moon_sign} | score={score} | llm={'yes' if llm_signal else 'no'}")

@@ -15585,6 +15585,7 @@ async def _prewarm_daily_week_cache(chart_id: str, tz_offset: Optional[float] = 
             tz_offset=eff_tz,
             language=language,
             force_refresh=False,
+            full_compute=True,  # [async-fast] prewarm does the slow work
         )
         print(f"[prewarm] daily-week complete chart={chart_id}")
     except Exception as _e:
@@ -18958,7 +18959,7 @@ def _map_instrument_to_category(inst_name: str) -> str:
     return "opportunity"
 
 
-async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: str, weekday: str, language: str = "en", force_refresh: bool = False, local_date_str: str = None) -> dict:
+async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_nakshatra: str, weekday: str, language: str = "en", force_refresh: bool = False, local_date_str: str = None, fast_mode: bool = False) -> dict:
     """
     Main WOW signal builder.
     1. Load executive summary
@@ -19065,6 +19066,12 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
                     "follow_up": "Si algo sucede hoy en esta area, preguntale a Antar." if language == "es" else "If something happens today in this area — ask Antar about it.",
                     "cached": True,
                 }
+
+        # [async-fast] fast_mode: WOW cache missed — don't block the array
+        # on a cold Claude call; the background full pass fills the cache.
+        if fast_mode:
+            print(f"[daily-week] fast_mode: WOW cache miss — deferring hint for {chart_id}")
+            return {"deferred": True}
 
         # Extract user profile
         user_first_name = chart_data.get("first_name") or chart_data.get("name") or "you"
@@ -19803,7 +19810,7 @@ def _translate_daily_signals_es(signals):
 
 
 @app.get("/api/v1/daily-week/{chart_id}")
-async def get_daily_week(chart_id: str, tz_offset: float = None, language: str = "en", force_refresh: bool = False):
+async def get_daily_week(chart_id: str, tz_offset: float = None, language: str = "en", force_refresh: bool = False, full_compute: bool = False, background_tasks: BackgroundTasks = None):
     """
     Returns 7-day daily signal array starting from TODAY in user's local timezone.
 
@@ -19872,6 +19879,7 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
             language=language,
             tz_offset=effective_offset,
             force_refresh=force_refresh,
+            fast_mode=not full_compute,  # [async-fast]
         )
 
         # 5. Get WOW event signal for TODAY only
@@ -19879,7 +19887,11 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
         _local_today_str = start_date.strftime("%Y-%m-%d")
         today_nakshatra = signals[0].get("moon_nakshatra", "Unknown") if signals else "Unknown"
         today_weekday = signals[0].get("day", "Monday") if signals else "Monday"
-        wow_signal = await _get_wow_signal_for_chart(chart_id, chart_data, today_nakshatra, today_weekday, language=language, force_refresh=force_refresh, local_date_str=_local_today_str)
+        wow_signal = await _get_wow_signal_for_chart(chart_id, chart_data, today_nakshatra, today_weekday, language=language, force_refresh=force_refresh, local_date_str=_local_today_str, fast_mode=not full_compute)
+        # [async-fast] deferred sentinel — WOW cache missed in fast mode
+        _wow_deferred = bool(isinstance(wow_signal, dict) and wow_signal.get("deferred"))
+        if _wow_deferred:
+            wow_signal = None
 
         # 6. Attach WOW to today only
         for i, day in enumerate(signals):
@@ -19952,6 +19964,24 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
             print(f"[daily-week] highlights failed: {_bw_err}")
             _week_highlights_agg = []
 
+        # [async-fast] fast path: schedule ONE background full pass that
+        # regenerates the deferred per-day LLM signals + WOW hint into cache.
+        _pending_days = [d.get("date") for d in signals if isinstance(d, dict) and d.get("pending")]
+        if (_pending_days or _wow_deferred) and not full_compute:
+            async def _dw_full_pass(_cid=chart_id, _tz=effective_offset, _lang=language):
+                try:
+                    await get_daily_week(chart_id=_cid, tz_offset=_tz, language=_lang,
+                                         force_refresh=False, full_compute=True)
+                    print(f"[daily-week] background full pass complete chart={_cid}")
+                except Exception as _bg_e:
+                    print(f"[daily-week] background full pass failed (non-fatal) chart={_cid}: {_bg_e}")
+            if background_tasks is not None:
+                background_tasks.add_task(_dw_full_pass)
+            else:
+                import asyncio as _aio
+                _aio.create_task(_dw_full_pass())
+            print(f"[daily-week] fast return: pending_days={len(_pending_days)} wow_deferred={_wow_deferred}")
+
         from fastapi.responses import JSONResponse
         return JSONResponse(
             content={
@@ -19962,6 +19992,8 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
                 "local_date": start_date.strftime("%Y-%m-%d"),
                 "generated_at": datetime.utcnow().isoformat() + "Z",
                 "days": signals,
+                "pending_days": _pending_days,
+                "complete": (not _pending_days) and (not _wow_deferred),
                 "highlights": _week_highlights_agg,
                 "transit_highlights": _transit_highlights,
                 "transit_positions": _transit_positions,
