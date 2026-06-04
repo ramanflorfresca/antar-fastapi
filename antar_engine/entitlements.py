@@ -28,32 +28,37 @@ UPGRADE_URL = "https://antar.world/upgrade"
 # Existing users' clocks start at launch; new users at signup.
 ASK_TRIAL_DAYS = 30
 ASK_TRIAL_DAILY_LIMIT = 20
+ASK_POST_TRIAL_DAILY_LIMIT = 1  # [ask-launch] free-forever soft cap
 ASK_TRIAL_LAUNCH_ISO = "2026-06-05T00:00:00+00:00"
 
 # Feature matrix — source of truth: ANTAR subscription tiers spec.
 # Values are access levels the frontend can render directly.
 FEATURE_MATRIX = {
     "today":         {"free": "full",     "seeker": "full",    "navigator": "full"},
-    "month":         {"free": "headline", "seeker": "full",    "navigator": "full"},
-    "year":          {"free": "teaser",   "seeker": "full",    "navigator": "full"},
-    "cycle":         {"free": "preview",  "seeker": "full",    "navigator": "full"},
+    "month":         {"free": "full",     "seeker": "full",    "navigator": "full"},
+    "year":          {"free": "full",     "seeker": "full",    "navigator": "full"},
+    "cycle":         {"free": "full",     "seeker": "full",    "navigator": "full"},
     "ask":           {"free": "limited",  "seeker": "full",    "navigator": "full"},
     "compatibility": {"free": "preview",  "seeker": "preview", "navigator": "full"},
     "places":        {"free": "preview",  "seeker": "preview", "navigator": "full"},
-    "practice":      {"free": "sample",   "seeker": "full",    "navigator": "full"},
+    "practice":      {"free": "full",     "seeker": "full",    "navigator": "full"},
     "history":       {"free": "locked",   "seeker": "full",    "navigator": "full"},
+    # [launch-ent] prescription layer: gemstone/daan/yantra/food, chakra
+    # BALANCING, and dedicated remedy objects inside predictions.
+    "remedies":      {"free": "locked",   "seeker": "locked",  "navigator": "full"},
 }
 
 # Lowest tier at which the feature is "full".
 FEATURE_REQUIRED_TIER = {
     "today":         "free",
-    "month":         "seeker",
-    "year":          "seeker",
-    "cycle":         "seeker",
-    "ask":           "navigator",  # [ask-nav-gate] unlimited Ask = navigator only
+    "month":         "free",      # [launch-ent] the READ is free
+    "year":          "free",      # [launch-ent]
+    "cycle":         "free",      # [launch-ent]
+    "ask":           "seeker",    # [ask-launch] unlimited Ask starts at seeker
     "compatibility": "navigator",
     "places":        "navigator",
-    "practice":      "seeker",
+    "practice":      "free",      # [launch-ent] habitual practices are free
+    "remedies":      "navigator", # [launch-ent] the PRESCRIPTION is paid
     "history":       "seeker",
 }
 
@@ -201,13 +206,14 @@ def ask_trial_state(chart_id: str, sb) -> dict:
     for r in rows:
         if str(r.get("ask_count_date") or "")[:10] == today:
             used_today += int(r.get("ask_count_today") or 0)
+    active = now < ends
     return {
-        "trial_active": now < ends,
+        "trial_active": active,
         "trial_start": start.isoformat(),
         "trial_ends_at": ends.isoformat(),
         "days_left": max(0, (ends - now).days),
         "used_today": used_today,
-        "daily_limit": ASK_TRIAL_DAILY_LIMIT,
+        "daily_limit": ASK_TRIAL_DAILY_LIMIT if active else ASK_POST_TRIAL_DAILY_LIMIT,
     }
 
 
@@ -246,24 +252,14 @@ def increment_ask_usage(chart_id: str, sb) -> None:
 
 
 def ask_quota(chart_id: str, sb, tier: Optional[str] = None) -> dict:
-    """{used, limit, remaining, trial} — paid tiers are unlimited. Free tier
-    reports TODAY's usage against the trial's daily cap; the lifetime-3
-    cap is retired."""
+    """[ask-launch] {used, limit, remaining, trial} — seeker AND navigator are
+    unlimited. Free reports TODAY's usage against 20/day in the 30-day trial,
+    then 1/day forever (soft cap, never expires)."""
     tier = tier or get_entitlement(chart_id, sb)
-    if tier == "navigator":
+    if tier in ("seeker", "navigator"):
         return {"used": None, "limit": None, "remaining": None, "trial": None}
     st = ask_trial_state(chart_id, sb)
-    if tier == "seeker":
-        # [ask-nav-gate] seeker: same ~20/day cap as the trial, but no
-        # trial clock — the cap never expires, it just resets daily.
-        return {
-            "used": st["used_today"],
-            "limit": st["daily_limit"],
-            "remaining": max(0, st["daily_limit"] - st["used_today"]),
-            "trial": None,
-        }
-    remaining = (max(0, st["daily_limit"] - st["used_today"])
-                 if st["trial_active"] else 0)
+    remaining = max(0, st["daily_limit"] - st["used_today"])
     return {
         "used": st["used_today"],
         "limit": st["daily_limit"],

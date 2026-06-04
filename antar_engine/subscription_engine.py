@@ -21,6 +21,7 @@ PLANS = {
         "features": [
             "3 life readings",
             "Daily signal (unlimited)",
+            "Ask Antar — 20/day for 30 days, then 1/day",
             "1 compatibility check",
             "3 Prashna questions",
             "High-urgency transit alerts",
@@ -38,7 +39,7 @@ PLANS = {
         "price_inr_annual": 2999,
         "features": [
             "Unlimited life readings",
-            "Ask Antar — up to 20/day",
+            "Unlimited Ask Antar",
             "Unlimited compatibility checks",
             "All transit alerts",
             "Monthly life briefing",
@@ -56,7 +57,8 @@ PLANS = {
         "price_inr":     1499,
         "features": [
             "Everything in Seeker",
-            "Unlimited Ask Antar",
+            "Remedies: gemstone, daan, yantra, food",
+            "Chakra balancing",
             "Priority responses",
             "Astrocartography",
             "Annual chart reading",

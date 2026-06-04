@@ -8642,86 +8642,106 @@ def _ent_places_city_view(payload, chart_id: str):
 
 
 def _ent_month_view(payload, chart_id: str):
-    """Month headline view for free: theme + period only; deepdive locked."""
+    """[launch-ent] Month READ free for all tiers; the dedicated remedy
+    objects (prescription) are navigator-only."""
     from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
     tier = get_entitlement(chart_id, supabase)
-    if feature_access(tier, "month") == "full" or not isinstance(payload, dict):
+    if feature_access(tier, "remedies") == "full" or not isinstance(payload, dict):
         return payload
-    keep = ("month", "month_theme", "overview",
-            "period_start", "period_end", "period_method")
-    out = {k: payload.get(k) for k in keep if k in payload}
-    out["access"] = "headline"
-    out["locked"] = upgrade_block("month", tier, locked_fields=[
-        "energy_level", "strong_planets", "weak_planets", "priority_actions",
-        "best_week", "caution_week", "remedies", "monthly_mantra", "highlights",
-    ])
+    out = dict(payload)            # shallow copy — never mutate the cache
+    out["remedies"] = None
+    out["locked"] = upgrade_block("remedies", tier, locked_fields=["remedies"])
     return out
 
 
 def _ent_year_view(payload, chart_id: str):
-    """Year teaser for free: theme line only; year detail + attention locked."""
+    """[launch-ent] Year READ (headline/gist/areas/use/stretch/highlights/
+    muntha + attention diagnosis incl. chakra MAP) free for all tiers; the
+    cure chain (cause→remedy, chakra BALANCING, practice) and
+    attention.remedy/practice are navigator-only."""
     from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
     tier = get_entitlement(chart_id, supabase)
-    if feature_access(tier, "year") == "full" or not isinstance(payload, dict):
+    if feature_access(tier, "remedies") == "full" or not isinstance(payload, dict):
         return payload
-    year = payload.get("year") or {}
-    teaser = {k: year.get(k) for k in ("id", "tab", "range", "headline")
-              if isinstance(year, dict) and k in year}
-    out = {
-        "chart_id": payload.get("chart_id"),
-        "language": payload.get("language"),
-        "year": teaser,
-        "attention": None,
-        "access": "teaser",
-        "locked": upgrade_block("year", tier, locked_fields=[
-            "year.gist", "year.areas", "year.do", "year.dont",
-            "attention", "highlights", "muntha",
-        ]),
-    }
-    for k in ("period_start", "period_end", "period_method"):
-        if k in payload:
-            out[k] = payload[k]
+    out = dict(payload)            # shallow copies — never mutate the cache
+    year = out.get("year")
+    if isinstance(year, dict):
+        year = dict(year)
+        for k in ("cause", "remedy", "chakra", "practice"):
+            if k in year:
+                year[k] = None
+        out["year"] = year
+    att = out.get("attention")
+    if isinstance(att, dict):
+        att = dict(att)
+        for k in ("remedy", "practice"):
+            if k in att:
+                att[k] = None
+        out["attention"] = att
+    out["locked"] = upgrade_block("remedies", tier, locked_fields=[
+        "year.cause", "year.remedy", "year.chakra", "year.practice",
+        "attention.remedy", "attention.practice",
+    ])
     return out
 
 
 def _ent_cycle_view(payload, chart_id: str):
-    """Cycle preview for free: current phase only; events/diagnostic locked."""
-    from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
-    tier = get_entitlement(chart_id, supabase)
-    if feature_access(tier, "cycle") == "full" or not isinstance(payload, dict):
-        return payload
-    if payload.get("status") == "generating":   # poll passthrough
-        return payload
-    events = payload.get("predicted_events") or []
-    return {
-        "chart_id": payload.get("chart_id"),
-        "archetype": payload.get("archetype"),
-        "horizon_months": payload.get("horizon_months"),
-        "language": payload.get("language"),
-        "generated_at": payload.get("generated_at"),
-        "current_phase": payload.get("current_phase"),
-        "predicted_events_count": len(events) if isinstance(events, list) else 0,
-        "access": "preview",
-        "locked": upgrade_block("cycle", tier, locked_fields=[
-            "predicted_events", "diagnostic", "timeline_visual_data",
-            "honesty_layer", "highlights",
-        ]),
-    }
+    """[launch-ent] Cycle read fully free for all tiers — life-arc carries no
+    dedicated remedy objects (diagnostic/events/timeline = the read)."""
+    return payload
 
 
 def _ent_practice_view(payload, chart_id: str):
-    """Practice sample for free: today_priority stays; the stack is locked."""
+    """[launch-ent] Habitual practices (mantra/breath/body/daily-action/vrat),
+    the active stack and the chakra MAP (chakra_states) are free; remedy
+    objects (gemstone, food, yantra, daan) + chakra BALANCING are
+    navigator-only."""
     from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
     tier = get_entitlement(chart_id, supabase)
-    if feature_access(tier, "practice") == "full" or not isinstance(payload, dict):
+    if feature_access(tier, "remedies") == "full" or not isinstance(payload, dict):
         return payload
-    out = dict(payload)            # shallow copy — never mutate the cache
-    locked_count = len(out.get("active") or [])
-    out["active"] = []
-    out["access"] = "sample"
-    out["locked"] = upgrade_block(
-        "practice", tier, locked_fields=["active"], locked_count=locked_count,
-    )
+    out = dict(payload)            # shallow copies — never mutate the cache
+    tp = out.get("today_priority")
+    if isinstance(tp, dict):
+        tp = dict(tp)
+        for k in ("gemstone", "food", "yantra", "daan", "chakras_to_balance"):
+            if k in tp:
+                tp[k] = None
+        out["today_priority"] = tp
+    out["locked"] = upgrade_block("remedies", tier, locked_fields=[
+        "today_priority.gemstone", "today_priority.food",
+        "today_priority.yantra", "today_priority.daan",
+        "today_priority.chakras_to_balance",
+    ])
+    return out
+
+
+def _ent_home_view(payload, chart_id: str):
+    """[launch-ent] /home: the four-horizon READ is free for all tiers; the
+    negative-polarity cure chain (cause/remedy/chakra/practice) on the
+    month/year/cycle horizons is navigator-only. Today is NEVER gated."""
+    from antar_engine.entitlements import get_entitlement, feature_access, upgrade_block
+    tier = get_entitlement(chart_id, supabase)
+    if feature_access(tier, "remedies") == "full" or not isinstance(payload, dict):
+        return payload
+    out = dict(payload)            # shallow copies — never mutate the cache
+    hz = out.get("horizons")
+    locked_fields = []
+    if isinstance(hz, dict):
+        hz = dict(hz)
+        for h in ("month", "year", "cycle"):
+            v = hz.get(h)
+            if isinstance(v, dict):
+                v = dict(v)
+                for k in ("cause", "remedy", "chakra", "practice"):
+                    if v.get(k) is not None:
+                        locked_fields.append(f"horizons.{h}.{k}")
+                    if k in v:
+                        v[k] = None
+                hz[h] = v
+        out["horizons"] = hz
+    if locked_fields:
+        out["locked"] = upgrade_block("remedies", tier, locked_fields=locked_fields)
     return out
 
 
@@ -10283,6 +10303,9 @@ async def get_lk_remedies(
     locale: str = "US",
     language: str = "en",
 ):
+    _ent_deny = _ent_feature_gate(chart_id, "remedies")   # [launch-ent]
+    if _ent_deny is not None:
+        return _ent_deny
     chart_res = supabase.table("charts").select("lal_kitab_data, country_code").eq("id", chart_id).execute()
     if not chart_res.data:
         raise HTTPException(404, "Chart not found")
@@ -12556,38 +12579,32 @@ async def ask_endpoint(request: AskRequest):
     if not question:
         return JSONResponse(status_code=400, content={"error": "Question is required"})
 
-    # ── Entitlement: unlimited Ask = navigator ONLY [ask-nav-gate] ──
-    # navigator → unlimited; seeker → allowed under the same ~20/day cap
-    # as the trial (soft 402 daily_cap, no upgrade_url); free in-trial →
-    # capped; free past 30 days → 402 trial_expired (upgrade → navigator).
-    # `reason` is machine-readable by contract.
+    # ── Entitlement: Ask soft caps [ask-launch] ──
+    # seeker/navigator → unlimited. Free: 20/day during the 30-day window
+    # (anchor: existing users June 5, new users signup; UTC reset), then
+    # 1/day forever. Soft wall — always reason=daily_cap + upgrade_url,
+    # NEVER trial_expired. `reason` is machine-readable by contract.
     from antar_engine.entitlements import (
         get_entitlement as _ent_tier_fn, ask_trial_state as _ent_trial,
-        increment_ask_usage as _ent_ask_inc, upgrade_block as _ent_upgrade,
+        increment_ask_usage as _ent_ask_inc, UPGRADE_URL as _ent_upgrade_url,
     )
     _ask_tier = _ent_tier_fn(chart_id, supabase)
-    if _ask_tier != "navigator":
+    if _ask_tier not in ("seeker", "navigator"):
         _tr = _ent_trial(chart_id, supabase)
-        if _ask_tier == "free" and not _tr.get("trial_active"):
-            return JSONResponse(status_code=402, content=_ent_upgrade(
-                "ask", "free",
-                reason="trial_expired",
-                trial_start=_tr.get("trial_start"),
-                trial_ended_at=_tr.get("trial_ends_at"),
-            ))
-        if int(_tr.get("used_today") or 0) >= int(_tr.get("daily_limit") or 0):
-            _cap_body = {
+        _limit = int(_tr.get("daily_limit") or 1)
+        if int(_tr.get("used_today") or 0) >= _limit:
+            return JSONResponse(status_code=402, content={
                 "error": "daily_cap",
                 "reason": "daily_cap",
                 "feature": "ask",
                 "tier": _ask_tier,
+                "limit": _limit,
                 "used_today": _tr.get("used_today"),
-                "daily_limit": _tr.get("daily_limit"),
+                "daily_limit": _limit,
                 "resets": "tomorrow",
-            }
-            if _ask_tier == "free":
-                _cap_body["trial_days_left"] = _tr.get("days_left")
-            return JSONResponse(status_code=402, content=_cap_body)
+                "upgrade_url": _ent_upgrade_url,
+                "trial_days_left": _tr.get("days_left"),
+            })
 
     # ───────────────────────── EXPLORATION ─────────────────────────
     if mode == "explore":
@@ -12766,7 +12783,7 @@ async def ask_endpoint(request: AskRequest):
             if not read_txt:
                 read_txt = "I couldn't read a clear signal just now — try asking again in a moment."
 
-            if _ask_tier != "navigator" and _ask_answered:  # [ask-nav-gate]
+            if _ask_tier not in ("seeker", "navigator") and _ask_answered:  # [ask-launch]
                 _ent_ask_inc(chart_id, supabase)
             payload = {"mode": "explore", "read": read_txt, "next": next_txt, "locked": False}
             if _ask_decision:
@@ -12995,7 +13012,7 @@ async def ask_endpoint(request: AskRequest):
                 relevant_planets=_yn_conv.get("relevant_planets") if _yn_conv else None,
             )
 
-            if _ask_tier != "navigator" and bool(why):  # [ask-nav-gate]
+            if _ask_tier not in ("seeker", "navigator") and bool(why):  # [ask-launch]
                 _ent_ask_inc(chart_id, supabase)
             payload = {
                 "mode": "yesno",
@@ -14786,6 +14803,9 @@ async def get_personal_remedies(
     Each remedy includes WHY (diagnosis) + WHAT (practice) + HOW (exact instructions).
     Tied to active dasha + weak planets + current transits.
     """
+    _ent_deny = _ent_feature_gate(chart_id, "remedies")   # [launch-ent]
+    if _ent_deny is not None:
+        return _ent_deny
     from antar_engine import remedy_selector
     from antar_engine.transits_engine import calculate_current_transits
     from datetime import date
@@ -20591,7 +20611,7 @@ async def get_home(
             except Exception:
                 pass
             if cached and _lc_gen == _lc_today:
-                return cached
+                return _ent_home_view(cached, chart_id)   # [launch-ent]
     except Exception as _ce:
         print(f"[home] cache read skipped (table may be missing): {_ce}")
 
@@ -20657,7 +20677,7 @@ async def get_home(
     except Exception as _we:
         print(f"[home] cache write skipped (table may be missing): {_we}")
 
-    return payload
+    return _ent_home_view(payload, chart_id)   # [launch-ent]
 
 
 @app.get("/api/v1/predict/week")
