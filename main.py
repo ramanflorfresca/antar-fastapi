@@ -12178,8 +12178,6 @@ class AskRequest(BaseModel):
     tz_offset: Optional[int] = 0
 
 
-@app.post("/api/v1/ask")
-
 # ── Timing tense: compute ACTIVE / OPENS_SOON / OPENS_LATER deterministically ──
 # already-started ALWAYS wins over the 90-day test (the 90d split is for
 # not-yet-started windows only). The LLM must never do this date math.
@@ -12210,6 +12208,7 @@ def _timing_state(window_start, window_end, today=None):
             "This window opens later. Name the month or season; use future framing.")
 
 
+@app.post("/api/v1/ask")
 async def ask_endpoint(request: AskRequest):
     """
     Unified ASK endpoint.
