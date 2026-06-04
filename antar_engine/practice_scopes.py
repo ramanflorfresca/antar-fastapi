@@ -43,6 +43,39 @@ _PID = {"Sun": 0, "Moon": 1, "Mercury": 2, "Venus": 3, "Mars": 4,
         "Jupiter": 5, "Saturn": 6, "Rahu": 10}
 
 
+# ── Energy-language map — NO planet names in user-facing narration ──────────
+# (internal fields like `planet` / `trigger_detail` keep the raw name)
+PLANET_ENERGY = {
+    "en": {
+        "Sun":     "your visibility and self-direction",
+        "Moon":    "your emotional steadiness",
+        "Mars":    "your drive and ability to act",
+        "Mercury": "your clarity of thought and speech",
+        "Jupiter": "your sense of meaning and growth",
+        "Venus":   "your capacity for love, beauty and connection",
+        "Saturn":  "your discipline and long-term structure",
+        "Rahu":    "your ambition and focus",
+        "Ketu":    "your capacity to let go and turn inward",
+    },
+    "es": {
+        "Sun":     "tu visibilidad y direcci\u00f3n propia",
+        "Moon":    "tu estabilidad emocional",
+        "Mars":    "tu impulso y capacidad de actuar",
+        "Mercury": "tu claridad de pensamiento y palabra",
+        "Jupiter": "tu sentido de prop\u00f3sito y crecimiento",
+        "Venus":   "tu capacidad de amor, belleza y conexi\u00f3n",
+        "Saturn":  "tu disciplina y estructura a largo plazo",
+        "Rahu":    "tu ambici\u00f3n y enfoque",
+        "Ketu":    "tu capacidad de soltar y mirar hacia adentro",
+    },
+}
+
+
+def _energy(planet: str, lang: str = "en") -> str:
+    return PLANET_ENERGY.get(lang, PLANET_ENERGY["en"]).get(
+        planet, "this energy" if lang != "es" else "esta energ\u00eda")
+
+
 def _lang(language: str) -> str:
     return "es" if str(language).lower().startswith("es") else "en"
 
@@ -85,43 +118,47 @@ def _functional_malefic_lords(chart: dict) -> set:
 # ─────────────────────────────────────────────────────────────────────────────
 
 def _why(scope: str, planet: str, kind: str, lang: str, **kw) -> str:
+    # Energy-language narration — the planet name NEVER appears in the
+    # user-facing why_paragraph. Internal fields carry the raw name.
+    e = _energy(planet, lang)
+    E = (e[:1].upper() + e[1:]) if e else e
     T = {
         ("natal_weakness", "debilitated"): {
-            "en": f"{planet} is weak in your birth chart. The friction shows up wherever {planet} governs — it asks for daily, patient attention.",
-            "es": f"{planet} está débil en tu carta de nacimiento. La fricción aparece donde {planet} gobierna — pide atención diaria y paciente."},
+            "en": f"The part of you that carries {e} runs weak in your birth chart. The friction shows up wherever that energy is asked for — it wants daily, patient attention.",
+            "es": f"La parte de ti que lleva {e} est\u00e1 d\u00e9bil en tu carta de nacimiento. La fricci\u00f3n aparece donde se necesita esa energ\u00eda — pide atenci\u00f3n diaria y paciente."},
         ("natal_weakness", "combust"): {
-            "en": f"{planet} is overshadowed by the Sun in your chart — its signal gets drowned out. Daily practice gives it back its own voice.",
-            "es": f"{planet} está eclipsado por el Sol en tu carta — su señal se ahoga. La práctica diaria le devuelve su propia voz."},
+            "en": f"{E} gets drowned out in your chart — its signal is overshadowed. Daily practice gives it back its own voice.",
+            "es": f"{E} queda eclipsada en tu carta — su se\u00f1al se ahoga. La pr\u00e1ctica diaria le devuelve su propia voz."},
         ("natal_weakness", "sleeping"): {
-            "en": f"{planet} is dormant in your chart — its gifts are present but asleep. Daily practice is how you wake it.",
-            "es": f"{planet} está dormido en tu carta — sus dones están presentes pero dormidos. La práctica diaria es cómo lo despiertas."},
+            "en": f"{E} is dormant in your chart — present but asleep. Daily practice is how you wake it.",
+            "es": f"{E} est\u00e1 dormida en tu carta — presente pero dormida. La pr\u00e1ctica diaria es c\u00f3mo la despiertas."},
         ("natal_weakness", "dusthana"): {
-            "en": f"{planet} sits in a difficult house with no friendly support, so its energy drains rather than builds. Daily tending steadies it.",
-            "es": f"{planet} está en una casa difícil sin apoyo amistoso, así que su energía se escapa en vez de construir. El cuidado diario lo estabiliza."},
+            "en": f"{E} sits in a draining position, so it leaks rather than builds. Daily tending steadies it.",
+            "es": f"{E} est\u00e1 en una posici\u00f3n que desgasta — se escapa en vez de construir. El cuidado diario la estabiliza."},
         ("natal_weakness", "sandhi"): {
-            "en": f"{planet} sits right at the edge of a sign — a tender, unstable spot. Daily practice gives it ground.",
-            "es": f"{planet} está justo en el borde de un signo — un punto tierno e inestable. La práctica diaria le da suelo."},
+            "en": f"{E} sits at a tender, unstable edge in your chart. Daily practice gives it ground.",
+            "es": f"{E} est\u00e1 en un borde tierno e inestable de tu carta. La pr\u00e1ctica diaria le da suelo."},
         ("natal_weakness", "rin"): {
-            "en": f"Your chart carries a karmic debt tied to {planet}. Lal Kitab treats this with steady, humble daily acts until the debt settles.",
-            "es": f"Tu carta lleva una deuda kármica ligada a {planet}. Lal Kitab la trata con actos diarios constantes y humildes hasta que la deuda se salda."},
+            "en": f"Your chart carries an old debt tied to {e}. It settles through steady, humble daily acts.",
+            "es": f"Tu carta lleva una deuda antigua ligada a {e}. Se salda con actos diarios constantes y humildes."},
         ("dasha_period", "md"): {
-            "en": f"You are in a {planet} chapter, and {planet} runs strained in your chart. For the length of this period its rough edge is amplified — tend it until the chapter turns.",
-            "es": f"Estás en un capítulo de {planet}, y {planet} viene tensionado en tu carta. Durante este periodo su borde áspero se amplifica — atiéndelo hasta que el capítulo cambie."},
+            "en": f"This chapter of your life runs on {e}, and that energy is strained in your chart. While the period lasts its rough edge is amplified — tend it until the chapter turns.",
+            "es": f"Este cap\u00edtulo de tu vida corre sobre {e}, y esa energ\u00eda viene tensionada en tu carta. Mientras dure el periodo su borde \u00e1spero se amplifica — ati\u00e9ndelo hasta que el cap\u00edtulo cambie."},
         ("dasha_period", "ad"): {
-            "en": f"{planet} is the active sub-period right now and it runs strained in your chart — a shorter, sharper pull worth tending while it lasts.",
-            "es": f"{planet} es el subperiodo activo ahora mismo y viene tensionado en tu carta — un tirón más corto y agudo que vale la pena atender mientras dure."},
+            "en": f"The current sub-period leans on {e}, which runs strained in your chart — a shorter, sharper pull worth tending while it lasts.",
+            "es": f"El subperiodo actual se apoya en {e}, que viene tensionada en tu carta — un tir\u00f3n m\u00e1s corto y agudo que vale la pena atender mientras dure."},
         ("varshphal_year", "house"): {
-            "en": f"In your chart for this year, {planet} falls into a draining position. The theme it touches asks for attention across the whole year.",
-            "es": f"En tu carta de este año, {planet} cae en una posición que desgasta. El tema que toca pide atención durante todo el año."},
+            "en": f"This year puts {e} in a draining position. The theme it touches asks for attention across the whole year.",
+            "es": f"Este a\u00f1o pone {e} en una posici\u00f3n que desgasta. El tema que toca pide atenci\u00f3n durante todo el a\u00f1o."},
         ("varshphal_year", "yoga"): {
-            "en": f"This year's chart puts {planet} with {kw.get('other','another hard planet')} — a friction pairing that colors the year. Tend it through the solar year.",
-            "es": f"La carta de este año pone a {planet} con {kw.get('other','otro planeta difícil')} — una combinación de fricción que tiñe el año. Atiéndela durante el año solar."},
+            "en": f"This year pairs {e} with another source of friction — a combination that colors the year. Tend it through the solar year.",
+            "es": f"Este a\u00f1o combina {e} con otra fuente de fricci\u00f3n — una mezcla que ti\u00f1e el a\u00f1o. Ati\u00e9ndela durante el a\u00f1o solar."},
         ("monthly_lk", "transit"): {
-            "en": f"This month, {planet} moves through a sensitive part of your chart. It's a passing pressure — tend it through the month.",
-            "es": f"Este mes, {planet} atraviesa una parte sensible de tu carta. Es una presión pasajera — atiéndela durante el mes."},
+            "en": f"This month, a passing pressure moves across {e}. It fades on its own — tend it through the month.",
+            "es": f"Este mes, una presi\u00f3n pasajera atraviesa {e}. Se disuelve sola — ati\u00e9ndela durante el mes."},
         ("daily_transit", "hit"): {
-            "en": f"Today {kw.get('agent','a hard planet')} presses on your {planet} point — short-term reactivity that resolves overnight. A small practice steadies the day.",
-            "es": f"Hoy {kw.get('agent','un planeta duro')} presiona tu punto de {planet} — reactividad de corto plazo que se resuelve durante la noche. Una pequeña práctica estabiliza el día."},
+            "en": f"Today something presses on {e} — short-term reactivity that resolves overnight. A small practice steadies the day.",
+            "es": f"Hoy algo presiona {e} — reactividad de corto plazo que se resuelve durante la noche. Una peque\u00f1a pr\u00e1ctica estabiliza el d\u00eda."},
     }
     return T.get((scope, kind), {}).get(lang, "")
 

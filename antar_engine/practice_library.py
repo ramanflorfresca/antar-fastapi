@@ -57,8 +57,8 @@ PRACTICE_LIBRARY = {
         "affirmation": {"en": "I take up my space. My worth does not need permission. I shine without apology.",
                         "es": "Ocupo mi espacio. Mi valor no necesita permiso. Brillo sin disculparme."},
         "chakras_balanced": ["heart", "solar_plexus"],
-        "why_this_works": {"en": "The Sun rules the steady core of confidence and vitality. When weak, the self dims and recognition won't land. The seed mantra rekindles that central fire, the morning movement floods the body with light, and the Lal Kitab offering discharges the debt that keeps the Sun shadowed.",
-                          "es": "El Sol rige el núcleo estable de la confianza y la vitalidad. Cuando está débil, el yo se atenúa y el reconocimiento no llega. El mantra semilla reaviva ese fuego central, el movimiento matinal inunda el cuerpo de luz, y la ofrenda de Lal Kitab descarga la deuda que mantiene al Sol en sombra."},
+        "why_this_works": {"en": "This energy is the steady core of confidence and vitality. When it runs low, the self dims and recognition won't land. The seed mantra rekindles that central fire, the morning movement floods the body with light, and the Lal Kitab offering discharges the debt that keeps it shadowed.",
+                          "es": "Esta energía es el núcleo estable de la confianza y la vitalidad. Cuando está baja, el yo se atenúa y el reconocimiento no llega. El mantra semilla reaviva ese fuego central, el movimiento matinal inunda el cuerpo de luz, y la ofrenda de Lal Kitab descarga la deuda que la mantiene en sombra."},
         "frequency_hz": 126,
     },
     "Moon": {
@@ -79,8 +79,8 @@ PRACTICE_LIBRARY = {
         "affirmation": {"en": "I am safe to feel. My emotions are weather, not walls. I let comfort in.",
                         "es": "Es seguro sentir. Mis emociones son clima, no muros. Dejo entrar la calma."},
         "chakras_balanced": ["sacral", "third_eye"],
-        "why_this_works": {"en": "The Moon rules the emotional baseline and the felt sense of safety. When weak, the mind churns and rest won't come. The mantra steadies the inner tide, the restorative posture signals safety to the nervous system, and the silver and milk are the Lal Kitab way of feeding the Moon.",
-                          "es": "La Luna rige la base emocional y la sensación de seguridad. Cuando está débil, la mente se agita y el descanso no llega. El mantra calma la marea interior, la postura restaurativa le indica seguridad al sistema nervioso, y la plata y la leche son la forma de Lal Kitab de alimentar a la Luna."},
+        "why_this_works": {"en": "This energy sets the emotional baseline and the felt sense of safety. When it runs low, the mind churns and rest won't come. The mantra steadies the inner tide, the restorative posture signals safety to the nervous system, and the silver and milk are the Lal Kitab way of feeding it.",
+                          "es": "Esta energía marca la base emocional y la sensación de seguridad. Cuando está baja, la mente se agita y el descanso no llega. El mantra calma la marea interior, la postura restaurativa le indica seguridad al sistema nervioso, y la plata y la leche son la forma de Lal Kitab de alimentarla."},
         "frequency_hz": 210,
     },
     "Mars": {
@@ -101,8 +101,8 @@ PRACTICE_LIBRARY = {
         "affirmation": {"en": "My energy is mine to direct. I act with aim, not heat. I hold my ground cleanly.",
                         "es": "Mi energía es mía para dirigir. Actúo con dirección, no con calor. Sostengo mi lugar con limpieza."},
         "chakras_balanced": ["root", "solar_plexus"],
-        "why_this_works": {"en": "Mars rules drive and clean boundaries. When weak, energy leaks and force turns to friction. The mantra tempers the fire, the strong stance retrains controlled power, and the Tuesday offering settles Mars's karmic charge the Lal Kitab way.",
-                          "es": "Marte rige el impulso y los límites limpios. Cuando está débil, la energía se filtra y la fuerza se vuelve fricción. El mantra templa el fuego, la postura firme reentrena el poder controlado, y la ofrenda del martes asienta la carga kármica de Marte al modo de Lal Kitab."},
+        "why_this_works": {"en": "This energy rules drive and clean boundaries. When it runs low, effort leaks and force turns to friction. The mantra tempers the fire, the strong stance retrains controlled power, and the Tuesday offering settles the karmic charge the Lal Kitab way.",
+                          "es": "Esta energía rige el impulso y los límites limpios. Cuando está baja, el esfuerzo se filtra y la fuerza se vuelve fricción. El mantra templa el fuego, la postura firme reentrena el poder controlado, y la ofrenda del martes asienta la carga kármica al modo de Lal Kitab."},
         "frequency_hz": 144,
     },
     "Mercury": {
@@ -123,8 +123,8 @@ PRACTICE_LIBRARY = {
         "affirmation": {"en": "My words land. My thinking is clear. I speak only what is true and useful.",
                         "es": "Mis palabras aterrizan. Mi pensamiento es claro. Solo digo lo que es verdadero y útil."},
         "chakras_balanced": ["throat", "third_eye"],
-        "why_this_works": {"en": "Mercury rules the channels through which thought becomes word and word becomes action. When weak, those channels jam. The mantra clears the seed-vibration, the breath rebalances the hemispheres, and the daily action discharges Mercury's karmic debts in Lal Kitab form.",
-                          "es": "Mercurio rige los canales por los que el pensamiento se vuelve palabra y la palabra se vuelve acción. Cuando está débil, esos canales se atascan. El mantra limpia la vibración semilla, la respiración reequilibra los hemisferios, y la acción diaria descarga las deudas kármicas de Mercurio al modo de Lal Kitab."},
+        "why_this_works": {"en": "This energy rules the channels through which thought becomes word and word becomes action. When it runs low, those channels jam. The mantra clears the seed-vibration, the breath rebalances the hemispheres, and the daily action discharges the karmic debt in Lal Kitab form.",
+                          "es": "Esta energía rige los canales por los que el pensamiento se vuelve palabra y la palabra se vuelve acción. Cuando está baja, esos canales se atascan. El mantra limpia la vibración semilla, la respiración reequilibra los hemisferios, y la acción diaria descarga la deuda kármica al modo de Lal Kitab."},
         "frequency_hz": 282,
     },
     "Jupiter": {
@@ -145,8 +145,8 @@ PRACTICE_LIBRARY = {
         "affirmation": {"en": "I make room to grow. I trust that good arrives. I give, and the channel opens.",
                         "es": "Hago espacio para crecer. Confío en que el bien llega. Doy, y el canal se abre."},
         "chakras_balanced": ["crown", "sacral"],
-        "why_this_works": {"en": "Jupiter rules expansion and grace. When weak, the world feels stingy and growth dries up. The mantra reopens the channel of fortune, the balancing posture trains steady uprightness, and the Thursday giving discharges Jupiter's debt the Lal Kitab way — generosity restores the flow.",
-                          "es": "Júpiter rige la expansión y la gracia. Cuando está débil, el mundo se siente tacaño y el crecimiento se seca. El mantra reabre el canal de la fortuna, la postura de equilibrio entrena una verticalidad estable, y la entrega del jueves descarga la deuda de Júpiter al modo de Lal Kitab — la generosidad restaura el flujo."},
+        "why_this_works": {"en": "This energy rules expansion and grace. When it runs low, the world feels stingy and growth dries up. The mantra reopens the channel of fortune, the balancing posture trains steady uprightness, and the Thursday giving discharges the debt the Lal Kitab way — generosity restores the flow.",
+                          "es": "Esta energía rige la expansión y la gracia. Cuando está baja, el mundo se siente tacaño y el crecimiento se seca. El mantra reabre el canal de la fortuna, la postura de equilibrio entrena una verticalidad estable, y la entrega del jueves descarga la deuda al modo de Lal Kitab — la generosidad restaura el flujo."},
         "frequency_hz": 183,
     },
     "Venus": {
@@ -167,8 +167,8 @@ PRACTICE_LIBRARY = {
         "affirmation": {"en": "I am worthy of sweetness. I let love and beauty in. Value flows to me with ease.",
                         "es": "Merezco la dulzura. Dejo entrar el amor y la belleza. El valor fluye hacia mí con soltura."},
         "chakras_balanced": ["heart", "sacral"],
-        "why_this_works": {"en": "Venus rules sweetness, relating, and the flow of value. When weak, connection and pleasure go flat. The mantra restores the seed-tone of harmony, the heart-opening posture softens defended places, and the Friday giving settles Venus's debt the Lal Kitab way.",
-                          "es": "Venus rige la dulzura, el vínculo y el flujo del valor. Cuando está débil, la conexión y el placer se apagan. El mantra restaura el tono semilla de la armonía, la postura que abre el pecho ablanda lo defendido, y la entrega del viernes asienta la deuda de Venus al modo de Lal Kitab."},
+        "why_this_works": {"en": "This energy rules sweetness, relating, and the flow of value. When it runs low, connection and pleasure go flat. The mantra restores the seed-tone of harmony, the heart-opening posture softens defended places, and the Friday giving settles the debt the Lal Kitab way.",
+                          "es": "Esta energía rige la dulzura, el vínculo y el flujo del valor. Cuando está baja, la conexión y el placer se apagan. El mantra restaura el tono semilla de la armonía, la postura que abre el pecho ablanda lo defendido, y la entrega del viernes asienta la deuda al modo de Lal Kitab."},
         "frequency_hz": 221,
     },
     "Saturn": {
@@ -189,8 +189,8 @@ PRACTICE_LIBRARY = {
         "affirmation": {"en": "I move at the pace of building. I let what's slow be slow. I trust the long arc.",
                         "es": "Avanzo al ritmo de la construcción. Dejo que lo lento sea lento. Confío en el arco largo."},
         "chakras_balanced": ["root", "throat"],
-        "why_this_works": {"en": "Saturn rules slow-build, structure, and patience. When weak, time itself feels antagonistic — deadlines slip, momentum dies. The mantra is the seed sound of Saturn's energy; the daily action discharges karmic debt the way Lal Kitab prescribes; the body practice trains the nervous system to settle into Saturn's rhythm. None of this is fast. That's the point.",
-                          "es": "Saturno rige la construcción lenta, la estructura y la paciencia. Cuando está débil, el tiempo mismo se siente antagonista — los plazos resbalan, el impulso muere. El mantra es el sonido semilla de la energía de Saturno; la acción diaria descarga la deuda kármica como prescribe Lal Kitab; la práctica corporal entrena al sistema nervioso a asentarse en el ritmo de Saturno. Nada de esto es rápido. Ese es el punto."},
+        "why_this_works": {"en": "This energy rules slow-build, structure, and patience. When it runs low, time itself feels antagonistic — deadlines slip, momentum dies. The mantra is its seed sound; the daily action discharges karmic debt the way Lal Kitab prescribes; the body practice trains the nervous system to settle into its rhythm. None of this is fast. That's the point.",
+                          "es": "Esta energía rige la construcción lenta, la estructura y la paciencia. Cuando está baja, el tiempo mismo se siente antagonista — los plazos resbalan, el impulso muere. El mantra es su sonido semilla; la acción diaria descarga la deuda kármica como prescribe Lal Kitab; la práctica corporal entrena al sistema nervioso a asentarse en su ritmo. Nada de esto es rápido. Ese es el punto."},
         "frequency_hz": 295,
     },
     "Rahu": {
@@ -211,8 +211,8 @@ PRACTICE_LIBRARY = {
         "affirmation": {"en": "I want clearly, not compulsively. I ground my ambition. Enough is a place I can stand.",
                         "es": "Deseo con claridad, no por compulsión. Aterrizo mi ambición. Lo suficiente es un lugar donde puedo estar."},
         "chakras_balanced": ["third_eye", "root"],
-        "why_this_works": {"en": "Rahu rules hunger and the pull toward the new. When agitated, it scatters the mind into anxious chasing. The mantra contains the static, the inversion drains the over-revved nervous system, and feeding crows is the Lal Kitab way of settling Rahu's restless charge.",
-                          "es": "Rahu rige el hambre y el tirón hacia lo nuevo. Cuando se agita, dispersa la mente en una persecución ansiosa. El mantra contiene la estática, la inversión drena el sistema nervioso sobreacelerado, y alimentar cuervos es la forma de Lal Kitab de asentar la carga inquieta de Rahu."},
+        "why_this_works": {"en": "This energy rules hunger and the pull toward the new. When agitated, it scatters the mind into anxious chasing. The mantra contains the static, the inversion drains the over-revved nervous system, and feeding crows is the Lal Kitab way of settling its restless charge.",
+                          "es": "Esta energía rige el hambre y el tirón hacia lo nuevo. Cuando se agita, dispersa la mente en una persecución ansiosa. El mantra contiene la estática, la inversión drena el sistema nervioso sobreacelerado, y alimentar cuervos es la forma de Lal Kitab de asentar su carga inquieta."},
         "frequency_hz": 268,
     },
     "Ketu": {
@@ -233,8 +233,8 @@ PRACTICE_LIBRARY = {
         "affirmation": {"en": "I let go cleanly. I trust what falls away. I am rooted even as I release.",
                         "es": "Suelto con limpieza. Confío en lo que se desprende. Estoy enraizado incluso al soltar."},
         "chakras_balanced": ["crown", "root"],
-        "why_this_works": {"en": "Ketu rules release and the inward turn. When unsettled, it leaves you rootless and scattered. The mantra steadies the dispersing energy, the forward fold returns you to the ground, and the quiet practice gives Ketu its proper channel — focus through surrender, not grasping.",
-                          "es": "Ketu rige la liberación y el giro hacia adentro. Cuando está inquieto, te deja sin raíces y disperso. El mantra calma la energía que se dispersa, el pliegue hacia adelante te devuelve al suelo, y la práctica silenciosa le da a Ketu su canal propio — enfoque a través de la entrega, no del aferramiento."},
+        "why_this_works": {"en": "This energy rules release and the inward turn. When unsettled, it leaves you rootless and scattered. The mantra steadies the dispersing pull, the forward fold returns you to the ground, and the quiet practice gives it its proper channel — focus through surrender, not grasping.",
+                          "es": "Esta energía rige la liberación y el giro hacia adentro. Cuando está inquieta, te deja sin raíces y disperso. El mantra calma la energía que se dispersa, el pliegue hacia adelante te devuelve al suelo, y la práctica silenciosa le da su canal propio — enfoque a través de la entrega, no del aferramiento."},
         "frequency_hz": 304,
     },
 }
@@ -253,6 +253,7 @@ def build_mantra_response(planet: str, language: str = "en") -> dict:
     audio_path = m.get("audio_path", planet.lower())
     return {
         "name": m.get("primary"),
+        "type": "bija",
         "sanskrit": m.get("sanskrit"),
         "transliteration": m.get("translit"),
         "count": m.get("count"),
@@ -261,6 +262,22 @@ def build_mantra_response(planet: str, language: str = "en") -> dict:
         "audio_url": f"{AUDIO_BASE}/{audio_path}-{lang}.mp3",
         "tone_hz": entry.get("frequency_hz"),
     }
+
+
+# Breath practices display a duration in the UI but the library entries carry
+# only pattern/rounds. Authored minutes per planet (sized to the rounds).
+_BREATH_MINUTES = {"Sun": 3, "Moon": 4, "Mars": 3, "Mercury": 3, "Jupiter": 4,
+                   "Venus": 4, "Saturn": 5, "Rahu": 4, "Ketu": 5}
+
+
+def _with_minutes(block: dict, fallback: int = None) -> dict:
+    """Emit a copy carrying BOTH `minutes` and `duration_minutes` (same value),
+    so every frontend key-choice resolves. None stays None intentionally."""
+    out = dict(block)
+    m = out.get("minutes", fallback)
+    out["minutes"] = m
+    out["duration_minutes"] = m
+    return out
 
 
 def get_planet_content(planet: str, language: str = "en") -> dict:
@@ -273,9 +290,9 @@ def get_planet_content(planet: str, language: str = "en") -> dict:
         "what_it_governs": _loc(entry["what_it_governs"], language),
         "when_weak_symptoms": _loc(entry["when_weak_symptoms"], language),
         "mantra": build_mantra_response(planet, language),
-        "body": dict(entry["body"]),
-        "breath": dict(entry["breath"]),
-        "daily_action": {"title": da["title"], "detail": _loc(da["detail"], language), "frequency": da["frequency"]},
+        "body": _with_minutes(entry["body"]),
+        "breath": _with_minutes(entry["breath"], fallback=_BREATH_MINUTES.get(planet, 3)),
+        "daily_action": {"title": da["title"], "detail": _loc(da["detail"], language), "frequency": da["frequency"], "minutes": None, "duration_minutes": None},
         "affirmation": _loc(entry["affirmation"], language),
         "chakras_balanced": list(entry["chakras_balanced"]),
         "why_this_works": _loc(entry["why_this_works"], language),
@@ -572,6 +589,24 @@ def build_gemstone_response(planet, language="en"):
     return out
 
 
+# Plain-language replacements for jargon condition words in narration.
+_COND_PLAIN = {"debilitated": "weak", "combust": "overshadowed",
+               "sleeping": "dormant", "afflicted": "strained", "fallen": "weak"}
+
+
+def _cond_plain(cond):
+    return _COND_PLAIN.get(str(cond).lower(), cond)
+
+
+def _prose_energy(planet):
+    """EN energy phrase for narration — planet names never reach narration."""
+    try:
+        from antar_engine.practice_scopes import PLANET_ENERGY
+        return PLANET_ENERGY["en"].get(planet, "this energy")
+    except Exception:
+        return "this energy"
+
+
 def build_personalization(planet, scope, chart=None, conditions=None, language="en"):
     """One-sentence, chart-aware reason for `why_for_this_user`, framed by scope.
 
@@ -583,18 +618,18 @@ def build_personalization(planet, scope, chart=None, conditions=None, language="
     cond = ((conditions or {}).get(planet) or {}).get("condition")
     weak = isinstance(cond, str) and cond.lower() in (
         "debilitated", "combust", "weak", "afflicted", "fallen", "enemy")
-    cond_clause = f" (currently reading as {cond})" if weak else ""
+    cond_clause = f" (currently reading as {_cond_plain(cond)})" if weak else ""
 
     if scope == "dasha_period":
-        return (f"You are in a {planet} period right now{cond_clause} — {stone} prepares the "
+        return (f"You are in a chapter that leans on {_prose_energy(planet)}{cond_clause} — {stone} prepares the "
                 f"body and mind for this chapter. The mantra comes first; the stone is an "
                 f"optional amplifier, never a replacement.")
     if scope == "varshphal_year":
-        return (f"{planet} is emphasised in your year ahead{cond_clause} — {stone} is a "
+        return (f"This year ahead emphasises {_prose_energy(planet)}{cond_clause} — {stone} is a "
                 f"year-bounded support, not a permanent fixture. Begin with the mantra; the "
                 f"stone is optional.")
     # natal_weakness (permanent recommendation) and any default.
-    return (f"{planet} is weak in your birth chart{cond_clause}. Your daily practice already "
+    return (f"The part of you that carries {_prose_energy(planet)} runs weak in your birth chart{cond_clause}. Your daily practice already "
             f"strengthens it — the gemstone is an OPTIONAL advanced amplifier you may add later, "
             f"never a replacement for the practice.")
 
@@ -993,18 +1028,18 @@ def build_food_personalization(planet, scope, chart=None, conditions=None, langu
     cond = ((conditions or {}).get(planet) or {}).get("condition")
     weak = isinstance(cond, str) and cond.lower() in (
         "debilitated", "combust", "weak", "afflicted", "fallen", "enemy")
-    cond_clause = f" (currently {cond} in your chart)" if weak else ""
+    cond_clause = f" (currently {_cond_plain(cond)} in your chart)" if weak else ""
 
     if scope == "dasha_period":
-        return (f"You are in a {planet} period right now{cond_clause} — {planet} food prepares the "
+        return (f"You are in a chapter that leans on {_prose_energy(planet)}{cond_clause} — the matching food prepares the "
                 f"body for the period's quality. Food is the most consistent daily lever you have; "
-                f"every meal is a small recalibration of {planet}'s energy.")
+                f"every meal is a small recalibration of that energy.")
     if scope == "varshphal_year":
-        return (f"This year's annual chart highlights {planet}{cond_clause} — {planet}-aligned food "
+        return (f"This year highlights {_prose_energy(planet)}{cond_clause} — the aligned food path "
                 f"supports the year ahead. Small daily shifts in what you eat compound over the months.")
     # natal_weakness (default).
-    return (f"{planet} is weak in your birth chart{cond_clause}. Food is the most consistent daily "
-            f"lever you have — every meal is a small recalibration of {planet}'s quality in your body.")
+    return (f"The part of you that carries {_prose_energy(planet)} runs weak in your birth chart{cond_clause}. Food is the most consistent daily "
+            f"lever you have — every meal is a small recalibration of that energy in your body.")
 
 
 def personalize_food(planet, scope="natal_weakness", language="en", chart=None, conditions=None):
@@ -1626,23 +1661,23 @@ def build_remedy_personalization(remedy_type, planet, scope, chart=None,
     cond = ((conditions or {}).get(planet) or {}).get("condition")
     weak = isinstance(cond, str) and cond.lower() in (
         "debilitated", "combust", "weak", "afflicted", "fallen", "enemy")
-    cc = f" (currently {cond} in your chart)" if weak else ""
+    cc = f" (currently {_cond_plain(cond)} in your chart)" if weak else ""
 
     if remedy_type == "yantra":
-        body = (f"a {planet} yantra is a daily geometric anchor — energize it once and let it "
-                f"hold {planet}'s frequency in your space while your practice does the deeper work")
+        body = ("this yantra is a daily geometric anchor — energize it once and let it "
+                "hold a steadying frequency in your space while your practice does the deeper work")
     elif remedy_type == "daan":
-        body = (f"giving the right thing to the right person on {planet}'s day discharges {planet} "
-                f"karma directly — the most active remedy in the stack, and it costs only intention")
+        body = ("giving the right thing to the right person on the remedy's own day discharges "
+                "the old pattern directly — the most active remedy in the stack, and it costs only intention")
     else:  # vrat
-        body = (f"a voluntary {planet}-day fast builds the discipline {planet} rewards — keep it "
-                f"gentle and safe; intention matters far more than strictness")
+        body = ("a voluntary one-day fast on the remedy's day builds the discipline this energy "
+                "rewards — keep it gentle and safe; intention matters far more than strictness")
 
     if scope == "dasha_period":
-        return f"You are in a {planet} period right now{cc} — {body}."
+        return f"You are in a chapter that leans on {_prose_energy(planet)}{cc} — {body}."
     if scope == "varshphal_year":
-        return f"This year's annual chart highlights {planet}{cc} — {body}."
-    return f"{planet} is weak in your birth chart{cc}. Here {body}."
+        return f"This year highlights {_prose_energy(planet)}{cc} — {body}."
+    return f"The part of you that carries {_prose_energy(planet)} runs weak in your birth chart{cc}. Here {body}."
 
 
 def personalize_remedy(remedy_type, planet, scope="natal_weakness", language="en",

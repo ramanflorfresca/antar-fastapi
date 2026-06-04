@@ -101,9 +101,11 @@ def _fallback_priority(chart: dict, conditions: dict, language: str) -> Optional
     if not present:
         return None
     p, m = min(present, key=lambda kc: kc[1].get("weight", 0.9))
-    why = ("Nada urgente hoy. Una práctica suave de mantenimiento para {p} mantiene tu base estable."
+    from antar_engine.practice_scopes import _energy as _nrg
+    _e = _nrg(p, lang)
+    why = (f"Nada urgente hoy. Una práctica suave de mantenimiento mantiene {_e} estable."
            if lang == "es" else
-           "Nothing urgent today. A gentle maintenance practice for {p} keeps your foundation steady.").format(p=p)
+           f"Nothing urgent today. A gentle maintenance practice keeps {_e} steady.")
     return {
         "scope": "natal_weakness", "planet": p, "supporting_planets": [], "severity": 0.2,
         "trigger_detail": f"maintenance for {p}",

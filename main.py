@@ -6592,17 +6592,25 @@ def _prac_local_date(tz_offset):
 
 
 def _prac_strip_prose(resp, language):
-    """Path-B strip on prose fields only (keeps planet names; no Sanskrit corruption)."""
-    def s(x):
+    """[energy-narration] Narration fields go through the FULL strip
+    (source='llm') so any planet-name straggler is energy-translated —
+    sources are already clean, this is belt-and-braces (e.g. _one_line's
+    trigger_detail fallback). why_this_works uses field_type='timing' so
+    authored weekdays ("the Tuesday offering") survive. The affirmation is
+    curated and name-free -> Path-B keeps it byte-identical."""
+    def s(x, ft="plain", source="llm"):
         try:
-            return apply_user_facing_strips(x, language=language, field_type="plain", source="curated_static")
+            return apply_user_facing_strips(x, language=language, field_type=ft, source=source)
         except Exception:
             return x
     tp = resp.get("today_priority")
     if tp:
-        for k in ("why", "affirmation", "why_this_works"):
-            if tp.get(k):
-                tp[k] = s(tp[k])
+        if tp.get("why"):
+            tp["why"] = s(tp["why"])
+        if tp.get("why_this_works"):
+            tp["why_this_works"] = s(tp["why_this_works"], ft="timing")
+        if tp.get("affirmation"):
+            tp["affirmation"] = s(tp["affirmation"], source="curated_static")
     for a in resp.get("active", []):
         if a.get("one_line"):
             a["one_line"] = s(a["one_line"])
@@ -6724,6 +6732,14 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
         generated_at=_prac_dt.now(_prac_tz.utc).isoformat(),
     )
     resp = _prac_strip_prose(resp, request.language)
+    # [mantra-locale] Both the bija mantra block and the affirmation are
+    # exposed; mantra_primary tells the frontend which to FEATURE. IN -> bija,
+    # everywhere else -> affirmation. Single source of truth for the Lovable
+    # locale gate — no double-gating.
+    _tp_ml = resp.get("today_priority")
+    if isinstance(_tp_ml, dict) and _tp_ml.get("mantra") is not None:
+        _ml_in = (rec.get("current_country") or rec.get("birth_country") or "").strip().upper() == "IN"
+        _tp_ml["mantra_primary"] = "bija" if _ml_in else "affirmation"
     # pt has no authored practice content -> translate English prose via the
     # existing (tested, cached) pipeline. Any failure serves English unchanged.
     if str(request.language or "").split("_")[0].split("-")[0].lower() == "pt":
@@ -6791,6 +6807,19 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
                     )
         except Exception as _re:
             print(f"[remedy3 i18n] {_re}")
+    # [chart-food] Chart-level Food (Ahar) remedy — top-level sibling, same
+    # additive+guarded pattern as chart_gemstone. Free — never gated. Any
+    # failure leaves chart_food=None and the payload otherwise identical.
+    try:
+        from antar_engine.food_engine import get_chart_food as _get_chart_food
+        resp["chart_food"] = await _get_chart_food(
+            supabase, chart, dashas,
+            current_country=rec.get("current_country") or rec.get("country_code") or "",
+            language=request.language or "en",
+        )
+    except Exception as _cf_err:
+        print(f"[chart-food] non-fatal: {_cf_err}")
+        resp["chart_food"] = None
     _PRACTICE_CACHE[ckey] = (_prac_time.time() + _PRACTICE_TTL, resp)
     return _ent_practice_view(resp, request.chart_id)
 
@@ -17245,6 +17274,28 @@ def _translate_practice_schedule_es(sched):
             _translate_practice_card(sp)
     return s
 
+def _gem_localize_why(sched, language):
+    """[gemstone-narration] chart_gemstone.why: es swaps in why_es; why_es is
+    dropped from every response. Legacy cached shapes (raw `planet` + internal
+    seed `why`) are re-narrated on read so stale cache rows never leak the
+    seed note or the planet name."""
+    try:
+        g = (sched or {}).get("chart_gemstone")
+        if isinstance(g, dict):
+            if "planet" in g:  # legacy cache row from before the narration patch
+                from antar_engine.practice_engine import narrate_gem_why
+                g["_planet"] = g.pop("planet")
+                g["why"] = narrate_gem_why(g["_planet"], g.get("risk_tier", "safe"), language)
+                g.pop("why_es", None)
+                return sched
+            if str(language or "").lower().startswith("es") and g.get("why_es"):
+                g["why"] = g["why_es"]
+            g.pop("why_es", None)
+    except Exception as _gle:
+        print(f"[gemstone-narration] localize non-fatal: {_gle}")
+    return sched
+
+
 @app.get("/api/v1/practices/{chart_id}/schedule")
 async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", refresh: bool = False, force_refresh: bool = False):
     refresh = bool(refresh or force_refresh)
@@ -17263,6 +17314,7 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
                 _streak = await _practice_get_streak(chart_id)
                 _sched["streak_data"] = _streak
                 if language == "es": _sched = _translate_practice_schedule_es(_sched)
+                _sched = _gem_localize_why(_sched, language)
                 return {"status": "ok", "source": "cache", "schedule": _sched}
         _chart = supabase.table("charts").select("chart_data, jaimini_data, lal_kitab_data, current_country, birth_date").eq("id", chart_id).single().execute()
         if not _chart.data:
@@ -17333,6 +17385,7 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
         except Exception:
             pass
         if language == "es": _sched = _translate_practice_schedule_es(_sched)
+        _sched = _gem_localize_why(_sched, language)
         return {"status": "ok", "source": "generated", "schedule": _sched}
     except Exception as e:
         print(f"[PRACTICE] Schedule error: {e}")

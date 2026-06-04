@@ -110,9 +110,9 @@ _COND_WORD = {
     "en": {"exalted": "exalted", "own_sign": "in its own sign", "friend": "well-placed",
            "neutral": "neutral", "enemy": "strained", "debilitated": "weak",
            "combust": "overshadowed", "sleeping": "dormant"},
-    "es": {"exalted": "exaltado", "own_sign": "en su propio signo", "friend": "bien ubicado",
-           "neutral": "neutral", "enemy": "tensionado", "debilitated": "débil",
-           "combust": "eclipsado", "sleeping": "dormido"},
+    "es": {"exalted": "exaltada", "own_sign": "en su propio signo", "friend": "bien sostenida",
+           "neutral": "neutral", "enemy": "tensionada", "debilitated": "débil",
+           "combust": "eclipsada", "sleeping": "dormida"},
 }
 
 
@@ -151,7 +151,9 @@ def _lang(language: str) -> str:
 
 
 def _reason(rulers_states: list[tuple], state: str, lang: str) -> str:
-    parts = [f"{p} {_COND_WORD[lang].get(c, c)}" for p, c in rulers_states]
+    from antar_engine.practice_scopes import _energy as _nrg
+    _conn = "se lee" if lang == "es" else "reads"
+    parts = [f"{_nrg(p, lang)} {_conn} {_COND_WORD[lang].get(c, c)}" for p, c in rulers_states]
     joined = (" y " if lang == "es" else " and ").join(parts) if len(parts) <= 2 else \
         ((", ".join(parts[:-1])) + (" y " if lang == "es" else " and ") + parts[-1])
     if lang == "es":

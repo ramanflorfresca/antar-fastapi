@@ -732,6 +732,41 @@ GEM_DOMAINS = {
     "Ketu":    "insight, detachment, inner depth",
 }
 
+GEM_DOMAINS_ES = {
+    "Sun":     "el liderazgo visible y la vitalidad",
+    "Moon":    "la estabilidad emocional, la intuición y el descanso",
+    "Mars":    "el impulso, el coraje y la acción decidida",
+    "Mercury": "la comunicación, el comercio y el aprendizaje",
+    "Jupiter": "el crecimiento, la sabiduría y la fortuna",
+    "Venus":   "la creatividad, las relaciones y la riqueza que las sigue",
+    "Saturn":  "la disciplina, la resistencia y la estructura a largo plazo",
+    "Rahu":    "la ambición y las ganancias poco convencionales",
+    "Ketu":    "la percepción y la profundidad interior",
+}
+
+
+def narrate_gem_why(planet: str, risk_tier: str = "safe", language: str = "en") -> str:
+    """Plain-language gemstone line, narrated FROM the engine planet.
+    NO planet name, NO Sanskrit, conclusions-not-calculations. Deterministic —
+    same energy-translation narrator pattern as the other practice cards."""
+    if str(language or "en").lower().startswith("es"):
+        dom = GEM_DOMAINS_ES.get(planet, "tu fortaleza central")
+        why = (f"Fortalece la parte de ti que gobierna {dom} — el motor de tus años "
+               f"fuertes. Una sola piedra, elegida por la fortaleza central de tu "
+               f"carta, usada para alimentarla.")
+        if risk_tier == "test_first":
+            why += (" Tómala primero como prueba: úsala poco tiempo y observa cómo "
+                    "respondes antes de comprometerte.")
+        return why
+    dom = GEM_DOMAINS.get(planet, "your core strength")
+    why = (f"Strengthens the part of you that governs {dom} — the engine of your "
+           f"strong years. One stone, chosen for your chart's core strength, "
+           f"worn to feed it.")
+    if risk_tier == "test_first":
+        why += (" Treat it as a trial first: wear it briefly and watch how you "
+                "respond before committing.")
+    return why
+
 
 def _gem_lagna_sign(lagna):
     """Normalize lagna to a capitalized sign name ('Capricorn')."""
@@ -822,18 +857,19 @@ def select_chart_gemstone(planets, lagna):
 
     g = GEM_BY_PLANET[engine]
     risk = "test_first" if engine in GEM_TEST_FIRST else "safe"
-    why = (
-        f"Engine planet {engine} ({basis}) for {lagna_sign} lagna — "
-        f"{g['stone']} feeds its domains: {GEM_DOMAINS.get(engine, '')}. "
-        f"Internal note for the narrator; planet name never reaches the UI."
-    )
+    # `why` is narrated plain language (no planet name, no Sanskrit). The
+    # engine planet stays INTERNAL under `_planet` — narrate FROM it, never
+    # expose it. why_es is a working field the endpoint swaps in for es and
+    # drops from every response.
     return {
         "stone": g["stone"],
-        "planet": engine,
         "risk_tier": risk,
         "metal": g["metal"],
         "weekday": g["weekday"],
-        "why": why,
+        "why": narrate_gem_why(engine, risk, "en"),
+        "why_es": narrate_gem_why(engine, risk, "es"),
+        "_planet": engine,
+        "_basis": basis,
     }
 
 
