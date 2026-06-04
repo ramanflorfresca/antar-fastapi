@@ -599,7 +599,11 @@ def _strip_home_payload(payload, language: str = "en"):
                 if k in _KEEP:
                     out[k] = v
                 elif k == "lkRead":
-                    out[k] = _walk_curated(v)
+                    # [today-v2] Part 5 — Path B reversed for the Today
+                    # card: planet labels ("SATURN-MARS IS WEAK") must not
+                    # reach the UI. Full plain strip converts planet names
+                    # to energy language; houses/Sanskrit already stripped.
+                    out[k] = _walk(v)
                 elif k == "remedy":
                     # UPAAY_LIBRARY curated (Step 6): timing keeps the weekday,
                     # source='curated_static' keeps planet-as-actor (Path B);
@@ -1179,12 +1183,29 @@ def _compose_for_horizon(horizon: str,
                     continue
             _card = compose_daily_card(_fired, md_planet, [], now_today.date())
             if _card.get("polarity") != "flat":
+                # [today-v2] Part 4 — no remedy concept on Today: the
+                # remedy_planet/remedy_variant pointers are engine-internal
+                # and must not reach the frontend payload.
+                _card.pop("remedy_planet", None)
+                _card.pop("remedy_variant", None)
                 view["lkRead"] = _card
         except Exception as _lke:
             print(f"[home_composer] lkRead skipped (non-fatal): {_lke}")
 
     # Polarity XOR — chain merged last
     view.update(chain)
+    if horizon == "today":
+        # [today-v2] Part 4 — NO per-day remedy. A remedy (upaay) acts on
+        # the dasha/varshphal timescale (~21-43 days); per-day it is
+        # meaningless. Real remedies live in the Practice tab. Month/year/
+        # cycle horizons keep their chain remedy (correct timescale).
+        view["remedy"] = None
+        # [today-v2] Part 5 — no planet-label chips on the Today card:
+        # cause.planet was passed through unstripped (_KEEP); replace with
+        # the plain energy phrase so the UI never renders "SATURN".
+        if isinstance(view.get("cause"), dict) and view["cause"].get("planet"):
+            _cp = view["cause"]["planet"]
+            view["cause"]["planet"] = ENERGY_LANG.get(_cp, "this energy")
     return view
 
 

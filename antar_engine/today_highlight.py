@@ -257,6 +257,7 @@ def select_today_highlight(
             "direction": "quiet",
             "strength": "low",
             "hora": hora,
+            "todays_move": hora,
             "_debug_reasoning": debug,
         }
 
@@ -318,5 +319,6 @@ def select_today_highlight(
         "direction": lead_dir,
         "strength": strength,
         "hora": hora,
+        "todays_move": hora,
         "_debug_reasoning": debug,
     }

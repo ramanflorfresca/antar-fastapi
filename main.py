@@ -12919,7 +12919,7 @@ async def save_onboarding_reason(request: OnboardingReasonRequest):
 @app.post("/api/v1/daily-signal")
 @app.get("/api/v1/daily-signal/{chart_id}")
 @translate_response(
-    fields_to_translate=["vibe", "do_today", "dont_today", "text", "headline", "highlight"],
+    fields_to_translate=["vibe", "do_today", "dont_today", "text", "headline", "highlight", "todays_nudge"],
     endpoint_name="daily-signal",
 )
 async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, language: str = "en"):
@@ -13012,8 +13012,13 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             "dont_today":  panchanga.get("dont_today", []),
             "day_color":   panchanga.get("day_color", ""),
             "day_number":  panchanga.get("day_number", ""),
-            "day_mantra":  panchanga.get("day_mantra", ""),
+            # [today-v2] day_mantra removed — a mantra is a remedy-scale
+            # item (21-43 day arc); Today carries no remedy. Practice tab
+            # owns remedies, anchored to the current dasha/varshphal.
         })
+        result.pop("day_mantra", None)
+        if isinstance(result.get("panchanga"), dict):
+            result["panchanga"].pop("mantra", None)
 
         # ── Layer-2 concrete signals (highlights) — Phase 1: Today ──────
         try:
@@ -13118,6 +13123,24 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             result["direction"]         = _th["direction"]
             result["strength"]          = _th["strength"]
             result["hora"]              = _th["hora"]
+            # [today-v2] TODAY'S MOVE — hora timing under its product name.
+            result["todays_move"]       = _th.get("todays_move", _th["hora"])
+            # [today-v2] TODAY'S NUDGE — day-scale, engine-derived from the
+            # SAME dominant signal as the highlight. Omitted on quiet days.
+            # Explicitly NOT a remedy; Today carries no remedy field.
+            try:
+                from antar_engine.today_nudge import derive_todays_nudge
+                _nudge = derive_todays_nudge(
+                    direction=_th["direction"],
+                    domains=_th["highlight_domains"],
+                    current_country=current_country,
+                    lk_daily=_th_lk,
+                )
+            except Exception as _ng_err:
+                print(f"[daily-signal] nudge derivation failed: {_ng_err}")
+                _nudge = None
+            if _nudge:
+                result["todays_nudge"] = _nudge
             # Part 3 — internal reasoning must not reach the UI.
             result["el_movimiento"] = ""
             result["move"] = ""
