@@ -432,6 +432,16 @@ def consultation_prompt_block(conv: dict, concern: str, dasha_str: str) -> str:
     lines.append(f"RESULT: {conv.get('summary', '')}")
     if conv.get("window_label"):
         lines.append(f"TIMING WINDOW (use this verbatim, plainly worded): {conv['window_label']}")
+        if conv.get("window_end"):
+            # [narrator-hardbind 2026-06-05c] Relative-duration freelancing
+            # ("through the end of the year", "next few months") slips past
+            # the absolute-date scrub — pin the boundary in the prompt.
+            lines.append(
+                f"WINDOW DISCIPLINE: this window ENDS {conv['window_end']}. "
+                f"Never stretch or shrink it — no phrases like 'through the "
+                f"end of the year', 'in the coming months', or any duration "
+                f"beyond {conv['window_label']}."
+            )
     else:
         lines.append("TIMING WINDOW: none — frame as a building/preparation phase, do NOT invent dates")
     if conv.get("next_window_label"):
