@@ -12839,6 +12839,72 @@ def _timing_state(window_start, window_end, today=None):
             "This window opens later. Name the month or season; use future framing.")
 
 
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEBUG: whole-board evidence block (Event Prediction Engine v2, step 2/4).
+# Deterministic facts only — dasha tree, chara rotation + karakas, divisionals,
+# yogas, varshphal gate, LK sleeping, Double Transit state. No verdict, no
+# narration. Internal endpoint: NOT wired to the frontend; raw astrological
+# vocabulary is intentional (output_strips does not apply here).
+# ─────────────────────────────────────────────────────────────────────────────
+class AskEvidenceRequest(BaseModel):
+    chart_id: str
+    question: str = ""
+    concern: Optional[str] = None      # override _detect_concern
+    as_of: Optional[str] = None        # ISO date override (default: today)
+
+
+@app.post("/api/v1/ask/evidence")
+async def ask_evidence_debug(request: AskEvidenceRequest, http_request: Request):
+    from fastapi.responses import JSONResponse   # main.py imports this locally per-endpoint
+    _dbg_key = os.environ.get("ANTAR_DEBUG_KEY")
+    if _dbg_key and http_request.headers.get("X-Debug-Key") != _dbg_key:
+        return JSONResponse(status_code=403, content={"error": "debug key required"})
+
+    try:
+        chart_row = supabase.table("charts") \
+            .select("chart_data, jaimini_data, birth_date") \
+            .eq("id", request.chart_id).single().execute()
+    except Exception as _nfe:
+        if "PGRST116" in str(_nfe) or "0 rows" in str(_nfe):
+            return JSONResponse(status_code=404, content={"error": "Chart not found"})
+        raise
+    if not chart_row.data:
+        return JSONResponse(status_code=404, content={"error": "Chart not found"})
+
+    chart_data = _safe_jsonb(chart_row.data.get("chart_data"))
+    jaimini_data = _safe_jsonb(chart_row.data.get("jaimini_data"))
+    birth_date = str(chart_row.data.get("birth_date") or "")[:10]
+
+    concern = (request.concern or "").strip().lower()
+    if not concern:
+        try:
+            concern = _detect_concern(request.question) if request.question else "general"
+        except Exception:
+            concern = "general"
+
+    as_of = None
+    if request.as_of:
+        try:
+            from datetime import date as _date
+            as_of = _date.fromisoformat(request.as_of[:10])
+        except Exception:
+            return JSONResponse(status_code=422, content={"error": "as_of must be ISO date"})
+
+    try:
+        dashas = get_dashas_for_chart(request.chart_id)
+    except Exception as _de:
+        logger.warning(f"[ask/evidence] dasha fetch failed (non-fatal): {_de}")
+        dashas = {}
+
+    from antar_engine.event_evidence import build_whole_board
+    board = build_whole_board(
+        chart_data, jaimini_data, dashas, birth_date, concern,
+        current_date=as_of,
+    )
+    return {"chart_id": request.chart_id, "evidence": board}
+
+
 @app.post("/api/v1/ask")
 async def ask_endpoint(request: AskRequest):
     """
