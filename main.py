@@ -931,6 +931,44 @@ async def _daily_polarity_log_job():
         print(f"[polarity_log] job FATAL: {e}")
 
 
+async def _deep_read_warm_job():
+    """[deep-read-warm] Proactive Deep Read warmer. Runs at 01:00 + 09:00 UTC
+    so each chart's CURRENT local date (derived per chart from current_country
+    tz inside predict_day_deep) is pre-generated before that hemisphere's
+    morning. Warms EN; _prewarm_deep_read itself adds the chart's stored
+    language. All layers dedupe via deep_read_cache, so re-runs and overlap
+    with the /daily-signal lazy warm cost nothing.
+
+    Active chart = a Today-page load (today_narration_cache row, any language
+    sentinel) within the last 7 days — dormant charts are never generated.
+    NOTE: _prewarm_deep_read and _COUNTRY_TZ_OFFSETS are defined later in this
+    module; lookups resolve at call time, after the module is fully loaded."""
+    import asyncio as _aio
+    from datetime import datetime as _dt2, timedelta as _td2
+    try:
+        cutoff = (_dt2.utcnow() - _td2(days=7)).strftime("%Y-%m-%d")
+        rows = (supabase.table("today_narration_cache").select("chart_id")
+                .gte("narration_date", cutoff).limit(5000).execute()).data or []
+        chart_ids = sorted({r["chart_id"] for r in rows if r.get("chart_id")})
+        if not chart_ids:
+            print("[deep-read-warm] no active charts")
+            return
+        crows = (supabase.table("charts").select("id,current_country,birth_country")
+                 .in_("id", chart_ids).execute()).data or []
+        print(f"[deep-read-warm] warming {len(crows)} active charts")
+        for c in crows:
+            _cc = (c.get("current_country") or c.get("birth_country") or "").upper()
+            _tz_hours = float(_COUNTRY_TZ_OFFSETS.get(_cc, 0))
+            try:
+                await _prewarm_deep_read(c["id"], "en", _tz_hours)
+            except Exception as _ce:
+                print(f"[deep-read-warm] chart {str(c.get('id'))[:8]} non-fatal: {_ce}")
+            await _aio.sleep(2)  # spread Sonnet load
+        print("[deep-read-warm] done")
+    except Exception as e:
+        print(f"[deep-read-warm] job FATAL: {e}")
+
+
 scheduler = AsyncIOScheduler(timezone="UTC")
 scheduler.add_job(_birthday_recompute_job, "cron", hour=2, minute=0,
                   id="birthday_lk_recompute", replace_existing=True)
@@ -940,6 +978,10 @@ scheduler.add_job(_monthly_briefing_job, "cron", day=1, hour=6, minute=0,
                   id="monthly_briefing_send", replace_existing=True)
 scheduler.add_job(_daily_polarity_log_job, "cron", hour=3, minute=0,
                   id="daily_polarity_log", replace_existing=True)
+scheduler.add_job(_deep_read_warm_job, "cron", hour=1, minute=0,
+                  id="deep_read_warm_asia", replace_existing=True)
+scheduler.add_job(_deep_read_warm_job, "cron", hour=9, minute=0,
+                  id="deep_read_warm_americas", replace_existing=True)
 
 
 # ── App ───────────────────────────────────────────────────────────────────────
@@ -20749,6 +20791,22 @@ async def _prewarm_deep_read(chart_id: str, language: str, tz_offset_hours: floa
         )
         await predict_day_deep(req, refresh=0)
         print(f"[deep-read-prewarm] warm chart={chart_id[:8]} lang={language}")
+        # [deep-read-warm] also warm the chart's stored language so an ES
+        # user never pays the live translation pass on tap. Deduped by the
+        # endpoint's own cache — at most one extra Sonnet+translate per
+        # chart per day, which the user would otherwise pay interactively.
+        try:
+            _pw_row = supabase.table("charts").select("language") \
+                .eq("id", chart_id).limit(1).execute()
+            _pw_lang = str(((_pw_row.data or [{}])[0].get("language")) or "").lower()[:2]
+            if _pw_lang in ("es", "pt") and _pw_lang != (language or "en").lower()[:2]:
+                await predict_day_deep(DeepReadRequest(
+                    chart_id=chart_id, language=_pw_lang,
+                    tz_offset=int(float(tz_offset_hours or 0) * 60)), refresh=0)
+                print(f"[deep-read-prewarm] warm chart={chart_id[:8]} "
+                      f"lang={_pw_lang} (chart language)")
+        except Exception as _e2:
+            print(f"[deep-read-prewarm] chart-lang warm non-fatal: {_e2}")
     except Exception as _e:
         print(f"[deep-read-prewarm] non-fatal: {_e}")
 
