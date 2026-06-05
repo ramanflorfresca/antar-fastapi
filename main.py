@@ -10849,31 +10849,43 @@ async def compat_six_layer(request: CompatRequest):
         raise HTTPException(429, "Daily compatibility read limit reached. Try again tomorrow.")
 
     # ── Chart A (always a stored UUID) ──
-    res_a = supabase.table("charts").select("chart_data,birth_date,name").eq("id", request.chart_a_id).execute()
+    res_a = supabase.table("charts").select("chart_data,birth_date,name,first_name").eq("id", request.chart_a_id).execute()
     if not res_a.data:
         raise HTTPException(404, f"Chart {request.chart_a_id} not found")
     chart_a = _safe_jsonb(res_a.data[0]["chart_data"])
     birth_a = res_a.data[0].get("birth_date", "")
-    a_name = (res_a.data[0].get("name", "") or "").split()[0] or "You"
+    # [compat-500-fix] "".split()[0] raises IndexError when name is NULL —
+    # safe first-token parse, first_name preferred (it's what charts populate).
+    _a_raw = (res_a.data[0].get("first_name") or res_a.data[0].get("name") or "")
+    a_name = (str(_a_raw).split() or ["You"])[0]
     chart_a["current_dasha"] = _current_dasha_str(get_dashas_for_chart(request.chart_a_id))
 
     # ── Chart B (stored UUID or raw birth data) ──
     cb = request.chart_b or {}
     chart_b_id = cb.get("chart_id")
     if chart_b_id:
-        res_b = supabase.table("charts").select("chart_data,birth_date,name").eq("id", chart_b_id).execute()
+        res_b = supabase.table("charts").select("chart_data,birth_date,name,first_name").eq("id", chart_b_id).execute()
         if not res_b.data:
             raise HTTPException(404, f"Chart {chart_b_id} not found")
         chart_b = _safe_jsonb(res_b.data[0]["chart_data"])
-        b_name = cb.get("name") or (res_b.data[0].get("name", "") or "").split()[0] or "Partner"
+        _b_raw = (cb.get("name") or res_b.data[0].get("first_name")
+                  or res_b.data[0].get("name") or "")
+        b_name = (str(_b_raw).split() or ["Partner"])[0]
         chart_b["current_dasha"] = _current_dasha_str(get_dashas_for_chart(chart_b_id))
         _cb_key = chart_b_id
         _birth_b = res_b.data[0].get("birth_date", "")
     else:
-        _date = cb.get("date"); _time = cb.get("time")
+        _date = cb.get("date") or cb.get("birth_date")
+        _time = cb.get("time") or cb.get("birth_time") or "12:00"
         place = cb.get("place") or {}
         if not _date or place.get("lat") is None or place.get("lon") is None:
-            raise HTTPException(422, "chart_b requires either chart_id or {date, time, place:{lat,lon,tz}}")
+            _hint = ""
+            if cb.get("birth_city") or cb.get("birth_country"):
+                _hint = (" — birth_city-style fields received, but this endpoint does no "
+                         "geocoding; send place:{lat,lon,tz}, or create the chart via "
+                         "/chart/create first and pass chart_b:{chart_id}")
+            raise HTTPException(422, "chart_b requires either chart_id or "
+                                     "{date|birth_date, time|birth_time, place:{lat,lon,tz}}" + _hint)
         b_name = cb.get("name") or "Partner"
         chart_b = _cl.build_chart_from_raw(b_name, _date, _time, place.get("lat"), place.get("lon"), place.get("tz", "UTC"))
         chart_b_id = None
