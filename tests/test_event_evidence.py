@@ -1,8 +1,11 @@
 """
 tests/test_event_evidence.py — whole-board evidence block + Double Transit.
 
-Pure-math tests: no ephemeris needed (DT positions injected). The ephemeris
-paths (sidereal_sign_indices, dt_forming_windows, mars_trigger_windows) are
+Phase 1 (founder rulings 2026-06-05): chara/karakas via jaimini_engine ONLY
+(pure python — fully testable here); Vimshottari tree via the phase_analyzer
+chain, which needs swisseph — on machines without it the block falls back
+gracefully (PD/SD None + note) and these tests assert that contract instead.
+Ephemeris paths (DT live positions, forming/mars windows, live PD/SD) are
 exercised by the live /ask/evidence curl test.
 
 Run: cd ~/antarai && source venv311/bin/activate && python -m pytest tests/test_event_evidence.py -q
@@ -14,17 +17,21 @@ import pytest
 
 from antar_engine import double_transit as dt
 from antar_engine.event_evidence import (
-    build_whole_board, _sub_periods, _karakas_by_degree_in_sign,
-    CONCERN_TO_EVENT, EVENT_MAP,
+    build_whole_board, CONCERN_TO_EVENT, EVENT_MAP,
 )
 
 S = dt.SIGN_INDEX  # name → index
 
+try:
+    import swisseph  # noqa: F401
+    HAVE_EPHEMERIS = True
+except ImportError:
+    HAVE_EPHEMERIS = False
 
-# ── fixture chart: Capricorn lagna (matches jaimini.py's verified test) ──────
+
+# ── fixture chart: Capricorn lagna ───────────────────────────────────────────
 
 def _chart():
-    # longitudes chosen so D1 signs match jaimini.py self-test placements
     def lng(sign_idx, deg):
         return sign_idx * 30.0 + deg
 
@@ -68,17 +75,25 @@ def _dashas():
 
 
 TODAY = date(2026, 6, 5)
+BIRTH = "1990-02-10"
+DT_POS = {"Saturn": S["Aries"], "Jupiter": S["Gemini"],
+          "Mars": S["Cancer"], "Moon": S["Leo"]}
+
+
+def _board(concern="property", chart=None, dashas=None):
+    return build_whole_board(
+        chart or _chart(), {}, dashas if dashas is not None else _dashas(),
+        BIRTH, concern, current_date=TODAY, dt_positions=DT_POS,
+    )
 
 
 # ── Double Transit geometry ──────────────────────────────────────────────────
 
 def test_jupiter_aspect_set():
-    # Jupiter in Cancer (3): occupies 3, aspects 5th=Scorpio(7), 7th=Cap(9), 9th=Pisces(11)
     assert dt.aspected_signs("Jupiter", S["Cancer"]) == {S["Cancer"], S["Scorpio"], S["Capricorn"], S["Pisces"]}
 
 
 def test_saturn_aspect_set():
-    # Saturn in Pisces (11): occupies 11, 3rd=Taurus(1), 7th=Virgo(5), 10th=Sag(8)
     assert dt.aspected_signs("Saturn", S["Pisces"]) == {S["Pisces"], S["Taurus"], S["Virgo"], S["Sagittarius"]}
 
 
@@ -87,7 +102,6 @@ def test_default_planet_aspects_only_7th():
 
 
 def test_double_transit_intersection():
-    # Jupiter Cancer + Saturn Pisces → DT on Pisces only
     both = dt.aspected_signs("Jupiter", S["Cancer"]) & dt.aspected_signs("Saturn", S["Pisces"])
     assert both == {S["Pisces"]}
 
@@ -95,27 +109,21 @@ def test_double_transit_intersection():
 # ── targets: house + lord + lord's navamsa, per frame ───────────────────────
 
 def test_targets_lagna_frame_4th_house():
-    chart = _chart()
-    targets = dt.build_targets(chart, [4], "lagna")
+    targets = dt.build_targets(_chart(), [4], "lagna")
     kinds = {(t["kind"], t["sign"]) for t in targets}
-    # 4th from Capricorn = Aries; lord Mars sits in Libra
-    assert ("house", "Aries") in kinds
-    assert ("lord_natal", "Libra") in kinds
+    assert ("house", "Aries") in kinds          # 4th from Capricorn
+    assert ("lord_natal", "Libra") in kinds     # Mars sits in Libra
 
 
 def test_targets_moon_frame_differs():
-    chart = _chart()
-    t_moon = dt.build_targets(chart, [4], "moon")
-    # 4th from Pisces Moon = Gemini; lord Mercury sits in Libra
-    kinds = {(t["kind"], t["sign"]) for t in t_moon}
-    assert ("house", "Gemini") in kinds
-    assert ("lord_natal", "Libra") in kinds
+    kinds = {(t["kind"], t["sign"]) for t in dt.build_targets(_chart(), [4], "moon")}
+    assert ("house", "Gemini") in kinds         # 4th from Pisces Moon
+    assert ("lord_natal", "Libra") in kinds     # Mercury sits in Libra
 
 
 def test_targets_include_lord_navamsa_when_d9_given():
-    chart = _chart()
     d9 = {"Mars": {"sign": "Leo", "sign_index": 4}}
-    targets = dt.build_targets(chart, [4], "lagna", d9=d9)
+    targets = dt.build_targets(_chart(), [4], "lagna", d9=d9)
     assert any(t["kind"] == "lord_navamsa" and t["sign"] == "Leo" for t in targets)
 
 
@@ -127,18 +135,12 @@ def _dt_verdict(positions, houses=(4,)):
 
 
 def test_verdict_fires_when_both_frames_hit():
-    # Lord of 4th-from-lagna (Mars) and of 4th-from-moon (Mercury) both sit in
-    # Libra → DT on Libra hits BOTH frames via lord_natal.
-    # Jupiter in Gemini aspects Libra (5th); Saturn in Aries aspects Libra (7th).
     verdict, _ = _dt_verdict({"Saturn": S["Aries"], "Jupiter": S["Gemini"],
                               "Mars": 0, "Moon": 0})
     assert verdict == "fires"
 
 
 def test_verdict_likely_when_moon_only():
-    # DT on Gemini (4th-from-Moon house sign): Jupiter in Aquarius aspects
-    # Gemini (5th); Saturn in Gemini occupies it. Lagna-frame targets
-    # (Aries house / Libra lord / —) must NOT be in both sets.
     pos = {"Saturn": S["Gemini"], "Jupiter": S["Aquarius"], "Mars": 0, "Moon": 0}
     both = dt.aspected_signs("Saturn", pos["Saturn"]) & dt.aspected_signs("Jupiter", pos["Jupiter"])
     assert S["Gemini"] in both and S["Aries"] not in both and S["Libra"] not in both
@@ -147,11 +149,6 @@ def test_verdict_likely_when_moon_only():
 
 
 def test_verdict_none_when_no_frame_hits():
-    # DT lands on Virgo only (not a target for house 4 in either frame):
-    # Saturn in Pisces aspects Virgo (7th); Jupiter in Capricorn aspects
-    # Virgo (9th). Shared set = {Virgo, Pisces}… Pisces is moon-frame? 4th
-    # house from Pisces is Gemini; lord positions in Libra. Pisces is not a
-    # target for house 4. Confirm no target overlap.
     pos = {"Saturn": S["Pisces"], "Jupiter": S["Capricorn"], "Mars": 0, "Moon": 0}
     both = dt.aspected_signs("Saturn", pos["Saturn"]) & dt.aspected_signs("Jupiter", pos["Jupiter"])
     targets_l = {t["sign_index"] for t in dt.build_targets(_chart(), [4], "lagna")}
@@ -173,89 +170,116 @@ def test_functional_pair_reported():
     assert out["functional"]["verdict"] in ("fires", "likely", "weak", "none")
 
 
-# ── PD/SD subdivision ────────────────────────────────────────────────────────
+# ── chara block: jaimini_engine ONLY, computed live ──────────────────────────
 
-def test_sub_periods_cover_parent_span_and_start_with_parent_lord():
-    s, e = date(2025, 1, 10), date(2028, 3, 12)
-    pds = _sub_periods("Venus", s, e)
-    assert len(pds) == 9
-    assert pds[0]["lord"] == "Venus"
-    assert pds[0]["start"] == s and pds[-1]["end"] == e
-    for a, b in zip(pds, pds[1:]):
-        assert a["end"] == b["start"]
+def test_chara_uses_jaimini_engine_and_matches_it():
+    board = _board()
+    chara = board["chara"]
+    assert chara["source"] == "jaimini_engine live"
+    assert chara.get("error") is None or "error" not in chara
+
+    # cross-validate against jaimini_engine directly (same inputs)
+    from antar_engine.jaimini_engine import calculate_jaimini_analysis
+    ctx = calculate_jaimini_analysis(
+        lagna_sign=9, planets_dict=_chart()["planets"],
+        d9_planets_dict={}, birth_date_str=BIRTH,
+        target_date_str=TODAY.isoformat(),
+    )["context"]
+    assert chara["md_sign"]["sign"] == ctx.current_md.sign_name
+    if ctx.current_ad:
+        assert chara["ad_sign"]["sign"] == ctx.current_ad.sign_name
 
 
-def test_sub_periods_proportional():
-    s, e = date(2020, 1, 1), date(2030, 1, 1)   # 10y span
-    pds = _sub_periods("Sun", s, e)
-    sun = next(p for p in pds if p["lord"] == "Sun")
-    # Sun share = 6/120 of 10y ≈ 0.5y ≈ 183d
-    assert abs((sun["end"] - sun["start"]).days - 182.6) < 3
-
-
-# ── karaka ranking (degree-in-sign, classical) ───────────────────────────────
-
-def test_karaka_ranking_by_degree_in_sign():
-    ks = _karakas_by_degree_in_sign(_chart()["planets"])
-    assert ks[0]["planet"] == "Mars" and ks[0]["name"] == "Atmakaraka"   # 28°
-    assert ks[1]["planet"] == "Venus"                                    # 22°
-    assert ks[-1]["planet"] == "Mercury"                                 # 2°
+def test_karakas_seven_scheme_degree_in_sign():
+    ks = _board()["chara"]["karakas"]
     assert len(ks) == 7
+    abbrs = [k["abbr"] for k in ks]
+    assert abbrs[0] == "AK" and "AmK" in abbrs and "DK" in abbrs
+    # Mars 28° is the highest degree-in-sign → AK
+    assert ks[0]["planet"] == "Mars"
+    # placed in the MD-rotated chart with dignity + tags
+    for k in ks:
+        assert 1 <= k["house_from_md_lagna"] <= 12
+        assert k["dignity"] in ("exalted", "own", "debilitated", "neutral")
+
+
+def test_chara_rotation_and_db_crosscheck():
+    chara = _board()["chara"]
+    rot = chara["rotated_houses"]
+    assert set(rot.keys()) == set(range(1, 13))
+    md_sign = chara["md_sign"]["sign"]
+    assert rot[1]["sign"] == md_sign
+    # occupants preserved across the rotation (whole-chart rule)
+    all_occ = [p for h in rot.values() for p in h["occupants"]]
+    assert sorted(all_occ) == sorted(_chart()["planets"].keys())
+    # DB cross-check fact present (fixture has a jaimini MD row)
+    assert chara["db_md_row_sign"] == "Taurus"
+    assert isinstance(chara["db_md_agrees"], bool)
+
+
+def test_chara_never_reads_jsonb_snapshot():
+    # poisoned snapshot: if the block read jaimini_data.current_md it would
+    # report this absurd sign — staleness rule says it must not.
+    poisoned = {"current_md": {"sign_name": "POISON", "sign": 0},
+                "current_ad": {"sign_name": "POISON", "sign": 0}}
+    board = build_whole_board(_chart(), poisoned, _dashas(), BIRTH, "property",
+                              current_date=TODAY, dt_positions=DT_POS)
+    assert board["chara"]["md_sign"]["sign"] != "POISON"
+
+
+def test_moving_lagna_and_supporting_structures_present():
+    chara = _board()["chara"]
+    assert isinstance(chara["moving_lagna"], dict) and chara["moving_lagna"]
+    assert chara["arudha_lagna"]["sign"] in dt.SIGNS
+    assert chara["upapada_lagna"]["sign"] in dt.SIGNS
+    assert chara["karakamsa"]["sign"] in dt.SIGNS
+
+
+# ── vimshottari block: phase_analyzer chain with graceful fallback ──────────
+
+def test_vim_md_ad_present_with_profiles():
+    vim = _board()["vimshottari"]
+    assert vim["md"]["lord"] == "Saturn"
+    assert vim["ad"]["lord"] == "Venus"
+    prof = vim["md"]["profile"]
+    assert prof["house_from_lagna"] == 6          # Saturn in Gemini from Cap
+    assert set(prof["owns_houses"]) == {1, 2}
+
+
+def test_vim_pd_sd_or_note():
+    board = _board()
+    vim = board["vimshottari"]
+    if HAVE_EPHEMERIS:
+        assert vim["pd"] is not None and vim["sd"] is not None
+        assert vim["pd"]["lord"] in ("Sun", "Moon", "Mars", "Mercury",
+                                     "Jupiter", "Venus", "Saturn", "Rahu", "Ketu")
+    else:
+        # graceful contract: PD/SD None + auditable note
+        assert vim["pd"] is None
+        assert any("PD/SD unavailable" in n for n in board["notes"])
 
 
 # ── whole board ──────────────────────────────────────────────────────────────
 
-def test_board_assembles_without_ephemeris():
-    board = build_whole_board(
-        _chart(), {}, _dashas(), "1990-02-10", "property",
-        current_date=TODAY,
-        dt_positions={"Saturn": S["Aries"], "Jupiter": S["Gemini"],
-                      "Mars": S["Cancer"], "Moon": S["Leo"]},
-    )
+def test_board_assembles_and_serializes():
+    board = _board()
     assert board["generated"]["event"] == "relocation"
     assert board["generated"]["event_houses"] == [4, 3, 12]
-    # all 12 houses visible with lord + occupants (whole-chart rule)
     assert set(board["houses_from_lagna"].keys()) == set(range(1, 13))
     assert board["houses_from_lagna"][4]["event_house"] is True
-    # dasha tree: MD/AD from rows, PD/SD computed
-    assert board["vimshottari"]["md"]["lord"] == "Saturn"
-    assert board["vimshottari"]["ad"]["lord"] == "Venus"
-    assert board["vimshottari"]["pd"]["lord"] in dt.SIGN_LORDS.values() or \
-        board["vimshottari"]["pd"]["lord"] in ("Rahu", "Ketu")
-    assert board["vimshottari"]["sd"] is not None
-    # chara rotated to MD sign Taurus
-    assert board["chara"]["md_sign"]["sign"] == "Taurus"
-    rot = board["chara"]["rotated_houses"]
-    assert rot[1]["sign"] == "Taurus"
-    # Moon in Pisces = 11th from Taurus
-    assert "Moon" in rot[11]["occupants"]
-    # karakas placed in rotated chart with dignity
-    amk = next(k for k in board["chara"]["karakas"] if k["abbr"] == "AmK")
-    assert amk["house_from_md_lagna"] is not None and amk["dignity"]
-    # varshphal gate present with per-planet moves
-    assert "annual_moves" in board["varshphal"]
-    assert isinstance(board["varshphal"]["gate_open"], bool)
-    # DT present with verdict
     assert board["double_transit"]["classical_verdict"] in ("fires", "likely", "weak", "none")
-    # promise vs trigger mechanical rule stated
     pvt = board["promise_vs_trigger"]
     assert set(pvt) >= {"dasha_promise", "dt_trigger", "varshphal_gate_open", "rule"}
-    # JSON-serializable
+    assert "annual_moves" in board["varshphal"]
     import json
     json.dumps(board)
 
 
-def test_board_md_lord_profile_reads_whole_chart():
-    board = build_whole_board(
-        _chart(), {}, _dashas(), "1990-02-10", "finance",
-        current_date=TODAY,
-        dt_positions={"Saturn": 0, "Jupiter": 4, "Mars": 2, "Moon": 6},
-    )
-    prof = board["vimshottari"]["md"]["profile"]
-    # Saturn in Gemini = house 6 from Capricorn; owns 1 (Cap) and 2 (Aqu)
-    assert prof["house_from_lagna"] == 6
-    assert set(prof["owns_houses"]) == {1, 2}
-    assert "dusthana" in prof["house_tags"] or "upachaya" in prof["house_tags"]
+def test_scope_notes_recorded():
+    notes = " | ".join(_board(concern="health")["notes"])
+    assert "D30" in notes                 # simplified Trimshamsha flagged
+    assert "lower-confidence" in notes    # health flagged
+    assert "MEAN_NODE" in notes           # node discrepancy on record
 
 
 def test_concern_alias_covers_detect_concern_vocab():
@@ -271,3 +295,21 @@ def test_event_map_matches_spec_table():
     assert EVENT_MAP["health"]["houses"] == [1, 6, 8]
     assert EVENT_MAP["litigation"]["houses"] == [6, 8, 12]
     assert EVENT_MAP["relocation"]["houses"] == [4, 3, 12]
+
+
+# ── yoga key-casing fix (swept into Phase 1) ─────────────────────────────────
+
+def test_yoga_detector_receives_both_key_cases():
+    from antar_engine.yoga_engine import detect_yogas_for_question, DOMAIN_DETECTORS
+    seen = {}
+
+    def spy(chart_data, d_charts):
+        seen["keys"] = set(d_charts.keys())
+        return []
+
+    DOMAIN_DETECTORS["_spy_"] = spy
+    try:
+        detect_yogas_for_question("_spy_", _chart(), {"d2": {"x": 1}, "d9": {}})
+    finally:
+        del DOMAIN_DETECTORS["_spy_"]
+    assert {"d2", "D2", "d9", "D9"} <= seen["keys"]

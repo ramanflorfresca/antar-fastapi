@@ -767,4 +767,14 @@ def detect_yogas_for_question(
     detector = DOMAIN_DETECTORS.get(domain)
     if not detector:
         return []
+    # Key-casing fix (2026-06-05): get_all_d_charts returns lowercase keys
+    # ("d9") while detectors read uppercase ("D9") — callers passing the
+    # calculator output directly got silently partial detection. Provide
+    # both cases so either read style works.
+    if isinstance(d_charts, dict):
+        _normalized = dict(d_charts)
+        for _k, _v in list(d_charts.items()):
+            _normalized.setdefault(_k.upper(), _v)
+            _normalized.setdefault(_k.lower(), _v)
+        d_charts = _normalized
     return detector(chart_data, d_charts)

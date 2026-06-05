@@ -1,32 +1,42 @@
 """
 antar_engine/event_evidence.py — whole-board deterministic evidence block.
 
-Event Prediction Engine v2, build-order step 2/4 (2026-06-05).
+Event Prediction Engine v2, PHASE 1 (founder rulings 2026-06-05).
 
 Python computes the WHOLE board as facts — dasha tree (MD-AD-PD-SD), chara
 MD-sign-as-lagna rotation + karakas, divisionals, yogas, varshphal gate,
 LK sleeping planets, and the full TRANSIT STATE incl. Double Transit.
-NO verdicts, NO timing synthesis, NO prose — the LLM does the combination
-reading downstream (build-order step 3). The chart is read whole: every
-house's lord + occupants stay visible, never one domain in isolation.
+NO verdicts, NO timing synthesis — the LLM does the combination reading
+downstream (Phase 2). The chart is read whole: every house's lord +
+occupants stay visible, never one domain in isolation.
 
-Reuses (never re-implements):
-  d_charts_calculator  — divisionals + dignity + house lords
-  vimsottari constants — sequence/years for PD/SD subdivision
-  varshaphal_table     — annual house movement
-  lk_trigger           — sleeping predicate (Definition 3 RCJ-1952)
-  yoga_engine          — mechanical yoga detectors
-  double_transit       — DT geometry (new, same sprint)
+ENGINE CONSOLIDATION (founder rulings, Phase 0 → Phase 1):
+  * Vimshottari MD-AD-PD-SD: vimsottari.calculate_vimsottari_from_chart +
+    phase_analyzer's _find_current_period/_compute_pratyantardashas/
+    _compute_sookshma_dashas — the ONLY subdivision implementation in the
+    codebase. Fallback to subdividing the current AD *row* with the same
+    phase_analyzer helpers ONLY when chart_data.birth_jd is missing.
+  * Chara + karakas + moving-lagna: jaimini_engine ONLY
+    (build_jaimini_context via calculate_jaimini_analysis). jaimini.py and
+    karakas.py are DEPRECATED for the evidence path — never read here.
+  * KARAKAS: 7-scheme, ranked by degree-in-sign desc (jaimini_engine basis).
+    8-karaka/Rahu explicitly ruled OUT.
+  * STALENESS: chara MD/AD computed LIVE at target date; the
+    jaimini_data JSONB current_md/current_ad snapshot is NEVER read (rots).
+    DB dasha_periods chara rows are cross-checked (db_md_agrees fact) but
+    not authoritative — they come from the deprecated jaimini.py engine,
+    whose sequence-direction/lordship rules differ for some lagnas.
 
-KNOWN DIVERGENCES (flagged, not silently chosen):
-  * karakas here rank by DEGREE-WITHIN-SIGN descending (classical / KN Rao);
-    karakas.py ranks by absolute longitude — different results possible.
-    Board carries ranking_basis so the discrepancy is auditable.
-  * D11 uses d_charts_calculator's generic fallback mapping (no dedicated
-    Rudramsa/Labhamsa rule in the calculator yet) — noted in board.notes.
-  * yoga_engine detectors read d_charts with UPPERCASE keys ("D2") while
-    get_all_d_charts returns lowercase ("d2") — callers that pass lowercase
-    get silent partial detection. This module passes BOTH key cases.
+Reuses confirmed-good infra: d_charts_calculator (divisionals + dignity),
+varshaphal_table, lk_trigger.is_sleeping, yoga_engine (key casing fixed in
+this sprint), double_transit (Lahiri, consistent with natal).
+
+SCOPE NOTES carried as board facts (recorded, not fixed — founder ruling):
+  * D30 is a simplified odd/even mapping (not classical unequal-degree
+    Trimshamsha) and D11 uses the generic divisional fallback → health
+    questions flagged lower-confidence on the board.
+  * lk_trigger uses MEAN_NODE for Rahu vs transits.py TRUE_NODE — on record;
+    irrelevant to Sat/Jup double transit.
 
 Internal module: planet/house names here never reach the frontend directly
 (output_strips owns user-facing text).
@@ -43,14 +53,9 @@ from antar_engine.d_charts_calculator import (
     SIGNS, SIGN_INDEX, SIGN_LORDS,
     get_all_d_charts, get_d1_from_chart_data, _planet_strength,
 )
-from antar_engine import constants
 from antar_engine import double_transit as dt
 
 logger = logging.getLogger(__name__)
-
-VIM_SEQUENCE = constants.VIMSOTTARI_SEQUENCE
-VIM_YEARS = constants.VIMSOTTARI_YEARS
-KARAKA_NAMES = constants.KARAKA_NAMES   # 1=Atmakaraka … 7=Darakaraka
 
 # ── Event map (spec table, v2 FINAL) ────────────────────────────────────────
 # houses are read from the relevant lagna; funding is multi-house BY DESIGN —
@@ -62,7 +67,10 @@ EVENT_MAP = {
                    "extra_dt_planets": ["Venus"]},
     "career":     {"houses": [10, 6, 11],   "divisions": [10, 9],
                    "extra_dt_planets": ["AmK"]},   # resolved at runtime
-    "health":     {"houses": [1, 6, 8],     "divisions": [1, 30]},
+    "health":     {"houses": [1, 6, 8],     "divisions": [1, 30],
+                   "low_confidence": "D30 simplified + D11 generic mapping — "
+                                     "health divisional evidence is "
+                                     "lower-confidence (founder scope note)"},
     "litigation": {"houses": [6, 8, 12],    "divisions": [1]},
     "general":    {"houses": [10, 11, 2],   "divisions": [10, 9]},
 }
@@ -160,34 +168,12 @@ def _house_tags(h: int) -> list[str]:
 
 
 def _iso(d) -> Optional[str]:
-    return d.isoformat() if isinstance(d, (date, datetime)) else None
+    if isinstance(d, datetime):
+        return d.date().isoformat()
+    return d.isoformat() if isinstance(d, date) else None
 
 
-# ── Vimshottari tree: MD-AD from rows, PD-SD computed proportionally ────────
-
-def _sub_periods(parent_lord: str, start: date, end: date) -> list[dict]:
-    """Subdivide a period into its 9 sub-periods (sequence starts from the
-    parent lord; each sub-lord's share = VIM_YEARS[lord]/120 of the span)."""
-    if not (parent_lord in VIM_SEQUENCE and start and end and end > start):
-        return []
-    span = (end - start).total_seconds()
-    out, cursor = [], datetime.combine(start, datetime.min.time())
-    idx = VIM_SEQUENCE.index(parent_lord)
-    for i in range(9):
-        lord = VIM_SEQUENCE[(idx + i) % 9]
-        sub_end = cursor + timedelta(seconds=span * VIM_YEARS[lord] / 120.0)
-        out.append({"lord": lord, "start": cursor.date(), "end": sub_end.date()})
-        cursor = sub_end
-    out[-1]["end"] = end   # absorb rounding
-    return out
-
-
-def _containing(periods: list[dict], today: date) -> Optional[dict]:
-    for p in periods:
-        if p["start"] <= today < p["end"]:
-            return p
-    return None
-
+# ── Vimshottari tree: phase_analyzer implementations ONLY ───────────────────
 
 def _lord_profile(planet: str, chart_data: dict, lagna_idx: int) -> dict:
     """Where he sits, whom he sits with, what he owns (reading step 2)."""
@@ -208,14 +194,91 @@ def _lord_profile(planet: str, chart_data: dict, lagna_idx: int) -> dict:
     }
 
 
-def _vimshottari_block(dashas, chart_data, lagna_idx, event_houses, today) -> dict:
+def _period_out(p: Optional[dict]) -> Optional[dict]:
+    if not p:
+        return None
+    return {"lord": p["lord"], "start": _iso(p["start_datetime"]),
+            "end": _iso(p["end_datetime"])}
+
+
+def _vim_tree_live(chart_data: dict, birth_jd: float, now: datetime) -> Optional[dict]:
+    """MD-AD-PD-SD via vimsottari + phase_analyzer helpers (the one true
+    subdivision implementation). Returns None if the chain is unavailable."""
+    try:
+        from antar_engine import vimsottari
+        from antar_engine.life_arc.phase_analyzer import (
+            _find_current_period, _compute_pratyantardashas,
+            _compute_sookshma_dashas,
+        )
+    except Exception as e:
+        logger.warning("[evidence] phase_analyzer chain unavailable: %s", e)
+        return None
+    try:
+        result = vimsottari.calculate_vimsottari_from_chart(chart_data, birth_jd)
+        mds, ads = result["mahadashas"], result["antardashas"]
+        cur_md = _find_current_period(mds, now)
+        if not cur_md:
+            return None
+        md_ads = [a for a in ads if a.get("parent_lord") == cur_md["lord"]
+                  and a["start_datetime"] >= cur_md["start_datetime"]
+                  and a["end_datetime"] <= cur_md["end_datetime"] + timedelta(seconds=1)]
+        cur_ad = _find_current_period(md_ads, now)
+        cur_pd = cur_sd = None
+        upcoming_pds = []
+        if cur_ad:
+            pds = _compute_pratyantardashas(cur_ad)
+            cur_pd = _find_current_period(pds, now)
+            upcoming_pds = [p for p in pds if p["start_datetime"] >= now][:4]
+            if cur_pd:
+                sds = _compute_sookshma_dashas(cur_pd)
+                cur_sd = _find_current_period(sds, now)
+        return {"md": cur_md, "ad": cur_ad, "pd": cur_pd, "sd": cur_sd,
+                "upcoming_pds": upcoming_pds, "source": "phase_analyzer"}
+    except Exception as e:
+        logger.warning("[evidence] live vim tree failed: %s", e)
+        return None
+
+
+def _vim_tree_from_rows(dashas: dict, today: date) -> Optional[dict]:
+    """Fallback (birth_jd missing): MD/AD from dasha_periods rows; PD/SD by
+    subdividing the AD row with phase_analyzer's helpers — no new math."""
     md_row = _current_row(dashas, "vimsottari", ("mahadasha", "1"), today)
     ad_row = _current_row(dashas, "vimsottari", ("antardasha", "antar", "2"), today)
+    if not md_row:
+        return None
 
-    block: dict = {"md": None, "ad": None, "pd": None, "sd": None,
-                   "promise": {"md_connects": False, "ad_connects": False, "how": []}}
+    def _row_period(r):
+        s, e = _win(r)
+        if not (s and e):
+            return None
+        return {"lord": _lord(r),
+                "start_datetime": datetime.combine(s, datetime.min.time()),
+                "end_datetime": datetime.combine(e, datetime.min.time())}
 
+    now = datetime.combine(today, datetime.min.time()) + timedelta(hours=12)
+    out = {"md": _row_period(md_row), "ad": _row_period(ad_row),
+           "pd": None, "sd": None, "upcoming_pds": [],
+           "source": "dasha_periods rows (birth_jd missing)"}
+    if out["ad"]:
+        try:
+            from antar_engine.life_arc.phase_analyzer import (
+                _find_current_period, _compute_pratyantardashas,
+                _compute_sookshma_dashas,
+            )
+            pds = _compute_pratyantardashas(out["ad"])
+            out["pd"] = _find_current_period(pds, now)
+            out["upcoming_pds"] = [p for p in pds if p["start_datetime"] >= now][:4]
+            if out["pd"]:
+                sds = _compute_sookshma_dashas(out["pd"])
+                out["sd"] = _find_current_period(sds, now)
+        except Exception as e:
+            logger.warning("[evidence] row-fallback PD/SD unavailable: %s", e)
+    return out
+
+
+def _vimshottari_block(dashas, chart_data, lagna_idx, event_houses, today) -> dict:
     planets = (chart_data or {}).get("planets") or {}
+    now = datetime.combine(today, datetime.min.time()) + timedelta(hours=12)
 
     def _connects(p: str) -> list[str]:
         how = []
@@ -228,117 +291,142 @@ def _vimshottari_block(dashas, chart_data, lagna_idx, event_houses, today) -> di
             how.append(f"{p} occupies house {(planets.get(p) or {}).get('house')}")
         return how
 
-    if md_row:
-        s, e = _win(md_row)
-        lord = _lord(md_row)
-        block["md"] = {"lord": lord, "start": _iso(s), "end": _iso(e),
-                       "profile": _lord_profile(lord, chart_data, lagna_idx)}
-        how = _connects(lord)
-        if how:
-            block["promise"]["md_connects"] = True
-            block["promise"]["how"] += how
+    birth_jd = (chart_data or {}).get("birth_jd")
+    tree = _vim_tree_live(chart_data, birth_jd, now) if birth_jd else None
+    if tree is None:
+        tree = _vim_tree_from_rows(dashas, today)
 
-    if ad_row:
-        s, e = _win(ad_row)
-        lord = _lord(ad_row)
-        block["ad"] = {"lord": lord, "start": _iso(s), "end": _iso(e),
-                       "profile": _lord_profile(lord, chart_data, lagna_idx)}
-        how = _connects(lord)
-        if how:
-            block["promise"]["ad_connects"] = True
-            block["promise"]["how"] += [f"AD: {h}" for h in how]
+    block: dict = {"md": None, "ad": None, "pd": None, "sd": None,
+                   "source": (tree or {}).get("source", "unavailable"),
+                   "promise": {"md_connects": False, "ad_connects": False, "how": []}}
+    if not tree:
+        return block
 
-        # PD inside the current AD, SD inside the current PD — computed here
-        # (dasha_periods stores MD/AD only).
-        pds = _sub_periods(lord, s, e)
-        cur_pd = _containing(pds, today)
-        if cur_pd:
-            block["pd"] = {
-                "lord": cur_pd["lord"],
-                "start": _iso(cur_pd["start"]), "end": _iso(cur_pd["end"]),
-                "connects_event": bool(_connects(cur_pd["lord"])),
-                "upcoming": [{"lord": p["lord"], "start": _iso(p["start"]),
-                              "end": _iso(p["end"]),
-                              "connects_event": bool(_connects(p["lord"]))}
-                             for p in pds if p["start"] >= today][:4],
-            }
-            sds = _sub_periods(cur_pd["lord"], cur_pd["start"], cur_pd["end"])
-            cur_sd = _containing(sds, today)
-            if cur_sd:
-                block["sd"] = {"lord": cur_sd["lord"],
-                               "start": _iso(cur_sd["start"]),
-                               "end": _iso(cur_sd["end"])}
+    for key in ("md", "ad"):
+        p = tree.get(key)
+        if p:
+            block[key] = _period_out(p)
+            block[key]["profile"] = _lord_profile(p["lord"], chart_data, lagna_idx)
+            how = _connects(p["lord"])
+            if how:
+                block["promise"][f"{key}_connects"] = True
+                prefix = "" if key == "md" else "AD: "
+                block["promise"]["how"] += [prefix + h for h in how]
+
+    if tree.get("pd"):
+        block["pd"] = _period_out(tree["pd"])
+        block["pd"]["connects_event"] = bool(_connects(tree["pd"]["lord"]))
+        block["pd"]["upcoming"] = [
+            {**_period_out(p), "connects_event": bool(_connects(p["lord"]))}
+            for p in tree.get("upcoming_pds", [])
+        ]
+    block["sd"] = _period_out(tree.get("sd"))
+
+    # cross-check: does the DB MD row agree with the live tree? (PD coverage
+    # in dasha_periods is known-inconsistent — this is the auditable fact)
+    md_row = _current_row(dashas, "vimsottari", ("mahadasha", "1"), today)
+    if md_row and block["md"]:
+        block["db_md_agrees"] = (_lord(md_row) == block["md"]["lord"])
     return block
 
 
-# ── Chara: MD sign as lagna, karakas in the rotated chart ───────────────────
+# ── Chara: jaimini_engine ONLY (live, never the JSONB snapshot) ─────────────
 
-def _karakas_by_degree_in_sign(planets: dict) -> list[dict]:
-    """Classical chara karakas: 7 planets ranked by degree-within-sign DESC.
-    (karakas.py ranks by absolute longitude — divergence flagged on the board.)"""
-    ranked = []
-    for p in ("Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn"):
-        d = planets.get(p) or {}
-        lng = d.get("longitude")
-        deg = (float(lng) % 30.0) if lng is not None else d.get("degree")
-        if deg is None:
-            continue
-        ranked.append((p, float(deg), d.get("sign", "")))
-    ranked.sort(key=lambda x: x[1], reverse=True)
-    return [{"rank": i + 1, "name": KARAKA_NAMES.get(i + 1, f"Karaka {i+1}"),
-             "planet": p, "degree_in_sign": round(deg, 2), "sign": sign}
-            for i, (p, deg, sign) in enumerate(ranked)]
+_KARAKA_TAGS = {"AK": "Atmakaraka", "AmK": "Amatyakaraka", "BK": "Bhratrukaraka",
+                "MK": "Matrukaraka", "PK": "Putrakaraka", "GK": "Gnatikaraka",
+                "DK": "Darakaraka"}
 
 
-_KARAKA_ABBR = {"Atmakaraka": "AK", "Amatyakaraka": "AmK", "Bhratrukaraka": "BK",
-                "Matrukaraka": "MK", "Putrakaraka": "PK", "Gnatikaraka": "GK",
-                "Darakaraka": "DK"}
-
-
-def _chara_block(dashas, chart_data, today) -> dict:
+def _chara_block(dashas, chart_data, birth_date, today) -> dict:
+    """Chara MD/AD + 7 karakas + rotations, computed LIVE at `today` via
+    jaimini_engine (founder ruling: jaimini.py / karakas.py deprecated here;
+    jaimini_data JSONB current_md/current_ad never read — staleness rule)."""
     planets = (chart_data or {}).get("planets") or {}
-    md_row = _current_row(dashas, "jaimini", ("mahadasha", "1"), today)
-    ad_row = _current_row(dashas, "jaimini", ("antardasha", "antar", "2"), today)
-
     block: dict = {"md_sign": None, "ad_sign": None, "rotated_houses": None,
-                   "karakas": [],
-                   "ranking_basis": "degree-in-sign desc (classical; "
-                                    "karakas.py uses absolute longitude)"}
-    if md_row:
-        s, e = _win(md_row)
-        sign = _lord(md_row)
-        if sign in SIGN_INDEX:
-            block["md_sign"] = {"sign": sign, "start": _iso(s), "end": _iso(e)}
-            md_idx = SIGN_INDEX[sign]
+                   "karakas": [], "source": "jaimini_engine live",
+                   "ranking_basis": "degree-in-sign desc, 7-scheme (founder ruling)"}
+    born = _parse_d(birth_date)
+    if not (born and planets):
+        block["error"] = "birth_date or planets missing"
+        return block
 
-            # every house from MD-lagna: lord + occupants (cross-connections
-            # must stay visible — whole-chart rule)
-            rotated = {}
-            occ: dict[int, list[str]] = {}
-            for p in planets:
-                si = _planet_sign_idx(planets, p)
-                if si is not None:
-                    occ.setdefault((si - md_idx) % 12 + 1, []).append(p)
-            for h in range(1, 13):
-                hsign = SIGNS[(md_idx + h - 1) % 12]
-                rotated[h] = {"sign": hsign, "lord": SIGN_LORDS[hsign],
-                              "occupants": occ.get(h, []),
-                              "tags": _house_tags(h)}
-            block["rotated_houses"] = rotated
+    try:
+        from antar_engine.jaimini_engine import calculate_jaimini_analysis
+        lagna_idx = _lagna_idx(chart_data)
+        # D9 dict for karakamsa — from the same divisional calculator the
+        # rest of the board uses (sign index is all jaimini_engine needs).
+        d9_for_karakamsa = {}
+        try:
+            from antar_engine.d_charts_calculator import get_d_chart
+            d9_for_karakamsa = {p: {"sign": v["sign_index"]}
+                                for p, v in get_d_chart(chart_data, 9).items()
+                                if p != "Lagna"}
+        except Exception:
+            pass
+        ctx = calculate_jaimini_analysis(
+            lagna_sign=lagna_idx,
+            planets_dict=planets,
+            d9_planets_dict=d9_for_karakamsa,
+            birth_date_str=born.isoformat(),
+            target_date_str=today.isoformat(),
+        )["context"]
+    except Exception as e:
+        logger.warning("[evidence] jaimini_engine failed: %s", e)
+        block["error"] = f"jaimini_engine unavailable: {e}"
+        return block
 
-            # all chara karakas placed in the rotated chart
-            for k in _karakas_by_degree_in_sign(planets):
-                si = _planet_sign_idx(planets, k["planet"])
-                house_from_md = ((si - md_idx) % 12 + 1) if si is not None else None
-                k["abbr"] = _KARAKA_ABBR.get(k["name"], k["name"][:3])
-                k["house_from_md_lagna"] = house_from_md
-                k["dignity"] = _planet_strength(k["planet"], k["sign"])
-                k["house_tags"] = _house_tags(house_from_md) if house_from_md else []
-                block["karakas"].append(k)
+    if ctx.current_md:
+        md = ctx.current_md
+        block["md_sign"] = {"sign": md.sign_name, "start": _iso(md.start_date),
+                            "end": _iso(md.end_date), "lord": md.lord,
+                            "direction": md.direction}
+        md_idx = md.sign
 
-    if ad_row:
-        s, e = _win(ad_row)
-        block["ad_sign"] = {"sign": _lord(ad_row), "start": _iso(s), "end": _iso(e)}
+        # every house from MD-lagna: lord + occupants (cross-connections
+        # must stay visible — whole-chart rule)
+        rotated, occ = {}, {}
+        for p in planets:
+            si = _planet_sign_idx(planets, p)
+            if si is not None:
+                occ.setdefault((si - md_idx) % 12 + 1, []).append(p)
+        for h in range(1, 13):
+            hsign = SIGNS[(md_idx + h - 1) % 12]
+            rotated[h] = {"sign": hsign, "lord": SIGN_LORDS[hsign],
+                          "occupants": occ.get(h, []), "tags": _house_tags(h)}
+        block["rotated_houses"] = rotated
+
+        # all 7 karakas placed in the MD-rotated chart
+        for k in ctx.karakas:
+            house_from_md = (k.sign - md_idx) % 12 + 1
+            block["karakas"].append({
+                "abbr": k.karaka, "name": _KARAKA_TAGS.get(k.karaka, k.karaka),
+                "planet": k.planet, "sign": SIGNS[k.sign],
+                "degree_in_sign": round(k.degree_in_sign, 2),
+                "house_from_md_lagna": house_from_md,
+                "dignity": _planet_strength(k.planet, SIGNS[k.sign]),
+                "house_tags": _house_tags(house_from_md),
+            })
+
+    if ctx.current_ad:
+        ad = ctx.current_ad
+        block["ad_sign"] = {"sign": ad.sign_name, "start": _iso(ad.start_date),
+                            "end": _iso(ad.end_date), "lord": ad.lord}
+
+    # jaimini_engine's own moving-lagna read (rotates to the ACTIVE sign —
+    # AD if running, else MD) + the supporting structures.
+    block["moving_lagna"] = ctx.moving_lagna_analysis or {}
+    block["arudha_lagna"] = {"sign": ctx.arudha_lagna.sign_name}
+    block["upapada_lagna"] = {"sign": ctx.upapada_lagna.sign_name}
+    block["karakamsa"] = {"sign": ctx.karakamsa_sign_name}
+    block["rashi_drishti_from_md"] = [SIGNS[s] for s in (ctx.rashi_drishti_from_md or [])]
+    block["rashi_drishti_from_ad"] = [SIGNS[s] for s in (ctx.rashi_drishti_from_ad or [])]
+
+    # cross-check vs DB rows (deprecated jaimini.py engine wrote them;
+    # sequence-direction/lordship rules differ for some lagnas — auditable)
+    md_row = _current_row(dashas, "jaimini", ("mahadasha", "1"), today)
+    if md_row and block["md_sign"]:
+        block["db_md_agrees"] = (_lord(md_row) == block["md_sign"]["sign"])
+        block["db_md_row_sign"] = _lord(md_row)
     return block
 
 
@@ -399,16 +487,16 @@ def build_whole_board(chart_data: dict, jaimini_data, dashas: dict,
                       inception: Optional[dict] = None,
                       dt_horizon_months: int = 24,
                       dt_positions: Optional[dict] = None) -> dict:
-    # dt_positions ({planet: sign_idx}) overrides the ephemeris for the DT
-    # layer (tests / pre-computed transit state); window scans are skipped
-    # when it is supplied since they need the real ephemeris.
     """
     Assemble the deterministic whole-board evidence block for one chart and
     one concern. Pure facts; JSON-serializable; no verdict, no window choice.
+    `jaimini_data` is accepted for API compatibility but NEVER read for
+    current periods (staleness rule). `dt_positions` ({planet: sign_idx})
+    overrides the ephemeris for the DT layer (tests / pre-computed state);
+    window scans are skipped when supplied.
     """
     today = current_date or date.today()
     chart_data = _safe_json(chart_data)
-    jaimini_data = _safe_json(jaimini_data)
     planets = chart_data.get("planets") or {}
     notes: list[str] = []
 
@@ -417,6 +505,11 @@ def build_whole_board(chart_data: dict, jaimini_data, dashas: dict,
     event_houses = spec["houses"]
     lagna_idx = _lagna_idx(chart_data)
 
+    if spec.get("low_confidence"):
+        notes.append(spec["low_confidence"])
+    notes.append("lk_trigger Rahu=MEAN_NODE vs transits TRUE_NODE — on record, "
+                 "no DT impact (founder scope note)")
+
     # ── divisionals: event vargas + D9 alongside everything (strength-test)
     divisions = sorted({d for d in spec["divisions"] if d != 1} | {9})
     d_charts = get_all_d_charts(chart_data, divisions) if planets else {}
@@ -424,6 +517,9 @@ def build_whole_board(chart_data: dict, jaimini_data, dashas: dict,
     if 11 in divisions:
         notes.append("D11 uses the calculator's generic divisional mapping "
                      "(no dedicated Labhamsa rule yet)")
+    if 30 in divisions:
+        notes.append("D30 uses the calculator's simplified odd/even mapping "
+                     "(not classical unequal-degree Trimshamsha)")
 
     divisional_out = {}
     for key, chart in d_charts.items():
@@ -451,20 +547,21 @@ def build_whole_board(chart_data: dict, jaimini_data, dashas: dict,
             "event_house": h in event_houses,
         }
 
-    # ── dasha tree (Vimshottari MD-AD-PD-SD)
+    # ── dasha tree (Vimshottari MD-AD-PD-SD via phase_analyzer chain)
     vim = _vimshottari_block(dashas, chart_data, lagna_idx, event_houses, today)
+    if vim.get("pd") is None and vim.get("md") is not None:
+        notes.append("PD/SD unavailable for this chart "
+                     f"(tree source: {vim.get('source')})")
 
-    # ── chara: MD-sign-as-lagna + karakas
-    chara = _chara_block(dashas, chart_data, today)
+    # ── chara: jaimini_engine live (MD-sign-as-lagna + karakas)
+    chara = _chara_block(dashas, chart_data, birth_date, today)
 
-    # ── yogas (mechanical detectors; pass BOTH key cases — see header note)
+    # ── yogas (mechanical detectors; key casing fixed in yoga_engine)
     yogas_out = []
     try:
         from antar_engine.yoga_engine import detect_yogas_for_question
-        d_both = dict(d_charts)
-        d_both.update({k.upper(): v for k, v in d_charts.items()})
         yoga_domain = _YOGA_DOMAIN.get(event, "funding")
-        for y in detect_yogas_for_question(yoga_domain, chart_data, d_both) or []:
+        for y in detect_yogas_for_question(yoga_domain, chart_data, d_charts) or []:
             if y.get("present"):
                 yogas_out.append({k: y.get(k) for k in
                                   ("name", "strength", "description", "timing_note")})

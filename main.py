@@ -12863,7 +12863,7 @@ async def ask_evidence_debug(request: AskEvidenceRequest, http_request: Request)
 
     try:
         chart_row = supabase.table("charts") \
-            .select("chart_data, jaimini_data, birth_date") \
+            .select("chart_data, jaimini_data, birth_date, chart_type") \
             .eq("id", request.chart_id).single().execute()
     except Exception as _nfe:
         if "PGRST116" in str(_nfe) or "0 rows" in str(_nfe):
@@ -12871,6 +12871,14 @@ async def ask_evidence_debug(request: AskEvidenceRequest, http_request: Request)
         raise
     if not chart_row.data:
         return JSONResponse(status_code=404, content={"error": "Chart not found"})
+
+    # Founder ruling 2026-06-05: event prediction is primary-chart only.
+    # Compat charts lack jaimini dasha rows (no backfill planned now).
+    if str(chart_row.data.get("chart_type") or "").lower() == "compatibility":
+        return JSONResponse(status_code=422, content={
+            "error": "event prediction is primary-chart only",
+            "code": "COMPAT_CHART_EXCLUDED",
+        })
 
     chart_data = _safe_jsonb(chart_row.data.get("chart_data"))
     jaimini_data = _safe_jsonb(chart_row.data.get("jaimini_data"))
