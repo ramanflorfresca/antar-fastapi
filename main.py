@@ -13006,7 +13006,15 @@ async def ask_endpoint(request: AskRequest):
                 logger.warning(f"[ask] consultation path failed (non-fatal): {_dqe}")
 
             if _ask_decision:
+                # [narrator-hardbind 2026-06-05b] Same tense discipline as the
+                # yesno path: an ACTIVE window must be narrated as open NOW,
+                # never as a future "opens..." (live bug: Jun 2026 window
+                # narrated as "not this year" on 2026-06-05).
+                _ex_state, _ex_state_hint = _timing_state(
+                    _ask_conv.get("window_start"), _ask_conv.get("window_end"))
                 _sys = (
+                    f"Today is {datetime.now(timezone.utc).date().isoformat()}. "
+                    f"Timing window state: {_ex_state}. {_ex_state_hint} "
                     "You are Antar, a grounded life coach. The user asked a timing/decision "
                     "question. Using ONLY the consultation facts and chart context below, "
                     "reply with STRICT JSON only: "

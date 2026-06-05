@@ -161,6 +161,9 @@ def _house_lords(lagna_idx) -> dict:
 def _fmt_window(s: Optional[date], e: Optional[date]) -> str:
     if not s or not e:
         return ""
+    # Same-month window: "Jun 2026 – Jun 2026" reads broken — collapse.
+    if (s.year, s.month) == (e.year, e.month):
+        return s.strftime("%b %Y")
     return f"{s.strftime('%b %Y')} – {e.strftime('%b %Y')}"
 
 
