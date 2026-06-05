@@ -651,7 +651,8 @@ def detect_concern(question: str) -> str:
     """
     Map a user question to a canonical concern domain.
     Returns one of: career, finance, marriage, love, divorce, health,
-                    foreign, speculation, loss, wealth, spiritual, general
+                    foreign, speculation, loss, wealth, spiritual, general,
+                    property (residence/local-move keyword bridge 2026-06-05)
     Order matters — more specific matches before general ones.
 
     BUSINESS-CONTEXT OVERRIDE: when business/finance keywords co-occur
@@ -660,6 +661,34 @@ def detect_concern(question: str) -> str:
     "money, energy, relationships drained" from triggering love.
     """
     q = question.lower()
+
+    # ── Residence / local move → property (keyword bridge 2026-06-05) ──
+    # Home, rent, and local-relocation questions must reach the 4th-house
+    # domain ("property" — already wired in CONCERN_HOUSES, CONCERN_KARAKAS
+    # and the pre-scan DOMAIN_VOCABULARY) instead of falling into foreign
+    # (12/9), wealth (2/11) or speculation ("should i buy"). Checked FIRST;
+    # explicit abroad markers still defer to the foreign block below.
+    # Multi-word tokens avoid substring traps ("current"→rent, "please"→lease).
+    _abroad_markers = ["abroad","overseas","foreign","another country",
+                       "other country","visa","immigrat","leave india",
+                       "leave the country","leave country","extranjero",
+                       "otro país","otro pais","internacional","exterior",
+                       "settle in","study in","work in"]
+    residence_words = ["renting","rent a ","rent an ","pay rent","my rent",
+                       "the rent","rent or buy","rental","apartment",
+                       "new home","new house","buy a house","buy a home",
+                       "buy a flat","new flat","my flat","buy property",
+                       "buy land","own a house","own a home","a lease",
+                       "my lease","lease agreement","landlord","tenant",
+                       "move house","moving house","shift house",
+                       "change house","move home","moving home",
+                       "place to live","where should i live","where to live",
+                       "residence","relocat","move cities","moving cities",
+                       "shift cities","change cities","change of city",
+                       "mudarme","mudanza","alquiler","alquilar",
+                       "apartamento","casa nueva","nueva casa","casa propia"]
+    if any(w in q for w in residence_words) and not any(w in q for w in _abroad_markers):
+        return "property"
 
     # ── Speculation / Gambling / Lottery ──────────────────────
     specul_words = ["specul","gambl","lotter","casino","bet ","betting","poker",

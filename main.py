@@ -13064,6 +13064,30 @@ async def ask_endpoint(request: AskRequest):
             except Exception:
                 read_txt = (raw or "").strip()
 
+            # [narrator-hardbind 2026-06-05] Timing fidelity: the model's
+            # prose may not carry any month/year the convergence engine did
+            # not compute. Prompt instructions alone do not enforce this —
+            # Python is the last gate (output_strips philosophy).
+            if _ask_decision:
+                try:
+                    from antar_engine.timing_fidelity import scrub_freelance_dates
+                    _tf_allowed = [_ask_conv.get("window_label"),
+                                   _ask_conv.get("next_window_label")]
+                    read_txt, _tf_rm = scrub_freelance_dates(read_txt, _tf_allowed)
+                    if next_txt:
+                        next_txt, _tf_rm2 = scrub_freelance_dates(next_txt, _tf_allowed)
+                        _tf_rm += _tf_rm2
+                    _tf_actions = []
+                    for _tfa in _ask_actions:
+                        _tfc, _tfr = scrub_freelance_dates(_tfa, _tf_allowed)
+                        _tf_actions.append(_tfc)
+                        _tf_rm += _tfr
+                    _ask_actions = _tf_actions
+                    if _tf_rm:
+                        print(f"[ask] timing-fidelity scrubbed (explore): {_tf_rm}")
+                except Exception as _tfe:
+                    logger.warning(f"[ask] timing fidelity failed (non-fatal): {_tfe}")
+
             _ask_answered = bool(read_txt)
             if not read_txt:
                 read_txt = "I couldn't read a clear signal just now — try asking again in a moment."
@@ -13072,8 +13096,13 @@ async def ask_endpoint(request: AskRequest):
                 _ent_ask_inc(chart_id, supabase)
             payload = {"mode": "explore", "read": read_txt, "next": next_txt, "locked": False}
             if _ask_decision:
-                # Deterministic fields win over model output where we have them
-                payload["verdict"]  = _ask_verdict or ("LIKELY" if _ask_conv.get("convergence_met") else "NOT_YET")
+                # [narrator-hardbind 2026-06-05] Verdict is Python-authoritative:
+                # the convergence result drives; the model's verdict is logged
+                # only and never reaches the client (freelance suppression).
+                _det_verdict = "LIKELY" if _ask_conv.get("convergence_met") else "NOT_YET"
+                if _ask_verdict and _ask_verdict != _det_verdict:
+                    print(f"[ask] verdict-freelance suppressed: model={_ask_verdict} det={_det_verdict}")
+                payload["verdict"]  = _det_verdict
                 payload["timing"]   = _ask_conv.get("window_label")
                 payload["actions"]  = _ask_actions
                 payload["practices"] = _ask_practices
@@ -13230,6 +13259,25 @@ async def ask_endpoint(request: AskRequest):
                 (_yn_conv or {}).get("window_start"),
                 (_yn_conv or {}).get("window_end"),
             )
+            # [narrator-hardbind 2026-06-05] Reconciled internal reasoning:
+            # when the convergence check found no window, the engine's raw
+            # claude_prompt (which carries its own Ithasala timing language)
+            # is NOT injected — the model would see two conflicting timing
+            # sources in one prompt. A compact reconciled summary replaces it.
+            _yn_has_window = bool((_yn_conv or {}).get("convergence_met")
+                                  and (_yn_conv or {}).get("window_label"))
+            if _yn_has_window:
+                _yn_internal = f"Internal reasoning: {(engine_result.get('claude_prompt') or '')[:1200]}"
+            else:
+                _yn_wp = engine_result.get("weakest_planet", {}) or {}
+                _yn_internal = (
+                    "Internal reasoning (reconciled): "
+                    f"domain={engine_result.get('domain')}; verdict={verdict}; "
+                    f"signal={engine_result.get('label')}; "
+                    f"weak point={_yn_wp.get('planet') or 'none'}. "
+                    f"AUTHORITATIVE TIMING: {timing or 'no clear window'} — "
+                    "never state any other date, month, or window."
+                )
             _why_sys = (
                 f"Today is {datetime.now(timezone.utc).date().isoformat()}. "
                 f"Timing window state: {_yn_state}. {_yn_state_hint} "
@@ -13239,7 +13287,7 @@ async def ask_endpoint(request: AskRequest):
                 "actions = 2 or 3 concrete moves, tied to the signals below, that raise the "
                 "odds of a good outcome. No astrology, no planets, houses, signs, nakshatras, "
                 "Sanskrit, numbers, or scores anywhere. JSON only, no code fences. "
-                f"Internal reasoning: {(engine_result.get('claude_prompt') or '')[:1200]}"
+                f"{_yn_internal}"
                 f"\n\n{_yn_conv_block}"
             )
             why = ""
@@ -13266,6 +13314,25 @@ async def ask_endpoint(request: AskRequest):
             if not why:
                 why = ("The timing supports moving ahead." if verdict == "YES"
                        else "The timing does not support this right now.")
+
+            # [narrator-hardbind 2026-06-05] Timing fidelity: why/actions may
+            # not voice any window other than the authoritative `timing`.
+            try:
+                from antar_engine.timing_fidelity import scrub_freelance_dates
+                _tf_allowed = [timing,
+                               (_yn_conv or {}).get("window_label"),
+                               (_yn_conv or {}).get("next_window_label")]
+                why, _tf_rm = scrub_freelance_dates(why, _tf_allowed)
+                _tf_actions = []
+                for _tfa in _yn_actions:
+                    _tfc, _tfr = scrub_freelance_dates(_tfa, _tf_allowed)
+                    _tf_actions.append(_tfc)
+                    _tf_rm += _tfr
+                _yn_actions = _tf_actions
+                if _tf_rm:
+                    print(f"[ask] timing-fidelity scrubbed (yesno): {_tf_rm}")
+            except Exception as _tfe:
+                logger.warning(f"[ask] timing fidelity failed (non-fatal): {_tfe}")
 
             asked_at = cast_ts.isoformat()
             locked_until = (cast_ts + timedelta(hours=ASK_YESNO_COOLDOWN_HOURS)).isoformat()
