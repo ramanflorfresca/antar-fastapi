@@ -22906,12 +22906,17 @@ async def debug_context(chart_id: str, question: str = "What is my career direct
     if not chart_res.data:
         return {"error": "Chart not found"}
     chart_record = chart_res.data[0]
+    _dbg_concern = "general"
+    try:
+        _dbg_concern = _detect_concern(question)
+    except Exception:
+        pass
     ctx = await build_chart_context_json(
         chart_id=chart_id,
-        chart_record=chart_record,
         question=question,
+        concern=_dbg_concern,
         language="en",
-        supabase=supabase
+        supabase=supabase,
     )
     return ctx
 
