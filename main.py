@@ -20381,6 +20381,40 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
 
 
 # ── YEAR + NEEDS-ATTENTION (fourth-horizon Home call) ────────────────────────
+async def _modernize_upaay(planet: str, variant: str, curated: str) -> str:
+    """[upaay-modern] Serve-time LLM modernization of a curated upaay string.
+    Permanent content-keyed cache; ANY failure returns the curated original."""
+    try:
+        if not curated or not isinstance(curated, str):
+            return curated
+        from antar_engine.upaay_narration import (
+            build_modernize_system, parse_and_validate_upaay,
+            upaay_fingerprint, upaay_cache_read, upaay_cache_write,
+        )
+        _key = upaay_fingerprint(planet or "", variant or "", curated)
+        _hit = upaay_cache_read(supabase, _key)
+        if _hit:
+            return _hit
+        _raw, _ = await call_llm_claude(
+            prompt="Write the modernized action JSON now.",
+            system_override=build_modernize_system(curated),
+            max_tokens_override=220,
+        )
+        _action = parse_and_validate_upaay(_raw, curated)
+        if not _action:
+            return curated
+        try:
+            _action = apply_user_facing_strips(
+                _action, language="en", field_type="timing", source="llm")
+        except Exception:
+            pass
+        upaay_cache_write(supabase, _key, _action, planet or "", variant or "")
+        return _action
+    except Exception as _e:
+        print(f"[upaay-modern] non-fatal: {_e}")
+        return curated
+
+
 @app.post("/api/v1/predict/year-attention")
 async def predict_year_attention(request: dict):
     """
@@ -20557,6 +20591,15 @@ async def predict_year_attention(request: dict):
     except Exception as _ae:
         print(f"[year-attention] attention build non-fatal: {_ae}")
         attention = None
+
+    # [upaay-modern] re-voice the curated remedy as a modern action (cached
+    # permanently per content; curated original on any failure).
+    if isinstance(attention, dict) and attention.get("remedy"):
+        try:
+            attention["remedy"] = await _modernize_upaay(
+                attention.get("planet") or "", "primary", attention["remedy"])
+        except Exception as _um_e:
+            print(f"[upaay-modern] year-attention non-fatal: {_um_e}")
 
     payload = {
         "chart_id":     chart_id,
@@ -21039,6 +21082,17 @@ async def get_home(
     except Exception as e:
         print(f"[home] compose error for {chart_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Home composition failed: {e}")
+
+    # [upaay-modern] chain remedies -> modern-action narration (cached
+    # permanently per content; curated original on any failure).
+    try:
+        for _hz_v in (payload.get("horizons") or {}).values():
+            if isinstance(_hz_v, dict) and _hz_v.get("remedy"):
+                _hz_pl = ((_hz_v.get("cause") or {}).get("planet")) or ""
+                _hz_v["remedy"] = await _modernize_upaay(
+                    _hz_pl, "primary", _hz_v["remedy"])
+    except Exception as _um_e:
+        print(f"[upaay-modern] home non-fatal: {_um_e}")
 
     # ── strip any residual jargon (defense-in-depth — composer is English source) ──
     # remedy carries a curated upaay whose weekday must survive -> _strip_home_payload

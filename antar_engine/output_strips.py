@@ -173,6 +173,9 @@ _INSTRUMENT_SUBS_EN: list[tuple[str, str]] = [
 
 # Vedic / Sanskrit softeners — order matters (specific before generic)
 _VEDIC_SUBS_ES: list[tuple[str, str]] = [
+    # [bija-confine] — see EN list.
+    (r'\bcant(?:a|e|ando|ar)\s+(?:om\s+)?(?:lam|vam|ram|yam|ham|aim|ksham)\b', 'canta el sonido semilla'),
+    (r'(?-i:\b(?:LAM|VAM|RAM|YAM|HAM|KSHAM)\b)', ''),
     # [practice-leaks] Ayurveda / remedy vocabulary — compounds before generics.
     (r'\b(?:la\s+)?hora\s+de(?:l)?\s+(?:sol|luna|marte|mercurio|j[u\u00fa]piter|venus|saturno|rahu|ketu)\b', 'su hora de poder'),
     (r'\b(?:the\s+)?(?:sun|moon|mars|mercury|jupiter|venus|saturn|rahu|ketu)\s+hora\b', 'su hora de poder'),
@@ -290,6 +293,12 @@ _VEDIC_SUBS_ES: list[tuple[str, str]] = [
 ]
 
 _VEDIC_SUBS_EN: list[tuple[str, str]] = [
+    # [bija-confine] seed syllables belong ONLY to mantra fields (which the
+    # strip walks skip). Chant-context rewrite + uppercase-only standalone
+    # drop — (?-i:) scopes out the loop's IGNORECASE so English ram/yam/ham
+    # are untouched (Py>=3.11).
+    (r'\bchant(?:ing|ed)?\s+(?:om\s+)?(?:lam|vam|ram|yam|ham|aim|ksham)\b', 'chanting the seed sound'),
+    (r'(?-i:\b(?:LAM|VAM|RAM|YAM|HAM|KSHAM)\b)', ''),
     # [practice-leaks] Ayurveda / remedy vocabulary — compounds before generics.
     (r'\b(?:the\s+)?(?:sun|moon|mars|mercury|jupiter|venus|saturn|rahu|ketu)\s+hora\b', 'its power hour'),
     (r'\b(?:sun|moon|mars|mercury|jupiter|venus|saturn|rahu|ketu)\s+yantra\b', 'practice yantra'),

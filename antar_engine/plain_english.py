@@ -706,6 +706,12 @@ def _strip_jargon(text: str) -> str:
         pattern = re.compile(r'\b' + re.escape(planet) + r'\b', re.IGNORECASE)
         text = pattern.sub(energy, text)
 
+    # Step 2b: [bija-confine] seed syllables are Mantra-piece-only —
+    # narration must never emit them onto breath/button/label text.
+    text = re.sub(r'\bchant(?:ing|ed)?\s+(?:om\s+)?(?:lam|vam|ram|yam|ham|aim|ksham)\b',
+                  'chanting the seed sound', text, flags=re.IGNORECASE)
+    text = re.sub(r'(?-i:\b(?:LAM|VAM|RAM|YAM|HAM|KSHAM)\b)', '', text)
+
     # Step 3: Remove remaining banned Sanskrit terms
     for term in BANNED_TERMS:
         pattern = re.compile(r'\b' + re.escape(term) + r'\b', re.IGNORECASE)
