@@ -6623,6 +6623,27 @@ _PRAC_CHAKRA_LABELS = {
 }
 
 
+_PRAC_NAME_MODIFIERS = frozenset({
+    "gentle", "moderate", "slow", "easy", "supported", "restorative",
+})
+
+
+def _prac_plain_name(name):
+    """Strip a trailing Sanskrit parenthetical from a practice name, keeping
+    English safety modifiers: "Camel Pose (Ustrasana, gentle)" -> "Camel Pose
+    (gentle)"; "Tree Pose (Vrksasana)" -> "Tree Pose"."""
+    import re as _pre
+    if not isinstance(name, str):
+        return name
+    m = _pre.search(r"\s*\(([^)]*)\)\s*$", name)
+    if not m:
+        return name
+    kept = [seg.strip() for seg in m.group(1).split(",")
+            if seg.strip().lower() in _PRAC_NAME_MODIFIERS]
+    base = name[: m.start()].rstrip()
+    return f"{base} ({', '.join(kept)})" if kept else base
+
+
 def _prac_scrub_str(x):
     """Energy-translate one curated-EN prose string. field_type='timing' so
     authored weekdays survive (same rationale as why_this_works); language='en'
@@ -6702,6 +6723,18 @@ def _prac_strip_prose(resp, language):
         for _bk in ("gemstone", "food", "yantra", "daan", "vrat"):
             if isinstance(tp.get(_bk), dict):
                 tp[_bk] = _prac_scrub_block(tp[_bk])
+        # [pose-names] Sanskrit parentheticals off pose/breath/substitute
+        # names (English modifiers survive). Dish names and western-alternate
+        # lineage labels are deliberately untouched.
+        for _nk in ("body", "breath"):
+            _nb = tp.get(_nk)
+            if isinstance(_nb, dict) and isinstance(_nb.get("name"), str):
+                _nb["name"] = _prac_plain_name(_nb["name"])
+        _png = tp.get("gemstone")
+        if isinstance(_png, dict):
+            for _sub in _png.get("substitutes") or []:
+                if isinstance(_sub, dict) and isinstance(_sub.get("name"), str):
+                    _sub["name"] = _prac_plain_name(_sub["name"])
     return resp
 
 
