@@ -1279,6 +1279,10 @@ class DailyPracticeRequest(BaseModel):
     chart_id: str
     language: str = "en"
     tz_offset: Optional[int] = None   # minutes from UTC (e.g. -300 = UTC-5)
+    # [practice-leaks] chart_food duplicated today_priority.food on this
+    # surface. today_priority.food is the source of truth; chart_food is
+    # opt-in for chart-level surfaces.
+    include_chart_food: bool = False
 
 
 class DailyPracticeCompleteRequest(BaseModel):
@@ -6591,6 +6595,81 @@ def _prac_local_date(tz_offset):
     return now.date()
 
 
+# [practice-leaks] ── remedy-block scrub ─────────────────────────────────────
+# Structural / machine keys never scrubbed (selectors, hex, urls, canonical
+# names: localized stone names, dish names, "Surya Yantra", mantras).
+_PRAC_SCRUB_SKIP_KEYS = frozenset({
+    "planet", "scope", "color_hex", "risk_level", "audio_url", "tone_hz",
+    "cache_key", "language", "region", "weekday_anchor", "period_modifier",
+    "derivation_layers", "mantra", "name",
+})
+# Raw Sanskrit display fields — dropped from the payload entirely.
+_PRAC_DROP_KEYS = frozenset({"sanskrit"})
+# Deterministic planet -> energy-word for western_alternates[].name
+# ("Jupiter sigil (Hermetic)" -> "Growth sigil (Hermetic)").
+_PRAC_SIGIL_WORD = {
+    "Sun": "Vitality", "Moon": "Calm", "Mars": "Drive", "Mercury": "Clarity",
+    "Jupiter": "Growth", "Venus": "Harmony", "Saturn": "Discipline",
+    "Rahu": "Ambition", "Ketu": "Release",
+}
+_PRAC_CHAKRA_LABELS = {
+    "root":         {"en": "Root \u2014 stability & ground",      "es": "Ra\u00edz \u2014 estabilidad y arraigo",      "pt": "Raiz \u2014 estabilidade e enraizamento"},
+    "sacral":       {"en": "Sacral \u2014 feeling & flow",        "es": "Sacro \u2014 emoci\u00f3n y fluidez",         "pt": "Sacral \u2014 emo\u00e7\u00e3o e fluidez"},
+    "solar_plexus": {"en": "Solar plexus \u2014 will & confidence","es": "Plexo solar \u2014 voluntad y confianza",     "pt": "Plexo solar \u2014 vontade e confian\u00e7a"},
+    "heart":        {"en": "Heart \u2014 love & openness",        "es": "Coraz\u00f3n \u2014 amor y apertura",         "pt": "Cora\u00e7\u00e3o \u2014 amor e abertura"},
+    "throat":       {"en": "Throat \u2014 voice & truth",         "es": "Garganta \u2014 voz y verdad",                "pt": "Garganta \u2014 voz e verdade"},
+    "third_eye":    {"en": "Third eye \u2014 insight & focus",    "es": "Tercer ojo \u2014 intuici\u00f3n y enfoque",  "pt": "Terceiro olho \u2014 intui\u00e7\u00e3o e foco"},
+    "crown":        {"en": "Crown \u2014 clarity & connection",   "es": "Corona \u2014 claridad y conexi\u00f3n",      "pt": "Coroa \u2014 claridade e conex\u00e3o"},
+}
+
+
+def _prac_scrub_str(x):
+    """Energy-translate one curated-EN prose string. field_type='timing' so
+    authored weekdays survive (same rationale as why_this_works); language='en'
+    because the remedy blocks are EN-authored at strip time — the es/pt
+    translate_dict calls run AFTER this, so translation output is clean by
+    construction."""
+    try:
+        return apply_user_facing_strips(x, language="en", field_type="timing", source="llm")
+    except Exception:
+        return x
+
+
+def _prac_scrub_block(node):
+    """Recursive walk over a gemstone/food/yantra/daan/vrat block."""
+    import re as _pre
+    if isinstance(node, dict):
+        out = {}
+        for k, v in node.items():
+            if k in _PRAC_DROP_KEYS:
+                continue
+            if k in _PRAC_SCRUB_SKIP_KEYS:
+                out[k] = v
+                continue
+            if k == "western_alternates" and isinstance(v, list):
+                alts = []
+                for a in v:
+                    if isinstance(a, dict):
+                        a = dict(a)
+                        nm = a.get("name")
+                        if isinstance(nm, str):
+                            for _pl, _w in _PRAC_SIGIL_WORD.items():
+                                nm = _pre.sub(rf"\b{_pl}\b", _w, nm)
+                            a["name"] = nm
+                        if isinstance(a.get("description"), str):
+                            a["description"] = _prac_scrub_str(a["description"])
+                    alts.append(a)
+                out[k] = alts
+                continue
+            out[k] = _prac_scrub_block(v)
+        return out
+    if isinstance(node, list):
+        return [_prac_scrub_block(x) for x in node]
+    if isinstance(node, str):
+        return _prac_scrub_str(node)
+    return node
+
+
 def _prac_strip_prose(resp, language):
     """[energy-narration] Narration fields go through the FULL strip
     (source='llm') so any planet-name straggler is energy-translated —
@@ -6617,6 +6696,12 @@ def _prac_strip_prose(resp, language):
     for v in resp.get("chakra_states", {}).values():
         if v.get("reason"):
             v["reason"] = s(v["reason"])
+    # [practice-leaks] gemstone/food/yantra/daan/vrat are curated-EN source
+    # with raw planet + Ayurveda tokens — full energy-translation walk.
+    if tp:
+        for _bk in ("gemstone", "food", "yantra", "daan", "vrat"):
+            if isinstance(tp.get(_bk), dict):
+                tp[_bk] = _prac_scrub_block(tp[_bk])
     return resp
 
 
@@ -6703,7 +6788,8 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
         raise HTTPException(422, "chart_data has no planets")
 
     local_today = _prac_local_date(request.tz_offset)
-    ckey = ("practice", request.chart_id, request.language, local_today.isoformat())
+    ckey = ("practice", request.chart_id, request.language, local_today.isoformat(),
+            bool(request.include_chart_food))
     cached = _PRACTICE_CACHE.get(ckey)
     if cached and cached[0] >= _prac_time.time():
         # refresh only the streak/completion fields (cheap) so a same-day
@@ -6732,6 +6818,34 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
         generated_at=_prac_dt.now(_prac_tz.utc).isoformat(),
     )
     resp = _prac_strip_prose(resp, request.language)
+    # [focus-energy] explicit top-level callout, PINNED to the practice's own
+    # chakra list — chakra is always chakras_to_balance[0], never recomputed,
+    # so the callout can never name a chakra the practice doesn't tend.
+    resp["focus_energy"] = None
+    _fe_tp = resp.get("today_priority")
+    if isinstance(_fe_tp, dict):
+        _fe_list = _fe_tp.get("chakras_to_balance") or []
+        if _fe_list:
+            _fe_base = str(request.language or "en").split("_")[0].split("-")[0].lower()
+            if _fe_base not in ("en", "es", "pt"):
+                _fe_base = "en"
+            from antar_engine.practice_scopes import PLANET_ENERGY as _FE_MAP
+            _fe_energy = _FE_MAP.get("es" if _fe_base == "es" else "en", {}).get(
+                _fe_tp.get("planet")) or ("esta energ\u00eda" if _fe_base == "es" else "this energy")
+            if _fe_base == "es":
+                _fe_reason = (f"La pr\u00e1ctica de hoy trabaja {_fe_energy} \u2014 "
+                              f"este es el centro que la sostiene.")
+            else:
+                # en + pt source; pt rides the existing translate_dict below
+                # ('reason' is already in its allowlist).
+                _fe_reason = (f"Today's practice works on {_fe_energy} \u2014 "
+                              f"this is the center that carries it.")
+            resp["focus_energy"] = {
+                "chakra": _fe_list[0],
+                "label": (_PRAC_CHAKRA_LABELS.get(_fe_list[0], {}).get(_fe_base)
+                          or _fe_list[0].replace("_", " ").title()),
+                "reason": _fe_reason,
+            }
     # [mantra-locale] Both the bija mantra block and the affirmation are
     # exposed; mantra_primary tells the frontend which to FEATURE. IN -> bija,
     # everywhere else -> affirmation. Single source of truth for the Lovable
@@ -6810,15 +6924,21 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
     # [chart-food] Chart-level Food (Ahar) remedy — top-level sibling, same
     # additive+guarded pattern as chart_gemstone. Free — never gated. Any
     # failure leaves chart_food=None and the payload otherwise identical.
-    try:
-        from antar_engine.food_engine import get_chart_food as _get_chart_food
-        resp["chart_food"] = await _get_chart_food(
-            supabase, chart, dashas,
-            current_country=rec.get("current_country") or rec.get("country_code") or "",
-            language=request.language or "en",
-        )
-    except Exception as _cf_err:
-        print(f"[chart-food] non-fatal: {_cf_err}")
+    # [practice-leaks] chart_food is opt-in: today_priority.food is the
+    # source of truth on this surface. Engine + cache preserved for
+    # chart-level surfaces via include_chart_food=true.
+    if request.include_chart_food:
+        try:
+            from antar_engine.food_engine import get_chart_food as _get_chart_food
+            resp["chart_food"] = await _get_chart_food(
+                supabase, chart, dashas,
+                current_country=rec.get("current_country") or rec.get("country_code") or "",
+                language=request.language or "en",
+            )
+        except Exception as _cf_err:
+            print(f"[chart-food] non-fatal: {_cf_err}")
+            resp["chart_food"] = None
+    else:
         resp["chart_food"] = None
     _PRACTICE_CACHE[ckey] = (_prac_time.time() + _PRACTICE_TTL, resp)
     return _ent_practice_view(resp, request.chart_id)

@@ -173,6 +173,20 @@ _INSTRUMENT_SUBS_EN: list[tuple[str, str]] = [
 
 # Vedic / Sanskrit softeners — order matters (specific before generic)
 _VEDIC_SUBS_ES: list[tuple[str, str]] = [
+    # [practice-leaks] Ayurveda / remedy vocabulary — compounds before generics.
+    (r'\b(?:la\s+)?hora\s+de(?:l)?\s+(?:sol|luna|marte|mercurio|j[u\u00fa]piter|venus|saturno|rahu|ketu)\b', 'su hora de poder'),
+    (r'\b(?:the\s+)?(?:sun|moon|mars|mercury|jupiter|venus|saturn|rahu|ketu)\s+hora\b', 'su hora de poder'),
+    (r'\b(?:sun|moon|mars|mercury|jupiter|venus|saturn|rahu|ketu)\s+yantra\b', 'yantra de pr\u00e1ctica'),
+    (r'\bpittas?\b',            'el elemento fuego'),
+    (r'\bkaphas?\b',            'el elemento tierra-agua'),
+    (r'\bvatas?\b',             'el elemento aire'),
+    (r'\bdoshas?\b',            'constituci\u00f3n'),
+    (r'\bs[a\u00e1]ttvic[oa]?s?\b', 'ligero y clarificante'),
+    (r'\braj[a\u00e1]sic[oa]?s?\b', 'estimulante'),
+    (r'\btam[a\u00e1]sic[oa]?s?\b', 'pesado y embotador'),
+    (r'\banna\s*da{1,2}nam\b',  'ofrenda de alimentos'),
+    (r'\bpanchadhatu\b',        'aleaci\u00f3n de cinco metales'),
+    (r'\bpukhraj\b',            'zafiro amarillo'),
     # Named yogas
     (r'\byoga Gajakesari\b',      'alineación Luna–Júpiter favorable'),
     (r'\byoga Shubha Kartari\b',  'alineación favorable de benéficos'),
@@ -276,6 +290,19 @@ _VEDIC_SUBS_ES: list[tuple[str, str]] = [
 ]
 
 _VEDIC_SUBS_EN: list[tuple[str, str]] = [
+    # [practice-leaks] Ayurveda / remedy vocabulary — compounds before generics.
+    (r'\b(?:the\s+)?(?:sun|moon|mars|mercury|jupiter|venus|saturn|rahu|ketu)\s+hora\b', 'its power hour'),
+    (r'\b(?:sun|moon|mars|mercury|jupiter|venus|saturn|rahu|ketu)\s+yantra\b', 'practice yantra'),
+    (r'\bpittas?\b',            'the fire element'),
+    (r'\bkaphas?\b',            'the earth-water element'),
+    (r'\bvatas?\b',             'the air element'),
+    (r'\bdoshas?\b',            'constitution'),
+    (r'\bs[a\u00e1]ttvic[oa]?s?\b', 'light, clarifying'),
+    (r'\braj[a\u00e1]sic[oa]?s?\b', 'stimulating'),
+    (r'\btam[a\u00e1]sic[oa]?s?\b', 'heavy, dulling'),
+    (r'\banna\s*da{1,2}nam\b',  'food offering'),
+    (r'\bpanchadhatu\b',        'five-metal alloy'),
+    (r'\bpukhraj\b',            'yellow sapphire'),
     (r'\byoga Gajakesari\b',      'favorable Moon–Jupiter alignment'),
     (r'\byoga Shubha Kartari\b',  'benefic protective alignment'),
     (r'\byoga Ubhayachari\b',     'bilateral benefic alignment'),

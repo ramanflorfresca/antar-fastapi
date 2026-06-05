@@ -1079,6 +1079,9 @@ YANTRA_TRANSLATABLE_FIELDS = [
     "why_for_this_user", "type", "description", "size", "placement_traditional",
     "energization", "daily_practice", "rationale_western", "cautions", "sourcing",
     "metal_primary", "metal_alternate",
+    # [practice-leaks] alternates are planet-scrubbed to clean EN before the
+    # translate step, so the old proper-noun exclusion no longer applies.
+    "western_alternates",
 ]
 DAAN_TRANSLATABLE_FIELDS = [
     "one_line", "why_for_this_user", "day", "best_time", "principle",

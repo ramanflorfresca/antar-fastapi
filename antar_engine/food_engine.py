@@ -58,12 +58,12 @@ PLANET_DOSHA = {
 GUNA_BY_DOSHA = {
     "kapha": {  # base risk = tamas -> lift it
         "risk": "tamas",
-        "favor": ["sattvic", "light", "warm", "lightly-spiced"],
+        "favor": ["clarifying", "light", "warm", "lightly-spiced"],
         "reduce": ["heavy", "fried", "cold", "oily", "excess-dairy"],
     },
     "pitta": {  # base risk = rajas -> cool it
         "risk": "rajas",
-        "favor": ["cooling", "sattvic", "fresh", "calming"],
+        "favor": ["cooling", "clarifying", "fresh", "calming"],
         "reduce": ["very-spicy", "sour", "fermented", "stimulants"],
     },
     "vata": {   # ungrounded -> ground it
