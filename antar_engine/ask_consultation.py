@@ -433,14 +433,19 @@ def consultation_prompt_block(conv: dict, concern: str, dasha_str: str) -> str:
     if conv.get("window_label"):
         lines.append(f"TIMING WINDOW (use this verbatim, plainly worded): {conv['window_label']}")
         if conv.get("window_end"):
-            # [narrator-hardbind 2026-06-05c] Relative-duration freelancing
-            # ("through the end of the year", "next few months") slips past
-            # the absolute-date scrub — pin the boundary in the prompt.
+            # [narrator-hardbind 2026-06-05c, v2] Relative-duration freelancing
+            # ("through the end of the year") slips past the absolute-date
+            # scrub — pin the boundary in the prompt. v2: month-level ONLY.
+            # Exposing the raw ISO end date made the model narrate day-level
+            # urgency ("through June 10th — just five days"); the product
+            # speaks in months and never uses scarcity pressure.
             lines.append(
-                f"WINDOW DISCIPLINE: this window ENDS {conv['window_end']}. "
-                f"Never stretch or shrink it — no phrases like 'through the "
-                f"end of the year', 'in the coming months', or any duration "
-                f"beyond {conv['window_label']}."
+                f"WINDOW DISCIPLINE: the window is {conv['window_label']} — "
+                "month-level granularity ONLY. Never stretch it (no 'through "
+                "the end of the year', 'in the coming months'), never narrow "
+                "it to specific days, never count days remaining, and never "
+                "use scarcity pressure ('act immediately', 'won't repeat'). "
+                "If the window is open now, advise calm, concrete use of it."
             )
     else:
         lines.append("TIMING WINDOW: none — frame as a building/preparation phase, do NOT invent dates")
