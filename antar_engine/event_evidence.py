@@ -46,7 +46,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from antar_engine.d_charts_calculator import (
@@ -239,9 +239,14 @@ def _vim_tree_live(chart_data: dict, birth_jd: float, now: datetime) -> Optional
         return None
 
 
-def _vim_tree_from_rows(dashas: dict, today: date) -> Optional[dict]:
-    """Fallback (birth_jd missing): MD/AD from dasha_periods rows; PD/SD by
-    subdividing the AD row with phase_analyzer's helpers — no new math."""
+def _vim_tree_from_rows(dashas: dict, today: date,
+                        fallback_reason: str = "birth_jd missing") -> Optional[dict]:
+    """Fallback path: MD/AD from dasha_periods rows; PD/SD by subdividing the
+    AD row with phase_analyzer's helpers — no new math. tz-aware UTC throughout
+    so _find_current_period (which now receives tz-aware `now`) doesn't blow
+    up on offset-naive vs offset-aware comparisons. `fallback_reason` is the
+    auditable WHY we are not on the live path (e.g. "birth_jd missing" vs
+    "live tree unavailable")."""
     md_row = _current_row(dashas, "vimsottari", ("mahadasha", "1"), today)
     ad_row = _current_row(dashas, "vimsottari", ("antardasha", "antar", "2"), today)
     if not md_row:
@@ -252,13 +257,13 @@ def _vim_tree_from_rows(dashas: dict, today: date) -> Optional[dict]:
         if not (s and e):
             return None
         return {"lord": _lord(r),
-                "start_datetime": datetime.combine(s, datetime.min.time()),
-                "end_datetime": datetime.combine(e, datetime.min.time())}
+                "start_datetime": datetime.combine(s, datetime.min.time(), tzinfo=timezone.utc),
+                "end_datetime": datetime.combine(e, datetime.min.time(), tzinfo=timezone.utc)}
 
-    now = datetime.combine(today, datetime.min.time()) + timedelta(hours=12)
+    now = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc) + timedelta(hours=12)
     out = {"md": _row_period(md_row), "ad": _row_period(ad_row),
            "pd": None, "sd": None, "upcoming_pds": [],
-           "source": "dasha_periods rows (birth_jd missing)"}
+           "source": f"dasha_periods rows ({fallback_reason})"}
     if out["ad"]:
         try:
             from antar_engine.life_arc.phase_analyzer import (
@@ -278,7 +283,11 @@ def _vim_tree_from_rows(dashas: dict, today: date) -> Optional[dict]:
 
 def _vimshottari_block(dashas, chart_data, lagna_idx, event_houses, today) -> dict:
     planets = (chart_data or {}).get("planets") or {}
-    now = datetime.combine(today, datetime.min.time()) + timedelta(hours=12)
+    # tz-aware UTC: vimsottari output is tz-aware (utils.datetime_from_jd),
+    # phase_analyzer._find_current_period compares against `now` — mixing
+    # tz-naive `now` with tz-aware periods raised TypeError and silently
+    # collapsed the live tree to row-fallback. (Fixed 2026-06-05.)
+    now = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc) + timedelta(hours=12)
 
     def _connects(p: str) -> list[str]:
         how = []
@@ -292,9 +301,14 @@ def _vimshottari_block(dashas, chart_data, lagna_idx, event_houses, today) -> di
         return how
 
     birth_jd = (chart_data or {}).get("birth_jd")
-    tree = _vim_tree_live(chart_data, birth_jd, now) if birth_jd else None
+    tree = None
+    fallback_reason = "birth_jd missing"
+    if birth_jd:
+        tree = _vim_tree_live(chart_data, birth_jd, now)
+        if tree is None:
+            fallback_reason = "live tree unavailable"
     if tree is None:
-        tree = _vim_tree_from_rows(dashas, today)
+        tree = _vim_tree_from_rows(dashas, today, fallback_reason)
 
     block: dict = {"md": None, "ad": None, "pd": None, "sd": None,
                    "source": (tree or {}).get("source", "unavailable"),

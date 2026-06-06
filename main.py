@@ -12863,7 +12863,7 @@ async def ask_evidence_debug(request: AskEvidenceRequest, http_request: Request)
 
     try:
         chart_row = supabase.table("charts") \
-            .select("chart_data, jaimini_data, birth_date, chart_type") \
+            .select("chart_data, jaimini_data, birth_date, birth_time, timezone_offset, chart_type") \
             .eq("id", request.chart_id).single().execute()
     except Exception as _nfe:
         if "PGRST116" in str(_nfe) or "0 rows" in str(_nfe):
@@ -12883,6 +12883,35 @@ async def ask_evidence_debug(request: AskEvidenceRequest, http_request: Request)
     chart_data = _safe_jsonb(chart_row.data.get("chart_data"))
     jaimini_data = _safe_jsonb(chart_row.data.get("jaimini_data"))
     birth_date = str(chart_row.data.get("birth_date") or "")[:10]
+
+    # Backfill birth_jd into chart_data so build_whole_board's live tree
+    # path runs for every chart (founder ruling 2026-06-05, Option 1).
+    # Most charts already have it; this is the safety net for older rows.
+    if isinstance(chart_data, dict) and not chart_data.get("birth_jd") and birth_date:
+        try:
+            from antar_engine import utils as _ev_utils
+            from datetime import datetime as _ev_dt, timedelta as _ev_td
+            _y, _mo, _d = (int(x) for x in birth_date.split("-"))
+            _bt_raw = str(chart_row.data.get("birth_time") or "").strip()
+            _h, _mi, _se = 12, 0, 0   # noon-of-birth_date fallback
+            if _bt_raw:
+                _bt_parts = _bt_raw.split(":")
+                if len(_bt_parts) >= 2:
+                    _h = int(_bt_parts[0])
+                    _mi = int(_bt_parts[1])
+                    if len(_bt_parts) >= 3:
+                        _se = int(float(_bt_parts[2]))
+            _local = _ev_dt(_y, _mo, _d, _h, _mi, _se)
+            # timezone_offset is HOURS east of UTC, can be fractional (e.g.
+            # India = 5.5, Newfoundland = -3.5). UTC = local - offset_hours.
+            try:
+                _tz_hr = float(chart_row.data.get("timezone_offset") or 0)
+            except Exception:
+                _tz_hr = 0.0
+            _utc = _local - _ev_td(hours=_tz_hr)
+            chart_data["birth_jd"] = _ev_utils.julian_day(_utc)
+        except Exception as _bj_e:
+            logger.warning(f"[ask/evidence] birth_jd backfill failed (non-fatal): {_bj_e}")
 
     concern = (request.concern or "").strip().lower()
     if not concern:
