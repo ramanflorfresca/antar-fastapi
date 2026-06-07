@@ -13213,8 +13213,22 @@ async def ask_endpoint(request: AskRequest):
         has_unlimited_ask as _ent_unlim,
     )
     _ask_tier = _ent_tier_fn(chart_id, supabase)
+    # [ask-debug-bypass 2026-06-07] ENV-gated chart_id allowlist. When a
+    # chart_id is listed in ASK_DEBUG_BYPASS_CHART_IDS (comma-separated),
+    # /ask skips the daily-cap check AND skips _ent_ask_inc — for dev/test
+    # only. Real users unaffected. Default: empty allowlist (production safe).
+    try:
+        _ask_bypass_raw = (os.environ.get("ASK_DEBUG_BYPASS_CHART_IDS") or "").strip()
+        _ask_bypass_set = {x.strip() for x in _ask_bypass_raw.split(",") if x.strip()}
+        _ask_bypass_cap = chart_id in _ask_bypass_set
+        if _ask_bypass_cap:
+            print(f"[ask-debug-bypass] chart_id={chart_id[:8]} on allowlist — "
+                  "cap + increment skipped")
+    except Exception:
+        _ask_bypass_cap = False
     # [final-launch] any active Ask subscription => unlimited (SKU-rename-proof)
-    if _ask_tier not in ("seeker", "navigator") and not _ent_unlim(chart_id, supabase):
+    # [ask-debug-bypass 2026-06-07] _ask_bypass_cap allowlists dev/test charts
+    if _ask_tier not in ("seeker", "navigator") and not _ent_unlim(chart_id, supabase) and not _ask_bypass_cap:
         _tr = _ent_trial(chart_id, supabase)
         _limit = int(_tr.get("daily_limit") or 1)
         if int(_tr.get("used_today") or 0) >= _limit:
@@ -13583,7 +13597,9 @@ async def ask_endpoint(request: AskRequest):
             if not read_txt:
                 read_txt = "I couldn't read a clear signal just now — try asking again in a moment."
 
-            if _ask_tier not in ("seeker", "navigator") and _ask_answered:  # [ask-launch]
+            # [ask-debug-bypass 2026-06-07] bypass allowlist also skips increment
+            if (_ask_tier not in ("seeker", "navigator") and _ask_answered
+                    and not _ask_bypass_cap):  # [ask-launch]
                 _ent_ask_inc(chart_id, supabase)
             # [evmap-2026-06-07] NOT_YET must carry the next window.
             # The LLM's `timing` is its restatement of the consultation facts;
@@ -13908,7 +13924,9 @@ async def ask_endpoint(request: AskRequest):
                 relevant_planets=_yn_conv.get("relevant_planets") if _yn_conv else None,
             )
 
-            if _ask_tier not in ("seeker", "navigator") and bool(why):  # [ask-launch]
+            # [ask-debug-bypass 2026-06-07] bypass allowlist also skips increment
+            if (_ask_tier not in ("seeker", "navigator") and bool(why)
+                    and not _ask_bypass_cap):  # [ask-launch]
                 _ent_ask_inc(chart_id, supabase)
             payload = {
                 "mode": "yesno",
