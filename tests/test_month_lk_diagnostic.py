@@ -57,6 +57,23 @@ def test_masa_lord_and_theme_present():
     assert len(dp.MASA_BY_SUN_SIGN) == 12
 
 
+def test_month_overview_nouns_polarity():
+    """The Month overview noun layer maps strong planets via their natal house
+    with POSITIVE polarity and weak planets with ADVERSE — same house must read
+    differently by polarity (the exact translation the monthly builder uses)."""
+    from antar_engine.house_significations import select_nouns
+    # strong planet sitting in the 10th -> career/boss favored
+    strong_10 = select_nouns(10, "positive", None, 2)
+    assert any("boss" in n or "career" in n or "promotion" in n for n in strong_10)
+    # weak planet in the 6th -> loan/dispute caution
+    weak_6 = select_nouns(6, "adverse", None, 2)
+    assert any("loan" in n or "credit" in n or "dispute" in n or "routine" in n
+               for n in weak_6)
+    # same house, opposite polarity -> the phrase differs
+    from antar_engine.house_significations import select_phrase
+    assert select_phrase(4, "positive") != select_phrase(4, "adverse")
+
+
 def test_today_panchanga_texture_jargon_free():
     from antar_engine.today_narration import build_narration_system, _JARGON_RX
     s = build_narration_system(

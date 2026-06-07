@@ -713,6 +713,42 @@ def _build_deepdive_context(
                     [f"masik:weak:{p}" for p in _weak_names])
                 debug_out["masik"] = {"strong": _strong_names, "weak": _weak_names}
 
+            # [2026-06-07] CONCRETE LIFE-THINGS — translate the strong/weak
+            # planets via their NATAL house into literal nouns (boss, property,
+            # partner, a loan...) so the overview OPENS on real life, not
+            # abstract "energy". strong=positive, weak=adverse (direction-bound).
+            try:
+                from antar_engine.house_significations import select_nouns
+                _planets_md = chart_data.get("planets", {}) or {}
+                _bless, _test, _seen_n = [], [], set()
+                for _p in _strong_names:
+                    _h = (_planets_md.get(_p) or {}).get("house")
+                    if isinstance(_h, int):
+                        for _n in select_nouns(_h, "positive", None, 2):
+                            if _n not in _seen_n:
+                                _seen_n.add(_n); _bless.append(_n)
+                for _p in _weak_names:
+                    _h = (_planets_md.get(_p) or {}).get("house")
+                    if isinstance(_h, int):
+                        for _n in select_nouns(_h, "adverse", None, 2):
+                            if _n not in _seen_n:
+                                _seen_n.add(_n); _test.append(_n)
+                if _bless or _test:
+                    lines.append('')
+                    lines.append('CONCRETE LIFE-THINGS THIS MONTH (open the overview on these '
+                                 'real things — your boss, property, a partner, a loan — NOT '
+                                 'abstract "energy" or "areas"):')
+                    if _bless:
+                        lines.append(f'  strengthened / favored: {", ".join(_bless[:5])}')
+                    if _test:
+                        lines.append(f'  tested / needs care: {", ".join(_test[:5])}')
+                    lines.append('(The overview\'s FIRST sentence must name 2-3 of these concrete '
+                                 'things. Selective, not a list. Never name a planet or house.)')
+                    if debug_out is not None:
+                        debug_out["overview_nouns"] = {"bless": _bless[:5], "test": _test[:5]}
+            except Exception as _cn_err:
+                logger.warning(f'[monthly] concrete nouns skipped: {_cn_err}')
+
             # [cp-day6] monthly remedies injection
             _mon_remedy_planets = _pick_monthly_remedy_planets(
                 _masik_data.get('weak_planets', []),
