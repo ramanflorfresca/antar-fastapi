@@ -13218,16 +13218,31 @@ async def ask_endpoint(request: AskRequest):
         _tr = _ent_trial(chart_id, supabase)
         _limit = int(_tr.get("daily_limit") or 1)
         if int(_tr.get("used_today") or 0) >= _limit:
-            return JSONResponse(status_code=402, content={
-                "error": "daily_cap",
-                "reason": "daily_cap",
-                "feature": "ask",
-                "tier": _ask_tier,
-                "limit": _limit,
-                "used_today": _tr.get("used_today"),
-                "daily_limit": _limit,
-                "resets": "tomorrow",
-                "upgrade_url": _ent_upgrade_url,
+            # [soft-cap 2026-06-07] /ask must SOFT-wall — never 402. Founder
+            # rule: existing users anchored to 20/day for 30 days; after that
+            # 1/day soft cap with "resets tomorrow" + optional upgrade CTA.
+            # NEVER a hard 402 block on /ask. (Other paid features keep 402;
+            # this is /ask-specific.)
+            _soft_read = (
+                f"You've used today's {_limit} Ask question"
+                f"{'s' if _limit != 1 else ''}. Your quota resets tomorrow "
+                "at midnight UTC."
+            )
+            return JSONResponse(status_code=200, content={
+                "mode":            "explore",
+                "read":            _soft_read,
+                "next":            None,
+                "locked":          False,
+                "soft_capped":     True,
+                "error":           "daily_cap",     # legacy contract field
+                "reason":          "daily_cap",
+                "feature":         "ask",
+                "tier":            _ask_tier,
+                "limit":           _limit,
+                "used_today":      _tr.get("used_today"),
+                "daily_limit":     _limit,
+                "resets":          "tomorrow",
+                "upgrade_url":     _ent_upgrade_url,
                 "trial_days_left": _tr.get("days_left"),
             })
 
