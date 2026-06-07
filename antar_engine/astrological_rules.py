@@ -698,6 +698,22 @@ def detect_concern(question: str) -> str:
     if any(w in q for w in specul_words):
         return "speculation"
 
+    # ── Reconciliation / Reunion (PRECEDES divorce so "any chance of
+    #    reuniting after the breakup" routes here, not divorce) ──
+    reconcile_words = [
+        # explicit re-binding intent
+        "reunite","reuniting","reunion","reconcile","reconciliation",
+        "get back together","getting back together","back together",
+        "rekindle","rekindling","second chance with","another chance with",
+        "fix things with","work things out with","fix it with",
+        "patch things up","patching things up",
+        # Spanish
+        "volveremos","volver con","volver juntos","reconciliarnos","reconciliar",
+        "rehacer la relación","una segunda oportunidad",
+    ]
+    if any(w in q for w in reconcile_words):
+        return "reconciliation"
+
     # ── Divorce / Separation ───────────────────────────────────
     divorce_words = ["divorce","separate","separation","break up","breakup","split","failing","not working","struggling with my","problems with my",
                      "end my marriage","leaving my wife","leaving my husband",

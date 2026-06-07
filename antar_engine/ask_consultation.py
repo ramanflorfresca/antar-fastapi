@@ -45,6 +45,10 @@ CONCERN_HOUSES = {
     "marriage":    [7],
     "love":        [5, 7],
     "divorce":     [7, 6],
+    # [routing-2026-06-07] reconciliation: 7 (partnership), 5 (romance/heart),
+    # 4 (emotional foundation / re-building). Distinct from divorce (which
+    # looks for separation triggers) — this looks for re-binding signals.
+    "reconciliation": [7, 5, 4],
     "health":      [6, 1, 8],
     "foreign":     [12, 9],
     "children":    [5],
@@ -65,6 +69,9 @@ CONCERN_KARAKAS = {
     "business":    ["Mercury", "Jupiter"],
     "marriage":    ["Venus", "Jupiter"],
     "love":        ["Venus", "Moon"],
+    # [routing-2026-06-07] reconciliation karakas — Venus (love/repair),
+    # Moon (emotional re-bonding), Jupiter (wisdom/forgiveness).
+    "reconciliation": ["Venus", "Moon", "Jupiter"],
     "health":      ["Sun", "Mars"],
     "foreign":     ["Rahu", "Moon"],
     "children":    ["Jupiter"],
@@ -75,18 +82,48 @@ CONCERN_KARAKAS = {
 }
 
 # Decision/timing question patterns — EN + ES (live app runs Spanish too).
+# Anything in this list routes to build_convergence_timing → real verdict.
+# Anything NOT in this list takes the reflective fallback path (no verdict).
+# Expanded 2026-06-07 to cover chance/odds/possibility/reunion phrasings the
+# audit showed were silently falling through ("is there a chance of reuniting…").
 _DECISION_TRIGGERS = [
-    # English
-    "when ", "when?", "by when", "how soon", "how long until", "what month",
-    "what year", "which month", "which quarter", "will i", "will my",
-    "will we", "will this", "will the", "will it", "should i", "should we",
-    "can i ", "could i", "do i get", "am i going to", "is it a good time",
-    "right time", "good time to",
-    # Spanish
+    # English — direct timing
+    "when ", "when?", "by when", "how soon", "how long until",
+    "what month", "what year", "which month", "which quarter",
+    # English — will/should/can framings
+    "will i", "will my", "will we", "will this", "will the", "will it",
+    "should i", "should we", "can i ", "could i",
+    "do i get", "am i going to",
+    # English — good-time framings
+    "is it a good time", "right time", "good time to",
+    # English — chance / odds / possibility (covers Failure 2)
+    "is there a chance", "any chance", "chance of",
+    "what are the chances", "what's the chance", "whats the chance",
+    "what are my odds", "odds of", "likelihood of", "possibility of",
+    "is there hope", "any hope of", "is it possible", "could there be",
+    "could we", "could it", "could it be",
+    # English — relationship-reunion specific (covers Failure 2 directly)
+    "are we getting back", "get back together", "getting back together",
+    "back together", "reunite", "reuniting", "reunion",
+    "rekindle", "rekindling", "second chance",
+    "fix things with", "work things out", "fix it with",
+    # English — career / business specific timing intent
+    "do i land", "will i land", "what are the chances of landing",
+    # Spanish — direct timing
     "cuándo", "cuando ", "conseguiré", "lograré", "obtendré", "recibiré",
-    "tendré", "podré", "voy a conseguir", "voy a lograr", "voy a recibir",
-    "debo ", "debería", "es buen momento", "buen momento para",
+    "tendré", "podré",
+    "voy a conseguir", "voy a lograr", "voy a recibir",
+    "debo ", "debería",
+    "es buen momento", "buen momento para",
     "en qué mes", "en que mes", "qué año", "que año",
+    # Spanish — chance / odds / possibility
+    "hay una posibilidad", "alguna posibilidad", "hay alguna chance",
+    "qué probabilidad", "que probabilidad", "qué chance", "que chance",
+    "tendré otra oportunidad", "habrá oportunidad",
+    "es posible", "es posible que",
+    # Spanish — reconciliation
+    "volveremos", "reconciliarnos", "reconciliar", "volver con",
+    "volver juntos", "rehacer la relación", "una segunda oportunidad",
 ]
 
 
@@ -95,6 +132,7 @@ _DECISION_TRIGGERS = [
 # back to DOMAIN: GENERAL (acceptance-test criterion).
 PRESCAN_DOMAIN_ALIAS = {
     "love": "relationship", "marriage": "relationship", "divorce": "relationship",
+    "reconciliation": "relationship",  # [routing-2026-06-07] reunion questions
     "funding": "finance", "loss": "finance", "speculation": "finance",
     "money": "finance", "billionaire": "wealth", "rich": "wealth",
     "spiritual": "general",
@@ -439,6 +477,7 @@ _DOMAIN_NOUN = {
     "marriage":    "partnership window",
     "love":        "partnership window",
     "divorce":     "partnership transition",
+    "reconciliation": "reconnection window",
     "health":      "health window",
     "foreign":     "relocation window",
     "children":    "family window",
