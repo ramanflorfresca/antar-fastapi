@@ -8094,18 +8094,13 @@ async def create_chart(
     dashas_combined = {"vimsottari": vim_dashas, "jaimini": jai_dashas, "ashtottari": ash_dashas}
 
     chart_id = str(uuid.uuid4())
-    # Calculate timezone offset in hours from timezone string
-    # CRITICAL: use birth_date not today — historical offsets differ (e.g. Venezuela was UTC-4.5 until 2016)
-    try:
-        import pytz
-        from datetime import datetime as _dt
-        _tz = pytz.timezone(timezone)
-        # Use birth datetime for historical accuracy
-        _birth_dt = _dt.strptime(str(request.birth_date)[:10], "%Y-%m-%d")
-        _offset = _tz.utcoffset(_birth_dt).total_seconds() / 3600
-    except Exception:
-        # Fall back to user-provided offset if available
-        _offset = float(getattr(request, "timezone_offset", 0.0) or 0.0)
+    # [tz-chain] Single source of truth — _chart_tz_offset was already resolved
+    # via the strict chain (timezonefinder → country default → numeric → 400).
+    # The old block re-derived the offset from a separate `timezone` string AND
+    # used .utcoffset(dt) (NOT DST-aware) — when those disagreed with the lagna
+    # math, the chart_row stored a wrong tz_offset even though the lagna was
+    # right. Unify.
+    _offset = _chart_tz_offset
 
 
 
