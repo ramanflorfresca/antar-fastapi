@@ -395,6 +395,15 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
         summary = "0 of 3 systems active — no supportive window inside the horizon"
         public_summary = "No strong timing window in the next 24 months — building phase"
 
+    _conv_for_verdict = {
+        "lock_count": lock_count,
+        "convergence_met": convergence_met,
+        "window_start": window_start.isoformat() if window_start else None,
+        "window_end": window_end.isoformat() if window_end else None,
+        "next_window_label": (next_win or {}).get("label"),
+    }
+    _verdict, _verdict_phrase = _derive_verdict_phrase(
+        _conv_for_verdict, concern, date.today())
     return {
         "concern": concern,
         "houses": houses,
@@ -411,7 +420,91 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
         "relevant_planets": relevant_planets,
         "summary": summary,
         "public_summary": public_summary,
+        "verdict":        _verdict,         # [lead-verdict]
+        "verdict_phrase": _verdict_phrase,  # [lead-verdict]
     }
+
+
+# Domain-specific noun for the deterministic opening sentence ("funding window",
+# "partnership window", "career opening"). Keep nouns SHORT and concrete — the
+# whole point is to drop vague energy-talk and lead with a real-noun + date.
+_DOMAIN_NOUN = {
+    "finance":     "funding window",
+    "funding":     "funding window",
+    "wealth":      "money window",
+    "loss":        "financial window",
+    "speculation": "speculative window",
+    "career":      "career window",
+    "business":    "business window",
+    "marriage":    "partnership window",
+    "love":        "partnership window",
+    "divorce":     "partnership transition",
+    "health":      "health window",
+    "foreign":     "relocation window",
+    "children":    "family window",
+    "property":    "property window",
+    "education":   "education window",
+    "legal":       "legal window",
+    "spiritual":   "spiritual window",
+    "general":     "opening",
+}
+
+
+def _derive_verdict_phrase(conv: dict, concern: str, today: date) -> tuple:
+    """
+    Python-authoritative opening sentence for /ask. Returns (verdict_enum,
+    verdict_phrase) where:
+      verdict_enum   ∈ {SUPPORTED, LIKELY, NOT_THIS_YEAR, NOT_YET, NO}
+      verdict_phrase = exact sentence the narrator's `read` must open with.
+
+    The phrase is deterministic — built from the engine's lock_count, window
+    bounds, and the domain noun. Never invents dates; only restates what the
+    convergence engine produced.
+    """
+    noun = _DOMAIN_NOUN.get(concern, "opening")
+    lock_count      = int(conv.get("lock_count") or 0)
+    convergence_met = bool(conv.get("convergence_met"))
+    ws_str          = conv.get("window_start")
+    we_str          = conv.get("window_end")
+    next_label      = conv.get("next_window_label") or ""
+
+    try:
+        ws = date.fromisoformat(ws_str) if ws_str else None
+    except Exception:
+        ws = None
+    try:
+        we = date.fromisoformat(we_str) if we_str else None
+    except Exception:
+        we = None
+
+    # ── Convergence + window — the strong answers ────────────────────────
+    if convergence_met and ws and we:
+        if ws <= today <= we:
+            month_end = we.strftime("%B %Y")
+            return "SUPPORTED", f"Yes — {noun} is open now, through {month_end}."
+        if ws > today:
+            month_start = ws.strftime("%B %Y")
+            month_end   = we.strftime("%B %Y")
+            # Same calendar year as today → "this year, through {month_end}"
+            if ws.year == today.year and we.year == today.year:
+                return "LIKELY", f"Likely, this year — {noun} through {month_end}."
+            # Multi-year future window — name both ends
+            return "LIKELY", f"Likely — {noun} {month_start} through {month_end}."
+        # Window already closed (rare but possible if engine surfaced past)
+        if next_label:
+            return "NOT_THIS_YEAR", f"Not now — next {noun} {next_label}."
+        return "NOT_THIS_YEAR", f"Not now — that {noun} has already closed."
+
+    # ── Partial signal — building phase ──────────────────────────────────
+    if lock_count == 1:
+        if next_label:
+            return "NOT_YET", f"Not yet — next {noun} {next_label}."
+        return "NOT_YET", f"Not yet — a building phase, no strong {noun}."
+
+    # ── No supportive signal in horizon ──────────────────────────────────
+    if next_label:
+        return "NO", f"No strong {noun} this cycle — next opening {next_label}."
+    return "NO", f"No strong {noun} in the next 24 months."
 
 
 def consultation_prompt_block(conv: dict, concern: str, dasha_str: str) -> str:
@@ -421,6 +514,8 @@ def consultation_prompt_block(conv: dict, concern: str, dasha_str: str) -> str:
     locks = conv.get("locks", {})
     lines = [
         "=== CONSULTATION FACTS (deterministic — do NOT alter dates, verdict direction, or the window) ===",
+        f"VERDICT (Python-authoritative): {conv.get('verdict', 'NOT_YET')}",
+        f"OPENING SENTENCE (Python prepends this verbatim to `read`; do NOT repeat it): {conv.get('verdict_phrase', '')}",
         f"DOMAIN: {concern}",
         f"ACTIVE DASHA: {dasha_str or 'unknown'}",
         "CONVERGENCE CHECK (2-of-3 rule across Vimshottari / Chara dasha / Varshphal):",

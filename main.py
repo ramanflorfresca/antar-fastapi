@@ -7,7 +7,7 @@ import uuid
 from contextlib import asynccontextmanager
 import json
 from datetime import datetime, date, timedelta, timezone
-from typing import Optional, List, Dict, Any
+import re\nfrom typing import Optional, List, Dict, Any
 
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import FastAPI, HTTPException, Header, Request, Body, status, BackgroundTasks, Depends
@@ -13387,8 +13387,15 @@ async def ask_endpoint(request: AskRequest):
                     "question. Using ONLY the consultation facts and chart context below, "
                     "reply with STRICT JSON only: "
                     '{"read": "...", "verdict": "...", "timing": "...", "actions": ["...", "..."], "next": "..."}. '
-                    "read = 2 to 4 warm sentences that answer the question DIRECTLY and "
-                    "include the timing window. verdict = one of YES, LIKELY, NOT_YET, NO. "
+                    # [lead-verdict] Python prepends the engine's verdict + window phrase
+                    # as the OPENING SENTENCE of `read`. The model writes the WHY only.
+                    "read = 2 to 3 sentences explaining WHY the verdict is what it is. "
+                    "DO NOT repeat the OPENING SENTENCE from the consultation facts. "
+                    "DO NOT name the verdict word (Likely / Yes / Not yet / No). "
+                    "DO NOT name any month, year, quarter, or specific date — those live "
+                    "in the OPENING SENTENCE Python writes for you. "
+                    "Start `read` directly with the reasoning (e.g. \"The dasha and annual chart agree, and the structure of your blueprint supports execution now.\"). "
+                    "verdict = one of YES, LIKELY, NOT_YET, NO (must match the VERDICT pinned in the facts). "
                     "timing = the TIMING WINDOW from the consultation facts restated plainly — "
                     "NEVER invent dates; if the facts say no window, describe a building phase. "
                     "actions = 2 or 3 concrete moves tied to the chart signals that raise the "
@@ -13477,6 +13484,26 @@ async def ask_endpoint(request: AskRequest):
                 except Exception as _tfe:
                     logger.warning(f"[ask] timing fidelity failed (non-fatal): {_tfe}")
 
+            # [lead-verdict] Python-authoritative opening sentence — the engine's
+            # verdict + window phrase MUST lead `read`. Strip any leading verdict
+            # word/date phrase the model emitted in case it ignored the prompt,
+            # then prepend the deterministic phrase. The user always sees the
+            # crisp answer first; the LLM provides the supporting WHY.
+            if _ask_decision and _ask_conv:
+                _verdict_phrase = (_ask_conv.get("verdict_phrase") or "").strip()
+                if _verdict_phrase:
+                    # Strip any leading "Likely/Yes/No/Not …" sentence the model
+                    # opened with, so we don't double-state the verdict.
+                    _strip_re = re.compile(
+                        r"^\s*(yes|likely|not\s+yet|not\s+now|not\s+this\s+year|no)\b[^.!?]{0,200}[.!?]\s*",
+                        re.IGNORECASE,
+                    )
+                    _stripped = _strip_re.sub("", read_txt or "", count=1)
+                    # If stripping ate everything, keep original to avoid empty read
+                    if _stripped.strip():
+                        read_txt = _stripped
+                    read_txt = f"{_verdict_phrase} {read_txt}".strip()
+                    print(f"[ask][lead-verdict] prepended: {_verdict_phrase!r}")
             _ask_answered = bool(read_txt)
             if not read_txt:
                 read_txt = "I couldn't read a clear signal just now — try asking again in a moment."
