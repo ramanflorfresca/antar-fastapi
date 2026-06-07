@@ -23032,13 +23032,26 @@ async def _life_arc_compute(chart_id, horizon_months, language,
     return response
 
 
+# [life-arc-resilience 2026-06-07] Overall ceiling for the background
+# compute. 120s = 4x the observed worst-case (~30s) so steady-state is
+# never affected; a Claude stall or DB hang is recognized and reaped
+# rather than parking the inflight key forever.
+LIFE_ARC_COMPUTE_TIMEOUT_SECS = 120
+
+
 async def _life_arc_background(key, chart_id, horizon_months, language,
                                chart_record, chart_data, _lib_version):
     """Background wrapper — runs the compute, always clears the in-flight key."""
     try:
-        await _life_arc_compute(chart_id, horizon_months, language,
-                                chart_record, chart_data, _lib_version)
+        await asyncio.wait_for(
+            _life_arc_compute(chart_id, horizon_months, language,
+                              chart_record, chart_data, _lib_version),
+            timeout=LIFE_ARC_COMPUTE_TIMEOUT_SECS,
+        )
         print(f"[life_arc] Background compute complete for {chart_id} (lang={language})")
+    except asyncio.TimeoutError:
+        print(f"[life_arc] Background compute TIMEOUT (>{LIFE_ARC_COMPUTE_TIMEOUT_SECS}s) "
+              f"for {chart_id} (lang={language}) — inflight slot freed")
     except Exception as _bg_e:
         print(f"[life_arc] Background compute FAILED for {chart_id} (lang={language}): {_bg_e}")
     finally:
@@ -23148,7 +23161,22 @@ async def get_life_arc(
         raise HTTPException(status_code=400, detail="horizon_months must be 1-24")
 
     # ── Fetch chart ──────────────────────────────────────────────────────
-    chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+    # [life-arc-resilience 2026-06-07] Wrap the synchronous Supabase fetch
+    # so a transient DB blip surfaces as a structured 503 (retry hint)
+    # rather than a generic 500 with no traceback. 404 still flows
+    # through unchanged so client logic for "chart deleted" stays correct.
+    try:
+        chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
+    except HTTPException:
+        raise
+    except Exception as _cf_err:
+        print(f"[life_arc] chart fetch transient failure for {chart_id}: {_cf_err}")
+        raise HTTPException(
+            status_code=503,
+            detail={"error": "chart_lookup_unavailable",
+                    "retry_after_ms": 3000,
+                    "chart_id": chart_id},
+        )
     if not chart_res.data:
         raise HTTPException(status_code=404, detail="Chart not found")
     chart_record = chart_res.data[0]
