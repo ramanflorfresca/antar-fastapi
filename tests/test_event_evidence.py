@@ -246,6 +246,38 @@ def test_vim_md_ad_present_with_profiles():
     assert set(prof["owns_houses"]) == {1, 2}
 
 
+def test_vim_live_tree_crash_labeled_as_exception_not_data_gap():
+    """Founder fix-now: a raise inside the live phase_analyzer chain must be
+    reported as a crash, never mislabeled 'birth_jd missing'."""
+    import antar_engine.event_evidence as ev
+    chart = _chart()
+    chart["birth_jd"] = 2442208.5  # present → forces the live path (then crashes)
+    orig = ev._vim_tree_live
+    ev._vim_tree_live = lambda *a, **k: (None, "live tree exception: ValueError: boom")
+    try:
+        board = build_whole_board(
+            chart, {}, _dashas(), BIRTH, "property",
+            current_date=TODAY, dt_positions=DT_POS,
+        )
+    finally:
+        ev._vim_tree_live = orig
+    src = board["vimshottari"]["source"]
+    assert "live tree exception" in src and "birth_jd" not in src
+
+
+def test_vim_birth_jd_absent_labeled_distinctly():
+    """No birth_jd in chart_data → fallback source says 'absent', a data state
+    distinct from a crash."""
+    chart = _chart()
+    chart.pop("birth_jd", None)  # fixture has none anyway — assert the label
+    board = build_whole_board(
+        chart, {}, _dashas(), BIRTH, "property",
+        current_date=TODAY, dt_positions=DT_POS,
+    )
+    src = board["vimshottari"]["source"]
+    assert "birth_jd absent" in src
+
+
 def test_vim_pd_sd_or_note():
     board = _board()
     vim = board["vimshottari"]

@@ -201,9 +201,18 @@ def _period_out(p: Optional[dict]) -> Optional[dict]:
             "end": _iso(p["end_datetime"])}
 
 
-def _vim_tree_live(chart_data: dict, birth_jd: float, now: datetime) -> Optional[dict]:
+def _vim_tree_live(chart_data: dict, birth_jd: float, now: datetime):
     """MD-AD-PD-SD via vimsottari + phase_analyzer helpers (the one true
-    subdivision implementation). Returns None if the chain is unavailable."""
+    subdivision implementation).
+
+    Returns (tree, reason). On success: (dict, None). On failure: (None, reason)
+    where `reason` distinguishes the THREE non-success cases so a crash is never
+    mislabeled as a data gap (founder fix-now 2026-06-05):
+      * "phase_analyzer import error: ..."  — dependency chain unavailable
+      * "live tree exception: <Type>: ..."  — the compute actually RAISED
+        (full traceback logged via logger.exception)
+      * "no active MD for current date"     — genuine data state, not a crash
+    """
     try:
         from antar_engine import vimsottari
         from antar_engine.life_arc.phase_analyzer import (
@@ -211,14 +220,14 @@ def _vim_tree_live(chart_data: dict, birth_jd: float, now: datetime) -> Optional
             _compute_sookshma_dashas,
         )
     except Exception as e:
-        logger.warning("[evidence] phase_analyzer chain unavailable: %s", e)
-        return None
+        logger.exception("[evidence] phase_analyzer chain import failed")
+        return None, f"phase_analyzer import error: {e}"
     try:
         result = vimsottari.calculate_vimsottari_from_chart(chart_data, birth_jd)
         mds, ads = result["mahadashas"], result["antardashas"]
         cur_md = _find_current_period(mds, now)
         if not cur_md:
-            return None
+            return None, "no active MD for current date"
         md_ads = [a for a in ads if a.get("parent_lord") == cur_md["lord"]
                   and a["start_datetime"] >= cur_md["start_datetime"]
                   and a["end_datetime"] <= cur_md["end_datetime"] + timedelta(seconds=1)]
@@ -233,10 +242,12 @@ def _vim_tree_live(chart_data: dict, birth_jd: float, now: datetime) -> Optional
                 sds = _compute_sookshma_dashas(cur_pd)
                 cur_sd = _find_current_period(sds, now)
         return {"md": cur_md, "ad": cur_ad, "pd": cur_pd, "sd": cur_sd,
-                "upcoming_pds": upcoming_pds, "source": "phase_analyzer"}
+                "upcoming_pds": upcoming_pds, "source": "phase_analyzer"}, None
     except Exception as e:
-        logger.warning("[evidence] live vim tree failed: %s", e)
-        return None
+        # A real crash in the live chain — log the traceback and report it AS a
+        # crash, never as "birth_jd missing" (that masked the bug before).
+        logger.exception("[evidence] live vim tree raised — NOT a data gap")
+        return None, f"live tree exception: {type(e).__name__}: {e}"
 
 
 def _vim_tree_from_rows(dashas: dict, today: date,
@@ -302,11 +313,15 @@ def _vimshottari_block(dashas, chart_data, lagna_idx, event_houses, today) -> di
 
     birth_jd = (chart_data or {}).get("birth_jd")
     tree = None
-    fallback_reason = "birth_jd missing"
-    if birth_jd:
-        tree = _vim_tree_live(chart_data, birth_jd, now)
-        if tree is None:
-            fallback_reason = "live tree unavailable"
+    if birth_jd is None:
+        # genuinely absent — NOT a crash. Row-fallback is the correct path.
+        fallback_reason = "birth_jd absent from chart_data"
+    else:
+        tree, live_reason = _vim_tree_live(chart_data, birth_jd, now)
+        # live_reason is None on success; carries the real cause otherwise
+        # (import error / live tree exception / no active MD) so the source
+        # label never masks a crash as a data gap.
+        fallback_reason = live_reason or "live tree unavailable"
     if tree is None:
         tree = _vim_tree_from_rows(dashas, today, fallback_reason)
 
