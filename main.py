@@ -10336,7 +10336,10 @@ async def admin_users(limit: int = 50, offset: int = 0, plan: str = "",
     paid_ids = [cid for cid, s in sub_by_chart.items()
                 if s["plan"] in ("seeker", "navigator")]
 
-    base_sel = "id, first_name, current_country, language_preference, created_at"
+    # [admin-inspector] birth fields surfaced for /dashboard/admin-charts.
+    base_sel = ("id, first_name, name, birth_date, birth_time, "
+                "birth_city, birth_place, current_country, "
+                "language_preference, created_at")
 
     def _run(sel):
         qq = supabase.table("charts").select(sel, count="exact")
@@ -10383,6 +10386,11 @@ async def admin_users(limit: int = 50, offset: int = 0, plan: str = "",
         users.append({
             "chart_id": cid,
             "first_name": r.get("first_name") or "",
+            # [admin-inspector] full name + birth data for chart lookup
+            "name": r.get("name") or r.get("first_name") or "",
+            "birth_date": r.get("birth_date") or "",
+            "birth_time": r.get("birth_time") or "",
+            "birth_place": (r.get("birth_city") or r.get("birth_place") or ""),
             "current_country": r.get("current_country") or "",
             "language": str(r.get("language_preference") or "en").lower()[:2],
             "plan": sub.get("plan") or "free",
@@ -12993,6 +13001,11 @@ class AskRequest(BaseModel):
     mode:      Optional[str] = "explore"
     language:  Optional[str] = "en"
     tz_offset: Optional[int] = 0
+    # [ask-scratch] OPTIONAL admin/dev knob — when set, REPLACES the
+    # narration system prompt for THIS call only. Never persisted,
+    # never cached, never affects any other user or chart. Absence
+    # = behavior unchanged. Read-only/ephemeral by contract.
+    scratch_prompt: Optional[str] = None
 
 
 # ── Timing tense: compute ACTIVE / OPENS_SOON / OPENS_LATER deterministically ──
@@ -13385,6 +13398,12 @@ async def ask_endpoint(request: AskRequest):
                     f"\n\n{diagnostic_block}"
                 )
 
+            # [ask-scratch] ephemeral override for THIS call only.
+            if isinstance(getattr(request, "scratch_prompt", None), str) \
+                    and request.scratch_prompt.strip():
+                _sys = request.scratch_prompt
+                print(f"[ask-scratch] explore: scratch_prompt override active "
+                      f"({len(_sys)} chars) — not persisted")
             raw = ""
             try:
                 _t = await call_llm_claude(prompt=question, system_override=_sys)
@@ -13664,6 +13683,12 @@ async def ask_endpoint(request: AskRequest):
                 f"{_yn_internal}"
                 f"\n\n{_yn_conv_block}"
             )
+            # [ask-scratch] ephemeral override for THIS call only.
+            if isinstance(getattr(request, "scratch_prompt", None), str) \
+                    and request.scratch_prompt.strip():
+                _why_sys = request.scratch_prompt
+                print(f"[ask-scratch] yesno: scratch_prompt override active "
+                      f"({len(_why_sys)} chars) — not persisted")
             why = ""
             _yn_actions = []
             try:
