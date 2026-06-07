@@ -12939,7 +12939,28 @@ async def ask_evidence_debug(request: AskEvidenceRequest, http_request: Request)
         chart_data, jaimini_data, dashas, birth_date, concern,
         current_date=as_of,
     )
-    return {"chart_id": request.chart_id, "evidence": board}
+    # Phase 2a: deterministic verdict + the exact narrator prompt the LLM would
+    # receive. Inspect-only on this debug surface; live /ask is unchanged.
+    _verdict = None
+    _narrator_prompt = None
+    try:
+        from antar_engine.event_narrator import (
+            compute_event_verdict, build_reading_sequence_prompt,
+        )
+        _dt_mode = (http_request.query_params.get("dt_mode") or "weighter").lower()
+        if _dt_mode not in ("weighter", "hard_gate"):
+            _dt_mode = "weighter"
+        _verdict = compute_event_verdict(board, dt_mode=_dt_mode)
+        _narrator_prompt = build_reading_sequence_prompt(board, _verdict)
+    except Exception as _ve:
+        logger.exception("[ask/evidence] verdict/narrator build failed")
+        _verdict = {"error": str(_ve)}
+    return {
+        "chart_id": request.chart_id,
+        "verdict": _verdict,
+        "narrator_prompt": _narrator_prompt,
+        "evidence": board,
+    }
 
 
 @app.post("/api/v1/ask")
