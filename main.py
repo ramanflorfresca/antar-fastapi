@@ -14081,6 +14081,11 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                                  else start_date).isoformat()
                     _nar = narration_cache_read(supabase, cid, _nar_date, _th)
                     if not _nar:
+                        # Fix #1: hand the engine's specific drivers to the
+                        # narrator so it says WHY each domain is lit, not just
+                        # the collapsed bucket name. Jargon-free conclusions.
+                        from antar_engine.today_narration import summarize_drivers
+                        _nar_drivers = summarize_drivers(_th_dbg, _th.get("highlight_domains"))
                         _nar_sys = build_narration_system(
                             engine=_th,
                             nudge=result.get("todays_nudge"),
@@ -14089,6 +14094,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                                            if isinstance(_th_tilt, dict) else []),
                             lk_daily=_th_lk,
                             date_str=_nar_date,
+                            drivers=_nar_drivers,
                         )
                         _nar_raw, _ = await call_llm_claude(
                             prompt="Write the Today narration JSON now.",

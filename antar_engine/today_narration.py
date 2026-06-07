@@ -54,6 +54,11 @@ HARD RULES:
 4. "highlight": 3-4 short lines, max 70 words total, on only the chosen
    domain(s). Concrete and behavioral. You may echo the timing window or the
    nudge in passing, but never quote them verbatim.
+4b. GROUND every line in the "drivers" list. Each driver names a chosen domain,
+   its signal (amplified = lean in; caution = ease off), and the plain reasons
+   it is live today. Narrate WHY this domain is lit — not merely that it is.
+   Never introduce a driver that is not in the list, and never state a number,
+   score, or the mechanism behind it.
 5. Use the "weighing_on_user" context, when present, to sharpen relevance —
    speak to what this person is actually carrying. Do not name the context
    itself or say "you asked about".
@@ -74,6 +79,7 @@ def build_narration_system(
     patra_domains: Optional[list] = None,
     lk_daily: Optional[dict] = None,
     date_str: str = "",
+    drivers: Optional[list] = None,
 ) -> str:
     """Static block + per-day JSON tail (below the KV split)."""
     hora = engine.get("todays_move") or engine.get("hora") or {}
@@ -84,6 +90,7 @@ def build_narration_system(
         "domains": engine.get("highlight_domains") or [],
         "direction": engine.get("direction"),
         "strength": engine.get("strength"),
+        "drivers": drivers or [],
         "weighing_on_user": patra_domains or [],
         "day_quality": lk_daily.get("day_quality_for_user") or "",
         "engine_draft_headline": engine.get("headline") or "",
@@ -95,6 +102,63 @@ def build_narration_system(
         "nudge": nudge or "",
     }
     return NARRATION_STATIC + json.dumps(payload, ensure_ascii=False)
+
+
+# ── driver summary: _debug_reasoning votes -> narratable conclusions ─────────
+
+# vote source-kind -> (plain reason, ordering rank). Chart-specific reasons are
+# the strongest "why", attention next, personal context last. ZERO jargon:
+# these are conclusions, never the mechanism (no houses, planets, or scores).
+_DRIVER_REASON = {
+    "lk_amplify": ("this area is specifically lit for you today", 0),
+    "lk_avoid":   ("your own pattern asks for extra care here today", 0),
+    "moon_house": ("this is where your attention naturally lands today", 1),
+    "patra":      ("it connects to what you're focused on right now", 2),
+}
+
+
+def summarize_drivers(debug: Optional[dict], chosen: Optional[list] = None) -> list:
+    """Turn the engine's _debug_reasoning into a per-chosen-domain driver list:
+        [{"domain": "money", "signal": "amplified",
+          "reasons": ["this area is specifically lit for you today", ...]}, ...]
+    Reads only the structured votes (already jargon-free); never the raw LK
+    text or the el_movimiento sentence (which carry mechanism/jargon)."""
+    if not isinstance(debug, dict):
+        return []
+    chosen = chosen or debug.get("chosen") or []
+    if not chosen:
+        return []
+    net = debug.get("net") or {}
+    votes = debug.get("votes") or []
+
+    by_domain: dict = {d: [] for d in chosen}
+    for v in votes:
+        parts = str(v).split(":")
+        if len(parts) < 3:
+            continue
+        kind, domain = parts[1], parts[2]
+        if domain not in by_domain:
+            continue
+        # normalize "moon_house9" -> "moon_house"
+        key = "moon_house" if kind.startswith("moon_house") else kind
+        entry = _DRIVER_REASON.get(key)
+        if entry and entry not in by_domain[domain]:
+            by_domain[domain].append(entry)
+
+    out = []
+    for d in chosen:
+        reasons = sorted(by_domain[d], key=lambda e: e[1])
+        try:
+            signal = "amplified" if float(net.get(d, 0)) >= 0 else "caution"
+        except Exception:
+            signal = "amplified"
+        out.append({
+            "domain": d,
+            "signal": signal,
+            "reasons": [r for r, _ in reasons] or
+                       ["this is the clearest signal in your day"],
+        })
+    return out
 
 
 # ── Output validation — fall back to the engine template on ANY miss ─────────
