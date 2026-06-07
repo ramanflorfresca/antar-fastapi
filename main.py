@@ -13323,7 +13323,10 @@ async def ask_endpoint(request: AskRequest):
             _ee_primary = False
             _ee_verdict = None
             _ee_timing = None
-            _ask_ee_mode = (os.environ.get("ASK_EVENT_ENGINE_MODE", "off") or "off").lower()
+            # [evprimary-2026-06-07] Default to "primary" so the narrator gets the
+            # rich whole-board evidence + KN Rao reading sequence. Override with
+            # ASK_EVENT_ENGINE_MODE=off to fall back to the thin convergence block.
+            _ask_ee_mode = (os.environ.get("ASK_EVENT_ENGINE_MODE", "primary") or "primary").lower()
             try:
                 from antar_engine.ask_consultation import (
                     is_decision_question, build_convergence_timing,
@@ -13370,6 +13373,42 @@ async def ask_endpoint(request: AskRequest):
                             _ee_verdict = _ee["client_verdict"]
                             _ee_timing = _ee["timing_label"]
                             _ask_conv_block = _ee["narrator_prompt"]
+                            # [evprimary-2026-06-07] Replace the convergence
+                            # path's verdict + verdict_phrase with the
+                            # engine's so L1's hard-bind prepend uses the
+                            # event-engine answer (the authoritative one in
+                            # primary mode).
+                            try:
+                                _client = (_ee.get("client_verdict") or "").upper()
+                                _label  = _ee.get("timing_label") or ""
+                                _noun   = "opening"
+                                try:
+                                    from antar_engine.ask_consultation import _DOMAIN_NOUN as _DN
+                                    _noun = _DN.get(_ask_concern, "opening")
+                                except Exception:
+                                    pass
+                                if _client in ("SUPPORTED", "YES"):
+                                    _phrase = (f"Yes — {_noun} is open now, through {_label}."
+                                               if _label else f"Yes — {_noun}.")
+                                elif _client == "LIKELY":
+                                    _phrase = (f"Likely — {_noun} {_label}."
+                                               if _label else f"Likely — {_noun}.")
+                                elif _client == "NOT_YET":
+                                    _phrase = (f"Not yet — next {_noun} {_label}."
+                                               if _label else
+                                               f"Not yet — building phase, no clear {_noun}.")
+                                elif _client == "NO":
+                                    _phrase = (f"No strong {_noun} this cycle — next opening {_label}."
+                                               if _label else
+                                               f"No strong {_noun} in the next 24 months.")
+                                else:
+                                    _phrase = ""
+                                if _phrase:
+                                    _ask_conv["verdict"] = _client
+                                    _ask_conv["verdict_phrase"] = _phrase
+                                    print(f"[ask][evprimary] verdict_phrase from EE: {_phrase!r}")
+                            except Exception as _ph_err:
+                                logger.warning(f"[ask] EE verdict_phrase fallback failed (non-fatal): {_ph_err}")
                 except Exception as _eee:
                     logger.exception("[ask] event engine failed (non-fatal) — legacy path stands")
 

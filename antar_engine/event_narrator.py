@@ -302,6 +302,67 @@ _VERDICT_FRAMING = {
 }
 
 
+# [evprimary-2026-06-07] Compose the deterministic opening sentence for the
+# event-engine path. Mirrors ask_consultation._derive_verdict_phrase format
+# but sources from the event verdict + window (the rich path) rather than the
+# convergence-engine lock_count + window_label.
+_EE_NOUN_BY_EVENT = {
+    "funding":         "funding window",
+    "career":          "career window",
+    "marriage":        "partnership window",
+    "reconciliation":  "reconnection window",
+    "children":        "family window",
+    "health":          "health window",
+    "litigation":      "legal window",
+    "foreign_move":    "foreign move window",
+    "domestic_move":   "domestic move window",
+    "relocation":      "relocation window",
+    "general":         "opening",
+}
+
+
+def _opening_sentence_for(verdict: dict, gen: dict) -> str:
+    """
+    Python-authoritative opening sentence for the event-engine narrator path.
+    Returns the exact sentence Python will prepend to `read`. The model gets
+    this string verbatim in its prompt and is told NOT to repeat it.
+    """
+    client = (verdict.get("client_verdict") or verdict.get("verdict") or "").upper()
+    # event_narrator's CLIENT_VERDICT maps to YES/LIKELY/NOT_YET/NO
+    if client in ("SUPPORTED", "YES"):
+        lead = "Yes"
+    elif client in ("LIKELY", "SUPPORTED_LIKELY"):
+        lead = "Likely"
+    elif client in ("NOT_YET", "PROMISED_BUILDING", "PROMISED_NOT_THIS_YEAR"):
+        lead = "Not yet"
+    elif client in ("NO", "WEAK_NOISE", "NOT_SUPPORTED"):
+        lead = "No"
+    else:
+        lead = client.title() or "Reflective"
+    event = (gen or {}).get("event") or "general"
+    noun = _EE_NOUN_BY_EVENT.get(event, "opening")
+    win = verdict.get("window") or {}
+    label = win.get("label") or ""
+    # NOT_YET / NO must still surface a forward date if present
+    if not label and verdict.get("next_window_label"):
+        label = verdict["next_window_label"]
+    if label:
+        if lead in ("Yes",):
+            return f"Yes — {noun} is open now, through {label}."
+        if lead in ("Likely",):
+            return f"Likely — {noun} {label}."
+        if lead in ("Not yet",):
+            return f"Not yet — next {noun} {label}."
+        if lead in ("No",):
+            return f"No strong {noun} this cycle — next opening {label}."
+    # No date at all
+    if lead == "Not yet":
+        return f"Not yet — building phase, no clear {noun} in the next 24 months."
+    if lead == "No":
+        return f"No strong {noun} in the next 24 months."
+    return f"{lead} — {noun}."
+
+
 def build_reading_sequence_prompt(board: dict, verdict: dict,
                                   language: str = "en") -> str:
     """
@@ -317,6 +378,20 @@ def build_reading_sequence_prompt(board: dict, verdict: dict,
     lines.append("=== EVENT READING — deterministic facts. Do NOT alter the "
                  "verdict direction, the confidence, or the window. Interpret; "
                  "never calculate. ===")
+    # [evprimary-2026-06-07] OPENING SENTENCE — Python prepends a deterministic
+    # verdict+window lead to `read` after this prompt runs (mirror of L1's
+    # _derive_verdict_phrase). The model MUST NOT repeat the verdict word or
+    # restate the window in `read`'s first sentence — write WHY only.
+    lines.append("OPENING SENTENCE (Python prepends this verbatim; do NOT repeat it): "
+                 f"{_opening_sentence_for(verdict, gen)}")
+    lines.append("YOUR JOB — REASON OVER VERIFIED FACTS. You are NOT rewording "
+                 "the verdict. You ARE an astrologer reading the whole board "
+                 "below, connecting the dasha lord, the chara cross-check, the "
+                 "divisional confirm, the yoga state, the double transit, and the "
+                 "varshphal gate into ONE direct, integrated read. Every claim "
+                 "you make in `read` MUST trace to a fact already in this prompt "
+                 "(no new positions, no new dates, no new houses). The model "
+                 "interprets the combination — Python computed it.")
     lines.append(f"QUESTION DOMAIN: {gen.get('concern')} (event type: {gen.get('event')})")
     lines.append(f"PYTHON VERDICT (authoritative): {v['verdict']} — "
                  f"{_VERDICT_FRAMING.get(v['verdict'], '')}")
