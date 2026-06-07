@@ -14095,6 +14095,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                             lk_daily=_th_lk,
                             date_str=_nar_date,
                             drivers=_nar_drivers,
+                            panchanga=panchanga,
                         )
                         _nar_raw, _ = await call_llm_claude(
                             prompt="Write the Today narration JSON now.",
@@ -17169,6 +17170,7 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
             force_refresh=refresh,
             language=language,
             birth_date=chart_record.get("birth_date", ""),  # [cp-day1] pass birth_date for masik phal
+            lk_data=_safe_jsonb(chart_record.get("lal_kitab_data")),  # [2026-06-07] LK condition engine
         )
 
         # ── Layer-2 concrete signals (highlights) — Month ──────────────

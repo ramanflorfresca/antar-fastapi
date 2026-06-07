@@ -72,6 +72,12 @@ HARD RULES:
 5. Use the "weighing_on_user" context, when present, to sharpen relevance —
    speak to what this person is actually carrying. Do not name the context
    itself or say "you asked about".
+5b. TEXTURE (optional, only if it fits naturally): "second_half_quality" tells
+   you whether the back half of the day steadies (favorable), needs care
+   (caution), or is even (neutral) — you may shade the timing line with it.
+   "month_emphasis" is the plain theme the wider month leans on (e.g. "money,
+   comfort, and relationships") — you may anchor the day inside it in one
+   clause. Never force either; never name a limb, planet, or "month lord".
 6. ZERO jargon: no planet names, no Sanskrit, no houses, no astrology terms,
    no "the energy of X", no weekday names, no dates.
 7. No questions anywhere. No emojis. No exclamation marks. Second person.
@@ -90,10 +96,23 @@ def build_narration_system(
     lk_daily: Optional[dict] = None,
     date_str: str = "",
     drivers: Optional[list] = None,
+    panchanga: Optional[dict] = None,
 ) -> str:
     """Static block + per-day JSON tail (below the KV split)."""
     hora = engine.get("todays_move") or engine.get("hora") or {}
     lk_daily = lk_daily or {}
+    panchanga = panchanga or {}
+    # Panchanga texture — QUALITY words + plain month emphasis ONLY (never the
+    # Sanskrit limb names; rule 6 / _JARGON_RX would reject them). Surfaces the
+    # karana (second-half-of-day) quality and the month lord's plain theme.
+    def _qword(q):
+        q = (q or "").lower()
+        # check 'inauspic' BEFORE 'auspic' — the latter is a substring of it.
+        if "inauspic" in q or "caution" in q or "avoid" in q or "difficult" in q:
+            return "caution"
+        if "auspic" in q or "favor" in q or "favour" in q:
+            return "favorable"
+        return "neutral"
     payload = {
         "date": date_str,
         "first_name": (first_name or "").split(" ")[0][:24],
@@ -101,6 +120,8 @@ def build_narration_system(
         "direction": engine.get("direction"),
         "strength": engine.get("strength"),
         "drivers": drivers or [],
+        "second_half_quality": _qword(panchanga.get("karana_quality")),
+        "month_emphasis": panchanga.get("masa_theme") or "",
         "weighing_on_user": patra_domains or [],
         "day_quality": lk_daily.get("day_quality_for_user") or "",
         "engine_draft_headline": engine.get("headline") or "",

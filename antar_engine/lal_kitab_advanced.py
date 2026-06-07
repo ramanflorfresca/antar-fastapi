@@ -726,6 +726,75 @@ def compute_lk_daily_diagnostic(
     }
 
 
+def compute_lk_month_diagnostic(lk_data: dict, chart_data: dict, now,
+                                language: str = "en") -> dict:
+    """
+    Month-scale LK condition signal (2026-06-07). The daily diagnostic is
+    weekday-lord driven, so iterating the 7 weekday-lords of the month gives
+    this chart's recurring LK pattern for the month: which day-lords are
+    dignified (amplified domains) vs afflicted/sleeping (caution domains),
+    plus the natal sleeping-planet set (date-independent).
+
+    Pure computation, no Claude. NOT user-facing text — structural facts +
+    a votes trail for the monthly _debug_reasoning. Mirrors the daily LK
+    condition logic so Month "earns" its nouns the same way Today does.
+    """
+    from datetime import timedelta
+    planets = (chart_data or {}).get("planets") or {}
+
+    # natal sleeping planets — date-independent (same detector the chart-create
+    # flow uses); the single biggest LK signal currently absent from Month.
+    sleeping = []
+    try:
+        sleeping = [s.get("planet") for s in detect_sleeping_planets(planets)
+                    if isinstance(s, dict) and s.get("planet")]
+    except Exception:
+        sleeping = []
+
+    amplified, caution, day_conditions, seen = {}, {}, [], set()
+    base = (now.date() if hasattr(now, "date") else now).replace(day=1)
+    for offset in range(7):                      # one per weekday-lord
+        d = base + timedelta(days=offset)
+        try:
+            diag = compute_lk_daily_diagnostic(lk_data, chart_data, d, language)
+        except Exception:
+            continue
+        lord = diag.get("day_lord")
+        if not diag.get("available") or lord in seen:
+            continue
+        seen.add(lord)
+        st = diag.get("day_lord_status") or {}
+        day_conditions.append({
+            "day_lord": lord, "dignity": st.get("dignity"),
+            "sleeping": bool(st.get("sleeping")),
+            "quality": diag.get("day_quality_for_user"),
+        })
+        for dom in (diag.get("domains_amplified_today") or []):
+            amplified[dom] = amplified.get(dom, 0) + 1
+        for dom in (diag.get("domains_to_avoid_today") or []):
+            caution[dom] = caution.get(dom, 0) + 1
+
+    amp_list = sorted(amplified, key=lambda k: -amplified[k])[:4]
+    cau_list = sorted(caution, key=lambda k: -caution[k])[:4]
+
+    votes = []
+    for p in sleeping:
+        votes.append(f"lk_sleeping:{p}")
+    for dom in amp_list:
+        votes.append(f"lk_amplify:{dom}")
+    for dom in cau_list:
+        votes.append(f"lk_caution:{dom}")
+
+    return {
+        "available": bool(day_conditions),
+        "domains_amplified": amp_list,
+        "domains_caution": cau_list,
+        "sleeping_planets": sleeping,
+        "day_lord_conditions": day_conditions,
+        "votes": votes,
+    }
+
+
 def _translate_summary_es(day_lord, dignity, lk_house, house_theme, is_sleeping, rin_active, rin_name):
     """Build Spanish summary."""
     dignity_es = {"dignified": "dignificado", "neutral": "neutral", "afflicted": "afligido"}.get(dignity, dignity)

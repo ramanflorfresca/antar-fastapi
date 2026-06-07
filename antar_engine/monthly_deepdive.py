@@ -493,6 +493,7 @@ async def generate_monthly_deepdive(
     force_refresh: bool = False,
     birth_date:    Optional[str] = None,   # [cp-day1] birth_date kwarg
     language:      str = "en",
+    lk_data:       Optional[dict] = None,  # [2026-06-07] LK JSONB for condition engine
 ) -> dict:
     """
     Generate or return cached monthly deep-dive.
@@ -514,16 +515,22 @@ async def generate_monthly_deepdive(
     # Build context
     # [cp-day1] pass birth_date to context builder
     _bd = birth_date or chart_data.get('birth_date') or ''
+    _dbg: dict = {}
     context = _build_deepdive_context(
         chart_data, dashas, first_name, lagna,
         moon_sign, current_dasha, age, country_code,
         lk_context, now, _bd,
+        lk_data=lk_data, debug_out=_dbg,
     )
 
     # Call Claude
     result = await _call_claude(context, claude_client, language)
     result["chart_id"]  = chart_id
     result["month_key"] = month_key
+    # [2026-06-07] evidence trail (mirrors Today's _debug_reasoning) — which
+    # computed signals (masik / LK condition / transit houses) drove the read.
+    if _dbg:
+        result["_debug_reasoning"] = _dbg
 
     # Inject first_name into overview
     if first_name and result.get("overview"):
@@ -637,6 +644,8 @@ def _build_deepdive_context(
     lk_context:    Optional[str],
     now:           datetime,
     birth_date:    str = '',   # [cp-day1] accept birth_date
+    lk_data:       Optional[dict] = None,   # [2026-06-07] LK JSONB for condition engine
+    debug_out:     Optional[dict] = None,   # [2026-06-07] votes trail, filled in-place
 ) -> str:
     month_str = now.strftime("%B %Y")
     planets   = chart_data.get("planets", {})
@@ -697,6 +706,12 @@ def _build_deepdive_context(
             lines.append(f'  strong_planets: {_json_inner.dumps(_strong_names)}')
             lines.append(f'  weak_planets:   {_json_inner.dumps(_weak_names)}')
             lines.append('(Do not substitute. Do not reorder. Do not add or remove planets.)')
+            # [2026-06-07] evidence trail: masik strong/weak votes
+            if debug_out is not None:
+                debug_out.setdefault("votes", []).extend(
+                    [f"masik:strong:{p}" for p in _strong_names] +
+                    [f"masik:weak:{p}" for p in _weak_names])
+                debug_out["masik"] = {"strong": _strong_names, "weak": _weak_names}
 
             # [cp-day6] monthly remedies injection
             _mon_remedy_planets = _pick_monthly_remedy_planets(
@@ -722,6 +737,35 @@ def _build_deepdive_context(
             logger.warning(f'[monthly] masik phal block skipped: {_mp_err}')
     else:
         logger.info('[monthly-day1] no birth_date — masik block skipped')
+
+    # [2026-06-07] LK CONDITION ENGINE — month-scale amplify/avoid + sleeping.
+    # Previously Month ran on masik movement only; the daily LK condition logic
+    # (the signal that earns nouns) was never wired in. This adds it.
+    try:
+        from antar_engine.lal_kitab_advanced import compute_lk_month_diagnostic
+        _lkm = compute_lk_month_diagnostic(lk_data or {}, chart_data, now)
+        if _lkm.get("available"):
+            lines.append('')
+            lines.append('LAL KITAB CONDITION THIS MONTH (chart-personalized):')
+            if _lkm.get("domains_amplified"):
+                lines.append(f'  amplified areas: {", ".join(_lkm["domains_amplified"])}')
+            if _lkm.get("domains_caution"):
+                lines.append(f'  areas needing care: {", ".join(_lkm["domains_caution"])}')
+            if _lkm.get("sleeping_planets"):
+                lines.append(
+                    '  dormant energies to activate (their life-areas are quiet '
+                    f'until consciously worked): {", ".join(_lkm["sleeping_planets"])}')
+            lines.append('(Reflect amplified vs care areas in the read; a dormant '
+                         "energy means that life-area needs deliberate effort to wake up.)")
+        if debug_out is not None and _lkm.get("votes"):
+            debug_out.setdefault("votes", []).extend(_lkm["votes"])
+            debug_out["lk_month"] = {
+                "amplified": _lkm.get("domains_amplified"),
+                "caution": _lkm.get("domains_caution"),
+                "sleeping": _lkm.get("sleeping_planets"),
+            }
+    except Exception as _lkm_err:
+        logger.warning(f"[monthly] LK month diagnostic skipped: {_lkm_err}")
 
     # [cp-day3] WEEKLY TRANSIT SCHEDULE block — Day 2 event engine output
     # bucketed into Monday-start weeks.  Best/caution weeks must be picked
@@ -806,6 +850,13 @@ def _build_deepdive_context(
                 except Exception:
                     pass
                 _rank += 1
+            # [2026-06-07] evidence trail: transit hot-domain houses
+            if debug_out is not None:
+                debug_out["transit_hot_domains"] = _hot_domains
+                _tv = debug_out.setdefault("votes", [])
+                for _hd in _hot_domains:
+                    for _hh in (_tally.get(_hd, {}).get("houses") or []):
+                        _tv.append(f"transit:{_hd}:house{_hh}")
             lines.append('')
             lines.append('COMPUTED JSON VALUES — priority_actions MUST cover exactly these domains in this order:')
             lines.append(f'  priority_action_domains: {_json_sch.dumps(_hot_domains)}')

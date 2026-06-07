@@ -61,6 +61,33 @@ KARANAS = [
     "Vanija","Vishti","Shakuni","Chatushpada","Naga","Kimstughna"
 ]
 
+# ── Masa (lunar month) — the 6th panchanga limb at month scale ───────────────
+# Amanta correspondence: the lunar month current while the Sun occupies a sign.
+# Index by Sun's sidereal sign (0=Aries … 11=Pisces).
+MASA_BY_SUN_SIGN = [
+    "Vaishakha", "Jyeshtha", "Ashadha", "Shravana", "Bhadrapada", "Ashwina",
+    "Kartika", "Margashirsha", "Pausha", "Magha", "Phalguna", "Chaitra",
+]
+# Ruling planet of the lunar month = lord of the sign the Sun occupies
+# (the solar-month ruler; deterministic, gives a planet usable in prediction).
+SIGN_LORDS = {
+    "Aries": "Mars", "Taurus": "Venus", "Gemini": "Mercury", "Cancer": "Moon",
+    "Leo": "Sun", "Virgo": "Mercury", "Libra": "Venus", "Scorpio": "Mars",
+    "Sagittarius": "Jupiter", "Capricorn": "Saturn", "Aquarius": "Saturn",
+    "Pisces": "Jupiter",
+}
+# Month-lord -> plain, jargon-free life theme (what the month emphasizes).
+# Surfaced to the narrator; planet name itself stays internal.
+MASA_LORD_THEME = {
+    "Sun":     "visibility, standing, and being seen",
+    "Moon":    "emotional rhythm, home, and care",
+    "Mars":    "drive, initiative, and pushing things forward",
+    "Mercury": "communication, deals, and learning",
+    "Jupiter": "growth, guidance, and the bigger picture",
+    "Venus":   "money, comfort, and relationships",
+    "Saturn":  "discipline, structure, and the long game",
+}
+
 KARANA_QUALITY = {
     "Vishti": "inauspicious — avoid important work",
     "Shakuni": "mixed",
@@ -285,6 +312,12 @@ def calculate_panchanga(lat: float = 28.6, lng: float = 77.2, tz_offset: float =
         tithi_name = TITHI_NAMES[tithi_num - 1]
         tithi_quality = TITHI_QUALITY.get(tithi_num, "neutral")
 
+        # Masa (lunar month) + month lord — the monthly panchanga limb.
+        _sun_sign_idx = int(sun_sid / 30) % 12
+        masa_name = MASA_BY_SUN_SIGN[_sun_sign_idx]
+        masa_lord = SIGN_LORDS.get(SIGNS[_sun_sign_idx], "Sun")
+        masa_theme = MASA_LORD_THEME.get(masa_lord, "")
+
         # Nakshatra
         NAKSHATRAS = [
             "Ashvini","Bharani","Krittika","Rohini","Mrigashira","Ardra",
@@ -422,6 +455,9 @@ def calculate_panchanga(lat: float = 28.6, lng: float = 77.2, tz_offset: float =
             "yoga_quality": yoga_quality,
             "karana":       karana_name,
             "karana_quality":karana_quality,
+            "masa":         masa_name,        # lunar month (internal — Sanskrit)
+            "masa_lord":    masa_lord,        # month ruler planet (internal)
+            "masa_theme":   masa_theme,       # plain month emphasis (narrator-safe)
             "day_quality":  day_quality,
             "rahu_kalam":   rahu_kalam,
             "yamaganda":    yamaganda,
