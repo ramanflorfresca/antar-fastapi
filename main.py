@@ -13103,6 +13103,12 @@ async def ask_endpoint(request: AskRequest):
             _ask_conv = {}
             _ask_conv_block = ""
             _ask_practices = []
+            # Event Engine Phase 2b (flag ASK_EVENT_ENGINE_MODE off/shadow/primary)
+            _ee = None
+            _ee_primary = False
+            _ee_verdict = None
+            _ee_timing = None
+            _ask_ee_mode = (os.environ.get("ASK_EVENT_ENGINE_MODE", "off") or "off").lower()
             try:
                 from antar_engine.ask_consultation import (
                     is_decision_question, build_convergence_timing,
@@ -13128,6 +13134,29 @@ async def ask_endpoint(request: AskRequest):
                           f"practices={len(_ask_practices)}")
             except Exception as _dqe:
                 logger.warning(f"[ask] consultation path failed (non-fatal): {_dqe}")
+
+            # ── Event Engine (Phase 2b): whole-board verdict + KN Rao narrator.
+            #    shadow logs only; primary swaps the facts block + drives verdict.
+            if _ask_decision and _ask_ee_mode in ("shadow", "primary"):
+                try:
+                    from antar_engine.event_narrator import run_event_engine
+                    _ee = run_event_engine(
+                        chart_data, _ask_jd, _ask_dashas, _ask_bdate, _ask_concern,
+                    )
+                    if _ee:
+                        _ev = _ee["verdict"]
+                        _legacy_v = "LIKELY" if _ask_conv.get("convergence_met") else "NOT_YET"
+                        print(f"[ask][event-engine:{_ask_ee_mode}] verdict={_ev['verdict']} "
+                              f"client={_ee['client_verdict']} conf={_ev['confidence']} "
+                              f"({_ev['layers_agreeing']}/6) window={_ee['timing_label']} "
+                              f"| legacy={_legacy_v} legacy_window={_ask_conv.get('window_label')}")
+                        if _ask_ee_mode == "primary":
+                            _ee_primary = True
+                            _ee_verdict = _ee["client_verdict"]
+                            _ee_timing = _ee["timing_label"]
+                            _ask_conv_block = _ee["narrator_prompt"]
+                except Exception as _eee:
+                    logger.exception("[ask] event engine failed (non-fatal) — legacy path stands")
 
             if _ask_decision:
                 # [narrator-hardbind 2026-06-05b] Same tense discipline as the
@@ -13204,7 +13233,8 @@ async def ask_endpoint(request: AskRequest):
                 try:
                     from antar_engine.timing_fidelity import scrub_freelance_dates
                     _tf_allowed = [_ask_conv.get("window_label"),
-                                   _ask_conv.get("next_window_label")]
+                                   _ask_conv.get("next_window_label"),
+                                   _ee_timing]
                     read_txt, _tf_rm = scrub_freelance_dates(read_txt, _tf_allowed)
                     if next_txt:
                         next_txt, _tf_rm2 = scrub_freelance_dates(next_txt, _tf_allowed)
@@ -13232,10 +13262,18 @@ async def ask_endpoint(request: AskRequest):
                 # the convergence result drives; the model's verdict is logged
                 # only and never reaches the client (freelance suppression).
                 _det_verdict = "LIKELY" if _ask_conv.get("convergence_met") else "NOT_YET"
+                _det_timing = _ask_conv.get("window_label")
+                if _ee_primary and _ee_verdict:
+                    # Python-authoritative: the event engine decides direction +
+                    # window when running primary (c1). Legacy verdict suppressed.
+                    print(f"[ask] event-engine PRIMARY override: {_det_verdict}->{_ee_verdict} "
+                          f"timing {_det_timing!r}->{_ee_timing!r}")
+                    _det_verdict = _ee_verdict
+                    _det_timing = _ee_timing
                 if _ask_verdict and _ask_verdict != _det_verdict:
                     print(f"[ask] verdict-freelance suppressed: model={_ask_verdict} det={_det_verdict}")
                 payload["verdict"]  = _det_verdict
-                payload["timing"]   = _ask_conv.get("window_label")
+                payload["timing"]   = _det_timing
                 payload["actions"]  = _ask_actions
                 payload["practices"] = _ask_practices
                 payload["convergence"] = _ask_conv.get("public_summary")
@@ -13384,6 +13422,24 @@ async def ask_endpoint(request: AskRequest):
                       f"window={_yn_conv.get('window_label')}")
             except Exception as _cve:
                 logger.warning(f"[ask] convergence failed (non-fatal): {_cve}")
+
+            # Event Engine Phase 2b — YESNO is SHADOW-ONLY (prashna keeps the
+            # binary verdict; primary here is a Phase-2c founder decision).
+            if (os.environ.get("ASK_EVENT_ENGINE_MODE", "off") or "off").lower() in ("shadow", "primary"):
+                try:
+                    from antar_engine.event_narrator import run_event_engine
+                    _yn_ee = run_event_engine(
+                        natal_chart or {}, jaimini_data, _yn_dashas,
+                        str(cdata.get("birth_date") or ""), _yn_concern,
+                    )
+                    if _yn_ee:
+                        _yev = _yn_ee["verdict"]
+                        print(f"[ask][event-engine:yesno-shadow] verdict={_yev['verdict']} "
+                              f"client={_yn_ee['client_verdict']} conf={_yev['confidence']} "
+                              f"({_yev['layers_agreeing']}/6) window={_yn_ee['timing_label']} "
+                              f"| prashna={verdict} prashna_window={timing}")
+                except Exception as _yee:
+                    logger.warning(f"[ask] event engine yesno shadow failed (non-fatal): {_yee}")
 
             # "why" + ACTIONS in one call (2026-06-03) — pinned to the
             # convergence facts so the model cannot invent timing.

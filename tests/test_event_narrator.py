@@ -183,6 +183,32 @@ def test_narrator_prompt_negative_carries_user():
     assert "Apr" not in p or "trigger_forms" in p  # window is the forming one
 
 
+def test_run_event_engine_orchestrator_shape():
+    """run_event_engine glues board→verdict→client_verdict→timing for /ask
+    wiring. Monkeypatch build_whole_board so no ephemeris is needed."""
+    import antar_engine.event_evidence as ev
+    canned = _board(dasha_promise=True, gate=True, dt="fires",
+                    pd={"lord": "Venus", "start": "2026-03-01", "end": "2026-09-01"})
+    orig = ev.build_whole_board
+    ev.build_whole_board = lambda *a, **k: canned
+    try:
+        from antar_engine.event_narrator import run_event_engine
+        out = run_event_engine({}, {}, {}, "1990-01-01", "funding")
+    finally:
+        ev.build_whole_board = orig
+    assert out["verdict"]["verdict"] == "supported"
+    assert out["client_verdict"] == "YES"
+    assert out["timing_label"] == "Mar 2026 – Sep 2026"
+    assert "PYTHON VERDICT (authoritative): supported" in out["narrator_prompt"]
+
+
+def test_client_verdict_map_covers_all_verdicts():
+    from antar_engine.event_narrator import CLIENT_VERDICT
+    for vk in ("supported", "supported_likely", "promised_building",
+               "promised_not_this_year", "weak_noise", "not_supported"):
+        assert CLIENT_VERDICT[vk] in ("YES", "LIKELY", "NOT_YET", "NO")
+
+
 def test_narrator_prompt_reads_kn_rao_order():
     b = _board(dasha_promise=True, gate=True, dt="fires")
     p = build_reading_sequence_prompt(b, compute_event_verdict(b))

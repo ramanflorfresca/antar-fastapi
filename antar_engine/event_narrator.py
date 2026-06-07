@@ -61,6 +61,17 @@ _EVENT_KARAKA = {           # 7-scheme abbrs (founder ruling R4)
 _DUSTHANA = {6, 8, 12}
 _SUPPORTIVE = {2, 11}
 
+# Event-engine verdict → the client-facing /ask verdict enum (YES/LIKELY/
+# NOT_YET/NO). The narrator phrases prose; THIS is the authoritative direction.
+CLIENT_VERDICT = {
+    "supported":              "YES",
+    "supported_likely":       "LIKELY",
+    "promised_building":      "NOT_YET",
+    "promised_not_this_year": "NOT_YET",
+    "weak_noise":             "NO",
+    "not_supported":          "NO",
+}
+
 _MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
 
@@ -382,3 +393,29 @@ def build_reading_sequence_prompt(board: dict, verdict: dict,
                  "friend about their life, not their chart).")
     lines.append("=== END EVENT READING ===")
     return "\n".join(lines)
+
+
+# ── orchestrator (one call for the /ask wiring) ─────────────────────────────
+
+def run_event_engine(chart_data, jaimini_data, dashas, birth_date, concern,
+                     *, dt_mode: str = "weighter",
+                     current_date: Optional[date] = None) -> Optional[dict]:
+    """
+    Build whole board → deterministic verdict → narrator prompt in one call,
+    for the /ask wiring (Phase 2b). Returns a dict
+      {board, verdict, narrator_prompt, client_verdict, timing_label}
+    or None on failure (caller falls back to the legacy convergence path).
+    """
+    from antar_engine.event_evidence import build_whole_board
+    board = build_whole_board(chart_data, jaimini_data, dashas, birth_date,
+                              concern, current_date=current_date)
+    verdict = compute_event_verdict(board, dt_mode=dt_mode)
+    prompt = build_reading_sequence_prompt(board, verdict)
+    win = verdict.get("window") or {}
+    return {
+        "board": board,
+        "verdict": verdict,
+        "narrator_prompt": prompt,
+        "client_verdict": CLIENT_VERDICT.get(verdict["verdict"], "NOT_YET"),
+        "timing_label": win.get("label"),
+    }
