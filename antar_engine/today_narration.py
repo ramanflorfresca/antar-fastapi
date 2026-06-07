@@ -59,6 +59,16 @@ HARD RULES:
    it is live today. Narrate WHY this domain is lit — not merely that it is.
    Never introduce a driver that is not in the list, and never state a number,
    score, or the mechanism behind it.
+4c. BE CONCRETE — name the actual thing, not the bucket. Each driver carries
+   "concrete_nouns" (the literal life-things it points to — e.g. your mother,
+   your boss, a loan or credit line, a vehicle, your partner, property) and a
+   "this_could_touch" phrasing. Name 2-3 of these specific nouns with the day's
+   timing — "review any new loan or credit line today", "your boss is likely to
+   back you", "a home or vehicle expense may come up". NEVER write the abstract
+   bucket alone ("relationships need attention", "focus on work"). Selective,
+   not scattershot: name only the nouns given for the chosen domain(s) — do not
+   list every possibility. The nouns ARE results, so naming them is correct;
+   still never name the house, planet, or number behind them.
 5. Use the "weighing_on_user" context, when present, to sharpen relevance —
    speak to what this person is actually carrying. Do not name the context
    itself or say "you asked about".
@@ -132,6 +142,7 @@ def summarize_drivers(debug: Optional[dict], chosen: Optional[list] = None) -> l
     votes = debug.get("votes") or []
 
     by_domain: dict = {d: [] for d in chosen}
+    house_for: dict = {}                       # domain -> the ACTIVATED house
     for v in votes:
         parts = str(v).split(":")
         if len(parts) < 3:
@@ -139,8 +150,15 @@ def summarize_drivers(debug: Optional[dict], chosen: Optional[list] = None) -> l
         kind, domain = parts[1], parts[2]
         if domain not in by_domain:
             continue
-        # normalize "moon_house9" -> "moon_house"
-        key = "moon_house" if kind.startswith("moon_house") else kind
+        # normalize "moon_house9" -> "moon_house" AND capture the real house #.
+        if kind.startswith("moon_house"):
+            key = "moon_house"
+            try:
+                house_for[domain] = int(kind[len("moon_house"):])
+            except Exception:
+                pass
+        else:
+            key = kind
         entry = _DRIVER_REASON.get(key)
         if entry and entry not in by_domain[domain]:
             by_domain[domain].append(entry)
@@ -152,11 +170,29 @@ def summarize_drivers(debug: Optional[dict], chosen: Optional[list] = None) -> l
             signal = "amplified" if float(net.get(d, 0)) >= 0 else "caution"
         except Exception:
             signal = "amplified"
+        # NOUN LAYER (2026-06-07): translate the activated house into the
+        # literal life-nouns it points to (mother, boss, loan, vehicle...),
+        # direction-bound and capped at 2-3. Prefer the actually-activated
+        # house (Moon-attention vote); fall back to the domain's primary house
+        # only when no house is in hand (LK amplify/avoid path).
+        nouns, theme, phrase = [], "", ""
+        try:
+            from antar_engine.house_significations import resolve_signal
+            _direction = "positive" if signal == "amplified" else "adverse"
+            _sig = resolve_signal(house_for.get(d), d, _direction, limit=3)
+            nouns = _sig.get("nouns", [])
+            theme = _sig.get("theme", "")
+            phrase = _sig.get("phrase", "")
+        except Exception:
+            pass
         out.append({
             "domain": d,
             "signal": signal,
             "reasons": [r for r, _ in reasons] or
                        ["this is the clearest signal in your day"],
+            "concrete_nouns": nouns,
+            "life_area": theme,
+            "this_could_touch": phrase,
         })
     return out
 

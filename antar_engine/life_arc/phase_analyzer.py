@@ -336,6 +336,28 @@ async def generate_phase_summary(
     if not claude_caller:
         return _fallback_phase_summary(vimsottari_phase, sade_sati)
 
+    # noun layer (2026-06-07): the chapter's slow transits point at literal
+    # life-areas — Jupiter's house = where support/growth lands, Saturn's =
+    # where it's tested. Translate to concrete nouns so the summary names real
+    # life (your work, home, partner, finances) not abstract "energy".
+    _noun_hint = ""
+    try:
+        from antar_engine.house_significations import select_nouns
+        _jh = transit_overlay.get("jupiter_house_from_moon")
+        _sh = transit_overlay.get("saturn_house_from_moon")
+        _grow = select_nouns(_jh, "positive", None, 3) if isinstance(_jh, int) else []
+        _test = select_nouns(_sh, "adverse", None, 3) if isinstance(_sh, int) else []
+        _bits = []
+        if _grow:
+            _bits.append("supported/growing: " + ", ".join(_grow))
+        if _test:
+            _bits.append("tested/asking effort: " + ", ".join(_test))
+        if _bits:
+            _noun_hint = ("\n- Concrete life-areas this chapter touches (name a "
+                          "few of these naturally, no jargon) — " + "; ".join(_bits))
+    except Exception:
+        _noun_hint = ""
+
     prompt = f"""You are generating a life phase summary for Antar (a life navigation AI).
 
 Current astrological state:
@@ -347,17 +369,20 @@ Current astrological state:
 - Sade Sati: {transit_overlay.get('sade_sati_status')}
 - Jupiter house from Moon: {transit_overlay.get('jupiter_house_from_moon')}
 - Saturn house from Moon: {transit_overlay.get('saturn_house_from_moon')}
-- Archetype: {archetype_name}
+- Archetype: {archetype_name}{_noun_hint}
 
 RULES:
 1. Write exactly ONE paragraph (3-5 sentences)
 2. Reference the SPECIFIC chapter lords and their pairing psychology
 3. If Sade Sati is active, mention it and what it means practically
 4. Mention the most important transit (Jupiter or Saturn) and what it activates
+   BY NAMING THE CONCRETE LIFE-AREA it touches from the list above (your work,
+   home, partner, finances, your father, property) — not abstract "energy".
+   Name 2-3 specific life-things, selectively; never a long list.
 5. End with when the current energy shifts and what comes next
 6. NO Sanskrit terms, NO planet names — use "major life chapter", "sub-chapter", etc.
 7. Language: {language}
-8. Be specific and insightful, not generic
+8. Be specific and insightful, not generic. Name real life-things, not categories.
 
 Write the summary now:"""
 

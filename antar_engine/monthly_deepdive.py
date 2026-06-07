@@ -193,9 +193,13 @@ def _aggregate_hot_domains(events: list, top_n: int = 3) -> tuple[list, dict]:
         if not domain:
             continue
         weight = _EVENT_WEIGHT.get(etype, 1)
-        slot = tally.setdefault(domain, {'score': 0, 'event_count': 0})
+        slot = tally.setdefault(domain, {'score': 0, 'event_count': 0, 'houses': []})
         slot['score']       += weight
         slot['event_count'] += 1
+        # noun layer (2026-06-07): remember WHICH natal house drove this domain
+        # so the narrator can name the literal life-things, not the bucket.
+        if house not in slot['houses']:
+            slot['houses'].append(house)
     ranked = sorted(tally.items(), key=lambda kv: (-kv[1]['score'], kv[0]))
     ordered = [d for d, _ in ranked]
     # Pad with fallback domains if we don't have enough
@@ -778,16 +782,37 @@ def _build_deepdive_context(
             lines.append('HOT DOMAINS THIS MONTH (by transit-to-natal-house activation score):')
             _rank = 1
             for _d in _hot_domains:
-                _slot = _tally.get(_d, {'score': 0, 'event_count': 0})
+                _slot = _tally.get(_d, {'score': 0, 'event_count': 0, 'houses': []})
                 lines.append(
                     f'  {_rank}. {_d} — score {_slot["score"]} '
                     f'across {_slot["event_count"]} events'
                 )
+                # noun layer (2026-06-07): name the literal life-things the
+                # activated houses point to, not the abstract domain bucket.
+                try:
+                    from antar_engine.house_significations import (
+                        select_nouns, nouns_for_domain,
+                    )
+                    _nouns = []
+                    for _h in (_slot.get('houses') or []):
+                        for _n in select_nouns(_h, None, _d, limit=2):
+                            if _n not in _nouns:
+                                _nouns.append(_n)
+                    if not _nouns:  # padded fallback domain (no houses in tally)
+                        _nouns = (nouns_for_domain(_d, None, 3) or {}).get('nouns', [])
+                    if _nouns:
+                        lines.append(
+                            f'       concrete things this points to: {", ".join(_nouns[:4])}')
+                except Exception:
+                    pass
                 _rank += 1
             lines.append('')
             lines.append('COMPUTED JSON VALUES — priority_actions MUST cover exactly these domains in this order:')
             lines.append(f'  priority_action_domains: {_json_sch.dumps(_hot_domains)}')
-            lines.append('(Write one verb-first action per domain, citing the transit events above.)')
+            lines.append('(Write one verb-first action per domain, citing the transit events above. '
+                         'Name the CONCRETE life-things listed under each hot domain — a loan or '
+                         'credit line, your boss, a vehicle, your partner, property — never the '
+                         'abstract category alone. Selective: name only the 2-3 that fit, never a list.)')
 
             # [cp-day7] monthly energy + week picks injection
             # energy_level from masik strong/weak counts (pinned to fix regression)

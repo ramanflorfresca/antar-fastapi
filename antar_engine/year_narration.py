@@ -57,6 +57,15 @@ HARD RULES:
    → the pressured area and how to hold it → how the long chapter colors the
    whole year. Concrete and behavioral; this is the read someone plans their
    year around.
+4b. BE CONCRETE — name the actual life-things, not the abstract area. The
+   "concrete_nouns" list holds the literal things this year touches (your boss,
+   property, a vehicle, a loan or credit line, your father, savings, your
+   partner). Weave 2-4 of these into the body so the read names real life, not
+   categories — "a property or vehicle decision", "your standing with your boss",
+   "income through your network". Never write the bare bucket ("focus on
+   career", "relationships matter this year"). Selective, not a list: only the
+   nouns that fit the strong/pressured areas. The nouns ARE results — naming
+   them is correct; still never name a house number, planet, or sign.
 5. "watch": 1-2 lines, max 40 words. The specific stretch or dynamic to
    watch (use the season window in the live data) and the one behavior that
    protects it.
@@ -150,6 +159,52 @@ def build_year_engine_state(
         ]
     except Exception:
         state["slow_transits"] = []
+
+    # ── noun layer (2026-06-07): translate the year's activated AREAS and the
+    # slow-transit houses into the literal life-things they touch (your boss,
+    # property, a loan, your father, savings...), direction-bound by whether
+    # the area is under pressure. The narrator names these instead of abstract
+    # areas. Internal-only houses; nouns are jargon-free.
+    try:
+        from antar_engine.house_significations import (
+            nouns_for_domain, select_nouns,
+        )
+        _AREA_TO_DOMAIN = {
+            "career": "career", "work": "career", "profession": "career",
+            "wealth": "wealth", "money": "wealth", "finance": "wealth",
+            "finances": "wealth", "health": "health", "body": "health",
+            "relationship": "relationships", "relationships": "relationships",
+            "love": "relationships", "family": "relationships",
+            "home": "home", "property": "home",
+            "learning": "learning", "education": "learning",
+            "growth": "spiritual", "spiritual": "spiritual", "purpose": "spiritual",
+        }
+        _nouns_out, _seen = [], set()
+        for a in (year.get("areas") or []):
+            if not isinstance(a, dict) or not a.get("name"):
+                continue
+            _key = str(a.get("name")).strip().lower().split("/")[0].split(" ")[0]
+            _dom = _AREA_TO_DOMAIN.get(_key)
+            if not _dom:
+                continue
+            _dir = "adverse" if a.get("care") else "positive"
+            _sig = nouns_for_domain(_dom, _dir, 3)
+            for _n in (_sig.get("nouns") if _sig else []) or []:
+                if _n not in _seen:
+                    _seen.add(_n)
+                    _nouns_out.append(_n)
+            if len(_nouns_out) >= 6:
+                break
+        for _t in state.get("slow_transits", []):
+            _h = _t.get("house")
+            if isinstance(_h, int):
+                for _n in select_nouns(_h, None, None, 2):
+                    if _n not in _seen and len(_nouns_out) < 8:
+                        _seen.add(_n)
+                        _nouns_out.append(_n)
+        state["concrete_nouns"] = _nouns_out[:8]
+    except Exception:
+        state["concrete_nouns"] = []
     return state
 
 
