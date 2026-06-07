@@ -5272,13 +5272,22 @@ CRITICAL RULES:
     # HARD JARGON CONSTRAINT — prepended to EVERY prompt
     _hard_constraint = """
 ABSOLUTE RULES (violating these rules means the response is rejected):
-1. USE energy-first language for ALL planet references. NEVER write "Planet planet of (X, Y, Z)":
-   "Your identity-and-authority energy" (Sun), "Your emotional-and-responsive energy" (Moon),
-   "Your action-and-drive energy" (Mars), "Your communication-and-clarity energy" (Mercury),
-   "Your growth-and-wisdom energy" (Jupiter), "Your beauty-and-harmony energy" (Venus),
-   "Your structure-and-persistence energy" (Saturn), "Your desire-and-amplification energy" (Rahu),
-   "Your release-and-dissolution energy" (Ketu).
-   Always lead with the energy name. Planet name in parentheses only as optional anchor.
+1. NAME THEMES AS DIRECT NOUNS — never hyphenated phrases, never "energy" suffix, never planet names.
+   Use a single noun as the subject of a sentence:
+     identity / authority  (was: Sun)
+     emotion / intuition   (was: Moon)
+     drive / action        (was: Mars)
+     clarity / communication (was: Mercury)
+     expansion / growth    (was: Jupiter)
+     harmony / comfort     (was: Venus)
+     discipline / structure (was: Saturn)
+     ambition / amplification (was: Rahu)
+     release / letting go  (was: Ketu)
+   GOOD: "A discipline chapter is wrapping up." "An expansion is moving through your career area."
+   GOOD: "Your drive is high through May." "Your harmony is active in your partnership area."
+   BAD:  "Your structure-and-persistence energy (Saturn) sits in your gains area" (verbose, planet shown)
+   BAD:  "Your action-and-drive energy is high" (hyphenated + "energy" suffix)
+   Never put a planet name anywhere in the output. Never use the word "energy" twice in one sentence.
 2. NEVER use house numbers (1st house, 10th house). Use area labels:
    1st = identity area, 2nd = wealth area, 3rd = courage area, 4th = home area,
    5th = creativity area, 6th = work area, 7th = partnership area, 8th = transformation area,
@@ -5320,8 +5329,8 @@ RESPONSE PATTERN:
 5. End with YOUR MOVE — one specific action. Never end with a question.
 
 VOCABULARY RULES:
-- ALWAYS use energy-first names: "Your structure-and-persistence energy" (not "Saturn planet of...")
-- Planet name in parentheses ONLY as anchor: "Your growth-and-wisdom energy (Jupiter)"
+- Name themes as single nouns (discipline, expansion, drive, clarity, harmony, identity, emotion, ambition, release). Never hyphenated phrases. Never "energy" suffix. Never planet names anywhere.
+- Use the noun as the SUBJECT of a sentence ("A discipline chapter is wrapping up"), not as a meta-tag ("Your X-and-Y energy is active").
 - Never use house numbers. Use area labels: identity, wealth, courage, home, creativity, work, partnership, transformation, luck, career, gains, foreign.
 - Never use: MD, AD, PD, mahadasha, antardasha, pratyantar. Use: chapter, sub-chapter, inner window.
 - Never use FIELD×MODE codenames (deprecated).
@@ -5429,13 +5438,12 @@ VOCABULARY RULES:
     _today_str = __import__('datetime').datetime.utcnow().strftime("%B %d, %Y")
     _jargon_only = (
         "ABSOLUTE RULES (no exceptions):\n"
-        "1. USE energy-first language. NEVER write 'Planet planet of (X, Y, Z)'. "
-        "Lead with energy name: Your identity-and-authority energy (Sun), "
-        "Your emotional-and-responsive energy (Moon), Your action-and-drive energy (Mars), "
-        "Your communication-and-clarity energy (Mercury), Your growth-and-wisdom energy (Jupiter), "
-        "Your beauty-and-harmony energy (Venus), Your structure-and-persistence energy (Saturn), "
-        "Your desire-and-amplification energy (Rahu), Your release-and-dissolution energy (Ketu). "
-        "Planet name in parentheses only as optional anchor.\n"
+        "1. NAME THEMES AS DIRECT NOUNS. Never hyphenated phrases. Never \"energy\" suffix. "
+        "Never planet names. Use single nouns as sentence subjects: "
+        "identity, authority, emotion, intuition, drive, action, clarity, communication, "
+        "expansion, growth, harmony, comfort, discipline, structure, ambition, release. "
+        "GOOD: \"A discipline chapter is wrapping up.\" "
+        "BAD: \"Your structure-and-persistence energy (Saturn) sits in your gains area.\"\n"
         "2. NEVER use house numbers. Use area labels: "
         "1st=identity area, 2nd=wealth area, 3rd=courage area, 4th=home area, "
         "5th=creativity area, 6th=work area, 7th=partnership area, 8th=transformation area, "
@@ -5495,20 +5503,23 @@ VOCABULARY RULES:
 
         # v5.1 voice-enriched format rules + translation glossary
         _voice_rules = (
-            "═══ MANDATORY VOICE RULE — ENERGY-FIRST LANGUAGE ═══\n"
-            "When referring to ANY planet, ALWAYS lead with its energy name. "
-            "NEVER use the format 'Planet planet of (X, Y, Z)'.\n"
+            "═══ MANDATORY VOICE RULE — DIRECT THEME NOUNS ═══\n"
+            "Name themes as SINGLE NOUNS used as sentence subjects. Never hyphenated phrases. "
+            "Never \"energy\" suffix. Never planet names anywhere in the output.\n"
             "\n"
-            "ENERGY VOCABULARY (use these as PRIMARY names — planet name only as parenthetical anchor):\n"
-            "  Sun → Your identity-and-authority energy\n"
-            "  Moon → Your emotional-and-responsive energy\n"
-            "  Mars → Your action-and-drive energy\n"
-            "  Mercury → Your communication-and-clarity energy\n"
-            "  Jupiter → Your growth-and-wisdom energy\n"
-            "  Venus → Your beauty-and-harmony energy\n"
-            "  Saturn → Your structure-and-persistence energy\n"
-            "  Rahu → Your desire-and-amplification energy\n"
-            "  Ketu → Your release-and-dissolution energy\n"
+            "THEME NOUNS (pick the one that fits the sentence — use as a direct noun, not a meta-tag):\n"
+            "  Sun     → identity, authority\n"
+            "  Moon    → emotion, intuition\n"
+            "  Mars    → drive, action\n"
+            "  Mercury → clarity, communication\n"
+            "  Jupiter → expansion, growth\n"
+            "  Venus   → harmony, comfort\n"
+            "  Saturn  → discipline, structure\n"
+            "  Rahu    → ambition, amplification\n"
+            "  Ketu    → release, letting go\n"
+            "\n"
+            "GOOD: \"A discipline chapter is wrapping up.\" \"An expansion is moving through your career area.\"\n"
+            "BAD:  \"Your structure-and-persistence energy (Saturn) sits in your gains area.\"\n"
             "\n"
             "HOUSES → LIFE AREAS (always use the right column):\n"
             "  1st house/H1/lagna → your identity area\n"
