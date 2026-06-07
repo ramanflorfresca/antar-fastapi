@@ -13006,6 +13006,11 @@ class AskRequest(BaseModel):
     # never cached, never affects any other user or chart. Absence
     # = behavior unchanged. Read-only/ephemeral by contract.
     scratch_prompt: Optional[str] = None
+    # [ask-scratch] OPTIONAL admin/dev knob — when set, REPLACES the
+    # narration system prompt for THIS call only. Never persisted,
+    # never cached, never affects any other user or chart. Absence
+    # = behavior unchanged. Read-only/ephemeral by contract.
+    scratch_prompt: Optional[str] = None
 
 
 # ── Timing tense: compute ACTIVE / OPENS_SOON / OPENS_LATER deterministically ──
@@ -13404,6 +13409,12 @@ async def ask_endpoint(request: AskRequest):
                 _sys = request.scratch_prompt
                 print(f"[ask-scratch] explore: scratch_prompt override active "
                       f"({len(_sys)} chars) — not persisted")
+            # [ask-scratch] ephemeral override for THIS call only.
+            if isinstance(getattr(request, "scratch_prompt", None), str) \
+                    and request.scratch_prompt.strip():
+                _sys = request.scratch_prompt
+                print(f"[ask-scratch] explore: scratch_prompt override active "
+                      f"({len(_sys)} chars) — not persisted")
             raw = ""
             try:
                 _t = await call_llm_claude(prompt=question, system_override=_sys)
@@ -13683,6 +13694,12 @@ async def ask_endpoint(request: AskRequest):
                 f"{_yn_internal}"
                 f"\n\n{_yn_conv_block}"
             )
+            # [ask-scratch] ephemeral override for THIS call only.
+            if isinstance(getattr(request, "scratch_prompt", None), str) \
+                    and request.scratch_prompt.strip():
+                _why_sys = request.scratch_prompt
+                print(f"[ask-scratch] yesno: scratch_prompt override active "
+                      f"({len(_why_sys)} chars) — not persisted")
             # [ask-scratch] ephemeral override for THIS call only.
             if isinstance(getattr(request, "scratch_prompt", None), str) \
                     and request.scratch_prompt.strip():
@@ -23110,12 +23127,21 @@ async def get_life_arc(
     language = _pt_gate("life-arc", language)  # [pt-gate]
 
     # ── Auth (optional) ──────────────────────────────────────────────────
+    # [dasha-cycle-500 2026-06-07] When this coroutine is called directly
+    # by the POST alias (/api/v1/predict/dasha-cycle), FastAPI parameter
+    # injection is bypassed, so `authorization` falls back to the Header(None)
+    # FieldInfo object (truthy, no .startswith) and verify_token raises
+    # AttributeError — not caught by `except HTTPException`. The
+    # isinstance gate makes the auth path robust to non-routed callers
+    # while preserving normal behavior under FastAPI routing.
     user_id = None
-    if authorization:
+    if isinstance(authorization, str) and authorization:
         try:
             user_id = verify_token(authorization)
         except HTTPException:
             pass
+        except Exception as _auth_e:
+            print(f"[life_arc] auth check non-fatal: {_auth_e}")
 
     # ── Validate horizon ─────────────────────────────────────────────────
     if horizon_months < 1 or horizon_months > 24:
@@ -23290,7 +23316,14 @@ async def _alias_predict_yearly(request: dict):
 
 @app.post("/api/v1/predict/dasha-cycle")
 async def _alias_predict_dasha_cycle(request: dict):
+    # [dasha-cycle-500 2026-06-07] Pass authorization=None explicitly
+    # because get_life_arc declares it as Header(None) — without this,
+    # the default is a FieldInfo object, which used to surface as 500
+    # (see patch_dasha_cycle_500.py). force_refresh forwarded so the
+    # admin inspector can bust the life_arc_cache when needed.
     return await get_life_arc(
         chart_id=request.get("chart_id"),
         language=(request.get("language") or "en"),
+        force_refresh=bool(request.get("force_refresh") or False),
+        authorization=None,
     )
