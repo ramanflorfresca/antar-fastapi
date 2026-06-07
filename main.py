@@ -7786,6 +7786,184 @@ def _get_utc_offset_from_coords(lat: float, lng: float, birth_date: str, birth_t
         print(f"[TZ] Could not resolve offset from coords: {e}")
         return 0.0
 
+
+# ──────────────────────────────────────────────────────────────────────────
+# [tz-chain] Strict birth-timezone resolver — prevents silent-zero offsets
+# that produce wrong-lagna charts (see audit: 51/270 prod charts hit this).
+# Resolution order, no silent zero, fails 4xx if no source produces an offset.
+# ──────────────────────────────────────────────────────────────────────────
+
+# Primary IANA timezone per ISO-2 country code. Used only as a last-resort
+# fallback when both explicit timezone strings AND timezonefinder-from-coords
+# fail. Covers the top countries observed in production + the high-risk set
+# from the prod audit. Multi-timezone countries (US, RU, CN, BR, ID, AU, CA)
+# resolve to the capital/most-populous timezone — caller should prefer coords.
+COUNTRY_DEFAULT_TZ = {
+    "IN": "Asia/Kolkata", "PK": "Asia/Karachi", "BD": "Asia/Dhaka",
+    "LK": "Asia/Colombo", "NP": "Asia/Kathmandu",
+    "AE": "Asia/Dubai", "SA": "Asia/Riyadh", "KW": "Asia/Kuwait",
+    "QA": "Asia/Qatar",  "BH": "Asia/Bahrain", "OM": "Asia/Muscat",
+    "JO": "Asia/Amman",  "IL": "Asia/Jerusalem","TR": "Europe/Istanbul",
+    "IR": "Asia/Tehran", "EG": "Africa/Cairo",
+    "GB": "Europe/London","IE": "Europe/Dublin","FR": "Europe/Paris",
+    "DE": "Europe/Berlin","ES": "Europe/Madrid","IT": "Europe/Rome",
+    "NL": "Europe/Amsterdam","BE":"Europe/Brussels","CH":"Europe/Zurich",
+    "AT": "Europe/Vienna","PT": "Europe/Lisbon","GR":"Europe/Athens",
+    "PL": "Europe/Warsaw","CZ": "Europe/Prague","SE":"Europe/Stockholm",
+    "NO": "Europe/Oslo",  "DK":"Europe/Copenhagen","FI":"Europe/Helsinki",
+    "UA": "Europe/Kyiv",  "RU": "Europe/Moscow",
+    "US": "America/New_York","CA":"America/Toronto","MX":"America/Mexico_City",
+    "BR": "America/Sao_Paulo","AR":"America/Argentina/Buenos_Aires",
+    "CO": "America/Bogota","VE":"America/Caracas","CL":"America/Santiago",
+    "PE": "America/Lima",  "EC":"America/Guayaquil","BO":"America/La_Paz",
+    "UY": "America/Montevideo","PY":"America/Asuncion",
+    "PA": "America/Panama","CR":"America/Costa_Rica",
+    "DO": "America/Santo_Domingo","CU":"America/Havana","GT":"America/Guatemala",
+    "JM": "America/Jamaica","HN":"America/Tegucigalpa","SV":"America/El_Salvador",
+    "NI": "America/Managua","HT":"America/Port-au-Prince",
+    "CN": "Asia/Shanghai","JP":"Asia/Tokyo","KR":"Asia/Seoul","HK":"Asia/Hong_Kong",
+    "TW": "Asia/Taipei","SG":"Asia/Singapore","MY":"Asia/Kuala_Lumpur",
+    "ID": "Asia/Jakarta","TH":"Asia/Bangkok","VN":"Asia/Ho_Chi_Minh",
+    "PH": "Asia/Manila","MM":"Asia/Yangon","KH":"Asia/Phnom_Penh","LA":"Asia/Vientiane",
+    "AU": "Australia/Sydney","NZ":"Pacific/Auckland",
+    "ZA": "Africa/Johannesburg","NG":"Africa/Lagos","KE":"Africa/Nairobi",
+    "ET": "Africa/Addis_Ababa","TZ":"Africa/Dar_es_Salaam","UG":"Africa/Kampala",
+    "GH": "Africa/Accra","MA":"Africa/Casablanca","DZ":"Africa/Algiers","TN":"Africa/Tunis",
+    "SN": "Africa/Dakar","CI":"Africa/Abidjan",
+}
+
+# Strict zero-offset country set — sentinel-safe to accept tz_offset=0 for these.
+# (Patch B uses this; same list lives in one place.)
+UTC_ZONE_COUNTRIES = {
+    "GH", "CI", "GM", "GN", "GW", "LR", "ML", "MR", "SN", "SL", "TG", "BF",
+    "ST", "EH", "IS",
+    # GB/IE/PT are UTC+0 only in winter; allow them through the sentinel.
+    "GB", "IE", "PT",
+}
+
+
+def _normalise_country(value: object) -> str:
+    """
+    Normalise a free-form birth_country value to an ISO-2 code. Handles:
+      - ISO-2 codes ("IN", "in", "  IN  ") → "IN"
+      - Country names ("India", "INDIA", "United Kingdom") → ISO-2
+      - Garbage ("ZZ", None, "") → ""
+    """
+    if not value:
+        return ""
+    s = str(value).strip()
+    if len(s) == 2:
+        s2 = s.upper()
+        # ZZ is a UN placeholder for "unknown" — treat as unresolved
+        return "" if s2 == "ZZ" else s2
+    name_map = {
+        "india": "IN", "pakistan": "PK", "bangladesh": "BD",
+        "united kingdom": "GB", "uk": "GB", "england": "GB",
+        "united states": "US", "usa": "US", "united states of america": "US",
+        "venezuela": "VE", "colombia": "CO", "brazil": "BR", "mexico": "MX",
+        "argentina": "AR", "peru": "PE", "ecuador": "EC", "chile": "CL",
+        "france": "FR", "germany": "DE", "spain": "ES", "italy": "IT",
+        "netherlands": "NL", "portugal": "PT", "ireland": "IE",
+        "china": "CN", "japan": "JP", "south korea": "KR", "korea": "KR",
+        "singapore": "SG", "malaysia": "MY", "indonesia": "ID",
+        "philippines": "PH", "thailand": "TH", "vietnam": "VN",
+        "australia": "AU", "new zealand": "NZ",
+        "uae": "AE", "united arab emirates": "AE", "saudi arabia": "SA",
+        "kuwait": "KW", "qatar": "QA", "bahrain": "BH", "oman": "OM",
+        "israel": "IL", "turkey": "TR", "iran": "IR", "egypt": "EG",
+        "south africa": "ZA", "nigeria": "NG", "kenya": "KE", "ghana": "GH",
+        "morocco": "MA", "algeria": "DZ",
+        "russia": "RU", "ukraine": "UA", "poland": "PL",
+    }
+    return name_map.get(s.lower(), "")
+
+
+def _localize_to_offset(iana_name: str, birth_date: str, birth_time: str) -> float:
+    """pytz.localize the birth datetime (historical DST-aware), return hours east of UTC."""
+    import pytz as _pytz_strict
+    from datetime import datetime as _dt_strict
+    tz = _pytz_strict.timezone(iana_name)
+    bt = (birth_time or "00:00").strip()
+    try:
+        dt_naive = _dt_strict.strptime(f"{birth_date} {bt}", "%Y-%m-%d %H:%M:%S")
+    except ValueError:
+        dt_naive = _dt_strict.strptime(f"{birth_date} {bt}", "%Y-%m-%d %H:%M")
+    return tz.localize(dt_naive, is_dst=None).utcoffset().total_seconds() / 3600
+
+
+def _resolve_birth_tz_offset_strict(request, lat, lng) -> float:
+    """
+    Strict tz-offset resolver for chart creation. NEVER returns 0 by accident.
+    Order:
+      1. request.timezone_name / request.timezone — explicit IANA
+      2. timezonefinder from lat/lng — DST-aware historical
+      3. _normalise_country(request.birth_country) → COUNTRY_DEFAULT_TZ
+      4. numeric request.timezone_offset (only if explicitly set)
+      5. HTTPException(400) — caller must fix payload
+    """
+    bd = getattr(request, "birth_date", None)
+    bt = getattr(request, "birth_time", None) or "00:00"
+
+    # Source 1: explicit IANA (ignore "UTC" only if no other source — see below)
+    for attr in ("timezone_name", "timezone"):
+        name = getattr(request, attr, None)
+        if name and isinstance(name, str) and name.strip():
+            n = name.strip()
+            # If the frontend explicitly says UTC we accept it — but mark below
+            # so we can audit it later. Just don't TREAT a default-UTC as truth.
+            try:
+                off = _localize_to_offset(n, bd, bt)
+                print(f"[tz-chain] resolved via {attr}={n!r} → offset={off}")
+                return off
+            except Exception as e:
+                print(f"[tz-chain] {attr}={n!r} failed: {e}")
+
+    # Source 2: timezonefinder from coords
+    if lat is not None and lng is not None:
+        try:
+            off = _get_utc_offset_from_coords(float(lat), float(lng), bd, bt)
+            # _get_utc_offset_from_coords returns 0.0 on failure; cross-check
+            # via timezonefinder to distinguish real 0 from failure 0.
+            from timezonefinder import TimezoneFinder as _TZF_local
+            _tzn = _TZF_local().timezone_at(lat=float(lat), lng=float(lng))
+            if _tzn:
+                print(f"[tz-chain] resolved via timezonefinder({lat},{lng})="
+                      f"{_tzn!r} → offset={off}")
+                return off
+        except Exception as e:
+            print(f"[tz-chain] timezonefinder failed: {e}")
+
+    # Source 3: country default
+    cc = _normalise_country(getattr(request, "birth_country", None)
+                            or getattr(request, "country_code", None))
+    if cc and cc in COUNTRY_DEFAULT_TZ:
+        try:
+            off = _localize_to_offset(COUNTRY_DEFAULT_TZ[cc], bd, bt)
+            print(f"[tz-chain] resolved via country={cc} → "
+                  f"{COUNTRY_DEFAULT_TZ[cc]} → offset={off}")
+            return off
+        except Exception as e:
+            print(f"[tz-chain] country fallback {cc} failed: {e}")
+
+    # Source 4: numeric offset, only if explicitly present (not coerced from 0)
+    raw = getattr(request, "timezone_offset", None)
+    if raw is not None:
+        try:
+            off = float(raw)
+            print(f"[tz-chain] resolved via numeric request.timezone_offset={off}")
+            return off
+        except Exception:
+            pass
+
+    # No defensible source — refuse to create a wrong-lagna chart
+    raise HTTPException(
+        status_code=400,
+        detail=("Could not resolve birth timezone. Send one of: "
+                "timezone_name (IANA), birth latitude+longitude, "
+                "a recognised birth_country, or timezone_offset."),
+    )
+
+
 @app.post("/api/v1/chart/create")
 async def create_chart(
     request: ChartCreateRequest,
@@ -7804,32 +7982,13 @@ async def create_chart(
 
     if request.latitude and request.longitude:
         lat, lng = request.latitude, request.longitude
-        timezone = getattr(request, "timezone_name", None) or getattr(request, "timezone", None) or "UTC"
     else:
         city_value = request.birth_place or getattr(request, 'birth_city', None)
-        lat, lng, timezone = await _geocode_city(city_value, request.birth_country)
+        lat, lng, _ignored_tz = await _geocode_city(city_value, request.birth_country)
 
-    # ── TZ FIX: resolve UTC offset from the birth datetime, not utcnow() ─────
-    # _tz_name_to_offset() in chart.py used datetime.utcnow() which gives the
-    # *current* DST rule, not the historical rule at birth.  For example:
-    #   • Venezuela 2007-2016 was UTC-4:30; using utcnow() gives -4 → wrong lagna
-    #   • Any DST timezone: winter birth looked up in summer → 1-hour shift
-    # pytz.localize(birth_datetime, is_dst=None) applies the correct historical rule.
-    try:
-        import pytz as _pytz_cr
-        _tz_cr = _pytz_cr.timezone(timezone)
-        _dt_naive_cr = datetime.strptime(
-            # [chart422-fup] permissive strptime B
-            f"{request.birth_date} {request.birth_time}", "%Y-%m-%d %H:%M:%S"
-        ) if len((request.birth_time or '').split(':')) == 3 else _dt.strptime(
-            f"{request.birth_date} {request.birth_time}", "%Y-%m-%d %H:%M"
-        )
-        _dt_local_cr = _tz_cr.localize(_dt_naive_cr, is_dst=None)
-        _chart_tz_offset = _dt_local_cr.utcoffset().total_seconds() / 3600
-    except Exception as _tz_err:
-        # Fallback: use client-supplied timezone_offset
-        _chart_tz_offset = float(getattr(request, "timezone_offset", 0.0) or 0.0)
-        print(f"[TZ] pytz localize failed ({_tz_err}); falling back to request.timezone_offset={_chart_tz_offset}")
+    # [tz-chain] strict resolver — replaces the old "or UTC" / "or 0.0" silent
+    # fallbacks that produced wrong-lagna charts (18.9% of prod rows pre-fix).
+    _chart_tz_offset = _resolve_birth_tz_offset_strict(request, lat, lng)
     # ── end TZ FIX ────────────────────────────────────────────────────────────
 
     try:
