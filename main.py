@@ -13530,6 +13530,21 @@ async def ask_endpoint(request: AskRequest):
 
             if _ask_tier not in ("seeker", "navigator") and _ask_answered:  # [ask-launch]
                 _ent_ask_inc(chart_id, supabase)
+            # [evmap-2026-06-07] NOT_YET must carry the next window.
+            # The LLM's `timing` is its restatement of the consultation facts;
+            # when verdict=NOT_YET and timing came back empty, surface the
+            # engine's next_window_label so the user never sees a blank
+            # "Not yet; ___" with no follow-up date.
+            if _ask_decision and _ask_conv:
+                _conv_verdict = (_ask_conv.get("verdict") or "").upper()
+                if _conv_verdict in ("NOT_YET", "NOT_THIS_YEAR", "NO") and not (_ask_conv.get("window_label")):
+                    _next_lbl = _ask_conv.get("next_window_label")
+                    if _next_lbl and (not (_parsed.get("timing") if isinstance(_parsed, dict) else None)):
+                        try:
+                            _parsed_timing_override = _next_lbl
+                            print(f"[ask][evmap] NOT_YET timing carried from next_window: {_next_lbl}")
+                        except Exception:
+                            _parsed_timing_override = None
             payload = {"mode": "explore", "read": read_txt, "next": next_txt, "locked": False}
             if _ask_decision:
                 # [narrator-hardbind 2026-06-05] Verdict is Python-authoritative:

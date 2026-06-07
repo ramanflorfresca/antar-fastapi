@@ -62,11 +62,26 @@ logger = logging.getLogger(__name__)
 # the engine reads ALL and the dasha + DT show which is lit.
 EVENT_MAP = {
     "funding":    {"houses": [11, 2, 8, 6], "divisions": [10, 2, 11]},
-    "relocation": {"houses": [4, 3, 12],    "divisions": [1, 4]},
+    # foreign_move and domestic_move are now distinct; "relocation" kept as a
+    # legacy alias defaulting to foreign houses (for back-compat with any caller
+    # passing "relocation" without disambiguation).
+    "relocation": {"houses": [12, 9, 3, 4], "divisions": [1, 4]},
+    "foreign_move":  {"houses": [12, 9, 3], "divisions": [1, 12]},
+    "domestic_move": {"houses": [4, 3, 11], "divisions": [1, 4],
+                      "note": "4=home/inner-foundation, 3=short-distance change of place, 11=goal-satisfaction"},
     "marriage":   {"houses": [7, 2],        "divisions": [9],
                    "extra_dt_planets": ["Venus"]},
+    # [evmap-2026-06-07] children: 5H (children), 9H (putrakaraka/dharma),
+    # 2H (family). D7 = saptamamsha (children divisional).
+    "children":   {"houses": [5, 9, 2],     "divisions": [7, 9],
+                   "extra_dt_planets": ["Jupiter"]},
+    # [evmap-2026-06-07] reconciliation: 7H (partnership), 5H (romance/heart),
+    # 4H (emotional re-binding). D9 confirms the bond. Distinct from marriage
+    # (a new partnership) and divorce (separation) — this is RE-binding.
+    "reconciliation": {"houses": [7, 5, 4], "divisions": [9, 4],
+                       "extra_dt_planets": ["Venus", "Moon"]},
     "career":     {"houses": [10, 6, 11],   "divisions": [10, 9],
-                   "extra_dt_planets": ["AmK"]},   # resolved at runtime
+                   "extra_dt_planets": ["AmK"]},
     "health":     {"houses": [1, 6, 8],     "divisions": [1, 30],
                    "low_confidence": "D30 simplified + D11 generic mapping — "
                                      "health divisional evidence is "
@@ -81,10 +96,22 @@ CONCERN_TO_EVENT = {
     "loss": "funding", "speculation": "funding", "money": "funding",
     "career": "career", "business": "career", "education": "career",
     "marriage": "marriage", "love": "marriage", "divorce": "marriage",
-    "children": "marriage",
+    # [evmap-2026-06-07] children was routed to "marriage" (wrong divisional);
+    # now uses its own recipe (D7).
+    "children": "children",
+    # [evmap-2026-06-07] reconciliation gets its own recipe (D9 + 4H).
+    "reconciliation": "reconciliation",
     "health": "health",
     "legal": "litigation",
-    "property": "relocation", "foreign": "relocation",
+    # [evmap-2026-06-07] property + domestic move → domestic_move (4H);
+    # foreign → foreign_move (12H). Caller can pre-disambiguate by keyword.
+    "property": "domestic_move",
+    "domestic_move": "domestic_move",
+    "foreign": "foreign_move",
+    "foreign_move": "foreign_move",
+    # "relocation" remains a back-compat alias mapping to the multi-house
+    # legacy recipe — new code should pass "foreign_move" or "domestic_move".
+    "relocation": "relocation",
     "spiritual": "general", "general": "general",
 }
 

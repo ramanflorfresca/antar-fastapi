@@ -45,6 +45,9 @@ CONCERN_HOUSES = {
     "marriage":    [7],
     "love":        [5, 7],
     "divorce":     [7, 6],
+    # [evmap-2026-06-07] domestic vs foreign distinction
+    "domestic_move": [4, 3, 11],
+    "foreign_move":  [12, 9, 3],
     # [routing-2026-06-07] reconciliation: 7 (partnership), 5 (romance/heart),
     # 4 (emotional foundation / re-building). Distinct from divorce (which
     # looks for separation triggers) — this looks for re-binding signals.
@@ -69,6 +72,9 @@ CONCERN_KARAKAS = {
     "business":    ["Mercury", "Jupiter"],
     "marriage":    ["Venus", "Jupiter"],
     "love":        ["Venus", "Moon"],
+    # [evmap-2026-06-07] domestic move = Mars+Moon (action+home), foreign = Rahu+Jupiter
+    "domestic_move": ["Mars", "Moon", "Venus"],
+    "foreign_move":  ["Rahu", "Jupiter", "Moon"],
     # [routing-2026-06-07] reconciliation karakas — Venus (love/repair),
     # Moon (emotional re-bonding), Jupiter (wisdom/forgiveness).
     "reconciliation": ["Venus", "Moon", "Jupiter"],
@@ -133,6 +139,9 @@ _DECISION_TRIGGERS = [
 PRESCAN_DOMAIN_ALIAS = {
     "love": "relationship", "marriage": "relationship", "divorce": "relationship",
     "reconciliation": "relationship",  # [routing-2026-06-07] reunion questions
+    # [evmap-2026-06-07] both relocation flavours pre-scan as "property"
+    # (the pre-scan vocabulary that already knows 4H + 12H rules).
+    "domestic_move": "property", "foreign_move": "foreign",
     "funding": "finance", "loss": "finance", "speculation": "finance",
     "money": "finance", "billionaire": "wealth", "rich": "wealth",
     "spiritual": "general",
@@ -478,6 +487,9 @@ _DOMAIN_NOUN = {
     "love":        "partnership window",
     "divorce":     "partnership transition",
     "reconciliation": "reconnection window",
+    "children":    "family window",
+    "domestic_move": "domestic move window",
+    "foreign_move":  "foreign move window",
     "health":      "health window",
     "foreign":     "relocation window",
     "children":    "family window",
