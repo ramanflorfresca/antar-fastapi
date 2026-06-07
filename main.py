@@ -7989,6 +7989,19 @@ async def create_chart(
     # [tz-chain] strict resolver — replaces the old "or UTC" / "or 0.0" silent
     # fallbacks that produced wrong-lagna charts (18.9% of prod rows pre-fix).
     _chart_tz_offset = _resolve_birth_tz_offset_strict(request, lat, lng)
+    # [tz-chain] IANA name for response payload (not used for offset math —
+    # the offset is _chart_tz_offset, already authoritative). Prefer the same
+    # source the resolver used so the label and the math agree.
+    try:
+        timezone = (
+            getattr(request, "timezone_name", None)
+            or getattr(request, "timezone", None)
+            or (_TZF.timezone_at(lat=float(lat), lng=float(lng))
+                if lat is not None and lng is not None else None)
+            or "UTC"
+        )
+    except Exception:
+        timezone = "UTC"
     # ── end TZ FIX ────────────────────────────────────────────────────────────
 
     try:
