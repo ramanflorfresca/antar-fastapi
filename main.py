@@ -21660,6 +21660,7 @@ async def get_home(
     language: str = "en",
     tz_offset: int = 0,
     force_refresh: bool = False,
+    debug: bool = False,
 ):
     """
     Returns the four-horizon Home payload in a single call.
@@ -21692,8 +21693,10 @@ async def get_home(
         tz_offset = int(_COUNTRY_TZ_OFFSETS.get(_home_cc, 0) * 60)
 
     # ── cache read (best-effort; table may not yet exist) ──
+    # [gate-a] debug=True bypasses cache so we always see fresh debug data.
     try:
-        cr = None if force_refresh else supabase.table("home_cache").select("payload,updated_at") \
+        _bypass_cache = bool(force_refresh) or bool(debug)
+        cr = None if _bypass_cache else supabase.table("home_cache").select("payload,updated_at") \
             .eq("chart_id", chart_id).eq("language", language).limit(1).execute()
         if cr is not None and cr.data:
             cached = _hsj(cr.data[0].get("payload"))
@@ -21752,6 +21755,7 @@ async def get_home(
             current_ad_row=current_ad_row,
             language=language,
             tz_offset=int(tz_offset or 0),
+            debug=bool(debug),  # [gate-a]
         )
     except Exception as e:
         print(f"[home] compose error for {chart_id}: {e}")

@@ -1056,7 +1056,8 @@ def _today_transit_signal(chart_data: dict, lk_data: dict, natal: dict,
 def _compose_for_horizon(horizon: str,
                           chart_row: dict, chart_data: dict, lk_data: dict,
                           current_md_row: Optional[dict], current_ad_row: Optional[dict],
-                          tz_offset_min: int) -> dict:
+                          tz_offset_min: int,
+                          debug: bool = False) -> dict:
     natal = _natal_houses(chart_data)
     bd = chart_row.get("birth_date", "") or ""
     md_planet = (current_md_row or {}).get("planet_or_sign", "") or ""
@@ -1220,12 +1221,63 @@ def _compose_for_horizon(horizon: str,
         if isinstance(view.get("cause"), dict) and view["cause"].get("planet"):
             _cp = view["cause"]["planet"]
             view["cause"]["planet"] = ENERGY_LANG.get(_cp, "this energy")
+
+    # [gate-a 2026-06-07] _debug_reasoning — chart-specific signal the gate
+    # tests verify against. Production responses don't include this block;
+    # the /home endpoint only attaches it when ?debug=1 propagates `debug=True`
+    # to this function. Shape is stable across horizons (the test reads
+    # `activated_houses` + `votes`); horizon-specific extras live alongside.
+    if debug:
+        _debug = {
+            "horizon":          horizon,
+            "polarity":         polarity,
+            "strong":           [list(t) for t in (strong or [])],
+            "weak":             [list(t) for t in (weak or [])],
+            "activated_houses": sorted({h for _, h in (strong or []) + (weak or []) if isinstance(h, int) and h}),
+        }
+        # Emit moon_house-style vote tokens — the verify script + Today's
+        # summarize_drivers both grep these. Direction = amplified/caution.
+        _votes = []
+        for _p, _h in (strong or []):
+            if isinstance(_h, int) and _h:
+                _votes.append(f"moon_house{_h}:amplified:{_p}")
+        for _p, _h in (weak or []):
+            if isinstance(_h, int) and _h:
+                _votes.append(f"moon_house{_h}:caution:{_p}")
+        _debug["votes"] = _votes
+
+        if horizon == "today" and today_signal is not None:
+            _debug["today_signal"] = {
+                "polarity":  today_signal.get("polarity"),
+                "dignity":   today_signal.get("dignity"),
+                "flagged":   today_signal.get("flagged"),
+                "conditions": list((today_signal.get("conditions") or {}).keys()),
+            }
+            # Surface the LK conditions that fired today (today-only)
+            _lk = view.get("lkRead") or {}
+            if isinstance(_lk, dict) and _lk.get("condition_id"):
+                _debug["lk_condition_id"] = _lk.get("condition_id")
+
+        if horizon in ("month", "year"):
+            _debug["placements"] = {p: h for p, h in (placements or {}).items()
+                                    if isinstance(h, int)}
+
+        if horizon == "cycle":
+            _debug["phase"] = {
+                "md_planet": md_planet,
+                "md_house":  natal.get(md_planet, 0),
+                "ad_planet": ad_planet,
+                "ad_house":  ad_house,
+            }
+        view["_debug_reasoning"] = _debug
+
     return view
 
 
 def compose_home_payload(chart_id: str, chart_row: dict, chart_data: dict, lk_data: dict,
                           current_md_row: Optional[dict], current_ad_row: Optional[dict],
-                          language: str, tz_offset: int) -> dict:
+                          language: str, tz_offset: int,
+                          debug: bool = False) -> dict:
     first_name = chart_row.get("first_name") or "Friend"
     initial    = (first_name[:1] or "F").upper()
     horizons   = {}
@@ -1233,6 +1285,7 @@ def compose_home_payload(chart_id: str, chart_row: dict, chart_data: dict, lk_da
         horizons[h] = _compose_for_horizon(
             h, chart_row, chart_data, lk_data,
             current_md_row, current_ad_row, int(tz_offset or 0),
+            debug=debug,  # [gate-a]
         )
     return {
         "chart_id":     chart_id,
