@@ -795,6 +795,88 @@ def _build_headline_gist(horizon: str, polarity: str) -> Tuple[str, str]:
     }[horizon]
 
 
+# ── GATE-B 2026-06-07 — chart-specific noun appendix for the gist ───────
+# Static _build_headline_gist returns the same string for every chart with
+# the same (horizon, polarity). This appendix takes the engine's per-chart
+# strong/weak placements (already computed) and appends 1-2 literal nouns
+# from house_significations — selective, chart-specific. Today is left to
+# lkRead (covered separately by GATE-E).
+
+def _append_chart_nouns(gist: str, horizon: str, strong: list, weak: list,
+                         polarity: str) -> tuple:
+    """
+    Returns (new_gist, debug_dict).
+    debug_dict = {"chosen_nouns": [str, ...], "noun_houses": [int, ...]}
+    Safe-fail: any exception → returns (gist, {"chosen_nouns": [], "noun_houses": []})
+    """
+    if horizon == "today":
+        return gist, {"chosen_nouns": [], "noun_houses": []}
+    try:
+        from antar_engine.house_significations import resolve_signal
+    except Exception:
+        return gist, {"chosen_nouns": [], "noun_houses": []}
+
+    chosen_nouns: list = []
+    noun_houses:  list = []
+
+    def _first_noun(house: int, direction: str) -> str:
+        if not isinstance(house, int) or house <= 0 or house > 12:
+            return ""
+        try:
+            sig = resolve_signal(house, None, direction, limit=1) or {}
+            nouns = sig.get("nouns") or []
+            return nouns[0] if nouns else ""
+        except Exception:
+            return ""
+
+    if polarity == "positive":
+        # Top 1-2 strong houses → "lean on" framing
+        seen_houses = set()
+        for _planet, h in (strong or []):
+            if h in seen_houses:
+                continue
+            noun = _first_noun(h, "positive")
+            if noun and noun not in chosen_nouns:
+                chosen_nouns.append(noun)
+                noun_houses.append(h)
+                seen_houses.add(h)
+            if len(chosen_nouns) >= 2:
+                break
+        if len(chosen_nouns) == 0:
+            return gist, {"chosen_nouns": [], "noun_houses": []}
+        if len(chosen_nouns) == 1:
+            appendix = f"Lean on {chosen_nouns[0]}."
+        else:
+            appendix = f"Lean on {chosen_nouns[0]} and {chosen_nouns[1]}."
+    else:
+        # Negative / neutral → top weak (care) + top strong (lean), each 1 noun
+        care_noun = lean_noun = ""
+        care_house = lean_house = 0
+        if weak:
+            _, h = weak[0]
+            care_noun = _first_noun(h, "adverse")
+            care_house = h if care_noun else 0
+        if strong:
+            _, h = strong[0]
+            lean_noun = _first_noun(h, "positive")
+            lean_house = h if lean_noun else 0
+        if care_noun:
+            chosen_nouns.append(care_noun); noun_houses.append(care_house)
+        if lean_noun and lean_noun != care_noun:
+            chosen_nouns.append(lean_noun); noun_houses.append(lean_house)
+        if not chosen_nouns:
+            return gist, {"chosen_nouns": [], "noun_houses": []}
+        if care_noun and lean_noun:
+            appendix = f"Care around {care_noun}; lean on {lean_noun}."
+        elif care_noun:
+            appendix = f"Care around {care_noun}."
+        else:
+            appendix = f"Lean on {lean_noun}."
+
+    return (f"{gist} {appendix}".strip(),
+            {"chosen_nouns": chosen_nouns, "noun_houses": noun_houses})
+
+
 def _build_areas(strong: list, weak: list,
                  dignity: dict = None, flagged: set = None) -> list:
     """When `dignity` is provided (Today branch), bars reflect real LK dignity
@@ -1113,6 +1195,13 @@ def _compose_for_horizon(horizon: str,
     if horizon == "cycle" and ad_planet and ad_planet != md_planet:
         _theme = AD_PLANET_THEMES.get(ad_planet, "a new phase")
         gist = f"{gist} Right now, the {_theme} chapter inside it."
+    # [gate-b 2026-06-07] Append chart-specific noun appendix AFTER cycle's
+    # AD sub-chapter mutation so the noun call lands at the end of the gist.
+    # Today is short-circuited inside the helper (lkRead carries its own
+    # noun detail; covered by GATE-E).
+    gist, _gate_b_noun_debug = _append_chart_nouns(
+        gist, horizon, strong, weak, polarity,
+    )
     lk_cause = None
     if today_signal is not None and wp:
         lk_cause = (today_signal.get("conditions") or {}).get(wp)
@@ -1234,6 +1323,11 @@ def _compose_for_horizon(horizon: str,
             "strong":           [list(t) for t in (strong or [])],
             "weak":             [list(t) for t in (weak or [])],
             "activated_houses": sorted({h for _, h in (strong or []) + (weak or []) if isinstance(h, int) and h}),
+            # [gate-b 2026-06-07] chosen_nouns + noun_houses prove the
+            # narrator actually used the per-chart signal — gate verifies
+            # these match what's in the gist text.
+            "chosen_nouns":     list(_gate_b_noun_debug.get("chosen_nouns") or []),
+            "noun_houses":      list(_gate_b_noun_debug.get("noun_houses") or []),
         }
         # Emit moon_house-style vote tokens — the verify script + Today's
         # summarize_drivers both grep these. Direction = amplified/caution.
