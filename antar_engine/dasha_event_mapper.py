@@ -120,16 +120,19 @@ EVENT_DESCRIPTION = {
 # ---------------------------------------------------------------------------
 # Plain-language planet descriptions for energy_explanation
 # ---------------------------------------------------------------------------
+# Single-noun theme per planet — used as direct nouns in past-events prose.
+# (Replaced verbose hyphenated phrases like "identity-and-authority" with single
+#  nouns the reader can parse without translating in their head.)
 PLANET_PARENTHETICAL = {
-    "Sun":     "identity-and-authority",
-    "Moon":    "emotional-and-responsive",
-    "Mars":    "action-and-drive",
-    "Mercury": "communication-and-clarity",
-    "Jupiter": "growth-and-wisdom",
-    "Venus":   "beauty-and-harmony",
-    "Saturn":  "structure-and-persistence",
-    "Rahu":    "desire-and-amplification",
-    "Ketu":    "release-and-dissolution",
+    "Sun":     "identity",
+    "Moon":    "emotion",
+    "Mars":    "drive",
+    "Mercury": "clarity",
+    "Jupiter": "expansion",
+    "Venus":   "harmony",
+    "Saturn":  "discipline",
+    "Rahu":    "ambition",
+    "Ketu":    "release",
 }
 
 # ---------------------------------------------------------------------------
@@ -138,58 +141,59 @@ PLANET_PARENTHETICAL = {
 
 def build_energy_explanation(prediction: dict, event_type: str, lagna_sign: str = "") -> str:
     """
-    Build a plain-English energy explanation for a past-event prediction.
+    Build a plain-English explanation for a past-event prediction.
+
+    Replaces the old 4-sentence template (which wrote "Your X-and-Y energy
+    (Planet) was leading this chapter...") with ONE compact sentence using
+    theme nouns as direct nouns. No "energy" suffix, no planet names in parens,
+    no double-"energy" clauses.
 
     prediction must have keys: md_lord, ad_lord, pd_lord, transit_planet
     (any can be None / missing).
-
-    Returns a clean paragraph. No Sanskrit, no house numbers, no MD/AD/PD labels.
     """
-    md_lord      = prediction.get("md_lord")
-    ad_lord      = prediction.get("ad_lord")
-    pd_lord      = prediction.get("pd_lord")
+    md_lord        = prediction.get("md_lord")
+    ad_lord        = prediction.get("ad_lord")
+    pd_lord        = prediction.get("pd_lord")
     transit_planet = prediction.get("transit_planet")
 
+    # Plain-language life area per event type. Stay short — listed as nouns,
+    # not full sentences — so the wrapper sentence reads naturally.
     LIFE_AREA = {
-        "serious_partnership_began": "marriage, committed partnership, business ties",
-        "serious_partnership_ended": "marriage, committed partnership, separations",
-        "family_expansion_first":    "children, romance, creativity",
-        "family_expansion_second":   "children, romance, creativity",
-        "major_relocation":          "foreign lands, transcendence, long journeys",
-        "major_acquisition":         "home, emotional foundation, family wealth",
-        "career_pivot":              "career, public life, reputation",
-        "loss_of_mother":            "home, emotional foundation, mother",
-        "loss_of_father":            "luck, dharma, father",
-        "professional_setback":      "career, debts, sudden loss",
-        "legal_entanglement":        "debts, disputes, legal matters",
-        "financial_disruption":      "family wealth, debts, sudden loss",
+        "serious_partnership_began": "a partnership or marriage area",
+        "serious_partnership_ended": "the partnership area",
+        "family_expansion_first":    "the children or creativity area",
+        "family_expansion_second":   "the children or creativity area",
+        "major_relocation":          "the relocation or foreign-lands area",
+        "major_acquisition":         "the home or property area",
+        "career_pivot":              "the career area",
+        "loss_of_mother":            "the home and mother area",
+        "loss_of_father":            "the father and dharma area",
+        "professional_setback":      "the career area",
+        "legal_entanglement":        "the disputes and debts area",
+        "financial_disruption":      "the wealth area",
     }
-    life_area = LIFE_AREA.get(event_type, "this area of life")
+    life_area = LIFE_AREA.get(event_type, "this area of your life")
 
-    parts = []
-    if md_lord:
-        parens = PLANET_PARENTHETICAL.get(md_lord, "")
-        parts.append(
-            f"Your {parens} energy ({md_lord}) was leading this chapter, "
-            f"activating {life_area}."
-        )
-    if ad_lord and ad_lord != md_lord:
-        parens = PLANET_PARENTHETICAL.get(ad_lord, "")
-        parts.append(
-            f"Your {parens} energy ({ad_lord}) deepened the activation."
-        )
-    if pd_lord and pd_lord not in (md_lord, ad_lord):
-        parens = PLANET_PARENTHETICAL.get(pd_lord, "")
-        parts.append(
-            f"Your {parens} energy ({pd_lord}) was the spark that crystallized the moment."
-        )
-    if transit_planet:
-        parens = PLANET_PARENTHETICAL.get(transit_planet, "")
-        parts.append(
-            f"Your {parens} energy ({transit_planet}) was passing through the relevant area "
-            f"of your sky at this exact time, confirming the timing."
-        )
-    return " ".join(parts)
+    # Gather distinct theme nouns from the dasha slots that fired.
+    themes = []
+    for lord in (md_lord, ad_lord, pd_lord, transit_planet):
+        if not lord:
+            continue
+        theme = PLANET_PARENTHETICAL.get(lord, "")
+        if theme and theme not in themes:
+            themes.append(theme)
+
+    if not themes:
+        return f"A clear pattern was active in {life_area} during this window."
+
+    if len(themes) == 1:
+        return f"A {themes[0]} pattern was active in {life_area} during this window."
+    if len(themes) == 2:
+        return (f"A {themes[0]} pattern was active in {life_area}, "
+                f"sharpened by {themes[1]}.")
+    # 3+ themes: lead with first two, fold the rest as supporting
+    return (f"A {themes[0]} pattern was active in {life_area}, "
+            f"sharpened by {themes[1]} and {themes[2]}.")
 
 
 # ---------------------------------------------------------------------------
