@@ -8141,6 +8141,25 @@ async def create_chart(
         "patra_complete":      False,
     }
     try:
+        # [tz-sentinel] Refuse to persist a chart with timezone_offset=0 for a
+        # birth_country whose primary timezone isn't UTC. Catches anything that
+        # slips past _resolve_birth_tz_offset_strict (defense in depth).
+        try:
+            _sentinel_cc = _normalise_country(chart_row.get("birth_country")
+                                              or chart_row.get("country_code"))
+            _sentinel_off = float(chart_row.get("timezone_offset") or 0.0)
+            if _sentinel_off == 0.0 and _sentinel_cc and _sentinel_cc not in UTC_ZONE_COUNTRIES:
+                raise HTTPException(
+                    status_code=400,
+                    detail=(f"Refusing to write chart with timezone_offset=0 "
+                            f"for birth_country={_sentinel_cc!r} (not a UTC-zone "
+                            "country). Send a valid timezone_name or coordinates."),
+                )
+        except HTTPException:
+            raise
+        except Exception as _sentinel_err:
+            # Sentinel must never become its own bug source — log and continue
+            print(f"[tz-sentinel] check skipped due to error: {_sentinel_err}")
         supabase.table("charts").insert(chart_row).execute()
 
         # [admin-acq] acquisition attribution — SEPARATE fail-open update so
