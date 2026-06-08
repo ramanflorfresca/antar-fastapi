@@ -1,0 +1,461 @@
+[
+  {
+    "chart": "chart1 (Raman de0c6265)",
+    "surface": "Ask /explore",
+    "read_preview": "This is a reflection on the dynamic, not a timing prediction. Your speculation runway shows moderate structural support \u2026",
+    "houses_used": [
+      5,
+      8,
+      11,
+      2
+    ],
+    "score": {
+      "verdict_first": true,
+      "noun_count": 1,
+      "nouns_found": [
+        "speculation"
+      ],
+      "window_present": false,
+      "concrete_action": false,
+      "energy_leaks": [
+        "capacity",
+        "channel",
+        "dynamic",
+        "infrastructure",
+        "runway",
+        "structural",
+        "support"
+      ],
+      "jargon_leaks": {},
+      "passes_contract": false
+    },
+    "why_fail": [
+      "R2 fail: only 1 concrete life-noun(s) from activated houses (need 2+).",
+      "R2 weakness: banned-energy words present: capacity, channel, dynamic, infrastructure, runway, structural, support.",
+      "R3 fail: no specific window / date / time-of-day.",
+      "R4 fail: no concrete imperative action (or trailing reflective question)."
+    ]
+  },
+  {
+    "chart": "chart1 (Raman de0c6265)",
+    "surface": "Today /home gist",
+    "read_preview": "Good for thinking, not for pushing. One area is under pressure.",
+    "houses_used": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "score": {
+      "verdict_first": true,
+      "noun_count": 0,
+      "nouns_found": [],
+      "window_present": false,
+      "concrete_action": true,
+      "energy_leaks": [],
+      "jargon_leaks": {},
+      "passes_contract": false
+    },
+    "why_fail": [
+      "R2 fail: only 0 concrete life-noun(s) from activated houses (need 2+).",
+      "R3 fail: no specific window / date / time-of-day."
+    ]
+  },
+  {
+    "chart": "chart1 (Raman de0c6265)",
+    "surface": "Today /home lkRead",
+    "read_preview": "The feeling-self in your chart sits alone in your birth pattern \u2014 without planetary neighbors on either side. When a mal\u2026",
+    "houses_used": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "score": {
+      "verdict_first": false,
+      "noun_count": 0,
+      "nouns_found": [],
+      "window_present": true,
+      "concrete_action": true,
+      "energy_leaks": [],
+      "jargon_leaks": {
+        "skt": [
+          "Kemadruma"
+        ]
+      },
+      "passes_contract": false
+    },
+    "why_fail": [
+      "R1 fail: sentence 1 does not lead with verdict / theme.",
+      "R2 fail: only 0 concrete life-noun(s) from activated houses (need 2+).",
+      "Rule-#12 leak: skt=Kemadruma."
+    ]
+  },
+  {
+    "chart": "chart1 (Raman de0c6265)",
+    "surface": "Month /monthly-deepdive",
+    "read_preview": "Raman, this month puts your partner, joint money, and your daily health routine front and center. You have exceptional s\u2026",
+    "houses_used": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "score": {
+      "verdict_first": true,
+      "noun_count": 8,
+      "nouns_found": [
+        "career",
+        "gains",
+        "health routine",
+        "identity",
+        "income",
+        "partner",
+        "property",
+        "your mother"
+      ],
+      "window_present": true,
+      "concrete_action": false,
+      "energy_leaks": [
+        "support"
+      ],
+      "jargon_leaks": {},
+      "passes_contract": false
+    },
+    "why_fail": [
+      "R2 weakness: banned-energy words present: support.",
+      "R4 fail: no concrete imperative action (or trailing reflective question)."
+    ]
+  },
+  {
+    "chart": "chart1 (Raman de0c6265)",
+    "surface": "Year /annual-plan",
+    "read_preview": "JS, this year is about refining what you've built and protecting your vitality. your discipline and structure energy's o\u2026",
+    "houses_used": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "score": {
+      "verdict_first": true,
+      "noun_count": 0,
+      "nouns_found": [],
+      "window_present": true,
+      "concrete_action": false,
+      "energy_leaks": [
+        "systems",
+        "vitality"
+      ],
+      "jargon_leaks": {},
+      "passes_contract": false
+    },
+    "why_fail": [
+      "R2 fail: only 0 concrete life-noun(s) from activated houses (need 2+).",
+      "R2 weakness: banned-energy words present: systems, vitality.",
+      "R4 fail: no concrete imperative action (or trailing reflective question)."
+    ]
+  },
+  {
+    "chart": "chart1 (Raman de0c6265)",
+    "surface": "Cycle /life-arc",
+    "read_preview": "You're experiencing a triple squeeze: Saturn demands structure and patience, Mars pushes for action and assertion, while\u2026",
+    "houses_used": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "score": {
+      "verdict_first": false,
+      "noun_count": 3,
+      "nouns_found": [
+        "courage",
+        "siblings",
+        "your voice"
+      ],
+      "window_present": true,
+      "concrete_action": true,
+      "energy_leaks": [],
+      "jargon_leaks": {
+        "planet": [
+          "Ketu",
+          "Mars",
+          "Rahu",
+          "Saturn"
+        ]
+      },
+      "passes_contract": false
+    },
+    "why_fail": [
+      "R1 fail: sentence 1 does not lead with verdict / theme.",
+      "Rule-#12 leak: planet=Ketu,Mars,Rahu,Saturn."
+    ]
+  },
+  {
+    "chart": "chart2 (RC 062bc778)",
+    "surface": "Ask /explore",
+    "read_preview": "This is a reflection on the dynamic, not a timing prediction. Your speculation runway is under pressure \u2014 the blueprint \u2026",
+    "houses_used": [
+      5,
+      8,
+      11,
+      2
+    ],
+    "score": {
+      "verdict_first": true,
+      "noun_count": 2,
+      "nouns_found": [
+        "high-risk bet",
+        "speculation"
+      ],
+      "window_present": true,
+      "concrete_action": false,
+      "energy_leaks": [
+        "capacity",
+        "dynamic",
+        "runway",
+        "structural"
+      ],
+      "jargon_leaks": {},
+      "passes_contract": false
+    },
+    "why_fail": [
+      "R2 weakness: banned-energy words present: capacity, dynamic, runway, structural.",
+      "R4 fail: no concrete imperative action (or trailing reflective question)."
+    ]
+  },
+  {
+    "chart": "chart2 (RC 062bc778)",
+    "surface": "Today /home gist",
+    "read_preview": "Good for momentum, action, and visible work.",
+    "houses_used": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "score": {
+      "verdict_first": true,
+      "noun_count": 0,
+      "nouns_found": [],
+      "window_present": true,
+      "concrete_action": true,
+      "energy_leaks": [
+        "momentum"
+      ],
+      "jargon_leaks": {},
+      "passes_contract": false
+    },
+    "why_fail": [
+      "R2 fail: only 0 concrete life-noun(s) from activated houses (need 2+).",
+      "R2 weakness: banned-energy words present: momentum."
+    ]
+  },
+  {
+    "chart": "chart2 (RC 062bc778)",
+    "surface": "Today /home lkRead",
+    "read_preview": "your discipline and structure energy is moving through the part of your chart that holds effort, peers, written work, sh\u2026",
+    "houses_used": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "score": {
+      "verdict_first": false,
+      "noun_count": 0,
+      "nouns_found": [],
+      "window_present": true,
+      "concrete_action": true,
+      "energy_leaks": [],
+      "jargon_leaks": {},
+      "passes_contract": false
+    },
+    "why_fail": [
+      "R1 fail: sentence 1 does not lead with verdict / theme.",
+      "R2 fail: only 0 concrete life-noun(s) from activated houses (need 2+)."
+    ]
+  },
+  {
+    "chart": "chart2 (RC 062bc778)",
+    "surface": "Month /monthly-deepdive",
+    "read_preview": "June asks you to pay close attention to your daily health routine, your savings, and close family connections\u2014these are \u2026",
+    "houses_used": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "score": {
+      "verdict_first": true,
+      "noun_count": 4,
+      "nouns_found": [
+        "health routine",
+        "income",
+        "savings",
+        "short trip"
+      ],
+      "window_present": true,
+      "concrete_action": false,
+      "energy_leaks": [
+        "breakthroughs",
+        "growth"
+      ],
+      "jargon_leaks": {},
+      "passes_contract": false
+    },
+    "why_fail": [
+      "R2 weakness: banned-energy words present: breakthroughs, growth.",
+      "R4 fail: no concrete imperative action (or trailing reflective question)."
+    ]
+  },
+  {
+    "chart": "chart2 (RC 062bc778)",
+    "surface": "Year /annual-plan",
+    "read_preview": "2026 is a year of structured growth where your Capricorn rising's natural discipline meets opportunities for methodical \u2026",
+    "houses_used": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "score": {
+      "verdict_first": false,
+      "noun_count": 1,
+      "nouns_found": [
+        "career"
+      ],
+      "window_present": true,
+      "concrete_action": false,
+      "energy_leaks": [
+        "growth",
+        "infrastructure",
+        "momentum"
+      ],
+      "jargon_leaks": {
+        "sign": [
+          "Capricorn"
+        ],
+        "skt": [
+          "rising"
+        ]
+      },
+      "passes_contract": false
+    },
+    "why_fail": [
+      "R1 fail: sentence 1 does not lead with verdict / theme.",
+      "R2 fail: only 1 concrete life-noun(s) from activated houses (need 2+).",
+      "R2 weakness: banned-energy words present: growth, infrastructure, momentum.",
+      "R4 fail: no concrete imperative action (or trailing reflective question).",
+      "Rule-#12 leak: sign=Capricorn; skt=rising."
+    ]
+  },
+  {
+    "chart": "chart2 (RC 062bc778)",
+    "surface": "Cycle /life-arc",
+    "read_preview": "",
+    "houses_used": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "score": {
+      "verdict_first": false,
+      "noun_count": 0,
+      "nouns_found": [],
+      "window_present": false,
+      "concrete_action": false,
+      "energy_leaks": [],
+      "jargon_leaks": {},
+      "passes_contract": false
+    },
+    "why_fail": [
+      "R1 fail: sentence 1 does not lead with verdict / theme.",
+      "R2 fail: only 0 concrete life-noun(s) from activated houses (need 2+).",
+      "R3 fail: no specific window / date / time-of-day.",
+      "R4 fail: no concrete imperative action (or trailing reflective question)."
+    ]
+  }
+]
