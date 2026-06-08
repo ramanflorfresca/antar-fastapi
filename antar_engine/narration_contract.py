@@ -250,15 +250,21 @@ _DIRECTIONAL_VERB_RE = re.compile(
 # Matches: "is favorable", "are under pressure", "is moderately
 # favorable", "is blocked", "is open", "feels strained", etc.
 _VERDICT_ADJ_RE = re.compile(
-    r"\b(?:is|are|feels?|looks?|stays?|sits?|remains?|runs?)\s+"
-    r"(?:moderately\s+|slightly\s+|mostly\s+|fully\s+|barely\s+|"
-    r"clearly\s+|quietly\s+|under\s+|in\s+)?"
+    r"\b(?:is|are|feels?|looks?|stays?|sits?|remains?|runs?"
+    r"|being)\s+"
+    # Optional 0-3 modifier words between the verb and the verdict
+    # word: "moderately", "under", "in", "being slowly", "sustained",
+    # "deeply", "quietly restructured", etc. Any short lowercase
+    # word(s) here — including "under" / "in" / "being" + adverb +
+    # adjective + the verdict word. Cap at 3 to avoid runaway matches.
+    r"(?:[a-z]+\s+){0,3}"
     r"(favorable|unfavorable|mixed|neutral|"
     r"pressure|pressured|strained|blocked|stalled|"
     r"open|clear|tight|charged|"
     r"loud|quiet|steady|active|dormant|"
     r"ready|unready|"
     r"supported|unsupported|aligned|misaligned|"
+    r"restructured|rebuilt|shifting|"
     # transit-locating verbs — "is moving through X", "is transiting X",
     # "is passing through X" are natural-language directional statements
     # equivalent to "is active in X" / "is favorable for X". Common in

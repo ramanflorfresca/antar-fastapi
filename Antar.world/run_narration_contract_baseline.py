@@ -129,13 +129,20 @@ def _year_adapter(payload: dict, _q: str) -> tuple[str, str, list[int]]:
 
 def _cycle_adapter(payload: dict, _q: str) -> tuple[str, str, list[int]]:
     diag = payload.get("diagnostic") or {}
-    # READ = concatenated current_stuckness_sources explanations — that's
-    # the user-facing prose layer.
+    # READ = source (verdict-first headline) + explanation (body)
+    # concatenated for each of the first 2 stuckness sources. The
+    # source field is the verdict-first sentence post step-3 patch
+    # ("Your work routine is under pressure..."); explanation is the
+    # 2-3 sentence body that names the nouns + duration.
     sources = diag.get("current_stuckness_sources") or []
     read_parts = []
     for s in sources[:2]:
         if isinstance(s, dict):
-            read_parts.append(s.get("explanation") or s.get("source") or "")
+            src = (s.get("source") or "").strip()
+            expl = (s.get("explanation") or "").strip()
+            joined = " ".join(p for p in (src, expl) if p)
+            if joined:
+                read_parts.append(joined)
     read = " ".join(read_parts).strip()
     # NEXT = next_phase_shift.preparation_advice
     shift = diag.get("next_phase_shift") or {}
