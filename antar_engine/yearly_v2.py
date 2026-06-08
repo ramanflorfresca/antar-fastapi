@@ -333,19 +333,23 @@ def _polarity_magnitude_from_event(text: str) -> Tuple[int, float]:
 
 
 def _month_index_from_label(date_label: str, period_start: _date) -> int:
-    """'February 2026' -> int offset (0..11) from period_start month."""
+    """'February 2026' -> int offset (0..11) from period_start month.
+    Returns -1 when the label can't be parsed OR falls outside the 12-
+    month period — caller drops those events instead of clamping."""
     if not isinstance(date_label, str) or not date_label.strip():
-        return 0
+        return -1
     try:
-        # Try "%B %Y"
         d = _dt.strptime(date_label.strip(), "%B %Y").date()
     except Exception:
         try:
             d = _dt.strptime(date_label.strip(), "%b %Y").date()
         except Exception:
-            return 0
+            return -1
     delta = (d.year - period_start.year) * 12 + (d.month - period_start.month)
-    return max(0, min(11, delta))
+    # [yv2-polish 2026-06-08] outside the 12-month period -> drop
+    if delta < 0 or delta > 11:
+        return -1
+    return delta
 
 
 def _format_event_date_label(date_label: str) -> str:
@@ -408,6 +412,9 @@ def _build_events(legacy_response: Dict[str, Any], period_start: _date,
         if not raw_text or not date_lbl:
             continue
         mi = _month_index_from_label(date_lbl, period_start)
+        # [yv2-polish 2026-06-08] drop events outside this year's window
+        if mi < 0:
+            continue
         # Cross-check: drop positive events in all-friction months.
         polarity, magnitude = _polarity_magnitude_from_event(raw_text)
         if (daily_friction_mask and polarity > 0
@@ -620,20 +627,82 @@ def strip_js_leak(text: Any) -> Any:
     return _strip_js_prefix(text) if isinstance(text, str) else text
 
 
-def scrub_yearly_remedies(remedies: Any, language: str) -> Any:
-    """Run the central strip over each remedy's `practice` string.
-    Doesn't drop the `planet` key (it's a structured field, not user-facing
-    prose). field_type='timing' so the weekday survives ("on Saturday")."""
+# [yv2-polish 2026-06-08] Plain-language replacements for the romanized
+# 'Om <Planet> Namaha' family. The day anchor (Tuesday / Saturday / ...)
+# is preserved because that's the actionable part — the Sanskrit phrase
+# itself is replaced. Per-planet so a user can still tell remedies apart
+# by their THEME, without ever seeing the planet name or the mantra.
+_YEARLY_PLAIN_PRACTICE_EN = {
+    "Sun":     "A weekly authority practice — sit quietly for 11 minutes on Sunday, eye-level with sunrise.",
+    "Moon":    "A weekly steadiness practice — 11 minutes of calm breathwork on Monday evening.",
+    "Mars":    "A weekly drive practice — short hard effort (run / cold shower / heavy lift) on Tuesday morning.",
+    "Mercury": "A weekly clarity practice — write for 11 minutes on Wednesday before checking messages.",
+    "Jupiter": "A weekly growth practice — read or teach for 20 minutes on Thursday, deliberately.",
+    "Venus":   "A weekly bond practice — one unrushed gesture for someone close on Friday.",
+    "Saturn":  "A weekly discipline practice — 11 minutes on Saturday tidying / decluttering one space.",
+    "Rahu":    "A weekly unconventional practice — try something off your usual path each Saturday evening.",
+    "Ketu":    "A weekly release practice — 11 minutes of silence on Tuesday before any decision.",
+}
+_YEARLY_PLAIN_PRACTICE_ES = {
+    "Sun":     "Práctica semanal de presencia: 11 minutos en silencio el domingo al amanecer.",
+    "Moon":    "Práctica semanal de calma: 11 minutos de respiración el lunes por la tarde.",
+    "Mars":    "Práctica semanal de impulso: esfuerzo breve e intenso el martes por la mañana.",
+    "Mercury": "Práctica semanal de claridad: escribe 11 minutos el miércoles antes de revisar mensajes.",
+    "Jupiter": "Práctica semanal de crecimiento: lee o enseña 20 minutos el jueves, con intención.",
+    "Venus":   "Práctica semanal de vínculo: un gesto sin prisa para alguien cercano el viernes.",
+    "Saturn":  "Práctica semanal de disciplina: 11 minutos el sábado ordenando un espacio.",
+    "Rahu":    "Práctica semanal poco convencional: prueba algo fuera de tu camino cada sábado por la noche.",
+    "Ketu":    "Práctica semanal de soltar: 11 minutos en silencio el martes antes de decidir.",
+}
+
+import re as _yv2_re
+_MANTRA_OM_X_NAMAHA = _yv2_re.compile(r"\bOm\s+\w+(?:\s+\w+){0,2}\s+Namaha\b", _yv2_re.IGNORECASE)
+_MANTRA_CHANT_COUNT = _yv2_re.compile(r"\bChant\s+\d+\s+times\b", _yv2_re.IGNORECASE)
+
+
+def scrub_yearly_remedies(remedies, language: str):
+    """[yv2-polish 2026-06-08] Hard replacement of the romanized
+    'Om X Namaha — for Y. Chant 108 times on Z' template.
+
+    The legacy generator emits a Sanskrit mantra for every remedy. The
+    central output_strips Vedic catalog only catches bija syllables
+    (lam/vam/ram/yam/ham/ksham), so 'Om Shanaye Namaha' passes through.
+    Here we recognise the template and replace it with a plain-language
+    practice keyed by the structured `planet` field. The day anchor
+    survives because the per-planet template carries it.
+    """
     if not isinstance(remedies, list):
         return remedies
+    lang = (language or "en").split("-")[0].lower()
+    table = _YEARLY_PLAIN_PRACTICE_ES if lang == "es" else _YEARLY_PLAIN_PRACTICE_EN
     out = []
     for r in remedies:
         if not isinstance(r, dict):
             out.append(r); continue
         nr = dict(r)
+        planet  = (nr.get("planet") or "").strip().title()
         practice = nr.get("practice")
-        if isinstance(practice, str) and practice:
+        # Hard replace when the legacy template is detected (always true
+        # for the current 'Om <X> Namaha' shape). Falls back to the
+        # generic plain phrase when the planet key is unrecognised.
+        if isinstance(practice, str) and (
+            _MANTRA_OM_X_NAMAHA.search(practice)
+            or _MANTRA_CHANT_COUNT.search(practice)
+        ):
+            nr["practice"] = table.get(planet, table["Saturn"])
+        elif isinstance(practice, str) and practice:
+            # Anything else still rides the central strip.
             nr["practice"] = _scrub(practice, language, "timing")
+        # Drop the planet name from the user-facing payload too —
+        # frontend can show a structured theme but never the planet.
+        if planet:
+            nr["theme"] = {
+                "Sun": "authority", "Moon": "steadiness", "Mars": "drive",
+                "Mercury": "clarity", "Jupiter": "growth", "Venus": "bond",
+                "Saturn": "discipline", "Rahu": "unconventional", "Ketu": "release",
+            }.get(planet, "discipline")
+        # Keep the structured `planet` key for back-compat clients that
+        # still read it; it's the prose `practice` field that was leaking.
         out.append(nr)
     return out
 
