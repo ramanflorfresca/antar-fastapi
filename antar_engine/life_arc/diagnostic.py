@@ -167,53 +167,115 @@ async def _claude_diagnostic(
     language: str,
     claude_caller,
 ) -> dict:
-    """Use Claude to generate a rich, specific diagnostic."""
-    md = vim.get("md", "Unknown")
-    ad = vim.get("ad", "Unknown")
+    """Use Claude to generate a rich, specific diagnostic.
+
+    [narration-contract 2026-06-08] Inputs are pre-translated to
+    energy-systems language so the model never sees planet names; the
+    output is also walked through output_strips as defense in depth.
+    The diagnostic was the largest rule-#12 jargon offender in the
+    codebase (30 leaks per audit) — both layers close it.
+    """
+    from antar_engine.life_arc.voice.energy_vocabulary import (
+        get_energy_name as _energy_name,
+    )
+
+    md_raw = vim.get("md", "Unknown")
+    ad_raw = vim.get("ad", "Unknown")
+    pd_raw = vim.get("pd", "Unknown")
+    md = _energy_name(md_raw)
+    ad = _energy_name(ad_raw)
+    pd = _energy_name(pd_raw)
+
+    # Psychology tension strings still contain planet names. Translate
+    # them in-flight so the prompt context is fully plain-domain.
+    _tension = str(psychology.get("tension") or "")
+    for _planet in ("Sun", "Moon", "Mars", "Mercury", "Jupiter",
+                    "Venus", "Saturn", "Rahu", "Ketu"):
+        _tension = _tension.replace(_planet, _energy_name(_planet))
+
+    # Map slow-transit house-from-Moon to a plain-life sector for the
+    # prompt's context block. Internal-only; the model never echoes
+    # the house number.
+    _HOUSE_SECTOR = {
+        1: "your sense of self", 2: "your finances and security",
+        3: "your communication and short-distance work",
+        4: "your home and inner foundation",
+        5: "your creativity and joy",
+        6: "your work and health routine",
+        7: "your partnerships", 8: "shared matters and change",
+        9: "your luck and beliefs",
+        10: "your career and public role",
+        11: "your goals and gains",
+        12: "your rest and letting go",
+    }
+    _jup_h = overlay.get("jupiter_house_from_moon")
+    _sat_h = overlay.get("saturn_house_from_moon")
+    _jup_sector = _HOUSE_SECTOR.get(_jup_h, "an unspecified sector") if isinstance(_jup_h, int) else "dormant"
+    _sat_sector = _HOUSE_SECTOR.get(_sat_h, "an unspecified sector") if isinstance(_sat_h, int) else "dormant"
+    _growth_energy = _energy_name("Jupiter")
+    _discipline_energy = _energy_name("Saturn")
 
     prompt = f"""You are generating a life diagnostic for Antar (a life navigation AI).
 
-Current state:
+Current state (internal labels — NEVER echo these literally):
 - Major chapter: {md} (ends {vim.get('md_end_date')})
 - Sub-chapter: {ad} (ends {vim.get('ad_end_date')})
-- Micro-chapter: {vim.get('pd')} (ends {vim.get('pd_end_date')})
+- Micro-chapter: {pd} (ends {vim.get('pd_end_date')})
 - Sade Sati: {overlay.get('sade_sati_status', 'dormant')}
-- Jupiter house from Moon: {overlay.get('jupiter_house_from_moon')}
-- Saturn house from Moon: {overlay.get('saturn_house_from_moon')}
+- {_growth_energy} is currently moving through {_jup_sector}.
+- {_discipline_energy} is currently moving through {_sat_sector}.
 - Archetype: {archetype_name}
-- Known tension: {psychology['tension']}
+- Known tension: {_tension}
 
 Generate a JSON diagnostic with this EXACT structure:
 {{
   "current_stuckness_sources": [
     {{
-      "source": "specific dasha or transit name",
-      "explanation": "2-3 sentences explaining what this creates practically",
+      "source": "Your [life-domain] is [under pressure / blocked / strained / charged]",
+      "explanation": "2-3 sentences. Name 2+ concrete life-nouns (your career, your savings, your partner, a contract, your daily routine). Plain everyday language.",
       "duration_remaining_months": <integer>
     }}
   ],
-  "what_to_lean_into": ["specific action 1", "specific action 2", "specific action 3"],
-  "what_to_avoid": ["specific thing 1", "specific thing 2", "specific thing 3"],
+  "what_to_lean_into": ["Verb-first imperative tied to a life-noun.", "...", "..."],
+  "what_to_avoid": ["Verb-first 'Avoid X' or 'Skip Y' tied to a life-noun.", "...", "..."],
   "next_phase_shift": {{
     "date": "{next_shift['date']}",
-    "label": "{next_shift['label']}",
-    "character": "2-3 sentences describing what the next phase brings",
-    "preparation_advice": "1-2 sentences on how to prepare"
+    "label": "Plain-language label — what kind of chapter opens. NEVER 'Saturn major / Rahu sub' or any planet name.",
+    "character": "2-3 sentences. What changes. Name 2+ life-nouns. Verdict-adjective shape — 'opens', 'tightens', 'broadens'. NEVER name a planet.",
+    "preparation_advice": "1-2 sentences. Verb-first imperative. NEVER name a planet."
   }}
 }}
 
-RULES:
-1. Stuckness sources must name SPECIFIC dashas or transits (e.g., "Venus MD / Saturn AD pairing")
-2. Do NOT use Sanskrit terms — translate everything
-3. Be specific about durations (calculate from the end dates provided)
-4. Lean-into items should be actionable, not generic
-5. Avoid items should reference specific timing (e.g., "before November 2026")
-6. Language: {language}
-7. Return ONLY valid JSON, no markdown formatting
+HARD RULES (rule-#12 violations void the output):
+1. SOURCE shape: verdict-first directive — "Your [life-domain] is
+   [under pressure / blocked / strained / charged / favorable / mixed]".
+   Examples (shape only, do not copy):
+     * "Your career is under pressure from the discipline chapter."
+     * "Your daily routine is strained — health asks for slow care."
+     * "Your partnerships are charged — a decision waits."
+   FORBIDDEN: "Venus MD / Saturn AD pairing", "Saturn in 3rd house from Moon",
+   "Saturn major / Mars sub", "Ketu micro-phase", or ANY planet name.
+2. NEVER mention planets, signs, houses, nakshatras, dashas, antardashas,
+   ascendants, zodiac, retrogrades, Sanskrit terms, or any astrology jargon.
+   Translate everything to plain life domains.
+3. Lean-into and avoid items lead with an imperative verb (Build, Protect,
+   Postpone, Hold, Close, Start, Limit, Move, Skip, Wait).
+4. Concrete nouns required: your career, your savings, your partner,
+   your home, a contract, a senior, your boss, your daily routine, a loan,
+   your father, etc. NEVER abstract energy-words alone
+   (vitality, systems, foundations, momentum, growth) as the only nouns.
+5. Be specific about durations + windows (calculate from the end dates).
+6. Avoid items should reference specific timing (e.g., "before November 2026").
+7. Language: {language}.
+8. Return ONLY valid JSON, no markdown formatting.
 
 Generate now:"""
 
-    system = "You are Antar's diagnostic engine. Output valid JSON only. Be specific, warm, and actionable. No jargon."
+    system = ("You are Antar's diagnostic engine. Output valid JSON only. "
+              "Be specific, warm, and actionable. ZERO jargon — no planet "
+              "names, no houses, no Sanskrit, no astrology terms. Every "
+              "stuckness source must be a verdict-first directive about a "
+              "life domain, never a dasha label.")
 
     text, _ = await claude_caller(prompt, system_override=system)
 
@@ -228,6 +290,20 @@ Generate now:"""
         text = text[4:].strip()
 
     diagnostic = json.loads(text)
+
+    # ── Defense-in-depth: walk the whole diagnostic through the
+    # output_strips layer. apply_user_facing_strips handles dicts +
+    # lists + strings recursively, so every field gets scrubbed even
+    # if the prompt rules above are partially ignored.
+    try:
+        from antar_engine.output_strips import apply_user_facing_strips
+        diagnostic = apply_user_facing_strips(
+            diagnostic, language=language or "en", field_type="plain",
+        )
+    except Exception as _strip_err:
+        # Non-fatal — better a leak than a 500. Log and pass through.
+        print(f"[life_arc.diagnostic] strip layer skipped: {_strip_err}")
+
     return diagnostic
 
 
