@@ -164,6 +164,20 @@ def resolve_source(name: str, engine_result: dict, chart_a: dict, chart_b: dict)
     if name == "growth_areas_count":
         n = len(engine_result.get("growth_areas", []) or [])
         return float(max(0, 100 - n * 15))
+    if name == "house_exchange_their_to_your":
+        # Directional dominant term for employee / boss-or-manager.
+        # Reads from compatibility_reasons.DIRECTIONAL_HOUSES via the
+        # caller-provided reason; falls back to neutral if not set.
+        from antar_engine import compatibility_reasons as _R
+        from antar_engine.compatibility_synastry import house_exchange_directional
+        _spec = (engine_result.get('_directional_houses') or {})
+        if not _spec:
+            return 55.0
+        return house_exchange_directional(
+            chart_a, chart_b,
+            _spec.get('your_houses', []),
+            _spec.get('house_weights'),
+        )
     if name == "cross_aspect_harmony":
         # Phase 2: cross-chart graha drishti to lagna/7th (benefic up, malefic down).
         return SYN.cross_aspect_harmony(chart_a, chart_b)["score"]
@@ -365,8 +379,19 @@ def compose_six_layers(compat_raw: dict, chart_a: dict, chart_b: dict,
     weights = R.REASON_WEIGHTS.get(reason, R.REASON_WEIGHTS["romantic"])
     role_mods = R.ROLE_MODIFIERS.get(role, {}) if reason in R.ROLE_REQUIRED_REASONS else {}
 
+    # Per-reason source map override (asymmetric reasons swap the public layer).
+    sources_by_reason = getattr(R, 'V2_LAYER_SOURCES_BY_REASON', {})
+    sources_map = sources_by_reason.get(reason, R.V2_LAYER_SOURCES)
+    # Per-reason layer label override (employee / boss-or-manager).
+    label_overrides = getattr(R, 'REASON_LAYER_LABELS', {}).get(reason, {})
+    # Make the directional houses spec available to resolve_source.
+    _dir_spec = getattr(R, 'DIRECTIONAL_HOUSES', {}).get(reason)
+    if _dir_spec:
+        compat_raw = dict(compat_raw)
+        compat_raw['_directional_houses'] = _dir_spec
+
     for key in R.LAYER_ORDER:
-        srcs = R.V2_LAYER_SOURCES[key]
+        srcs = sources_map.get(key, R.V2_LAYER_SOURCES[key])
         wsum = sum(w for _, w in srcs) or 1.0
         raw = sum(resolve_source(name, compat_raw, chart_a, chart_b) * w for name, w in srcs) / wsum
         raw += role_mods.get(key, 0)            # role modifier on the SCORE
@@ -375,7 +400,7 @@ def compose_six_layers(compat_raw: dict, chart_a: dict, chart_b: dict,
         headline, detail = TPL.v2_layer_prose(reason, key, b, role, a_name, b_name)
         layers.append({
             "layer_key": key,
-            "layer_label": R.LAYER_LABELS[key],
+            "layer_label": label_overrides.get(key, R.LAYER_LABELS[key]),
             "score": score,
             "passed": score >= R.LAYER_PASS_THRESHOLD,
             "headline": headline,

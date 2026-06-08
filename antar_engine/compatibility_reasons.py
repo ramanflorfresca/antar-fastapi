@@ -69,6 +69,71 @@ V2_LAYER_SOURCES = {
     "friction":      [("mutual_6_8", 0.45), ("nadi_dosha", 0.35), ("growth_areas_count", 0.20)],
 }
 
+# ── DIRECTIONAL EXTENSION (employee / boss-or-manager) ────────────────────
+# Asymmetric house-exchange spec per the reason-routing brief. The dominant
+# 'their planets in your role-houses' term lives under the `public` layer for
+# these two reasons only; the other five reasons are untouched.
+DIRECTIONAL_HOUSES = {
+    "employee": {
+        # User is SENIOR. Read = "does THEIR chart deliver into MY 6/10/3?"
+        "your_houses":  [6, 10, 3],
+        "their_houses": [10, 6, 3],
+        "house_weights": [1.0, 1.0, 0.6],
+        "karakas":      ["Mercury", "Saturn"],
+        "divisional":   "D10",
+        "frame":        "execution_fit",
+    },
+    "boss-or-manager": {
+        # User is JUNIOR. Read = "does THEIR authority advance MY 10/6?"
+        "your_houses":  [10, 6],
+        "their_houses": [6, 10],
+        "house_weights": [1.0, 0.8],
+        "karakas":      ["Sun", "Saturn"],
+        "divisional":   "D10",
+        "frame":        "advancement_vs_friction",
+    },
+}
+
+# Per-reason override of V2_LAYER_SOURCES. Only the `public` layer changes —
+# the directional term takes 0.50; the remaining 0.50 keeps the existing
+# 7/10/11 sources at their original ratio (0.40/0.40/0.20 -> halved).
+V2_LAYER_SOURCES_BY_REASON = {
+    "employee": {
+        **V2_LAYER_SOURCES,
+        "public": [
+            ("house_exchange_their_to_your", 0.50),
+            ("house_7",  0.20),
+            ("house_10", 0.20),
+            ("house_11", 0.10),
+        ],
+    },
+    "boss-or-manager": {
+        **V2_LAYER_SOURCES,
+        "public": [
+            ("house_exchange_their_to_your", 0.50),
+            ("house_10", 0.30),
+            ("house_7",  0.10),
+            ("house_11", 0.10),
+        ],
+    },
+}
+
+# Per-reason layer label overrides. Modern framing — never 'do not hire',
+# never 'avoid'. Only the listed layers are renamed; unspecified layers
+# fall back to LAYER_LABELS.
+REASON_LAYER_LABELS = {
+    "employee": {
+        "public":   "Execution Fit",
+        "lifepath": "Operating Rhythm",
+        "friction": "Support Direction",
+    },
+    "boss-or-manager": {
+        "public":   "Advancement",
+        "lifepath": "Operating Rhythm",
+        "friction": "Autonomy",
+    },
+}
+
 LAYER_PASS_THRESHOLD = 65
 
 

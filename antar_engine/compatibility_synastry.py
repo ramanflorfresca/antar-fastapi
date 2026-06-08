@@ -93,6 +93,28 @@ def house_quality_score(owner: dict, other: dict, house: int) -> float:
     return max(0.0, min(100.0, total / len(occupants)))
 
 
+def house_exchange_directional(owner: dict, other: dict,
+                               owner_houses: list,
+                               weights: list = None) -> float:
+    """
+    Directional house-overlay score for asymmetric reasons
+    (employee, boss-or-manager). Reads: how strongly does `other`'s
+    chart activate `owner`'s target houses? Weighted average of the
+    existing dignity-aware house_quality_score(owner, other, H) across
+    owner_houses. Optional per-house weights; defaults to equal.
+    Returns 0-100; 55 = neutral baseline (no occupants in any house).
+    Pure addition: does not alter any existing source's output.
+    """
+    if not owner_houses:
+        return 55.0
+    if not weights or len(weights) != len(owner_houses):
+        weights = [1.0] * len(owner_houses)
+    total_w = sum(weights) or 1.0
+    score = sum(house_quality_score(owner, other, h) * w
+                for h, w in zip(owner_houses, weights)) / total_w
+    return float(max(0.0, min(100.0, score)))
+
+
 def mercury_cross_compat(chart_a: dict, chart_b: dict) -> dict:
     """Mercury-to-Mercury harmony (communication). Mirrors the engine's D9 pattern."""
     ma = (chart_a.get("planets", {}) or {}).get("Mercury", {}).get("sign", "Gemini")
