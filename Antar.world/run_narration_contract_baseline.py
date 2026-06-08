@@ -98,10 +98,20 @@ def _today_lkread_adapter(payload: dict, _q: str) -> tuple[str, str, list[int]]:
 
 def _month_adapter(payload: dict, _q: str) -> tuple[str, str, list[int]]:
     read = payload.get("overview") or ""
-    # No single canonical action field — synthesise from best_week +
-    # monthly_mantra. best_week has the window; mantra has the
-    # imperative.
-    nxt = " ".join([
+    # Action source: priority_actions[0].action is the real verb-first
+    # imperative tied to a named domain ("Schedule a health checkup…",
+    # "Have a direct conversation with your partner…"). The mantra is
+    # a first-person commitment, not a directive — using it here was
+    # the gate's R4 false-fail.
+    pa = payload.get("priority_actions") or []
+    first_action = ""
+    for item in pa:
+        if isinstance(item, dict):
+            txt = (item.get("action") or "").strip()
+            if txt:
+                first_action = txt
+                break
+    nxt = first_action or " ".join([
         str(payload.get("best_week") or ""),
         str(payload.get("monthly_mantra") or ""),
     ]).strip()

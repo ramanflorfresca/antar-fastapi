@@ -257,7 +257,13 @@ _VERDICT_ADJ_RE = re.compile(
     r"open|clear|tight|charged|"
     r"loud|quiet|steady|active|dormant|"
     r"ready|unready|"
-    r"supported|unsupported|aligned|misaligned)\b",
+    r"supported|unsupported|aligned|misaligned|"
+    # transit-locating verbs — "is moving through X", "is transiting X",
+    # "is passing through X" are natural-language directional statements
+    # equivalent to "is active in X" / "is favorable for X". Common in
+    # curated Lal Kitab / dasha narratives.
+    r"moving\s+through|transiting|passing\s+through|"
+    r"crossing|sitting\s+in|landing\s+in)\b",
     re.IGNORECASE,
 )
 
