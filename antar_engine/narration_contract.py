@@ -234,6 +234,24 @@ _DIRECTIONAL_VERB_RE = re.compile(
     re.IGNORECASE,
 )
 
+# Verdict ADJECTIVES (predicate-style). "[X] is [verdict-adj] today —" is
+# the contract's preferred opening shape for reflective-mode reads (no
+# engine-computed verdict, but the narrator still leads with the answer).
+# Matches: "is favorable", "are under pressure", "is moderately
+# favorable", "is blocked", "is open", "feels strained", etc.
+_VERDICT_ADJ_RE = re.compile(
+    r"\b(?:is|are|feels?|looks?|stays?|sits?|remains?|runs?)\s+"
+    r"(?:moderately\s+|slightly\s+|mostly\s+|fully\s+|barely\s+|"
+    r"clearly\s+|quietly\s+|under\s+|in\s+)?"
+    r"(favorable|unfavorable|mixed|neutral|"
+    r"pressure|pressured|strained|blocked|stalled|"
+    r"open|clear|tight|charged|"
+    r"loud|quiet|steady|active|dormant|"
+    r"ready|unready|"
+    r"supported|unsupported|aligned|misaligned)\b",
+    re.IGNORECASE,
+)
+
 # Window patterns — dates, months, quarters, time-of-day, relative ranges.
 _WINDOW_RE = re.compile(
     r"\b(?:"
@@ -273,11 +291,18 @@ _TRAILING_Q_RE = re.compile(r"[?]\s*$")
 def has_verdict_first(read: str) -> bool:
     """R1 — does sentence 1 lead with the answer?
 
-    Two paths to pass:
+    Three paths to pass:
       a) Explicit verdict opener:  Yes / Likely / Not yet / This is a
          reflective read / Today / Good for … / "Raman, …"
       b) Directional verb in sentence 1: "[X] favors/supports/blocks/…
-         you" pattern carries the verdict implicitly.
+         you" — verb carries the verdict.
+      c) Predicate-style verdict adjective in sentence 1: "[X] is
+         [favorable/under pressure/blocked/open/…] today —" — the
+         reflective-mode shape per the contract worked examples.
+
+    All three are valid contract-compliant opener shapes. The reflective
+    /ask path produces (c); /home today and /annual-plan can use (a)
+    or (b).
     """
     if not read or not isinstance(read, str):
         return False
@@ -286,7 +311,9 @@ def has_verdict_first(read: str) -> bool:
         return True
     # Sentence 1 = up to first '.'  (cap at 240 chars to avoid runaway)
     sent1 = s.split(".", 1)[0][:240]
-    return bool(_DIRECTIONAL_VERB_RE.search(sent1))
+    if _DIRECTIONAL_VERB_RE.search(sent1):
+        return True
+    return bool(_VERDICT_ADJ_RE.search(sent1))
 
 
 def find_banned_energy(text: str) -> List[str]:
