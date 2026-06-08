@@ -380,7 +380,7 @@ RULES:
    home, partner, finances, your father, property) — not abstract "energy".
    Name 2-3 specific life-things, selectively; never a long list.
 5. End with when the current energy shifts and what comes next
-6. NO Sanskrit terms, NO planet names. ALSO: do NOT use the words "sub-chapter", "micro-chapter", "MD", "AD", or "PD". Refer to time with dated language ("through April 2028", "until late 2030", "the next eighteen months") and to the texture of the period with plain English ("this stretch", "this phase", "the period ahead").
+6. NO Sanskrit terms, NO planet names. ALSO: do NOT use ANY of the following Antar-coined or technical phrases — "sub-chapter", "micro-chapter", "micro-phase", "major chapter", "chapter lord", "major rhythm", "minor rhythm", "micro rhythm", "layering", "MD", "AD", or "PD". Refer to time with dated language ("through April 2028", "until late 2030", "the next eighteen months", "the years ahead") and to the texture of the period with plain English ("this stretch", "this phase", "the period ahead", "this long phase"). If you must reference overlapping cycles, say "two overlapping cycles" — never "rhythms" or "layering".
 7. Language: {language}
 8. Be specific and insightful, not generic. Name real life-things, not categories.
 
@@ -403,9 +403,8 @@ def _fallback_phase_summary(vimsottari_phase: dict, sade_sati: dict) -> str:
     ad_end = vimsottari_phase.get("ad_end_date", "Unknown")
     sade_status = sade_sati.get("status", "dormant") if sade_sati.get("active") else "dormant"
 
-    # cyclecontract: fallback no longer leaks planet names or
-    # the words "sub-chapter" / "chapter lord". Dated window only.
-    summary = "You are in a major life phase with a dated inner window inside it. "
+    # cyclecontract_v2: avoid Antar-coined vocabulary entirely.
+    summary = "You are in a long phase that has a shorter dated stretch nested inside it. "
     if sade_status != "dormant":
         summary += "This is a period of consolidation and inner work — slower outside, deeper inside. "
     if ad_end and ad_end != "Unknown":

@@ -23219,7 +23219,7 @@ async def _life_arc_compute(chart_id, horizon_months, language,
         print(f"[life_arc] highlights failed: {_bc_err}")
         response.setdefault("highlights", [])
 
-    # ── 5b. Narration-Contract scrub (cyclecontract 2026-06-07) ─────────
+    # ── 5b. Narration-Contract scrub (cyclecontract_v2_1 2026-06-07) ─────────
     # Cycle is the last red surface in the Narration Contract sprint.
     # Even though Claude is now prompted to avoid planet names / AD /
     # MD / PD / sub-chapter, this is the deterministic backstop — Rule-12
@@ -23231,16 +23231,62 @@ async def _life_arc_compute(chart_id, horizon_months, language,
         import re as _cy_re
         # Tiny scrub map for chapter-jargon the global strip layer
         # doesn't kill (these words are allowed elsewhere; here they're not).
+        # cyclecontract_v2: full ban list — "major chapter" / Antar-coined
+        # "inner window" both dropped in favor of plain dated-phase language.
+        # ORDER MATTERS: compound rhythm phrases must run BEFORE the
+        # standalone "major rhythm" / "micro rhythm" patterns or the
+        # latter would consume "major" before "major and micro rhythms"
+        # is matched.
         _CY_BAD = [
-            (r"\bsub[-\s]?chapter\b", "inner window"),
-            (r"\bmicro[-\s]?chapter\b", "inner window"),
+            # Antar-coined nesting nouns -> plain "phase".
+            (r"\bsub[-\s]?chapter\b", "phase"),
+            (r"\bmicro[-\s]?chapter\b", "phase"),
+            (r"\bmicro[-\s]?phase\b", "phase"),
             (r"\bchapter lord\b", "this period"),
-            (r"\bAntardasha\b", "inner window"),
-            (r"\bMahadasha\b", "major chapter"),
-            (r"\bPratyantar\b", "inner window"),
-            (r"\s+\bAD\b", " inner window"),
-            (r"\s+\bMD\b", " major chapter"),
-            (r"\s+\bPD\b", " inner window"),
+            # Compound "rhythms" phrasing (run BEFORE standalone forms).
+            (r"\bboth your major and (?:micro|minor) rhythms\b",
+             "two overlapping cycles"),
+            (r"\bmajor and (?:micro|minor) rhythms\b",
+             "overlapping cycles"),
+            (r"\b(?:minor|micro) and major rhythms\b",
+             "overlapping cycles"),
+            # Standalone rhythms.
+            (r"\bmajor rhythm\b", "cycle"),
+            (r"\bminor rhythm\b", "cycle"),
+            (r"\bmicro rhythm\b", "cycle"),
+            # "Layering" of dasha periods -> "overlap".
+            (r"\blayering\b", "overlap"),
+            # Raw "major chapter" -> plain "long phase".
+            (r"\bmajor chapter\b", "long phase"),
+            # Sanskrit nesting terms (defence-in-depth — output_strips
+            # also catches dasha/antardasha/mahadasha already).
+            (r"\bAntardasha\b", "phase"),
+            (r"\bMahadasha\b", "long phase"),
+            (r"\bPratyantar\b", "phase"),
+            # Two-letter dasha codes only when not adjacent to other letters.
+            (r"(?<=\s)\bAD\b", "phase"),
+            (r"(?<=\s)\bMD\b", "long phase"),
+            (r"(?<=\s)\bPD\b", "phase"),
+            # cyclecontract_v2_1 — post-strip artefacts from
+            # antar_engine.output_strips._strip_planet_names. ORDER
+            # matters: the longest "sub-sub-period" + ", your X-period
+            # planet" forms must run BEFORE the bare "sub-period" /
+            # "X-period planet" forms.
+            (r",\s*your major[-\s]?period planet\b", ""),
+            (r",\s*your sub[-\s]?period planet\b", ""),
+            (r",\s*your micro[-\s]?period planet\b", ""),
+            (r",\s*your minor[-\s]?period planet\b", ""),
+            (r"\bsub[-\s]?sub[-\s]?period\b", "phase"),
+            (r"\bmajor[-\s]?period planet\b", "this period"),
+            (r"\bsub[-\s]?period planet\b", "this period"),
+            (r"\bmicro[-\s]?period planet\b", "this period"),
+            (r"\bsub[-\s]?period\b", "phase"),
+            (r"\bmicro[-\s]?period\b", "phase"),
+            # "major life chapter" / "major life phase" — same wording
+            # the brief banned. v2's regex didn't span the "life"
+            # interpolation.
+            (r"\bmajor[-\s]?life[-\s]?chapter\b", "long phase"),
+            (r"\bmajor[-\s]?life[-\s]?phase\b", "long phase"),
         ]
         def _cy_scrub(s):
             if not isinstance(s, str) or not s:

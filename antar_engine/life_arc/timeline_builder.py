@@ -37,9 +37,8 @@ def build_timeline(
         landmarks.append({
             "date": pd_end,
             "type": "phase_shift",
-            # cyclecontract: planet name + chapter-jargon stripped;
-            # date stays — the user still sees "Inner window shifts — YYYY-MM-DD".
-            "label": "Inner window shifts",
+            # cyclecontract_v2: drop Antar-coined "inner window".
+            "label": "A shorter phase closes",
             "significance": "low",
         })
 
@@ -63,8 +62,9 @@ def build_timeline(
         landmarks.append({
             "date": md_end,
             "type": "phase_shift",
-            # cyclecontract: drop planet name; "major chapter" wording is fine.
-            "label": "A major chapter closes",
+            # cyclecontract_v2: "major chapter" is on the ban list;
+            # use plain dated-phase language.
+            "label": "This long phase closes",
             "significance": "critical",
         })
 
