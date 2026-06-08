@@ -443,6 +443,15 @@ def _build_events(legacy_response: Dict[str, Any], period_start: _date,
         })
     # Stable sort by month then magnitude
     out.sort(key=lambda e: (e["month_index"], -e["magnitude"]))
+    # [yv2-canonical-flush 2026-06-08] write the local counters back to the
+    # stage trace dict. The first patch wired the increments but forgot to
+    # flush them, so the live probe saw post_LK_gate=0 / post_narration=0
+    # even when 2 events came through. compose_yearly_contract overwrites
+    # final_events after this call returns; the two middle stages are set
+    # here so the trace is internally consistent.
+    if stage_trace is not None:
+        stage_trace["post_LK_gate"]   = _passed_lk
+        stage_trace["post_narration"] = _passed_narr
     return out
 
 
