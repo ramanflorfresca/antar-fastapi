@@ -17957,6 +17957,37 @@ async def get_annual_plan(chart_id: str, refresh: bool = False, language: str = 
             force_refresh=refresh,
             language=language,
         )
+        # [yearly_v2-wire 2026-06-08] Layer the brief's new contract
+        # additively. Strip the JS: leak from theme/summary. Scrub
+        # yearly_remedies via the central output_strips pipeline so
+        # planet names + Sanskrit mantras stop reaching the user.
+        try:
+            if isinstance(result, dict):
+                from antar_engine.yearly_v2 import (
+                    compose_yearly_contract,
+                    strip_js_leak,
+                    scrub_yearly_remedies,
+                )
+                # 1. JS: leak
+                if "year_theme" in result:
+                    result["year_theme"] = strip_js_leak(result["year_theme"])
+                if "year_summary" in result:
+                    result["year_summary"] = strip_js_leak(result["year_summary"])
+                # 2. yearly_remedies planet-name + Sanskrit scrub
+                if "yearly_remedies" in result:
+                    result["yearly_remedies"] = scrub_yearly_remedies(
+                        result["yearly_remedies"], language,
+                    )
+                # 3. v2 contract fields (additive)
+                _yv2 = compose_yearly_contract(
+                    chart_record=chart_record,
+                    legacy_response=result,
+                    language=language,
+                )
+                for _vk, _vv in _yv2.items():
+                    result[_vk] = _vv
+        except Exception as _yv2err:
+            print(f"[annual-plan] v2 wire failed (non-fatal): {_yv2err}")
         return result
     except HTTPException:
         raise
