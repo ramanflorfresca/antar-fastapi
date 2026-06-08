@@ -807,14 +807,27 @@ def _build_deepdive_context(
     # bucketed into Monday-start weeks.  Best/caution weeks must be picked
     # from this list rather than invented by Claude.
     try:
-        # Target the calendar month the prompt is about
+        # [p1-period-clamp 2026-06-08] Use the BIRTH-ANCHORED period
+        # (month_period(birth_date)) instead of the calendar month — so
+        # available_weeks cannot include a week outside [period_start,
+        # period_end] and Claude's pick is structurally inside.
         from datetime import date as _date, timedelta as _td
-        _m_start = now.replace(day=1).date()
-        if now.month == 12:
-            _next_first = now.replace(year=now.year + 1, month=1, day=1)
+        from antar_engine.jyotish_periods import month_period as _p1_mp
+        try:
+            _p1_ps_iso, _p1_pe_iso = _p1_mp(birth_date) if birth_date else (None, None)
+        except Exception:
+            _p1_ps_iso = _p1_pe_iso = None
+        if _p1_ps_iso and _p1_pe_iso:
+            _m_start = _date.fromisoformat(_p1_ps_iso)
+            _m_end   = _date.fromisoformat(_p1_pe_iso)
         else:
-            _next_first = now.replace(month=now.month + 1, day=1)
-        _m_end = (_next_first - _td(days=1)).date()
+            # Fallback to calendar month if no birth_date — preserves prior behavior.
+            _m_start = now.replace(day=1).date()
+            if now.month == 12:
+                _next_first = now.replace(year=now.year + 1, month=1, day=1)
+            else:
+                _next_first = now.replace(month=now.month + 1, day=1)
+            _m_end = (_next_first - _td(days=1)).date()
 
         _events = compute_transit_events_in_range(chart_data, _m_start, _m_end)
         _weeks  = bucket_events_by_week(_events, _m_start)

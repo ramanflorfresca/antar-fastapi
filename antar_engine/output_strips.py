@@ -744,6 +744,15 @@ def _tidy(text: str) -> str:
             'your', text, flags=re.IGNORECASE,
         )
     text = re.sub(r'\byour\s+your\b', 'your', text, flags=re.IGNORECASE)
+    # [p1-natal-doubling 2026-06-08] template merge leak from
+    # 'Saturn aligns with your natal Saturn' templates where the
+    # planet -> energy strip rewrites both slots and 'natal'
+    # sits between two 'your X energy' rewrites.
+    text = re.sub(r'\byour\s+natal\s+your\b', 'your natal',
+                  text, flags=re.IGNORECASE)
+    # ES analogue: tu natal tu
+    text = re.sub(r'\btu\s+natal\s+tu\b', 'tu natal',
+                  text, flags=re.IGNORECASE)
     # [score-strip-garble-fix] orphaned opener left when an 'X/56' score was removed
     # mid-sentence ('sits at 21/56,' -> 'sits at,').
     text = re.sub(r'\bsits?\s+at\s*,\s*', '', text, flags=re.IGNORECASE)

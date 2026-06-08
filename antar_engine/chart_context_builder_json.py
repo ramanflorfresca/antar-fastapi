@@ -90,6 +90,8 @@ def _fetch_dashas(chart_id: str, supabase) -> Dict[str, Any]:
         current_md = None
         current_ad = None
         current_pd = None
+        # [pd-sd-fallback 2026-06-08] sookshma dasha alongside PD.
+        current_sd = None
         upcoming_md = []
 
         # level field stores int OR "MD"/"AD"/"PD" string
@@ -107,7 +109,10 @@ def _fetch_dashas(chart_id: str, supabase) -> Dict[str, Any]:
                     return 2
                 if tp_lower in ("pratyantardasha", "pd"):
                     return 3
-                return {"MD": 1, "AD": 2, "PD": 3}.get(tp.upper(), 1)
+                # [pd-sd-fallback 2026-06-08] SD = sookshma dasha = level 4
+                if tp_lower in ("sookshma", "sookshma dasha", "sd"):
+                    return 4
+                return {"MD": 1, "AD": 2, "PD": 3, "SD": 4}.get(tp.upper(), 1)
             return 1
 
         for row in sys_rows:
@@ -125,6 +130,9 @@ def _fetch_dashas(chart_id: str, supabase) -> Dict[str, Any]:
                     current_ad = {"planet": planet, "start": start, "end": end}
                 elif lv == 3 and current_pd is None:
                     current_pd = {"planet": planet, "start": start, "end": end}
+                elif lv == 4 and current_sd is None:
+                    # [pd-sd-fallback 2026-06-08] level-4 sookshma dasha.
+                    current_sd = {"planet": planet, "start": start, "end": end}
 
         # Upcoming MDs — use >= so same-day transitions (end==start) are included
         if current_md:
@@ -146,9 +154,47 @@ def _fetch_dashas(chart_id: str, supabase) -> Dict[str, Any]:
             "current_md": current_md,
             "current_ad": current_ad,
             "current_pd": current_pd,
+            "current_sd": current_sd,
             "upcoming_md": upcoming_md,
         }
 
+    # [pd-sd-fallback 2026-06-08 live-compute] Older charts lack PD/SD
+    # rows in dasha_periods. Fill the gap from the live ephemeris when
+    # vimsottari.current_pd or .current_sd is null. Never touches DB rows.
+    try:
+        _vim_blk = out.get("vimsottari") or {}
+        _need_pd = _vim_blk.get("current_pd") is None
+        _need_sd = _vim_blk.get("current_sd") is None
+        if _need_pd or _need_sd:
+            _cr = supabase.table("charts").select("chart_data").eq("id", chart_id).single().execute()
+            _cd = (_cr.data or {}).get("chart_data") or {}
+            if isinstance(_cd, str):
+                import json as _ccb_json
+                try:
+                    _cd = _ccb_json.loads(_cd)
+                except Exception:
+                    _cd = {}
+            _bjd = _cd.get("birth_jd") if isinstance(_cd, dict) else None
+            if _bjd is not None:
+                from antar_engine.life_arc.phase_analyzer import get_current_vimsottari
+                _vim = get_current_vimsottari(_cd, _bjd) or {}
+                if _need_pd and _vim.get("pd"):
+                    _vim_blk["current_pd"] = {
+                        "planet": _vim.get("pd"),
+                        "start": None,
+                        "end": str(_vim.get("pd_end_date") or "")[:10] or None,
+                        "source": "live_compute",
+                    }
+                if _need_sd and _vim.get("sd"):
+                    _vim_blk["current_sd"] = {
+                        "planet": _vim.get("sd"),
+                        "start": None,
+                        "end": str(_vim.get("sd_end_date") or "")[:10] or None,
+                        "source": "live_compute",
+                    }
+                out["vimsottari"] = _vim_blk
+    except Exception as _pdsd_e:
+        print(f"[json_ctx] pd-sd live fallback skipped: {_pdsd_e}")
     return out
 
 

@@ -17751,12 +17751,118 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
         # ── Period boundary (birth-day-of-month -> next) ──
         try:
             from antar_engine.jyotish_periods import month_period as _mp
+            from datetime import date as _p1_date, timedelta as _p1_td
+            import re as _p1_re
             _m_bd = chart_record.get("birth_date", "")
             if isinstance(result, dict) and _m_bd:
                 _m_ps, _m_pe = _mp(_m_bd)
                 result["period_start"] = _m_ps
-                result["period_end"] = _m_pe
+                # [p1-anchor-display 2026-06-08] display closed on the
+                # anchor day (10 -> 10), not on anchor-1. month_period
+                # returns the inclusive end (anchor-1); add a day so the
+                # range string reads JUN 10 - JUL 10. Internal scheduling
+                # still treats [period_start, period_end) as half-open.
+                try:
+                    _p1_pe_disp = (_p1_date.fromisoformat(_m_pe) + _p1_td(days=1)).isoformat()
+                except Exception:
+                    _p1_pe_disp = _m_pe
+                result["period_end"] = _p1_pe_disp
                 result["period_method"] = "birth_day_of_month"
+                # [p1-week-clamp-post 2026-06-08] Safety net for best_week
+                # / caution_week date leaks. Even with the available_weeks
+                # list now scoped to the birth-anchored period, Claude can
+                # still hallucinate a date. Parse the date token from each
+                # string; if it falls outside [period_start, period_end_disp),
+                # replace with the closest in-range Monday label.
+                try:
+                    _ps_d = _p1_date.fromisoformat(_m_ps)
+                    _pe_d = _p1_date.fromisoformat(_p1_pe_disp)
+                    _months = {"january":1,"february":2,"march":3,"april":4,
+                               "may":5,"june":6,"july":7,"august":8,
+                               "september":9,"october":10,"november":11,"december":12}
+                    def _p1_clamp_week(field_text):
+                        if not isinstance(field_text, str) or not field_text:
+                            return field_text
+                        m = _p1_re.search(r"Week of ([A-Za-z]+) (\d{1,2})", field_text)
+                        if not m:
+                            return field_text
+                        _mon = _months.get(m.group(1).lower())
+                        if not _mon:
+                            return field_text
+                        _day = int(m.group(2))
+                        # Best guess at year: prefer period_start.year, else period_end.year
+                        for _yr in (_ps_d.year, _pe_d.year):
+                            try:
+                                _cand = _p1_date(_yr, _mon, _day)
+                            except Exception:
+                                continue
+                            if _ps_d <= _cand < _pe_d:
+                                return field_text  # in range — keep as-is
+                        # Out of range — clamp to a deterministic in-range Monday.
+                        _mon0 = _ps_d - _p1_td(days=_ps_d.weekday())
+                        if _mon0 < _ps_d:
+                            _mon0 = _mon0 + _p1_td(days=7)
+                        if _mon0 >= _pe_d:
+                            _mon0 = _ps_d  # period shorter than a week
+                        _label = _mon0.strftime("Week of %B %-d")
+                        return _p1_re.sub(r"Week of [A-Za-z]+ \d{1,2}", _label, field_text, count=1)
+                    if result.get("best_week"):
+                        result["best_week"] = _p1_clamp_week(result["best_week"])
+                    if result.get("caution_week"):
+                        result["caution_week"] = _p1_clamp_week(result["caution_week"])
+                except Exception as _p1_clamp_e:
+                    print(f"[monthly-deepdive] week-clamp failed: {_p1_clamp_e}")
+                # [score_day-wire 2026-06-08] Override best_week /
+                # caution_week dates with the rolling 7-day extremes of
+                # score_day across the period. Day & month now agree.
+                try:
+                    from antar_engine.score_day import (
+                        score_range as _sd_range,
+                        rolling_window_extremes as _sd_extr,
+                    )
+                    from datetime import date as _sd_date, timedelta as _sd_td
+                    import re as _sd_re
+                    _sd_ps = _sd_date.fromisoformat(_m_ps)
+                    # period_end DISPLAYED is the anchor day (exclusive),
+                    # so the per-day scan runs through anchor - 1.
+                    _sd_pe_disp = _sd_date.fromisoformat(_p1_pe_disp)
+                    _sd_pe_inclusive = _sd_pe_disp - _sd_td(days=1)
+                    _sd_loc = {
+                        "lat": chart_record.get("latitude") or 28.6,
+                        "lng": chart_record.get("longitude") or 77.2,
+                    }
+                    _sd_series = _sd_range(
+                        chart_data, _sd_ps, _sd_pe_inclusive, _sd_loc,
+                    )
+                    _sd_best_iso, _sd_caution_iso = _sd_extr(_sd_series, 7)
+                    def _sd_relabel(field_text, new_iso):
+                        if not new_iso:
+                            return field_text
+                        _nd = _sd_date.fromisoformat(new_iso)
+                        # Anchor on the Monday of the picked window.
+                        _mon0 = _nd - _sd_td(days=_nd.weekday())
+                        if _mon0 < _sd_ps:
+                            _mon0 = _sd_ps
+                        _new_label = _mon0.strftime("Week of %B %-d")
+                        if isinstance(field_text, str) and field_text \
+                                and _sd_re.search(r"Week of [A-Za-z]+ \d{1,2}", field_text):
+                            return _sd_re.sub(r"Week of [A-Za-z]+ \d{1,2}",
+                                              _new_label, field_text, count=1)
+                        return _new_label
+                    if _sd_best_iso:
+                        result["best_week"] = _sd_relabel(result.get("best_week"), _sd_best_iso)
+                    if _sd_caution_iso:
+                        result["caution_week"] = _sd_relabel(result.get("caution_week"), _sd_caution_iso)
+                    # Surface the per-day series for cross-check; gated
+                    # behind _strip_debug_reasoning so non-debug clients
+                    # never see it.
+                    _dbg = result.setdefault("_debug_reasoning", {})
+                    if isinstance(_dbg, dict):
+                        _dbg["score_day_series"] = _sd_series
+                        _dbg["score_day_best"]   = _sd_best_iso
+                        _dbg["score_day_caution"] = _sd_caution_iso
+                except Exception as _sd_err:
+                    print(f"[monthly-deepdive] score_day wire failed (non-fatal): {_sd_err}")
         except Exception as _mpe:
             print(f"[monthly-deepdive] period failed: {_mpe}")
 
@@ -23850,12 +23956,56 @@ async def debug_context(chart_id: str, question: str = "What is my career direct
 async def _alias_predict_daily(request: dict):
     # [daily-signal-date] forward `date` from the POST body so the alias
     # honors the same per-day contract as GET /api/v1/daily-signal/{cid}.
-    return await get_daily_signal_endpoint(
+    _r_daily = await get_daily_signal_endpoint(
         chart_id=request.get("chart_id"),
         request=request,
         language=(request.get("language") or "en"),
         date=request.get("date"),
     )
+    # [daily_v2-wire 2026-06-08] Layer the brief's new contract
+    # additively. Legacy fields untouched (Lovable migrates at its
+    # own pace); brief's breaking field — `strength` as 0..100 int —
+    # is applied and the old string preserved under `strength_label`.
+    try:
+        if isinstance(_r_daily, dict):
+            from antar_engine.daily_v2 import compose_daily_contract
+            from datetime import date as _v2_date
+            _chart_id = request.get("chart_id") or ""
+            _chart_row = supabase.table("charts").select("*").eq("id", _chart_id).single().execute()
+            _chart_rec = _chart_row.data or {}
+            _v2_target = None
+            _dstr = request.get("date") or _r_daily.get("date")
+            if isinstance(_dstr, str) and _dstr:
+                try:
+                    _v2_target = _v2_date.fromisoformat(_dstr[:10])
+                except Exception:
+                    _v2_target = None
+            _v2 = compose_daily_contract(
+                chart_id=_chart_id,
+                chart_record=_chart_rec,
+                legacy_response=_r_daily,
+                language=(request.get("language") or "en"),
+                target_date=_v2_target,
+            )
+            # Preserve legacy `strength` string under strength_label.
+            if "strength" in _r_daily and not isinstance(_r_daily["strength"], (int, float)):
+                _r_daily["strength_label"] = _r_daily["strength"]
+            # Brief: "Remove the standalone AVOID card" — drop the
+            # legacy evita_hoy list. Domain.state="caution" replaces it.
+            _r_daily.pop("evita_hoy", None)
+            # Brief: "No remedy on daily" — clear any remedy field.
+            for _rk in ("remedy", "remedies", "todays_remedy", "daily_remedy"):
+                _r_daily.pop(_rk, None)
+            # Merge the v2 contract fields — these OVERWRITE the legacy
+            # date/strength/windows/domains, which is what the brief
+            # requires for the contract to be exact.
+            for _vk, _vv in _v2.items():
+                _r_daily[_vk] = _vv
+    except Exception as _v2err:
+        # Never block the daily payload on a v2 composer failure.
+        print(f"[daily] v2 wire failed (non-fatal): {_v2err}")
+    # [gate-debug 2026-06-08] hide internal evidence trail from client
+    return _strip_debug_reasoning(_r_daily, request)
 
 
 @app.post("/api/v1/predict/daily-week")
