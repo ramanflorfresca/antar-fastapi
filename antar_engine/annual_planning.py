@@ -243,6 +243,33 @@ It covers the full year ahead — what it's about, when to act in each domain, w
 
 RULES:
 - ALWAYS start year_summary with the user's first name if provided e.g. "Ramandeep, this year..."
+- year_summary SHAPE (Narration Contract): the FIRST sentence must be a
+  verdict — "[Name], this year is [favorable / under pressure / mixed /
+  consolidating / expansive] for [the year's strong axis] — [terse
+  imperative]." Examples of the SHAPE (do not copy the words):
+    * "Ramandeep, this year is favorable for your career and your savings
+      — ship the visible work, then protect the gains."
+    * "Ramandeep, this year is under pressure around your daily routine
+      and your partnerships — protect health first, postpone big bets."
+    * "Ramandeep, this year is mixed — your career is the strong axis,
+      your home and family ask for care."
+  FORBIDDEN year_summary openings (these are abstract frames, not
+  answers — the contract bans them):
+    * "this year is about [X]" / "is about refining" / "is about
+      protecting" — a frame, not a verdict.
+    * Any sentence whose first concrete noun is an abstraction
+      (vitality, systems, foundations, infrastructure, energy, momentum,
+      alignment, growth, consolidation as a bare word).
+- year_summary BODY (sentences 2-4): name 2-3 CONCRETE life-nouns
+  drawn from the peak_windows the engine just chose. Use plain life
+  terms — "your career", "your savings", "a property or vehicle
+  decision", "your father or a mentor", "a long-distance move", "your
+  daily routine", "your partner", "your boss". NEVER write the bare
+  category alone ("focus on health", "relationships matter").
+- year_summary WINDOW: end the summary with a concrete multi-month
+  window using the peak months — e.g. "Ship through May–June,
+  consolidate Q4", "Move on the property question in late summer",
+  "Hold off on big partnership moves until November".
 - Plain English throughout. Zero jargon.
 - Specific timing windows: name months, not vague periods
 - [cp-day4b] peak_windows + critical_dates rule — if the user context
