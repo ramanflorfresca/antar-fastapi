@@ -282,13 +282,32 @@ NAKSHATRA_DO_DONT = {
 }
 
 
-def calculate_panchanga(lat: float = 28.6, lng: float = 77.2, tz_offset: float = None) -> dict:
-    """Calculate today's Panchanga using Swiss Ephemeris."""
+def calculate_panchanga(lat: float = 28.6, lng: float = 77.2, tz_offset: float = None, target_date=None) -> dict:
+    """Calculate Panchanga using Swiss Ephemeris.
+
+    target_date (date | datetime | None):
+        When provided, panchanga is computed for THAT calendar date
+        (noon UTC anchor — stable across -12..+14 timezones, matches the
+        rest of the engine's date-stamping). When None, current UTC.
+    """
     try:
         import swisseph as swe
         swe.set_sid_mode(swe.SIDM_LAHIRI)
 
-        now = datetime.utcnow()
+        # [daily-signal-date] honour target_date so vara / tithi / nakshatra
+        # / yoga / karana / sunrise+sunset / rahu kalam / abhijit / lucky
+        # hours reflect the requested day rather than "now".
+        if target_date is not None:
+            try:
+                _td = target_date.date() if hasattr(target_date, "date") else target_date
+            except Exception:
+                _td = None
+            if _td is not None:
+                now = datetime(_td.year, _td.month, _td.day, 12, 0, 0)
+            else:
+                now = datetime.utcnow()
+        else:
+            now = datetime.utcnow()
         # Local clock: explicit tz_offset (hours) when the caller knows it,
         # else rough longitude-derived offset as a fallback.
         local_offset = float(tz_offset) if tz_offset is not None else (lng / 15.0)

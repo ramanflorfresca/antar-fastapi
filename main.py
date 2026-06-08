@@ -14270,10 +14270,21 @@ async def save_onboarding_reason(request: OnboardingReasonRequest):
     fields_to_translate=["vibe", "do_today", "dont_today", "text", "headline", "highlight", "todays_nudge"],
     endpoint_name="daily-signal",
 )
-async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, language: str = "en"):
+async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, language: str = "en", date: str = None):
     cid = chart_id or (request.get("chart_id") if request else None)
     if not cid:
         raise HTTPException(400, "chart_id required")
+    # [daily-signal-date] accept ?date=YYYY-MM-DD (or JSON body "date").
+    # Without this the panchanga was frozen to "now" for every request
+    # because the param was silently ignored before reaching the engine.
+    _ds_req_date_str = date or (request.get("date") if request else None)
+    _ds_requested_date = None
+    if _ds_req_date_str:
+        try:
+            from datetime import datetime as _ds_dt_parse
+            _ds_requested_date = _ds_dt_parse.strptime(str(_ds_req_date_str)[:10], "%Y-%m-%d")
+        except Exception:
+            raise HTTPException(400, "date must be YYYY-MM-DD")
     try:
         # [daily-signal-fix] generate_daily_signal() was removed in commit
         # 176a27f when the engine moved to a 7-day generator. Delegate to
@@ -14313,7 +14324,13 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
 
         # Local "today" — same helpers /daily-week uses
         current_country = row.get("current_country") or row.get("birth_country") or ""
-        start_date = _get_local_start_date(tz_offset=None, current_country=current_country)
+        # [daily-signal-date] when caller supplied ?date, use that midnight as the
+        # start_date — this date already flows into generate_weekly_signals,
+        # today_narration_cache, commit_today_signal, and the deep-read prewarmer.
+        if _ds_requested_date is not None:
+            start_date = _ds_requested_date.replace(hour=0, minute=0, second=0, microsecond=0)
+        else:
+            start_date = _get_local_start_date(tz_offset=None, current_country=current_country)
         effective_offset = _COUNTRY_TZ_OFFSETS.get((current_country or "").upper(), 0)
 
         signals = await generate_weekly_signals(
@@ -14332,7 +14349,9 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         # Today's panchanga timing block (carried over from the original endpoint)
         _pan_lat, _pan_lng, _pan_src = _resolve_moment_coords(row)
         lat, lng = float(_pan_lat), float(_pan_lng)
-        panchanga = calculate_panchanga(lat=lat, lng=lng, tz_offset=effective_offset)
+        # [daily-signal-date] thread the requested date so the 5 limbs +
+        # sunrise/sunset/rahu kalam/abhijit/lucky_hours all match start_date.
+        panchanga = calculate_panchanga(lat=lat, lng=lng, tz_offset=effective_offset, target_date=start_date)
         formatted = format_daily_for_user(panchanga)
         # [no-jargon] format_daily_for_user's display strings leak vara/
         # nakshatra/tithi and planet names (e.g. "Jupiterday · Uttara Ashadha ·
@@ -23739,10 +23758,13 @@ async def debug_context(chart_id: str, question: str = "What is my career direct
 #    Thin POST wrappers delegating to the canonical handlers. Backend-only.
 @app.post("/api/v1/predict/daily")
 async def _alias_predict_daily(request: dict):
+    # [daily-signal-date] forward `date` from the POST body so the alias
+    # honors the same per-day contract as GET /api/v1/daily-signal/{cid}.
     return await get_daily_signal_endpoint(
         chart_id=request.get("chart_id"),
         request=request,
         language=(request.get("language") or "en"),
+        date=request.get("date"),
     )
 
 
