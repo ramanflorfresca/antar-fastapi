@@ -24040,6 +24040,30 @@ async def _alias_predict_monthly(request: dict):
         language=(request.get("language") or "en"),
         force_refresh=bool(request.get("force_refresh") or False),
     )
+    # [monthly_v2-wire 2026-06-08] Layer the brief's new contract
+    # additively. Legacy fields stay; best_week/caution_week strings
+    # are preserved under best_week_legacy/caution_week_legacy because
+    # the new fields are OBJECTS (start/end/label/line) per the brief.
+    try:
+        if isinstance(_r_monthly, dict):
+            from antar_engine.monthly_v2 import compose_monthly_contract
+            _chart_id = request.get("chart_id") or ""
+            _chart_row = supabase.table("charts").select("*").eq("id", _chart_id).single().execute()
+            _chart_rec = _chart_row.data or {}
+            # Preserve legacy strings before we overwrite the fields.
+            for _k in ("best_week", "caution_week"):
+                _v = _r_monthly.get(_k)
+                if isinstance(_v, str) and _v:
+                    _r_monthly[_k + "_legacy"] = _v
+            _mv2 = compose_monthly_contract(
+                chart_record=_chart_rec,
+                legacy_response=_r_monthly,
+                language=(request.get("language") or "en"),
+            )
+            for _vk, _vv in _mv2.items():
+                _r_monthly[_vk] = _vv
+    except Exception as _mv2err:
+        print(f"[monthly] v2 wire failed (non-fatal): {_mv2err}")
     # [gate-debug 2026-06-08] hide internal evidence trail from client
     return _strip_debug_reasoning(_r_monthly, request)
 
