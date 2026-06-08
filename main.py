@@ -457,6 +457,20 @@ from antar_engine.d_charts_calculator import get_all_d_charts
 from antar_engine.proof_points import generate_proof_points, evaluate_proof_score
 from antar_engine.rarity_engine import detect_rarity_signals, rarity_signals_to_context_block
 from antar_engine.precision_windows import find_precision_windows, precision_windows_to_context_block
+# [predict-specificity] imports
+from antar_engine.life_area_map import get_life_area
+from antar_engine.domain_anchor import (
+    has_domain_anchor as _ds_has_domain_anchor,
+    build_no_anchor_instruction as _ds_build_no_anchor_instruction,
+    has_anchor_violation as _ds_has_anchor_violation,
+    build_honest_flat_fallback as _ds_honest_flat,
+    build_redirect_fallback as _ds_redirect_fb,
+)
+from antar_engine.hora_karana import (
+    is_tactical_question as _ds_is_tactical,
+    build_intraday_window as _ds_build_intraday_window,
+)
+from antar_engine.dangling_text_guard import scrub_fields as _ds_scrub_fields
 from antar_engine.chakra_engine import get_chakra_reading, chakra_reading_to_context_block
 from antar_engine.chapter_arc import build_chapter_arc, chapter_arc_to_context_block
 from antar_engine.lal_kitab_db import (
@@ -4701,6 +4715,53 @@ Do not use any planet names or astrological jargon — translate everything into
     # ── PROMPT ────────────────────────────────────────────────────
     rarity_context  = rarity_signals_to_context_block(rarity_signals)
     windows_context = precision_windows_to_context_block(precision_windows, concern)
+
+    # [predict-specificity] intraday window
+    # WS4: tactical 'today'/'now' questions need a clock boundary,
+    # not a date range. Append the current hora+karana boundary so
+    # the answer can anchor on a real intraday window.
+    try:
+        if _ds_is_tactical(request.question):
+            _ds_lat, _ds_lng, _ds_loc_src = _resolve_moment_coords(chart_record)
+            _ds_tz = float(chart_record.get('tz_offset') or 0.0)
+            _intraday = _ds_build_intraday_window(
+                lat=float(_ds_lat), lng=float(_ds_lng),
+                tz_offset_hours=_ds_tz,
+                concern=concern,
+                language=getattr(request, 'language', 'en') or 'en',
+            )
+            if _intraday:
+                precision_windows = (_intraday or []) + list(precision_windows or [])
+                windows_context = precision_windows_to_context_block(
+                    precision_windows, concern
+                )
+                print(f"[predict] intraday window appended via {_ds_loc_src}")
+    except Exception as _ds_iw_e:
+        print(f"[predict] intraday window failed (non-fatal): {_ds_iw_e}")
+
+    # [predict-specificity] anchor gate
+    # WS2: decide if the asked life area has a domain-matched anchor.
+    # If not, the prompt branches to honest framing (no manufactured
+    # pressure). The post-gen guard enforces this on the response.
+    _anchor_decision = {'has_anchor': True, 'matched_via': None,
+                        'anchor': None, 'redirect_candidate': None,
+                        'concern': concern}
+    try:
+        _anchor_decision = _ds_has_domain_anchor(
+            concern=concern,
+            rarity_signals=rarity_signals,
+            precision_windows=precision_windows,
+            predictions=predictions if 'predictions' in dir() else None,
+            current_transits=current_transits,
+            chart_data=chart_data,
+        )
+        print(
+            f"[predict] domain anchor concern={concern} "
+            f"has_anchor={_anchor_decision['has_anchor']} "
+            f"via={_anchor_decision['matched_via']}"
+        )
+    except Exception as _ds_anc_e:
+        print(f"[predict] anchor gate failed (non-fatal): {_ds_anc_e}")
     chakra_context  = chakra_reading_to_context_block(chakra_reading_data) if chakra_reading_data else ""
     arc_context     = chapter_arc_to_context_block(chapter_arc_data) if chapter_arc_data else ""
 
@@ -6004,6 +6065,22 @@ State a specific year. Never predict past events as future windows.
             _master_system = _master_system + "\n\n" + build_english_glossary_block("coach")
             print("[predict] EN-GLOSS-1: English glossary block injected (voice=coach)")
         # --- end Sprint EN-GLOSS-1 ---
+        # [predict-specificity] no-anchor prompt branch
+        # WS2/WS3 narration contract: when the asked area has no
+        # domain-matched anchor, append the strict honest-path
+        # instruction to the system prompt. Keeps DOMAIN_VOCABULARY
+        # and YOUR MOVE — only constrains shape, not vocabulary.
+        try:
+            if not _anchor_decision.get('has_anchor', True):
+                _no_anchor_block = _ds_build_no_anchor_instruction(
+                    concern=concern,
+                    redirect_candidate=_anchor_decision.get('redirect_candidate'),
+                )
+                _master_system = (_master_system or '') + '\n\n' + _no_anchor_block
+                print('[predict] no-anchor instruction appended to system prompt')
+        except Exception as _ds_pp_e:
+            print(f'[predict] no-anchor prompt branch failed (non-fatal): {_ds_pp_e}')
+
         prediction_text, tokens_used = await call_llm_claude(
             prompt,
             history=request.conversation_history or [],
@@ -6097,6 +6174,50 @@ State a specific year. Never predict past events as future windows.
             # Never crash /predict over a cosmetic strip failure.  Log
             # and continue with the plain_english-cleaned fields.
             print(f"[predict] central strip post-pass failed (non-fatal): {_pp_err}")
+
+    # [predict-specificity] dangling+violation guard
+    # BUG fix: defensive scrub for dangling boilerplate Claude can
+    # emit ('wait until to decide', 'Wait until when the pressure
+    # lifts'). Idempotent — safe even if plain_english already ran
+    # the same scrub.
+    if _pe:
+        try:
+            _lang_dg = getattr(request, 'language', 'en') or 'en'
+            _ds_scrub_fields(_pe, language=_lang_dg)
+        except Exception as _ds_sc_e:
+            print(f'[predict] dangling scrub failed (non-fatal): {_ds_sc_e}')
+
+        # WS3 post-gen violation guard: if no-anchor case and the
+        # narrator still emitted manufactured pressure, swap in
+        # the honest-flat (or redirect) fallback. Never overwrites
+        # a clean answer.
+        try:
+            if not _anchor_decision.get('has_anchor', True):
+                _ps = _pe.get('plain_summary') or ''
+                _sl = _pe.get('signal_line') or ''
+                if _ds_has_anchor_violation(_ps, _sl):
+                    _lang_v = getattr(request, 'language', 'en') or 'en'
+                    _redir = _anchor_decision.get('redirect_candidate')
+                    if _redir:
+                        _fallback = _ds_redirect_fb(
+                            concern=concern,
+                            redirect_candidate=_redir,
+                            language=_lang_v,
+                        )
+                        _pe['_anchor_fallback_applied'] = 'redirect'
+                    else:
+                        _fallback = _ds_honest_flat(
+                            concern=concern, language=_lang_v,
+                        )
+                        _pe['_anchor_fallback_applied'] = 'honest_flat'
+                    _pe['plain_summary'] = _fallback['plain_summary']
+                    _pe['signal_line'] = _fallback['signal_line']
+                    print(
+                        '[predict] anchor violation detected → '
+                        f"swapped in {_pe['_anchor_fallback_applied']} fallback"
+                    )
+        except Exception as _ds_vg_e:
+            print(f'[predict] anchor violation guard failed (non-fatal): {_ds_vg_e}')
 
     confidence = predictions["highest_confidence"] or 0.75
     # FIX 9: Layer 2 counter should reflect actual transit injection, not just predictions['layer_2']

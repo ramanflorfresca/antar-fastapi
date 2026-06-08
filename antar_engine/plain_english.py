@@ -647,6 +647,21 @@ def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
         pass  # Never crash the prediction over a logging check
     # --- END TIMING CONTRADICTION CHECK ---
 
+    # [predict-specificity] dangling scrub
+    # Repair Claude-emitted dangling boilerplate (e.g. 'wait until to
+    # decide', 'Wait until when the pressure lifts'). Idempotent and
+    # never invents dates — only repairs empty placeholders.
+    try:
+        from antar_engine.dangling_text_guard import scrub_fields
+        _lang_pe = (chart_context or {}).get('language', 'en') or 'en'
+        scrub_fields(result, language=_lang_pe)
+    except Exception as _dg_e:
+        # Never crash plain_english over a scrub failure.
+        import logging as _dg_log
+        _dg_log.getLogger('plain_english').warning(
+            f'dangling_text_guard failed (non-fatal): {_dg_e}'
+        )
+
 
     return result
 
