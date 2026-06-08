@@ -41,6 +41,14 @@ class Condition:
     _seen_key: str = ""       # dedupe key (domain is usually enough)
     backed_by: List[str] = field(default_factory=list)  # which timing systems agreed
     confidence: str = ""      # high | medium | low (cycle scope only)
+    # [hl-reconcile 2026-06-08] true-domain + valence enable the
+    # contradiction-killer in _dedupe_and_rank. `domain` may be a
+    # valence bucket (risk/opportunity) for legacy compatibility;
+    # `true_domain` is the underlying life domain (work/money/...);
+    # `valence` is positive/negative/neutral. Defaults preserve
+    # behavior for any detector that hasn't been updated.
+    true_domain: str = ""
+    valence: str = "neutral"
 
 
 def _norm_lk_domains(values) -> List[str]:
@@ -81,13 +89,18 @@ def _detect_today(ctx) -> List[Condition]:
     # 1) OPENING / domain amplification (strongest signals on a good day)
     for d in amplified[:2]:
         text = T.AMPLIFIED_BY_DOMAIN.get(d) or T.AMPLIFIED_BY_DOMAIN["opportunity"]
-        conds.append(Condition(domain=d, text=text, intensity=3.0, source="lk_amplified"))
+        # [hl-reconcile] tag true_domain + positive valence
+        conds.append(Condition(domain=d, text=text, intensity=3.0, source="lk_amplified",
+                               true_domain=d, valence="positive"))
 
     # 2) AVOID / domain caution
     for d in to_avoid[:2]:
         if d in T.AVOID_BY_DOMAIN:
+            # [hl-reconcile] keep true_domain=d so this dedupes against
+            # the matching positive card on the same domain.
             conds.append(Condition(domain="risk", text=T.AVOID_BY_DOMAIN[d],
-                                    intensity=2.8, source="lk_avoid"))
+                                    intensity=2.8, source="lk_avoid",
+                                    true_domain=d, valence="negative"))
 
     # 3) Active life-chapter (money/work/people grounding)
     conds += _current_dasha_signature(ctx)
@@ -101,12 +114,14 @@ def _detect_today(ctx) -> List[Condition]:
         if d in T.AMPLIFIED_BY_DOMAIN and d not in _seen_amp:
             _seen_amp.add(d)
             conds.append(Condition(domain=d, text=T.AMPLIFIED_BY_DOMAIN[d],
-                                   intensity=2.7, source="aligned_for"))
+                                   intensity=2.7, source="aligned_for",
+                                   true_domain=d, valence="positive"))
     for line in (sig0.get("friction_for") or [])[:2]:
         d = T.in_domain_from_prefix(line if isinstance(line, str) else "")
         if d in T.AVOID_BY_DOMAIN:
             conds.append(Condition(domain="risk", text=T.AVOID_BY_DOMAIN[d],
-                                   intensity=2.5, source="friction_for"))
+                                   intensity=2.5, source="friction_for",
+                                   true_domain=d, valence="negative"))
 
     # 4) MIND from today's nakshatra energy
     energy = prof.get("energy") or ""
@@ -241,7 +256,8 @@ def _detect_weekday(day) -> List[Condition]:
             conds.append(Condition(domain=dom, text=txt.replace(" today", ""), intensity=2.6, source="wd_amp"))
         elif verdict == "caution":
             txt = T.AVOID_BY_DOMAIN.get(dom) or T.AVOID_BY_DOMAIN["work"]
-            conds.append(Condition(domain="risk", text=txt.replace(" today", ""), intensity=2.6, source="wd_avoid"))
+            conds.append(Condition(domain="risk", text=txt.replace(" today", ""), intensity=2.6, source="wd_avoid",
+                                   true_domain=d, valence="negative"))
         elif dom in T.WEEK_THEME_BY_DOMAIN:
             conds.append(Condition(domain=dom, text=T.WEEK_THEME_BY_DOMAIN[dom], intensity=2.2, source="wd_theme"))
 
@@ -285,12 +301,14 @@ def _detect_month(ctx) -> List[Condition]:
         if d in T.MONTH_STRONG_BY_DOMAIN and d not in seen_dom:
             seen_dom.add(d)
             conds.append(Condition(domain=d, text=T.MONTH_STRONG_BY_DOMAIN[d],
-                                   intensity=2.8, source="month_strong"))
+                                   intensity=2.8, source="month_strong",
+                                   true_domain=d, valence="positive"))
     for p in (ctx.get("weak_planets") or [])[:3]:
         d = T.planet_to_domain(p)
         if d in T.MONTH_WEAK_BY_DOMAIN:
             conds.append(Condition(domain="risk", text=T.MONTH_WEAK_BY_DOMAIN[d],
-                                   intensity=2.5, source="month_weak"))
+                                   intensity=2.5, source="month_weak",
+                                   true_domain=d, valence="negative"))
 
     lord = ctx.get("dasha_ad") or ctx.get("dasha_md") or ""
     sig = T.DASHA_SIGNATURE.get((lord or "").strip().title())
@@ -349,7 +367,7 @@ def _detect_cycle(ctx) -> List[Condition]:
     ss = (ctx.get("sade_sati") or "").strip()
     if ss and ss.lower() not in ("none", "inactive", "not active", "n/a"):
         conds.append(Condition(domain="watch", text=T.cycle_sade_sati(ss),
-                               intensity=3.0, source="cycle_sade_sati"))
+                               intensity=3.0, source="cycle_sade_sati", backed_by=["transit"], confidence="low"))
 
     phase = (ctx.get("phase") or "").strip().lower()
     if phase in T.CYCLE_PHASE:
@@ -376,10 +394,10 @@ def _detect_cycle(ctx) -> List[Condition]:
 
     if (ctx.get("stuckness_count") or 0) >= 1:
         conds.append(Condition(domain="watch", text=T.cycle_stuckness(ctx.get("stuckness_count")),
-                               intensity=1.9, source="cycle_stuckness"))
+                               intensity=1.9, source="cycle_stuckness", backed_by=["diagnostic"], confidence="low"))
     if (ctx.get("lean_count") or 0) >= 1:
         conds.append(Condition(domain="opportunity", text=T.cycle_lean(ctx.get("lean_count")),
-                               intensity=1.7, source="cycle_lean"))
+                               intensity=1.7, source="cycle_lean", backed_by=["diagnostic"], confidence="low"))
     return conds
 
 
@@ -441,8 +459,39 @@ def _dedupe_and_rank(conds: List[Condition], scope: str) -> List[Condition]:
         seen_text.add(key)
         deduped.append(c)
 
+    # [hl-reconcile 2026-06-08 group] One card per true_domain.
+    # Previously the dedupe operated only on text, so the same true
+    # domain (e.g. 'work') could ship as one positive card AND one
+    # 'risk' card with opposite advice. We now group by true_domain
+    # and keep the highest-intensity condition in each group.
+    # Detectors that left true_domain blank fall back to `domain`
+    # so legacy items (pure timing/chapter) keep their behavior.
+    # `timing` and `watch` groups are NOT collapsed — multiple
+    # timing/watch signals carry distinct info (best vs avoid window,
+    # different watch areas).
+    _NON_COLLAPSING = {"timing", "watch"}
+    grouped: List[Condition] = []
+    seen_group_key = set()
+    for c in deduped:
+        gk = (c.true_domain or c.domain or "").strip().lower()
+        if not gk or gk in _NON_COLLAPSING:
+            grouped.append(c)
+            continue
+        if gk in seen_group_key:
+            # Already kept a higher-intensity card for this domain;
+            # drop the contradictory / weaker one.
+            continue
+        seen_group_key.add(gk)
+        # Surface the true_domain as the card's domain so the frontend
+        # palette reflects the underlying life area, not the valence
+        # bucket. Keep 'opportunity'/'risk' only when true_domain was
+        # left blank (purely valenced signal, no underlying domain).
+        if c.true_domain and c.true_domain in T.VALID_DOMAINS:
+            c.domain = c.true_domain
+        grouped.append(c)
+
     limit = T.SCOPE_LIMITS.get(scope, 6)
-    return deduped[:limit]
+    return grouped[:limit]
 
 
 def build_highlights(scope: str, language: str, ctx: Dict[str, Any]) -> List[Dict[str, Any]]:

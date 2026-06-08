@@ -175,6 +175,13 @@ DOMAIN_HOUSE_MAP = {
     "house":        [4],
     "real estate":  [4],
     "land":         [4],
+    # ── rescue-only synonyms (2026-06-03): appended LAST so every key
+    #    above matches first — these only catch would-be-general misses.
+    "company":      [7, 10],
+    "startup":      [7, 10],
+    "incorporate":  [7, 10],
+    "venture":      [7, 10],
+    "new business": [7, 10],
 }
 
 # YES/NO intent patterns
@@ -1994,7 +2001,12 @@ def _estimate_timing(chart: dict, ithasala_result: dict, edge_yoga: Optional[dic
     if ithasala_result.get("type") == "ishrafa":
         return "The window may have passed — review within 2 weeks"
 
-    return "Timing unclear — reassess when conditions shift"
+    # [ask-narration 2026-06-08 estimate-timing] dateless tail is
+    # unactionable — reading is locked 24h, user can't refine. Pin
+    # a concrete re-check date (today + 30 days).
+    from datetime import date as _adate, timedelta as _atd
+    _recheck = (_adate.today() + _atd(days=30)).isoformat()
+    return f"No clear window — re-check after {_recheck}"
 
 
 # ═══════════════════════════════════════════════════════════════════

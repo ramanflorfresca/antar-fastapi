@@ -1326,6 +1326,11 @@ class DailyPracticeRequest(BaseModel):
     # surface. today_priority.food is the source of truth; chart_food is
     # opt-in for chart-level surfaces.
     include_chart_food: bool = False
+    # [practice-sanskrit 2026-06-08] Sanskrit category headers
+    # (daan/vrat/yantra) and the romanized mantra title are
+    # OPT-IN. Defaults to plain-language siblings (giving/fast/
+    # energy_diagram) and mantra.advanced disclosure tier.
+    include_sanskrit_keys: bool = False
 
 
 class DailyPracticeCompleteRequest(BaseModel):
@@ -6745,6 +6750,65 @@ def _prac_scrub_block(node):
     return node
 
 
+def _prac_plain_keys(resp):
+    """
+    [practice-sanskrit 2026-06-08] Drop the Sanskrit category
+    headers (daan/vrat/yantra) from today_priority and surface
+    plain-language siblings (giving/fast/energy_diagram). Move
+    the romanized mantra title into mantra.advanced so the
+    default surface carries only a plain label + opaque audio.
+    Idempotent; safe to call multiple times.
+    """
+    import copy as _cp
+    if not isinstance(resp, dict):
+        return resp
+    tp = resp.get("today_priority")
+    if not isinstance(tp, dict):
+        return resp
+    _PLAIN_ALIASES = (
+        ("daan",   "giving"),
+        ("vrat",   "fast"),
+        ("yantra", "energy_diagram"),
+    )
+    for _sans, _plain in _PLAIN_ALIASES:
+        if _sans in tp:
+            if _plain not in tp:
+                tp[_plain] = _cp.deepcopy(tp[_sans])
+            tp.pop(_sans, None)
+    # Mantra: lift audio + safe fields to top level, push the
+    # romanized Sanskrit into mantra.advanced (disclosure tier).
+    m = tp.get("mantra")
+    if isinstance(m, dict):
+        # Map type: 'bija' -> 'seed_sound' (no Sanskrit at default surface)
+        if m.get("type") == "bija":
+            m["type"] = "seed_sound"
+        _SANSKRIT_FIELDS = ("name", "sanskrit", "transliteration")
+        _has_sanskrit = any(k in m for k in _SANSKRIT_FIELDS)
+        if _has_sanskrit:
+            adv = m.get("advanced") or {}
+            for _k in _SANSKRIT_FIELDS:
+                if _k in m:
+                    adv[_k] = m.pop(_k)
+            m["advanced"] = adv
+        # Provide a plain-language label so the frontend has a
+        # user-facing string without revealing planet names.
+        if not m.get("label"):
+            _planet = tp.get("planet")
+            try:
+                from antar_engine.practice_scopes import PLANET_ENERGY as _PE
+                _en_map = _PE.get("en", {}) if isinstance(_PE, dict) else {}
+                _energy = _en_map.get(_planet) or "this energy"
+            except Exception:
+                _energy = "this energy"
+            # PLANET_ENERGY entries already start with "your " — strip to
+            # avoid "Your your drive..." doubling.
+            _energy = _energy.strip()
+            if _energy.lower().startswith("your "):
+                _energy = _energy[5:]
+            m["label"] = f"Your {_energy} mantra"
+    return resp
+
+
 def _prac_strip_prose(resp, language):
     """[energy-narration] Narration fields go through the FULL strip
     (source='llm') so any planet-name straggler is energy-translated —
@@ -7027,6 +7091,12 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
             resp["chart_food"] = None
     else:
         resp["chart_food"] = None
+    # [practice-sanskrit 2026-06-08 call] default surface = plain
+    # keys + mantra.advanced disclosure. Legacy clients pass
+    # include_sanskrit_keys=true to keep daan/vrat/yantra and the
+    # inline romanized Sanskrit title.
+    if not request.include_sanskrit_keys:
+        resp = _prac_plain_keys(resp)
     _PRACTICE_CACHE[ckey] = (_prac_time.time() + _PRACTICE_TTL, resp)
     return _ent_practice_view(resp, request.chart_id)
 
@@ -13730,6 +13800,14 @@ async def ask_endpoint(request: AskRequest):
                     "locked_until": cd.get("cooldown_until"),
                     "question": prev.get("question"),
                 }
+                # [ask-narration 2026-06-08 strip-why] re-scrub on replay:
+                # rows persisted before the post-LLM scrub landed need cleanup.
+                try:
+                    from antar_engine.output_strips import apply_user_facing_strips as _aufs_yn_r
+                    if payload.get("why"):
+                        payload["why"] = _aufs_yn_r(payload["why"], language='en', field_type='plain')
+                except Exception as _strpe:
+                    logger.warning(f"[ask] strip-why on lock failed (non-fatal): {_strpe}")
                 payload = await _ask_localize(payload, language, ["why", "timing"], chart_id)
                 return payload
 
@@ -13950,6 +14028,18 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _tfe:
                 logger.warning(f"[ask] timing fidelity failed (non-fatal): {_tfe}")
 
+            # [ask-narration 2026-06-08 strip-why] post-LLM scrub —
+            # the system prompt forbids astrology vocab but Claude
+            # still leaks 'planetary combinations ... aligned'. Final
+            # safety net before persist/cache.
+            try:
+                from antar_engine.output_strips import apply_user_facing_strips as _aufs_yn
+                if why:
+                    why = _aufs_yn(why, language='en', field_type='plain')
+                if _yn_actions:
+                    _yn_actions = [_aufs_yn(a, language='en', field_type='plain') for a in _yn_actions]
+            except Exception as _stripe:
+                logger.warning(f"[ask] strip-why failed (non-fatal): {_stripe}")
             asked_at = cast_ts.isoformat()
             locked_until = (cast_ts + timedelta(hours=ASK_YESNO_COOLDOWN_HOURS)).isoformat()
 
@@ -23777,22 +23867,38 @@ async def _alias_predict_daily_week(request: dict):
     )
 
 
+# [gate-debug 2026-06-08] Strip the internal _debug_reasoning trail
+# from public-alias responses unless the caller passes debug=true.
+# Engines still attach it; this hides it at the API boundary so we
+# do not ship internal evidence payloads to the production client.
+def _strip_debug_reasoning(result, request_body):
+    try:
+        if isinstance(result, dict) and not (isinstance(request_body, dict) and request_body.get("debug")):
+            result.pop("_debug_reasoning", None)
+    except Exception:
+        pass
+    return result
+
 @app.post("/api/v1/predict/monthly")
 async def _alias_predict_monthly(request: dict):
     # [es-house-parity 2026-06-08] forward force_refresh so the cache
     # can be busted from /predict/monthly (the frontend-facing alias).
     # Previously the per-language cache was only bustable via the GET
     # /api/v1/monthly-deepdive/{id}?force_refresh=true endpoint.
-    return await get_monthly_deepdive(
+    _r_monthly = await get_monthly_deepdive(
         chart_id=request.get("chart_id"),
         language=(request.get("language") or "en"),
         force_refresh=bool(request.get("force_refresh") or False),
     )
+    # [gate-debug 2026-06-08] hide internal evidence trail from client
+    return _strip_debug_reasoning(_r_monthly, request)
 
 
 @app.post("/api/v1/predict/yearly")
 async def _alias_predict_yearly(request: dict):
-    return await predict_year_attention(request)
+    _r_yearly = await predict_year_attention(request)
+    # [gate-debug 2026-06-08] hide internal evidence trail from client
+    return _strip_debug_reasoning(_r_yearly, request)
 
 
 @app.post("/api/v1/predict/dasha-cycle")
@@ -23802,9 +23908,11 @@ async def _alias_predict_dasha_cycle(request: dict):
     # the default is a FieldInfo object, which used to surface as 500
     # (see patch_dasha_cycle_500.py). force_refresh forwarded so the
     # admin inspector can bust the life_arc_cache when needed.
-    return await get_life_arc(
+    _r_dasha = await get_life_arc(
         chart_id=request.get("chart_id"),
         language=(request.get("language") or "en"),
         force_refresh=bool(request.get("force_refresh") or False),
         authorization=None,
     )
+    # [gate-debug 2026-06-08] hide internal evidence trail from client
+    return _strip_debug_reasoning(_r_dasha, request)

@@ -173,6 +173,14 @@ _INSTRUMENT_SUBS_EN: list[tuple[str, str]] = [
 
 # Vedic / Sanskrit softeners — order matters (specific before generic)
 _VEDIC_SUBS_ES: list[tuple[str, str]] = [
+    # [ask-narration 2026-06-08] paridad ES con _VEDIC_SUBS_EN.
+    (r'\blas?\s+combinaciones?\s+planetarias?\s+que\s+gobiernan\s+[a-záéíóúñ\s]+?\s+no\s+est[áa]n?\s+alineadas(?:\s+a\s+tu\s+favor)?(?:\s+ahora)?', 'el momento no está a tu favor'),
+    (r'\blas?\s+combinaciones?\s+planetarias?\s+que\s+gobiernan\s+[a-záéíóúñ\s]+?\s+est[áa]n?\s+alineadas(?:\s+a\s+tu\s+favor)?(?:\s+ahora)?',     'el momento está a tu favor'),
+    (r'\bcombinaciones?\s+planetarias?\s+(?:est[áa]n?|son)\s+no\s+alineadas?\b', 'el momento no está a tu favor'),
+    (r'\bcombinaciones?\s+planetarias?\s+(?:est[áa]n?|son)\s+alineadas?\b',     'el momento está a tu favor'),
+    (r'\bcombinaci[óo]n(?:es)?\s+planetarias?\b', 'la ventana actual'),
+    (r'\balineaci[óo]n(?:es)?\s+planetarias?\b',  'la ventana actual'),
+    (r'\bper[íi]odo\s+planetario\s+actual\b',    'la ventana actual'),
     # [bija-confine] — see EN list.
     (r'\bcant(?:a|e|ando|ar)\s+(?:om\s+)?(?:lam|vam|ram|yam|ham|aim|ksham)\b', 'canta el sonido semilla'),
     (r'(?-i:\b(?:LAM|VAM|RAM|YAM|HAM|KSHAM)\b)', ''),
@@ -293,6 +301,17 @@ _VEDIC_SUBS_ES: list[tuple[str, str]] = [
 ]
 
 _VEDIC_SUBS_EN: list[tuple[str, str]] = [
+    # [ask-narration 2026-06-08] /ask yesno Claude calque-strip.
+    # The yesno 'why' prompt already forbids astrology vocab; these
+    # catch the leaks Claude emits anyway ('planetary combinations
+    # governing X are not aligned...'). Verdict-direction-preserving.
+    (r'\bthe\s+planetary\s+combinations?\s+governing\s+[a-z\s]+?\s+(?:are|is)\s+not\s+aligned(?:\s+in\s+your\s+favor)?(?:\s+right\s+now)?', 'the timing is not on your side'),
+    (r'\bthe\s+planetary\s+combinations?\s+governing\s+[a-z\s]+?\s+(?:are|is)\s+aligned(?:\s+in\s+your\s+favor)?(?:\s+right\s+now)?', 'the timing is on your side'),
+    (r'\bplanetary\s+combinations?\s+(?:are|is)\s+not\s+aligned\b', 'the timing is not on your side'),
+    (r'\bplanetary\s+combinations?\s+(?:are|is)\s+aligned\b',       'the timing is on your side'),
+    (r'\bplanetary\s+combinations?\b',  'the current window'),
+    (r'\bplanetary\s+alignments?\b',    'the current window'),
+    (r'\bcurrent\s+planetary\s+period\b', 'the current window'),
     # [bija-confine] seed syllables belong ONLY to mantra fields (which the
     # strip walks skip). Chant-context rewrite + uppercase-only standalone
     # drop — (?-i:) scopes out the loop's IGNORECASE so English ram/yam/ham
