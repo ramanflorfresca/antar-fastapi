@@ -28,7 +28,7 @@ live API itself (same chart IDs, same question).
 from __future__ import annotations
 
 import json
-import os
+import os  # BASELINE_RUNNER_LIVE_FALLBACK 2026-06-07
 import sys
 from pathlib import Path
 
@@ -150,6 +150,41 @@ def _cycle_adapter(payload: dict, _q: str) -> tuple[str, str, list[int]]:
     return (read, nxt, _ALL_HOUSES)
 
 
+# ── BASELINE_RUNNER_LIVE_FALLBACK helper ────────────────────────────
+import time as _br_time
+import urllib.request as _br_urlreq
+import urllib.error as _br_urlerr
+
+_BR_BASE = "https://antar-fastapi-production.up.railway.app"
+
+
+def _fetch_life_arc_live(chart_id: str) -> dict | None:
+    """Pull /life-arc for chart_id, polling past the cache-miss stub.
+    Returns None on hard failure. Used by the runner when the audit
+    JSON is absent or a generating stub."""
+    if not chart_id:
+        return None
+    url = f"{_BR_BASE}/api/v1/life-arc/{chart_id}?horizon_months=12"
+    # Trigger a force_refresh first to invalidate any v2.1-era stale
+    # entry, then poll the non-refresh URL until diagnostic populates.
+    try:
+        _br_urlreq.urlopen(url + "&force_refresh=true", timeout=60).read()
+    except Exception:
+        pass
+    for _ in range(15):  # ~75s max
+        try:
+            resp = _br_urlreq.urlopen(url, timeout=15).read()
+            payload = json.loads(resp)
+            if (isinstance(payload, dict)
+                    and payload.get("diagnostic")
+                    and not (payload.get("status") == "generating")):
+                return payload
+        except Exception:
+            pass
+        _br_time.sleep(5)
+    return None
+
+
 SURFACES = [
     ("Ask /explore",     "ask_explore.json", _ask_adapter),
     ("Today /home gist", "home.json",        _today_adapter),
@@ -170,21 +205,35 @@ def score_chart(chart_label: str, audit_dir: Path) -> list[dict]:
     for label, filename, adapter in SURFACES:
         path = audit_dir / filename
         if not path.exists():
-            results.append({
-                "chart": chart_label,
-                "surface": label,
-                "error": f"missing {path}",
-            })
-            continue
-        try:
-            payload = json.loads(path.read_text())
-        except Exception as e:
-            results.append({
-                "chart": chart_label,
-                "surface": label,
-                "error": f"parse fail: {e}",
-            })
-            continue
+            # BASELINE_RUNNER_LIVE_FALLBACK: only the cycle surface
+            # auto-pulls live. The other surfaces still require pre-
+            # cached audit JSONs.
+            if label == "Cycle /life-arc":
+                payload = _fetch_life_arc_live(os.environ.get("BASELINE_CHART_ID", ""))
+                if payload is None:
+                    results.append({
+                        "chart": chart_label,
+                        "surface": label,
+                        "error": f"live fallback failed: no chart_id or HTTP error",
+                    })
+                    continue
+            else:
+                results.append({
+                    "chart": chart_label,
+                    "surface": label,
+                    "error": f"missing {path}",
+                })
+                continue
+        else:
+            try:
+                payload = json.loads(path.read_text())
+            except Exception as e:
+                results.append({
+                    "chart": chart_label,
+                    "surface": label,
+                    "error": f"parse fail: {e}",
+                })
+                continue
         # Cache-miss guard: /life-arc returns {"status":"generating",
         # "retry_after_ms": N} while a force_refresh-triggered regen
         # completes in the background. Scoring this as zeros is a
@@ -193,13 +242,26 @@ def score_chart(chart_label: str, audit_dir: Path) -> list[dict]:
         if (isinstance(payload, dict)
                 and payload.get("status") == "generating"
                 and len(payload) <= 3):
-            results.append({
-                "chart": chart_label,
-                "surface": label,
-                "error": f"CACHE MISS (force_refresh in flight) — re-pull "
-                         f"without force_refresh in ~10s",
-            })
-            continue
+            if label == "Cycle /life-arc":
+                # Live fallback: keep polling for up to ~75s.
+                live = _fetch_life_arc_live(os.environ.get("BASELINE_CHART_ID", ""))
+                if live and live.get("diagnostic"):
+                    payload = live
+                else:
+                    results.append({
+                        "chart": chart_label,
+                        "surface": label,
+                        "error": f"CACHE MISS — live fallback also empty",
+                    })
+                    continue
+            else:
+                results.append({
+                    "chart": chart_label,
+                    "surface": label,
+                    "error": f"CACHE MISS (force_refresh in flight) — re-pull "
+                             f"without force_refresh in ~10s",
+                })
+                continue
         read, nxt, houses = adapter(payload, ASK_QUESTION)
         score = score_read(read, houses, nxt)
         results.append({
@@ -248,8 +310,17 @@ def main() -> int:
         return 1
 
     all_rows: list[dict] = []
-    for chart_label, subdir in [("chart1 (Raman de0c6265)", ""),
-                                 ("chart2 (RC 062bc778)",   "chart2")]:
+    # ── BASELINE_RUNNER_LIVE_FALLBACK 2026-06-07 ────────────────────────
+    # Chart 2 truncated label was 062bc778; full UUID is
+    # 062bc778-09a1-4c8e-a281-b822e96f92e9. Both chart_ids are now
+    # exposed via env so the live HTTP fallback can pull them when the
+    # audit JSON is missing or a cache-miss stub.
+    _CHARTS = [
+        ("chart1 (Raman de0c6265)", "",       "de0c6265-96cc-41ba-a39c-e55868fa5806"),
+        ("chart2 (RC 062bc778)",    "chart2", "062bc778-09a1-4c8e-a281-b822e96f92e9"),
+    ]
+    for chart_label, subdir, _chart_uuid in _CHARTS:
+        os.environ["BASELINE_CHART_ID"] = _chart_uuid
         d = audit_root / subdir if subdir else audit_root
         if not d.exists():
             print(f"⚠ skip {chart_label}: {d} not found")

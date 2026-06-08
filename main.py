@@ -23219,7 +23219,7 @@ async def _life_arc_compute(chart_id, horizon_months, language,
         print(f"[life_arc] highlights failed: {_bc_err}")
         response.setdefault("highlights", [])
 
-    # ── 5b. Narration-Contract scrub (cyclecontract_v2_1 2026-06-07) ─────────
+    # ── 5b. Narration-Contract scrub (cyclecontract_v3 2026-06-07) ─────────
     # Cycle is the last red surface in the Narration Contract sprint.
     # Even though Claude is now prompted to avoid planet names / AD /
     # MD / PD / sub-chapter, this is the deterministic backstop — Rule-12
@@ -23337,7 +23337,48 @@ async def _life_arc_compute(chart_id, horizon_months, language,
                     _lm["label"] = _cy_scrub(_lm["label"])
             response["timeline_visual_data"] = _tvd
 
-        # Re-prompt fallback discipline: if life_phase_summary is empty
+        # ── cyclecontract_v3 2026-06-07 ─────────────────────────────────────
+        # current_phase.vimsottari.{md,ad,pd,sd} hold raw planet names
+        # ("Saturn","Rahu","Venus"). They are scalar strings in the
+        # user-facing payload — strip them through the same path the
+        # prose uses, so "Saturn" → "your discipline and structure
+        # energy" etc. Frontend reads these as display strings; the raw
+        # planet identity lives in chart_data for any consumer that
+        # needs it.
+        try:
+            _cp3 = response.get("current_phase") or {}
+            _vim3 = _cp3.get("vimsottari") or {}
+            for _vk in ("md", "ad", "pd", "sd"):
+                _vv = _vim3.get(_vk)
+                if isinstance(_vv, str) and _vv:
+                    _vim3[_vk] = _cy_strip(_vv, language=language, field_type="plain")
+            if _vim3:
+                _cp3["vimsottari"] = _vim3
+                response["current_phase"] = _cp3
+
+            # cycle_cross_check.systems.{chara,naisargika,vimshottari}
+            # and naisargika_active_planet are sibling top-level fields
+            # carrying the same raw planet-name pattern. Same scrub —
+            # the contract is zero planet names anywhere in the cycle
+            # payload, not just inside prose.
+            _xc3 = response.get("cycle_cross_check") or {}
+            _sys3 = _xc3.get("systems") or {}
+            for _sk in ("chara", "naisargika", "vimshottari"):
+                _sv = _sys3.get(_sk)
+                if isinstance(_sv, str) and _sv:
+                    _sys3[_sk] = _cy_strip(_sv, language=language, field_type="plain")
+            if _sys3:
+                _xc3["systems"] = _sys3
+                response["cycle_cross_check"] = _xc3
+            _nap = response.get("naisargika_active_planet")
+            if isinstance(_nap, str) and _nap:
+                response["naisargika_active_planet"] = _cy_strip(
+                    _nap, language=language, field_type="plain"
+                )
+        except Exception as _v3_err:
+            print(f"[life_arc] v3 planet-scalar scrub failed (non-blocking): {_v3_err}")
+
+                # Re-prompt fallback discipline: if life_phase_summary is empty
         # or shorter than 60 chars AFTER scrub (Claude likely returned
         # only jargon and the scrub flattened it), substitute a dated,
         # noun-light line built from the structured data — NOT a generic
