@@ -547,25 +547,11 @@ async def generate_annual_plan(
             logger.info("[annual] serving previous cached year — generation failed.")
             return cached_any
         raise
-    # [yv2-canonical 2026-06-08] If the new run came back EMPTY but we
-    # have a non-empty cached year, keep the cache — don't overwrite a
-    # real year with a flat one. force_refresh callers still pay for
-    # the new compute, but the response carries the last-good events.
-    if (isinstance(result, dict)
-            and not (result.get("critical_dates") or [])):
-        try:
-            prev = _read_cache(chart_id, year_key, supabase, language)
-        except Exception:
-            prev = None
-        if prev and (prev.get("critical_dates") or []):
-            logger.warning("[annual] new run had no events; keeping previous cache.")
-            # Carry over the LIVE narrative fields from the new run but
-            # preserve the previously-stable events / peak_windows.
-            for _carry in ("critical_dates", "peak_windows",
-                            "build_this_year", "protect_this_year",
-                            "release_this_year"):
-                if prev.get(_carry):
-                    result[_carry] = prev[_carry]
+    # [lk-real-fix1 2026-06-08] Removed the post-narration cache
+    # backfill. If the real generator produces 0 events, the response
+    # ships 0 events — never silently restored from a prior cache.
+    # (The exception-path cache fallback above stays: a RAISED
+    # generation still falls back to last-good rather than 500-ing.)
     result["chart_id"] = chart_id
     result["year_key"] = year_key
 

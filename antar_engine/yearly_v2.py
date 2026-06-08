@@ -396,6 +396,108 @@ def _humanize_event(raw_event_text: str, polarity: int, domain: str,
     return _scrub(base, language, "plain")
 
 
+# [lk-real-fix2 2026-06-08] Domain -> natal houses that primarily
+# signify it. House numbers are 1-BASED Vedic houses (sign of the
+# Lagna = H1). Multiple houses per domain so a chart with a quiet
+# primary house can still pass via secondary signification.
+_DOMAIN_TO_NATAL_HOUSES: Dict[str, List[int]] = {
+    "career":   [10, 1, 9],      # 10=karma, 1=self, 9=fortune
+    "business": [3, 7, 11],      # 3=initiative, 7=partner, 11=gains
+    "love":     [7, 5],           # 7=partner, 5=romance
+    "health":   [1, 6],           # 1=body, 6=daily health
+    "family":   [4, 2],           # 4=home, 2=family/wealth
+}
+
+
+def _natal_house_occupants(natal_chart: Dict[str, Any], house: int) -> List[str]:
+    """Return planet names occupying `house` in the natal chart.
+    Houses are 1-based; data validated by the type check before lookup."""
+    planets = (natal_chart or {}).get("planets", {}) or {}
+    out = []
+    for pname, pdata in planets.items():
+        if isinstance(pdata, dict):
+            h = pdata.get("house")
+            # Defensive: some sources stash a sign-index here; reject
+            # anything not in the valid house range [1..12].
+            if isinstance(h, int) and 1 <= h <= 12 and h == house:
+                out.append(pname.strip().title())
+    return out
+
+
+def _lk_sleepers(lk_data: Dict[str, Any]) -> set:
+    """Set of planet names marked 'sleeping' in stored LK data."""
+    if not isinstance(lk_data, dict):
+        return set()
+    advanced = lk_data.get("advanced") if isinstance(lk_data.get("advanced"), dict) else {}
+    raw = (advanced.get("sleeping_planets")
+           or lk_data.get("sleeping_planets") or [])
+    out = set()
+    for s in (raw or []):
+        if isinstance(s, str) and s.strip():
+            out.add(s.strip().title())
+        elif isinstance(s, dict) and isinstance(s.get("planet"), str):
+            out.add(s["planet"].strip().title())
+    return out
+
+
+def _lk_pakka(lk_data: Dict[str, Any]) -> Dict[str, int]:
+    """Map of planet -> pakka-ghar house number from stored LK data."""
+    if not isinstance(lk_data, dict):
+        return {}
+    advanced = lk_data.get("advanced") if isinstance(lk_data.get("advanced"), dict) else {}
+    pakka = advanced.get("pakka_ghar") or lk_data.get("pakka_ghar") or {}
+    if not isinstance(pakka, dict):
+        return {}
+    out: Dict[str, int] = {}
+    for p, h in pakka.items():
+        if isinstance(p, str) and isinstance(h, int):
+            out[p.strip().title()] = h
+    return out
+
+
+def _lk_gate_candidate(domain: str, natal_chart: Dict[str, Any],
+                       lk_data: Dict[str, Any]) -> Tuple[bool, str]:
+    """[lk-real-fix2 2026-06-08] Decide whether a candidate event for
+    `domain` is supported by the natal chart + Lal Kitab condition.
+
+    Returns (passes, reason). Reason is a one-line audit string,
+    surfaced into stage_trace.lk_decisions so the per-candidate gate
+    is debuggable on de0c6265 (or any other chart) without redeploy.
+
+    The rule:
+      For each of the domain's target houses (1-based), pass if the
+      house has at least one non-sleeping benefic occupant OR a
+      pakka-ghar planet sitting in it. Reject when every target
+      house is empty/sleeping/malefic-only.
+      An EMPTY natal-promise lookup (charts with no lal_kitab_data
+      stored) falls back to natal occupancy only — never auto-rejects.
+    """
+    houses = _DOMAIN_TO_NATAL_HOUSES.get((domain or "").lower(), [])
+    if not houses:
+        return False, f"domain={domain!r} has no canonical house map"
+    sleepers = _lk_sleepers(lk_data)
+    pakka    = _lk_pakka(lk_data)
+    per_house_notes = []
+    for h in houses:
+        occ = _natal_house_occupants(natal_chart, h)
+        if not occ:
+            per_house_notes.append(f"H{h}=empty")
+            continue
+        benefics_awake = [p for p in occ if p in _BENEFIC and p not in sleepers]
+        if benefics_awake:
+            return True, f"H{h} benefic-awake {benefics_awake}"
+        if any(pakka.get(p) == h for p in occ):
+            return True, f"H{h} pakka-ghar match {[p for p in occ if pakka.get(p)==h]}"
+        # Has malefic-only or all-sleeping occupants.
+        sleepers_here = [p for p in occ if p in sleepers]
+        if sleepers_here:
+            per_house_notes.append(f"H{h}=sleeping{sleepers_here}")
+        else:
+            malef = [p for p in occ if p in _MALEFIC]
+            per_house_notes.append(f"H{h}=malefic-only{malef}")
+    return False, "; ".join(per_house_notes) or "all target houses blocked"
+
+
 def _build_events(legacy_response: Dict[str, Any], period_start: _date,
                   lk_data: Dict[str, Any], language: str,
                   daily_friction_mask: Optional[Dict[int, bool]] = None,
@@ -412,6 +514,18 @@ def _build_events(legacy_response: Dict[str, Any], period_start: _date,
         stage_trace["pre_gate_candidates"] = len(cd)
     _passed_lk = 0
     _passed_narr = 0
+    # [lk-real-fix2 2026-06-08] per-candidate audit rows surface in
+    # stage_trace.lk_decisions when a stage_trace dict was passed.
+    _lk_decisions: List[Dict[str, Any]] = []
+    natal_chart = (legacy_response.get("chart_data")
+                   if isinstance(legacy_response.get("chart_data"), dict)
+                   else None)
+    # Some upstream callers stash the natal chart on the legacy response
+    # under a different key — fall back so chart-derived gates still work.
+    if not natal_chart:
+        natal_chart = (legacy_response.get("_natal_chart")
+                       if isinstance(legacy_response.get("_natal_chart"), dict)
+                       else None) or {}
     for ev in cd:
         if not isinstance(ev, dict):
             continue
@@ -420,8 +534,21 @@ def _build_events(legacy_response: Dict[str, Any], period_start: _date,
         if not raw_text or not date_lbl:
             continue
         mi = _month_index_from_label(date_lbl, period_start)
-        # [yv2-polish 2026-06-08] drop events outside this year's window
         if mi < 0:
+            _lk_decisions.append({
+                "date": date_lbl, "domain": None, "passed": False,
+                "reason": "date outside [period_start, period_end)",
+            })
+            continue
+        # [lk-real-fix2 2026-06-08] REAL LK gate: domain -> natal houses
+        # -> LK condition. The candidate must show natal promise.
+        domain = _domain_from_event_text(raw_text)
+        _gate_pass, _gate_reason = _lk_gate_candidate(domain, natal_chart, lk_data)
+        _lk_decisions.append({
+            "date": date_lbl, "domain": domain,
+            "passed": bool(_gate_pass), "reason": _gate_reason,
+        })
+        if not _gate_pass:
             continue
         _passed_lk += 1
         # Cross-check: drop positive events in all-friction months.
@@ -429,7 +556,7 @@ def _build_events(legacy_response: Dict[str, Any], period_start: _date,
         if (daily_friction_mask and polarity > 0
                 and daily_friction_mask.get(mi, False)):
             continue
-        domain = _domain_from_event_text(raw_text)
+        # domain already computed for the gate above.
         text = _humanize_event(raw_text, polarity, domain, language)
         if text:
             _passed_narr += 1
@@ -452,6 +579,7 @@ def _build_events(legacy_response: Dict[str, Any], period_start: _date,
     if stage_trace is not None:
         stage_trace["post_LK_gate"]   = _passed_lk
         stage_trace["post_narration"] = _passed_narr
+        stage_trace["lk_decisions"]   = _lk_decisions
     return out
 
 
@@ -624,6 +752,17 @@ def compose_yearly_contract(chart_record: Dict[str, Any],
         "post_narration":      0,
         "final_events":        0,
     }
+    # [lk-real-fix2 2026-06-08] surface the natal chart so the real LK
+    # gate can read planet->house occupancy. chart_record carries the
+    # raw chart_data (a dict or stringified JSON); decode once here.
+    _natal_for_gate = chart_record.get("chart_data") if isinstance(chart_record, dict) else {}
+    if isinstance(_natal_for_gate, str):
+        try:
+            import json as _yj2
+            _natal_for_gate = _yj2.loads(_natal_for_gate)
+        except Exception:
+            _natal_for_gate = {}
+    legacy_response["_natal_chart"] = _natal_for_gate
     events = _build_events(legacy_response, ps, lk_data, language,
                            daily_friction_mask=daily_friction_mask,
                            stage_trace=_stage_trace)

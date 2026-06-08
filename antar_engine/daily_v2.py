@@ -392,8 +392,40 @@ def compose_daily_contract(chart_id: str,
         except Exception:
             chart_data = {}
 
-    lat = chart_record.get("latitude") or 28.6
-    lng = chart_record.get("longitude") or 77.2
+    # [lk-real-fix3 2026-06-08] Resolve CURRENT location with the same
+    # priority chain every location-aware endpoint uses:
+    #   1) caller-supplied current_latitude/current_longitude
+    #   2) current_country -> country capital (when current != birth)
+    #   3) birth latitude/longitude
+    #   4) Delhi default (last resort — never empty)
+    # We don't import main._resolve_moment_coords here (avoids circular
+    # import) — inline the same priority chain. The chart_record fields
+    # mirror what the helper sees.
+    lat = lng = None
+    _cur_lat = chart_record.get("current_latitude")
+    _cur_lng = chart_record.get("current_longitude")
+    if _cur_lat is not None and _cur_lng is not None:
+        try:
+            lat, lng = float(_cur_lat), float(_cur_lng)
+        except (TypeError, ValueError):
+            pass
+    if lat is None or lng is None:
+        _cc = (chart_record.get("current_country") or "").strip().upper()
+        _bcc = (chart_record.get("birth_country")
+                or chart_record.get("country_code") or "").strip().upper()
+        if _cc and _cc != _bcc:
+            try:
+                from antar_engine.day_chart_engine import COUNTRY_COORDS as _CC
+                if _cc in _CC:
+                    lat, lng = _CC[_cc]
+            except Exception:
+                pass
+    if lat is None or lng is None:
+        try:
+            lat = float(chart_record.get("latitude") or 28.6139)
+            lng = float(chart_record.get("longitude") or 77.2090)
+        except (TypeError, ValueError):
+            lat, lng = 28.6139, 77.2090
     tz_offset_hours = 0.0
     try:
         tz_offset_hours = float(chart_record.get("tz_offset_hours") or 0.0)
