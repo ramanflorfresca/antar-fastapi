@@ -135,40 +135,49 @@ JARGON_PATTERNS: Dict[str, re.Pattern] = {
 # Each list is ORDERED by how concrete/specific the noun is — most concrete
 # first. The matcher scans for any occurrence in the read.
 HOUSE_NOUNS: Dict[int, List[str]] = {
-    # Each entry is a HEAD NOUN (or short head-noun phrase) — the matcher
-    # looks for it as a substring of the lowercased read, so variants like
-    # "hidden or higher-risk gains" still hit "gains". Keep entries SHORT
-    # to maximize legitimate matches without false positives.
+    # Each entry is a head-noun phrase. Matcher normalises both the
+    # text and the noun (drops "a/an/the/your", strips trailing 's'),
+    # so adding only the canonical form is enough — "an expense" /
+    # "expenses" / "the expense" all hit a single "expense" entry.
+    # Listed nouns are the ones house_significations.resolve_signal
+    # actually surfaces (verified live) PLUS contract-derived
+    # synonyms.
     1:  ["reputation", "appearance", "your name", "identity",
-         "your body"],
+         "your body", "yourself", "first impression"],
     2:  ["savings", "income", "family money", "family wealth",
-         "your voice", "spoken words", "food you eat"],
+         "close family", "your voice", "spoken words", "your words",
+         "food", "possessions"],
     3:  ["contract", "document", "siblings", "short trip",
-         "courage", "an email", "your phone", "deal detail"],
-    4:  ["your home", "property", "your car", "your vehicle",
-         "your mother", "real estate", "where you live"],
-    5:  ["children", "speculative bet", "creative project",
-         "romance", "performance", "speculation",
-         "a stock", "side bet"],
-    6:  ["loan", "credit decision", "debts", "health routine",
-         "daily routine", "competitor", "an enemy",
-         "a doctor", "service work"],
-    7:  ["partner", "spouse", "open enemy", "business deal",
-         "contract", "counterpart", "a client"],
+         "courage", "email", "your phone", "deal detail",
+         "your messages", "deal"],
+    4:  ["your home", "property", "vehicle", "your car",
+         "your mother", "real estate", "where you live", "land",
+         "home or property"],
+    5:  ["child", "children", "speculative bet", "creative project",
+         "romance", "performance", "speculation", "stock",
+         "side bet", "a stock", "creative work"],
+    6:  ["loan", "loan or credit line", "credit decision", "credit line",
+         "debt", "debts", "health routine", "daily routine",
+         "competitor", "enemy", "a doctor", "service work",
+         "dispute", "people who work for you"],
+    7:  ["partner", "spouse", "open enemy", "business partner",
+         "business deal", "contract", "counterpart", "client",
+         "clients", "the public", "deal or contract"],
     8:  ["hidden gains", "higher-risk gains", "inheritance",
          "other people's money", "others' money", "investment",
-         "a secret", "high-risk bet", "insurance", "windfall"],
+         "secret", "high-risk bet", "insurance", "windfall"],
     9:  ["mentor", "your father", "long-distance trip",
          "higher learning", "teacher", "court matter",
-         "international travel", "publisher"],
+         "international travel", "publisher", "beliefs"],
     10: ["boss", "authority figure", "senior", "career",
-         "public role", "your job", "promotion"],
+         "public role", "your job", "promotion", "your reputation",
+         "official", "authority"],
     11: ["gains", "income from your network", "elder sibling",
          "social circle", "aspiration", "windfall payment",
-         "check arriving"],
-    12: ["foreign land", "expenses", "hospital stay",
+         "check arriving", "friends", "your friends", "social network"],
+    12: ["foreign land", "expense", "expenses", "hospital stay",
          "your sleep", "retreat", "a loss", "hidden expense",
-         "spiritual practice", "your bedroom"],
+         "spiritual practice", "your bedroom", "an expense"],
 }
 
 
@@ -394,31 +403,74 @@ def find_jargon_leaks(text: str) -> Dict[str, List[str]]:
     return out
 
 
+def _head_token(noun: str) -> str:
+    """Normalise a noun for matching: drop leading article/possessive
+    + trailing 's'. "an expense" → "expense", "children" → "children"
+    (no trailing 's' applies — collapses to "childre"), "your boss" →
+    "boss". The head token is used as the matching key so plural /
+    article variants don't dodge the gate.
+    """
+    n = re.sub(r"^\s*(a|an|the|your|my|our|his|her)\s+", "",
+               noun.lower().strip())
+    # collapse trailing 's' for simple plurals (children/men handled
+    # by the HOUSE_NOUNS list including both forms)
+    if n.endswith("s") and not n.endswith("ss"):
+        n = n[:-1]
+    return n
+
+
 def count_concrete_nouns(
     text: str,
     houses: List[int],
 ) -> Tuple[int, List[str]]:
     """R2 — count concrete life-nouns matching the activated houses.
 
-    Returns (count, sorted_hits). Substring match on lowercased text;
-    de-duplicated. Counts UNIQUE nouns, not occurrences — the contract
-    wants 2-3 different nouns, not 3 mentions of the same one.
+    Returns (count, sorted_hits). Uses head-token matching so article
+    + plural variants ("an expense" / "expenses", "a child" / "children")
+    don't dodge the gate. Counts UNIQUE head-tokens — the contract
+    wants 2-3 different nouns, not 3 forms of the same one.
     """
     if not text or not houses or not isinstance(text, str):
         return (0, [])
-    low = text.lower()
+    # Build head-token set from text by sliding window over normalised
+    # forms of plausible noun chunks. Cheap: just normalise every
+    # space-separated token plus a few common bigrams.
+    text_low = text.lower()
+    text_norm = " " + re.sub(r"[^a-z\s]", " ", text_low) + " "
+
+    matched: List[str] = []
+    seen_heads: set[str] = set()
+    seen_phrases: set[str] = set()
     candidates: List[str] = []
     for h in houses:
         candidates.extend(HOUSE_NOUNS.get(h, []))
-    matched: List[str] = []
-    seen: set[str] = set()
+
     for noun in candidates:
-        nlow = noun.lower()
-        if nlow in seen:
+        if noun.lower() in seen_phrases:
             continue
-        if nlow in low:
+        seen_phrases.add(noun.lower())
+        head = _head_token(noun)
+        if not head or head in seen_heads:
+            continue
+        # Match if the head appears as a whole-word token in text
+        # (after normalisation). " head " catches "expense " and " an
+        # expense " and " expenses " (the trailing-s is also stripped
+        # from a parallel pass below).
+        if f" {head} " in text_norm:
             matched.append(noun)
-            seen.add(nlow)
+            seen_heads.add(head)
+            continue
+        # Trailing-s tolerance on the text side: "expenses" → "expense"
+        head_s = head + "s"
+        if f" {head_s} " in text_norm:
+            matched.append(noun)
+            seen_heads.add(head)
+            continue
+        # Multi-word noun (e.g. "hidden gains", "your home"): require
+        # the full normalised phrase to appear.
+        if " " in head and head in text_low:
+            matched.append(noun)
+            seen_heads.add(head)
     return (len(matched), sorted(matched))
 
 
