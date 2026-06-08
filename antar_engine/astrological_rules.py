@@ -686,7 +686,8 @@ def detect_concern(question: str) -> str:
                        "residence","relocat","move cities","moving cities",
                        "shift cities","change cities","change of city",
                        "mudarme","mudanza","alquiler","alquilar",
-                       "apartamento","casa nueva","nueva casa","casa propia"]
+                       "apartamento","casa nueva","nueva casa","casa propia","buying property","buying a house","buying a home","buying a flat","buying land","buying real estate","property purchase","purchase property","purchase a house","purchase a home","purchasing property","purchasing a house","comprar propiedad","comprar casa","comprar una casa","comprar un piso","compra de propiedad","compra de una casa"  # [property-routing] buying-variants
+                       ]
     if any(w in q for w in residence_words) and not any(w in q for w in _abroad_markers):
         return "property"
 

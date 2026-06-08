@@ -460,6 +460,7 @@ from antar_engine.precision_windows import find_precision_windows, precision_win
 # [predict-specificity] imports
 # [verdict-resolver] imports
 from antar_engine.verdict_resolver import (
+    compose_plain_summary as _vr_compose_summary,  # [band-consistency]
     resolve_domain_verdict as _vr_resolve,
     build_fixed_facts_block as _vr_fixed_facts,
     extract_timeframe as _vr_extract_timeframe,
@@ -6293,6 +6294,26 @@ State a specific year. Never predict past events as future windows.
                 if _resolver_verdict.get('secondary_note'):
                     _pe['secondary_note'] = _resolver_verdict['secondary_note']
                 print('[predict] verdict override applied — signal_line and the_move are deterministic')
+
+                # [band-consistency] plain_summary override
+                # When the resolver decided FLAT or WEAK, Claude can
+                # still narrate positively (the inversion auto-correct
+                # in plain_english is intentionally disabled when the
+                # resolver owns the verdict). Replace plain_summary
+                # with a Python-composed band-consistent version so
+                # the headline and the prose agree.
+                try:
+                    _band_ps = _resolver_verdict.get('verdict') or ''
+                    if _band_ps in ('FLAT', 'WEAK'):
+                        _new_ps = _vr_compose_summary(
+                            _resolver_verdict,
+                            language=getattr(request, 'language', 'en') or 'en',
+                        )
+                        if _new_ps:
+                            _pe['plain_summary'] = _new_ps
+                            print(f'[predict] plain_summary rewritten for band={_band_ps}')
+                except Exception as _vr_ps_e:
+                    print(f'[predict] plain_summary rewrite failed (non-fatal): {_vr_ps_e}')
         except Exception as _vr_ov_e:
             print(f'[predict] verdict override failed (non-fatal): {_vr_ov_e}')
 

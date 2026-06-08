@@ -632,3 +632,84 @@ def build_fixed_facts_block(verdict: Dict[str, Any], language: str = "en") -> st
     lines.append("═══ END FIXED FACTS ═══")
     lines.append("")
     return "\n".join(lines)
+
+
+# ─────────────────────────────────────────────────────────────────────
+# [band-consistency] compose_plain_summary
+# Band-consistent plain_summary used by main.py when Claude's narration
+# drifts off the band (positive prose on FLAT/WEAK, etc.). FAVORABLE
+# and MIXED bands keep Claude's voice — only FLAT/WEAK get rewritten
+# to prevent the verdict ↔ summary contradiction.
+# ─────────────────────────────────────────────────────────────────────
+
+def compose_plain_summary(verdict: dict, language: str = "en") -> str:
+    """Python-authored plain_summary aligned with the band. Always
+    safe to call — returns empty string when verdict is missing."""
+    if not verdict:
+        return ""
+    band = verdict.get("verdict") or ""
+    tf = verdict.get("timeframe") or ""
+    concern = (verdict.get("_debug") or {}).get("chart_id") and ""  # unused
+    # Pull concern back out via the verdict_line — we kept the noun-map.
+    # We re-derive subject from the verdict_line's first word.
+    line = verdict.get("verdict_line") or ""
+    is_es = (language or "en").lower().startswith("es")
+    secondary = verdict.get("secondary_note") or ""
+    redirect = verdict.get("redirect_candidate") or None
+
+    # Find the subject token from verdict_line (its leading word).
+    # That's good enough — verdict_line begins with the concern noun.
+    first = line.split(" — ")[0].split(".")[0]
+
+    if band == VERDICT_FLAT:
+        if redirect:
+            ga = (redirect.get("guessed_area") or "another area").lower()
+            if is_es:
+                body = (
+                    f"{first}. Hoy no hay una señal de carta específica para esta"
+                    f" ventana. Lo que sí está vivo es {ga} — esa es la ventana"
+                    " donde el momento favorece tu siguiente movimiento."
+                )
+            else:
+                body = (
+                    f"{first}. There is no chart-specific signal active for this"
+                    f" area today. What IS live for you is {ga} — that is where"
+                    " the timing actually favours a next move."
+                )
+        else:
+            if is_es:
+                body = (
+                    f"{first}. Hoy es una ventana neutral — nada inusual está"
+                    " activo en tu carta para esta área. Mueve la rutina base,"
+                    " no fuerces nada porque la fecha lo pida."
+                )
+            else:
+                body = (
+                    f"{first}. Today is a neutral window — nothing unusual is"
+                    " active in your chart for this area. Move your baseline"
+                    " routine; do not force a step because the date demands one."
+                )
+        if secondary:
+            body += " " + secondary
+        return body
+
+    if band == VERDICT_WEAK:
+        if is_es:
+            body = (
+                f"{first}. Hoy es una ventana floja para esta área — la energía"
+                " es muestra-y-revisión, no compromiso. Apúrate a las piezas"
+                " pequeñas; reserva las apuestas grandes para una ventana más"
+                " fuerte."
+            )
+        else:
+            body = (
+                f"{first}. Today is a soft window for this area — the energy"
+                " favours review and small moves, not commitment. Move the"
+                " small pieces; hold the big bets for a stronger window."
+            )
+        if secondary:
+            body += " " + secondary
+        return body
+
+    # MIXED / FAVORABLE: Claude's voice is preserved; caller skips this.
+    return ""
