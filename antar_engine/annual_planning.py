@@ -536,8 +536,36 @@ async def generate_annual_plan(
         age, country_code, dkp_context, lk_context, now
     )
 
-    # Call Claude
-    result = await _call_claude(context, claude_client, language)
+    # Call Claude — wrapped so a hard failure falls back to the previous
+    # cached row (if any) rather than shipping an empty critical_dates.
+    try:
+        result = await _call_claude(context, claude_client, language)
+    except Exception as _claude_err:
+        logger.error(f"[annual] generation raised; trying cached: {_claude_err}")
+        cached_any = _read_cache(chart_id, year_key, supabase, language)
+        if cached_any and (cached_any.get("critical_dates") or []):
+            logger.info("[annual] serving previous cached year — generation failed.")
+            return cached_any
+        raise
+    # [yv2-canonical 2026-06-08] If the new run came back EMPTY but we
+    # have a non-empty cached year, keep the cache — don't overwrite a
+    # real year with a flat one. force_refresh callers still pay for
+    # the new compute, but the response carries the last-good events.
+    if (isinstance(result, dict)
+            and not (result.get("critical_dates") or [])):
+        try:
+            prev = _read_cache(chart_id, year_key, supabase, language)
+        except Exception:
+            prev = None
+        if prev and (prev.get("critical_dates") or []):
+            logger.warning("[annual] new run had no events; keeping previous cache.")
+            # Carry over the LIVE narrative fields from the new run but
+            # preserve the previously-stable events / peak_windows.
+            for _carry in ("critical_dates", "peak_windows",
+                            "build_this_year", "protect_this_year",
+                            "release_this_year"):
+                if prev.get(_carry):
+                    result[_carry] = prev[_carry]
     result["chart_id"] = chart_id
     result["year_key"] = year_key
 
@@ -829,7 +857,13 @@ def _build_annual_context(
     return "\n".join(str(l) for l in lines)
 
 
-async def _call_claude(context: str, claude_client, language: str = "en") -> dict:
+async def _call_claude(context: str, claude_client, language: str = "en",
+                       _attempt: int = 1) -> dict:
+    """[yv2-canonical 2026-06-08] Retry once on failure; raise on
+    second failure instead of silently returning _fallback_annual()
+    (which carries critical_dates=[]). The endpoint now sees a real
+    exception and the caller can keep the previous cache rather than
+    shipping an empty year."""
     try:
         response = await claude_client.messages.create(
             model="claude-sonnet-4-5",
@@ -841,10 +875,31 @@ async def _call_claude(context: str, claude_client, language: str = "en") -> dic
         text = re.sub(r"^```json\s*", "", text)
         text = re.sub(r"^```\s*",     "", text)
         text = re.sub(r"\s*```$",     "", text)
-        return json.loads(text.strip())
+        parsed = json.loads(text.strip())
+        # Fallback-shape sentinel: if the model returned the safety
+        # filler shape (empty critical_dates + year_quality 'building'
+        # + the canned theme phrase) treat as a soft failure and retry.
+        if (_attempt == 1
+                and isinstance(parsed, dict)
+                and not parsed.get("critical_dates")
+                and isinstance(parsed.get("year_theme"), str)
+                and parsed["year_theme"].startswith(
+                    "A year of building towards your next major life chapter")):
+            logger.warning("[annual] Claude returned the fallback shape — retrying once.")
+            import asyncio as _ann_asyncio
+            await _ann_asyncio.sleep(0.6)
+            return await _call_claude(context, claude_client, language, _attempt=2)
+        return parsed
     except Exception as e:
-        logger.error(f"[annual] Claude call failed: {e}")
-        return _fallback_annual()
+        if _attempt == 1:
+            logger.warning(f"[annual] Claude call failed (will retry once): {e}")
+            import asyncio as _ann_asyncio
+            await _ann_asyncio.sleep(0.6)
+            return await _call_claude(context, claude_client, language, _attempt=2)
+        logger.error(f"[annual] Claude call failed twice; raising: {e}")
+        # Raise so generate_annual_plan can decide what to do — never
+        # silently substitute the empty fallback for a real year.
+        raise
 
 
 def _fallback_annual() -> dict:

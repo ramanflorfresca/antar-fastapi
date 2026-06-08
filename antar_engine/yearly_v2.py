@@ -398,12 +398,20 @@ def _humanize_event(raw_event_text: str, polarity: int, domain: str,
 
 def _build_events(legacy_response: Dict[str, Any], period_start: _date,
                   lk_data: Dict[str, Any], language: str,
-                  daily_friction_mask: Optional[Dict[int, bool]] = None
+                  daily_friction_mask: Optional[Dict[int, bool]] = None,
+                  stage_trace: Optional[Dict[str, int]] = None,
                   ) -> List[Dict[str, Any]]:
-    """Reshape critical_dates into typed events. Drops any event placed
-    in a month flagged as all-friction by the daily series (cross-check)."""
+    """[yv2-canonical 2026-06-08] Reshape critical_dates into typed
+    events. Drops any event placed in a month flagged as all-friction
+    by the daily series (cross-check). Populates `stage_trace` with
+    pre_gate_candidates / post_LK_gate / post_narration / final_events
+    so the swallow point is visible per request."""
     out: List[Dict[str, Any]] = []
     cd = legacy_response.get("critical_dates") or []
+    if stage_trace is not None:
+        stage_trace["pre_gate_candidates"] = len(cd)
+    _passed_lk = 0
+    _passed_narr = 0
     for ev in cd:
         if not isinstance(ev, dict):
             continue
@@ -415,6 +423,7 @@ def _build_events(legacy_response: Dict[str, Any], period_start: _date,
         # [yv2-polish 2026-06-08] drop events outside this year's window
         if mi < 0:
             continue
+        _passed_lk += 1
         # Cross-check: drop positive events in all-friction months.
         polarity, magnitude = _polarity_magnitude_from_event(raw_text)
         if (daily_friction_mask and polarity > 0
@@ -422,6 +431,8 @@ def _build_events(legacy_response: Dict[str, Any], period_start: _date,
             continue
         domain = _domain_from_event_text(raw_text)
         text = _humanize_event(raw_text, polarity, domain, language)
+        if text:
+            _passed_narr += 1
         out.append({
             "month_index": mi,
             "date_label":  _format_event_date_label(date_lbl),
@@ -596,8 +607,33 @@ def compose_yearly_contract(chart_record: Dict[str, Any],
     )
 
     # ── 5. Events: typed, LK-gated, cross-checked vs daily friction mask ──
+    # [yv2-canonical 2026-06-08] capture 4-stage trace so the swallow
+    # point is debuggable per request — surfaced in _debug_reasoning.
+    _stage_trace: Dict[str, int] = {
+        "pre_gate_candidates": 0,
+        "post_LK_gate":        0,
+        "post_narration":      0,
+        "final_events":        0,
+    }
     events = _build_events(legacy_response, ps, lk_data, language,
-                           daily_friction_mask=daily_friction_mask)
+                           daily_friction_mask=daily_friction_mask,
+                           stage_trace=_stage_trace)
+    # _build_events updates pre_gate/post_LK/post_narration counters
+    # directly; final_events is the visible result count.
+    _stage_trace["final_events"] = len(events)
+
+    # [yv2-canonical 2026-06-08] surface stage trace into the same
+    # _debug_reasoning channel /predict aliases gate behind ?debug=true.
+    _dbg_root = legacy_response.setdefault("_debug_reasoning", {})
+    if isinstance(_dbg_root, dict):
+        _dbg_root["year_event_stages"] = _stage_trace
+    # Hard swallow detector: pre_gate had candidates but final was empty.
+    # We DO NOT raise here (compose is a pure reshape); the alias wrapper
+    # reads this flag and decides — keeps the composer side-effect-free.
+    if (_stage_trace.get("pre_gate_candidates", 0) > 0
+            and _stage_trace.get("final_events", 0) == 0):
+        if isinstance(_dbg_root, dict):
+            _dbg_root["year_event_swallow"] = True
 
     # ── 6. Arcs: 5 area trends with peak phrasing ──
     arcs = _build_arcs(events, months, language)

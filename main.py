@@ -24101,42 +24101,23 @@ async def _alias_predict_monthly(request: dict):
 
 @app.post("/api/v1/predict/yearly")
 async def _alias_predict_yearly(request: dict):
-    # [yv2-wire-predict 2026-06-08] CANONICAL year route is
-    # GET /api/v1/annual-plan/{chart_id}. /predict/yearly was a
-    # legacy alias to predict_year_attention (a different system)
-    # which never carried the v2 contract. We now layer v2 on top
-    # so probes via this route return the same shape.
-    _r_yearly = await predict_year_attention(request)
-    try:
-        if isinstance(_r_yearly, dict):
-            from antar_engine.yearly_v2 import (
-                compose_yearly_contract,
-                strip_js_leak,
-                scrub_yearly_remedies,
-            )
-            _chart_id = request.get("chart_id") or ""
-            _chart_row = supabase.table("charts").select("*").eq("id", _chart_id).single().execute()
-            _chart_rec = _chart_row.data or {}
-            # Strip the JS: leak from any narrative fields surfaced by
-            # this route too (defensive — predict_year_attention may or
-            # may not emit them).
-            for _k in ("year_theme", "year_summary"):
-                if _k in _r_yearly:
-                    _r_yearly[_k] = strip_js_leak(_r_yearly[_k])
-            if "yearly_remedies" in _r_yearly:
-                _r_yearly["yearly_remedies"] = scrub_yearly_remedies(
-                    _r_yearly["yearly_remedies"],
-                    (request.get("language") or "en"),
-                )
-            _yv2 = compose_yearly_contract(
-                chart_record=_chart_rec,
-                legacy_response=_r_yearly,
-                language=(request.get("language") or "en"),
-            )
-            for _vk, _vv in _yv2.items():
-                _r_yearly[_vk] = _vv
-    except Exception as _yv2err:
-        print(f"[predict/yearly] v2 wire failed (non-fatal): {_yv2err}")
+    # [yv2-canonical 2026-06-08] /predict/yearly DELEGATES to the
+    # canonical year generator GET /api/v1/annual-plan/{id}. The
+    # prior alias to predict_year_attention is retired here because
+    # that function does not produce critical_dates — it served the
+    # year-attention surface (different product). Lovable should
+    # bind to either route; both now return identical payloads.
+    _chart_id = (request or {}).get("chart_id") or ""
+    _language = (request or {}).get("language") or "en"
+    _force    = bool((request or {}).get("force_refresh") or False)
+    if not _chart_id:
+        return JSONResponse(status_code=400, content={"error": "chart_id required"})
+    _r_yearly = await get_annual_plan(
+        chart_id=_chart_id,
+        refresh=_force,
+        language=_language,
+        force_refresh=_force,
+    )
     # [gate-debug 2026-06-08] hide internal evidence trail from client
     return _strip_debug_reasoning(_r_yearly, request)
 
