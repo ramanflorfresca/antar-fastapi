@@ -605,6 +605,10 @@ def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
     result["bridge_practice_note"] = bpn if bpn else None
 
     # --- TIMING CONTRADICTION CHECK ---
+    # [verdict-resolver] skip inversion when resolver verdict present
+    _resolver_verdict_present = bool(
+        isinstance(chart_context, dict) and chart_context.get('resolver_verdict')
+    )
     # Detect if plain_summary contradicts timing_window and log a warning
     try:
         _summary = result.get("plain_summary", "").lower()
@@ -629,7 +633,9 @@ def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
                                "hold off", "isn't", "won't", "pause", "caution"}
             _ps = result.get("plain_summary") or ""
             _ps_lower = _ps.lower()
-            if _ps and not any(w in _ps_lower for w in _negation_words):
+            if _resolver_verdict_present:
+                pass  # [verdict-resolver] resolver owns verdict — skip inversion
+            elif _ps and not any(w in _ps_lower for w in _negation_words):
                 result["plain_summary"] = (
                     "This is not the right moment to push forward. " + _ps
                 )
@@ -648,6 +654,21 @@ def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
     # --- END TIMING CONTRADICTION CHECK ---
 
     # [predict-specificity] dangling scrub
+
+    # [verdict-resolver] banned-labels scrub
+    # Strip internal energy-translation labels (e.g.
+    # 'structure-and-persistence', 'identity-and-authority',
+    # 'release-and-dissolution') that occasionally leak from the
+    # prompt's BAD-example list into user-facing fields.
+    try:
+        from antar_engine.banned_labels import scrub_fields as _bl_scrub
+        _lang_bl = (chart_context or {}).get('language', 'en') or 'en'
+        _bl_scrub(result, language=_lang_bl)
+    except Exception as _bl_e:
+        import logging as _bl_log
+        _bl_log.getLogger('plain_english').warning(
+            f'banned_labels scrub failed (non-fatal): {_bl_e}'
+        )
     # Repair Claude-emitted dangling boilerplate (e.g. 'wait until to
     # decide', 'Wait until when the pressure lifts'). Idempotent and
     # never invents dates — only repairs empty placeholders.

@@ -458,6 +458,14 @@ from antar_engine.proof_points import generate_proof_points, evaluate_proof_scor
 from antar_engine.rarity_engine import detect_rarity_signals, rarity_signals_to_context_block
 from antar_engine.precision_windows import find_precision_windows, precision_windows_to_context_block
 # [predict-specificity] imports
+# [verdict-resolver] imports
+from antar_engine.verdict_resolver import (
+    resolve_domain_verdict as _vr_resolve,
+    build_fixed_facts_block as _vr_fixed_facts,
+    extract_timeframe as _vr_extract_timeframe,
+    is_tactical_timeframe as _vr_is_tactical_tf,
+)
+from antar_engine.banned_labels import scrub_fields as _vr_strip_labels
 from antar_engine.life_area_map import get_life_area
 from antar_engine.domain_anchor import (
     has_domain_anchor as _ds_has_domain_anchor,
@@ -4762,6 +4770,38 @@ Do not use any planet names or astrological jargon — translate everything into
         )
     except Exception as _ds_anc_e:
         print(f"[predict] anchor gate failed (non-fatal): {_ds_anc_e}")
+
+    # [verdict-resolver] resolve
+    # WS0: deterministic verdict. Python owns the conclusion; Claude
+    # narrates it (it may not re-derive, soften, invert, or change
+    # the timeframe). Same chart + concern + date + timeframe →
+    # identical verdict band and identical verdict_line.
+    _resolver_verdict = None
+    try:
+        from datetime import datetime as _vr_dt
+        _resolver_verdict = _vr_resolve(
+            chart_id=request.chart_id,
+            concern=concern,
+            question=request.question,
+            today=_vr_dt.utcnow(),
+            chart_data=chart_data,
+            dashas=dashas_response,
+            current_transits=current_transits,
+            detected_yogas=detected_yogas if 'detected_yogas' in dir() else [],
+            user_correlations=user_correlations_list if 'user_correlations_list' in dir() else [],
+            rarity_signals=rarity_signals,
+            precision_windows=precision_windows,
+            anchor_decision=_anchor_decision,
+            language=getattr(request, 'language', 'en') or 'en',
+        )
+        print(
+            f"[predict] resolver verdict={_resolver_verdict['verdict']} "
+            f"tf={_resolver_verdict['timeframe']} "
+            f"score={_resolver_verdict['_debug']['combined']} "
+            f"line={_resolver_verdict['verdict_line'][:80]!r}"
+        )
+    except Exception as _vr_e:
+        print(f"[predict] verdict resolver failed (non-fatal): {_vr_e}")
     chakra_context  = chakra_reading_to_context_block(chakra_reading_data) if chakra_reading_data else ""
     arc_context     = chapter_arc_to_context_block(chapter_arc_data) if chapter_arc_data else ""
 
@@ -6081,6 +6121,19 @@ State a specific year. Never predict past events as future windows.
         except Exception as _ds_pp_e:
             print(f'[predict] no-anchor prompt branch failed (non-fatal): {_ds_pp_e}')
 
+        # [verdict-resolver] fixed facts in prompt
+        # WS0: append the Python-authored FIXED FACTS block to the
+        # system prompt so Claude narrates the resolver's verdict
+        # rather than re-deriving its own.
+        try:
+            if _resolver_verdict:
+                _master_system = (_master_system or '') + '\n\n' + _vr_fixed_facts(
+                    _resolver_verdict, language=getattr(request, 'language', 'en') or 'en'
+                )
+                print('[predict] FIXED FACTS block appended to system prompt')
+        except Exception as _vr_fp_e:
+            print(f'[predict] fixed-facts append failed (non-fatal): {_vr_fp_e}')
+
         prediction_text, tokens_used = await call_llm_claude(
             prompt,
             history=request.conversation_history or [],
@@ -6140,6 +6193,7 @@ State a specific year. Never predict past events as future windows.
                 "chart_data": chart_data,
                 "language":   getattr(request, "language", "en"),
                 "question":   request.question,
+                "resolver_verdict": _resolver_verdict if "_resolver_verdict" in dir() else None,  # [verdict-resolver] chart_context flag
             },
             lk_context=lk_context or "",
         )
@@ -6218,6 +6272,38 @@ State a specific year. Never predict past events as future windows.
                     )
         except Exception as _ds_vg_e:
             print(f'[predict] anchor violation guard failed (non-fatal): {_ds_vg_e}')
+
+        # [verdict-resolver] post-gen verdict override
+        # WS0: override signal_line / action_item / timing_window
+        # with the Python-authored verdict so determinism is
+        # guaranteed regardless of how Claude phrased them.
+        try:
+            if _resolver_verdict:
+                _pe['signal_line'] = _resolver_verdict.get('verdict_line') or _pe.get('signal_line')
+                _pe['action_item'] = _resolver_verdict.get('the_move') or _pe.get('action_item')
+                _w = _resolver_verdict.get('window') or {}
+                _tw_parts = [p for p in (_w.get('date_range'), _w.get('intraday_boundary')) if p]
+                if _tw_parts:
+                    _pe['timing_window'] = ' — '.join(_tw_parts)
+                # Resolver authoritative confidence beats Claude's.
+                _pe['signal_confidence'] = _resolver_verdict.get('confidence') or _pe.get('signal_confidence')
+                # Surface band + timeframe + secondary note for the frontend.
+                _pe['verdict_band'] = _resolver_verdict.get('verdict')
+                _pe['verdict_timeframe'] = _resolver_verdict.get('timeframe')
+                if _resolver_verdict.get('secondary_note'):
+                    _pe['secondary_note'] = _resolver_verdict['secondary_note']
+                print('[predict] verdict override applied — signal_line and the_move are deterministic')
+        except Exception as _vr_ov_e:
+            print(f'[predict] verdict override failed (non-fatal): {_vr_ov_e}')
+
+        # [verdict-resolver] banned-labels strip
+        # WS3: strip internal energy-translation labels from every
+        # user-facing field. Idempotent.
+        try:
+            _lang_bl = getattr(request, 'language', 'en') or 'en'
+            _vr_strip_labels(_pe, language=_lang_bl)
+        except Exception as _vr_bl_e:
+            print(f'[predict] banned-labels strip failed (non-fatal): {_vr_bl_e}')
 
     confidence = predictions["highest_confidence"] or 0.75
     # FIX 9: Layer 2 counter should reflect actual transit injection, not just predictions['layer_2']
