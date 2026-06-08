@@ -506,6 +506,23 @@ _HOUSE_ORDINAL_EN = re.compile(
     re.IGNORECASE)
 _HOUSE_PATTERN_A = re.compile(r'\b\d{1,2}(?:st|nd|rd|th)\s+house\s*(?:lord)?', re.IGNORECASE)
 _HOUSE_PATTERN_B = re.compile(r'\bhouse\s+\d{1,2}\b', re.IGNORECASE)
+# [es-house-parity 2026-06-08] Spanish/Portuguese house-number leak.
+# Mirrors _HOUSE_PATTERN_A/B for ES + PT ('casa N', 'casas N y M',
+# 'en la casa N', 'casa 9 de fortuna'). DROP, matching EN backstop —
+# _tidy collapses residual whitespace and orphan punctuation.
+_HOUSE_PATTERN_ES = re.compile(
+    r'\b(?:en\s+(?:la\s+|las\s+)?)?casas?\s+\d{1,2}'
+    r'(?:\s+(?:y|e|,)\s+\d{1,2})*'
+    r'(?:\s+de\s+[a-záéíóúñ]+)?',
+    re.IGNORECASE,
+)
+_HOUSE_PATTERN_PT = re.compile(
+    r'\b(?:(?:em|n[ao])\s+(?:a\s+|as\s+)?)?casas?\s+\d{1,2}'
+    r'(?:\s+(?:e|,)\s+\d{1,2})*'
+    r'(?:\s+d[ao]\s+[a-záéíóúãâêôç]+)?',
+    re.IGNORECASE,
+)
+
 
 
 # ════════════════════════════════════════════════════════════════
@@ -641,6 +658,11 @@ def _strip_planet_names(text: str, language: str = 'es', keep_planet_actors: boo
             lambda m: _HOUSE_AREA_EN.get(int(m.group(1)), 'life area'), result)
     result = _HOUSE_PATTERN_A.sub('', result)
     result = _HOUSE_PATTERN_B.sub('', result)
+    # [es-house-parity 2026-06-08 strip-call] symmetric ES/PT drop.
+    if language == 'es':
+        result = _HOUSE_PATTERN_ES.sub('', result)
+    elif language == 'pt':
+        result = _HOUSE_PATTERN_PT.sub('', result)
 
     return _tidy(result)
 
@@ -708,6 +730,14 @@ def _tidy(text: str) -> str:
     text = re.sub(r'\bsits?\s+at\s*,\s*', '', text, flags=re.IGNORECASE)
     text = re.sub(r'\s*,\s*and\s*,\s*', ' and ', text)
     text = re.sub(r'\s+,\s+,\s+', ' ', text)
+    # [es-house-parity 2026-06-08 tidy] residual orphans from dropped 'casa N'.
+    # Pattern 'X en  y Y'  -> 'X y Y'   (dropped 'en casa 12 y' -> orphan ' y')
+    text = re.sub(r'\s+en\s+(?=[,.;:])', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\s+en\s+y\s+', ' y ', text, flags=re.IGNORECASE)
+    text = re.sub(r'\s+en\s+e\s+', ' e ', text, flags=re.IGNORECASE)
+    # Same for Portuguese 'na'/'no'
+    text = re.sub(r'\s+n[ao]\s+(?=[,.;:])', '', text, flags=re.IGNORECASE)
+    text = re.sub(r'\s+n[ao]\s+e\s+', ' e ', text, flags=re.IGNORECASE)
     # Standard whitespace / punctuation normalization
     text = re.sub(r' {2,}', ' ', text)
     text = re.sub(r'\s+([,.;:])', r'\1', text)

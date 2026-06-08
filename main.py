@@ -23779,9 +23779,14 @@ async def _alias_predict_daily_week(request: dict):
 
 @app.post("/api/v1/predict/monthly")
 async def _alias_predict_monthly(request: dict):
+    # [es-house-parity 2026-06-08] forward force_refresh so the cache
+    # can be busted from /predict/monthly (the frontend-facing alias).
+    # Previously the per-language cache was only bustable via the GET
+    # /api/v1/monthly-deepdive/{id}?force_refresh=true endpoint.
     return await get_monthly_deepdive(
         chart_id=request.get("chart_id"),
         language=(request.get("language") or "en"),
+        force_refresh=bool(request.get("force_refresh") or False),
     )
 
 
