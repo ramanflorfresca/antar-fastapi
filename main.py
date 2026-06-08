@@ -23219,6 +23219,102 @@ async def _life_arc_compute(chart_id, horizon_months, language,
         print(f"[life_arc] highlights failed: {_bc_err}")
         response.setdefault("highlights", [])
 
+    # ── 5b. Narration-Contract scrub (cyclecontract 2026-06-07) ─────────
+    # Cycle is the last red surface in the Narration Contract sprint.
+    # Even though Claude is now prompted to avoid planet names / AD /
+    # MD / PD / sub-chapter, this is the deterministic backstop — Rule-12
+    # stays green whether Claude cooperates or not. Acts ONLY on
+    # user-facing prose fields; structured keys (vimsottari.md = "Saturn"
+    # etc.) are NOT touched (they're data the frontend may want).
+    try:
+        from antar_engine.output_strips import apply_user_facing_strips as _cy_strip
+        import re as _cy_re
+        # Tiny scrub map for chapter-jargon the global strip layer
+        # doesn't kill (these words are allowed elsewhere; here they're not).
+        _CY_BAD = [
+            (r"\bsub[-\s]?chapter\b", "inner window"),
+            (r"\bmicro[-\s]?chapter\b", "inner window"),
+            (r"\bchapter lord\b", "this period"),
+            (r"\bAntardasha\b", "inner window"),
+            (r"\bMahadasha\b", "major chapter"),
+            (r"\bPratyantar\b", "inner window"),
+            (r"\s+\bAD\b", " inner window"),
+            (r"\s+\bMD\b", " major chapter"),
+            (r"\s+\bPD\b", " inner window"),
+        ]
+        def _cy_scrub(s):
+            if not isinstance(s, str) or not s:
+                return s
+            out = _cy_strip(s, language=language, field_type="plain")
+            for pat, repl in _CY_BAD:
+                out = _cy_re.sub(pat, repl, out, flags=_cy_re.IGNORECASE)
+            # collapse any double-spaces the substitutions introduced
+            out = _cy_re.sub(r"\s{2,}", " ", out).strip()
+            return out
+
+        # current_phase.life_phase_summary
+        _cp = response.get("current_phase") or {}
+        if isinstance(_cp, dict) and _cp.get("life_phase_summary"):
+            _cp["life_phase_summary"] = _cy_scrub(_cp["life_phase_summary"])
+            response["current_phase"] = _cp
+
+        # diagnostic prose fields (defence-in-depth — already clean live)
+        _diag = response.get("diagnostic") or {}
+        if isinstance(_diag, dict):
+            for _src in (_diag.get("current_stuckness_sources") or []):
+                if isinstance(_src, dict):
+                    if _src.get("source"):
+                        _src["source"] = _cy_scrub(_src["source"])
+                    if _src.get("explanation"):
+                        _src["explanation"] = _cy_scrub(_src["explanation"])
+            _nps = _diag.get("next_phase_shift") or {}
+            if isinstance(_nps, dict):
+                for _k in ("label", "character", "preparation_advice"):
+                    if _nps.get(_k):
+                        _nps[_k] = _cy_scrub(_nps[_k])
+            _diag["what_to_avoid"] = [
+                _cy_scrub(x) for x in (_diag.get("what_to_avoid") or [])
+                if isinstance(x, str)
+            ] or _diag.get("what_to_avoid") or []
+            _diag["what_to_lean_into"] = [
+                _cy_scrub(x) for x in (_diag.get("what_to_lean_into") or [])
+                if isinstance(x, str)
+            ] or _diag.get("what_to_lean_into") or []
+            response["diagnostic"] = _diag
+
+        # timeline_visual_data.landmarks[*].label
+        _tvd = response.get("timeline_visual_data") or {}
+        if isinstance(_tvd, dict):
+            _lms = _tvd.get("landmarks") or []
+            for _lm in _lms:
+                if isinstance(_lm, dict) and _lm.get("label"):
+                    _lm["label"] = _cy_scrub(_lm["label"])
+            response["timeline_visual_data"] = _tvd
+
+        # Re-prompt fallback discipline: if life_phase_summary is empty
+        # or shorter than 60 chars AFTER scrub (Claude likely returned
+        # only jargon and the scrub flattened it), substitute a dated,
+        # noun-light line built from the structured data — NOT a generic
+        # template. This is the last-resort branch per the spec.
+        _ls = (response.get("current_phase") or {}).get("life_phase_summary") or ""
+        if len(_ls.strip()) < 60:
+            _cp2 = response.get("current_phase") or {}
+            _vim = (_cp2.get("vimsottari") or {})
+            _ade = _vim.get("ad_end_date") or ""
+            _mde = _vim.get("md_end_date") or ""
+            _bits = ["You are in a major life phase"]
+            if _mde:
+                _bits.append(f"that runs through {_mde}")
+            if _ade and _ade != _mde:
+                _bits.append(f", with an inner window shifting around {_ade}")
+            _bits.append(". The energy of this stretch is shaped by what the period asks of you, not by the calendar alone.")
+            _cp2["life_phase_summary"] = "".join(
+                [_bits[0]] + [" " + b if not b.startswith(",") and not b.startswith(".") else b for b in _bits[1:]]
+            ).replace(" ,", ",").replace(" .", ".")
+            response["current_phase"] = _cp2
+    except Exception as _cy_err:
+        print(f"[life_arc] cyclecontract scrub failed (non-blocking): {_cy_err}")
+
     # ── 6. Cache result ──────────────────────────────────────────────────
     try:
         from datetime import timedelta as _la_td

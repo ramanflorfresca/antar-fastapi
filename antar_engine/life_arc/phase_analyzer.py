@@ -380,7 +380,7 @@ RULES:
    home, partner, finances, your father, property) — not abstract "energy".
    Name 2-3 specific life-things, selectively; never a long list.
 5. End with when the current energy shifts and what comes next
-6. NO Sanskrit terms, NO planet names — use "major life chapter", "sub-chapter", etc.
+6. NO Sanskrit terms, NO planet names. ALSO: do NOT use the words "sub-chapter", "micro-chapter", "MD", "AD", or "PD". Refer to time with dated language ("through April 2028", "until late 2030", "the next eighteen months") and to the texture of the period with plain English ("this stretch", "this phase", "the period ahead").
 7. Language: {language}
 8. Be specific and insightful, not generic. Name real life-things, not categories.
 
@@ -403,10 +403,15 @@ def _fallback_phase_summary(vimsottari_phase: dict, sade_sati: dict) -> str:
     ad_end = vimsottari_phase.get("ad_end_date", "Unknown")
     sade_status = sade_sati.get("status", "dormant") if sade_sati.get("active") else "dormant"
 
-    summary = f"You are in a {md} major life chapter with a {ad} sub-chapter. "
+    # cyclecontract: fallback no longer leaks planet names or
+    # the words "sub-chapter" / "chapter lord". Dated window only.
+    summary = "You are in a major life phase with a dated inner window inside it. "
     if sade_status != "dormant":
-        summary += f"Saturn is transiting your Moon sign ({sade_status}), creating a period of consolidation and inner work. "
-    summary += f"The current sub-chapter shifts on {ad_end}, which will change the energy significantly."
+        summary += "This is a period of consolidation and inner work — slower outside, deeper inside. "
+    if ad_end and ad_end != "Unknown":
+        summary += f"The texture of this phase shifts around {ad_end}, which is when the energy changes meaningfully."
+    else:
+        summary += "The texture of this phase will shift, and that shift will change the energy meaningfully."
     return summary
 
 

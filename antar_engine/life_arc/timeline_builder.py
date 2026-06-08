@@ -37,7 +37,9 @@ def build_timeline(
         landmarks.append({
             "date": pd_end,
             "type": "phase_shift",
-            "label": f"{pd_lord} micro-chapter ends",
+            # cyclecontract: planet name + chapter-jargon stripped;
+            # date stays — the user still sees "Inner window shifts — YYYY-MM-DD".
+            "label": "Inner window shifts",
             "significance": "low",
         })
 
@@ -49,7 +51,8 @@ def build_timeline(
         landmarks.append({
             "date": ad_end,
             "type": "phase_shift",
-            "label": f"{ad_lord} AD ends → next sub-chapter begins",
+            # cyclecontract: drop planet/AD/sub-chapter wording.
+            "label": "A new stretch begins",
             "significance": "high",
         })
 
@@ -60,7 +63,8 @@ def build_timeline(
         landmarks.append({
             "date": md_end,
             "type": "phase_shift",
-            "label": f"{md_lord} major chapter ends",
+            # cyclecontract: drop planet name; "major chapter" wording is fine.
+            "label": "A major chapter closes",
             "significance": "critical",
         })
 
