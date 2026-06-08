@@ -13477,32 +13477,71 @@ async def ask_endpoint(request: AskRequest):
                     f"\n\n{diagnostic_block}"
                 )
             else:
-                # [reflective-mode 2026-06-07] When a question doesn't have a
-                # specific timing answer (no verdict, no window), be HONEST it
-                # is a reflective read — not confident-sounding energy-prose
-                # that fakes a timeline the engine never computed.
+                # [reflective-mode 2026-06-07] [noun-injection 2026-06-08]
+                # When a question doesn't have a specific timing answer
+                # (no verdict, no window), we still demand the contract's
+                # noun layer: the read must NAME 2+ concrete life-nouns
+                # from the question's domain houses, and `next` must be
+                # an IMPERATIVE-VERB action. No more "Ask yourself…"
+                # stencils — that's the generic-test failure the
+                # baseline scorecard flagged at 0/12.
+                try:
+                    from antar_engine.narration_contract import (
+                        concern_to_noun_palette as _ask_palette_fn,
+                    )
+                    _ask_noun_palette = _ask_palette_fn(_ask_concern, k=5)
+                except Exception as _np_err:
+                    print(f"[ask][reflective] noun-palette load failed (non-fatal): {_np_err}")
+                    _ask_noun_palette = ["savings", "your home", "a contract",
+                                         "an authority figure", "your partner"]
+                _ask_noun_csv = ", ".join(_ask_noun_palette)
                 _sys = (
-                    "You are Antar, a grounded life coach. The user asked an open question that "
-                    "does NOT have a specific timing prediction in the chart — there is no engine-"
-                    "computed verdict or date window for this one. "
+                    "You are Antar, a grounded life coach. The user asked an open question for which "
+                    "the chart has NO specific timing prediction (no engine-computed verdict, no "
+                    "date window). Your job: name the dynamic CONCRETELY using real life-nouns the "
+                    "user recognises — never abstract energy-prose. "
                     "Reply with STRICT JSON only: "
                     '{"read": "...", "next": "..."}. '
-                    "read = 2 to 3 short sentences that NAME the dynamic plainly. "
-                    "OPENING SENTENCE: start with an honest framing such as "
-                    "\"This is a reflection on the dynamic, not a timing prediction.\" "
-                    "OR a directly-honest variant such as "
-                    "\"There's no specific window the chart can pin for this — but the dynamic shows…\". "
-                    "DO NOT name any month, year, quarter, season, or specific date. "
-                    "DO NOT use phrases like \"this period\", \"these weeks\", \"coming months\", "
-                    "\"in time\", or any wording that implies a timeline you can't compute. "
-                    "DO NOT use confident-sounding energy-prose (no \"the energy around X is\", "
-                    "no \"the field is shifting\", no \"a dissolving phase\") — these fake "
-                    "predictions the chart did not give you. "
-                    "Name the dynamic in plain English (\"there's tension between two needs\", "
-                    "\"both of you are testing whether this is worth rebuilding\"). "
-                    "next = ONE concrete reflection-prompt or honest action they can sit with this "
-                    "week (e.g. \"Ask yourself what specifically you'd want to be different if you "
-                    "got back together\"), or null if none fits. "
+                    "\n\n"
+                    "REQUIRED NOUNS (use AT LEAST 2 of these in your `read`, name them directly):\n"
+                    f"  {_ask_noun_csv}\n"
+                    "\n"
+                    "OPENING SENTENCE: lead with a DIRECTIONAL judgment using one of the nouns "
+                    "above. Examples of the SHAPE only (do not copy the words):\n"
+                    "  - \"Your savings hold steady but income from your network thins.\"\n"
+                    "  - \"A senior backs you on the career side — but a contract detail can trip you up.\"\n"
+                    "  - \"Hidden gains and a speculative bet both favor you; routine expenses press back.\"\n"
+                    "\n"
+                    "FORBIDDEN OPENINGS — do NOT begin with any of these (the contract bans them "
+                    "as the \"generic predictions\" failure):\n"
+                    "  - \"This is a reflection on the dynamic\"\n"
+                    "  - \"Your [anything] runway\"\n"
+                    "  - \"The energy around X is\"\n"
+                    "  - \"There's no specific window\"\n"
+                    "  - any sentence whose first concrete noun is an abstraction "
+                    "(energy, dynamic, alignment, momentum, flow, support, framework, "
+                    "infrastructure, foundation, systems, capacity, runway, potential).\n"
+                    "\n"
+                    "BODY: 2-3 short sentences total. Name what's working, what's resisting, why. "
+                    "Each sentence must contain at least ONE concrete life-noun (from the required "
+                    "list, or a closely-related life-noun like \"document\", \"deal\", \"meeting\", "
+                    "\"phone call\", \"your boss\", \"your mother\").\n"
+                    "\n"
+                    "DO NOT name any month, year, quarter, season, or specific date — the engine "
+                    "did not compute one. You MAY say \"this week\", \"today\", \"right now\", "
+                    "or describe the dynamic without a timeline.\n"
+                    "\n"
+                    "`next` = ONE CONCRETE ACTION starting with an imperative verb (Review, Close, "
+                    "Send, Call, Check, Hold, Cancel, Sign, Wait, Protect, Skip, Postpone, Open, "
+                    "Walk, Tell, Eat, Sleep, Pay, Pick, Choose, Schedule). The action must touch "
+                    "one of the nouns named in your read. Examples:\n"
+                    "  - \"Review the loan terms before you commit to anything this week.\"\n"
+                    "  - \"Tell your partner the concrete thing you want, not the feeling.\"\n"
+                    "  - \"Close the review on the document you've been delaying.\"\n"
+                    "FORBIDDEN `next`: anything starting with \"Ask yourself\" / \"Reflect on\" / "
+                    "\"Consider\" / ending with a question mark. If no concrete action fits, "
+                    "return null — but NEVER fall back to a reflection prompt.\n"
+                    "\n"
                     "Never mention astrology, planets, houses, signs, nakshatras, dashas, scores, "
                     "or any Sanskrit or technical term — plain everyday language only. "
                     "Output JSON only, no prose, no code fences."

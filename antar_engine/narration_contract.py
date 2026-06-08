@@ -509,7 +509,94 @@ def explain_failure(score: Dict) -> List[str]:
 
 
 # ════════════════════════════════════════════════════════════════════════════
-# 7. MODULE-LEVEL CONSTANTS EXPORT
+# 7. CONCERN → NOUN PALETTE (for /ask reflective-mode noun injection)
+# ════════════════════════════════════════════════════════════════════════════
+# `detect_concern()` (predictions.py / concern_router.py) returns concerns
+# like "finance", "career", "love", "domestic_move", "foreign_move". The
+# gate's DOMAIN_HOUSES uses cleaner keys ("money", "career", "love",
+# "relocation"). This bridge maps between them so the /ask reflective-
+# mode prompt can pull a noun palette from the right houses.
+
+_CONCERN_TO_DOMAIN: Dict[str, str] = {
+    # finance family
+    "finance":     "money",
+    "funding":     "money",
+    "wealth":      "money",
+    "loss":        "money",
+    "money":       "money",
+    "speculation": "speculation",
+    # career family
+    "career":      "career",
+    "business":    "career",
+    "job":         "job",
+    # relationship family
+    "love":           "love",
+    "marriage":       "marriage",
+    "relationship":   "relationship",
+    "divorce":        "relationship",
+    "reconciliation": "relationship",
+    "children":       "children",
+    # location / property
+    "domestic_move": "relocation",
+    "foreign_move":  "relocation",
+    "foreign":       "relocation",
+    "property":      "property",
+    # other domains
+    "travel":     "travel",
+    "health":     "health",
+    "education":  "education",
+    "legal":      "lawsuit",
+    "lawsuit":    "lawsuit",
+    # everything else falls through to "general"
+    "spiritual":  "general",
+    "general":    "general",
+}
+
+
+def concern_to_noun_palette(concern: str, k: int = 5) -> List[str]:
+    """Map a /ask concern label to up to `k` concrete house-nouns.
+
+    This is the noun palette fed to the /ask reflective-mode prompt:
+    "you MUST name at least 2 of these in your read." The palette is
+    drawn from DOMAIN_HOUSES[domain] → HOUSE_NOUNS[house], de-duplicated
+    in house-priority order so the most domain-relevant nouns lead.
+
+    Examples:
+        >>> concern_to_noun_palette("speculation", k=4)
+        ['children', 'speculative bet', 'creative project', 'romance']
+        >>> concern_to_noun_palette("finance", k=4)
+        ['savings', 'income', 'family money', 'family wealth']
+        >>> concern_to_noun_palette("career", k=3)
+        ['boss', 'authority figure', 'senior']
+    """
+    domain = _CONCERN_TO_DOMAIN.get((concern or "general").lower(), "general")
+    houses = DOMAIN_HOUSES.get(domain, DOMAIN_HOUSES["general"])
+    # Round-robin across the activated houses so a multi-house domain
+    # like "love" (7,5,4) draws one noun from EACH before doubling up
+    # on house 7 — otherwise we'd get all of house 7's nouns (partner,
+    # spouse, OPEN ENEMY, BUSINESS DEAL) and drown the actual love
+    # nouns from houses 5 + 4.
+    palette: List[str] = []
+    seen: set[str] = set()
+    lists = [list(HOUSE_NOUNS.get(h, [])) for h in houses]
+    max_len = max((len(lst) for lst in lists), default=0)
+    for col in range(max_len):
+        for lst in lists:
+            if col >= len(lst):
+                continue
+            noun = lst[col]
+            low = noun.lower()
+            if low in seen:
+                continue
+            palette.append(noun)
+            seen.add(low)
+            if len(palette) >= k:
+                return palette
+    return palette
+
+
+# ════════════════════════════════════════════════════════════════════════════
+# 8. MODULE-LEVEL CONSTANTS EXPORT
 # ════════════════════════════════════════════════════════════════════════════
 __all__ = [
     "BANNED_ENERGY_WORDS",
@@ -524,4 +611,5 @@ __all__ = [
     "has_concrete_action",
     "score_read",
     "explain_failure",
+    "concern_to_noun_palette",
 ]
