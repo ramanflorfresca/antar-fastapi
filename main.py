@@ -24132,12 +24132,33 @@ async def _alias_predict_daily(request: dict):
                     _v2_target = _v2_date.fromisoformat(_dstr[:10])
                 except Exception:
                     _v2_target = None
+            # [dv2-reqloc 2026-06-08] thread request-supplied location
+            # so windows[] reflect the USER's current location, not the
+            # chart's stored coords. Accept any of:
+            #   request.location = {"lat","lng","tz"|"tz_offset"}
+            #   request.latitude/longitude/tz_offset
+            #   request.lat/lon/tz
+            _v2_loc = None
+            _loc_in = request.get("location") if isinstance(request.get("location"), dict) else None
+            _lat_src = (_loc_in or {}).get("lat") if _loc_in else (
+                request.get("latitude") or request.get("lat"))
+            _lng_src = (_loc_in or {}).get("lng") or (_loc_in or {}).get("lon") if _loc_in else (
+                request.get("longitude") or request.get("lon"))
+            _tz_src  = (_loc_in or {}).get("tz_offset") or (_loc_in or {}).get("tz") if _loc_in else (
+                request.get("tz_offset") or request.get("tz"))
+            if _lat_src is not None and _lng_src is not None:
+                try:
+                    _v2_loc = {"lat": float(_lat_src), "lng": float(_lng_src),
+                                "tz_offset": float(_tz_src) if _tz_src is not None else 0.0}
+                except (TypeError, ValueError):
+                    _v2_loc = None
             _v2 = compose_daily_contract(
                 chart_id=_chart_id,
                 chart_record=_chart_rec,
                 legacy_response=_r_daily,
                 language=(request.get("language") or "en"),
                 target_date=_v2_target,
+                location_override=_v2_loc,
             )
             # Preserve legacy `strength` string under strength_label.
             if "strength" in _r_daily and not isinstance(_r_daily["strength"], (int, float)):

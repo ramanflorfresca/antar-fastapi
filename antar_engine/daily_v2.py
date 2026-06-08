@@ -275,22 +275,32 @@ def _build_windows_from_hora(hora_block: Dict[str, Any], tz_offset_hours: float 
 
 
 def _direct_hora_windows(chart_record: Dict[str, Any], target_date,
+                          location_override = None,
                           ) -> List[Dict[str, Any]]:
-    """[dv2-polish 2026-06-08 fallback] Compute best + avoid windows
-    directly from the hora_engine when the legacy block didn't yield
-    them. Uses the CURRENT location (current_country -> lat/lng) and
-    falls back to birth coords as last resort. windows[] never empty
-    when ANY location can be resolved."""
+    """[dv2-reqloc 2026-06-08] Compute best + avoid windows directly
+    from the hora_engine + panchanga. When location_override is given,
+    use those coords/tz literally (skip chart_record entirely) so the
+    REQUEST's location drives the computation — not the chart's.
+    Without override: current_country -> birth coords -> Delhi default,
+    matching the chart-bound fallback chain."""
     out: List[Dict[str, Any]] = []
     try:
         from antar_engine.hora_engine import get_hora_schedule, get_next_power_hora
         from antar_engine.daily_panchanga import calculate_panchanga
-        # Current location takes precedence; birth coords are the fallback.
-        lat = (chart_record.get("current_latitude")
-               or chart_record.get("latitude") or 28.6)
-        lng = (chart_record.get("current_longitude")
-               or chart_record.get("longitude") or 77.2)
-        tz_offset = chart_record.get("tz_offset_hours") or 0
+        # [dv2-reqloc 2026-06-08] explicit override wins (request-bound
+        # location); otherwise current_country/birth via chart_record.
+        if isinstance(location_override, dict) and (
+                location_override.get("lat") is not None
+                and location_override.get("lng") is not None):
+            lat = location_override.get("lat")
+            lng = location_override.get("lng")
+            tz_offset = location_override.get("tz_offset") or 0
+        else:
+            lat = (chart_record.get("current_latitude")
+                   or chart_record.get("latitude") or 28.6)
+            lng = (chart_record.get("current_longitude")
+                   or chart_record.get("longitude") or 77.2)
+            tz_offset = chart_record.get("tz_offset_hours") or 0
         try:
             tz_offset = int(round(float(tz_offset)))
         except Exception:
@@ -368,6 +378,7 @@ def compose_daily_contract(chart_id: str,
                            legacy_response: Dict[str, Any],
                            language: str = "en",
                            target_date: Optional[_date] = None,
+                           location_override: Optional[Dict[str, Any]] = None,
                            ) -> Dict[str, Any]:
     """
     Build the new daily contract on top of the existing endpoint output.
@@ -392,6 +403,18 @@ def compose_daily_contract(chart_id: str,
         except Exception:
             chart_data = {}
 
+    # [dv2-reqloc 2026-06-08] If the request supplied a location
+    # override ({lat,lng,tz}), use it for ALL location-dependent steps
+    # below — sunrise/sunset, hora segments, score_day panchanga.
+    # The chart-bound legacy abhijit/rahu_kalam are SKIPPED in this
+    # path because they were computed at chart-record coords, not the
+    # request location (the reason NJ and Mumbai were returning byte-
+    # identical windows for the same chart).
+    _req_loc = location_override if (
+        isinstance(location_override, dict)
+        and location_override.get("lat") is not None
+        and location_override.get("lng") is not None
+    ) else None
     # [lk-real-fix3 2026-06-08] Resolve CURRENT location with the same
     # priority chain every location-aware endpoint uses:
     #   1) caller-supplied current_latitude/current_longitude
@@ -431,6 +454,19 @@ def compose_daily_contract(chart_id: str,
         tz_offset_hours = float(chart_record.get("tz_offset_hours") or 0.0)
     except Exception:
         tz_offset_hours = 0.0
+    # [dv2-reqloc 2026-06-08] override wins for the location dict that
+    # score_day will consume — panchanga + hora must reflect the user's
+    # ACTUAL location, not the chart's stored coords.
+    if _req_loc is not None:
+        try:
+            lat = float(_req_loc.get("lat"))
+            lng = float(_req_loc.get("lng"))
+        except (TypeError, ValueError):
+            pass
+        try:
+            tz_offset_hours = float(_req_loc.get("tz_offset") or tz_offset_hours)
+        except (TypeError, ValueError):
+            pass
     location = {"lat": lat, "lng": lng, "tz_offset": tz_offset_hours}
 
     # ── score_day → strength + per-domain states ──
@@ -447,31 +483,39 @@ def compose_daily_contract(chart_id: str,
               for k in _DOMAIN_ORDER}
     score  = int(sd.get("score") or 50)
 
-    # ── windows[] from the legacy hora/panchanga block ──
-    _legacy_pan = (legacy_response.get("panchanga") or {}) if isinstance(legacy_response.get("panchanga"), dict) else {}
-    windows = _build_windows_from_hora({
-        # abhijit / rahu_kalam in the legacy live shape are STRINGS
-        # ('11:42 AM – 12:30 PM'). The parser handles either form.
-        "abhijit":    legacy_response.get("abhijit")    or _legacy_pan.get("abhijit"),
-        "rahu_kalam": legacy_response.get("rahu_kalam") or _legacy_pan.get("rahu_kalam"),
-        "best_time":  _legacy_pan.get("best_time"),
-        "avoid_time": _legacy_pan.get("avoid_time"),
-        "current_hora": (legacy_response.get("hora") or {}).get("current_hora")
-                          if isinstance(legacy_response.get("hora"), dict) else None,
-    }, tz_offset_hours=tz_offset_hours)
-    # [dv2-polish 2026-06-08] Fallback: when the legacy block didn't
-    # yield BOTH a best and an avoid window, hit hora_engine directly
-    # at the chart's CURRENT location (birth coords as last resort).
-    _have_types = {w.get("type") for w in windows}
-    if ("best" not in _have_types) or ("avoid" not in _have_types):
+    # [dv2-reqloc 2026-06-08] windows[] resolution order:
+    #   1. REQUEST location override -> compute directly via
+    #      _direct_hora_windows (panchanga at the override coords).
+    #      Legacy chart-bound abhijit/rahu_kalam are SKIPPED here.
+    #   2. No override -> try legacy parse (chart-bound), then fall
+    #      back to _direct_hora_windows on the chart_record location.
+    windows: List[Dict[str, Any]] = []
+    if _req_loc is not None:
         try:
-            _fb = _direct_hora_windows(chart_record, d)
-            for _fw in _fb:
-                if _fw.get("type") not in _have_types:
-                    windows.append(_fw)
-                    _have_types.add(_fw.get("type"))
-        except Exception as _fbe:
-            print(f"[daily_v2] window fallback skipped: {_fbe}")
+            windows = _direct_hora_windows(chart_record, d,
+                                            location_override=_req_loc)
+        except Exception as _reqfbe:
+            print(f"[daily_v2] request-location windows failed: {_reqfbe}")
+    else:
+        _legacy_pan = (legacy_response.get("panchanga") or {}) if isinstance(legacy_response.get("panchanga"), dict) else {}
+        windows = _build_windows_from_hora({
+            "abhijit":    legacy_response.get("abhijit")    or _legacy_pan.get("abhijit"),
+            "rahu_kalam": legacy_response.get("rahu_kalam") or _legacy_pan.get("rahu_kalam"),
+            "best_time":  _legacy_pan.get("best_time"),
+            "avoid_time": _legacy_pan.get("avoid_time"),
+            "current_hora": (legacy_response.get("hora") or {}).get("current_hora")
+                              if isinstance(legacy_response.get("hora"), dict) else None,
+        }, tz_offset_hours=tz_offset_hours)
+        _have_types = {w.get("type") for w in windows}
+        if ("best" not in _have_types) or ("avoid" not in _have_types):
+            try:
+                _fb = _direct_hora_windows(chart_record, d)
+                for _fw in _fb:
+                    if _fw.get("type") not in _have_types:
+                        windows.append(_fw)
+                        _have_types.add(_fw.get("type"))
+            except Exception as _fbe:
+                print(f"[daily_v2] window fallback skipped: {_fbe}")
 
     # ── verdict_headline ──
     verdict = _verdict_headline(score, states)
