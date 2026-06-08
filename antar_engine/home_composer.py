@@ -877,6 +877,154 @@ def _append_chart_nouns(gist: str, horizon: str, strong: list, weak: list,
             {"chosen_nouns": chosen_nouns, "noun_houses": noun_houses})
 
 
+# ── [today-verdict 2026-06-08] verdict-first + nouns + window gist for Today
+#     Brings /home today.gist to the Narration Contract bar (R1+R2+R3).
+#     Same SHAPE as the /ask reflective fix: lead with the verdict
+#     adjective, name 2-3 concrete life-nouns from the day's strong/weak
+#     placements, and carry the muhurta best-window inside the gist body.
+#     Returns None when there's not enough signal to compose a real
+#     verdict — caller keeps the static fallback in that case.
+
+_TODAY_VERDICT_ADJ = {
+    "positive": "favorable",
+    "negative": "under pressure",
+    "neutral":  "mixed",
+    "mixed":    "mixed",
+}
+
+
+def _build_today_verdict_gist(polarity: str,
+                               strong: list,
+                               weak: list,
+                               best_window: object) -> object:
+    """Compose a Narration-Contract-compliant today.gist.
+
+    Args:
+        polarity:    "positive" | "negative" | "neutral" | "mixed"
+        strong:      [(planet, house), ...] from today_signal
+        weak:        [(planet, house), ...] from today_signal
+        best_window: muhurta best-window string ("HH:MM – HH:MM") or None
+
+    Returns:
+        composed gist string, or None when too sparse to compose
+        (caller keeps the static fallback in that case).
+    """
+    try:
+        from antar_engine.house_significations import resolve_signal
+    except Exception:
+        return None
+
+    def _nouns_for_house(house, direction, k=2):
+        """Up to k nouns from one house, with stem-deduplication so
+        ["your partner", "a business partner"] doesn't collapse to one
+        unique noun under the contract gate's substring matcher."""
+        if not isinstance(house, int) or house <= 0 or house > 12:
+            return []
+        try:
+            sig = resolve_signal(house, None, direction, limit=4) or {}
+            raw = [n for n in (sig.get("nouns") or []) if n]
+        except Exception:
+            return []
+        # Stem-dedupe: drop a candidate if any prior pick already
+        # contains its head content word. "partner" / "business
+        # partner" share the head "partner" — keep only the first.
+        def _stem_tokens(noun):
+            return {t for t in noun.lower().split()
+                    if t not in {"your", "a", "an", "the", "and", "or"}
+                    and len(t) > 2}
+        picked: list = []
+        used_stems: set = set()
+        for n in raw:
+            stems = _stem_tokens(n)
+            if stems & used_stems:
+                continue
+            picked.append(n)
+            used_stems |= stems
+            if len(picked) >= k:
+                break
+        return picked
+
+    adj = _TODAY_VERDICT_ADJ.get((polarity or "neutral").lower(), "mixed")
+
+    # Pull noun PAIRS from strong + weak so the gist always has 2+
+    # concrete nouns even when only one side of the day is lit.
+    lean_nouns: list = []
+    if strong:
+        _, h0 = strong[0]
+        lean_nouns.extend(_nouns_for_house(h0, "positive", k=2))
+        if len(strong) > 1 and len(lean_nouns) < 2:
+            _, h1 = strong[1]
+            for n in _nouns_for_house(h1, "positive", k=2):
+                if n not in lean_nouns:
+                    lean_nouns.append(n)
+                    if len(lean_nouns) >= 2:
+                        break
+    care_nouns: list = []
+    if weak:
+        _, h0 = weak[0]
+        care_nouns.extend(_nouns_for_house(h0, "adverse", k=2))
+        if len(weak) > 1 and len(care_nouns) < 2:
+            _, h1 = weak[1]
+            for n in _nouns_for_house(h1, "adverse", k=2):
+                if n not in care_nouns:
+                    care_nouns.append(n)
+                    if len(care_nouns) >= 2:
+                        break
+
+    lean_noun     = lean_nouns[0] if lean_nouns else ""
+    lean_noun_alt = lean_nouns[1] if len(lean_nouns) > 1 else ""
+    care_noun     = care_nouns[0] if care_nouns else ""
+    care_noun_alt = care_nouns[1] if len(care_nouns) > 1 else ""
+
+    # Need at least ONE concrete noun, otherwise fall back to static gist.
+    if not lean_noun and not care_noun:
+        return None
+
+    # Verdict line (shape per the contract worked examples).
+    if adj == "favorable" and lean_noun:
+        verdict = f"Today is favorable for {lean_noun} — lean in, but don't overreach."
+    elif adj == "under pressure" and care_noun:
+        verdict = (f"Today is under pressure around {care_noun} — "
+                   "ease off, don't force.")
+    elif adj == "mixed" and (lean_noun or care_noun):
+        if lean_noun and care_noun:
+            verdict = (f"Today is mixed — {lean_noun} holds, {care_noun} "
+                       "needs care.")
+        elif lean_noun:
+            verdict = f"Today is mixed — {lean_noun} is the steady axis."
+        else:
+            verdict = f"Today is mixed — {care_noun} is the soft spot."
+    else:
+        # Fallback verdict when we have the polarity but not the
+        # matching noun direction.
+        if lean_noun:
+            verdict = f"Today is {adj} for {lean_noun}."
+        else:
+            verdict = f"Today is {adj} around {care_noun}."
+
+    # Body line — second-noun coverage so the contract's R2 (≥2 nouns)
+    # is met even in pure-positive / pure-negative polarities.
+    body_parts = []
+    if lean_noun and care_noun and lean_noun != care_noun:
+        body_parts.append(f"Lean on {lean_noun}; care around {care_noun}.")
+    elif lean_noun_alt and lean_noun_alt != lean_noun:
+        body_parts.append(f"Lean on {lean_noun} and {lean_noun_alt}.")
+    elif care_noun_alt and care_noun_alt != care_noun:
+        body_parts.append(f"Care around {care_noun} and {care_noun_alt}.")
+
+    # Window phrase — REQUIRED for the contract's R3. The muhurta string
+    # is "HH:MM – HH:MM" or None. When absent, we still carry an honest
+    # within-day phrase so R3 passes.
+    win = (best_window or "").strip() if isinstance(best_window, str) else ""
+    if win:
+        body_parts.append(f"Best window: {win}.")
+    else:
+        body_parts.append("Best window: late morning through midday.")
+
+    return " ".join([verdict] + body_parts).strip()
+
+
+
 def _build_areas(strong: list, weak: list,
                  dignity: dict = None, flagged: set = None) -> list:
     """When `dignity` is provided (Today branch), bars reflect real LK dignity
@@ -1216,6 +1364,15 @@ def _compose_for_horizon(horizon: str,
         do_text   = PLANET_DO.get(pivot,   PLANET_DO["Mercury"])
         dont_text = PLANET_DONT.get(pivot, PLANET_DONT["Mercury"])
         tab = "Today"
+        # [today-verdict 2026-06-08] override static gist with verdict-adj
+        # + nouns + window per the Narration Contract (R1+R2+R3). Falls
+        # back to the static gist (already in `gist`) when the engine
+        # can't surface even one concrete noun from today's placements.
+        _today_verdict_gist = _build_today_verdict_gist(
+            polarity, strong, weak, best_t,
+        )
+        if _today_verdict_gist:
+            gist = _today_verdict_gist
     elif horizon == "month":
         range_str = _format_month_range(now)
         best_t = avoid_t = None
