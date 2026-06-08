@@ -293,6 +293,7 @@ _WINDOW_RE = re.compile(
 
 # Imperative-verb opener for concrete-action detection.
 _IMPERATIVE_VERBS: frozenset[str] = frozenset({
+    # core action verbs
     "ask", "avoid", "book", "call", "cancel", "check", "choose",
     "close", "commit", "delay", "do", "eat", "finish", "fix",
     "hold", "limit", "make", "meet", "move", "open", "pay",
@@ -300,6 +301,16 @@ _IMPERATIVE_VERBS: frozenset[str] = frozenset({
     "send", "sign", "sit", "sleep", "spend", "start", "stay",
     "stop", "take", "tell", "use", "verify", "wait", "walk",
     "write", "drop", "delete", "skip", "remove", "reach",
+    # advice-prose verbs (Cycle diagnostic + Year peak windows often
+    # lead with these — "clean up loose ends", "build a routine",
+    # "clarify your role", "identify a mentor")
+    "build", "clean", "clarify", "identify", "plan", "organize",
+    "set", "complete", "prepare", "gather", "lock", "save",
+    "invest", "network", "refine", "develop", "learn", "train",
+    "ship", "bank", "consolidate", "rest", "release", "let",
+    "address", "establish", "create", "design", "study", "read",
+    "give", "keep", "follow", "draft", "negotiate", "renew",
+    "switch", "trim", "audit", "shore", "frame", "name",
 })
 
 # Trailing-question detector — contract bans the closing reflective Q.
@@ -513,7 +524,12 @@ def has_concrete_action(text: str) -> bool:
     # second-half imperative "…, then ship the visible work" is
     # caught. "then" is a soft connector — skip it before checking
     # the imperative verb.
-    chunks = re.split(r"[.!]\s+|,\s+then\s+|—\s+", stripped, maxsplit=8)
+    # Split on sentence-end, em-dash, and comma — long surfaces often
+    # lead with a temporal/conditional prefix before the imperative:
+    # "Between now and August, clean up any loose ends in contracts,
+    # clarify your role expectations…" — both "clean" and "clarify"
+    # need to be reachable, and the leading "Between" must not block.
+    chunks = re.split(r"[.!]\s+|,\s+|—\s+", stripped, maxsplit=12)
     for chunk in chunks:
         m = re.match(r"\s*([A-Za-z]+)", chunk)
         if m and m.group(1).lower() in _IMPERATIVE_VERBS:

@@ -185,6 +185,21 @@ def score_chart(chart_label: str, audit_dir: Path) -> list[dict]:
                 "error": f"parse fail: {e}",
             })
             continue
+        # Cache-miss guard: /life-arc returns {"status":"generating",
+        # "retry_after_ms": N} while a force_refresh-triggered regen
+        # completes in the background. Scoring this as zeros is a
+        # misleading false-fail — flag it loudly so the user re-pulls
+        # without force_refresh after the warm cache fills.
+        if (isinstance(payload, dict)
+                and payload.get("status") == "generating"
+                and len(payload) <= 3):
+            results.append({
+                "chart": chart_label,
+                "surface": label,
+                "error": f"CACHE MISS (force_refresh in flight) — re-pull "
+                         f"without force_refresh in ~10s",
+            })
+            continue
         read, nxt, houses = adapter(payload, ASK_QUESTION)
         score = score_read(read, houses, nxt)
         results.append({
