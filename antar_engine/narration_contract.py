@@ -484,16 +484,24 @@ def has_window(text: str) -> bool:
 def has_concrete_action(text: str) -> bool:
     """R4 — imperative-verb action, NOT a trailing reflective question.
 
-    Heuristic: text starts with an imperative verb (or contains an
-    imperative sentence near the start) AND does not end in '?'.
+    Heuristic: ANY sentence (or em-dash / comma-led clause) in the text
+    starts with an imperative verb AND the text does not end in '?'.
+
+    Scans up to 8 clauses — long surfaces like /year embed the action
+    in the second half of a multi-sentence summary ("…, then bank the
+    gains at year-end"), so we look past the first sentence.
     """
     if not text or not isinstance(text, str):
         return False
     stripped = text.strip()
     if _TRAILING_Q_RE.search(stripped):
         return False
-    # First word of any sentence is an imperative verb.
-    for chunk in re.split(r"[.!]\s+", stripped, maxsplit=3):
+    # Split into clauses on sentence-end + comma/em-dash so the
+    # second-half imperative "…, then ship the visible work" is
+    # caught. "then" is a soft connector — skip it before checking
+    # the imperative verb.
+    chunks = re.split(r"[.!]\s+|,\s+then\s+|—\s+", stripped, maxsplit=8)
+    for chunk in chunks:
         m = re.match(r"\s*([A-Za-z]+)", chunk)
         if m and m.group(1).lower() in _IMPERATIVE_VERBS:
             return True
@@ -528,11 +536,13 @@ def score_read(
 
     has_v = has_verdict_first(read)
     has_w = has_window(read) or has_window(next_step)
-    # Action: prefer next_step if provided, fall through to read.
-    has_a = (
-        has_concrete_action(next_step) if next_step
-        else has_concrete_action(read)
-    )
+    # Action passes if EITHER the read OR the next_step carries an
+    # imperative action. The Ask path lives in `next_step`; longer
+    # surfaces like /year embed the action mid-summary ("ship the
+    # visible work in late spring, then bank the gains"). Both are
+    # contract-compliant — the contract demands the action exists
+    # tied to a noun, not that it lives in any particular field.
+    has_a = has_concrete_action(read) or has_concrete_action(next_step)
 
     passes = bool(
         has_v
