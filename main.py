@@ -23377,6 +23377,43 @@ async def _life_arc_compute(chart_id, horizon_months, language,
                 )
         except Exception as _v3_err:
             print(f"[life_arc] v3 planet-scalar scrub failed (non-blocking): {_v3_err}")
+        # ── cyclecontract_v4 2026-06-08 — recursive scalar walk ────────────
+        # Defense-in-depth: any future or chart-specific nested field that
+        # carries a raw planet identity (the user's chart has dasha-lord
+        # planets leaking through system_readings.naisargika.active_planet
+        # because that field is value-copied from response["naisargika_active_planet"]
+        # at build time, BEFORE v3 mutates the top-level scalar).
+        # _cy_strip is idempotent on already-clean strings, so walking
+        # every leaf is safe; dates / sign names / structural strings
+        # pass through unchanged when they don't contain planet tokens.
+        try:
+            def _v4_scrub_str(_s):
+                if not isinstance(_s, str) or not _s:
+                    return _s
+                return _cy_strip(_s, language=language, field_type="plain")
+            def _v4_walk(_node):
+                if isinstance(_node, dict):
+                    for _k in list(_node.keys()):
+                        _v = _node[_k]
+                        if isinstance(_v, str):
+                            _node[_k] = _v4_scrub_str(_v)
+                        elif isinstance(_v, (dict, list)):
+                            _v4_walk(_v)
+                elif isinstance(_node, list):
+                    for _i, _v in enumerate(_node):
+                        if isinstance(_v, str):
+                            _node[_i] = _v4_scrub_str(_v)
+                        elif isinstance(_v, (dict, list)):
+                            _v4_walk(_v)
+            for _v4_key in ("current_phase", "diagnostic",
+                            "timeline_visual_data", "cycle_cross_check",
+                            "system_readings"):
+                _v4_sub = response.get(_v4_key)
+                if isinstance(_v4_sub, (dict, list)):
+                    _v4_walk(_v4_sub)
+        except Exception as _v4_err:
+            print(f"[life_arc] v4 recursive scalar scrub failed (non-blocking): {_v4_err}")
+
 
                 # Re-prompt fallback discipline: if life_phase_summary is empty
         # or shorter than 60 chars AFTER scrub (Claude likely returned
