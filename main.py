@@ -6731,6 +6731,46 @@ async def delete_conversation(
 
 # ── Patra Onboarding Conversation ─────────────────────────────────────────────
 
+
+# [strip-3surfaces 2026-06-09] Recursive leaf-scrub helper.
+# Walks any dict/list/str payload and applies the narration_polish
+# strippers (internal metrics + planet-traits + relative-time) to
+# every string leaf. Use AFTER the surface has composed its response
+# but BEFORE returning to the client. Idempotent.
+def _strip_payload_leaves(payload, language: str = "en"):
+    try:
+        from antar_engine.narration_polish import (
+            strip_internal_metrics as _spim,
+            strip_planet_traits as _sppt,
+            ban_relative_time as _sbrt,
+            has_clock_token as _shct,
+        )
+    except Exception:
+        return payload
+
+    def _scrub(s):
+        if not isinstance(s, str) or not s:
+            return s
+        out = _spim(s)
+        out = _sppt(out)
+        out = _sbrt(out, has_hard_clock=_shct(out))
+        return out
+
+    def _walk(obj):
+        if isinstance(obj, dict):
+            return {k: _walk(v) for k, v in obj.items()}
+        if isinstance(obj, list):
+            return [_walk(v) for v in obj]
+        if isinstance(obj, str):
+            return _scrub(obj)
+        return obj
+
+    try:
+        return _walk(payload)
+    except Exception:
+        return payload
+
+
 @app.get("/api/v1/predict/patra-onboarding")
 async def get_patra_onboarding(chart_id: str, language: Optional[str] = None):
     """
@@ -22259,6 +22299,8 @@ async def predict_year_attention(request: dict):
         except Exception as _te:
             print(f"[year-attention] translation non-fatal, serving English: {_te}")
 
+    # [strip-3surfaces-returns 2026-06-09]
+    payload = _strip_payload_leaves(payload, language=locals().get('language', 'en'))
     return _ent_year_view(payload, chart_id)
 
 
@@ -22667,6 +22709,8 @@ async def get_home(
     except Exception as _we:
         print(f"[home] cache write skipped (table may be missing): {_we}")
 
+    # [strip-3surfaces-returns 2026-06-09]
+    payload = _strip_payload_leaves(payload, language=locals().get('language', 'en'))
     return _ent_home_view(payload, chart_id)   # [launch-ent]
 
 
@@ -24416,6 +24460,8 @@ async def get_life_arc(
                     print(f"[life_arc] Cache HIT for {chart_id} (lib={_lib_version})")
                     if not include_readings and isinstance(life_arc, dict):
                         life_arc.pop("system_readings", None)
+                    # [strip-3surfaces-returns 2026-06-09]
+                    life_arc = _strip_payload_leaves(life_arc, language=locals().get('language', 'en'))
                     return _ent_cycle_view(life_arc, chart_id)
                 else:
                     print(f"[life_arc] Cache STALE for {chart_id} "

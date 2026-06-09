@@ -37,6 +37,24 @@ PLANET_NATURE = {
     "Ketu":    "spirituality, past life, detachment",
 }
 
+# [strip-3surfaces 2026-06-09] Plain-English version of PLANET_NATURE.
+# Used by downstream surfaces (home_composer Year `area.note`, etc.) so
+# the user never sees the planet-trait shorthand ("energy", "discipline",
+# "authority", "intellect") that the audit flagged as energy-prose.
+# Map keeps the SAME triplet shape so first/second/third theme works.
+PLANET_NATURE_PLAIN = {
+    "Sun":     "vitality, leadership, recognition",
+    "Moon":    "mood, family ties, daily rhythm",
+    "Mars":    "initiative, courage, property",
+    "Mercury": "clear thinking, trade, communication",
+    "Jupiter": "perspective, money, growth",
+    "Venus":   "partnership, beauty, refinement",
+    "Saturn":  "patient build, structure, longevity",
+    "Rahu":    "ambition, unconventional gains, tech",
+    "Ketu":    "introspection, release, mastery",
+}
+
+
 POWERFUL_HOUSES = {9, 10, 11}   # planet here = strong positive month
 DIFFICULT_HOUSES = {6, 8, 12}   # planet here = challenging month
 

@@ -204,6 +204,18 @@ _INTERNAL_TOKENS = [
     r"\bsignal\s+floor\b",
     r"\binternal\s+score\b",
     r"\bconfidence\s+(?:score|number)\b",
+    # [strip-3surfaces 2026-06-09] daily payload leaks: 'aggregate
+    # planetary strength sits at 27 out of 56', etc. Kill the
+    # raw 'N out of M' AND the qualifier prose before/after.
+    r"\b\d{1,3}\s+out\s+of\s+\d{1,3}\b",
+    r"\baggregate\s+(?:planetary\s+)?(?:strength|score)\b",
+    # [strip-3surfaces 2026-06-09] Sanskrit yoga names that bleed
+    # into narrative prose (Today/Cycle live output). Bija mantras
+    # are NOT in this list — they're allowed in the Practices
+    # surface only; if the strippers see them in narrative text
+    # that's a separate bug class.
+    r"\b(?:Budhaditya|Gajakesari|Adhi|Vipareeta|Raja|Dhana|"
+    r"Pancha\s*Mahapurusha|Ruchaka|Bhadra|Hamsa|Malavya|Sasa)\b",
 ]
 _INTERNAL_ANY = re.compile("|".join(_INTERNAL_TOKENS), re.IGNORECASE)
 

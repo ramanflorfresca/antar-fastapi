@@ -1044,7 +1044,13 @@ def _build_areas(strong: list, weak: list,
         if nm in seen:
             continue
         seen.add(nm)
-        first_theme = (PLANET_NATURE.get(p, "") or "").split(",")[0].strip() or "this area"
+        # [strip-3surfaces 2026-06-09] source fix: prefer plain words.
+        try:
+            from antar_engine.lal_kitab_masik import PLANET_NATURE_PLAIN as _PNP
+        except Exception:
+            _PNP = {}
+        _nat_src = _PNP.get(p) or PLANET_NATURE.get(p, "") or ""
+        first_theme = (_nat_src.split(",")[0] if _nat_src else "").strip() or "this area"
         areas.append({
             "name": nm, "bars": _bars(p, 3), "care": p in flagged,
             "note": f"Strong — favourable for {first_theme}.",
