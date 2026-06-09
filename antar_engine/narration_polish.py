@@ -181,14 +181,170 @@ def scrub_capitalization(data: dict) -> dict:
     return data
 
 
+
+# ─────────────────────────────────────────────────────────────────────
+# [ask-spec 2026-06-09] Internal-metric + planet-trait + relative-time
+# strippers. Run AFTER promote_clock so a real computed clock survives.
+# Defensive: even when the prompt bans these, models leak. These are
+# the last gate before the user sees the text.
+# ─────────────────────────────────────────────────────────────────────
+
+# Matches '51%', '51 %', '39%'. Used to strip whole clauses that
+# include any percentage figure (we never expose raw scores).
+_PCT_RE = re.compile(r"\b\d{1,3}\s?%")
+
+# Match a sentence (or fragment between commas / em-dashes) that
+# contains a banned internal-metric token. We strip the entire
+# fragment because partial paraphrase from a regex is worse than
+# silent deletion.
+_INTERNAL_TOKENS = [
+    r"\d{1,3}\s?%",
+    r"\blive\s+signal\b",
+    r"\bblueprint(?:\s+floor)?\b",
+    r"\bsignal\s+floor\b",
+    r"\binternal\s+score\b",
+    r"\bconfidence\s+(?:score|number)\b",
+]
+_INTERNAL_ANY = re.compile("|".join(_INTERNAL_TOKENS), re.IGNORECASE)
+
+# Splits text into fragments at sentence breaks AND em/en dashes.
+# Em-dash often joins a "leak" subordinate clause to the main sentence;
+# we want to amputate just that limb if it carries an internal metric.
+_FRAG_SPLIT = re.compile(r"(\.\s+|;\s+|\s+—\s+|\s+–\s+)")
+
+
+def strip_internal_metrics(text: str) -> str:
+    """Strip any sentence-fragment containing a percentage figure or
+    the words 'live signal', 'blueprint', 'signal floor'. Idempotent.
+
+    Founder rule 2026-06-09: internal scores never appear in `/ask`
+    read/next/actions. They live in reasoning_technical only.
+    """
+    if not text or not isinstance(text, str):
+        return text
+    if not _INTERNAL_ANY.search(text):
+        return text
+
+    parts = _FRAG_SPLIT.split(text)
+    keep: list = []
+    for i, frag in enumerate(parts):
+        # _FRAG_SPLIT keeps separators as odd-indexed entries.
+        if i % 2 == 1:
+            # Only keep separator if BOTH neighbours survive (else
+            # we'd leave a dangling '— ' at end).
+            if keep and (i + 1) < len(parts) and not _INTERNAL_ANY.search(parts[i + 1] or ""):
+                keep.append(frag)
+            continue
+        if _INTERNAL_ANY.search(frag or ""):
+            continue  # drop the fragment entirely
+        keep.append(frag)
+
+    out = "".join(keep).strip()
+    # If we annihilated the whole text, return a single neutral
+    # connector so downstream code never sees an empty string.
+    if not out:
+        return ""
+    # Tidy: collapse multiple spaces, drop leading/trailing
+    # punctuation orphans.
+    out = re.sub(r"\s{2,}", " ", out)
+    out = re.sub(r"^\s*[,;—–]\s*", "", out)
+    out = re.sub(r"\s*[,;]\s*$", ".", out)
+    # Ensure the result still ends with terminal punctuation.
+    if out and out[-1] not in ".!?":
+        out += "."
+    return out
+
+
+# Planet-trait single words used as if they were the cause itself.
+# Saturn → "discipline", Mars → "drive", Venus → "harmony", etc.
+# We restate them as the PLAIN constraint so the read reads as
+# everyday English, never as a vedic gloss.
+_TRAIT_TRANSLATIONS: list = [
+    # 'discipline blocking X' / 'discipline holds X' → 'caution holds X'
+    (re.compile(r"\bdiscipline\s+(blocking|holding|restraining|gating|keeping)\b",
+                re.IGNORECASE),
+     r"caution \1"),
+    # 'your discipline' as subject → 'your caution'
+    (re.compile(r"\byour\s+discipline\b", re.IGNORECASE),
+     "your caution"),
+    # 'authority pulling X' → 'a senior call pulling X'
+    (re.compile(r"\bauthority\s+(pulling|pressing|driving)\b",
+                re.IGNORECASE),
+     r"a senior call \1"),
+    # 'drive pushing X' → 'momentum pushing X'
+    (re.compile(r"\bdrive\s+(pushing|pressing|forcing)\b",
+                re.IGNORECASE),
+     r"momentum \1"),
+]
+
+
+def strip_planet_traits(text: str) -> str:
+    """Replace planet-trait single-word leaks with plain-English
+    constraints. Idempotent."""
+    if not text or not isinstance(text, str):
+        return text
+    out = text
+    for rx, repl in _TRAIT_TRANSLATIONS:
+        out = rx.sub(repl, out)
+    return out
+
+
+# Soft-time tokens that drift away from a real clock. When NO hard
+# clock has been promoted (i.e. timing_window did not supply one),
+# we still ban the soft fallback — the read must either name a
+# real clock OR omit timing entirely. The user's brief: "Ban
+# relative-time phrases in the `read`: late morning, early/early
+# afternoon, after midday, soon, later, shortly."
+_RELATIVE_BAN = re.compile(
+    r"\b(late\s+morning|early\s+morning|early\s+afternoon|"
+    r"late\s+afternoon|after\s+midday|after\s+noon|"
+    r"shortly|later\s+today|soon|later)\b",
+    re.IGNORECASE,
+)
+
+
+def ban_relative_time(text: str, has_hard_clock: bool = False) -> str:
+    """If no hard clock was promoted into `text`, strip any leftover
+    soft-time phrases that survived promote_clock. Idempotent."""
+    if not text or not isinstance(text, str):
+        return text
+    if has_hard_clock:
+        # If a real clock token already lives in the text, leave
+        # relative tokens around it alone — they may be legitimate
+        # textures ('late morning, around 11:20').
+        return text
+    out = _RELATIVE_BAN.sub("", text)
+    # Tidy connectors stranded by the removal.
+    out = re.sub(r"\s*,\s*,", ",", out)
+    out = re.sub(r"\s{2,}", " ", out)
+    out = re.sub(r"\s+([.,;!?])", r"\1", out)
+    return out.strip()
+
+
+def has_clock_token(text: str) -> bool:
+    """True if text already carries a HH:MM or H AM/PM clock token."""
+    if not text or not isinstance(text, str):
+        return False
+    return bool(_CLOCK_RE.search(text))
+
 # ─────────────────────────────────────────────────────────────────────
 # Public entry — call this once after banned_labels scrub.
 # ─────────────────────────────────────────────────────────────────────
 
 def polish(data: dict, language: str = "en") -> dict:
-    """Run both passes in the canonical order: clock-promotion first
-    (it introduces new clock tokens), then capitalization (which
-    cleans up sentence starts after replacement)."""
+    """Run passes in canonical order: clock-promotion first,
+    then capitalization, then the [ask-spec 2026-06-09] strippers
+    (internal metrics → planet-trait translation → soft-time ban).
+    The relative-time ban respects whether a hard clock survives."""
     promote_clock(data, language=language)
     scrub_capitalization(data)
+    # [ask-spec 2026-06-09] Defensive strippers.
+    for _field in ("signal_line", "plain_summary", "action_item",
+                   "why_this", "bridge_practice_note"):
+        _v = data.get(_field)
+        if isinstance(_v, str) and _v:
+            _v = strip_internal_metrics(_v)
+            _v = strip_planet_traits(_v)
+            _v = ban_relative_time(_v, has_hard_clock=has_clock_token(_v))
+            data[_field] = _v
     return data

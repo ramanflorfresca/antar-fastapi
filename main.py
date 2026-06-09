@@ -13633,6 +13633,43 @@ def _ask_scrub_payload(payload: dict, fields: list, language: str = 'en') -> dic
             v = payload.get(f)
             if isinstance(v, str) and v:
                 payload[f] = _ask_re.sub(r'\s*\(H\d{1,2}\)', '', v).strip()
+        # [ask-spec 2026-06-09] scrub-payload: kill internal-metric leaks,
+        # planet-trait leaks, and soft-time leaks across read/next/timing
+        # AND the decision-path 'actions' list. These run AFTER polish()
+        # so we catch anything the model paraphrased past the prompt rule.
+        try:
+            from antar_engine.narration_polish import (
+                strip_internal_metrics as _spim,
+                strip_planet_traits as _sppt,
+                ban_relative_time as _sbrt,
+                has_clock_token as _shct,
+            )
+            for _f in fields:
+                _vv = payload.get(_f)
+                if isinstance(_vv, str) and _vv:
+                    _vv = _spim(_vv)
+                    _vv = _sppt(_vv)
+                    _vv = _sbrt(_vv, has_hard_clock=_shct(_vv))
+                    payload[_f] = _vv
+            # decision-path actions[] is a list of strings
+            _acts = payload.get('actions')
+            if isinstance(_acts, list):
+                _new_acts = []
+                for _aa in _acts:
+                    if isinstance(_aa, str) and _aa:
+                        _aa = _spim(_aa)
+                        _aa = _sppt(_aa)
+                        _aa = _sbrt(_aa, has_hard_clock=_shct(_aa))
+                        if _aa.strip():
+                            _new_acts.append(_aa)
+                    elif _aa:
+                        _new_acts.append(_aa)
+                payload['actions'] = _new_acts
+        except Exception as _spe:
+            import logging as _splog
+            _splog.getLogger('antar.ask').warning(
+                f'[ask-spec] post-strip non-fatal: {_spe}'
+            )
     except Exception as _ask_e:
         import logging as _ask_log
         _ask_log.getLogger('antar.ask').warning(
@@ -13916,6 +13953,14 @@ async def ask_endpoint(request: AskRequest):
                     f"Timing window state: {_ex_state}. {_ex_state_hint} "
                     "You are Antar, a grounded life coach. The user asked a timing/decision "
                     "question. Using ONLY the consultation facts and chart context below, "
+                    # [ask-spec 2026-06-09] decision FIXED FACTS
+                    "FIXED FACTS (absolute, override anything below): "
+                    "(1) Never state internal scores, percentages, confidence numbers, "
+                    "'live signal', 'blueprint', or 'signal floor' — describe room or "
+                    "constraint in plain words only. "
+                    "(2) Never use planet-trait nouns as the actor — 'discipline blocking X' "
+                    "becomes 'caution holding X back'. "
+                    "(3) Read carries AT MOST 3 threads — the 2-3 the chart most supports. "
                     "reply with STRICT JSON only: "
                     '{"read": "...", "verdict": "...", "timing": "...", "actions": ["...", "..."], "next": "..."}. '
                     # [lead-verdict] Python prepends the engine's verdict + window phrase
@@ -13956,12 +14001,62 @@ async def ask_endpoint(request: AskRequest):
                     print(f"[ask][reflective] noun-palette load failed (non-fatal): {_np_err}")
                     _ask_noun_palette = ["savings", "your home", "a contract",
                                          "an authority figure", "your partner"]
+                # [ask-spec 2026-06-09] reflective FIXED FACTS — compute the
+                # intraday hora boundary so the model can name a HARD CLOCK
+                # instead of soft 'late morning'. Falls back to soft only if
+                # no clock is computable (e.g. lat/lng unresolved).
+                _ask_clock_line = ""
+                _ask_has_clock = False
+                try:
+                    _ask_lat, _ask_lng, _ask_loc_src = _resolve_moment_coords(chart_row.data)
+                    _ask_tz_off = float(chart_row.data.get('tz_offset') or 0.0)
+                    _ask_intraday = _ds_build_intraday_window(
+                        lat=float(_ask_lat), lng=float(_ask_lng),
+                        tz_offset_hours=_ask_tz_off,
+                        concern=_ask_concern,
+                        language=language,
+                    )
+                    if _ask_intraday:
+                        _iw = _ask_intraday[0] or {}
+                        # The hora_karana payload's `reasons[0]` carries the
+                        # 'X closes at HH:MM local' phrase; the boundary
+                        # itself is in _iw['end'] (HH:MM) when present.
+                        _reasons = _iw.get('reasons') or []
+                        _end_clk = _iw.get('end') or ''
+                        if _reasons or _end_clk:
+                            _ask_clock_line = (
+                                f"COMPUTED INTRADAY CLOCK: {(_reasons[0] if _reasons else _end_clk)}"
+                            )
+                            _ask_has_clock = True
+                            print(f"[ask][intraday] clock available via {_ask_loc_src}: {_ask_clock_line!r}")
+                except Exception as _iwe:
+                    print(f"[ask][intraday] non-fatal: {_iwe}")
                 _ask_noun_csv = ", ".join(_ask_noun_palette)
                 _sys = (
                     "You are Antar, a grounded life coach. The user asked an open question for which "
                     "the chart has NO specific timing prediction (no engine-computed verdict, no "
                     "date window). Your job: name the dynamic CONCRETELY using real life-nouns the "
                     "user recognises — never abstract energy-prose. "
+                    # [ask-spec 2026-06-09] FIXED FACTS — internal metrics never reach the user.
+                    "FIXED FACTS (absolute, override anything below): "
+                    "(1) Never state internal scores, percentages, confidence numbers, "
+                    "'live signal', 'blueprint', or 'signal floor' — describe room or "
+                    "constraint in plain words only. "
+                    "(2) Never use planet-trait nouns as the actor — 'discipline blocking X' "
+                    "becomes 'caution holding X back'; 'authority pulling' becomes 'a senior "
+                    "call pulling'. Restate as the plain constraint, not the planet's trait. "
+                    "(3) Read must carry AT MOST 3 threads, not 5. Pick the 2-3 the chart "
+                    "most supports and drop the rest. "
+                    + (
+                        "(4) An intraday window IS computed — name the HARD CLOCK token "
+                        "in the read. Forbidden soft-time fallbacks when a clock exists: "
+                        "'late morning', 'early afternoon', 'after midday', 'soon', "
+                        "'later', 'shortly'. Use the clock from COMPUTED INTRADAY CLOCK below. "
+                        if _ask_has_clock else
+                        "(4) No intraday clock is computable — omit timing rather than "
+                        "emit 'late morning' / 'early afternoon' / 'after midday' / "
+                        "'soon' / 'later' / 'shortly'. The read may carry no timing at all. "
+                    ) +
                     "Reply with STRICT JSON only: "
                     '{"read": "...", "next": "..."}. '
                     "\n\n"
@@ -14024,8 +14119,9 @@ async def ask_endpoint(request: AskRequest):
                     "Never mention astrology, planets, houses, signs, nakshatras, dashas, scores, "
                     "or any Sanskrit or technical term — plain everyday language only. "
                     "Output JSON only, no prose, no code fences."
-                    f"\n\n{_ask_layers_block}"
-                    f"\n\n{diagnostic_block}"
+                    + (f"\n\n{_ask_clock_line}" if _ask_clock_line else "")
+                    + f"\n\n{_ask_layers_block}"
+                    + f"\n\n{diagnostic_block}"
                 )
 
             # [ask-scratch] ephemeral override for THIS call only.
