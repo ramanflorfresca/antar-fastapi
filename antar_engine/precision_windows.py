@@ -284,6 +284,36 @@ def _score_date(
 
     # ── DIMENSION 2: Transit Quality (0-3 points) ──────────────────────
 
+    # [L3-archetype] V2.1 translate_transit_weight, per-trigger lens.
+    # Adds a CONSTRUCTIVE bonus when a malefic sits on an archetype-aligned
+    # output house (Saturn on 3/6/10/11 for MASS_SERVER, Rahu on 3/6/10/11
+    # for DISRUPTOR, Mars on 3/6/10 for DISRUPTOR/SYSTEMATIC).
+    # Resolved once per chart_data via caching to avoid 365x reclassify.
+    try:
+        from antar_engine.transit_translation import (
+            resolve_wealth_archetype as _resolve_arch,
+            archetype_aware_transit_bonus as _arch_bonus,
+        )
+        _arch = chart_data.get("_l3_archetype_cache")
+        if not _arch:
+            _arch = _resolve_arch(chart_data)
+            try:
+                chart_data["_l3_archetype_cache"] = _arch
+            except Exception:
+                pass
+        for _mal in ("Saturn", "Rahu", "Mars"):
+            _msign = transit_map.get(_mal, "")
+            if not _msign:
+                continue
+            _mhouse = ((_sign_idx(_msign) - lagna_idx) % 12) + 1
+            _delta, _why = _arch_bonus(_mal, _mhouse, _arch)
+            if _delta:
+                score += _delta
+                reasons.append(_why)
+    except Exception:
+        # never fail /predict on an archetype-translation error
+        pass
+
     jup_sign = transit_map.get("Jupiter", "")
     if jup_sign:
         jup_house = ((_sign_idx(jup_sign) - lagna_idx) % 12) + 1

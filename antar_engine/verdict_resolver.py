@@ -298,23 +298,25 @@ def _band(
 # Per concern, a tiny library of substantive nouns we use to fill the
 # Python-authored sentences. Keeps DOMAIN_VOCABULARY alive without
 # leaking energy labels.
+# [b-life-nouns] V2.2 gap (b): subjects now name the decision being weighed,
+# not the bare category. Doctrine: "concrete life-nouns, not abstractions."
 _CONCERN_NOUNS: Dict[str, Dict[str, str]] = {
-    "speculation":  {"subject": "speculation", "act": "deploy capital", "watch": "the speculative read"},
-    "property":     {"subject": "property",    "act": "move on a purchase", "watch": "the property read"},
-    "career":       {"subject": "career",      "act": "make the career move", "watch": "the career read"},
-    "finance":      {"subject": "cash flow",   "act": "act on the money decision", "watch": "the money read"},
-    "wealth":       {"subject": "wealth",      "act": "act on the wealth move", "watch": "the wealth read"},
-    "loss":         {"subject": "the drain",   "act": "plug the leak", "watch": "the drain pattern"},
-    "marriage":     {"subject": "your marriage", "act": "have the partnership conversation", "watch": "the partnership read"},
-    "love":         {"subject": "the relationship", "act": "have the relationship conversation", "watch": "the relationship read"},
-    "reconciliation":{"subject":"the reconnection","act": "make the move to reconnect", "watch": "the reconnection read"},
-    "divorce":      {"subject": "the separation", "act": "make the split move", "watch": "the separation read"},
-    "health":       {"subject": "your health",  "act": "act on the health decision", "watch": "the health read"},
-    "foreign":      {"subject": "the move abroad", "act": "make the relocation move", "watch": "the relocation read"},
-    "spiritual":    {"subject": "your purpose", "act": "act on the dharma move", "watch": "the purpose read"},
-    "family":       {"subject": "the family situation", "act": "act on the family decision", "watch": "the family read"},
-    "children":     {"subject": "the children question", "act": "act on the family move", "watch": "the family read"},
-    "general":      {"subject": "your direction", "act": "act on the main move", "watch": "the read"},
+    "speculation":  {"subject": "the speculative call you're weighing", "act": "deploy capital", "watch": "the speculative read"},
+    "property":     {"subject": "the property move you're sitting on",    "act": "move on a purchase", "watch": "the property read"},
+    "career":       {"subject": "the career step you're considering",      "act": "make the career move", "watch": "the career read"},
+    "finance":      {"subject": "the money decision in front of you",   "act": "act on the money decision", "watch": "the money read"},
+    "wealth":       {"subject": "the wealth move you're weighing",      "act": "act on the wealth move", "watch": "the wealth read"},
+    "loss":         {"subject": "the drain you're trying to plug",   "act": "plug the leak", "watch": "the drain pattern"},
+    "marriage":     {"subject": "the partnership conversation in front of you", "act": "have the partnership conversation", "watch": "the partnership read"},
+    "love":         {"subject": "the relationship call you're weighing", "act": "have the relationship conversation", "watch": "the relationship read"},
+    "reconciliation":{"subject":"the reconnection you're considering","act": "make the move to reconnect", "watch": "the reconnection read"},
+    "divorce":      {"subject": "the separation decision in front of you", "act": "make the split move", "watch": "the separation read"},
+    "health":       {"subject": "the health decision in front of you",  "act": "act on the health decision", "watch": "the health read"},
+    "foreign":      {"subject": "the relocation move you're weighing", "act": "make the relocation move", "watch": "the relocation read"},
+    "spiritual":    {"subject": "the dharma move you're considering", "act": "act on the dharma move", "watch": "the purpose read"},
+    "family":       {"subject": "the family decision in front of you", "act": "act on the family decision", "watch": "the family read"},
+    "children":     {"subject": "the family-growth question you're weighing", "act": "act on the family move", "watch": "the family read"},
+    "general":      {"subject": "the main move you're weighing", "act": "act on the main move", "watch": "the read"},
 }
 
 
@@ -334,21 +336,38 @@ def _compose_verdict_line(
     anchor: Optional[Dict[str, Any]] = None,
     redirect: Optional[Dict[str, Any]] = None,
 ) -> str:
+    # [b-life-nouns] V2.2 gap (b): when `anchor` carries a concrete date_range
+    # (precision_window source), weave it into FAVORABLE / MIXED non-tactical
+    # lines so the read names a real window instead of waving at "soon".
     nouns = _nouns(concern)
     subj = nouns["subject"]
+    # [b-life-nouns] subjects are now full phrases ("the property move you're
+    # sitting on"); .title() mangles apostrophes ("You'Re"). Cap only the
+    # first character for sentence-start positions.
+    subj_cap = (subj[:1].upper() + subj[1:]) if subj else subj
     is_es = _is_es(language)
     tactical = tf in _TACTICAL
+
+    # Extract a usable anchor phrase (only date_range is safe — labels and
+    # rarity titles may carry Sanskrit / planet names). Sanitised by the
+    # presence-check pattern: must look like a date span.
+    anchor_phrase = ""
+    if anchor and isinstance(anchor, dict):
+        _detail = str(anchor.get("detail") or "")
+        # Heuristic: a date_range contains a digit and an en-dash or hyphen.
+        if any(c.isdigit() for c in _detail) and any(d in _detail for d in ("–", "-", "to")):
+            anchor_phrase = _detail
 
     if band == VERDICT_FLAT:
         if redirect:
             ga = (redirect.get("guessed_area") or "another area").lower()
             if is_es:
                 return f"Hoy {subj} está neutral — lo que sí está activo es {ga}."
-            return f"{subj.title()} is flat for you today — what's actually live is {ga}."
+            return f"{subj_cap} is flat for you today — what's actually live is {ga}."
         if tactical:
             if is_es:
                 return f"Hoy {subj} está en una ventana neutral — sin señal específica."
-            return f"{subj.title()} is flat for you today — no specific signal."
+            return f"{subj_cap} is flat for you today — no specific signal."
         if is_es:
             return f"No hay una señal específica para {subj} ahora mismo."
         return f"Nothing unusual is active for {subj} right now."
@@ -359,26 +378,34 @@ def _compose_verdict_line(
                 return f"Hoy es una ventana floja para {subj} — frena las apuestas grandes."
             return f"Today is a soft window for {subj} — hold off on big moves."
         if is_es:
-            return f"{subj.title()} está flojo para ti ahora — ventana floja."
-        return f"{subj.title()} is soft for you right now — not a strong window."
+            return f"{subj_cap} está flojo para ti ahora — ventana floja."
+        return f"{subj_cap} is soft for you right now — not a strong window."
 
     if band == VERDICT_MIXED:
         if tactical:
             if is_es:
                 return f"Hoy {subj} está mixto — sigue con lo pequeño, no fuerces lo grande."
-            return f"{subj.title()} is mixed today — keep moving the small pieces, do not force the big one."
+            return f"{subj_cap} is mixed today — keep moving the small pieces, do not force the big one."
+        if anchor_phrase:
+            if is_es:
+                return f"{subj_cap} está mixto — apoyo estructural, ventana estrecha en {anchor_phrase}."
+            return f"{subj_cap} is mixed — structurally supportive, with a narrow window around {anchor_phrase}."
         if is_es:
-            return f"{subj.title()} está mixto — apoyo estructural, ventana estrecha."
-        return f"{subj.title()} is mixed — structurally supportive, narrow timing."
+            return f"{subj_cap} está mixto — apoyo estructural, ventana estrecha."
+        return f"{subj_cap} is mixed — structurally supportive, narrow timing."
 
     # FAVORABLE
     if tactical:
         if is_es:
             return f"Hoy {subj} está bien apoyado — actúa ahora."
-        return f"{subj.title()} is well-supported for you today — act now."
+        return f"{subj_cap} is well-supported for you today — act now."
+    if anchor_phrase:
+        if is_es:
+            return f"{subj_cap} está bien apoyado por tu carta — especialmente {anchor_phrase}."
+        return f"{subj_cap} is well-supported by your chart — especially {anchor_phrase}."
     if is_es:
-        return f"{subj.title()} está bien apoyado por tu carta."
-    return f"{subj.title()} is well-supported by your chart."
+        return f"{subj_cap} está bien apoyado por tu carta."
+    return f"{subj_cap} is well-supported by your chart."
 
 
 def _compose_move(
