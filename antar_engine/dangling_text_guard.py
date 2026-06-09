@@ -62,6 +62,20 @@ _PATTERNS_EN: List[Tuple[re.Pattern, str]] = [
     (re.compile(r"\bwait\s+until\s+\[\s*\]", re.I),
      "hold off"),
 
+    # [dropped-noun] guard (founder brief 2026-06-09 R2 leak)
+    # 'The you're experiencing is actually helpful' — dropped subject
+    # noun. Same bug-class as 'wait until ___ to decide'. Catch the
+    # `The <bare-pronoun>` form at sentence boundaries and rewrite
+    # to 'What <pronoun>' which reads as a deliberate clause.
+    (re.compile(r"\b[Tt]he\s+(you|i|we|they|she|he|it)('re|'m|'s|'ve)\b", re.I),
+     r"What \1\2"),
+    # 'The you are' / 'The I am' — without contraction
+    (re.compile(r"\b[Tt]he\s+(you|i|we|they|she|he|it)\s+(are|am|is|was|were|have|had)\b", re.I),
+     r"What \1 \2"),
+    # 'the ' followed by closing punct — likely dropped noun
+    (re.compile(r"\b[Tt]he\s+([.,;!?])"),
+     r"What\1"),
+
     # Double-space artifacts often left by empty merges
     (re.compile(r"  +"), " "),
 

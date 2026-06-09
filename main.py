@@ -6433,6 +6433,31 @@ State a specific year. Never predict past events as future windows.
         f"Life stage: {patra.life_stage_name}",
         f"Country: {desh.period_quality if desh else 'N/A'}",
     ]
+    # [l1-debug] surface L1+L2 in factors
+    # Carry L1 (natal_promise) + L2 (dasha_state) telemetry into
+    # the factors[] array so /predict callers can diagnose why a
+    # concern dropped to FLAT without needing Railway logs.
+    try:
+        if '_natal_promise' in dir() and _natal_promise:
+            factors.append(
+                f"L1: concern={concern} "
+                f"verdict={_natal_promise.get('verdict')} "
+                f"score={_natal_promise.get('score')} "
+                f"classical={_natal_promise.get('classical')} "
+                f"modern={_natal_promise.get('modern')} "
+                f"lk={_natal_promise.get('lk')} "
+                f"archetype={_natal_promise.get('archetype')} "
+                f"fit={_natal_promise.get('vehicle_fit')}"
+            )
+        if '_anchor_decision' in dir() and _anchor_decision:
+            _l2_reason = str(_anchor_decision.get('dasha_reason') or '')[:140]
+            factors.append(
+                f"L2: dasha_state={_anchor_decision.get('dasha_state')} "
+                f"matched_via={_anchor_decision.get('matched_via')} "
+                f"reason={_l2_reason}"
+            )
+    except Exception as _ldbg_e:
+        print(f'[predict] L1/L2 telemetry append failed (non-fatal): {_ldbg_e}')
 
     # ── STORE PREDICTION — capture the DB id for conversation linking ──
     prediction_db_id = None
