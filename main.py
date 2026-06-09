@@ -8139,11 +8139,16 @@ async def _geocode_city(city: str, country: str) -> tuple:
     if not city:
         raise HTTPException(status_code=422, detail="birth_city/birth_place is required and cannot be empty")
     city_lower = city.lower().strip()
+    # [TIER1E 2026-06-09] Tag each return with a source label so we can
+    # query (and later re-confirm) charts whose coords came from a
+    # particular branch.  4th element of the tuple is the source.
     if city_lower in CITY_COORDS_LOOKUP:
-        return CITY_COORDS_LOOKUP[city_lower]
+        _le_lat, _le_lng, _le_tz = CITY_COORDS_LOOKUP[city_lower]
+        return (_le_lat, _le_lng, _le_tz, "local_exact")
     for key, coords in CITY_COORDS_LOOKUP.items():
         if key in city_lower or city_lower in key:
-            return coords
+            _ls_lat, _ls_lng, _ls_tz = coords
+            return (_ls_lat, _ls_lng, _ls_tz, "local_substring")
     google_key = os.getenv("GOOGLE_MAPS_API_KEY")
     if google_key:
         try:
@@ -8162,7 +8167,7 @@ async def _geocode_city(city: str, country: str) -> tuple:
                         params={"location":f"{lat},{lng}","timestamp":int(time.time()),"key":google_key}, timeout=5.0,
                     )
                     tz = tz_r.json().get("timeZoneId","UTC")
-                    return lat, lng, tz
+                    return (lat, lng, tz, "google")
         except Exception as ge:
             print(f"Geocode error: {ge}")
     # [TIER1C 2026-06-09] No more silent country-capital fallback.
@@ -8540,9 +8545,13 @@ async def create_chart(
 
     if request.latitude and request.longitude:
         lat, lng = request.latitude, request.longitude
+        # [TIER1E 2026-06-09] Frontend supplied coords directly — bypasses the
+        # geocoder entirely.  Tag so we can audit user-coords rows separately
+        # (this is the bypass that produced the sign-flipped Bogota row).
+        _geo_source = "user_coords"
     else:
         city_value = request.birth_place or getattr(request, 'birth_city', None)
-        lat, lng, _ignored_tz = await _geocode_city(city_value, request.birth_country)
+        lat, lng, _ignored_tz, _geo_source = await _geocode_city(city_value, request.birth_country)
 
     # [tz-chain] strict resolver — replaces the old "or UTC" / "or 0.0" silent
     # fallbacks that produced wrong-lagna charts (18.9% of prod rows pre-fix).
@@ -8705,6 +8714,10 @@ async def create_chart(
         },
         "language_preference": _lang_from_country(request.birth_country),
         "patra_complete":      False,
+        # [TIER1E 2026-06-09] Records which geocoder branch produced the
+        # row's coords.  Lets us query (and later re-confirm) rows whose
+        # coords came from a particular branch.
+        "geocode_source":      _geo_source,
     }
     try:
         # [tz-sentinel] Refuse to persist a chart with timezone_offset=0 for a
@@ -10505,7 +10518,8 @@ async def settings_charts_update(chart_id: str, request: Request, authorization:
             bt = body.get("birth_time") or cur.get("birth_time")
             place = body.get("birth_place") or body.get("birth_city") or cur.get("birth_city") or cur.get("birth_place")
             country = body.get("birth_country") or cur.get("birth_country") or ""
-            lat, lng, tzname = await _geocode_city(place, country)
+            # [TIER1E 2026-06-09] capture geocode_source on edits too
+            lat, lng, tzname, _geo_source = await _geocode_city(place, country)
             try:
                 import pytz as _pz
                 _dtn = datetime.strptime(f"{bd} {bt}", "%Y-%m-%d %H:%M:%S") if len((bt or '').split(':')) == 3 \
@@ -10522,6 +10536,11 @@ async def settings_charts_update(chart_id: str, request: Request, authorization:
                 "lagna_sign": new_chart.get("lagna", {}).get("sign", ""),
                 "moon_sign": new_chart.get("planets", {}).get("Moon", {}).get("sign", ""),
                 "sun_sign": new_chart.get("planets", {}).get("Sun", {}).get("sign", ""),
+                # [TIER1E 2026-06-09] Source label refreshed; also clears the
+                # `needs_reconfirm` flag — the user just edited the chart, so
+                # whatever the backfill flagged is now resolved.
+                "geocode_source":  _geo_source,
+                "needs_reconfirm": False,
             })
             # NOTE: jaimini_data / lal_kitab_data are NOT re-derived on edit (deferred).
         except Exception as e:
