@@ -451,10 +451,27 @@ def _format_window(
     horizon_window: Optional[Dict[str, Any]],
     intraday_window: Optional[Dict[str, Any]],
     tf: str,
+    band: Optional[str] = None,  # [window-state] FLAT-band guard
 ) -> Dict[str, Any]:
     label = ""
     date_range = ""
     intraday_boundary = None
+    # [window-state] When verdict is FLAT, the prose says
+    # nothing is active. Emitting a live intraday boundary
+    # contradicts that — render a closed-window message and
+    # skip the intraday entirely.
+    if band == VERDICT_FLAT:
+        if horizon_window:
+            return {
+                "label": str(horizon_window.get("window_label") or "Window"),
+                "date_range": str(horizon_window.get("date_range") or ""),
+                "intraday_boundary": None,
+            }
+        return {
+            "label": "",
+            "date_range": "Today's window has closed — next live window tomorrow.",
+            "intraday_boundary": None,
+        }
     if intraday_window and tf in _TACTICAL:
         date_range = str(intraday_window.get("date_range") or "")
         label = str(intraday_window.get("window_label") or "Intraday window")
@@ -620,7 +637,7 @@ def resolve_domain_verdict(
         band, conf = VERDICT_FLAT, "low"
 
     intraday_window = _intraday_present(precision_windows or [])
-    window_dict = _format_window(horizon_window, intraday_window, tf)
+    window_dict = _format_window(horizon_window, intraday_window, tf, band=band)
 
     verdict_line = _compose_verdict_line(band, tf, concern, language, anchor, redirect)
     the_move    = _compose_move(band, tf, concern, language, anchor, redirect)
@@ -780,13 +797,15 @@ def compose_plain_summary(verdict: dict, language: str = "en") -> str:
             if is_es:
                 body = (
                     f"{first}. Hoy es una ventana neutral — nada inusual está"
-                    " activo en tu carta para esta área. Mueve la rutina base,"
+                    " activo en tu carta para esta área. Mantén tu rutina base;"
                     " no fuerces nada porque la fecha lo pida."
                 )
             else:
+                # # [verb-fix] Hold not Move — match action_item's verb so plain_summary
+                # and action_item don't read as a merge bug.
                 body = (
                     f"{first}. Today is a neutral window — nothing unusual is"
-                    " active in your chart for this area. Move your baseline"
+                    " active in your chart for this area. Hold your baseline"
                     " routine; do not force a step because the date demands one."
                 )
         if secondary:

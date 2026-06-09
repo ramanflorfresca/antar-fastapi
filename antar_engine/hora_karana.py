@@ -196,6 +196,13 @@ def build_intraday_window(
             return []
         hora_end_utc = datetime.fromisoformat(current["end_utc"])
         hora_end_local = hora_end_utc + timedelta(hours=tz_offset_hours)
+        # [window-state] stale-end guard
+        # Defensive: if the hora_end_local has already passed at
+        # narration time (rounding, race condition, cache hit
+        # boundary), the window is no longer live. Drop it.
+        _now_local_dt = now_utc + timedelta(hours=tz_offset_hours)
+        if hora_end_local <= _now_local_dt:
+            return []
 
         # Karana is optional — render with it when available.
         karana = _current_karana(now_utc)
