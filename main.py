@@ -23214,6 +23214,15 @@ async def astrocartography_recommend(
     v2 deterministic ranking — same engine as GET /{chart_id}. No DeepSeek
     list copy. Region filter applied AFTER scoring. Endpoint is free.
     """
+    try:
+        return await _ac_v2_recommend_inner(request)
+    except Exception as _e_rec:
+        import traceback as _tb
+        _t = _tb.format_exc()
+        print(f"[recommend v2] ERROR: {_e_rec}\n{_t}")
+        return {"status":"error","_debug_error":repr(_e_rec),"_debug_trace":_t.splitlines()[-15:]}
+
+async def _ac_v2_recommend_inner(request):
     rec, chart_data = _ac_v2_load_chart_for_endpoint(request.chart_id)
     birth_jd = chart_data.get("birth_jd")
     if not birth_jd:
@@ -23296,6 +23305,15 @@ async def astrocartography_city(
     Single-city scoring. Free, no gating. Same v2 engine as /recommend.
     Returns: { chart_context, card, intent, found }.
     """
+    try:
+        return await _ac_v2_city_inner(request)
+    except Exception as _e_city:
+        import traceback as _tb
+        _t = _tb.format_exc()
+        print(f"[city v2] ERROR: {_e_city}\n{_t}")
+        return {"status":"error","_debug_error":repr(_e_city),"_debug_trace":_t.splitlines()[-15:]}
+
+async def _ac_v2_city_inner(request):
     from antar_engine.astrocartography_v2 import (
         score_single_city, resolve_intent as _resolve_intent,
     )
