@@ -1107,6 +1107,38 @@ async def _call_claude_daily_signal(
 # NEW: Cache helpers
 # ──────────────────────────────────────────────
 
+
+# [daily-cache-scrub 2026-06-09] Apply same strippers the live response
+# path uses, so stale cache rows can't keep leaking '27 out of 56' /
+# 'Budhaditya' / dropped-noun garble after a rule deploy.
+def _dpc_scrub_signal(obj):
+    try:
+        from antar_engine.narration_polish import (
+            strip_internal_metrics as _spim,
+            strip_planet_traits as _sppt,
+            ban_relative_time as _sbrt,
+            has_clock_token as _shct,
+        )
+    except Exception:
+        return obj
+
+    def _walk(o):
+        if isinstance(o, dict):
+            return {k: _walk(v) for k, v in o.items()}
+        if isinstance(o, list):
+            return [_walk(v) for v in o]
+        if isinstance(o, str) and o:
+            v = _spim(o)
+            v = _sppt(v)
+            v = _sbrt(v, has_hard_clock=_shct(v))
+            return v
+        return o
+    try:
+        return _walk(obj)
+    except Exception:
+        return obj
+
+
 async def _get_cached_signal(chart_id: str, date_str: str, language: str, supabase_client) -> Optional[dict]:
     """Check Supabase daily_signals cache."""
     try:
@@ -1116,7 +1148,9 @@ async def _get_cached_signal(chart_id: str, date_str: str, language: str, supaba
         if res.data:
             cached = res.data[0].get("signal_json")
             if cached:
-                return _safe_json(cached) if isinstance(cached, str) else cached
+                _payload = _safe_json(cached) if isinstance(cached, str) else cached
+                # [daily-cache-scrub 2026-06-09] scrub stale rows on hit
+                return _dpc_scrub_signal(_payload)
     except Exception as e:
         logger.warning(f"[daily-cache] read failed (non-fatal): {e}")
     return None
@@ -1125,6 +1159,8 @@ async def _get_cached_signal(chart_id: str, date_str: str, language: str, supaba
 async def _save_cached_signal(chart_id: str, date_str: str, language: str, signal_json: dict, supabase_client):
     """Save to Supabase daily_signals_cache (upsert)."""
     try:
+        # [daily-cache-scrub 2026-06-09] scrub before persisting
+        signal_json = _dpc_scrub_signal(signal_json)
         supabase_client.table("daily_signals_cache").upsert({
             "chart_id": chart_id,
             "signal_date": date_str,
