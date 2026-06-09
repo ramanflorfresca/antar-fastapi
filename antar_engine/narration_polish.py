@@ -209,6 +209,14 @@ _INTERNAL_TOKENS = [
     # raw 'N out of M' AND the qualifier prose before/after.
     r"\b\d{1,3}\s+out\s+of\s+\d{1,3}\b",
     r"\baggregate\s+(?:planetary\s+)?(?:strength|score)\b",
+    # [daily-strip-fix 2026-06-09] dropped-noun garble pattern:
+    # "the day's aggregate score is," — the number got dropped
+    # by an earlier strip, leaving the trailing comma. Catch the
+    # whole stranded fragment.
+    r"\b(?:the\s+day's\s+)?aggregate\s+score\s+is\s*[,.]",
+    # Also catch the bare 'X / 56' shape which the daily LLM
+    # sometimes shortens to (parens or not).
+    r"\b\d{1,3}\s*/\s*56\b",
     # [strip-3surfaces 2026-06-09] Sanskrit yoga names that bleed
     # into narrative prose (Today/Cycle live output). Bija mantras
     # are NOT in this list — they're allowed in the Practices

@@ -21957,6 +21957,15 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
                 _aio.create_task(_dw_full_pass())
             print(f"[daily-week] fast return: pending_days={len(_pending_days)} wow_deferred={_wow_deferred}")
 
+        # [daily-strip-fix 2026-06-09] scrub the daily payload
+        # leaves before serialising — kills 27/56, Budhaditya,
+        # aggregate-score garble, energy-prose, etc.
+        try:
+            signals = _strip_payload_leaves(signals, language=language)
+            _week_highlights_agg = _strip_payload_leaves(_week_highlights_agg, language=language)
+            _transit_highlights = _strip_payload_leaves(_transit_highlights, language=language)
+        except Exception as _dse:
+            print(f"[daily-week] strip scrub non-fatal: {_dse}")
         from fastapi.responses import JSONResponse
         return JSONResponse(
             content={

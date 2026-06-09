@@ -493,19 +493,21 @@ def _build_remedy(
 
 
 def _get_energy_language(planet: str, remedy_type: str, domain: str) -> str:
+    # [daily-strip-fix 2026-06-09] energy_descriptions rewritten in plain English
+    # — no '<word> energy' suffix, no 'Rahu\'s illusions', no 'Jupiter\'s expansion'.
     """Human-friendly description of what this remedy does."""
     energy_descriptions = {
         "Jupiter": {
-            "strengthen": "Opens the channels of wisdom, trust, and abundance. Jupiter's expansion energy supports growth in all areas.",
+            "strengthen": "Opens the channels of wisdom, trust, and abundance — perspective grows in every area of life.",
             "pacify":     "Calms over-expansion and brings measured wisdom rather than excess.",
         },
         "Venus": {
-            "strengthen": "Activates love, beauty, and graceful prosperity. Venus brings harmony and magnetic attraction.",
+            "strengthen": "Activates love, beauty, and graceful prosperity — harmony and magnetic attraction strengthen.",
             "pacify":     "Calms excessive desire and brings contentment and balance in relationships.",
         },
         "Mars": {
-            "strengthen": "Builds courage, action energy, and fighting spirit. Mars gives you the will to push through obstacles.",
-            "pacify":     "Reduces aggression and accident-prone energy. Channels the warrior energy productively.",
+            "strengthen": "Builds courage, initiative, and the will to push through obstacles.",
+            "pacify":     "Reduces aggression and tension. Channels drive into purposeful action.",
         },
         "Mercury": {
             "strengthen": "Sharpens the mind, improves communication, and opens business channels.",
@@ -521,15 +523,15 @@ def _get_energy_language(planet: str, remedy_type: str, domain: str) -> str:
         },
         "Saturn": {
             "strengthen": "Builds patience, discipline, and the ability to sustain long-term effort.",
-            "pacify":     "Eases delays, reduces obstacles, and softens Saturn's hard lessons.",
+            "pacify":     "Eases delays, reduces obstacles, and softens the long structural pressure.",
         },
         "Rahu": {
             "strengthen": "Amplifies ambition, foreign connections, and unconventional opportunities.",
-            "pacify":     "Reduces obsessive patterns and brings grounded clarity to Rahu's illusions.",
+            "pacify":     "Reduces obsessive patterns and brings grounded clarity in their place.",
         },
         "Ketu": {
             "strengthen": "Deepens spiritual insight and activates past-life expertise.",
-            "pacify":     "Reduces detachment and confusion. Grounds the spiritual energy.",
+            "pacify":     "Reduces detachment and confusion. Grounds the inner sense of purpose.",
         },
     }
     planet_desc = energy_descriptions.get(planet, {})

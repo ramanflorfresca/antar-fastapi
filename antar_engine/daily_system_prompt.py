@@ -114,9 +114,12 @@ Check which natal house lord is most activated by today's transits:
    12H), the day's tone must reflect caution regardless of other signals. If "favorable",
    lean into its themes.
 
-10. **QUANTIFY WHEN POSSIBLE.** Ashtakavarga gives you an objective day score. If aggregate
-    is 40+, say "objectively strong day." If below 25, say "objectively weak — proof your
-    hesitation isn't psychology." Always reference the aggregate score when it's available.
+10. **DESCRIBE STRENGTH IN PLAIN WORDS.** Ashtakavarga gives you an objective day score —
+    use it INTERNALLY only. If aggregate is 40+, say "objectively strong day." If below
+    25, say "objectively weak — proof your hesitation isn't psychology." Otherwise say
+    "mixed" or "steady". NEVER reference the raw number (e.g. never write "27 out of 56",
+    "22 / 56", "the aggregate score is N") — describe strength as a plain word only.
+    [daily-strip-fix 2026-06-09] source rule. Numbers stay internal.
 
 11. **DAY-STRENGTH DRIVES TIMING.** If today's nakshatra day-strength is unfavorable
     (a friction or caution day), your el_movimiento MUST tell the user to wait for the
