@@ -212,6 +212,66 @@ PLANET_REMEDIES = {
 
 # ── Domain → which planets to remedy ─────────────────────────────────────────
 
+
+# [remedy-strength-gate 2026-06-09] Chart-actual strength resolver.
+# DOMAIN_REMEDY_FOCUS was a hardcoded planet table — both Raman and
+# Andres got the same Sun/Saturn/Rahu set because the table never
+# consulted the chart. These helpers fix that.
+
+def _chart_planet_strength(planet: str, chart_data: dict) -> str:
+    """Return chart-specific dignity for `planet`.
+
+    Returns one of: 'exalted' | 'own' | 'debilitated' | 'combust' |
+    'neutral'. Uses the same EXALTATION/DEBILITATION/OWN_SIGNS tables
+    already imported at the top of this module. Never raises.
+    """
+    try:
+        pd = (chart_data.get("planets") or {}).get(planet) or {}
+        sign = pd.get("sign", "")
+        if not sign:
+            return "neutral"
+        if sign == EXALTATION.get(planet):
+            return "exalted"
+        if sign == DEBILITATION.get(planet):
+            return "debilitated"
+        if sign in OWN_SIGNS.get(planet, []):
+            return "own"
+        if pd.get("is_combust") or pd.get("combust"):
+            return "combust"
+        return "neutral"
+    except Exception:
+        return "neutral"
+
+
+def _is_strong_in_chart(planet: str, chart_data: dict) -> bool:
+    """True iff strengthen claim 'exceptionally strong' is supportable."""
+    return _chart_planet_strength(planet, chart_data) in ("exalted", "own")
+
+
+def _is_weak_in_chart(planet: str, chart_data: dict) -> bool:
+    """True iff pacify claim is supportable by dignity alone."""
+    return _chart_planet_strength(planet, chart_data) in ("debilitated", "combust")
+
+
+def _chart_strong_planets(chart_data: dict) -> list:
+    """Planets that are exalted or in own sign — supportable for strengthen."""
+    out = []
+    for p in ("Jupiter", "Venus", "Mercury", "Mars", "Saturn", "Sun", "Moon"):
+        if _is_strong_in_chart(p, chart_data):
+            out.append(p)
+    return out
+
+
+def _chart_weak_planets(chart_data: dict) -> list:
+    """Planets that are debilitated or combust — supportable for pacify."""
+    out = []
+    for p in ("Jupiter", "Venus", "Mercury", "Mars", "Saturn", "Sun", "Moon",
+              "Rahu", "Ketu"):
+        if _is_weak_in_chart(p, chart_data):
+            out.append(p)
+    return out
+
+
 DOMAIN_REMEDY_FOCUS = {
     "wealth": {
         "strengthen":   ["Jupiter", "Venus"],
@@ -309,6 +369,21 @@ def select_remedies(
     # Build planet priority list
     to_strengthen = list(config.get("strengthen", []))
     to_pacify     = list(config.get("pacify", []))
+    # [remedy-strength-gate 2026-06-09] Chart-actual override: planets
+    # that are exalted/own in THIS chart go to the front of strengthen.
+    # Planets that are debilitated/combust in THIS chart go to the
+    # front of pacify. The hardcoded domain table becomes a fallback
+    # tail only — the chart-actual list leads.
+    try:
+        _real_strong = _chart_strong_planets(chart_data)
+        _real_weak   = _chart_weak_planets(chart_data)
+        # Front-load actually-strong; preserve hardcoded order for tail
+        _new_str = list(_real_strong) + [p for p in to_strengthen if p not in _real_strong]
+        _new_pac = list(_real_weak)   + [p for p in to_pacify     if p not in _real_weak]
+        to_strengthen, to_pacify = _new_str, _new_pac
+    except Exception as _rsg:
+        # Fall back to hardcoded lists on any error
+        pass
 
     # Add the active dasha lord
     current_dasha = dashas.get("vimsottari", [{}])[0].get("lord_or_sign", "")
@@ -333,6 +408,7 @@ def select_remedies(
             remedy_type="strengthen",
             domain=domain,
             patra=patra,
+            chart_data=chart_data,
         )
         if remedy:
             remedies.append(remedy)
@@ -344,6 +420,7 @@ def select_remedies(
             remedy_type="pacify",
             domain=domain,
             patra=patra,
+            chart_data=chart_data,
         )
         if remedy:
             remedies.append(remedy)
@@ -356,6 +433,7 @@ def _build_remedy(
     remedy_type: str,   # "strengthen" | "pacify"
     domain: str,
     patra=None,
+    chart_data: dict | None = None,
 ) -> dict | None:
     """Build a single remedy dict."""
     data = PLANET_REMEDIES.get(planet)
@@ -383,10 +461,14 @@ def _build_remedy(
     # Choose mantra based on proficiency
     mantra = data["simple_mantra"] if is_student or is_elderly else data["mantra"]
 
+    # [remedy-strength-gate 2026-06-09] Attach chart-actual strength
+    # so main.py's WHY builder can pick the right template.
+    _cs = _chart_planet_strength(planet, chart_data or {}) if chart_data else "unknown"
     return {
         "planet":       planet,
         "type":         remedy_type,
         "domain":       domain,
+        "chart_strength": _cs,
         "mantra":       mantra,
         "full_mantra":  data["mantra"],
         "count":        data["count"],

@@ -154,7 +154,7 @@ def _select_by_priority(domain: str, chart_data: dict,
     p1_planets = [p for p in planets
                   if _convergence_score(p, domain, chart_data, dashas, lk_pl) >= 3]
     for p in p1_planets[:1]:
-        r = _build_remedy(planet=p, remedy_type="pacify", domain=domain, patra=patra)
+        r = _build_remedy(planet=p, remedy_type="pacify", domain=domain, patra=patra, chart_data=chart_data)
         if r:
             r["source"] = "convergence"
             r["priority_label"] = "All timing systems point here"
@@ -168,7 +168,7 @@ def _select_by_priority(domain: str, chart_data: dict,
     if current_lord and current_lord not in [r["planet"] for r in results]:
         if _planet_is_weak_dasha(current_lord, chart_data):
             r = _build_remedy(planet=current_lord, remedy_type="pacify",
-                               domain=domain, patra=patra)
+                               domain=domain, patra=patra, chart_data=chart_data)
             if r:
                 r["source"] = "dasha"
                 r["priority_label"] = "Your current chapter needs support"
@@ -184,7 +184,7 @@ def _select_by_priority(domain: str, chart_data: dict,
         and p not in [r["planet"] for r in results]
     ]
     for p in p3_planets[:1]:
-        r = _build_remedy(planet=p, remedy_type="pacify", domain=domain, patra=patra)
+        r = _build_remedy(planet=p, remedy_type="pacify", domain=domain, patra=patra, chart_data=chart_data)
         if r:
             r["source"] = "lal_kitab"
             r["priority_label"] = "This year's clearing practice"
@@ -208,7 +208,7 @@ def _select_by_priority(domain: str, chart_data: dict,
             and p not in [r["planet"] for r in results]
         ]
     for p in p4_planets[:1]:
-        r = _build_remedy(planet=p, remedy_type="strengthen", domain=domain, patra=patra)
+        r = _build_remedy(planet=p, remedy_type="strengthen", domain=domain, patra=patra, chart_data=chart_data)
         if r:
             r["source"] = "amplify"
             r["priority_label"] = "Amplify what's already working"

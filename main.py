@@ -16589,10 +16589,27 @@ async def get_personal_remedies(
                 f"This practice clears the resistance it's creating. {energy_lang}"
             )
         elif priority_label == "Amplify what's already working":
-            why = (
-                f"{planet} is exceptionally strong in your chart right now. "
-                f"This practice amplifies that strength. {energy_lang}"
-            )
+            # [remedy-strength-gate 2026-06-09] chart-actual gating:
+            # only claim 'exceptionally strong' when the planet truly
+            # is exalted or in own sign in THIS chart. Otherwise use a
+            # template that does not lie about strength.
+            _cs = rem.get("chart_strength", "unknown")
+            if _cs in ("exalted", "own"):
+                why = (
+                    f"{planet} is exceptionally strong in your chart right now. "
+                    f"This practice amplifies that strength. {energy_lang}"
+                )
+            elif _cs in ("debilitated", "combust"):
+                why = (
+                    f"{planet} is in a challenging position in your chart "
+                    f"right now — this practice restores it. {energy_lang}"
+                )
+            else:
+                # neutral / unknown — describe the role without claiming strength
+                why = (
+                    f"{planet} is well-placed in your chart and ready to be "
+                    f"reinforced. {energy_lang}"
+                )
         else:
             why = energy_lang or f"Recalibrates {planet} energy in your current pattern."
 
