@@ -719,6 +719,52 @@ GEM_FUNCTIONAL_MALEFICS = {
     "Pisces":      {"Sun", "Venus", "Saturn", "Mercury"},
 }
 
+# [chakra-2axis] FUNCTIONAL_BENEFICS
+# Parashari functional-benefic baseline per lagna.  Used by the chakra
+# two-axis valence (V) calculation.  Calibration-tunable post-launch.
+# Kendra-trikona lords + yogakaraka + lagna lord; Rahu/Ketu excluded.
+FUNCTIONAL_BENEFICS_BY_LAGNA = {
+    "Aries":       {"Sun", "Jupiter", "Mars"},
+    "Taurus":      {"Sun", "Saturn", "Mercury", "Venus"},
+    "Gemini":      {"Venus", "Mercury", "Saturn"},
+    "Cancer":      {"Mars", "Jupiter", "Moon"},
+    "Leo":         {"Mars", "Jupiter", "Sun"},
+    "Virgo":       {"Venus", "Mercury"},
+    "Libra":       {"Saturn", "Mercury", "Venus"},
+    "Scorpio":     {"Jupiter", "Moon", "Sun"},
+    "Sagittarius": {"Sun", "Mars", "Jupiter"},
+    "Capricorn":   {"Venus", "Mercury", "Saturn"},
+    "Aquarius":    {"Venus", "Sun", "Saturn"},
+    "Pisces":      {"Moon", "Mars", "Jupiter"},
+}
+
+
+def _normalize_lagna(lagna_sign):
+    """Capitalise to a single sign-name token; tolerate dict / dirty input."""
+    if isinstance(lagna_sign, dict):
+        lagna_sign = lagna_sign.get("sign") or lagna_sign.get("rashi") or ""
+    if not isinstance(lagna_sign, str):
+        return ""
+    return lagna_sign.strip().capitalize()
+
+
+def is_functional_benefic(planet: str, lagna_sign) -> bool:
+    """True iff `planet` is a Parashari functional benefic for `lagna_sign`."""
+    lg = _normalize_lagna(lagna_sign)
+    if not lg or planet in ("Rahu", "Ketu"):
+        return False
+    return planet in FUNCTIONAL_BENEFICS_BY_LAGNA.get(lg, set())
+
+
+def is_functional_malefic(planet: str, lagna_sign) -> bool:
+    """True iff `planet` is a Parashari functional malefic for `lagna_sign`."""
+    lg = _normalize_lagna(lagna_sign)
+    if not lg:
+        return False
+    if planet in ("Rahu", "Ketu"):
+        return True
+    return planet in GEM_FUNCTIONAL_MALEFICS.get(lg, set())
+
 # Internal life-domain notes for the narrator to translate (never to UI raw).
 GEM_DOMAINS = {
     "Sun":     "leadership, visibility, vitality",

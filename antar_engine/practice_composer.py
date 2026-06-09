@@ -181,6 +181,11 @@ def compose_practice_response(
     completed_today: Optional[dict] = None,    # {planet: bool}
     sticky_key: Optional[tuple] = None,
     generated_at: Optional[str] = None,
+    # [chakra-2axis] forwarded to compute_chakra_states
+    ashtakavarga: Optional[dict] = None,
+    dashas: Optional[dict] = None,
+    lk_data: Optional[dict] = None,
+    transits: Optional[dict] = None,
 ) -> dict:
     lang = _lang(language)
     streaks = streaks or {}
@@ -278,6 +283,10 @@ def compose_practice_response(
         chart, conditions=conditions,
         priority_planet=(priority["planet"] if priority else None),
         language=language,
+        ashtakavarga=ashtakavarga,
+        dashas=dashas,
+        lk_data=lk_data,
+        transits=transits,
     )
 
     return {

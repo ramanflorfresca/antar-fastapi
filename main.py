@@ -7336,6 +7336,11 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
         chart, local_today, request.language,
         conditions=conditions, dashas=dashas, birth_date=rec.get("birth_date"),
     )
+    # [chakra-2axis] forward ashtakavarga + lal_kitab_data so the chakra
+    # energy map can compute the magnitude (Bhinnashtakavarga / 8) and
+    # valence (functional benefic/malefic + LK sleeping/rin) axes.
+    _chakra_av = _prac_safe(rec.get("ashtakavarga"))
+    _chakra_lk = _prac_safe(rec.get("lal_kitab_data"))
     resp = _pcomp2.compose_practice_response(
         chart, actives,
         chart_id=request.chart_id, user_name=name, user_age=age,
@@ -7343,6 +7348,9 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
         today_date=local_today, conditions=conditions,
         streaks=streaks, completed_today=completed,
         generated_at=_prac_dt.now(_prac_tz.utc).isoformat(),
+        ashtakavarga=_chakra_av,
+        dashas=dashas,
+        lk_data=_chakra_lk,
     )
     resp = _prac_strip_prose(resp, request.language)
     # [focus-energy] explicit top-level callout, PINNED to the practice's own
