@@ -4301,6 +4301,62 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
 
     # ── Concern detection (must come before C3 and C4) ────────
     concern = _detect_concern(request.question)
+
+    # [gap2-life-nouns 2026-06-09] Part A — persist profession +
+    # ventures on the charts row. Today these arrive on the
+    # request but are only consumed live (DKP block), never
+    # written back. That's why a request without them produces
+    # 'professional positioning' instead of the actual venture
+    # name. Merge non-empty values with what's already on the row
+    # (union ventures, overwrite profession), then update both
+    # the local chart_record and the DB. Fail-open: any DB error
+    # (e.g. column doesn't exist yet — sql migration pending)
+    # is logged and swallowed.
+    try:
+        _req_prof = (getattr(request, 'profession', '') or '').strip()
+        _req_ven_raw = getattr(request, 'ventures', None)
+        _req_ven: list = []
+        if isinstance(_req_ven_raw, list):
+            _req_ven = [str(x).strip() for x in _req_ven_raw if str(x).strip()]
+        elif isinstance(_req_ven_raw, str) and _req_ven_raw.strip():
+            _req_ven = [p.strip() for p in _req_ven_raw.split(',') if p.strip()]
+
+        _persist_update: dict = {}
+        if _req_prof:
+            # Only overwrite when meaningfully different.
+            if str(chart_record.get('profession') or '').strip() != _req_prof:
+                _persist_update['profession'] = _req_prof
+        if _req_ven:
+            _existing_ven_raw = chart_record.get('ventures') or chart_record.get('active_ventures') or []
+            _existing_ven: list = []
+            if isinstance(_existing_ven_raw, list):
+                _existing_ven = [str(x).strip() for x in _existing_ven_raw if str(x).strip()]
+            elif isinstance(_existing_ven_raw, str) and _existing_ven_raw.strip():
+                _existing_ven = [p.strip() for p in _existing_ven_raw.split(',') if p.strip()]
+            # Union, case-insensitive dedup, preserve order.
+            _seen = {v.lower() for v in _existing_ven}
+            _merged_ven = list(_existing_ven)
+            for v in _req_ven:
+                if v.lower() not in _seen:
+                    _merged_ven.append(v); _seen.add(v.lower())
+            if _merged_ven != _existing_ven:
+                _persist_update['ventures'] = _merged_ven
+
+        if _persist_update:
+            # Update local first so downstream DKP / prompts see the merge
+            chart_record.update(_persist_update)
+            try:
+                supabase.table('charts').update(_persist_update).eq(
+                    'id', request.chart_id
+                ).execute()
+                print(f"[gap2-life-nouns] persisted {list(_persist_update.keys())} for chart={request.chart_id[:8]}")
+            except Exception as _persist_err:
+                # Likely cause: columns missing — needs sql migration
+                # (see SQL note in patch summary). Local merge still helps
+                # the current call; just won't survive the request.
+                print(f"[gap2-life-nouns] persist DB write failed (non-fatal, local-only): {_persist_err}")
+    except Exception as _gap2_a_e:
+        print(f"[gap2-life-nouns] Part A merge skipped (non-fatal): {_gap2_a_e}")
     # ── [WS1 timeframe-honesty] Layer 0 — parse the asked timeframe.
     # The brief: /predict was returning a today read for a tomorrow
     # question because it never asked when the user wanted answered.
@@ -6334,6 +6390,18 @@ State a specific year. Never predict past events as future windows.
                 print('[predict] FIXED FACTS block appended to system prompt')
         except Exception as _vr_fp_e:
             print(f'[predict] fixed-facts append failed (non-fatal): {_vr_fp_e}')
+
+        # [gap2-life-nouns 2026-06-09] Part B — required-if-present
+        # noun contract. Only fires for venture-domains; silent
+        # for everything else (no fabrication risk).
+        try:
+            from antar_engine.predict_noun_contract import build_predict_noun_block as _gap2_block
+            _nc_block = _gap2_block(concern, chart_record, request)
+            if _nc_block:
+                _master_system = (_master_system or '') + '\n\n' + _nc_block
+                print(f"[predict] noun-contract appended for concern={concern}")
+        except Exception as _gap2_b_e:
+            print(f"[predict] noun-contract injection failed (non-fatal): {_gap2_b_e}")
 
         prediction_text, tokens_used = await call_llm_claude(
             prompt,
