@@ -204,7 +204,7 @@ def _angularity_term(reloc: Dict, sig_planets: List[str]) -> Tuple[float, List[D
     desc, ic = reloc.get("desc_lon"), reloc.get("ic_lon")
     if asc is None:
         return 0.0, []
-    ORB = 6.0  # tighter falloff → sharper within-band spread
+    ORB = 5.0  # tightened twice — within-band discrimination requires sharp falloff
     notes = []
     best = 0.0
     for p in sig_planets:
@@ -277,20 +277,24 @@ def _age_chapter_weights(age: Optional[int]) -> Dict[str, float]:
     """
     Reweights the composite by life chapter — does NOT add a flat per-city
     bonus. Older → push 10/legacy harder; younger → identity/growth.
+
+    Tune (2026-06-09): angularity bumped to ~0.30 because within-band spread
+    on career/home was clustering — angularity is the only term that
+    discriminates among cities sharing a relocated rising sign.
     """
     if not age:
-        return {"house_lord": 0.40, "angularity": 0.25,
+        return {"house_lord": 0.35, "angularity": 0.30,
                 "occupancy": 0.15,  "dasha":      0.15, "age_houses": 0.05}
     if age < 28:
-        return {"house_lord": 0.38, "angularity": 0.27,
+        return {"house_lord": 0.33, "angularity": 0.32,
                 "occupancy": 0.17,  "dasha":      0.13, "age_houses": 0.05}
     if age < 42:
-        return {"house_lord": 0.42, "angularity": 0.25,
+        return {"house_lord": 0.37, "angularity": 0.30,
                 "occupancy": 0.15,  "dasha":      0.13, "age_houses": 0.05}
     if age < 56:
-        return {"house_lord": 0.42, "angularity": 0.23,
+        return {"house_lord": 0.37, "angularity": 0.28,
                 "occupancy": 0.15,  "dasha":      0.15, "age_houses": 0.05}
-    return {"house_lord": 0.40, "angularity": 0.20,
+    return {"house_lord": 0.35, "angularity": 0.25,
             "occupancy": 0.15,  "dasha":      0.15, "age_houses": 0.10}
 
 
@@ -481,17 +485,27 @@ _HEADLINE_TEMPLATES = {
     "supportive": [
         "Where {n} starts to compound",
         "{n} catches a tailwind here",
-        "A city that adds to your {n}",
-        "Where {n} runs with you, not against you",
+        "A city that lifts {n}",
+        "{n} runs with you, not against you",
+        "Where {n} keeps paying out long after you arrive",
+        "{n} finds easier ground here",
+        "A clear runway for {n}",
+        "Where the math on {n} flips your way",
     ],
     "mixed": [
         "{n} costs more here — but pays differently",
         "Where {n} asks for steadier hands",
         "A city that bends {n} into a different shape",
+        "{n} arrives slower — and bigger",
+        "Where {n} trades speed for permanence",
+        "A city that reshapes {n} before it pays out",
     ],
     "strained": [
         "{n} runs harder here than it should",
         "Where {n} demands more before it gives",
+        "A city that asks {n} to prove itself first",
+        "{n} pays late, if at all",
+        "Where {n} fights the current",
     ],
 }
 
@@ -560,7 +574,8 @@ def build_per_city_card(
     base_idx = sig_hash % len(pool)
     # within-signature tiebreak: ±1 variant keyed by city name
     city_offset = int(hashlib.md5(city_name.encode("utf-8")).hexdigest(), 16) % 2
-    headline = pool[(base_idx + city_offset) % len(pool)].format(n=intent_noun)
+    raw_headline = pool[(base_idx + city_offset) % len(pool)].format(n=intent_noun)
+    headline = _sanitize_headline(raw_headline)
 
     asc_sign = reloc["asc_sign"]
     shift_lines = _shift_lines(intent_houses, reloc, asc_sign)
@@ -799,3 +814,23 @@ def score_single_city(
         "chart_context": build_chart_context(chart_data, dasha, age, intent),
         "card": card,
     })
+
+
+def _sanitize_headline(s: str) -> str:
+    """
+    Kill double-"your" leaks that arise when an intent noun already begins
+    with "your" and the template prepends "your" too.
+
+    Examples killed:
+      "to your your sense of ground" → "to your sense of ground"
+      "lifts your your public role"  → "lifts your public role"
+    Capitalisation preserved at start.
+    """
+    if not s:
+        return s
+    out = s
+    out = re.sub(r"\byour\s+your\b", "your", out, flags=re.IGNORECASE)
+    out = re.sub(r"\bYour\s+your\b", "Your", out)
+    # also any incidental " the the "
+    out = re.sub(r"\bthe\s+the\b", "the", out, flags=re.IGNORECASE)
+    return out

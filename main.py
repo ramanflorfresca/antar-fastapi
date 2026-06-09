@@ -8165,20 +8165,19 @@ async def _geocode_city(city: str, country: str) -> tuple:
                     return lat, lng, tz
         except Exception as ge:
             print(f"Geocode error: {ge}")
-    if country.upper() in COUNTRY_CAPITALS:
-        return COUNTRY_CAPITALS[country.upper()]
-    # [chart422-fup] structured geocode-failure response
-    # Same {code, message, field_errors, action} contract as
-    # the /chart/create validation handler so the frontend
-    # dispatches on body shape, not just HTTP status.
+    # [TIER1C 2026-06-09] No more silent country-capital fallback.
+    # Returning COUNTRY_CAPITALS[country] here previously persisted the
+    # country geographic centroid as the user's "birth coords" — 25+
+    # prod charts sit on those placeholders.  Now we refuse with 409
+    # GEOCODE_FAILED so the frontend can re-prompt the user.
     raise HTTPException(
-        status_code=400,
+        status_code=409,
         detail={
             "code":    "GEOCODE_FAILED",
             "message": (
-                f"Could not geocode '{city}' in country {country!r}. "
-                "Please provide latitude and longitude, or choose "
-                "a different birth place."
+                f"We couldn't locate '{city}' in {country!r}. "
+                "Please enter a more specific city (e.g. include the state "
+                "or country), or supply latitude and longitude directly."
             ),
             "field_errors": [
                 {
@@ -8187,8 +8186,12 @@ async def _geocode_city(city: str, country: str) -> tuple:
                     "message": f"{city!r} was not found in our geocoder.",
                 },
             ],
-            "action":  "prompt_for_coordinates",
-            "hint":    "Supply latitude (-90..90) and longitude (-180..180) in the POST body.",
+            "action":  "prompt_user_for_disambiguation",
+            "hint":    (
+                "Either resubmit with a more specific birth_place, OR "
+                "supply latitude (-90..90) and longitude (-180..180) in "
+                "the POST body."
+            ),
         },
     )
 
@@ -8430,6 +8433,95 @@ def _resolve_birth_tz_offset_strict(request, lat, lng) -> float:
     )
 
 
+
+# [TIER1D 2026-06-09] JD/time consistency guard
+def _assert_birth_jd_consistent(
+    birth_date,
+    birth_time,
+    tz_offset,
+    chart_data,
+    *,
+    max_delta_seconds: int = 60,
+    label: str = "chart",
+):
+    """Refuse to persist a chart whose stored birth_jd disagrees with the
+    JD recomputed from (birth_date, birth_time, timezone_offset).  Catches
+    the 9.4% time-desync bug class — sign-flipped tz_offset, DST mistakes,
+    edited-without-recompute writes.
+
+    Raises HTTPException(409, ...) when the discrepancy exceeds
+    max_delta_seconds.  No-op when chart_data lacks a birth_jd (logs a
+    warning; that's a different malformation we don't catch here).
+    """
+    try:
+        stored_jd = (chart_data or {}).get("birth_jd")
+    except Exception:
+        stored_jd = None
+    if stored_jd is None:
+        print(f"[jd-guard] {label}: chart_data has no birth_jd; skipping consistency check")
+        return
+    try:
+        from datetime import datetime as _jd_dt, timedelta as _jd_td
+        _bt = str(birth_time or "").strip()
+        _bd = str(birth_date or "")[:10]
+        _dt_local = None
+        for _fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+            try:
+                _dt_local = _jd_dt.strptime(f"{_bd} {_bt}", _fmt)
+                break
+            except ValueError:
+                continue
+        if _dt_local is None:
+            print(f"[jd-guard] {label}: birth_time {_bt!r} unparseable; skipping check")
+            return
+        _dt_utc = _dt_local - _jd_td(hours=float(tz_offset or 0.0))
+        # Meeus 7.1 — Julian Day from a Gregorian UTC datetime.  Matches
+        # swisseph.julday to <1e-6 days for the post-1900 range we use.
+        _y, _m = _dt_utc.year, _dt_utc.month
+        if _m <= 2:
+            _y -= 1; _m += 12
+        _A = _y // 100
+        _B = 2 - _A + _A // 4
+        _day_frac = (_dt_utc.hour + _dt_utc.minute / 60.0
+                     + _dt_utc.second / 3600.0) / 24.0
+        _expected_jd = (int(365.25 * (_y + 4716))
+                        + int(30.6001 * (_m + 1))
+                        + _dt_utc.day + _day_frac + _B - 1524.5)
+        _delta_seconds = abs(float(stored_jd) - _expected_jd) * 86400.0
+        if _delta_seconds > max_delta_seconds:
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code":    "JD_TIME_DESYNC",
+                    "message": (
+                        f"chart_data.birth_jd disagrees with "
+                        f"(birth_date, birth_time, timezone_offset) by "
+                        f"{_delta_seconds:.0f}s (threshold {max_delta_seconds}s). "
+                        f"Refusing to persist a chart with inconsistent birth data."
+                    ),
+                    "field_errors": [
+                        {"field": "birth_jd", "stored": stored_jd,
+                         "expected_from_inputs": round(_expected_jd, 6)},
+                        {"field": "birth_time", "value": _bt},
+                        {"field": "timezone_offset", "value": tz_offset},
+                    ],
+                    "action": "recompute_chart_data_from_inputs",
+                    "hint":   ("This usually means birth_time or timezone_offset "
+                               "was edited without recomputing chart_data. "
+                               "Re-run /api/v1/chart/create with the corrected "
+                               "inputs."),
+                },
+            )
+    except HTTPException:
+        raise
+    except Exception as _e:
+        # The guard must never become its own crash source — log and
+        # let the write proceed.  TIER1B should make this unreachable for
+        # well-formed rows.
+        print(f"[jd-guard] {label}: skipped due to internal error: {_e}")
+
+
+
 @app.post("/api/v1/chart/create")
 async def create_chart(
     request: ChartCreateRequest,
@@ -8634,6 +8726,15 @@ async def create_chart(
         except Exception as _sentinel_err:
             # Sentinel must never become its own bug source — log and continue
             print(f"[tz-sentinel] check skipped due to error: {_sentinel_err}")
+        # [TIER1D 2026-06-09] JD/time consistency guard — refuse a row whose
+        # birth_jd disagrees with (birth_date, birth_time, timezone_offset).
+        _assert_birth_jd_consistent(
+            chart_row.get("birth_date"),
+            chart_row.get("birth_time"),
+            chart_row.get("timezone_offset"),
+            chart_row.get("chart_data"),
+            label="/chart/create",
+        )
         supabase.table("charts").insert(chart_row).execute()
 
         # [admin-acq] acquisition attribution — SEPARATE fail-open update so
@@ -10427,6 +10528,15 @@ async def settings_charts_update(chart_id: str, request: Request, authorization:
             return JSONResponse(status_code=500, content={"error": "recompute failed", "detail": str(e)})
 
     if updates:
+        # [TIER1D 2026-06-09] JD/time consistency guard on settings edit
+        if "chart_data" in updates:
+            _assert_birth_jd_consistent(
+                updates.get("birth_date") or cur.get("birth_date"),
+                updates.get("birth_time") or cur.get("birth_time"),
+                updates.get("timezone_offset") if "timezone_offset" in updates else cur.get("timezone_offset"),
+                updates.get("chart_data"),
+                label="/me/charts PATCH",
+            )
         supabase.table("charts").update(updates).eq("id", chart_id).execute()
 
     p = _st_get_profile(user_id)
@@ -12109,6 +12219,14 @@ async def compatibility_start(request: CompatibilityStartRequest):
                 pass
 
             # Store Chart B as real sub-chart
+            # [TIER1D 2026-06-09] JD/time consistency guard for partner chart
+            _assert_birth_jd_consistent(
+                request.birth_date_b,
+                birth_time_b,
+                _offset_b,
+                chart_b,
+                label="/compat (chart B)",
+            )
             supabase.table("charts").insert({
                 "id": chart_id_b,
                 "birth_date": request.birth_date_b,
@@ -23214,24 +23332,8 @@ async def astrocartography_recommend(
     v2 deterministic ranking — same engine as GET /{chart_id}. No DeepSeek
     list copy. Region filter applied AFTER scoring. Endpoint is free.
     """
-    try:
-        return await _ac_v2_recommend_inner(request)
-    except Exception as _e_rec:
-        import traceback as _tb
-        _t = _tb.format_exc()
-        print(f"[recommend v2] ERROR: {_e_rec}\n{_t}")
-        return {"status":"error","_debug_error":repr(_e_rec),"_debug_trace":_t.splitlines()[-15:]}
-
-async def _ac_v2_recommend_inner(request):
-    try:
-        return await _ac_v2_recommend_inner(request)
-    except Exception as _e_rec:
-        import traceback as _tb
-        _t = _tb.format_exc()
-        print(f"[recommend v2] ERROR: {_e_rec}\n{_t}")
-        return {"status":"error","_debug_error":repr(_e_rec),"_debug_trace":_t.splitlines()[-15:]}
-
-async def _ac_v2_recommend_inner(request):
+    if not (request.chart_id or "").strip():
+        raise HTTPException(422, "chart_id is required")
     rec, chart_data = _ac_v2_load_chart_for_endpoint(request.chart_id)
     birth_jd = chart_data.get("birth_jd")
     if not birth_jd:
@@ -23314,24 +23416,8 @@ async def astrocartography_city(
     Single-city scoring. Free, no gating. Same v2 engine as /recommend.
     Returns: { chart_context, card, intent, found }.
     """
-    try:
-        return await _ac_v2_city_inner(request)
-    except Exception as _e_city:
-        import traceback as _tb
-        _t = _tb.format_exc()
-        print(f"[city v2] ERROR: {_e_city}\n{_t}")
-        return {"status":"error","_debug_error":repr(_e_city),"_debug_trace":_t.splitlines()[-15:]}
-
-async def _ac_v2_city_inner(request):
-    try:
-        return await _ac_v2_city_inner(request)
-    except Exception as _e_city:
-        import traceback as _tb
-        _t = _tb.format_exc()
-        print(f"[city v2] ERROR: {_e_city}\n{_t}")
-        return {"status":"error","_debug_error":repr(_e_city),"_debug_trace":_t.splitlines()[-15:]}
-
-async def _ac_v2_city_inner(request):
+    if not (request.chart_id or "").strip():
+        raise HTTPException(422, "chart_id is required")
     from antar_engine.astrocartography_v2 import (
         score_single_city, resolve_intent as _resolve_intent,
     )
