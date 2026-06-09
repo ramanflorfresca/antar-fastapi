@@ -323,6 +323,7 @@ def has_domain_anchor(
     current_transits: Any = None,
     chart_data: Optional[Dict[str, Any]] = None,
     birth_jd: Optional[float] = None,  # [dasha-gate] signature
+    natal_promise: Optional[Dict[str, Any]] = None,  # [natal-promise] arg
 ) -> Dict[str, Any]:
     """Decide whether the asked area has a domain-matched signal.
 
@@ -393,8 +394,18 @@ def has_domain_anchor(
         anchor is not None
         and dasha_state in ("ACTIVE", "SUPPORTIVE")
     )
+    # [natal-promise] promise-path
+    # V2.2: a STRUCTURALLY_SUPPORTED natal promise + ACTIVE dasha
+    # for the area IS an anchor on its own — no precision_window
+    # or rarity_signal required. Promise-driven specificity is the
+    # whole point of L1.
+    promise_is_supportive = bool(
+        natal_promise
+        and natal_promise.get("verdict") == "STRUCTURALLY_SUPPORTED"
+    )
     has_anchor_via_promise = (
-        matched_via in ("layer_1", "layer_2", "layer_3", "layer_4")
+        (matched_via in ("layer_1", "layer_2", "layer_3", "layer_4")
+         or promise_is_supportive)
         and dasha_state == "ACTIVE"
     )
     if dasha_state is None:
@@ -411,6 +422,8 @@ def has_domain_anchor(
         "concern": concern_n,
         "dasha_state": dasha_state,
         "dasha_reason": dasha_reason,
+        "natal_promise_verdict": (natal_promise or {}).get("verdict"),
+        "natal_promise_score":   (natal_promise or {}).get("score"),
     }
 
 

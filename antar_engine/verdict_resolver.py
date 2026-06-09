@@ -513,6 +513,7 @@ def resolve_domain_verdict(
     rarity_signals: Optional[List[Dict[str, Any]]] = None,
     precision_windows: Optional[List[Dict[str, Any]]] = None,
     anchor_decision: Optional[Dict[str, Any]] = None,
+    natal_promise: Optional[Dict[str, Any]] = None,  # [natal-promise] resolver arg
     language: str = "en",
     chart_type: Optional[str] = None,  # [compat-exclude] signature
 ) -> Dict[str, Any]:
@@ -603,6 +604,20 @@ def resolve_domain_verdict(
     )
 
     band, combined, conf = _band(has_anchor, today_score, horizon_score, rarity_bonus, tf)
+    # [natal-promise] band override
+    # V2.2: natal promise is authoritative when it's definitive.
+    # STRUCTURALLY_SUPPORTED forces at least MIXED (FAVORABLE if
+    # there's also a dasha/window anchor).
+    # STRUCTURALLY_BLOCKED forces FLAT regardless of today_score.
+    np = natal_promise or {}
+    np_verdict = np.get("verdict")
+    if np_verdict == "STRUCTURALLY_SUPPORTED":
+        if has_anchor:
+            band, conf = VERDICT_FAVORABLE, "high"
+        elif band == VERDICT_FLAT:
+            band, conf = VERDICT_MIXED, "medium"
+    elif np_verdict == "STRUCTURALLY_BLOCKED":
+        band, conf = VERDICT_FLAT, "low"
 
     intraday_window = _intraday_present(precision_windows or [])
     window_dict = _format_window(horizon_window, intraday_window, tf)

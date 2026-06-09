@@ -4805,6 +4805,87 @@ Do not use any planet names or astrological jargon — translate everything into
         )
     except Exception as _vr_e:
         print(f"[predict] verdict resolver failed (non-fatal): {_vr_e}")
+
+    # [natal-promise] compute
+    # V2.2 L1: compute natal promise for the asked area. This is
+    # what makes structurally-supported reads stop returning FLAT.
+    _natal_promise = None
+    try:
+        from antar_engine.natal_promise import calculate_natal_promise
+        from antar_engine.life_area_map import get_life_area as _vr_life_area
+        _life_area = _vr_life_area(concern)
+        _arch_hint = None
+        try:
+            if _char_archetype and isinstance(_char_archetype, dict):
+                _arch_hint = _char_archetype.get('primary_archetype')
+        except Exception:
+            pass
+        _natal_promise = calculate_natal_promise(
+            chart_data=chart_data,
+            life_area_config=_life_area,
+            archetype=_arch_hint,
+            concern=concern,
+        )
+        print(
+            f"[predict] natal_promise concern={concern} "
+            f"verdict={_natal_promise.get('verdict')} "
+            f"score={_natal_promise.get('score')} "
+            f"archetype={_natal_promise.get('archetype')} "
+            f"fit={_natal_promise.get('vehicle_fit')}"
+        )
+    except Exception as _np_e:
+        print(f"[predict] natal_promise failed (non-fatal): {_np_e}")
+
+    # [natal-promise] pass to anchor
+    # Re-run the anchor gate with natal_promise threaded in so the
+    # promise-path can fire (window-path already had its chance).
+    try:
+        if _natal_promise is not None:
+            _anchor_decision = _ds_has_domain_anchor(
+                concern=concern,
+                rarity_signals=rarity_signals,
+                precision_windows=precision_windows,
+                predictions=predictions if 'predictions' in dir() else None,
+                current_transits=current_transits,
+                chart_data=chart_data,
+                birth_jd=chart_record.get('birth_jd') or (chart_data or {}).get('birth_jd'),
+                natal_promise=_natal_promise,
+            )
+            print(
+                f"[predict] re-gated anchor has_anchor={_anchor_decision['has_anchor']} "
+                f"promise={_anchor_decision.get('natal_promise_verdict')} "
+                f"dasha={_anchor_decision.get('dasha_state')}"
+            )
+    except Exception as _np_g_e:
+        print(f"[predict] natal_promise re-gate failed (non-fatal): {_np_g_e}")
+
+    # [natal-promise] pass to resolver
+    # Re-run resolver with natal_promise so band-override applies.
+    try:
+        if _natal_promise is not None:
+            from datetime import datetime as _vr_dt2
+            _resolver_verdict = _vr_resolve(
+                chart_id=request.chart_id,
+                concern=concern,
+                question=request.question,
+                today=_vr_dt2.utcnow(),
+                chart_data=chart_data,
+                dashas=dashas_response,
+                current_transits=current_transits,
+                detected_yogas=detected_yogas if 'detected_yogas' in dir() else [],
+                user_correlations=user_correlations_list if 'user_correlations_list' in dir() else [],
+                rarity_signals=rarity_signals,
+                precision_windows=precision_windows,
+                anchor_decision=_anchor_decision,
+                natal_promise=_natal_promise,
+                language=getattr(request, 'language', 'en') or 'en',
+            )
+            print(
+                f"[predict] resolver re-run verdict={_resolver_verdict['verdict']} "
+                f"with natal_promise={_natal_promise.get('verdict')}"
+            )
+    except Exception as _vr2_e:
+        print(f"[predict] resolver re-run failed (non-fatal): {_vr2_e}")
     chakra_context  = chakra_reading_to_context_block(chakra_reading_data) if chakra_reading_data else ""
     arc_context     = chapter_arc_to_context_block(chapter_arc_data) if chapter_arc_data else ""
 
