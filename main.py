@@ -13665,6 +13665,27 @@ def _ask_scrub_payload(payload: dict, fields: list, language: str = 'en') -> dic
                     elif _aa:
                         _new_acts.append(_aa)
                 payload['actions'] = _new_acts
+            # [ask-spec-dangling 2026-06-09] dangling-text guard: catch casualties
+            # from the relative-time strip (e.g. 'stretch is through'). Reuses
+            # /predict's repair_dangling — same patterns, same idempotency.
+            try:
+                from antar_engine.dangling_text_guard import repair_dangling as _ask_repd
+                for _f in fields:
+                    _vv = payload.get(_f)
+                    if isinstance(_vv, str) and _vv:
+                        payload[_f] = _ask_repd(_vv, language=language)
+                _acts2 = payload.get('actions')
+                if isinstance(_acts2, list):
+                    payload['actions'] = [
+                        _ask_repd(_a, language=language)
+                        if isinstance(_a, str) else _a
+                        for _a in _acts2
+                    ]
+            except Exception as _dgte:
+                import logging as _dgtlog
+                _dgtlog.getLogger('antar.ask').warning(
+                    f'[ask-spec-dangling] non-fatal: {_dgte}'
+                )
         except Exception as _spe:
             import logging as _splog
             _splog.getLogger('antar.ask').warning(

@@ -76,6 +76,20 @@ _PATTERNS_EN: List[Tuple[re.Pattern, str]] = [
     (re.compile(r"\b[Tt]he\s+([.,;!?])"),
      r"What\1"),
 
+    # [ask-spec-dangling 2026-06-09] casualties from ban_relative_time.
+    # When 'late morning through early afternoon' gets stripped on both
+    # sides of 'through', the connector strands. Same for 'before — ',
+    # 'after , ', 'until to ' patterns. Repair by dropping the connector.
+    (re.compile(r"\b(is|are|was|were|stays|holds|sits)\s+through\s*([.,;—–])", re.I),
+     r"\1 short today\2"),
+    (re.compile(r"\b(act|move|hold)\s+before\s*([.,;—–])", re.I),
+     r"\1\2"),
+    (re.compile(r"\b(act|move|hold)\s+after\s*([.,;—–])", re.I),
+     r"\1\2"),
+    (re.compile(r"\buntil\s+to\s+(act|decide|move|commit|choose|begin|start)\b", re.I),
+     r"before you \1"),
+    (re.compile(r"\bWait\s+until\s+to\s+(act|decide|move|commit|choose|begin|start)\b"),
+     r"Hold off before you \1"),
     # Double-space artifacts often left by empty merges
     (re.compile(r"  +"), " "),
 
