@@ -95,6 +95,16 @@ _TIME_W_AD = 0.70
 _TIME_W_PD = 0.40
 _TIME_W_NONE = 0.15
 
+# FIX 1 (2026-06-09): single midpoint M cutoff replaces dual HI/LO.
+# _STATE_M_CUT is the only knob `_state_from_axes` reads now; HI/LO are
+# kept as legacy references for any external diagnostic that imported
+# them, but no longer drive the state classification.
+_STATE_M_CUT = 0.45
+# FIX 1 (2026-06-09): single midpoint M cutoff replaces dual HI/LO.
+# _STATE_M_CUT is the only knob `_state_from_axes` reads now; HI/LO are
+# kept as legacy references for any external diagnostic that imported
+# them, but no longer drive the state classification.
+_STATE_M_CUT = 0.45
 _STATE_M_HI = 0.66
 _STATE_M_LO = 0.33
 _STATE_V_HI = +0.20
@@ -305,14 +315,14 @@ def _compute_V(planet, chart, conditions, lk_data, lagna_sign):
 
 
 def _state_from_axes(m, v):
-    if m >= _STATE_M_HI and v >= _STATE_V_HI:
-        return "FLOWING"
-    if m >= _STATE_M_HI and v <= _STATE_V_LO:
-        return "FRICTION"
-    if m < _STATE_M_LO and v <= _STATE_V_LO:
-        return "DEPLETED"
-    if m < _STATE_M_LO and v >= _STATE_V_HI:
-        return "DORMANT"
+    # FIX 1 (2026-06-09): single midpoint M cutoff, valence sign owns the
+    # family.  Dual-cutoff thresholds (0.66 / 0.33) collapsed every
+    # mid-M center to NEEDS_BALANCE and discarded the V axis on live
+    # data.  M_CUT is calibration-tunable; structure is locked.
+    if v >= _STATE_V_HI:
+        return "FLOWING" if m >= _STATE_M_CUT else "DORMANT"
+    if v <= _STATE_V_LO:
+        return "FRICTION" if m >= _STATE_M_CUT else "DEPLETED"
     return "NEEDS_BALANCE"
 
 
@@ -539,35 +549,42 @@ def compute_chakra_states(
         chakra_m = sum_m / total_w
         chakra_v = sum_v / total_w
         chakra_wellness = int(round(max(0.0, min(100.0, sum_w / total_w))))
-        # Chakra state = state-of-weighted-mean, BUT escalate on affliction:
-        # an afflicted ruler is not painted over by a healthier partner.  The
-        # wellness % already smooths via the weighted mean — the state field
-        # should still flag friction/depletion when present.  Thresholds and
-        # weights stay as documented; this is rollup logic, not threshold drift.
+        # Chakra state — FIX 1 (2026-06-09):
+        # 1) Base state = _state_from_axes(weighted-mean M, weighted-mean V).
+        #    Valence sign now owns the family, so a chakra-level V already
+        #    reflects mean affliction; escalation below is a safety net.
+        # 2) Escalation on affliction: any ruler in FRICTION or DEPLETED with
+        #    weight ≥ 0.4 escalates the chakra into the afflicted family.  The
+        #    DIRECTION (FRICTION vs DEPLETED) comes from the chakra's own M
+        #    against _STATE_M_CUT — never from the escalating ruler's state.
+        # 3) DORMANT on the primary ruler propagates (a sleeping primary
+        #    defines the chakra), but only when the chakra's own V is
+        #    non-negative; an afflicted chakra is never relabelled DORMANT.
+        # 4) FLOWING requires zero afflicted rulers — prevents one bright
+        #    ruler from inflating a center whose partner is deeply afflicted.
         chakra_state = _state_from_axes(chakra_m, chakra_v)
         _ruler_states = [(p, w, per_planet[p]["state"]) for p, w in weights.items()]
-        # FRICTION / DEPLETED on any ruler with weight ≥ 0.4 wins over a mean.
-        for p, w, st_p in _ruler_states:
-            if w >= 0.4 and st_p == "FRICTION":
-                chakra_state = "FRICTION"
-                break
-        if chakra_state != "FRICTION":
-            for p, w, st_p in _ruler_states:
-                if w >= 0.4 and st_p == "DEPLETED":
-                    chakra_state = "DEPLETED"
-                    break
-        # DORMANT on the primary ruler propagates (a sleeping primary defines
-        # the chakra), but never overrides an active affliction above.
+        _has_afflicted = any(
+            st_p in ("FRICTION", "DEPLETED") and w >= 0.4
+            for _, w, st_p in _ruler_states
+        )
+        # Escalation only fires when the chakra's own V is on the afflicted
+        # side.  When V > 0, the partner ruler is genuinely offsetting the
+        # afflicted ruler, and the mean V is the truthful summary — escalating
+        # there would break monotonicity (a chakra with V=+0.02 ending up
+        # DEPLETED while V=+0.04 reads NEEDS_BALANCE).
+        if (_has_afflicted
+                and chakra_state not in ("FRICTION", "DEPLETED")
+                and chakra_v <= 0):
+            chakra_state = "FRICTION" if chakra_m >= _STATE_M_CUT else "DEPLETED"
         if chakra_state not in ("FRICTION", "DEPLETED"):
             primary = max(weights.items(), key=lambda kv: kv[1])[0]
-            if per_planet[primary]["state"] == "DORMANT":
+            if (per_planet[primary]["state"] == "DORMANT"
+                    and chakra_v >= 0
+                    and chakra_m < _STATE_M_CUT):
                 chakra_state = "DORMANT"
-        # FLOWING only if BOTH rulers are non-afflicted AND the mean clears the
-        # threshold — prevents a single positive ruler from inflating a chakra
-        # that has a deeply afflicted partner.
-        if chakra_state == "FLOWING":
-            if any(st_p in ("FRICTION", "DEPLETED") for _, _, st_p in _ruler_states):
-                chakra_state = "NEEDS_BALANCE"
+        if chakra_state == "FLOWING" and _has_afflicted:
+            chakra_state = "FRICTION" if chakra_m >= _STATE_M_CUT else "DEPLETED"
 
         active_dasha = any(p in weights for p in (md_lord, ad_lord) if p)
 
