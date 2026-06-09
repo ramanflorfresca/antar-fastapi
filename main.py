@@ -1305,6 +1305,11 @@ class ChartCreateRequest(BaseModel):
     career_stage:     Optional[str] = Field(None, example="mid_career")
     health_status:    Optional[str] = Field(None, example="excellent")
     financial_status: Optional[str] = Field(None, example="stable")
+    # [life-stage 2026-06-09] Durable life-context the frontend sends on
+    # signup. All three nullable — chart-create must never fail on them.
+    life_work:         Optional[str] = Field(None, example="business")
+    life_relationship: Optional[str] = Field(None, example="married")
+    life_kids:         Optional[str] = Field(None, example="yes")
 
 class ChartCreateResponse(BaseModel):
     chart_id:            str
@@ -9097,6 +9102,10 @@ async def create_chart(
         "gender":          getattr(request, "gender", "") or "",
         "current_city":    getattr(request, "current_city", "") or "",
         "current_country": getattr(request, "current_country", "") or "",
+        # [life-stage 2026-06-09] Persist life-context fields when sent.
+        "life_work":         getattr(request, "life_work", None),
+        "life_relationship": getattr(request, "life_relationship", None),
+        "life_kids":         getattr(request, "life_kids", None),
         "timezone_offset":     _offset,
         "country_code":        request.birth_country,
         "birth_city":      getattr(request, "birth_city", "") or request.birth_place or "",
