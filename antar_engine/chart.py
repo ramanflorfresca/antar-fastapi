@@ -128,7 +128,20 @@ def _calculate_chart_raw(birth_date, birth_time, lat, lon, tz_offset):
       • planets[*]['house']  — Whole Sign house (1-12) relative to lagna
       • birth_jd             — Julian Day of birth (needed by dasha modules)
     """
-    dt_local = datetime.strptime(f"{birth_date} {birth_time}", "%Y-%m-%d %H:%M")
+    # [TIER1B 2026-06-09] Two-format strptime — PostgreSQL `time`
+    # columns serialise as HH:MM:SS, so every recompute path that
+    # reads stored birth_time would crash on the old '%H:%M' template.
+    _bt_str = str(birth_time or '').strip()
+    for _fmt in ('%Y-%m-%d %H:%M:%S', '%Y-%m-%d %H:%M'):
+        try:
+            dt_local = datetime.strptime(f"{birth_date} {_bt_str}", _fmt)
+            break
+        except ValueError:
+            continue
+    else:
+        raise ValueError(
+            f"birth_time {_bt_str!r} not parseable as HH:MM or HH:MM:SS"
+        )
     dt_utc   = dt_local - timedelta(hours=tz_offset)
     jd_utc   = julian_day(dt_utc)
 
