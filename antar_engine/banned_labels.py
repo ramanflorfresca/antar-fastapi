@@ -169,10 +169,12 @@ def strip_energy_labels(text: str, language: str = "en") -> str:
 
     # Tidy the typical leftover: "<noun> energy/layer/vibe sits ..." →
     # drop the "energy/layer/vibe" right after a single-word replacement.
+    # [predclean 2026-06-09] widened the trailing noun set to match the
+    # main rephrase-strip below — `influence` was paraphrased through.
     out = re.sub(
         r"\b(discipline|authority|release|growth|drive|partnership|"
         r"harmony|clarity|ambition|emotion|intuition|structure)\s+"
-        r"(energy|layer|vibe|signal)\b",
+        r"(energy|layer|vibe|signal|influence)\b",
         r"\1",
         out,
         flags=re.IGNORECASE,
@@ -180,8 +182,8 @@ def strip_energy_labels(text: str, language: str = "en") -> str:
 
     # Standalone "energy"/"layer" suffix after a chart-area phrase loses
     # its anchor when we strip — kill obvious leftovers.
-    out = re.sub(r"\s+(energy|layer|vibe)\.", ".", out, flags=re.IGNORECASE)
-    out = re.sub(r"\s+(energy|layer|vibe),", ",", out, flags=re.IGNORECASE)
+    out = re.sub(r"\s+(energy|layer|vibe|influence)\.", ".", out, flags=re.IGNORECASE)
+    out = re.sub(r"\s+(energy|layer|vibe|influence),", ",", out, flags=re.IGNORECASE)
 
     # [narration-polish] general-energy + metaphor + house-jargon
     # Defect 1 (founder brief 2026-06-09): catch ANY '<word> energy'
@@ -194,8 +196,13 @@ def strip_energy_labels(text: str, language: str = "en") -> str:
     #   'persistence and structure energy'
     # Replacement: empty (drop the construction; the surrounding
     # clause re-reads as plain English).
+    # [predclean 2026-06-09] widened: catch `<x>-and-<y> energy`
+    # AND the model's rephrase variants `<x>-and-<y> influence`,
+    # `<x>-and-<y> layer`, `<x>-and-<y> signal`, `<x>-and-<y> vibe`.
+    # Same leak class — the model was paraphrasing past the
+    # `energy`-only regex.
     out = re.sub(
-        r"\b[\w-]+(?:\s+and\s+[\w-]+)?\s+energy\b",
+        r"\b[\w-]+(?:\s+and\s+[\w-]+)?\s+(?:energy|layer|influence|signal|vibe)\b",
         "",
         out,
         flags=re.IGNORECASE,
