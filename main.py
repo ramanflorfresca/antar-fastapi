@@ -23120,16 +23120,89 @@ async def delete_connection(chart_id: str, connection_id: str):
 
 
 # ============================================================================
-# ASTROCARTOGRAPHY RECOMMENDATION ENDPOINT
+# ASTROCARTOGRAPHY RECOMMENDATION ENDPOINT (v2 — relocation-primary)
 # ============================================================================
+# Legacy DeepSeek list-copy path has been REMOVED. The endpoint now calls
+# astrocartography_v2 directly so /recommend and GET /{chart_id} share one
+# deterministic scoring source. Free, no gating (locked monetization).
 
 class AstroRecommendRequest(BaseModel):
     chart_id: str
-    intent:   str  = Field("startup", description="startup|wealth|billionaire|career|relationships|general")
-    region:   str  = Field("global",  description="latam|europe|asia|middleeast|africa|north_america|global")
+    intent:   str  = Field("career", description="career|money|love|home|growth|depth|spirituality|health|education|happiness — legacy: startup|wealth|billionaire|relationships|general")
+    region:   str  = Field("global",  description="latam|europe|asia|middleeast|africa|north_america|global  (post-rank filter)")
     language: str  = Field("en",      description="en|es")
     top_n:    int  = Field(5,         description="1-10")
-    explain:  bool = Field(True,      description="Add DeepSeek narrative")
+    explain:  bool = Field(False,     description="Reserved; DeepSeek list-copy path is retired.")
+
+
+_AC_REGION_FILTERS = {
+    "latam":         ["Mexico","Colombia","Brazil","Argentina","Chile","Peru","Uruguay","Paraguay","Bolivia","Ecuador","Venezuela","Guatemala","Costa Rica","Panama"],
+    "europe":        ["UK","Germany","France","Spain","Italy","Netherlands","Portugal","Switzerland","Austria","Belgium","Sweden","Norway","Denmark","Finland","Poland","Czech","Hungary","Romania","Bulgaria","Croatia","Serbia","Greece","Ireland","Scotland"],
+    "asia":          ["India","Japan","China","Singapore","South Korea","Taiwan","Thailand","Vietnam","Indonesia","Malaysia","Philippines","Bangladesh","Nepal","Sri Lanka","Pakistan","Kazakhstan"],
+    "middleeast":    ["UAE","Saudi Arabia","Qatar","Israel","Jordan","Lebanon","Iran","Kuwait"],
+    "africa":        ["Nigeria","Kenya","South Africa","Ghana","Ethiopia","Tanzania","Uganda","Senegal","Morocco","Tunisia","Ivory Coast"],
+    "north_america": ["USA","Canada","Mexico"],
+    "global":        [],
+}
+
+
+def _ac_v2_load_chart_for_endpoint(chart_id: str):
+    """Tiny helper — fetches chart_data + birth_date + current_country."""
+    try:
+        res = supabase.table("charts").select(
+            "chart_data, birth_date, current_country"
+        ).eq("id", chart_id).single().execute()
+    except Exception:
+        res = supabase.table("charts").select("*").eq("id", chart_id).single().execute()
+    if not res.data:
+        raise HTTPException(404, "Chart not found")
+    rec = res.data
+    chart_data = rec.get("chart_data") or {}
+    if isinstance(chart_data, str):
+        import json as _j
+        chart_data = _j.loads(chart_data)
+    return rec, chart_data
+
+
+def _ac_v2_age_from_birth(rec, chart_data):
+    from datetime import date as _d
+    bd = rec.get("birth_date") or chart_data.get("birth_date")
+    if not bd:
+        return None
+    try:
+        b = _d.fromisoformat(str(bd)[:10])
+        t = _d.today()
+        return t.year - b.year - (1 if (t.month, t.day) < (b.month, b.day) else 0)
+    except Exception:
+        return None
+
+
+def _ac_v2_dasha(chart_data, birth_jd):
+    try:
+        from antar_engine.life_arc.phase_analyzer import get_current_vimsottari
+        return get_current_vimsottari(chart_data, float(birth_jd))
+    except Exception as _e:
+        print(f"[astrocartography v2] dasha lookup failed (non-fatal): {_e}")
+        return {}
+
+
+def _ac_v2_apply_region_filter(top_cities, region, fallback_pool):
+    region = (region or "global").lower()
+    frags = _AC_REGION_FILTERS.get(region, [])
+    if not frags:
+        return top_cities
+    kept = [c for c in top_cities if any(f.lower() in c["city"].lower() for f in frags)]
+    # Backfill from the broader pool if regional filter is too tight
+    if len(kept) < min(3, len(top_cities)):
+        seen = {c["city"] for c in kept}
+        for c in fallback_pool:
+            if c["city"] in seen:
+                continue
+            if any(f.lower() in c["city"].lower() for f in frags):
+                kept.append(c); seen.add(c["city"])
+            if len(kept) >= min(3, len(fallback_pool)):
+                break
+    return kept
 
 
 @app.post("/api/v1/astrocartography/recommend")
@@ -23138,188 +23211,167 @@ async def astrocartography_recommend(
     authorization: Optional[str] = Header(None),
 ):
     """
-    City recommendation engine:
-    1. Python computes deterministic scores (line × dasha × yoga × paran)
-    2. DeepSeek writes context-aware narrative from the scores
+    v2 deterministic ranking — same engine as GET /{chart_id}. No DeepSeek
+    list copy. Region filter applied AFTER scoring. Endpoint is free.
     """
-    chart_res = supabase.table("charts").select("*").eq("id", request.chart_id).execute()
-    if not chart_res.data:
-        raise HTTPException(status_code=404, detail="Chart not found")
-    chart_record = chart_res.data[0]
-
-    from antar_engine.chart_context_builder_json import _fetch_dashas
-    from antar_engine.astrocartography_recommender import recommend_cities
-
-    dashas = _fetch_dashas(request.chart_id, supabase)
-
-    # Extract natal yogas
-    chart_data  = chart_record.get("chart_data") or {}
-    natal_yogas = chart_data.get("yogas") or []
-    if not natal_yogas:
-        planets   = chart_data.get("planets", {})
-        jup_house = (planets.get("Jupiter") or {}).get("house")
-        ven_house = (planets.get("Venus") or {}).get("house")
-        if jup_house == 2 and ven_house == 11:
-            natal_yogas = [{"name": "Dhana Yoga", "planets": ["Jupiter", "Venus"]}]
-
-    # Python ranking — deterministic
-    ranking = recommend_cities(
-        chart_record=chart_record,
-        dashas=dashas,
-        natal_yogas=natal_yogas,
-        intent=request.intent,
-        region=request.region,
-        language=request.language,
-        top_n=min(request.top_n, 10),
-    )
-
-    if not request.explain or not ranking.get("top_cities"):
-        return ranking
-
-    # --- DeepSeek narrative ---
-    import json as _json, httpx, os
-    from datetime import date
-
-    # Build chart summary for prompt
-    lagna_sign   = (chart_data.get("lagna") or {}).get("sign", "")
-    atmakaraka   = chart_data.get("atmakaraka", "")
-    archetype    = (chart_record.get("character_archetype") or {}).get("name", "")
-    career_stage = chart_record.get("career_stage", "")
-    current_city = chart_record.get("current_city") or ""
-    current_country = chart_record.get("current_country") or ""
-
-    # Age
-    age = None
-    try:
-        bd = chart_record.get("birth_date", "")
-        if bd:
-            b = date.fromisoformat(str(bd)[:10])
-            t = date.today()
-            age = t.year - b.year - (1 if (t.month, t.day) < (b.month, b.day) else 0)
-    except Exception:
-        pass
-
-    dc = ranking["dasha_context"]
-
-    chart_summary = (
-        f"Lagna: {lagna_sign}, Atmakaraka: {atmakaraka}, "
-        f"Archetype: {archetype}, Age: {age}, Career: {career_stage}"
-    )
-    dasha_summary = (
-        f"Current MD: {dc.get('current_md')} until {dc.get('current_md_end','')[:10]} | "
-        f"AD: {dc.get('current_ad')} | "
-        f"Next MD: {dc.get('next_md')} from {dc.get('next_md_start','')[:10]} (18-year window)"
-    )
-
-    # City rankings compact — only what DeepSeek needs
-    city_rankings = []
-    for i, c in enumerate(ranking["top_cities"]):
-        city_rankings.append({
-            "rank":          i + 1,
-            "city":          c["city"],
-            "score":         c["score"],
-            "is_current":    c.get("is_current_location", False),
-            "dasha_notes":   c.get("dasha_notes", []),
-            "yoga_notes":    c.get("yoga_notes", []),
-            "paran_notes":   c.get("paran_notes", []),
-            "top_lines":     [{
-                "planet": l["planet"],
-                "line":   l["line"],
-                "strength": l["strength"]
-            } for l in c.get("line_details", [])[:3]],
-        })
-
-    # DeepSeek prompt — exact spec
-    _system = (
-        "You are Antar's astrocartography interpreter. "
-        "You receive deterministic scores from the Python engine. Do NOT calculate anything. "
-        "Your job is to write a warm, specific, actionable narrative from the data provided."
-    )
-
-    _user = f"""You are Antar's astrocartography interpreter.
-You receive deterministic scores from the Python engine. Do NOT calculate anything.
-
-USER CONTEXT:
-- Current location: {current_city or current_country or "unknown"}
-- Intent: {request.intent} (startup / billionaire / wealth)
-- Chart: {chart_summary}
-- Dashas: {dasha_summary}
-
-PYTHON RANKING:
-{_json.dumps(city_rankings, indent=2)}
-
-STAY-VS-MOVE RULE RESULT: {ranking["stay_vs_move"]}
-
-MISSING LINES: {", ".join(ranking.get("missing_lines", [])) or "none"}
-
-Your job:
-1. If stay_vs_move is "stay": explain why the user should stay put and what to optimize there
-2. If "move": recommend the top city and explain why with specific timing
-3. Always mention missing lines honestly (e.g., "Rahu MC lines not in dataset — billionaire public track not confirmed")
-4. End with a "Your move" sentence — one specific action this week
-5. Be warm, specific, and actionable
-6. Do NOT use planet names in the final output — use energy language instead
-   (e.g., "expansion energy" not "Jupiter", "disruption channel" not "Rahu")
-
-{"Respond in Spanish." if request.language == "es" else "Respond in English."}
-
-Output JSON:
-{{
-  "plain_summary": "2-3 sentences — where should this person be and why",
-  "stay_or_move_explanation": "why stay / why move with timing",
-  "top_city_why": "what makes the #1 city right for this person specifically",
-  "honest_gaps": "what data is missing — be direct",
-  "your_move": "one specific action this week"
-}}"""
-
-    _parsed = {}
-    try:
-        _ds_key = os.environ.get("DEEPSEEK_API_KEY", "")
-        if not _ds_key:
-            raise ValueError("DEEPSEEK_API_KEY not set")
-
-        _resp = httpx.post(
-            "https://api.deepseek.com/chat/completions",
-            headers={"Authorization": f"Bearer {_ds_key}"},
-            json={
-                "model":       "deepseek-chat",
-                "messages":    [
-                    {"role": "system", "content": _system},
-                    {"role": "user",   "content": _user},
-                ],
-                "temperature": 0.2,
-                "max_tokens":  700,
-            },
-            timeout=30.0,
-        )
-        _raw = _resp.json()["choices"][0]["message"]["content"].strip()
-
-        # Strip markdown code fences if present
-        if "```" in _raw:
-            _parts = _raw.split("```")
-            for _p in _parts:
-                if "{" in _p:
-                    _raw = _p.lstrip("json").strip()
-                    break
-
-        _parsed = _json.loads(_raw)
-        print(f"[astro-deepseek] OK — {len(_raw)} chars")
-
-    except Exception as _e:
-        print(f"[astro-deepseek] DeepSeek failed (non-fatal): {_e}")
-        _parsed = {
-            "plain_summary":             ranking.get("top_cities", [{}])[0].get("city", ""),
-            "stay_or_move_explanation":  ranking["stay_vs_move"],
-            "top_city_why":              "",
-            "honest_gaps":               ", ".join(ranking.get("missing_lines", [])),
-            "your_move":                 "",
+    rec, chart_data = _ac_v2_load_chart_for_endpoint(request.chart_id)
+    birth_jd = chart_data.get("birth_jd")
+    if not birth_jd:
+        return {
+            "chart_id": request.chart_id,
+            "intent": request.intent,
+            "chart_context": {},
+            "top_cities": [],
+            "stats": {"score_spread": 0.0, "n_scored": 0},
+            "status": "missing_birth_jd",
         }
 
+    from antar_engine.astrocartography_v2 import (
+        astrocartography_v2 as _astro_v2,
+        resolve_intent as _resolve_intent,
+    )
+    canonical_intent = _resolve_intent(request.intent)
+    dasha = _ac_v2_dasha(chart_data, birth_jd)
+    age   = _ac_v2_age_from_birth(rec, chart_data)
+
+    # Score the full city set so the region filter has a pool to draw from.
+    result = _astro_v2(
+        chart_data=chart_data,
+        dasha=dasha,
+        birth_jd=float(birth_jd),
+        intent=canonical_intent,
+        age=age,
+        limit=min(max(int(request.top_n or 5), 1), 10),
+    )
+
+    # Post-rank region filter (legacy contract preserved).
+    region_top = _ac_v2_apply_region_filter(
+        result.get("top_cities", []), request.region, result.get("top_cities", [])
+    )
+    # Recompute spread on the filtered list.
+    if len(region_top) >= 2:
+        spread = round(region_top[0]["score"] - region_top[-1]["score"], 2)
+    else:
+        spread = result.get("stats", {}).get("score_spread", 0.0)
+
     return {
-        **ranking,
-        "narrative":           _parsed,
-        "explanation_model":   "deepseek-chat",
+        "chart_id":      request.chart_id,
+        "intent":        canonical_intent,
+        "intent_input":  request.intent,
+        "region":        (request.region or "global").lower(),
+        "chart_context": result.get("chart_context", {}),
+        "top_cities":    region_top,
+        "stats": {
+            "score_spread": spread,
+            "n_scored":     result.get("stats", {}).get("n_scored", 0),
+            "n_after_region": len(region_top),
+        },
+        "status": "ok",
     }
+
+
+# ── Single-city search ────────────────────────────────────────────────────────
+# Powers the "Search any city" box. Geocodes via _geocode_city (Google Maps
+# fallback to local table). Returns the same chart_context + ONE city card.
+
+class AstroCityRequest(BaseModel):
+    chart_id:   str
+    intent:     str             = Field("career", description="career|money|love|home|growth|depth — accepts legacy aliases")
+    city_query: Optional[str]   = Field(None, description="Free-text city name. Skipped if lat+lng provided.")
+    country:    Optional[str]   = Field("",   description="ISO-2 or country name; helps geocoder disambiguate")
+    lat:        Optional[float] = Field(None, description="Skip geocoder if provided")
+    lng:        Optional[float] = Field(None, description="Skip geocoder if provided")
+    language:   str             = Field("en")
+
+
+_AC_V2_CITY_MEMO = {}  # in-memory memoize: (chart_id, city_query.lower(), intent) → result
+
+
+@app.post("/api/v1/astrocartography/city")
+async def astrocartography_city(
+    request: AstroCityRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """
+    Single-city scoring. Free, no gating. Same v2 engine as /recommend.
+    Returns: { chart_context, card, intent, found }.
+    """
+    from antar_engine.astrocartography_v2 import (
+        score_single_city, resolve_intent as _resolve_intent,
+    )
+
+    rec, chart_data = _ac_v2_load_chart_for_endpoint(request.chart_id)
+    birth_jd = chart_data.get("birth_jd")
+    if not birth_jd:
+        return {
+            "found": False, "intent": request.intent,
+            "chart_context": {}, "card": None,
+            "status": "missing_birth_jd",
+        }
+    canonical_intent = _resolve_intent(request.intent)
+
+    # Resolve lat/lng
+    lat, lng = request.lat, request.lng
+    display_city = request.city_query or ""
+    if lat is None or lng is None:
+        if not request.city_query:
+            return {
+                "found": False, "intent": canonical_intent,
+                "chart_context": {}, "card": None,
+                "status": "city_query_required",
+                "message": "Provide city_query, or lat + lng.",
+            }
+        # Memo hit?
+        memo_key = (request.chart_id, request.city_query.strip().lower(), canonical_intent)
+        if memo_key in _AC_V2_CITY_MEMO:
+            return _AC_V2_CITY_MEMO[memo_key]
+        try:
+            lat, lng, _tz = await _geocode_city(
+                request.city_query.strip(), (request.country or "").strip()
+            )
+        except HTTPException as he:
+            detail = he.detail if isinstance(he.detail, dict) else {"message": str(he.detail)}
+            return {
+                "found": False, "intent": canonical_intent,
+                "chart_context": {}, "card": None,
+                "status": "geocode_failed",
+                "geocode_error": detail,
+                "message": (
+                    f"Couldn\'t locate \"{request.city_query}\". "
+                    "Try a more specific name, add a country, or supply lat/lng."
+                ),
+            }
+
+    dasha = _ac_v2_dasha(chart_data, birth_jd)
+    age   = _ac_v2_age_from_birth(rec, chart_data)
+    out = score_single_city(
+        chart_data=chart_data,
+        dasha=dasha,
+        birth_jd=float(birth_jd),
+        intent=canonical_intent,
+        city_name=display_city or f"({lat:.2f}, {lng:.2f})",
+        city_lat=float(lat),
+        city_lng=float(lng),
+        age=age,
+    )
+
+    response = {
+        "found": bool(out.get("card")),
+        "intent": canonical_intent,
+        "intent_input": request.intent,
+        "city_query": request.city_query or "",
+        "resolved_lat": float(lat),
+        "resolved_lng": float(lng),
+        **out,
+        "status": "ok",
+    }
+    if request.city_query:
+        _AC_V2_CITY_MEMO[(request.chart_id, request.city_query.strip().lower(), canonical_intent)] = response
+        # cap memo
+        if len(_AC_V2_CITY_MEMO) > 512:
+            _AC_V2_CITY_MEMO.pop(next(iter(_AC_V2_CITY_MEMO)))
+    return response
+
 
 # ============================================================================
 # END ASTROCARTOGRAPHY RECOMMENDATION ENDPOINT

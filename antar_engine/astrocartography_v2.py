@@ -204,7 +204,7 @@ def _angularity_term(reloc: Dict, sig_planets: List[str]) -> Tuple[float, List[D
     desc, ic = reloc.get("desc_lon"), reloc.get("ic_lon")
     if asc is None:
         return 0.0, []
-    ORB = 8.0
+    ORB = 6.0  # tighter falloff → sharper within-band spread
     notes = []
     best = 0.0
     for p in sig_planets:
@@ -541,10 +541,26 @@ def build_per_city_card(
     else:
         bucket = "strained"
 
-    # Deterministic per-city headline variation (avoids "same line every city")
-    h = int(hashlib.md5(f"{city_name}|{intent}|{bucket}".encode("utf-8")).hexdigest(), 16)
+    # Signature-driven headline: same astrological signature → same headline.
+    # md5(city_name) only tiebreaks WITHIN identical signatures (±1 variant).
     pool = _HEADLINE_TEMPLATES[bucket]
-    headline = pool[h % len(pool)].format(n=intent_noun)
+    house_notes = debug.get("house_lord", {}).get("notes", []) or []
+    sig_landings = tuple(
+        sorted(
+            (n.get("intent_house"), n.get("lord_house"))
+            for n in house_notes[:3]
+        )
+    )
+    top_ang = (debug.get("angularity", {}).get("notes") or [{}])[0]
+    sig_angle = (top_ang.get("angle"), int(top_ang.get("orb") or 99))
+    dash_notes = debug.get("dasha", {}).get("notes") or []
+    sig_dasha = tuple(sorted(n.get("house") for n in dash_notes[:2] if n.get("house")))
+    signature = (bucket, reloc["asc_sign"], sig_landings, sig_angle, sig_dasha)
+    sig_hash = int(hashlib.md5(repr(signature).encode("utf-8")).hexdigest(), 16)
+    base_idx = sig_hash % len(pool)
+    # within-signature tiebreak: ±1 variant keyed by city name
+    city_offset = int(hashlib.md5(city_name.encode("utf-8")).hexdigest(), 16) % 2
+    headline = pool[(base_idx + city_offset) % len(pool)].format(n=intent_noun)
 
     asc_sign = reloc["asc_sign"]
     shift_lines = _shift_lines(intent_houses, reloc, asc_sign)
@@ -716,3 +732,70 @@ def _scrub(obj):
         s = _SANSKRIT_RE.sub("the cycle", s)
         return s
     return obj
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Intent alias map — accepts legacy /recommend vocabulary
+# ─────────────────────────────────────────────────────────────────────────────
+
+INTENT_ALIASES = {
+    "startup":       "money",
+    "wealth":        "money",
+    "billionaire":   "career",
+    "relationships": "love",
+    "partner":       "love",
+    "marriage":      "marriage",
+    "general":       "general",
+    # passthrough — already canonical
+    "money":         "money",
+    "career":        "career",
+    "love":          "love",
+    "home":          "home",
+    "growth":        "growth",
+    "happiness":     "happiness",
+    "health":        "health",
+    "education":     "education",
+    "spirituality":  "spirituality",
+    "depth":         "depth",
+}
+
+
+def resolve_intent(intent: str) -> str:
+    """Collapse legacy intent vocabulary into the canonical INTENT_HOUSES key."""
+    if not intent:
+        return "career"
+    return INTENT_ALIASES.get(str(intent).lower(), "career")
+
+
+def score_single_city(
+    chart_data: Dict,
+    dasha: Dict,
+    birth_jd: float,
+    intent: str,
+    city_name: str,
+    city_lat: float,
+    city_lng: float,
+    age: Optional[int] = None,
+) -> Dict:
+    """
+    One-city scoring path. Used by the single-city search endpoint.
+    Returns {chart_context, card, intent}.
+    """
+    intent = resolve_intent(intent)
+    reloc = relocate_chart(birth_jd, city_lat, city_lng)
+    if not reloc:
+        return {
+            "intent": intent,
+            "chart_context": build_chart_context(chart_data, dasha, age, intent),
+            "card": None,
+            "error": "relocation_failed",
+        }
+    score, debug = score_city_for_intent(
+        birth_jd, city_lat, city_lng, intent, dasha, age, reloc_cache=reloc,
+    )
+    card = build_per_city_card(city_name, intent, score, debug, reloc)
+    return _scrub({
+        "intent": intent,
+        "chart_context": build_chart_context(chart_data, dasha, age, intent),
+        "card": card,
+    })
