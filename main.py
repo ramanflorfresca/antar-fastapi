@@ -465,6 +465,16 @@ from antar_engine.verdict_resolver import (
     build_fixed_facts_block as _vr_fixed_facts,
     extract_timeframe as _vr_extract_timeframe,
     is_tactical_timeframe as _vr_is_tactical_tf,
+    enforce_timeframe_tense as _vr_enforce_tense,  # [WS1 timeframe-honesty]
+)
+# [WS1 timeframe-honesty] Layer 0 timeframe parser
+from antar_engine.timeframe_parser import (
+    parse_timeframe as _tf_parse,
+    resolve_effective_concern as _tf_carry_concern,
+    TF_KIND_TODAY    as _TF_KIND_TODAY,
+    TF_KIND_NOW      as _TF_KIND_NOW,
+    TF_KIND_TOMORROW as _TF_KIND_TOMORROW,
+    NON_TODAY_KINDS  as _TF_NON_TODAY_KINDS,
 )
 from antar_engine.banned_labels import scrub_fields as _vr_strip_labels
 from antar_engine.life_area_map import get_life_area
@@ -4291,6 +4301,76 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
 
     # ── Concern detection (must come before C3 and C4) ────────
     concern = _detect_concern(request.question)
+    # ── [WS1 timeframe-honesty] Layer 0 — parse the asked timeframe.
+    # The brief: /predict was returning a today read for a tomorrow
+    # question because it never asked when the user wanted answered.
+    # This block parses the question (+ conversation_history for
+    # elliptical follow-ups) into kind + target_date_utc, then
+    # carries the prior turn's concern forward when the current
+    # question is a short fragment like 'Tomorrow?'.
+    try:
+        from datetime import datetime as _tf_dt_now
+        _tf_tz_offset = float(chart_record.get('tz_offset') or 0.0)
+        _tf_ctx = _tf_parse(
+            question=request.question,
+            history=(request.conversation_history or []),
+            tz_offset_hours=_tf_tz_offset,
+            now_utc=_tf_dt_now.utcnow(),
+        )
+        # If the new question is elliptical, the concern detector
+        # will likely return 'general'. Walk back through history
+        # to recover the prior non-general concern.
+        _eff_concern = _tf_carry_concern(
+            current_question=request.question,
+            current_concern=concern,
+            history=(request.conversation_history or []),
+            detect_fn=_detect_concern,
+        )
+        if _eff_concern and _eff_concern != concern:
+            print(
+                f"[predict] [WS1] elliptical follow-up — concern "
+                f"{concern} → {_eff_concern} (from history)"
+            )
+            concern = _eff_concern
+        print(
+            f"[predict] [WS1] timeframe kind={_tf_ctx['kind']} "
+            f"target_date_utc={_tf_ctx['target_date_utc'].isoformat()} "
+            f"label='{_tf_ctx['label_en']}' "
+            f"tactical={_tf_ctx['is_tactical']} "
+            f"elliptical={_tf_ctx['elliptical']}"
+        )
+    except Exception as _tf_e:
+        print(f"[predict] [WS1] timeframe parse failed (non-fatal): {_tf_e}")
+        _tf_ctx = {
+            'kind': 'none', 'target_date_utc': None,
+            'is_tactical': False, 'label_en': '', 'label_es': '',
+            'horizon_days': 0, 'elliptical': False,
+        }
+    # When tf is tomorrow or an explicit calendar day, recompute
+    # transits AT THE TARGET DATE so the rest of the engine
+    # (precision_windows, build_layered_predictions, resolver,
+    # rarity scoring) sees the day-quality of the asked day,
+    # not the day-quality of NOW. Lahiri sidereal mode is
+    # asserted inside calculate_transits via ayanamsa_mode=1.
+    try:
+        if _tf_ctx.get('target_date_utc') and _tf_ctx.get('kind') in (
+            _TF_KIND_TOMORROW, 'explicit_date',
+        ):
+            _tf_target = _tf_ctx['target_date_utc']
+            _raw_transits = transits.calculate_transits(
+                chart_data, target_date=_tf_target, ayanamsa_mode=1,
+            )
+            current_transits = (
+                {t["planet"]: t for t in _raw_transits if "planet" in t}
+                if isinstance(_raw_transits, list) else _raw_transits
+            )
+            transit_summary = transits.summarize_transits(_raw_transits)
+            print(
+                f"[predict] [WS1] transits recomputed for target_date "
+                f"{_tf_target.isoformat()} (kind={_tf_ctx['kind']})"
+            )
+    except Exception as _tf_tr_e:
+        print(f"[predict] [WS1] transit re-compute failed (non-fatal): {_tf_tr_e}")
 
     # ── PATRA (must come before C4) ──────────────────────────────
     user_profile = {
@@ -4730,7 +4810,14 @@ Do not use any planet names or astrological jargon — translate everything into
     # not a date range. Append the current hora+karana boundary so
     # the answer can anchor on a real intraday window.
     try:
-        if _ds_is_tactical(request.question):
+        # [WS1 timeframe-honesty] intraday boundary is measured
+        # against the current moment — meaningful only when the
+        # answer's timeframe is today/now. A tomorrow / explicit
+        # date / week / month answer must NOT carry today's
+        # hora-end boundary.
+        _ws1_tf_kind = (_tf_ctx or {}).get('kind') if '_tf_ctx' in dir() else None
+        _ws1_allow_intraday = _ws1_tf_kind in (None, '', 'none', _TF_KIND_TODAY, _TF_KIND_NOW)
+        if _ds_is_tactical(request.question) and _ws1_allow_intraday:
             _ds_lat, _ds_lng, _ds_loc_src = _resolve_moment_coords(chart_record)
             _ds_tz = float(chart_record.get('tz_offset') or 0.0)
             _intraday = _ds_build_intraday_window(
@@ -4745,6 +4832,11 @@ Do not use any planet names or astrological jargon — translate everything into
                     precision_windows, concern
                 )
                 print(f"[predict] intraday window appended via {_ds_loc_src}")
+        elif _ds_is_tactical(request.question):
+            print(
+                f"[predict] [WS1] intraday window SKIPPED — "
+                f"timeframe kind={_ws1_tf_kind} (not today/now)"
+            )
     except Exception as _ds_iw_e:
         print(f"[predict] intraday window failed (non-fatal): {_ds_iw_e}")
 
@@ -4781,11 +4873,15 @@ Do not use any planet names or astrological jargon — translate everything into
     _resolver_verdict = None
     try:
         from datetime import datetime as _vr_dt
+        # [WS1 timeframe-honesty] resolver scoring anchor = the
+        # asked target_date, not now. Falls back to UTC now when
+        # tf parse failed.
+        _vr_score_date = (_tf_ctx or {}).get('target_date_utc') or _vr_dt.utcnow()
         _resolver_verdict = _vr_resolve(
             chart_id=request.chart_id,
             concern=concern,
             question=request.question,
-            today=_vr_dt.utcnow(),
+            today=_vr_score_date,
             chart_data=chart_data,
             dashas=dashas_response,
             current_transits=current_transits,
@@ -4864,11 +4960,13 @@ Do not use any planet names or astrological jargon — translate everything into
     try:
         if _natal_promise is not None:
             from datetime import datetime as _vr_dt2
+            # [WS1 timeframe-honesty] re-resolve with same target_date.
+            _vr_score_date2 = (_tf_ctx or {}).get('target_date_utc') or _vr_dt2.utcnow()
             _resolver_verdict = _vr_resolve(
                 chart_id=request.chart_id,
                 concern=concern,
                 question=request.question,
-                today=_vr_dt2.utcnow(),
+                today=_vr_score_date2,
                 chart_data=chart_data,
                 dashas=dashas_response,
                 current_transits=current_transits,
@@ -6408,6 +6506,26 @@ State a specific year. Never predict past events as future windows.
             _vr_strip_labels(_pe, language=_lang_bl)
         except Exception as _vr_bl_e:
             print(f'[predict] banned-labels strip failed (non-fatal): {_vr_bl_e}')
+
+        # [WS1 timeframe-honesty] hard guard against today leakage.
+        # When the asked timeframe is not today/now, any 'today',
+        # 'right now', 'today's window' fragment that survived the
+        # other post-passes is replaced by the asked label
+        # ('tomorrow', 'this week', 'on that date', ...). Idempotent.
+        try:
+            _ws1_tf_kind = (_tf_ctx or {}).get('kind')
+            if _ws1_tf_kind and _ws1_tf_kind in _TF_NON_TODAY_KINDS:
+                _vr_enforce_tense(
+                    _pe,
+                    timeframe_kind=_ws1_tf_kind,
+                    language=getattr(request, 'language', 'en') or 'en',
+                )
+                print(
+                    f"[predict] [WS1] timeframe-tense guard applied "
+                    f"for kind={_ws1_tf_kind}"
+                )
+        except Exception as _vr_tt_e:
+            print(f'[predict] [WS1] timeframe-tense guard failed (non-fatal): {_vr_tt_e}')
 
     confidence = predictions["highest_confidence"] or 0.75
     # FIX 9: Layer 2 counter should reflect actual transit injection, not just predictions['layer_2']

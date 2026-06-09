@@ -60,10 +60,32 @@ TIMEFRAME_MONTH   = "this_month"
 TIMEFRAME_YEAR    = "this_year"
 TIMEFRAME_WHEN    = "when"
 TIMEFRAME_NONE    = "none"
+# [WS1 timeframe-honesty] new timeframe kinds — tomorrow is
+# tactical (single-day) but distinct from today; explicit_date
+# means the question pinned a concrete calendar day.
+TIMEFRAME_TOMORROW      = "tomorrow"
+TIMEFRAME_EXPLICIT_DATE = "explicit_date"
 
 # Tactical timeframes are the ones where a multi-year-deferral headline
 # would be dishonest. WS1 guard uses this set.
-_TACTICAL = {TIMEFRAME_TODAY, TIMEFRAME_NOW}
+_TACTICAL = {
+    TIMEFRAME_TODAY, TIMEFRAME_NOW,
+    # [WS1 timeframe-honesty] tomorrow and an explicit date
+    # are single-day questions — they must NOT be answered
+    # with a multi-month horizon headline. Same guard as
+    # today/now.
+    TIMEFRAME_TOMORROW, TIMEFRAME_EXPLICIT_DATE,
+}
+# [WS1 timeframe-honesty] the set of timeframes for which
+# the leakage guard must scrub today framing from the
+# user-facing fields.
+_NON_TODAY_TIMEFRAMES = {
+    TIMEFRAME_TOMORROW,
+    TIMEFRAME_WEEK,
+    TIMEFRAME_MONTH,
+    TIMEFRAME_YEAR,
+    TIMEFRAME_EXPLICIT_DATE,
+}
 
 
 # ─────────────────────────────────────────────────────────────────────
@@ -77,6 +99,13 @@ _TIMEFRAME_MARKERS: List[Tuple[str, List[str]]] = [
         "right now", "this moment", "this minute", "this very moment",
         "at this moment", "in this moment", "now?", "now.", "now,",
         "ahora mismo", "en este momento", "en este instante",
+    ]),
+    # [WS1 timeframe-honesty] tomorrow must be matched BEFORE today
+    # so that 'tomorrow' (which contains no 'today' substring) is
+    # classified as TOMORROW. Spanish 'mañana' included.
+    (TIMEFRAME_TOMORROW, [
+        "tomorrow", "tomorrow's", "by tomorrow", "for tomorrow",
+        "mañana", "manana",
     ]),
     (TIMEFRAME_TODAY, [
         "today", "tonight", "this morning", "this afternoon",
@@ -327,6 +356,41 @@ def _nouns(concern: str) -> Dict[str, str]:
 def _is_es(language: Optional[str]) -> bool:
     return (language or "en").lower().startswith("es")
 
+# [WS1 timeframe-honesty] Display labels for the tense layer.
+# Kept in this module so the compose helpers can resolve them
+# without a dep on timeframe_parser.py.
+_TENSE_LABELS_EN: Dict[str, str] = {
+    TIMEFRAME_TODAY:         "today",
+    TIMEFRAME_NOW:           "right now",
+    TIMEFRAME_TOMORROW:      "tomorrow",
+    TIMEFRAME_WEEK:          "this week",
+    TIMEFRAME_MONTH:         "this month",
+    TIMEFRAME_YEAR:          "this year",
+    TIMEFRAME_EXPLICIT_DATE: "on that date",
+    TIMEFRAME_WHEN:          "in the period ahead",
+    TIMEFRAME_NONE:          "",
+}
+_TENSE_LABELS_ES: Dict[str, str] = {
+    TIMEFRAME_TODAY:         "hoy",
+    TIMEFRAME_NOW:           "ahora mismo",
+    TIMEFRAME_TOMORROW:      "mañana",
+    TIMEFRAME_WEEK:          "esta semana",
+    TIMEFRAME_MONTH:         "este mes",
+    TIMEFRAME_YEAR:          "este año",
+    TIMEFRAME_EXPLICIT_DATE: "en esa fecha",
+    TIMEFRAME_WHEN:          "en el período por venir",
+    TIMEFRAME_NONE:          "",
+}
+
+def _label(tf: str, language: Optional[str]) -> str:
+    table = _TENSE_LABELS_ES if _is_es(language) else _TENSE_LABELS_EN
+    return table.get(tf, "")
+
+# Forward/past-day capitalised forms for sentence starts.
+def _label_cap(tf: str, language: Optional[str]) -> str:
+    lab = _label(tf, language)
+    return (lab[:1].upper() + lab[1:]) if lab else lab
+
 
 def _compose_verdict_line(
     band: str,
@@ -358,34 +422,37 @@ def _compose_verdict_line(
         if any(c.isdigit() for c in _detail) and any(d in _detail for d in ("–", "-", "to")):
             anchor_phrase = _detail
 
+    # [WS1 timeframe-honesty] tense labels — FLAT branch
+    tense_en = _TENSE_LABELS_EN.get(tf, "today") or "today"
+    tense_es = _TENSE_LABELS_ES.get(tf, "hoy") or "hoy"
     if band == VERDICT_FLAT:
         if redirect:
             ga = (redirect.get("guessed_area") or "another area").lower()
             if is_es:
-                return f"Hoy {subj} está neutral — lo que sí está activo es {ga}."
-            return f"{subj_cap} is flat for you today — what's actually live is {ga}."
+                return f"{tense_es.capitalize()} {subj} está neutral — lo que sí está activo es {ga}."
+            return f"{subj_cap} is flat for you {tense_en} — what's actually live is {ga}."
         if tactical:
             if is_es:
-                return f"Hoy {subj} está en una ventana neutral — sin señal específica."
-            return f"{subj_cap} is flat for you today — no specific signal."
+                return f"{tense_es.capitalize()} {subj} está en una ventana neutral — sin señal específica."
+            return f"{subj_cap} is flat for you {tense_en} — no specific signal."
         if is_es:
-            return f"No hay una señal específica para {subj} ahora mismo."
-        return f"Nothing unusual is active for {subj} right now."
+            return f"No hay una señal específica para {subj} en {tense_es or 'este período'}."
+        return f"Nothing unusual is active for {subj} {tense_en or 'right now'}."
 
     if band == VERDICT_WEAK:
         if tactical:
             if is_es:
-                return f"Hoy es una ventana floja para {subj} — frena las apuestas grandes."
-            return f"Today is a soft window for {subj} — hold off on big moves."
+                return f"{tense_es.capitalize()} es una ventana floja para {subj} — frena las apuestas grandes."
+            return f"{tense_en.capitalize()} is a soft window for {subj} — hold off on big moves."
         if is_es:
-            return f"{subj_cap} está flojo para ti ahora — ventana floja."
-        return f"{subj_cap} is soft for you right now — not a strong window."
+            return f"{subj_cap} está flojo para ti en {tense_es or 'este período'} — ventana floja."
+        return f"{subj_cap} is soft for you {tense_en or 'right now'} — not a strong window."
 
     if band == VERDICT_MIXED:
         if tactical:
             if is_es:
-                return f"Hoy {subj} está mixto — sigue con lo pequeño, no fuerces lo grande."
-            return f"{subj_cap} is mixed today — keep moving the small pieces, do not force the big one."
+                return f"{tense_es.capitalize()} {subj} está mixto — sigue con lo pequeño, no fuerces lo grande."
+            return f"{subj_cap} is mixed {tense_en} — keep moving the small pieces, do not force the big one."
         if anchor_phrase:
             if is_es:
                 return f"{subj_cap} está mixto — apoyo estructural, ventana estrecha en {anchor_phrase}."
@@ -397,8 +464,11 @@ def _compose_verdict_line(
     # FAVORABLE
     if tactical:
         if is_es:
-            return f"Hoy {subj} está bien apoyado — actúa ahora."
-        return f"{subj_cap} is well-supported for you today — act now."
+            # [WS1 timeframe-honesty] tomorrow → 'mañana', etc.
+            _act_es = "actúa ahora" if tf in (TIMEFRAME_TODAY, TIMEFRAME_NOW) else "prepárate para actuar dentro de esa ventana"
+            return f"{tense_es.capitalize()} {subj} está bien apoyado — {_act_es}."
+        _act_en = "act now" if tf in (TIMEFRAME_TODAY, TIMEFRAME_NOW) else "set up to act inside that window"
+        return f"{subj_cap} is well-supported for you {tense_en} — {_act_en}."
     if anchor_phrase:
         if is_es:
             return f"{subj_cap} está bien apoyado por tu carta — especialmente {anchor_phrase}."
@@ -421,6 +491,9 @@ def _compose_move(
     watch = nouns["watch"]
     is_es = _is_es(language)
 
+    # [WS1 timeframe-honesty] tense labels — the_move
+    tense_en = _TENSE_LABELS_EN.get(tf, "today") or "today"
+    tense_es = _TENSE_LABELS_ES.get(tf, "hoy") or "hoy"
     if band == VERDICT_FLAT:
         if redirect:
             ga = (redirect.get("guessed_area") or "the live area").lower()
@@ -428,8 +501,8 @@ def _compose_move(
                 return f"Aprovecha la ventana abierta en {ga} en lugar de forzar {nouns['subject']}."
             return f"Pivot to {ga} where the window is open instead of forcing {nouns['subject']}."
         if is_es:
-            return f"Quédate con tu rutina base; no fuerces {act} hoy."
-        return f"Hold your baseline routine; do not force {act} today."
+            return f"Quédate con tu rutina base; no fuerces {act} {tense_es}."
+        return f"Hold your baseline routine; do not force {act} {tense_en}."
 
     if band == VERDICT_WEAK:
         if is_es:
@@ -467,12 +540,28 @@ def _format_window(
                 "date_range": str(horizon_window.get("date_range") or ""),
                 "intraday_boundary": None,
             }
+        # [WS1 timeframe-honesty] tense-aware FLAT closed-window message.
+        if tf == TIMEFRAME_TOMORROW:
+            _flat_msg = "No live window for tomorrow — re-check on the day."
+        elif tf == TIMEFRAME_EXPLICIT_DATE:
+            _flat_msg = "No live window for the asked date — re-check on the day."
+        elif tf == TIMEFRAME_WEEK:
+            _flat_msg = "No standout window inside this week — read again mid-week."
+        elif tf == TIMEFRAME_MONTH:
+            _flat_msg = "No standout window inside this month — re-check next week."
+        elif tf == TIMEFRAME_YEAR:
+            _flat_msg = "No standout window inside this year — re-check next quarter."
+        else:
+            _flat_msg = "Today's window has closed — next live window tomorrow."
         return {
             "label": "",
-            "date_range": "Today's window has closed — next live window tomorrow.",
+            "date_range": _flat_msg,
             "intraday_boundary": None,
         }
-    if intraday_window and tf in _TACTICAL:
+    # [WS1 timeframe-honesty] intraday is meaningful only for today/now —
+    # the boundary is measured against the current moment, not
+    # against tomorrow / an explicit calendar day.
+    if intraday_window and tf in (TIMEFRAME_TODAY, TIMEFRAME_NOW):
         date_range = str(intraday_window.get("date_range") or "")
         label = str(intraday_window.get("window_label") or "Intraday window")
         # The intraday "now → 21:53 local" form already encodes the
@@ -708,6 +797,17 @@ def build_fixed_facts_block(verdict: Dict[str, Any], language: str = "en") -> st
     lines.append("HARD RULES:")
     lines.append("  - Your `signal_line` MUST be the VERDICT LINE (or a tone-")
     lines.append("    rephrasing that preserves its meaning, band, and timeframe).")
+    # [WS1 timeframe-honesty] hard rule for tense
+    _tf_val = verdict.get('timeframe', '') or ''
+    _tense_label_for_prompt = _TENSE_LABELS_ES.get(_tf_val, '') if is_es else _TENSE_LABELS_EN.get(_tf_val, '')
+    if _tf_val and _tf_val not in (TIMEFRAME_TODAY, TIMEFRAME_NOW, TIMEFRAME_NONE):
+        lines.append("  - TIMEFRAME TENSE: the TIMEFRAME above is '" + _tf_val + "'")
+        if _tense_label_for_prompt:
+            lines.append("    (display label: '" + _tense_label_for_prompt + "').")
+        lines.append("    The answer's tense MUST match. DO NOT use 'today',")
+        lines.append("    'right now', 'tonight', 'this morning', 'this evening',")
+        lines.append("    'today's window', 'hoy', 'ahora mismo' anywhere in the")
+        lines.append("    response when the TIMEFRAME is not today/now.")
     lines.append("  - Your `action_item` MUST be THE MOVE.")
     lines.append("  - Your `timing_window` MUST be the WINDOW above.")
     lines.append("  - Your `plain_summary` may add 1-3 sentences of context but")
@@ -759,6 +859,129 @@ def build_fixed_facts_block(verdict: Dict[str, Any], language: str = "en") -> st
 # to prevent the verdict ↔ summary contradiction.
 # ─────────────────────────────────────────────────────────────────────
 
+
+# ─────────────────────────────────────────────────────────────────────
+# [WS1 timeframe-honesty] enforce_timeframe_tense
+# Hard guard against today framing leaking into non-today timeframe
+# answers. Called from /predict AFTER plain_english, the verdict
+# override, the dangling-text scrub, and the banned-labels scrub.
+# Idempotent — second call on the same dict is a no-op.
+# ─────────────────────────────────────────────────────────────────────
+
+import re as _wsl_re
+
+_WSL_FIELDS = (
+    "signal_line", "plain_summary", "why_this",
+    "action_item", "timing_window", "bridge_practice_note",
+)
+
+# Patterns matched case-insensitively. Each tuple = (regex_en, regex_es).
+_WSL_TODAY_PATTERNS = [
+    (r"\btoday's window\b",          r"\bla ventana de hoy\b"),
+    (r"\btoday's read\b",            r"\bla lectura de hoy\b"),
+    (r"\btoday\b",                   r"\bhoy\b"),
+    (r"\bright now\b",               r"\bahora mismo\b"),
+    (r"\btonight\b",                 r"\besta noche\b"),
+    (r"\bthis morning\b",            r"\besta mañana\b"),
+    (r"\bthis afternoon\b",          r"\besta tarde\b"),
+    (r"\bthis evening\b",            r"\besta tarde-noche\b"),
+    (r"\bthis hour\b",               r"\bdentro de una hora\b"),
+]
+
+_WSL_FALLBACK_LABEL_EN = {
+    "tomorrow":      "tomorrow",
+    "this_week":     "this week",
+    "this_month":    "this month",
+    "this_year":     "this year",
+    "explicit_date": "on that date",
+}
+_WSL_FALLBACK_LABEL_ES = {
+    "tomorrow":      "mañana",
+    "this_week":     "esta semana",
+    "this_month":    "este mes",
+    "this_year":     "este año",
+    "explicit_date": "en esa fecha",
+}
+
+def _wsl_repair(text: str, label: str) -> str:
+    if not text:
+        return text
+    out = text
+    cap = (label[:1].upper() + label[1:]) if label else label
+    # [WS1 timeframe-honesty] capitalised forms FIRST — if we let an
+    # IGNORECASE pass run first, sentence-start "Today" lowercases to
+    # "tomorrow" before the cap pass can match.
+    out = _wsl_re.sub(r"\bToday's window\b", cap + "'s window", out)
+    out = _wsl_re.sub(r"\bToday's read\b", cap + "'s read", out)
+    out = _wsl_re.sub(r"\bToday\b", cap, out)
+    out = _wsl_re.sub(r"\bTonight\b", cap, out)
+    out = _wsl_re.sub(r"\bThis morning\b", cap, out)
+    out = _wsl_re.sub(r"\bThis afternoon\b", cap, out)
+    out = _wsl_re.sub(r"\bThis evening\b", cap, out)
+    out = _wsl_re.sub(r"\bRight now\b", cap, out)
+    out = _wsl_re.sub(r"\bThis hour\b", cap, out)
+    # Lowercase forms — case-sensitive so we don't undo the cap pass.
+    out = _wsl_re.sub(r"\btoday's window\b", label + "'s window", out)
+    out = _wsl_re.sub(r"\btoday's read\b", label + "'s read", out)
+    out = _wsl_re.sub(r"\btoday\b", label, out)
+    out = _wsl_re.sub(r"\btonight\b", label, out)
+    out = _wsl_re.sub(r"\bthis morning\b", label, out)
+    out = _wsl_re.sub(r"\bthis afternoon\b", label, out)
+    out = _wsl_re.sub(r"\bthis evening\b", label, out)
+    out = _wsl_re.sub(r"\bright now\b", label, out)
+    out = _wsl_re.sub(r"\bthis hour\b", label, out)
+    return out
+
+def _wsl_repair_es(text: str, label_es: str) -> str:
+    if not text:
+        return text
+    out = text
+    cap = (label_es[:1].upper() + label_es[1:]) if label_es else label_es
+    # Capitalised forms first.
+    out = _wsl_re.sub(r"\bLa ventana de hoy\b", "La ventana de " + label_es, out)
+    out = _wsl_re.sub(r"\bLa lectura de hoy\b", "La lectura de " + label_es, out)
+    out = _wsl_re.sub(r"\bHoy\b", cap, out)
+    out = _wsl_re.sub(r"\bAhora mismo\b", cap, out)
+    out = _wsl_re.sub(r"\bEsta noche\b", cap, out)
+    out = _wsl_re.sub(r"\bEsta mañana\b", cap, out)
+    out = _wsl_re.sub(r"\bEsta tarde\b", cap, out)
+    # Lowercase forms.
+    out = _wsl_re.sub(r"\bla ventana de hoy\b", "la ventana de " + label_es, out)
+    out = _wsl_re.sub(r"\bla lectura de hoy\b", "la lectura de " + label_es, out)
+    out = _wsl_re.sub(r"\bhoy\b", label_es, out)
+    out = _wsl_re.sub(r"\bahora mismo\b", label_es, out)
+    out = _wsl_re.sub(r"\besta noche\b", label_es, out)
+    out = _wsl_re.sub(r"\besta mañana\b", label_es, out)
+    out = _wsl_re.sub(r"\besta tarde\b", label_es, out)
+    return out
+
+def enforce_timeframe_tense(
+    pe: Optional[Dict[str, Any]],
+    timeframe_kind: Optional[str],
+    language: str = "en",
+) -> Optional[Dict[str, Any]]:
+    """Scrub today framing from user-facing fields when the asked
+    timeframe is not today/now. Idempotent. Never raises.
+    Returns the same dict it was given."""
+    if not pe or not isinstance(pe, dict):
+        return pe
+    tf = (timeframe_kind or "").strip().lower()
+    if tf in ("", "today", "now", "none"):
+        return pe
+    is_es = (language or "en").lower().startswith("es")
+    label_en = _WSL_FALLBACK_LABEL_EN.get(tf, tf.replace("_", " "))
+    label_es = _WSL_FALLBACK_LABEL_ES.get(tf, tf.replace("_", " "))
+    for field in _WSL_FIELDS:
+        v = pe.get(field)
+        if not isinstance(v, str) or not v:
+            continue
+        try:
+            pe[field] = _wsl_repair_es(v, label_es) if is_es else _wsl_repair(v, label_en)
+        except Exception:
+            # never crash /predict on a cosmetic guard
+            continue
+    return pe
+
 def compose_plain_summary(verdict: dict, language: str = "en") -> str:
     """Python-authored plain_summary aligned with the band. Always
     safe to call — returns empty string when verdict is missing."""
@@ -788,23 +1011,29 @@ def compose_plain_summary(verdict: dict, language: str = "en") -> str:
                     " donde el momento favorece tu siguiente movimiento."
                 )
             else:
+                # [WS1 timeframe-honesty] tense-aware FLAT redirect (en).
+                _tense_en = _TENSE_LABELS_EN.get(tf, "today") or "today"
                 body = (
                     f"{first}. There is no chart-specific signal active for this"
-                    f" area today. What IS live for you is {ga} — that is where"
+                    f" area {_tense_en}. What IS live for you is {ga} — that is where"
                     " the timing actually favours a next move."
                 )
         else:
             if is_es:
+                # [WS1 timeframe-honesty] tense-aware FLAT summary (es).
+                _tense_es = _TENSE_LABELS_ES.get(tf, "hoy") or "hoy"
                 body = (
-                    f"{first}. Hoy es una ventana neutral — nada inusual está"
+                    f"{first}. {_tense_es.capitalize()} es una ventana neutral — nada inusual está"
                     " activo en tu carta para esta área. Mantén tu rutina base;"
                     " no fuerces nada porque la fecha lo pida."
                 )
             else:
                 # # [verb-fix] Hold not Move — match action_item's verb so plain_summary
                 # and action_item don't read as a merge bug.
+                # [WS1 timeframe-honesty] tense-aware FLAT summary.
+                _tense_en = _TENSE_LABELS_EN.get(tf, "today") or "today"
                 body = (
-                    f"{first}. Today is a neutral window — nothing unusual is"
+                    f"{first}. {_tense_en.capitalize()} is a neutral window — nothing unusual is"
                     " active in your chart for this area. Hold your baseline"
                     " routine; do not force a step because the date demands one."
                 )
@@ -814,15 +1043,19 @@ def compose_plain_summary(verdict: dict, language: str = "en") -> str:
 
     if band == VERDICT_WEAK:
         if is_es:
+            # [WS1 timeframe-honesty] tense-aware WEAK summary (es).
+            _tense_es = _TENSE_LABELS_ES.get(tf, "hoy") or "hoy"
             body = (
-                f"{first}. Hoy es una ventana floja para esta área — la energía"
+                f"{first}. {_tense_es.capitalize()} es una ventana floja para esta área — la energía"
                 " es muestra-y-revisión, no compromiso. Apúrate a las piezas"
                 " pequeñas; reserva las apuestas grandes para una ventana más"
                 " fuerte."
             )
         else:
+            # [WS1 timeframe-honesty] tense-aware WEAK summary (en).
+            _tense_en = _TENSE_LABELS_EN.get(tf, "today") or "today"
             body = (
-                f"{first}. Today is a soft window for this area — the energy"
+                f"{first}. {_tense_en.capitalize()} is a soft window for this area — the energy"
                 " favours review and small moves, not commitment. Move the"
                 " small pieces; hold the big bets for a stronger window."
             )
