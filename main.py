@@ -4795,6 +4795,7 @@ Do not use any planet names or astrological jargon — translate everything into
             precision_windows=precision_windows,
             anchor_decision=_anchor_decision,
             language=getattr(request, 'language', 'en') or 'en',
+            chart_type=(chart_record.get('chart_type') if isinstance(chart_record, dict) else None),  # [compat-exclude] chart_type
         )
         print(
             f"[predict] resolver verdict={_resolver_verdict['verdict']} "

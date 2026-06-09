@@ -514,11 +514,47 @@ def resolve_domain_verdict(
     precision_windows: Optional[List[Dict[str, Any]]] = None,
     anchor_decision: Optional[Dict[str, Any]] = None,
     language: str = "en",
+    chart_type: Optional[str] = None,  # [compat-exclude] signature
 ) -> Dict[str, Any]:
     """The deterministic resolver. Returns the verdict dict described
     at the top of the module. Never raises — every failure path
     degrades to a FLAT verdict so /predict never falls through."""
     today = today or datetime.utcnow()
+    # [compat-exclude] early-return
+    # V2.2 locked rule: compat charts never produce an event/transit
+    # read. Founder ruling 2026-06-05 already excludes compat from
+    # /predict/event; mirror that here so any /predict path that
+    # routes to a compat chart returns FLAT with a clear reason
+    # rather than running transit math on a synthesised midpoint.
+    if isinstance(chart_type, str) and chart_type.lower() == "compatibility":
+        is_es_ct = (language or "en").lower().startswith("es")
+        verdict_line_ct = (
+            "Esta no es la carta correcta para una lectura de evento — "
+            "abre tu carta personal para una respuesta de hoy."
+            if is_es_ct else
+            "This isn't the right chart for an event read — open your "
+            "personal chart for a today answer."
+        )
+        the_move_ct = (
+            "Cambia a tu carta personal y vuelve a hacer la pregunta."
+            if is_es_ct else
+            "Switch to your personal chart and ask the question again."
+        )
+        return {
+            "verdict": VERDICT_FLAT,
+            "timeframe": TIMEFRAME_NOW,
+            "verdict_line": verdict_line_ct,
+            "the_move": the_move_ct,
+            "anchor": None,
+            "redirect_candidate": None,
+            "secondary_note": "",
+            "_debug": {
+                "chart_id": chart_id,
+                "concern": concern,
+                "combined": 0.0,
+                "reason": "compatibility_chart_excluded",
+            },
+        }
     tf = extract_timeframe(question)
 
     # WS2 — wider domain scan (life_area_map). Imported here to keep
