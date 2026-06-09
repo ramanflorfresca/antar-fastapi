@@ -135,3 +135,161 @@ def build_predict_noun_block(
     )
 
     return "\n".join(parts) + "\n"
+
+
+# ─────────────────────────────────────────────────────────────────────
+# [gap2-noun-splice 2026-06-09] Subject-clause splicers.
+# The verdict resolver authors signal_line + plain_summary from a
+# template — Claude's noun naming is lost during the override. These
+# helpers re-introduce the confirmed noun into the SUBJECT clause
+# without altering the verdict adjective or window phrase.
+# ─────────────────────────────────────────────────────────────────────
+
+import re as _re
+
+
+# Concern → conservative subject phrase the template usually opens
+# with. We rewrite the OPENING subject if it matches one of these.
+# Only domains in _VENTURE_DOMAINS get spliced.
+_CONCERN_SUBJECT_RE = {
+    "speculation": _re.compile(
+        r"^(?:the\s+)?speculative\s+(?:call|move|trade|bet|deployment)"
+        r"(?:\s+you'?re\s+(?:weighing|considering|eyeing))?",
+        _re.IGNORECASE,
+    ),
+    "career": _re.compile(
+        r"^(?:the\s+)?(?:career\s+(?:move|decision|step|conversation)|"
+        r"professional\s+positioning|your\s+career)",
+        _re.IGNORECASE,
+    ),
+    "finance": _re.compile(
+        r"^(?:the\s+)?(?:financial\s+(?:decision|move|position)|"
+        r"capital\s+(?:deployment|move)|your\s+(?:money|finances))",
+        _re.IGNORECASE,
+    ),
+    "wealth": _re.compile(
+        r"^(?:the\s+)?wealth\s+(?:position|move|build)",
+        _re.IGNORECASE,
+    ),
+    "funding": _re.compile(
+        r"^(?:the\s+)?(?:funding\s+(?:round|conversation)|capital\s+raise)",
+        _re.IGNORECASE,
+    ),
+    "money": _re.compile(
+        r"^(?:your\s+)?(?:money|finances)\s+(?:position|move|today|tomorrow)?",
+        _re.IGNORECASE,
+    ),
+    "business": _re.compile(
+        r"^(?:the\s+)?(?:business\s+(?:move|call|decision)|your\s+business)",
+        _re.IGNORECASE,
+    ),
+}
+
+
+def _noun_phrase(ventures, profession: str) -> str:
+    """Build a subject phrase from confirmed nouns. Prefers ventures
+    (more specific). Caps at 2 names ('Antar and TezopsAI'). Falls
+    back to 'your <profession>' when no ventures."""
+    vs = _coerce_ventures(ventures)
+    if vs:
+        if len(vs) == 1:
+            return vs[0]
+        if len(vs) == 2:
+            return f"{vs[0]} and {vs[1]}"
+        return f"{vs[0]}, {vs[1]} and others"
+    p = _coerce_profession(profession)
+    if p:
+        # 'Founder + CEO' → 'as a Founder + CEO' subject form.
+        return f"your work as {p}"
+    return ""
+
+
+def rewrite_signal_line(line: str, ventures, profession: str, concern: str) -> str:
+    """Replace the template SUBJECT clause with the noun phrase.
+
+    Examples (subject in [brackets]):
+        IN : '[The speculative call you're weighing] is flat for you tomorrow.'
+        OUT: '[Antar and TezopsAI] are flat for you tomorrow.'
+
+        IN : '[Professional positioning] is favorable today.'
+        OUT: '[Antar and TezopsAI] are favorable today.'
+
+    No-op when:
+      - concern not in venture-domain family,
+      - or no noun is present,
+      - or the line doesn't match a known subject pattern.
+    """
+    if not isinstance(line, str) or not line:
+        return line
+    if not is_venture_domain(concern):
+        return line
+    noun = _noun_phrase(ventures, profession)
+    if not noun:
+        return line
+
+    domain = (concern or "general").lower()
+    pat = _CONCERN_SUBJECT_RE.get(domain)
+    if not pat:
+        return line
+
+    # Adjust the copula for singular vs compound subject.
+    # "X is" vs "X and Y are". Tiny heuristic.
+    _is_compound = (
+        " and " in noun or
+        noun.count(",") >= 1 or
+        len(_coerce_ventures(ventures)) >= 2
+    )
+
+    out, n = pat.subn(noun, line, count=1)
+    if not n:
+        return line
+
+    # Fix verb agreement if the template said 'is' and we now have a
+    # compound subject. Only the FIRST 'is' immediately after the
+    # noun (within 30 chars) is rewritten.
+    if _is_compound:
+        head = out[:120]
+        tail = out[120:]
+        head = _re.sub(
+            r"^(\s*" + _re.escape(noun) + r")\s+is\b",
+            r"\1 are",
+            head,
+            count=1,
+        )
+        out = head + tail
+
+    # Sentence-start capitalization fix — when the noun phrase starts
+    # with a lowercase word ('your work as CFO'), bump the first letter.
+    if out and out[0].islower():
+        out = out[0].upper() + out[1:]
+
+    return out
+
+
+def rewrite_plain_summary(text: str, ventures, profession: str, concern: str) -> str:
+    """Splice the noun into the OPENING clause of plain_summary.
+
+    Strategy: if the first sentence matches a template subject pattern,
+    rewrite that sentence the same way as signal_line. Subsequent
+    sentences are left alone (we're not paraphrasing the whole prose,
+    just naming the subject).
+    """
+    if not isinstance(text, str) or not text:
+        return text
+    if not is_venture_domain(concern):
+        return text
+    noun = _noun_phrase(ventures, profession)
+    if not noun:
+        return text
+
+    # Split on first sentence boundary.
+    parts = _re.split(r"(\.\s+|\!\s+|\?\s+)", text, maxsplit=1)
+    if not parts:
+        return text
+    first = parts[0]
+    rest = "".join(parts[1:]) if len(parts) > 1 else ""
+
+    new_first = rewrite_signal_line(first, ventures, profession, concern)
+    if new_first == first:
+        return text
+    return new_first + rest

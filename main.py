@@ -1178,7 +1178,13 @@ class RemedyOut(BaseModel):
     chakra_meditation: str
 
 class PredictResponse(BaseModel):
-    prediction:             str
+    # [predclean 2026-06-09] `prediction` field deleted from the
+    # client contract. The long-form blob carried a generative
+    # <energy>-and-<energy> leak class no regex can pre-empt.
+    # Structured fields (signal_line, plain_summary, why_this,
+    # action_item, timing_window) are the user-facing surface.
+    # `prediction_text` retained internally for DB persistence
+    # (predictions table insert + conversation rehydration).
     confidence:             float
     factors:                List[str]
     dashas:                 Optional[Dict[str, List[DashaPeriodOut]]] = None
@@ -4156,7 +4162,7 @@ Keep response under 200 words. Be warm, specific, actionable."""
                 pass
 
             return {
-                "prediction":    _loc_answer,
+                # [predclean 2026-06-09] "prediction" key dropped
                 "plain_summary": _loc_answer,
                 "confidence":    0.80,
                 "factors":       [c["city"] for c in _loc_ranking.get("top_cities", [])[:3]],
@@ -6299,8 +6305,7 @@ State a specific year. Never predict past events as future windows.
                 )
 
                 return {
-                    # Required fields (PredictResponse model)
-                    "prediction":   _pred_text,
+                    # [predclean 2026-06-09] "prediction" key dropped
                     "confidence":   _conf_float,
                     "factors":      _factors,
                     # Optional structured fields for frontend
@@ -6585,6 +6590,47 @@ State a specific year. Never predict past events as future windows.
         except Exception as _vr_ov_e:
             print(f'[predict] verdict override failed (non-fatal): {_vr_ov_e}')
 
+        # [gap2-noun-splice 2026-06-09] Splice the confirmed-noun
+        # subject into signal_line + plain_summary AFTER the resolver
+        # template has been applied. The resolver owns the verdict
+        # adjective ('flat'/'favorable'/'mixed') and the window; we
+        # only rewrite the SUBJECT clause to name the venture/role.
+        # No-op when concern is not a venture-domain OR no noun is
+        # present on the chart row + request. Sparsity gate preserved.
+        try:
+            from antar_engine.predict_noun_contract import (
+                rewrite_signal_line as _gap2_rsl,
+                rewrite_plain_summary as _gap2_rps,
+                is_venture_domain as _gap2_ivd,
+            )
+            if _pe and _gap2_ivd(concern):
+                _gap2_ven = (
+                    chart_record.get('ventures')
+                    or chart_record.get('active_ventures')
+                    or getattr(request, 'ventures', None)
+                    or []
+                )
+                _gap2_prof = (
+                    chart_record.get('profession')
+                    or chart_record.get('role')
+                    or getattr(request, 'profession', '')
+                    or ''
+                )
+                _orig_sl = _pe.get('signal_line', '')
+                _orig_ps = _pe.get('plain_summary', '')
+                _new_sl = _gap2_rsl(_orig_sl, _gap2_ven, _gap2_prof, concern)
+                _new_ps = _gap2_rps(_orig_ps, _gap2_ven, _gap2_prof, concern)
+                if _new_sl != _orig_sl or _new_ps != _orig_ps:
+                    _pe['signal_line'] = _new_sl
+                    _pe['plain_summary'] = _new_ps
+                    print(
+                        f"[predict] gap2-noun-splice: subject rewritten "
+                        f"concern={concern} ventures={bool(_gap2_ven)} "
+                        f"profession={bool(_gap2_prof)}"
+                    )
+        except Exception as _gap2_sp_e:
+            print(f"[predict] noun-splice failed (non-fatal): {_gap2_sp_e}")
+
         # [verdict-resolver] banned-labels strip
         # WS3: strip internal energy-translation labels from every
         # user-facing field. Idempotent.
@@ -6850,7 +6896,7 @@ State a specific year. Never predict past events as future windows.
     except Exception as _legacy_pc_e:
         print(f"[predict-cleanup] legacy scrub non-fatal: {_legacy_pc_e}")
     return PredictResponse(
-        prediction=prediction_text,
+        # [predclean 2026-06-09] `prediction=` arg dropped
         confidence=confidence,
         factors=factors,
         dashas=dashas_response,
@@ -14215,11 +14261,25 @@ def _ask_scrub_payload(payload: dict, fields: list, language: str = 'en') -> dic
     try:
         from antar_engine.banned_labels import strip_energy_labels as _ask_strip
         from antar_engine.narration_polish import polish as _ask_polish
-        # Strip in place on every field.
+        # [predclean 2026-06-09] read/next/timing must run the
+        # SAME house-area scrub as the structured fields. The
+        # `Nth area` / `Nth house` leak class was only caught
+        # in plain_summary etc. before — read/next went through.
+        # Pair both passes inside the same loop so the read/next
+        # fallback gets the full deterministic strip stack.
+        #
+        # FALLBACK REMOVAL TARGET: 2026-06-23
+        # (T+14 days post-launch of structured /predict rollout).
+        # After that date the Ask UI fallback can be retired and
+        # Lovable becomes the only render path for /ask. Tracked
+        # in memory: project_predclean_fallback_removal.md
+        from antar_engine.narration_polish import strip_house_area_leaks as _ask_shal
         for f in fields:
             v = payload.get(f)
             if isinstance(v, str) and v:
-                payload[f] = _ask_strip(v, language=language)
+                v = _ask_strip(v, language=language)
+                v = _ask_shal(v)
+                payload[f] = v
         # Polish runs on a tiny faux dict — it reads timing_window for
         # the clock-token promotion. We alias 'timing' (or 'window')
         # over to 'timing_window' for the polish call, then copy back.
