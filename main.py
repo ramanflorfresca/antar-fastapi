@@ -24460,6 +24460,29 @@ async def get_life_arc(
                     print(f"[life_arc] Cache HIT for {chart_id} (lib={_lib_version})")
                     if not include_readings and isinstance(life_arc, dict):
                         life_arc.pop("system_readings", None)
+                    # [cycle-andres-fix 2026-06-09] Cache may pre-date the
+                    # narration-contract strip layer — recursively apply
+                    # output_strips (planet names + Sanskrit + houses) +
+                    # narration_polish strippers + invented-vocab kill.
+                    try:
+                        from antar_engine.output_strips import apply_user_facing_strips as _cyc_aufs
+                        def _cyc_walk(obj):
+                            if isinstance(obj, dict):
+                                return {k: _cyc_walk(v) for k, v in obj.items()}
+                            if isinstance(obj, list):
+                                return [_cyc_walk(v) for v in obj]
+                            if isinstance(obj, str) and obj:
+                                v = _cyc_aufs(obj, language='en', field_type='plain')
+                                # invented-vocab kill (re-banned)
+                                import re as _cre
+                                v = _cre.sub(r'\b(?:sub-chapter|micro-chapter|chapter-nesting)\b', 'phase', v, flags=_cre.IGNORECASE)
+                                v = _cre.sub(r'\bmajor\s+chapter\b', 'this chapter', v, flags=_cre.IGNORECASE)
+                                v = _cre.sub(r'\bmajor/sub/micro\b', 'phase', v, flags=_cre.IGNORECASE)
+                                return v
+                            return obj
+                        life_arc = _cyc_walk(life_arc)
+                    except Exception as _cyc_e:
+                        print(f'[life-arc] cycle-andres-fix scrub skipped: {_cyc_e}')
                     # [strip-3surfaces-returns 2026-06-09]
                     life_arc = _strip_payload_leaves(life_arc, language=locals().get('language', 'en'))
                     return _ent_cycle_view(life_arc, chart_id)

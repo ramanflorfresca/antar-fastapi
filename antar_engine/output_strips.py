@@ -490,6 +490,8 @@ _BANNED_SANSKRIT_TERMS: tuple[str, ...] = (
     "lagna", "yogakaraka", "vargottama", "panchanga", "tithi", "karana",
     "vara", "hora", "ayanamsa", "ephemeris", "varshphal", "masik",
     "teva", "umra",
+    # [cycle-andres-fix 2026-06-09] Cycle invented-vocab drops
+    "sub-chapter", "micro-chapter", "chapter-nesting", "major/sub/micro",
 )
 
 _DAY_NAMES_ES: tuple[str, ...] = (

@@ -308,9 +308,14 @@ Generate now:"""
 
 
 def _fallback_diagnostic(vim: dict, overlay: dict, psychology: dict, next_shift: dict) -> dict:
-    """Rule-based diagnostic when Claude is unavailable."""
-    md = vim.get("md", "Unknown")
-    ad = vim.get("ad", "Unknown")
+    """Rule-based diagnostic when Claude is unavailable.
+    [cycle-andres-fix 2026-06-09] All planet names translated via
+    _energy_name before use."""
+    from antar_engine.life_arc.voice.energy_vocabulary import (
+        get_energy_name as _energy_name,
+    )
+    md = _energy_name(vim.get("md", "Unknown"))
+    ad = _energy_name(vim.get("ad", "Unknown"))
     ad_end = vim.get("ad_end_date", "Unknown")
 
     stuckness = []
@@ -333,7 +338,7 @@ def _fallback_diagnostic(vim: dict, overlay: dict, psychology: dict, next_shift:
             months = 0
         stuckness.append({
             "source": f"Sade Sati ({parts[0].strip()})",
-            "explanation": "Saturn transiting your natal Moon compresses emotional-mental resources. Motivation feels heavy, not absent.",
+            "explanation": "A long structural pressure on your emotional foundation compresses motivation. Mind feels heavy, not absent.",
             "duration_remaining_months": months,
         })
 
