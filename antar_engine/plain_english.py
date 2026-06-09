@@ -669,6 +669,22 @@ def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
         _bl_log.getLogger('plain_english').warning(
             f'banned_labels scrub failed (non-fatal): {_bl_e}'
         )
+    # [narration-polish] polish wire
+    # Defect 2 + minor (founder brief 2026-06-09): promote
+    # relative-time phrases ('late morning', 'soon') to the
+    # actual clock token from timing_window, and fix sentence-
+    # boundary capitalization. Runs AFTER banned_labels so the
+    # capitalization fix catches any sentence-start lowercase
+    # introduced by deletions.
+    try:
+        from antar_engine.narration_polish import polish as _np_polish
+        _lang_np = (chart_context or {}).get('language', 'en') or 'en'
+        _np_polish(result, language=_lang_np)
+    except Exception as _np_e:
+        import logging as _np_log
+        _np_log.getLogger('plain_english').warning(
+            f'narration_polish failed (non-fatal): {_np_e}'
+        )
     # Repair Claude-emitted dangling boilerplate (e.g. 'wait until to
     # decide', 'Wait until when the pressure lifts'). Idempotent and
     # never invents dates — only repairs empty placeholders.

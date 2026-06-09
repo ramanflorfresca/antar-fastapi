@@ -183,8 +183,48 @@ def strip_energy_labels(text: str, language: str = "en") -> str:
     out = re.sub(r"\s+(energy|layer|vibe)\.", ".", out, flags=re.IGNORECASE)
     out = re.sub(r"\s+(energy|layer|vibe),", ",", out, flags=re.IGNORECASE)
 
-    # Collapse double spaces created by replacements.
+    # [narration-polish] general-energy + metaphor + house-jargon
+    # Defect 1 (founder brief 2026-06-09): catch ANY '<word> energy'
+    # or '<word>-and-<word> energy' the canonical map missed, ban
+    # metaphor verbs, and translate stock house jargon.
+    #
+    # The general regex matches forms like:
+    #   'structure-and-persistence energy' (escaped the canonical map)
+    #   'persistence energy', 'discipline-and-structure energy'
+    #   'persistence and structure energy'
+    # Replacement: empty (drop the construction; the surrounding
+    # clause re-reads as plain English).
+    out = re.sub(
+        r"\b[\w-]+(?:\s+and\s+[\w-]+)?\s+energy\b",
+        "",
+        out,
+        flags=re.IGNORECASE,
+    )
+    # Metaphor verbs: 'pressing through' / 'flowing through' /
+    # 'moving through' / 'coursing through' — drop the verb phrase.
+    out = re.sub(
+        r"\b(?:pressing|flowing|moving|coursing)\s+through\b",
+        "into",
+        out,
+        flags=re.IGNORECASE,
+    )
+    # House jargon → plain-language equivalents.
+    _HOUSE_JARGON = {
+        "hidden gains":     "back-channel income",
+        "hidden income":    "back-channel income",
+        "hidden losses":    "back-channel costs",
+        "hidden expenses":  "back-channel costs",
+        "hidden wealth":    "reserves",
+        "shared resources": "joint funds",
+    }
+    for _src, _dst in _HOUSE_JARGON.items():
+        out = re.sub(r"\b" + re.escape(_src) + r"\b",
+                     _dst, out, flags=re.IGNORECASE)
+    # Tidy residual artefacts from the energy-strip
+    # (e.g. 'your   savings' or ' . ').
+    out = re.sub(r"\s+([.,;!?])", r"\1", out)
     out = re.sub(r"  +", " ", out).strip()
+    # Collapse double spaces created by replacements.
     return out
 
 
