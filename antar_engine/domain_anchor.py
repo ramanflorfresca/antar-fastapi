@@ -322,6 +322,7 @@ def has_domain_anchor(
     predictions: Optional[Dict[str, Any]] = None,
     current_transits: Any = None,
     chart_data: Optional[Dict[str, Any]] = None,
+    birth_jd: Optional[float] = None,  # [dasha-gate] signature
 ) -> Dict[str, Any]:
     """Decide whether the asked area has a domain-matched signal.
 
@@ -359,12 +360,57 @@ def has_domain_anchor(
             anchor = t_anchor
             matched_via = "transit"
 
+    # [dasha-gate] V2.2 precedence
+    # V2.2: a matched signal alone is no longer enough. The asked
+    # area must ALSO have an active or supportive dasha for the
+    # signal to count as a real anchor. Backwards-compatible: when
+    # birth_jd / chart_data is absent (legacy callers), we skip
+    # the gate and behave like the prior any-matched-signal logic.
+    dasha_state = None
+    dasha_reason = None
+    try:
+        if birth_jd is not None and chart_data:
+            from antar_engine.life_area_map import get_life_area
+            from antar_engine.dasha_activation import compute_dasha_state_for_area
+            _area = get_life_area(concern_n)
+            _ds = compute_dasha_state_for_area(
+                chart_data=chart_data,
+                birth_jd=birth_jd,
+                life_area_config=_area,
+            )
+            dasha_state = _ds.get("state")
+            dasha_reason = _ds.get("reason")
+    except Exception as _dg_e:
+        # Never crash anchor decision over a dasha read failure.
+        dasha_state = None
+        dasha_reason = f"dasha gate failed: {_dg_e}"
+
+    # Two paths, V2.2 precedence:
+    #   window-path : matched signal AND dasha ACTIVE or SUPPORTIVE
+    #   promise-path: a window-/horizon-path scan returned AND
+    #                 dasha is strictly ACTIVE for the area
+    has_anchor_via_window = (
+        anchor is not None
+        and dasha_state in ("ACTIVE", "SUPPORTIVE")
+    )
+    has_anchor_via_promise = (
+        matched_via in ("layer_1", "layer_2", "layer_3", "layer_4")
+        and dasha_state == "ACTIVE"
+    )
+    if dasha_state is None:
+        # Gate unavailable — preserve prior behaviour.
+        has_anchor_final = anchor is not None
+    else:
+        has_anchor_final = has_anchor_via_window or has_anchor_via_promise
+
     return {
-        "has_anchor": anchor is not None,
-        "matched_via": matched_via,
-        "anchor": anchor,
+        "has_anchor": has_anchor_final,
+        "matched_via": matched_via if has_anchor_final else None,
+        "anchor": anchor if has_anchor_final else None,
         "redirect_candidate": redirect,
         "concern": concern_n,
+        "dasha_state": dasha_state,
+        "dasha_reason": dasha_reason,
     }
 
 

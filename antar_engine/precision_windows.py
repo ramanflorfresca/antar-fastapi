@@ -227,6 +227,17 @@ def _score_date(
     detected_yogas: list,
     user_correlations: list,
 ) -> tuple[float, list[str]]:
+    # [lahiri-gate] ensure
+    # V2.2 hard precondition: Lahiri sidereal mode must be set
+    # before any transit-house math; otherwise houses are silently
+    # off by ~24° tropical. ensure_lahiri_sid_mode logs and returns
+    # False on failure — we score on regardless so /predict never
+    # crashes here, but the warning is captured for ops.
+    try:
+        from antar_engine.lahiri_gate import ensure_lahiri_sid_mode
+        ensure_lahiri_sid_mode()
+    except Exception:
+        pass
     """
     Score a specific date for a specific concern. Returns (score, reasons).
     Score is 0-10.
