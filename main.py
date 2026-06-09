@@ -6222,6 +6222,25 @@ State a specific year. Never predict past events as future windows.
                     _parsed.get("verdict", "") + " " + _parsed.get("plain_summary", "")
                 ).strip()
                 _factors = [str(x) for x in _parsed.get("layers_used", [])]
+                # [predict-cleanup 2026-06-09] JSON-fast path scrub.
+                # Detect FLAT band from plain_summary stencil so the
+                # signal_confidence override can fire even without the
+                # resolver in this path.
+                _jp_ps = (_parsed.get("plain_summary", "") or "").lower()
+                _jp_band = "FLAT" if (
+                    "no live trigger" in _jp_ps or
+                    "no specific signal" in _jp_ps or
+                    "no active signal" in _jp_ps or
+                    "no edge either way" in _jp_ps
+                ) else ""
+                _pred_text, _conf_str, _timing_jp = _predict_cleanup_payload(
+                    prediction_text=_pred_text,
+                    signal_confidence=_conf_str,
+                    timing_window=_parsed.get("timing_window", ""),
+                    verdict_band=_jp_band,
+                    dashas_response=None,  # JSON path has no dashas in scope
+                    language=getattr(request, "language", "en") or "en",
+                )
 
                 return {
                     # Required fields (PredictResponse model)
@@ -6232,7 +6251,7 @@ State a specific year. Never predict past events as future windows.
                     "plain_summary":        _parsed.get("plain_summary", ""),
                     "signal_line":          _parsed.get("signal_line", ""),
                     "action_item":          _parsed.get("action_item", ""),
-                    "timing_window":        _parsed.get("timing_window", ""),
+                    "timing_window":        _timing_jp,  # [predict-cleanup]
                     "why_this":             _parsed.get("why_this", ""),
                     "bridge_practice_note": _parsed.get("bridge_practice_note", ""),
                     "signal_confidence":    _conf_str,
@@ -6737,6 +6756,31 @@ State a specific year. Never predict past events as future windows.
         print(f"[predict] Rating prompt generation failed (non-fatal): {_rpe}")
     # === END RATING PROMPT ===
 
+    # [predict-cleanup 2026-06-09] Legacy path scrub. Apply the
+    # same chain to `prediction_text` so the long-form field
+    # carries the same cleanliness as the structured fields.
+    try:
+        _legacy_band = (
+            (_resolver_verdict.get('verdict') if _resolver_verdict else "")
+            or ((_pe or {}).get('verdict_band', '') if _pe else "")
+        )
+        _pe_conf_in = (_pe.get('signal_confidence') if _pe else "") or ""
+        _pe_tw_in   = (_pe.get('timing_window')     if _pe else "") or ""
+        prediction_text, _pc_conf_out, _pc_tw_out = _predict_cleanup_payload(
+            prediction_text=prediction_text or "",
+            signal_confidence=_pe_conf_in,
+            timing_window=_pe_tw_in,
+            verdict_band=_legacy_band,
+            dashas_response=dashas_response,
+            language=getattr(request, 'language', 'en') or 'en',
+        )
+        if _pe:
+            if _pc_conf_out:
+                _pe['signal_confidence'] = _pc_conf_out
+            if _pc_tw_out:
+                _pe['timing_window'] = _pc_tw_out
+    except Exception as _legacy_pc_e:
+        print(f"[predict-cleanup] legacy scrub non-fatal: {_legacy_pc_e}")
     return PredictResponse(
         prediction=prediction_text,
         confidence=confidence,
@@ -6848,6 +6892,132 @@ async def delete_conversation(
     return {"status": "deleted", "conversation_id": conversation_id}
 
 # ── Patra Onboarding Conversation ─────────────────────────────────────────────
+
+
+
+# [predict-cleanup 2026-06-09] Shared helper used by both /predict
+# return paths. Scrubs the `prediction` field and normalises the
+# user-facing FLAT-verdict signal_confidence + timing_window stencil.
+def _predict_cleanup_payload(
+    prediction_text: str = "",
+    signal_confidence: str = "",
+    timing_window: str = "",
+    verdict_band: str = "",
+    dashas_response = None,
+    language: str = "en",
+):
+    """Return (scrubbed_prediction, fixed_confidence, fixed_timing).
+
+    - prediction: apply_user_facing_strips + strip_house_area_leaks +
+      strip_internal_metrics. Idempotent.
+    - signal_confidence: when verdict_band ∈ {FLAT, WEAK} swap raw
+      'high/medium/low' for a band-appropriate label ('clear — no
+      active signal' / 'settled: neutral'). 'high' on a FLAT verdict
+      reads as self-contradiction; never ship it.
+    - timing_window: when the verdict is FLAT AND the timing_window
+      still carries the 're-check on the day' / 'next live window'
+      stencil, replace it with a concrete next-checkpoint derived
+      from `dashas_response` (next AD/PD boundary) or a +30-day
+      fallback. The Prashna sprint built the same shape.
+    """
+    # ── prediction scrub ──────────────────────────────────────────
+    _pred_out = prediction_text or ""
+    try:
+        from antar_engine.output_strips import apply_user_facing_strips as _pc_aufs
+        from antar_engine.narration_polish import (
+            strip_internal_metrics as _pc_spim,
+            strip_planet_traits as _pc_sppt,
+            strip_house_area_leaks as _pc_shal,
+        )
+        if isinstance(_pred_out, str) and _pred_out:
+            _pred_out = _pc_aufs(_pred_out, language=language or "en", field_type="plain")
+            _pred_out = _pc_spim(_pred_out)
+            _pred_out = _pc_sppt(_pred_out)
+            _pred_out = _pc_shal(_pred_out)
+    except Exception as _pc_e:
+        print(f"[predict-cleanup] prediction scrub non-fatal: {_pc_e}")
+
+    # ── signal_confidence FLAT/WEAK override ──────────────────────
+    _conf_out = signal_confidence or ""
+    try:
+        _vb = (verdict_band or "").upper()
+        if _vb == "FLAT":
+            _conf_out = "clear — no active signal"
+        elif _vb == "WEAK":
+            _conf_out = "low — read again next cycle"
+    except Exception:
+        pass
+
+    # ── timing_window FLAT next-checkpoint ────────────────────────
+    _tw_out = timing_window or ""
+    try:
+        _vb2 = (verdict_band or "").upper()
+        _stencil_markers = (
+            "re-check on the day", "next live window tomorrow",
+            "no live window for", "no standout window",
+            "read again mid-week", "re-check next week",
+            "re-check next quarter",
+        )
+        if _vb2 == "FLAT" and any(_m in _tw_out.lower() for _m in _stencil_markers):
+            _next_checkpoint = _predict_next_checkpoint_label(dashas_response)
+            if _next_checkpoint:
+                # Keep the honest "no active signal" prefix; add the checkpoint.
+                _tw_out = f"{_tw_out.rstrip(' .')} — {_next_checkpoint}"
+    except Exception as _tw_e:
+        print(f"[predict-cleanup] timing_window cleanup non-fatal: {_tw_e}")
+
+    return _pred_out, _conf_out, _tw_out
+
+
+def _predict_next_checkpoint_label(dashas_response) -> str:
+    """Derive a plain-English next-checkpoint from the dasha rows
+    threaded into /predict's response. Looks at the next antardasha
+    (sub-period) boundary; falls back to +30 days if none. Never
+    raises — returns '' on any failure so the caller leaves the
+    timing_window stencil alone."""
+    try:
+        from datetime import date as _ckd, timedelta as _cktd
+        _today = _ckd.today()
+
+        # dashas_response can be a list of rows or a dict with 'vimsottari'.
+        _rows = []
+        if isinstance(dashas_response, dict):
+            _rows = dashas_response.get("vimsottari") or dashas_response.get("rows") or []
+        elif isinstance(dashas_response, list):
+            _rows = dashas_response
+
+        # Find the next AD (level=2) start_date strictly in the future.
+        _next_start = None
+        for r in _rows or []:
+            if not isinstance(r, dict):
+                continue
+            _lv = r.get("level") or r.get("type")
+            if str(_lv).lower() not in ("2", "antardasha", "antar", "ad"):
+                continue
+            _sd = str(r.get("start_date") or r.get("start") or "")[:10]
+            if not _sd:
+                continue
+            try:
+                _sdd = _ckd.fromisoformat(_sd)
+            except Exception:
+                continue
+            if _sdd > _today:
+                if _next_start is None or _sdd < _next_start:
+                    _next_start = _sdd
+
+        if _next_start:
+            _days = (_next_start - _today).days
+            if _days <= 14:
+                return f"next checkpoint opens around {_next_start.isoformat()}"
+            if _days <= 60:
+                return f"next checkpoint in about {round(_days / 7)} weeks ({_next_start.isoformat()})"
+            return f"next checkpoint in about {round(_days / 30)} months ({_next_start.isoformat()})"
+
+        # Fallback — +30 days, plain framing.
+        _fb = (_today + _cktd(days=30)).isoformat()
+        return f"next checkpoint to read around {_fb}"
+    except Exception:
+        return ""
 
 
 # [strip-3surfaces 2026-06-09] Recursive leaf-scrub helper.

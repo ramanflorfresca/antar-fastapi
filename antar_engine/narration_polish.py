@@ -347,6 +347,57 @@ def has_clock_token(text: str) -> bool:
         return False
     return bool(_CLOCK_RE.search(text))
 
+
+# [predict-cleanup 2026-06-09] House/Area + node-leak patterns.
+# Surfaced by the live /predict payload audit: structured fields
+# are clean, but `prediction` (the verdict + plain_summary concat)
+# was leaking 'Nth area', 'Nth house', and 'amplification node' /
+# 'amplifier node' (the half-translation of Rahu from
+# english_glossary.ALLOWED_WITH_GLOSS).
+
+_PREDICT_HOUSE_AREA = {
+    1:  "self area",        2:  "wealth area",         3:  "courage area",
+    4:  "home area",        5:  "creativity area",     6:  "work area",
+    7:  "partnership area", 8:  "transformation area",
+    9:  "luck area",       10:  "career area",        11:  "gains area",
+    12: "foreign area",
+}
+
+_PREDICT_HOUSE_ORDINAL = re.compile(
+    r"\b(\d{1,2})(?:st|nd|rd|th)\s+(?:area|house)\b", re.IGNORECASE,
+)
+
+_PREDICT_NODE_LEAKS = [
+    # 'your karmic amplifier node' / 'amplifier node' / 'amplification node'
+    (re.compile(r"\b(?:your\s+karmic\s+)?amplif(?:ier|ication)\s+node\b",
+                re.IGNORECASE),
+     "intensifying force"),
+    # 'your karmic release point' / 'release node' — symmetric to Ketu
+    (re.compile(r"\b(?:your\s+karmic\s+)?release\s+(?:point|node)\b",
+                re.IGNORECASE),
+     "release dynamic"),
+]
+
+
+def strip_house_area_leaks(text: str) -> str:
+    """Translate '<N>th area' / '<N>th house' to the plain-English area
+    label, and rewrite 'amplification/amplifier node' / 'release point'
+    half-translations. Idempotent."""
+    if not isinstance(text, str) or not text:
+        return text
+
+    def _sub_area(m):
+        try:
+            n = int(m.group(1))
+            return _PREDICT_HOUSE_AREA.get(n, "life area")
+        except Exception:
+            return "life area"
+
+    out = _PREDICT_HOUSE_ORDINAL.sub(_sub_area, text)
+    for pat, repl in _PREDICT_NODE_LEAKS:
+        out = pat.sub(repl, out)
+    return out
+
 # ─────────────────────────────────────────────────────────────────────
 # Public entry — call this once after banned_labels scrub.
 # ─────────────────────────────────────────────────────────────────────
@@ -366,5 +417,7 @@ def polish(data: dict, language: str = "en") -> dict:
             _v = strip_internal_metrics(_v)
             _v = strip_planet_traits(_v)
             _v = ban_relative_time(_v, has_hard_clock=has_clock_token(_v))
+            # [predict-cleanup 2026-06-09] house/area + node-leak
+            _v = strip_house_area_leaks(_v)
             data[_field] = _v
     return data
