@@ -14003,6 +14003,34 @@ async def ask_endpoint(request: AskRequest):
                     logger.exception("[ask] event engine failed (non-fatal) — legacy path stands")
 
             if _ask_decision:
+                # [ask-decision-clock 2026-06-09] mirror the reflective
+                # path's intraday wiring so today/now decision reads get
+                # a hard clock token, not just a multi-month range.
+                _ask_clock_line = ""
+                _ask_has_clock = False
+                try:
+                    from antar_engine.hora_karana import is_tactical_question as _dec_is_tactical
+                    if _dec_is_tactical(question):
+                        _ask_lat, _ask_lng, _ask_loc_src = _resolve_moment_coords(chart_row.data)
+                        _ask_tz_off = float(chart_row.data.get('tz_offset') or 0.0)
+                        _ask_intraday = _ds_build_intraday_window(
+                            lat=float(_ask_lat), lng=float(_ask_lng),
+                            tz_offset_hours=_ask_tz_off,
+                            concern=_ask_concern,
+                            language=language,
+                        )
+                        if _ask_intraday:
+                            _iw = _ask_intraday[0] or {}
+                            _reasons = _iw.get('reasons') or []
+                            _end_clk = _iw.get('end') or ''
+                            if _reasons or _end_clk:
+                                _ask_clock_line = (
+                                    f"COMPUTED INTRADAY CLOCK: {(_reasons[0] if _reasons else _end_clk)}"
+                                )
+                                _ask_has_clock = True
+                                print(f"[ask][decision-intraday] clock via {_ask_loc_src}: {_ask_clock_line!r}")
+                except Exception as _iwe:
+                    print(f"[ask][decision-intraday] non-fatal: {_iwe}")
                 # [narrator-hardbind 2026-06-05b] Same tense discipline as the
                 # yesno path: an ACTIVE window must be narrated as open NOW,
                 # never as a future "opens..." (live bug: Jun 2026 window
@@ -14039,10 +14067,25 @@ async def ask_endpoint(request: AskRequest):
                     "odds. next = the single most important action this week. "
                     "Never mention astrology, planets, houses, signs, nakshatras, dashas, "
                     "scores, or any Sanskrit or technical term — plain everyday language only. "
+                    # [ask-decision-clock 2026-06-09] when intraday clock is
+                    # computable AND the question carries today/now markers,
+                    # the model MUST name the hard clock token inside `read`
+                    # in addition to the dated range from the consultation facts.
+                    + (
+                        "INTRADAY CLOCK INSTRUCTION: a today/now intraday clock IS "
+                        "computed — when writing `read`, NAME the hard clock token "
+                        "(HH:MM AM/PM) once alongside the verdict. Use the clock from "
+                        "COMPUTED INTRADAY CLOCK below. Forbidden soft-time fallbacks: "
+                        "'late morning', 'early afternoon', 'after midday', 'soon', "
+                        "'later', 'shortly'. "
+                        if _ask_has_clock else
+                        ""
+                    ) +
                     "Output JSON only, no prose, no code fences."
-                    f"\n\n{_ask_conv_block}"
-                    f"\n\n{_ask_layers_block}"
-                    f"\n\n{diagnostic_block}"
+                    + (f"\n\n{_ask_clock_line}" if _ask_clock_line else "")
+                    + f"\n\n{_ask_conv_block}"
+                    + f"\n\n{_ask_layers_block}"
+                    + f"\n\n{diagnostic_block}"
                 )
             else:
                 # [reflective-mode 2026-06-07] [noun-injection 2026-06-08]
