@@ -4763,6 +4763,7 @@ Do not use any planet names or astrological jargon — translate everything into
             predictions=predictions if 'predictions' in dir() else None,
             current_transits=current_transits,
             chart_data=chart_data,
+            birth_jd=chart_record.get('birth_jd') or (chart_data or {}).get('birth_jd'),  # [dasha-gate] birth_jd
         )
         print(
             f"[predict] domain anchor concern={concern} "
