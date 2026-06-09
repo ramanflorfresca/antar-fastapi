@@ -1223,6 +1223,10 @@ class ChartResponse(BaseModel):
     birth_time: str
     lagna: Dict[str, Any]
     planets: Dict[str, Any]
+    # [life-stage 2026-06-09] surface life-context to frontend on chart read
+    life_work:         Optional[str] = None
+    life_relationship: Optional[str] = None
+    life_kids:         Optional[str] = None
 
 # [chart-create-422] lat/lng optional + birth_time validator
 from pydantic import field_validator as _chart_field_validator
@@ -3737,6 +3741,10 @@ async def get_chart(chart_id: str):
         planets=r["chart_data"]["planets"]
     )
     response_dict = response.dict()
+    # [life-stage 2026-06-09] hydrate three nullable life-context fields
+    response_dict["life_work"]         = r.get("life_work")
+    response_dict["life_relationship"] = r.get("life_relationship")
+    response_dict["life_kids"]         = r.get("life_kids")
     response_dict["lal_kitab"]        = r.get("lal_kitab_data")
     response_dict["panchanga"]        = r["chart_data"].get("panchanga")
     response_dict["sarvashtakavarga"] = r["chart_data"].get("sarvashtakavarga")
@@ -8138,7 +8146,9 @@ async def get_user_profile(request: Request):
             "id, first_name, name, display_name, email, birth_date, "
             "birth_city, birth_country, current_city, current_country, "
             "lagna_sign, moon_sign, sun_sign, language, gender, "
-            "marital_status, children_status, career_stage, lagna"
+            "marital_status, children_status, career_stage, lagna, "
+            # [life-stage 2026-06-09] surface to frontend Profile page
+            "life_work, life_relationship, life_kids"
         ).eq("id", chart_id).single().execute()
         if not result.data:
             raise HTTPException(status_code=404, detail="Chart not found")
@@ -8155,6 +8165,10 @@ async def get_user_profile(request: Request):
             "birth_country": chart.get("birth_country", ""),
             "current_city": chart.get("current_city", ""),
             "current_country": chart.get("current_country", ""),
+            # [life-stage 2026-06-09] null when unset — never crash on missing
+            "life_work":         chart.get("life_work"),
+            "life_relationship": chart.get("life_relationship"),
+            "life_kids":         chart.get("life_kids"),
             "lagna_sign": chart.get("lagna_sign", ""),
             "lagna": chart.get("lagna", ""),
             "moon_sign": chart.get("moon_sign", ""),
@@ -17715,7 +17729,8 @@ async def _get_dashboard_inner(chart_id: str, language: str = "en"):
     # Load chart
     chart_res = supabase.table("charts").select(
         "first_name,lagna_sign,lagna_degree,birth_date,gender,current_country,country_code,"
-        "moon_sign,moon_nakshatra,sun_sign"
+        # [life-stage 2026-06-09] hydrate to dashboard payload
+        "moon_sign,moon_nakshatra,sun_sign,life_work,life_relationship,life_kids"
     ).eq("id", chart_id).execute()
 
     if not chart_res.data:
@@ -17975,6 +17990,10 @@ async def _get_dashboard_inner(chart_id: str, language: str = "en"):
 
         # Section 9: Locale
         "current_country": row.get("current_country", row.get("country_code", "")),
+        # [life-stage 2026-06-09] return null when unset — frontend hydrates localStorage
+        "life_work":         row.get("life_work"),
+        "life_relationship": row.get("life_relationship"),
+        "life_kids":         row.get("life_kids"),
         "panchanga_headline":   _pc.get("headline", ""),
         "energy_desc_today":    _pc.get("energy_desc", ""),
         "day_context_today":    _pc.get("day_context", ""),
