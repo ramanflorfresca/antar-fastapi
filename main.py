@@ -13560,6 +13560,62 @@ async def ask_evidence_debug(request: AskEvidenceRequest, http_request: Request)
     }
 
 
+# [ask-scrub] helper
+def _ask_scrub_payload(payload: dict, fields: list, language: str = 'en') -> dict:
+    '''Idempotent scrub for /ask response payloads.
+
+    Runs the same defensive layers /predict uses:
+      - banned_labels: kills <word> energy / metaphor verbs / hyphenated
+        planet labels / house-suffix areas / raw (H#) refs
+      - narration_polish: promotes relative time to clock token, caps
+        sentence starts
+    Never raises. Returns the same payload (in-place plus returned for
+    chaining).
+    '''
+    if not isinstance(payload, dict):
+        return payload
+    # Build a faux-fields dict so the existing scrub_fields helper
+    # (which keys on plain_summary/signal_line/etc.) can be reused
+    # by aliasing the /ask field names to the standard slots.
+    try:
+        from antar_engine.banned_labels import strip_energy_labels as _ask_strip
+        from antar_engine.narration_polish import polish as _ask_polish
+        # Strip in place on every field.
+        for f in fields:
+            v = payload.get(f)
+            if isinstance(v, str) and v:
+                payload[f] = _ask_strip(v, language=language)
+        # Polish runs on a tiny faux dict — it reads timing_window for
+        # the clock-token promotion. We alias 'timing' (or 'window')
+        # over to 'timing_window' for the polish call, then copy back.
+        _faux = {
+            'signal_line':   payload.get(fields[0]) if fields else None,
+            'plain_summary': payload.get(fields[1]) if len(fields) > 1 else None,
+            'action_item':   payload.get('next') if 'next' in payload else None,
+            'timing_window': payload.get('timing') or payload.get('window') or '',
+        }
+        _ask_polish(_faux, language=language)
+        # Write back the polished values to the /ask field names.
+        if fields and 'signal_line' in _faux:
+            payload[fields[0]] = _faux.get('signal_line') or payload.get(fields[0])
+        if len(fields) > 1:
+            payload[fields[1]] = _faux.get('plain_summary') or payload.get(fields[1])
+        if 'next' in payload:
+            payload['next'] = _faux.get('action_item') or payload.get('next')
+        # Raw (H#) house reference strip — /ask was emitting '(H2)'.
+        import re as _ask_re
+        for f in fields:
+            v = payload.get(f)
+            if isinstance(v, str) and v:
+                payload[f] = _ask_re.sub(r'\s*\(H\d{1,2}\)', '', v).strip()
+    except Exception as _ask_e:
+        import logging as _ask_log
+        _ask_log.getLogger('antar.ask').warning(
+            f'[ask-scrub] non-fatal: {_ask_e}'
+        )
+    return payload
+
+
 @app.post("/api/v1/ask")
 async def ask_endpoint(request: AskRequest):
     """
@@ -14074,6 +14130,11 @@ async def ask_endpoint(request: AskRequest):
                 payload["actions"]  = _ask_actions
                 payload["practices"] = _ask_practices
                 payload["convergence"] = _ask_conv.get("public_summary")
+            # [ask-scrub] explore
+            try:
+                _ask_scrub_payload(payload, ["read", "next", "timing"], language=language)
+            except Exception:
+                pass
             payload = await _ask_localize(payload, language, ["read", "next", "timing"], chart_id)
             return payload
 
@@ -14119,6 +14180,11 @@ async def ask_endpoint(request: AskRequest):
                         payload["why"] = _aufs_yn_r(payload["why"], language='en', field_type='plain')
                 except Exception as _strpe:
                     logger.warning(f"[ask] strip-why on lock failed (non-fatal): {_strpe}")
+                # [ask-scrub] yesno-locked
+                try:
+                    _ask_scrub_payload(payload, ["why", "timing"], language=language)
+                except Exception:
+                    pass
                 payload = await _ask_localize(payload, language, ["why", "timing"], chart_id)
                 return payload
 
@@ -14397,6 +14463,11 @@ async def ask_endpoint(request: AskRequest):
                 "practices": _yn_practices,
                 "convergence": _yn_conv.get("public_summary"),
             }
+            # [ask-scrub] yesno-normal
+            try:
+                _ask_scrub_payload(payload, ["why", "timing"], language=language)
+            except Exception:
+                pass
             payload = await _ask_localize(payload, language, ["why", "timing"], chart_id)
             return payload
 
