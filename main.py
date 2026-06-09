@@ -13151,16 +13151,62 @@ async def ask_prashna(request: PrashnaRequest):
         except Exception:
             pass
 
+        # [prashna-gradient 2026-06-09] Scrub the Claude `explanation`
+        # before it ships — kill any residual planet name / house
+        # number / Sanskrit / raw percentage that slipped past the
+        # prompt rule. apply_user_facing_strips runs the same chain
+        # /life-arc + /predict use.
+        _reasoning = explanation
+        try:
+            from antar_engine.output_strips import apply_user_facing_strips as _prash_aufs
+            from antar_engine.narration_polish import (
+                strip_internal_metrics as _prash_spim,
+                strip_planet_traits as _prash_sppt,
+            )
+            if isinstance(_reasoning, str) and _reasoning:
+                _reasoning = _prash_aufs(_reasoning, language='en', field_type='plain')
+                _reasoning = _prash_spim(_reasoning)
+                _reasoning = _prash_sppt(_reasoning)
+                # Trailing-question kill — engine doesn't accept a
+                # follow-up under cooldown; never end on a question.
+                import re as _prash_re
+                _reasoning = _prash_re.sub(
+                    r"\s*(?:Want me to[^?]*\?|Would you like[^?]*\?|Should I[^?]*\?)\s*$",
+                    "", _reasoning,
+                ).strip()
+        except Exception as _prash_se:
+            logger.warning(f"[prashna] reasoning scrub non-fatal: {_prash_se}")
+
+        # Structured timing — engine's timing_v2 carries the
+        # status/window_label/window_start contract. Legacy
+        # `timing` string preserved for back-compat clients.
+        _timing_obj = engine_result.get("timing_v2") or {
+            "status": "passed",
+            "window_label": "no clear window in the next six months",
+            "window_start": None,
+        }
+
         # ─── 9. Return Response ───
         return {
+            # [prashna-gradient 2026-06-09] new Python-authored fields
+            "verdict_word":    engine_result.get("verdict_word"),
+            "pathing_state":   engine_result.get("pathing_state"),
+            "confidence_band": engine_result.get("confidence_band"),
+            "reasoning":       _reasoning,
+            "timing":          _timing_obj,
+            "your_move":       engine_result.get("your_move"),
+            # internal-only — leading underscore (must not be rendered)
+            "_score":          engine_result["score"],
+            "_band":           engine_result["verdict"],
+            # ── legacy fields preserved for back-compat ──
             "verdict":       engine_result["verdict"],
             "score":         engine_result["score"],
             "label":         engine_result["label"],
             "confidence":    engine_result["label"],
             "domain":        engine_result["domain"],
-            "timing":        engine_result["timing"],
-            "explanation":   explanation,
-            "narrative":     explanation,
+            "timing_legacy": engine_result["timing"],
+            "explanation":   _reasoning,
+            "narrative":     _reasoning,
             "remedy":        remedy,
             "breakdown": {
                 "lagna_strength":   engine_result["breakdown"]["lagna_strength"]["score"],

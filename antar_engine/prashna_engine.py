@@ -1838,10 +1838,25 @@ def compute_prashna_verdict(
         verdict = "STRONG NO"
         label = "Opportunity Passed"
 
-    # ─── Timing Estimate ───
+    # ─── Timing Estimate (legacy string) ───
     timing = _estimate_timing(chart, step_c, edge_yoga)
     if domain_audit.get("delay_days"):
         timing += f" (expect +{domain_audit['delay_days']} day administrative delay)"
+
+    # [prashna-gradient 2026-06-09] Deterministic gradient layer.
+    pathing_state   = derive_pathing_state(verdict, step_c.get("type"), edge_yoga)
+    verdict_word    = derive_verdict_word(pathing_state)
+    confidence_band = derive_confidence_band(final_score)
+    # Structured timing — includes the NO-path forward scan that
+    # closes the 'TIMING UNCLEAR' gap.
+    timing_v2 = _estimate_timing_v2(
+        chart=chart, ithasala_result=step_c, edge_yoga=edge_yoga,
+        pathing_state=pathing_state,
+        lord_1_id=lord_1_id, lord_x_id=lord_x_id,
+        timestamp=datetime.fromisoformat(chart["timestamp"]),
+        lat=chart.get("lat", 0.0), lng=chart.get("lng", 0.0),
+    )
+    your_move = derive_your_move(pathing_state, domain, timing_v2)
 
     # ─── Weakest Planet for Remedy ───
     weakest = find_weakest_planet(chart)
@@ -1851,6 +1866,11 @@ def compute_prashna_verdict(
 
     return {
         "verdict": verdict,
+        "verdict_word":    verdict_word,        # [prashna-gradient]
+        "pathing_state":   pathing_state,       # [prashna-gradient]
+        "confidence_band": confidence_band,     # [prashna-gradient]
+        "timing_v2":       timing_v2,           # [prashna-gradient]
+        "your_move":       your_move,           # [prashna-gradient]
         "score": final_score,
         "label": label,
         "domain": domain,
@@ -1979,6 +1999,279 @@ def _check_jaimini_triple_lock(jaimini_data: dict, domain: str, houses: List[int
 # TIMING ESTIMATE
 # ═══════════════════════════════════════════════════════════════════
 
+
+# ═══════════════════════════════════════════════════════════════════
+# [prashna-gradient 2026-06-09] Deterministic mappers — Python owns the
+# verdict, Claude narrates only. Expose what the engine already computes:
+# verdict band + pathing state + confidence band + your_move + structured
+# timing (including a real next-window for NO answers).
+# ═══════════════════════════════════════════════════════════════════
+
+def derive_pathing_state(verdict: str, ithasala_type: str,
+                          edge_yoga: Optional[dict]) -> str:
+    """Map engine state → user-facing pathing_state enum.
+
+    Returns one of:
+      clean_yes            — Ithasala or Muthashila + YES band
+      yes_via_intermediary — Nakta / Yamaya
+      forming              — CAUTIOUS YES band
+      window_passed        — Ithasala-separating (Ishrafa)
+      blocked              — low score, no connection
+
+    The check order is by signal strength: edge yogas dominate, then
+    direct applying connection, then forming, then the separating
+    Ishrafa as the explicit window_passed, then blocked as the floor.
+    """
+    v = (verdict or "").upper()
+    ey = (edge_yoga or {}).get("yoga", "").lower() if edge_yoga else ""
+    it = (ithasala_type or "").lower()
+
+    if ey in ("nakta", "yamaya"):
+        return "yes_via_intermediary"
+    if ey == "muthashila":
+        return "clean_yes"
+    if it == "ithasala" and v in ("STRONG YES", "YES"):
+        return "clean_yes"
+    if v == "CAUTIOUS YES":
+        return "forming"
+    if it == "ishrafa":
+        return "window_passed"
+    # NO / STRONG NO / UNLIKELY with no separating signal → blocked
+    return "blocked"
+
+
+def derive_verdict_word(pathing_state: str) -> str:
+    """Map pathing_state → user-facing verdict_word (Python-authored,
+    calm). Never says 'No' bluntly when a window_passed signal exists."""
+    return {
+        "clean_yes":            "Yes",
+        "yes_via_intermediary": "Yes — but through someone else",
+        "forming":              "Not yet — it's forming",
+        "window_passed":        "Not now — the window's passed",
+        "blocked":              "Not now",
+    }.get(pathing_state, "Not now")
+
+
+def derive_confidence_band(score: int) -> str:
+    """Numeric → low | moderate | high. Raw score stays in _score."""
+    try:
+        s = int(score or 0)
+    except Exception:
+        return "moderate"
+    if s >= 70:
+        return "high"
+    if s >= 40:
+        return "moderate"
+    return "low"
+
+
+# Domain → noun palette for the Python-authored YOUR MOVE.
+_PRASHNA_DOMAIN_NOUN = {
+    "career":       "the role",
+    "wealth":       "the move",
+    "marriage":     "the conversation",
+    "relationship": "the conversation",
+    "property":     "the offer",
+    "health":       "the appointment",
+    "legal":        "the matter",
+    "education":    "the application",
+    "children":     "the decision",
+    "foreign":      "the application",
+    "finance":      "the position",
+    "funding":      "the round",
+    "general":      "this decision",
+}
+
+
+def derive_your_move(pathing_state: str, domain: str,
+                      timing: Optional[dict] = None) -> str:
+    """Verb-first one-line action keyed off the pathing_state. Plain
+    English only — no planet, house, or Sanskrit terms. Used by
+    the API to populate the user-facing `your_move` field."""
+    noun = _PRASHNA_DOMAIN_NOUN.get((domain or "general").lower(),
+                                     "this decision")
+    window = (timing or {}).get("window_label", "") if isinstance(timing, dict) else ""
+    if pathing_state == "clean_yes":
+        return f"Move on {noun} this week — the window is open."
+    if pathing_state == "yes_via_intermediary":
+        return f"Ask the person who connects you to {noun} to open the door first."
+    if pathing_state == "forming":
+        return f"Prepare quietly. Hold {noun} until the picture sharpens."
+    if pathing_state == "window_passed":
+        if window:
+            return f"Step back from {noun} for now. Re-check {window}."
+        return f"Step back from {noun} for now. Re-check in a few weeks."
+    if pathing_state == "blocked":
+        if window:
+            return f"Hold off on {noun}. Reassess {window}."
+        return f"Hold off on {noun}. Use the time to strengthen the ground beneath it."
+    return f"Hold off on {noun}."
+
+
+def _scan_reopens_window(
+    lat: float,
+    lng: float,
+    timestamp: datetime,
+    lord_1_id: int,
+    lord_x_id: int,
+    max_days: int = 180,
+    step_days: int = 7,
+) -> Optional[dict]:
+    """Forward scan for the next applying Tajika aspect between
+    lord_1 and lord_x. Returns the first date (UTC) at which the orb
+    falls below combined Tajika orb AND the faster planet is moving
+    toward (not away from) the slower one. None if no hit in max_days.
+
+    swisseph defaults to TROPICAL — assert SIDM_LAHIRI before any
+    longitude read (V2.2 Gap 5).
+    """
+    if swe is None:
+        return None
+    try:
+        swe.set_sid_mode(swe.SIDM_LAHIRI)  # [prashna-gradient 2026-06-09]
+    except Exception:
+        return None
+
+    # Get base orb per planet, fall back to 9°
+    def _orb_for(p_id):
+        nm = planet_name_from_id(p_id)
+        return TAJIKA_ORBS.get(nm, 9)
+
+    combined_orb = (_orb_for(lord_1_id) + _orb_for(lord_x_id)) / 2.0
+
+    from datetime import timedelta as _td
+
+    def _state_at(jd):
+        a = swe.calc_ut(jd, lord_1_id, swe.FLG_SIDEREAL | swe.FLG_SPEED)[0]
+        b = swe.calc_ut(jd, lord_x_id, swe.FLG_SIDEREAL | swe.FLG_SPEED)[0]
+        a_lon, a_sp = a[0], a[3]
+        b_lon, b_sp = b[0], b[3]
+        # faster = larger absolute speed
+        if abs(a_sp) >= abs(b_sp):
+            f_lon, f_sp = a_lon, a_sp
+            s_lon = b_lon
+        else:
+            f_lon, f_sp = b_lon, b_sp
+            s_lon = a_lon
+        # Best Tajika aspect orb at this moment
+        best_orb = 999.0
+        best_applying = False
+        for ang in TAJIKA_ASPECTS:
+            for tgt in (normalize_angle(s_lon - ang),
+                        normalize_angle(s_lon + ang)):
+                dist = angular_distance(f_lon, tgt)
+                fwd = (tgt - f_lon) % 360
+                applying = (fwd <= combined_orb) and (f_sp > 0)
+                if dist < best_orb:
+                    best_orb = dist
+                    best_applying = applying
+        return best_orb, best_applying
+
+    base = timestamp
+    days = 0
+    while days <= max_days:
+        when = base + _td(days=days)
+        hd = when.hour + when.minute / 60.0 + when.second / 3600.0
+        jd = swe.julday(when.year, when.month, when.day, hd)
+        try:
+            orb, applying = _state_at(jd)
+        except Exception:
+            return None
+        # Skip the first ~10 days so a borderline-applying current
+        # aspect doesn't fire as "next" — we want a fresh-future hit.
+        if days >= 10 and applying and orb <= combined_orb:
+            return {
+                "window_start": when.date().isoformat(),
+                "days_out":     days,
+            }
+        days += step_days
+    return None
+
+
+def _estimate_timing_v2(
+    chart: dict,
+    ithasala_result: dict,
+    edge_yoga: Optional[dict],
+    pathing_state: str,
+    lord_1_id: int,
+    lord_x_id: int,
+    timestamp: datetime,
+    lat: float,
+    lng: float,
+) -> dict:
+    """Structured timing dict.
+
+    Returns {status, window_label, window_start}.
+      YES path  → status='now'|'soon', window_label from orb.
+      NO path   → forward-scan; status='reopens' + window_start date.
+      No hit in 6 months → status='passed' with explicit copy.
+    Never returns 'unclear'.
+    """
+    # YES / Muthashila path — keep the existing orb→window logic.
+    if pathing_state in ("clean_yes", "yes_via_intermediary"):
+        if edge_yoga and edge_yoga.get("yoga", "").lower() == "muthashila":
+            return {"status": "now",
+                    "window_label": "the window is open right now — act within days",
+                    "window_start": None}
+        if ithasala_result.get("type") == "ithasala":
+            orb = ithasala_result.get("orb", 5)
+            if orb < 2:
+                return {"status": "now",
+                        "window_label": "within the next week",
+                        "window_start": None}
+            if orb < 5:
+                return {"status": "soon",
+                        "window_label": "within the next two to three weeks",
+                        "window_start": None}
+            if orb < 8:
+                return {"status": "soon",
+                        "window_label": "within the next one to two months",
+                        "window_start": None}
+            return {"status": "soon",
+                    "window_label": "within the next three to six months",
+                    "window_start": None}
+        # yes_via_intermediary with no direct orb — still affirmative
+        return {"status": "soon",
+                "window_label": "moves through a third party in the coming weeks",
+                "window_start": None}
+
+    # Forming — narrative window, no scan yet.
+    if pathing_state == "forming":
+        return {"status": "soon",
+                "window_label": "the picture sharpens over the next month or two",
+                "window_start": None}
+
+    # NO / window_passed / blocked — forward scan for the next applying
+    # aspect. This is THE gap the brief is closing.
+    scan = _scan_reopens_window(
+        lat=lat, lng=lng, timestamp=timestamp,
+        lord_1_id=lord_1_id, lord_x_id=lord_x_id,
+        max_days=180, step_days=7,
+    )
+    if scan:
+        ws = scan["window_start"]
+        # Pretty label — "the window reopens around <Month Day>"
+        try:
+            d = datetime.fromisoformat(ws)
+            month = d.strftime("%B")
+            phrase = (
+                f"late {month.lower()}" if d.day >= 22 else
+                f"early {month.lower()}" if d.day <= 10 else
+                f"mid-{month.lower()}"
+            )
+            label = f"the window reopens around {phrase}"
+        except Exception:
+            label = "the window reopens within six months"
+        return {"status": "reopens",
+                "window_label": label,
+                "window_start": ws}
+
+    return {"status": "passed",
+            "window_label": "no clear window in the next six months",
+            "window_start": None}
+
+
+
 def _estimate_timing(chart: dict, ithasala_result: dict, edge_yoga: Optional[dict]) -> str:
     """
     Estimate when the event will manifest based on Ithasala orb distance.
@@ -2099,6 +2392,16 @@ Intuition: {bd['moon_validation']['score']}% — {bd['moon_validation']['reason'
     prompt += f"""
 
 ═══ YOUR INSTRUCTIONS ═══
+[prashna-gradient 2026-06-09] HARD RULES (override anything below):
+  - ZERO planet names, house numbers, Sanskrit terms, dasha codes, or
+    raw percentages in your output. Describe the dynamic in plain
+    everyday English ('the momentum for a clean exit has already
+    passed this cycle', NEVER 'Lagna lord separating from the 10th
+    lord'). Internal scores stay internal.
+  - Do NOT end with a refinement question ('Want me to check a
+    specific date?' is FORBIDDEN). The user cannot follow up — the
+    24h cooldown is locked. End on YOUR MOVE.
+  - Confidence is described as 'low / moderate / high', not a number.
 1. Start with the verdict as a single decisive sentence.
 2. Explain WHY in 2-3 sentences using the breakdown above. Reference the momentum result and domain audit findings.
 3. If there is a HARD TRUTH from the domain audit, state it directly. No softening.
@@ -2228,6 +2531,11 @@ def run_prashna_engine(
 
     return {
         "verdict": verdict_data["verdict"],
+        "verdict_word":    verdict_data.get("verdict_word"),      # [prashna-gradient]
+        "pathing_state":   verdict_data.get("pathing_state"),     # [prashna-gradient]
+        "confidence_band": verdict_data.get("confidence_band"),   # [prashna-gradient]
+        "timing_v2":       verdict_data.get("timing_v2"),         # [prashna-gradient]
+        "your_move":       verdict_data.get("your_move"),         # [prashna-gradient]
         "score": verdict_data["score"],
         "label": verdict_data["label"],
         "domain": verdict_data["domain"],
