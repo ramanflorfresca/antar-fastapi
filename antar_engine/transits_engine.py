@@ -79,6 +79,12 @@ def calculate_current_transits(natal_chart: dict, as_of: datetime = None) -> dic
     Uses Swiss Ephemeris for current sky positions.
     Returns transit analysis for next 12 months.
     """
+    # [lahiri-gate] calculate_current_transits
+    try:
+        from antar_engine.lahiri_gate import ensure_lahiri_sid_mode
+        ensure_lahiri_sid_mode()
+    except Exception:
+        pass
     try:
         import swisseph as swe
         script_dir = os.path.dirname(os.path.abspath(__file__))

@@ -48,6 +48,14 @@ ASPECTS = {
 
 
 def get_current_transit_positions(date: datetime = None) -> Dict:
+    # [lahiri-gate] get_current_transit_positions
+    # V2.2 hard precondition for sidereal math. Soft mode so a
+    # swisseph hiccup doesn't take /predict down.
+    try:
+        from antar_engine.lahiri_gate import ensure_lahiri_sid_mode
+        ensure_lahiri_sid_mode()
+    except Exception:
+        pass
     """
     Compute sidereal positions of all planets for a given date/time.
     Returns dict: { "Sun": { "longitude": 45.23, "sign": "Taurus",
@@ -252,6 +260,12 @@ def detect_major_transits(transit_positions: Dict, natal_positions: Dict,
 
 
 def get_full_transit_report(chart_data: Dict, date: datetime = None) -> Dict:
+    # [lahiri-gate] get_full_transit_report
+    try:
+        from antar_engine.lahiri_gate import ensure_lahiri_sid_mode
+        ensure_lahiri_sid_mode()
+    except Exception:
+        pass
     """
     Complete transit analysis for a chart.
     Returns aspects, house activation, and major transit events.

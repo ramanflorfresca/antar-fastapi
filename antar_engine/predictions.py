@@ -881,6 +881,16 @@ def build_layered_predictions(
     After the LLM call, use parse_wow_fields_from_response() and
     strip_wow_block_from_response() to split prose from structured data.
     """
+    # [lahiri-gate] build_layered_predictions
+    # V2.2 hard precondition for sidereal math. Layer 2 transit
+    # confluence relies on Lahiri-aligned houses; without this
+    # swisseph silently runs tropical (~24° off) and poisons the
+    # exact transit anchors the stable-verdict path depends on.
+    try:
+        from antar_engine.lahiri_gate import ensure_lahiri_sid_mode
+        ensure_lahiri_sid_mode()
+    except Exception:
+        pass
     l1 = layer1_dasha_windows(chart_data, dashas, concern)
     l2 = layer2_confluence(chart_data, dashas, current_transits, concern)
     l3 = layer3_yoga_activation(chart_data, dashas, detected_yogas or [], concern)
