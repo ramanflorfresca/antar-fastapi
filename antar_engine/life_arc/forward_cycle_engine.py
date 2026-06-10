@@ -451,6 +451,172 @@ def _window_label(start: datetime, end: datetime) -> str:
 
 # ─── verdict + bodies + arc ─────────────────────────────────────────────────
 
+
+# ─── archetype tables (node-body specificity upgrade 2026-06-10) ────────────
+# Planet names are GATING SIGNALS only — they never leave the engine. These
+# tables translate the period lord's identity into:
+#   * archetype_phrase: the metaphor TITLE (sub_chapter)
+#   * archetype_nouns:  2-4 theme nouns (body unfurl)
+#   * archetype_short:  1-word chapter referent (turn/new_chapter narrative)
+#   * archetype_phrase_short + nuance: VERDICT one-liner
+#   * md_duration:      Vimsottari standard, for "A different N-year chapter opens"
+# Output is always planet-free; the leak gate is the backstop.
+
+PLANET_ARCHETYPE_PHRASE = {
+    "Sun":     "A direction-setting phase",
+    "Moon":    "An emotional, home-centred phase",
+    "Mars":    "A driving, action-led phase",
+    "Mercury": "A fast, communicative phase",
+    "Jupiter": "An expansive, teaching phase",
+    "Venus":   "A harmonising, relational phase",
+    "Saturn":  "A long build phase",
+    "Rahu":    "A restless, ambitious undercurrent",
+    "Ketu":    "A quieting, releasing phase",
+}
+
+PLANET_ARCHETYPE_NOUNS = {
+    "Sun":     ["direction", "authority", "your standing"],
+    "Moon":    ["emotions", "home life", "public reception"],
+    "Mars":    ["drive", "action", "what you fight for"],
+    "Mercury": ["communication", "commerce", "intellect"],
+    "Jupiter": ["expansion", "mentorship", "teaching"],
+    "Venus":   ["harmony", "partnership", "what you create"],
+    "Saturn":  ["structure", "discipline", "endurance", "responsibility"],
+    "Rahu":    ["boundary-pushing", "unconventional moves", "unfamiliar territory"],
+    "Ketu":    ["dissolving", "retreat", "what you let go of"],
+}
+
+ARCHETYPE_PHRASE_SHORT = {
+    "Sun":     "A direction-setting chapter",
+    "Moon":    "An emotional, home-rooted chapter",
+    "Mars":    "An action-driven chapter",
+    "Mercury": "A fast-moving chapter",
+    "Jupiter": "An expansive teaching chapter",
+    "Venus":   "A harmonising chapter",
+    "Saturn":  "A long build chapter",
+    "Rahu":    "A restless, ambitious chapter",
+    "Ketu":    "A releasing, quiet chapter",
+}
+
+ARCHETYPE_SHORT = {
+    "Sun":     "direction",
+    "Moon":    "emotional",
+    "Mars":    "action",
+    "Mercury": "fast-moving",
+    "Jupiter": "expansion",
+    "Venus":   "harmony",
+    "Saturn":  "build",
+    "Rahu":    "restless",
+    "Ketu":    "releasing",
+}
+
+NUANCE_BY_PLANET = {
+    "Sun":     "claim your direction",
+    "Moon":    "trust the rhythm, name the need",
+    "Mars":    "act decisively, choose your battle",
+    "Mercury": "move fast — but pick your target",
+    "Jupiter": "say yes to what feels like a doorway",
+    "Venus":   "soften the build with grace",
+    "Saturn":  "discipline now, payoff later",
+    "Rahu":    "press unfamiliar ground, but verify it first",
+    "Ketu":    "release before you build",
+}
+
+MD_DURATION_YEARS = {
+    "Ketu": 7, "Venus": 20, "Sun": 6, "Moon": 10, "Mars": 7,
+    "Rahu": 18, "Jupiter": 16, "Saturn": 19, "Mercury": 17,
+}
+
+NATURAL_BENEFIC = {"Jupiter", "Venus"}
+NATURAL_MALEFIC = {"Saturn", "Mars", "Rahu", "Ketu"}
+# Sun, Moon, Mercury = neutral in Tier 1 (Mercury is conditionally benefic —
+# Tier 2 will refine via aspectual/conjunction analysis).
+
+
+def _planet_class(planet):
+    if planet in NATURAL_BENEFIC:
+        return "benefic"
+    if planet in NATURAL_MALEFIC:
+        return "malefic"
+    return "neutral"
+
+
+def _archetype_phrase(planet):
+    return PLANET_ARCHETYPE_PHRASE.get(planet, "A distinctive phase")
+
+
+def _archetype_nouns(planet, n=2):
+    return list((PLANET_ARCHETYPE_NOUNS.get(planet) or [])[:n])
+
+
+def _archetype_short(planet):
+    return ARCHETYPE_SHORT.get(planet, "current")
+
+
+def _md_duration(planet):
+    return MD_DURATION_YEARS.get(planet, 16)
+
+
+def _period_lord_nouns(planet, chart_data, n=2):
+    """Pull literal life-area nouns from the planet's natal house ownership +
+    occupation + aspect. Returns up to N distinct nouns from
+    house_significations.HOUSE_SIGNIFICATIONS — these are the LIFE THINGS the
+    period lord touches in THIS chart (not generic karakas)."""
+    if not planet:
+        return []
+    lagna_idx = _lagna_sign_idx(chart_data)
+    houses = []
+    owned = _planet_owns_houses(planet, lagna_idx)
+    houses.extend(owned[:2])
+    occ = _planet_occupies_house(planet, chart_data, lagna_idx)
+    if occ and occ not in houses:
+        houses.append(occ)
+    if len(houses) < 2:
+        for h in _planet_aspects_houses(planet, chart_data, lagna_idx):
+            if h not in houses:
+                houses.append(h)
+                if len(houses) >= 3:
+                    break
+    try:
+        from antar_engine.house_significations import HOUSE_SIGNIFICATIONS
+    except Exception:
+        return []
+    # Spread across houses (ONE noun per house, primary) — not stack multiple
+    # nouns from the same house. That's the move that makes a Saturn PD on
+    # Capricorn lagna read "your energy and your savings" (1H+2H) instead of
+    # "your energy and your health" (1H+1H).
+    nouns, seen = [], set()
+    for h in houses:
+        sig = HOUSE_SIGNIFICATIONS.get(h) or {}
+        for noun in (sig.get("nouns") or []):
+            if noun not in seen:
+                seen.add(noun)
+                nouns.append(noun)
+                break   # one per house, then move on
+        if len(nouns) >= n:
+            return nouns
+    return nouns
+
+
+def _polarity_action(planet, chart_data):
+    """One orientation action based on the planet's class + natal condition.
+    Tier 1: natural benefic/malefic + condition only. Tier 2 will refine via
+    functional benefics by lagna."""
+    if not planet:
+        return ""
+    klass = _planet_class(planet)
+    cond = _condition(planet, chart_data)
+    if klass == "malefic":
+        if cond == "debilitated":
+            return "Hold steady — don\'t expand on credit or take on new debt right now."
+        return "Hold the line — protect what you\'ve built before adding anything new."
+    if klass == "benefic":
+        if cond in ("exalted", "own sign"):
+            return "Press the advantage — this stretch rewards bold, clear moves."
+        return "Lean into what\'s working — the support is real, use it."
+    return "Stay specific — give your attention to one thread, not three."
+
+
 def _condition(planet: str, chart_data: dict) -> str:
     """exalted / debilitated / own sign / mixed — same logic as
     phase_analyzer._assess_lord_condition, kept local so the forward engine
@@ -477,68 +643,126 @@ def _condition(planet: str, chart_data: dict) -> str:
     return "mixed"
 
 
-def _verdict_line(current_ad_lord: str, top_event_type: Optional[str],
-                  chart_data: dict) -> str:
-    """One-liner, planet-free, verdict-first. Tone from AD-lord condition
-    only (planet name never surfaces). Life-noun from the top event's
-    primary target house."""
-    cond = _condition(current_ad_lord, chart_data)
-    tone_map = {
-        "exalted":     "Steady ground",
-        "own sign":    "Steady ground",
-        "debilitated": "Slow build — protect the basics",
-        "mixed":       "A mixed stretch, with one clear lane",
+def _verdict_line(current_md_lord, chart_data, current_ad_lord=None,
+                  top_event_type=None):
+    """Verdict = '{archetype_phrase_short} — {nuance}.' pulled from the MD lord
+    (chapter referent). The MD frames the long chapter; the AD frames the
+    sub-chapter. The verdict is about the CHAPTER, so MD wins.
+    current_ad_lord + top_event_type retained for backward-compat call sites
+    but ignored when current_md_lord is present."""
+    if not current_md_lord:
+        # Soft fall-through to AD lord if MD wasn't provided (legacy path).
+        current_md_lord = current_ad_lord
+    if not current_md_lord:
+        return ""
+    phrase = ARCHETYPE_PHRASE_SHORT.get(current_md_lord, "A distinctive chapter")
+    nuance = NUANCE_BY_PLANET.get(current_md_lord, "stay specific about what you commit to")
+    return _scrub_leaks(f"{phrase} — {nuance}.")
+
+
+def _node_body(kind, *, period_lord=None, next_lord=None,
+               chart_data=None, event_count=0):
+    """House-noun + archetype-grounded body per node kind. Each node body
+    pulls (a) the period lord's natal house position → literal life-nouns,
+    and (b) the period lord's archetype tone — both planet-free. Closes the
+    impact gap between the live (generic) and the mockup (specific)."""
+
+    # NOW — period_lord = PD lord, the Rao sharpener.
+    # Opener depends on natural class; subject = lord's natal houses → nouns.
+    if kind == "now" and period_lord and chart_data:
+        nouns = _period_lord_nouns(period_lord, chart_data, n=2)
+        klass = _planet_class(period_lord)
+        opener = {
+            "malefic": "Pressure concentrates on",
+            "benefic": "Support gathers around",
+            "neutral": "Attention centres on",
+        }[klass]
+        if not nouns:
+            subject = "the themes of this stretch"
+        elif len(nouns) == 1:
+            subject = nouns[0]
+        else:
+            subject = f"{nouns[0]} and {nouns[1]}"
+        action = _polarity_action(period_lord, chart_data)
+        return _scrub_leaks(f"{opener} {subject}. {action}".strip())
+
+    # SUB_CHAPTER — period_lord = AD lord, undercurrent of the medium phase.
+    # Body = archetype nouns + count-aware event lead-in.
+    if kind == "sub_chapter" and period_lord:
+        arch_nouns = _archetype_nouns(period_lord, n=3)
+        if arch_nouns:
+            arch_phrase = ", ".join(arch_nouns)
+            arch_phrase = arch_phrase[0].upper() + arch_phrase[1:]
+        else:
+            arch_phrase = "This stretch carries its own texture"
+        if event_count == 0:
+            leadin = "Stay with the texture — no sharp windows in view this stretch."
+        elif event_count == 1:
+            leadin = "One window the engine sees here:"
+        else:
+            count_word = {2: "Two", 3: "Three", 4: "Four"}.get(event_count, str(event_count))
+            leadin = f"{count_word} windows the engine is confident about:"
+        return _scrub_leaks(f"{arch_phrase}. {leadin}".strip())
+
+    # TURN — narrative bridge: "The {from_archetype} gives way to {to_nouns}".
+    if kind == "turn" and period_lord and next_lord:
+        from_arch = _archetype_phrase(period_lord).lower()
+        if from_arch.startswith("a "):
+            from_arch = from_arch[2:]
+        elif from_arch.startswith("an "):
+            from_arch = from_arch[3:]
+        to_nouns = _archetype_nouns(next_lord, n=2)
+        to_noun = " and ".join(to_nouns) if to_nouns else "a different texture"
+        to_class = _planet_class(next_lord)
+        tone = {"benefic": "reward", "malefic": "test", "neutral": "shift"}[to_class]
+        return _scrub_leaks(
+            f"The {from_arch} gives way to {to_noun}, and consolidating what you built. "
+            f"This is the {tone}-phase of the chapter."
+        )
+
+    # NEW_CHAPTER — current MD closes, next MD opens with its own archetype nouns.
+    if kind == "new_chapter" and period_lord and next_lord:
+        from_short = _archetype_short(period_lord)
+        to_nouns = _archetype_nouns(next_lord, n=3)
+        to_noun_str = ", ".join(to_nouns) if to_nouns else "a new set of themes"
+        return _scrub_leaks(
+            f"The {from_short} chapter closes and a new one begins, centred on "
+            f"{to_noun_str}. The whole tone resets."
+        )
+
+    # Fallback — generic strings (only hit if caller forgot kwargs).
+    fallback = {
+        "now":          "The nearest, tightest stretch.",
+        "sub_chapter":  "A longer phase nested inside the chapter.",
+        "turn":         "The tone shifts. Same chapter, different texture.",
+        "new_chapter":  "A new long chapter opens.",
     }
-    tone = tone_map.get(cond, "A mixed stretch, with one clear lane")
-    life_clause = ""
-    if top_event_type:
-        houses = event_target_houses(top_event_type)
-        if houses:
-            try:
-                from antar_engine.house_significations import HOUSE_SIGNIFICATIONS
-                theme = (HOUSE_SIGNIFICATIONS.get(houses[0]) or {}).get("theme", "")
-                if theme:
-                    life_clause = f" — {theme} gets tested before it gets paid"
-            except Exception:
-                pass
-    line = f"{tone}{life_clause}."
-    return _scrub_leaks(line)
+    return _scrub_leaks(fallback.get(kind, ""))
 
 
-def _node_body(kind: str, current_ad_lord: str, top_event_type: Optional[str],
-               chart_data: dict) -> str:
-    """Plain prose body for each node. Verdict-first, one orientation
-    action where the brief calls for it (now / sub_chapter)."""
-    cond = _condition(current_ad_lord, chart_data)
-    base = {
-        "now":          "The nearest, tightest stretch — what you do now sets the tone for the months that follow.",
-        "sub_chapter":  "A longer phase nested inside the chapter. Slow, deliberate moves compound here.",
-        "turn":         "The tone shifts. Same chapter, different texture — adjust what you commit to.",
-        "new_chapter":  "A new long chapter opens. Different ground, different rules.",
-    }.get(kind, "")
-    action = ""
-    if kind in ("now", "sub_chapter") and top_event_type:
-        houses = event_target_houses(top_event_type)
-        if houses:
-            try:
-                from antar_engine.house_significations import HOUSE_SIGNIFICATIONS, _norm_dir
-                _ = _norm_dir  # imported for completeness; not strictly needed here
-                direction = "positive" if cond in ("exalted", "own sign") else "adverse"
-                sig = HOUSE_SIGNIFICATIONS.get(houses[0]) or {}
-                phrase = sig.get(direction) or sig.get("positive") or ""
-                if phrase:
-                    action = f" Your move: focus on {phrase}."
-            except Exception:
-                pass
-    return _scrub_leaks(base + action)
-
-
-def _node_title(kind: str) -> str:
+def _node_title(kind, *, period_lord=None, next_lord=None):
+    """Archetype-aware node title. The mockup's titles read as planet-free
+    metaphors — Rahu sub-chapter = 'A restless, ambitious undercurrent';
+    Saturn→Jupiter turn = 'The pressure lifts; the tone lightens'; Mercury
+    new chapter = 'A different 17-year chapter opens'."""
+    if kind == "sub_chapter" and period_lord:
+        return _archetype_phrase(period_lord)
+    if kind == "turn" and next_lord:
+        klass = _planet_class(next_lord)
+        return {
+            "benefic": "The pressure lifts; the tone lightens",
+            "malefic": "The tone tightens; a longer build begins",
+            "neutral": "The tone shifts; attention narrows",
+        }.get(klass, "The tone shifts; same chapter, different texture")
+    if kind == "new_chapter" and next_lord:
+        return f"A different {_md_duration(next_lord)}-year chapter opens"
+    if kind == "now":
+        return "The tightest stretch of this sub-chapter"
     return {
-        "now":          "Right now",
-        "sub_chapter":  "The phase you're in",
-        "turn":         "A turn ahead",
-        "new_chapter":  "A new chapter",
+        "now": "Right now",
+        "sub_chapter": "The phase you're in",
+        "turn": "A turn ahead",
+        "new_chapter": "A new chapter",
     }.get(kind, kind)
 
 
@@ -675,9 +899,10 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
         nodes.append({
             "kind":       "now",
             "when_label": _when_label("now", current_pd["end"]),
-            "title":      _node_title("now"),
-            "body":       _node_body("now", (current_ad or {}).get("lord"),
-                                     None, chart_data),
+            "title":      _node_title("now", period_lord=current_pd.get("lord")),
+            "body":       _node_body("now",
+                                     period_lord=current_pd.get("lord"),
+                                     chart_data=chart_data),
             "events":     [],
         })
 
@@ -695,10 +920,11 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
         nodes.append({
             "kind":       "sub_chapter",
             "when_label": _when_label("sub_chapter", sc_period["end"]),
-            "title":      _node_title("sub_chapter"),
-            "body":       _node_body("sub_chapter", sc_period["lord"],
-                                     sc_events[0].get("_event_type") if sc_events else None,
-                                     chart_data),
+            "title":      _node_title("sub_chapter", period_lord=sc_period.get("lord")),
+            "body":       _node_body("sub_chapter",
+                                     period_lord=sc_period.get("lord"),
+                                     chart_data=chart_data,
+                                     event_count=len(sc_events)),
             "events":     [{k: v for k, v in e.items() if k != "_event_type"}
                            for e in sc_events],
         })
@@ -712,8 +938,13 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
         nodes.append({
             "kind":       "turn",
             "when_label": _when_label("turn", next_ad["start"]),
-            "title":      _node_title("turn"),
-            "body":       _node_body("turn", next_ad["lord"], None, chart_data),
+            "title":      _node_title("turn",
+                                      period_lord=(current_ad or {}).get("lord"),
+                                      next_lord=next_ad.get("lord")),
+            "body":       _node_body("turn",
+                                     period_lord=(current_ad or {}).get("lord"),
+                                     next_lord=next_ad.get("lord"),
+                                     chart_data=chart_data),
             "events":     [{k: v for k, v in e.items() if k != "_event_type"}
                            for e in turn_events],
         })
@@ -723,8 +954,13 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
         nodes.append({
             "kind":       "new_chapter",
             "when_label": _when_label("new_chapter", next_md["start"]),
-            "title":      _node_title("new_chapter"),
-            "body":       _node_body("new_chapter", next_md["lord"], None, chart_data),
+            "title":      _node_title("new_chapter",
+                                      period_lord=current_md.get("lord"),
+                                      next_lord=next_md.get("lord")),
+            "body":       _node_body("new_chapter",
+                                     period_lord=current_md.get("lord"),
+                                     next_lord=next_md.get("lord"),
+                                     chart_data=chart_data),
             "events":     [],
         })
 
@@ -737,9 +973,10 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
                 top_sc_event_type = et
                 break
     verdict = _verdict_line(
-        (current_ad or {}).get("lord") or current_md.get("lord"),
-        top_sc_event_type,
+        current_md.get("lord"),
         chart_data,
+        current_ad_lord=(current_ad or {}).get("lord"),
+        top_event_type=top_sc_event_type,
     )
 
     arc = _arc_block(current_md, next_md, now)
@@ -758,3 +995,42 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
         "arc":            arc,
         "cycle_timeline": nodes,
     }
+
+
+# ─── Python gist fallback (mockup-quality, planet-free) ─────────────────────
+
+def build_python_gist(chart_data, birth_jd, now=None):
+    """Mockup-quality gist when the LLM-narrated life_phase_summary is empty
+    or generic. Format mirrors the agreed mockup:
+        'You're ~{years_in} years into a {duration}-year chapter about
+         {archetype_about} — sharpest around {natal_nouns}.
+         It runs to {end_label}.'
+    Planet-free by construction; scrubbed at exit."""
+    now = now or _now_utc()
+    try:
+        periods = get_cycle_periods(chart_data, birth_jd, now)
+    except Exception:
+        return ""
+    if not periods or not periods.get("current_md"):
+        return ""
+    md = periods["current_md"]
+    md_lord = md.get("lord")
+    md_start = md.get("start")
+    md_end = md.get("end")
+    if not (md_lord and md_start and md_end):
+        return ""
+    years_in = max(0, now.year - md_start.year)
+    duration = _md_duration(md_lord)
+    end_label = _plain_month(md_end)
+    arch_nouns = _archetype_nouns(md_lord, n=2)
+    about = " and ".join(arch_nouns) if arch_nouns else "this period"
+    natal_nouns = _period_lord_nouns(md_lord, chart_data, n=3)
+    if natal_nouns:
+        sharpest = ", ".join(natal_nouns)
+    else:
+        sharpest = "the themes of this period"
+    gist = (
+        f"You're ~{years_in} years into a {duration}-year chapter about "
+        f"{about} — sharpest around {sharpest}. It runs to {end_label}."
+    )
+    return _scrub_leaks(gist)

@@ -25142,11 +25142,20 @@ async def _life_arc_compute(chart_id, horizon_months, language,
     try:
         import re as _gist_re
         _lps = (current_phase or {}).get("life_phase_summary") or ""
-        if isinstance(_lps, str) and _lps.strip():
+        _gist = ""
+        if isinstance(_lps, str) and _lps.strip() and len(_lps.strip()) >= 80:
             _sentences = _gist_re.split(r"(?<=[.!?])\s+", _lps.strip())
-            response["gist"] = " ".join(_sentences[:2]).strip()
-        else:
-            response["gist"] = ""
+            _gist = " ".join(_sentences[:2]).strip()
+        # Python fallback when LLM gist is empty / short / generic (mockup-quality).
+        if not _gist or len(_gist) < 80:
+            try:
+                from antar_engine.life_arc.forward_cycle_engine import build_python_gist
+                _py_gist = build_python_gist(chart_data, birth_jd, _la_dt.utcnow())
+                if _py_gist:
+                    _gist = _py_gist
+            except Exception as _pg_err:
+                print(f"[life_arc] gist python fallback failed (non-blocking): {_pg_err}")
+        response["gist"] = _gist
     except Exception as _gist_err:
         print(f"[life_arc] gist trim failed (non-blocking): {_gist_err}")
         response["gist"] = (current_phase or {}).get("life_phase_summary", "") or ""
