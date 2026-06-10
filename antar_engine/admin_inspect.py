@@ -340,23 +340,54 @@ async def inspect_surface(chart_id: str, surface: str, language: str = "en",
         ctx["notes"].append("DRAFT PROMPT PREVIEW — prompt_registry served "
                             "draft bodies where present (live rows otherwise)")
     token = INSPECT_CTX.set(ctx)
+    narrated, error = None, None
     try:
         narrated = await _RUNNERS[surface](_m, chart_id, language, ctx)
-    finally:
+    except _m.HTTPException:
         INSPECT_CTX.reset(token)
+        raise  # clean FastAPI status (404 chart not found, 400 bad chart)
+    except Exception as e:
+        # [inspect-errwrap 2026-06-10] a failure in one surface must return a
+        # clean, self-diagnosing payload for THAT surface — never a bare 500.
+        # Admin-only endpoint, so the traceback is exposed deliberately.
+        import traceback as _tb
+        error = {
+            "type": type(e).__name__,
+            "message": str(e),
+            "traceback": _tb.format_exc()[-4000:],
+        }
+    finally:
+        try:
+            INSPECT_CTX.reset(token)
+        except Exception:
+            pass
 
     primary = _pick_primary(surface, ctx["llm_calls"])
-    if not ctx["llm_calls"]:
+    if error is None and not ctx["llm_calls"]:
         ctx["notes"].append(
             "no LLM call captured — surface served template/fallback text "
             "(e.g. quiet day) or narration was skipped; raw vs narrated "
             "still valid"
         )
+    # The daily-signal handler swallows its own exceptions and returns a
+    # catch-all shell — surface that as an error instead of a fake 200-ok.
+    if (error is None and isinstance(narrated, dict)
+            and narrated.get("status") == "error"):
+        error = {
+            "type": "SurfaceInternalError",
+            "message": ("surface pipeline raised internally and returned its "
+                        "catch-all shell — see the surface's own log line "
+                        "(e.g. '[daily-signal] Error for chart ...') for the "
+                        "stack, or run repro_inspect.py in the venv"),
+            "traceback": None,
+        }
 
     return {
         "surface": surface,
         "chart_id": chart_id,
         "language": language,
+        "status": "error" if error else "ok",
+        "error": error,
         "raw": ctx["raw"],
         "narrated": narrated,
         "plain_english": None,  # /predict-only post-processor; not on these 4 surfaces
