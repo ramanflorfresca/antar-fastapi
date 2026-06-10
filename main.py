@@ -3733,6 +3733,11 @@ async def get_chart(chart_id: str):
     if not result.data:
         raise HTTPException(status_code=404, detail="Chart not found")
     r = result.data[0]
+    # [chart-tombstone 2026-06-09] PII has been purged on delete; the row
+    # only survives for referential integrity. Treat as not-found for any
+    # public read.
+    if r.get("deleted_at") is not None:
+        raise HTTPException(status_code=404, detail="Chart not found")
     response = ChartResponse(
         id=r["id"],
         birth_date=r["birth_date"],
@@ -11009,7 +11014,29 @@ async def settings_charts_update(chart_id: str, request: Request, authorization:
 
 @app.delete("/api/v1/me/charts/{chart_id}")
 async def settings_charts_delete(chart_id: str, authorization: Optional[str] = Header(None)):
+    """
+    [chart-tombstone 2026-06-09] Right-to-deletion fix.
+
+    Tombstones the chart row (nulls every PII column + sets deleted_at) so
+    that GET /api/v1/chart/{cid} returns 404 and the row carries no
+    identifying birth data, then cascades an unconditional DELETE across the
+    natal-PII-bearing derived / cache tables, strips the deleted side's PII
+    from any compatibility_sessions / chart_connections that reference the
+    chart, and clears stale chart pointers on profiles.
+
+    OUT-OF-SCOPE for this patch (intentional, per Raman's call):
+      - Engagement / analytics tables (practice_log, practice_completions,
+        practice_sessions, daily_feedback, life_arc_feedback,
+        user_correlations, prediction_accuracy, past_event_feedback,
+        user_actions). Non-natal; left for the post-launch cascade sweep.
+      - Billing tables (subscriptions, usage_tracking, compat_slot_purchases)
+        — retained for revenue / audit.
+      - Auth on GET /api/v1/chart/{cid}. Tracked as a separate security PR.
+    """
     from fastapi.responses import JSONResponse
+    import logging as _l
+    _log = _l.getLogger("antar.chart_delete")
+
     user_id, _ = _st_identity(authorization)
     if not user_id:
         return _st_guest_401()
@@ -11022,12 +11049,137 @@ async def settings_charts_delete(chart_id: str, authorization: Optional[str] = H
     owned = supabase.table("charts").select("id").eq("id", chart_id).eq("user_id", user_id).limit(1).execute()
     if not owned.data:
         return JSONResponse(status_code=404, content={"error": "chart not found"})
-    # Unlink from this user; the underlying row survives if referenced elsewhere.
+
+    # ── 1. Tombstone the chart row itself ────────────────────────────────
+    # Null every PII / natal-position column. user_id stays NULL so the row
+    # stops appearing in /me/charts. deleted_at gates GET /api/v1/chart/{cid}.
+    _tombstone = {
+        "user_id":          None,
+        "first_name":       None,
+        "name":             None,
+        "birth_date":       None,
+        "birth_time":       None,
+        "birth_city":       None,
+        "birth_place":      None,
+        "birth_country":    None,
+        "latitude":         None,
+        "longitude":        None,
+        "timezone_offset":  None,
+        "chart_data":       None,
+        "jaimini_data":     None,
+        "lal_kitab_data":   None,
+        "panchanga":        None,
+        "relationship":     None,
+        "life_work":        None,
+        "life_relationship": None,
+        "life_kids":        None,
+        "geocode_source":   None,
+        "needs_reconfirm":  None,
+        "language_preference": None,
+        "language":         None,
+        "lagna_sign":       None,
+        "moon_sign":        None,
+        "sun_sign":         None,
+        "deleted_at":       datetime.utcnow().isoformat() + "Z",
+    }
     try:
-        supabase.table("charts").update({"user_id": None}).eq("id", chart_id).execute()
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": "delete failed", "detail": str(e)})
-    return {"ok": True}
+        supabase.table("charts").update(_tombstone).eq("id", chart_id).execute()
+    except Exception as _te:
+        # If even the tombstone update fails the row is still leaking PII;
+        # surface 500 so we don't silently claim success.
+        _log.error(f"[chart-delete] tombstone update failed cid={chart_id}: {_te}")
+        return JSONResponse(status_code=500, content={"error": "delete failed", "detail": str(_te)})
+
+    # ── 2. Cascade-delete the PII-bearing derived / cache tables ─────────
+    # Each delete is wrapped — a missing table or schema drift never blocks
+    # the user-facing delete. Anything left over is logged for sweep.
+    _CASCADE_TABLES = (
+        # natal / dasha / yoga
+        "dasha_periods", "chart_yogas",
+        # prediction stores
+        "predictions", "user_predictions",
+        "daily_signals", "welcome_signals",
+        "weekly_briefings", "monthly_briefings", "monthly_deepdives",
+        "life_arc_cache",
+        # today / home / week caches
+        "today_narration_cache", "home_cache",
+        "predict_week_cache", "deep_read_cache",
+        "practice_schedule_cache",
+        "daily_week_cache", "prediction_cache", "prewarm_cache",
+        # Lal Kitab
+        "lal_kitab_remedies",
+        # user-content keyed by chart
+        "life_events", "user_alerts", "llm_call_log",
+        # Prashna oracle (contains user questions + natal-grounded verdicts)
+        "prashna_log", "prashna_readings", "prashna_followups",
+        # Ask Antar messages (chart-keyed; conversations/messages are
+        # user_id-keyed and left untouched here)
+        "chat_messages",
+    )
+    _purge_errors = []
+    for _tbl in _CASCADE_TABLES:
+        try:
+            supabase.table(_tbl).delete().eq("chart_id", chart_id).execute()
+        except Exception as _ce:
+            _purge_errors.append({"table": _tbl, "error": str(_ce)})
+            _log.warning(f"[chart-delete] cascade {_tbl} failed cid={chart_id}: {_ce}")
+
+    # ── 3. Strip PII from compatibility_sessions / chart_connections ─────
+    # Sessions stay so the OTHER party's history is intact, but the deleted
+    # side's name + every natal-grounded text/JSONB column is nulled.
+    _COMPAT_NULL_BOTH = {
+        "layer1_analysis":     None,
+        "brief_a":             None,
+        "brief_b":             None,
+        "field_mode_synastry": None,
+    }
+    _CONN_NULL_BOTH = {
+        "analysis_summary":  None,
+        "score_breakdown":   None,
+        "field_mode_layer":  None,
+        "pairing_name":      None,
+        "verdict":           None,
+    }
+    try:
+        # side A
+        supabase.table("compatibility_sessions").update(
+            {**_COMPAT_NULL_BOTH, "name_a": None}
+        ).eq("chart_id_a", chart_id).execute()
+        # side B
+        supabase.table("compatibility_sessions").update(
+            {**_COMPAT_NULL_BOTH, "name_b": None}
+        ).eq("chart_id_b", chart_id).execute()
+    except Exception as _ce:
+        _purge_errors.append({"table": "compatibility_sessions", "error": str(_ce)})
+        _log.warning(f"[chart-delete] compat strip failed cid={chart_id}: {_ce}")
+    try:
+        supabase.table("chart_connections").update(
+            {**_CONN_NULL_BOTH, "name_a": None}
+        ).eq("chart_id_a", chart_id).execute()
+        supabase.table("chart_connections").update(
+            {**_CONN_NULL_BOTH, "name_b": None}
+        ).eq("chart_id_b", chart_id).execute()
+    except Exception as _ce:
+        _purge_errors.append({"table": "chart_connections", "error": str(_ce)})
+        _log.warning(f"[chart-delete] connections strip failed cid={chart_id}: {_ce}")
+
+    # ── 4. Clear stale chart pointers on profiles ────────────────────────
+    # primary_chart_id is already blocked above, but a non-primary `chart_id`
+    # pointer could still resolve the deleted chart for /me/language etc.
+    try:
+        supabase.table("profiles").update({"chart_id": None}).eq("chart_id", chart_id).execute()
+        supabase.table("profiles").update({"primary_chart_id": None}).eq("primary_chart_id", chart_id).execute()
+    except Exception as _pe:
+        _purge_errors.append({"table": "profiles", "error": str(_pe)})
+        _log.warning(f"[chart-delete] profile pointer clear failed cid={chart_id}: {_pe}")
+
+    _resp = {"ok": True, "tombstoned": True}
+    if _purge_errors:
+        # Tombstone succeeded — birth PII is gone from the source row. Report
+        # the partial cascade so it's visible in logs / response without
+        # failing the user-facing delete.
+        _resp["partial_cascade"] = _purge_errors
+    return _resp
 
 
 # ════════════════════════════════ LANGUAGE ════════════════════════════════
