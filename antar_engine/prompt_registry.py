@@ -95,7 +95,107 @@ SURFACE_SCHEMAS = {
 }
 
 
-def _schema_line(surface: str) -> str:
+# ── [schema-hoist 2026-06-10] Output-format templates are LOCKED in code ─────
+# The field template each frontend pane renders lives HERE (immutable), not
+# in the editable body. month/plain_english templates are lifted verbatim
+# from the hardcoded constants (code = source of truth); the rest are static.
+
+_MONTH_TEMPLATE_MARKERS = {
+    "en": "Return ONLY this JSON:",
+    "es": "Devuelve SOLO este JSON:",
+    "pt": "Retorne APENAS este JSON:",
+}
+_PE_TEMPLATE_MARKER = "RETURN THIS EXACT JSON STRUCTURE:"
+
+_STATIC_OUTPUT_TEMPLATES = {
+    "today": ('Output STRICT JSON and nothing else: '
+              '{"headline": "...", "highlight": "..."}'),
+    "year": ('Output STRICT JSON and nothing else: '
+             '{"headline": "...", "body": "...", "watch": "..."}'),
+    "ask_decision": ('Reply with STRICT JSON only: '
+                     '{"read": "...", "verdict": "...", "timing": "...", '
+                     '"actions": ["...", "..."], "next": "..."}'),
+    "ask_reflective": ('Reply with STRICT JSON only: '
+                       '{"read": "...", "next": "..."}'),
+    "ask_yesno": ('Reply with STRICT JSON only: '
+                  '{"why": "...", "actions": ["...", "..."]}'),
+    "cycle_diagnostic": ("Output valid JSON only, with fields exactly as "
+                         "specified in the task instructions."),
+    "compat_deepread": ("Output strict JSON only, with fields exactly as "
+                        "specified in the task instructions."),
+}
+
+# Substrings removed from the EDITABLE body (idempotent; exact text of the
+# template as it appears inside each legacy prompt constant).
+_BODY_TEMPLATE_STRIPS = {
+    "today": ['9. Output STRICT JSON and nothing else: '
+              '{"headline": "...", "highlight": "..."}\n'],
+    "year": ['9. Output STRICT JSON and nothing else:\n'
+             '   {"headline": "...", "body": "...", "watch": "..."}\n'],
+    "ask_decision": ['reply with STRICT JSON only: '
+                     '{"read": "...", "verdict": "...", "timing": "...", '
+                     '"actions": ["...", "..."], "next": "..."}. '],
+    "ask_yesno": ['Reply with STRICT JSON only: '
+                  '{"why": "...", "actions": ["...", "..."]}. '],
+    "cycle_diagnostic": ["Output valid JSON only. "],
+    "compat_deepread": [" Output strict JSON only."],
+}
+
+
+def _output_template(surface: str, language: str = "en"):
+    """The locked, per-surface (and for month, per-language) output template."""
+    if surface == "month":
+        lang = _norm_lang(language)
+        try:
+            from antar_engine.monthly_deepdive import (
+                MONTHLY_SYSTEM_PROMPT, MONTHLY_SYSTEM_PROMPT_ES,
+                MONTHLY_SYSTEM_PROMPT_PT,
+            )
+            full = {"en": MONTHLY_SYSTEM_PROMPT, "es": MONTHLY_SYSTEM_PROMPT_ES,
+                    "pt": MONTHLY_SYSTEM_PROMPT_PT}[lang]
+            marker = _MONTH_TEMPLATE_MARKERS[lang]
+            if marker in full:
+                return marker + full.split(marker, 1)[1]
+        except Exception:
+            pass
+        return ("Return ONLY the exact JSON structure the monthly surface "
+                "renders — never add, rename, or drop fields.")
+    if surface == "plain_english":
+        try:
+            from antar_engine.plain_english import PLAIN_ENGLISH_SYSTEM_PROMPT
+            if _PE_TEMPLATE_MARKER in PLAIN_ENGLISH_SYSTEM_PROMPT:
+                return (_PE_TEMPLATE_MARKER
+                        + PLAIN_ENGLISH_SYSTEM_PROMPT.split(_PE_TEMPLATE_MARKER, 1)[1])
+        except Exception:
+            pass
+        return ("Return ONLY the exact JSON structure the plain-english "
+                "surface renders — never add, rename, or drop fields.")
+    return _STATIC_OUTPUT_TEMPLATES.get(surface)
+
+
+def strip_output_template(surface: str, language: str, text: str) -> str:
+    """Remove the output template from an editable body (idempotent). Used
+    by the hardcoded fallbacks AND the seed migration, so body never
+    duplicates what the locked header already states."""
+    if not isinstance(text, str):
+        return text
+    if surface == "month":
+        marker = _MONTH_TEMPLATE_MARKERS.get(_norm_lang(language),
+                                             _MONTH_TEMPLATE_MARKERS["en"])
+        return text.split(marker, 1)[0].rstrip()
+    if surface == "plain_english":
+        return text.split(_PE_TEMPLATE_MARKER, 1)[0].rstrip()
+    out = text
+    for frag in _BODY_TEMPLATE_STRIPS.get(surface, []):
+        out = out.replace(frag, "")
+    return out
+
+
+def _schema_line(surface: str, language: str = "en") -> str:
+    tmpl = _output_template(surface, language)
+    if tmpl:
+        return ("REQUIRED OUTPUT (locked — not editable from the console):\n"
+                + tmpl)
     sch = SURFACE_SCHEMAS.get(surface) or {}
     req = sch.get("required")
     if sch.get("format") == "json" and req:
@@ -260,8 +360,11 @@ _fb_cache: dict = {}
 
 
 def hardcoded_body(surface: str) -> str:
+    # [schema-hoist 2026-06-10] fallback bodies are template-stripped — the
+    # output template lives only in the locked header (_schema_line).
     if surface not in _fb_cache:
-        _fb_cache[surface] = _FALLBACK_RESOLVERS[surface]()
+        _fb_cache[surface] = strip_output_template(
+            surface, "en", _FALLBACK_RESOLVERS[surface]())
     return _fb_cache[surface]
 
 
@@ -327,7 +430,8 @@ def _hardcoded_for(surface: str, language: str) -> str:
         from antar_engine.monthly_deepdive import (
             MONTHLY_SYSTEM_PROMPT_ES, MONTHLY_SYSTEM_PROMPT_PT,
         )
-        return MONTHLY_SYSTEM_PROMPT_ES if language == "es" else MONTHLY_SYSTEM_PROMPT_PT
+        raw = MONTHLY_SYSTEM_PROMPT_ES if language == "es" else MONTHLY_SYSTEM_PROMPT_PT
+        return strip_output_template("month", language, raw)
     return hardcoded_body(surface)
 
 
@@ -375,10 +479,13 @@ def get_prompt_body(surface: str, use_draft: Optional[bool] = None,
 
 def get_system_prefix(surface: str, use_draft: Optional[bool] = None,
                       language: str = "en") -> str:
-    """Immutable contract header + schema line + editable body."""
+    """Immutable contract header + locked output template + editable body.
+    [schema-hoist 2026-06-10] the body is template-stripped defensively so a
+    DB row can never duplicate or contradict the locked template."""
     return (
-        PROMPT_CONTRACT_HEADER + "\n" + _schema_line(surface) + "\n\n"
-        + get_prompt_body(surface, use_draft, language=language)
+        PROMPT_CONTRACT_HEADER + "\n" + _schema_line(surface, language) + "\n\n"
+        + strip_output_template(surface, language,
+                                get_prompt_body(surface, use_draft, language=language))
     )
 
 

@@ -11828,7 +11828,7 @@ async def admin_prompts_get(surface: str, language: str = "en",
     return {
         "surface": surface,
         "language": _lang,
-        "contract_header": PROMPT_CONTRACT_HEADER + "\n" + _schema_line(surface),
+        "contract_header": PROMPT_CONTRACT_HEADER + "\n" + _schema_line(surface, _lang),
         "live_body": live_body,
         "draft_body": draft_body,
         "version": version,
