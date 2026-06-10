@@ -200,7 +200,24 @@ def get_cycle_periods(chart_data: dict, birth_jd: float,
     Returns None if no active MD found (chart's dasha range exceeded).
     """
     now = now or _now_utc()
+    # tz-alignment guard (2026-06-10): main.py calls with `_la_dt.utcnow()`
+    # — NAIVE — but vimsottari emits tz-AWARE period datetimes. Comparing
+    # the two raises TypeError. Normalize to tz-aware UTC defensively.
+    if now is not None and now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
     result = vimsottari.calculate_vimsottari_from_chart(chart_data, birth_jd)
+    # Belt-and-suspenders: ensure md/ad datetimes are tz-aware too. If
+    # vimsottari ever emits naive (depends on the JD-conversion path),
+    # promote them to UTC so the period-containment comparison below holds.
+    def _aware(p):
+        sdt = p.get("start_datetime"); edt = p.get("end_datetime")
+        if sdt is not None and getattr(sdt, "tzinfo", "MISSING") is None:
+            p["start_datetime"] = sdt.replace(tzinfo=timezone.utc)
+        if edt is not None and getattr(edt, "tzinfo", "MISSING") is None:
+            p["end_datetime"] = edt.replace(tzinfo=timezone.utc)
+        return p
+    for p in (result.get("mahadashas") or []): _aware(p)
+    for p in (result.get("antardashas") or []): _aware(p)
     mds = result.get("mahadashas") or []
     ads = result.get("antardashas") or []
     if not mds:
@@ -863,12 +880,23 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
     English templates; the existing translate_response layer handles ES).
     """
     now = now or _now_utc()
+    # tz-alignment guard (2026-06-10): main.py passes naive utcnow();
+    # vimsottari periods are tz-aware. Promote here so the rest of the
+    # function never sees a naive `now`.
+    if now is not None and now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
     empty = {"verdict": "", "arc": {}, "cycle_timeline": []}
     try:
         periods = get_cycle_periods(chart_data, birth_jd, now)
-    except Exception:
+    except Exception as _fwd_pe:
+        # 2026-06-10: surface in Railway logs instead of silently degrading.
+        import traceback as _fwd_tb
+        print(f"[forward_cycle] get_cycle_periods FAILED: {type(_fwd_pe).__name__}: {_fwd_pe}")
+        print(_fwd_tb.format_exc())
         return empty
     if not periods or not periods.get("current_md"):
+        print(f"[forward_cycle] no current_md found "
+              f"(periods={periods is not None}, has_md={(periods or {}).get('current_md') is not None})")
         return empty
 
     current_md = periods["current_md"]
@@ -972,14 +1000,19 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
             if meta.get("title") == sc_events[0].get("title"):
                 top_sc_event_type = et
                 break
-    verdict = _verdict_line(
-        current_md.get("lord"),
-        chart_data,
-        current_ad_lord=(current_ad or {}).get("lord"),
-        top_event_type=top_sc_event_type,
-    )
-
-    arc = _arc_block(current_md, next_md, now)
+    try:
+        verdict = _verdict_line(
+            current_md.get("lord"),
+            chart_data,
+            current_ad_lord=(current_ad or {}).get("lord"),
+            top_event_type=top_sc_event_type,
+        )
+        arc = _arc_block(current_md, next_md, now)
+    except Exception as _fwd_ve:
+        import traceback as _fwd_tb
+        print(f"[forward_cycle] verdict/arc build FAILED: {type(_fwd_ve).__name__}: {_fwd_ve}")
+        print(_fwd_tb.format_exc())
+        return empty
 
     # Final defense-in-depth scrub on every user-facing string
     for n in nodes:
@@ -1007,9 +1040,15 @@ def build_python_gist(chart_data, birth_jd, now=None):
          It runs to {end_label}.'
     Planet-free by construction; scrubbed at exit."""
     now = now or _now_utc()
+    # tz-alignment guard (2026-06-10): main.py passes naive utcnow().
+    if now is not None and now.tzinfo is None:
+        now = now.replace(tzinfo=timezone.utc)
     try:
         periods = get_cycle_periods(chart_data, birth_jd, now)
-    except Exception:
+    except Exception as _gist_pe:
+        import traceback as _gist_tb
+        print(f"[forward_cycle.gist] get_cycle_periods FAILED: {type(_gist_pe).__name__}: {_gist_pe}")
+        print(_gist_tb.format_exc())
         return ""
     if not periods or not periods.get("current_md"):
         return ""
