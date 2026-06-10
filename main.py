@@ -7405,6 +7405,23 @@ async def monthly_briefing(
         except Exception as e:
             print(f"Briefing store error: {e}")
 
+    # [es-loc 2026-06-09] language layer: when request.language != en, run the
+    # briefing through Loc-4 Haiku translator. Content-hash cached.
+    _ml_lang = (getattr(request, "language", None) or "en").split("-")[0].lower()
+    if _ml_lang in ("es", "pt"):
+        try:
+            from antar_engine.translation_middleware import translate_dict as _ml_td
+            _ml_payload = {"briefing": briefing_text}
+            _ml_payload = await _ml_td(
+                _ml_payload,
+                language=_ml_lang,
+                fields_to_translate=["briefing"],
+                endpoint_name="monthly-briefing",
+                chart_id=request.chart_id,
+            )
+            briefing_text = _ml_payload.get("briefing", briefing_text)
+        except Exception as _ml_te:
+            print(f"[es-loc] monthly-briefing translate non-fatal: {_ml_te}")
     return MonthlyBriefingResponse(
         briefing=briefing_text,
         month_year=month_year,
@@ -13473,6 +13490,10 @@ async def ask_prashna(request: PrashnaRequest):
     try:
         chart_id = request.chart_id
         question = (request.question or "").strip()
+        # [es-loc 2026-06-09] make request.language available to strip + translator below.
+        language = (getattr(request, "language", None) or "en").split("-")[0].lower()
+        if language not in ("en", "es", "pt"):
+            language = "en"
 
         if not question:
             return JSONResponse(status_code=400, content={"error": "Question is required"})
@@ -13781,7 +13802,9 @@ async def ask_prashna(request: PrashnaRequest):
                 strip_planet_traits as _prash_sppt,
             )
             if isinstance(_reasoning, str) and _reasoning:
-                _reasoning = _prash_aufs(_reasoning, language='en', field_type='plain')
+                # [es-loc 2026-06-09] strip with the request's language so ES doesn't
+                # re-anglicize after translate_dict runs at the response boundary.
+                _reasoning = _prash_aufs(_reasoning, language=language, field_type='plain')
                 _reasoning = _prash_spim(_reasoning)
                 _reasoning = _prash_sppt(_reasoning)
                 # Trailing-question kill — engine doesn't accept a
@@ -13804,7 +13827,7 @@ async def ask_prashna(request: PrashnaRequest):
         }
 
         # ─── 9. Return Response ───
-        return {
+        _prashna_resp = {
             # [prashna-gradient 2026-06-09] new Python-authored fields
             "verdict_word":    engine_result.get("verdict_word"),
             "pathing_state":   engine_result.get("pathing_state"),
@@ -13854,6 +13877,27 @@ async def ask_prashna(request: PrashnaRequest):
             "domain_audit":   engine_result.get("domain_audit"),
             "confluence":     engine_result.get("confluence"),
         }
+        # [es-loc 2026-06-09] post-build localization. translate_dict allowlists every
+        # user-facing field name; nested arrays inside `remedy` are recursed because
+        # the container key `remedy` is in the allowlist. Cache hits when the same
+        # EN strings have been translated before.
+        if language in ("es", "pt"):
+            try:
+                from antar_engine.translation_middleware import translate_dict as _pr_td
+                _prashna_resp = await _pr_td(
+                    _prashna_resp,
+                    language=language,
+                    fields_to_translate=[
+                        "reasoning", "explanation", "narrative",
+                        "your_move", "timing_legacy", "label", "confidence",
+                        "remedy",
+                    ],
+                    endpoint_name="prashna",
+                    chart_id=chart_id,
+                )
+            except Exception as _pr_te:
+                print(f"[es-loc] prashna translate non-fatal: {_pr_te}")
+        return _prashna_resp
 
     except Exception as e:
         logger.error(f"Prashna engine error: {traceback.format_exc()}")
@@ -14414,6 +14458,13 @@ def _ask_scrub_payload(payload: dict, fields: list, language: str = 'en') -> dic
             f'[ask-scrub] non-fatal: {_ask_e}'
         )
     return payload
+
+
+# [es-loc 2026-06-09] /ask localize is already defined above (signature:
+# payload, language, fields, chart_id=None). Earlier patch attempt added a
+# duplicate that shadowed the real one and broke its callers; reverted.
+# The actual fix in this sprint expands the `fields` list at the two existing
+# _ask_localize call sites to include actions/practices/convergence.
 
 
 @app.post("/api/v1/ask")
@@ -15037,7 +15088,12 @@ async def ask_endpoint(request: AskRequest):
                 _ask_scrub_payload(payload, ["read", "next", "timing"], language=language)
             except Exception:
                 pass
-            payload = await _ask_localize(payload, language, ["read", "next", "timing"], chart_id)
+            # [es-loc 2026-06-09] expanded fields: actions[]/practices[]/convergence
+            # are container keys — translate_dict recurses into their subtrees.
+            payload = await _ask_localize(payload, language, [
+                "read", "next", "timing", "actions", "practices",
+                "convergence", "what", "why",
+            ], chart_id)
             return payload
 
         except Exception as e:
@@ -19799,6 +19855,29 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
                 _sched["streak_data"] = _streak
                 if language == "es": _sched = _translate_practice_schedule_es(_sched)
                 _sched = _gem_localize_why(_sched, language)
+                # [es-loc 2026-06-09] Loc-4 backstop — the hand-rolled dict only
+                # covers known phrases; PLANET_PRACTICE_META + REMEDIES can ship
+                # new EN strings the dict doesn't know. translate_dict catches them.
+                if language in ("es", "pt"):
+                    try:
+                        from antar_engine.translation_middleware import translate_dict as _pr_td
+                        _sched = await _pr_td(
+                            _sched, language=language,
+                            fields_to_translate=[
+                                "primary_practice", "supporting_practices",
+                                "mantra_of_the_day", "weekly_plan", "rin_cards",
+                                "sleeping_alerts", "convergence_summary",
+                                "why", "what", "how", "practice_why",
+                                "mantra_why", "duration_reason",
+                                "mantra_duration_reason", "completion_milestone",
+                                "primary_action", "energy_label",
+                                "streak_warning", "remedy_why",
+                            ],
+                            endpoint_name="practices-schedule",
+                            chart_id=chart_id,
+                        )
+                    except Exception as _ptd_e:
+                        print(f"[es-loc] /practices cache translate non-fatal: {_ptd_e}")
                 return {"status": "ok", "source": "cache", "schedule": _sched}
         _chart = supabase.table("charts").select("chart_data, jaimini_data, lal_kitab_data, current_country, birth_date").eq("id", chart_id).single().execute()
         if not _chart.data:
@@ -19870,6 +19949,27 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
             pass
         if language == "es": _sched = _translate_practice_schedule_es(_sched)
         _sched = _gem_localize_why(_sched, language)
+        # [es-loc 2026-06-09] Loc-4 backstop for the generated path.
+        if language in ("es", "pt"):
+            try:
+                from antar_engine.translation_middleware import translate_dict as _pr_td
+                _sched = await _pr_td(
+                    _sched, language=language,
+                    fields_to_translate=[
+                        "primary_practice", "supporting_practices",
+                        "mantra_of_the_day", "weekly_plan", "rin_cards",
+                        "sleeping_alerts", "convergence_summary",
+                        "why", "what", "how", "practice_why",
+                        "mantra_why", "duration_reason",
+                        "mantra_duration_reason", "completion_milestone",
+                        "primary_action", "energy_label",
+                        "streak_warning", "remedy_why",
+                    ],
+                    endpoint_name="practices-schedule",
+                    chart_id=chart_id,
+                )
+            except Exception as _ptd_e:
+                print(f"[es-loc] /practices generated translate non-fatal: {_ptd_e}")
         return {"status": "ok", "source": "generated", "schedule": _sched}
     except Exception as e:
         print(f"[PRACTICE] Schedule error: {e}")
@@ -25301,7 +25401,9 @@ async def get_life_arc(
                             if isinstance(obj, list):
                                 return [_cyc_walk(v) for v in obj]
                             if isinstance(obj, str) and obj:
-                                v = _cyc_aufs(obj, language='en', field_type='plain')
+                                # [es-loc 2026-06-09] honor the request language so the cache scrub
+                                # doesn't anglicize an ES payload it just deserialized.
+                                v = _cyc_aufs(obj, language=language, field_type='plain')
                                 # invented-vocab kill (re-banned)
                                 import re as _cre
                                 v = _cre.sub(r'\b(?:sub-chapter|micro-chapter|chapter-nesting)\b', 'phase', v, flags=_cre.IGNORECASE)
@@ -25314,6 +25416,28 @@ async def get_life_arc(
                         print(f'[life-arc] cycle-andres-fix scrub skipped: {_cyc_e}')
                     # [strip-3surfaces-returns 2026-06-09]
                     life_arc = _strip_payload_leaves(life_arc, language=locals().get('language', 'en'))
+                    # [es-loc 2026-06-09] cache-hit localization backstop. translate_dict
+                    # recurses into diagnostic.* + highlights[] + current_stuckness_sources[]
+                    # because their container keys are in the allowlist.
+                    if language in ("es", "pt"):
+                        try:
+                            from antar_engine.translation_middleware import translate_dict as _la_td
+                            life_arc = await _la_td(
+                                life_arc, language=language,
+                                fields_to_translate=[
+                                    "diagnostic", "highlights",
+                                    "current_stuckness_sources", "what_to_lean_into",
+                                    "what_to_avoid", "next_phase_shift",
+                                    "text", "explanation", "source", "label",
+                                    "character", "preparation_advice",
+                                    "headline", "narration", "summary",
+                                    "life_phase_summary", "tensions",
+                                ],
+                                endpoint_name="life-arc",
+                                chart_id=chart_id,
+                            )
+                        except Exception as _la_te:
+                            print(f"[es-loc] life-arc cache-hit translate non-fatal: {_la_te}")
                     return _ent_cycle_view(life_arc, chart_id)
                 else:
                     print(f"[life_arc] Cache STALE for {chart_id} "

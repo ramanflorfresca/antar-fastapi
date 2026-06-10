@@ -215,7 +215,15 @@ async def _claude_diagnostic(
     _growth_energy = _energy_name("Jupiter")
     _discipline_energy = _energy_name("Saturn")
 
-    prompt = f"""You are generating a life diagnostic for Antar (a life navigation AI).
+    # [es-loc 2026-06-09] prominent language directive at the top — prior placement
+    # at rule 7 of 8 was getting overridden by Claude's EN bias when the prompt body
+    # itself was English.
+    _lang_directive = (
+        f"RESPOND ENTIRELY IN {language.upper()}. EVERY string value in your JSON\n"
+        f"output MUST be written in {language}. Do NOT use English. This rule overrides\n"
+        f"every other instruction below.\n\n"
+    ) if (language or "en").lower()[:2] != "en" else ""
+    prompt = f"""{_lang_directive}You are generating a life diagnostic for Antar (a life navigation AI).
 
 Current state (internal labels — NEVER echo these literally):
 - Major chapter: {md} (ends {vim.get('md_end_date')})
