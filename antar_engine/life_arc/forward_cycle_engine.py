@@ -798,6 +798,11 @@ def _arc_block(current_md: dict, next_md: Optional[dict], now: datetime) -> dict
         "here_label":   "You're here",
         "end_label":    f"New chapter {_plain_month(nm_start)}",
         "pct_elapsed":  round(pct, 2),
+        # Brief shape (Cowork 2026-06-10): ISO anchors so THE ARC can draw
+        # "Began <year> -> you're here -> <MD end>". Additive — labels stay.
+        "start":        cm_start.date().isoformat(),
+        "end":          cm_end.date().isoformat(),
+        "progress":     round(pct, 2),
     }
 
 
@@ -921,17 +926,20 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
         pd_events = _events_for_node(
             current_pd["lord"], current_pd["start"], current_pd["end"],
             chart_data, chara_lord,
-        )  # 'now' node carries no events by brief — condition-only framing
-        top_now_evt = pd_events[0].get("title") if pd_events else None  # for tone only
-        _ = top_now_evt  # suppress lint; verdict pulls from sub_chapter top
+        )
+        # Founder ruling 2026-06-10: NOW node carries its PD event chips
+        # ("NOW node -> current PD window + its event(s)").
         nodes.append({
             "kind":       "now",
+            "start":      current_pd["start"].date().isoformat(),
+            "end":        current_pd["end"].date().isoformat(),
             "when_label": _when_label("now", current_pd["end"]),
             "title":      _node_title("now", period_lord=current_pd.get("lord")),
             "body":       _node_body("now",
                                      period_lord=current_pd.get("lord"),
                                      chart_data=chart_data),
-            "events":     [],
+            "events":     [{k: v for k, v in e.items() if k != "_event_type"}
+                           for e in pd_events],
         })
 
     # sub_chapter = current AD (or, in short-MD fallback, current PD again — but
@@ -947,6 +955,8 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
         )
         nodes.append({
             "kind":       "sub_chapter",
+            "start":      sc_period["start"].date().isoformat(),
+            "end":        sc_period["end"].date().isoformat(),
             "when_label": _when_label("sub_chapter", sc_period["end"]),
             "title":      _node_title("sub_chapter", period_lord=sc_period.get("lord")),
             "body":       _node_body("sub_chapter",
@@ -965,6 +975,8 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
         )
         nodes.append({
             "kind":       "turn",
+            "start":      next_ad["start"].date().isoformat(),
+            "end":        next_ad["end"].date().isoformat(),
             "when_label": _when_label("turn", next_ad["start"]),
             "title":      _node_title("turn",
                                       period_lord=(current_ad or {}).get("lord"),
@@ -981,6 +993,8 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
     if next_md and next_md["lord"]:
         nodes.append({
             "kind":       "new_chapter",
+            "start":      next_md["start"].date().isoformat(),
+            "end":        next_md["end"].date().isoformat(),
             "when_label": _when_label("new_chapter", next_md["start"]),
             "title":      _node_title("new_chapter",
                                       period_lord=current_md.get("lord"),

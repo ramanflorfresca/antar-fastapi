@@ -25133,6 +25133,137 @@ async def _life_arc_compute(chart_id, horizon_months, language,
         response.setdefault("arc", {})
         response.setdefault("cycle_timeline", [])
 
+    # ── Forward event chips — DashaEventMapper + ECS merge (Cowork 2026-06-10) ──
+    # Populates predicted_events / node event chips / landmarks from the
+    # VALIDATED timing engines. The signature library (wealth_jump only) kept
+    # producing predicted_events == [] for every chart — its output is now
+    # appended AFTER the chips instead of being the sole source.
+    # Non-blocking: any failure leaves the signature output untouched.
+    try:
+        from antar_engine.life_arc.forward_events import build_forward_event_chips
+
+        _fe_lagna_raw = (chart_data or {}).get("lagna") or {}
+        _fe_lagna = (_fe_lagna_raw.get("sign") if isinstance(_fe_lagna_raw, dict)
+                     else _fe_lagna_raw) or (chart_record or {}).get("lagna_sign") or ""
+        _fe_birth_year = int(birth_date_str[:4]) if birth_date_str[:4].isdigit() else 1980
+        _fe_now = _la_dt.utcnow()
+        _fe_today = _fe_now.strftime("%Y-%m-%d")
+        _fe_vim = (current_phase or {}).get("vimsottari") or {}
+        _fe_md_end = str(_fe_vim.get("md_end_date") or "")[:10]
+        _fe_to = _fe_md_end if (_fe_md_end and _fe_md_end > _fe_today) else None
+
+        _fe_ads_res = supabase.table("dasha_periods") \
+            .select("planet_or_sign,start_date,end_date,level,type,metadata") \
+            .eq("chart_id", chart_id) \
+            .eq("system", "vimsottari") \
+            .order("start_date") \
+            .execute()
+        _fe_ads = [r for r in (_fe_ads_res.data or [])
+                   if r.get("level") == 2
+                   or str(r.get("type", "")).lower() in ("antardasha", "ad", "2")]
+
+        _fe_chips = []
+        if _fe_ads and _fe_lagna:
+            _fe_chips = build_forward_event_chips(
+                chart_data=chart_data,
+                birth_jd=birth_jd,
+                lagna=_fe_lagna,
+                birth_year=_fe_birth_year,
+                ads=_fe_ads,
+                from_date=_fe_today,
+                to_date=_fe_to,
+                birth_date_str=birth_date_str,
+                marital_status=str((chart_record or {}).get("marital_status") or ""),
+                children_status=str((chart_record or {}).get("children_status") or ""),
+                now=_fe_now,
+            )
+
+        if _fe_chips:
+            _fe_public = [{k: v for k, v in c.items() if not k.startswith("_")}
+                          for c in _fe_chips]
+            # Hard conviction guard — never let "high" leak pre-D9/D10.
+            for _fe_c in _fe_public:
+                if _fe_c.get("conviction") == "high":
+                    _fe_c["conviction"] = "medium"
+            response["predicted_events"] = _fe_public + (predicted_events or [])
+
+            # Attach chips to cycle_timeline nodes by window overlap.
+            # Each chip lands exactly ONCE, at the NARROWEST overlapping node
+            # (NOW PD sits inside the sub-chapter AD — without this, every
+            # NOW chip duplicated into sub_chapter). Strict overlap so a
+            # window starting the day a node ends belongs to the next node.
+            # Cap 3 events per node.
+            def _fe_span_days(_n):
+                try:
+                    return (_la_dt.strptime(str(_n.get("end"))[:10], "%Y-%m-%d")
+                            - _la_dt.strptime(str(_n.get("start"))[:10], "%Y-%m-%d")).days
+                except Exception:
+                    return 10 ** 6
+            _fe_nodes = [n for n in (response.get("cycle_timeline") or [])
+                         if str(n.get("start") or "")[:10] and str(n.get("end") or "")[:10]]
+            _fe_used = set()
+            for _fe_node in sorted(_fe_nodes, key=_fe_span_days):
+                _fe_ns = str(_fe_node.get("start"))[:10]
+                _fe_ne = str(_fe_node.get("end"))[:10]
+                _fe_node_events = _fe_node.setdefault("events", [])
+                _fe_titles = {e.get("title") for e in _fe_node_events}
+                for _fe_c in _fe_public:
+                    if len(_fe_node_events) >= 3:
+                        break
+                    _fe_key = (_fe_c["title"], _fe_c["window_start"])
+                    if (_fe_key not in _fe_used
+                            and _fe_c["title"] not in _fe_titles
+                            and _fe_c["window_start"] < _fe_ne
+                            and _fe_c["window_end"] > _fe_ns):
+                        _fe_node_events.append({
+                            "title":        _fe_c["title"],
+                            "category":     _fe_c["category"],
+                            "window_label": _fe_c["window_label"],
+                            "conviction":   _fe_c["conviction"],
+                        })
+                        _fe_titles.add(_fe_c["title"])
+                        _fe_used.add(_fe_key)
+
+            # Rebuild landmarks over the FULL chapter horizon so the next-AD
+            # turn, the next-MD chapter close AND every forward event land —
+            # the default 12-month horizon was clipping all of them.
+            try:
+                _fe_horizon = horizon_months
+                if _fe_md_end:
+                    _fe_md_dt = _la_dt.strptime(_fe_md_end, "%Y-%m-%d")
+                    _fe_horizon = max(horizon_months,
+                                      (_fe_md_dt.year - _fe_now.year) * 12
+                                      + (_fe_md_dt.month - _fe_now.month) + 2)
+                response["timeline_visual_data"] = build_timeline(
+                    current_phase=current_phase,
+                    predicted_events=response["predicted_events"],
+                    horizon_months=_fe_horizon,
+                    diagnostic=diagnostic,
+                )
+            except Exception as _fe_tl_err:
+                print(f"[life_arc] forward-events timeline rebuild failed: {_fe_tl_err}")
+
+        # Conviction reframe (Task 3, founder-approved 2026-06-10): the Cycle
+        # tab speaks layer-convergence, not signature sample-size. Signature
+        # validation language stays only for genuine rare-pattern events.
+        response["honesty_layer"] = {
+            "conviction_model": "layer_convergence",
+            "conviction_cap": "medium",
+            "confidence_note": (
+                "Each upcoming window is shown because independent timing "
+                "layers point the same way — the more layers agree, the "
+                "stronger the conviction. Conviction is deliberately capped "
+                "at medium for now: the finer chart layers that confirm or "
+                "veto these windows haven't shipped yet, so we under-promise "
+                "by design. Confirming or denying a window when it passes "
+                "makes future readings sharper."
+            ),
+            "signatures_used": ([f"wealth_jump v{_wj_meta['version']}"]
+                                if (predicted_events or []) else []),
+        }
+    except Exception as _fe_err:
+        print(f"[life_arc] forward-events chips failed (non-blocking): {_fe_err}")
+
     # ── Cycle gist (Cowork addendum 2026-06-10) ──────────────────────────
     # `gist` = current_phase.life_phase_summary trimmed to ~first 2
     # sentences so the Cycle tab card has a short surface even when the
