@@ -25133,6 +25133,25 @@ async def _life_arc_compute(chart_id, horizon_months, language,
         response.setdefault("arc", {})
         response.setdefault("cycle_timeline", [])
 
+    # ── Cycle gist (Cowork addendum 2026-06-10) ──────────────────────────
+    # `gist` = current_phase.life_phase_summary trimmed to ~first 2
+    # sentences so the Cycle tab card has a short surface even when the
+    # full summary is long. Already planet-free by the existing prompt
+    # contract; the cyclecontract scrub layer below catches any
+    # residual leaks regardless.
+    try:
+        import re as _gist_re
+        _lps = (current_phase or {}).get("life_phase_summary") or ""
+        if isinstance(_lps, str) and _lps.strip():
+            _sentences = _gist_re.split(r"(?<=[.!?])\s+", _lps.strip())
+            response["gist"] = " ".join(_sentences[:2]).strip()
+        else:
+            response["gist"] = ""
+    except Exception as _gist_err:
+        print(f"[life_arc] gist trim failed (non-blocking): {_gist_err}")
+        response["gist"] = (current_phase or {}).get("life_phase_summary", "") or ""
+
+
     # ── Layer-2 highlights — Cycle (2-of-3 timing convergence) ──
     try:
         from antar_engine.highlight_composer import build_highlights as _bc
@@ -25192,6 +25211,20 @@ async def _life_arc_compute(chart_id, horizon_months, language,
     except Exception as _bc_err:
         print(f"[life_arc] highlights failed: {_bc_err}")
         response.setdefault("highlights", [])
+
+    # ── Strip internal provenance from user-facing highlights (Cowork 2026-06-10) ──
+    # highlights[].backed_by carries engine names ("vimshottari", "transit",
+    # "diagnostic") — keep it out of the wire payload. Internal logging /
+    # debugging can still pull it from the Condition objects upstream.
+    try:
+        _hl = response.get("highlights") or []
+        if isinstance(_hl, list):
+            for _h in _hl:
+                if isinstance(_h, dict) and "backed_by" in _h:
+                    _h.pop("backed_by", None)
+    except Exception as _bb_err:
+        print(f"[life_arc] backed_by scrub failed (non-blocking): {_bb_err}")
+
 
     # ── 5b. Narration-Contract scrub (cyclecontract_v3 2026-06-07) ─────────
     # Cycle is the last red surface in the Narration Contract sprint.
