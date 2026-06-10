@@ -1640,6 +1640,18 @@ Rules:
 - If timing data is provided, give a specific window (not "soon").
 - Be direct. Be warm. Be useful."""
 
+# ── [admin-inspect 2026-06-10] read-only Prediction Inspector hooks ─────────
+# INSPECT_CTX is set ONLY by antar_engine.admin_inspect.inspect_surface().
+# When inactive (None) every guard below is a no-op — zero change for live
+# traffic. LLM wrappers append {system_prompt, model, latency_ms} to the
+# active context; per-chart cache-write sites skip writes while it is set.
+import time as _ai_time
+from antar_engine.admin_inspect import INSPECT_CTX as _INSPECT_CTX
+
+def _inspect_active():
+    _c = _INSPECT_CTX.get()
+    return _c if isinstance(_c, dict) else None
+
 async def call_llm(
     prompt: str,
     history: Optional[List[Dict[str, str]]] = None,
@@ -1658,6 +1670,7 @@ async def call_llm(
         *history[-8:],
         {"role": "user", "content": prompt},
     ]
+    _ai_t0 = _ai_time.monotonic()
     try:
         response = await deepseek_client.chat.completions.create(
             model="deepseek-chat",
@@ -1665,7 +1678,17 @@ async def call_llm(
             temperature=0.35,
             max_tokens=1200,
         )
-        return response.choices[0].message.content.strip(), None
+        _ai_text = response.choices[0].message.content.strip()
+        # [admin-inspect] capture (no-op for live traffic)
+        _ai_c = _inspect_active()
+        if _ai_c is not None:
+            _ai_c["llm_calls"].append({
+                "system_prompt": messages[0]["content"] if messages else "",
+                "model": "deepseek-chat",
+                "latency_ms": int((_ai_time.monotonic() - _ai_t0) * 1000),
+                "user_prompt": prompt,
+            })
+        return _ai_text, None
     except Exception as e:
         print(f"LLM error: {e}")
         return "I'm sorry, I'm having trouble connecting to my intuition right now. Please try again later.", None
@@ -1736,6 +1759,7 @@ async def call_llm_claude(
     if _dynamic_part:
         _system_blocks.append({"type": "text", "text": _dynamic_part})
 
+    _ai_t0 = _ai_time.monotonic()
     try:
         response = await claude_client.messages.create(
             model="claude-sonnet-4-5",
@@ -1750,6 +1774,16 @@ async def call_llm_claude(
         _cache_r = getattr(response.usage, 'cache_read_input_tokens', 0) or 0
         _cache_w = getattr(response.usage, 'cache_creation_input_tokens', 0) or 0
         print(f"[claude] cache_hit={_cache_r} cache_write={_cache_w} output={tokens} total_input={getattr(response.usage, 'input_tokens', 0)}")
+        # [admin-inspect] capture (no-op for live traffic)
+        _ai_c = _inspect_active()
+        if _ai_c is not None:
+            _ai_c["llm_calls"].append({
+                "system_prompt": system,
+                "model": "claude-sonnet-4-5",
+                "latency_ms": int((_ai_time.monotonic() - _ai_t0) * 1000),
+                "user_prompt": prompt,
+                "output_tokens": tokens,
+            })
         return text, tokens
     except Exception as e:
         print(f"[claude] error, falling back to DeepSeek: {e}")
@@ -11676,6 +11710,23 @@ async def admin_llm_usage(days: int = 30, admin_email: str = Depends(require_adm
             "by_day": [{"date": k, "calls": v} for k, v in sorted(by_day.items())]}
 
 
+
+
+# ── [admin-inspect 2026-06-10] Prediction Inspector (read-only) ──────────────
+# Re-runs the SAME compute + narrate functions a surface uses and returns the
+# raw deterministic bundle, the narrated output, and the exact system prompt.
+# Strict no-write: production cache tables are never touched (see
+# antar_engine/admin_inspect.py). Admin-gated via the existing require_admin.
+@app.get("/api/v1/admin/inspect/{chart_id}")
+async def admin_inspect(chart_id: str, surface: str, language: str = "en",
+                        admin_email: str = Depends(require_admin)):
+    from antar_engine.admin_inspect import inspect_surface, VALID_SURFACES
+    if surface not in VALID_SURFACES:
+        raise HTTPException(
+            status_code=400,
+            detail="surface must be one of: today, month, year, cycle")
+    return await inspect_surface(chart_id, surface, language)
+
 @app.post("/api/v1/me/billing/portal")
 async def settings_billing_portal(authorization: Optional[str] = Header(None)):
     from fastapi.responses import JSONResponse
@@ -16114,6 +16165,10 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             result["el_movimiento"] = ""
             result["move"] = ""
             result["_debug_reasoning"] = _th_dbg
+            # [admin-inspect] capture the deterministic engine pick (raw bundle)
+            _ai_c = _inspect_active()
+            if _ai_c is not None:
+                _ai_c["raw"]["today_engine"] = {"engine": _th, "debug": _th_dbg}
 
             # [today-v2 Part 6] Claude narration of the ENGINE-chosen
             # highlight. The engine picks domains + direction; Claude only
@@ -16130,7 +16185,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     )
                     _nar_date = (start_date.date() if hasattr(start_date, "date")
                                  else start_date).isoformat()
-                    _nar = narration_cache_read(supabase, cid, _nar_date, _th)
+                    _nar = None if _inspect_active() else narration_cache_read(supabase, cid, _nar_date, _th)
                     if not _nar:
                         # Fix #1: hand the engine's specific drivers to the
                         # narrator so it says WHY each domain is lit, not just
@@ -16154,7 +16209,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                             max_tokens_override=350,
                         )
                         _nar = parse_and_validate(_nar_raw, language="en")
-                        if _nar:
+                        if _nar and not _inspect_active():
                             narration_cache_write(supabase, cid, _nar_date, _th, _nar)
                     if _nar:
                         result["headline"]  = _nar["headline"]
@@ -16168,6 +16223,8 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             # opens from the SAME snapshot instead of re-deriving its own.
             try:
                 from antar_engine.today_signal import commit_today_signal
+                if _inspect_active():
+                    raise RuntimeError("inspect no-write: today-signal commit skipped")
                 _ts_date = (start_date.date() if hasattr(start_date, "date")
                             else start_date).isoformat()
                 commit_today_signal(
@@ -16183,7 +16240,8 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             # Layer 3 opens instantly (deduped by its own cache).
             try:
                 import asyncio as _ds_aio
-                _ds_aio.create_task(_prewarm_deep_read(cid, language, effective_offset))
+                if not _inspect_active():
+                    _ds_aio.create_task(_prewarm_deep_read(cid, language, effective_offset))
             except Exception as _pw_err:
                 print(f"[daily-signal] deep-read prewarm skipped: {_pw_err}")
         except Exception as _th_err:
@@ -23038,7 +23096,8 @@ async def _modernize_upaay(planet: str, variant: str, curated: str) -> str:
                 _action, language="en", field_type="timing", source="llm")
         except Exception:
             pass
-        upaay_cache_write(supabase, _key, _action, planet or "", variant or "")
+        if not _inspect_active():
+            upaay_cache_write(supabase, _key, _action, planet or "", variant or "")
         return _action
     except Exception as _e:
         print(f"[upaay-modern] non-fatal: {_e}")
@@ -23319,8 +23378,13 @@ async def predict_year_attention(request: dict):
             current_md_row=current_md_row,
             next_md_row=next_md_row,
         )
+        _ai_c = _inspect_active()
+        if _ai_c is not None:
+            import copy as _ai_copy
+            _ai_c["raw"]["year_engine_state"] = _ai_copy.deepcopy(_yn_state)
+            _ai_c["raw"]["year_pre_narration"] = _ai_copy.deepcopy(payload)
         _yn_ps = str(payload.get("period_start") or year.get("range") or "")
-        _yn = year_narration_cache_read(supabase, chart_id, _yn_ps, _yn_state)
+        _yn = None if _inspect_active() else year_narration_cache_read(supabase, chart_id, _yn_ps, _yn_state)
         if not _yn:
             _yn_sys = build_year_narration_system(
                 _yn_state, first_name=(row.get("first_name") or ""),
@@ -23331,7 +23395,7 @@ async def predict_year_attention(request: dict):
                 max_tokens_override=600,
             )
             _yn = parse_and_validate_year(_yn_raw, language="en")
-            if _yn:
+            if _yn and not _inspect_active():
                 year_narration_cache_write(supabase, chart_id, _yn_ps, _yn_state, _yn)
         if _yn:
             year["headline"] = _yn["headline"]
@@ -25079,6 +25143,18 @@ async def _life_arc_compute(chart_id, horizon_months, language,
         print(f"[life_arc] Timeline error: {e}")
         timeline = {"start": _la_dt.utcnow().strftime("%Y-%m-%d"), "end": "", "landmarks": []}
 
+    # [admin-inspect] capture the deterministic cycle bundle (pre-prose)
+    _ai_c = _inspect_active()
+    if _ai_c is not None:
+        _ai_c["raw"]["cycle_bundle"] = {
+            "archetype": archetype_name,
+            "vimsottari": (current_phase or {}).get("vimsottari"),
+            "jaimini_chara": (current_phase or {}).get("jaimini_chara"),
+            "transit_overlay": (current_phase or {}).get("transit_overlay"),
+            "predicted_events": predicted_events,
+            "timeline": timeline,
+        }
+
     # ── 5. Assemble response ─────────────────────────────────────────────
     from antar_engine.life_arc.signatures.wealth_jump import SIGNATURE_METADATA as _wj_meta
 
@@ -25597,14 +25673,17 @@ async def _life_arc_compute(chart_id, horizon_months, language,
         from datetime import timedelta as _la_td
         expires = _la_dt.utcnow() + _la_td(days=30)
         response["_library_version"] = _lib_version
-        supabase.table("life_arc_cache").upsert({
-            "chart_id": chart_id,
-            "horizon_months": horizon_months,
-            "language": language,
-            "life_arc": response,
-            "expires_at": expires.isoformat(),
-        }).execute()
-        print(f"[life_arc] Cached result for {chart_id} (lib={_lib_version})")
+        if _inspect_active():
+            print(f"[life_arc] inspect no-write — cache write skipped for {chart_id}")
+        else:
+            supabase.table("life_arc_cache").upsert({
+                "chart_id": chart_id,
+                "horizon_months": horizon_months,
+                "language": language,
+                "life_arc": response,
+                "expires_at": expires.isoformat(),
+            }).execute()
+            print(f"[life_arc] Cached result for {chart_id} (lib={_lib_version})")
     except Exception as _cache_w_e:
         print(f"[life_arc] Cache write error (non-blocking): {_cache_w_e}")
 
