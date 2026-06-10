@@ -25109,6 +25109,30 @@ async def _life_arc_compute(chart_id, horizon_months, language,
         },
     }
 
+    # ── Forward Cycle engine (Cowork 2026-06-10) ────────────────────────
+    # Builds the verdict / arc / cycle_timeline block the Lovable Cycle UI
+    # reads. Failure here MUST NOT tank /life-arc — empty stub on any
+    # exception. ECS is gated by D_gate; Tier-1 displayed conviction is
+    # capped at "medium" (Varga_mult stubbed at 1.0 — see
+    # antar_engine/life_arc/forward_cycle_engine.py header).
+    try:
+        from antar_engine.life_arc.forward_cycle_engine import build_forward_cycle as _fwd_build
+        _fwd = _fwd_build(
+            chart_data=chart_data,
+            birth_jd=birth_jd,
+            now=_la_dt.utcnow(),
+            birth_date_str=birth_date_str,
+            language=language,
+        )
+        response["verdict"]        = _fwd.get("verdict", "")
+        response["arc"]            = _fwd.get("arc", {})
+        response["cycle_timeline"] = _fwd.get("cycle_timeline", [])
+    except Exception as _fwd_err:
+        print(f"[life_arc] forward_cycle engine failed (non-blocking): {_fwd_err}")
+        response.setdefault("verdict", "")
+        response.setdefault("arc", {})
+        response.setdefault("cycle_timeline", [])
+
     # ── Layer-2 highlights — Cycle (2-of-3 timing convergence) ──
     try:
         from antar_engine.highlight_composer import build_highlights as _bc
@@ -25355,9 +25379,15 @@ async def _life_arc_compute(chart_id, horizon_months, language,
                             _node[_i] = _v4_scrub_str(_v)
                         elif isinstance(_v, (dict, list)):
                             _v4_walk(_v)
+            # cyclecontract-v5 2026-06-10: top-level `verdict` is a scalar
+            # string — v4 walk only operates on container keys, so scrub it
+            # explicitly here. Idempotent on clean strings.
+            _ver_scalar = response.get("verdict")
+            if isinstance(_ver_scalar, str) and _ver_scalar:
+                response["verdict"] = _cy_strip(_ver_scalar, language=language, field_type="plain")
             for _v4_key in ("current_phase", "diagnostic",
                             "timeline_visual_data", "cycle_cross_check",
-                            "system_readings"):
+                            "system_readings", "cycle_timeline", "arc"):
                 _v4_sub = response.get(_v4_key)
                 if isinstance(_v4_sub, (dict, list)):
                     _v4_walk(_v4_sub)

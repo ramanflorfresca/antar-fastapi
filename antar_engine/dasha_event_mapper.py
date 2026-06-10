@@ -173,6 +173,12 @@ def build_energy_explanation(prediction: dict, event_type: str, lagna_sign: str 
         "financial_disruption":      "the wealth area",
     }
     life_area = LIFE_AREA.get(event_type, "this area of your life")
+    def _an(word: str) -> str:
+        """Return "An" before vowel-initial themes (expansion / ambition /
+        identity / emotion), "A" otherwise. Fixes the long-standing
+        "A expansion pattern" article bug."""
+        return "An" if word and word[:1].lower() in ("a", "e", "i", "o", "u") else "A"
+
 
     # Gather distinct theme nouns from the dasha slots that fired.
     themes = []
@@ -187,12 +193,12 @@ def build_energy_explanation(prediction: dict, event_type: str, lagna_sign: str 
         return f"A clear pattern was active in {life_area} during this window."
 
     if len(themes) == 1:
-        return f"A {themes[0]} pattern was active in {life_area} during this window."
+        return f"{_an(themes[0])} {themes[0]} pattern was active in {life_area} during this window."
     if len(themes) == 2:
-        return (f"A {themes[0]} pattern was active in {life_area}, "
+        return (f"{_an(themes[0])} {themes[0]} pattern was active in {life_area}, "
                 f"sharpened by {themes[1]}.")
     # 3+ themes: lead with first two, fold the rest as supporting
-    return (f"A {themes[0]} pattern was active in {life_area}, "
+    return (f"{_an(themes[0])} {themes[0]} pattern was active in {life_area}, "
             f"sharpened by {themes[1]} and {themes[2]}.")
 
 
