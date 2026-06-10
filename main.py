@@ -13615,11 +13615,35 @@ async def ask_prashna(request: PrashnaRequest):
                 "Jupiter": "Express gratitude to a mentor or teacher this week.",
                 "Saturn": "Commit to one disciplined action. Follow through completely.",
             }
+        # [class-b 2026-06-09] strip planet name + house tokens from prashna remedy.why.
+        _pr_reasons = [
+            r for r in (wp.get('reasons') or ['general'])
+            if isinstance(r, str)
+        ]
+        import re as _pr_re
+        _PR_HOUSE_RE = _pr_re.compile(r'\s*(?:in\s+)?\d+(?:st|nd|rd|th)?\s+house\b|\(house\s+\d+\)', _pr_re.I)
+        _PR_PLANET_RE = _pr_re.compile(r'\b(?:Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu)\b')
+        _pr_reasons_clean = []
+        for _r in _pr_reasons:
+            _r = _PR_HOUSE_RE.sub('', _r)
+            _r = _PR_PLANET_RE.sub('this energy', _r)
+            _r = _pr_re.sub(r'\s{2,}', ' ', _r).strip(' ,-—')
+            if _r:
+                _pr_reasons_clean.append(_r)
+        if not _pr_reasons_clean:
+            _pr_reasons_clean = ['this pattern asks for attention']
         remedy = {
             "planet": wp.get("planet", "Saturn"),
             "practice": _rem_map.get(wp.get("planet", "Saturn"), "Take one deliberate action this week."),
-            "why": f"{wp.get('planet', 'Saturn')} needs strengthening — {', '.join(wp.get('reasons', ['general']))}",
+            "why": "This pattern needs strengthening — " + ', '.join(_pr_reasons_clean),
         }
+        # [class-b validator 2026-06-09] defensive scrub on prashna remedy.why.
+        try:
+            from antar_engine.leak_validator import validate_field as _lv_field
+            _ql = (locals().get('language') or 'en')
+            remedy['why'] = _lv_field(remedy.get('why', ''), 'remedy_why', _ql)
+        except Exception as _lv_pe:
+            print(f"[leak-validator] /prashna non-fatal: {_lv_pe}")
 
         # ─── 7. Log to prashna_log ───
         try:
@@ -17307,22 +17331,27 @@ async def get_personal_remedies(
         energy_lang    = rem.get("energy_language","")
 
         if priority_label == "Your current chapter needs support":
+            # [class-b 2026-06-09] planet/sign/house removed; energy_lang carries the life-area meaning.
             why = (
-                f"Your current life chapter is ruled by {planet}. "
-                f"{planet} is in {p_sign} (house {p_house}) — "
-                f"{'a challenging position that needs recalibration' if remedy_type == 'pacify' else 'a position that can be amplified'}. "
-                f"{energy_lang}"
+                "Your current life chapter is being shaped by this energy. "
+                + ("It is in a challenging position that needs recalibration. "
+                   if remedy_type == 'pacify' else
+                   "It is in a position that can be amplified. ")
+                + (energy_lang or "")
             )
         elif priority_label == "All timing systems point here":
+            # [class-b 2026-06-09] no planet name.
             why = (
-                f"Three separate timing systems — your life chapter, "
-                f"annual chart, and current transits — all point to {planet} "
-                f"as the most active pattern right now. {energy_lang}"
+                "Three separate timing systems — your life chapter, "
+                "annual chart, and current transits — all point to the same active pattern right now. "
+                + (energy_lang or "")
             )
         elif priority_label == "This year's clearing practice":
+            # [class-b 2026-06-09] no planet name.
             why = (
-                f"{planet} is in a challenging position in your annual chart this year. "
-                f"This practice clears the resistance it's creating. {energy_lang}"
+                "This energy is in a challenging position in your annual chart this year. "
+                "This practice clears the resistance it's creating. "
+                + (energy_lang or "")
             )
         elif priority_label == "Amplify what's already working":
             # [remedy-strength-gate 2026-06-09] chart-actual gating:
@@ -17331,23 +17360,30 @@ async def get_personal_remedies(
             # template that does not lie about strength.
             _cs = rem.get("chart_strength", "unknown")
             if _cs in ("exalted", "own"):
+                # [class-b 2026-06-09] no planet name.
                 why = (
-                    f"{planet} is exceptionally strong in your chart right now. "
-                    f"This practice amplifies that strength. {energy_lang}"
+                    "This pattern is exceptionally strong in your chart right now. "
+                    "This practice amplifies that strength. "
+                    + (energy_lang or "")
                 )
             elif _cs in ("debilitated", "combust"):
+                # [class-b 2026-06-09] no planet name.
                 why = (
-                    f"{planet} is in a challenging position in your chart "
-                    f"right now — this practice restores it. {energy_lang}"
+                    "This pattern is in a challenging position in your chart "
+                    "right now — this practice restores it. "
+                    + (energy_lang or "")
                 )
             else:
                 # neutral / unknown — describe the role without claiming strength
+                # [class-b 2026-06-09] no planet name.
                 why = (
-                    f"{planet} is well-placed in your chart and ready to be "
-                    f"reinforced. {energy_lang}"
+                    "This pattern is well-placed in your chart and ready to be "
+                    "reinforced. "
+                    + (energy_lang or "")
                 )
         else:
-            why = energy_lang or f"Recalibrates {planet} energy in your current pattern."
+            # [class-b 2026-06-09] no planet name.
+            why = energy_lang or "Recalibrates this energy in your current pattern."
 
         # Build WHAT — the practice
         mantra   = rem.get("mantra","")
@@ -17425,15 +17461,35 @@ async def get_personal_remedies(
             "house":     dasha_house,
             "is_weak":   is_weak,
             "dasha":     dasha_string,
+            # [class-b 2026-06-09] no planet/sign/house in user-facing diagnosis.
             "diagnosis": (
-                f"Your {current_md} chapter is active"
-                + (f" — {current_md} is weakened in {dasha_sign}, needs support" if is_weak
-                   else f" — {current_md} in {dasha_sign} (house {dasha_house})")
+                "Your current life chapter is active"
+                + (" — the underlying energy is weakened right now and needs support."
+                   if is_weak
+                   else " — the underlying pattern is in a placement that can be worked with.")
             ),
             "mantra":     sound.get("mantra",""),
             "buddhist":   sound.get("buddhist",""),
             "universal":  sound.get("universal",""),
         }
+
+    # [class-b validator 2026-06-09] safety-net: if any prose field still
+    # carries a planet/sign/house/Sanskrit/engine token, replace whole field
+    # with a safe localized fallback. Never word-strips.
+    try:
+        from antar_engine.leak_validator import validate_in_place
+        _rem_payload = {
+            "remedies":     remedies,
+            "dasha_remedy": dasha_remedy,
+        }
+        _fix_n = validate_in_place(_rem_payload, [
+            (["dasha_remedy", "diagnosis"], "diagnosis"),
+            (["remedies", "[*]", "why"],    "remedy_why"),
+        ], language=language)
+        if _fix_n:
+            print(f"[leak-validator] /remedies replaced {_fix_n} leaked field(s)")
+    except Exception as _lv_e:
+        print(f"[leak-validator] /remedies non-fatal: {_lv_e}")
 
     return {
         "chart_id":      chart_id,
@@ -22857,7 +22913,7 @@ async def predict_year_attention(request: dict):
             )
             attention = {
                 "flagged": True,
-                "planet":  primary,
+                "planet":  "",  # [class-a 2026-06-09] never ship raw planet name; attention.issue carries the meaning
                 "issue":   _hc.CAUSE_TEXT.get(primary, ""),
                 "remedy":  _hc._resolve_remedy(primary),
                 "chakra": {
@@ -22880,11 +22936,16 @@ async def predict_year_attention(request: dict):
     # permanently per content; curated original on any failure).
     if isinstance(attention, dict) and attention.get("remedy"):
         try:
+            # [class-a 2026-06-09] attention.planet is intentionally blank in the response;
+            # use the local `primary` variable for the upaay regeneration call.
             attention["remedy"] = await _modernize_upaay(
-                attention.get("planet") or "", "primary", attention["remedy"])
+                primary or "", "primary", attention["remedy"])
         except Exception as _um_e:
             print(f"[upaay-modern] year-attention non-fatal: {_um_e}")
 
+    # [class-b validator 2026-06-09] defense-in-depth: blank attention.planet.
+    if isinstance(attention, dict):
+        attention["planet"] = ""
     payload = {
         "chart_id":     chart_id,
         "language":     language,
@@ -24733,7 +24794,9 @@ async def _life_arc_compute(chart_id, horizon_months, language,
 
     response = {
         "chart_id": chart_id,
-        "archetype": archetype_name,
+        # [class-a 2026-06-09] archetype dropped from response — internal CAPS codename
+        # ("THE TURNAROUND ARCHITECT", "THE DISCOVERER") was leaking to the user-facing
+        # Cycle tab. Internally archetype_name is still computed for backend selectors.
         "horizon_months": horizon_months,
         "language": language,
         "generated_at": _la_dt.utcnow().isoformat() + "Z",

@@ -154,6 +154,41 @@ AD_PLANET_THEMES = {
     "Ketu":    "release & inward turn",
 }
 
+# [class-a 2026-06-09] Localized cycle-name labels. Replaces the leak
+# `f"{md_planet} cycle"` (e.g. 'Rahu cycle' / 'Saturn cycle') on the
+# user-facing horizons.cycle.cycleName. Keyed by MD planet, returns a
+# life-noun phrase. The chapter framing reuses the same vocabulary the
+# Today/Cycle gists already carry, so the label and the body agree.
+CYCLE_NAME_BY_PLANET = {
+    "en": {
+        "Sun":     "Identity & visibility chapter",
+        "Moon":    "Feeling & nurturing chapter",
+        "Mars":    "Energy & action chapter",
+        "Mercury": "Communication & exchange chapter",
+        "Jupiter": "Growth & meaning chapter",
+        "Venus":   "Connection & comfort chapter",
+        "Saturn":  "Discipline & structure chapter",
+        "Rahu":    "Ambition & the unfamiliar chapter",
+        "Ketu":    "Release & inward turn chapter",
+    },
+    "es": {
+        "Sun":     "Capítulo de identidad y visibilidad",
+        "Moon":    "Capítulo de sentimiento y cuidado",
+        "Mars":    "Capítulo de energía y acción",
+        "Mercury": "Capítulo de comunicación e intercambio",
+        "Jupiter": "Capítulo de crecimiento y sentido",
+        "Venus":   "Capítulo de conexión y comodidad",
+        "Saturn":  "Capítulo de disciplina y estructura",
+        "Rahu":    "Capítulo de ambición y lo desconocido",
+        "Ketu":    "Capítulo de soltar y retiro",
+    },
+}
+
+def _cycle_name_label(md_planet: str, language: str) -> str:
+    lang = (language or "en").lower()[:2]
+    table = CYCLE_NAME_BY_PLANET.get(lang) or CYCLE_NAME_BY_PLANET["en"]
+    return table.get(md_planet) or table.get("Mercury", "Current chapter")
+
 PLANET_AREAS = {
     "Sun":     ["Identity", "Career"],
     "Moon":    ["Family", "Wellbeing"],
@@ -578,7 +613,7 @@ def _strip_home_payload(payload, language: str = "en"):
     # Structured planet-label fields — pass through unstripped, mirroring the
     # @translate_response fields_to_skip on /home. Prevents the strip from
     # turning phase.*.planet / cycleName (e.g. "Saturn") into an energy phrase.
-    _KEEP = {"planet", "cycleName"}
+    _KEEP = {"planet"}  # [class-a 2026-06-09] cycleName now mapped, strip-safe
 
     def _walk_curated(node):
         """lkRead subtree (Step 6): source='curated_static' — keep planet names
@@ -1293,7 +1328,7 @@ def _compose_for_horizon(horizon: str,
                           chart_row: dict, chart_data: dict, lk_data: dict,
                           current_md_row: Optional[dict], current_ad_row: Optional[dict],
                           tz_offset_min: int,
-                          debug: bool = False) -> dict:
+                          debug: bool = False, language: str = "en") -> dict:
     natal = _natal_houses(chart_data)
     bd = chart_row.get("birth_date", "") or ""
     md_planet = (current_md_row or {}).get("planet_or_sign", "") or ""
@@ -1409,7 +1444,7 @@ def _compose_for_horizon(horizon: str,
         "polarity":  polarity,
         "headline":  headline,
         "gist":      gist,
-        "cycleName": (f"{md_planet} cycle" if horizon == "cycle" and md_planet else None),
+        "cycleName": (_cycle_name_label(md_planet, language) if horizon == "cycle" and md_planet else None),
         "info":      (CYCLE_INFO if horizon == "cycle" else None),
         "do":        do_text,
         "dont":      dont_text,
@@ -1535,6 +1570,8 @@ def compose_home_payload(chart_id: str, chart_row: dict, chart_data: dict, lk_da
                           current_md_row: Optional[dict], current_ad_row: Optional[dict],
                           language: str, tz_offset: int,
                           debug: bool = False) -> dict:
+    # [class-a 2026-06-09] language threaded into per-horizon compose for cycleName.
+    _lang = (language or "en").lower()[:2]
     first_name = chart_row.get("first_name") or "Friend"
     initial    = (first_name[:1] or "F").upper()
     horizons   = {}
@@ -1543,6 +1580,7 @@ def compose_home_payload(chart_id: str, chart_row: dict, chart_data: dict, lk_da
             h, chart_row, chart_data, lk_data,
             current_md_row, current_ad_row, int(tz_offset or 0),
             debug=debug,  # [gate-a]
+            language=_lang,  # [class-a 2026-06-09] for cycleName label
         )
     return {
         "chart_id":     chart_id,

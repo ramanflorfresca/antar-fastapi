@@ -49,7 +49,7 @@ PLANET_PRACTICE_META = {
     "Sun": {
         "why": "Your sense of identity and self-worth is the energy being worked on right now. This practice builds the internal confidence that makes external recognition possible.",
         "why_science": "Repetitive intention-setting at the same time daily recalibrates your reticular activating system — the brain's filter that decides what opportunities to notice.",
-        "why_india": "The Sun governs Atma (soul) and Ahamkara (ego-self). When Sun energy is blocked, recognition and authority become effortful. The mantra re-attunes your energy field to solar frequency.",
+        "why_india": "This energy governs identity, self-worth, and inner authority. When it is blocked, recognition and authority become effortful. The practice re-attunes your energy field to a steadier rhythm.",
         "duration_days": 7,
         "duration_label": "7 days",
         "duration_reason": "7 mirrors the solar weekly cycle. One full week resets the pattern.",
@@ -64,7 +64,7 @@ PLANET_PRACTICE_META = {
     "Moon": {
         "why": "Your emotional processing patterns are being recalibrated. This practice creates a pause between feeling and reacting — giving you clarity instead of reactivity.",
         "why_science": "The Moon's cycle directly affects human fluid systems and sleep rhythms. Consistent evening practice syncs your nervous system to a calmer biological rhythm.",
-        "why_india": "The Moon governs Manas (mind) and emotional memory. Blocked Moon energy creates anxiety, over-attachment, and sleep issues. The mantra clears the emotional field.",
+        "why_india": "This energy governs the mind and emotional memory. When it is blocked it creates anxiety, over-attachment, and sleep issues. The practice clears the emotional field.",
         "duration_days": 11,
         "duration_label": "11 days",
         "duration_reason": "11 is the number of emotional completion in Vedic numerology. One cycle of the Moon's emotional arc.",
@@ -79,10 +79,10 @@ PLANET_PRACTICE_META = {
     "Mars": {
         "why": "Your action energy and drive need direction right now. This practice channels aggression and impatience into decisive, purposeful movement instead of scattered effort.",
         "why_science": "High-intensity breath patterns (like Kapalabhati) activate the sympathetic nervous system constructively — releasing accumulated stress hormones without aggression.",
-        "why_india": "Mars governs Shakti (vital force) and the capacity to execute. Afflicted Mars creates accidents, conflicts, and wasted energy. The mantra redirects this force.",
+        "why_india": "This energy governs vital force and the capacity to execute. When it is afflicted it creates accidents, conflicts, and wasted effort. The practice redirects this force.",
         "duration_days": 49,
         "duration_label": "7 Tuesdays",
-        "duration_reason": "Mars energy requires 7 consecutive Tuesday cycles to fully redirect. Tuesday is Mars's day — the energy is most receptive.",
+        "duration_reason": "This energy needs 7 consecutive Tuesday cycles to fully redirect. Tuesday is when this pattern is most receptive.",
         "best_day": "Tuesday",
         "best_time": "morning, after exercise",
         "sessions_per_week": 1,
@@ -94,7 +94,7 @@ PLANET_PRACTICE_META = {
     "Mercury": {
         "why": "Your communication clarity and analytical precision are the focus right now. This practice sharpens how you express ideas and reduces overthinking loops.",
         "why_science": "Vocal repetition of structured sound patterns activates Broca's area and the prefrontal cortex simultaneously — literally training clearer thinking and expression.",
-        "why_india": "Mercury governs Buddhi (intellect) and Vak (speech). Weak Mercury causes miscommunication, contracts gone wrong, and scattered thinking. The mantra restores precision.",
+        "why_india": "This energy governs intellect and speech. When it is weak it causes miscommunication, contracts gone wrong, and scattered thinking. The practice restores precision.",
         "duration_days": 9,
         "duration_label": "9 days",
         "duration_reason": "9 completes a Mercury cognitive cycle. Enough repetition to build a new communication habit.",
@@ -109,10 +109,10 @@ PLANET_PRACTICE_META = {
     "Jupiter": {
         "why": "Your capacity for growth, wisdom, and expansion is being activated. This practice opens you to learning and opportunities that your current beliefs might be filtering out.",
         "why_science": "21 days is the neurological minimum to form a new cognitive habit. Gratitude and expansion practices literally rewire the brain's default mode network toward opportunity-seeking.",
-        "why_india": "Jupiter governs Dharma (life purpose) and Guru (wisdom transmission). Weak Jupiter closes the mind to growth and creates arrogance or missed opportunities. The mantra restores receptivity.",
+        "why_india": "This energy governs life purpose and the capacity to learn. When it is weak the mind closes to growth and creates arrogance or missed opportunities. The practice restores receptivity.",
         "duration_days": 21,
         "duration_label": "21 days",
-        "duration_reason": "21 days (3 lunar weeks) is the minimum for Jupiter to shift a belief pattern. Jupiter is the slowest-moving benefic and requires sustained intention.",
+        "duration_reason": "21 days (3 lunar weeks) is the minimum to shift a belief pattern. This is the slowest-moving expansion energy and requires sustained intention.",
         "best_day": "Thursday",
         "best_time": "morning, ideally before learning something new",
         "sessions_per_week": 7,
@@ -124,10 +124,10 @@ PLANET_PRACTICE_META = {
     "Venus": {
         "why": "Your relationship patterns and creative expression are the focus. This practice softens defensiveness and opens you to giving and receiving more freely.",
         "why_science": "Loving-kindness practices (the emotional equivalent of Venus remedies) measurably increase oxytocin, reduce cortisol, and improve relationship satisfaction within 21 days.",
-        "why_india": "Venus governs Kama (desire, beauty, relationships). Afflicted Venus creates relationship dissatisfaction, financial over-indulgence, and blocked creativity. The mantra restores flow.",
+        "why_india": "This energy governs desire, beauty, and relationships. When it is afflicted it creates relationship dissatisfaction, financial over-indulgence, and blocked creativity. The practice restores flow.",
         "duration_days": 21,
         "duration_label": "21 days",
-        "duration_reason": "Venus rules 21-day relationship cycles. 21 days is enough to shift a core relationship pattern.",
+        "duration_reason": "Relationship cycles run on a 21-day rhythm. 21 days is enough to shift a core relationship pattern.",
         "best_day": "Friday",
         "best_time": "evening, in a calm space",
         "sessions_per_week": 7,
@@ -139,10 +139,10 @@ PLANET_PRACTICE_META = {
     "Saturn": {
         "why": "Your relationship with discipline, long-term thinking, and karmic patterns is being worked on. This practice builds the tolerance for delay that turns ambition into lasting results.",
         "why_science": "40 days is the clinical minimum for breaking a deeply ingrained behavioral pattern (used in addiction recovery, habit formation research). Saturn rules exactly this kind of structural change.",
-        "why_india": "Saturn governs Karma (cause and effect) and Tapas (discipline through endurance). Saturn only responds to sustained effort — there are no shortcuts. The mantra activates patience as a strategic tool.",
+        "why_india": "This energy governs cause and effect and discipline through endurance. It only responds to sustained effort — there are no shortcuts. The practice activates patience as a strategic tool.",
         "duration_days": 40,
         "duration_label": "40 days",
-        "duration_reason": "40 days is Saturn's minimum commitment cycle. Saturn governs long-term structures and only shifts through demonstrated sustained discipline.",
+        "duration_reason": "40 days is the minimum commitment cycle for structural change. Long-term structures only shift through demonstrated sustained discipline.",
         "best_day": "Saturday",
         "best_time": "early morning, before the day begins",
         "sessions_per_week": 7,
@@ -154,10 +154,10 @@ PLANET_PRACTICE_META = {
     "Rahu": {
         "why": "Your relationship with obsession, ambition, and unconventional paths is being recalibrated. This practice helps you use disruptive energy constructively instead of compulsively.",
         "why_science": "18 days of consistent mindfulness around a specific pattern is enough to create metacognitive awareness — the ability to observe your own obsessive tendencies without being controlled by them.",
-        "why_india": "Rahu governs Maya (illusion) and worldly obsession. Rahu energy amplifies whatever it touches — this practice channels that amplification toward chosen goals rather than unconscious patterns.",
+        "why_india": "This energy governs illusion and worldly obsession. It amplifies whatever it touches — this practice channels that amplification toward chosen goals rather than unconscious patterns.",
         "duration_days": 18,
         "duration_label": "18 days",
-        "duration_reason": "18 is Rahu's nodal completion number. 18 consecutive days creates one full Rahu micro-cycle.",
+        "duration_reason": "18 days is one full nodal completion cycle for this pattern. 18 consecutive days creates a full micro-cycle.",
         "best_day": "Saturday",
         "best_time": "before sunset",
         "sessions_per_week": 7,
@@ -169,10 +169,10 @@ PLANET_PRACTICE_META = {
     "Ketu": {
         "why": "Your capacity for release, detachment, and trusting your intuition is being developed. This practice helps you let go of outcomes that are blocking your next chapter.",
         "why_science": "Detachment practices activate the default mode network differently than goal-focused thinking — they increase insight and creativity by reducing cognitive fixation.",
-        "why_india": "Ketu governs Moksha (liberation) and past-life wisdom. Ketu energy creates confusion when resisted but clarity when surrendered to. The mantra activates the wisdom side of Ketu.",
+        "why_india": "This energy governs liberation and inherited wisdom. It creates confusion when resisted but clarity when surrendered to. The practice activates the wisdom side of this pattern.",
         "duration_days": 7,
         "duration_label": "7 days",
-        "duration_reason": "Ketu works in 7-day release cycles. One week of consistent practice completes one detachment arc.",
+        "duration_reason": "Release energy works in 7-day cycles. One week of consistent practice completes one detachment arc.",
         "best_day": "Saturday",
         "best_time": "evening or before sleep",
         "sessions_per_week": 7,
@@ -309,7 +309,7 @@ MANTRAS = {
 
 REMEDIES = {
     "Sun": {
-        "IN": {"action": "Offer water to the Sun every morning. Donate wheat on Sundays.", "item": "copper coin in flowing water"},
+        "IN": {"action": "Offer water at sunrise every morning. Donate wheat on Sundays.", "item": "copper coin in flowing water"},
         "GLOBAL": {"action": "Spend 5 minutes in morning sunlight. Volunteer for a leadership role this week.", "item": "wear warm gold or orange on Sunday"},
     },
     "Moon": {
@@ -317,7 +317,7 @@ REMEDIES = {
         "GLOBAL": {"action": "Take a 10-minute walk by water this week. Write down three feelings you've been avoiding.", "item": "keep a small silver item in your pocket on Monday"},
     },
     "Mars": {
-        "IN": {"action": "Donate red lentils on Tuesday. Carry a copper coin.", "item": "sweet bread to a dog on Tuesday"},
+        "IN": {"action": "Donate red lentils on Tuesday. Carry a copper coin for the day.", "item": "sweet bread to a dog on Tuesday"},
         "GLOBAL": {"action": "Do 15 minutes of intense exercise on Tuesday. Channel frustration into a physical goal.", "item": "wear red or maroon on Tuesday"},
     },
     "Mercury": {
@@ -359,7 +359,7 @@ RIN_CLEARING = {
     "father_debt": {
         "label": "Authority Pattern",
         "why": "There's friction with authority figures or father-type relationships that keeps recurring. This pattern limits your professional growth.",
-        "IN": "Offer water to the Sun for 43 days. Respect father figures.",
+        "IN": "Offer water at sunrise for 43 days. Respect father figures.",
         "GLOBAL": "Reach out to an older male mentor this week. Offer genuine respect to someone in authority, even if difficult.",
         "duration": "43 days",
     },
@@ -390,7 +390,7 @@ RIN_CLEARING = {
 # Sleeping planet awakening (plain English)
 AWAKENING = {
     "Sun":     {"why": "Your ability to be seen and recognized is dormant. Opportunities exist but you're invisible to them.",
-                "IN": "Place a copper coin in flowing water on Sunday. Offer water to the rising sun for 7 days.",
+                "IN": "Place a copper coin in flowing water on Sunday. Offer water to the rising light for 7 days.",
                 "GLOBAL": "Stand in morning sunlight for 5 minutes daily. Take one action this week that makes you visible — publish, present, or speak up."},
     "Moon":    {"why": "Your emotional intelligence is blocked. Decisions feel cloudy and relationships feel distant.",
                 "IN": "Keep a silver item with you. Offer milk on Monday evenings.",
@@ -939,7 +939,8 @@ def _score_planet_convergence(planets, karakas, current_dasha, varshphal, sleepi
         vim_md = vimsottari_md or {}
         if vim_md.get("planet_or_sign") == planet:
             score += 0.30
-            reasons.append("ruling your current major life chapter (Vimsottari)")
+            # [class-b 2026-06-09] engine name removed from user-facing reasons.
+            reasons.append("ruling your current major life chapter")
 
         # Vimsottari Antardasha lord — current sub-chapter
         vim_ad = vimsottari_ad or {}
