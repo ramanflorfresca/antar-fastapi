@@ -42,6 +42,53 @@ INSPECT_CTX: contextvars.ContextVar = contextvars.ContextVar(
 
 VALID_SURFACES = {"today", "month", "year", "cycle"}
 
+import uuid as _uuid_mod
+
+
+def _resolve_chart_id(_m, chart_id: str) -> str:
+    """
+    [chartid-tolerant 2026-06-10] The console sends 8-char prefixes
+    (de0c6265); Postgres rejects them with 22P02 when cast to uuid. Resolve
+    tolerantly: full UUID passes through; a hex prefix resolves via a
+    uuid-RANGE scan (PostgREST cannot LIKE a uuid column): prefix padded
+    with 0s = lower bound, padded with fs = upper bound. Exactly one match
+    → full id; none → 404; several → 400. A raw 22P02 can never reach the
+    response.
+    """
+    cid = (chart_id or "").strip().lower()
+    try:
+        return str(_uuid_mod.UUID(cid))  # full valid UUID — use as-is
+    except Exception:
+        pass
+    hexpart = cid.replace("-", "")
+    if not (4 <= len(hexpart) < 32) or any(c not in "0123456789abcdef" for c in hexpart):
+        raise _m.HTTPException(
+            status_code=404,
+            detail={"error": "unknown chart id", "chart_id": chart_id})
+    lo, hi = hexpart.ljust(32, "0"), hexpart.ljust(32, "f")
+
+    def _fmt(h):
+        return f"{h[0:8]}-{h[8:12]}-{h[12:16]}-{h[16:20]}-{h[20:32]}"
+
+    try:
+        r = (_m.supabase.table("charts").select("id")
+             .gte("id", _fmt(lo)).lte("id", _fmt(hi)).limit(2).execute())
+        rows = r.data or []
+    except Exception as e:
+        raise _m.HTTPException(
+            status_code=400,
+            detail={"error": "chart id lookup failed",
+                    "chart_id": chart_id, "reason": str(e)[:200]})
+    if not rows:
+        raise _m.HTTPException(
+            status_code=404,
+            detail={"error": "unknown chart id", "chart_id": chart_id})
+    if len(rows) > 1:
+        raise _m.HTTPException(
+            status_code=400,
+            detail={"error": "ambiguous chart id prefix", "chart_id": chart_id})
+    return rows[0]["id"]
+
 # Per-surface marker that identifies the PRIMARY narration call when a
 # surface makes more than one LLM call (e.g. cycle = phase summary +
 # diagnostic; year may also capture upaay modernization).
@@ -327,6 +374,10 @@ async def inspect_surface(chart_id: str, surface: str, language: str = "en",
         )
 
     import main as _m  # deferred — main is fully imported by request time
+
+    # [chartid-tolerant 2026-06-10] short console ids resolve to full UUIDs
+    # BEFORE any runner touches the DB (raises clean 404/400, never 22P02).
+    chart_id = _resolve_chart_id(_m, chart_id)
 
     t0 = time.monotonic()
     ctx = {
