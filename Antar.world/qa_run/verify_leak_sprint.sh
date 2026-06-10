@@ -1,12 +1,22 @@
 #!/bin/bash
-# verify_leak_sprint.sh — re-pull leak-bearing fields across 4 charts (+ ES) after
-# the leak-elimination commit deploys. Validates the brief's 11 distinct fields
-# = zero HARD hits using the STRENGTHENED scanner (bare_planet_label +
-# caps_codename rules added — without these the scan is blind on attention.planet
-# and archetype, the brief's own warning).
+# verify_leak_sprint.sh — Pass 2.
+# Re-pulls leak-bearing fields across 4 charts (+ ES) after the leak-elimination
+# commits have deployed.
 #
-# Exit 0 = zero HARD hits on any of the 11 brief-targeted fields across all 4
-# charts in both languages. Exit 1 = at least one field still leaks.
+# Cache-busting per endpoint:
+#   /home           → ?force_refresh=true  (synchronous, returns fresh payload)
+#   /life-arc       → NO force_refresh — async returns {"status":"generating"} and
+#                     never the body. Natural cache holds clean content after one
+#                     warm-up cycle. We pull once to warm, sleep, pull again.
+#   /remedies       → no cache layer to bust
+#   /practices/...  → ?refresh=true  (synchronous, returns fresh)
+#   /year-attention → recomputed per call
+#   /prashna        → needs PRASHNA_TEST_CHARTS env var on Railway listing the
+#                     4 test chart IDs, comma-separated, so cooldown is bypassed
+#                     for these test charts only.
+#
+# Exit 0 = zero HARD hits on the 11 brief-targeted fields across all 4 charts in
+# both languages. Exit 1 = at least one field still leaks.
 
 set -u
 BASE="https://antar-fastapi-production.up.railway.app"
@@ -30,17 +40,55 @@ fetch() {
   fi
 }
 
-echo "=== Pulling leak-bearing fields post-deploy ==="
+echo "=== Warming life-arc caches (async background compute) ==="
+for ENTRY in "us_en|$US|en" "co_es|$CO|es" "in_en|$IN|en" "sr_en|$SR|en"; do
+  CID="${ENTRY#*|}"; CID="${CID%%|*}"; LANG="${ENTRY##*|}"
+  curl -sS "$BASE/api/v1/life-arc/$CID?language=$LANG" \
+    -H "Accept-Language: $LANG" --max-time 30 -o /dev/null \
+    -w "  warm $LANG %{http_code}\n"
+done
+echo "  sleep 35s for background generation"
+sleep 35
+
+echo
+echo "=== Pulling leak-bearing fields (cache-busted where applicable) ==="
 for ENTRY in "us_en|$US|en" "co_es|$CO|es" "in_en|$IN|en" "sr_en|$SR|en"; do
   SLUG="${ENTRY%%|*}"; rest="${ENTRY#*|}"
   CID="${rest%%|*}"; LANG="${rest##*|}"
-  fetch "$SLUG" "$CID" "$LANG" GET  "/api/v1/home/$CID?language=$LANG" "" "home"
+  # /home — bust cache (per-language home_cache table)
+  fetch "$SLUG" "$CID" "$LANG" GET  "/api/v1/home/$CID?language=$LANG&force_refresh=true" "" "home"
+  # /life-arc — natural cache (already warmed)
   fetch "$SLUG" "$CID" "$LANG" GET  "/api/v1/life-arc/$CID?language=$LANG" "" "life_arc"
+  # /remedies — no cache layer
   fetch "$SLUG" "$CID" "$LANG" GET  "/api/v1/remedies/$CID?language=$LANG" "" "remedies"
-  fetch "$SLUG" "$CID" "$LANG" GET  "/api/v1/practices/$CID/schedule?language=$LANG" "" "practices"
+  # /practices — bust cache (practice_schedule_cache by chart_id + week_of)
+  fetch "$SLUG" "$CID" "$LANG" GET  "/api/v1/practices/$CID/schedule?language=$LANG&refresh=true" "" "practices"
+  # /year-attention — recomputed per call
   fetch "$SLUG" "$CID" "$LANG" POST "/api/v1/predict/year-attention" "{\"chart_id\":\"$CID\",\"language\":\"$LANG\"}" "year"
-  if [ "$SLUG" != "sr_en" ]; then
-    fetch "$SLUG" "$CID" "$LANG" POST "/api/v1/prashna" "{\"chart_id\":\"$CID\",\"question\":\"Will I get the promotion this quarter?\",\"language\":\"$LANG\"}" "prashna"
+  # /prashna — requires PRASHNA_TEST_CHARTS on Railway
+  fetch "$SLUG" "$CID" "$LANG" POST "/api/v1/prashna" "{\"chart_id\":\"$CID\",\"question\":\"Will I get the promotion this quarter?\",\"language\":\"$LANG\"}" "prashna"
+done
+
+echo
+echo "=== Sanity: confirm prashna returned 200 (not 429) ==="
+for f in post_*__prashna.json; do
+  python3 -c "
+import json,sys
+d=json.load(open('$f'))
+err=d.get('error') or ''
+print(f'  $f: error={err!r}  has_remedy={bool(d.get(\"remedy\"))}')
+"
+done
+
+echo
+echo "=== Sanity: confirm life-arc returned full body (not 45-byte stub) ==="
+for f in post_*__life_arc.json; do
+  size=$(stat -c %s "$f" 2>/dev/null || wc -c < "$f")
+  if [ "$size" -lt 200 ]; then
+    body=$(head -c 200 "$f")
+    echo "  ❌ $f: $size bytes — $body"
+  else
+    echo "  ✅ $f: $size bytes (full body)"
   fi
 done
 
@@ -49,10 +97,7 @@ echo "=== Scanning the 11 brief-targeted HARD fields with STRENGTHENED scanner =
 python3 - <<'PY'
 import json, re, glob, os, sys
 
-# Load the strengthened scanner's HARD + ATOMIC_HARD rules + skip-set + helpers
-SCAN_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)) if "__file__" in dir() else ".", "scan.py")
-if not os.path.exists(SCAN_PATH):
-    SCAN_PATH = "scan.py"
+SCAN_PATH = "scan.py"
 SCAN_SRC = open(SCAN_PATH).read()
 _ns = {"__name__": "_scan_lib", "__file__": SCAN_PATH}
 exec(SCAN_SRC.split("hits = []")[0], _ns)
@@ -60,7 +105,6 @@ HARD = _ns["HARD"]; ATOMIC_HARD = _ns["ATOMIC_HARD"]
 ATOMIC_SAFE = _ns["ATOMIC_SAFE"]; walk_strings = _ns["walk_strings"]
 classify_key = _ns["classify_key"]; is_prose = _ns["is_prose"]
 
-# Brief's 11 distinct field paths
 TARGETS_RE = [
     (re.compile(r"horizons\.cycle\.cycleName$"),            "1. home.horizons.cycle.cycleName"),
     (re.compile(r"attention\.planet$"),                      "2. year-attention attention.planet"),
@@ -93,7 +137,6 @@ def scan_targets(d, slug, surface):
             m = rx.search(val)
             if m:
                 hits.append((slug, surface, jp, rule, val[max(0,m.start()-25):m.end()+25].replace("\n"," ")))
-    # filter to target paths only
     return [h for h in hits if any(rx.search(h[2]) for rx,_ in TARGETS_RE)]
 
 per_target = {label: 0 for _, label in TARGETS_RE}
@@ -111,7 +154,7 @@ for f in sorted(glob.glob("post_*.json")):
             if rx.search(h[2]):
                 per_target[label] += 1; break
 
-print("\n11-field checklist (post-deploy):")
+print("\n11-field checklist (post-deploy, Pass 2):")
 ok = True
 for _, label in TARGETS_RE:
     n = per_target[label]

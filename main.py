@@ -13499,6 +13499,15 @@ async def ask_prashna(request: PrashnaRequest):
             return JSONResponse(status_code=400, content={"error": "Question is required"})
 
         # ─── 1. Cooldown Check (24h between questions) ───
+        # [pass2 2026-06-10] env-gated test-chart bypass so QA verify can scan a
+        # 200 body (the 429 cooldown body has no remedy/narrative to validate).
+        # PRASHNA_TEST_CHARTS is a comma-separated chart_id list — only those
+        # chart_ids skip cooldown. Production users are never affected.
+        _pr_test_charts = set(
+            cid.strip() for cid in (os.getenv("PRASHNA_TEST_CHARTS", "") or "").split(",")
+            if cid.strip()
+        )
+        _pr_bypass = chart_id in _pr_test_charts
         try:
             last_prashna = supabase.table("prashna_log") \
                 .select("created_at") \
@@ -13513,13 +13522,24 @@ async def ask_prashna(request: PrashnaRequest):
 
             cooldown = check_cooldown(last_time, cooldown_hours=PRASHNA_COOLDOWN_HOURS)
 
-            if not cooldown["allowed"]:
+            if not cooldown["allowed"] and not _pr_bypass:
+                # [pass2 2026-06-10] localize the cooldown message — non-EN users
+                # should not see English copy on a 429.
+                _cd_msg = cooldown.get("message", "Please wait before asking another question.")
+                _cd_msgs = {
+                    "es": "El Oráculo lee tu frecuencia subconsciente en el instante exacto en que preguntas. Esa señal necesita asentarse antes de que la próxima lectura sea precisa. Vuelve a intentarlo más tarde.",
+                    "pt": "O Oráculo lê sua frequência subconsciente no momento exato em que você pergunta. Esse sinal precisa se assentar antes que a próxima leitura seja precisa. Tente novamente mais tarde.",
+                }
+                if language in _cd_msgs:
+                    _cd_msg = _cd_msgs[language]
                 return JSONResponse(status_code=429, content={
                     "error": "cooldown",
-                    "message": cooldown.get("message", "Please wait before asking another question."),
+                    "message": _cd_msg,
                     "cooldown_until": cooldown.get("cooldown_until"),
                     "remaining_seconds": cooldown.get("remaining_seconds", 0),
                 })
+            if _pr_bypass:
+                logger.info(f"[prashna] cooldown bypassed for test chart {chart_id}")
         except Exception as e:
             logger.warning(f"Cooldown check failed (table may not exist): {e}")
 
@@ -17282,7 +17302,17 @@ async def handle_razorpay_webhook(request: Request):
 
 @app.get("/api/v1/remedies/{chart_id}")
 @translate_response(
-    fields_to_translate=["why", "what", "how", "ritual", "priority_label", "diagnosis"],
+    # [pass2 2026-06-10] added charity/gemstone/color/food/metal/mantra/
+    # beej_mantra/chakra_color/chakra_location/chakra_meditation/chakra to
+    # catch ES leaks reported in Pass-2 (e.g. "Donate black sesame", "Blue
+    # Sapphire — ONLY after consultation").
+    fields_to_translate=[
+        "why", "what", "how", "ritual", "priority_label", "diagnosis",
+        "charity", "gemstone", "color", "food", "metal",
+        "mantra", "beej_mantra", "buddhist", "universal",
+        "chakra", "chakra_color", "chakra_location", "chakra_meditation",
+        "best_day", "best_time",
+    ],
     endpoint_name="remedies",
 )
 async def get_personal_remedies(
@@ -19872,6 +19902,11 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
                                 "mantra_duration_reason", "completion_milestone",
                                 "primary_action", "energy_label",
                                 "streak_warning", "remedy_why",
+                                # [pass2 2026-06-10] chakra_map subtree carries
+                                # static EN focus/governs strings — these are
+                                # what Pass-2 ES sweep flagged.
+                                "chakra_map", "focus", "governs", "domain",
+                                "name", "status", "label",
                             ],
                             endpoint_name="practices-schedule",
                             chart_id=chart_id,
@@ -19964,6 +19999,9 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
                         "mantra_duration_reason", "completion_milestone",
                         "primary_action", "energy_label",
                         "streak_warning", "remedy_why",
+                        # [pass2 2026-06-10] chakra_map + status/label/governs
+                        "chakra_map", "focus", "governs", "domain",
+                        "name", "status", "label",
                     ],
                     endpoint_name="practices-schedule",
                     chart_id=chart_id,
