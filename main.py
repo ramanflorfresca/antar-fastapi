@@ -11775,35 +11775,45 @@ async def admin_prompts_list(admin_email: str = Depends(require_admin)):
     from antar_engine.prompt_registry import SURFACES
     rows = []
     try:
-        r = supabase.table("llm_prompts").select("surface,version,status").in_("status", ["live", "draft"]).execute()
+        r = supabase.table("llm_prompts").select("surface,language,version,status").in_("status", ["live", "draft"]).execute()
         rows = r.data or []
     except Exception as _e:
         print(f"[admin-prompts] list read non-fatal: {_e}")
     out = []
     for s in SURFACES:
-        live = [x["version"] for x in rows if x["surface"] == s and x["status"] == "live"]
+        live = [x["version"] for x in rows
+                if x["surface"] == s and x["status"] == "live"
+                and (x.get("language") or "en") == "en"]
+        _langs = sorted({(x.get("language") or "en") for x in rows
+                         if x["surface"] == s and x["status"] == "live"})
         out.append({
             "surface": s,
             "live_version": (max(live) if live else None),
             "source": "db" if live else "fallback",
-            "has_draft": any(x["surface"] == s and x["status"] == "draft" for x in rows),
+            "has_draft": any(x["surface"] == s and x["status"] == "draft"
+                             and (x.get("language") or "en") == "en"
+                             for x in rows),
+            "languages_live": _langs,
         })
     return {"prompts": out}
 
 
 @app.get("/api/v1/admin/prompts/{surface}")
-async def admin_prompts_get(surface: str, admin_email: str = Depends(require_admin)):
+async def admin_prompts_get(surface: str, language: str = "en",
+                            admin_email: str = Depends(require_admin)):
     from antar_engine.prompt_registry import (
-        SURFACES, PROMPT_CONTRACT_HEADER, _schema_line, hardcoded_body,
+        SURFACES, PROMPT_CONTRACT_HEADER, _schema_line, _hardcoded_for, _norm_lang,
     )
     if surface not in SURFACES:
         raise HTTPException(status_code=404, detail=f"unknown surface — one of: {', '.join(SURFACES)}")
-    live_body, version, source = hardcoded_body(surface), None, "fallback"
+    _lang = _norm_lang(language)
+    live_body, version, source = _hardcoded_for(surface, _lang), None, "fallback"
     draft_body, history = None, []
     try:
         r = (supabase.table("llm_prompts")
              .select("body,version,status,updated_at,updated_by")
-             .eq("surface", surface).order("version", desc=True).execute())
+             .eq("surface", surface).eq("language", _lang)
+             .order("version", desc=True).execute())
         for row in (r.data or []):
             if row["status"] == "live" and source == "fallback":
                 live_body, version, source = row["body"], row["version"], "db"
@@ -11817,6 +11827,7 @@ async def admin_prompts_get(surface: str, admin_email: str = Depends(require_adm
         print(f"[admin-prompts] get read non-fatal ({surface}): {_e}")
     return {
         "surface": surface,
+        "language": _lang,
         "contract_header": PROMPT_CONTRACT_HEADER + "\n" + _schema_line(surface),
         "live_body": live_body,
         "draft_body": draft_body,
@@ -11827,77 +11838,83 @@ async def admin_prompts_get(surface: str, admin_email: str = Depends(require_adm
 
 
 @app.put("/api/v1/admin/prompts/{surface}/draft")
-async def admin_prompts_save_draft(surface: str, request: dict = Body(...),
+async def admin_prompts_save_draft(surface: str, language: str = "en",
+                                   request: dict = Body(...),
                                    admin_email: str = Depends(require_admin)):
-    from antar_engine.prompt_registry import SURFACES, invalidate
+    from antar_engine.prompt_registry import SURFACES, invalidate, _norm_lang
     if surface not in SURFACES:
         raise HTTPException(status_code=404, detail="unknown surface")
+    _lang = _norm_lang(language)
     body = (request or {}).get("body")
     if not isinstance(body, str) or not body.strip():
         raise HTTPException(status_code=400, detail="body (non-empty string) required")
-    supabase.table("llm_prompts").delete().eq("surface", surface).eq("status", "draft").execute()
+    supabase.table("llm_prompts").delete().eq("surface", surface).eq("language", _lang).eq("status", "draft").execute()
     supabase.table("llm_prompts").insert({
-        "surface": surface, "body": body, "version": 0,
+        "surface": surface, "language": _lang, "body": body, "version": 0,
         "status": "draft", "updated_by": admin_email,
     }).execute()
     invalidate(surface)
-    return {"ok": True, "surface": surface, "status": "draft", "chars": len(body)}
+    return {"ok": True, "surface": surface, "language": _lang, "status": "draft", "chars": len(body)}
 
 
 @app.post("/api/v1/admin/prompts/{surface}/publish")
-async def admin_prompts_publish(surface: str, admin_email: str = Depends(require_admin)):
-    from antar_engine.prompt_registry import SURFACES, invalidate
+async def admin_prompts_publish(surface: str, language: str = "en",
+                                admin_email: str = Depends(require_admin)):
+    from antar_engine.prompt_registry import SURFACES, invalidate, _norm_lang
     if surface not in SURFACES:
         raise HTTPException(status_code=404, detail="unknown surface")
+    _lang = _norm_lang(language)
     d = (supabase.table("llm_prompts").select("body").eq("surface", surface)
-         .eq("status", "draft").limit(1).execute())
+         .eq("language", _lang).eq("status", "draft").limit(1).execute())
     if not d.data:
         raise HTTPException(status_code=404, detail="no draft to publish")
     body = d.data[0]["body"]
     lv = (supabase.table("llm_prompts").select("id,version").eq("surface", surface)
-          .eq("status", "live").order("version", desc=True).limit(1).execute())
+          .eq("language", _lang).eq("status", "live").order("version", desc=True).limit(1).execute())
     new_version = (lv.data[0]["version"] if lv.data else 0) + 1
     if lv.data:
         supabase.table("llm_prompts").update({"status": "archived"}).eq("id", lv.data[0]["id"]).execute()
     supabase.table("llm_prompts").insert({
-        "surface": surface, "body": body, "version": new_version,
+        "surface": surface, "language": _lang, "body": body, "version": new_version,
         "status": "live", "updated_by": admin_email,
     }).execute()
-    supabase.table("llm_prompts").delete().eq("surface", surface).eq("status", "draft").execute()
+    supabase.table("llm_prompts").delete().eq("surface", surface).eq("language", _lang).eq("status", "draft").execute()
     invalidate(surface)
-    return {"ok": True, "surface": surface, "live_version": new_version}
+    return {"ok": True, "surface": surface, "language": _lang, "live_version": new_version}
 
 
 @app.post("/api/v1/admin/prompts/{surface}/rollback")
-async def admin_prompts_rollback(surface: str, request: dict = Body(...),
+async def admin_prompts_rollback(surface: str, language: str = "en",
+                                 request: dict = Body(...),
                                  admin_email: str = Depends(require_admin)):
-    from antar_engine.prompt_registry import SURFACES, invalidate
+    from antar_engine.prompt_registry import SURFACES, invalidate, _norm_lang
     if surface not in SURFACES:
         raise HTTPException(status_code=404, detail="unknown surface")
+    _lang = _norm_lang(language)
     try:
         to_version = int((request or {}).get("to_version"))
     except Exception:
         raise HTTPException(status_code=400, detail="to_version (int) required")
     src = (supabase.table("llm_prompts").select("body,status").eq("surface", surface)
-           .eq("version", to_version).limit(1).execute())
+           .eq("language", _lang).eq("version", to_version).limit(1).execute())
     if not src.data:
         raise HTTPException(status_code=404, detail=f"version {to_version} not found")
     if src.data[0]["status"] == "live":
-        return {"ok": True, "surface": surface, "live_version": to_version,
-                "note": "already live"}
+        return {"ok": True, "surface": surface, "language": _lang,
+                "live_version": to_version, "note": "already live"}
     body = src.data[0]["body"]
     lv = (supabase.table("llm_prompts").select("id,version").eq("surface", surface)
-          .eq("status", "live").order("version", desc=True).limit(1).execute())
+          .eq("language", _lang).eq("status", "live").order("version", desc=True).limit(1).execute())
     new_version = (lv.data[0]["version"] if lv.data else 0) + 1
     if lv.data:
         supabase.table("llm_prompts").update({"status": "archived"}).eq("id", lv.data[0]["id"]).execute()
     supabase.table("llm_prompts").insert({
-        "surface": surface, "body": body, "version": new_version,
+        "surface": surface, "language": _lang, "body": body, "version": new_version,
         "status": "live", "updated_by": f"{admin_email} (rollback to v{to_version})",
     }).execute()
     invalidate(surface)
-    return {"ok": True, "surface": surface, "live_version": new_version,
-            "rolled_back_to": to_version}
+    return {"ok": True, "surface": surface, "language": _lang,
+            "live_version": new_version, "rolled_back_to": to_version}
 
 
 @app.post("/api/v1/me/billing/portal")

@@ -492,16 +492,11 @@ Retorne APENAS este JSON:
 
 def _select_monthly_prompt(language: str) -> str:
     """[loc-2] Pick the monthly-deepdive system prompt for the user's language.
-    [prompt-registry 2026-06-10] EN body comes from the registry
-    (admin-editable, contract header prepended); ES/PT stay hardcoded until
-    the registry grows a language column."""
-    _lang = (language or "en").split("-")[0].lower()
-    if _lang == "es":
-        return MONTHLY_SYSTEM_PROMPT_ES
-    if _lang == "pt":
-        return MONTHLY_SYSTEM_PROMPT_PT
+    [prompt-registry 2026-06-10b] all three languages come from the registry
+    (language column, seeded en/es/pt); the hardcoded EN/ES/PT constants are
+    the fallback inside prompt_registry."""
     from antar_engine.prompt_registry import get_system_prefix
-    return get_system_prefix("month")
+    return get_system_prefix("month", language=(language or "en"))
 
 
 def _safe_jsonb_monthly(v):

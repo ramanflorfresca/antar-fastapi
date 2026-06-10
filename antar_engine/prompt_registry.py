@@ -56,7 +56,21 @@ PROMPT_CONTRACT_HEADER = (
     "per sentence, active voice, second person. Concrete life-nouns — never "
     "'energy', 'vibration', 'alignment', or abstract noun-phrasing.\n"
     "4. The REQUIRED OUTPUT FORMAT stated next is fixed — never add, rename, "
-    "drop, or restructure its fields or sections."
+    "drop, or restructure its fields or sections.\n"
+    "READABILITY (NON-NEGOTIABLE):\n"
+    "- Write for a smart, busy person who knows nothing about astrology. "
+    "Sound like a sharp human\n"
+    "  coach texting them — not a report, not a mystic.\n"
+    "- First sentence = the answer, in plain words. No build-up.\n"
+    "- One idea per sentence. Sentences under ~18 words. At most one "
+    "\"because/which/that\" clause.\n"
+    "- Everyday words. Ban abstract constructions: no \"energy\", "
+    "\"vibration\", \"alignment of\",\n"
+    "  \"structure-and-persistence\", or any noun-energy phrasing. Say the "
+    "concrete thing.\n"
+    "- If you explain why, ONE short concrete why-sentence. No nested "
+    "reasoning.\n"
+    "- End with ONE specific action. Active voice. Second person."
 )
 
 # format: "json" with known required keys → validate_output_keys enforces;
@@ -279,15 +293,22 @@ def invalidate(surface: Optional[str] = None) -> None:
     if surface is None:
         _live_cache.clear()
     else:
-        _live_cache.pop(surface, None)
+        for k in [k for k in _live_cache if k[0] == surface]:
+            _live_cache.pop(k, None)
 
 
-def _db_body(surface: str, status: str) -> Optional[str]:
+def _norm_lang(language: Optional[str]) -> str:
+    lang = (language or "en").split("-")[0].lower()
+    return lang if lang in ("en", "es", "pt") else "en"
+
+
+def _db_body(surface: str, status: str, language: str = "en") -> Optional[str]:
     r = (
         _sb().table("llm_prompts")
         .select("body")
         .eq("surface", surface)
         .eq("status", status)
+        .eq("language", language)
         .order("version", desc=True)
         .limit(1)
         .execute()
@@ -299,15 +320,29 @@ def _db_body(surface: str, status: str) -> Optional[str]:
     return None
 
 
-def get_prompt_body(surface: str, use_draft: Optional[bool] = None) -> str:
+def _hardcoded_for(surface: str, language: str) -> str:
+    """Language-aware hardcoded fallback. Only month ships non-EN bodies;
+    every other surface falls back to its EN string."""
+    if language != "en" and surface == "month":
+        from antar_engine.monthly_deepdive import (
+            MONTHLY_SYSTEM_PROMPT_ES, MONTHLY_SYSTEM_PROMPT_PT,
+        )
+        return MONTHLY_SYSTEM_PROMPT_ES if language == "es" else MONTHLY_SYSTEM_PROMPT_PT
+    return hardcoded_body(surface)
+
+
+def get_prompt_body(surface: str, use_draft: Optional[bool] = None,
+                    language: str = "en") -> str:
     """
-    Editable prompt body for a surface. DB row wins; hardcoded string is the
-    fallback. use_draft=None resolves from the admin inspector context
-    (INSPECT_CTX) — live traffic never carries that context, so drafts can
-    never leak to users.
+    Editable prompt body for a surface+language. DB row wins; hardcoded
+    string is the fallback (non-EN falls back to its hardcoded variant where
+    one exists — month — else to the EN chain). use_draft=None resolves from
+    the admin inspector context (INSPECT_CTX) — live traffic never carries
+    that context, so drafts can never leak to users.
     """
     if surface not in SURFACES:
         raise KeyError(f"unknown prompt surface: {surface}")
+    language = _norm_lang(language)
 
     if use_draft is None:
         _ctx = INSPECT_CTX.get()
@@ -315,41 +350,44 @@ def get_prompt_body(surface: str, use_draft: Optional[bool] = None) -> str:
 
     if use_draft:
         try:
-            b = _db_body(surface, "draft")
+            b = _db_body(surface, "draft", language)
             if b is not None:
                 return b
         except Exception as e:
-            print(f"[prompt-registry] draft read failed for {surface} (non-fatal): {e}")
+            print(f"[prompt-registry] draft read failed for {surface}/{language} (non-fatal): {e}")
         # no draft → preview equals live
-        return get_prompt_body(surface, use_draft=False)
+        return get_prompt_body(surface, use_draft=False, language=language)
 
     now = time.monotonic()
-    hit = _live_cache.get(surface)
+    key = (surface, language)
+    hit = _live_cache.get(key)
     if hit and hit[1] > now:
-        return hit[0] if hit[0] is not None else hardcoded_body(surface)
+        return hit[0] if hit[0] is not None else _hardcoded_for(surface, language)
 
     body = None
     try:
-        body = _db_body(surface, "live")
+        body = _db_body(surface, "live", language)
     except Exception as e:
-        print(f"[prompt-registry] live read failed for {surface} (fallback): {e}")
-    _live_cache[surface] = (body, now + _LIVE_TTL_SECS)
-    return body if body is not None else hardcoded_body(surface)
+        print(f"[prompt-registry] live read failed for {surface}/{language} (fallback): {e}")
+    _live_cache[key] = (body, now + _LIVE_TTL_SECS)
+    return body if body is not None else _hardcoded_for(surface, language)
 
 
-def get_system_prefix(surface: str, use_draft: Optional[bool] = None) -> str:
+def get_system_prefix(surface: str, use_draft: Optional[bool] = None,
+                      language: str = "en") -> str:
     """Immutable contract header + schema line + editable body."""
     return (
         PROMPT_CONTRACT_HEADER + "\n" + _schema_line(surface) + "\n\n"
-        + get_prompt_body(surface, use_draft)
+        + get_prompt_body(surface, use_draft, language=language)
     )
 
 
 def build_system_prompt(surface: str, live_data: str,
-                        use_draft: Optional[bool] = None) -> str:
+                        use_draft: Optional[bool] = None,
+                        language: str = "en") -> str:
     """today/year shape: prefix above the '## LIVE DATA' KV-cache split,
     live data below it (call_llm_claude splits on the marker)."""
-    body = get_system_prefix(surface, use_draft)
+    body = get_system_prefix(surface, use_draft, language=language)
     # A DB body must never smuggle its own split marker.
     body = body.split("## LIVE DATA")[0].rstrip()
     return body + "\n## LIVE DATA\n" + (live_data or "")
