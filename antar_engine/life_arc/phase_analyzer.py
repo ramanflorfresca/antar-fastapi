@@ -372,7 +372,7 @@ Current astrological state:
 - Archetype: {archetype_name}{_noun_hint}
 
 RULES:
-1. Write exactly ONE paragraph (3-5 sentences)
+1. Write exactly ONE paragraph (3-5 short sentences, MAXIMUM 120 words)
 2. Reference the SPECIFIC chapter lords and their pairing psychology
 3. If Sade Sati is active, mention it and what it means practically
 4. Mention the most important transit (Jupiter or Saturn) and what it activates
@@ -384,12 +384,33 @@ RULES:
 7. Language: {language}
 8. Be specific and insightful, not generic. Name real life-things, not categories.
 
+
+READABILITY (NON-NEGOTIABLE):
+- Write for a smart, busy person who knows nothing about astrology. Sound like a sharp human
+  coach texting them — not a report, not a mystic.
+- First sentence = the answer, in plain words. No build-up, no setup.
+- One idea per sentence. Keep sentences under ~18 words. At most one "because/which/that"
+  clause per sentence. Never stack clauses.
+- Use everyday words. Ban abstract constructions: no "energy", "vibration", "alignment of",
+  "structure-and-persistence", or any noun-energy phrasing. Say the concrete thing instead.
+- If you explain why, ONE short why-sentence, concrete. No nested reasoning.
+- End with ONE specific action the person can take.
+- Active voice. Second person ("you"). No hedging stacks ("may possibly tend to").
+
 Write the summary now:"""
 
-    system = "You are Antar's life phase analyst. Write precise, warm, specific summaries. No jargon. No lists. One flowing paragraph."
+    system = ("You are Antar's life phase analyst. Write precise, warm, specific summaries. No jargon. No lists. One flowing paragraph. Short sentences — under 18 words each. Everyday words; never the word 'energy' or abstract noun-phrases. First sentence states the point.")
 
     try:
         text, _ = await claude_caller(prompt, system_override=system)
+        # [readability 2026-06-10] simplify; downstream main.py 5b scrub
+        # re-strips jargon after this (narrate -> simplify -> strip).
+        try:
+            from antar_engine.readability import maybe_simplify as _rb_maybe
+            _rb = await _rb_maybe(text, language=language, surface="cycle.phase_summary")
+            text = _rb["text"]
+        except Exception as _rb_e:
+            print(f"[life_arc.phase_analyzer] readability non-fatal: {_rb_e}")
         return text
     except Exception as e:
         print(f"[life_arc.phase_analyzer] Summary LLM error: {e}")

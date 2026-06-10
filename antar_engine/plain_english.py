@@ -275,6 +275,18 @@ YOUR JOB:
 3. Return a JSON object that directly answers the question in plain language
 
 STRICT RULES:
+READABILITY (NON-NEGOTIABLE):
+- Write for a smart, busy person who knows nothing about astrology. Sound like a sharp human
+  coach texting them — not a report, not a mystic.
+- First sentence = the answer, in plain words. No build-up, no setup.
+- One idea per sentence. Keep sentences under ~18 words. At most one "because/which/that"
+  clause per sentence. Never stack clauses.
+- Use everyday words. Ban abstract constructions: no "energy", "vibration", "alignment of",
+  "structure-and-persistence", or any noun-energy phrasing. Say the concrete thing instead.
+- If you explain why, ONE short why-sentence, concrete. No nested reasoning.
+- End with ONE specific action the person can take.
+- Active voice. Second person ("you"). No hedging stacks ("may possibly tend to").
+
 - plain_summary must directly answer what the user asked
 - plain_summary must NOT contradict timing_window (never say "now is your window" 
   if timing_window says a window is closing)

@@ -471,6 +471,12 @@ Key questions to answer:
 
 Use ONLY the data provided above. Never invent planetary positions.
 
+READABILITY (NON-NEGOTIABLE): short sentences — under 18 words each. One idea per
+sentence; never stack clauses. Plain, everyday words; avoid abstract phrases like
+"energy", "alignment of energies", or "vibration" in prose. The first sentence of
+every section states the conclusion. No hedging stacks ("may possibly tend to").
+
+
 OUTPUT FORMAT (respond in this exact structure):
 
 ## Compatibility Overview
@@ -545,6 +551,12 @@ Cross-reference the startup context with both charts.
 - Rahu shows disruption ability and technology affinity
 - Current dasha periods show WHEN each founder is at peak energy
 
+
+READABILITY (NON-NEGOTIABLE): short sentences — under 18 words each. One idea per
+sentence; never stack clauses. Plain, everyday words; avoid abstract phrases like
+"energy", "alignment of energies", or "vibration" in prose. The first sentence of
+every section states the conclusion. No hedging stacks ("may possibly tend to").
+
 OUTPUT FORMAT:
 
 ## Founder-Startup Fit
@@ -613,6 +625,12 @@ Key questions to answer from the charts:
 3. Does the product solve a Saturn problem (structure/discipline) or a Rahu opportunity (disruption/tech)?
 4. What does the 5th house (creativity/innovation) and 11th house (gains/market) say about product-market fit?
 5. Are the founders' charts built to execute THIS specific type of product?
+
+
+READABILITY (NON-NEGOTIABLE): short sentences — under 18 words each. One idea per
+sentence; never stack clauses. Plain, everyday words; avoid abstract phrases like
+"energy", "alignment of energies", or "vibration" in prose. The first sentence of
+every section states the conclusion. No hedging stacks ("may possibly tend to").
 
 OUTPUT FORMAT:
 

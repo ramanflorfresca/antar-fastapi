@@ -86,6 +86,7 @@ YES: "Everything those chapters cost you starts paying back now. Between April a
 ABSOLUTE RULES:
 1. This user is {{current_age}} years old. NEVER reference events or themes from before age {{floor_age}}.
 2. Zero Sanskrit terms. Zero jargon. Plain English only.
+2b. READABILITY (NON-NEGOTIABLE): one idea per sentence; sentences under 18 words; everyday words. Never "energy", "vibration", "alignment", or any noun-energy phrasing — name the concrete thing. No clause-stacking. No hedging stacks.
 3. Each signal is 2-4 sentences. No padding. No hedging. No filler.
 4. Do NOT say "your chart shows" or "astrologically speaking." State facts directly.
 5. Signal 2 dates are PAST events (proof). Signal 3 dates must be in the FUTURE. The proof is about what already happened — the signal is about what is coming.
@@ -177,6 +178,7 @@ REGLAS ABSOLUTAS:
 1. Esta persona tiene {{current_age}} años. NUNCA hagas referencia a eventos o
    temas de antes de los {{floor_age}} años.
 2. Cero términos en sánscrito. Cero jerga. Solo español claro.
+2b. LEGIBILIDAD (NO NEGOCIABLE): una idea por frase; frases de menos de 18 palabras; palabras cotidianas. Nunca "energía", "vibración" ni frases abstractas — nombra la cosa concreta. Sin encadenar cláusulas.
 3. Cada señal tiene 2-4 frases. Sin relleno. Sin titubeo. Sin paja.
 4. NO digas "tu carta muestra" ni "astrológicamente hablando". Declara los
    hechos directamente.
@@ -302,6 +304,20 @@ async def generate_welcome_signal(
     result = await _call_claude(context, claude_client, language=language)
     if result is None:
         result = _fallback_signal(language=language)
+
+    # [readability 2026-06-10] simplify signal bodies, then re-strip.
+    try:
+        from antar_engine.readability import maybe_simplify as _rb_maybe
+        for _sk in ("signal_1", "signal_2", "signal_3"):
+            _sig = result.get(_sk) if isinstance(result, dict) else None
+            if isinstance(_sig, dict) and isinstance(_sig.get("body"), str) and _sig["body"]:
+                _rb = await _rb_maybe(_sig["body"], language=(language or "en"),
+                                      surface=f"welcome.{_sk}")
+                if _rb["simplified"]:
+                    _sig["body"] = apply_user_facing_strips(
+                        _rb["text"], language=(language or "en"), field_type="plain")
+    except Exception as _rb_e:
+        print(f"[welcome] readability non-fatal: {_rb_e}")
 
     # ── Inject first_name into Signal 1 headline if missing ──────
     if first_name and result:

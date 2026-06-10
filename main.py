@@ -6555,6 +6555,21 @@ State a specific year. Never predict past events as future windows.
             # and continue with the plain_english-cleaned fields.
             print(f"[predict] central strip post-pass failed (non-fatal): {_pp_err}")
 
+    # [readability 2026-06-10] enforced simplify pass: strip -> simplify -> strip.
+    if _pe:
+        try:
+            from antar_engine.readability import simplify_payload_fields as _rb_simplify
+            _lang_rb = getattr(request, 'language', 'en') or 'en'
+            await _rb_simplify(
+                _pe, ["plain_summary", "why_this"],
+                language=_lang_rb, surface="predict",
+                strip_fn=lambda _t: apply_user_facing_strips(
+                    _t, language=_lang_rb, field_type="plain"),
+                debug_key="_debug_readability",
+            )
+        except Exception as _rb_err:
+            print(f"[predict] readability simplify failed (non-fatal): {_rb_err}")
+
     # [predict-specificity] dangling+violation guard
     # BUG fix: defensive scrub for dangling boilerplate Claude can
     # emit ('wait until to decide', 'Wait until when the pressure
@@ -7430,6 +7445,21 @@ async def monthly_briefing(
         country_code=chart_record.get("country_code", "US"),
     )
     briefing_text, _ = await call_llm(prompt)
+
+    # [readability 2026-06-10] narrate -> strip -> simplify -> strip.
+    # (This surface previously had NO post-processing at all.)
+    try:
+        from antar_engine.readability import maybe_simplify as _rb_maybe
+        briefing_text = apply_user_facing_strips(
+            briefing_text or "", language="en", field_type="plain")
+        _rb = await _rb_maybe(briefing_text, language="en", surface="monthly-briefing")
+        if _rb["simplified"]:
+            briefing_text = apply_user_facing_strips(
+                _rb["text"], language="en", field_type="plain")
+        print(f"[monthly-briefing] readability simplified={_rb['simplified']} "
+              f"before={_rb['score_before']} after={_rb['score_after']}")
+    except Exception as _rb_err:
+        print(f"[monthly-briefing] readability non-fatal: {_rb_err}")
 
     if user_id:
         try:
@@ -12391,7 +12421,16 @@ async def compat_six_layer(request: CompatRequest):
             for _layer in response["layers"]:
                 _d = _details.get(_layer["key"]) if _details else None
                 if isinstance(_d, str) and _d.strip():
-                    _layer["detail"] = apply_user_facing_strips(_d.strip(), "en", field_type="plain", source="curated_static")
+                    # [readability 2026-06-10] strip -> simplify -> strip.
+                    _detail_txt = apply_user_facing_strips(_d.strip(), "en", field_type="plain", source="curated_static")
+                    try:
+                        from antar_engine.readability import maybe_simplify as _rb_maybe
+                        _rb = await _rb_maybe(_detail_txt, language="en", surface="compat.deepread")
+                        if _rb["simplified"]:
+                            _detail_txt = apply_user_facing_strips(_rb["text"], "en", field_type="plain", source="curated_static")
+                    except Exception as _rb_e:
+                        print(f"[compat] readability non-fatal: {_rb_e}")
+                    _layer["detail"] = _detail_txt
         except Exception as _de:
             print(f"[compat] deep_read non-fatal: {_de}")
 
@@ -13563,6 +13602,14 @@ async def onboarding_welcome_prediction(request: OnboardingWelcomeRequest):
             prediction = fallback_prediction(slug, language)
 
         prediction = _ow_strips(prediction, language=language, field_type='plain')
+        # [readability 2026-06-10] strip -> simplify -> strip.
+        try:
+            from antar_engine.readability import maybe_simplify as _rb_maybe
+            _rb = await _rb_maybe(prediction, language=language, surface="welcome.onboarding")
+            if _rb["simplified"]:
+                prediction = _ow_strips(_rb["text"], language=language, field_type='plain')
+        except Exception as _rb_e:
+            print(f"[onboarding/welcome] readability non-fatal: {_rb_e}")
 
         _moon = (engine_result.get("breakdown") or {}).get("moon_validation", {})
         payload = {
@@ -15001,6 +15048,14 @@ async def ask_endpoint(request: AskRequest):
                     "(2) Never use planet-trait nouns as the actor — 'discipline blocking X' "
                     "becomes 'caution holding X back'. "
                     "(3) Read carries AT MOST 3 threads — the 2-3 the chart most supports. "
+                    "READABILITY (NON-NEGOTIABLE): write for a smart, busy person who "
+                    "knows nothing about astrology — a sharp human coach texting them, "
+                    "not a report. First sentence = the answer in plain words, no "
+                    "build-up. One idea per sentence; sentences under 18 words; never "
+                    "stack clauses. Everyday words only — never 'energy', 'vibration', "
+                    "'alignment', or any noun-energy phrasing; say the concrete thing. "
+                    "At most ONE short, concrete why-sentence. Active voice, second "
+                    "person. read + next together stay UNDER 90 words. "
                     "reply with STRICT JSON only: "
                     '{"read": "...", "verdict": "...", "timing": "...", "actions": ["...", "..."], "next": "..."}. '
                     # [lead-verdict] Python prepends the engine's verdict + window phrase
@@ -15102,6 +15157,14 @@ async def ask_endpoint(request: AskRequest):
                     "call pulling'. Restate as the plain constraint, not the planet's trait. "
                     "(3) Read must carry AT MOST 3 threads, not 5. Pick the 2-3 the chart "
                     "most supports and drop the rest. "
+                    "READABILITY (NON-NEGOTIABLE): write for a smart, busy person who "
+                    "knows nothing about astrology — a sharp human coach texting them, "
+                    "not a report. First sentence = the answer in plain words, no "
+                    "build-up. One idea per sentence; sentences under 18 words; never "
+                    "stack clauses. Everyday words only — never 'energy', 'vibration', "
+                    "'alignment', or any noun-energy phrasing; say the concrete thing. "
+                    "At most ONE short, concrete why-sentence. Active voice, second "
+                    "person. read + next together stay UNDER 90 words. "
                     + (
                         "(4) An intraday window IS computed — name the HARD CLOCK token "
                         "in the read. Forbidden soft-time fallbacks when a clock exists: "
@@ -15311,6 +15374,14 @@ async def ask_endpoint(request: AskRequest):
                 _ask_scrub_payload(payload, ["read", "next", "timing"], language=language)
             except Exception:
                 pass
+            # [readability 2026-06-10] scrub -> simplify -> scrub.
+            try:
+                from antar_engine.readability import simplify_payload_fields as _rb_simplify
+                await _rb_simplify(payload, ["read", "next"], language=language,
+                                   surface="ask.explore", debug_key="_debug_readability")
+                _ask_scrub_payload(payload, ["read", "next", "timing"], language=language)
+            except Exception as _rb_e:
+                print(f"[ask] readability non-fatal: {_rb_e}")
             # [es-loc 2026-06-09] expanded fields: actions[]/practices[]/convergence
             # are container keys — translate_dict recurses into their subtrees.
             payload = await _ask_localize(payload, language, [
@@ -15366,6 +15437,14 @@ async def ask_endpoint(request: AskRequest):
                     _ask_scrub_payload(payload, ["why", "timing"], language=language)
                 except Exception:
                     pass
+                # [readability 2026-06-10] scrub -> simplify -> scrub.
+                try:
+                    from antar_engine.readability import simplify_payload_fields as _rb_simplify
+                    await _rb_simplify(payload, ["why"], language=language,
+                                       surface="ask.yesno_locked", debug_key="_debug_readability")
+                    _ask_scrub_payload(payload, ["why", "timing"], language=language)
+                except Exception as _rb_e:
+                    print(f"[ask] readability non-fatal: {_rb_e}")
                 payload = await _ask_localize(payload, language, ["why", "timing"], chart_id)
                 return payload
 
@@ -15523,6 +15602,10 @@ async def ask_endpoint(request: AskRequest):
                 f"Timing window state: {_yn_state}. {_yn_state_hint} "
                 "You are Antar. The user asked a yes/no question. Reply with STRICT JSON only: "
                 '{"why": "...", "actions": ["...", "..."]}. '
+                "READABILITY (NON-NEGOTIABLE): why = ONE short sentence, under 18 "
+                "words, everyday words — never 'energy', 'vibration', or abstract "
+                "noun-phrasing. actions = plain verb-first moves, under 15 words "
+                "each, naming the concrete thing to do. "
                 f"why = ONE plain-English sentence explaining why the answer is {verdict}. "
                 "actions = 2 or 3 concrete moves, tied to the signals below, that raise the "
                 "odds of a good outcome. No astrology, no planets, houses, signs, nakshatras, "
@@ -15649,6 +15732,14 @@ async def ask_endpoint(request: AskRequest):
                 _ask_scrub_payload(payload, ["why", "timing"], language=language)
             except Exception:
                 pass
+            # [readability 2026-06-10] scrub -> simplify -> scrub.
+            try:
+                from antar_engine.readability import simplify_payload_fields as _rb_simplify
+                await _rb_simplify(payload, ["why"], language=language,
+                                   surface="ask.yesno", debug_key="_debug_readability")
+                _ask_scrub_payload(payload, ["why", "timing"], language=language)
+            except Exception as _rb_e:
+                print(f"[ask] readability non-fatal: {_rb_e}")
             payload = await _ask_localize(payload, language, ["why", "timing"], chart_id)
             return payload
 
@@ -15769,7 +15860,11 @@ async def prashna_followup(request: PrashnaFollowupRequest):
             "The SAME chart is being reused — no new chart cast. "
             "Reference the original question and verdict. "
             "Answer the follow-up specifically. "
-            "Plain language only — no Sanskrit terms. Under 150 words."
+            "Plain language only — no Sanskrit terms. UNDER 90 words. "
+            "READABILITY (NON-NEGOTIABLE): first sentence answers the follow-up "
+            "directly. One idea per sentence; sentences under 18 words. Everyday "
+            "words — never 'energy', 'vibration', or abstract phrasing. End "
+            "with one specific action."
         )
         narrative = await call_llm(
             prompt=llm_prompt,
@@ -16209,6 +16304,18 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                             max_tokens_override=350,
                         )
                         _nar = parse_and_validate(_nar_raw, language="en")
+                        # [readability 2026-06-10] simplify pre-cache, then re-strip.
+                        if _nar:
+                            try:
+                                from antar_engine.readability import simplify_payload_fields as _rb_simplify
+                                await _rb_simplify(
+                                    _nar, ["highlight"],
+                                    language="en", surface="today",
+                                    strip_fn=lambda _t: apply_user_facing_strips(
+                                        _t, language="en", field_type="plain"),
+                                )
+                            except Exception as _rb_e:
+                                print(f"[daily-signal] readability non-fatal: {_rb_e}")
                         if _nar and not _inspect_active():
                             narration_cache_write(supabase, cid, _nar_date, _th, _nar)
                     if _nar:
@@ -23395,6 +23502,18 @@ async def predict_year_attention(request: dict):
                 max_tokens_override=600,
             )
             _yn = parse_and_validate_year(_yn_raw, language="en")
+            # [readability 2026-06-10] simplify pre-cache, then re-strip.
+            if _yn:
+                try:
+                    from antar_engine.readability import simplify_payload_fields as _rb_simplify
+                    await _rb_simplify(
+                        _yn, ["body", "watch"],
+                        language="en", surface="year",
+                        strip_fn=lambda _t: apply_user_facing_strips(
+                            _t, language="en", field_type="plain"),
+                    )
+                except Exception as _rb_e:
+                    print(f"[year-attention] readability non-fatal: {_rb_e}")
             if _yn and not _inspect_active():
                 year_narration_cache_write(supabase, chart_id, _yn_ps, _yn_state, _yn)
         if _yn:

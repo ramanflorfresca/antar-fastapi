@@ -64,6 +64,7 @@ Layers:
 {layer_block}
 
 HARD RULES:
+- READABILITY (NON-NEGOTIABLE): short sentences — under 18 words each. One idea per sentence. Everyday words — never "energy", "vibration", or abstract phrasing. Each paragraph: first sentence = the point; end with the concrete move.
 - Plain, warm, direct English. Speak to {a_name} about {b_name}.
 - NO astrology jargon, NO Sanskrit, NO planet names, NO house numbers. Never say "compatible/incompatible" or "should hire / should not hire".
 - No gendered terms (no husband/wife); use the names or "the other person".
@@ -83,7 +84,8 @@ async def build_deep_read(client, layers, reason, role, a_name, b_name,
         resp = await client.messages.create(
             model=model,
             max_tokens=1400,
-            system="You write concise, jargon-free relationship guidance. Output strict JSON only.",
+            system=("You write concise, jargon-free relationship guidance. Short sentences, "
+                    "everyday words, no abstract 'energy' phrasing. Output strict JSON only."),
             messages=[{"role": "user", "content": prompt}],
         )
         text = resp.content[0].text.strip()

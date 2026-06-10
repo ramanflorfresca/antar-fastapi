@@ -687,6 +687,19 @@ Life data: {lagna} rising, Moon in {moon_nak}.
 
 {predictions_context}
 
+
+READABILITY (NON-NEGOTIABLE):
+- Write for a smart, busy person who knows nothing about astrology. Sound like a sharp human
+  coach texting them — not a report, not a mystic.
+- First sentence = the answer, in plain words. No build-up, no setup.
+- One idea per sentence. Keep sentences under ~18 words. At most one "because/which/that"
+  clause per sentence. Never stack clauses.
+- Use everyday words. Ban abstract constructions: no "energy", "vibration", "alignment of",
+  "structure-and-persistence", or any noun-energy phrasing. Say the concrete thing instead.
+- If you explain why, ONE short why-sentence, concrete. No nested reasoning.
+- End with ONE specific action the person can take.
+- Active voice. Second person ("you"). No hedging stacks ("may possibly tend to").
+
 Structure - follow exactly:
 
 1. THE SIGNAL FOR THIS MONTH (2 sentences)
@@ -709,6 +722,10 @@ Structure - follow exactly:
 
 6. THE PEAK WINDOW
    Specific 7-14 day window where energy concentrates this month.
+
+LENGTH BUDGET (HARD): the whole briefing must be UNDER 250 words.
+Each numbered section: at most 2 short sentences (each prediction: at
+most 3 short lines). Cut every filler phrase; keep only specifics.
 
 These predictions will be tracked and verified. Make them specific enough
 that the user can clearly say "yes this happened" or "no it didn't."

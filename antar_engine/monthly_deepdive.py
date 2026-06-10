@@ -218,6 +218,18 @@ Generate a full monthly deep-dive reading. This is proactive coaching for the mo
 The user did not ask a specific question — Antar is providing a complete monthly overview.
 
 RULES:
+READABILITY (NON-NEGOTIABLE):
+- Write for a smart, busy person who knows nothing about astrology. Sound like a sharp human
+  coach texting them — not a report, not a mystic.
+- First sentence = the answer, in plain words. No build-up, no setup.
+- One idea per sentence. Keep sentences under ~18 words. At most one "because/which/that"
+  clause per sentence. Never stack clauses.
+- Use everyday words. Ban abstract constructions: no "energy", "vibration", "alignment of",
+  "structure-and-persistence", or any noun-energy phrasing. Say the concrete thing instead.
+- If you explain why, ONE short why-sentence, concrete. No nested reasoning.
+- End with ONE specific action the person can take.
+- Active voice. Second person ("you"). No hedging stacks ("may possibly tend to").
+
 - ALWAYS start overview with the user's first name if provided e.g. "Ramandeep, this month..."
 - Plain English throughout. Zero jargon.
 - Be specific to the chart data provided — actual planets, actual timing
@@ -296,6 +308,18 @@ Genera un análisis mensual completo. Esto es orientación proactiva para el mes
 El usuario no hizo ninguna pregunta concreta — Antar ofrece un panorama mensual completo.
 
 REGLAS:
+LEGIBILIDAD (NO NEGOCIABLE):
+- Escribe para una persona inteligente y ocupada que no sabe nada de astrología. Suena como
+  un coach humano directo enviándole un mensaje — no un informe, no un místico.
+- La primera frase = la respuesta, en palabras simples. Sin preámbulos.
+- Una idea por frase. Frases de menos de ~18 palabras. Máximo una cláusula subordinada por
+  frase. Nunca encadenes cláusulas.
+- Palabras cotidianas. Prohibido lo abstracto: nada de "energía", "vibración", "alineación de"
+  ni frases sustantivo-energía. Di la cosa concreta.
+- Si explicas el porqué, UNA frase corta y concreta. Sin razonamientos anidados.
+- Termina con UNA acción específica que la persona pueda tomar.
+- Voz activa. Segunda persona. Sin cadenas de matices ("podría posiblemente tender a").
+
 - SIEMPRE comienza overview con el nombre del usuario si está disponible, p. ej. "Ramandeep, este mes..."
 - Español claro en todo momento. Cero jerga.
 - Sé específico con los datos de la carta proporcionados — planetas reales, tiempos reales
@@ -378,6 +402,18 @@ Gere um aprofundamento mensal completo. Isto é orientação proativa para o mê
 O usuário não fez nenhuma pergunta específica — Antar oferece um panorama mensal completo.
 
 REGRAS:
+LEGIBILIDADE (NÃO NEGOCIÁVEL):
+- Escreva para uma pessoa inteligente e ocupada que não sabe nada de astrologia. Soe como um
+  coach humano direto mandando mensagem — não um relatório, não um místico.
+- A primeira frase = a resposta, em palavras simples. Sem preâmbulos.
+- Uma ideia por frase. Frases com menos de ~18 palavras. No máximo uma oração subordinada por
+  frase. Nunca empilhe orações.
+- Palavras do dia a dia. Proibido o abstrato: nada de "energia", "vibração", "alinhamento de"
+  nem frases substantivo-energia. Diga a coisa concreta.
+- Se explicar o porquê, UMA frase curta e concreta. Sem raciocínio aninhado.
+- Termine com UMA ação específica que a pessoa possa tomar.
+- Voz ativa. Segunda pessoa. Sem pilhas de ressalvas.
+
 - SEMPRE comece overview com o primeiro nome do usuário, se disponível, ex.: "Ramandeep, este mês..."
 - Português claro o tempo todo. Zero jargão.
 - Seja específico com os dados do mapa fornecidos — planetas reais, tempos reais
@@ -561,6 +597,19 @@ async def generate_monthly_deepdive(
             result[_f] = apply_user_facing_strips(
                 _v, language=_lang, field_type='plain'
             )
+    # [readability 2026-06-10] simplify pass on long prose, then re-strip.
+    try:
+        from antar_engine.readability import simplify_payload_fields as _rb_simplify
+        await _rb_simplify(
+            result, ['overview', 'month_theme'],
+            language=_lang, surface='monthly-deepdive',
+            strip_fn=lambda _t: apply_user_facing_strips(
+                _t, language=_lang, field_type='plain'),
+            debug_key='_debug_readability',
+        )
+    except Exception as _rb_err:
+        print(f"[monthly-deepdive] readability non-fatal: {_rb_err}")
+
     _pas = result.get('priority_actions')
     if isinstance(_pas, list):
         for _pa in _pas:

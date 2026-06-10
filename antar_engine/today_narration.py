@@ -51,7 +51,7 @@ HARD RULES:
 3. "headline": ONE committed, characterizing line, max 90 characters. Not a
    rating ("Good day"), not a bare warning ("Be careful"). It characterizes
    the day, e.g. "A day to close the money loop you've been avoiding."
-4. "highlight": 3-4 short lines, max 70 words total, on only the chosen
+4. "highlight": 3-4 short lines, max 60 words total, on only the chosen
    domain(s). Concrete and behavioral. You may echo the timing window or the
    nudge in passing, but never quote them verbatim.
 4b. GROUND every line in the "drivers" list. Each driver names a chosen domain,
@@ -83,6 +83,18 @@ HARD RULES:
 7. No questions anywhere. No emojis. No exclamation marks. Second person.
 8. English only.
 9. Output STRICT JSON and nothing else: {"headline": "...", "highlight": "..."}
+
+READABILITY (NON-NEGOTIABLE):
+- Write for a smart, busy person who knows nothing about astrology. Sound like a sharp human
+  coach texting them — not a report, not a mystic.
+- First sentence = the answer, in plain words. No build-up, no setup.
+- One idea per sentence. Keep sentences under ~18 words. At most one "because/which/that"
+  clause per sentence. Never stack clauses.
+- Use everyday words. Ban abstract constructions: no "energy", "vibration", "alignment of",
+  "structure-and-persistence", or any noun-energy phrasing. Say the concrete thing instead.
+- If you explain why, ONE short why-sentence, concrete. No nested reasoning.
+- End with ONE specific action the person can take.
+- Active voice. Second person ("you"). No hedging stacks ("may possibly tend to").
 
 ## LIVE DATA
 """

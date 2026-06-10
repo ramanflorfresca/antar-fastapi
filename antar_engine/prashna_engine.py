@@ -2407,7 +2407,10 @@ Intuition: {bd['moon_validation']['score']}% — {bd['moon_validation']['reason'
 3. If there is a HARD TRUTH from the domain audit, state it directly. No softening.
 4. Give the timing window.
 5. End with ONE specific action — THE MOVE — the user should take this week.
-6. Keep it under 150 words total.
+6. Keep it under 90 words total. READABILITY (NON-NEGOTIABLE): one idea per
+   sentence; sentences under 18 words; never stack clauses. Everyday words —
+   never "energy", "vibration", or any abstract noun-phrase. First sentence =
+   the answer.
 7. ZERO astrological jargon — no Sanskrit terms, no house numbers, no planet names.
 
 9. If an EMOTIONAL CONTEXT block appears above, follow its tone instructions.

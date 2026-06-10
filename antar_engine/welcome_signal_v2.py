@@ -358,7 +358,7 @@ Generate three signals for {first_name}. This is their first impression of Antar
 
 ABOUT THIS PERSON:
 - Age: {current_age} years old
-- Rising energy: {lagna_sign}
+- Rising pattern: {lagna_sign}
 - Emotional processing: {moon_sign} ({moon_nakshatra})
 - Soul significator: {ak_planet} ({ak_meaning})
 - Career significator: {amk_planet}
@@ -393,6 +393,7 @@ Name the domain. Give a specific date range. End with one concrete thing to watc
 ABSOLUTE RULES:
 1. {first_name} is {current_age} years old. NEVER reference events or themes from before age {floor_age}.
 2. Zero Sanskrit terms. Zero astrological jargon. Plain English only.
+2b. READABILITY (NON-NEGOTIABLE): one idea per sentence; sentences under 18 words; everyday words. Never "energy", "vibration", "alignment", or any noun-energy phrasing — name the concrete thing. No clause-stacking. No hedging stacks.
 3. Each signal is 2-4 sentences. No padding. No hedging. No "your chart shows."
 4. State facts directly. Do not say "astrologically speaking" or "the stars suggest."
 5. All dates in Signal 2 and Signal 3 MUST be in the future (after {today}). Never reference a past date.
@@ -445,6 +446,7 @@ Nombra el dominio. Da un rango de fechas específico. Termina con una cosa concr
 REGLAS ABSOLUTAS:
 1. {first_name} tiene {current_age} años.  NUNCA hagas referencia a eventos o temas de antes de los {floor_age} años.
 2. Cero términos en sánscrito. Cero jerga astrológica. Solo español claro.
+2b. LEGIBILIDAD (NO NEGOCIABLE): una idea por frase; frases de menos de 18 palabras; palabras cotidianas. Nunca "energía", "vibración" ni frases abstractas — nombra la cosa concreta. Sin encadenar cláusulas.
 3. Cada señal tiene 2-4 frases. Sin relleno. Sin titubeo. Nada de "tu carta muestra".
 4. Declara los hechos directamente. No digas "astrológicamente hablando" ni "las estrellas sugieren".
 5. Todas las fechas en la Señal 2 y la Señal 3 DEBEN ser futuras (posteriores a {today}). Nunca referencies una fecha pasada.
@@ -498,6 +500,7 @@ Nomeie o domínio. Dê um intervalo de datas específico. Termine com uma coisa 
 REGRAS ABSOLUTAS:
 1. {first_name} tem {current_age} anos. NUNCA faça referência a eventos ou temas anteriores aos {floor_age} anos.
 2. Zero termos em sânscrito. Zero jargão astrológico. Apenas português claro.
+2b. LEGIBILIDADE (NÃO NEGOCIÁVEL): uma ideia por frase; frases com menos de 18 palavras; palavras do dia a dia. Nunca "energia", "vibração" nem frases abstratas — nomeie a coisa concreta. Sem empilhar orações.
 3. Cada sinal tem 2-4 frases. Sem enrolação. Sem hesitação. Nada de "seu mapa mostra".
 4. Declare os fatos diretamente. Não diga "astrologicamente falando" nem "os astros sugerem".
 5. Todas as datas no Sinal 2 e no Sinal 3 DEVEM ser futuras (posteriores a {today}). Nunca referencie uma data passada.
@@ -743,6 +746,20 @@ async def generate_welcome_signal_v2(
                         _sig[_f] = apply_user_facing_strips(
                             _v, language=_lang, field_type='plain'
                         )
+
+        # [readability 2026-06-10] strip happened above; simplify -> re-strip.
+        try:
+            from antar_engine.readability import maybe_simplify as _rb_maybe
+            for _key in ('signal_1', 'signal_2', 'signal_3'):
+                _sig = validated.get(_key)
+                if isinstance(_sig, dict) and isinstance(_sig.get('body'), str) and _sig['body']:
+                    _rb = await _rb_maybe(_sig['body'], language=_lang,
+                                          surface=f"welcome_v2.{_key}")
+                    if _rb['simplified']:
+                        _sig['body'] = apply_user_facing_strips(
+                            _rb['text'], language=_lang, field_type='plain')
+        except Exception as _rb_e:
+            logger.warning(f"[welcome_v2] readability non-fatal: {_rb_e}")
 
         # Add metadata
         validated["chart_id"] = chart_id
