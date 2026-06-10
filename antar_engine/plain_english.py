@@ -327,6 +327,15 @@ RETURN THIS EXACT JSON STRUCTURE:
 
 # ── Core function ────────────────────────────────────────────────────────────
 
+def _pe_system_prompt() -> str:
+    # [prompt-registry 2026-06-10] admin-editable body + immutable header.
+    try:
+        from antar_engine.prompt_registry import get_system_prefix
+        return get_system_prefix("plain_english")
+    except Exception:
+        return PLAIN_ENGLISH_SYSTEM_PROMPT
+
+
 async def generate_plain_english(
     raw_prediction: str,
     chart_context: dict,
@@ -391,7 +400,7 @@ async def generate_plain_english(
                 json={
                     "model": MODEL,
                     "max_tokens": MAX_TOKENS,
-                    "system": PLAIN_ENGLISH_SYSTEM_PROMPT,
+                    "system": _pe_system_prompt(),
                     "messages": [{"role": "user", "content": user_message}]
                 }
             )

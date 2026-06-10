@@ -106,6 +106,20 @@ def concern_label(slug: str, language: str = "en") -> str:
 
 # ───────────────────────── prompt ──────────────────────────────────────
 
+# [prompt-registry 2026-06-10] editable welcome rules — the registry
+# fallback. {label} and {lang_rule} are filled by build_welcome_prompt.
+WELCOME_RULES_TEMPLATE = """RULES — non-negotiable:
+- 70 to 110 words. One flowing paragraph, or two short ones. No headings, no lists.
+- {lang_rule}
+- ZERO astrological vocabulary. Never say Moon, planet names, houses, signs, nakshatra, chart, horary, or any Sanskrit. Translate everything into plain, concrete language about timing and real life ("the moment you chose to ask", "a window opening", "the next few weeks"). Never use the word "energy", "vibration", or any abstract noun-phrase.
+- Structure: (1) name the exact moment they arrived carrying this question about {label} — make it feel deliberate, not random; (2) ONE specific observation drawn from the strongest computed fact above — concrete, not horoscope-generic; (3) end with a forward hook tied to the timing signal — what to watch for, without promising outcomes.
+- If intent-birth sync is YES, weave in one line that the timing of their arrival mirrors something already written in them — this is the wow, use it.
+- Confident, warm, precise coach voice. READABILITY (NON-NEGOTIABLE): one idea per
+  sentence; sentences under 18 words; everyday words; first sentence lands the point;
+  end with one concrete thing to watch or do. No hedging ("maybe", "perhaps"), no flattery, no emojis, no greeting clichés ("Welcome to Antar!").
+- Do NOT mention the verdict percentage or the words yes/no. This is a reading, not a scorecard."""
+
+
 def build_welcome_prompt(
     engine_result: dict,
     first_name: str,
@@ -143,20 +157,24 @@ def build_welcome_prompt(
         else "Write in natural, warm English."
     )
 
-    return f"""You are Antar, welcoming {first_name or 'a new user'} the moment they arrive. They just told you what brought them here. A precise calculation was run on the sky at the EXACT moment they answered — your job is to turn it into one short, striking welcome reading that makes them feel seen.
-
-{facts}
-
-RULES — non-negotiable:
-- 70 to 110 words. One flowing paragraph, or two short ones. No headings, no lists.
-- {lang_rule}
-- ZERO astrological vocabulary. Never say Moon, planet names, houses, signs, nakshatra, chart, horary, or any Sanskrit. Translate everything into plain, concrete language about timing and real life ("the moment you chose to ask", "a window opening", "the next few weeks"). Never use the word "energy", "vibration", or any abstract noun-phrase.
-- Structure: (1) name the exact moment they arrived carrying this question about {label} — make it feel deliberate, not random; (2) ONE specific observation drawn from the strongest computed fact above — concrete, not horoscope-generic; (3) end with a forward hook tied to the timing signal — what to watch for, without promising outcomes.
-- If intent-birth sync is YES, weave in one line that the timing of their arrival mirrors something already written in them — this is the wow, use it.
-- Confident, warm, precise coach voice. READABILITY (NON-NEGOTIABLE): one idea per
-  sentence; sentences under 18 words; everyday words; first sentence lands the point;
-  end with one concrete thing to watch or do. No hedging ("maybe", "perhaps"), no flattery, no emojis, no greeting clichés ("Welcome to Antar!").
-- Do NOT mention the verdict percentage or the words yes/no. This is a reading, not a scorecard."""
+    _intro = (
+        f"You are Antar, welcoming {first_name or 'a new user'} the moment they arrive. "
+        "They just told you what brought them here. A precise calculation was run on the "
+        "sky at the EXACT moment they answered — your job is to turn it into one short, "
+        "striking welcome reading that makes them feel seen."
+    )
+    # [prompt-registry 2026-06-10] editable rules body; immutable contract
+    # header prepended in code. Broken {placeholders} in a DB body fall back
+    # to the hardcoded template.
+    try:
+        from antar_engine.prompt_registry import get_prompt_body, PROMPT_CONTRACT_HEADER
+        _hdr = PROMPT_CONTRACT_HEADER + "\n\n"
+        rules = get_prompt_body("welcome").format(lang_rule=lang_rule, label=label)
+    except Exception as _pr_err:
+        print(f"[welcome] prompt registry fallback (non-fatal): {_pr_err}")
+        _hdr = ""
+        rules = WELCOME_RULES_TEMPLATE.format(lang_rule=lang_rule, label=label)
+    return _hdr + _intro + "\n\n" + facts + "\n\n" + rules
 
 
 # ───────────────────────── fallbacks ───────────────────────────────────

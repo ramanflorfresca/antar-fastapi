@@ -399,7 +399,9 @@ READABILITY (NON-NEGOTIABLE):
 
 Write the summary now:"""
 
-    system = ("You are Antar's life phase analyst. Write precise, warm, specific summaries. No jargon. No lists. One flowing paragraph. Short sentences — under 18 words each. Everyday words; never the word 'energy' or abstract noun-phrases. First sentence states the point.")
+    # [prompt-registry 2026-06-10] admin-editable body + immutable header.
+    from antar_engine.prompt_registry import get_system_prefix
+    system = get_system_prefix("cycle_phase")
 
     try:
         text, _ = await claude_caller(prompt, system_override=system)

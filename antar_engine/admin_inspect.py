@@ -310,11 +310,16 @@ def _pick_primary(surface, calls):
 
 # ── Entry point ──────────────────────────────────────────────────────────────
 
-async def inspect_surface(chart_id: str, surface: str, language: str = "en") -> dict:
+async def inspect_surface(chart_id: str, surface: str, language: str = "en",
+                          use_draft: bool = False) -> dict:
     """
     Re-run compute + narrate for one surface and return raw bundle,
     narrated output, exact system prompt, model, latency. Pure
     read/compute — never mutates DB state (see module docstring).
+
+    use_draft=True makes prompt_registry serve the surface's DRAFT body
+    (preview-before-publish). Drafts can only ever be served through this
+    context — live traffic never sets INSPECT_CTX.
     """
     if surface not in VALID_SURFACES:
         raise ValueError(
@@ -326,10 +331,14 @@ async def inspect_surface(chart_id: str, surface: str, language: str = "en") -> 
     t0 = time.monotonic()
     ctx = {
         "no_write": True,
+        "use_draft": bool(use_draft),
         "llm_calls": [],
         "raw": {},
         "notes": ["forced fresh recompute", "strict no-write: production caches untouched"],
     }
+    if use_draft:
+        ctx["notes"].append("DRAFT PROMPT PREVIEW — prompt_registry served "
+                            "draft bodies where present (live rows otherwise)")
     token = INSPECT_CTX.set(ctx)
     try:
         narrated = await _RUNNERS[surface](_m, chart_id, language, ctx)

@@ -71,6 +71,12 @@ HARD RULES:
 - Return ONLY a JSON object keyed by the layer keys: soul, chemistry, public, lifepath, communication, friction. Each value is the paragraph string. No prose outside the JSON."""
 
 
+def _pr_system() -> str:
+    # [prompt-registry 2026-06-10] admin-editable body + immutable header.
+    from antar_engine.prompt_registry import get_system_prefix
+    return get_system_prefix("compat_deepread")
+
+
 async def build_deep_read(client, layers, reason, role, a_name, b_name,
                           overall_score, model: str = DEEPREAD_MODEL) -> dict:
     """Return {layer_key: detail_paragraph}. {} on any failure (never raises)."""
@@ -84,8 +90,7 @@ async def build_deep_read(client, layers, reason, role, a_name, b_name,
         resp = await client.messages.create(
             model=model,
             max_tokens=1400,
-            system=("You write concise, jargon-free relationship guidance. Short sentences, "
-                    "everyday words, no abstract 'energy' phrasing. Output strict JSON only."),
+            system=_pr_system(),
             messages=[{"role": "user", "content": prompt}],
         )
         text = resp.content[0].text.strip()

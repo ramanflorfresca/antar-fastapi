@@ -144,7 +144,10 @@ def build_narration_system(
         "avoid_what": hora.get("avoid_what") or "",
         "nudge": nudge or "",
     }
-    return NARRATION_STATIC + json.dumps(payload, ensure_ascii=False)
+    # [prompt-registry 2026-06-10] contract header + editable body from the
+    # registry; identical '## LIVE DATA' KV-cache split as before.
+    from antar_engine.prompt_registry import build_system_prompt
+    return build_system_prompt("today", json.dumps(payload, ensure_ascii=False))
 
 
 # ── driver summary: _debug_reasoning votes -> narratable conclusions ─────────

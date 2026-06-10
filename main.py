@@ -1652,6 +1652,11 @@ def _inspect_active():
     _c = _INSPECT_CTX.get()
     return _c if isinstance(_c, dict) else None
 
+# [prompt-registry 2026-06-10] boot-time import — if prompt_registry is
+# broken, the app fails at deploy (visible, auto-rollback) instead of
+# silently degrading the narration prompts.
+from antar_engine.prompt_registry import get_system_prefix as _registry_prefix
+
 async def call_llm(
     prompt: str,
     history: Optional[List[Dict[str, str]]] = None,
@@ -11749,13 +11754,151 @@ async def admin_llm_usage(days: int = 30, admin_email: str = Depends(require_adm
 # antar_engine/admin_inspect.py). Admin-gated via the existing require_admin.
 @app.get("/api/v1/admin/inspect/{chart_id}")
 async def admin_inspect(chart_id: str, surface: str, language: str = "en",
+                        use_draft: int = 0,
                         admin_email: str = Depends(require_admin)):
     from antar_engine.admin_inspect import inspect_surface, VALID_SURFACES
     if surface not in VALID_SURFACES:
         raise HTTPException(
             status_code=400,
             detail="surface must be one of: today, month, year, cycle")
-    return await inspect_surface(chart_id, surface, language)
+    return await inspect_surface(chart_id, surface, language,
+                                 use_draft=bool(use_draft))
+
+
+
+# ── [prompt-registry 2026-06-10] Admin prompt registry endpoints ─────────────
+# Editable narration prompt bodies (llm_prompts). The contract header +
+# output schema are code-only constants, returned read-only for UI display.
+# Drafts never affect users; publish/rollback bump version monotonically.
+@app.get("/api/v1/admin/prompts")
+async def admin_prompts_list(admin_email: str = Depends(require_admin)):
+    from antar_engine.prompt_registry import SURFACES
+    rows = []
+    try:
+        r = supabase.table("llm_prompts").select("surface,version,status").in_("status", ["live", "draft"]).execute()
+        rows = r.data or []
+    except Exception as _e:
+        print(f"[admin-prompts] list read non-fatal: {_e}")
+    out = []
+    for s in SURFACES:
+        live = [x["version"] for x in rows if x["surface"] == s and x["status"] == "live"]
+        out.append({
+            "surface": s,
+            "live_version": (max(live) if live else None),
+            "source": "db" if live else "fallback",
+            "has_draft": any(x["surface"] == s and x["status"] == "draft" for x in rows),
+        })
+    return {"prompts": out}
+
+
+@app.get("/api/v1/admin/prompts/{surface}")
+async def admin_prompts_get(surface: str, admin_email: str = Depends(require_admin)):
+    from antar_engine.prompt_registry import (
+        SURFACES, PROMPT_CONTRACT_HEADER, _schema_line, hardcoded_body,
+    )
+    if surface not in SURFACES:
+        raise HTTPException(status_code=404, detail=f"unknown surface — one of: {', '.join(SURFACES)}")
+    live_body, version, source = hardcoded_body(surface), None, "fallback"
+    draft_body, history = None, []
+    try:
+        r = (supabase.table("llm_prompts")
+             .select("body,version,status,updated_at,updated_by")
+             .eq("surface", surface).order("version", desc=True).execute())
+        for row in (r.data or []):
+            if row["status"] == "live" and source == "fallback":
+                live_body, version, source = row["body"], row["version"], "db"
+            elif row["status"] == "draft" and draft_body is None:
+                draft_body = row["body"]
+            elif row["status"] == "archived":
+                history.append({"version": row["version"],
+                                "updated_at": row.get("updated_at"),
+                                "updated_by": row.get("updated_by")})
+    except Exception as _e:
+        print(f"[admin-prompts] get read non-fatal ({surface}): {_e}")
+    return {
+        "surface": surface,
+        "contract_header": PROMPT_CONTRACT_HEADER + "\n" + _schema_line(surface),
+        "live_body": live_body,
+        "draft_body": draft_body,
+        "version": version,
+        "source": source,
+        "history": history,
+    }
+
+
+@app.put("/api/v1/admin/prompts/{surface}/draft")
+async def admin_prompts_save_draft(surface: str, request: dict = Body(...),
+                                   admin_email: str = Depends(require_admin)):
+    from antar_engine.prompt_registry import SURFACES, invalidate
+    if surface not in SURFACES:
+        raise HTTPException(status_code=404, detail="unknown surface")
+    body = (request or {}).get("body")
+    if not isinstance(body, str) or not body.strip():
+        raise HTTPException(status_code=400, detail="body (non-empty string) required")
+    supabase.table("llm_prompts").delete().eq("surface", surface).eq("status", "draft").execute()
+    supabase.table("llm_prompts").insert({
+        "surface": surface, "body": body, "version": 0,
+        "status": "draft", "updated_by": admin_email,
+    }).execute()
+    invalidate(surface)
+    return {"ok": True, "surface": surface, "status": "draft", "chars": len(body)}
+
+
+@app.post("/api/v1/admin/prompts/{surface}/publish")
+async def admin_prompts_publish(surface: str, admin_email: str = Depends(require_admin)):
+    from antar_engine.prompt_registry import SURFACES, invalidate
+    if surface not in SURFACES:
+        raise HTTPException(status_code=404, detail="unknown surface")
+    d = (supabase.table("llm_prompts").select("body").eq("surface", surface)
+         .eq("status", "draft").limit(1).execute())
+    if not d.data:
+        raise HTTPException(status_code=404, detail="no draft to publish")
+    body = d.data[0]["body"]
+    lv = (supabase.table("llm_prompts").select("id,version").eq("surface", surface)
+          .eq("status", "live").order("version", desc=True).limit(1).execute())
+    new_version = (lv.data[0]["version"] if lv.data else 0) + 1
+    if lv.data:
+        supabase.table("llm_prompts").update({"status": "archived"}).eq("id", lv.data[0]["id"]).execute()
+    supabase.table("llm_prompts").insert({
+        "surface": surface, "body": body, "version": new_version,
+        "status": "live", "updated_by": admin_email,
+    }).execute()
+    supabase.table("llm_prompts").delete().eq("surface", surface).eq("status", "draft").execute()
+    invalidate(surface)
+    return {"ok": True, "surface": surface, "live_version": new_version}
+
+
+@app.post("/api/v1/admin/prompts/{surface}/rollback")
+async def admin_prompts_rollback(surface: str, request: dict = Body(...),
+                                 admin_email: str = Depends(require_admin)):
+    from antar_engine.prompt_registry import SURFACES, invalidate
+    if surface not in SURFACES:
+        raise HTTPException(status_code=404, detail="unknown surface")
+    try:
+        to_version = int((request or {}).get("to_version"))
+    except Exception:
+        raise HTTPException(status_code=400, detail="to_version (int) required")
+    src = (supabase.table("llm_prompts").select("body,status").eq("surface", surface)
+           .eq("version", to_version).limit(1).execute())
+    if not src.data:
+        raise HTTPException(status_code=404, detail=f"version {to_version} not found")
+    if src.data[0]["status"] == "live":
+        return {"ok": True, "surface": surface, "live_version": to_version,
+                "note": "already live"}
+    body = src.data[0]["body"]
+    lv = (supabase.table("llm_prompts").select("id,version").eq("surface", surface)
+          .eq("status", "live").order("version", desc=True).limit(1).execute())
+    new_version = (lv.data[0]["version"] if lv.data else 0) + 1
+    if lv.data:
+        supabase.table("llm_prompts").update({"status": "archived"}).eq("id", lv.data[0]["id"]).execute()
+    supabase.table("llm_prompts").insert({
+        "surface": surface, "body": body, "version": new_version,
+        "status": "live", "updated_by": f"{admin_email} (rollback to v{to_version})",
+    }).execute()
+    invalidate(surface)
+    return {"ok": True, "surface": surface, "live_version": new_version,
+            "rolled_back_to": to_version}
+
 
 @app.post("/api/v1/me/billing/portal")
 async def settings_billing_portal(authorization: Optional[str] = Header(None)):
@@ -15038,41 +15181,9 @@ async def ask_endpoint(request: AskRequest):
                 _sys = (
                     f"Today is {datetime.now(timezone.utc).date().isoformat()}. "
                     f"Timing window state: {_ex_state}. {_ex_state_hint} "
-                    "You are Antar, a grounded life coach. The user asked a timing/decision "
-                    "question. Using ONLY the consultation facts and chart context below, "
-                    # [ask-spec 2026-06-09] decision FIXED FACTS
-                    "FIXED FACTS (absolute, override anything below): "
-                    "(1) Never state internal scores, percentages, confidence numbers, "
-                    "'live signal', 'blueprint', or 'signal floor' — describe room or "
-                    "constraint in plain words only. "
-                    "(2) Never use planet-trait nouns as the actor — 'discipline blocking X' "
-                    "becomes 'caution holding X back'. "
-                    "(3) Read carries AT MOST 3 threads — the 2-3 the chart most supports. "
-                    "READABILITY (NON-NEGOTIABLE): write for a smart, busy person who "
-                    "knows nothing about astrology — a sharp human coach texting them, "
-                    "not a report. First sentence = the answer in plain words, no "
-                    "build-up. One idea per sentence; sentences under 18 words; never "
-                    "stack clauses. Everyday words only — never 'energy', 'vibration', "
-                    "'alignment', or any noun-energy phrasing; say the concrete thing. "
-                    "At most ONE short, concrete why-sentence. Active voice, second "
-                    "person. read + next together stay UNDER 90 words. "
-                    "reply with STRICT JSON only: "
-                    '{"read": "...", "verdict": "...", "timing": "...", "actions": ["...", "..."], "next": "..."}. '
-                    # [lead-verdict] Python prepends the engine's verdict + window phrase
-                    # as the OPENING SENTENCE of `read`. The model writes the WHY only.
-                    "read = 2 to 3 sentences explaining WHY the verdict is what it is. "
-                    "DO NOT repeat the OPENING SENTENCE from the consultation facts. "
-                    "DO NOT name the verdict word (Likely / Yes / Not yet / No). "
-                    "DO NOT name any month, year, quarter, or specific date — those live "
-                    "in the OPENING SENTENCE Python writes for you. "
-                    "Start `read` directly with the reasoning (e.g. \"The dasha and annual chart agree, and the structure of your blueprint supports execution now.\"). "
-                    "verdict = one of YES, LIKELY, NOT_YET, NO (must match the VERDICT pinned in the facts). "
-                    "timing = the TIMING WINDOW from the consultation facts restated plainly — "
-                    "NEVER invent dates; if the facts say no window, describe a building phase. "
-                    "actions = 2 or 3 concrete moves tied to the chart signals that raise the "
-                    "odds. next = the single most important action this week. "
-                    "Never mention astrology, planets, houses, signs, nakshatras, dashas, "
-                    "scores, or any Sanskrit or technical term — plain everyday language only. "
+                    # [prompt-registry 2026-06-10] editable body (immutable
+                    # contract header prepended inside _registry_prefix).
+                    + _registry_prefix("ask_decision")
                     # [ask-decision-clock 2026-06-09] when intraday clock is
                     # computable AND the question carries today/now markers,
                     # the model MUST name the hard clock token inside `read`
@@ -15143,28 +15254,9 @@ async def ask_endpoint(request: AskRequest):
                     print(f"[ask][intraday] non-fatal: {_iwe}")
                 _ask_noun_csv = ", ".join(_ask_noun_palette)
                 _sys = (
-                    "You are Antar, a grounded life coach. The user asked an open question for which "
-                    "the chart has NO specific timing prediction (no engine-computed verdict, no "
-                    "date window). Your job: name the dynamic CONCRETELY using real life-nouns the "
-                    "user recognises — never abstract energy-prose. "
-                    # [ask-spec 2026-06-09] FIXED FACTS — internal metrics never reach the user.
-                    "FIXED FACTS (absolute, override anything below): "
-                    "(1) Never state internal scores, percentages, confidence numbers, "
-                    "'live signal', 'blueprint', or 'signal floor' — describe room or "
-                    "constraint in plain words only. "
-                    "(2) Never use planet-trait nouns as the actor — 'discipline blocking X' "
-                    "becomes 'caution holding X back'; 'authority pulling' becomes 'a senior "
-                    "call pulling'. Restate as the plain constraint, not the planet's trait. "
-                    "(3) Read must carry AT MOST 3 threads, not 5. Pick the 2-3 the chart "
-                    "most supports and drop the rest. "
-                    "READABILITY (NON-NEGOTIABLE): write for a smart, busy person who "
-                    "knows nothing about astrology — a sharp human coach texting them, "
-                    "not a report. First sentence = the answer in plain words, no "
-                    "build-up. One idea per sentence; sentences under 18 words; never "
-                    "stack clauses. Everyday words only — never 'energy', 'vibration', "
-                    "'alignment', or any noun-energy phrasing; say the concrete thing. "
-                    "At most ONE short, concrete why-sentence. Active voice, second "
-                    "person. read + next together stay UNDER 90 words. "
+                    # [prompt-registry 2026-06-10] editable body (immutable
+                    # contract header prepended inside _registry_prefix).
+                    _registry_prefix("ask_reflective")
                     + (
                         "(4) An intraday window IS computed — name the HARD CLOCK token "
                         "in the read. Forbidden soft-time fallbacks when a clock exists: "
@@ -15600,13 +15692,10 @@ async def ask_endpoint(request: AskRequest):
             _why_sys = (
                 f"Today is {datetime.now(timezone.utc).date().isoformat()}. "
                 f"Timing window state: {_yn_state}. {_yn_state_hint} "
-                "You are Antar. The user asked a yes/no question. Reply with STRICT JSON only: "
-                '{"why": "...", "actions": ["...", "..."]}. '
-                "READABILITY (NON-NEGOTIABLE): why = ONE short sentence, under 18 "
-                "words, everyday words — never 'energy', 'vibration', or abstract "
-                "noun-phrasing. actions = plain verb-first moves, under 15 words "
-                "each, naming the concrete thing to do. "
-                f"why = ONE plain-English sentence explaining why the answer is {verdict}. "
+                # [prompt-registry 2026-06-10] editable body (immutable
+                # contract header prepended inside _registry_prefix).
+                + _registry_prefix("ask_yesno")
+                + f"why = ONE plain-English sentence explaining why the answer is {verdict}. "
                 "actions = 2 or 3 concrete moves, tied to the signals below, that raise the "
                 "odds of a good outcome. No astrology, no planets, houses, signs, nakshatras, "
                 "Sanskrit, numbers, or scores anywhere. JSON only, no code fences. "

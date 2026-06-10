@@ -223,7 +223,10 @@ def build_year_engine_state(
 def build_year_narration_system(state: dict, first_name: str = "") -> str:
     payload = dict(state)
     payload["first_name"] = (first_name or "").split(" ")[0][:24]
-    return YEAR_NARRATION_STATIC + json.dumps(payload, ensure_ascii=False)
+    # [prompt-registry 2026-06-10] contract header + editable body from the
+    # registry; identical '## LIVE DATA' KV-cache split as before.
+    from antar_engine.prompt_registry import build_system_prompt
+    return build_system_prompt("year", json.dumps(payload, ensure_ascii=False))
 
 
 # ── Output validation — template fallback on ANY miss ────────────────────────

@@ -279,11 +279,9 @@ HARD RULES (rule-#12 violations void the output):
 
 Generate now:"""
 
-    system = ("You are Antar's diagnostic engine. Output valid JSON only. "
-              "Be specific, warm, and actionable. ZERO jargon — no planet "
-              "names, no houses, no Sanskrit, no astrology terms. Every "
-              "stuckness source must be a verdict-first directive about a "
-              "life domain, never a dasha label.")
+    # [prompt-registry 2026-06-10] admin-editable body + immutable header.
+    from antar_engine.prompt_registry import get_system_prefix
+    system = get_system_prefix("cycle_diagnostic")
 
     text, _ = await claude_caller(prompt, system_override=system)
 
