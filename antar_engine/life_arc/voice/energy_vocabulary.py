@@ -192,3 +192,59 @@ def get_chakra(planet: str) -> str:
     """Get the chakra anchor for a planet."""
     vocab = PLANET_ENERGY_VOCABULARY.get(planet, {})
     return vocab.get("chakra", "")
+
+
+# ─── Life-noun layer (energy-voice retirement, Cowork 2026-06-10) ───────────
+# Doctrine: energy_name is retired from PREDICTION surfaces (Current Cycle,
+# Today, Ask) and stays in Practice only. Prediction narration uses concrete
+# life-nouns sourced from life_domain. These helpers are the single resolver.
+
+# Short period labels for display scalars and prompt facts — life-nouns only,
+# no "energy" wording, frontend-template safe ("filtered through <label>").
+CYCLE_PERIOD_LIFE_LABELS: Dict[str, str] = {
+    "Sun":     "leadership and visibility",
+    "Moon":    "home and emotional life",
+    "Mars":    "action and competition",
+    "Mercury": "communication and business",
+    "Jupiter": "wisdom and mentorship",
+    "Venus":   "relationships and creative harmony",
+    "Saturn":  "discipline and long-term building",
+    "Rahu":    "ambition and unconventional paths",
+    "Ketu":    "release and inner work",
+}
+
+# Tokens inside life_domain strings that must never reach a prompt or user.
+_LIFE_NOUN_BANNED = ("dharma",)
+
+
+def get_life_nouns(planet: str, n: int = 3) -> list:
+    """First n concrete life-nouns from the planet's life_domain.
+    Sanskrit tokens filtered. Returns [] for unknown planets."""
+    vocab = PLANET_ENERGY_VOCABULARY.get(planet, {})
+    domain = vocab.get("life_domain", "")
+    nouns = []
+    for part in domain.split(","):
+        p = part.strip()
+        if not p:
+            continue
+        if any(b in p.lower() for b in _LIFE_NOUN_BANNED):
+            continue
+        nouns.append(p)
+        if len(nouns) >= n:
+            break
+    return nouns
+
+
+def get_life_phrase(planet: str, default: str = "this period's focus") -> str:
+    """Short life-noun label for a period lord — the prediction-surface
+    replacement for get_energy_name(). Returns `default` when the planet
+    is unknown (pass default="" to detect misses)."""
+    if not planet:
+        return default
+    label = CYCLE_PERIOD_LIFE_LABELS.get(planet)
+    if label:
+        return label
+    nouns = get_life_nouns(planet, 2)
+    if nouns:
+        return " and ".join(nouns)
+    return default
