@@ -2731,11 +2731,13 @@ async def get_past_events(
             not in ("off", "0", "false")
         if _conv_on:
             try:
-                from antar_engine.event_convergence import converge_events
+                from antar_engine.event_convergence import (
+                    converge_events, load_confirmed_events)
                 _conv = converge_events(
                     cd, chart_res.data, (ads_res.data or []),
                     (birth_date[:10] if birth_date else f"{birth_year}-01-01"),
                     today_str, supabase=supabase, include_debug=False,
+                    confirmed_events=load_confirmed_events(chart_res.data),
                 )
                 _CONF_BY_LOCKS = {3: 9, 2: 6}
                 _CAT = {
@@ -3531,11 +3533,13 @@ async def get_upcoming_themes(
         _conv_failed = False
         if _conv_on:
             try:
-                from antar_engine.event_convergence import converge_events
+                from antar_engine.event_convergence import (
+                    converge_events, load_confirmed_events)
                 _convf = converge_events(
                     cd, chart_res.data, (ads_res.data or []),
                     today_str, cutoff_date, supabase=supabase,
                     include_debug=False,
+                    confirmed_events=load_confirmed_events(chart_res.data),
                 )
                 _SCORE_BY_LOCKS = {3: 10, 2: 7}
                 for _p in _convf.get("predictions", []):
@@ -25004,6 +25008,7 @@ async def get_signature_statements(chart_id: str):
         # block below queried map_all_events with RETIRED keys — foreign_move/
         # divorce/marriage — so statements 1-2 were silently dead anyway.)
         _sig_conv: dict = {}
+        _sig_full: list = []
         if os.getenv("EVENT_CONVERGENCE", "on").strip().lower() \
                 not in ("off", "0", "false"):
             try:
@@ -25020,42 +25025,70 @@ async def get_signature_statements(chart_id: str):
                             "start_year": int(_p["window_start"][:4]),
                             "end_year": int(_p["window_end"][:4]),
                         })
+                        _sig_full.append(_p)
             except Exception as _sg_err:
                 print(f"[signature] convergence non-fatal: {_sg_err}")
 
-        # Compute event windows (legacy — only consulted when convergence empty)
-        events = map_all_events(birth_year, lagna, ads)
-
-        # Build human-readable statements (NO astrological terms)
+        # [confirm-then-predict 2026-06-11] statements are QUESTIONS sourced
+        # from convergence windows — never assertions. The user's Yes/Close/No
+        # becomes the Stage-4 anchor for every later dated prediction.
         statements = []
+        try:
+            from antar_engine.past_predictions import (_QUESTION_TEMPLATES,
+                                                       _fmt_window,
+                                                       _strip_gate)
+            _Q_ES = {
+                "serious_partnership_began":
+                    "¿Comenzó una relación o sociedad seria entre {w}?",
+                "serious_partnership_ended":
+                    "¿Terminó una relación o pasó por una ruptura seria entre {w}?",
+                "family_expansion_first":
+                    "¿Creció tu familia — la llegada de un hijo — entre {w}?",
+                "family_expansion_second":
+                    "¿Volvió a crecer tu familia entre {w}?",
+                "major_relocation":
+                    "¿Te mudaste de casa o de ciudad entre {w}?",
+                "major_acquisition":
+                    "¿Adquiriste algo importante — propiedad, vehículo, un activo — entre {w}?",
+                "career_pivot":
+                    "¿Cambiaste de trabajo o cambió tu dirección profesional entre {w}?",
+                "business_start":
+                    "¿Iniciaste un negocio o proyecto propio entre {w}?",
+            }
+            _ANCHOR_FIRST = ["serious_partnership_began", "major_relocation",
+                             "family_expansion_first", "major_acquisition",
+                             "business_start", "career_pivot"]
+            _sig_sorted = sorted(
+                _sig_full,
+                key=lambda p: (_ANCHOR_FIRST.index(p["event_type"])
+                               if p["event_type"] in _ANCHOR_FIRST else 99,
+                               -p["confidence"]))
+            for _p in _sig_sorted[:2]:
+                _w = _fmt_window(_p["window_start"],
+                                 _p["window_end"]).replace(" – ", " and ")
+                _tpl = _QUESTION_TEMPLATES.get(_p["event_type"])
+                if not _tpl:
+                    continue
+                _q_en = _tpl.format(w=_w)
+                _q_es = _Q_ES.get(_p["event_type"], "").format(w=_w)
+                statements.append({
+                    "id": _p["event_type"],
+                    "event_type": _p["event_type"],
+                    "mode": "question",
+                    "text": _strip_gate(_q_en),
+                    "text_es": _strip_gate(_q_es) if _q_es else "",
+                    "window": f"{_p['window_start'][:4]}-{_p['window_end'][:4]}",
+                    "window_start": _p["window_start"],
+                    "window_end": _p["window_end"],
+                    "locks": _p.get("locks", {}).get("count")
+                    if isinstance(_p.get("locks"), dict) else None,
+                })
+        except Exception as _sq_err:
+            print(f"[signature] question build non-fatal: {_sq_err}")
 
-        # Statement 1: Foreign move (most verifiable, dramatic)
-        fm = _sig_conv.get("major_relocation") or events.get("foreign_move")
-        if fm and fm["start_year"] < 2020:
-            statements.append({
-                "id":      "foreign_move",
-                "text":    f"Your chart shows a major relocation or foreign move around {fm['start_year']}-{fm['end_year']}.",
-                "text_es": f"Tu carta muestra una reubicación importante alrededor de {fm['start_year']}-{fm['end_year']}.",
-                "window":  f"{fm['start_year']}-{fm['end_year']}",
-            })
-
-        # Statement 2: Relationship transformation (divorce or marriage)
-        div = _sig_conv.get("serious_partnership_ended") or events.get("divorce")
-        mar = _sig_conv.get("serious_partnership_began") or events.get("marriage")
-        if div and div["start_year"] < 2024:
-            statements.append({
-                "id":      "relationship_change",
-                "text":    f"Between {div['start_year']}-{div['end_year']} your chart shows a significant relationship transformation.",
-                "text_es": f"Entre {div['start_year']}-{div['end_year']} tu carta muestra una transformación significativa en relaciones.",
-                "window":  f"{div['start_year']}-{div['end_year']}",
-            })
-        elif mar and mar["start_year"] < 2020:
-            statements.append({
-                "id":      "relationship_change",
-                "text":    f"Your chart shows a major commitment or partnership forming around {mar['start_year']}-{mar['end_year']}.",
-                "text_es": f"Tu carta muestra un compromiso importante formándose alrededor de {mar['start_year']}-{mar['end_year']}.",
-                "window":  f"{mar['start_year']}-{mar['end_year']}",
-            })
+        # legacy mapper kept import-compatible; no longer consulted for
+        # questions (single-source rule)
+        events = map_all_events(birth_year, lagna, ads)
 
         # Statement 3: Current period (almost always verifiable — builds immediate trust)
         # Get current MD from dasha_periods
@@ -25133,10 +25166,42 @@ async def confirm_signature(request: SignatureConfirmRequest):
 
         chart_data = chart_res.data.get("chart_data") or {}
 
-        # Add signature confirmations
+        # [confirm-then-predict 2026-06-11] persist responses WITH their
+        # deterministic engine windows — confirmations are Stage-4 anchors.
+        _ctp_events = {}
+        try:
+            from antar_engine.event_convergence import converge_events
+            _ctp_rows = supabase.table("dasha_periods") \
+                .select("planet_or_sign,start_date,end_date,level,type,metadata") \
+                .eq("chart_id", request.chart_id) \
+                .eq("system", "vimsottari").order("start_date").execute()
+            _ctp_rec = supabase.table("charts") \
+                .select("birth_date,marital_status,children_status") \
+                .eq("id", request.chart_id).single().execute()
+            _ctp_bd = str((_ctp_rec.data or {}).get("birth_date") or "")[:10]
+            _ctp_res = converge_events(
+                chart_data, _ctp_rec.data or {}, (_ctp_rows.data or []),
+                _ctp_bd or "1970-01-01",
+                datetime.now().strftime("%Y-%m-%d"),
+                supabase=supabase, include_debug=False)
+            _ctp_windows = {p["event_type"]: p
+                            for p in _ctp_res.get("predictions", [])}
+            for _sid, _resp in (request.confirmations or {}).items():
+                _p = _ctp_windows.get(_sid)
+                _ctp_events[_sid] = {
+                    "response": _resp,
+                    "window_start": _p["window_start"] if _p else None,
+                    "window_end": _p["window_end"] if _p else None,
+                }
+        except Exception as _ctp_err:
+            print(f"[signature] window persist non-fatal: {_ctp_err}")
+            _ctp_events = {k: {"response": v}
+                           for k, v in (request.confirmations or {}).items()}
+
         chart_data["signature_confirmations"] = {
             **request.confirmations,
-            "confirmed_at": "2026-04-14",
+            "events": _ctp_events,
+            "confirmed_at": datetime.now().strftime("%Y-%m-%d"),
             "score": sum(1 for v in request.confirmations.values() if v == "confirmed"),
         }
 

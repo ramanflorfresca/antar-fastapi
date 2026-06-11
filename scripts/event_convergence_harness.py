@@ -211,12 +211,62 @@ def score(label, res, events):
             "painful_wrong": len(painful_wrong)}
 
 
+def measure_varshphal(base, key):
+    """--varshphal: vote rate at TRUE event dates vs background (ages 18-50).
+    Needs swisseph (run on the Mac). This is the gate the founder set before
+    Varshphal counts as a lock."""
+    from antar_engine.event_convergence import (build_natal_context,
+                                                stage1_promise)
+    from antar_engine.event_gating import get_config
+    from antar_engine.varshphal_gate import vote_for_window
+    cfg = get_config(None)
+    hit = n = bg = bgn = 0
+    for cid, gt in GROUND_TRUTH.items():
+        if not gt["events"]:
+            continue
+        rec = _q(base, key, f"charts?select=*&id=eq.{cid}")[0]
+        cd = rec.get("chart_data")
+        if isinstance(cd, str):
+            cd = json.loads(cd)
+        ctx = build_natal_context(cd)
+        birth = datetime.strptime(str(rec["birth_date"])[:10], "%Y-%m-%d")
+        for et, d, tol in gt["events"]:
+            pr = stage1_promise(et, ctx, cfg.get(et))
+            v = vote_for_window(cd, rec, birth, d, pr["houses"],
+                                pr["significators"])
+            if v is None:
+                print(f"  {gt['label']} {et} {d}: varshphal UNAVAILABLE "
+                      "(needs swisseph + coords)")
+                continue
+            n += 1
+            hit += bool(v["vote"])
+            print(f"  {gt['label']:9s} {et:28s} {d}  vote="
+                  f"{'Y' if v['vote'] else '.'}  "
+                  f"{'; '.join(v['conditions'])[:70]}")
+            for age in range(18, 51):
+                yr = birth.year + age
+                vv = vote_for_window(cd, rec, birth, f"{yr}-{d[5:]}",
+                                     pr["houses"], pr["significators"])
+                if vv is not None:
+                    bgn += 1
+                    bg += bool(vv["vote"])
+    if n:
+        print(f"\nVARSHPHAL v1: at truth {hit}/{n} = {hit/n*100:.0f}%  "
+              f"background {bg/max(bgn,1)*100:.0f}%  "
+              f"(counts as a lock ONLY if this separates)")
+    else:
+        print("\nVARSHPHAL: no measurable events (ephemeris unavailable?)")
+
+
 def main():
     env = _env()
     base = env["SUPABASE_URL"].rstrip("/")
     key = env.get("SUPABASE_SERVICE_ROLE_KEY") or env["SUPABASE_KEY"]
     only = [a for a in sys.argv[1:] if not a.startswith("--")]
     explain = "--explain" in sys.argv
+    if "--varshphal" in sys.argv:
+        measure_varshphal(base, key)
+        return
 
     # Sandbox support: REAL chronology dumped by scripts/dump_real_chronology.py
     # turns into a position_fn so calibration can run without swisseph.

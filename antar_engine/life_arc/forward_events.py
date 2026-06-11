@@ -136,13 +136,16 @@ def build_forward_event_chips(chart_data: dict, birth_jd: float,
     if _os.getenv("EVENT_CONVERGENCE", "on").strip().lower() \
             not in ("off", "0", "false"):
         try:
-            from antar_engine.event_convergence import converge_events
+            from antar_engine.event_convergence import (
+                converge_events, load_confirmed_events)
             _cv_rows = dasha_rows if dasha_rows else (ads or [])
             _cv_rec = {"birth_date": birth_date_str,
                        "marital_status": marital_status,
-                       "children_status": children_status}
+                       "children_status": children_status,
+                       "chart_data": chart_data}
             _cv = converge_events(chart_data, _cv_rec, _cv_rows,
-                                  from_date, to_date, include_debug=False)
+                                  from_date, to_date, include_debug=False,
+                                  confirmed_events=load_confirmed_events(_cv_rec))
             _cv_chips: List[dict] = []
             for _p in _cv.get("predictions", []):
                 _et = _p["event_type"]

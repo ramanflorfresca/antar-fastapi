@@ -291,12 +291,14 @@ def compute_past_predictions(chart_id: str, supabase, n: int = 3,
     if _os.getenv("EVENT_CONVERGENCE", "on").strip().lower() \
             not in ("off", "0", "false"):
         try:
-            from antar_engine.event_convergence import converge_events
+            from antar_engine.event_convergence import (
+                converge_events, load_confirmed_events)
             all_rows = ads_res.data or []
             res = converge_events(
                 chart_data, chart_record, all_rows,
                 birth_date_str or f"{birth_year}-01-01", today_str,
                 supabase=supabase, include_debug=True,
+                confirmed_events=load_confirmed_events(chart_record),
             )
             preds = []
             horizon = (now - timedelta(days=_LOOKBACK_LADDER[-1])) \

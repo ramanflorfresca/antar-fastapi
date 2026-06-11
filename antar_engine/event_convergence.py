@@ -218,13 +218,39 @@ def stage1_promise(event_type: str, ctx: dict,
     Is the event indicated in THIS chart, and how loudly?
     Returns {"indicated", "score", "factors", "significators",
              "houses", "primary_house", "lord", "lord_sign_idx",
-             "d9_lord_sign_idx", "karaka"}.
+             "d9_lord_sign_idx", "karaka", "flavor"(relocation only)}.
     """
-    houses = _cfg_houses(cfg_row, event_type)
+    # [ruling 2026-06-11] relocation splits into foreign (12/9, Rahu) vs
+    # domestic (4/3, Moon) profiles; promise = the louder profile, and the
+    # winning flavor's houses/karaka drive significators + Stage 3 targets.
+    if event_type == "major_relocation":
+        foreign = _stage1_core(event_type, ctx, [12, 9], "Rahu")
+        domestic = _stage1_core(event_type, ctx, [4, 3], "Moon")
+        win, flavor = ((foreign, "foreign")
+                       if foreign["score"] >= domestic["score"]
+                       else (domestic, "domestic"))
+        # [event-diag 2026-06-11] None-aware — promise_floor=0 means exempt
+        _pf_cfg = (cfg_row or {}).get("promise_floor")
+        floor = DEFAULT_PROMISE_FLOOR if _pf_cfg is None else float(_pf_cfg)
+        win["flavor"] = flavor
+        win["floor"] = floor
+        win["indicated"] = win["score"] >= floor
+        win["factors"].insert(0, f"relocation flavor: {flavor} "
+                              f"(foreign {foreign['score']} vs "
+                              f"domestic {domestic['score']})")
+        return win
+    return _stage1_core(event_type, ctx,
+                        _cfg_houses(cfg_row, event_type),
+                        (cfg_row or {}).get("karaka") or "",
+                        cfg_row=cfg_row)
+
+
+def _stage1_core(event_type: str, ctx: dict, houses: List[int],
+                 karaka: str, cfg_row: Optional[dict] = None) -> dict:
+    """Placement-conditional promise over an explicit house/karaka profile."""
     primary = houses[0]
     lagna_idx = ctx["lagna_idx"]
     planets = ctx["planets"]
-    karaka = (cfg_row or {}).get("karaka") or ""
 
     primary_sign = _house_sign(lagna_idx, primary)
     lord = SIGN_RULER_IDX[primary_sign]
@@ -345,7 +371,11 @@ def stage1_promise(event_type: str, ctx: dict,
                 score += 0.75
                 factors.append(f"10H lord {lord10} strong in D10")
 
-    floor = float((cfg_row or {}).get("promise_floor") or DEFAULT_PROMISE_FLOOR)
+    # [event-diag 2026-06-11] None-aware: promise_floor=0 in
+    # event_engine_config means promise-EXEMPT (founder ruling for
+    # loss_of_father/loss_of_mother). `or` treated 0 as unset.
+    _pf_cfg = (cfg_row or {}).get("promise_floor")
+    floor = DEFAULT_PROMISE_FLOOR if _pf_cfg is None else float(_pf_cfg)
     score = round(min(score, 10.0), 2)
     return {
         "indicated": score >= floor,
@@ -631,6 +661,59 @@ def _overlap_days(a_start: str, a_end: str, b_start: str, b_end: str) -> int:
 # ═════════════════════════════════════════════════════════════════════════════
 # CONVERGENCE RESOLVER (Stage 3 + Stage 4 + class-gated surfacing)
 # ═════════════════════════════════════════════════════════════════════════════
+
+def varshphal_muntha_vote(event_houses: List[int], lagna_idx: int,
+                          birth_date: datetime, on_date: str) -> dict:
+    """
+    [ruling 2026-06-11] Varshphal year-gate, first wired element: the MUNTHA.
+    Muntha advances one sign per completed year of age from the natal lagna —
+    pure arithmetic, no ephemeris. Vote = the muntha's house (from natal
+    lagna), or its lord's natal-equivalent house, falls in the event houses.
+    SHADOW ONLY until the harness shows separation (founder gate). The full
+    Varshphal (varsheshwara, mudda dasha) needs solar-return charts — next
+    increment, ephemeris-side.
+    """
+    try:
+        d = datetime.strptime(str(on_date)[:10], "%Y-%m-%d")
+        age = int((d - birth_date).days // 365.25)
+    except (ValueError, TypeError):
+        return {"vote": False, "reason": "bad_date"}
+    muntha_sign = (lagna_idx + age) % 12
+    muntha_house = ((muntha_sign - lagna_idx) % 12) + 1     # = age%12 + 1
+    lord = SIGN_RULER_IDX[muntha_sign]
+    hs = set(int(h) for h in event_houses or [])
+    vote = muntha_house in hs
+    return {"vote": vote, "muntha_house": muntha_house,
+            "muntha_sign": SIGN_NAMES[muntha_sign], "muntha_lord": lord,
+            "age": age}
+
+
+def load_confirmed_events(chart_record: dict) -> Dict[str, str]:
+    """
+    [ruling 2026-06-11] confirm-then-predict: read user-confirmed event
+    windows from chart_data.signature_confirmations.events (written by
+    POST /chart/signature/confirm). Returns {event_type: anchor_date_iso}
+    using the confirmed window midpoint. Legacy id aliases honored.
+    """
+    cd = _safe_json((chart_record or {}).get("chart_data"))
+    sc = cd.get("signature_confirmations") or {}
+    events = sc.get("events") or {}
+    _LEGACY = {"foreign_move": "major_relocation",
+               "relationship_change": "serious_partnership_began"}
+    out: Dict[str, str] = {}
+    for k, v in events.items():
+        et = _LEGACY.get(k, k)
+        if not isinstance(v, dict) or v.get("response") != "confirmed":
+            continue
+        ws, we = str(v.get("window_start") or "")[:10],             str(v.get("window_end") or "")[:10]
+        try:
+            a = datetime.strptime(ws, "%Y-%m-%d")
+            b = datetime.strptime(we, "%Y-%m-%d")
+            out[et] = (a + (b - a) / 2).strftime("%Y-%m-%d")
+        except (ValueError, TypeError):
+            continue
+    return out
+
 
 def format_converged_for_prompt(predictions: List[dict],
                                 past_only: bool = False) -> str:
@@ -922,9 +1005,22 @@ def converge_events(
                     + (1.0 if d_hit else 0.0)        # deliverer edges ties
                     + promise["score"] / 4.0) \
                 * max(af, 0.15) * max(sf, 0.1)
+            _vp = varshphal_muntha_vote(promise["houses"], ctx["lagna_idx"],
+                                        birth_dt, c["window_start"])
+            try:
+                from antar_engine.varshphal_gate import vote_for_window
+                _vfull = vote_for_window(
+                    _safe_json(chart_data), chart_record, birth_dt,
+                    c["window_start"], promise["houses"],
+                    promise["significators"])
+            except Exception:
+                _vfull = None
+            _vp = {"muntha": _vp, "full": _vfull,
+                   "vote": bool((_vfull or {}).get("vote"))}
             scored.append({**c, "locks": locks, "jaimini_hit": j_hit,
                            "transit_hit": t_hit, "delivery_hit": d_hit,
                            "trigger_src": trigger_src,
+                           "varshphal": _vp,
                            "age_at_window": round(age, 1),
                            "age_factor": round(af, 2),
                            "stage_factor": round(sf, 2), "rank": rank})
@@ -970,6 +1066,7 @@ def converge_events(
                  "jaimini": bool(c["jaimini_hit"]),
                  "transit": bool(c["transit_hit"]),
                  "delivery": bool(c.get("delivery_hit")),
+                 "varshphal": bool((c.get("varshphal") or {}).get("vote")),
                  "age_factor": c["age_factor"],
                  "rank": round(c["rank"], 2)}
                 for c in sorted(scored, key=lambda x: x["window_start"])[:120]]
@@ -1010,6 +1107,8 @@ def converge_events(
                 "trigger_source": best.get("trigger_src"),
                 "transit": bool(best["transit_hit"]),
                 "delivery": bool(best.get("delivery_hit")),
+                "varshphal_shadow": bool(
+                    (best.get("varshphal") or {}).get("vote")),
                 "count": best["locks"],
             },
             "md_lord": best.get("md_lord"),
