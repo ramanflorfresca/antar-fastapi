@@ -25751,10 +25751,45 @@ async def _life_arc_compute(chart_id, horizon_months, language,
             out = _cy_re.sub(r"\s{2,}", " ", out).strip()
             return out
 
-        # current_phase.life_phase_summary
+        # [classB-5b 2026-06-10] current_phase.headline + life_phase_summary
+        # are Class-B (Claude-generated) prose: VALIDATE, don't strip.
+        # Blind regex deletion here is what produced the "a of wisdom"
+        # grammar hole — banned. Clean prose passes untouched; any
+        # violation swaps the WHOLE field for the deterministic dated
+        # life-noun fallback. The v4 walk below skips these two keys.
         _cp = response.get("current_phase") or {}
-        if isinstance(_cp, dict) and _cp.get("life_phase_summary"):
-            _cp["life_phase_summary"] = _cy_scrub(_cp["life_phase_summary"])
+        if isinstance(_cp, dict):
+            try:
+                from antar_engine.narration_validator import validate_narration as _vn5
+                from antar_engine.life_arc.phase_analyzer import _fallback_phase_pair as _fb5
+                _b5_head = (_cp.get("headline") or "").strip()
+                _b5_body = (_cp.get("life_phase_summary") or "").strip()
+                _b5_vh = _vn5(_b5_head) if _b5_head else []
+                _b5_vb = _vn5(_b5_body) if _b5_body else []
+                if _b5_vh or _b5_vb:
+                    print(f"[life_arc] 5b validator HIT — fallback swap: "
+                          f"headline={_b5_vh[:3]} body={_b5_vb[:3]}")
+                    _b5_ss = str((_cp.get("transit_overlay") or {}).get("sade_sati_status") or "")
+                    _b5_pair = _fb5(_cp.get("vimsottari") or {},
+                                    {"active": _b5_ss.strip() not in ("", "dormant")})
+                    if _b5_vh:
+                        _cp["headline"] = _b5_pair["headline"]
+                        if response.get("gist"):
+                            response["gist"] = _b5_pair["headline"]
+                    if _b5_vb:
+                        _cp["life_phase_summary"] = _b5_pair["body"]
+                else:
+                    print("[life_arc] 5b validator clean pass (headline+body)")
+                # De-dupe: body must not open with the headline (stale-cache rows
+                # predating the generation-site de-dupe).
+                _b5_head2 = (_cp.get("headline") or "").strip()
+                _b5_body2 = (_cp.get("life_phase_summary") or "").strip()
+                if _b5_head2 and _b5_body2.lower().startswith(_b5_head2.lower()[:40]):
+                    _b5_sp = _cy_re.split(r"(?<=[.!?])\s+", _b5_body2, maxsplit=1)
+                    if len(_b5_sp) > 1 and _b5_sp[1].strip():
+                        _cp["life_phase_summary"] = _b5_sp[1].strip()
+            except Exception as _b5_err:
+                print(f"[life_arc] 5b Class-B validator failed (non-blocking): {_b5_err}")
             response["current_phase"] = _cp
 
         # diagnostic prose fields (defence-in-depth — already clean live)
@@ -25854,6 +25889,10 @@ async def _life_arc_compute(chart_id, horizon_months, language,
             def _v4_walk(_node):
                 if isinstance(_node, dict):
                     for _k in list(_node.keys()):
+                        # [classB-5b 2026-06-10] Class-B prose is validator-
+                        # gated above — never blind-stripped by this walk.
+                        if _k in ("headline", "life_phase_summary"):
+                            continue
                         _v = _node[_k]
                         if isinstance(_v, str):
                             _node[_k] = _v4_scrub_str(_v)
