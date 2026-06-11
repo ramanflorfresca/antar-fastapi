@@ -132,6 +132,66 @@ def _fmt_window(ws: str, we: str) -> str:
     return f"{a.strftime('%b %Y')} – {b.strftime('%b %Y')}"
 
 
+# ── Falsifiable probes (Cowork follow-up brief 2026-06-11) ───────────────────
+# Per-domain, direction-aware, deterministic. The probe is the question an
+# astrologer asks to confirm a past call: past-tense, interrogative, window
+# baked in, concrete enough that "no" is a real answer. Never a Claude call.
+_PROBE_TEMPLATES = {
+    "Career": {
+        "opening": ("Did you change jobs, get a title change, or take on a "
+                    "visible new role between {w}?"),
+        "watch":   ("Did you face a serious setback, role loss, or unusual "
+                    "pressure at work between {w}?"),
+    },
+    "Business": {
+        "opening": ("Did you start, close, or materially shift a business "
+                    "or major deal between {w}?"),
+        "watch":   ("Did a deal stall, a dispute surface, or money pressure "
+                    "build in your business between {w}?"),
+    },
+    "Love": {
+        "opening": ("Did a relationship begin, deepen, or end between {w}?"),
+        "watch":   ("Did a relationship end or hit serious strain "
+                    "between {w}?"),
+    },
+    "Health": {
+        "opening": ("Did a significant health issue, recovery, or change in "
+                    "vitality occur between {w}?"),
+        "watch":   ("Did a significant health issue, recovery, or change in "
+                    "vitality occur between {w}?"),
+    },
+    "Family": {
+        "opening": ("Did you relocate your home, or was there a major family "
+                    "event (birth, marriage, loss), between {w}?"),
+        "watch":   ("Did you relocate your home, or was there a major family "
+                    "event (birth, marriage, loss), between {w}?"),
+    },
+}
+
+
+def _chip_probe(domain: str, direction: str, ws: str, we: str) -> str:
+    """Deterministic falsifiable probe: domain template x direction x window."""
+    w = _fmt_window(ws, we).replace(" – ", " and ")
+    by_dir = _PROBE_TEMPLATES.get(domain) or _PROBE_TEMPLATES["Career"]
+    tpl = by_dir.get(direction) or by_dir["opening"]
+    p = tpl.format(w=w)
+    if " and " not in w:  # single-month window — "between Jun 2025" reads off
+        p = p.replace(f"between {w}", f"around {w}")
+    return p
+
+
+def _strip_gate(text: str) -> str:
+    """Backstop: run user-facing strings through the central strip layer.
+    Templates are jargon-free by construction, but the gate stays in the
+    path (no house numbers / planets / Sanskrit / engine terms can leak)."""
+    try:
+        from antar_engine.output_strips import apply_user_facing_strips
+        out = apply_user_facing_strips(text, 'en', field_type='plain')
+        return out if isinstance(out, str) else text
+    except Exception:
+        return text
+
+
 def _chip_question(chip: dict, ws: str, we: str, domain: str) -> str:
     # "between Oct and Dec 2025" for ranges, "around Jun 2025" when the
     # window sits inside a single month.
@@ -256,9 +316,12 @@ def compute_past_predictions(chart_id: str, supabase, n: int = 3,
                 "direction": _chip_direction(c),
                 # Same user-facing sentence the Cycle surface shows (planet-free,
                 # jargon-free title from event_taxonomy via the engine's scrub).
-                "event": c.get("event_label") or c.get("title") or "",
+                "event": _strip_gate(c.get("event_label") or c.get("title") or ""),
+                # brief payload shape: short header + falsifiable probe
+                "verdict": _strip_gate(c.get("event_label") or c.get("title") or ""),
+                "probe": _strip_gate(_chip_probe(domain, _chip_direction(c), ws, we)),
                 "window_label": _fmt_window(ws, we),
-                "question": _chip_question(c, ws, we, domain),
+                "question": _strip_gate(_chip_question(c, ws, we, domain)),
                 "conviction": c.get("conviction"),
                 "layers_agreeing": int(c.get("layers_agreeing") or 0),
                 "mark": None,
