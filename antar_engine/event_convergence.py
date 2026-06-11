@@ -632,6 +632,50 @@ def _overlap_days(a_start: str, a_end: str, b_start: str, b_end: str) -> int:
 # CONVERGENCE RESOLVER (Stage 3 + Stage 4 + class-gated surfacing)
 # ═════════════════════════════════════════════════════════════════════════════
 
+def format_converged_for_prompt(predictions: List[dict],
+                                past_only: bool = False) -> str:
+    """COMPUTED LIFE EVENT WINDOWS prompt block from converged predictions.
+    Single source for every dated-event claim Claude narrates."""
+    today = datetime.now().strftime("%Y-%m-%d")
+    LABELS = {
+        "serious_partnership_began": "Serious partnership window",
+        "serious_partnership_ended": "Partnership transition window",
+        "family_expansion_first": "Family expansion (first)",
+        "family_expansion_second": "Family expansion (second)",
+        "major_relocation": "Major relocation window",
+        "major_acquisition": "Major acquisition window",
+        "career_pivot": "Career pivot window",
+        "business_start": "Business start window",
+        "professional_setback": "Professional setback window",
+        "legal_entanglement": "Legal entanglement window",
+        "financial_disruption": "Financial disruption window",
+        "loss_of_father": "Loss of father",
+        "loss_of_mother": "Loss of mother",
+    }
+    lines = ["\n## COMPUTED LIFE EVENT WINDOWS "
+             "(convergence engine — do not recalculate)\n"]
+    n = 0
+    for p in predictions or []:
+        if past_only and str(p.get("window_end") or "") > today:
+            continue
+        label = LABELS.get(p.get("event_type"), p.get("event_type", ""))
+        lines.append(
+            f"{label}: {str(p['window_start'])[:7]} to "
+            f"{str(p['window_end'])[:7]} — {p.get('confidence', 0)}/3 "
+            f"independent timing systems agree")
+        n += 1
+    if not n:
+        lines.append(
+            "No event window reached the convergence gate. If asked when a "
+            "specific life event happened, say the chart does not show a "
+            "clear enough window to date it — do NOT estimate one.")
+    lines.append(
+        "\nUse ONLY these windows when answering questions about dated life "
+        "events. Do not recalculate, do not invent timing, and do not "
+        "assert any dated event that is not listed here.")
+    return "\n".join(lines)
+
+
 def _functional_solo_flags(ctx: dict) -> Tuple[bool, bool]:
     """Rao functional-significator refinement: the 9th and 10th birth-lords
     act as Jupiter/Saturn. When Jupiter or Saturn IS the 9th/10th lord, its
@@ -821,6 +865,12 @@ def converge_events(
         in_band = [c for c in scored if c["age_factor"] > 0.0]
         if in_band:
             scored = in_band
+        else:
+            # Whole candidate set is outside the configured age band. Only
+            # FULL 3/3 convergence may override the prior (covers real
+            # outliers like a marriage at 46); partial convergence cannot
+            # resurrect an age-impossible event.
+            scored = [c for c in scored if c["locks"] >= 3]
 
         # ── Stage 4: confirmed-event pruning ─────────────────────────────
         conf_date = str(confirmed_events.get(event_type) or "")[:10]

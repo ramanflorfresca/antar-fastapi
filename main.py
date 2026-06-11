@@ -6301,19 +6301,54 @@ VOCABULARY RULES:
                 _is_past_q = any(kw in request.question.lower() for kw in _past_keywords)
 
                 if _is_past_q:
-                    # Run Python DashaEventMapper — compute windows deterministically
-                    try:
-                        from antar_engine.dasha_event_mapper import map_all_events, format_for_prompt
-                        _mapper_results = map_all_events(
-                            birth_year=_birth_year,
-                            lagna=_lagna_sign,
-                            ads=_ads,
-                        )
-                        _mapper_block = format_for_prompt(_mapper_results)
-                        _tl += _mapper_block
-                        print(f"[json-v2] DashaEventMapper: {sum(1 for v in _mapper_results.values() if v)}/5 events computed")
-                    except Exception as _me:
-                        print(f"[json-v2] DashaEventMapper failed (non-fatal): {_me}")
+                    # [convergence-forward 2026-06-11] single-source rule —
+                    # dated past-event windows in the prompt come from the
+                    # convergence engine; legacy mapper only as fallback.
+                    _pe_conv_done = False
+                    if os.getenv("EVENT_CONVERGENCE", "on").strip().lower() \
+                            not in ("off", "0", "false"):
+                        try:
+                            from antar_engine.event_convergence import (
+                                converge_events, format_converged_for_prompt)
+                            _pe_rows = supabase.table("dasha_periods") \
+                                .select("planet_or_sign,start_date,end_date,level,type,metadata") \
+                                .eq("chart_id", request.chart_id) \
+                                .eq("system", "vimsottari") \
+                                .order("start_date").execute()
+                            _pe_chart = supabase.table("charts") \
+                                .select("chart_data,birth_date,marital_status,children_status") \
+                                .eq("id", request.chart_id).single().execute()
+                            _pe_cd = (_pe_chart.data or {}).get("chart_data") or {}
+                            _pe_bd = str((_pe_chart.data or {}).get("birth_date") or "")[:10]
+                            _pe_res = converge_events(
+                                _pe_cd, _pe_chart.data or {},
+                                (_pe_rows.data or []), _pe_bd,
+                                datetime.now().strftime("%Y-%m-%d"),
+                                supabase=supabase, include_debug=False,
+                            )
+                            _tl += format_converged_for_prompt(
+                                _pe_res.get("predictions", []),
+                                past_only=True)
+                            _pe_conv_done = True
+                            print(f"[json-v2] convergence past windows: "
+                                  f"{len(_pe_res.get('predictions', []))}")
+                        except Exception as _pe_err:
+                            print(f"[json-v2] convergence past-injection failed "
+                                  f"(non-fatal): {_pe_err}")
+                    if not _pe_conv_done:
+                        # Legacy: Python DashaEventMapper deterministic windows
+                        try:
+                            from antar_engine.dasha_event_mapper import map_all_events, format_for_prompt
+                            _mapper_results = map_all_events(
+                                birth_year=_birth_year,
+                                lagna=_lagna_sign,
+                                ads=_ads,
+                            )
+                            _mapper_block = format_for_prompt(_mapper_results)
+                            _tl += _mapper_block
+                            print(f"[json-v2] DashaEventMapper: {sum(1 for v in _mapper_results.values() if v)}/5 events computed")
+                        except Exception as _me:
+                            print(f"[json-v2] DashaEventMapper failed (non-fatal): {_me}")
                 if _is_past_q:
                     try:
                         _hist = supabase.table("dasha_periods") \
@@ -24964,14 +24999,38 @@ async def get_signature_statements(chart_id: str):
                str(r.get("type","")).lower() in ("antardasha","ad","2")
         ]
 
-        # Compute event windows
+        # [convergence-forward 2026-06-11] single-source rule: dated past-
+        # event statements come from the convergence engine. (The legacy
+        # block below queried map_all_events with RETIRED keys — foreign_move/
+        # divorce/marriage — so statements 1-2 were silently dead anyway.)
+        _sig_conv: dict = {}
+        if os.getenv("EVENT_CONVERGENCE", "on").strip().lower() \
+                not in ("off", "0", "false"):
+            try:
+                from antar_engine.event_convergence import converge_events
+                _sg = converge_events(
+                    chart_data, chart_res.data, (ads_res.data or []),
+                    (birth_date[:10] if birth_date else f"{birth_year}-01-01"),
+                    datetime.now().strftime("%Y-%m-%d"),
+                    supabase=supabase, include_debug=False,
+                )
+                for _p in _sg.get("predictions", []):
+                    if _p["window_end"] <= datetime.now().strftime("%Y-%m-%d"):
+                        _sig_conv.setdefault(_p["event_type"], {
+                            "start_year": int(_p["window_start"][:4]),
+                            "end_year": int(_p["window_end"][:4]),
+                        })
+            except Exception as _sg_err:
+                print(f"[signature] convergence non-fatal: {_sg_err}")
+
+        # Compute event windows (legacy — only consulted when convergence empty)
         events = map_all_events(birth_year, lagna, ads)
 
         # Build human-readable statements (NO astrological terms)
         statements = []
 
         # Statement 1: Foreign move (most verifiable, dramatic)
-        fm = events.get("foreign_move")
+        fm = _sig_conv.get("major_relocation") or events.get("foreign_move")
         if fm and fm["start_year"] < 2020:
             statements.append({
                 "id":      "foreign_move",
@@ -24981,8 +25040,8 @@ async def get_signature_statements(chart_id: str):
             })
 
         # Statement 2: Relationship transformation (divorce or marriage)
-        div = events.get("divorce")
-        mar = events.get("marriage")
+        div = _sig_conv.get("serious_partnership_ended") or events.get("divorce")
+        mar = _sig_conv.get("serious_partnership_began") or events.get("marriage")
         if div and div["start_year"] < 2024:
             statements.append({
                 "id":      "relationship_change",
@@ -25797,6 +25856,9 @@ async def _life_arc_compute(chart_id, horizon_months, language,
                 marital_status=str((chart_record or {}).get("marital_status") or ""),
                 children_status=str((chart_record or {}).get("children_status") or ""),
                 now=_fe_now,
+                # [convergence-forward 2026-06-11] full L1-L3 rows so the
+                # forward resolver reads DB-backfilled PDs directly.
+                dasha_rows=(_fe_ads_res.data or []),
             )
 
         if _fe_chips:

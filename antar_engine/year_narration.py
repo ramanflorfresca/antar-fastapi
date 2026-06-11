@@ -74,6 +74,11 @@ HARD RULES:
    internal term in the live data into plain life language.
 7. No questions. No emojis. No exclamation marks. Second person.
 8. English only.
+8b. SINGLE-SOURCE: never assert that a specific life event (marriage,
+   breakup, a child, relocation, job change, a purchase, a lawsuit) will
+   happen in a specific dated window. Dated event calls come from a separate
+   engine and are NOT in your data. Describe the year's conditions and the
+   season to watch; never invent event timing.
 9. Output STRICT JSON and nothing else:
    {"headline": "...", "body": "...", "watch": "..."}
 

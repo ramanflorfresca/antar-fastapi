@@ -109,7 +109,8 @@ def build_forward_event_chips(chart_data: dict, birth_jd: float,
                               birth_date_str: str = "",
                               marital_status: str = "",
                               children_status: str = "",
-                              now: Optional[datetime] = None) -> List[dict]:
+                              now: Optional[datetime] = None,
+                              dasha_rows: Optional[list] = None) -> List[dict]:
     """Returns chips sorted by window_start. Caller strips '_'-prefixed keys."""
     now = now or datetime.now(timezone.utc)
     if now.tzinfo is None:
@@ -118,6 +119,53 @@ def build_forward_event_chips(chart_data: dict, birth_jd: float,
         from_date = now.strftime("%Y-%m-%d")
     if not to_date:
         to_date = f"{now.year + 5}-01-01"
+
+    # ── [convergence-forward 2026-06-11] same resolver as past, run forward.
+    # Current Cycle is the forward twin of the engine that scored 0/12; the
+    # convergence rebuild IS the Current Cycle event engine now.
+    #   - Vimsottari + Jaimini chara = Stage-2 broad-timing votes (unchanged).
+    #   - Naisargika dasha is NOT a timing vote anymore: it is an age-based
+    #     dasha, so its information lives in the Stage-4 age priors
+    #     (event_engine_config bands). Demoted per brief.
+    #   - Double transit = Stage-3 instance selector the old path lacked.
+    # CONVICTION DISCIPLINE: forward accuracy cannot be measured directly, so
+    # chips stay conviction-capped — 3/3 locks → "medium", 2/3 → "low",
+    # NEVER "high" — until the past engine clears the holdout precision gate.
+    # Kill switch EVENT_CONVERGENCE=off → legacy two-source merge below.
+    import os as _os
+    if _os.getenv("EVENT_CONVERGENCE", "on").strip().lower() \
+            not in ("off", "0", "false"):
+        try:
+            from antar_engine.event_convergence import converge_events
+            _cv_rows = dasha_rows if dasha_rows else (ads or [])
+            _cv_rec = {"birth_date": birth_date_str,
+                       "marital_status": marital_status,
+                       "children_status": children_status}
+            _cv = converge_events(chart_data, _cv_rec, _cv_rows,
+                                  from_date, to_date, include_debug=False)
+            _cv_chips: List[dict] = []
+            for _p in _cv.get("predictions", []):
+                _et = _p["event_type"]
+                if _et in _SENSITIVE_EVENTS:
+                    continue
+                if _status_excluded(_et, marital_status, children_status):
+                    continue
+                try:
+                    _ch = _chip(_et, _parse_d(_p["window_start"]),
+                                _parse_d(_p["window_end"]), _p["confidence"])
+                except Exception:
+                    continue
+                _ch["conviction"] = "medium" if _p["confidence"] >= 3 else "low"
+                _ch["layers_agreeing"] = _p["confidence"]
+                _ch["locks"] = _p.get("locks")
+                _ch["source"] = "convergence_v1"
+                _cv_chips.append(_ch)
+            _cv_chips.sort(key=lambda c: c["window_start"])
+            print(f"[forward_events] convergence forward: "
+                  f"{len(_cv_chips)} chips (skipped={list(_cv.get('skipped', {}))[:4]})")
+            return _cv_chips[:_MAX_CHIPS]
+        except Exception as _cv_err:
+            print(f"[forward_events] convergence ERROR — legacy chips: {_cv_err}")
 
     chara_lord = _chara_rashi_lord(chart_data, birth_date_str or "1970-01-01", now)
     chips: List[dict] = []

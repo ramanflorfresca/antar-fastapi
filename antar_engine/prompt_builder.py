@@ -683,6 +683,12 @@ def build_monthly_briefing_prompt(
 
 You are generating a personalized Monthly Life Navigation Briefing for {month_year}.
 
+SINGLE-SOURCE RULE (NON-NEGOTIABLE): never assert that a specific life event
+(marriage, breakup, a child, relocation, job change, a purchase, a lawsuit)
+will happen — or happened — in a specific dated window. Dated event calls come
+from a separate engine and are NOT in your data. You describe this period's
+conditions and how to use them; you never invent event timing.
+
 Life data: {lagna} rising, Moon in {moon_nak}.
 
 {predictions_context}
