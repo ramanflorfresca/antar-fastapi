@@ -608,6 +608,15 @@ def stage2b_jaimini(event_type: str, ctx: dict, birth_date: datetime,
 
 # ── window overlap helpers (used by the resolver) ────────────────────────────
 
+def _days_between(a_iso: str, b_iso: str) -> int:
+    try:
+        a = datetime.strptime(a_iso[:10], "%Y-%m-%d")
+        b = datetime.strptime(b_iso[:10], "%Y-%m-%d")
+        return abs((b - a).days)
+    except (ValueError, TypeError):
+        return 10 ** 6
+
+
 def _overlap_days(a_start: str, a_end: str, b_start: str, b_end: str) -> int:
     try:
         s = max(datetime.strptime(a_start[:10], "%Y-%m-%d"),
@@ -617,3 +626,327 @@ def _overlap_days(a_start: str, a_end: str, b_start: str, b_end: str) -> int:
         return max(0, (e - s).days)
     except (ValueError, TypeError):
         return 0
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# CONVERGENCE RESOLVER (Stage 3 + Stage 4 + class-gated surfacing)
+# ═════════════════════════════════════════════════════════════════════════════
+
+def _functional_solo_flags(ctx: dict) -> Tuple[bool, bool]:
+    """Rao functional-significator refinement: the 9th and 10th birth-lords
+    act as Jupiter/Saturn. When Jupiter or Saturn IS the 9th/10th lord, its
+    single transit influence qualifies alone."""
+    lords = {ctx["house_lord"](9), ctx["house_lord"](10)}
+    return ("Jupiter" in lords, "Saturn" in lords)
+
+
+def _merge_contiguous(cands: List[dict], gap_days: int = 7) -> List[dict]:
+    """Merge contiguous qualifying candidates sharing the same MD+AD chain."""
+    if not cands:
+        return []
+    cands = sorted(cands, key=lambda c: c["window_start"])
+    out = [dict(cands[0])]
+    for c in cands[1:]:
+        last = out[-1]
+        same_chain = (c.get("md_lord"), c.get("ad_lord")) == \
+                     (last.get("md_lord"), last.get("ad_lord"))
+        if same_chain and _days_between(last["window_end"], c["window_start"]) <= gap_days:
+            last["window_end"] = max(last["window_end"], c["window_end"])
+            last["vims_strength"] = max(last["vims_strength"], c["vims_strength"])
+            if c.get("pd_lord") and not last.get("pd_lord"):
+                last["pd_lord"] = c["pd_lord"]
+        else:
+            out.append(dict(c))
+    return out
+
+
+def converge_events(
+    chart_data: dict,
+    chart_record: dict,
+    dasha_rows: List[dict],
+    from_date: str,
+    to_date: str,
+    supabase=None,
+    confirmed_events: Optional[Dict[str, str]] = None,
+    event_types: Optional[List[str]] = None,
+    position_fn=None,
+    include_debug: bool = True,
+    transit_overlap_min_days: int = 10,
+) -> dict:
+    """
+    The Stage 1→4 convergence pipeline for one chart.
+
+    dasha_rows: raw dasha_periods rows (any levels; filtered here).
+    confirmed_events: {event_type: 'YYYY-MM-DD'} — a confirmed date prunes
+        every other candidate for that event type (Stage 4).
+    Returns {"predictions": [...], "skipped": {...}, "meta": {...}}.
+    Each prediction: event_type, window_start, window_end, granularity,
+    confidence (= lock count 0-3), locks{vims,jaimini,transit,count},
+    reasoning, and _debug_reasoning (ADMIN-ONLY — full jargon, never strip).
+
+    NEVER pads: where systems don't converge, the event type is absent.
+    """
+    from antar_engine.event_gating import (get_config, age_plausibility,
+                                           stage_factor, gating_enabled)
+
+    ctx = build_natal_context(chart_data)
+    if not ctx:
+        return {"predictions": [], "skipped": {"all": "no_chart_data"},
+                "meta": {}}
+
+    birth_date_str = str(chart_record.get("birth_date")
+                         or _safe_json(chart_data).get("birth_date") or "")[:10]
+    try:
+        birth_dt = datetime.strptime(birth_date_str, "%Y-%m-%d")
+    except (ValueError, TypeError):
+        return {"predictions": [], "skipped": {"all": "no_birth_date"},
+                "meta": {}}
+
+    cfg = get_config(supabase)
+    mds = [r for r in dasha_rows or [] if r.get("level") == 1]
+    ads = [r for r in dasha_rows or [] if r.get("level") == 2]
+    pds = [r for r in dasha_rows or [] if r.get("level") == 3]
+    if not ads:
+        return {"predictions": [], "skipped": {"all": "no_antardashas"},
+                "meta": {}}
+
+    # Stage-3 chronology: ONE build per chart span (no per-candidate ephemeris)
+    chrono = {}
+    chrono_err = None
+    try:
+        from antar_engine.transit_engine import (
+            build_transit_chronology, double_transit_windows,
+            event_transit_targets)
+        chrono = build_transit_chronology(from_date, to_date,
+                                          position_fn=position_fn)
+        if not chrono.get("Jupiter") or not chrono.get("Saturn"):
+            chrono_err = "empty_chronology"
+    except Exception as e:
+        chrono_err = f"chronology_failed: {e}"
+
+    jup_solo, sat_solo = _functional_solo_flags(ctx)
+    keys = event_types or [et for et in cfg.keys()]
+    confirmed_events = confirmed_events or {}
+
+    predictions: List[dict] = []
+    skipped: Dict[str, str] = {}
+    gating_on = gating_enabled()
+
+    for event_type in keys:
+        row = cfg.get(event_type)
+        if row is not None and not row.get("enabled", True):
+            skipped[event_type] = "disabled_in_config"
+            continue
+        dt_enabled = bool((row or {}).get("double_transit_enabled", True))
+
+        # ── Stage 1: promise ─────────────────────────────────────────────
+        promise = stage1_promise(event_type, ctx, row)
+        if not promise["indicated"]:
+            skipped[event_type] = (f"no_promise (score {promise['score']} "
+                                   f"< floor {promise['floor']})")
+            continue
+
+        # ── Stage 2a: Vimsottari candidates ──────────────────────────────
+        cands = stage2a_vimsottari(promise["significators"], ads, pds,
+                                   from_date, to_date)
+        if not cands:
+            skipped[event_type] = "no_vimsottari_window"
+            continue
+        cands = _merge_contiguous(cands)
+
+        # ── Stage 2b: Jaimini vote windows ───────────────────────────────
+        jwins = stage2b_jaimini(event_type, ctx, birth_dt, from_date, to_date)
+
+        # ── Stage 3: double-transit windows on event targets ─────────────
+        dt_wins = []
+        targets_info = {"targets": set(), "labels": {}}
+        if chrono and not chrono_err and dt_enabled:
+            targets_info = event_transit_targets(
+                promise["houses"][:1],          # primary event house only
+                ctx["lagna_idx"], ctx["moon_idx"],
+                lord_sign_index=promise["lord_sign_idx"],
+                d9_lord_sign_index=(promise["d9_lord_sign_idx"]
+                                    if event_type in D9_TARGET_EVENTS else None),
+            )
+            require_jup_on = (promise["lord_sign_idx"]
+                              if event_type in AUSPICIOUS_EVENTS else None)
+            try:
+                dt_wins = double_transit_windows(
+                    targets_info["targets"], chrono, from_date, to_date,
+                    jupiter_solo=jup_solo, saturn_solo=sat_solo,
+                    require_jupiter_on=require_jup_on, merge_gap_days=3)
+            except Exception as e:
+                chrono_err = f"double_transit_failed: {e}"
+
+        # ── lock each candidate ──────────────────────────────────────────
+        scored: List[dict] = []
+        for c in cands:
+            j_hit = None
+            for jw in jwins:
+                if _overlap_days(c["window_start"], c["window_end"],
+                                 jw["start"], jw["end"]) > 0:
+                    j_hit = jw
+                    break
+            t_hit = None
+            for dw in dt_wins:
+                need = min(transit_overlap_min_days,
+                           max(1, _days_between(c["window_start"],
+                                                c["window_end"]) // 2))
+                if _overlap_days(c["window_start"], c["window_end"],
+                                 dw["start"], dw["end"]) >= need:
+                    t_hit = dw
+                    break
+            locks = 1 + (1 if j_hit else 0) + (1 if t_hit else 0)
+
+            # ── Stage 4: life-stage priors (SOFT down-weight, never veto)
+            try:
+                ws_dt = datetime.strptime(c["window_start"], "%Y-%m-%d")
+                age = (ws_dt - birth_dt).days / 365.25
+            except (ValueError, TypeError):
+                age = -1.0
+            af = age_plausibility(row, age) if (gating_on and age >= 0) else 1.0
+            sf = stage_factor(row, chart_record, age) if gating_on else 1.0
+            rank = (locks * 10 + c["vims_strength"] + promise["score"] / 4.0) \
+                * max(af, 0.15) * max(sf, 0.1)
+            scored.append({**c, "locks": locks, "jaimini_hit": j_hit,
+                           "transit_hit": t_hit, "age_at_window": round(age, 1),
+                           "age_factor": round(af, 2),
+                           "stage_factor": round(sf, 2), "rank": rank})
+
+        # Age prior is SOFT inside the configured band, but af == 0.0 means
+        # OUTSIDE the band entirely (e.g. first child at age 9) — drop those
+        # candidates whenever at least one in-band candidate exists. If the
+        # whole set is out-of-band, keep it (the band itself may be miscal-
+        # ibrated — founder tunes event_engine_config, engine stays honest).
+        in_band = [c for c in scored if c["age_factor"] > 0.0]
+        if in_band:
+            scored = in_band
+
+        # ── Stage 4: confirmed-event pruning ─────────────────────────────
+        conf_date = str(confirmed_events.get(event_type) or "")[:10]
+        if conf_date:
+            tol = int((row or {}).get("window_tolerance_days") or 90)
+            def _contains(c):
+                try:
+                    d = datetime.strptime(conf_date, "%Y-%m-%d")
+                    s = datetime.strptime(c["window_start"], "%Y-%m-%d")
+                    e = datetime.strptime(c["window_end"], "%Y-%m-%d")
+                    return s - timedelta(days=tol) <= d <= e + timedelta(days=tol)
+                except (ValueError, TypeError):
+                    return False
+            kept = [c for c in scored if _contains(c)]
+            if kept:
+                scored = kept     # confirmed date prunes all other candidates
+
+        # ── convergence gate: 3/3 painful, >=2/3 benign — NEVER pad ──────
+        required = int((row or {}).get("required_locks") or
+                       (3 if event_type in PAINFUL_EVENTS else 2))
+        qual = [c for c in scored if c["locks"] >= required]
+        if not qual:
+            best_locks = max((c["locks"] for c in scored), default=0)
+            skipped[event_type] = (f"convergence_below_gate "
+                                   f"(best {best_locks}/{required})")
+            continue
+
+        # instance selector: strongest convergence, NOT earliest
+        qual.sort(key=lambda c: (-c["locks"], -c["rank"], c["window_start"]))
+        best = qual[0]
+
+        pred = {
+            "event_type": event_type,
+            "window_start": best["window_start"],
+            "window_end": best["window_end"],
+            "granularity": best["granularity"],
+            "confidence": best["locks"],            # = convergence count 0-3
+            "locks": {
+                "vims": True,
+                "jaimini": bool(best["jaimini_hit"]),
+                "transit": bool(best["transit_hit"]),
+                "count": best["locks"],
+            },
+            "md_lord": best.get("md_lord"),
+            "ad_lord": best.get("ad_lord"),
+            "pd_lord": best.get("pd_lord"),
+            "promise_score": promise["score"],
+            "age_at_window": best["age_at_window"],
+            "qualifying_windows": len(qual),
+            "reasoning": (
+                f"{best['locks']}/3 systems converge on this window "
+                f"(dasha chain{' + Jaimini' if best['jaimini_hit'] else ''}"
+                f"{' + double transit' if best['transit_hit'] else ''})."
+            ),
+        }
+        if include_debug:
+            pred["_debug_reasoning"] = {
+                "promise_strength": {"score": promise["score"],
+                                     "factors": promise["factors"]},
+                "dasha_chain": {
+                    "md": best.get("md_lord"), "ad": best.get("ad_lord"),
+                    "pd": best.get("pd_lord"),
+                    "ad_span": [best.get("ad_start"), best.get("ad_end")],
+                    "granularity": best["granularity"],
+                    "vims_strength": best["vims_strength"],
+                },
+                "jaimini_condition": (
+                    {"sign": best["jaimini_hit"]["sign"],
+                     "level": best["jaimini_hit"]["level"],
+                     "span": [best["jaimini_hit"]["start"],
+                              best["jaimini_hit"]["end"]],
+                     "conditions": best["jaimini_hit"]["conditions"]}
+                    if best["jaimini_hit"] else None),
+                "double_transit": (
+                    {"span": [best["transit_hit"]["start"],
+                              best["transit_hit"]["end"]],
+                     "jupiter_sign": SIGN_NAMES[
+                         best["transit_hit"]["trace"]["jupiter_sign"]]
+                     if best["transit_hit"]["trace"].get("jupiter_sign") is not None else None,
+                     "saturn_sign": SIGN_NAMES[
+                         best["transit_hit"]["trace"]["saturn_sign"]]
+                     if best["transit_hit"]["trace"].get("saturn_sign") is not None else None,
+                     "houses_hit": sorted(
+                         set(best["transit_hit"]["trace"]["jupiter_targets_hit"])
+                         | set(best["transit_hit"]["trace"]["saturn_targets_hit"])),
+                     "jupiter_solo": jup_solo, "saturn_solo": sat_solo}
+                    if best["transit_hit"] else None),
+                "locks": pred["locks"],
+                "stage4": {"age_factor": best["age_factor"],
+                           "stage_factor": best["stage_factor"],
+                           "confirmed_event_pruned": bool(conf_date),
+                           "required_locks": required},
+                "targets": {str(k): v for k, v in
+                            (targets_info.get("labels") or {}).items()},
+            }
+        predictions.append(pred)
+
+    # ── Stage 4: sequential-dependency constraints ───────────────────────
+    # second family expansion must START after the first's window begins;
+    # partnership_ended must start after partnership_began (temporal paradox
+    # = drop the ended call, never re-order silently).
+    by_type = {p["event_type"]: p for p in predictions}
+    first = by_type.get("family_expansion_first")
+    second = by_type.get("family_expansion_second")
+    if first and second and second["window_start"] <= first["window_end"]:
+        predictions = [p for p in predictions
+                       if p is not second]
+        skipped["family_expansion_second"] = (
+            "sequencing: window not after family_expansion_first")
+    began = by_type.get("serious_partnership_began")
+    ended = by_type.get("serious_partnership_ended")
+    if ended and began and began["window_start"] >= ended["window_start"]:
+        predictions = [p for p in predictions if p is not ended]
+        skipped["serious_partnership_ended"] = (
+            "sequencing: temporal paradox vs partnership_began")
+
+    predictions.sort(key=lambda p: (-p["confidence"], p["window_start"]))
+    return {
+        "predictions": predictions,
+        "skipped": skipped,
+        "meta": {
+            "engine": "convergence_v1",
+            "span": [from_date, to_date],
+            "chronology": "ok" if (chrono and not chrono_err) else
+                          (chrono_err or "unavailable"),
+            "functional_solo": {"jupiter": jup_solo, "saturn": sat_solo},
+            "pd_source": "db_level3" if pds else "live_compute",
+        },
+    }

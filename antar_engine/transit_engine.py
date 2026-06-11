@@ -551,7 +551,11 @@ def double_transit_on_date(
     s_set = graha_drishti_signs("Saturn", s_sign) if s_sign is not None else frozenset()
     j_hits = sorted(tset & j_set)
     s_hits = sorted(tset & s_set)
-    active = bool(j_hits) and bool(s_hits)
+    # Double transit = the SAME point sits in BOTH aspect sets (Rao:
+    # "double transit on a house = that house's sign is in *both* sets").
+    # Jupiter hitting one target while Saturn hits another does NOT qualify.
+    both_hits = sorted(tset & j_set & s_set)
+    active = bool(both_hits)
     if not active:
         if jupiter_solo and j_hits:
             active = True
@@ -566,6 +570,7 @@ def double_transit_on_date(
         "saturn_sign": s_sign,
         "jupiter_targets_hit": j_hits,
         "saturn_targets_hit": s_hits,
+        "double_hit_targets": both_hits,
         "jupiter_solo": jupiter_solo,
         "saturn_solo": saturn_solo,
         "jupiter_on_lord_required": require_jupiter_on is not None,

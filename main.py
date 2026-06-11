@@ -2723,6 +2723,115 @@ async def get_past_events(
                 ),
             }
 
+        # ── [convergence-wire 2026-06-11] Rao three-stage convergence ──────
+        # Kill switch: EVENT_CONVERGENCE=off → legacy mapper below.
+        # Zero converged predictions = honest silence (never pad, never
+        # silently fall back to the flat-template engine).
+        _conv_on = os.getenv("EVENT_CONVERGENCE", "on").strip().lower() \
+            not in ("off", "0", "false")
+        if _conv_on:
+            try:
+                from antar_engine.event_convergence import converge_events
+                _conv = converge_events(
+                    cd, chart_res.data, (ads_res.data or []),
+                    (birth_date[:10] if birth_date else f"{birth_year}-01-01"),
+                    today_str, supabase=supabase, include_debug=False,
+                )
+                _CONF_BY_LOCKS = {3: 9, 2: 6}
+                _CAT = {
+                    "serious_partnership_began": "relationship",
+                    "serious_partnership_ended": "relationship",
+                    "family_expansion_first": "family",
+                    "family_expansion_second": "family",
+                    "major_relocation": "transition",
+                    "major_acquisition": "material",
+                    "career_pivot": "transition",
+                    "business_start": "transition",
+                    "loss_of_mother": "loss",
+                    "loss_of_father": "loss",
+                    "professional_setback": "material",
+                    "legal_entanglement": "conflict",
+                    "financial_disruption": "material",
+                }
+
+                def _cw_human(start, end):
+                    try:
+                        _s = datetime.fromisoformat(start)
+                        _e = datetime.fromisoformat(end)
+                        if _s.year == _e.year and _s.month == _e.month:
+                            return _s.strftime('%B %Y')
+                        if _s.year == _e.year:
+                            return f"{_s.strftime('%B')} to {_e.strftime('%B %Y')}"
+                        return f"{_s.strftime('%B %Y')} to {_e.strftime('%B %Y')}"
+                    except Exception:
+                        return f"{start[:7]} to {end[:7]}"
+
+                _conv_preds = []
+                for _p in _conv.get("predictions", []):
+                    if (_p.get("window_end") or "") > today_str:
+                        continue  # past windows only on this surface
+                    _cscore = _CONF_BY_LOCKS.get(_p["confidence"], 3)
+                    if _cscore < min_confidence:
+                        continue
+                    _ep = {"md_lord": _p.get("md_lord"),
+                           "ad_lord": _p.get("ad_lord"),
+                           "pd_lord": _p.get("pd_lord"),
+                           "transit_planet": None}
+                    _lbl = f"{_p.get('md_lord','')} MD + {_p.get('ad_lord','')} AD"
+                    if _p.get("pd_lord"):
+                        _lbl += f" + {_p['pd_lord']} PD"
+                    _conv_preds.append({
+                        "event_type": _p["event_type"],
+                        "display_label": EVENT_DISPLAY_LABELS.get(
+                            _p["event_type"], _p["event_type"]),
+                        "description": EVENT_DESCRIPTION.get(
+                            _p["event_type"], ""),
+                        "category": _CAT.get(_p["event_type"], "other"),
+                        "window": {
+                            "start": _p["window_start"],
+                            "end": _p["window_end"],
+                            "precision": _p.get("granularity", "AD"),
+                            "human_readable": _cw_human(
+                                _p["window_start"], _p["window_end"]),
+                        },
+                        "dasha": _lbl,
+                        "confidence": _cscore,
+                        "confidence_label": ("high" if _cscore >= 8 else
+                                             "moderate" if _cscore >= 5
+                                             else "low"),
+                        "locks": _p.get("locks"),
+                        "explanation_short": _p.get("reasoning", ""),
+                        "energy_explanation": build_energy_explanation(
+                            _ep, _p["event_type"], lagna),
+                        "user_response": None,
+                    })
+                _conv_preds.sort(key=lambda x: -x["confidence"])
+                _shown = _conv_preds[:max_predictions]
+                _fallback = None
+                if len(_shown) < 2:
+                    _fallback = (
+                        "Your chart speaks in nuance, not headlines. Most "
+                        "charts have a few clear life events; yours threads "
+                        "its story through quieter patterns. Continue to "
+                        "your dashboard to explore your blueprint."
+                    )
+                print(f"[past-events] convergence engine: "
+                      f"{len(_conv_preds)} past, shown {len(_shown)}, "
+                      f"meta={_conv.get('meta', {}).get('chronology')}")
+                return {
+                    "chart_id": chart_id,
+                    "lagna": lagna,
+                    "first_name": first_name,
+                    "engine": "convergence_v1",
+                    "predictions": _shown,
+                    "predictions_filtered": len(_conv_preds) - len(_shown),
+                    "predictions_shown": len(_shown),
+                    "fallback_message": _fallback,
+                }
+            except Exception as _conv_err:
+                print(f"[past-events] convergence ERROR — legacy fallback: "
+                      f"{_conv_err}")
+
         # ── 3. Run all event windows ──────────────────────────────────────
         # map_all_events covers: serious_partnership_began, major_relocation,
         #   family_expansion_first, family_expansion_second, serious_partnership_ended
@@ -3412,18 +3521,61 @@ async def get_upcoming_themes(
         # Extract natal planets for nakshatra PD tightening
         natal_planets = cd.get("planets", {})
 
-        raw_map = map_future_events(
-            lagna, birth_year, ads,
-            from_date=today_str,
-            to_date=cutoff_date,
-            natal_planets=natal_planets,
-        )
-
-        for extra_event in ("loss_of_mother", "major_acquisition"):
-            if extra_event not in raw_map:
-                raw_map[extra_event] = find_event_window(
-                    extra_event, lagna, birth_year, ads
+        # [convergence-wire 2026-06-11] future windows via the convergence
+        # engine when enabled; legacy mapper otherwise. Converged windows are
+        # shaped to the legacy mapper-window contract so the downstream
+        # confidence/transit/D9 pipeline keeps working unchanged.
+        _conv_on = os.getenv("EVENT_CONVERGENCE", "on").strip().lower() \
+            not in ("off", "0", "false")
+        raw_map = {}
+        _conv_failed = False
+        if _conv_on:
+            try:
+                from antar_engine.event_convergence import converge_events
+                _convf = converge_events(
+                    cd, chart_res.data, (ads_res.data or []),
+                    today_str, cutoff_date, supabase=supabase,
+                    include_debug=False,
                 )
+                _SCORE_BY_LOCKS = {3: 10, 2: 7}
+                for _p in _convf.get("predictions", []):
+                    raw_map[_p["event_type"]] = {
+                        "event_type": _p["event_type"],
+                        "window_start": _p["window_start"],
+                        "window_end": _p["window_end"],
+                        "start": _p["window_start"],
+                        "end": _p["window_end"],
+                        "planet": _p.get("ad_lord") or "",
+                        "parent_md": _p.get("md_lord") or "",
+                        "pd_lord": _p.get("pd_lord"),
+                        "precision": _p.get("granularity", "AD"),
+                        "score": _SCORE_BY_LOCKS.get(_p["confidence"], 5),
+                        "candidate_count": max(
+                            int(_p.get("qualifying_windows") or 1), 1),
+                        "explanation_short": _p.get("reasoning", ""),
+                        "reason": _p.get("reasoning", ""),
+                        "locks": _p.get("locks"),
+                    }
+                print(f"[upcoming-themes] convergence engine: "
+                      f"{len(raw_map)} future windows")
+            except Exception as _convf_err:
+                print(f"[upcoming-themes] convergence ERROR — legacy "
+                      f"fallback: {_convf_err}")
+                raw_map = {}
+                _conv_failed = True
+        if (not _conv_on) or _conv_failed:
+            raw_map = map_future_events(
+                lagna, birth_year, ads,
+                from_date=today_str,
+                to_date=cutoff_date,
+                natal_planets=natal_planets,
+            )
+
+            for extra_event in ("loss_of_mother", "major_acquisition"):
+                if extra_event not in raw_map:
+                    raw_map[extra_event] = find_event_window(
+                        extra_event, lagna, birth_year, ads
+                    )
 
         # ── 4. Confidence helpers (identical logic to past-events) ────────
         def _confidence_label(score: int) -> str:

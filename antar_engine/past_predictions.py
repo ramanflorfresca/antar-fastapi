@@ -284,6 +284,79 @@ def compute_past_predictions(chart_id: str, supabase, n: int = 3,
     # forward-UI packaging (excludes loss_of_*, caps 8). Past validation is
     # admin-only, so sensitive events ARE probed — that is how an astrologer
     # builds trust ("did you lose your father between X and Y?").
+    # [convergence-wire 2026-06-11] Rao three-stage convergence (admin).
+    # Emits the FULL lock trace per prediction (_debug_reasoning — admin-only,
+    # full jargon, never stripped) for the "WHY THIS PREDICTION" panel.
+    import os as _os
+    if _os.getenv("EVENT_CONVERGENCE", "on").strip().lower() \
+            not in ("off", "0", "false"):
+        try:
+            from antar_engine.event_convergence import converge_events
+            all_rows = ads_res.data or []
+            res = converge_events(
+                chart_data, chart_record, all_rows,
+                birth_date_str or f"{birth_year}-01-01", today_str,
+                supabase=supabase, include_debug=True,
+            )
+            preds = []
+            horizon = (now - timedelta(days=_LOOKBACK_LADDER[-1])) \
+                .strftime("%Y-%m-%d")
+            for p in res.get("predictions", []):
+                ws, we = p["window_start"], p["window_end"]
+                if we >= today_str or we < horizon:
+                    continue  # recent CLOSED windows only
+                domain = _DOMAIN_BY_EVENT.get(p["event_type"], "Career")
+                if domains and domain not in domains:
+                    continue
+                direction = ("watch" if p["event_type"] in _WATCH_EVENTS
+                             else "opening")
+                pid = make_prediction_id(chart_id, domain, ws, we)
+                title = ""
+                try:
+                    from antar_engine.life_arc.event_taxonomy import event_title
+                    title = event_title(p["event_type"]) or ""
+                except Exception:
+                    pass
+                preds.append({
+                    "prediction_id": pid,
+                    "event_type": p["event_type"],
+                    "domain": domain,
+                    "window_start": ws,
+                    "window_end": we,
+                    "direction": direction,
+                    "event": _strip_gate(title),
+                    "verdict": _strip_gate(title),
+                    "probe": _strip_gate(_chip_probe(domain, direction, ws, we)),
+                    "window_label": _fmt_window(ws, we),
+                    "question": _strip_gate(_chip_question(
+                        {"_event_type": p["event_type"]}, ws, we, domain)),
+                    "locks": p.get("locks"),
+                    "confidence": p["confidence"],
+                    "conviction": "high" if p["confidence"] >= 3 else "medium",
+                    "score": p.get("promise_score"),
+                    "gated_score": float(p["confidence"]),
+                    "age_at_window": p.get("age_at_window"),
+                    "_debug_reasoning": p.get("_debug_reasoning"),
+                    "mark": None,
+                })
+            preds.sort(key=lambda x: (x["window_end"], x["confidence"]),
+                       reverse=True)
+            out = {"chart_id": chart_id, "predictions": preds[:n],
+                   "engine": "convergence_v1",
+                   "skipped": res.get("skipped"),
+                   "meta": res.get("meta"),
+                   "filters": {"domains": list(domains or []),
+                               "gating": "convergence (2/3 benign, 3/3 painful)"}}
+            if not preds:
+                out["note"] = ("no closed windows reached the convergence "
+                               "gate in the last "
+                               f"{_LOOKBACK_LADDER[-1]} days — honest "
+                               "silence, not fabricating.")
+            return out
+        except Exception as conv_err:
+            print(f"[past_predictions] convergence ERROR — legacy fallback: "
+                  f"{conv_err}")
+
     seen: dict = {}
     lookback_used = _LOOKBACK_LADDER[0]
     for lookback_days in _LOOKBACK_LADDER:
