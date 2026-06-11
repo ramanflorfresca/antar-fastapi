@@ -221,6 +221,12 @@ def measure_varshphal(base, key):
     from antar_engine.varshphal_gate import vote_for_window
     cfg = get_config(None)
     hit = n = bg = bgn = 0
+    # per-condition rates: positional (varsha lagna in event house) vs the
+    # two lord-membership conditions — membership votes measured 30-75% base
+    # rates everywhere else; this shows which condition carries any signal.
+    cond_keys = ("varsha lagna in", "varsha-lagna lord", "muntha lord")
+    cond_hit = {k: 0 for k in cond_keys}
+    cond_bg = {k: 0 for k in cond_keys}
     for cid, gt in GROUND_TRUTH.items():
         if not gt["events"]:
             continue
@@ -240,6 +246,9 @@ def measure_varshphal(base, key):
                 continue
             n += 1
             hit += bool(v["vote"])
+            for k in cond_keys:
+                if any(k in c for c in v["conditions"]):
+                    cond_hit[k] += 1
             print(f"  {gt['label']:9s} {et:28s} {d}  vote="
                   f"{'Y' if v['vote'] else '.'}  "
                   f"{'; '.join(v['conditions'])[:70]}")
@@ -250,10 +259,17 @@ def measure_varshphal(base, key):
                 if vv is not None:
                     bgn += 1
                     bg += bool(vv["vote"])
+                    for k in cond_keys:
+                        if any(k in c for c in vv["conditions"]):
+                            cond_bg[k] += 1
     if n:
         print(f"\nVARSHPHAL v1: at truth {hit}/{n} = {hit/n*100:.0f}%  "
               f"background {bg/max(bgn,1)*100:.0f}%  "
               f"(counts as a lock ONLY if this separates)")
+        print("per-condition (truth% vs background%):")
+        for k in cond_keys:
+            print(f"  {k:22s} {cond_hit[k]/n*100:5.0f}%  vs "
+                  f"{cond_bg[k]/max(bgn,1)*100:5.0f}%")
     else:
         print("\nVARSHPHAL: no measurable events (ephemeris unavailable?)")
 
