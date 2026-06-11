@@ -286,6 +286,12 @@ def main():
     key = env.get("SUPABASE_SERVICE_ROLE_KEY") or env["SUPABASE_KEY"]
     only = [a for a in sys.argv[1:] if not a.startswith("--")]
     explain = "--explain" in sys.argv
+    _known_flags = {"--explain", "--varshphal"}
+    _unknown = [a for a in sys.argv[1:]
+                if a.startswith("--") and a not in _known_flags]
+    if _unknown:
+        sys.exit(f"unknown flag(s) {_unknown} — did you mean one of "
+                 f"{sorted(_known_flags)}? (refusing to run the wrong mode)")
     if "--varshphal" in sys.argv:
         measure_varshphal(base, key)
         return
