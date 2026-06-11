@@ -86,7 +86,9 @@ def _chip_direction(chip: dict) -> str:
 
 
 def compute_past_predictions(chart_id: str, supabase, n: int = 3,
-                             today: Optional[datetime] = None) -> dict:
+                             today: Optional[datetime] = None,
+                             min_layers: int = 2,
+                             domains: tuple = ("Love", "Business", "Family")) -> dict:
     """
     Returns {"chart_id", "predictions": [...], "note": optional str}.
     Each prediction: prediction_id, domain, window_start, window_end,
@@ -174,6 +176,14 @@ def compute_past_predictions(chart_id: str, supabase, n: int = 3,
             if not we or not ws or we >= today_str:
                 continue  # closed windows only — window_end strictly in the past
             domain = _chip_domain(c)
+            # High-probability gate (founder ruling 2026-06-11): only windows
+            # where >=min_layers timing layers agree (dasha / significator /
+            # double transit). 2+ layers == the engine's "medium" — its max
+            # pre-D9/D10. Domain gate: only what onboarding can verify.
+            if domains and domain not in domains:
+                continue
+            if int(c.get("layers_agreeing") or 0) < int(min_layers or 0):
+                continue
             pid = make_prediction_id(chart_id, domain, ws, we)
             if pid in seen:
                 continue
@@ -187,15 +197,19 @@ def compute_past_predictions(chart_id: str, supabase, n: int = 3,
                 # jargon-free title from event_taxonomy via the engine's scrub).
                 "event": c.get("event_label") or c.get("title") or "",
                 "conviction": c.get("conviction"),
+                "layers_agreeing": int(c.get("layers_agreeing") or 0),
                 "mark": None,
             }
         if len(seen) >= n:
             break
 
     preds = sorted(seen.values(), key=lambda p: p["window_end"], reverse=True)[:n]
-    out = {"chart_id": chart_id, "predictions": preds}
+    out = {"chart_id": chart_id, "predictions": preds,
+           "filters": {"min_layers": int(min_layers or 0),
+                       "domains": list(domains or [])}}
     if not preds:
-        out["note"] = (f"engine yielded no closed windows in the last "
-                       f"{lookback_used} days — forward-only for this chart; "
-                       "not fabricating.")
+        out["note"] = (f"no closed windows passed the high-probability gate "
+                       f"(>= {min_layers} layers, domains {list(domains or [])}) "
+                       f"in the last {lookback_used} days — "
+                       "not fabricating or relaxing the gate silently.")
     return out

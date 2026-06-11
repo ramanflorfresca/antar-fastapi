@@ -11861,12 +11861,26 @@ async def admin_past_predictions_mark(
 
 @app.get("/api/v1/admin/past-predictions/{chart_id}")
 async def admin_past_predictions(chart_id: str, n: int = 3,
+                                 min_layers: int = 2,
+                                 domains: str = "Love,Business,Family",
                                  admin_email: str = Depends(require_admin)):
-    """N most-recent closed-window predictions, marks joined by stable id."""
+    """N most-recent closed-window predictions, marks joined by stable id.
+
+    High-probability gate on by default (min_layers=2 == medium conviction,
+    the engine max pre-D9/D10). domains defaults to what onboarding asks
+    (marital/business/children). Both admin-tunable per request:
+      ?min_layers=1            relax the layer gate
+      ?domains=Love,Business   tighten domains (empty string = all)
+    """
     from antar_engine.past_predictions import compute_past_predictions
     n = max(1, min(int(n or 3), 10))
+    _pp_ml = max(1, min(int(min_layers or 2), 3))
+    _pp_doms = tuple(d.strip().title() for d in (domains or "").split(",")
+                     if d.strip())
     try:
-        result = compute_past_predictions(chart_id, supabase, n=n)
+        result = compute_past_predictions(chart_id, supabase, n=n,
+                                          min_layers=_pp_ml,
+                                          domains=_pp_doms)
     except ValueError as _pp_ve:
         raise HTTPException(
             status_code=404 if str(_pp_ve) == "chart_not_found" else 422,
