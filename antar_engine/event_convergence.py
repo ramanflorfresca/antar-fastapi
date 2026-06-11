@@ -716,6 +716,7 @@ def converge_events(
     position_fn=None,
     include_debug: bool = True,
     transit_overlap_min_days: int = 10,
+    explain: bool = False,
 ) -> dict:
     """
     The Stage 1→4 convergence pipeline for one chart.
@@ -774,6 +775,7 @@ def converge_events(
 
     predictions: List[dict] = []
     skipped: Dict[str, str] = {}
+    explain_tables: Dict[str, list] = {}
     gating_on = gating_enabled()
 
     for event_type in keys:
@@ -832,10 +834,12 @@ def converge_events(
                     j_hit = jw
                     break
             t_hit = None
+            _c_len = max(1, _days_between(c["window_start"], c["window_end"]))
             for dw in dt_wins:
-                need = min(transit_overlap_min_days,
-                           max(1, _days_between(c["window_start"],
-                                                c["window_end"]) // 2))
+                # "fires only where the double transit holds": the DT interval
+                # must cover >=50% of the candidate window (min 10 days for
+                # very short PD slices) — a brief clip does not qualify.
+                need = max(min(transit_overlap_min_days, _c_len), _c_len // 2)
                 if _overlap_days(c["window_start"], c["window_end"],
                                  dw["start"], dw["end"]) >= need:
                     t_hit = dw
@@ -850,7 +854,13 @@ def converge_events(
                 age = -1.0
             af = age_plausibility(row, age) if (gating_on and age >= 0) else 1.0
             sf = stage_factor(row, chart_record, age) if gating_on else 1.0
-            rank = (locks * 10 + c["vims_strength"] + promise["score"] / 4.0) \
+            # classical delivery rule (PD-lord analysis, 4-chart derivation
+            # 2026-06-11): the event delivers in the PD whose lord is the
+            # event's KARAKA — prefer those candidates among equal locks.
+            karaka_pd = 3.0 if (c.get("pd_lord") and
+                                c["pd_lord"] == promise.get("karaka")) else 0.0
+            rank = (locks * 10 + c["vims_strength"] + karaka_pd
+                    + promise["score"] / 4.0) \
                 * max(af, 0.15) * max(sf, 0.1)
             scored.append({**c, "locks": locks, "jaimini_hit": j_hit,
                            "transit_hit": t_hit, "age_at_window": round(age, 1),
@@ -887,6 +897,18 @@ def converge_events(
             kept = [c for c in scored if _contains(c)]
             if kept:
                 scored = kept     # confirmed date prunes all other candidates
+
+        if explain:
+            explain_tables[event_type] = [
+                {"window": [c["window_start"], c["window_end"]],
+                 "granularity": c["granularity"],
+                 "chain": [c.get("md_lord"), c.get("ad_lord"), c.get("pd_lord")],
+                 "locks": c["locks"],
+                 "jaimini": bool(c["jaimini_hit"]),
+                 "transit": bool(c["transit_hit"]),
+                 "age_factor": c["age_factor"],
+                 "rank": round(c["rank"], 2)}
+                for c in sorted(scored, key=lambda x: x["window_start"])[:120]]
 
         # ── convergence gate: 3/3 painful, >=2/3 benign — NEVER pad ──────
         required = int((row or {}).get("required_locks") or
@@ -988,8 +1010,10 @@ def converge_events(
             "sequencing: temporal paradox vs partnership_began")
 
     predictions.sort(key=lambda p: (-p["confidence"], p["window_start"]))
+    out_explain = {"explain": explain_tables} if explain else {}
     return {
         "predictions": predictions,
+        **out_explain,
         "skipped": skipped,
         "meta": {
             "engine": "convergence_v1",

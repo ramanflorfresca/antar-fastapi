@@ -99,7 +99,7 @@ def _q(base, key, path):
     return json.load(urllib.request.urlopen(r, timeout=30))
 
 
-def run_chart(base, key, chart_id, gt):
+def run_chart(base, key, chart_id, gt, explain=False, position_fn=None):
     from antar_engine.event_convergence import converge_events
     rec = _q(base, key, f"charts?select=*&id=eq.{chart_id}")
     if not rec:
@@ -114,8 +114,53 @@ def run_chart(base, key, chart_id, gt):
               f"&system=eq.vimsottari&order=start_date&limit=3000")
     birth = str(rec.get("birth_date"))[:10]
     today = datetime.now().strftime("%Y-%m-%d")
-    res = converge_events(chart, rec, rows, birth, today, include_debug=False)
+    res = converge_events(chart, rec, rows, birth, today,
+                          include_debug=False, explain=explain,
+                          position_fn=position_fn)
     return res, None
+
+
+def print_explain(label, res, events):
+    """For each ground-truth event: every candidate within ±30 months of
+    the true date, with its lock breakdown — the WHY behind hit/miss."""
+    tables = res.get("explain") or {}
+    print(f"\n════ EXPLAIN {label} ════")
+    for et, d, tol in events:
+        try:
+            dd = datetime.strptime(d, "%Y-%m-%d")
+        except ValueError:
+            continue
+        cands = tables.get(et)
+        if cands is None:
+            print(f"\n  {et} (true {d}): NO CANDIDATE TABLE "
+                  f"(skipped: {res.get('skipped', {}).get(et)})")
+            continue
+        near = []
+        for c in cands:
+            try:
+                ws = datetime.strptime(c["window"][0], "%Y-%m-%d")
+                we = datetime.strptime(c["window"][1], "%Y-%m-%d")
+            except ValueError:
+                continue
+            mid = ws + (we - ws) / 2
+            dist = abs((mid - dd).days)
+            if dist <= 915:
+                near.append((dist, c))
+        near.sort(key=lambda x: x[0])
+        print(f"\n  {et} — true {d} "
+              f"({len(cands)} candidates total, {len(near)} within ±30mo):")
+        if not near:
+            print("    << no candidate near the true date — Stage-2 never "
+                  "flagged this period; check significator set >>")
+        for dist, c in near[:8]:
+            mark = "*" if (c["window"][0] <= d <= c["window"][1]) else " "
+            print(f"   {mark} {c['window'][0]}→{c['window'][1]} "
+                  f"({c['granularity']}) locks={c['locks']} "
+                  f"[J={'Y' if c['jaimini'] else 'n'} "
+                  f"T={'Y' if c['transit'] else 'n'}] "
+                  f"chain={'/'.join(str(x) for x in c['chain'])} "
+                  f"af={c['age_factor']} rank={c['rank']} "
+                  f"(mid {dist}d from truth)")
 
 
 def score(label, res, events):
@@ -171,6 +216,55 @@ def main():
     base = env["SUPABASE_URL"].rstrip("/")
     key = env.get("SUPABASE_SERVICE_ROLE_KEY") or env["SUPABASE_KEY"]
     only = [a for a in sys.argv[1:] if not a.startswith("--")]
+    explain = "--explain" in sys.argv
+
+    # Sandbox support: REAL chronology dumped by scripts/dump_real_chronology.py
+    # turns into a position_fn so calibration can run without swisseph.
+    position_fn = None
+    chrono_path = os.path.join(ROOT, "Antar.world",
+                               "real_chronology_1960_2036.json")
+    try:
+        import swisseph as _swe  # noqa: F401
+        _swe.calc_ut  # probe
+    except Exception:
+        # transit_engine imports swisseph at module top — inject a minimal
+        # stub (real julday, calc_ut raises) so the module loads and the
+        # dumped REAL chronology drives positions via position_fn.
+        import types as _types
+        _stub = _types.ModuleType("swisseph")
+        for _n, _v in dict(SUN=0, MOON=1, MARS=4, MERCURY=2, JUPITER=5,
+                           VENUS=3, SATURN=6, MEAN_NODE=10,
+                           FLG_SIDEREAL=65536, FLG_SPEED=256,
+                           SIDM_LAHIRI=1).items():
+            setattr(_stub, _n, _v)
+        _stub.set_sid_mode = lambda *a, **k: None
+
+        def _stub_julday(y, m, d, h=0.0):
+            a = (14 - m) // 12
+            yy = y + 4800 - a
+            mm = m + 12 * a - 3
+            jdn = (d + (153 * mm + 2) // 5 + 365 * yy + yy // 4
+                   - yy // 100 + yy // 400 - 32045)
+            return jdn + (h - 12) / 24.0
+        _stub.julday = _stub_julday
+        _stub.calc_ut = lambda *a, **k: (_ for _ in ()).throw(
+            RuntimeError("no ephemeris — use dumped chronology"))
+        sys.modules.setdefault("swisseph", _stub)
+        if os.path.exists(chrono_path):
+            with open(chrono_path) as f:
+                _chrono = json.load(f)
+
+            def position_fn(jd, planet, _c=_chrono):
+                # step-function longitude from real sign segments
+                from datetime import date, timedelta as _td
+                d = (date(2000, 1, 1)
+                     + _td(days=jd - 2451545.0)).isoformat()
+                for seg in _c.get(planet, []):
+                    if seg["start"] <= d <= seg["end"]:
+                        return seg["sign_index"] * 30.0 + 15.0
+                return 0.0
+            print(f"[harness] swisseph unavailable — using dumped REAL "
+                  f"chronology {os.path.basename(chrono_path)}")
 
     tot = {"scorable": 0, "hits": 0, "painful_wrong": 0}
     for cid, gt in GROUND_TRUTH.items():
@@ -180,11 +274,14 @@ def main():
         if not gt["events"]:
             print(f"\n──── {gt['label']} ──── SKIPPED (ground truth pending)")
             continue
-        res, err = run_chart(base, key, cid, gt)
+        res, err = run_chart(base, key, cid, gt, explain=explain,
+                             position_fn=position_fn)
         if err:
             print(err)
             continue
         s = score(gt["label"], res, gt["events"])
+        if explain:
+            print_explain(gt["label"], res, gt["events"])
         for k in tot:
             tot[k] += s[k]
 
