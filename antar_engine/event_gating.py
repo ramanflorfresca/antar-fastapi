@@ -46,7 +46,81 @@ _FALLBACK = {
     "major_relocation":          ("Family",   "4,3,12",  "Rahu",    "opening", 16, 18, 70, 80, None,                           60),
     "loss_of_father":            ("Family",   "9,8",     "Sun",     "watch",   30, 40, 70, 80, None,                           90),
     "loss_of_mother":            ("Family",   "4,8",     "Moon",    "watch",   35, 45, 75, 85, None,                           90),
+    "business_start":            ("Business", "3,7,10,11", "Mercury", "opening", 22, 25, 55, 62, None,                         60),
 }
+
+# ── [delivery-bands 2026-06-11] PD-delivery rule, AI-derived offline from the
+# 3-chart / 11-event ground-truth set; runs DETERMINISTICALLY. Externally-
+# confirmed events deliver at 0.38–0.89 through the qualifying AD (median
+# ≈0.6); self-initiated beginnings fire at the opening (≤0.05). NULL = event
+# lands on time, keep the raw mapper window. Fractions of the AD span.
+# CALIBRATION-SET DRAFT — re-tune on a fresh chart set.
+_DELIVERY_FALLBACK = {
+    "serious_partnership_began": (0.45, 0.20),
+    "serious_partnership_ended": (0.63, 0.20),
+    "family_expansion_first":    (0.70, 0.20),
+    "family_expansion_second":   (0.70, 0.20),
+    "career_pivot":              (0.75, 0.20),
+    "loss_of_father":            (0.50, 0.20),
+    "loss_of_mother":            (0.50, 0.20),
+    "major_relocation":          (0.62, 0.20),
+    "business_start":            (0.10, 0.12),
+}
+_MIN_SCORE_FALLBACK = {"major_relocation": 4.0}
+
+
+def delivery_params(cfg_row, event_type: str):
+    """(center, halfwidth) or (None, None). DB row wins, fallback otherwise."""
+    if cfg_row and cfg_row.get("delivery_center") is not None:
+        return (float(cfg_row["delivery_center"]),
+                float(cfg_row.get("delivery_halfwidth") or 0.20))
+    return _DELIVERY_FALLBACK.get(event_type, (None, None))
+
+
+def event_min_score(cfg_row, event_type: str, default: float = 6.0) -> float:
+    if cfg_row and cfg_row.get("min_score") is not None:
+        return float(cfg_row["min_score"])
+    return float(_MIN_SCORE_FALLBACK.get(event_type, default))
+
+
+def remap_to_delivery_window(event_type: str, window_start: str,
+                             window_end: str, ads: list,
+                             cfg_row=None) -> tuple:
+    """
+    Remap a mapper PD-slice window to the delivery band of its parent AD.
+    Returns (start_iso, end_iso, remapped_bool). Deterministic.
+    Raw window kept when: no band configured, parent AD not found, or
+    AD span < 180d (already precise).
+    """
+    from datetime import datetime as _dt, timedelta as _td
+    center, halfw = delivery_params(cfg_row, event_type)
+    if center is None:
+        return window_start, window_end, False
+    try:
+        ws = _dt.strptime(str(window_start)[:10], "%Y-%m-%d")
+        we = _dt.strptime(str(window_end)[:10], "%Y-%m-%d")
+    except Exception:
+        return window_start, window_end, False
+    parent = None
+    for a in ads or []:
+        try:
+            s = _dt.strptime(str(a.get("start_date"))[:10], "%Y-%m-%d")
+            e = _dt.strptime(str(a.get("end_date"))[:10], "%Y-%m-%d")
+        except Exception:
+            continue
+        if s <= ws and we <= e:
+            if parent is None or (e - s) < (parent[1] - parent[0]):
+                parent = (s, e)
+    if not parent:
+        return window_start, window_end, False
+    span = (parent[1] - parent[0]).days
+    if span < 180:
+        return window_start, window_end, False
+    mid = parent[0] + _td(days=span * center)
+    hw = max(45, min(int(span * halfw), 135))  # falsifiable: ≤270d total
+    lo = max(parent[0], mid - _td(days=hw))
+    hi = min(parent[1], mid + _td(days=hw))
+    return lo.strftime("%Y-%m-%d"), hi.strftime("%Y-%m-%d"), True
 
 _CACHE: dict = {"rows": None, "at": 0.0}
 _CACHE_TTL_SECS = 300

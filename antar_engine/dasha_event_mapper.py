@@ -605,6 +605,27 @@ def _house_lord(lagna: str, house: int) -> str:
     return _SIGN_RULERS.get(_SIGN_SEQ[(i + house - 1) % 12], "")
 
 
+def _build_business_start_priority(lagna: str) -> List[Tuple[str, str, int]]:
+    """DRAFT [delivery-bands 2026-06-11] — solo/business start. Mercury =
+    commerce karaka, 3H = self-effort/initiative, Mars = drive, Rahu =
+    entrepreneurial leap, 11H gains / 7H commerce lords."""
+    h3, h7, h11 = (_house_lord(lagna, 3), _house_lord(lagna, 7),
+                   _house_lord(lagna, 11))
+    result = [
+        ("Mercury", "Mercury = commerce and enterprise karaka",               10),
+        (h3,        f"{h3} rules 3H for {lagna} — self-effort and initiative",  8),
+        ("Mars",    "Mars = drive to build independently",                       7),
+        ("Rahu",    "Rahu = unconventional entrepreneurial leap",                6),
+        (h11,       f"{h11} rules 11H for {lagna} — new gains",                  5),
+        (h7,        f"{h7} rules 7H for {lagna} — commerce and dealings",        4),
+    ]
+    seen: dict = {}
+    for p, r, s in result:
+        if p and p not in seen:
+            seen[p] = (p, r, s)
+    return list(seen.values())
+
+
 def _build_father_death_priority(lagna: str) -> List[Tuple[str, str, int]]:
     """DRAFT — loss of father. Sun = pitru karaka, Saturn = separation,
     9H lord = father's house activation."""
@@ -660,6 +681,7 @@ def _get_priorities(lagna: str) -> Dict:
         # [event-engine-v1 2026-06-11] DRAFT rules — see builders above
         "loss_of_father":             _build_father_death_priority(lagna),
         "career_pivot":               _build_job_change_priority(lagna),
+        "business_start":             _build_business_start_priority(lagna),
     }
     _priority_cache[lagna] = p
     return p

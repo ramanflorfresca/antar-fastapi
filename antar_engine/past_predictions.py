@@ -227,7 +227,9 @@ def compute_past_predictions(chart_id: str, supabase, n: int = 3,
     """
     # [event-engine-v1 2026-06-11] direct mapper + config-table gating.
     from antar_engine.dasha_event_mapper import find_future_windows
-    from antar_engine.event_gating import gate_windows
+    from antar_engine.event_gating import (gate_windows, get_config,
+                                           remap_to_delivery_window,
+                                           event_min_score)
     from antar_engine.life_arc.event_taxonomy import event_title
 
     now = today or datetime.now(timezone.utc)
@@ -300,9 +302,23 @@ def compute_past_predictions(chart_id: str, supabase, n: int = 3,
 
         gated = gate_windows(wins, birth_date_str, chart_record, supabase)
 
+        _dl_cfg = get_config(supabase)
         for g in gated:
-            ws = str(g.get("window_start"))[:10]
-            we_raw = str(g.get("window_end"))[:10]
+            # [delivery-bands 2026-06-11] remap PD-slice to the delivery band
+            # of the qualifying AD (deterministic, config-driven; fixes the
+            # measured 9-25mo early bias on commitment events).
+            _dl_et = g.get("event_type") or ""
+            ws, we_raw, _dl_remapped = remap_to_delivery_window(
+                _dl_et, str(g.get("window_start"))[:10],
+                str(g.get("window_end"))[:10], ads, _dl_cfg.get(_dl_et))
+            # 30d backward pad: measured whisker-misses (events landing days
+            # BEFORE the window opens — second-born -20d, residence -12d).
+            # Forward slack comes from window_tolerance_days below.
+            try:
+                ws = (datetime.strptime(ws, "%Y-%m-%d")
+                      - timedelta(days=30)).strftime("%Y-%m-%d")
+            except Exception:
+                pass
             # Early-bias fix: probe window = dasha window + forward tolerance
             # (events land up to one sub-period late — measured on 3 charts).
             try:
@@ -313,7 +329,9 @@ def compute_past_predictions(chart_id: str, supabase, n: int = 3,
                 we = we_raw
             if not ws or not we or we >= today_str:
                 continue  # closed windows only (tolerance-extended end in past)
-            if float(g.get("gated_score") or 0) < float(min_score):
+            _dl_floor = event_min_score(_dl_cfg.get(_dl_et), _dl_et,
+                                        float(min_score))
+            if float(g.get("gated_score") or 0) < _dl_floor:
                 continue
             domain = g.get("domain") or _DOMAIN_BY_EVENT.get(
                 g.get("event_type") or "", "Career")
@@ -346,6 +364,7 @@ def compute_past_predictions(chart_id: str, supabase, n: int = 3,
                 "score": int(g.get("score") or 0),
                 "gated_score": float(g.get("gated_score") or 0),
                 "age_at_window": g.get("age_at_window"),
+                "delivery_remapped": bool(_dl_remapped),
                 # conviction tiering from gated score (stored with marks for
                 # later calibration — no curves yet, per brief)
                 "conviction": ("medium" if float(g.get("gated_score") or 0) >= 10
