@@ -581,6 +581,68 @@ def _build_mother_death_priority(lagna: str) -> List[Tuple[str, str, int]]:
     return list(seen.values())
 
 
+# ── [event-engine-v1 2026-06-11] DRAFT builders — founder to correct ────────
+# Closes the two structural gaps found in 3-chart ground-truth validation
+# (Kulbir father Oct-2004, Raman job change Feb-2002: type never emitted).
+# House drafts: father = 9H (+8H endings) + Sun karaka; job change = 10/6/11.
+
+# Full zodiac rulers — HOUSE_LORDS above only carries houses 5/7/9/12, so the
+# new builders derive any house lord from the sign sequence instead.
+_SIGN_SEQ = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra",
+             "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
+_SIGN_RULERS = {"Aries": "Mars", "Taurus": "Venus", "Gemini": "Mercury",
+                "Cancer": "Moon", "Leo": "Sun", "Virgo": "Mercury",
+                "Libra": "Venus", "Scorpio": "Mars", "Sagittarius": "Jupiter",
+                "Capricorn": "Saturn", "Aquarius": "Saturn", "Pisces": "Jupiter"}
+
+
+def _house_lord(lagna: str, house: int) -> str:
+    """Classical ruler of the nth house from lagna (whole-sign)."""
+    try:
+        i = _SIGN_SEQ.index(lagna)
+    except ValueError:
+        return ""
+    return _SIGN_RULERS.get(_SIGN_SEQ[(i + house - 1) % 12], "")
+
+
+def _build_father_death_priority(lagna: str) -> List[Tuple[str, str, int]]:
+    """DRAFT — loss of father. Sun = pitru karaka, Saturn = separation,
+    9H lord = father's house activation."""
+    h9 = _house_lord(lagna, 9)
+    result = [
+        ("Sun",    "Sun = father karaka — paternal transition",                10),
+        ("Saturn", "Saturn = separation, endings, karmic loss",                 9),
+        (h9,       f"{h9} rules 9H for {lagna} — the father's house",            8),
+        ("Ketu",   "Ketu = karmic completion in the paternal line",              6),
+        ("Rahu",   "Rahu = sudden unexpected loss",                              4),
+    ]
+    seen: dict = {}
+    for p, r, s in result:
+        if p and p not in seen:
+            seen[p] = (p, r, s)
+    return list(seen.values())
+
+
+def _build_job_change_priority(lagna: str) -> List[Tuple[str, str, int]]:
+    """DRAFT — major job change. 10H lord = career, 6H lord = service/
+    employment, 11H lord = new income; Saturn restructures, Sun = role."""
+    h10, h6, h11 = (_house_lord(lagna, 10), _house_lord(lagna, 6),
+                    _house_lord(lagna, 11))
+    result = [
+        (h10,      f"{h10} rules 10H for {lagna} — career house activation",   10),
+        (h6,       f"{h6} rules 6H for {lagna} — employment and service shift",  8),
+        ("Saturn", "Saturn = career structure rebuilt",                           7),
+        ("Sun",    "Sun = role, title, visible authority",                        6),
+        (h11,      f"{h11} rules 11H for {lagna} — new income stream",            5),
+        ("Rahu",   "Rahu = sudden professional pivot",                            4),
+    ]
+    seen: dict = {}
+    for p, r, s in result:
+        if p and p not in seen:
+            seen[p] = (p, r, s)
+    return list(seen.values())
+
+
 # Cache built priorities per lagna
 _priority_cache: Dict[str, Dict] = {}
 
@@ -595,6 +657,9 @@ def _get_priorities(lagna: str) -> Dict:
         "serious_partnership_ended":  _build_divorce_priority(lagna),
         "loss_of_mother":             _build_mother_death_priority(lagna),
         "major_acquisition":          _build_property_priority(lagna),
+        # [event-engine-v1 2026-06-11] DRAFT rules — see builders above
+        "loss_of_father":             _build_father_death_priority(lagna),
+        "career_pivot":               _build_job_change_priority(lagna),
     }
     _priority_cache[lagna] = p
     return p
