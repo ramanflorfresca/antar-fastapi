@@ -24972,7 +24972,11 @@ class SignatureConfirmRequest(BaseModel):
 
 
 @app.get("/api/v1/chart/signature/{chart_id}")
-async def get_signature_statements(chart_id: str):
+@translate_response(
+    fields_to_translate=["text"],
+    endpoint_name="signature",
+)
+async def get_signature_statements(chart_id: str, language: str = "en"):
     """
     Generate 3 past-event statements for the onboarding WOW screen.
     Uses DashaEventMapper — no LLM involved, instant response.
@@ -25017,7 +25021,7 @@ async def get_signature_statements(chart_id: str):
                     chart_data, chart_res.data, (ads_res.data or []),
                     (birth_date[:10] if birth_date else f"{birth_year}-01-01"),
                     datetime.now().strftime("%Y-%m-%d"),
-                    supabase=supabase, include_debug=False,
+                    supabase=supabase, include_debug=True,  # trace → ledger
                 )
                 for _p in _sg.get("predictions", []):
                     if _p["window_end"] <= datetime.now().strftime("%Y-%m-%d"):
@@ -25058,8 +25062,18 @@ async def get_signature_statements(chart_id: str):
             _ANCHOR_FIRST = ["serious_partnership_began", "major_relocation",
                              "family_expansion_first", "major_acquisition",
                              "business_start", "career_pivot"]
+            # [ledger-brief 2026-06-11] cold questions are BENIGN ONLY —
+            # divorce/loss/death are never asked cold. Painful (and the
+            # remaining types) unlock only after >=1 confirmed anchor.
+            _COLD_OK = {"serious_partnership_began", "major_relocation",
+                        "career_pivot", "business_start"}
+            from antar_engine.event_convergence import load_confirmed_events \
+                as _lce_sig
+            _has_anchor = bool(_lce_sig(chart_res.data))
+            _askable = [p for p in _sig_full
+                        if _has_anchor or p["event_type"] in _COLD_OK]
             _sig_sorted = sorted(
-                _sig_full,
+                _askable,
                 key=lambda p: (_ANCHOR_FIRST.index(p["event_type"])
                                if p["event_type"] in _ANCHOR_FIRST else 99,
                                -p["confidence"]))
@@ -25074,9 +25088,14 @@ async def get_signature_statements(chart_id: str):
                 if " and " not in _w:  # single-month window reads better as "around"
                     _q_en = _q_en.replace(f"between {_w}", f"around {_w}")
                     _q_es = _q_es.replace(f"entre {_w}", f"alrededor de {_w}")
+                import hashlib as _sq_hash
+                _sq_id = "sq_" + _sq_hash.sha256(
+                    f"{chart_id}|{_p['event_type']}|{_p['window_start']}|"
+                    f"{_p['window_end']}".encode()).hexdigest()[:16]
                 statements.append({
                     "id": _p["event_type"],
                     "event_type": _p["event_type"],
+                    "question_id": _sq_id,
                     "mode": "question",
                     "text": _strip_gate(_q_en),
                     "text_es": _strip_gate(_q_es) if _q_es else "",
@@ -25086,6 +25105,28 @@ async def get_signature_statements(chart_id: str):
                     "locks": _p.get("locks", {}).get("count")
                     if isinstance(_p.get("locks"), dict) else None,
                 })
+                # [ledger-brief 2026-06-11] precision ledger — every question
+                # asked is a row; the Yes/Close/No lands on it at confirm.
+                # Non-fatal if the table is missing (sql_signature_ledger.sql)
+                # but LOUD: this is the precision measure, not telemetry.
+                try:
+                    supabase.table("signature_question_log").upsert({
+                        "question_id": _sq_id,
+                        "chart_id": chart_id,
+                        "event_type": _p["event_type"],
+                        "window_start": _p["window_start"],
+                        "window_end": _p["window_end"],
+                        "locks": (_p.get("locks") or {}).get("count"),
+                        "lock_trace": _p.get("_debug_reasoning") or
+                        _p.get("locks"),
+                        "question": _strip_gate(_q_en),
+                        "language": language,
+                        "engine": "convergence_v1",
+                        "asked_at": datetime.now().isoformat(),
+                    }, on_conflict="question_id").execute()
+                except Exception as _sq_log_err:
+                    print(f"[signature-ledger] WRITE FAILED (run "
+                          f"sql_signature_ledger.sql?): {_sq_log_err}")
         except Exception as _sq_err:
             print(f"[signature] question build non-fatal: {_sq_err}")
 
@@ -25207,6 +25248,23 @@ async def confirm_signature(request: SignatureConfirmRequest):
             "confirmed_at": datetime.now().strftime("%Y-%m-%d"),
             "score": sum(1 for v in request.confirmations.values() if v == "confirmed"),
         }
+
+        # [ledger-brief 2026-06-11] land Yes/Close/No on the precision ledger
+        try:
+            import hashlib as _sq_hash2
+            for _sid, _ev in _ctp_events.items():
+                if not _ev.get("window_start"):
+                    continue
+                _row_id = "sq_" + _sq_hash2.sha256(
+                    f"{request.chart_id}|{_sid}|{_ev['window_start']}|"
+                    f"{_ev['window_end']}".encode()).hexdigest()[:16]
+                supabase.table("signature_question_log").update({
+                    "response": _ev.get("response"),
+                    "responded_at": datetime.now().isoformat(),
+                }).eq("question_id", _row_id).execute()
+        except Exception as _sq_resp_err:
+            print(f"[signature-ledger] response write failed (non-fatal): "
+                  f"{_sq_resp_err}")
 
         # Update chart
         supabase.table("charts").update({

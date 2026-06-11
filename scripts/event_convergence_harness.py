@@ -280,13 +280,50 @@ def measure_varshphal(base, key):
         print("\nVARSHPHAL: no measurable events (ephemeris unavailable?)")
 
 
+def read_ledger(base, key):
+    """--ledger: aggregate the live precision ledger (signature_question_log).
+    confirmed = hit, close = near-hit, declined = miss. This is the measure
+    that accumulates ground truth chart by chart in production."""
+    rows = _q(base, key,
+              "signature_question_log?select=event_type,locks,response,"
+              "window_start,window_end,asked_at&order=asked_at&limit=10000")
+    if not rows:
+        print("ledger empty — no questions asked yet "
+              "(or sql_signature_ledger.sql not run)")
+        return
+    answered = [r for r in rows if r.get("response")]
+    print(f"LEDGER: {len(rows)} questions asked, {len(answered)} answered")
+    from collections import Counter
+    by_resp = Counter(r["response"] for r in answered)
+    print(f"  responses: {dict(by_resp)}")
+    if answered:
+        ok = sum(1 for r in answered if r["response"] == "confirmed")
+        close = sum(1 for r in answered if r["response"] == "close")
+        print(f"  precision (confirmed): {ok}/{len(answered)} = "
+              f"{ok/len(answered)*100:.0f}%   "
+              f"(+close: {(ok+close)/len(answered)*100:.0f}%)")
+        print("  by locks:")
+        for lk in (3, 2):
+            grp = [r for r in answered if r.get("locks") == lk]
+            if grp:
+                g_ok = sum(1 for r in grp if r["response"] == "confirmed")
+                print(f"    {lk}/3: {g_ok}/{len(grp)} = "
+                      f"{g_ok/len(grp)*100:.0f}%")
+        print("  by event_type:")
+        types = sorted({r["event_type"] for r in answered})
+        for et in types:
+            grp = [r for r in answered if r["event_type"] == et]
+            g_ok = sum(1 for r in grp if r["response"] == "confirmed")
+            print(f"    {et:28s} {g_ok}/{len(grp)}")
+
+
 def main():
     env = _env()
     base = env["SUPABASE_URL"].rstrip("/")
     key = env.get("SUPABASE_SERVICE_ROLE_KEY") or env["SUPABASE_KEY"]
     only = [a for a in sys.argv[1:] if not a.startswith("--")]
     explain = "--explain" in sys.argv
-    _known_flags = {"--explain", "--varshphal"}
+    _known_flags = {"--explain", "--varshphal", "--ledger"}
     _unknown = [a for a in sys.argv[1:]
                 if a.startswith("--") and a not in _known_flags]
     if _unknown:
@@ -294,6 +331,9 @@ def main():
                  f"{sorted(_known_flags)}? (refusing to run the wrong mode)")
     if "--varshphal" in sys.argv:
         measure_varshphal(base, key)
+        return
+    if "--ledger" in sys.argv:
+        read_ledger(base, key)
         return
 
     # Sandbox support: REAL chronology dumped by scripts/dump_real_chronology.py
