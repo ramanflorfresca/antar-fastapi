@@ -122,6 +122,92 @@ def remap_to_delivery_window(event_type: str, window_start: str,
     hi = min(parent[1], mid + _td(days=hw))
     return lo.strftime("%Y-%m-%d"), hi.strftime("%Y-%m-%d"), True
 
+# ── [delivery-v2 2026-06-11] PD-lord delivery rule ───────────────────────────
+# Out-of-sample test (Rishipal, 5 events) broke the fixed-fraction band (1/5).
+# PD-lord analysis across all 4 charts found the classical rule: the event
+# delivers in the PD (pratyantardasha) whose lord is the event's KARAKA or a
+# priority lord — 3/4 marriages in Venus PD, first-borns in Jupiter/5H-lord
+# PDs, divorces in Saturn/6H/8H-lord PDs. Deterministic; band kept as
+# fallback when no PD lord matches.
+_PD_YEARS = {'Ketu': 7, 'Venus': 20, 'Sun': 6, 'Moon': 10, 'Mars': 7,
+             'Rahu': 18, 'Jupiter': 16, 'Saturn': 19, 'Mercury': 17}
+_PD_SEQ = ['Ketu', 'Venus', 'Sun', 'Moon', 'Mars', 'Rahu', 'Jupiter',
+           'Saturn', 'Mercury']
+
+
+def pd_spans(ad_lord: str, ad_start, ad_end) -> list:
+    """Deterministic vimshottari PD subdivision of an AD.
+    Returns [(pd_lord, start_dt, end_dt)]."""
+    from datetime import timedelta as _td
+    if ad_lord not in _PD_SEQ:
+        return []
+    total = (ad_end - ad_start).days
+    i = _PD_SEQ.index(ad_lord)
+    out, t = [], ad_start
+    for k in range(9):
+        lord = _PD_SEQ[(i + k) % 9]
+        t2 = t + _td(days=total * _PD_YEARS[lord] / 120.0)
+        out.append((lord, t, t2))
+        t = t2
+    return out
+
+
+def delivery_windows_v2(event_type: str, window_start: str, window_end: str,
+                        ads: list, cfg_row=None, lord_scores: dict = None,
+                        max_pds: int = 2) -> list:
+    """
+    PD-lord delivery selection. For the qualifying AD containing the mapper
+    window, emit the PD spans whose lord matches the event's significators
+    (karaka from config + mapper priority lords), highest score first,
+    up to max_pds. Adjacent matching PDs are merged. Falls back to the
+    fixed-band remap, then to the raw window.
+    Returns [(start_iso, end_iso, method)] — 1..max_pds windows.
+    """
+    from datetime import datetime as _dt
+    try:
+        ws = _dt.strptime(str(window_start)[:10], "%Y-%m-%d")
+        we = _dt.strptime(str(window_end)[:10], "%Y-%m-%d")
+    except Exception:
+        return [(window_start, window_end, "raw")]
+    parent = None
+    for a in ads or []:
+        try:
+            s = _dt.strptime(str(a.get("start_date"))[:10], "%Y-%m-%d")
+            e = _dt.strptime(str(a.get("end_date"))[:10], "%Y-%m-%d")
+        except Exception:
+            continue
+        if s <= ws and we <= e:
+            if parent is None or (e - s) < (parent[1] - parent[0]):
+                parent = (s, e, a.get("planet_or_sign") or a.get("lord") or "")
+    if not parent or (parent[1] - parent[0]).days < 180:
+        return [(window_start, window_end, "raw")]
+
+    scores = dict(lord_scores or {})
+    karaka = (cfg_row or {}).get("karaka")
+    if karaka:
+        scores[karaka] = max(scores.get(karaka, 0), 8)  # karaka always counts
+    matches = []
+    for lord, lo, hi in pd_spans(parent[2], parent[0], parent[1]):
+        if scores.get(lord, 0) > 0:
+            matches.append((scores[lord], lo, hi))
+    if matches:
+        matches.sort(key=lambda m: (-m[0], m[1]))
+        picked = sorted(matches[:max_pds], key=lambda m: m[1])
+        # merge adjacent picks
+        merged = []
+        for sc, lo, hi in picked:
+            if merged and (lo - merged[-1][1]).days <= 1:
+                merged[-1] = (merged[-1][0], hi)
+            else:
+                merged.append((lo, hi))
+        return [(lo.strftime("%Y-%m-%d"), hi.strftime("%Y-%m-%d"), "pd_lord")
+                for lo, hi in merged]
+    # fallback: fixed band
+    lo, hi, rm = remap_to_delivery_window(event_type, window_start,
+                                          window_end, ads, cfg_row)
+    return [(lo, hi, "band" if rm else "raw")]
+
+
 _CACHE: dict = {"rows": None, "at": 0.0}
 _CACHE_TTL_SECS = 300
 
