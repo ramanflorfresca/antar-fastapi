@@ -62,13 +62,19 @@ GROUND_TRUTH = {
             ("family_expansion_second",   "2020-06-19", T_DATE),
         ],
     },
-    "4e68bd94-8eb6-47f1-a2cc-592ce923a32c": {  # Harleen — Taurus, 1974-11-26
+    # [fixture-identity 2026-06-11] founder-confirmed REAL charts. The brief's
+    # original ids were bad input: 4e68bd94 = Raman's own birth data mislabeled
+    # (computed Taurus from his Capricorn inputs); 9dff84f7 = ZZ-placeholder
+    # coords. The "Harleen 0/5" blind test ran on the wrong person's chart.
+    "e3a3dac7-cb91-468c-b9fe-51ff74ef1217": {  # Harleen — Gemini, 1975-01-08 Kuwait
         "label": "Harleen",
         "events": [
             # TODO founder: confirmed dates (marriage, relocations, children…)
         ],
     },
-    "9dff84f7-6171-4372-bdb6-1f266696816d": {  # Shashi — Libra, 1970-11-02
+    "20a4c417-053a-4822-9561-85584e2b8e95": {  # Shashi — Libra, 1970-11-02 06:02 IN
+        # NOTE coords are the India centroid placeholder — birth city still
+        # needed for lagna-grade precision; dasha chains unaffected.
         "label": "Shashi",
         "events": [
             # TODO founder: confirmed dates (marriage, migration, children…)

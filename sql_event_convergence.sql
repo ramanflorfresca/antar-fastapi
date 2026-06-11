@@ -22,9 +22,12 @@ comment on column event_engine_config.double_transit_enabled is
 -- Two ground-truth charts were already lost to cleanup; never again.
 alter table charts add column if not exists protected boolean default false;
 
+-- [fixture-identity 2026-06-11] re-pointed to the REAL charts: the brief's
+-- 4e68bd94 was Raman's own birth data mislabeled; 9dff84f7 had ZZ-placeholder
+-- coords. Originals left unprotected (and deletable) on purpose.
 update charts set protected = true where id in (
-  '4e68bd94-8eb6-47f1-a2cc-592ce923a32c',  -- Harleen  (Taurus,    1974-11-26) — regression fixture
-  '9dff84f7-6171-4372-bdb6-1f266696816d',  -- Shashi   (Libra,     1970-11-02) — regression fixture
+  'e3a3dac7-cb91-468c-b9fe-51ff74ef1217',  -- Harleen  (Gemini, 1975-01-08, Kuwait) — regression fixture
+  '20a4c417-053a-4822-9561-85584e2b8e95',  -- Shashi   (Libra,  1970-11-02, IN)     — regression fixture
   'a4c9d57b-fb9c-4890-8fe7-4a9904f515ed',  -- Raman    (Capricorn) — 10-event ground truth
   'a2b1178f-17e5-4321-b5c2-2eb7c684385d'   -- Rishipal (Aquarius)  — 5-event out-of-sample set
 );
