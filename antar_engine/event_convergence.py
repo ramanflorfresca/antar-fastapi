@@ -772,6 +772,24 @@ def converge_events(
     jup_solo, sat_solo = _functional_solo_flags(ctx)
     keys = event_types or [et for et in cfg.keys()]
     confirmed_events = confirmed_events or {}
+    # dependency order so anchored events resolve after their anchors
+    _DEP_ORDER = ["serious_partnership_began", "family_expansion_first",
+                  "family_expansion_second", "serious_partnership_ended"]
+    keys = sorted(set(keys),
+                  key=lambda k: (_DEP_ORDER.index(k) if k in _DEP_ORDER
+                                 else len(_DEP_ORDER), k))
+    # event -> (anchor_event, lo_days_from_anchor_start, hi_days_from_anchor_end)
+    _REL_PRIORS = {
+        "family_expansion_first": ("serious_partnership_began", -90, 6 * 365),
+        "family_expansion_second": ("family_expansion_first", 270, 8 * 365),
+        "serious_partnership_ended": ("serious_partnership_began",
+                                      3 * 365, 40 * 365),
+    }
+    _anchors: Dict[str, Tuple[str, str]] = {}   # event -> (start,end) chosen
+    for _ce_et, _ce_d in confirmed_events.items():
+        _d = str(_ce_d)[:10]
+        if _d:
+            _anchors[_ce_et] = (_d, _d)
 
     predictions: List[dict] = []
     skipped: Dict[str, str] = {}
@@ -783,6 +801,19 @@ def converge_events(
         if row is not None and not row.get("enabled", True):
             skipped[event_type] = "disabled_in_config"
             continue
+        if event_type == "serious_partnership_ended":
+            try:
+                from antar_engine.event_gating import _stage_facts
+                _sf = _stage_facts(chart_record)
+                if not (_sf["ever_partnered"]
+                        or "serious_partnership_began" in confirmed_events
+                        or "serious_partnership_began" in _anchors):
+                    skipped[event_type] = (
+                        "painful_prereq_unknown (no known/confirmed prior "
+                        "partnership — ask, never assert)")
+                    continue
+            except Exception:
+                pass
         dt_enabled = bool((row or {}).get("double_transit_enabled", True))
 
         # ── Stage 1: promise ─────────────────────────────────────────────
@@ -799,6 +830,29 @@ def converge_events(
             skipped[event_type] = "no_vimsottari_window"
             continue
         cands = _merge_contiguous(cands)
+
+        # ── Stage 4 (relative prior): anchor band filter ─────────────────
+        _rel = _REL_PRIORS.get(event_type)
+        if _rel:
+            _a_et, _lo_d, _hi_d = _rel
+            _a = _anchors.get(_a_et)
+            if _a:
+                try:
+                    _a_lo = (datetime.strptime(_a[0][:10], "%Y-%m-%d")
+                             + timedelta(days=_lo_d)).strftime("%Y-%m-%d")
+                    _a_hi = (datetime.strptime(_a[1][:10], "%Y-%m-%d")
+                             + timedelta(days=_hi_d)).strftime("%Y-%m-%d")
+                    _banded = [c for c in cands
+                               if _a_lo <= c["window_start"] <= _a_hi]
+                    if _banded:
+                        cands = _banded
+                    else:
+                        skipped[event_type] = (
+                            f"relative_prior: no window within the "
+                            f"{_a_et} band {_a_lo}..{_a_hi}")
+                        continue
+                except (ValueError, TypeError):
+                    pass
 
         # ── Stage 2b: Jaimini vote windows ───────────────────────────────
         jwins = stage2b_jaimini(event_type, ctx, birth_dt, from_date, to_date)
@@ -828,23 +882,33 @@ def converge_events(
         scored: List[dict] = []
         for c in cands:
             j_hit = None
+            _era_s = c.get("ad_start") or c["window_start"]
+            _era_e = c.get("ad_end") or c["window_end"]
             for jw in jwins:
-                if _overlap_days(c["window_start"], c["window_end"],
-                                 jw["start"], jw["end"]) > 0:
+                # Stage-2 doctrine: Jaimini votes on the ERA/YEAR (the parent
+                # AD), not the ~3-month PD slice — chara AD boundaries do not
+                # line up with Vimsottari PDs and should not be required to.
+                if _overlap_days(_era_s, _era_e, jw["start"], jw["end"]) > 0:
                     j_hit = jw
                     break
             t_hit = None
             _c_len = max(1, _days_between(c["window_start"], c["window_end"]))
             for dw in dt_wins:
-                # "fires only where the double transit holds": the DT interval
-                # must cover >=50% of the candidate window (min 10 days for
-                # very short PD slices) — a brief clip does not qualify.
                 need = max(min(transit_overlap_min_days, _c_len), _c_len // 2)
                 if _overlap_days(c["window_start"], c["window_end"],
                                  dw["start"], dw["end"]) >= need:
                     t_hit = dw
                     break
-            locks = 1 + (1 if j_hit else 0) + (1 if t_hit else 0)
+            # delivery lock: candidate is the PD whose lord is the event's
+            # karaka or the event-house lord (the sub-period that DELIVERS).
+            d_hit = bool(
+                c.get("pd_lord") and c["granularity"] == "PD"
+                and c["pd_lord"] in {promise.get("karaka"), promise.get("lord")}
+            )
+            trigger_hit = d_hit or bool(t_hit)
+            trigger_src = ("karaka_pd" if d_hit else
+                           ("double_transit" if t_hit else None))
+            locks = 1 + (1 if j_hit else 0) + (1 if trigger_hit else 0)
 
             # ── Stage 4: life-stage priors (SOFT down-weight, never veto)
             try:
@@ -854,16 +918,14 @@ def converge_events(
                 age = -1.0
             af = age_plausibility(row, age) if (gating_on and age >= 0) else 1.0
             sf = stage_factor(row, chart_record, age) if gating_on else 1.0
-            # classical delivery rule (PD-lord analysis, 4-chart derivation
-            # 2026-06-11): the event delivers in the PD whose lord is the
-            # event's KARAKA — prefer those candidates among equal locks.
-            karaka_pd = 3.0 if (c.get("pd_lord") and
-                                c["pd_lord"] == promise.get("karaka")) else 0.0
-            rank = (locks * 10 + c["vims_strength"] + karaka_pd
+            rank = (locks * 10 + c["vims_strength"]
+                    + (1.0 if d_hit else 0.0)        # deliverer edges ties
                     + promise["score"] / 4.0) \
                 * max(af, 0.15) * max(sf, 0.1)
             scored.append({**c, "locks": locks, "jaimini_hit": j_hit,
-                           "transit_hit": t_hit, "age_at_window": round(age, 1),
+                           "transit_hit": t_hit, "delivery_hit": d_hit,
+                           "trigger_src": trigger_src,
+                           "age_at_window": round(age, 1),
                            "age_factor": round(af, 2),
                            "stage_factor": round(sf, 2), "rank": rank})
 
@@ -904,8 +966,10 @@ def converge_events(
                  "granularity": c["granularity"],
                  "chain": [c.get("md_lord"), c.get("ad_lord"), c.get("pd_lord")],
                  "locks": c["locks"],
+                 "vims_strength": c.get("vims_strength"),
                  "jaimini": bool(c["jaimini_hit"]),
                  "transit": bool(c["transit_hit"]),
+                 "delivery": bool(c.get("delivery_hit")),
                  "age_factor": c["age_factor"],
                  "rank": round(c["rank"], 2)}
                 for c in sorted(scored, key=lambda x: x["window_start"])[:120]]
@@ -920,9 +984,18 @@ def converge_events(
                                    f"(best {best_locks}/{required})")
             continue
 
-        # instance selector: strongest convergence, NOT earliest
-        qual.sort(key=lambda c: (-c["locks"], -c["rank"], c["window_start"]))
+        # instance selector: strongest convergence first; among equals the
+        # DELIVERING sub-period (karaka/lord PD) and deeper Vimsottari chain
+        # outrank — never bare earliest.
+        qual.sort(key=lambda c: (
+            -c["locks"],
+            -(6 if c.get("delivery_hit") else 0)
+            - (c.get("vims_strength") or 0) * 3,
+            -c["rank"],
+            c["window_start"]))
         best = qual[0]
+        _anchors.setdefault(event_type,
+                            (best["window_start"], best["window_end"]))
 
         pred = {
             "event_type": event_type,
@@ -933,7 +1006,10 @@ def converge_events(
             "locks": {
                 "vims": True,
                 "jaimini": bool(best["jaimini_hit"]),
+                "trigger": bool(best.get("trigger_src")),
+                "trigger_source": best.get("trigger_src"),
                 "transit": bool(best["transit_hit"]),
+                "delivery": bool(best.get("delivery_hit")),
                 "count": best["locks"],
             },
             "md_lord": best.get("md_lord"),
