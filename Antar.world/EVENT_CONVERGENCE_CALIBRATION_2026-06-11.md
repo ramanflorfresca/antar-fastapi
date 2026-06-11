@@ -54,6 +54,24 @@ Qualifying sets are 18–62 windows per event with 1–2 truth-holders: the lock
 5. Selection: locks first, then delivering-PD + Vimsottari chain depth — never bare earliest.
 6. `--explain` candidate tables + real-chronology replay (calibration now runs without swisseph).
 
+## Addendum — Varshphal v1 measured (founder Mac run, real ephemeris)
+
+Overall 67% at truth vs **75% background** — over-fires. Per-condition:
+
+| condition | at truth | background |
+|---|---|---|
+| varsha lagna in event house (positional) | 20% | 21% |
+| varsha-lagna lord ∈ significators | 47% | 51% |
+| muntha lord ∈ significators | 53% | 50% |
+
+Every condition sits at its base rate — including the positional one. Varshphal
+v1 joins double transit and Muntha in the parking lot (stays shadow, fully
+traced). **Four Stage-3 formulations measured, four dead.** The common shape:
+sign-level membership tests carry 20-50% base rates and zero lift. Any further
+Stage-3 candidate needs either degree-level precision or founder-specified
+Tajika rules (panchadhikari year lord with day/night birth rules, mudda
+dasha) — not more sign-level votes.
+
 ## Decision points (founder)
 
 1. **Stage-3 ruling** — degree-based DT, or Varshphal year-gate, or accept delivery-lock as the trigger.
