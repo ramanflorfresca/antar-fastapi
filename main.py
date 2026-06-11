@@ -25071,6 +25071,9 @@ async def get_signature_statements(chart_id: str):
                     continue
                 _q_en = _tpl.format(w=_w)
                 _q_es = _Q_ES.get(_p["event_type"], "").format(w=_w)
+                if " and " not in _w:  # single-month window reads better as "around"
+                    _q_en = _q_en.replace(f"between {_w}", f"around {_w}")
+                    _q_es = _q_es.replace(f"entre {_w}", f"alrededor de {_w}")
                 statements.append({
                     "id": _p["event_type"],
                     "event_type": _p["event_type"],
