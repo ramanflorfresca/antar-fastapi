@@ -11766,6 +11766,127 @@ async def admin_inspect(chart_id: str, surface: str, language: str = "en",
 
 
 
+
+# ── [past-pred-harness 2026-06-10] Admin past-prediction validation ──────────
+# Backend accuracy gate for the "past predictions" feature (validation track,
+# NOT a launch blocker). Reuses the forward-event engine over PAST date
+# ranges (antar_engine/past_predictions.py) — no parallel engine, and no
+# outcome-aware logic anywhere in the compute path (retrodictions).
+# All three endpoints admin-gated via the existing require_admin (Supabase
+# JWT + admin email allowlist). Marks persist in prediction_accuracy_marks
+# (sql_prediction_accuracy_marks.sql — additive CREATE TABLE only).
+# NOTE: /accuracy MUST be registered before /{chart_id} (FastAPI matches in
+# registration order — "accuracy" would otherwise bind as a chart_id).
+from pydantic import BaseModel as _PPBaseModel
+
+ACCURACY_GATE_PCT = 60.0
+
+
+class _PastPredMarkReq(_PPBaseModel):
+    chart_id: str
+    prediction_id: str
+    mark: str
+
+
+@app.get("/api/v1/admin/past-predictions/accuracy")
+async def admin_past_predictions_accuracy(
+        admin_email: str = Depends(require_admin)):
+    """Running tally over ALL persisted marks. passes_gate = overall >= 60%."""
+    try:
+        rows = supabase.table("prediction_accuracy_marks") \
+            .select("chart_id,prediction_id,mark") \
+            .limit(10000).execute().data or []
+    except Exception:
+        raise HTTPException(status_code=501, detail=(
+            "prediction_accuracy_marks table missing — run "
+            "sql_prediction_accuracy_marks.sql in the Supabase SQL Editor"))
+
+    def _pp_tally(marks):
+        marked = len(marks)
+        acc = sum(1 for m in marks if m == "accurate")
+        pct = round(acc * 100.0 / marked, 1) if marked else 0.0
+        return marked, acc, pct
+
+    marked, acc, pct = _pp_tally([r.get("mark") for r in rows])
+    by_chart = {}
+    for r in rows:
+        by_chart.setdefault(str(r.get("chart_id")), []).append(r.get("mark"))
+    per_chart = []
+    for cid, ms in sorted(by_chart.items()):
+        m, a, p = _pp_tally(ms)
+        per_chart.append({"chart_id": cid, "marked": m, "accurate": a,
+                          "inaccurate": m - a, "accuracy_pct": p})
+    return {
+        "overall": {
+            "marked": marked, "accurate": acc, "inaccurate": marked - acc,
+            "accuracy_pct": pct,
+            "passes_gate": bool(marked) and pct >= ACCURACY_GATE_PCT,
+            "gate_pct": ACCURACY_GATE_PCT,
+        },
+        "per_chart": per_chart,
+    }
+
+
+@app.post("/api/v1/admin/past-predictions/mark")
+async def admin_past_predictions_mark(
+        req: _PastPredMarkReq,
+        admin_email: str = Depends(require_admin)):
+    """Upsert on (chart_id, prediction_id) — re-marking overwrites."""
+    mark = (req.mark or "").strip().lower()
+    if mark not in ("accurate", "inaccurate"):
+        raise HTTPException(status_code=400,
+                            detail="mark must be 'accurate' or 'inaccurate'")
+    if not req.chart_id or not req.prediction_id:
+        raise HTTPException(status_code=400,
+                            detail="chart_id and prediction_id required")
+    from datetime import datetime as _ppm_dt, timezone as _ppm_tz
+    try:
+        r = supabase.table("prediction_accuracy_marks").upsert({
+            "chart_id": req.chart_id,
+            "prediction_id": req.prediction_id,
+            "mark": mark,
+            "marked_at": _ppm_dt.now(_ppm_tz.utc).isoformat(),
+            "marked_by": admin_email,
+        }, on_conflict="chart_id,prediction_id").execute()
+    except Exception as _ppm_e:
+        _msg = str(_ppm_e)
+        if "prediction_accuracy_marks" in _msg or "relation" in _msg.lower():
+            raise HTTPException(status_code=501, detail=(
+                "prediction_accuracy_marks table missing — run "
+                "sql_prediction_accuracy_marks.sql in the Supabase SQL Editor"))
+        raise HTTPException(status_code=500,
+                            detail=f"mark upsert failed: {_msg[:200]}")
+    return {"ok": True, "row": (r.data or [{}])[0]}
+
+
+@app.get("/api/v1/admin/past-predictions/{chart_id}")
+async def admin_past_predictions(chart_id: str, n: int = 3,
+                                 admin_email: str = Depends(require_admin)):
+    """N most-recent closed-window predictions, marks joined by stable id."""
+    from antar_engine.past_predictions import compute_past_predictions
+    n = max(1, min(int(n or 3), 10))
+    try:
+        result = compute_past_predictions(chart_id, supabase, n=n)
+    except ValueError as _pp_ve:
+        raise HTTPException(
+            status_code=404 if str(_pp_ve) == "chart_not_found" else 422,
+            detail=str(_pp_ve))
+    # Join persisted marks. Tolerate a missing table so the read endpoint
+    # stays usable pre-migration (marks just stay null + note).
+    try:
+        mr = supabase.table("prediction_accuracy_marks") \
+            .select("prediction_id,mark").eq("chart_id", chart_id).execute()
+        _pp_marks = {x["prediction_id"]: x["mark"] for x in (mr.data or [])}
+    except Exception:
+        _pp_marks = {}
+        result["marks_note"] = ("prediction_accuracy_marks unreadable — run "
+                                "sql_prediction_accuracy_marks.sql")
+    for p in result.get("predictions", []):
+        p["mark"] = _pp_marks.get(p["prediction_id"])
+    result["n"] = n
+    return result
+
+
 # ── [prompt-registry 2026-06-10] Admin prompt registry endpoints ─────────────
 # Editable narration prompt bodies (llm_prompts). The contract header +
 # output schema are code-only constants, returned read-only for UI display.
