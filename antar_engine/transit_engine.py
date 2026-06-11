@@ -331,3 +331,404 @@ def format_transit_for_prompt(transit_report: Dict) -> str:
         lines.append(f"  Active life areas today: {area_str}")
 
     return "\n".join(lines)
+
+
+# ═════════════════════════════════════════════════════════════════════════════
+# [rao-double-transit 2026-06-10] Stage-3 trigger layer — K.N. Rao double transit
+# -----------------------------------------------------------------------------
+# Dashas open the window (Stage 2); the double transit selects WHICH window
+# delivered (Stage 3). An event fires only where transiting Jupiter AND Saturn
+# both influence the event house / its lord (sign-level graha drishti).
+# Sources: K.N. Rao double-transit research; "Ups and Downs in Career"; the
+# 100-chart/100-navamsha marriage study. Pure functions — wired only by the
+# event_convergence resolver, never directly by endpoints.
+# ═════════════════════════════════════════════════════════════════════════════
+
+# Sign-level graha drishti as 0-indexed sign offsets from the planet's sign.
+# Jupiter: own + 5th + 7th + 9th. Saturn: own + 3rd + 7th + 10th.
+# Mars (fine pass only): own + 4th + 7th + 8th.
+GRAHA_DRISHTI_OFFSETS = {
+    "Jupiter": (0, 4, 6, 8),
+    "Saturn":  (0, 2, 6, 9),
+    "Mars":    (0, 3, 6, 7),
+}
+
+_SWE_CHRONO_IDS = {
+    "Jupiter": swe.JUPITER,
+    "Saturn":  swe.SATURN,
+    "Mars":    swe.MARS,
+    "Moon":    swe.MOON,
+}
+
+# chronology cache: key -> {planet: [segment, ...]}
+_CHRONO_CACHE: Dict = {}
+_CHRONO_CACHE_MAX = 8
+
+
+def graha_drishti_signs(planet: str, sign_index: int) -> frozenset:
+    """Set of 0-indexed sign indices influenced by `planet` sitting in
+    `sign_index` (occupation counts as influence). Unknown planet -> own+7th."""
+    offsets = GRAHA_DRISHTI_OFFSETS.get(planet, (0, 6))
+    return frozenset((sign_index + o) % 12 for o in offsets)
+
+
+def _default_position_fn(jd: float, planet: str) -> float:
+    """Sidereal longitude via Swiss Ephemeris (Lahiri). Raises on failure."""
+    try:
+        from antar_engine.lahiri_gate import ensure_lahiri_sid_mode
+        ensure_lahiri_sid_mode()
+    except Exception:
+        pass
+    pid = _SWE_CHRONO_IDS.get(planet)
+    if pid is None:
+        raise ValueError(f"unsupported chronology planet: {planet}")
+    return swe.calc_ut(jd, pid, swe.FLG_SIDEREAL)[0][0]
+
+
+def _date_to_jd(d: datetime) -> float:
+    return swe.julday(d.year, d.month, d.day, 12.0)  # noon UT — sign-level
+
+
+def _iso(d: datetime) -> str:
+    return d.strftime("%Y-%m-%d")
+
+
+def build_transit_chronology(
+    start_date: str,
+    end_date: str,
+    planets: Tuple[str, ...] = ("Jupiter", "Saturn"),
+    step_days: int = 5,
+    position_fn=None,
+) -> Dict[str, List[Dict]]:
+    """
+    Precompute the sidereal sign occupancy timeline for slow planets across
+    [start_date, end_date]. Returns:
+        { "Jupiter": [ {"sign_index": 7, "start": "1990-01-01",
+                        "end": "1990-08-14"}, ... ], ... }
+    Segments are contiguous and day-resolution (boundaries bisected).
+    Retrograde sign re-entries shorter than `step_days` may be folded into
+    the surrounding segment — irrelevant at sign-level prediction.
+
+    position_fn(jd, planet) -> sidereal longitude; injectable for tests.
+    Cached per (planets, start, end, step) — build once at engine init,
+    NEVER inside a per-candidate scoring loop.
+    """
+    key = (tuple(planets), str(start_date)[:10], str(end_date)[:10],
+           int(step_days), position_fn is None)
+    if key in _CHRONO_CACHE:
+        return _CHRONO_CACHE[key]
+
+    pf = position_fn or _default_position_fn
+    try:
+        s = datetime.strptime(str(start_date)[:10], "%Y-%m-%d")
+        e = datetime.strptime(str(end_date)[:10], "%Y-%m-%d")
+    except (ValueError, TypeError):
+        return {p: [] for p in planets}
+    if e <= s:
+        return {p: [] for p in planets}
+
+    out: Dict[str, List[Dict]] = {}
+    for planet in planets:
+        segments: List[Dict] = []
+        cur = s
+        try:
+            cur_sign = int(pf(_date_to_jd(cur), planet) / 30) % 12
+        except Exception:
+            out[planet] = []
+            continue
+        seg_start = cur
+        while cur < e:
+            nxt = min(cur + timedelta(days=step_days), e)
+            try:
+                nxt_sign = int(pf(_date_to_jd(nxt), planet) / 30) % 12
+            except Exception:
+                nxt_sign = cur_sign
+            if nxt_sign != cur_sign:
+                # bisect the boundary to 1-day resolution
+                lo, hi = cur, nxt
+                while (hi - lo).days > 1:
+                    mid = lo + (hi - lo) / 2
+                    mid = datetime(mid.year, mid.month, mid.day)
+                    if mid <= lo:
+                        break
+                    try:
+                        mid_sign = int(pf(_date_to_jd(mid), planet) / 30) % 12
+                    except Exception:
+                        break
+                    if mid_sign == cur_sign:
+                        lo = mid
+                    else:
+                        hi = mid
+                segments.append({"sign_index": cur_sign,
+                                 "start": _iso(seg_start), "end": _iso(hi)})
+                seg_start = hi
+                cur_sign = nxt_sign
+            cur = nxt
+        segments.append({"sign_index": cur_sign,
+                         "start": _iso(seg_start), "end": _iso(e)})
+        out[planet] = segments
+
+    if len(_CHRONO_CACHE) >= _CHRONO_CACHE_MAX:
+        _CHRONO_CACHE.pop(next(iter(_CHRONO_CACHE)))
+    _CHRONO_CACHE[key] = out
+    return out
+
+
+def sign_on_date(chronology: Dict, planet: str, date_iso: str) -> Optional[int]:
+    """Sign index of `planet` on `date_iso` from a prebuilt chronology.
+    None when the date falls outside the chronology span."""
+    d = str(date_iso)[:10]
+    for seg in chronology.get(planet, []):
+        if seg["start"] <= d < seg["end"] or (seg["end"] == d == seg["start"]):
+            return seg["sign_index"]
+    # inclusive right edge of the final segment
+    segs = chronology.get(planet, [])
+    if segs and segs[-1]["start"] <= d <= segs[-1]["end"]:
+        return segs[-1]["sign_index"]
+    return None
+
+
+def event_transit_targets(
+    event_houses: List[int],
+    lagna_sign_index: Optional[int],
+    moon_sign_index: Optional[int],
+    lord_sign_index: Optional[int] = None,
+    d9_lord_sign_index: Optional[int] = None,
+) -> Dict:
+    """
+    Build the Stage-3 target-sign set for an event:
+      - event house sign judged from Lagna AND from Moon (Rao: never Moon-only,
+        never Lagna-only — both reference points),
+      - the event-house lord's natal sign,
+      - the lord's D9 sign (marriage/children — Rao's navamsha research).
+    Returns {"targets": set[int], "labels": {sign_index: [reason, ...]}}.
+    """
+    targets: set = set()
+    labels: Dict[int, List[str]] = {}
+
+    def _add(si, label):
+        if si is None:
+            return
+        si = int(si) % 12
+        targets.add(si)
+        labels.setdefault(si, []).append(label)
+
+    for h in event_houses or []:
+        try:
+            h = int(h)
+        except (TypeError, ValueError):
+            continue
+        if lagna_sign_index is not None:
+            _add((int(lagna_sign_index) + h - 1) % 12, f"house_{h}_from_lagna")
+        if moon_sign_index is not None:
+            _add((int(moon_sign_index) + h - 1) % 12, f"house_{h}_from_moon")
+    _add(lord_sign_index, "event_lord_sign")
+    _add(d9_lord_sign_index, "event_lord_d9_sign")
+    return {"targets": targets, "labels": labels}
+
+
+def double_transit_on_date(
+    target_signs,
+    date_iso: str,
+    chronology: Dict,
+    jupiter_solo: bool = False,
+    saturn_solo: bool = False,
+    require_jupiter_on: Optional[int] = None,
+) -> Dict:
+    """
+    K.N. Rao double-transit check for one date.
+      active = Jupiter influences a target AND Saturn influences a target.
+    Functional-significator rule: when Jupiter (or Saturn) IS the chart's
+    9th/10th lord, pass jupiter_solo / saturn_solo — that planet's influence
+    alone qualifies. Auspicious refinement: require_jupiter_on = the event-
+    house lord's sign; Jupiter must influence it (marriage/childbirth).
+    Returns a trace dict (admin lock-trace shape — full jargon, never stripped).
+    """
+    tset = set(int(t) % 12 for t in (target_signs or []))
+    j_sign = sign_on_date(chronology, "Jupiter", date_iso)
+    s_sign = sign_on_date(chronology, "Saturn", date_iso)
+    j_set = graha_drishti_signs("Jupiter", j_sign) if j_sign is not None else frozenset()
+    s_set = graha_drishti_signs("Saturn", s_sign) if s_sign is not None else frozenset()
+    j_hits = sorted(tset & j_set)
+    s_hits = sorted(tset & s_set)
+    active = bool(j_hits) and bool(s_hits)
+    if not active:
+        if jupiter_solo and j_hits:
+            active = True
+        if saturn_solo and s_hits:
+            active = True
+    if active and require_jupiter_on is not None:
+        if int(require_jupiter_on) % 12 not in j_set:
+            active = False
+    return {
+        "active": active,
+        "jupiter_sign": j_sign,
+        "saturn_sign": s_sign,
+        "jupiter_targets_hit": j_hits,
+        "saturn_targets_hit": s_hits,
+        "jupiter_solo": jupiter_solo,
+        "saturn_solo": saturn_solo,
+        "jupiter_on_lord_required": require_jupiter_on is not None,
+    }
+
+
+def double_transit_windows(
+    target_signs,
+    chronology: Dict,
+    from_date: str,
+    to_date: str,
+    jupiter_solo: bool = False,
+    saturn_solo: bool = False,
+    require_jupiter_on: Optional[int] = None,
+    merge_gap_days: int = 0,
+) -> List[Dict]:
+    """
+    All sub-intervals of [from_date, to_date] where the double transit is
+    active on `target_signs`. Interval-intersection over the prebuilt
+    chronology — NO per-day ephemeris calls. Adjacent qualifying intervals
+    separated by <= merge_gap_days are merged.
+    Returns [{"start", "end", "trace": <double_transit_on_date dict>}].
+    """
+    f = str(from_date)[:10]
+    t = str(to_date)[:10]
+    if not f or not t or t < f:
+        return []
+    # candidate boundary dates: union of segment edges within span
+    edges = {f, t}
+    for planet in ("Jupiter", "Saturn"):
+        for seg in chronology.get(planet, []):
+            for d in (seg["start"], seg["end"]):
+                if f <= d <= t:
+                    edges.add(d)
+    cut = sorted(edges)
+    windows: List[Dict] = []
+    for i in range(len(cut) - 1):
+        a, b = cut[i], cut[i + 1]
+        if a == b:
+            continue
+        trace = double_transit_on_date(
+            target_signs, a, chronology,
+            jupiter_solo=jupiter_solo, saturn_solo=saturn_solo,
+            require_jupiter_on=require_jupiter_on,
+        )
+        if not trace["active"]:
+            continue
+        if windows and _days_between(windows[-1]["end"], a) <= max(merge_gap_days, 0):
+            windows[-1]["end"] = b
+        else:
+            windows.append({"start": a, "end": b, "trace": trace})
+    return windows
+
+
+def _days_between(a_iso: str, b_iso: str) -> int:
+    try:
+        a = datetime.strptime(a_iso[:10], "%Y-%m-%d")
+        b = datetime.strptime(b_iso[:10], "%Y-%m-%d")
+        return abs((b - a).days)
+    except (ValueError, TypeError):
+        return 10 ** 6
+
+
+def mars_fine_windows(
+    target_signs,
+    from_date: str,
+    to_date: str,
+    position_fn=None,
+    step_days: int = 3,
+) -> List[Dict]:
+    """
+    Optional month-level fine trigger: sub-intervals inside a qualifying
+    double-transit window where transiting MARS also influences a target.
+    Build a Mars chronology only for the (short) window — cheap.
+    """
+    chrono = build_transit_chronology(
+        from_date, to_date, planets=("Mars",), step_days=step_days,
+        position_fn=position_fn,
+    )
+    tset = set(int(t) % 12 for t in (target_signs or []))
+    out = []
+    for seg in chrono.get("Mars", []):
+        if graha_drishti_signs("Mars", seg["sign_index"]) & tset:
+            out.append({"start": seg["start"], "end": seg["end"],
+                        "mars_sign": seg["sign_index"]})
+    return out
+
+
+def _double_transit_smoke():
+    """Synthetic-ephemeris test (runs without swisseph data): a fake provider
+    moves Jupiter 1 sign/360d and Saturn 1 sign/900d; verifies segmentation,
+    aspect math, and window intersection. Then, if real ephemeris available,
+    spot-checks two known sidereal sign placements."""
+    base = datetime(2000, 1, 1)
+
+    def fake_pf(jd, planet):
+        days = jd - swe.julday(2000, 1, 1, 12.0)
+        rate = {"Jupiter": 30.0 / 360.0, "Saturn": 30.0 / 900.0,
+                "Mars": 30.0 / 45.0}[planet]
+        return (days * rate) % 360.0
+
+    chrono = build_transit_chronology("2000-01-01", "2010-01-01",
+                                      position_fn=fake_pf, step_days=5)
+    js, ss = chrono["Jupiter"], chrono["Saturn"]
+    assert len(js) >= 10, f"Jupiter segments {len(js)}"
+    assert len(ss) >= 4, f"Saturn segments {len(ss)}"
+    for segs in (js, ss):
+        for i in range(len(segs) - 1):
+            assert segs[i]["end"] == segs[i + 1]["start"], "non-contiguous"
+            assert 0 <= segs[i]["sign_index"] <= 11
+    # Jupiter sign changes ≈ every 360d
+    d0 = datetime.strptime(js[0]["end"], "%Y-%m-%d")
+    assert abs((d0 - base).days - 360) <= 6, f"Jup boundary {js[0]['end']}"
+    # aspect sets
+    assert graha_drishti_signs("Jupiter", 0) == frozenset({0, 4, 6, 8})
+    assert graha_drishti_signs("Saturn", 0) == frozenset({0, 2, 6, 9})
+    assert graha_drishti_signs("Mars", 0) == frozenset({0, 3, 6, 7})
+    # on 2000-01-02 both at sign 0: targets {6} (7th from both) must be active
+    tr = double_transit_on_date({6}, "2000-01-02", chrono)
+    assert tr["active"], tr
+    # target {1} — Jupiter at 0 doesn't aspect 1, Saturn doesn't either
+    tr2 = double_transit_on_date({1}, "2000-01-02", chrono)
+    assert not tr2["active"], tr2
+    # solo rule: jupiter_solo qualifies on a Jupiter-only hit
+    tr3 = double_transit_on_date({4}, "2000-01-02", chrono)          # Jup 5th
+    assert not tr3["active"]
+    tr4 = double_transit_on_date({4}, "2000-01-02", chrono, jupiter_solo=True)
+    assert tr4["active"]
+    # auspicious refinement: require Jupiter on sign 1 (not aspected) kills it
+    tr5 = double_transit_on_date({6}, "2000-01-02", chrono,
+                                 require_jupiter_on=1)
+    assert not tr5["active"]
+    # window intersection returns bounded, ordered windows
+    wins = double_transit_windows({6}, chrono, "2000-01-01", "2005-01-01")
+    assert wins and all(w["start"] < w["end"] for w in wins)
+    for i in range(len(wins) - 1):
+        assert wins[i]["end"] <= wins[i + 1]["start"]
+    # event_transit_targets: both frames + lord + D9
+    et = event_transit_targets([7], 0, 3, lord_sign_index=5,
+                               d9_lord_sign_index=9)
+    assert et["targets"] == {6, 9, 5}, et
+    assert "house_7_from_lagna" in et["labels"][6]
+    assert "house_7_from_moon" in et["labels"][9]
+    print("[double-transit smoke] synthetic ephemeris: ALL PASS")
+
+    # real-ephemeris spot checks (skipped cleanly if ephemeris unavailable)
+    try:
+        real = build_transit_chronology("2019-01-01", "2021-06-01")
+        if not real.get("Saturn") or not real.get("Jupiter"):
+            raise RuntimeError("empty chronology — ephemeris unavailable")
+        sat_2020_03 = sign_on_date(real, "Saturn", "2020-03-15")
+        jup_2020_01 = sign_on_date(real, "Jupiter", "2020-01-15")
+        # Sidereal (Lahiri): Saturn entered Capricorn (9) late Jan 2020;
+        # Jupiter in Sagittarius (8) in Jan 2020.
+        assert sat_2020_03 == 9, f"Saturn 2020-03 sign {sat_2020_03} != 9"
+        assert jup_2020_01 == 8, f"Jupiter 2020-01 sign {jup_2020_01} != 8"
+        print("[double-transit smoke] real ephemeris spot-checks: PASS")
+    except AssertionError:
+        raise
+    except Exception as e:
+        print(f"[double-transit smoke] real ephemeris unavailable here ({e}) "
+              "— synthetic suite passed; run on a machine with swisseph.")
+
+
+if __name__ == "__main__" and "--double-transit-smoke" in __import__("sys").argv:
+    _double_transit_smoke()
