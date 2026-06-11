@@ -90,6 +90,14 @@ def _chip_direction(chip: dict) -> str:
 # verifies a chart in person. Deterministic templates, no LLM, no jargon.
 # {w} = human window label.
 _QUESTION_TEMPLATES = {
+    # [event-engine-v1 2026-06-11] admin validation panel only — these event
+    # types never appear on user-facing forward surfaces (_SENSITIVE_EVENTS).
+    "loss_of_father":
+        "Did you lose your father, or face a serious crisis around him, "
+        "between {w}?",
+    "loss_of_mother":
+        "Did you lose your mother, or face a serious crisis around her, "
+        "between {w}?",
     "serious_partnership_began":
         "Did a serious relationship or partnership begin between {w}?",
     "serious_partnership_ended":
@@ -208,7 +216,8 @@ def _chip_question(chip: dict, ws: str, we: str, domain: str) -> str:
 
 def compute_past_predictions(chart_id: str, supabase, n: int = 3,
                              today: Optional[datetime] = None,
-                             min_layers: int = 2,
+                             min_layers: int = 2,   # legacy, ignored (chips-era)
+                             min_score: float = 6.0,
                              domains: tuple = ("Love", "Business", "Family")) -> dict:
     """
     Returns {"chart_id", "predictions": [...], "note": optional str}.
@@ -216,7 +225,10 @@ def compute_past_predictions(chart_id: str, supabase, n: int = 3,
     direction, event, mark=None (caller joins persisted marks).
     Raises ValueError("chart_not_found") / ValueError("no_chart_data").
     """
-    from antar_engine.life_arc.forward_events import build_forward_event_chips
+    # [event-engine-v1 2026-06-11] direct mapper + config-table gating.
+    from antar_engine.dasha_event_mapper import find_future_windows
+    from antar_engine.event_gating import gate_windows
+    from antar_engine.life_arc.event_taxonomy import event_title
 
     now = today or datetime.now(timezone.utc)
     if now.tzinfo is None:
@@ -265,77 +277,94 @@ def compute_past_predictions(chart_id: str, supabase, n: int = 3,
                          f"(ads={len(ads)}, lagna={'set' if lagna else 'missing'}) "
                          "— cannot compute closed windows; not fabricating.")}
 
-    # ── Reuse the forward-event engine over PAST date ranges ─────────────
-    # Same engine, same scoring — only the scan range differs. Widen the
-    # lookback until >= n closed windows or the ladder is exhausted.
-    seen: dict = {}        # prediction_id -> prediction (dedupe across ladder)
+    # ── [event-engine-v1 2026-06-11] direct mapper + age/stage gates ──────
+    # find_future_windows IS the same validated engine; the chips layer is
+    # forward-UI packaging (excludes loss_of_*, caps 8). Past validation is
+    # admin-only, so sensitive events ARE probed — that is how an astrologer
+    # builds trust ("did you lose your father between X and Y?").
+    seen: dict = {}
     lookback_used = _LOOKBACK_LADDER[0]
     for lookback_days in _LOOKBACK_LADDER:
         lookback_used = lookback_days
         from_date = (now - timedelta(days=lookback_days)).strftime("%Y-%m-%d")
         try:
-            chips = build_forward_event_chips(
-                chart_data=chart_data,
-                birth_jd=birth_jd or 0.0,
-                lagna=lagna,
-                birth_year=birth_year,
-                ads=ads,
-                from_date=from_date,
-                to_date=today_str,
-                birth_date_str=birth_date_str,
-                marital_status=str(chart_record.get("marital_status") or ""),
-                children_status=str(chart_record.get("children_status") or ""),
-                now=now,
+            wins = find_future_windows(
+                lagna, birth_year, ads,
+                from_date=from_date, to_date=today_str,
+                min_score=3,  # raw floor; the real gate is gated_score below
+                natal_planets=(chart_data.get("planets") or {}),
             )
         except Exception as e:
-            print(f"[past_predictions] engine failed ({lookback_days}d): {e}")
-            chips = []
+            print(f"[past_predictions] mapper failed ({lookback_days}d): {e}")
+            wins = []
 
-        for c in chips:
-            we = str(c.get("window_end") or "")[:10]
-            ws = str(c.get("window_start") or "")[:10]
-            if not we or not ws or we >= today_str:
-                continue  # closed windows only — window_end strictly in the past
-            domain = _chip_domain(c)
-            # High-probability gate (founder ruling 2026-06-11): only windows
-            # where >=min_layers timing layers agree (dasha / significator /
-            # double transit). 2+ layers == the engine's "medium" — its max
-            # pre-D9/D10. Domain gate: only what onboarding can verify.
-            if domains and domain not in domains:
+        gated = gate_windows(wins, birth_date_str, chart_record, supabase)
+
+        for g in gated:
+            ws = str(g.get("window_start"))[:10]
+            we_raw = str(g.get("window_end"))[:10]
+            # Early-bias fix: probe window = dasha window + forward tolerance
+            # (events land up to one sub-period late — measured on 3 charts).
+            try:
+                tol = int(g.get("window_tolerance_days") or 60)
+                we = (datetime.strptime(we_raw, "%Y-%m-%d")
+                      + timedelta(days=tol)).strftime("%Y-%m-%d")
+            except Exception:
+                we = we_raw
+            if not ws or not we or we >= today_str:
+                continue  # closed windows only (tolerance-extended end in past)
+            if float(g.get("gated_score") or 0) < float(min_score):
                 continue
-            if int(c.get("layers_agreeing") or 0) < int(min_layers or 0):
+            domain = g.get("domain") or _DOMAIN_BY_EVENT.get(
+                g.get("event_type") or "", "Career")
+            if domains and domain not in domains:
                 continue
             pid = make_prediction_id(chart_id, domain, ws, we)
             if pid in seen:
                 continue
+            et = g.get("event_type") or ""
+            direction = g.get("direction") or (
+                "watch" if et in _WATCH_EVENTS else "opening")
+            title = ""
+            try:
+                title = event_title(et) or ""
+            except Exception:
+                pass
+            chip_like = {"_event_type": et}
             seen[pid] = {
                 "prediction_id": pid,
+                "event_type": et,
                 "domain": domain,
                 "window_start": ws,
                 "window_end": we,
-                "direction": _chip_direction(c),
-                # Same user-facing sentence the Cycle surface shows (planet-free,
-                # jargon-free title from event_taxonomy via the engine's scrub).
-                "event": _strip_gate(c.get("event_label") or c.get("title") or ""),
-                # brief payload shape: short header + falsifiable probe
-                "verdict": _strip_gate(c.get("event_label") or c.get("title") or ""),
-                "probe": _strip_gate(_chip_probe(domain, _chip_direction(c), ws, we)),
+                "direction": direction,
+                "event": _strip_gate(title),
+                "verdict": _strip_gate(title),
+                "probe": _strip_gate(_chip_probe(domain, direction, ws, we)),
                 "window_label": _fmt_window(ws, we),
-                "question": _strip_gate(_chip_question(c, ws, we, domain)),
-                "conviction": c.get("conviction"),
-                "layers_agreeing": int(c.get("layers_agreeing") or 0),
+                "question": _strip_gate(_chip_question(chip_like, ws, we, domain)),
+                "score": int(g.get("score") or 0),
+                "gated_score": float(g.get("gated_score") or 0),
+                "age_at_window": g.get("age_at_window"),
+                # conviction tiering from gated score (stored with marks for
+                # later calibration — no curves yet, per brief)
+                "conviction": ("medium" if float(g.get("gated_score") or 0) >= 10
+                               else "low"),
                 "mark": None,
             }
         if len(seen) >= n:
             break
 
-    preds = sorted(seen.values(), key=lambda p: p["window_end"], reverse=True)[:n]
+    preds = sorted(seen.values(),
+                   key=lambda p: (p["window_end"], p["gated_score"]),
+                   reverse=True)[:n]
     out = {"chart_id": chart_id, "predictions": preds,
-           "filters": {"min_layers": int(min_layers or 0),
-                       "domains": list(domains or [])}}
+           "filters": {"min_score": float(min_score),
+                       "domains": list(domains or []),
+                       "gating": "age+stage (event_engine_config)"}}
     if not preds:
-        out["note"] = (f"no closed windows passed the high-probability gate "
-                       f"(>= {min_layers} layers, domains {list(domains or [])}) "
-                       f"in the last {lookback_used} days — "
-                       "not fabricating or relaxing the gate silently.")
+        out["note"] = (f"no closed windows passed the gates (gated_score >= "
+                       f"{min_score}, domains {list(domains or [])}) in the "
+                       f"last {lookback_used} days — not fabricating or "
+                       "relaxing the gate silently.")
     return out

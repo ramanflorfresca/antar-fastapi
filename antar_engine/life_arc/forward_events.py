@@ -135,6 +135,24 @@ def build_forward_event_chips(chart_data: dict, birth_jd: float,
         print(f"[forward_events] mapper failed (non-blocking): {e}")
         windows = []
 
+    # [event-engine-v1 2026-06-11] age/stage gate on mapper windows before
+    # chip packaging — same config table as the admin harness. Kill switch:
+    # EVENT_GATING=off. Suppresses age-implausible chips on the live Cycle
+    # surface (e.g. partnership chips computed off junk early-life scores).
+    try:
+        from antar_engine.event_gating import gate_windows as _eg_gate
+        _eg_supabase = None
+        try:
+            from main import supabase as _eg_supabase  # late import, optional
+        except Exception:
+            _eg_supabase = None
+        windows = _eg_gate(windows, birth_date_str or "1970-01-01",
+                           {"marital_status": marital_status,
+                            "children_status": children_status},
+                           _eg_supabase)
+    except Exception as _eg_e:
+        print(f"[forward_events] gating skipped (non-blocking): {_eg_e}")
+
     by_event: Dict[str, list] = {}
     for w in windows:
         et = w.get("event_type") or ""

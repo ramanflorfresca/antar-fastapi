@@ -11786,6 +11786,11 @@ class _PastPredMarkReq(_PPBaseModel):
     chart_id: str
     prediction_id: str
     mark: str
+    # [event-engine-v1] optional calibration snapshot
+    conviction: str = None
+    event_type: str = None
+    window_start: str = None
+    window_end: str = None
 
 
 @app.get("/api/v1/admin/past-predictions/accuracy")
@@ -11807,6 +11812,16 @@ async def admin_past_predictions_accuracy(
         pct = round(acc * 100.0 / marked, 1) if marked else 0.0
         return marked, acc, pct
 
+    # [event-engine-v1 2026-06-11] event-detection tally. Legacy folding:
+    # accurate->hit, inaccurate->phantom. miss = real event engine never
+    # surfaced (logged by admin against no prediction_id match).
+    _ed_all = [r.get("mark") for r in rows]
+    _ed_hits = sum(1 for m in _ed_all if m in ("hit", "accurate"))
+    _ed_phantoms = sum(1 for m in _ed_all if m in ("phantom", "inaccurate"))
+    _ed_misses = sum(1 for m in _ed_all if m == "miss")
+    _ed_scored = _ed_hits + _ed_phantoms
+    _ed_rate = round(_ed_hits * 100.0 / _ed_scored, 1) if _ed_scored else 0.0
+
     marked, acc, pct = _pp_tally([r.get("mark") for r in rows])
     by_chart = {}
     for r in rows:
@@ -11820,8 +11835,14 @@ async def admin_past_predictions_accuracy(
         "overall": {
             "marked": marked, "accurate": acc, "inaccurate": marked - acc,
             "accuracy_pct": pct,
-            "passes_gate": bool(marked) and pct >= ACCURACY_GATE_PCT,
+            "passes_gate": (bool(_ed_scored) and _ed_rate >= ACCURACY_GATE_PCT)
+                           if _ed_scored else (bool(marked) and pct >= ACCURACY_GATE_PCT),
             "gate_pct": ACCURACY_GATE_PCT,
+        },
+        "event_detection": {
+            "hits": _ed_hits, "phantoms": _ed_phantoms, "misses": _ed_misses,
+            "hit_rate_pct": _ed_rate,
+            "note": "hit_rate = hits/(hits+phantoms); misses tracked separately",
         },
         "per_chart": per_chart,
     }
@@ -11833,21 +11854,31 @@ async def admin_past_predictions_mark(
         admin_email: str = Depends(require_admin)):
     """Upsert on (chart_id, prediction_id) — re-marking overwrites."""
     mark = (req.mark or "").strip().lower()
-    if mark not in ("accurate", "inaccurate"):
-        raise HTTPException(status_code=400,
-                            detail="mark must be 'accurate' or 'inaccurate'")
+    # [event-engine-v1 2026-06-11] event-detection framing: hit / miss /
+    # phantom (legacy accurate/inaccurate still accepted; folded in tally).
+    if mark not in ("accurate", "inaccurate", "hit", "miss", "phantom"):
+        raise HTTPException(
+            status_code=400,
+            detail="mark must be one of: hit, miss, phantom, accurate, inaccurate")
     if not req.chart_id or not req.prediction_id:
         raise HTTPException(status_code=400,
                             detail="chart_id and prediction_id required")
     from datetime import datetime as _ppm_dt, timezone as _ppm_tz
     try:
-        r = supabase.table("prediction_accuracy_marks").upsert({
+        _ppm_row = {
             "chart_id": req.chart_id,
             "prediction_id": req.prediction_id,
             "mark": mark,
             "marked_at": _ppm_dt.now(_ppm_tz.utc).isoformat(),
             "marked_by": admin_email,
-        }, on_conflict="chart_id,prediction_id").execute()
+        }
+        # conviction snapshot for later calibration (store only — no curves)
+        for _ppm_k in ("conviction", "event_type", "window_start", "window_end"):
+            _ppm_v = getattr(req, _ppm_k, None)
+            if _ppm_v:
+                _ppm_row[_ppm_k] = _ppm_v
+        r = supabase.table("prediction_accuracy_marks").upsert(
+            _ppm_row, on_conflict="chart_id,prediction_id").execute()
     except Exception as _ppm_e:
         _msg = str(_ppm_e)
         if "prediction_accuracy_marks" in _msg or "relation" in _msg.lower():
@@ -11862,6 +11893,7 @@ async def admin_past_predictions_mark(
 @app.get("/api/v1/admin/past-predictions/{chart_id}")
 async def admin_past_predictions(chart_id: str, n: int = 3,
                                  min_layers: int = 2,
+                                 min_score: float = 6.0,
                                  domains: str = "Love,Business,Family",
                                  admin_email: str = Depends(require_admin)):
     """N most-recent closed-window predictions, marks joined by stable id.
@@ -11880,6 +11912,7 @@ async def admin_past_predictions(chart_id: str, n: int = 3,
     try:
         result = compute_past_predictions(chart_id, supabase, n=n,
                                           min_layers=_pp_ml,
+                                          min_score=float(min_score or 6.0),
                                           domains=_pp_doms)
     except ValueError as _pp_ve:
         raise HTTPException(
