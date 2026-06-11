@@ -25573,9 +25573,14 @@ async def _life_arc_compute(chart_id, horizon_months, language,
     # residual leaks regardless.
     try:
         import re as _gist_re
+        # [voicefix 2026-06-10] headline is its own generated field now —
+        # gist stops being a verbatim slice of the body (headline==body bug).
+        _hl = (current_phase or {}).get("headline") or ""
         _lps = (current_phase or {}).get("life_phase_summary") or ""
         _gist = ""
-        if isinstance(_lps, str) and _lps.strip() and len(_lps.strip()) >= 80:
+        if isinstance(_hl, str) and _hl.strip():
+            _gist = _hl.strip()
+        elif isinstance(_lps, str) and _lps.strip() and len(_lps.strip()) >= 80:
             _sentences = _gist_re.split(r"(?<=[.!?])\s+", _lps.strip())
             _gist = " ".join(_sentences[:2]).strip()
         # Python fallback when LLM gist is empty / short / generic (mockup-quality).
@@ -25796,10 +25801,17 @@ async def _life_arc_compute(chart_id, horizon_months, language,
         try:
             _cp3 = response.get("current_phase") or {}
             _vim3 = _cp3.get("vimsottari") or {}
+            # [voicefix 2026-06-10] energy-voice retired from prediction
+            # surfaces: display scalars become life-noun labels ("discipline
+            # and long-term building"), never "your X energy". Unknown values
+            # (already-translated cache rows) fall through to the old strip,
+            # which is idempotent on clean strings.
+            from antar_engine.life_arc.voice.energy_vocabulary import get_life_phrase as _v3_lp
             for _vk in ("md", "ad", "pd", "sd"):
                 _vv = _vim3.get(_vk)
                 if isinstance(_vv, str) and _vv:
-                    _vim3[_vk] = _cy_strip(_vv, language=language, field_type="plain")
+                    _lbl = _v3_lp(_vv, default="")
+                    _vim3[_vk] = _lbl if _lbl else _cy_strip(_vv, language=language, field_type="plain")
             if _vim3:
                 _cp3["vimsottari"] = _vim3
                 response["current_phase"] = _cp3
@@ -25880,12 +25892,12 @@ async def _life_arc_compute(chart_id, horizon_months, language,
             _vim = (_cp2.get("vimsottari") or {})
             _ade = _vim.get("ad_end_date") or ""
             _mde = _vim.get("md_end_date") or ""
-            _bits = ["You are in a major life phase"]
+            _bits = ["You are in a long building stretch"]
             if _mde:
-                _bits.append(f"that runs through {_mde}")
+                _bits.append(f"that runs until {_mde}")
             if _ade and _ade != _mde:
-                _bits.append(f", with an inner window shifting around {_ade}")
-            _bits.append(". The energy of this stretch is shaped by what the period asks of you, not by the calendar alone.")
+                _bits.append(f", with the current stretch shifting around {_ade}")
+            _bits.append(". Focus on the work in front of you; the tone changes at the next shift.")
             _cp2["life_phase_summary"] = "".join(
                 [_bits[0]] + [" " + b if not b.startswith(",") and not b.startswith(".") else b for b in _bits[1:]]
             ).replace(" ,", ",").replace(" .", ".")

@@ -330,11 +330,13 @@ async def generate_phase_summary(
     claude_caller=None,
 ) -> str:
     """
-    Generate a one-paragraph life phase summary using Claude.
+    Generate the Current Cycle narration: {"headline": str, "body": str}.
+    Inputs are translated to life-nouns BEFORE the prompt; output is gated
+    by narration_validator (violation -> dated life-noun fallback).
     claude_caller should be the call_llm_claude function from main.py.
     """
     if not claude_caller:
-        return _fallback_phase_summary(vimsottari_phase, sade_sati)
+        return _fallback_phase_pair(vimsottari_phase, sade_sati)
 
     # noun layer (2026-06-07): the chapter's slow transits point at literal
     # life-areas — Jupiter's house = where support/growth lands, Saturn's =
@@ -358,46 +360,45 @@ async def generate_phase_summary(
     except Exception:
         _noun_hint = ""
 
-    prompt = f"""You are generating a life phase summary for Antar (a life navigation AI).
+    # ── Translate BEFORE generation (energy-voice retirement 2026-06-10) ──
+    # The prompt receives ONLY life-language. No planet names, no house
+    # numbers, no sign names, no archetype label, no Sanskrit. Claude can't
+    # leak what it never sees; the validator below catches the rest.
+    from antar_engine.life_arc.voice.energy_vocabulary import (
+        get_life_phrase as _lp, get_life_nouns as _ln,
+    )
+    _dig_map = {"exalted": "strong", "own sign": "steady",
+                "debilitated": "strained"}
+    _md_cond = _dig_map.get(str(vimsottari_phase.get("md_lord_condition") or ""), "mixed")
+    _md_phrase = _lp(vimsottari_phase.get("md") or "")
+    _ad_phrase = _lp(vimsottari_phase.get("ad") or "")
+    _pd_phrase = _lp(vimsottari_phase.get("pd") or "")
+    _md_nouns = ", ".join(_ln(vimsottari_phase.get("md") or "", 3)) or _md_phrase
+    _ad_nouns = ", ".join(_ln(vimsottari_phase.get("ad") or "", 3)) or _ad_phrase
+    _md_end = vimsottari_phase.get("md_end_date") or ""
+    _ad_end = vimsottari_phase.get("ad_end_date") or ""
+    _pd_end = vimsottari_phase.get("pd_end_date") or ""
+    _sade_on = bool((sade_sati or {}).get("active"))
 
-Current astrological state:
-- Major life chapter lord: {vimsottari_phase.get('md')} (ends {vimsottari_phase.get('md_end_date')})
-- Sub-chapter lord: {vimsottari_phase.get('ad')} (ends {vimsottari_phase.get('ad_end_date')})
-- Micro-chapter lord: {vimsottari_phase.get('pd')} (ends {vimsottari_phase.get('pd_end_date')})
-- MD lord condition: {vimsottari_phase.get('md_lord_condition')}
-- Jaimini sign chapter: {jaimini_phase.get('md')} (ends {jaimini_phase.get('md_end_date')})
-- Sade Sati: {transit_overlay.get('sade_sati_status')}
-- Jupiter house from Moon: {transit_overlay.get('jupiter_house_from_moon')}
-- Saturn house from Moon: {transit_overlay.get('saturn_house_from_moon')}
-- Archetype: {archetype_name}{_noun_hint}
+    prompt = f"""You are writing the Current Cycle read for Antar (a life-navigation app).
 
-RULES:
-1. Write exactly ONE paragraph (3-5 short sentences, MAXIMUM 120 words)
-2. Reference the SPECIFIC chapter lords and their pairing psychology
-3. If Sade Sati is active, mention it and what it means practically
-4. Mention the most important transit (Jupiter or Saturn) and what it activates
-   BY NAMING THE CONCRETE LIFE-AREA it touches from the list above (your work,
-   home, partner, finances, your father, property) — not abstract "energy".
-   Name 2-3 specific life-things, selectively; never a long list.
-5. End with when the current energy shifts and what comes next
-6. NO Sanskrit terms, NO planet names. ALSO: do NOT use ANY of the following Antar-coined or technical phrases — "sub-chapter", "micro-chapter", "micro-phase", "major chapter", "chapter lord", "major rhythm", "minor rhythm", "micro rhythm", "layering", "MD", "AD", or "PD". Refer to time with dated language ("through April 2028", "until late 2030", "the next eighteen months", "the years ahead") and to the texture of the period with plain English ("this stretch", "this phase", "the period ahead", "this long phase"). If you must reference overlapping cycles, say "two overlapping cycles" — never "rhythms" or "layering".
-7. Language: {language}
-8. Be specific and insightful, not generic. Name real life-things, not categories.
+PERIOD FACTS — already translated into life-language. Use ONLY these nouns. Never mention astrology, planets, signs, houses, or any system name.
+- Long phase: centered on {_md_phrase} ({_md_cond} footing); life-areas: {_md_nouns}; runs until {_md_end}.
+- Current stretch inside it: centered on {_ad_phrase}; life-areas: {_ad_nouns}; runs until {_ad_end}.
+- The immediate weeks: colored by {_pd_phrase}; until {_pd_end}.
+- Consolidation pressure (slow, testing stretch): {"active — slower outside, deeper inside" if _sade_on else "not active"}.{_noun_hint}
 
+WRITE TWO FIELDS, exactly in this format:
+HEADLINE: one sentence, max 18 words, verdict-first — the dominant life-area, what to do about it, and the nearest date.
+BODY: 3-5 short sentences. Do NOT repeat or rephrase the headline as the first sentence — start somewhere new. Name 2-3 concrete life-areas from the lists above. Say what shifts around {_ad_end or "the next turn"} and what changes after. End with ONE specific action.
 
-READABILITY (NON-NEGOTIABLE):
-- Write for a smart, busy person who knows nothing about astrology. Sound like a sharp human
-  coach texting them — not a report, not a mystic.
-- First sentence = the answer, in plain words. No build-up, no setup.
-- One idea per sentence. Keep sentences under ~18 words. At most one "because/which/that"
-  clause per sentence. Never stack clauses.
-- Use everyday words. Ban abstract constructions: no "energy", "vibration", "alignment of",
-  "structure-and-persistence", or any noun-energy phrasing. Say the concrete thing instead.
-- If you explain why, ONE short why-sentence, concrete. No nested reasoning.
-- End with ONE specific action the person can take.
-- Active voice. Second person ("you"). No hedging stacks ("may possibly tend to").
-
-Write the summary now:"""
+RULES (NON-NEGOTIABLE):
+1. Plain English a smart, busy person gets instantly. Sound like a sharp human coach texting them.
+2. NEVER use: the word "energy", planet names, the word "house", Sanskrit, "sub-chapter", "micro-phase", "chapter lord", "rhythm", "layering", "MD", "AD", "PD", or any archetype label.
+3. Every sentence starts with a capital letter. One idea per sentence, under ~18 words.
+4. Refer to time with dates ("through April 2028", "until late 2030") — never coined period names.
+5. Concrete life-nouns over categories: "your savings", "the people who report to you" — not "material matters".
+6. Language: {language}"""
 
     # [prompt-registry 2026-06-10] admin-editable body + immutable header.
     from antar_engine.prompt_registry import get_system_prefix
@@ -405,36 +406,97 @@ Write the summary now:"""
 
     try:
         text, _ = await claude_caller(prompt, system_override=system)
-        # [readability 2026-06-10] simplify; downstream main.py 5b scrub
-        # re-strips jargon after this (narrate -> simplify -> strip).
+        # Parse the two fields.
+        import re as _pf_re
+        _m = _pf_re.search(r"HEADLINE:\s*(.+?)\s*BODY:\s*(.+)", text or "",
+                           _pf_re.DOTALL | _pf_re.IGNORECASE)
+        if _m:
+            headline = " ".join(_m.group(1).split())
+            body = _m.group(2).strip()
+        else:
+            headline, body = "", (text or "").strip()
+
+        # [readability 2026-06-10] simplify the body only (the headline is
+        # already a single short sentence).
         try:
             from antar_engine.readability import maybe_simplify as _rb_maybe
-            _rb = await _rb_maybe(text, language=language, surface="cycle.phase_summary")
-            text = _rb["text"]
+            _rb = await _rb_maybe(body, language=language, surface="cycle.phase_summary")
+            body = _rb["text"]
         except Exception as _rb_e:
             print(f"[life_arc.phase_analyzer] readability non-fatal: {_rb_e}")
-        return text
+
+        # Deterministic de-dupe: body must not open with the headline.
+        if headline and body.lower().startswith(headline.lower()[:40]):
+            _sents = _pf_re.split(r"(?<=[.!?])\s+", body, maxsplit=1)
+            body = _sents[1].strip() if len(_sents) > 1 else body
+
+        # ── VALIDATOR, not stripper (Class B) ─────────────────────────────
+        # Any banned token in either field -> deterministic dated fallback.
+        # Never silently rewrite generated prose.
+        from antar_engine.narration_validator import validate_narration as _vn
+        _extra = [archetype_name] if archetype_name else []
+        _viol = _vn(headline or body, extra_banned=_extra, language=language) \
+            + _vn(body, extra_banned=_extra, language=language)
+        if _viol:
+            print(f"[life_arc.phase_analyzer] narration REJECTED by validator: {_viol[:4]}")
+            return _fallback_phase_pair(vimsottari_phase, sade_sati)
+        # Format miss (Claude skipped the HEADLINE marker): keep the clean
+        # body, take the deterministic headline — never slice the body.
+        if not headline:
+            headline = _fallback_phase_pair(vimsottari_phase, sade_sati)["headline"]
+        return {"headline": headline, "body": body}
     except Exception as e:
         print(f"[life_arc.phase_analyzer] Summary LLM error: {e}")
-        return _fallback_phase_summary(vimsottari_phase, sade_sati)
+        return _fallback_phase_pair(vimsottari_phase, sade_sati)
+
+
+def _fallback_phase_pair(vimsottari_phase: dict, sade_sati: dict) -> dict:
+    """Deterministic dated life-noun fallback — used when Claude is
+    unavailable OR the validator rejects generated prose. Zero astrology
+    vocabulary, zero "energy" wording, always dated, always actionable."""
+    from antar_engine.life_arc.voice.energy_vocabulary import (
+        get_life_phrase as _fb_lp, get_life_nouns as _fb_ln,
+    )
+    md_phrase = _fb_lp(vimsottari_phase.get("md") or "")
+    ad_phrase = _fb_lp(vimsottari_phase.get("ad") or "")
+    ad_nouns = _fb_ln(vimsottari_phase.get("ad") or "", 2)
+    md_end = vimsottari_phase.get("md_end_date") or ""
+    ad_end = vimsottari_phase.get("ad_end_date") or ""
+    sade_on = bool((sade_sati or {}).get("active"))
+
+    headline = f"A long stretch built on {md_phrase}"
+    if md_end:
+        headline += f" runs until {md_end}"
+    headline += f" — focus on {ad_phrase} now."
+
+    body_bits = []
+    if ad_end:
+        body_bits.append(
+            f"The current stretch centers on {ad_phrase} and runs until {ad_end}."
+        )
+    else:
+        body_bits.append(f"The current stretch centers on {ad_phrase}.")
+    if sade_on:
+        body_bits.append(
+            "It is a consolidation period — slower on the outside, deeper on the inside."
+        )
+    if ad_nouns:
+        body_bits.append(
+            f"Expect the real movement around {ad_nouns[0]}"
+            + (f" and {ad_nouns[1]}" if len(ad_nouns) > 1 else "")
+            + "."
+        )
+    if ad_end:
+        body_bits.append(f"The tone changes after {ad_end}.")
+    body_bits.append(
+        f"Pick one concrete step on {ad_phrase} this week and finish it."
+    )
+    return {"headline": headline, "body": " ".join(body_bits)}
 
 
 def _fallback_phase_summary(vimsottari_phase: dict, sade_sati: dict) -> str:
-    """Fallback summary if Claude is unavailable."""
-    md = vimsottari_phase.get("md", "Unknown")
-    ad = vimsottari_phase.get("ad", "Unknown")
-    ad_end = vimsottari_phase.get("ad_end_date", "Unknown")
-    sade_status = sade_sati.get("status", "dormant") if sade_sati.get("active") else "dormant"
-
-    # cyclecontract_v2: avoid Antar-coined vocabulary entirely.
-    summary = "You are in a long phase that has a shorter dated stretch nested inside it. "
-    if sade_status != "dormant":
-        summary += "This is a period of consolidation and inner work — slower outside, deeper inside. "
-    if ad_end and ad_end != "Unknown":
-        summary += f"The texture of this phase shifts around {ad_end}, which is when the energy changes meaningfully."
-    else:
-        summary += "The texture of this phase will shift, and that shift will change the energy meaningfully."
-    return summary
+    """Back-compat wrapper — body text only."""
+    return _fallback_phase_pair(vimsottari_phase, sade_sati)["body"]
 
 
 # ─── Main Entry Point ───────────────────────────────────────────────────────
@@ -465,14 +527,20 @@ async def analyze_current_phase(
     sade_sati = detect_sade_sati(chart_data, now)
 
     # 4. Life phase summary
-    summary = await generate_phase_summary(
+    _pair = await generate_phase_summary(
         vim, jaim, overlay, sade_sati,
         archetype_name, language, claude_caller
     )
+    if isinstance(_pair, dict):
+        _headline = (_pair.get("headline") or "").strip()
+        _body = (_pair.get("body") or "").strip()
+    else:  # defensive — old str contract
+        _headline, _body = "", str(_pair or "").strip()
 
     return {
         "vimsottari": vim,
         "jaimini_chara": jaim,
         "transit_overlay": overlay,
-        "life_phase_summary": summary,
+        "life_phase_summary": _body,
+        "headline": _headline,
     }

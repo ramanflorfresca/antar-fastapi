@@ -176,7 +176,7 @@ async def _claude_diagnostic(
     codebase (30 leaks per audit) — both layers close it.
     """
     from antar_engine.life_arc.voice.energy_vocabulary import (
-        get_energy_name as _energy_name,
+        get_life_phrase as _energy_name,
     )
 
     md_raw = vim.get("md", "Unknown")
@@ -318,7 +318,7 @@ def _fallback_diagnostic(vim: dict, overlay: dict, psychology: dict, next_shift:
     [cycle-andres-fix 2026-06-09] All planet names translated via
     _energy_name before use."""
     from antar_engine.life_arc.voice.energy_vocabulary import (
-        get_energy_name as _energy_name,
+        get_life_phrase as _energy_name,
     )
     md = _energy_name(vim.get("md", "Unknown"))
     ad = _energy_name(vim.get("ad", "Unknown"))
