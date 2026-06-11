@@ -85,6 +85,67 @@ def _chip_direction(chip: dict) -> str:
     return "watch" if (chip.get("_event_type") or "") in _WATCH_EVENTS else "opening"
 
 
+# ── Astrologer-style verification questions (founder ask 2026-06-11) ─────────
+# "Did you move between X and Y?" — phrased exactly the way an astrologer
+# verifies a chart in person. Deterministic templates, no LLM, no jargon.
+# {w} = human window label.
+_QUESTION_TEMPLATES = {
+    "serious_partnership_began":
+        "Did a serious relationship or partnership begin between {w}?",
+    "serious_partnership_ended":
+        "Did a relationship or close partnership end, or go through a "
+        "serious rupture, between {w}?",
+    "family_expansion_first":
+        "Did your family grow — a child arriving, or someone new joining "
+        "the household — between {w}?",
+    "family_expansion_second":
+        "Did your family grow again between {w}?",
+    "major_relocation":
+        "Did you move homes or cities between {w}?",
+    "major_acquisition":
+        "Did you acquire something significant — property, a vehicle, a "
+        "major asset — between {w}?",
+    "career_pivot":
+        "Did you change jobs, or did your work direction shift, between {w}?",
+    "professional_setback":
+        "Did you face a serious setback or unusual pressure at work "
+        "between {w}?",
+    "financial_disruption":
+        "Did money get unusually tight, or did a financial strain hit, "
+        "between {w}?",
+    "legal_entanglement":
+        "Did a dispute, legal issue, or formal matter surface between {w}?",
+}
+
+
+def _fmt_window(ws: str, we: str) -> str:
+    """'2025-06-17','2025-11-20' -> 'Jun – Nov 2025' (human, jargon-free)."""
+    try:
+        a = datetime.strptime(ws, "%Y-%m-%d")
+        b = datetime.strptime(we, "%Y-%m-%d")
+    except Exception:
+        return f"{ws} and {we}"
+    if (a.year, a.month) == (b.year, b.month):
+        return a.strftime("%b %Y")
+    if a.year == b.year:
+        return f"{a.strftime('%b')} – {b.strftime('%b %Y')}"
+    return f"{a.strftime('%b %Y')} – {b.strftime('%b %Y')}"
+
+
+def _chip_question(chip: dict, ws: str, we: str, domain: str) -> str:
+    # "between Oct and Dec 2025" for ranges, "around Jun 2025" when the
+    # window sits inside a single month.
+    w = _fmt_window(ws, we).replace(" – ", " and ")
+    tpl = _QUESTION_TEMPLATES.get(chip.get("_event_type") or "")
+    if tpl:
+        q = tpl.format(w=w)
+        if " and " not in w:
+            q = q.replace(f"between {w}", f"around {w}")
+        return q
+    return (f"Around {w} — did anything significant shift in your "
+            f"{domain.lower()} life?")
+
+
 def compute_past_predictions(chart_id: str, supabase, n: int = 3,
                              today: Optional[datetime] = None,
                              min_layers: int = 2,
@@ -196,6 +257,8 @@ def compute_past_predictions(chart_id: str, supabase, n: int = 3,
                 # Same user-facing sentence the Cycle surface shows (planet-free,
                 # jargon-free title from event_taxonomy via the engine's scrub).
                 "event": c.get("event_label") or c.get("title") or "",
+                "window_label": _fmt_window(ws, we),
+                "question": _chip_question(c, ws, we, domain),
                 "conviction": c.get("conviction"),
                 "layers_agreeing": int(c.get("layers_agreeing") or 0),
                 "mark": None,
