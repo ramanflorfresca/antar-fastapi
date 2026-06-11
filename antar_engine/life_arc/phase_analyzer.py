@@ -410,11 +410,17 @@ RULES (NON-NEGOTIABLE):
         import re as _pf_re
         _m = _pf_re.search(r"HEADLINE:\s*(.+?)\s*BODY:\s*(.+)", text or "",
                            _pf_re.DOTALL | _pf_re.IGNORECASE)
+        def _strip_md(_s):
+            # Markdown wrappers Claude sometimes adds around field values
+            # ("** Focus on ... **"). Format cleanup, not prose substitution.
+            _s = (_s or "").strip()
+            _s = _pf_re.sub(r"^[*#_\s]+|[*_\s]+$", "", _s)
+            return _s.strip()
         if _m:
-            headline = " ".join(_m.group(1).split())
-            body = _m.group(2).strip()
+            headline = _strip_md(" ".join(_m.group(1).split()))
+            body = _strip_md(_m.group(2))
         else:
-            headline, body = "", (text or "").strip()
+            headline, body = "", _strip_md(text)
 
         # [readability 2026-06-10] simplify the body only (the headline is
         # already a single short sentence).
