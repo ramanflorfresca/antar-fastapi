@@ -775,6 +775,18 @@ def compose_yearly_contract(chart_record: Dict[str, Any],
     _dbg_root = legacy_response.setdefault("_debug_reasoning", {})
     if isinstance(_dbg_root, dict):
         _dbg_root["year_event_stages"] = _stage_trace
+        # [phase2-rule1 commit1] behavior-neutral attach: compute the
+        # Varshphal chart + sleeping-planet rule and expose under
+        # _debug_reasoning. Does NOT alter the gate verdict (that is
+        # commit 2). Wrapped so a rule error can never break the year.
+        try:
+            from antar_engine.varshphal_chart import build_varshphal_chart as _bvc
+            from antar_engine.lk_rules.sleeping import evaluate_sleeping_planets as _esp
+            _lagna_verified = not bool(chart_record.get("needs_reconfirm"))
+            _vc = _bvc(_natal_for_gate, birth_date, lagna_verified=_lagna_verified)
+            _dbg_root["lk_sleep_engine"] = _esp(_vc, _natal_for_gate)
+        except Exception as _lk_sleep_err:
+            _dbg_root["lk_sleep_engine"] = {"error": str(_lk_sleep_err)}
     # Hard swallow detector: pre_gate had candidates but final was empty.
     # We DO NOT raise here (compose is a pure reshape); the alias wrapper
     # reads this flag and decides — keeps the composer side-effect-free.
