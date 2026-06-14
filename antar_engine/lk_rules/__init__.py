@@ -14,12 +14,16 @@ from antar_engine.lk_rules.maturity import (
 )
 from antar_engine.lk_rules.sleeping import (
     evaluate_sleeping_planets,
+    reweight_year_events,
     SLEEP_OUTCOME_RANK,
+    SLEEP_REWEIGHT_FACTOR,
 )
 
 __all__ = [
     "LK_MATURITY_AGE",
     "is_mature",
     "evaluate_sleeping_planets",
+    "reweight_year_events",
     "SLEEP_OUTCOME_RANK",
+    "SLEEP_REWEIGHT_FACTOR",
 ]

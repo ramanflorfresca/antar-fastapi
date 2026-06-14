@@ -165,3 +165,74 @@ def evaluate_sleeping_planets(
         "firing": firing,
         "source": _SOURCE,
     }
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# COMMIT 2 — gate consumption (augment + re-weight). Behind LK_SLEEP_GATE.
+# ────────────────────────────────────────────────────────────────────────────
+# PROVISIONAL ENGINEERING WEIGHTS — NOT Lal Kitab doctrine. These are tuning
+# knobs for how strongly a Varshphal sleeping/opening planet nudges a candidate
+# event's magnitude. They do NOT flip pass/reject and carry no source claim.
+# Tune freely; the kill switch reverts to pre-commit-2 behavior instantly.
+SLEEP_REWEIGHT_FACTOR = {
+    PRIORITY_AWAKEN:      0.5,   # chronic + this-year block in the domain's annual house
+    YEAR_CAUTION_AWAKEN:  0.7,   # normally-active planet dormant just this year
+    OPENING:              1.2,   # structural block gets a natural opening this year
+}
+
+
+def reweight_year_events(events, sleep_result, varshphal_chart, domain_houses_fn):
+    """Augment (NOT gate) a list of typed year-events using the Varshphal
+    sleeping-planet outcomes of the planets occupying each event's domain
+    houses IN THE ANNUAL CHART.
+
+    Pure. Returns a NEW list (re-sorted by month then magnitude). Each adjusted
+    event gains an `lk_sleep_adj` field recording planet/house/outcome/factor.
+    No pass/reject change; only `magnitude` moves. Softens the adjustment by
+    half when the contributing planet is provisional (annual H10-12) or the
+    chart's lagna is low-confidence.
+
+    domain_houses_fn(domain_label) -> list[int] annual houses for that domain.
+    """
+    by_planet = {p["planet"]: p for p in sleep_result.get("per_planet", [])}
+    annual_occ = (varshphal_chart or {}).get("annual_occupants", {}) or {}
+
+    out = []
+    for ev in events:
+        houses = domain_houses_fn(ev.get("domain")) or []
+        contributors = []
+        for h in houses:
+            for planet in annual_occ.get(h, []):
+                pj = by_planet.get(planet)
+                if pj and pj.get("outcome") in SLEEP_REWEIGHT_FACTOR:
+                    contributors.append((planet, h, pj))
+        if not contributors:
+            out.append(ev)
+            continue
+        # Caution dominates an opening. Among cautions pick the strongest
+        # damping; if none, take the opening.
+        cautions = [c for c in contributors
+                    if c[2]["outcome"] in (PRIORITY_AWAKEN, YEAR_CAUTION_AWAKEN)]
+        if cautions:
+            planet, h, pj = min(
+                cautions, key=lambda c: SLEEP_REWEIGHT_FACTOR[c[2]["outcome"]])
+        else:
+            planet, h, pj = max(
+                contributors, key=lambda c: SLEEP_REWEIGHT_FACTOR[c[2]["outcome"]])
+        factor = SLEEP_REWEIGHT_FACTOR[pj["outcome"]]
+        softened = bool(pj.get("provisional") or pj.get("low_confidence"))
+        if softened:
+            factor = 1.0 + (factor - 1.0) * 0.5     # halve the deviation from 1.0
+        base_mag = float(ev.get("magnitude", 0.0))
+        new_mag = round(max(0.0, min(1.0, base_mag * factor)), 2)
+        nev = dict(ev)
+        nev["magnitude"] = new_mag
+        nev["lk_sleep_adj"] = {
+            "planet": planet, "annual_house": h, "outcome": pj["outcome"],
+            "factor": round(factor, 3), "from": round(base_mag, 2),
+            "to": new_mag, "softened": softened,
+        }
+        out.append(nev)
+
+    out.sort(key=lambda e: (e.get("month_index", 0), -e.get("magnitude", 0.0)))
+    return out

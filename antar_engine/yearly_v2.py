@@ -775,18 +775,42 @@ def compose_yearly_contract(chart_record: Dict[str, Any],
     _dbg_root = legacy_response.setdefault("_debug_reasoning", {})
     if isinstance(_dbg_root, dict):
         _dbg_root["year_event_stages"] = _stage_trace
-        # [phase2-rule1 commit1] behavior-neutral attach: compute the
-        # Varshphal chart + sleeping-planet rule and expose under
-        # _debug_reasoning. Does NOT alter the gate verdict (that is
-        # commit 2). Wrapped so a rule error can never break the year.
+        # [phase2-rule1 commit2] gate consumes the rule: AUGMENT + re-weight.
+        # Compute vc + sleeping rule (attach as before), then nudge event
+        # magnitudes by the Varshphal annual occupants' sleep outcomes.
+        # No pass/reject change. Behind LK_SLEEP_GATE (default on; =off
+        # reverts to identical pre-commit-2 magnitudes). Wrapped so a rule
+        # error can never break the year.
         try:
+            import os as _os
             from antar_engine.varshphal_chart import build_varshphal_chart as _bvc
-            from antar_engine.lk_rules.sleeping import evaluate_sleeping_planets as _esp
+            from antar_engine.lk_rules.sleeping import (
+                evaluate_sleeping_planets as _esp,
+                reweight_year_events as _rwe,
+            )
             _lagna_verified = not bool(chart_record.get("needs_reconfirm"))
             _vc = _bvc(_natal_for_gate, birth_date, lagna_verified=_lagna_verified)
-            _dbg_root["lk_sleep_engine"] = _esp(_vc, _natal_for_gate)
+            _sleep = _esp(_vc, _natal_for_gate)
+            _dbg_root["lk_sleep_engine"] = _sleep
+            _gate_on = (_os.getenv("LK_SLEEP_GATE", "on").strip().lower()
+                        not in ("off", "0", "false", "no"))
+            if _gate_on:
+                _lbl2dom = {v: k for k, v in _YEAR_DOMAIN_LABEL.items()}
+                def _label2houses(lbl):
+                    return _DOMAIN_TO_NATAL_HOUSES.get(_lbl2dom.get(lbl, ""), [])
+                events = _rwe(events, _sleep, _vc, _label2houses)
+                _dbg_root["lk_sleep_gate"] = {
+                    "applied": True,
+                    "adjusted": [e["lk_sleep_adj"] for e in events
+                                 if e.get("lk_sleep_adj")],
+                }
+            else:
+                _dbg_root["lk_sleep_gate"] = {"applied": False,
+                                             "reason": "LK_SLEEP_GATE=off"}
         except Exception as _lk_sleep_err:
             _dbg_root["lk_sleep_engine"] = {"error": str(_lk_sleep_err)}
+            _dbg_root["lk_sleep_gate"] = {"applied": False,
+                                         "error": str(_lk_sleep_err)}
     # Hard swallow detector: pre_gate had candidates but final was empty.
     # We DO NOT raise here (compose is a pure reshape); the alias wrapper
     # reads this flag and decides — keeps the composer side-effect-free.
