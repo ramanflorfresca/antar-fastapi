@@ -1,0 +1,228 @@
+{
+  "tolerance_months": 6,
+  "_notes": "Birth data from Astro-Databank (Rodden rating per chart); event dates from public record (Wikipedia/news, cited per event). No birth times or event dates invented. Integrity gate (expected_lagna) is ENFORCED only on charts with a solid birth time AND an unambiguous published sidereal (Lahiri) ascendant; cusp/uncertain-time/noon charts carry expected_lagna=null (gate skipped, still scored) with the ambiguity recorded in _lagna_note. rodden_rating 'X' = noon-default => time-of-day-sensitive event types (major_relocation, career_pivot, professional_setback) are excluded from that chart's scoring.",
+  "_lagna_sources": {
+    "Musk": "Gemini — astro-seek/Antar agree, confirmed live",
+    "Obama": "Capricorn (Dhanishta) — lagna360/jyotish sources",
+    "Diana": "Scorpio (sidereal Lahiri preferred; Sagittarius appears only on tropical) — astro-seek/astrosaxena",
+    "Clinton": "Virgo (Uttara Phalguni) — astronidan/dkscore",
+    "Oprah": "Sagittarius — heavenschild/astrokundali",
+    "Jobs": "Leo at 29deg, on the Leo/Virgo cusp — gate OFF",
+    "Gates": "Gemini vs Cancer dispute among Vedic sources (10pm cusp) — gate OFF",
+    "Bachchan": "Aquarius published, but birth time is Rodden C (~3pm estimate) — gate OFF",
+    "Ambani": "no reliable birth time (noon default) — gate OFF",
+    "Bezos": "no reliable birth time (noon default) — gate OFF"
+  },
+  "charts": [
+    {
+      "name": "Elon Musk",
+      "birth_date": "1971-06-28",
+      "birth_time": "07:30",
+      "latitude": -25.7461,
+      "longitude": 28.1881,
+      "timezone_offset": 2.0,
+      "timezone_name": "Africa/Johannesburg",
+      "birth_place": "Pretoria, South Africa",
+      "expected_lagna": "Gemini",
+      "rodden_rating": "A",
+      "birth_source": "https://www.astro.com/astro-databank/Musk,_Elon",
+      "events": [
+        { "event_type": "serious_partnership_began", "actual_date": "2000-01", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Elon_Musk", "notes": "married Justine Wilson 2000" },
+        { "event_type": "serious_partnership_ended", "actual_date": "2008-09", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Elon_Musk", "notes": "divorce from Justine finalized 2008" },
+        { "event_type": "business_start", "actual_date": "2002-03", "kind": "positive", "source": "https://en.wikipedia.org/wiki/SpaceX", "notes": "SpaceX founded Mar 2002" },
+        { "event_type": "loss_of_father", "actual_date": null, "kind": "negative_alive", "source": "https://en.wikipedia.org/wiki/Errol_Musk", "notes": "father Errol Musk alive (b.1946) => loss_of_father prediction is a FALSE POSITIVE" },
+        { "event_type": "loss_of_mother", "actual_date": null, "kind": "negative_alive", "source": "https://en.wikipedia.org/wiki/Maye_Musk", "notes": "mother Maye Musk alive (b.1948) => loss_of_mother prediction is a FALSE POSITIVE" }
+      ]
+    },
+    {
+      "name": "Steve Jobs",
+      "birth_date": "1955-02-24",
+      "birth_time": "19:15",
+      "latitude": 37.7749,
+      "longitude": -122.4194,
+      "timezone_offset": -8.0,
+      "timezone_name": "America/Los_Angeles",
+      "birth_place": "San Francisco, California, USA",
+      "expected_lagna": null,
+      "_lagna_note": "Leo 29deg, Leo/Virgo cusp — gate OFF",
+      "rodden_rating": "AA",
+      "birth_source": "https://www.astro.com/astro-databank/Jobs,_Steve",
+      "events": [
+        { "event_type": "professional_setback", "actual_date": "1985-09", "kind": "positive", "source": "https://en.wikipedia.org/wiki/NeXT", "notes": "ousted from Apple, resigned Sep 1985" },
+        { "event_type": "business_start", "actual_date": "1985-09", "kind": "positive", "source": "https://en.wikipedia.org/wiki/NeXT", "notes": "founded NeXT Inc. 1985" },
+        { "event_type": "serious_partnership_began", "actual_date": "1991-03", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Laurene_Powell_Jobs", "notes": "married Laurene Powell Mar 18 1991" },
+        { "event_type": "career_pivot", "actual_date": "1997-02", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Steve_Jobs", "notes": "returned to Apple as interim CEO 1997" },
+        { "event_type": "loss_of_mother", "actual_date": "1986-11", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Steve_Jobs", "notes": "adoptive mother Clara Jobs died 1986" },
+        { "event_type": "loss_of_father", "actual_date": "1993-03", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Steve_Jobs", "notes": "adoptive father Paul Jobs died Mar 1993" }
+      ]
+    },
+    {
+      "name": "Barack Obama",
+      "birth_date": "1961-08-04",
+      "birth_time": "19:24",
+      "latitude": 21.3069,
+      "longitude": -157.8583,
+      "timezone_offset": -10.0,
+      "timezone_name": "Pacific/Honolulu",
+      "birth_place": "Honolulu, Hawaii, USA",
+      "expected_lagna": "Capricorn",
+      "rodden_rating": "AA",
+      "birth_source": "https://www.astro.com/astro-databank/Obama,_Barack",
+      "events": [
+        { "event_type": "serious_partnership_began", "actual_date": "1992-10", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Barack_Obama", "notes": "married Michelle Oct 3 1992" },
+        { "event_type": "family_expansion_first", "actual_date": "1998-07", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Family_of_Barack_Obama", "notes": "daughter Malia born Jul 1998" },
+        { "event_type": "family_expansion_second", "actual_date": "2001-06", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Family_of_Barack_Obama", "notes": "daughter Sasha born Jun 2001" },
+        { "event_type": "career_pivot", "actual_date": "2008-11", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Barack_Obama", "notes": "elected President Nov 2008" },
+        { "event_type": "loss_of_father", "actual_date": "1982-11", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Barack_Obama_Sr.", "notes": "father Barack Obama Sr. died Nov 1982" },
+        { "event_type": "loss_of_mother", "actual_date": "1995-11", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Ann_Dunham", "notes": "mother Ann Dunham died Nov 1995" }
+      ]
+    },
+    {
+      "name": "Princess Diana",
+      "birth_date": "1961-07-01",
+      "birth_time": "19:45",
+      "latitude": 52.8309,
+      "longitude": 0.5147,
+      "timezone_offset": 1.0,
+      "timezone_name": "Europe/London",
+      "birth_place": "Sandringham, England, UK",
+      "expected_lagna": "Scorpio",
+      "rodden_rating": "A",
+      "birth_source": "https://www.astro.com/astro-databank/Diana,_Princess_of_Wales",
+      "events": [
+        { "event_type": "serious_partnership_began", "actual_date": "1981-07", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Diana,_Princess_of_Wales", "notes": "married Prince Charles Jul 29 1981" },
+        { "event_type": "family_expansion_first", "actual_date": "1982-06", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Diana,_Princess_of_Wales", "notes": "Prince William born Jun 1982" },
+        { "event_type": "family_expansion_second", "actual_date": "1984-09", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Diana,_Princess_of_Wales", "notes": "Prince Harry born Sep 1984" },
+        { "event_type": "serious_partnership_ended", "actual_date": "1996-08", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Diana,_Princess_of_Wales", "notes": "divorce from Charles finalized Aug 1996" },
+        { "event_type": "loss_of_father", "actual_date": "1992-03", "kind": "positive", "source": "https://en.wikipedia.org/wiki/John_Spencer,_8th_Earl_Spencer", "notes": "father 8th Earl Spencer died Mar 1992" }
+      ]
+    },
+    {
+      "name": "Bill Clinton",
+      "birth_date": "1946-08-19",
+      "birth_time": "08:51",
+      "latitude": 33.6671,
+      "longitude": -93.5916,
+      "timezone_offset": -6.0,
+      "timezone_name": "America/Chicago",
+      "birth_place": "Hope, Arkansas, USA",
+      "expected_lagna": "Virgo",
+      "rodden_rating": "A",
+      "birth_source": "https://www.astro.com/astro-databank/Clinton,_Bill",
+      "events": [
+        { "event_type": "serious_partnership_began", "actual_date": "1975-10", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Bill_Clinton", "notes": "married Hillary Oct 1975" },
+        { "event_type": "career_pivot", "actual_date": "1979-01", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Bill_Clinton", "notes": "took office as Governor of Arkansas Jan 1979" },
+        { "event_type": "family_expansion_first", "actual_date": "1980-02", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Chelsea_Clinton", "notes": "Chelsea born Feb 1980" },
+        { "event_type": "legal_entanglement", "actual_date": "1998-12", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Impeachment_of_Bill_Clinton", "notes": "impeached by House Dec 1998" },
+        { "event_type": "loss_of_mother", "actual_date": "1994-01", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Virginia_Clinton_Kelley", "notes": "mother Virginia Kelley died Jan 1994" }
+      ]
+    },
+    {
+      "name": "Mukesh Ambani",
+      "birth_date": "1957-04-19",
+      "birth_time": "12:00",
+      "latitude": 12.7794,
+      "longitude": 45.0367,
+      "timezone_offset": 3.0,
+      "timezone_name": "Asia/Aden",
+      "birth_place": "Aden, Aden Colony (Yemen)",
+      "expected_lagna": null,
+      "_lagna_note": "no reliable birth time (noon default) — gate OFF; time-sensitive events excluded",
+      "rodden_rating": "X",
+      "birth_source": "https://www.astro.com/astro-databank/Ambani,_Mukesh",
+      "events": [
+        { "event_type": "serious_partnership_began", "actual_date": "1985-03", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Nita_Ambani", "notes": "married Nita Mar 1985" },
+        { "event_type": "family_expansion_first", "actual_date": "1991-10", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Mukesh_Ambani", "notes": "twins Akash & Isha born Oct 1991" },
+        { "event_type": "career_pivot", "actual_date": "2002-07", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Mukesh_Ambani", "notes": "became Chairman of RIL Jul 2002 (time-sensitive => excluded for rodden X)" },
+        { "event_type": "loss_of_father", "actual_date": "2002-07", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Dhirubhai_Ambani", "notes": "father Dhirubhai died Jul 2002" },
+        { "event_type": "financial_disruption", "actual_date": "2005-06", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Mukesh_Ambani", "notes": "Reliance split with brother Anil Jun 2005" },
+        { "event_type": "loss_of_mother", "actual_date": null, "kind": "negative_alive", "source": "https://en.wikipedia.org/wiki/Mukesh_Ambani", "notes": "mother Kokilaben alive as of 2026 => FALSE POSITIVE if predicted" }
+      ]
+    },
+    {
+      "name": "Amitabh Bachchan",
+      "birth_date": "1942-10-11",
+      "birth_time": "15:00",
+      "latitude": 25.4358,
+      "longitude": 81.8463,
+      "timezone_offset": 5.5,
+      "timezone_name": "Asia/Kolkata",
+      "birth_place": "Allahabad, Uttar Pradesh, India",
+      "expected_lagna": null,
+      "_lagna_note": "Aquarius published but birth time Rodden C (~3pm estimate) — gate OFF",
+      "rodden_rating": "C",
+      "birth_source": "https://www.astro.com/astro-databank/Bachchan,_Amitabh",
+      "events": [
+        { "event_type": "serious_partnership_began", "actual_date": "1973-06", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Jaya_Bachchan", "notes": "married Jaya Jun 1973" },
+        { "event_type": "professional_setback", "actual_date": "1982-07", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Amitabh_Bachchan", "notes": "near-fatal Coolie set injury Jul 1982" },
+        { "event_type": "career_pivot", "actual_date": "1984-12", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Amitabh_Bachchan", "notes": "elected MP for Allahabad 1984" },
+        { "event_type": "financial_disruption", "actual_date": "1999-04", "kind": "positive", "source": "https://en.wikipedia.org/wiki/AB_Corp", "notes": "ABCL insolvency ~1999" },
+        { "event_type": "loss_of_father", "actual_date": "2003-01", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Harivansh_Rai_Bachchan", "notes": "father Harivansh Rai died Jan 2003" },
+        { "event_type": "loss_of_mother", "actual_date": "2007-12", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Teji_Bachchan", "notes": "mother Teji died Dec 2007" }
+      ]
+    },
+    {
+      "name": "Bill Gates",
+      "birth_date": "1955-10-28",
+      "birth_time": "22:00",
+      "latitude": 47.6062,
+      "longitude": -122.3321,
+      "timezone_offset": -8.0,
+      "timezone_name": "America/Los_Angeles",
+      "birth_place": "Seattle, Washington, USA",
+      "expected_lagna": null,
+      "_lagna_note": "Gemini vs Cancer dispute among Vedic sources (10pm cusp) — gate OFF",
+      "rodden_rating": "A",
+      "birth_source": "https://www.astro.com/astro-databank/Gates,_Bill",
+      "events": [
+        { "event_type": "business_start", "actual_date": "1975-04", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Microsoft", "notes": "Microsoft co-founded Apr 1975" },
+        { "event_type": "serious_partnership_began", "actual_date": "1994-01", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Bill_Gates", "notes": "married Melinda Jan 1994" },
+        { "event_type": "legal_entanglement", "actual_date": "1998-05", "kind": "positive", "source": "https://en.wikipedia.org/wiki/United_States_v._Microsoft_Corp.", "notes": "US v. Microsoft filed May 1998" },
+        { "event_type": "serious_partnership_ended", "actual_date": "2021-08", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Bill_Gates", "notes": "divorce from Melinda finalized Aug 2021" },
+        { "event_type": "loss_of_mother", "actual_date": "1994-06", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Mary_Maxwell_Gates", "notes": "mother Mary died Jun 1994" },
+        { "event_type": "loss_of_father", "actual_date": "2020-09", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Bill_Gates_Sr.", "notes": "father William H. Gates Sr. died Sep 2020" }
+      ]
+    },
+    {
+      "name": "Oprah Winfrey",
+      "birth_date": "1954-01-29",
+      "birth_time": "04:30",
+      "latitude": 33.0579,
+      "longitude": -89.5876,
+      "timezone_offset": -6.0,
+      "timezone_name": "America/Chicago",
+      "birth_place": "Kosciusko, Mississippi, USA",
+      "expected_lagna": "Sagittarius",
+      "rodden_rating": "A",
+      "birth_source": "https://www.astro.com/astro-databank/Winfrey,_Oprah",
+      "events": [
+        { "event_type": "career_pivot", "actual_date": "1986-09", "kind": "positive", "source": "https://en.wikipedia.org/wiki/The_Oprah_Winfrey_Show", "notes": "show went national Sep 1986" },
+        { "event_type": "business_start", "actual_date": "1986-08", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Harpo_Productions", "notes": "founded Harpo Productions 1986" },
+        { "event_type": "loss_of_mother", "actual_date": "2018-11", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Oprah_Winfrey", "notes": "mother Vernita Lee died Nov 2018" },
+        { "event_type": "loss_of_father", "actual_date": "2022-07", "kind": "positive", "source": "https://www.cnn.com/2022/07/09/entertainment/oprah-winfrey-father-vernon-dead-trnd/index.html", "notes": "father Vernon Winfrey died Jul 2022" }
+      ]
+    },
+    {
+      "name": "Jeff Bezos",
+      "birth_date": "1964-01-12",
+      "birth_time": "12:00",
+      "latitude": 35.0844,
+      "longitude": -106.6504,
+      "timezone_offset": -7.0,
+      "timezone_name": "America/Denver",
+      "birth_place": "Albuquerque, New Mexico, USA",
+      "expected_lagna": null,
+      "_lagna_note": "no reliable birth time (noon default) — gate OFF; time-sensitive events excluded",
+      "rodden_rating": "X",
+      "birth_source": "https://www.astro.com/astro-databank/Bezos,_Jeff",
+      "events": [
+        { "event_type": "serious_partnership_began", "actual_date": "1993-09", "kind": "positive", "source": "https://en.wikipedia.org/wiki/MacKenzie_Scott", "notes": "married MacKenzie 1993" },
+        { "event_type": "business_start", "actual_date": "1994-07", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Jeff_Bezos", "notes": "founded Amazon Jul 1994" },
+        { "event_type": "major_acquisition", "actual_date": "2017-06", "kind": "positive", "source": "https://en.wikipedia.org/wiki/Whole_Foods_Market", "notes": "Amazon acquired Whole Foods Jun 2017" },
+        { "event_type": "serious_partnership_ended", "actual_date": "2019-07", "kind": "positive", "source": "https://en.wikipedia.org/wiki/MacKenzie_Scott", "notes": "divorce from MacKenzie finalized Jul 2019" },
+        { "event_type": "loss_of_mother", "actual_date": "2025-08", "kind": "positive", "source": "https://www.nbcnews.com/news/obituaries/jeff-bezos-mother-jacklyn-gise-bezos-dies-78-rcna225210", "notes": "mother Jacklyn Bezos died Aug 2025" },
+        { "event_type": "loss_of_father", "actual_date": null, "kind": "negative_alive", "source": "https://en.wikipedia.org/wiki/Miguel_Bezos", "notes": "adoptive father Mike Bezos alive as of 2026 => FALSE POSITIVE if predicted" }
+      ]
+    }
+  ]
+}
