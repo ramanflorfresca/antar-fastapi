@@ -1253,6 +1253,24 @@ async def generate_weekly_signals(
         # Score the day (KEPT)
         score, is_friction = _score_day(moon_sign, natal_moon_sign, nakshatra, weekday)
 
+        # [daily-precision c1] chart-relative layer (tara + moon-house),
+        # computed from daily_context (natal moon nakshatra + lagna). None
+        # when there's no chart context. Score is NOT changed in c1.
+        _precision = None
+        try:
+            if daily_context:
+                from antar_engine.daily_precision import compute_daily_precision
+                _precision = compute_daily_precision(
+                    natal_moon_nak=daily_context.get("moon_nakshatra", ""),
+                    natal_lagna_sign=daily_context.get("lagna_sign", ""),
+                    today_moon_nak=nakshatra,
+                    today_moon_sign=moon_sign,
+                )
+        except Exception as _prec_e:
+            logger.warning(f"[daily-week] precision compute failed for {date_str}: {_prec_e}")
+            _precision = None
+        # [daily-precision] _precision ready
+
         # Compute panchang quality for this day
         try:
             panchang = calculate_panchang(target_date, 0.0, 0.0)
@@ -1515,6 +1533,13 @@ async def generate_weekly_signals(
             if fast_mode:
                 day_result["pending"] = True
 
+        # [daily-precision c1] surface chart-relative fields (additive).
+        if _precision:
+            try:
+                from antar_engine.daily_precision import precision_fields
+                day_result.update(precision_fields(_precision))
+            except Exception:
+                pass
         results.append(day_result)
         logger.info(f"[daily-week] {date_str} {weekday}: {nakshatra} in {moon_sign} | score={score} | llm={'yes' if llm_signal else 'no'}")
 
