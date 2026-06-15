@@ -1270,6 +1270,12 @@ async def generate_weekly_signals(
             logger.warning(f"[daily-week] precision compute failed for {date_str}: {_prec_e}")
             _precision = None
         # [daily-precision] _precision ready
+        # [daily-precision c2] fold tara + moon-house into the score
+        # (kill switch DAILY_PRECISION_SCORE=off reverts to base score).
+        if _precision and os.getenv("DAILY_PRECISION_SCORE", "on").strip().lower() \
+                not in ("off", "0", "false", "no"):
+            from antar_engine.daily_precision import apply_precision_to_score as _aps
+            score, is_friction = _aps(score, _precision)
 
         # Compute panchang quality for this day
         try:
@@ -1528,6 +1534,16 @@ async def generate_weekly_signals(
                 "llm_generated": False,
                 "fallback": True,
             }
+            # [daily-precision c2] vary the frozen fallback wow from the
+            # day's strongest chart-relative signal (jargon-free).
+            if _precision:
+                try:
+                    from antar_engine.daily_precision import strongest_signal_phrase as _ssp
+                    _wow2 = _ssp(_precision)
+                    if _wow2:
+                        day_result["wow"] = _wow2
+                except Exception:
+                    pass
             # [async-fast] mark fast-path days so the route schedules a
             # background full pass and the frontend can poll for the upgrade.
             if fast_mode:
