@@ -14,6 +14,7 @@ pulled wholesale from practice_library[planet] — never mixed across planets.
 
 from __future__ import annotations
 
+import os
 from typing import Optional
 
 from antar_engine.practice_library import (
@@ -27,6 +28,143 @@ from antar_engine.practice_chakras import compute_chakra_states
 # Shorter time-scale = more acute = wins ties.
 _SCOPE_RANK = {"daily_transit": 0, "monthly_lk": 1, "varshphal_year": 2,
                "dasha_period": 3, "natal_weakness": 4}
+
+# ── timeframe router (COWORK brief) ─────────────────────────────────────────
+from antar_engine.practice_scopes import (
+    TIMEFRAME_BY_SCOPE, CADENCE_BY_TIMEFRAME,
+    TIMEFRAME_LEAD_PRIORITY, LEADABLE_TIMEFRAMES, _energy as _nrg_energy,
+)
+
+_TIMEFRAME_LABEL = {
+    "this_year":      {"en": "This year",       "es": "Este año"},
+    "this_month":     {"en": "This month",      "es": "Este mes"},
+    "current_cycle":  {"en": "Current cycle",   "es": "Ciclo actual"},
+    "natal_baseline": {"en": "Lifelong",        "es": "De por vida"},
+    "today":          {"en": "Today",           "es": "Hoy"},
+}
+
+
+def _tf_of(entry: dict) -> str:
+    return entry.get("timeframe_source") or TIMEFRAME_BY_SCOPE.get(entry.get("scope"), "natal_baseline")
+
+
+def merge_by_planet(actives: list) -> list:
+    """De-dupe actives by planet. Each merged entry keeps the contributing
+    entry whose timeframe has the highest lead-priority as its primary, records
+    every timeframe that flagged the planet in `contributing_sources`, and
+    carries the max severity. This is the brief's 'good case' merge — a planet
+    flagged by both natal and this-year shows once, tagged with both sources."""
+    by_planet: dict = {}
+    for e in actives or []:
+        p = e.get("planet")
+        if not p:
+            continue
+        by_planet.setdefault(p, []).append(e)
+    merged = []
+    for p, group in by_planet.items():
+        primary = max(group, key=lambda e: (
+            TIMEFRAME_LEAD_PRIORITY.get(_tf_of(e), 0), e.get("severity", 0.0)))
+        sources = []
+        for e in sorted(group, key=lambda e: -TIMEFRAME_LEAD_PRIORITY.get(_tf_of(e), 0)):
+            tf = _tf_of(e)
+            if tf not in sources:
+                sources.append(tf)
+        m = dict(primary)
+        m["severity"] = max(e.get("severity", 0.0) for e in group)
+        m["contributing_sources"] = sources
+        merged.append(m)
+    return merged
+
+
+def _why_now(entry: dict, lang: str) -> str:
+    """Concrete, timeframe-named reason. Never the generic 'exceptionally strong
+    right now' filler. Uses the energy layer — no planet names leak."""
+    tf = _tf_of(entry)
+    e = _nrg_energy(entry.get("planet"), lang)
+    E = (e[:1].upper() + e[1:]) if e else e
+    srcs = entry.get("contributing_sources") or [tf]
+    merged_with_natal = ("natal_baseline" in srcs and tf in LEADABLE_TIMEFRAMES)
+    if lang == "es":
+        if merged_with_natal:
+            return (f"El trabajo de toda la vida con {e} es exactamente lo que "
+                    f"este año te pide — por eso encabeza hoy.")
+        return {
+            "this_year":      f"Tu carta anual pone {e} en foco este año — es la ventana para trabajarla.",
+            "this_month":     f"Este mes una presión pasajera cruza {e} — atiéndela ahora; cede al cambiar el mes.",
+            "current_cycle":  f"Estás en un capítulo de vida construido sobre {e} — esta es la práctica que ese capítulo premia.",
+            "natal_baseline": f"El trabajo de por vida con {e} — tu práctica de fondo, no atada a ninguna temporada.",
+            "today":          f"Hoy algo presiona {e} — una pequeña práctica estabiliza el día.",
+        }.get(tf, f"{E} pide atención constante.")
+    if merged_with_natal:
+        return (f"The lifelong work on {e} is exactly what this year asks for "
+                f"— that's why it leads today.")
+    return {
+        "this_year":      f"Your annual chart puts {e} in focus this year — this is the window to work it.",
+        "this_month":     f"This month a passing pressure crosses {e} — tend it now; it eases as the month turns.",
+        "current_cycle":  f"You're in a life chapter built on {e} — this is the practice that chapter rewards.",
+        "natal_baseline": f"The lifelong work on {e} — your steady background practice, not tied to any one season.",
+        "today":          f"Today something presses on {e} — a small practice steadies the day.",
+    }.get(tf, f"{E} wants steady attention.")
+
+
+def _stamp_timeframe_fields(entry: dict, lang: str) -> dict:
+    """Add timeframe_source / contributing_sources / why_now / cadence / source."""
+    tf = _tf_of(entry)
+    entry["timeframe_source"] = tf
+    if "contributing_sources" not in entry:
+        entry["contributing_sources"] = [tf]
+    entry["why_now"] = _why_now(entry, lang)
+    entry["cadence"] = CADENCE_BY_TIMEFRAME.get(tf, "daily_tunein")
+    entry["timeframe_label"] = _TIMEFRAME_LABEL.get(tf, {}).get(lang, tf)
+    entry["source"] = "selection: timeframe-router; content: existing LK remedy tables"
+    return entry
+
+
+def select_practice_set(actives: list, sticky_key=None, completed_today=None) -> dict:
+    """Brief's prioritized selection. Returns {lead, secondary, baseline}.
+      lead      — highest-priority *time-active leadable* layer (Year>Month>Cycle);
+                  natal/today never lead when a leadable layer exists.
+      secondary — up to 2 further merged entries (lead + baseline excluded).
+      baseline  — the structurally-weakest natal entry, always present as
+                  background, unless it merged INTO the lead.
+    """
+    completed_today = completed_today or {}
+    merged = merge_by_planet(actives)
+    if not merged:
+        return {"lead": None, "secondary": [], "baseline": None}
+
+    leadable = [m for m in merged if _tf_of(m) in LEADABLE_TIMEFRAMES]
+    natal = [m for m in merged if _tf_of(m) == "natal_baseline"]
+
+    lead = None
+    if sticky_key:
+        for m in leadable:
+            if (m.get("planet"), m.get("scope")) == sticky_key and not completed_today.get(m.get("planet")):
+                lead = m
+                break
+    if lead is None and leadable:
+        lead = max(leadable, key=lambda m: (
+            TIMEFRAME_LEAD_PRIORITY.get(_tf_of(m), 0), m.get("severity", 0.0)))
+    if lead is None:
+        # No time-active leadable layer -> natal baseline is promoted to lead.
+        lead = max(merged, key=lambda m: m.get("severity", 0.0))
+
+    baseline = None
+    if natal:
+        top_natal = max(natal, key=lambda m: m.get("severity", 0.0))
+        if top_natal.get("planet") != (lead or {}).get("planet"):
+            baseline = top_natal
+
+    used = {(lead or {}).get("planet"), (baseline or {}).get("planet")}
+    rest = [m for m in merged if m.get("planet") not in used]
+    rest.sort(key=lambda m: (
+        TIMEFRAME_LEAD_PRIORITY.get(_tf_of(m), 0), m.get("severity", 0.0)), reverse=True)
+    secondary = rest[:2]
+    return {"lead": lead, "secondary": secondary, "baseline": baseline}
+
+
+def _router_enabled() -> bool:
+    return os.getenv("PRACTICE_TIMEFRAME_ROUTER", "on").strip().lower() not in ("off", "0", "false")
 
 
 def _lang(language: str) -> str:
@@ -191,11 +329,18 @@ def compose_practice_response(
     streaks = streaks or {}
     completed_today = completed_today or {}
 
-    priority = select_today_priority(actives, sticky_key, completed_today) \
-        or _fallback_priority(chart, conditions, language)
-
-    others = [e for e in actives if priority is None or
-              (e["planet"], e["scope"]) != (priority["planet"], priority["scope"])]
+    if _router_enabled():
+        _set = select_practice_set(actives, sticky_key, completed_today)
+        priority = _set["lead"] or _fallback_priority(chart, conditions, language)
+        # secondary entries first, natal baseline appended last as background.
+        others = list(_set["secondary"])
+        if _set["baseline"] is not None:
+            others.append(_set["baseline"])
+    else:
+        priority = select_today_priority(actives, sticky_key, completed_today) \
+            or _fallback_priority(chart, conditions, language)
+        others = [e for e in actives if priority is None or
+                  (e["planet"], e["scope"]) != (priority["planet"], priority["scope"])]
 
     # ── today_priority (full, single-planet content) ────────────────────────
     today_priority = None
@@ -213,8 +358,14 @@ def compose_practice_response(
             "planet": pl,
             "scope": scope,
             "scope_label": _scope_label_i18n(scope, language),
+            "timeframe_source": _tf_of(priority),
+            "timeframe_label": _TIMEFRAME_LABEL.get(_tf_of(priority), {}).get(lang, _tf_of(priority)),
+            "contributing_sources": priority.get("contributing_sources", [_tf_of(priority)]),
+            "cadence": CADENCE_BY_TIMEFRAME.get(_tf_of(priority), "daily_tunein"),
             "duration_label": dur,
             "why": priority.get("why_paragraph", ""),
+            "why_now": _why_now(priority, lang),
+            "source": "selection: timeframe-router; content: existing LK remedy tables",
             "streak_days": int(st.get("days", 0)),
             "streak_best": int(st.get("best", st.get("days", 0))),
             "completed_today": bool(completed_today.get(pl, False)),
@@ -268,7 +419,7 @@ def compose_practice_response(
             ml = _months_left(e["_md_ends"], today_date)
             if ml is not None:
                 dur += _months_suffix_i18n(ml, language)
-        active.append({
+        active.append(_stamp_timeframe_fields({
             "planet": p,
             "scope": scope,
             "scope_label": _scope_label_i18n(scope, language),
@@ -276,7 +427,8 @@ def compose_practice_response(
             "one_line": _one_line(e, lang),
             "streak_days": int(st.get("days", 0)),
             "completed_today": bool(completed_today.get(p, False)),
-        })
+            "contributing_sources": e.get("contributing_sources", [_tf_of(e)]),
+        }, lang))
 
     # ── chakra diagnostic (priority planet drives "primary") ────────────────
     chakra_states = compute_chakra_states(

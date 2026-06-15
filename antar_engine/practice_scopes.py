@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone, date
 from typing import Optional
+import os
 
 try:
     import swisseph as swe
@@ -38,6 +39,36 @@ SCOPES = {
     "monthly_lk":     {"label": "Monthly chart (LK)", "ttl_days": 30},
     "daily_transit":  {"label": "Today's transit", "ttl_days": 1},
 }
+
+# ── timeframe-router maps (COWORK brief) ────────────────────────────────────
+# Internal scope -> user-facing timeframe layer.
+TIMEFRAME_BY_SCOPE = {
+    "varshphal_year": "this_year",
+    "monthly_lk":     "this_month",
+    "dasha_period":   "current_cycle",
+    "natal_weakness": "natal_baseline",
+    "daily_transit":  "today",
+}
+# Timeframe layer -> commitment-horizon cadence (mantra/breath/yoga inside the
+# practice stay daily; this is the horizon of the *reason*, per brief doctrine).
+CADENCE_BY_TIMEFRAME = {
+    "this_year":      "varshphal_scale",
+    "this_month":     "weekly",
+    "current_cycle":  "dasha_scale",
+    "natal_baseline": "daily_tunein",
+    "today":          "one_time",
+}
+# Lead priority: which timeframe owns the headline practice. Year > Month >
+# Cycle. natal_baseline + today are background/acute — never the lead when any
+# time-active leadable layer is present.
+TIMEFRAME_LEAD_PRIORITY = {
+    "this_year":      4,
+    "this_month":     3,
+    "current_cycle":  2,
+    "today":          1,
+    "natal_baseline": 0,
+}
+LEADABLE_TIMEFRAMES = {"this_year", "this_month", "current_cycle"}
 
 _PID = {"Sun": 0, "Moon": 1, "Mercury": 2, "Venus": 3, "Mars": 4,
         "Jupiter": 5, "Saturn": 6, "Rahu": 10}
@@ -316,6 +347,49 @@ def detect_varshphal_negatives(chart: dict, today_date: date, language: str = "e
 
     out = []
     seen = set()
+    # [timeframe-router] Phase-2 sleeping rule = the PRIMARY 'this year' signal.
+    # Additive: the Tajika malefic-in-8/12 logic below is kept as a secondary
+    # year contributor, de-duped by planet (sleeping entries claim `seen` first).
+    # Behind PRACTICE_SLEEP_GATE (default on).
+    if os.getenv("PRACTICE_SLEEP_GATE", "on").strip().lower() not in ("off", "0", "false"):
+        try:
+            from antar_engine.varshphal_chart import build_varshphal_chart
+            from antar_engine.lk_rules.sleeping import (
+                evaluate_sleeping_planets, PRIORITY_AWAKEN, YEAR_CAUTION_AWAKEN,
+            )
+            _vc = build_varshphal_chart(chart, bd or chart.get("birth_date"), today_date)
+            _sleep = evaluate_sleeping_planets(_vc, chart)
+            _SLEEP_SEV = {PRIORITY_AWAKEN: 0.75, YEAR_CAUTION_AWAKEN: 0.66}
+            _SLEEP_KIND = {PRIORITY_AWAKEN: "sleeping", YEAR_CAUTION_AWAKEN: "caution"}
+            for _p in _sleep.get("firing", []):
+                _planet = _p.get("planet")
+                _outcome = _p.get("outcome")
+                if _planet and _outcome in _SLEEP_SEV and _planet not in seen:
+                    seen.add(_planet)
+                    _e = _energy(_planet, lang)
+                    _E = (_e[:1].upper() + _e[1:]) if _e else _e
+                    if _outcome == PRIORITY_AWAKEN:
+                        _wp = (f"Tu carta anual pone {_e} a dormir este año — esta es "
+                               f"la ventana para despertarla, y todo el año solar acompaña el trabajo."
+                               if lang == "es" else
+                               f"Your annual chart puts {_e} to sleep this year — this is "
+                               f"the window to wake it, and the whole solar year supports the work.")
+                    else:
+                        _wp = (f"{_E} normalmente está despierta en ti, pero la carta de este "
+                               f"año la atenúa. Cuidarla durante el año solar evita que se apague."
+                               if lang == "es" else
+                               f"{_E} normally runs awake for you, but this year's chart dims it. "
+                               f"Tending it across the solar year keeps it from going quiet.")
+                    out.append({
+                        "scope": "varshphal_year", "planet": _planet,
+                        "supporting_planets": [], "severity": _SLEEP_SEV[_outcome],
+                        "trigger_detail": f"{_planet} {_outcome} in the annual chart this year",
+                        "duration_label": dur, "ttl_days": 365,
+                        "sleep_outcome": _outcome,
+                        "why_paragraph": _wp,
+                    })
+        except Exception:
+            pass
     for planet, ah in annual.items():
         if planet in MALEFICS and ah in (8, 12) and planet not in seen:
             seen.add(planet)
@@ -445,4 +519,7 @@ def detect_all_scopes(chart: dict, today_date: date, language: str = "en",
     actives += detect_varshphal_negatives(chart, today_date, language, birth_date)
     actives += detect_monthly_lk_negatives(chart, today_date, language)
     actives += detect_daily_transit_negatives(chart, today_date, language)
+    # [timeframe-router] stamp the user-facing timeframe layer on every active.
+    for _e in actives:
+        _e["timeframe_source"] = TIMEFRAME_BY_SCOPE.get(_e.get("scope"))
     return actives
