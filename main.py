@@ -440,6 +440,7 @@ from antar_engine.prompt_builder import (
 )
 from antar_engine.i18n import get_locale_from_request, get_ui_strings
 from antar_engine.patra import build_patra_context, patra_to_context_block, get_circumstance_questions
+from antar_engine.life_context import get_life_context, life_context_to_prompt_block  # [life-context]
 from antar_engine.patra_conversation import (
     get_onboarding_conversation,
     extract_patra_from_text,
@@ -4664,6 +4665,14 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
         primary_concern=concern,
     )
     patra_context = patra_to_context_block(patra)
+    try:  # [life-context] situation-aware narration
+        _lc = get_life_context(chart_record=chart_record)
+        _lc_block = life_context_to_prompt_block(_lc)
+        if _lc_block:
+            patra_context = (patra_context or '') + '\n\n' + _lc_block
+        print(f"[predict] life_context has_context={_lc['has_context']}")
+    except Exception as _lc_e:
+        print(f'[predict] life_context non-fatal: {_lc_e}')
 
     # ── C3: Pattern Memory — Layer 7 ─────────────────────────────
     _memory = {}
@@ -7640,6 +7649,13 @@ async def monthly_briefing(
         concern=concern,
         country_code=chart_record.get("country_code", "US"),
     )
+    try:  # [life-context]
+        _lc = get_life_context(chart_record=chart_record)
+        _lc_block = life_context_to_prompt_block(_lc)
+        if _lc_block:
+            prompt = (prompt or '') + '\n\n' + _lc_block
+    except Exception as _lc_e:
+        print(f'[monthly-briefing] life_context non-fatal: {_lc_e}')
     briefing_text, _ = await call_llm(prompt)
 
     # [readability 2026-06-10] narrate -> strip -> simplify -> strip.
@@ -9820,6 +9836,13 @@ async def get_career_reading(
     career    = build_career_analysis(chart_data=chart_data, dashas=dashas, patra=patra)
     career_ctx = career_analysis_to_context_block(career)
     patra_ctx  = patra_to_context_block(patra)
+    try:  # [life-context]
+        _lc = get_life_context(chart_record=chart_record)
+        _lc_block = life_context_to_prompt_block(_lc)
+        if _lc_block:
+            patra_ctx = (patra_ctx or '') + '\n\n' + _lc_block
+    except Exception as _lc_e:
+        print(f'[career] life_context non-fatal: {_lc_e}')
 
     locale = get_locale_from_request(
         country_code=chart_record.get("country_code"),
@@ -19510,6 +19533,7 @@ async def get_domain_signals(chart_id: str):
                     break
         return {
             "signals":      signals,
+            "life_context": get_life_context(chart_id, supabase=supabase),  # [life-context]
             "last_updated": datetime.now(timezone.utc).isoformat(),
         }
     except Exception as e:
@@ -20695,6 +20719,7 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
                         )
                     except Exception as _ptd_e:
                         print(f"[es-loc] /practices cache translate non-fatal: {_ptd_e}")
+                _sched["life_context"] = get_life_context(chart_id, supabase=supabase)  # [life-context]
                 return {"status": "ok", "source": "cache", "schedule": _sched}
         _chart = supabase.table("charts").select("chart_data, jaimini_data, lal_kitab_data, current_country, birth_date").eq("id", chart_id).single().execute()
         if not _chart.data:
@@ -20790,6 +20815,7 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
                 )
             except Exception as _ptd_e:
                 print(f"[es-loc] /practices generated translate non-fatal: {_ptd_e}")
+        _sched["life_context"] = get_life_context(chart_id, supabase=supabase)  # [life-context]
         return {"status": "ok", "source": "generated", "schedule": _sched}
     except Exception as e:
         print(f"[PRACTICE] Schedule error: {e}")
@@ -24010,6 +24036,10 @@ async def predict_year_attention(request: dict):
 
     # [strip-3surfaces-returns 2026-06-09]
     payload = _strip_payload_leaves(payload, language=locals().get('language', 'en'))
+    try:  # [life-context]
+        payload['life_context'] = get_life_context(chart_record=row)
+    except Exception as _lc_e:
+        print(f'[year-attention] life_context non-fatal: {_lc_e}')
     return _ent_year_view(payload, chart_id)
 
 
@@ -26881,11 +26911,17 @@ async def _alias_predict_daily(request: dict):
 
 @app.post("/api/v1/predict/daily-week")
 async def _alias_predict_daily_week(request: dict):
-    return await get_daily_week(
+    _r_dw = await get_daily_week(  # [life-context]
         chart_id=request.get("chart_id"),
         tz_offset=request.get("tz_offset"),
         language=(request.get("language") or "en"),
     )
+    try:
+        if isinstance(_r_dw, dict):
+            _r_dw.setdefault('life_context', get_life_context(request.get('chart_id'), supabase=supabase))
+    except Exception as _lc_e:
+        print(f'[daily-week] life_context non-fatal: {_lc_e}')
+    return _r_dw
 
 
 # [gate-debug 2026-06-08] Strip the internal _debug_reasoning trail
