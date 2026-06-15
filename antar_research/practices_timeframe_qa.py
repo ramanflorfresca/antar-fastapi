@@ -18,7 +18,11 @@ Checks:
   5. Merge case: a planet flagged by both natal and this-year shows once with
      both contributing_sources.
 """
+import os
 import sys
+
+# Run from anywhere: put the repo root (parent of antar_research/) on sys.path.
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from antar_engine import practice_composer as C
 from antar_engine.practice_scopes import TIMEFRAME_BY_SCOPE
