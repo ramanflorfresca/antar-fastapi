@@ -47,6 +47,22 @@ _RULES = [
         r"\bchapter lord\b|\bmajor(?:\s+life)?\s+chapter\b|"
         r"\b(?:major|minor|micro)\s+rhythm\b|\blayering\b", re.IGNORECASE)),
     ("dasha_code", re.compile(r"(?<![A-Za-z])(?:MD|AD|PD|SD)(?![A-Za-z])")),
+    # [ask-voice-gate 2026-06-16] Energy-trait "<trait> forces" / cosmic-mechanism
+    # vocabulary that leaked to the Ask surface. ("<trait> energies" is already
+    # caught by energy_voice above.) Flag — never strip — so the caller regenerates.
+    ("trait_forces", re.compile(
+        r"\b\w+\s+and\s+\w+\s+forces?\b|"
+        r"\b(?:cosmic|planetary|celestial|astral|energetic|inner|life|identity|"
+        r"desire|spiritual)\s+forces?\b", re.IGNORECASE)),
+    # "interventions" used as a count of chart factors ("three unobstructed
+    # interventions"). The word has no place on a plain-language life surface.
+    ("intervention_count", re.compile(
+        r"\b(?:un)?obstructed\s+interventions?\b|\binterventions?\b", re.IGNORECASE)),
+    # Vague cosmic timing filler instead of a concrete window/date.
+    ("cosmic_timing_filler", re.compile(
+        r"\bthe\s+sky\s+aligns?\b|\bthe\s+stars?\s+align\b|"
+        r"\bwhen\s+the\s+(?:structure|stars?|sky|alignment|chart|cosmos|universe)\s+aligns?\b|"
+        r"\bcosmos\s+aligns?\b|\buniverse\s+aligns?\b", re.IGNORECASE)),
     # Splice mangles from blind substitution / empty fills.
     ("splice_mangle", re.compile(
         r"\ba\s+of\b|\bthe\s+current\s+your\b|\byour\s+your\b|"

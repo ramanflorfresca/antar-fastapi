@@ -9431,9 +9431,26 @@ async def create_chart(
 
 
 
+    # [leak-guard 2026-06-16] If this authenticated user already owns a
+    # live primary chart, the new chart must NOT become a second primary
+    # (which would hijack the active slot on next restore). Tag it
+    # 'secondary' so it stays visible but never auto-active. Guests
+    # (user_id is None at create time) are unaffected.
+    _chart_type = "primary"
+    if user_id:
+        try:
+            _existing_ct = supabase.table("charts").select("id,chart_type") \
+                .eq("user_id", user_id).is_("deleted_at", "null").execute()
+            if any((r.get("chart_type") or "primary") == "primary"
+                   for r in (_existing_ct.data or [])):
+                _chart_type = "secondary"
+        except Exception as _ctg:
+            print(f"[leak-guard] existing-primary check skipped: {_ctg}")
+
     chart_row = {
         "id":                  chart_id,
         "user_id":             user_id,
+        "chart_type":          _chart_type,
         "first_name":          getattr(request, "first_name", None) or getattr(request, "name", None) or "",
         "birth_date":          request.birth_date,
         "birth_time":          request.birth_time,
@@ -15795,6 +15812,11 @@ async def ask_endpoint(request: AskRequest):
                     "\n"
                     "Never mention astrology, planets, houses, signs, nakshatras, dashas, scores, "
                     "or any Sanskrit or technical term — plain everyday language only. "
+                    "Never write a '<trait> forces' or '<trait> energies' construction "
+                    "(e.g. 'identity and desire forces'), never use the word 'interventions' "
+                    "to count chart factors, and never use vague cosmic timing such as "
+                    "'the sky aligns' or 'when the structure aligns' — name the concrete life "
+                    "event and a plain within-day window instead. "
                     "Output JSON only, no prose, no code fences."
                     + (f"\n\n{_ask_clock_line}" if _ask_clock_line else "")
                     + f"\n\n{_ask_layers_block}"
@@ -15884,6 +15906,88 @@ async def ask_endpoint(request: AskRequest):
                         read_txt = _stripped
                     read_txt = f"{_verdict_phrase} {read_txt}".strip()
                     print(f"[ask][lead-verdict] prepended: {_verdict_phrase!r}")
+            # [ask-voice-gate 2026-06-16] VALIDATE -> REGENERATE -> FAIL-CLOSED.
+            # Replaces the blind in-place stripper on read/next (which produced
+            # "could away" / "...: through." grammar holes and leaked
+            # "identity and desire forces"). We never delete words from model
+            # prose: re-ask once with a corrective ban, then fall back to the
+            # deterministic verdict + window + clean action.
+            try:
+                from antar_engine.narration_validator import validate_narration as _vng
+                def _ask_voice_vios(*_txts):
+                    _out = []
+                    for _tx in _txts:
+                        if isinstance(_tx, str) and _tx.strip():
+                            _out += _vng(_tx, language="en")
+                    return _out
+                def _ask_finish_regen(_r, _n):
+                    # Re-apply the same deterministic finishing the first pass used:
+                    # timing-fidelity scrub + Python-authoritative verdict prefix.
+                    if _ask_decision:
+                        try:
+                            from antar_engine.timing_fidelity import scrub_freelance_dates as _sfd2
+                            _allow = [_ask_conv.get("window_label"), _ask_conv.get("next_window_label"), _ee_timing]
+                            _r, _ = _sfd2(_r or "", _allow)
+                            if _n:
+                                _n, _ = _sfd2(_n, _allow)
+                        except Exception:
+                            pass
+                    if _ask_decision and _ask_conv:
+                        _vp = (_ask_conv.get("verdict_phrase") or "").strip()
+                        if _vp:
+                            _lead = re.compile(r"^\s*(yes|likely|not\s+yet|not\s+now|not\s+this\s+year|no)\b[^.!?]{0,200}[.!?]\s*", re.IGNORECASE)
+                            _r = (_vp + " " + _lead.sub("", _r or "", count=1)).strip()
+                    return _r, _n
+                _vios = _ask_voice_vios(read_txt, next_txt)
+                if _vios:
+                    print(f"[ask][voice-gate] explore violations -> regenerate: {_vios[:6]}")
+                    _corr = (_sys + "\n\nREWRITE (your previous answer was rejected). "
+                             "FORBIDDEN: planet/sign/house words; the words energy, energies, "
+                             "or forces; the word interventions; vague cosmic timing such as "
+                             "'the sky aligns' or 'when the structure aligns'. Name the concrete "
+                             "life event and a plain within-day window. Every sentence must be "
+                             "complete and grammatical. Output JSON only.")
+                    _ok = False
+                    try:
+                        _t2 = await call_llm_claude(prompt=question, system_override=_corr)
+                        _raw2 = _t2[0] if isinstance(_t2, tuple) else _t2
+                        if _raw2 and "{" in _raw2 and "}" in _raw2:
+                            _p2 = json.loads(_raw2[_raw2.find("{"): _raw2.rfind("}") + 1])
+                            _r2 = (_p2.get("read") or "").strip()
+                            _n2 = _p2.get("next")
+                            _n2 = _n2.strip() if isinstance(_n2, str) and _n2.strip() else None
+                            _r2, _n2 = _ask_finish_regen(_r2, _n2)
+                            if _r2 and not _ask_voice_vios(_r2, _n2):
+                                read_txt, next_txt = _r2, _n2
+                                _a2 = _p2.get("actions")
+                                if isinstance(_a2, list):
+                                    _ask_actions = [str(x).strip() for x in _a2 if str(x).strip()][:3]
+                                _ok = True
+                                print("[ask][voice-gate] regeneration clean")
+                    except Exception as _rg:
+                        print(f"[ask][voice-gate] regenerate error: {_rg}")
+                    if not _ok:
+                        # FAIL CLOSED: verdict + window + a clean action only.
+                        print("[ask][voice-gate] fail-closed (verdict+window+move)")
+                        _fc = []
+                        if _ask_decision and _ask_conv:
+                            _vp = (_ask_conv.get("verdict_phrase") or "").strip()
+                            if _vp:
+                                _fc.append(_vp if _vp.endswith((".", "!", "?")) else _vp + ".")
+                            _win = (_ask_conv.get("window_label") or _ee_timing or "").strip()
+                            if _win:
+                                _fc.append("Best window: " + _win + ".")
+                        _clean_next = None
+                        for _cand in ([next_txt] + list(_ask_actions or [])):
+                            if isinstance(_cand, str) and _cand.strip() and not _ask_voice_vios(_cand):
+                                _clean_next = _cand.strip()
+                                break
+                        if _fc:
+                            read_txt = " ".join(_fc).strip()
+                        next_txt = _clean_next
+            except Exception as _vge:
+                print(f"[ask][voice-gate] non-fatal: {_vge}")
+
             _ask_answered = bool(read_txt)
             if not read_txt:
                 read_txt = "I couldn't read a clear signal just now — try asking again in a moment."
@@ -15930,7 +16034,11 @@ async def ask_endpoint(request: AskRequest):
                 payload["convergence"] = _ask_conv.get("public_summary")
             # [ask-scrub] explore
             try:
-                _ask_scrub_payload(payload, ["read", "next", "timing"], language=language)
+                # [ask-voice-gate 2026-06-16] read/next no longer go through the
+                # destructive in-place stripper (it broke grammar). The voice-gate
+                # above owns read/next via validate->regenerate->fail-closed. Only
+                # the deterministic `timing` field + actions[] are normalized here.
+                _ask_scrub_payload(payload, ["timing"], language=language)
             except Exception:
                 pass
             # [readability 2026-06-10] scrub -> simplify -> scrub.
@@ -15938,9 +16046,37 @@ async def ask_endpoint(request: AskRequest):
                 from antar_engine.readability import simplify_payload_fields as _rb_simplify
                 await _rb_simplify(payload, ["read", "next"], language=language,
                                    surface="ask.explore", debug_key="_debug_readability")
-                _ask_scrub_payload(payload, ["read", "next", "timing"], language=language)
+                # [ask-voice-gate 2026-06-16] read/next no longer go through the
+                # destructive in-place stripper (it broke grammar). The voice-gate
+                # above owns read/next via validate->regenerate->fail-closed. Only
+                # the deterministic `timing` field + actions[] are normalized here.
+                _ask_scrub_payload(payload, ["timing"], language=language)
             except Exception as _rb_e:
                 print(f"[ask] readability non-fatal: {_rb_e}")
+            # [ask-voice-gate 2026-06-16] FINAL deterministic check (EN, pre-localize).
+            # No stripping / no second regenerate: if read/next is still dirty after
+            # readability, fail closed to the verdict + window we already hold.
+            try:
+                from antar_engine.narration_validator import validate_narration as _vnf
+                _rd = payload.get("read"); _nx = payload.get("next")
+                _rd_dirty = isinstance(_rd, str) and bool(_rd) and bool(_vnf(_rd, language="en"))
+                _nx_dirty = isinstance(_nx, str) and bool(_nx) and bool(_vnf(_nx, language="en"))
+                if _rd_dirty:
+                    _fc2 = []
+                    if payload.get("verdict") and _ask_decision and _ask_conv:
+                        _vp2 = (_ask_conv.get("verdict_phrase") or "").strip()
+                        if _vp2:
+                            _fc2.append(_vp2 if _vp2.endswith((".", "!", "?")) else _vp2 + ".")
+                    if payload.get("timing"):
+                        _fc2.append("Best window: " + str(payload["timing"]) + ".")
+                    if _fc2:
+                        payload["read"] = " ".join(_fc2).strip()
+                        print("[ask][voice-gate] post-readability read fail-closed")
+                if _nx_dirty:
+                    payload["next"] = None
+                    print("[ask][voice-gate] post-readability next dropped")
+            except Exception as _vfe:
+                print(f"[ask][voice-gate] final-check non-fatal: {_vfe}")
             # [es-loc 2026-06-09] expanded fields: actions[]/practices[]/convergence
             # are container keys — translate_dict recurses into their subtrees.
             payload = await _ask_localize(payload, language, [
@@ -19306,7 +19442,7 @@ async def restore_chart(
     # Existing rows linked before this patch have user_id = NULL but
     # google_id populated — querying both keeps them visible.
     charts_res = supabase.table("charts").select(
-        "id,user_id,first_name,display_name,avatar_url,email,"
+        "id,user_id,chart_type,first_name,display_name,avatar_url,email,"
         "lagna_sign,moon_sign,moon_nakshatra,sun_sign,created_at,onboarding_completed_at"
     ).or_(
         f"user_id.eq.{user_id},google_id.eq.{user_id}"
@@ -19355,7 +19491,15 @@ async def restore_chart(
     if chart_id:
         active = next((c for c in charts if str(c.get("id")) == chart_id), None)
     if not active:
-        active = charts[0]   # ordered desc by created_at
+        # [leak-guard 2026-06-16] A user's true self chart is their
+        # ORIGINAL primary. Accidental duplicate primaries created later
+        # under the same account must never auto-hijack the active slot
+        # (cross-user data leak). Prefer the earliest-created primary;
+        # fall back to the earliest chart of any type.
+        _primaries = [c for c in charts
+                      if (c.get("chart_type") or "primary") == "primary"]
+        _pool = _primaries or charts
+        active = min(_pool, key=lambda c: str(c.get("created_at") or ""))
 
     # 5. Current Vimsottari MD / AD for the active chart
     now = datetime.now(timezone.utc)
