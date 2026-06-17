@@ -7823,6 +7823,40 @@ def _prac_local_date(tz_offset):
         now = now + _prac_td(minutes=int(tz_offset))
     return now.date()
 
+# [daily-db-cache 2026-06-16] Shared (cross-worker, restart-surviving) L2
+# cache for daily surfaces. Backs the per-worker _PRACTICE_CACHE L1 so a
+# cold worker serves warm instead of regenerating. Table: daily_surface_cache
+# (Antar.world/PHASE1_CACHE.sql). Kill switch: env DAILY_DB_CACHE=off.
+def _daily_db_cache_on():
+    return os.getenv("DAILY_DB_CACHE", "on").strip().lower() != "off"
+
+def _daily_surface_get(chart_id, surface, language, local_date, variant=""):
+    if not _daily_db_cache_on():
+        return None
+    try:
+        r = (supabase.table("daily_surface_cache").select("payload")
+             .eq("chart_id", chart_id).eq("surface", surface)
+             .eq("language", language).eq("local_date", local_date)
+             .eq("variant", variant).limit(1).execute())
+        if r.data:
+            payload = _prac_safe(r.data[0].get("payload"))
+            return payload or None
+    except Exception as _e:
+        print(f"[daily-db-cache] get failed (non-fatal): {_e}")
+    return None
+
+def _daily_surface_put(chart_id, surface, language, local_date, payload, variant=""):
+    if not _daily_db_cache_on():
+        return
+    try:
+        supabase.table("daily_surface_cache").upsert({
+            "chart_id": chart_id, "surface": surface, "language": language,
+            "local_date": local_date, "variant": variant, "payload": payload,
+            "created_at": _prac_dt.now(_prac_tz.utc).isoformat(),
+        }, on_conflict="chart_id,surface,language,local_date,variant").execute()
+    except Exception as _e:
+        print(f"[daily-db-cache] put failed (non-fatal): {_e}")
+
 
 # [practice-leaks] ── remedy-block scrub ─────────────────────────────────────
 # Structural / machine keys never scrubbed (selectors, hex, urls, canonical
@@ -8116,6 +8150,14 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
         # refresh only the streak/completion fields (cheap) so a same-day
         # completion reflects without recomputing the whole engine
         return _ent_practice_view(cached[1], request.chart_id)
+    # [daily-db-cache 2026-06-16] L1 miss -> shared DB L2 before recompute.
+    _db_variant = "food" if request.include_chart_food else ""
+    _db_payload = _daily_surface_get(request.chart_id, "practice",
+                                     request.language, local_today.isoformat(),
+                                     _db_variant)
+    if _db_payload:
+        _PRACTICE_CACHE[ckey] = (_prac_time.time() + _PRACTICE_TTL, _db_payload)
+        return _ent_practice_view(_db_payload, request.chart_id)
 
     conditions = _prac_conditions(chart)
     try:
@@ -8276,6 +8318,10 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
     if not request.include_sanskrit_keys:
         resp = _prac_plain_keys(resp)
     _PRACTICE_CACHE[ckey] = (_prac_time.time() + _PRACTICE_TTL, resp)
+    # [daily-db-cache 2026-06-16] write-through to the shared DB cache
+    _daily_surface_put(request.chart_id, "practice", request.language,
+                       local_today.isoformat(), resp,
+                       "food" if request.include_chart_food else "")
     return _ent_practice_view(resp, request.chart_id)
 
 
@@ -11490,6 +11536,8 @@ async def settings_charts_delete(chart_id: str, authorization: Optional[str] = H
         # exist: predict_week_cache / daily_week_cache / prediction_cache /
         # prewarm_cache.
         "daily_signals_cache",
+        # [daily-db-cache 2026-06-16] shared read-through cache for daily surfaces
+        "daily_surface_cache",
         # Lal Kitab
         "lal_kitab_remedies",
         # user-content keyed by chart
