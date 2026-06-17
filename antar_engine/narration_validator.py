@@ -39,6 +39,9 @@ _RULES = [
         r"navamsh?a|lagna|karaka|rashi|graha|sade\s*sati|vimsh?ottari|"
         r"jaimini|chara|varshphal|arudha|atmakaraka|amatyakaraka|"
         r"darakaraka|dharma|gochar)\b", re.IGNORECASE)),
+    # [ask-voice-gate 2026-06-16] English transit jargon ("the slow-moving force
+    # transiting through it"). Planet-motion vocabulary, never user-facing.
+    ("transit_jargon", re.compile(r"\btransit(?:s|ing|ed)?\b", re.IGNORECASE)),
     # ANY energy construction — energy-voice is retired from prediction
     # surfaces ("growth and wisdom energy", "your X energy", bare "energy").
     ("energy_voice", re.compile(r"\benerg(?:y|ies|\u00eda|ia)\b", re.IGNORECASE)),
@@ -52,8 +55,9 @@ _RULES = [
     # caught by energy_voice above.) Flag — never strip — so the caller regenerates.
     ("trait_forces", re.compile(
         r"\b\w+\s+and\s+\w+\s+forces?\b|"
+        r"\b(?:slow|fast)[-\s]?moving\s+forces?\b|"
         r"\b(?:cosmic|planetary|celestial|astral|energetic|inner|life|identity|"
-        r"desire|spiritual)\s+forces?\b", re.IGNORECASE)),
+        r"desire|spiritual|transiting|moving)\s+forces?\b", re.IGNORECASE)),
     # "interventions" used as a count of chart factors ("three unobstructed
     # interventions"). The word has no place on a plain-language life surface.
     ("intervention_count", re.compile(
