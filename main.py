@@ -1021,13 +1021,43 @@ scheduler.add_job(_deep_read_warm_job, "cron", hour=9, minute=0,
 
 # ── App ───────────────────────────────────────────────────────────────────────
 
+# [sched-singleflight 2026-06-16] One leader worker per container owns the
+# schedulers (see module docstring of patch_scheduler_singleflight.py).
+_SCHED_LOCK_PATH = "/tmp/antar_scheduler.lock"
+_sched_lock_fh = None
+
+def _become_scheduler_leader() -> bool:
+    """Idempotent, order-independent leader election via flock. Fail-open."""
+    global _sched_lock_fh
+    if _sched_lock_fh is not None:
+        return True  # this worker already holds leadership
+    try:
+        import fcntl
+        fh = open(_SCHED_LOCK_PATH, "w")
+        fcntl.flock(fh, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        _sched_lock_fh = fh  # hold the fd for process lifetime to keep the lock
+        return True
+    except BlockingIOError:
+        return False  # another worker already leads
+    except Exception as _sle:
+        print(f"[sched-singleflight] lock check failed, leading anyway: {_sle}")
+        return True
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    scheduler.start()
-    print("[startup] Birthday LK recompute scheduler started — runs daily 02:00 UTC")
+    if _become_scheduler_leader():
+        scheduler.start()
+        print("[startup] Scheduler started (leader worker) — daily jobs active")
+    else:
+        print("[startup] Scheduler skipped (non-leader worker)")
     yield
-    scheduler.shutdown(wait=False)
-    print("[shutdown] Scheduler stopped")
+    if _sched_lock_fh is not None:
+        try:
+            scheduler.shutdown(wait=False)
+            print("[shutdown] Scheduler stopped")
+        except Exception:
+            pass
 
 
 # --- antar:lang_from_country helper ---
@@ -3951,8 +3981,31 @@ async def submit_past_event_feedback(
         print(f"[past-events-feedback] Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+def _ensure_full_uuid(chart_id, field="chart_id"):
+    """[uuid-guard 2026-06-16] Reject a malformed/truncated id at the route
+    boundary so it never reaches the Postgres uuid column and 500s with
+    22P02. An 8-char prefix or any non-UUID value -> structured 422 the
+    frontend can dispatch on (instead of an opaque 500 -> landing bounce).
+    """
+    import uuid as _u
+    s = (chart_id or "").strip()
+    try:
+        _u.UUID(s)
+    except (ValueError, TypeError, AttributeError):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "INVALID_CHART_ID",
+                "message": f"{field} must be a full UUID",
+                "action": "clear_session_and_login",
+            },
+        )
+    return s
+
+
 @app.get("/api/v1/chart/{chart_id}", response_model=ChartResponse)
 async def get_chart(chart_id: str):
+    chart_id = _ensure_full_uuid(chart_id)
     result = supabase.table("charts").select("*").eq("id", chart_id).execute()
     if not result.data:
         raise HTTPException(status_code=404, detail="Chart not found")
@@ -11129,13 +11182,11 @@ def _st_bust_prediction_cache(user_id, analysis_lang):
                 ).eq("id", cid).execute()
             except Exception as _ue:
                 log.warning(f"[settings] chart lang update failed {cid}: {_ue}")
-        # Best-effort cache-table clears (no-op if the table doesn't exist).
-        for _tbl in ("daily_week_cache", "prediction_cache", "prewarm_cache"):
-            try:
-                if ids:
-                    supabase.table(_tbl).delete().in_("chart_id", ids).execute()
-            except Exception:
-                pass
+        # [cache-cleanup 2026-06-16] Removed dead clears for daily_week_cache /
+        # prediction_cache / prewarm_cache — none of those tables exist. The
+        # real daily/today/home caches (daily_signals_cache, today_narration_cache,
+        # home_cache) are all keyed by language, so a language change reads a
+        # fresh key automatically — no bust required.
     except Exception as _e:
         log.warning(f"[settings] prediction cache bust failed: {_e}")
 
@@ -11431,9 +11482,14 @@ async def settings_charts_delete(chart_id: str, authorization: Optional[str] = H
         "life_arc_cache",
         # today / home / week caches
         "today_narration_cache", "home_cache",
-        "predict_week_cache", "deep_read_cache",
+        "deep_read_cache",
         "practice_schedule_cache",
-        "daily_week_cache", "prediction_cache", "prewarm_cache",
+        # [cache-cleanup 2026-06-16] daily_signals_cache is the REAL daily-week
+        # cache (engine: _save_cached_signal); it was MISSING here so a deleted
+        # user's daily rows lingered (PII). Dropped phantom tables that do not
+        # exist: predict_week_cache / daily_week_cache / prediction_cache /
+        # prewarm_cache.
+        "daily_signals_cache",
         # Lal Kitab
         "lal_kitab_remedies",
         # user-content keyed by chart
@@ -17871,6 +17927,11 @@ async def _daily_alert_job():
 
 @app.on_event("startup")
 async def start_alert_scheduler():
+    # [sched-singleflight 2026-06-16] Only the leader worker runs the alert
+    # loop. _become_scheduler_leader() is idempotent + order-independent.
+    if not _become_scheduler_leader():
+        print("[startup] Alert scheduler skipped (non-leader worker)")
+        return
     asyncio.create_task(_daily_alert_job())
     print("[startup] Alert scheduler started — runs daily 06:00 UTC")
 
