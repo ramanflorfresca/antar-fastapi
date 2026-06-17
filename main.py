@@ -1123,7 +1123,7 @@ async def _unhandled_exception_handler(request: Request, exc: Exception):
 # ── Pydantic Models ───────────────────────────────────────────────────────────
 
 class BirthData(BaseModel):
-    birth_date: str = Field(..., example="1974-11-26")
+    birth_date: str = Field(..., example="1990-03-15")
     birth_time: str = Field(..., example="11:59")
     latitude: float = Field(..., example=28.6139)
     longitude: float = Field(..., example=77.2090)
@@ -1277,6 +1277,29 @@ def _parse_birth_time_permissive(v: str) -> str:
     # Moon moves 0.008° per 30s which is below chart resolution.
     return f'{hour:02d}:{minute:02d}'
 
+def _validate_birth_date_strict(v):
+    """[dob-guard 2026-06-16] birth_date must be a real, PAST calendar date in
+    YYYY-MM-DD form. Empty / malformed / future / pre-1900 values raise so the
+    chart-create RequestValidationError handler returns a structured 422. They
+    must NEVER fall through to a placeholder DOB or a 500 from calculate_chart().
+    """
+    from datetime import datetime as _dtg, date as _dateg
+    if v is None:
+        raise ValueError('birth_date is required')
+    s = str(v).strip()
+    if not s:
+        raise ValueError('birth_date is required')
+    try:
+        d = _dtg.strptime(s, '%Y-%m-%d').date()
+    except (ValueError, TypeError):
+        raise ValueError('birth_date must be a valid date in YYYY-MM-DD format')
+    if d.year < 1900:
+        raise ValueError('birth_date year is implausible (before 1900)')
+    if d >= _dateg.today():
+        raise ValueError('birth_date must be in the past')
+    return s
+
+
 class ChartCreateRequest(BaseModel):
     birth_date:      str   = Field(..., example="1990-03-15")
     birth_time:      str   = Field(..., example="14:30")
@@ -1287,6 +1310,11 @@ class ChartCreateRequest(BaseModel):
     @classmethod
     def _normalise_birth_time(cls, v):
         return _parse_birth_time_permissive(v)
+
+    @_chart_field_validator('birth_date', mode='before')
+    @classmethod
+    def _validate_birth_date(cls, v):
+        return _validate_birth_date_strict(v)
     timezone_offset: Optional[float] = Field(None, example=5.5)
     timezone_name:   Optional[str] = Field(None, example="Asia/Kolkata")
     timezone:        Optional[str] = Field(None, example="America/Caracas")
