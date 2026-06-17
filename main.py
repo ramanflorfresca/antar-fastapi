@@ -1258,6 +1258,10 @@ class ChartResponse(BaseModel):
     life_work:         Optional[str] = None
     life_relationship: Optional[str] = None
     life_kids:         Optional[str] = None
+    # [coords-canonical 2026-06-16] echo resolved house inputs so they are
+    # API-verifiable on read
+    birth_lat:         Optional[float] = None
+    birth_lng:         Optional[float] = None
 
 # [chart-create-422] lat/lng optional + birth_time validator
 from pydantic import field_validator as _chart_field_validator
@@ -1335,6 +1339,10 @@ class ChartCreateRequest(BaseModel):
     birth_time:      str   = Field(..., example="14:30")
     latitude:        Optional[float] = Field(None, example=28.6139)
     longitude:       Optional[float] = Field(None, example=77.2090)
+    # [coords-canonical 2026-06-16] birth_lat/birth_lng is the canonical pair
+    # Lovable sends; latitude/longitude kept as a migration fallback.
+    birth_lat:       Optional[float] = Field(None, example=28.6139)
+    birth_lng:       Optional[float] = Field(None, example=77.2090)
 
     @_chart_field_validator('birth_time', mode='before')
     @classmethod
@@ -4027,6 +4035,9 @@ async def get_chart(chart_id: str):
     response_dict["life_work"]         = r.get("life_work")
     response_dict["life_relationship"] = r.get("life_relationship")
     response_dict["life_kids"]         = r.get("life_kids")
+    # [coords-canonical 2026-06-16] resolved house inputs (charts.latitude/longitude)
+    response_dict["birth_lat"]         = r.get("latitude")
+    response_dict["birth_lng"]         = r.get("longitude")
     response_dict["lal_kitab"]        = r.get("lal_kitab_data")
     response_dict["panchanga"]        = r["chart_data"].get("panchanga")
     response_dict["sarvashtakavarga"] = r["chart_data"].get("sarvashtakavarga")
@@ -9389,7 +9400,14 @@ async def create_chart(
         except HTTPException:
             pass
 
-    if request.latitude and request.longitude:
+    _bl = getattr(request, "birth_lat", None)
+    _bg = getattr(request, "birth_lng", None)
+    if _bl is not None and _bg is not None:
+        # [coords-canonical 2026-06-16] canonical precise pin — read ONLY this
+        # for houses; never re-geocode when present.
+        lat, lng = _bl, _bg
+        _geo_source = "birth_latlng"
+    elif request.latitude and request.longitude:
         lat, lng = request.latitude, request.longitude
         # [TIER1E 2026-06-09] Frontend supplied coords directly — bypasses the
         # geocoder entirely.  Tag so we can audit user-coords rows separately
@@ -11319,7 +11337,8 @@ async def settings_charts(authorization: Optional[str] = Header(None)):
         return _st_guest_401()
     p = _st_get_profile(user_id)
     charts = _st_user_charts(user_id)
-    primary = p.get("primary_chart_id")
+    # [profiles-rename 2026-06-16] legacy chart_id fallback until rename lands
+    primary = p.get("primary_chart_id") or p.get("chart_id")
     # default the primary to the oldest chart if unset
     if not primary and charts:
         primary = charts[0]["id"]
@@ -11613,12 +11632,15 @@ async def settings_charts_delete(chart_id: str, authorization: Optional[str] = H
     # ── 4. Clear stale chart pointers on profiles ────────────────────────
     # primary_chart_id is already blocked above, but a non-primary `chart_id`
     # pointer could still resolve the deleted chart for /me/language etc.
-    try:
-        supabase.table("profiles").update({"chart_id": None}).eq("chart_id", chart_id).execute()
-        supabase.table("profiles").update({"primary_chart_id": None}).eq("primary_chart_id", chart_id).execute()
-    except Exception as _pe:
-        _purge_errors.append({"table": "profiles", "error": str(_pe)})
-        _log.warning(f"[chart-delete] profile pointer clear failed cid={chart_id}: {_pe}")
+    # [profiles-rename 2026-06-16] Clear each pointer column independently so a
+    # missing column (mid-rename) can't block the other. Works before, during,
+    # and after the chart_id -> primary_chart_id migration.
+    for _pcol in ("primary_chart_id", "chart_id"):
+        try:
+            supabase.table("profiles").update({_pcol: None}).eq(_pcol, chart_id).execute()
+        except Exception as _pe:
+            _purge_errors.append({"table": f"profiles.{_pcol}", "error": str(_pe)})
+            _log.warning(f"[chart-delete] profile {_pcol} clear skipped cid={chart_id}: {_pe}")
 
     _resp = {"ok": True, "tombstoned": True}
     if _purge_errors:
@@ -11821,7 +11843,9 @@ async def me_entitlements_endpoint(authorization: Optional[str] = Header(None)):
     if not user_id:
         return _st_guest_401()
     prof = _st_get_profile(user_id) or {}
-    chart_id = prof.get("chart_id")
+    # [profiles-rename 2026-06-16] prefer primary_chart_id (post-rename),
+    # fall back to legacy chart_id during the migration window.
+    chart_id = prof.get("primary_chart_id") or prof.get("chart_id")
     if not chart_id:
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=404, content={"error": "no_chart_for_user"})
