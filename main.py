@@ -12378,27 +12378,67 @@ async def chakra_endpoint(
     if not chart_res.data:
         raise HTTPException(404, "Chart not found")
     chart_record     = chart_res.data[0]
-    chart_data       = chart_record["chart_data"]
+    chart_data       = chart_record.get("chart_data")
+    # [chakra-hardening] chart_data may be a JSON string (rule #8) — parse defensively.
+    if isinstance(chart_data, str):
+        import json as _cd_json
+        try:
+            chart_data = _cd_json.loads(chart_data)
+        except Exception:
+            chart_data = None
+
+    # [chakra-hardening] Graceful-fail on incomplete birth data instead of a 500.
+    # The Chakra view needs real planetary positions; a half-built chart (missing
+    # chart_data or planets) returns a clear re-enter state, never a hard crash.
+    _cd_incomplete_msg = ("We couldn't read your full birth details for this view. "
+                          "Please re-enter your birth date, time, and place to unlock it.")
+    _cd_planets = chart_data.get("planets") if isinstance(chart_data, dict) else None
+    if not isinstance(chart_data, dict) or not _cd_planets:
+        return ChakraResponse(
+            stressed_chakras=[],
+            flowing_chakras=[],
+            primary_practice={},
+            daily_sequence=[],
+            chapter_arc="",
+            current_chakra_name="",
+            current_chakra_color="",
+            summary=_cd_incomplete_msg,
+        )
+
     dashas           = get_dashas_for_chart(request.chart_id)
-    _raw_transits = transits.calculate_transits(chart_data, target_date=None, ayanamsa_mode=1)
-    current_transits = (
-        {t["planet"]: t for t in _raw_transits if "planet" in t}
-        if isinstance(_raw_transits, list) else _raw_transits
-    )
+    try:
+        _raw_transits = transits.calculate_transits(chart_data, target_date=None, ayanamsa_mode=1)
+        current_transits = (
+            {t["planet"]: t for t in _raw_transits if "planet" in t}
+            if isinstance(_raw_transits, list) else _raw_transits
+        )
 
-    # Extract sleeping planets from stored LK data
-    _lk_raw_ch = chart_record.get("lal_kitab_data") or {}
-    if isinstance(_lk_raw_ch, str):
-        import json as _lkjch
-        _lk_raw_ch = _lkjch.loads(_lk_raw_ch)
-    _sleeping_ch = (_lk_raw_ch.get("advanced", {}) or {}).get("sleeping_planets", [])
+        # Extract sleeping planets from stored LK data
+        _lk_raw_ch = chart_record.get("lal_kitab_data") or {}
+        if isinstance(_lk_raw_ch, str):
+            import json as _lkjch
+            _lk_raw_ch = _lkjch.loads(_lk_raw_ch)
+        _sleeping_ch = (_lk_raw_ch.get("advanced", {}) or {}).get("sleeping_planets", [])
 
-    reading = get_chakra_reading(
-        chart_data=chart_data,
-        dashas=dashas,
-        current_transits=current_transits,
-        sleeping_planets=_sleeping_ch or None,
-    )
+        reading = get_chakra_reading(
+            chart_data=chart_data,
+            dashas=dashas,
+            current_transits=current_transits,
+            sleeping_planets=_sleeping_ch or None,
+        )
+    except Exception as _chakra_err:
+        print(f"[chakra] compute failed for {request.chart_id}: {_chakra_err}")
+        import traceback as _ctb; _ctb.print_exc()
+        return ChakraResponse(
+            stressed_chakras=[],
+            flowing_chakras=[],
+            primary_practice={},
+            daily_sequence=[],
+            chapter_arc="",
+            current_chakra_name="",
+            current_chakra_color="",
+            summary=_cd_incomplete_msg,
+        )
 
     return ChakraResponse(
         stressed_chakras    =reading["stressed_chakras"],
