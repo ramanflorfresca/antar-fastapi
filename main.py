@@ -9907,6 +9907,19 @@ async def create_chart(
     except Exception as _la_pw_e:
         print(f"[chart/create] Life Arc prewarm failed (non-fatal): {_la_pw_e}")
 
+    # [warm-on-create 2026-06-16] Pre-warm the daily/today surface so the new
+    # user's first dashboard open reads a warm cache instead of regenerating.
+    # tz_offset=None -> the warmer derives the user's CURRENT-location tz from
+    # current_country. Fire-and-forget; fully guarded inside the warmer.
+    try:
+        import asyncio as _wc_asyncio
+        _wc_lang = (getattr(request, "language_preference", None)
+                    or getattr(request, "language", None) or "en")
+        _wc_asyncio.create_task(_prewarm_daily_week_cache(chart_id, None, _wc_lang))
+        print(f"[chart/create] daily-week prewarm fired for {chart_id[:8]}")
+    except Exception as _wc_e:
+        print(f"[chart/create] daily-week prewarm failed (non-fatal): {_wc_e}")
+
     return ChartCreateResponse(
         chart_id=chart_id,
         lagna=chart_data["lagna"]["sign"],
