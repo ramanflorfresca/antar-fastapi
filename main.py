@@ -11529,6 +11529,8 @@ async def settings_charts_delete(chart_id: str, authorization: Optional[str] = H
         # today / home / week caches
         "today_narration_cache", "home_cache",
         "deep_read_cache",
+        # [predict-week-cache 2026-06-16] real table created in PHASE2_CACHE.sql
+        "predict_week_cache",
         "practice_schedule_cache",
         # [cache-cleanup 2026-06-16] daily_signals_cache is the REAL daily-week
         # cache (engine: _save_cached_signal); it was MISSING here so a deleted
