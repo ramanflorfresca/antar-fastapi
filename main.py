@@ -15975,7 +15975,9 @@ async def ask_endpoint(request: AskRequest):
                             if _vp:
                                 _fc.append(_vp if _vp.endswith((".", "!", "?")) else _vp + ".")
                             _win = (_ask_conv.get("window_label") or _ee_timing or "").strip()
-                            if _win:
+                            # [ask-voice-gate dedupe] don't restate the window if the
+                            # verdict phrase already names it.
+                            if _win and _win.lower() not in _vp.lower():
                                 _fc.append("Best window: " + _win + ".")
                         _clean_next = None
                         for _cand in ([next_txt] + list(_ask_actions or [])):
@@ -16063,12 +16065,15 @@ async def ask_endpoint(request: AskRequest):
                 _nx_dirty = isinstance(_nx, str) and bool(_nx) and bool(_vnf(_nx, language="en"))
                 if _rd_dirty:
                     _fc2 = []
+                    _vp2 = ""
                     if payload.get("verdict") and _ask_decision and _ask_conv:
                         _vp2 = (_ask_conv.get("verdict_phrase") or "").strip()
                         if _vp2:
                             _fc2.append(_vp2 if _vp2.endswith((".", "!", "?")) else _vp2 + ".")
-                    if payload.get("timing"):
-                        _fc2.append("Best window: " + str(payload["timing"]) + ".")
+                    _tm2 = str(payload.get("timing") or "").strip()
+                    # [ask-voice-gate dedupe] skip the window if the verdict already names it.
+                    if _tm2 and _tm2.lower() not in _vp2.lower():
+                        _fc2.append("Best window: " + _tm2 + ".")
                     if _fc2:
                         payload["read"] = " ".join(_fc2).strip()
                         print("[ask][voice-gate] post-readability read fail-closed")
