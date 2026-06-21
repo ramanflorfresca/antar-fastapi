@@ -18279,9 +18279,11 @@ async def handle_stripe_webhook(request: Request):
                         ).eq("user_id", _uid).execute()
                         _st_cache_bust(_uid)
                     elif chart_id:
+                        # [profiles-rename 2026-06-16] profiles.chart_id was
+                        # renamed to primary_chart_id — filter by the new column.
                         supabase.table("profiles").update(
                             {"stripe_customer_id": _cust_id}
-                        ).eq("chart_id", chart_id).execute()
+                        ).eq("primary_chart_id", chart_id).execute()
             except Exception as _bf:
                 print(f"[stripe webhook] customer backfill non-fatal: {_bf}")
 
