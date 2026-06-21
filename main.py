@@ -10783,8 +10783,10 @@ async def places_concern_endpoint(req: PlacesConcernReq):
 
     all_lines = _pl.compute_all_lines(chart.get("birth_jd"), chart)
     conditions = _pc.compute_all_conditions(chart)
+    _rank_trace = {}
     scored = _pcn.rank_cities_for_concern(
-        chart, req.concern, _places_cities(), region_filter=req.region_filter
+        chart, req.concern, _places_cities(), region_filter=req.region_filter,
+        trace=_rank_trace,
     )
     # Phase 3: per-chart context for the 4-layer reasoning.
     _p3_name = rec.get("first_name") or rec.get("name") or None
@@ -10851,6 +10853,7 @@ async def places_concern_endpoint(req: PlacesConcernReq):
     # point: planet-remove all prose + remap bare planet/condition/layer
     # tokens to plain language (raw kept under "_<key>") before cache + return.
     out = _places_scrub_concern_payload(out, req.language)
+    out["_relevance_trace"] = _rank_trace  # [unit2] tunable floor + relax decision (internal)
     _places_cache_set(ckey, out)
     return _ent_places_concern_view(out, req.chart_id)
 

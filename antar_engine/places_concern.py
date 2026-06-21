@@ -76,6 +76,13 @@ _TIER_STRAIN = 35
 _MAX_PER_LINE = 2
 _MAX_PER_COUNTRY = 2
 
+# [places relevance gate 2026-06-21] Population floor so microstate capitals
+# (Suva 77k, Funafuti 6k) can't top a ranking purely on a line crossing.
+# Tunable; surfaced in the rank trace; relaxed automatically when too few
+# cities qualify (e.g. a thin region_filter). Filters the pool only — it
+# never changes how a city scores.
+POPULATION_FLOOR = 500_000
+
 
 def _proximity(distance_km: float) -> float:
     """Graded proximity so distance variance reaches the score.
@@ -360,12 +367,27 @@ def _select_diverse(scored: list[dict], n: int) -> list[dict]:
     return picked[:n]
 
 
+def _apply_population_floor(pool: list, floor: int, min_keep: int):
+    """Keep cities with population >= floor. If fewer than min_keep qualify,
+    relax to the largest-by-population min_keep cities (still drops the
+    microstates when bigger options exist) rather than returning a thin or
+    empty list. Returns (filtered_pool, effective_floor, relaxed_bool)."""
+    qualifying = [c for c in pool if (c.get("population") or 0) >= floor]
+    if len(qualifying) >= min_keep:
+        return qualifying, floor, False
+    by_pop = sorted(pool, key=lambda c: -(c.get("population") or 0))
+    relaxed = by_pop[: max(min_keep, len(qualifying))]
+    eff_floor = (relaxed[-1].get("population") or 0) if relaxed else floor
+    return relaxed, eff_floor, True
+
+
 def rank_cities_for_concern(
     chart: dict,
     concern: str,
     cities: list[dict],
     region_filter: Optional[str] = None,
     top_n: int = 8,
+    trace: Optional[dict] = None,
 ) -> list[dict]:
     """
     Score every city for a concern and return the top N (default 8, contract
@@ -387,6 +409,18 @@ def rank_cities_for_concern(
                 str(c.get("country", "")).lower(),
             )
         ]
+
+    # [places relevance gate] drop cities below the population floor so a
+    # line crossing over a microstate capital can't outrank real metros.
+    _need = max(5, min(top_n, 8))
+    _n_before = len(pool)
+    pool, _applied_floor, _relaxed = _apply_population_floor(pool, POPULATION_FLOOR, _need)
+    if trace is not None:
+        trace["population_floor"] = POPULATION_FLOOR
+        trace["applied_floor"] = _applied_floor
+        trace["relaxed"] = _relaxed
+        trace["n_pool_before_floor"] = _n_before
+        trace["n_pool_after_floor"] = len(pool)
 
     scored = [
         score_city_for_concern(
