@@ -10230,6 +10230,10 @@ Respond in {locale.language}."""
 
 @app.get("/api/v1/astrocartography/{chart_id}")
 async def get_astrocartography(chart_id: str, concern: str = "career", limit: int = 5):
+    raise HTTPException(
+        status_code=410,
+        detail={"error": "deprecated", "use": "/api/v1/places/lines/{chart_id}"},
+    )
     """
     Relocation-primary astrocartography (v2).
 
@@ -25187,6 +25191,10 @@ async def astrocartography_recommend(
     request: AstroRecommendRequest,
     authorization: Optional[str] = Header(None),
 ):
+    raise HTTPException(
+        status_code=410,
+        detail={"error": "deprecated", "use": "/api/v1/places/concern"},
+    )
     """
     v2 deterministic ranking — same engine as GET /{chart_id}. No DeepSeek
     list copy. Region filter applied AFTER scoring. Endpoint is free.
@@ -25271,6 +25279,10 @@ async def astrocartography_city(
     request: AstroCityRequest,
     authorization: Optional[str] = Header(None),
 ):
+    raise HTTPException(
+        status_code=410,
+        detail={"error": "deprecated", "use": "/api/v1/places/city"},
+    )
     """
     Single-city scoring. Free, no gating. Same v2 engine as /recommend.
     Returns: { chart_context, card, intent, found }.
