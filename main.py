@@ -10407,6 +10407,95 @@ def _places_strip(content, language):
         return content
 
 
+# ── [places-concern leak-close 2026-06-21] ──────────────────────────────────
+# /places/concern assembles prose + structured-token fields that bypass the
+# planet-name contract because _places_strip uses source="curated_static"
+# (keep_planet_actors=True → planet-as-actor). This block is the single
+# enforcement point for that surface: ZERO planet names / dignity tokens
+# (CLAUDE.md rule 12). Prose is planet-REMOVED (source="llm"); bare tokens are
+# mapped to plain language with the raw value retained under "_<key>".
+_PLACES_PROSE_KEYS = {
+    "primary_reason", "secondary_reasons", "watch_outs", "watch", "one_line",
+    "text", "note", "relevant_lk", "relevant_yogas", "paragraph",
+    "texture_line", "global_pattern", "headline", "detail",
+}
+_PLACES_TOKEN_PLANET_KEYS = ("planet", "md_lord", "ad_lord", "next_md_lord", "dominant_karaka")
+_PLACES_TOKEN_COND_KEYS = ("condition", "dominant_condition", "natal_condition")
+_PLACES_LAYER_PLAIN = {"DASHA": "TIMING"}  # NATAL/AGE/INTENT are plain English, kept as-is
+_PLACES_COND_PLAIN = {
+    "en": {"exalted": "an exceptionally strong position", "own_sign": "a strong, dependable position",
+           "friend": "a supported, comfortable position", "neutral": "a steady, unremarkable position",
+           "enemy": "a position under some resistance", "debilitated": "a weakened position",
+           "combust": "an easily overshadowed position", "sleeping": "a dormant position that needs activation"},
+    "es": {"exalted": "una posici\u00f3n excepcionalmente fuerte", "own_sign": "una posici\u00f3n fuerte y confiable",
+           "friend": "una posici\u00f3n c\u00f3moda y apoyada", "neutral": "una posici\u00f3n estable pero discreta",
+           "enemy": "una posici\u00f3n con cierta resistencia", "debilitated": "una posici\u00f3n debilitada",
+           "combust": "una posici\u00f3n f\u00e1cilmente eclipsada", "sleeping": "una posici\u00f3n dormida que necesita activaci\u00f3n"},
+}
+_PLACES_DIGNITY_RE = [
+    (re.compile(r"\bexalted\b", re.I), "exceptionally strong"),
+    (re.compile(r"\bexaltad(o|a|os|as)\b", re.I), "excepcionalmente fuerte"),
+    (re.compile(r"\bdebilitated\b", re.I), "weakened"),
+    (re.compile(r"\bcombust\b", re.I), "overshadowed"),
+]
+
+
+def _places_strip_hard(content, language):
+    """Planet-REMOVING user-facing strip for /places/concern (source='llm' →
+    keep_planet_actors=False) plus residual dignity-word neutralisation.
+    Contrast with _places_strip (curated_static, planet-as-actor)."""
+    try:
+        out = apply_user_facing_strips(content, language=language, field_type="plain", source="llm")
+    except Exception:
+        out = content
+    if isinstance(out, str):
+        for _rx, _repl in _PLACES_DIGNITY_RE:
+            out = _rx.sub(_repl, out)
+        return out
+    if isinstance(out, list):
+        return [_places_strip_hard(x, language) if isinstance(x, str) else x for x in out]
+    return out
+
+
+def _places_cond_plain(token, language):
+    L = "es" if str(language).lower().startswith("es") else "en"
+    return _PLACES_COND_PLAIN.get(L, _PLACES_COND_PLAIN["en"]).get(token, token)
+
+
+def _places_scrub_concern_payload(node, language):
+    """Recursive last-line jargon scrub for the /places/concern payload.
+    Walks every dict/list; planet-removes known prose keys and remaps bare
+    planet/condition/layer tokens to plain language (raw under '_<key>')."""
+    if isinstance(node, dict):
+        for _tk in _PLACES_TOKEN_PLANET_KEYS:
+            _v = node.get(_tk)
+            if isinstance(_v, str) and _v:
+                node.setdefault("_" + _tk, _v)
+                node[_tk] = _places_strip_hard(_v, language)
+        for _tk in _PLACES_TOKEN_COND_KEYS:
+            _v = node.get(_tk)
+            if isinstance(_v, str) and _v:
+                node.setdefault("_" + _tk, _v)
+                node[_tk] = _places_cond_plain(_v, language)
+        _lv = node.get("layer")
+        if isinstance(_lv, str) and _lv in _PLACES_LAYER_PLAIN:
+            node.setdefault("_layer", _lv)
+            node["layer"] = _PLACES_LAYER_PLAIN[_lv]
+        for _k, _v in list(node.items()):
+            if isinstance(_k, str) and _k.startswith("_"):
+                continue
+            if _k in _PLACES_PROSE_KEYS:
+                node[_k] = _places_strip_hard(_v, language)
+            elif isinstance(_v, (dict, list)):
+                _places_scrub_concern_payload(_v, language)
+        return node
+    if isinstance(node, list):
+        for _it in node:
+            _places_scrub_concern_payload(_it, language)
+        return node
+    return node
+
+
 def _places_serialize_lines(lines, conditions, language):
     out = []
     for ln in lines:
@@ -10758,6 +10847,10 @@ async def places_concern_endpoint(req: PlacesConcernReq):
         ),
         "echoes_layer_1": _places_echoes(req.concern, conditions, ranked),
     }
+    # [places-concern leak-close 2026-06-21] single recursive enforcement
+    # point: planet-remove all prose + remap bare planet/condition/layer
+    # tokens to plain language (raw kept under "_<key>") before cache + return.
+    out = _places_scrub_concern_payload(out, req.language)
     _places_cache_set(ckey, out)
     return _ent_places_concern_view(out, req.chart_id)
 
