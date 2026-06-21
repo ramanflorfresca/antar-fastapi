@@ -1176,6 +1176,33 @@ async def _save_cached_signal(chart_id: str, date_str: str, language: str, signa
 # Main 7-Day Generator (v2 — LLM-backed)
 # ──────────────────────────────────────────────
 
+# [eph-memo 2026-06-16] Per-date global ephemeris memo. moon/mercury/tithi/
+# panchang for a (date, tz) are identical across all charts, so computing
+# them 7x per request per user is wasted CPU that blocks the async event
+# loop and serializes concurrent requests. Cache per date so the work is
+# reused. Cached values are READ-ONLY downstream, so sharing refs is safe.
+# Process-local + deterministic (no cross-worker issue). Kill: DAILY_EPH_MEMO=off.
+_EPH_DATE_CACHE = {}
+_EPH_CACHE_MAX = 4000
+
+def _eph_memo(kind, target_date, tz_offset, producer):
+    if os.getenv("DAILY_EPH_MEMO", "on").strip().lower() in ("off", "0", "false", "no"):
+        return producer()
+    try:
+        date_iso = target_date.strftime("%Y-%m-%d")
+    except Exception:
+        return producer()
+    tz_key = round(float(tz_offset or 0.0), 2)
+    k = (kind, date_iso, tz_key)
+    if k in _EPH_DATE_CACHE:
+        return _EPH_DATE_CACHE[k]
+    v = producer()
+    if len(_EPH_DATE_CACHE) > _EPH_CACHE_MAX:
+        _EPH_DATE_CACHE.clear()
+    _EPH_DATE_CACHE[k] = v
+    return v
+
+
 async def generate_weekly_signals(
     natal_moon_sign: str,
     start_date: Optional[datetime] = None,
@@ -1237,15 +1264,15 @@ async def generate_weekly_signals(
         date_str = target_date.strftime("%Y-%m-%d")
 
         # Compute Moon data (KEPT)
-        moon_data = get_moon_data_for_date(target_date, tz_offset=tz_offset)
+        moon_data = _eph_memo("moon", target_date, tz_offset, lambda: get_moon_data_for_date(target_date, tz_offset=tz_offset))
         nakshatra = moon_data["nakshatra"]
         moon_sign = moon_data["sign"]
 
         # Compute Mercury sign (KEPT)
-        mercury_sign = get_planet_sign_for_date(target_date, 2, tz_offset=tz_offset)
+        mercury_sign = _eph_memo("merc", target_date, tz_offset, lambda: get_planet_sign_for_date(target_date, 2, tz_offset=tz_offset))
 
         # Compute tithi (KEPT)
-        tithi = get_tithi(target_date, tz_offset=tz_offset)
+        tithi = _eph_memo("tithi", target_date, tz_offset, lambda: get_tithi(target_date, tz_offset=tz_offset))
 
         # Compute chandra bala
         chandra_bala = get_chandra_bala(natal_moon_sign, moon_sign)
@@ -1279,7 +1306,7 @@ async def generate_weekly_signals(
 
         # Compute panchang quality for this day
         try:
-            panchang = calculate_panchang(target_date, 0.0, 0.0)
+            panchang = _eph_memo("panchang", target_date, 0.0, lambda: calculate_panchang(target_date, 0.0, 0.0))
             panchang_quality = panchang.get("panchang_quality", "mixed")
         except Exception:
             panchang_quality = "mixed"
@@ -1587,11 +1614,11 @@ def generate_weekly_signals_sync(
         weekday = target_date.strftime("%A")
         date_str = target_date.strftime("%Y-%m-%d")
 
-        moon_data = get_moon_data_for_date(target_date, tz_offset=tz_offset)
+        moon_data = _eph_memo("moon", target_date, tz_offset, lambda: get_moon_data_for_date(target_date, tz_offset=tz_offset))
         nakshatra = moon_data["nakshatra"]
         moon_sign = moon_data["sign"]
-        mercury_sign = get_planet_sign_for_date(target_date, 2, tz_offset=tz_offset)
-        tithi = get_tithi(target_date, tz_offset=tz_offset)
+        mercury_sign = _eph_memo("merc", target_date, tz_offset, lambda: get_planet_sign_for_date(target_date, 2, tz_offset=tz_offset))
+        tithi = _eph_memo("tithi", target_date, tz_offset, lambda: get_tithi(target_date, tz_offset=tz_offset))
         score, is_friction = _score_day(moon_sign, natal_moon_sign, nakshatra, weekday)
 
         signal_data = _build_signal_text(
