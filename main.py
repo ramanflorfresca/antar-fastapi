@@ -16448,7 +16448,7 @@ async def ask_endpoint(request: AskRequest):
             # 2. NOT LOCKED — cast a fresh chart at the moment of asking.
             try:
                 chart_row = supabase.table("charts") \
-                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, birth_country, country_code, latitude, longitude") \
+                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, birth_country, country_code, latitude, longitude, birth_time, tz_offset, needs_reconfirm") \
                     .eq("id", chart_id).single().execute()
             except Exception as _nfe:
                 if "PGRST116" in str(_nfe) or "0 rows" in str(_nfe):
@@ -16721,6 +16721,17 @@ async def ask_endpoint(request: AskRequest):
                 "practices": _yn_practices,
                 "convergence": _yn_conv.get("public_summary"),
             }
+            # [KP A5 shadow 2026-06-23] additive KP verdict (yesno) —
+            # gate + mode guarded in kp_service; not user-facing until KP_MODE=primary.
+            try:
+                from antar_engine.kp.kp_service import kp_answer as _kp_answer
+                _kp = _kp_answer(cdata, question, language=language)
+                if _kp.get('mode') == 'primary' and _kp.get('eligible'):
+                    payload['kp'] = _kp
+                else:
+                    payload['kp_shadow'] = _kp
+            except Exception as _kp_e:
+                print(f'[ask] kp yesno non-fatal: {_kp_e}')
             # [ask-scrub] yesno-normal
             try:
                 _ask_scrub_payload(payload, ["why", "timing"], language=language)
