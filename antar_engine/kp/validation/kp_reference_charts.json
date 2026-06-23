@@ -1,0 +1,41 @@
+{
+  "_doc": "A1 acceptance: cuspal sub-lords for these charts must match a published KP reference (KPStarOne / astro-seek 'KP' mode, KP-Old ayanamsa, Placidus). Birth data is from Astro-Databank (Rodden A where possible). Fill expected_cusp_sublords from a trusted KP source, then run verify_a1.py on the mac venv (source venv311/bin/activate). Leave expected_* null to just PRINT computed values for manual comparison.",
+  "ayanamsa": "KP-Old (swe.SIDM_KRISHNAMURTI)",
+  "node": "mean",
+  "charts": [
+    {
+      "name": "Elon Musk",
+      "birth_date": "1971-06-28",
+      "birth_time": "07:30",
+      "lat": -25.7461,
+      "lon": 28.1881,
+      "tz_offset": 2.0,
+      "rodden": "A",
+      "source": "https://www.astro.com/astro-databank/Musk,_Elon",
+      "expected_ascendant_sign": null,
+      "expected_cusp_sublords": null
+    },
+    {
+      "name": "Mohandas Gandhi",
+      "birth_date": "1869-10-02",
+      "birth_time": "07:11",
+      "lat": 21.6417,
+      "lon": 69.6293,
+      "tz_offset": 4.6210,
+      "rodden": "A",
+      "source": "https://www.astro.com/astro-databank/Gandhi,_Mahatma",
+      "expected_ascendant_sign": null,
+      "expected_cusp_sublords": null
+    },
+    {
+      "name": "Reference chart 3 (add one you can verify in KPStarOne)",
+      "birth_date": null,
+      "birth_time": null,
+      "lat": null,
+      "lon": null,
+      "tz_offset": null,
+      "expected_ascendant_sign": null,
+      "expected_cusp_sublords": null
+    }
+  ]
+}
