@@ -182,7 +182,7 @@ def _get_sunrise_sunset(lat: float, lng: float, date: datetime) -> tuple:
         )
         # Sunset
         set_result = swe.rise_trans(
-            jd_noon - 0.5,
+            rise_result[1][0],  # search sunset AFTER sunrise (fixes neg-lon day span)
             swe.SUN,
             SET_FLAG | GEO_FLAG,
             [lng, lat, 0],

@@ -1469,6 +1469,40 @@ def _compose_for_horizon(horizon: str,
     # it from chart_daily_headlines to make gentling/crisis live).
     if horizon == "today":
         view["lkRead"] = None
+        # [today-precision v2 2026-06-23] additive precise daily — gated by
+        # DAILY_PRECISION_V2 (shadow default). Never overwrites shipped fields.
+        view["precise"] = None
+        try:
+            from antar_engine.today_precision import (
+                compute_today_precision as _tp_compute, is_enabled as _tp_on,
+            )
+            if _tp_on():
+                _tp_cc = (chart_row.get("current_country") or "").strip().upper()
+                _tp_bcc = (chart_row.get("birth_country")
+                           or chart_row.get("country_code") or "").strip().upper()
+                _tp_lat = _tp_lon = 0.0
+                if _tp_cc and _tp_cc != _tp_bcc:
+                    try:
+                        from antar_engine.day_chart_engine import COUNTRY_COORDS as _TPC
+                        if _tp_cc in _TPC:
+                            _tp_lat, _tp_lon = float(_TPC[_tp_cc][0]), float(_TPC[_tp_cc][1])
+                    except Exception:
+                        _tp_lat = _tp_lon = 0.0
+                if not _tp_lat or not _tp_lon:
+                    _tp_lat = float(chart_row.get("latitude") or chart_data.get("latitude") or 0)
+                    _tp_lon = float(chart_row.get("longitude") or chart_data.get("longitude") or 0)
+                _tp = _tp_compute(
+                    chart_data=chart_data,
+                    transit_polarity=(today_signal or {}).get("polarity"),
+                    lat=_tp_lat, lng=_tp_lon,
+                    tz_offset_hours=float(tz_offset_min) / 60.0,
+                    fallback_window=best_t, fallback_avoid=avoid_t,
+                    language=language,
+                )
+                if _tp.get("eligible"):
+                    view["precise"] = _tp
+        except Exception as _tpe:
+            print(f"[home_composer] today_precision skipped: {_tpe}")
         try:
             from antar_engine.lk_conditions import LK_CONDITIONS
             from antar_engine.lk_trigger import matches_trigger
