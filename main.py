@@ -24580,6 +24580,18 @@ async def predict_year_attention(request: dict, language: str = None):
         payload['life_context'] = get_life_context(chart_record=row)
     except Exception as _lc_e:
         print(f'[year-attention] life_context non-fatal: {_lc_e}')
+    # [lk-preview] flagged LK Varshphal year engine. Never replaces the
+    # live `year` block — attaches a preview so the founder can eyeball
+    # accuracy on real charts as the Roop Chand rule tables fill in.
+    try:
+        _lk_on = str((request or {}).get('lk_preview') or '').strip().lower() in ('1', 'true', 'yes')
+        if _lk_on or os.getenv('LK_YEAR_ENGINE', 'off').lower() == 'on':
+            from antar_engine.lk_varshphal_year import read_year as _lk_read_year
+            payload['_lk_year_preview'] = _lk_read_year(
+                chart_data, birth_date, row.get('gender') or '')
+    except Exception as _lkp_e:
+        print(f'[year-attention] lk preview non-fatal: {_lkp_e}')
+
     return _ent_year_view(payload, chart_id)
 
 
