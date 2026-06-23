@@ -24427,6 +24427,17 @@ async def predict_year_attention(request: dict):
             "next_dasha_lord": _hly_nl,
             "next_dasha_when": _hly_when,
         })
+        # [D7] Quarantine dated-year predictions: the dated-event/
+        # convergence engine is gated behind backtest, so no specific
+        # future-year date may surface here. Drop any highlight whose text
+        # carries a 4-digit year (e.g. "...opens around Jul 2041").
+        import re as _yd_re
+        _yd_yr = _yd_re.compile(r"\b(?:19|20|21)\d{2}\b")
+        if isinstance(payload.get("highlights"), list):
+            payload["highlights"] = [
+                _h for _h in payload["highlights"]
+                if not (isinstance(_h, dict) and _yd_yr.search(str(_h.get("text", ""))))
+            ]
     except Exception as _hly_err:
         print(f"[year-attention] highlights failed: {_hly_err}")
         payload["highlights"] = []
