@@ -64,16 +64,28 @@ def _classify(question):
 
 
 def _build_chart(chart_record, kp_birth_time=None):
-    from .kp_chart import compute_kp_chart
-    bt = kp_birth_time or chart_record.get("birth_time")
-    bd = str(chart_record.get("birth_date") or "")[:10]
+    """
+    Build the KP chart from the stored birth_jd (in chart_data) + lat/lon. The
+    charts table has no tz_offset column, and birth_jd already encodes time+tz,
+    so this avoids any dependency on time/tz columns.
+    """
+    import json as _json
+    from .kp_chart import compute_kp_chart_from_jd
+
+    cd = chart_record.get("chart_data")
+    if isinstance(cd, str):
+        try:
+            cd = _json.loads(cd)
+        except Exception:
+            cd = {}
+    cd = cd if isinstance(cd, dict) else {}
+
+    jd = cd.get("birth_jd")
     lat = chart_record.get("latitude")
     lon = chart_record.get("longitude")
-    tz = chart_record.get("tz_offset")
-    if not (bd and bt and lat is not None and lon is not None and tz is not None):
+    if jd is None or lat is None or lon is None:
         return None
-    return compute_kp_chart(bd, str(bt)[:8], float(lat), float(lon),
-                            tz_offset=float(tz))
+    return compute_kp_chart_from_jd(float(jd), float(lat), float(lon))
 
 
 def kp_answer(chart_record, question, language="en", now=None,

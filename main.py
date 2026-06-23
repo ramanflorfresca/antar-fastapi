@@ -15736,7 +15736,7 @@ async def ask_endpoint(request: AskRequest):
         try:
             try:
                 chart_row = supabase.table("charts") \
-                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, birth_time, latitude, longitude, tz_offset, needs_reconfirm") \
+                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, latitude, longitude") \
                     .eq("id", chart_id).single().execute()
             except Exception as _nfe:
                 if "PGRST116" in str(_nfe) or "0 rows" in str(_nfe):
@@ -16448,7 +16448,7 @@ async def ask_endpoint(request: AskRequest):
             # 2. NOT LOCKED — cast a fresh chart at the moment of asking.
             try:
                 chart_row = supabase.table("charts") \
-                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, birth_country, country_code, latitude, longitude, birth_time, tz_offset, needs_reconfirm") \
+                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, birth_country, country_code, latitude, longitude") \
                     .eq("id", chart_id).single().execute()
             except Exception as _nfe:
                 if "PGRST116" in str(_nfe) or "0 rows" in str(_nfe):

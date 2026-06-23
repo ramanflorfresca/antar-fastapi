@@ -380,6 +380,32 @@ def compute_kp_chart(birth_date, birth_time, lat, lon,
     }
 
 
+def compute_kp_chart_from_jd(jd_utc, lat, lon):
+    """
+    Build the KP chart directly from a stored Julian Day + lat/lon. Preferred in
+    production: chart_data already carries birth_jd, so we don't depend on a
+    birth_time/tz_offset column (the charts table has no tz_offset).
+    """
+    cusps, _ascmc = compute_cusps(jd_utc, lat, lon)
+    planets = compute_planets(jd_utc)
+    cusp_starts = {h: cusps[h]["longitude"] for h in range(1, 13)}
+    for _name, p in planets.items():
+        p["house"] = _house_of_longitude(p["longitude"], cusp_starts)
+    return {
+        "system": "KP",
+        "ayanamsa": "KP-Old (Krishnamurti)",
+        "ayanamsa_value": round(swe.get_ayanamsa_ut(jd_utc), 6),
+        "node": "mean",
+        "house_system": "Placidus",
+        "birth_jd": jd_utc,
+        "ascendant": cusps[1],
+        "cusps": cusps,
+        "planets": planets,
+        "meta": {"lat": float(lat), "lon": float(lon), "sub_segments": 249,
+                 "source": "birth_jd"},
+    }
+
+
 # --------------------------------------------------------------------------
 # Self-test (run directly; needs the Swiss Ephemeris environment)
 # --------------------------------------------------------------------------
