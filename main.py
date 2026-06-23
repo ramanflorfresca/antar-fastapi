@@ -17225,6 +17225,12 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 _d1_tm = result.get("todays_move")
                 if isinstance(_d1_tm, dict):
                     _d1_move = (_d1_tm.get("best_for") or "").strip()
+            # [P0b] avoid the quiet-day placeholder — prefer a concrete
+            # action drawn from the aligned_for list.
+            if (not _d1_move) or ("the one thing that actually matters" in _d1_move.lower()):
+                _af0 = result.get("aligned_for")
+                if isinstance(_af0, list) and _af0 and isinstance(_af0[0], str) and _af0[0].strip():
+                    _d1_move = _af0[0].strip()
             result["el_movimiento"] = _d1_move
             result["move"] = _d1_move
             result["_debug_reasoning"] = _th_dbg
@@ -17249,47 +17255,49 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     _nar_date = (start_date.date() if hasattr(start_date, "date")
                                  else start_date).isoformat()
                     _nar = None if _inspect_active() else narration_cache_read(supabase, cid, _nar_date, _th)
-                    if not _nar:
-                        # Fix #1: hand the engine's specific drivers to the
-                        # narrator so it says WHY each domain is lit, not just
-                        # the collapsed bucket name. Jargon-free conclusions.
-                        from antar_engine.today_narration import summarize_drivers
-                        _nar_drivers = summarize_drivers(_th_dbg, _th.get("highlight_domains"))
-                        _nar_sys = build_narration_system(
-                            engine=_th,
-                            nudge=result.get("todays_nudge"),
-                            first_name=row.get("name") or "",
-                            patra_domains=(sorted(_th_tilt.keys())
-                                           if isinstance(_th_tilt, dict) else []),
-                            lk_daily=_th_lk,
-                            date_str=_nar_date,
-                            drivers=_nar_drivers,
-                            panchanga=panchanga,
-                        )
-                        _nar_raw, _ = await call_llm_claude(
-                            prompt="Write the Today narration JSON now.",
-                            system_override=_nar_sys,
-                            max_tokens_override=350,
-                        )
-                        _nar = parse_and_validate(_nar_raw, language="en")
-                        # [readability 2026-06-10] simplify pre-cache, then re-strip.
-                        if _nar:
-                            try:
-                                from antar_engine.readability import simplify_payload_fields as _rb_simplify
-                                await _rb_simplify(
-                                    _nar, ["highlight"],
-                                    language="en", surface="today",
-                                    strip_fn=lambda _t: apply_user_facing_strips(
-                                        _t, language="en", field_type="plain"),
-                                )
-                            except Exception as _rb_e:
-                                print(f"[daily-signal] readability non-fatal: {_rb_e}")
-                        if _nar and not _inspect_active():
-                            narration_cache_write(supabase, cid, _nar_date, _th, _nar)
                     if _nar:
                         result["headline"]  = _nar["headline"]
                         result["highlight"] = _nar["highlight"]
                         result["narration_source"] = "claude"
+                    elif not _inspect_active():
+                        # [cold-fix Option A] Generate the LLM narration OFF the
+                        # request path. Cold serves the deterministic verdict
+                        # template headline/highlight (already in result); the
+                        # narration writes to cache for the next load. Removes a
+                        # blocking Sonnet call from the cold path.
+                        _nar_fname = row.get("name") or ""
+                        async def _bg_today_narration(_engine=_th, _dbg=_th_dbg,
+                                                      _tilt=_th_tilt, _lk=_th_lk,
+                                                      _pan=panchanga,
+                                                      _nudge=result.get("todays_nudge"),
+                                                      _date=_nar_date, _fname=_nar_fname):
+                            try:
+                                from antar_engine.today_narration import summarize_drivers
+                                _drv = summarize_drivers(_dbg, _engine.get("highlight_domains"))
+                                _sys = build_narration_system(
+                                    engine=_engine, nudge=_nudge, first_name=_fname,
+                                    patra_domains=(sorted(_tilt.keys()) if isinstance(_tilt, dict) else []),
+                                    lk_daily=_lk, date_str=_date, drivers=_drv, panchanga=_pan,
+                                )
+                                _raw, _ = await call_llm_claude(
+                                    prompt="Write the Today narration JSON now.",
+                                    system_override=_sys, max_tokens_override=350,
+                                )
+                                _n = parse_and_validate(_raw, language="en")
+                                if _n:
+                                    try:
+                                        from antar_engine.readability import simplify_payload_fields as _rb_simplify
+                                        await _rb_simplify(
+                                            _n, ["highlight"], language="en", surface="today",
+                                            strip_fn=lambda _t: apply_user_facing_strips(_t, language="en", field_type="plain"),
+                                        )
+                                    except Exception:
+                                        pass
+                                    narration_cache_write(supabase, cid, _date, _engine, _n)
+                            except Exception as _bgn_e:
+                                print(f"[daily-signal] bg narration failed: {_bgn_e}")
+                        import asyncio as _ds_nar_aio
+                        _ds_nar_aio.create_task(_bg_today_narration())
             except Exception as _nar_err:
                 print(f"[daily-signal] narration skipped (template fallback): {_nar_err}")
 
@@ -17321,6 +17329,28 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 print(f"[daily-signal] deep-read prewarm skipped: {_pw_err}")
         except Exception as _th_err:
             print(f"[daily-signal] highlight selection failed for {cid}: {_th_err}")
+
+        # [P0b] Prediction surfaces carry concrete life-nouns, not energy/
+        # astro-voice (that belongs to Practice). Scrub the user-facing
+        # fields via the shared token strip + an astro-voice phrase pass.
+        # Idempotent; also cleans stale cached rows on read.
+        try:
+            from antar_engine.output_strips import (
+                apply_user_facing_strips as _p0b_strip,
+                strip_prediction_astro_voice as _p0b_astro,
+            )
+            def _p0b_clean(_v):
+                if isinstance(_v, str) and _v.strip():
+                    return _p0b_astro(_p0b_strip(_v, language=language, field_type="plain"), language=language)
+                if isinstance(_v, list):
+                    return [_p0b_clean(_x) for _x in _v]
+                return _v
+            for _pf in ("signal", "move", "el_movimiento", "aligned_for",
+                        "friction_for", "headline", "highlight"):
+                if _pf in result:
+                    result[_pf] = _p0b_clean(result[_pf])
+        except Exception as _p0b_e:
+            print(f"[daily-signal] P0b scrub non-fatal: {_p0b_e}")
 
         return result
     except HTTPException: raise
@@ -24198,7 +24228,7 @@ async def _modernize_upaay(planet: str, variant: str, curated: str) -> str:
 
 
 @app.post("/api/v1/predict/year-attention")
-async def predict_year_attention(request: dict):
+async def predict_year_attention(request: dict, language: str = None):
     """
     Year horizon (Varshphal) + cross-horizon Needs-Attention block in one call.
 
@@ -24221,7 +24251,7 @@ async def predict_year_attention(request: dict):
     if not chart_id:
         raise HTTPException(status_code=400, detail="chart_id required")
     tz_offset = int((request or {}).get("tz_offset") or 0)
-    language = ((request or {}).get("language") or "en").split("-")[0].lower()
+    language = (language or (request or {}).get("language") or "en").split("-")[0].lower()
     if language not in ("en", "es", "pt"):
         language = "en"
 

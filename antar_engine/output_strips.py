@@ -878,3 +878,44 @@ __all__ = [
     "_strip_day_names",
     "_strip_planet_names",
 ]
+
+
+# ── [P0b] Prediction-surface astro-voice scrub ────────────────────────────────
+# Doctrine: energy/astro-voice belongs to Practice only; prediction surfaces
+# carry concrete life-nouns. apply_user_facing_strips handles TOKENS; this
+# handles PROSE phrases the LLM sometimes emits despite the no-jargon prompt.
+# Conservative word/phrase SWAPS (not clause deletion) so sentences stay valid.
+_ASTRO_VOICE_SWAPS_EN = [
+    (re.compile(r"\bthe energy today is\b", re.I), "today is"),
+    (re.compile(r"\btoday's energy is\b", re.I), "today is"),
+    (re.compile(r"\benergy today\b", re.I), "the day"),
+    (re.compile(r"\bnatural ruling energy\b", re.I), "tone"),
+    (re.compile(r"\bruling energy\b", re.I), "tone"),
+    (re.compile(r"\bthe conflict zone of your chart\b", re.I), "this area"),
+    (re.compile(r"\bconflict zone of your chart\b", re.I), "this area"),
+    (re.compile(r"\bconflict zone\b", re.I), "area of tension"),
+    (re.compile(r"\bafflicted\b", re.I), "strained"),
+    (re.compile(r"\bwell[- ]?dignified\b", re.I), "well supported"),
+    (re.compile(r"\bdignified\b", re.I), "supported"),
+    (re.compile(r"\bexalted\b", re.I), "strong"),
+    (re.compile(r"\bdebilitated\b", re.I), "weak"),
+    (re.compile(r"\bcombust\b", re.I), "strained"),
+    (re.compile(r"\bretrograde\b", re.I), "in review"),
+    # weekday-as-planet narration ("Tuesday amplifies courage")
+    (re.compile(r"\b(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b", re.I), "today"),
+]
+
+
+def strip_prediction_astro_voice(text, language="en"):
+    """Swap astro-voice phrases for plain language on prediction surfaces.
+    EN-only (the source language); a no-op for already-translated text."""
+    if not isinstance(text, str) or not text.strip():
+        return text
+    if (language or "en") != "en":
+        return text
+    out = text
+    for _rx, _repl in _ASTRO_VOICE_SWAPS_EN:
+        out = _rx.sub(_repl, out)
+    out = re.sub(r"\s{2,}", " ", out)
+    out = re.sub(r"\s+([,.;:])", r"\1", out)
+    return out.strip()

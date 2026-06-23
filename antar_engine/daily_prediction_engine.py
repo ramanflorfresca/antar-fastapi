@@ -1455,7 +1455,10 @@ async def generate_weekly_signals(
                     day_violations = _validate_no_day_names(llm_signal, language)
                     eng_leaks = _detect_english_leak(llm_signal, language)
 
-                    if day_violations or eng_leaks:
+                    # [cold-fix] eng-leak is non-load-bearing: it no longer
+                    # triggers the corrective retry (a 2nd es Sonnet). The
+                    # jargon strip below still cleans any leak.
+                    if day_violations:
                         logger.warning(f"[daily-week] Validation failed for {date_str}: day_names={day_violations} eng_leaks={eng_leaks}")
 
                         # Build corrective retry prompt with specific violations
