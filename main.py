@@ -17030,6 +17030,10 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             start_date = _get_local_start_date(tz_offset=None, current_country=current_country)
         effective_offset = _COUNTRY_TZ_OFFSETS.get((current_country or "").upper(), 0)
 
+        # [es-latency] Block only on TODAY (signals[0]). Generating all 7
+        # days inline was the cold-cache cost behind 20-45s es latency —
+        # each day is a serial Sonnet call and the user's TODAY card needs
+        # exactly one. The rest are warmed off the request path below.
         signals = await generate_weekly_signals(
             natal_moon_sign=natal_moon_sign,
             start_date=start_date,
@@ -17037,7 +17041,23 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             supabase_client=supabase,
             language=language,
             tz_offset=effective_offset,
+            days_to_generate=1,
         )
+        # Warm the remaining days for /daily-week without blocking the
+        # response (day 0 is a cache hit; only 1-6 cost). Fire-and-forget,
+        # same pattern as the deep-read prewarm below.
+        try:
+            import asyncio as _ds_week_aio
+            _ds_week_aio.create_task(generate_weekly_signals(
+                natal_moon_sign=natal_moon_sign,
+                start_date=start_date,
+                chart_id=cid,
+                supabase_client=supabase,
+                language=language,
+                tz_offset=effective_offset,
+            ))
+        except Exception as _ds_warm_e:
+            print(f"[daily-signal] week warm schedule failed (non-fatal): {_ds_warm_e}")
         if language == "es":
             signals = _translate_daily_signals_es(signals)
         result = dict(signals[0]) if signals else {"chart_id": cid, "signal": "", "fallback": True}
@@ -24518,6 +24538,10 @@ async def predict_year_attention(request: dict):
             )
         except Exception as _te:
             print(f"[year-attention] translation non-fatal, serving English: {_te}")
+            # [es-visible-fallback] never let a degraded en response pose as
+            # a successful es one — surface the status for the frontend/logs.
+            if isinstance(payload, dict):
+                payload["_translation_status"] = "fallback_to_english"
 
     # [strip-3surfaces-returns 2026-06-09]
     payload = _strip_payload_leaves(payload, language=locals().get('language', 'en'))

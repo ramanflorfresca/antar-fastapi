@@ -1217,6 +1217,7 @@ async def generate_weekly_signals(
     tz_offset: float = 0,
     force_refresh: bool = False,
     fast_mode: bool = False,
+    days_to_generate: int = 7,
 ) -> list:
     """
     Generate 7-day daily signal array.
@@ -1263,7 +1264,9 @@ async def generate_weekly_signals(
         logger.error("swisseph not available")
         MERCURY = 2
 
-    for i in range(7):
+    # [es-latency] caller may request fewer than 7 days (daily-signal needs
+    # only TODAY; the remaining days are warmed off the request path).
+    for i in range(max(1, min(7, days_to_generate))):
         target_date = start_date + timedelta(days=i)
         weekday = target_date.strftime("%A")
         date_str = target_date.strftime("%Y-%m-%d")
