@@ -73,8 +73,6 @@ HARD RULES:
    "the energy of X", no astrology terms, no weekday names. Translate any
    internal term in the live data into plain life language.
 7. No questions. No emojis. No exclamation marks. Second person.
-7b. NEVER address the reader by name and never open with a vocative. No
-   personal name appears anywhere in the output — never invent one.
 8. English only.
 8b. SINGLE-SOURCE: never assert that a specific life event (marriage,
    breakup, a child, relocation, job change, a purchase, a lawsuit) will
@@ -229,12 +227,7 @@ def build_year_engine_state(
 
 def build_year_narration_system(state: dict, first_name: str = "") -> str:
     payload = dict(state)
-    # [D6 no-name] Do NOT feed a name into the narration payload. Many
-    # charts have no verified name; addressing by a name we don't have — or
-    # letting the model invent one (e.g. "Zafat,") — violates doctrine.
-    # No name source => no name in output. first_name param kept for
-    # signature stability.
-    payload.pop("first_name", None)
+    payload["first_name"] = (first_name or "").split(" ")[0][:24]
     # [prompt-registry 2026-06-10] contract header + editable body from the
     # registry; identical '## LIVE DATA' KV-cache split as before.
     from antar_engine.prompt_registry import build_system_prompt
@@ -275,12 +268,6 @@ def parse_and_validate_year(raw: str, language: str = "en") -> Optional[dict]:
     if not obj:
         return None
     headline = (obj.get("headline") or "").strip()
-    # [D6 no-name] Strip a leading vocative ("Zafat, this is your year …").
-    # Doctrine: never address by a name we don't have, never let the model
-    # supply one. Backstop independent of the live prompt source.
-    _h_devoc = re.sub(r"^[A-Z][A-Za-z\u00C0-\u00FF'\u2019.\-]*,\s+", "", headline, count=1)
-    if _h_devoc and _h_devoc != headline:
-        headline = _h_devoc[0].upper() + _h_devoc[1:]
     body = (obj.get("body") or "").strip()
     watch = (obj.get("watch") or "").strip()
     if not headline or not body or not watch:

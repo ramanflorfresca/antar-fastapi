@@ -17043,21 +17043,11 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             tz_offset=effective_offset,
             days_to_generate=1,
         )
-        # Warm the remaining days for /daily-week without blocking the
-        # response (day 0 is a cache hit; only 1-6 cost). Fire-and-forget,
-        # same pattern as the deep-read prewarm below.
-        try:
-            import asyncio as _ds_week_aio
-            _ds_week_aio.create_task(generate_weekly_signals(
-                natal_moon_sign=natal_moon_sign,
-                start_date=start_date,
-                chart_id=cid,
-                supabase_client=supabase,
-                language=language,
-                tz_offset=effective_offset,
-            ))
-        except Exception as _ds_warm_e:
-            print(f"[daily-signal] week warm schedule failed (non-fatal): {_ds_warm_e}")
+        # [es-cold-fix] No background week-warm here: generation runs
+        # synchronous swisseph on the single event loop, so warming the
+        # other 6 days inline-async blocked the response (25-33s cold).
+        # TODAY is served by days_to_generate=1 above; /daily-week has
+        # its own prewarmer.
         if language == "es":
             signals = _translate_daily_signals_es(signals)
         result = dict(signals[0]) if signals else {"chart_id": cid, "signal": "", "fallback": True}
@@ -24524,18 +24514,8 @@ async def predict_year_attention(request: dict):
             if _yn and not _inspect_active():
                 year_narration_cache_write(supabase, chart_id, _yn_ps, _yn_state, _yn)
         if _yn:
-            # [D6b no-name] Strip a leading vocative on the way out so a
-            # stale year_narration_cache row (written before the no-name
-            # fix) can't keep showing a stored/invented name ("Zafat, this
-            # is your year"). parse_and_validate_year only covers fresh
-            # narrations; this covers cache hits too — headline and body.
-            import re as _yh_re
-            def _devoc(_s):
-                _s = _s or ""
-                _o = _yh_re.sub(r"^[A-Z][A-Za-z\u00C0-\u00FF'\u2019.\-]*,\s+", "", _s, count=1)
-                return (_o[0].upper() + _o[1:]) if (_o and _o != _s) else _s
-            year["headline"] = _devoc(_yn.get("headline"))
-            year["gist"] = _devoc(_yn.get("body"))
+            year["headline"] = _yn["headline"]
+            year["gist"] = _yn["body"]
             year["watch"] = _yn["watch"]
             payload["narration_source"] = "claude"
     except Exception as _yn_err:
