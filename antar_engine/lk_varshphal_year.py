@@ -172,6 +172,7 @@ def _read_placements(placements, gender, transit_houses, age, period="year", pla
                 combinations.append(f"In {area}, {txt}.")
 
     happen, avoid, remedies, events, notes = [], [], [], [], []
+    strained_planets = []
     n_support = n_strain = 0
 
     for p in _PRIORITY:
@@ -214,6 +215,7 @@ def _read_placements(placements, gender, transit_houses, age, period="year", pla
 
         if strained:
             n_strain += 1
+            strained_planets.append(p)
             what = verdict.get("bad") or f"pressure on {domain}"
             line = f"{domain.capitalize()}: {what}."
             suff = _bait_suffers(p, plain)
@@ -266,8 +268,20 @@ def _read_placements(placements, gender, transit_houses, age, period="year", pla
             "placements": placements,
             "shared_houses": {h: ps for h, ps in occupants.items() if len(ps) >= 2},
             "transit_houses": transit_houses,
+            "strained_planets": strained_planets,
         },
     }
+
+
+def _gemstones(natal_chart, strained_planets, age, period):
+    """Lifelong (Parashari) + timed (LK) stone suggestions. Never raises."""
+    try:
+        from antar_engine import lk_gemstone as _gem
+        pl = (natal_chart or {}).get("planets") or (natal_chart or {}).get("planet_positions") or {}
+        lg = (natal_chart or {}).get("lagna") or (natal_chart or {}).get("ascendant")
+        return _gem.build(pl, lg, strained_planets, age, period=period)
+    except Exception:
+        return {"lifelong": None, "timed": []}
 
 
 def _prep(natal_chart, birth_date, transit_houses, today, use_transit):
@@ -289,6 +303,7 @@ def read_year(natal_chart, birth_date, gender="", transit_houses=None, today=Non
         placements = {p: get_annual_house(nh, age) for p, nh in natal.items() if 1 <= nh <= 12}
         out = _read_placements(placements, gender, th, age, period="year", plain=plain)
         out["_debug"]["running_year"] = age + 1
+        out["gemstones"] = _gemstones(natal_chart, out["_debug"].get("strained_planets", []), age, "year")
         return out
     except Exception as e:  # pragma: no cover
         return {"available": False, "reason": f"engine error: {e}"}
@@ -312,6 +327,7 @@ def read_month(natal_chart, birth_date, gender="", transit_houses=None, today=No
                 placements[p] = ((ah - 1 + moff) % 12) + 1
         out = _read_placements(placements, gender, th, age, period="month", plain=plain)
         out["_debug"]["month_offset"] = moff
+        out["gemstones"] = _gemstones(natal_chart, out["_debug"].get("strained_planets", []), age, "month")
         return out
     except Exception as e:  # pragma: no cover
         return {"available": False, "reason": f"engine error: {e}"}

@@ -7749,7 +7749,49 @@ async def monthly_briefing(
             prompt = (prompt or '') + '\n\n' + _lc_block
     except Exception as _lc_e:
         print(f'[monthly-briefing] life_context non-fatal: {_lc_e}')
-    briefing_text, _ = await call_llm(prompt)
+    # [lk-engine] Option A — engine-led This Month (LK Masik + transit).
+    _lk_month_on = (os.getenv("LK_YEAR_ENGINE", "off").lower() == "on"
+                    or str(getattr(request, "lk_engine", "") or "").strip().lower() in ("1", "true", "yes"))
+    _lk_month_text = None
+    if _lk_month_on:
+        try:
+            import json as _lk_json
+            _lk_cd = chart_data
+            if isinstance(_lk_cd, str):
+                try:
+                    _lk_cd = _lk_json.loads(_lk_cd)
+                except Exception:
+                    _lk_cd = {}
+            from antar_engine.lk_varshphal_year import read_month as _lk_rm
+            _lkm = _lk_rm(_lk_cd, chart_record.get("birth_date"), chart_record.get("gender") or "")
+            if _lkm.get("available"):
+                _lk_parts = []
+                _lk_hl = {"supportive": "A supportive month — lean into your strengths.",
+                          "challenging": "A demanding month — protect what matters and move carefully.",
+                          "mixed": "A mixed month — strong in places, careful in others."}.get(_lkm["verdict"], "")
+                if _lk_hl:
+                    _lk_parts.append(_lk_hl)
+                if _lkm["what_will_happen"]:
+                    _lk_parts.append(" ".join(_lkm["what_will_happen"][:4]))
+                if _lkm["what_to_avoid"]:
+                    _lk_parts.append("Go easy on: " + " ".join(_lkm["what_to_avoid"][:2]))
+                if _lkm["life_events"]:
+                    _lk_parts.append(" ".join(_lkm["life_events"][:2]))
+                if _lkm["remedies"]:
+                    _lk_parts.append("Helpful this month: " + "; ".join(r.get("text", "") for r in _lkm["remedies"][:3]))
+                _lk_gem = (_lkm.get("gemstones") or {})
+                _lk_gl = _lk_gem.get("lifelong")
+                if _lk_gl and _lk_gl.get("stone"):
+                    _lk_parts.append(f"Your lifelong stone is {_lk_gl['stone']} on the {_lk_gl.get('finger','')} — wear it ongoing for {_lk_gl.get('for','your core strength')}.")
+                for _lk_gt in (_lk_gem.get("timed") or [])[:1]:
+                    _lk_parts.append(f"This month, {_lk_gt['stone']} on the {_lk_gt.get('finger','')} can steady {_lk_gt.get('for','')}" + (f" — {_lk_gt['caveat']}." if _lk_gt.get('caveat') else "."))
+                _lk_month_text = "\n\n".join(p for p in _lk_parts if p)
+        except Exception as _lkme:
+            print(f"[monthly-briefing] lk engine non-fatal: {_lkme}")
+    if _lk_month_text:
+        briefing_text = _lk_month_text
+    else:
+        briefing_text, _ = await call_llm(prompt)
 
     # [readability 2026-06-10] narrate -> strip -> simplify -> strip.
     # (This surface previously had NO post-processing at all.)
@@ -24254,6 +24296,9 @@ async def predict_year_attention(request: dict, language: str = None):
     language = (language or (request or {}).get("language") or "en").split("-")[0].lower()
     if language not in ("en", "es", "pt"):
         language = "en"
+    # [lk-engine] engine-led This Year toggle (default off)
+    _lk_year_on = (os.getenv("LK_YEAR_ENGINE", "off").lower() == "on"
+                   or str((request or {}).get("lk_engine") or "").strip().lower() in ("1", "true", "yes"))
 
     # ── load chart row ──
     res = supabase.table("charts").select("*").eq("id", chart_id).execute()
@@ -24519,7 +24564,7 @@ async def predict_year_attention(request: dict, language: str = None):
             _ai_c["raw"]["year_pre_narration"] = _ai_copy.deepcopy(payload)
         _yn_ps = str(payload.get("period_start") or year.get("range") or "")
         _yn = None if _inspect_active() else year_narration_cache_read(supabase, chart_id, _yn_ps, _yn_state)
-        if not _yn:
+        if not _yn and not _lk_year_on:
             _yn_sys = build_year_narration_system(
                 _yn_state, first_name=(row.get("first_name") or ""),
             )
@@ -24550,6 +24595,36 @@ async def predict_year_attention(request: dict, language: str = None):
             payload["narration_source"] = "claude"
     except Exception as _yn_err:
         print(f"[year-attention] narration skipped (template fallback): {_yn_err}")
+
+    # [lk-engine] Option A — engine-led year. Overrides headline/gist/watch
+    # with the deterministic LK Varshphal + transit read (plain life-nouns,
+    # no planet/house names) and attaches the structured LK fields.
+    try:
+        if _lk_year_on:
+            from antar_engine.lk_varshphal_year import read_year as _lk_ry
+            _lk = _lk_ry(chart_data, birth_date, row.get("gender") or "")
+            if _lk.get("available"):
+                _lk_hl = {
+                    "supportive": "A supportive year — your strengths carry you forward.",
+                    "challenging": "A demanding year — protect what matters and move carefully.",
+                    "mixed": "A mixed year — strong in places, careful in others.",
+                }.get(_lk["verdict"], year.get("headline", ""))
+                year["headline"] = _lk_hl
+                _lk_body = " ".join(_lk["what_will_happen"][:4])
+                if _lk_body:
+                    year["gist"] = _lk_body
+                _lk_watch = (_lk["life_events"] or _lk["what_to_avoid"] or [""])[0]
+                if _lk_watch:
+                    year["watch"] = _lk_watch
+                year["lk_what_will_happen"] = _lk["what_will_happen"]
+                year["lk_what_to_avoid"] = _lk["what_to_avoid"]
+                year["lk_remedies"] = [r.get("text") for r in _lk["remedies"]]
+                year["lk_life_events"] = _lk["life_events"]
+                year["lk_combinations"] = _lk["combinations"]
+                year["lk_gemstones"] = _lk.get("gemstones")
+                payload["narration_source"] = "lk_engine"
+    except Exception as _lke:
+        print(f"[year-attention] lk engine non-fatal: {_lke}")
 
     # ── translate at response time (English source; planet/name/key/colour kept) ──
     if language in ("es", "pt"):
