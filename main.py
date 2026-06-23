@@ -21254,6 +21254,32 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
             _cache = supabase.table("practice_schedule_cache").select("schedule_data").eq("chart_id", chart_id).eq("week_of", _week_of.isoformat()).execute()
             if _cache.data and len(_cache.data) > 0:
                 _sched = _cache.data[0]["schedule_data"]
+                # [lk-handoff-cache] backfill the LK year/month block on
+                # cached schedules written before the handoff existed.
+                if isinstance(_sched, dict) and not _sched.get("lal_kitab"):
+                    try:
+                        from antar_engine.lk_varshphal_year import read_year as _lk_ry, read_month as _lk_rm
+                        _lkc = supabase.table("charts").select("chart_data, birth_date, gender").eq("id", chart_id).single().execute()
+                        if _lkc.data:
+                            _lk_cd = _safe_jsonb(_lkc.data.get("chart_data"))
+                            _lk_g = _lkc.data.get("gender") or ""
+                            _lk_bd = _lkc.data.get("birth_date")
+                            _lk_y = _lk_ry(_lk_cd, _lk_bd, _lk_g)
+                            _lk_m = _lk_rm(_lk_cd, _lk_bd, _lk_g)
+                            _sched["lal_kitab"] = {
+                                "year": ({
+                                    "verdict": _lk_y.get("verdict"),
+                                    "remedies": [r.get("text") for r in (_lk_y.get("remedies") or [])],
+                                    "gemstones": _lk_y.get("gemstones"),
+                                    "what_to_avoid": _lk_y.get("what_to_avoid"),
+                                } if _lk_y.get("available") else None),
+                                "month": ({
+                                    "verdict": _lk_m.get("verdict"),
+                                    "remedies": [r.get("text") for r in (_lk_m.get("remedies") or [])],
+                                } if _lk_m.get("available") else None),
+                            }
+                    except Exception as _lkh_e:
+                        print(f"[practices] lk handoff (cache) non-fatal: {_lkh_e}")
                 _streak = await _practice_get_streak(chart_id)
                 _sched["streak_data"] = _streak
                 if language == "es": _sched = _translate_practice_schedule_es(_sched)
