@@ -1,0 +1,33 @@
+{
+  "_doc": "FILL THIS IN then save as kp_binary_validation.json (same folder). These are PAST questions with KNOWN binary outcomes. No invented data — only questions whose yes/no you actually know. The gate needs >= 8 cases at >= 70% binary hit-rate to open.",
+  "tolerance_months": 3,
+  "cases": [
+    {
+      "id": "example-deal-2025-03",
+      "mode": "horary",
+      "question_type": "gain",
+      "loss_house": null,
+      "number": 74,
+      "asked_at": "2025-03-04 14:30",
+      "lat": 28.6139,
+      "lon": 77.2090,
+      "tz_offset": 5.5,
+      "known_outcome": "yes",
+      "actual_date": "2025-05",
+      "notes": "EXAMPLE ROW — replace. client signed in May"
+    },
+    {
+      "id": "example-marriage-natal",
+      "mode": "natal",
+      "question_type": "marriage",
+      "birth_date": "1988-07-12",
+      "birth_time": "09:20",
+      "lat": 19.0760,
+      "lon": 72.8777,
+      "tz_offset": 5.5,
+      "known_outcome": "yes",
+      "actual_date": "2016-12",
+      "notes": "EXAMPLE ROW — replace"
+    }
+  ]
+}

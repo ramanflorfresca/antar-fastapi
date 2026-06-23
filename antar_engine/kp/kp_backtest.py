@@ -62,8 +62,21 @@ MIN_CASES = 8  # don't open the gate on a trivially small sample
 _HERE = os.path.dirname(os.path.abspath(__file__))
 VALIDATION_DIR = os.path.join(_HERE, "validation")
 DEFAULT_ROSTER = os.path.join(VALIDATION_DIR, "kp_binary_validation.json")
+DEFAULT_NATAL_ROSTER = os.path.join(VALIDATION_DIR, "kp_natal_events.json")
 OUT_DIR = os.path.join(VALIDATION_DIR, "out")
 GATE_STATUS_PATH = os.path.join(VALIDATION_DIR, "kp_gate_status.json")
+
+# Natal-timing gate: the conjoined ('any2') hit-rate must clear this AND show a
+# real lift over the base rate (significator periods cover much of a life, so a
+# bare hit-rate can be misleading — lift is the honest signal).
+TIMING_HIT_THRESHOLD = 0.70
+TIMING_MIN_LIFT = 0.20
+# 'ad_pd' (antar + pratyantar lords both significators) is the honest
+# discriminator: 'any2' has a structurally high base rate (>=2-of-3 is easy),
+# 'pd' alone is permissive. ad_pd had the lowest base rate / best lift on the
+# 15-event set, so the gate keys on it. (Changed from 'any2' on evidence, not
+# to force a pass — at ad_pd the set still scores +0.17 < 0.20.)
+TIMING_PRIMARY_STRICTNESS = "ad_pd"
 
 
 def _months_between(ym_a, ym_b):
@@ -220,8 +233,113 @@ def is_gate_open():
         return False
 
 
-if __name__ == "__main__":
-    path = sys.argv[1] if len(sys.argv) > 1 else DEFAULT_ROSTER
-    sc = run_backtest(path)
+def run_timing_backtest(roster_path=DEFAULT_NATAL_ROSTER, write=True):
+    """
+    Natal-timing gate. roster_path -> kp_natal_events.json:
+      {birth:{...}, tolerance_months:3, events:[{id, event_type, loss_house?,
+       actual_date, precision?, tolerance_months?, notes?}]}
+
+    For each dated event we check whether the running dasha lords are
+    significators of the event's favourable houses (at the date, +-tolerance),
+    at three strictness levels, and compare to the per-event base rate (how much
+    of the life those periods cover) -> LIFT.
+    """
+    from .kp_timing import compute_kp_chart, score_event, base_rate, STRICTNESS
+
+    if not os.path.exists(roster_path):
+        sc = {"mode": "natal_timing", "passed": False,
+              "reason": "no natal events file provided", "roster_path": roster_path,
+              "n_cases": 0, "timestamp": datetime.utcnow().isoformat() + "Z"}
+        if write:
+            _write_gate_status(sc)
+        return sc
+
+    with open(roster_path) as f:
+        roster = json.load(f)
+    b = roster["birth"]
+    default_tol = roster.get("tolerance_months", 3)
+    chart = compute_kp_chart(b["birth_date"], b["birth_time"], b["lat"], b["lon"],
+                             tz_offset=b.get("tz_offset"), timezone=b.get("timezone"))
+
+    rows = []
+    agg_hits = {s: 0 for s in STRICTNESS}
+    agg_base = {s: [] for s in STRICTNESS}
+    events = roster.get("events", [])
+    for ev in events:
+        tol = ev.get("tolerance_months")
+        if tol is None:
+            tol = 6 if ev.get("precision") == "year" else default_tol
+        sc = score_event(chart, ev["event_type"], ev["actual_date"],
+                         loss_house=ev.get("loss_house"), tolerance_months=tol)
+        through = _date_to_jd_for_base(ev["actual_date"]) + 400.0
+        for s in STRICTNESS:
+            if sc["hits"][s]:
+                agg_hits[s] += 1
+            br = base_rate(chart, ev["event_type"], through,
+                           loss_house=ev.get("loss_house"), strictness=s)
+            if br is not None:
+                agg_base[s].append(br)
+        rows.append({"id": ev.get("id"), **sc, "tolerance_months": tol})
+
+    n = len(events)
+    summary = {}
+    for s in STRICTNESS:
+        hr = (agg_hits[s] / n) if n else None
+        mbr = (sum(agg_base[s]) / len(agg_base[s])) if agg_base[s] else None
+        lift = (hr - mbr) if (hr is not None and mbr is not None) else None
+        summary[s] = {"hit_rate": hr, "mean_base_rate": mbr, "lift": lift,
+                      "hits": agg_hits[s]}
+
+    prim = summary[TIMING_PRIMARY_STRICTNESS]
+    passed = bool(
+        n >= MIN_CASES and prim["hit_rate"] is not None
+        and prim["hit_rate"] >= TIMING_HIT_THRESHOLD
+        and prim["lift"] is not None and prim["lift"] >= TIMING_MIN_LIFT
+    )
+
+    scorecard = {
+        "mode": "natal_timing",
+        "passed": passed,
+        "reason": ("gate open" if passed else
+                   f"{TIMING_PRIMARY_STRICTNESS} hit_rate/lift below threshold "
+                   f"or n {n} < {MIN_CASES}"),
+        "roster_path": roster_path,
+        "n_cases": n,
+        "primary_strictness": TIMING_PRIMARY_STRICTNESS,
+        "hit_threshold": TIMING_HIT_THRESHOLD,
+        "min_lift": TIMING_MIN_LIFT,
+        "by_strictness": summary,
+        "hit_rate": prim["hit_rate"],
+        "threshold": TIMING_HIT_THRESHOLD,
+        "timestamp": datetime.utcnow().isoformat() + "Z",
+    }
+
+    if write:
+        os.makedirs(OUT_DIR, exist_ok=True)
+        with open(os.path.join(OUT_DIR, "kp_timing_results.json"), "w") as f:
+            json.dump({"scorecard": scorecard, "rows": rows}, f, indent=2)
+        _write_gate_status(scorecard)
+    return scorecard
+
+
+def _date_to_jd_for_base(date_str):
+    from .kp_timing import _date_to_jd
+    return _date_to_jd(date_str)
+
+
+def _print_timing(sc):
     print(json.dumps(sc, indent=2))
-    print("\nGATE OPEN" if sc["passed"] else "\nGATE CLOSED (KP quarantined)")
+    print("\nGATE OPEN" if sc.get("passed") else "\nGATE CLOSED (KP quarantined)")
+
+
+if __name__ == "__main__":
+    args = sys.argv[1:]
+    if "--timing" in args:
+        args = [a for a in args if a != "--timing"]
+        path = args[0] if args else DEFAULT_NATAL_ROSTER
+        _print_timing(run_timing_backtest(path))
+    else:
+        path = args[0] if args else DEFAULT_ROSTER
+        sc = run_backtest(path)
+        print(json.dumps(sc, indent=2))
+        print("\nGATE OPEN" if sc["passed"] else "\nGATE CLOSED (KP quarantined)")

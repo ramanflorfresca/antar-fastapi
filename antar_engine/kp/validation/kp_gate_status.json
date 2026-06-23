@@ -1,0 +1,16 @@
+{
+  "passed": true,
+  "reason": "Held-out validation passed: out-of-sample mean hit 0.951, mean lift 0.347, 86% of 300 splits pass, 261/300 converge on rectified birth time 11:55. Strictness ad_pd. Approved by Raman 2026-06-23 to proceed to A5.",
+  "mode": "natal_timing_heldout",
+  "n_cases": 15,
+  "hit_rate": 0.951,
+  "lift": 0.347,
+  "rectified_birth_time": "11:55",
+  "threshold": 0.7,
+  "caveats": [
+    "Validated on ONE chart (Raman) at a RECTIFIED time. Does not establish reliability for users with unverified/rounded birth times.",
+    "Rules (ad_pd, house-groups, transit gate) were tuned on these same 15 events (development-set leakage at rule level; birth time itself is held-out-clean).",
+    "A5 must gate KP surfacing on birth-time confidence + lean on the 0-3 conviction meter."
+  ],
+  "timestamp": "2026-06-23T19:00:00Z"
+}

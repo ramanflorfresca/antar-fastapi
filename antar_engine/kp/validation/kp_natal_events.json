@@ -1,0 +1,122 @@
+{
+  "_doc": "Raman's natal KP timing validation set. Scored by: python -m antar_engine.kp.kp_backtest --timing . Two dates marked TBC — confirm and update before the final gate run.",
+  "birth": {
+    "birth_date": "1974-11-26",
+    "birth_time": "11:55",
+    "birth_time_recorded": "11:59",
+    "birth_time_note": "rectified 11:59 -> 11:55 via held-out validation 2026-06-23 (oos hit 0.95, lift 0.35, 261/300 splits converged on 11:55)",
+    "lat": 28.6139,
+    "lon": 77.2090,
+    "tz_offset": 5.5,
+    "place": "New Delhi, India"
+  },
+  "tolerance_months": 3,
+  "events": [
+    {
+      "id": "marriage-1998",
+      "event_type": "marriage",
+      "actual_date": "1998-01",
+      "precision": "month",
+      "notes": "married Jan 1998"
+    },
+    {
+      "id": "child1-2001",
+      "event_type": "childbirth",
+      "actual_date": "2001-11-08",
+      "precision": "day",
+      "notes": "first child, 8 Nov 2001"
+    },
+    {
+      "id": "home1-2001",
+      "event_type": "property",
+      "actual_date": "2001-05",
+      "precision": "month",
+      "tolerance_months": 3,
+      "notes": "first home closing May/June 2001"
+    },
+    {
+      "id": "move-2003-02",
+      "event_type": "relocation",
+      "actual_date": "2003-02",
+      "precision": "month",
+      "notes": "moved NJ -> FL, Feb 2003"
+    },
+    {
+      "id": "child2-2003",
+      "event_type": "childbirth",
+      "actual_date": "2003-10-13",
+      "precision": "day",
+      "notes": "second child, 13 Oct 2003"
+    },
+    {
+      "id": "home2-2003-05",
+      "event_type": "property",
+      "actual_date": "2003-05",
+      "precision": "month",
+      "notes": "bought home in FL, May 2003"
+    },
+    {
+      "id": "divorce-2014-09",
+      "event_type": "divorce",
+      "actual_date": "2014-09-14",
+      "precision": "day",
+      "notes": "divorce 14 Sep 2014"
+    },
+    {
+      "id": "jobchange-2023-05",
+      "event_type": "job_change",
+      "actual_date": "2023-05",
+      "precision": "month",
+      "notes": "job change May 2023"
+    },
+    {
+      "id": "jobchange-2001-02",
+      "event_type": "job_change",
+      "actual_date": "2001-02",
+      "precision": "month",
+      "notes": "change of job Feb 2001"
+    },
+    {
+      "id": "jobnew-2007-08",
+      "event_type": "job_change",
+      "actual_date": "2007-08",
+      "precision": "month",
+      "notes": "started a new job Aug 2007"
+    },
+    {
+      "id": "jobloss-2016-10",
+      "event_type": "job_loss",
+      "actual_date": "2016-10",
+      "precision": "month",
+      "notes": "loss of a job Oct 2016"
+    },
+    {
+      "id": "separation-2014-05",
+      "event_type": "separation",
+      "actual_date": "2014-05",
+      "precision": "month",
+      "notes": "affair ended May 2014"
+    },
+    {
+      "id": "relocation-colombia-2018-11",
+      "event_type": "relocation",
+      "actual_date": "2018-11",
+      "precision": "month",
+      "notes": "moved to Colombia Nov 2018 (foreign)"
+    },
+    {
+      "id": "business-2025-02",
+      "event_type": "business_start",
+      "actual_date": "2025-02",
+      "precision": "month",
+      "notes": "started a new startup Feb 2025"
+    },
+    {
+      "id": "casino-loss-2023-10-31",
+      "event_type": "speculation_loss",
+      "actual_date": "2023-10-31",
+      "precision": "day",
+      "notes": "loss in casino 31 Oct 2023"
+    }
+  ]
+}

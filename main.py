@@ -15736,7 +15736,7 @@ async def ask_endpoint(request: AskRequest):
         try:
             try:
                 chart_row = supabase.table("charts") \
-                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country") \
+                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, birth_time, latitude, longitude, tz_offset, needs_reconfirm") \
                     .eq("id", chart_id).single().execute()
             except Exception as _nfe:
                 if "PGRST116" in str(_nfe) or "0 rows" in str(_nfe):
@@ -16368,6 +16368,17 @@ async def ask_endpoint(request: AskRequest):
                     print("[ask][voice-gate] post-readability next dropped")
             except Exception as _vfe:
                 print(f"[ask][voice-gate] final-check non-fatal: {_vfe}")
+            # [KP A5 shadow 2026-06-23] additive KP verdict — gate + mode
+            # guarded inside kp_service; never user-facing until KP_MODE=primary.
+            try:
+                from antar_engine.kp.kp_service import kp_answer as _kp_answer
+                _kp = _kp_answer(chart_row.data, request.question, language=language)
+                if _kp.get('mode') == 'primary' and _kp.get('eligible'):
+                    payload['kp'] = _kp
+                else:
+                    payload['kp_shadow'] = _kp
+            except Exception as _kp_e:
+                print(f'[ask] kp non-fatal: {_kp_e}')
             # [es-loc 2026-06-09] expanded fields: actions[]/practices[]/convergence
             # are container keys — translate_dict recurses into their subtrees.
             payload = await _ask_localize(payload, language, [

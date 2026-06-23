@@ -298,10 +298,10 @@ def compute_cusps(jd_utc, lat, lon):
     _assert_kp_ayanamsa()
     cusps, ascmc = swe.houses_ex(jd_utc, float(lat), float(lon), HSYS,
                                  swe.FLG_SIDEREAL)
-    # swe.houses_ex returns cusps indexed 1..12 in cusps[1..12] (cusps[0] unused)
+    # pyswisseph returns the 12 cusps 0-indexed: house h -> cusps[h-1].
     out = {}
     for h in range(1, 13):
-        cl = cusps[h] % 360.0
+        cl = cusps[h - 1] % 360.0
         triple = resolve_sublord(cl)
         out[h] = triple
     return out, ascmc

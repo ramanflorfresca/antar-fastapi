@@ -129,10 +129,11 @@ def cast_horary(number, moment_dt_local, lat, lon, tz_offset):
                                      swe.FLG_SIDEREAL)
     moment_asc = m_ascmc[0] % 360.0
 
-    # re-anchor cusps: preserve moment inter-cusp arcs, set cusp1 = asc_lon
+    # re-anchor cusps: preserve moment inter-cusp arcs, set cusp1 = asc_lon.
+    # pyswisseph cusps are 0-indexed: house h -> m_cusps[h-1], cusp1 = m_cusps[0].
     cusps = {}
     for h in range(1, 13):
-        arc = (m_cusps[h] - m_cusps[1]) % 360.0
+        arc = (m_cusps[h - 1] - m_cusps[0]) % 360.0
         cl = (asc_lon + arc) % 360.0
         cusps[h] = resolve_sublord(cl)
 
