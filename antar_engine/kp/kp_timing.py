@@ -189,15 +189,23 @@ def _transit_triples(jd):
     return out
 
 
-def transit_gate(jd, sigs):
+def transit_gate(jd, trigger_lords):
     """
-    True if a slow planet (Jupiter/Saturn) AND the Sun are transiting the star
-    or sign of a significator. Returns (ok, detail).
+    Tight transit trigger. True only if a slow planet (Jupiter OR Saturn) AND the
+    Sun are transiting the STAR (nakshatra) of one of `trigger_lords` — the
+    currently-running dasha lords that are also significators of the matter.
+
+    Matching on star-lord only (not sign-lord) and tying to the ACTIVE lords is
+    what makes the window crisp: 'transit triggers the running dasha'. The looser
+    earlier rule (star OR sign of ANY significator) was true almost continuously,
+    which produced multi-year windows. Returns (ok, detail).
     """
+    if not trigger_lords:
+        return False, {}
     tr = _transit_triples(jd)
 
     def agree(t):
-        return (t["star_lord"] in sigs) or (t["sign_lord"] in sigs)
+        return t["star_lord"] in trigger_lords
 
     jup, sat, sun = agree(tr["Jupiter"]), agree(tr["Saturn"]), agree(tr["Sun"])
     ok = (jup or sat) and sun
@@ -205,10 +213,14 @@ def transit_gate(jd, sigs):
 
 
 def _combined_pass(periods, sigs, jd, strictness, require_transit):
-    if not _passes(*lords_at(periods, jd), sigs, strictness):
+    md, ad, pd = lords_at(periods, jd)
+    if not _passes(md, ad, pd, sigs, strictness):
         return False
     if require_transit:
-        ok, _ = transit_gate(jd, sigs)
+        # transit must trigger one of the ACTIVE dasha lords that signify the
+        # matter — not the whole significator pool.
+        trigger = {l for l in (md, ad, pd) if l and l in sigs}
+        ok, _ = transit_gate(jd, trigger)
         if not ok:
             return False
     return True
