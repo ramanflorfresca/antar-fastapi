@@ -752,7 +752,12 @@ async def build_daily_context(chart_id: str, supabase_client) -> dict:
 import re as _re_val
 
 _BANNED_TEMPORAL_ES = _re_val.compile(
-    r'\b(lunes|martes|mi[eé]rcoles|miercoles|jueves|viernes|s[aá]bado|sabado|domingo|ayer|ma[nñ]ana|manana)\b',
+    # Weekday names + 'ayer' (yesterday) are always banned.
+    r'\b(?:lunes|martes|mi[eé]rcoles|miercoles|jueves|viernes|s[aá]bado|sabado|domingo|ayer)\b'
+    # 'mañana' is banned ONLY in its 'tomorrow' sense. Exempt the
+    # unambiguous MORNING forms (la/esta/una/de mañana) so legitimate
+    # time-of-day references don't false-fire the daily validator.
+    r'|(?<!la )(?<!ta )(?<!na )(?<!de )\bma[nñ]ana\b',
     _re_val.IGNORECASE
 )
 _BANNED_TEMPORAL_EN = _re_val.compile(

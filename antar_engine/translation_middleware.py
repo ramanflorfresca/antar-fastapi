@@ -30,6 +30,7 @@ buggy for the actual Cluster F response shapes):
 Clients (Supabase, Anthropic) are created lazily so importing this module
 can never fail at startup.
 """
+from antar_engine.constants import HAIKU_MODEL
 
 import hashlib
 import json
@@ -43,7 +44,7 @@ from antar_engine.translation_glossary import build_translation_system_prompt
 logger = logging.getLogger(__name__)
 
 SUPPORTED_LANGUAGES = ("es", "pt")
-TRANSLATOR_MODEL = "claude-haiku-4-5-20251001"
+TRANSLATOR_MODEL = HAIKU_MODEL
 
 # Keys never sent to the translator — IDs, metadata, enums, volatile fields,
 # and Sanskrit chart terms that must be preserved verbatim.

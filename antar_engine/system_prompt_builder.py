@@ -2,6 +2,7 @@
 Antar.world — System Prompt Builder for FastAPI
 Loads all JSON rule data and builds personalized LLM system prompts.
 """
+from antar_engine.constants import SONNET_MODEL
 
 import json
 import os
@@ -318,7 +319,7 @@ async def chat(req: ChatRequest):
     )
     
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model=SONNET_MODEL,
         max_tokens=1000,
         system=system_prompt,
         messages=req.messages,

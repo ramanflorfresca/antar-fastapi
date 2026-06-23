@@ -15,6 +15,7 @@ Debug shape (exposed in each surface's _debug field by the call sites):
     {"text": str, "simplified": bool,
      "score_before": dict, "score_after": dict | None}
 """
+from antar_engine.constants import HAIKU_MODEL
 import os
 import re
 from typing import Optional
@@ -24,7 +25,7 @@ AVG_SENTENCE_WORDS_MAX = 22.0
 LONGEST_SENTENCE_WORDS_MAX = 32
 LONG_WORD_RATIO_MAX = 0.18
 
-SIMPLIFY_MODEL = os.getenv("READABILITY_SIMPLIFY_MODEL", "claude-haiku-4-5-20251001")
+SIMPLIFY_MODEL = os.getenv("READABILITY_SIMPLIFY_MODEL", HAIKU_MODEL)
 _SIMPLIFY_MAX_TOKENS = 700
 
 # Toggle: READABILITY_SIMPLIFY=off disables the LLM re-pass (scoring still runs).

@@ -22,6 +22,7 @@ Strip contract:
 
 English is the source of truth; the caller translates at response time.
 """
+from antar_engine.constants import SONNET_MODEL
 from __future__ import annotations
 
 import json
@@ -539,7 +540,7 @@ async def synthesize(claude_client, echoes: dict, themes: List[dict],
         import time as _time_dr
         _t0 = _time_dr.monotonic()
         resp = await claude_client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=SONNET_MODEL,
             max_tokens=1000,
             temperature=0.4,
             system=[

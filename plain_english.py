@@ -6,6 +6,7 @@ Post-processes raw /predict LLM output into a strict JSON structure.
 Runs as a second Claude Sonnet call after the main prediction.
 Never crashes the parent /predict request — always returns a safe fallback.
 """
+from antar_engine.constants import SONNET_MODEL
 
 import json
 import logging
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 # ── Constants ────────────────────────────────────────────────────────────────
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-MODEL = "claude-sonnet-4-20250514"
+MODEL = SONNET_MODEL
 MAX_TOKENS = 1000
 
 BANNED_TERMS = [

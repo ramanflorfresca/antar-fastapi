@@ -20,6 +20,7 @@ analysis but NEVER routes, in either classifier mode.
 
 classify_intent() never raises into the request path.
 """
+from antar_engine.constants import HAIKU_MODEL
 
 import os
 import re
@@ -53,7 +54,7 @@ DOMAIN_TO_CONCERN = {
 
 _MODE_ENV = "INTENT_CLASSIFIER_MODE"          # off | shadow | primary
 _MODEL_ENV = "INTENT_CLASSIFIER_MODEL"
-_DEFAULT_MODEL = "claude-haiku-4-5-20251001"
+_DEFAULT_MODEL = HAIKU_MODEL
 _MIN_CONFIDENCE = float(os.getenv("INTENT_MIN_CONFIDENCE", "0.55"))
 _TIMEOUT_S = float(os.getenv("INTENT_CLASSIFIER_TIMEOUT_S", "4.0"))
 _CACHE_TABLE = "intent_classify_log"

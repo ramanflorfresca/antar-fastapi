@@ -6,6 +6,7 @@ Post-processes raw /predict LLM output into a strict JSON structure.
 Runs as a second Claude Sonnet call after the main prediction.
 Never crashes the parent /predict request — always returns a safe fallback.
 """
+from antar_engine.constants import HAIKU_MODEL
 
 import json
 import logging
@@ -246,7 +247,7 @@ def build_emotional_prompt_block(tone: str, time_mod: str) -> str:
 # ── Constants ────────────────────────────────────────────────────────────────
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
-MODEL = "claude-haiku-4-5-20251001"
+MODEL = HAIKU_MODEL
 MAX_TOKENS = 1000
 
 BANNED_TERMS = [

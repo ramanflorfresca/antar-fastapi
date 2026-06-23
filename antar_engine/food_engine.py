@@ -24,6 +24,7 @@ language). Chart-stable — regenerates only on period shift.
 
 Emitted as top-level `chart_food` on /predict/daily-practice. Free.
 """
+from antar_engine.constants import HAIKU_MODEL
 
 from __future__ import annotations
 import asyncio
@@ -348,7 +349,7 @@ def _generic_fallback(brief: dict) -> dict:
 
 # ─────────────────────────── PHASE B: HAIKU LOCALIZATION ─────────────────────
 
-FOOD_MODEL = os.getenv("FOOD_LOCALIZE_MODEL", "claude-haiku-4-5-20251001")
+FOOD_MODEL = os.getenv("FOOD_LOCALIZE_MODEL", HAIKU_MODEL)
 _FOOD_TIMEOUT_S = float(os.getenv("FOOD_LOCALIZE_TIMEOUT_S", "8.0"))
 _CACHE_TABLE = "chart_food_cache"
 

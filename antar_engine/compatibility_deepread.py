@@ -17,6 +17,7 @@ Design:
   - Fully graceful: returns {} if the client is unavailable or anything fails, so
     deep_read can never break the base response.
 """
+from antar_engine.constants import SONNET_MODEL
 
 import hashlib
 import json
@@ -25,7 +26,7 @@ from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-DEEPREAD_MODEL = "claude-sonnet-4-20250514"
+DEEPREAD_MODEL = SONNET_MODEL
 
 _DEEPREAD_CACHE = {}  # key -> {layer_key: detail}
 

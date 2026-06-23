@@ -100,3 +100,10 @@ AYANAMSA_MODES = {
     'Krishnamurti': 5,
     'Yukteshwar': 7
 }
+
+# ── Claude model identifiers (CENTRALIZED — update here only) ──
+# Single source of truth so a retired model string can never rot
+# per call site again. Referenced across main.py + antar_engine/.
+SONNET_MODEL = "claude-sonnet-4-6"
+HAIKU_MODEL = "claude-haiku-4-5-20251001"
+

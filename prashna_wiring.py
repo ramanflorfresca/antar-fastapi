@@ -14,6 +14,7 @@ INSTRUCTIONS:
 
 ═══════════════════════════════════════════════════════════════════
 """
+from antar_engine.constants import SONNET_MODEL
 
 # ─────────────────────────────────────────────────────────────────
 # STEP 1: Add this import at the top of main.py (near other imports)
@@ -190,7 +191,7 @@ async def prashna_oracle(request: PrashnaRequest):
             client = anthropic.Anthropic()
             
             claude_response = client.messages.create(
-                model="claude-sonnet-4-20250514",
+                model=SONNET_MODEL,
                 max_tokens=400,
                 system=engine_result["claude_prompt"],
                 messages=[{"role": "user", "content": question}],

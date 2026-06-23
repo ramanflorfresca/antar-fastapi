@@ -23,6 +23,7 @@ from openai import AsyncOpenAI
 
 # Antar engine modules
 from antar_engine import chart, vimsottari, jaimini, ashtottari, utils, constants
+from antar_engine.constants import SONNET_MODEL
 from antar_engine.karakas import psychological_profile, get_all_karakas
 from antar_engine import transits, divisional, timing_engine, nation_engine, remedy_selector
 from antar_engine.natal_signatures import ensure_signatures, build_signature_context_block, compute_natal_signatures, derive_archetype
@@ -1834,7 +1835,7 @@ async def call_llm_claude(
     _ai_t0 = _ai_time.monotonic()
     try:
         response = await claude_client.messages.create(
-            model="claude-sonnet-4-5",
+            model=SONNET_MODEL,
             max_tokens=max_tokens_override or 1200,
             temperature=0.35,
             system=_system_blocks,
@@ -3458,7 +3459,7 @@ async def _get_or_generate_upcoming_themes_llm(
     print(f"[upcoming-themes-llm] Generating for {chart_id}...")
     try:
         resp = await claude_client.messages.create(
-            model="claude-sonnet-4-6",
+            model=SONNET_MODEL,
             max_tokens=2000,
             messages=[{"role": "user", "content": prompt}],
         )
@@ -16955,13 +16956,21 @@ async def save_onboarding_reason(request: OnboardingReasonRequest):
 @app.post("/api/v1/daily-signal")
 @app.get("/api/v1/daily-signal/{chart_id}")
 @translate_response(
-    fields_to_translate=["vibe", "do_today", "dont_today", "text", "headline", "highlight", "todays_nudge"],
+    fields_to_translate=["vibe", "do_today", "dont_today", "text", "headline", "highlight", "todays_nudge", "move", "el_movimiento"],
     endpoint_name="daily-signal",
 )
 async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, language: str = "en", date: str = None):
     cid = chart_id or (request.get("chart_id") if request else None)
     if not cid:
         raise HTTPException(400, "chart_id required")
+    # [D5] Reject non-UUID chart_id before the Supabase lookup. A malformed
+    # (e.g. truncated) id otherwise triggers postgrest 22P02 and an
+    # unhandled 500. Return a clean 404 instead.
+    from uuid import UUID as _UUID_D5
+    try:
+        _UUID_D5(str(cid))
+    except (ValueError, AttributeError, TypeError):
+        raise HTTPException(404, "Chart not found")
     # [daily-signal-date] accept ?date=YYYY-MM-DD (or JSON body "date").
     # Without this the panchanga was frozen to "now" for every request
     # because the param was silently ignored before reaching the engine.
@@ -17196,9 +17205,18 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 _nudge = None
             if _nudge:
                 result["todays_nudge"] = _nudge
-            # Part 3 — internal reasoning must not reach the UI.
-            result["el_movimiento"] = ""
-            result["move"] = ""
+            # Part 3 — internal reasoning must not reach the UI, but the
+            # YOUR MOVE card reads `move` (alias `el_movimiento`). [D1-fix]
+            # Populate it from the real, already-user-facing action:
+            # TODAY'S NUDGE if present, else TODAY'S MOVE best_for. The raw
+            # "why" reasoning is preserved only in _debug (_prev_el_movimiento).
+            _d1_move = (result.get("todays_nudge") or "").strip()
+            if not _d1_move:
+                _d1_tm = result.get("todays_move")
+                if isinstance(_d1_tm, dict):
+                    _d1_move = (_d1_tm.get("best_for") or "").strip()
+            result["el_movimiento"] = _d1_move
+            result["move"] = _d1_move
             result["_debug_reasoning"] = _th_dbg
             # [admin-inspect] capture the deterministic engine pick (raw bundle)
             _ai_c = _inspect_active()
@@ -22229,7 +22247,7 @@ Output all {len(transit_contexts)} transit(s) in this format. Nothing else."""
 
     try:
         response = await claude_client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=SONNET_MODEL,
             max_tokens=300,
             temperature=0.3,
             messages=[{"role": "user", "content": prompt}]
@@ -22754,7 +22772,7 @@ Rewrite the base template as ONE sentence that feels personally relevant to this
             return base_template
 
         response = await claude_client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=SONNET_MODEL,
             max_tokens=60,
             temperature=0.7,
             messages=[{"role": "user", "content": prompt}]
@@ -22856,7 +22874,7 @@ RULES:
             return action_signature.get("description", "Stay alert to what arrives today.")
 
         response = await claude_client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=SONNET_MODEL,
             max_tokens=60,
             temperature=0.75,
             messages=[{"role": "user", "content": prompt}]

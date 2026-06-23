@@ -257,7 +257,7 @@ def _detect_weekday(day) -> List[Condition]:
         elif verdict == "caution":
             txt = T.AVOID_BY_DOMAIN.get(dom) or T.AVOID_BY_DOMAIN["work"]
             conds.append(Condition(domain="risk", text=txt.replace(" today", ""), intensity=2.6, source="wd_avoid",
-                                   true_domain=d, valence="negative"))
+                                   true_domain=dom, valence="negative"))
         elif dom in T.WEEK_THEME_BY_DOMAIN:
             conds.append(Condition(domain=dom, text=T.WEEK_THEME_BY_DOMAIN[dom], intensity=2.2, source="wd_theme"))
 
