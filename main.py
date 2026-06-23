@@ -24596,6 +24596,38 @@ async def predict_year_attention(request: dict, language: str = None):
 
 
 
+@app.get("/api/v1/admin/lk-preview/{chart_id}")
+async def lk_preview(chart_id: str, surface: str = "both"):
+    """[lk-preview] Flagged preview of the deterministic Lal Kitab
+    Varshphal (year) + Masik (month) engine. Read-only — does not change
+    any live surface. surface = year | month | both."""
+    from uuid import UUID as _lkp_uuid
+    try:
+        _lkp_uuid(str(chart_id))
+    except Exception:
+        raise HTTPException(404, "Chart not found")
+    res = supabase.table("charts").select(
+        "chart_data,birth_date,gender").eq("id", chart_id).execute()
+    if not res.data:
+        raise HTTPException(404, "Chart not found")
+    row = res.data[0]
+    cd = row.get("chart_data")
+    if isinstance(cd, str):
+        try:
+            cd = json.loads(cd)
+        except Exception:
+            cd = {}
+    from antar_engine.lk_varshphal_year import read_year, read_month
+    g = row.get("gender") or ""
+    bd = row.get("birth_date")
+    out = {"chart_id": chart_id, "surface": surface}
+    if surface in ("year", "both"):
+        out["year"] = read_year(cd, bd, g)
+    if surface in ("month", "both"):
+        out["month"] = read_month(cd, bd, g)
+    return out
+
+
 # ══════════════════════════════════════════════════════════════════════════════
 # DAY DEEP READ — Layer 3 prose synthesis (POST /api/v1/predict/day-deep)
 # Composition + ONE cache-gated LLM call on top of the shipped LK engine.
