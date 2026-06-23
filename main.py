@@ -21288,7 +21288,7 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
                         print(f"[es-loc] /practices cache translate non-fatal: {_ptd_e}")
                 _sched["life_context"] = get_life_context(chart_id, supabase=supabase)  # [life-context]
                 return {"status": "ok", "source": "cache", "schedule": _sched}
-        _chart = supabase.table("charts").select("chart_data, jaimini_data, lal_kitab_data, current_country, birth_date").eq("id", chart_id).single().execute()
+        _chart = supabase.table("charts").select("chart_data, jaimini_data, lal_kitab_data, current_country, birth_date, gender").eq("id", chart_id).single().execute()
         if not _chart.data:
             return {"status": "error", "message": "Chart not found"}
         _c = _chart.data
@@ -21352,6 +21352,31 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
             next_md=_vim_next_md,
             practice_counts=_practice_counts,
         )
+        # [lk-handoff] one source of truth — attach the LK Varshphal (year)
+        # + Masik (month) remedies + gemstones from the same engine This
+        # Year/Month use, so Practices and This Year never disagree.
+        try:
+            from antar_engine.lk_varshphal_year import read_year as _lk_ry, read_month as _lk_rm
+            _lk_cd = _safe_jsonb(_c.get("chart_data"))
+            _lk_g = _c.get("gender") or ""
+            _lk_bd = _c.get("birth_date")
+            _lk_y = _lk_ry(_lk_cd, _lk_bd, _lk_g)
+            _lk_m = _lk_rm(_lk_cd, _lk_bd, _lk_g)
+            _sched["lal_kitab"] = {
+                "year": ({
+                    "verdict": _lk_y.get("verdict"),
+                    "remedies": [r.get("text") for r in (_lk_y.get("remedies") or [])],
+                    "gemstones": _lk_y.get("gemstones"),
+                    "what_to_avoid": _lk_y.get("what_to_avoid"),
+                } if _lk_y.get("available") else None),
+                "month": ({
+                    "verdict": _lk_m.get("verdict"),
+                    "remedies": [r.get("text") for r in (_lk_m.get("remedies") or [])],
+                } if _lk_m.get("available") else None),
+            }
+        except Exception as _lkh_e:
+            print(f"[practices] lk handoff non-fatal: {_lkh_e}")
+            _sched.setdefault("lal_kitab", None)
         try:
             supabase.table("practice_schedule_cache").upsert({"chart_id": chart_id, "week_of": _week_of.isoformat(), "cache_key": _sched.get("cache_key", ""), "schedule_data": _sched}, on_conflict="chart_id,week_of").execute()
         except Exception:
@@ -24622,6 +24647,7 @@ async def predict_year_attention(request: dict, language: str = None):
                 year["lk_life_events"] = _lk["life_events"]
                 year["lk_combinations"] = _lk["combinations"]
                 year["lk_gemstones"] = _lk.get("gemstones")
+                year["remedies_cta"] = "Your remedies and stones for this year are in Practices \u2192 Remedies."
                 payload["narration_source"] = "lk_engine"
     except Exception as _lke:
         print(f"[year-attention] lk engine non-fatal: {_lke}")
