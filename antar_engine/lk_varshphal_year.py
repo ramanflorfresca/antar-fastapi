@@ -1,20 +1,21 @@
 """
 lk_varshphal_year.py — deterministic Lal Kitab reading engine (year + month).
 
-PREVIEW / flagged — NOT the live surfaces yet. Reads rule data from
-`lk_year_rules` + the authentic annual progression table; degrades gracefully
-where data is missing.
+PREVIEW / flagged. Reads rule data from `lk_year_rules` + the authentic annual
+progression table; degrades gracefully where data is missing.
 
 Placements:
   YEAR  (Varshphal): annual house = VARSHAPHAL_TABLE[running_year][natal_house]
   MONTH (Masik):     annual house advanced one house per month since birthday
 
-Reading layers (shared by both):
-  1. SINGLE planet — significator × house verdict × dusthana/8th-event × bait.
-  2. COMBINATION — friend/foe (friend strengthens, foe spoils) + book two-planet
-     "acts-as" combos when planets share a house.
-  3. TRANSIT — current slow planets into the house / 8th amplify or ease.
+Reading layers (shared): single planet × house verdict × dusthana/8th-event ×
+bait/transfer × friend-foe (spoil/strengthen) × two-planet combos × transit.
+
+USER-FACING OUTPUT (plain=True, the default): translated to plain life-nouns —
+NO planet names, NO house numbers (project rule 12). A final guardrail strips
+any that slip through. plain=False keeps the technical wording for admin/debug.
 """
+import re
 from datetime import date
 
 from antar_engine import lk_year_rules as R
@@ -36,6 +37,22 @@ _PRIORITY = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Ra
 _SLOW = ("Saturn", "Jupiter", "Rahu", "Ketu")
 _MALEFIC_TRANSIT = ("Saturn", "Rahu", "Ketu")
 
+# ── guardrail: never let a planet name or house number reach the user ──
+_PLANET_RX = re.compile(r"\b(Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu)\b")
+
+
+def _no_jargon(s):
+    """Strip planet names + house numbers from a user-facing string."""
+    if not isinstance(s, str):
+        return s
+    # drop any parenthetical that names a planet
+    s = re.sub(r"\s*\([^)]*\b(?:Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu)\b[^)]*\)", "", s)
+    s = _PLANET_RX.sub("a planetary influence", s)
+    s = re.sub(r"\bhouse\s*\d+\b", "this area", s, flags=re.I)
+    s = re.sub(r"\s{2,}", " ", s)
+    s = re.sub(r"\s+([,.;:])", r"\1", s)
+    return s.strip()
+
 
 def _age(birth_date, today=None):
     try:
@@ -47,7 +64,7 @@ def _age(birth_date, today=None):
 
 
 def _house_domain(h):
-    return (HOUSE_KARAKAS.get(h, "") or "").split(",")[0].strip() or f"house {h}"
+    return (HOUSE_KARAKAS.get(h, "") or "").split(",")[0].strip() or "this area"
 
 
 def _remedy_text(planet, house):
@@ -112,8 +129,29 @@ def transit_houses_now(lagna_idx, today=None):
         return {}
 
 
-def _read_placements(placements, gender, transit_houses, age, period="year"):
-    """Shared reader — turns {planet: house} into the LK reading. period ∈ {year, month}."""
+def _domain_label(p, ah, gender, plain):
+    spouse = R.spouse_karaka(gender)
+    if plain:
+        if p == spouse:
+            return "your husband" if spouse == "Jupiter" else "your wife"
+        return R.PLAIN_DOMAIN.get(p) or _house_domain(ah)
+    sig = R.planet_significations(p, gender)
+    return sig[0] if sig else _house_domain(ah)
+
+
+def _bait_suffers(p, plain):
+    bait = R.LK_BAIT_TRANSFER.get(p)
+    if not bait or not bait.get("suffers"):
+        return None
+    s = bait["suffers"]
+    if plain:
+        s = re.sub(r"\s*\(via [^)]+\)", "", s)
+        s = s.replace("its friend-planets' domains", "the people close to you")
+        s = s.replace("the native's", "your")
+    return s
+
+
+def _read_placements(placements, gender, transit_houses, age, period="year", plain=True):
     spouse = R.spouse_karaka(gender)
     period_w = "this year" if period == "year" else "this month"
 
@@ -125,11 +163,13 @@ def _read_placements(placements, gender, transit_houses, age, period="year"):
     for h, plist in occupants.items():
         if len(plist) < 2:
             continue
-        for a, b, eff in R.LK_COMBINATIONS:
+        for a, b, eff, plain_eff in R.LK_COMBINATIONS:
             if a in plist and b in plist:
                 if "4th house" in eff and h != 4:
                     continue
-                combinations.append(f"In your {_house_domain(h)}, {a} and {b} together — {eff}.")
+                txt = plain_eff if plain else eff
+                area = _house_domain(h) if plain else _house_domain(h)
+                combinations.append(f"In {area}, {txt}.")
 
     happen, avoid, remedies, events, notes = [], [], [], [], []
     n_support = n_strain = 0
@@ -138,8 +178,7 @@ def _read_placements(placements, gender, transit_houses, age, period="year"):
         ah = placements.get(p)
         if not ah:
             continue
-        sig = R.planet_significations(p, gender)
-        domain = sig[0] if sig else _house_domain(ah)
+        domain = _domain_label(p, ah, gender, plain)
         verdict = (R.LK_HOUSE_VERDICTS.get(p, {}) or {}).get(ah) or {}
 
         co = [x for x in occupants.get(ah, []) if x != p]
@@ -158,22 +197,36 @@ def _read_placements(placements, gender, transit_houses, age, period="year"):
         t_malefic = [sp for sp in t_here if sp in _MALEFIC_TRANSIT]
         t_event = [sp for sp in _MALEFIC_TRANSIT if transit_houses.get(sp) == R.EVENT_HOUSE]
 
+        def _foe_note():
+            if not foes_here:
+                return ""
+            return " (a competing influence here works against it.)" if plain else f" ({', '.join(foes_here)} shares this area and spoils it.)"
+
+        def _friend_note():
+            if not friends_here:
+                return ""
+            return " (a supporting influence here strengthens it.)" if plain else f" ({', '.join(friends_here)} shares this area and strengthens it.)"
+
+        def _transit_note(easing=False):
+            if easing:
+                return (" A supportive cycle eases this area " + period_w + ".") if plain else f" Transiting Jupiter eases this area {period_w}."
+            return (" The current slow cycle sharpens it " + period_w + ".") if plain else f" Transiting {', '.join(t_malefic)} sharpens it {period_w}."
+
         if strained:
             n_strain += 1
             what = verdict.get("bad") or f"pressure on {domain}"
             line = f"{domain.capitalize()}: {what}."
-            bait = R.LK_BAIT_TRANSFER.get(p)
-            if bait and bait.get("suffers"):
-                line += f" The strain can surface through {bait['suffers']}."
-            if foes_here:
-                line += f" ({', '.join(foes_here)} shares this area and spoils it.)"
+            suff = _bait_suffers(p, plain)
+            if suff:
+                line += f" The strain can surface through {suff}."
+            line += _foe_note()
             if t_malefic:
-                line += f" Transiting {', '.join(t_malefic)} sharpens it {period_w}."
+                line += _transit_note()
             happen.append(line)
             avoid.append(f"Don't force big moves in {domain} {period_w}.")
             rt = _book_remedy(p, verdict, ah)
             if rt:
-                remedies.append({"planet": p, "house": ah, "text": rt})
+                remedies.append({"text": rt} if plain else {"planet": p, "house": ah, "text": rt})
             if ah == R.EVENT_HOUSE or t_malefic or (p in t_event):
                 if p == spouse:
                     tag = "your husband and marriage" if spouse == "Jupiter" else "your wife and marriage"
@@ -184,23 +237,32 @@ def _read_placements(placements, gender, transit_houses, age, period="year"):
             n_support += 1
             what = verdict.get("good") or f"strength in {domain}"
             line = f"{domain.capitalize()}: {what}."
-            if friends_here:
-                line += f" ({', '.join(friends_here)} shares this area and strengthens it.)"
+            line += _friend_note()
             if "Jupiter" in t_here:
-                line += f" Transiting Jupiter eases this area {period_w}."
+                line += _transit_note(easing=True)
             happen.append(line)
 
         if base_supported and foes_here:
-            notes.append(f"{domain.capitalize()} is well placed but {', '.join(foes_here)} can spoil it — handle with care.")
+            base = f"{domain.capitalize()} is well placed but " + ("a competing influence" if plain else ', '.join(foes_here)) + " can spoil it — handle with care."
+            notes.append(base)
 
     overall = "supportive" if (n_support and not n_strain) else ("challenging" if (n_strain and not n_support) else "mixed")
+
+    if plain:
+        happen = [_no_jargon(x) for x in happen]
+        avoid = [_no_jargon(x) for x in avoid]
+        events = [_no_jargon(x) for x in events]
+        combinations = [_no_jargon(x) for x in combinations]
+        notes = [_no_jargon(x) for x in notes]
+        remedies = [{"text": _no_jargon(r["text"])} for r in remedies]
+
     return {
         "available": True, "period": period, "verdict": overall,
         "what_will_happen": happen[:7], "what_to_avoid": avoid[:5],
         "remedies": remedies[:5], "life_events": events[:4],
         "combinations": combinations[:4], "notes": notes[:3],
         "_debug": {
-            "age": age, "gender": gender, "spouse_karaka": spouse,
+            "age": age, "gender": gender, "spouse_karaka": spouse, "plain": plain,
             "placements": placements,
             "shared_houses": {h: ps for h, ps in occupants.items() if len(ps) >= 2},
             "transit_houses": transit_houses,
@@ -218,21 +280,21 @@ def _prep(natal_chart, birth_date, transit_houses, today, use_transit):
     return age, natal, (transit_houses or {})
 
 
-def read_year(natal_chart, birth_date, gender="", transit_houses=None, today=None, use_transit=True):
+def read_year(natal_chart, birth_date, gender="", transit_houses=None, today=None, use_transit=True, plain=True):
     """LK Varshphal YEAR reading. Never raises."""
     try:
         age, natal, th = _prep(natal_chart, birth_date, transit_houses, today, use_transit)
         if age is None:
             return {"available": False, "reason": "missing age or natal houses"}
         placements = {p: get_annual_house(nh, age) for p, nh in natal.items() if 1 <= nh <= 12}
-        out = _read_placements(placements, gender, th, age, period="year")
+        out = _read_placements(placements, gender, th, age, period="year", plain=plain)
         out["_debug"]["running_year"] = age + 1
         return out
     except Exception as e:  # pragma: no cover
         return {"available": False, "reason": f"engine error: {e}"}
 
 
-def read_month(natal_chart, birth_date, gender="", transit_houses=None, today=None, use_transit=True):
+def read_month(natal_chart, birth_date, gender="", transit_houses=None, today=None, use_transit=True, plain=True):
     """LK Masik MONTH reading — annual chart advanced one house per month. Never raises."""
     try:
         age, natal, th = _prep(natal_chart, birth_date, transit_houses, today, use_transit)
@@ -248,7 +310,7 @@ def read_month(natal_chart, birth_date, gender="", transit_houses=None, today=No
             if 1 <= nh <= 12:
                 ah = get_annual_house(nh, age)
                 placements[p] = ((ah - 1 + moff) % 12) + 1
-        out = _read_placements(placements, gender, th, age, period="month")
+        out = _read_placements(placements, gender, th, age, period="month", plain=plain)
         out["_debug"]["month_offset"] = moff
         return out
     except Exception as e:  # pragma: no cover

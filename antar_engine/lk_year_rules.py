@@ -154,16 +154,39 @@ LK_FRIEND_FOE = {
 
 # ── Two-planet conjunction / "acts-as" rules (Book 1, pp.80-84). When the two
 # named planets share a house this year, apply the effect/transform.
+# 4-tuple: (planetA, planetB, technical_effect, PLAIN user-facing phrasing).
 LK_COMBINATIONS = [
-    ("Rahu", "Ketu", "together act as an artificial Venus (wealth/ease shifts)"),
-    ("Rahu", "Ketu", "in the 4th house, malefic effect is suppressed (virtuous)"),
-    ("Saturn", "Jupiter", "together turn virtuous — Jupiter converts Saturn's malefic to benefic"),
-    ("Sun", "Mercury", "together make Mars benefic (good for age & children)"),
-    ("Sun", "Saturn", "together make Mars malefic"),
-    ("Moon", "Rahu", "together harm Mercury's people (sister, daughter) and commerce"),
-    ("Sun", "Venus", "together act as Jupiter for matters of children"),
-    ("Sun", "Jupiter", "together act as Moon for parents"),
+    ("Rahu", "Ketu", "together act as an artificial Venus (wealth/ease shifts)",
+     "two hidden forces combine and stir matters of money, comfort and closeness"),
+    ("Rahu", "Ketu", "in the 4th house, malefic effect is suppressed (virtuous)",
+     "two hidden forces settle and soften the year's hardest edges"),
+    ("Saturn", "Jupiter", "together turn virtuous — Jupiter converts Saturn's malefic to benefic",
+     "patience and good judgment combine — a hard area becomes workable"),
+    ("Sun", "Mercury", "together make Mars benefic (good for age & children)",
+     "confidence and clear thinking combine and work in your favour"),
+    ("Sun", "Saturn", "together make Mars malefic",
+     "pride and pressure combine — guard your temper and your health"),
+    ("Moon", "Rahu", "together harm Mercury's people (sister, daughter) and commerce",
+     "restlessness mixes with mood — watch your business and the women close to you"),
+    ("Sun", "Venus", "together act as Jupiter for matters of children",
+     "warmth and affection combine — a good stretch for children"),
+    ("Sun", "Jupiter", "together act as Moon for parents",
+     "confidence and wisdom combine — good for home and parents"),
 ]
+
+# ── Plain user-facing life-area label per planet (NO planet names, NO house
+# numbers). The spouse label is added gender-correctly by the engine.
+PLAIN_DOMAIN = {
+    "Sun":     "your standing and your father",
+    "Moon":    "your home and your mother",
+    "Mars":    "your drive, property and siblings",
+    "Mercury": "your work, money and communication",
+    "Jupiter": "your growth, learning and children",
+    "Venus":   "your relationships and comforts",
+    "Saturn":  "your career and responsibilities",
+    "Rahu":    "sudden and unfamiliar matters",
+    "Ketu":    "what you're letting go of and inner life",
+}
 
 # ── Special planet states (Book 1, pp.84-86). Short criteria for the engine.
 LK_PLANET_STATES = {
