@@ -24524,8 +24524,18 @@ async def predict_year_attention(request: dict):
             if _yn and not _inspect_active():
                 year_narration_cache_write(supabase, chart_id, _yn_ps, _yn_state, _yn)
         if _yn:
-            year["headline"] = _yn["headline"]
-            year["gist"] = _yn["body"]
+            # [D6b no-name] Strip a leading vocative on the way out so a
+            # stale year_narration_cache row (written before the no-name
+            # fix) can't keep showing a stored/invented name ("Zafat, this
+            # is your year"). parse_and_validate_year only covers fresh
+            # narrations; this covers cache hits too — headline and body.
+            import re as _yh_re
+            def _devoc(_s):
+                _s = _s or ""
+                _o = _yh_re.sub(r"^[A-Z][A-Za-z\u00C0-\u00FF'\u2019.\-]*,\s+", "", _s, count=1)
+                return (_o[0].upper() + _o[1:]) if (_o and _o != _s) else _s
+            year["headline"] = _devoc(_yn.get("headline"))
+            year["gist"] = _devoc(_yn.get("body"))
             year["watch"] = _yn["watch"]
             payload["narration_source"] = "claude"
     except Exception as _yn_err:
