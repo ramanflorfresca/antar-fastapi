@@ -891,6 +891,10 @@ _ASTRO_VOICE_SWAPS_EN = [
     (re.compile(r"\benergy today\b", re.I), "the day"),
     (re.compile(r"\bnatural ruling energy\b", re.I), "tone"),
     (re.compile(r"\bruling energy\b", re.I), "tone"),
+    # [3a 2026-06-24] constructions that leaked live (plain 'low energy' stays)
+    (re.compile(r"\bthe day['’]s energy is\b", re.I), "the day is"),
+    (re.compile(r"\b(?:today['’]s\s+)?lunar energy\b", re.I), "the day's mood"),
+    (re.compile(r"\s+energy(['’]s)\b", re.I), r"\1"),
     (re.compile(r"\bthe conflict zone of your chart\b", re.I), "this area"),
     (re.compile(r"\bconflict zone of your chart\b", re.I), "this area"),
     (re.compile(r"\bconflict zone\b", re.I), "area of tension"),

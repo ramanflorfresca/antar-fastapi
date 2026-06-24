@@ -268,9 +268,13 @@ If a DAY-LORD DIAGNOSTIC block is present in the data:
 - DO NOT use the words "Lal Kitab", "day-lord", or any weekday name in
   user-facing fields. The strip layer handles planet-name removal in plain fields.
 - el_movimiento (the "why" expandable) is USER-FACING: use the same plain
-  energy language as every other field. Refer to the day's ruler as
-  "today's natural ruling energy" — never by planet name, codename, house
-  number, or Sanskrit term.
+  language as every other field. Describe the day's overall tendency in
+  plain terms ("the day leans toward...", "the prevailing tone is...") — do
+  NOT personify it as "ruling energy" or "natural ruling energy", never
+  write "afflicted" or "conflict zone", and never use the possessive
+  "energy's". Plain wording like "low energy" is fine; the astro-voice
+  constructions are not. Never use planet names, codenames, house numbers,
+  or Sanskrit terms.
 
 ## LIVE DATA
 """

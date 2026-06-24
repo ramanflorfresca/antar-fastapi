@@ -42,15 +42,16 @@ _GIVING_PLACE_BY_COUNTRY = {
     "IN": "mandir or gurudwara",
     "NP": "mandir",
     "LK": "temple",
-    # Latin America — iglesia / comedor popular
-    "MX": "iglesia", "CO": "iglesia", "EC": "iglesia", "GT": "iglesia",
-    "BO": "iglesia", "VE": "iglesia", "UY": "iglesia", "PY": "iglesia",
-    "HN": "iglesia", "SV": "iglesia", "NI": "iglesia", "CR": "iglesia",
-    "PA": "iglesia", "DO": "iglesia", "CU": "iglesia", "CL": "iglesia",
-    "PE": "iglesia or comedor popular",
-    "AR": "iglesia or comedor popular",
-    "BR": "igreja",
-    "ES": "iglesia",
+    # Latin America — English source ("church"); @translate_response renders
+    # "iglesia"/"igreja" on the es path, so en stays clean and es is unchanged.
+    "MX": "church", "CO": "church", "EC": "church", "GT": "church",
+    "BO": "church", "VE": "church", "UY": "church", "PY": "church",
+    "HN": "church", "SV": "church", "NI": "church", "CR": "church",
+    "PA": "church", "DO": "church", "CU": "church", "CL": "church",
+    "PE": "church or soup kitchen",
+    "AR": "church or soup kitchen",
+    "BR": "church",
+    "ES": "church",
     # Anglosphere
     "US": "church or community kitchen",
     "GB": "church or food bank",
