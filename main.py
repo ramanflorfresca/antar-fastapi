@@ -17158,6 +17158,24 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         if isinstance(result.get("panchanga"), dict):
             result["panchanga"].pop("mantra", None)
 
+        # ── [today-windows] Deterministic timing-window rebuild ──────────
+        # The LLM-authored windows[] surface emitted duplicate time ranges
+        # and a single "best"-style label (no steer-clear). Rebuild it from
+        # panchanga: abhijit = the one best window, rahu kalam = steer-clear.
+        # Deduped + distinctly labeled (kind/label) so best vs avoid is
+        # unambiguous — the same pattern THIS MONTH uses. Fail-open: on any
+        # error the original windows[] are left untouched.
+        try:
+            from antar_engine.today_windows import build_today_windows
+            result["windows"] = build_today_windows(
+                abhijit=result.get("abhijit", ""),
+                rahu_kalam=result.get("rahu_kalam", ""),
+                llm_windows=result.get("windows") or [],
+                language=language,
+            )
+        except Exception as _tw_err:
+            print(f"[daily-signal] window rebuild skipped: {_tw_err}")
+
         # ── Layer-2 concrete signals (highlights) — Phase 1: Today ──────
         try:
             from antar_engine.highlight_composer import build_highlights
