@@ -1,0 +1,27 @@
+{
+  "_doc": "COPY to profession_validation.json then FILL with real charts whose profession you actually know. Each row = a real person's chart_data (lagna + planets with longitudes) + what they really do. Gate needs >= 8 real cases at >= 70% accuracy. Example rows are auto-dropped — they will NOT open the gate.",
+  "min_accuracy": 0.70,
+  "cases": [
+    {
+      "id": "example-founder-REPLACE",
+      "notes": "EXAMPLE ROW — replace with a real chart",
+      "chart_data": {
+        "lagna": {"sign": "Aries", "degree": 12.0},
+        "planets": {
+          "Sun": {"sign": "Leo", "degree": 8.0, "longitude": 128.0},
+          "Moon": {"sign": "Cancer", "degree": 20.0, "longitude": 110.0},
+          "Mars": {"sign": "Capricorn", "degree": 5.0, "longitude": 275.0},
+          "Mercury": {"sign": "Virgo", "degree": 14.0, "longitude": 164.0},
+          "Jupiter": {"sign": "Sagittarius", "degree": 3.0, "longitude": 243.0},
+          "Venus": {"sign": "Libra", "degree": 18.0, "longitude": 198.0},
+          "Saturn": {"sign": "Aquarius", "degree": 9.0, "longitude": 309.0},
+          "Rahu": {"sign": "Gemini", "degree": 6.0, "longitude": 66.0},
+          "Ketu": {"sign": "Sagittarius", "degree": 6.0, "longitude": 246.0}
+        }
+      },
+      "known_profession": "founder / hard-tech",
+      "expected_arena_keywords": ["venture", "engineering"],
+      "expected_archetype": "THE CATALYST"
+    }
+  ]
+}

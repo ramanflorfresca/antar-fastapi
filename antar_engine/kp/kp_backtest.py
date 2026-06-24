@@ -119,6 +119,32 @@ def _predict_case(case):
     raise ValueError(f"unknown mode {mode!r} (expected 'horary' or 'natal')")
 
 
+# ── Placeholder / example-row guard (gate must not open on template data) ────
+_PLACEHOLDER_ID_TOKENS = ("example", "template", "sample", "dummy", "replace")
+
+
+def _is_placeholder_case(case):
+    """
+    True if a validation row is a shipped template/example, not a real past
+    question. The gate must never open on these. Heuristics:
+      - id contains example/template/sample/dummy/replace
+      - notes say 'replace' / 'example row'
+      - known_outcome missing/empty (a real case must state yes/no)
+    """
+    if not isinstance(case, dict):
+        return True
+    cid = str(case.get("id", "")).lower()
+    if any(tok in cid for tok in _PLACEHOLDER_ID_TOKENS):
+        return True
+    notes = str(case.get("notes", "")).lower()
+    if "replace" in notes or "example row" in notes:
+        return True
+    outcome = str(case.get("known_outcome", "")).strip().lower()
+    if outcome not in ("yes", "no"):
+        return True
+    return False
+
+
 def run_backtest(roster_path=DEFAULT_ROSTER, write=True):
     """
     Score the validation set. Returns a scorecard dict and (if write) persists
@@ -138,6 +164,30 @@ def run_backtest(roster_path=DEFAULT_ROSTER, write=True):
         roster = json.load(f)
     cases = roster.get("cases", [])
     tol = roster.get("tolerance_months", 3)
+
+    # Drop placeholder/example rows — the gate must not open on template data.
+    real_cases = [c for c in cases if not _is_placeholder_case(c)]
+    dropped = len(cases) - len(real_cases)
+    if len(real_cases) < MIN_CASES:
+        scorecard = {
+            "passed": False,
+            "reason": (
+                f"validation set has only {len(real_cases)} real case(s) "
+                f"({dropped} placeholder/example row(s) dropped) — "
+                f"need >= {MIN_CASES}. Gate stays CLOSED (KP quarantined)."
+            ),
+            "roster_path": roster_path,
+            "n_cases": len(real_cases),
+            "n_placeholder_dropped": dropped,
+            "hit_rate": None,
+            "threshold": PASS_THRESHOLD,
+            "min_cases": MIN_CASES,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+        }
+        if write:
+            _write_gate_status(scorecard)
+        return scorecard
+    cases = real_cases
 
     rows = []
     hits = conditionals = timing_scored = timing_within = 0
