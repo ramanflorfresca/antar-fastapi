@@ -1472,6 +1472,29 @@ def _compose_for_horizon(horizon: str,
         # [today-precision v2 2026-06-23] additive precise daily — gated by
         # DAILY_PRECISION_V2 (shadow default). Never overwrites shipped fields.
         view["precise"] = None
+        # [daily-vocab 2026-06-24] additive concrete daily vocabulary block —
+        # gated by DAILY_VOCAB (shadow default). Body/food/mood/romance/
+        # direction/color + soft Tier-B event_watch, all conviction-gated.
+        # Never overwrites shipped fields; any failure leaves concrete=None.
+        view["concrete"] = None
+        try:
+            from antar_engine.daily_vocab import (
+                is_enabled as _dv_on, public_view as _dv_public,
+            )
+            from antar_engine.daily_vocab.adapter import (
+                build_concrete_for_chart as _dv_build,
+            )
+            if _dv_on():
+                _dv_block = _dv_build(
+                    chart_data,
+                    on_date=now_today.date(),
+                    best_window=best_t,
+                    steer_clear_window=avoid_t,
+                    language=language,
+                )
+                view["concrete"] = _dv_block if debug else _dv_public(_dv_block)
+        except Exception as _dve:
+            print(f"[home_composer] daily_vocab skipped: {_dve}")
         try:
             from antar_engine.today_precision import (
                 compute_today_precision as _tp_compute, is_enabled as _tp_on,
