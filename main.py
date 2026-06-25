@@ -20703,6 +20703,31 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
         except Exception as _mpe:
             print(f"[monthly-deepdive] period failed: {_mpe}")
 
+        # ── Layered-fidelity domains[] — This Month (SHADOW) ────────────────
+        # [layered-fields 2026-06-24] Per-domain hook/substance/depth/conviction
+        # at MONTH altitude. Python computes {domain,conviction,polarity,window,
+        # seed}; the model only phrases. Dated window = score_day_best/caution.
+        # Additive + gated by LAYERED_FIELDS; never breaks the response.
+        try:
+            from antar_engine.layered_fields import is_enabled as _lf_on
+            if _lf_on():
+                from antar_engine.layered_phrasing import (
+                    compute_month_inputs as _lf_min,
+                    phrase_domains as _lf_phrase,
+                )
+                async def _lf_call(_prompt):
+                    _r = await claude_client.messages.create(
+                        model=SONNET_MODEL, max_tokens=1500, temperature=0.6,
+                        messages=[{"role": "user", "content": _prompt}],
+                    )
+                    return _r.content[0].text
+                result["domains"] = await _lf_phrase(
+                    _lf_min(result), "month", (language or "en"),
+                    _lf_call if claude_client else None,
+                )
+        except Exception as _lf_e:
+            print(f"[monthly-deepdive] layered domains failed (non-blocking): {_lf_e}")
+
         return _ent_month_view(result, chart_id)
     except HTTPException:
         raise
@@ -24718,6 +24743,33 @@ async def predict_year_attention(request: dict, language: str = None):
     except Exception as _lke:
         print(f"[year-attention] lk engine non-fatal: {_lke}")
 
+    # ── Layered-fidelity domains[] — This Year (SHADOW, additive) ───────────
+    # [layered-fields 2026-06-24] Per-domain hook/substance/depth/conviction at
+    # YEAR altitude (arc-level, NO week dates). ADDITIVE — areas[] stays until the
+    # frontend cuts over (founder Decision 2). Computed from English areas BEFORE
+    # translation; phrased in the request language; gated by LAYERED_FIELDS.
+    try:
+        from antar_engine.layered_fields import is_enabled as _lf_on
+        if _lf_on() and isinstance(payload.get("year"), dict):
+            from antar_engine.layered_phrasing import (
+                compute_year_inputs as _lf_yin,
+                phrase_domains as _lf_yphrase,
+                monthly_handoff_text as _lf_handoff,
+            )
+            async def _lf_ycall(_prompt):
+                _r = await claude_client.messages.create(
+                    model=SONNET_MODEL, max_tokens=1500, temperature=0.6,
+                    messages=[{"role": "user", "content": _prompt}],
+                )
+                return _r.content[0].text
+            payload["year"]["domains"] = await _lf_yphrase(
+                _lf_yin(payload["year"]), "year", (language or "en"),
+                _lf_ycall if claude_client else None,
+            )
+            payload["year"]["monthly_handoff"] = _lf_handoff(language or "en")
+    except Exception as _lf_ye:
+        print(f"[year-attention] layered domains failed (non-blocking): {_lf_ye}")
+
     # ── translate at response time (English source; planet/name/key/colour kept) ──
     if language in ("es", "pt"):
         try:
@@ -26813,10 +26865,24 @@ async def _life_arc_compute(chart_id, horizon_months, language,
                             and _fe_c["title"] not in _fe_titles
                             and _fe_c["window_start"] < _fe_ne
                             and _fe_c["window_end"] > _fe_ns):
+                        # [layered-fields 2026-06-24] far-future cards render
+                        # year-level on the Cycle surface (founder-locked). Reuses
+                        # the existing gate; only month-stamped far-future labels
+                        # change. Near-horizon + already-year-level labels untouched.
+                        _fe_lbl = _fe_c["window_label"]
+                        try:
+                            from antar_engine.layered_fields import yearlevel_label as _yl_cyc
+                            _fe_lbl = _yl_cyc(
+                                str(_fe_c["window_start"])[:10],
+                                _fe_now.date().isoformat(),
+                                _fe_c["window_label"],
+                            )
+                        except Exception:
+                            pass
                         _fe_node_events.append({
                             "title":        _fe_c["title"],
                             "category":     _fe_c["category"],
-                            "window_label": _fe_c["window_label"],
+                            "window_label": _fe_lbl,
                             "conviction":   _fe_c["conviction"],
                         })
                         _fe_titles.add(_fe_c["title"])
@@ -26893,6 +26959,31 @@ async def _life_arc_compute(chart_id, horizon_months, language,
     except Exception as _gist_err:
         print(f"[life_arc] gist trim failed (non-blocking): {_gist_err}")
         response["gist"] = (current_phase or {}).get("life_phase_summary", "") or ""
+
+    # ── Layered-fidelity phase fields — Cycle (SHADOW) ───────────────────────
+    # [layered-fields 2026-06-24] Each cycle_timeline phase node gains
+    # hook/substance/depth/conviction at CYCLE altitude, derived from its
+    # already-narrated title/body + attached event convictions. No new LLM call;
+    # conviction is cycle-capped to medium. Gated by LAYERED_FIELDS.
+    try:
+        from antar_engine.layered_fields import is_enabled as _lf_on, build_phase_fields as _lf_phase
+        if _lf_on():
+            for _lf_node in (response.get("cycle_timeline") or []):
+                if not isinstance(_lf_node, dict):
+                    continue
+                _lf_evconv = [e.get("conviction") for e in (_lf_node.get("events") or [])
+                              if isinstance(e, dict)]
+                _lf_fields = _lf_phase(
+                    title=_lf_node.get("title") or "",
+                    body=_lf_node.get("body") or "",
+                    event_convictions=_lf_evconv,
+                    language=language,
+                )
+                # Additive: never overwrite an existing key.
+                for _lf_k, _lf_v in _lf_fields.items():
+                    _lf_node.setdefault(_lf_k, _lf_v)
+    except Exception as _lf_err:
+        print(f"[life_arc] layered phase fields failed (non-blocking): {_lf_err}")
 
 
     # ── Layer-2 highlights — Cycle (2-of-3 timing convergence) ──
