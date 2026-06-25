@@ -155,6 +155,20 @@ def is_practice_only(raw: Optional[str]) -> bool:
     return route_domain(raw) is None
 
 
+def route_domain_strict(raw: Optional[str]) -> Optional[str]:
+    """Like route_domain but returns None for ANYTHING not explicitly mapped —
+    no career fallback. Use for noisy upstream vocabularies (lk_month, transit
+    hot-domains) whose labels (emotion, trade, comfort, luxury…) must NOT be
+    silently bucketed into career. Practice-only inputs also return None.
+    """
+    key = (str(raw).strip().lower() if raw else "")
+    if not key or key in _PRACTICE_ONLY or key.rstrip("s") in _PRACTICE_ONLY:
+        return None
+    if key in _DOMAIN_NORMALIZE:
+        return _DOMAIN_NORMALIZE[key]
+    return _DOMAIN_NORMALIZE.get(key.rstrip("s"))  # None if unmapped
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Conviction: ONE 0–3 scalar from whatever signal a surface has
 # ─────────────────────────────────────────────────────────────────────────────
@@ -352,6 +366,18 @@ def validate_conviction_boldness(field: Dict[str, Any]) -> Tuple[bool, str]:
     return True, ""
 
 
+_MONTHWORD_RE = re.compile(
+    r"\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\b", re.IGNORECASE)
+
+
+def _norm_dates(text: str) -> str:
+    """Lowercase + truncate every month word to 3 letters so 'June 25' and
+    'Jun 25' compare equal, and collapse whitespace. Lets the validator accept a
+    sourced date regardless of how the model spelled the month."""
+    t = _MONTHWORD_RE.sub(lambda m: m.group(1).lower(), (text or "").lower())
+    return re.sub(r"\s+", " ", t)
+
+
 def validate_no_unsourced_tokens(
     field: Dict[str, Any],
     *,
@@ -361,18 +387,53 @@ def validate_no_unsourced_tokens(
     """Reject output containing a DATE token not present in the computed input.
 
     We only police dates here (the highest hallucination risk). Any date-shaped
-    token in the copy must trace to a window string the engine actually supplied.
-    Nouns are advisory (the LLM may rephrase them) so they are not hard-gated.
+    token in the copy must trace to a window string the engine actually supplied
+    (priority_actions dates, best_week / caution_week, score_day_*). Month spelling
+    is normalised on both sides so 'June 22' matches a sourced 'Jun 22'. Nouns are
+    advisory (the LLM may rephrase them) so they are not hard-gated.
     """
-    sourced_windows = sourced_windows or []
-    sourced_blob = " ".join(sourced_windows).lower()
+    sourced_blob = _norm_dates(" ".join(sourced_windows or []))
     for key in ("hook", "substance", "depth"):
         text = field.get(key) or ""
         for m in _WEEK_DATE_RE.finditer(text):
-            tok = m.group(0).strip().lower()
+            tok = _norm_dates(m.group(0).strip())
             if tok not in sourced_blob:
                 return False, f"{key} introduces unsourced date token {tok!r}"
     return True, ""
+
+
+_BIJA_RE = re.compile(r"\b(?:om|aum)\b[\w\s]*\b(?:namah|namaha|namo)\b", re.IGNORECASE)
+
+
+def scrub_remedies(remedies: Any, language: str = "en") -> Any:
+    """ISSUE 4 — bija mantras (Om Suryaya Namaha) and planet names must NOT appear
+    on a prediction surface (Practice owns remedies). Drops bija-mantra entries
+    entirely and strips planet names / jargon from any survivors; removes the raw
+    ``planet`` key. Returns a list of {practice} (or the input unchanged if not a
+    list).
+    """
+    if not isinstance(remedies, list):
+        return remedies
+    try:
+        from antar_engine.output_strips import apply_user_facing_strips
+    except Exception:
+        apply_user_facing_strips = None  # type: ignore
+    out: List[Dict[str, Any]] = []
+    for r in remedies:
+        if not isinstance(r, dict):
+            continue
+        practice = str(r.get("practice") or r.get("text") or "")
+        if not practice or _BIJA_RE.search(practice):
+            continue  # bija mantra → Practice-only; drop from this surface
+        if apply_user_facing_strips is not None:
+            try:
+                practice = apply_user_facing_strips(
+                    practice, language, field_type="plain", depth="user"
+                )
+            except Exception:
+                pass
+        out.append({"practice": practice})
+    return out
 
 
 def scrub_field(field: Dict[str, Any], language: str = "en") -> Dict[str, Any]:
@@ -551,6 +612,12 @@ def _selftest() -> int:
     check("is_practice_only(spiritual)", is_practice_only("spiritual") is True)
     check("is_practice_only(career) False", is_practice_only("career") is False)
     check("normalize never None", normalize_domain("spiritual") == _UNMAPPED_FALLBACK)
+    # strict router drops noisy upstream labels instead of bucketing to career
+    check("strict: emotion→None", route_domain_strict("emotion") is None)
+    check("strict: trade→None", route_domain_strict("trade") is None)
+    check("strict: learning→career", route_domain_strict("learning") == "career")
+    check("strict: children→family", route_domain_strict("children") == "family")
+    check("strict: spiritual→None", route_domain_strict("spiritual") is None)
 
     # unified conviction_for_domain (spine → fallback priority)
     check("unified: precision spine wins", conviction_for_domain(precision_score=9.0, bars=0) == 3)
@@ -624,6 +691,12 @@ def _selftest() -> int:
         {"hook": "act around Aug 12"}, sourced_windows=["Jun 25–Jul 1"]
     )
     check("unsourced date fails", not ok)
+    # month-spelling normalisation: 'June 22' copy vs 'Jun 22' source PASSES
+    ok, _ = validate_no_unsourced_tokens(
+        {"hook": "the week of June 22 is the one to use"},
+        sourced_windows=["Week of Jun 22"],
+    )
+    check("June↔Jun normalised pass", ok)
 
     # end-to-end assemble
     f = assemble_domain_field(
@@ -665,6 +738,16 @@ def _selftest() -> int:
     check("phase substance trimmed", pf["substance"].count(".") <= 2 and len(pf["substance"]) < len(pf["depth"]))
     pf2 = build_phase_fields(title="t", body="b", event_convictions=None)
     check("phase no-events→directional(1)", pf2["conviction"] == 1)
+
+    # remedies scrub (ISSUE 4): bija mantras dropped, planet keys gone
+    rem = scrub_remedies([
+        {"planet": "Sun", "practice": "Om Suryaya Namaha — for vitality. Chant 108 times."},
+        {"planet": "Saturn", "practice": "Om Shanaye Namaha — for discipline."},
+        {"planet": "Moon", "practice": "Take a slow walk near water in the evening."},
+    ])
+    check("remedies dropped bija", len(rem) == 1)
+    check("remedies no planet key", all("planet" not in r for r in rem))
+    check("remedies kept clean practice", "walk near water" in rem[0]["practice"])
 
     if failures:
         print(f"SELFTEST FAIL ({len(failures)}): " + "; ".join(failures))

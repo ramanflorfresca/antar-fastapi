@@ -33,6 +33,7 @@ from antar_engine.layered_fields import (
     CONV_LOW,
     CONV_NONE,
     route_domain,
+    route_domain_strict,
     conviction_for_domain,
     assemble_domain_field,
     has_week_date,
@@ -52,6 +53,43 @@ _DOMAIN_LABEL = {
 
 _MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun",
            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+# Sentiment read of a priority-action seed → polarity. Clean signal: the action
+# text itself ("favours bold moves" = positive; "energy drops, delay costs" =
+# caution). This replaces the noisy lk_month/transit vocab for polarity.
+_CAUTION_WORDS = (
+    "drop", "delay", "cost", "avoid", "careful", "gently", "gentle", "postpone",
+    "scatter", "tangle", "caution", "risk", "slow", "hold off", "protect",
+    "drain", "conflict", "strain", "difficult", "watch", "guard", "rest",
+    "overcommit", "stretched", "tension", "friction",
+)
+_POSITIVE_WORDS = (
+    "favour", "favor", "bold", "opening", "opportunit", "gain", "sharp",
+    "strong", "advance", "push", "launch", "pursue", "momentum", "win",
+    "breakthrough", "ask for", "step up", "seize", "expand", "thrive",
+)
+
+
+def _seed_polarity(text: str) -> str:
+    """positive | caution | steady, read from the action text."""
+    t = (text or "").lower()
+    if not t.strip():
+        return "steady"
+    caut = sum(1 for w in _CAUTION_WORDS if w in t)
+    pos = sum(1 for w in _POSITIVE_WORDS if w in t)
+    if caut > pos:
+        return "caution"
+    if pos > 0:
+        return "positive"
+    return "positive"  # an action with no caution cue = an opportunity to act
+
+
+def _week_label(week_text: Optional[str]) -> Optional[str]:
+    """Trim 'Week of June 22 — bold career moves pay off' → 'Week of June 22'."""
+    if not week_text:
+        return None
+    head = re.split(r"\s+[—–-]\s+", str(week_text), 1)[0].strip()
+    return head or None
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -78,20 +116,24 @@ def compute_month_inputs(
     deepdive: Dict[str, Any],
     debug: Optional[Dict[str, Any]] = None,
 ) -> List[Dict[str, Any]]:
-    """Build MONTH-altitude inputs from priority_actions + _debug_reasoning.
+    """Build MONTH-altitude inputs. SPINE = priority_actions (clean, dated,
+    domain-tagged). Polarity is read from the action TEXT (not the noisy
+    lk_month/transit vocab). Window is WEEK-level: best_week for positive,
+    caution_week for caution (month-shape, not a single-day pinpoint).
 
-    Window = the ISO best/caution day already computed in score_day_* (founder
-    pick), rendered loose ('around Jun 28'). Conviction = base 1, +1 if the domain
-    is a transit-hot domain, +1 if LK-amplified; caution/avoid flips polarity.
+    The 'sourced' list carries EVERY real computed date-string for a domain so
+    the no-hallucination validator passes genuine dates (priority_actions dates,
+    best_week / caution_week, score_day_*) and only fails invented ones.
     """
     debug = debug or deepdive.get("_debug_reasoning") or {}
-    hot = {route_domain(d) for d in (debug.get("transit_hot_domains") or [])}
-    lk = debug.get("lk_month") or {}
-    amplified = {route_domain(d) for d in (lk.get("amplified") or [])}
-    caution = {route_domain(d) for d in (lk.get("caution") or [])}
+    # strict map: drop noisy labels instead of bucketing them into career
+    hot = {d for d in (route_domain_strict(x) for x in
+                       (debug.get("transit_hot_domains") or [])) if d}
 
-    best_win = iso_to_loose(debug.get("score_day_best"))
-    caution_win = iso_to_loose(debug.get("score_day_caution"))
+    best_week = _week_label(deepdive.get("best_week"))
+    caution_week = _week_label(deepdive.get("caution_week"))
+    best_loose = iso_to_loose(debug.get("score_day_best"))
+    caution_loose = iso_to_loose(debug.get("score_day_caution"))
 
     # seed copy: the existing priority_actions action per (normalised) domain
     seeds: Dict[str, str] = {}
@@ -100,29 +142,42 @@ def compute_month_inputs(
         if dom and dom not in seeds and pa.get("action"):
             seeds[dom] = str(pa["action"])
 
+    # everything date-bearing is "sourced" — shared across domains
+    base_sourced = [s for s in (best_week, caution_week, best_loose, caution_loose,
+                                deepdive.get("best_week"), deepdive.get("caution_week"))
+                    if s]
+
     inputs: List[Dict[str, Any]] = []
     for dom in FIVE:
+        seed = seeds.get(dom, "")
+        has_action = bool(seed)
         is_hot = dom in hot
-        is_amp = dom in amplified
-        is_caut = dom in caution
-        conv = CONV_LOW + (1 if is_hot else 0) + (1 if is_amp else 0)
+        if has_action:
+            polarity = _seed_polarity(seed)
+        else:
+            polarity = "steady"
+        conv = CONV_LOW + (1 if has_action else 0) + (1 if is_hot else 0)
         conv = min(conv, CONV_HIGH)
-        if is_caut:
-            polarity = "caution"
-            window = caution_win
-        elif is_hot or is_amp:
-            polarity = "positive"
-            window = best_win
+        if polarity == "caution":
+            window = caution_week or caution_loose
+        elif polarity == "positive" and has_action:
+            window = best_week or best_loose
         else:
             polarity = "steady"
             window = None
             conv = min(conv, CONV_LOW)  # quiet domain reads directional
+        sourced = list(base_sourced)
+        if seed:
+            sourced.append(seed)  # the action text's own dates are sourced
+        if window:
+            sourced.append(window)
         inputs.append({
             "domain": dom,
             "conviction": conv,
             "polarity": polarity,
             "window": window,
-            "seed": seeds.get(dom, ""),
+            "seed": seed,
+            "sourced": sourced,
             "altitude": ALT_MONTH,
         })
     return inputs
@@ -170,6 +225,7 @@ def compute_year_inputs(year_view: Dict[str, Any]) -> List[Dict[str, Any]]:
             "polarity": polarity,
             "window": None,            # YEAR altitude: never a week window
             "seed": note,
+            "sourced": [],             # arc-level: no dates to source
             "altitude": ALT_YEAR,
         })
     return inputs
@@ -191,8 +247,11 @@ _DOTS = {0: "0 (no signal — directional only)",
 
 def build_prompt(inputs: List[Dict[str, Any]], altitude: str, language: str) -> str:
     alt_rule = (
-        "MONTH altitude: the hook is a DATED move. If a window is given, weave it in "
-        "verbatim. Be concrete about the near-term action."
+        "MONTH altitude: the hook describes the MONTH'S SHAPE and points to the named "
+        "WEEK window for that domain (e.g. 'the week of June 22'), not a single-day "
+        "pinpoint. Keep the week wording you are given. Sentiment MUST match the tone: "
+        "a 'positive' domain's week is an opening/opportunity; a 'caution' domain's week "
+        "is one to move gently or protect — NEVER describe a caution week as an 'opening'."
         if altitude == ALT_MONTH else
         "YEAR altitude: the hook is the ARC of the domain across the whole year. "
         "ABSOLUTELY NO week-level dates, no day numbers, no 'this week'. Months/seasons "
@@ -274,28 +333,51 @@ def parse_response(text: str) -> Dict[str, Dict[str, str]]:
 def _fallback_copy(inp: Dict[str, Any]) -> Dict[str, str]:
     dom = inp["domain"]
     label = _DOMAIN_LABEL.get(dom, dom)
+    Label = label[:1].upper() + label[1:]
     seed = (inp.get("seed") or "").strip()
     win = inp.get("window")
-    conv = inp.get("conviction", 0)
+    polarity = inp.get("polarity", "steady")
     if inp["altitude"] == ALT_MONTH:
-        if conv >= CONV_HIGH and win:
-            hook = f"A clear opening in {label} — {win}."
-        elif inp["polarity"] == "caution" and win:
-            hook = f"Go gently with {label} {win}."
-        elif conv >= CONV_MED:
-            hook = f"{label.capitalize()} may move this month — stay ready."
+        # Sentiment MUST match polarity — never call a caution week an "opening".
+        if polarity == "caution" and win:
+            hook = f"Go gently with {label} — {win} is the stretch that needs care."
+        elif polarity == "caution":
+            hook = f"Ease off in {label} this month; protect your energy."
+        elif polarity == "positive" and win:
+            hook = f"{Label} opens up this month — {win} is the one to use."
+        elif polarity == "positive":
+            hook = f"{Label} is favoured this month — stay ready to act."
         else:
-            hook = f"{label.capitalize()} stays steady this month."
+            hook = f"{Label} stays steady this month."
     else:  # YEAR — never a week date
-        if conv >= CONV_HIGH:
-            hook = f"{label.capitalize()} is where the year concentrates — position early."
-        elif conv >= CONV_MED:
-            hook = f"{label.capitalize()} tends to build across the year."
+        if polarity == "caution":
+            hook = f"{Label} asks for care across the year — pace yourself."
+        elif inp.get("conviction", 0) >= CONV_HIGH:
+            hook = f"{Label} is where the year concentrates — position early."
+        elif inp.get("conviction", 0) >= CONV_MED:
+            hook = f"{Label} tends to build across the year."
         else:
-            hook = f"{label.capitalize()} stays steady through the year."
+            hook = f"{Label} stays steady through the year."
     substance = seed or hook
-    depth = seed or substance
+    # give depth a distinct second beat even in fallback (avoid substance==depth)
+    if seed:
+        depth = f"{seed} Treat it as the month's shape, not a fixed appointment."
+    else:
+        depth = f"{hook} Let it stay a gentle direction rather than a hard plan."
     return {"hook": hook, "substance": substance, "depth": depth}
+
+
+def build_fallback_domains(inputs: List[Dict[str, Any]], language: str) -> List[Dict[str, Any]]:
+    """Deterministic domains[] — NO model call. Served immediately on the cold
+    path (Option A); the phrased version is computed in the background and cached.
+    """
+    out: List[Dict[str, Any]] = []
+    for inp in inputs:
+        field = _build_one(inp, {}, language)
+        if field is not None:
+            field["_cold"] = True
+            out.append(field)
+    return out
 
 
 def _build_one(inp: Dict[str, Any], phrased: Dict[str, Dict[str, str]],
@@ -303,7 +385,7 @@ def _build_one(inp: Dict[str, Any], phrased: Dict[str, Dict[str, str]],
     copy = phrased.get(inp["domain"]) or {}
     if not copy.get("hook"):
         copy = _fallback_copy(inp)
-    windows = [inp["window"]] if inp.get("window") else []
+    windows = list(inp.get("sourced") or ([inp["window"]] if inp.get("window") else []))
     field = assemble_domain_field(
         domain=inp["domain"],
         polarity=inp["polarity"],
@@ -375,30 +457,39 @@ def _selftest() -> int:
     check("iso loose", iso_to_loose("2026-06-28") == "around Jun 28")
     check("iso bad→None", iso_to_loose("nope") is None)
 
-    # month inputs
+    # month inputs — mirrors the real de0c6265 payload (clean priority_actions
+    # spine + noisy lk_month vocab that must be IGNORED for polarity)
     deepdive = {
+        "best_week": "Week of June 22 — bold career moves pay off",
+        "caution_week": "Week of June 15 — communication tangles and energy scatters",
         "priority_actions": [
-            {"domain": "career", "action": "Line up the role conversation."},
-            {"domain": "wealth", "action": "Review the cash runway."},
-            {"domain": "spiritual", "action": "Sit quietly each morning."},  # → practice
+            {"domain": "career", "action": "Ask your boss for the promotion during the week of June 8 — timing favors bold moves at work."},
+            {"domain": "health", "action": "Book a check-up for that recurring complaint before June 22 — your energy drops after that and the delay costs you."},
+            {"domain": "learning", "action": "Finish one creative project by June 15 while your focus is sharp."},  # → career (already seeded)
+            {"domain": "spiritual", "action": "Sit quietly each morning."},  # → practice (dropped)
         ],
         "_debug_reasoning": {
-            "transit_hot_domains": ["career"],
-            "lk_month": {"amplified": ["career"], "caution": ["health"]},
-            "score_day_best": "2026-06-28",
-            "score_day_caution": "2026-07-03",
+            "transit_hot_domains": ["health", "learning", "career"],
+            "lk_month": {"amplified": ["emotion", "action", "trade"],
+                         "caution": ["comfort", "initiative", "luxury"]},
+            "score_day_best": "2026-06-25",
+            "score_day_caution": "2026-06-17",
         },
     }
     mi = compute_month_inputs(deepdive)
     check("month has 5", len(mi) == 5)
     check("month domains == FIVE", [x["domain"] for x in mi] == list(FIVE))
     career = next(x for x in mi if x["domain"] == "career")
-    check("career hot+amp→conv3", career["conviction"] == 3)
-    check("career window=best", career["window"] == "around Jun 28")
+    check("career positive (not caution)", career["polarity"] == "positive")
+    check("career action+hot→conv3", career["conviction"] == 3)
+    check("career window=best week", career["window"] == "Week of June 22")
     health = next(x for x in mi if x["domain"] == "health")
-    check("health caution polarity", health["polarity"] == "caution")
-    check("health window=caution", health["window"] == "around Jul 3")
-    check("money seed carried", next(x for x in mi if x["domain"] == "money")["seed"] == "Review the cash runway.")
+    check("health caution from 'drops/delay/costs'", health["polarity"] == "caution")
+    check("health window=caution week", health["window"] == "Week of June 15")
+    money = next(x for x in mi if x["domain"] == "money")
+    check("money no action→steady/no window", money["polarity"] == "steady" and money["window"] is None)
+    # noisy lk_month labels must NOT pollute (career stayed positive, not caution)
+    check("lk noise ignored", career["polarity"] != "caution")
 
     # year inputs
     year_view = {"areas": [
@@ -416,7 +507,7 @@ def _selftest() -> int:
 
     # prompt mentions altitude rule
     p = build_prompt(mi, ALT_MONTH, "en")
-    check("month prompt dated", "DATED move" in p)
+    check("month prompt month-shape", "MONTH'S SHAPE" in p and "caution week as an 'opening'" in p)
     py = build_prompt(yi, ALT_YEAR, "en")
     check("year prompt no-week", "NO week-level dates" in py)
 
@@ -457,9 +548,46 @@ def _selftest() -> int:
     # model entirely down (None) → deterministic fallback, still five valid
     out_none = asyncio.run(phrase_domains(mi, ALT_MONTH, "en", None))
     check("none→5 valid", len(out_none) == 5 and all(f["_valid"] for f in out_none))
-    # month high-conviction career must carry its sourced window
+    # month high-conviction career must carry its sourced week window
     oc = next(f for f in out_none if f["domain"] == "career")
     check("none month career has window", has_week_date(oc["hook"]))
+    # FALLBACK INVERSION FIX: caution domain must NOT read "opens up"
+    oh = next(f for f in out_none if f["domain"] == "health")
+    check("caution fallback not 'opens up'", "opens up" not in oh["hook"].lower())
+    check("caution fallback says gently/ease", any(w in oh["hook"].lower() for w in ("gently", "ease", "care")))
+    # fallback substance != depth (real layering even on the cold path)
+    check("fallback substance!=depth", all(f["substance"] != f["depth"] for f in out_none if f.get("substance")))
+
+    # BLOCKER 2: a REAL seeded date (from priority_actions) must PASS — the model
+    # echoes "June 8" / "before June 22"; these are sourced, so NO fallback.
+    async def month_call(prompt: str) -> str:
+        obj = {
+            "career": {"hook": "Work opens up — the week of June 22 is the one to use.",
+                       "substance": "Ask for the promotion in the week of June 8 while timing favours bold moves.",
+                       "depth": "The opening is real but brief; prepare your case before the week of June 8 so you can move with conviction when it lands."},
+            "health": {"hook": "Go gently with wellbeing — the week of June 15 needs care.",
+                       "substance": "Book the check-up before June 22, because your energy dips afterward.",
+                       "depth": "Treat the first half of the month as the window to act on health; after June 22 the same task costs more effort."},
+        }
+        for d in FIVE:
+            obj.setdefault(d, {"hook": f"{d} stays steady this month.",
+                               "substance": f"{d} steady.", "depth": f"{d} steady, longer."})
+        return json.dumps(obj)
+
+    out_m = asyncio.run(phrase_domains(mi, ALT_MONTH, "en", month_call))
+    mc = next(f for f in out_m if f["domain"] == "career")
+    mh = next(f for f in out_m if f["domain"] == "health")
+    check("BLOCKER2 career real date PASS (no fallback)", mc.get("_valid") and not mc.get("_fallback"))
+    check("BLOCKER2 health real date PASS (no fallback)", mh.get("_valid") and not mh.get("_fallback"))
+    check("BLOCKER2 career substance!=depth", mc["substance"] != mc["depth"])
+    check("career hook sentiment positive", "opens up" in mc["hook"].lower())
+    check("health hook sentiment caution", "gently" in mh["hook"].lower())
+
+    # build_fallback_domains: deterministic, no model, all five, flagged cold
+    cold = build_fallback_domains(mi, "en")
+    check("cold 5", len(cold) == 5)
+    check("cold all valid", all(f["_valid"] for f in cold))
+    check("cold flagged", all(f.get("_cold") for f in cold))
 
     if failures:
         print(f"SELFTEST FAIL ({len(failures)}): " + "; ".join(failures))

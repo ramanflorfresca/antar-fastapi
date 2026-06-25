@@ -20479,6 +20479,74 @@ async def get_weekly_briefing(chart_id: str, refresh: bool = False, language: st
         raise HTTPException(status_code=500, detail="Failed to generate weekly briefing")
 
 
+# ── Layered-fidelity Option-A cache (background phrasing) ────────────────────
+# [layered-fields v2 2026-06-25] Phrasing is OFF the request path: cold serves the
+# deterministic field, the LLM-phrased version is computed in the background and
+# cached, warm serves it. Helpers are defensive — a missing table just no-ops.
+_LAYERED_BG_TASKS: set = set()
+
+
+def _layered_cache_get(chart_id, surface, period_key, language):
+    try:
+        r = (supabase.table("layered_domains_cache")
+             .select("domains")
+             .eq("chart_id", chart_id).eq("surface", surface)
+             .eq("period_key", period_key).eq("language", language)
+             .limit(1).execute())
+        if r.data:
+            d = r.data[0].get("domains")
+            if isinstance(d, str):
+                d = json.loads(d)
+            if isinstance(d, list) and d:
+                return d
+    except Exception as _e:
+        print(f"[layered-cache] get skip: {_e}")
+    return None
+
+
+def _layered_cache_put(chart_id, surface, period_key, language, domains):
+    try:
+        import datetime as _dtmod
+        supabase.table("layered_domains_cache").upsert({
+            "chart_id": chart_id, "surface": surface, "period_key": period_key,
+            "language": language, "domains": domains,
+            "created_at": _dtmod.datetime.utcnow().isoformat(),
+        }, on_conflict="chart_id,surface,period_key,language").execute()
+    except Exception as _e:
+        print(f"[layered-cache] put skip: {_e}")
+
+
+async def _layered_phrase_and_cache(inputs, altitude, language, chart_id, surface, period_key):
+    try:
+        if not claude_client:
+            return
+        from antar_engine.layered_phrasing import phrase_domains as _lp_phrase
+
+        async def _call(_p):
+            _r = await claude_client.messages.create(
+                model=SONNET_MODEL, max_tokens=1500, temperature=0.6,
+                messages=[{"role": "user", "content": _p}],
+            )
+            return _r.content[0].text
+
+        phrased = await _lp_phrase(inputs, altitude, language, _call)
+        if phrased:
+            _layered_cache_put(chart_id, surface, period_key, language, phrased)
+    except Exception as _e:
+        print(f"[layered-cache] bg phrase skip: {_e}")
+
+
+def _layered_spawn(coro):
+    """Fire-and-forget on the running loop, keeping a ref so it isn't GC'd."""
+    try:
+        import asyncio as _aio
+        _t = _aio.get_event_loop().create_task(coro)
+        _LAYERED_BG_TASKS.add(_t)
+        _t.add_done_callback(_LAYERED_BG_TASKS.discard)
+    except Exception as _e:
+        print(f"[layered-cache] spawn skip: {_e}")
+
+
 # ── Sprint E: Monthly deep-dive ───────────────────────────────────────────────
 @app.get("/api/v1/monthly-deepdive/{chart_id}")
 @translate_response(
@@ -20703,30 +20771,39 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
         except Exception as _mpe:
             print(f"[monthly-deepdive] period failed: {_mpe}")
 
-        # ── Layered-fidelity domains[] — This Month (SHADOW) ────────────────
-        # [layered-fields 2026-06-24] Per-domain hook/substance/depth/conviction
-        # at MONTH altitude. Python computes {domain,conviction,polarity,window,
-        # seed}; the model only phrases. Dated window = score_day_best/caution.
-        # Additive + gated by LAYERED_FIELDS; never breaks the response.
+        # ── Layered-fidelity domains[] — This Month (Option A: cached) ──────
+        # [layered-fields v2 2026-06-25] Cold serves the deterministic field at
+        # once (no model wait → cold < 5s); the phrased version is computed in the
+        # background and cached, so warm serves the rich copy. Gated by
+        # LAYERED_FIELDS; never blocks or breaks the response.
         try:
             from antar_engine.layered_fields import is_enabled as _lf_on
             if _lf_on():
                 from antar_engine.layered_phrasing import (
                     compute_month_inputs as _lf_min,
-                    phrase_domains as _lf_phrase,
+                    build_fallback_domains as _lf_fb,
                 )
-                async def _lf_call(_prompt):
-                    _r = await claude_client.messages.create(
-                        model=SONNET_MODEL, max_tokens=1500, temperature=0.6,
-                        messages=[{"role": "user", "content": _prompt}],
-                    )
-                    return _r.content[0].text
-                result["domains"] = await _lf_phrase(
-                    _lf_min(result), "month", (language or "en"),
-                    _lf_call if claude_client else None,
-                )
+                _lf_lang = language or "en"
+                _lf_pkey = str(result.get("month_key") or "")
+                _lf_inputs = _lf_min(result)
+                _lf_cached = _layered_cache_get(chart_id, "month", _lf_pkey, _lf_lang)
+                if _lf_cached is not None:
+                    result["domains"] = _lf_cached
+                else:
+                    result["domains"] = _lf_fb(_lf_inputs, _lf_lang)
+                    _layered_spawn(_layered_phrase_and_cache(
+                        _lf_inputs, "month", _lf_lang, chart_id, "month", _lf_pkey))
         except Exception as _lf_e:
             print(f"[monthly-deepdive] layered domains failed (non-blocking): {_lf_e}")
+
+        # ── remedies[] leak scrub (ISSUE 4) — bija mantras + planet names off the
+        # prediction surface (Practice owns remedies). ─────────────────────────
+        try:
+            from antar_engine.layered_fields import scrub_remedies as _lf_scrub_rem
+            if isinstance(result.get("remedies"), list):
+                result["remedies"] = _lf_scrub_rem(result["remedies"], language or "en")
+        except Exception as _lf_re:
+            print(f"[monthly-deepdive] remedies scrub failed (non-blocking): {_lf_re}")
 
         return _ent_month_view(result, chart_id)
     except HTTPException:
@@ -24743,30 +24820,29 @@ async def predict_year_attention(request: dict, language: str = None):
     except Exception as _lke:
         print(f"[year-attention] lk engine non-fatal: {_lke}")
 
-    # ── Layered-fidelity domains[] — This Year (SHADOW, additive) ───────────
-    # [layered-fields 2026-06-24] Per-domain hook/substance/depth/conviction at
-    # YEAR altitude (arc-level, NO week dates). ADDITIVE — areas[] stays until the
-    # frontend cuts over (founder Decision 2). Computed from English areas BEFORE
-    # translation; phrased in the request language; gated by LAYERED_FIELDS.
+    # ── Layered-fidelity domains[] — This Year (Option A: cached, additive) ─
+    # [layered-fields v2 2026-06-25] Cold serves the deterministic arc-level field;
+    # the phrased version is background-computed and cached. ADDITIVE — areas[]
+    # stays until the frontend cuts over. Gated by LAYERED_FIELDS.
     try:
         from antar_engine.layered_fields import is_enabled as _lf_on
         if _lf_on() and isinstance(payload.get("year"), dict):
             from antar_engine.layered_phrasing import (
                 compute_year_inputs as _lf_yin,
-                phrase_domains as _lf_yphrase,
+                build_fallback_domains as _lf_yfb,
                 monthly_handoff_text as _lf_handoff,
             )
-            async def _lf_ycall(_prompt):
-                _r = await claude_client.messages.create(
-                    model=SONNET_MODEL, max_tokens=1500, temperature=0.6,
-                    messages=[{"role": "user", "content": _prompt}],
-                )
-                return _r.content[0].text
-            payload["year"]["domains"] = await _lf_yphrase(
-                _lf_yin(payload["year"]), "year", (language or "en"),
-                _lf_ycall if claude_client else None,
-            )
-            payload["year"]["monthly_handoff"] = _lf_handoff(language or "en")
+            _lf_ylang = language or "en"
+            _lf_ypkey = str((payload.get("year") or {}).get("range") or "year")
+            _lf_yinputs = _lf_yin(payload["year"])
+            _lf_ycached = _layered_cache_get(chart_id, "year", _lf_ypkey, _lf_ylang)
+            if _lf_ycached is not None:
+                payload["year"]["domains"] = _lf_ycached
+            else:
+                payload["year"]["domains"] = _lf_yfb(_lf_yinputs, _lf_ylang)
+                _layered_spawn(_layered_phrase_and_cache(
+                    _lf_yinputs, "year", _lf_ylang, chart_id, "year", _lf_ypkey))
+            payload["year"]["monthly_handoff"] = _lf_handoff(_lf_ylang)
     except Exception as _lf_ye:
         print(f"[year-attention] layered domains failed (non-blocking): {_lf_ye}")
 
