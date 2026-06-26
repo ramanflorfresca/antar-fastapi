@@ -114,6 +114,18 @@ def _key(start_min: int, end_min: int) -> Tuple[int, int]:
     return (round(start_min / 5) * 5, round(end_min / 5) * 5)
 
 
+# [today-windows-v2] leading avoidance verb to drop from a dont_today token so
+# it can be re-framed cleanly as "Avoid <x>" without doubling.
+_AVOID_PREFIX = re.compile(r"^\s*(?:avoid(?:ing)?|don'?t|do not|evita(?:r)?|no)\b[\s:,-]*", re.I)
+
+
+def _strip_avoid_prefix(s: str) -> str:
+    if not isinstance(s, str) or not s.strip():
+        return s
+    cleaned = _AVOID_PREFIX.sub("", s).strip()
+    return cleaned or s
+
+
 def build_today_windows(
     abhijit: str,
     rahu_kalam: str,
@@ -139,6 +151,11 @@ def build_today_windows(
         best_for, "lo que más importa hoy" if is_es else "what matters most today")
     avoid_token = _first_purpose(
         avoid_for, "decisiones grandes o firmar algo" if is_es else "big decisions or signing")
+    # [today-windows-v2] dont_today tokens are often already phrased as an
+    # avoidance ("avoid compromising on goals", "don't overcommit"). Strip the
+    # leading avoid/don't so the rendered text doesn't double it up
+    # ("Avoid avoid compromising…").
+    avoid_token = _strip_avoid_prefix(avoid_token)
 
     out: List[Dict[str, Any]] = []
 
