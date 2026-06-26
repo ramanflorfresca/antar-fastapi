@@ -26,12 +26,16 @@ from antar_engine.places_conditions import compute_all_conditions
 # ─────────────────────────────────────────────────────────────────────────────
 
 CONCERN_MAP: dict[str, dict] = {
-    "money":  {"karakas": ["Jupiter", "Venus", "Mercury"], "angles": ["MC", "AC"], "houses": [2, 11, 9],  "weights": {"karakas": 0.40, "angles": 0.35, "houses": 0.25}},
-    "career": {"karakas": ["Sun", "Saturn", "Mercury"],    "angles": ["MC", "AC"], "houses": [10, 6, 11], "weights": {"karakas": 0.45, "angles": 0.35, "houses": 0.20}},
-    "love":   {"karakas": ["Venus", "Mars", "Moon"],       "angles": ["AC", "DC"], "houses": [7, 5, 2],   "weights": {"karakas": 0.40, "angles": 0.40, "houses": 0.20}},
-    "health": {"karakas": ["Sun", "Mars", "Saturn"],       "angles": ["AC"],       "houses": [1, 6],      "weights": {"karakas": 0.45, "angles": 0.30, "houses": 0.25}},
-    "peace":  {"karakas": ["Moon", "Jupiter", "Ketu"],     "angles": ["IC"],       "houses": [4, 12],     "weights": {"karakas": 0.50, "angles": 0.30, "houses": 0.20}},
-    "family": {"karakas": ["Moon", "Sun", "Jupiter"],      "angles": ["IC", "AC"], "houses": [4, 9, 7],   "weights": {"karakas": 0.45, "angles": 0.30, "houses": 0.25}},
+    # [places-domain-screen] `houses` = supportive set (ranked on); `neg_houses`
+    # = the dusthana set screened OUT for this domain. 6 is upachaya (positive)
+    # for career/health; 12 is positive for peace — so the negative set is
+    # domain-specific, not a fixed 6/8/12.
+    "money":  {"karakas": ["Jupiter", "Venus", "Mercury"], "angles": ["MC", "AC"], "houses": [2, 11, 5, 9], "neg_houses": [6, 8, 12], "weights": {"karakas": 0.40, "angles": 0.35, "houses": 0.25}},
+    "career": {"karakas": ["Sun", "Saturn", "Mercury"],    "angles": ["MC", "AC"], "houses": [10, 6, 1],    "neg_houses": [8, 12],    "weights": {"karakas": 0.45, "angles": 0.35, "houses": 0.20}},
+    "love":   {"karakas": ["Venus", "Mars", "Moon"],       "angles": ["AC", "DC"], "houses": [7, 5, 11],    "neg_houses": [6, 8, 12], "weights": {"karakas": 0.40, "angles": 0.40, "houses": 0.20}},
+    "health": {"karakas": ["Sun", "Mars", "Saturn"],       "angles": ["AC"],       "houses": [1, 6],        "neg_houses": [8, 12],    "weights": {"karakas": 0.45, "angles": 0.30, "houses": 0.25}},
+    "peace":  {"karakas": ["Moon", "Jupiter", "Ketu"],     "angles": ["IC"],       "houses": [4, 12],       "neg_houses": [6, 8],     "weights": {"karakas": 0.50, "angles": 0.30, "houses": 0.20}},
+    "family": {"karakas": ["Moon", "Sun", "Jupiter"],      "angles": ["IC", "AC"], "houses": [4, 9, 7],     "neg_houses": [6, 8, 12], "weights": {"karakas": 0.45, "angles": 0.30, "houses": 0.25}},
 }
 
 # Legacy aliases accepted for one release, then drop. resolve_concern() maps
@@ -67,6 +71,10 @@ _MODERATE_KM = 700.0
 # Tier thresholds on the 0-100 score.
 _TIER_FLOW = 60
 _TIER_STRAIN = 35
+
+# [places-domain-screen] weight of the negative-house screen subtracted
+# from the combined 0-1 score before scaling to 0-100.
+_NEG_SCREEN_W = 0.35
 
 # Result de-clustering (Fix B). Astrocartography lines are meridians/curves, so
 # a naive top-N concentrates on whichever line threads the densest city region.
@@ -171,6 +179,7 @@ def score_city_for_concern(
     karakas = cfg["karakas"]
     angles = set(cfg["angles"])
     concern_houses = set(cfg["houses"])
+    neg_houses = set(cfg.get("neg_houses", []))  # [places-domain-screen]
     w = cfg["weights"]
 
     if all_lines is None:
@@ -260,11 +269,42 @@ def score_city_for_concern(
                 })
     house_score = (house_num / house_den) if house_den else 0.0
 
+    # ── 4b. Negative-house screen (dusthana dominance) ──────────────────────
+    # [places-domain-screen] Count concern-relevant planets relocating into
+    # the domain's malefic houses. A malefic there weighs more than a benefic.
+    # When this negative pressure dominates the positive house support, the
+    # place is SCREENED and can never rank FLOW for this domain.
+    neg_num = 0.0
+    neg_den = 0.0
+    neg_hits: list[dict] = []
+    if reloc_idx is not None and neg_houses:
+        for planet in PLANETS:
+            rec = chart.get("planets", {}).get(planet)
+            if not rec:
+                continue
+            psi = rec.get("sign_index")
+            if psi is None and rec.get("longitude") is not None:
+                psi = int((float(rec["longitude"]) % 360.0) // 30.0)
+            if psi is None:
+                continue
+            reloc_house = ((int(psi) - int(reloc_idx)) % 12) + 1
+            if reloc_house in neg_houses:
+                cond = conditions.get(planet, {})
+                cond_w = cond.get("weight", 0.9)
+                mw = 1.5 if planet in MALEFICS else 0.8
+                neg_num += cond_w * mw
+                neg_den += 1.5 * 1.5
+                neg_hits.append({"planet": planet, "house": reloc_house,
+                                 "is_malefic": planet in MALEFICS})
+    neg_score = (neg_num / neg_den) if neg_den else 0.0
+    screened = bool(neg_score >= 0.20 and neg_score > house_score)
+
     # ── 5. Weight-combine ───────────────────────────────────────────────────
     combined = (
         w["karakas"] * karaka_score
         + w["angles"] * angle_score
         + w["houses"] * house_score
+        - _NEG_SCREEN_W * neg_score  # [places-domain-screen]
     )
     # Health favours slow-pace places (recovery / rest): LOW velocity lifts the
     # score, HIGH dampens it, MEDIUM is neutral. Concern-specific; others unchanged.
@@ -275,6 +315,10 @@ def score_city_for_concern(
         elif _vel == "HIGH":
             combined -= 0.08
     score = int(round(max(0.0, min(1.0, combined)) * 100))
+    # [places-domain-screen] hard screen-out: a dusthana-dominated place can
+    # never rank as FLOW for this domain.
+    if screened:
+        score = min(score, _TIER_STRAIN - 1)
 
     # tier
     if score >= _TIER_FLOW:
@@ -322,7 +366,10 @@ def score_city_for_concern(
             "karaka": round(karaka_score, 3),
             "angle": round(angle_score, 3),
             "house": round(house_score, 3),
+            "neg": round(neg_score, 3),
         },
+        "screened": screened,
+        "_neg_hits": neg_hits,
     }
 
 
@@ -430,7 +477,9 @@ def rank_cities_for_concern(
         for c in pool
     ]
     # Highest score first; break ties by stronger top signal then population.
-    scored.sort(key=lambda s: (-s["score"], -(s["_signals"][0]["strength"] if s["_signals"] else 0)))
+    # [places-domain-screen] screened (dusthana-dominated) cities always
+    # rank below clean ones, then by score, then by strongest signal.
+    scored.sort(key=lambda s: (s.get("screened", False), -s["score"], -(s["_signals"][0]["strength"] if s["_signals"] else 0)))
     # De-cluster so one planetary line / country can't fill every slot (Fix B).
     return _select_diverse(scored, max(5, min(top_n, 8)))
 

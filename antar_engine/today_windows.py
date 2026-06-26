@@ -36,6 +36,37 @@ _TIME = re.compile(r"^\s*(\d{1,2}):(\d{2})\s*([AaPp][Mm])\s*$")
 # worth showing. Below this it is dropped (a 2-minute "best window" is noise).
 _MIN_BEST_SPAN = 5
 
+# [today-windows-v2] Sanity-gate bounds. A real, surfaceable window must
+# begin no earlier than _WAKE_START, end no later than _WAKE_END, span no
+# more than _MAX_SPAN, and not cross midnight (cross-midnight ends are
+# normalized > 1440 by _parse_range and thus rejected here).
+_WAKE_START = 5 * 60      # 05:00
+_WAKE_END = 23 * 60       # 23:00
+_MAX_SPAN = 6 * 60        # 6h — longer is a bug
+
+
+def _sane(s0: int, s1: int) -> bool:
+    """True iff [s0, s1] is a real daytime window (no overnight, no >6h,
+    no midnight-cross). s1 is already normalized by _parse_range."""
+    if s1 <= s0:
+        return False
+    if s1 - s0 > _MAX_SPAN:
+        return False
+    if s0 < _WAKE_START or s1 > _WAKE_END:
+        return False
+    return True
+
+
+def _first_purpose(src: Any, fallback: str) -> str:
+    """First non-empty string purpose token from a str or list, else fallback."""
+    if isinstance(src, str) and src.strip():
+        return src.strip()
+    if isinstance(src, (list, tuple)):
+        for item in src:
+            if isinstance(item, str) and item.strip():
+                return item.strip()
+    return fallback
+
 
 def _parse_time(s: str) -> Optional[int]:
     """'H:MM AM/PM' -> minutes since midnight, else None."""
@@ -88,104 +119,73 @@ def build_today_windows(
     rahu_kalam: str,
     llm_windows: Optional[List[Dict[str, Any]]] = None,
     language: str = "en",
+    best_for: Any = None,
+    avoid_for: Any = None,
 ) -> List[Dict[str, Any]]:
-    """Return a small, de-duplicated, distinctly-labeled window list.
+    """[today-windows-v2] Return at most TWO distinct windows: ONE best +
+    ONE steer-clear, each carrying a `best_for` purpose token.
 
-    Order: best (abhijit) → steer-clear (rahu kalam) → up to 2 supporting
-    LLM windows that don't overlap the deterministic pair or each other.
+    A best window that overlaps the steer-clear window is salvaged to the
+    clean slice AFTER rahu kalam (dropped if none remains) — never emitted
+    overlapping the avoid window. Every window is sanity-gated to waking
+    hours and a sane span, so overnight / midnight-spanning / >6h ranges
+    are rejected. Supporting LLM windows are no longer surfaced (they were
+    the overnight-noise source). Fail-open: the fallback returns the
+    sanity-gated, de-duplicated LLM windows so the card is never garbage.
     """
     is_es = (language or "en").lower().startswith("es")
+
+    best_token = _first_purpose(
+        best_for, "lo que más importa hoy" if is_es else "what matters most today")
+    avoid_token = _first_purpose(
+        avoid_for, "decisiones grandes o firmar algo" if is_es else "big decisions or signing")
+
     out: List[Dict[str, Any]] = []
-    seen: set = set()
 
     best = _parse_range(abhijit)
     avoid = _parse_range(rahu_kalam)
+    avoid_span = (avoid[0], avoid[1]) if avoid else None
 
-    avoid_span: Optional[Tuple[int, int]] = (avoid[0], avoid[1]) if avoid else None
-
-    # ── BEST (abhijit) ───────────────────────────────────────────────
-    # A best window that overlaps the steer-clear window is contradictory.
-    # Keep only the part of abhijit that precedes rahu kalam; drop it if
-    # nothing clean remains.
+    # ── BEST (abhijit), salvaged clear of the steer-clear window ──────
     if best:
-        b0, b1, bs, be = best
+        b0, b1, _bs, _be = best
         if avoid_span:
             r0, r1 = avoid_span
-            if b0 < r0 < b1:            # overlaps the tail → trim to rahu start
-                b1, be = r0, _fmt(r0)
-            elif r0 <= b0 < r1:         # starts inside rahu → no clean best
-                b0 = b1                 # force-drop below
-        if b1 - b0 >= _MIN_BEST_SPAN:
+            if _overlaps(b0, b1, r0, r1):
+                b0 = max(b0, r1)   # keep only the slice AFTER rahu ends
+        if b1 - b0 >= _MIN_BEST_SPAN and _sane(b0, b1):
             out.append({
                 "kind": "best",
                 "type": "peak",
                 "label": "Ventana ideal" if is_es else "Best window",
-                "start": bs,
-                "end": be,
+                "start": _fmt(b0),
+                "end": _fmt(b1),
+                "best_for": best_token,
                 "text": (
-                    "La ventana más auspiciosa del día — úsala para lo que "
-                    "de verdad importa."
+                    f"La ventana más auspiciosa del día — úsala para {best_token}."
                     if is_es else
-                    "The day's most auspicious window — use it for anything "
-                    "that truly matters."
+                    f"The day's most auspicious window — use it for {best_token}."
                 ),
             })
-            seen.add(_key(b0, b1))
 
     # ── STEER-CLEAR (rahu kalam) ─────────────────────────────────────
-    if avoid:
-        r0, r1, rs, re_ = avoid
+    if avoid and _sane(avoid[0], avoid[1]):
+        _r0, _r1, rs, re_ = avoid
         out.append({
             "kind": "avoid",
             "type": "caution",
             "label": "Evitar" if is_es else "Steer clear",
             "start": rs,
             "end": re_,
+            "best_for": (f"evitar {avoid_token}" if is_es else f"avoiding {avoid_token}"),
             "text": (
-                "Evita decisiones grandes o firmar algo en esta franja — "
-                "deja que pase."
+                f"Evita {avoid_token} en esta franja — deja que pase."
                 if is_es else
-                "Avoid big decisions or signing anything in this window — "
-                "let it pass."
+                f"Avoid {avoid_token} in this window — let it pass."
             ),
         })
-        seen.add(_key(r0, r1))
 
-    # ── SUPPORTING (carry distinct LLM windows, deduped) ─────────────
-    # Only reflection/connection context windows — never another "peak",
-    # which would compete with the abhijit best window. Skip anything
-    # that overlaps an already-chosen window. Cap at 2.
-    support_label = "Apoyo" if is_es else "Supporting"
-    for w in (llm_windows or []):
-        if len([o for o in out if o["kind"] == "supporting"]) >= 2:
-            break
-        if not isinstance(w, dict):
-            continue
-        if (w.get("type") or "").lower() not in ("reflection", "connection"):
-            continue
-        rng = _parse_range(f"{w.get('start', '')} - {w.get('end', '')}")
-        if not rng:
-            continue
-        s0, s1, ss, se = rng
-        k = _key(s0, s1)
-        if k in seen:
-            continue
-        if any(_overlaps(s0, s1, *_key_to_span(o)) for o in out):
-            continue
-        text = (w.get("text") or "").strip()
-        if not text:
-            continue
-        out.append({
-            "kind": "supporting",
-            "type": w.get("type"),
-            "label": support_label,
-            "start": ss,
-            "end": se,
-            "text": text,
-        })
-        seen.add(k)
-
-    # ── Fallback — never return an empty card ────────────────────────
+    # ── Fallback — never return an empty/garbage card ────────────────
     if not out:
         return _dedup_passthrough(llm_windows or [])
 
@@ -207,6 +207,9 @@ def _dedup_passthrough(llm_windows: List[Dict[str, Any]]) -> List[Dict[str, Any]
         if not isinstance(w, dict):
             continue
         rng = _parse_range(f"{w.get('start', '')} - {w.get('end', '')}")
+        # [today-windows-v2] never surface overnight / insane ranges
+        if rng and not _sane(rng[0], rng[1]):
+            continue
         k = _key(rng[0], rng[1]) if rng else (w.get("start"), w.get("end"))
         if k in seen:
             continue

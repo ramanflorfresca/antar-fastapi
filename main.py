@@ -1263,6 +1263,11 @@ class ChartResponse(BaseModel):
     # API-verifiable on read
     birth_lat:         Optional[float] = None
     birth_lng:         Optional[float] = None
+    # [chart-identity P4 2026-06-26] identity fields for the profile card
+    birth_place:       Optional[str] = None
+    moon_sign:         Optional[str] = None
+    sun_sign:          Optional[str] = None
+    current_mahadasha: Optional[str] = None
 
 # [chart-create-422] lat/lng optional + birth_time validator
 from pydantic import field_validator as _chart_field_validator
@@ -4012,6 +4017,30 @@ def _ensure_full_uuid(chart_id, field="chart_id"):
     return s
 
 
+def _current_md_lord(chart_id: str):
+    """[chart-identity P4] Active Vimsottari mahadasha lord (planet name)
+    for the chart, or None. Identity surface only — prediction surfaces
+    never expose planet names. Fail-soft (never raises)."""
+    try:
+        from datetime import datetime as _md_dt
+        _ds = get_dashas_for_chart(chart_id)
+        _vim = _ds.get("vimsottari", []) if isinstance(_ds, dict) else (_ds or [])
+        _now = _md_dt.utcnow()
+        for _r in _vim:
+            if (_r.get("level") or "").lower() != "mahadasha":
+                continue
+            try:
+                _sd = _md_dt.strptime(str(_r.get("start_date", ""))[:10], "%Y-%m-%d")
+                _ed = _md_dt.strptime(str(_r.get("end_date", ""))[:10], "%Y-%m-%d")
+            except Exception:
+                continue
+            if _sd <= _now <= _ed:
+                return _r.get("lord_or_sign") or _r.get("planet_or_sign") or None
+    except Exception as _md_e:
+        print(f"[chart-identity] md lookup failed for {chart_id}: {_md_e}")
+    return None
+
+
 @app.get("/api/v1/chart/{chart_id}", response_model=ChartResponse)
 async def get_chart(chart_id: str):
     chart_id = _ensure_full_uuid(chart_id)
@@ -4042,6 +4071,15 @@ async def get_chart(chart_id: str):
     response_dict["lal_kitab"]        = r.get("lal_kitab_data")
     response_dict["panchanga"]        = r["chart_data"].get("panchanga")
     response_dict["sarvashtakavarga"] = r["chart_data"].get("sarvashtakavarga")
+    # [chart-identity P4] profile-card fields: DB column first, chart_data
+    #   planets fallback. This identity surface intentionally carries signs.
+    _ci_pl = (r["chart_data"].get("planets") or {}) if isinstance(r.get("chart_data"), dict) else {}
+    response_dict["birth_place"] = (
+        r.get("birth_city") or r.get("birth_place") or r.get("birth_location") or None
+    )
+    response_dict["moon_sign"] = r.get("moon_sign") or (_ci_pl.get("Moon", {}) or {}).get("sign")
+    response_dict["sun_sign"] = r.get("sun_sign") or (_ci_pl.get("Sun", {}) or {}).get("sign")
+    response_dict["current_mahadasha"] = _current_md_lord(chart_id)
     return response_dict
 
 # ── Predict ───────────────────────────────────────────────────────────────────
@@ -8568,6 +8606,7 @@ async def daily_practice_chakra_mantra(chakra_key: str, chart_id: Optional[str] 
                 _states = _prac_chakras.compute_chakra_states(_chart, language=language)
                 _cs = _states.get(chakra_key, {}) or {}
                 out["state"] = _cs.get("state")
+                out["status"] = _cs.get("status")  # [chakra-3state]
                 out["score_pct"] = _cs.get("score_pct")
                 out["priority"] = _cs.get("priority")
                 try:
@@ -17172,6 +17211,8 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 rahu_kalam=result.get("rahu_kalam", ""),
                 llm_windows=result.get("windows") or [],
                 language=language,
+                best_for=(panchanga.get("do_today") or result.get("aligned_for") or []),
+                avoid_for=(panchanga.get("dont_today") or result.get("friction_for") or []),
             )
         except Exception as _tw_err:
             print(f"[daily-signal] window rebuild skipped: {_tw_err}")

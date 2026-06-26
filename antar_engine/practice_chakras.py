@@ -400,6 +400,24 @@ def _chakra_score_pct(states, chart):
     return int(round(max(0, min(100, sum(vals) / len(vals)))))
 
 
+def _status_3state(wellness):
+    """[chakra-3state] Canonical 3-state center label derived from 0-100
+    wellness. Defined buckets so the label VARIES with the value:
+        >= 60  -> 'strong'          (well-supported)
+        40-59  -> 'steady'          (workable, no action needed)
+        <  40  -> 'needs_attention' (the center to tend)
+    """
+    try:
+        wv = float(wellness)
+    except (TypeError, ValueError):
+        return "steady"
+    if wv >= 60:
+        return "strong"
+    if wv >= 40:
+        return "steady"
+    return "needs_attention"
+
+
 def _state_from_score(score_pct):
     if score_pct >= 80:
         return "strong"
@@ -535,6 +553,7 @@ def compute_chakra_states(
                 "state": "NEEDS_BALANCE",
                 "magnitude": 0.0, "valence": 0.0,
                 "wellness": 50, "score_pct": 50,
+                "status": "steady",  # [chakra-3state]
                 "active_dasha": False,
                 "priority": "none", "reason": "",
                 "planets": {},
@@ -613,6 +632,7 @@ def compute_chakra_states(
             "magnitude": round(chakra_m, 3),
             "valence": round(chakra_v, 3),
             "wellness": chakra_wellness,
+            "status": _status_3state(chakra_wellness),  # [chakra-3state]
             "active_dasha": bool(active_dasha),
             # Legacy aliases for backwards compatibility
             "score_pct": chakra_wellness,
