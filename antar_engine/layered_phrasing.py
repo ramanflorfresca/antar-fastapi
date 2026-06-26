@@ -142,9 +142,16 @@ def compute_month_inputs(
         if dom and dom not in seeds and pa.get("action"):
             seeds[dom] = str(pa["action"])
 
-    # everything date-bearing is "sourced" — shared across domains
+    # everything date-bearing is "sourced" — shared across domains.
+    # [blocker2-harden] include EVERY priority_actions action string (all
+    # domains), not just each domain's own seed, so a real computed date
+    # echoed into another domain's copy still validates. A date present
+    # anywhere in the computed input is SOURCED and must PASS.
+    _all_action_texts = [str(pa.get("action")) for pa in (deepdive.get("priority_actions") or [])
+                         if pa.get("action")]
     base_sourced = [s for s in (best_week, caution_week, best_loose, caution_loose,
-                                deepdive.get("best_week"), deepdive.get("caution_week"))
+                                deepdive.get("best_week"), deepdive.get("caution_week"),
+                                *_all_action_texts)
                     if s]
 
     inputs: List[Dict[str, Any]] = []
