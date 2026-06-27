@@ -11455,6 +11455,12 @@ def _st_bust_prediction_cache(user_id, analysis_lang):
 async def settings_me(authorization: Optional[str] = Header(None), language: str = "en"):
     user_id, email = _st_identity(authorization)
     if not user_id:
+        # [me-401] A bearer was SUPPLIED but rejected (expired/invalid):
+        # return 401 so the client refreshes its session and retries,
+        # instead of silently rendering guest (which strands the user on
+        # the demo chart). Only a genuinely ABSENT header is 200 guest.
+        if authorization:
+            return _st_guest_401()
         return {"guest": True, "user_id": None, "name": "Guest", "email": None,
                 "avatar_url": "", "primary_chart_id": None,
                 "interface_language": "en", "analysis_language": "en"}
@@ -11465,7 +11471,7 @@ async def settings_me(authorization: Optional[str] = Header(None), language: str
     payload = {
         "guest": False,
         "user_id": user_id,
-        "name": p.get("name") or "",
+        "name": p.get("full_name") or p.get("name") or "",
         "email": email,
         "avatar_url": p.get("avatar_url") or "",
         "primary_chart_id": p.get("primary_chart_id"),
