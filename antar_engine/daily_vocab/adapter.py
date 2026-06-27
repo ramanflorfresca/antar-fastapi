@@ -100,6 +100,7 @@ def build_concrete_for_chart(
     best_window: Optional[str] = None,
     steer_clear_window: Optional[str] = None,
     language: str = "en",
+    personal_lord: Optional[str] = None,  # [perchart-lord]
 ) -> Dict[str, Any]:
     """Full `concrete` block (incl. internal `_debug`) for a chart on a date.
     Callers strip `_debug` via public_view() before sending to a user."""
@@ -109,6 +110,7 @@ def build_concrete_for_chart(
         best_window=best_window,
         steer_clear_window=steer_clear_window,
         language=language,
+        personal_lord=personal_lord,  # [perchart-lord]
         **inputs,
     )
 

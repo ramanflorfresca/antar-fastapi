@@ -333,6 +333,15 @@ def _build_event_watch(contacts, tithi_quality, tara_quality):
 # Public entry
 # ─────────────────────────────────────────────────────────────────────
 
+def _pick_lord(personal, day, table):
+    """[perchart-lord] Use the chart's period (dasha) lord for a personal
+    field when it maps in `table`; else fall back to the weekday lord so
+    the field is never dropped (e.g. Ketu has no color)."""
+    if personal and personal in table:
+        return personal
+    return day
+
+
 def compute_concrete_block(
     *,
     today_moon_sign: Optional[str],
@@ -347,6 +356,7 @@ def compute_concrete_block(
     best_window: Optional[str] = None,
     steer_clear_window: Optional[str] = None,
     language: str = "en",
+    personal_lord: Optional[str] = None,  # [perchart-lord] chart's current dasha lord
 ) -> Dict[str, Any]:
     """Build the daily `concrete` block. Always returns a dict (possibly with
     only window fields). Fields below their conviction floor are omitted."""
@@ -378,8 +388,12 @@ def compute_concrete_block(
     _consider("mood_tone", *_build_mood(today_moon_nak, today_moon_sign, natal_moon_sign, tara_quality))
     _consider("body_focus", *_build_body(contacts, today_moon_sign), tier="soft")
     _consider("romance_read", *_build_romance(contacts, weekday, today_moon_nak))
-    _consider("favourable_direction", *_build_direction(day_lord, tara_quality, reinforced))
-    _consider("lucky_color", *_build_color(day_lord, tara_quality, reinforced))
+    # [perchart-lord] color + direction read off the chart's current period
+    # lord (dasha) so they are personal; fall back to the weekday lord.
+    _dir_lord = _pick_lord(personal_lord, day_lord, T.PLANET_DIRECTION)
+    _col_lord = _pick_lord(personal_lord, day_lord, T.DAY_LORD_COLOR)
+    _consider("favourable_direction", *_build_direction(_dir_lord, tara_quality, _daylord_reinforced(_dir_lord, contacts)))
+    _consider("lucky_color", *_build_color(_col_lord, tara_quality, _daylord_reinforced(_col_lord, contacts)))
 
     # Reused upstream windows (already conviction-filtered upstream; pass through)
     public["best_window"] = best_window or None

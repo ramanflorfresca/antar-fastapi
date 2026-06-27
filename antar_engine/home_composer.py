@@ -1485,12 +1485,20 @@ def _compose_for_horizon(horizon: str,
                 build_concrete_for_chart as _dv_build,
             )
             if _dv_on():
+                # [perchart-lord] personal color/direction follow the
+                # current period lord: antardasha if present, else mahadasha.
+                _dv_lord = (
+                    (current_ad_row or {}).get("planet_or_sign")
+                    or (current_md_row or {}).get("planet_or_sign")
+                    or ""
+                ).strip() or None
                 _dv_block = _dv_build(
                     chart_data,
                     on_date=now_today.date(),
                     best_window=best_t,
                     steer_clear_window=avoid_t,
                     language=language,
+                    personal_lord=_dv_lord,
                 )
                 view["concrete"] = _dv_block if debug else _dv_public(_dv_block)
         except Exception as _dve:
