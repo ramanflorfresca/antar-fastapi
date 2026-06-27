@@ -38,13 +38,13 @@ TIER_A_FLOORS: Dict[str, float] = {
     "favourable_direction": 0.35,
     "lucky_color": 0.30,
     # body/romance are conditional — they should drop out when no real signal.
-    "body_focus": 0.50,
-    "romance_read": 0.52,
+    "body_focus": 0.46,  # [perchart] surface chart-specific body read on milder contacts
+    "romance_read": 0.46,  # [perchart] benefic-in-5/7 surfaces on its own
 }
 
 # Tier B hard gate.
 MIN_TIER_B_FACTORS: int = 2
-TIER_B_CONF: float = 0.66
+TIER_B_CONF: float = 0.62  # [perchart] event_watch slightly less rare (still time-bound + 2 factors)
 
 
 def confidence(base: float, factors: List[Tuple[str, float]]) -> float:

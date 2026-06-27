@@ -20588,6 +20588,16 @@ def _layered_spawn(coro):
         print(f"[layered-cache] spawn skip: {_e}")
 
 
+async def _monthly_regen_bg(kwargs):
+    """[monthly-cold-start] Regenerate the monthly deep-dive + write its cache
+    off the request path so a force_refresh never blocks the response.
+    Fire-and-forget; failures are swallowed (the cached month still serves)."""
+    try:
+        await generate_monthly_deepdive(**kwargs)
+    except Exception as _e:
+        print(f"[monthly-deepdive] bg regen skip: {_e}")
+
+
 # ── Sprint E: Monthly deep-dive ───────────────────────────────────────────────
 @app.get("/api/v1/monthly-deepdive/{chart_id}")
 @translate_response(
@@ -20639,7 +20649,15 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
                 _current_dasha = _dr.data[0].get("planet_or_sign", "")
         except Exception:
             pass
-        result = await generate_monthly_deepdive(
+        # [monthly-cold-start 2026-06-26] Serve-cached-then-regenerate so a cold
+        # force_refresh never blocks on the ~12-18s Sonnet content call. Cache HIT
+        # returns the current month instantly; a refresh regenerates in the
+        # BACKGROUND and updates the cache for next load. Only a truly-cold cache
+        # (no row yet — rare; the 1st-of-month job + cron pre-warm cover it) pays
+        # the synchronous generation cost.
+        from antar_engine.monthly_deepdive import _read_cache as _md_read_cache
+        from datetime import datetime as _md_dt, timezone as _md_tz
+        _md_kwargs = dict(
             chart_id=chart_id,
             chart_data=chart_data,
             dashas={},
@@ -20652,11 +20670,19 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
             lk_context=lk_ctx,
             supabase=supabase,
             claude_client=claude_client,
-            force_refresh=refresh,
             language=language,
-            birth_date=chart_record.get("birth_date", ""),  # [cp-day1] pass birth_date for masik phal
-            lk_data=_safe_jsonb(chart_record.get("lal_kitab_data")),  # [2026-06-07] LK condition engine
+            birth_date=chart_record.get("birth_date", ""),
+            lk_data=_safe_jsonb(chart_record.get("lal_kitab_data")),
         )
+        _md_month_key = _md_dt.now(_md_tz.utc).strftime("%Y-%m")
+        _md_cached = _md_read_cache(chart_id, _md_month_key, supabase, language)
+        if _md_cached:
+            result = _md_cached
+            if refresh:
+                _layered_spawn(_monthly_regen_bg(dict(_md_kwargs, force_refresh=True)))
+        else:
+            # truly cold — no cached month yet — generate once, synchronously
+            result = await generate_monthly_deepdive(**dict(_md_kwargs, force_refresh=True))
 
         # ── Layer-2 concrete signals (highlights) — Month ──────────────
         try:

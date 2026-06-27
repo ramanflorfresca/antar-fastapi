@@ -132,11 +132,11 @@ def _build_mood(moon_nak, moon_sign, natal_moon_sign, tara_quality):
     matched = bool(sign and nat and sign == nat)
     if clash:
         parts.insert(0, "The mood may sit a little crosswise with your usual rhythm — give yourself room.")
-        factors.append(("moon_friction_clear", 0.10))
+        factors.append(("moon_friction_clear", 0.15))  # [perchart] natal-moon modifier weighs more
         drivers.append(f"moon_friction:{sign}_vs_natal_{nat}")
     elif matched:
         parts.append("This sits close to your natural rhythm, so you should feel at home in it.")
-        factors.append(("moon_friction_clear", 0.10))
+        factors.append(("moon_friction_clear", 0.15))  # [perchart] natal-moon modifier weighs more
         drivers.append("moon_matches_natal")
 
     if tara_quality in _FAVORABLE_TARA:
@@ -214,7 +214,7 @@ def _build_romance(contacts, weekday, moon_nak):
     for c in contacts:
         if c["planet"] in ("Venus", "Jupiter", "Moon"):
             if c["house"] in (5, 7) or c.get("target_house") in (5, 7):
-                factors.append(("benefic_5_7", 0.25))
+                factors.append(("benefic_5_7", 0.30))  # [perchart] benefic in YOUR 5th/7th clears floor alone
                 drivers.append(f"{c['planet']}_house{c['house']}")
                 break
     nak = T.norm_nakshatra(moon_nak)
