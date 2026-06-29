@@ -167,8 +167,8 @@ def _build_actions_generic(window: dict, signature_name: str) -> list:
     month_names = ["", "January", "February", "March", "April", "May", "June",
                    "July", "August", "September", "October", "November", "December"]
 
-    peak_name = month_names[peak_month_num] if 1 <= peak_month_num <= 12 else "Unknown"
-    prep_name = month_names[prep_month] if 1 <= prep_month <= 12 else "Unknown"
+    peak_name = ("early–mid " + month_names[peak_month_num]) if 1 <= peak_month_num <= 12 else "Unknown"
+    prep_name = ("early–mid " + month_names[prep_month]) if 1 <= prep_month <= 12 else "Unknown"
 
     # Signature-specific action templates
     actions = _ACTION_TEMPLATES.get(signature_name)
@@ -297,8 +297,8 @@ async def match_signatures(
                     "false_positive_rate": meta["false_positive_rate"],
                 },
                 "window": {
-                    "start": window["start"].strftime("%Y-%m-%d"),
-                    "end": window["end"].strftime("%Y-%m-%d"),
+                    "start": window["start"].strftime("%b %Y"),
+                    "end": window["end"].strftime("%b %Y"),
                     "peak_month": peak,
                 },
                 "reasoning_public": _build_reasoning_public_generic(
