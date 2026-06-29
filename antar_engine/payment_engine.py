@@ -20,6 +20,11 @@ from datetime import datetime, timezone, timedelta
 
 # USD (US/Global) — Seeker $7.99/mo, Navigator $12.99/mo, Nav Annual $109.99/yr
 STRIPE_PRICES = {
+    # [model-c 2026-06-29] Single subscription — the only live plan keys.
+    "ask_unlimited_monthly": os.getenv("STRIPE_PRICE_ASK_UNLIMITED_MONTHLY", ""),
+    "ask_unlimited_annual":  os.getenv("STRIPE_PRICE_ASK_UNLIMITED_ANNUAL", ""),
+    # DEPRECATED tier keys — retained so historical/in-flight webhooks
+    # resolve; unreachable from the current pricing UI.
     "seeker_monthly":      os.getenv("STRIPE_PRICE_SEEKER_MONTHLY", ""),
     "navigator_monthly":   os.getenv("STRIPE_PRICE_NAVIGATOR_MONTHLY", ""),
     "navigator_annual":    os.getenv("STRIPE_PRICE_NAVIGATOR_ANNUAL", ""),
@@ -110,21 +115,29 @@ def get_stripe_price_for_country(plan_key: str, country_code: str = "US") -> tup
     return price_id, "usd"
 
 RAZORPAY_PLANS = {
+    # [model-c 2026-06-29] Single subscription — live plan keys.
+    "ask_unlimited_monthly": os.getenv("RAZORPAY_PLAN_ASK_UNLIMITED_MONTHLY", ""),
+    "ask_unlimited_annual":  os.getenv("RAZORPAY_PLAN_ASK_UNLIMITED_ANNUAL", ""),
+    # DEPRECATED tier keys — retained for historical subscriptions.
     "seeker_monthly":      os.getenv("RAZORPAY_PLAN_SEEKER_MONTHLY", ""),
     "navigator_monthly":   os.getenv("RAZORPAY_PLAN_NAVIGATOR_MONTHLY", ""),
     "navigator_annual":    os.getenv("RAZORPAY_PLAN_NAVIGATOR_ANNUAL", ""),
 }
 
 PLAN_AMOUNTS_INR = {
-    "seeker_monthly":      14900,    # ₹149 in paise
-    "navigator_monthly":   29900,    # ₹299 in paise
-    "navigator_annual":    299000,   # ₹2,990 in paise
+    "ask_unlimited_monthly": 19900,   # ₹199 in paise  [model-c]
+    "ask_unlimited_annual":  199900,  # ₹1,999 in paise [model-c]
+    "seeker_monthly":      14900,    # ₹149 in paise  (deprecated)
+    "navigator_monthly":   29900,    # ₹299 in paise  (deprecated)
+    "navigator_annual":    299000,   # ₹2,990 in paise (deprecated)
 }
 
 PLAN_AMOUNTS_USD = {
-    "seeker_monthly":      799,      # $7.99 in cents
-    "navigator_monthly":   1299,     # $12.99 in cents
-    "navigator_annual":    10999,    # $109.99 in cents
+    "ask_unlimited_monthly": 799,     # $7.99 in cents   [model-c]
+    "ask_unlimited_annual":  5999,    # $59.99 in cents  [model-c]
+    "seeker_monthly":      799,      # $7.99 in cents  (deprecated)
+    "navigator_monthly":   1299,     # $12.99 in cents (deprecated)
+    "navigator_annual":    10999,    # $109.99 in cents (deprecated)
 }
 
 
@@ -260,7 +273,7 @@ def verify_stripe_session(session_id: str) -> dict:
 
         if session.payment_status in ("paid", "no_payment_required"):
             chart_id = session.client_reference_id or                        session.metadata.get("chart_id", "")
-            plan_key = session.metadata.get("plan", "seeker_monthly")
+            plan_key = session.metadata.get("plan", "ask_unlimited_monthly")
             plan     = plan_key.split("_")[0]  # "seeker" or "navigator"
             sub_id   = session.subscription or session.payment_intent or ""
             # P1 fix: derive the real period from the Stripe subscription.

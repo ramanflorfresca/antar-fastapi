@@ -301,14 +301,17 @@ def _trial_anchor(chart_id: str, sb, rows: list):
     return launch
 
 
-def ask_trial_state(chart_id: str, sb) -> dict:
+def ask_trial_state(chart_id: str, sb, tz_offset: int = 0) -> dict:
     """Trial window + today's usage for the free tier."""
     from datetime import datetime, timedelta, timezone
     rows = _user_ask_rows(chart_id, sb)
     start = _trial_anchor(chart_id, sb, rows)
     now = datetime.now(timezone.utc)
     ends = start + timedelta(days=ASK_TRIAL_DAYS)
-    today = now.date().isoformat()
+    # [model-c] reset at the user's LOCAL midnight, not UTC. tz_offset is
+    # minutes east of UTC (client-supplied; same convention as the daily
+    # surfaces' _prac_local_date). Absent => UTC, unchanged behaviour.
+    today = (now + timedelta(minutes=int(tz_offset or 0))).date().isoformat()
     used_today = 0
     for r in rows:
         if str(r.get("ask_count_date") or "")[:10] == today:
@@ -324,16 +327,17 @@ def ask_trial_state(chart_id: str, sb) -> dict:
     }
 
 
-def increment_ask_usage(chart_id: str, sb) -> None:
+def increment_ask_usage(chart_id: str, sb, tz_offset: int = 0) -> None:
     """Count one consultation answer. Maintains the trial's per-day counter
     (ask_count_today/ask_count_date) and backfills ask_trial_start; the
     lifetime ask_count keeps counting as analytics. Non-blocking — never
     breaks the answer path."""
-    from datetime import datetime, timezone
+    from datetime import datetime, timedelta, timezone
     try:
         uid = _resolve_user_id(chart_id, sb)
         now_dt = datetime.now(timezone.utc)
-        today = now_dt.date().isoformat()
+        # [model-c] local-midnight day key; tz_offset = minutes east of UTC.
+        today = (now_dt + timedelta(minutes=int(tz_offset or 0))).date().isoformat()
         existing = sb.table("ask_usage").select(
             "ask_count,ask_count_today,ask_count_date,ask_trial_start"
         ).eq("chart_id", chart_id).execute()

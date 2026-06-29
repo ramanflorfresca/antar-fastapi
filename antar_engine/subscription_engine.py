@@ -14,19 +14,28 @@ from typing import Optional
 PLANS = {
     "free": {
         "name":          "Free",
-        "pred_limit":    3,
-        "ask_limit":     3,
+        # [model-c 2026-06-29] Everything free forever. Readings unlimited;
+        # the only metered lever is Ask volume (20/day for 30 days from
+        # created_at, then 1/day — enforced live in entitlements.py, NOT
+        # this static int). ask_limit here is the nominal trial cap for
+        # display; /subscription reports the live value.
+        "pred_limit":    None,   # unlimited life readings
+        "ask_limit":     20,     # nominal; live value via entitlements
         "compat_limit":  1,
         "alerts":        ["high"],   # only high urgency alerts
         "features": [
-            "3 life readings",
+            "Everything free — readings, briefings, astrocartography, practices",
             "Daily signal (unlimited)",
             "Ask Antar — 20/day for 30 days, then 1/day",
-            "1 compatibility check",
-            "3 Prashna questions",
+            "1 compatibility check free",
+            "Extra compatibility charts — $0.99 each",
             "High-urgency transit alerts",
         ],
     },
+    # [model-c 2026-06-29] DEPRECATED tiers — retained so historical
+    # subscriptions and in-flight webhooks resolve (never deleted). New
+    # checkouts use the single "ask_unlimited" plan; these are unreachable
+    # from the current pricing UI.
     "seeker": {
         "name":          "Seeker",
         "pred_limit":    999,

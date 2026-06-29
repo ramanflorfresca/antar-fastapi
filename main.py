@@ -11840,6 +11840,142 @@ async def settings_charts_delete(chart_id: str, authorization: Optional[str] = H
 
 
 # ════════════════════════════════ LANGUAGE ════════════════════════════════
+# ════════════════════════════ ACCOUNT DELETION ════════════════════════════
+# [account-delete 2026-06-29] Apple Guideline 5.1.1(v) hard requirement.
+# Deletes the authenticated user's ENTIRE account — every chart they own,
+# all derived / cache / billing rows, the profile, and the Supabase auth
+# identity (which unlinks any Google / Apple sign-in). chart_id in the path
+# identifies the account via charts.user_id; the caller must own it.
+_ACCOUNT_DELETE_TABLES = (
+    # natal / dasha / yoga
+    "dasha_periods", "chart_yogas",
+    # prediction stores
+    "predictions", "user_predictions",
+    "daily_signals", "welcome_signals",
+    "weekly_briefings", "monthly_briefings", "monthly_deepdives",
+    "life_arc_cache",
+    # today / home / week caches
+    "today_narration_cache", "home_cache", "deep_read_cache",
+    "predict_week_cache", "practice_schedule_cache",
+    "daily_signals_cache", "daily_surface_cache",
+    # Lal Kitab
+    "lal_kitab_remedies",
+    # user-content keyed by chart
+    "life_events", "user_alerts", "llm_call_log",
+    # Prashna oracle
+    "prashna_log", "prashna_readings", "prashna_followups",
+    # Ask Antar
+    "chat_messages",
+    # engagement / analytics (a full account delete CAN take these)
+    "practice_log", "practice_completions", "practice_sessions",
+    "daily_feedback", "life_arc_feedback", "user_correlations",
+    "prediction_accuracy", "past_event_feedback", "user_actions",
+    # billing (account-level delete removes these; revenue audit lives in Stripe)
+    "subscriptions", "usage_tracking", "compat_slot_purchases", "ask_usage",
+)
+
+
+@app.delete("/api/v1/account/{chart_id}")
+async def delete_account(chart_id: str, authorization: Optional[str] = Header(None)):
+    """
+    [account-delete] Full account deletion (Apple 5.1.1(v)).
+    Auth-gated: the caller must own chart_id. Deletes every chart the user
+    owns + all derived / billing rows + profile + the Supabase auth identity
+    (unlinks Google / Apple). Best-effort per table — a missing table never
+    blocks the deletion.
+    """
+    from fastapi.responses import JSONResponse
+    import logging as _l
+    _log = _l.getLogger("antar.account_delete")
+
+    user_id, _ = _st_identity(authorization)
+    if not user_id:
+        return _st_guest_401()
+
+    # Ownership: the chart in the path must belong to the caller.
+    try:
+        owned = supabase.table("charts").select("id").eq(
+            "id", chart_id
+        ).eq("user_id", user_id).limit(1).execute()
+    except Exception as _oe:
+        return JSONResponse(status_code=500, content={"error": "lookup failed", "detail": str(_oe)})
+    if not owned.data:
+        return JSONResponse(status_code=404, content={"error": "account not found"})
+
+    # Every chart this user owns.
+    try:
+        _rows = supabase.table("charts").select("id").eq("user_id", user_id).execute()
+        chart_ids = [r["id"] for r in (_rows.data or []) if r.get("id")]
+    except Exception:
+        chart_ids = []
+    if chart_id not in chart_ids:
+        chart_ids.append(chart_id)
+
+    _purge_errors = []
+
+    # 1. Cascade-delete every chart-keyed row.
+    for _cid in chart_ids:
+        for _tbl in _ACCOUNT_DELETE_TABLES:
+            try:
+                supabase.table(_tbl).delete().eq("chart_id", _cid).execute()
+            except Exception as _ce:
+                _purge_errors.append({"table": _tbl, "chart_id": _cid, "error": str(_ce)})
+
+    # 2. Remove this user's side from shared compatibility tables.
+    for _cid in chart_ids:
+        for _tbl in ("compatibility_sessions", "chart_connections"):
+            for _col in ("chart_id_a", "chart_id_b"):
+                try:
+                    supabase.table(_tbl).delete().eq(_col, _cid).execute()
+                except Exception as _ce:
+                    _purge_errors.append({"table": _tbl, "error": str(_ce)})
+
+    # 3. user_id-keyed content (conversations / messages / device tokens / profile).
+    for _tbl in ("conversations", "messages", "device_tokens", "profiles"):
+        try:
+            supabase.table(_tbl).delete().eq("user_id", user_id).execute()
+        except Exception as _ue:
+            _purge_errors.append({"table": _tbl, "error": str(_ue)})
+
+    # 4. Delete the chart rows themselves.
+    for _cid in chart_ids:
+        try:
+            supabase.table("charts").delete().eq("id", _cid).execute()
+        except Exception as _de:
+            _purge_errors.append({"table": "charts", "chart_id": _cid, "error": str(_de)})
+
+    # 5. Delete the Supabase auth identity — unlinks Google / Apple sign-in.
+    #    On failure, record a soft-delete marker + scheduled purge so the
+    #    user-facing delete still succeeds (Apple-compliant).
+    auth_deleted = False
+    try:
+        supabase.auth.admin.delete_user(user_id)
+        auth_deleted = True
+    except Exception as _ae:
+        _purge_errors.append({"table": "auth.users", "error": str(_ae)})
+        try:
+            supabase.table("account_deletions").upsert({
+                "user_id": user_id,
+                "requested_at": datetime.utcnow().isoformat() + "Z",
+                "status": "pending_auth_purge",
+            }, on_conflict="user_id").execute()
+        except Exception:
+            pass
+
+    try:
+        _st_cache_bust(user_id)
+    except Exception:
+        pass
+
+    _log.info(f"[account-delete] user={user_id} charts={len(chart_ids)} auth_deleted={auth_deleted}")
+    _resp = {"ok": True, "deleted": True, "auth_identity_deleted": auth_deleted,
+             "charts_deleted": len(chart_ids)}
+    if _purge_errors:
+        _resp["partial_cascade"] = _purge_errors
+    return _resp
+
+
+
 @app.get("/api/v1/me/language")
 async def settings_language(authorization: Optional[str] = Header(None), chart_id: Optional[str] = None):
     user_id, _ = _st_identity(authorization)
@@ -12111,7 +12247,7 @@ async def admin_overview(admin_email: str = Depends(require_admin)):
         "last_30d": _charts_count((now - _atd(days=30)).isoformat()),
     }
 
-    plan_breakdown = {"free": total_users, "seeker": 0, "navigator": 0}
+    plan_breakdown = {"free": total_users, "seeker": 0, "navigator": 0, "ask": 0}
     active_subscribers = 0
     try:
         subs = supabase.table("subscriptions").select(
@@ -12125,7 +12261,7 @@ async def admin_overview(admin_email: str = Depends(require_admin)):
             plan = str(s.get("plan") or "").lower()
             alive = (str(s.get("status") or "").lower() in ("active", "trialing")
                      and str(s.get("current_period_end") or "")[:19] > now_s)
-            if plan in ("seeker", "navigator") and alive:
+            if plan in ("seeker", "navigator", "ask") and alive:
                 plan_breakdown[plan] += 1
                 plan_breakdown["free"] = max(0, plan_breakdown["free"] - 1)
                 active_subscribers += 1
@@ -12205,7 +12341,7 @@ async def admin_users(limit: int = 50, offset: int = 0, plan: str = "",
         print(f"[admin] subscriptions read failed: {e}")
 
     paid_ids = [cid for cid, s in sub_by_chart.items()
-                if s["plan"] in ("seeker", "navigator")]
+                if s["plan"] in ("seeker", "navigator", "ask")]
 
     # [admin-inspector] birth fields surfaced for /dashboard/admin-charts.
     base_sel = ("id, first_name, name, birth_date, birth_time, "
@@ -12216,7 +12352,7 @@ async def admin_users(limit: int = 50, offset: int = 0, plan: str = "",
         qq = supabase.table("charts").select(sel, count="exact")
         if q:
             qq = qq.ilike("first_name", f"%{q}%")
-        if plan in ("seeker", "navigator"):
+        if plan in ("seeker", "navigator", "ask"):
             ids = [c for c in paid_ids if sub_by_chart[c]["plan"] == plan]
             if not ids:
                 return [], 0
@@ -14325,11 +14461,17 @@ async def compatibility_continue(request: CompatibilityContinueRequest):
         print(f"[compat-slots] continue check non-fatal: {_cce}")
         _cc_covered = True
     if not _cc_covered:
-        return _ent_402(_cc_upg("compatibility",
-                                _cc_tier_fn(_cc_a, supabase),
-                                reason="chart_slot_required",
-                                price=_cc_price["label"],
-                                purchase_url="/api/v1/compat/slots/checkout"))
+        # [model-c] never hard-block on the 2nd+ compatibility chart — return
+        # a 200 upgrade signal so the app shows the $0.99 inline card.
+        return JSONResponse(status_code=200, content={
+            "upgrade_required": True,
+            "reason":           "compat_extra",
+            "cta":              "compat_chart",
+            "message":          "Unlock full compatibility with this chart.",
+            "feature":          "compatibility",
+            "price":            _cc_price["label"],
+            "purchase_url":     "/api/v1/compat/slots/checkout",
+        })
     brief_a = session["brief_a"]
     brief_b = session["brief_b"]
     name_a  = session["name_a"]
@@ -14681,6 +14823,7 @@ class PrashnaRequest(BaseModel):
     lng:            Optional[float] = 77.2090
     language:       Optional[str] = "en"
     generate_answer: Optional[bool] = True
+    tz_offset:      Optional[int] = 0   # [model-c] minutes east of UTC
 
 @app.post("/api/v1/prashna")
 async def ask_prashna(request: PrashnaRequest):
@@ -14705,6 +14848,36 @@ async def ask_prashna(request: PrashnaRequest):
 
         if not question:
             return JSONResponse(status_code=400, content={"error": "Question is required"})
+
+        # ─── 0. Shared Ask/Prashna daily allowance [model-c] ───
+        # Prashna draws from the SAME free daily counter as /ask (20/day for
+        # 30 days, then 1/day). A capped free user gets the upgrade card
+        # (HTTP 200, never an error); paid/unlimited users are never metered.
+        try:
+            from antar_engine.entitlements import (
+                get_entitlement as _pz_tier, ask_trial_state as _pz_trial,
+                has_unlimited_ask as _pz_unlim, UPGRADE_URL as _pz_upg,
+            )
+            _pz_tz = getattr(request, "tz_offset", 0) or 0
+            if (chart_id
+                    and _pz_tier(chart_id, supabase) not in ("seeker", "navigator")
+                    and not _pz_unlim(chart_id, supabase)):
+                _pz_st = _pz_trial(chart_id, supabase, _pz_tz)
+                _pz_lim = int(_pz_st.get("daily_limit") or 1)
+                if int(_pz_st.get("used_today") or 0) >= _pz_lim:
+                    return JSONResponse(status_code=200, content={
+                        "upgrade_required": True,
+                        "reason":           "ask_daily_cap",
+                        "message":          "You've used today's free questions.",
+                        "cta":              "ask_unlimited",
+                        "feature":          "prashna",
+                        "limit":            _pz_lim,
+                        "used_today":       _pz_st.get("used_today"),
+                        "resets":           "tomorrow",
+                        "upgrade_url":      _pz_upg,
+                    })
+        except Exception as _pz_e:
+            logger.warning(f"[model-c] prashna cap check non-blocking: {_pz_e}")
 
         # ─── 1. Cooldown Check (24h between questions) ───
         # [pass2 2026-06-10] env-gated test-chart bypass so QA verify can scan a
@@ -14915,6 +15088,20 @@ async def ask_prashna(request: PrashnaRequest):
             }).execute()
         except Exception as log_err:
             logger.warning(f"Failed to log prashna (non-blocking): {log_err}")
+
+        # [model-c] Count this Prashna against the shared free daily Ask
+        # allowance (free users only; paid/unlimited are not metered).
+        try:
+            from antar_engine.entitlements import (
+                get_entitlement as _pz_tier2, has_unlimited_ask as _pz_unlim2,
+                increment_ask_usage as _pz_inc,
+            )
+            if (chart_id
+                    and _pz_tier2(chart_id, supabase) not in ("seeker", "navigator")
+                    and not _pz_unlim2(chart_id, supabase)):
+                _pz_inc(chart_id, supabase, getattr(request, "tz_offset", 0) or 0)
+        except Exception as _pz_ie:
+            logger.warning(f"[model-c] prashna ask-counter increment non-blocking: {_pz_ie}")
 
         # ─── 7b. Save to messages table (persistent chat history) ───
         try:
@@ -15745,7 +15932,7 @@ async def ask_endpoint(request: AskRequest):
     # [final-launch] any active Ask subscription => unlimited (SKU-rename-proof)
     # [ask-debug-bypass 2026-06-07] _ask_bypass_cap allowlists dev/test charts
     if _ask_tier not in ("seeker", "navigator") and not _ent_unlim(chart_id, supabase) and not _ask_bypass_cap:
-        _tr = _ent_trial(chart_id, supabase)
+        _tr = _ent_trial(chart_id, supabase, request.tz_offset or 0)
         _limit = int(_tr.get("daily_limit") or 1)
         if int(_tr.get("used_today") or 0) >= _limit:
             # [soft-cap 2026-06-07] /ask must SOFT-wall — never 402. Founder
@@ -15766,6 +15953,9 @@ async def ask_endpoint(request: AskRequest):
                 "soft_capped":     True,
                 "error":           "daily_cap",     # legacy contract field
                 "reason":          "daily_cap",
+                "upgrade_required": True,            # [model-c] inline card
+                "cta":             "ask_unlimited",  # [model-c]
+                "message":         "You've used today's free questions.",
                 "feature":         "ask",
                 "tier":            _ask_tier,
                 "limit":           _limit,
@@ -16328,7 +16518,7 @@ async def ask_endpoint(request: AskRequest):
             # [ask-debug-bypass 2026-06-07] bypass allowlist also skips increment
             if (_ask_tier not in ("seeker", "navigator") and _ask_answered
                     and not _ask_bypass_cap):  # [ask-launch]
-                _ent_ask_inc(chart_id, supabase)
+                _ent_ask_inc(chart_id, supabase, request.tz_offset or 0)
             # [evmap-2026-06-07] NOT_YET must carry the next window.
             # The LLM's `timing` is its restatement of the consultation facts;
             # when verdict=NOT_YET and timing came back empty, surface the
@@ -16753,7 +16943,7 @@ async def ask_endpoint(request: AskRequest):
             # [ask-debug-bypass 2026-06-07] bypass allowlist also skips increment
             if (_ask_tier not in ("seeker", "navigator") and bool(why)
                     and not _ask_bypass_cap):  # [ask-launch]
-                _ent_ask_inc(chart_id, supabase)
+                _ent_ask_inc(chart_id, supabase, request.tz_offset or 0)
             payload = {
                 "mode": "yesno",
                 "locked": False,
@@ -18322,18 +18512,26 @@ async def get_subscription_status(chart_id: str):
     usage = get_usage(chart_id, supabase)
     plan  = sub.get("plan", "free")
     plan_data = PLANS.get(plan, PLANS["free"])
+    # [model-c 2026-06-29] Report the LIVE limits, not the static PLANS
+    # ints (display-only and drifted from enforcement). Readings unlimited;
+    # Ask is the 20->1/day trial counter; compat is 1 free.
+    from antar_engine.entitlements import (
+        ask_quota as _mc_ask_quota, has_unlimited_ask as _mc_unlim,
+    )
+    _mc_q = _mc_ask_quota(chart_id, supabase)
     return {
         "plan":            plan,
         "status":          sub.get("status", "active"),
-        "is_paid":         plan != "free",
+        "is_paid":         (plan != "free") or _mc_unlim(chart_id, supabase),
         "pred_used":       usage.get("pred_count", 0),
-        "pred_limit":      plan_data["pred_limit"],
-        "ask_used":        usage.get("ask_count", 0),
-        "ask_limit":       plan_data["ask_limit"],
+        "pred_limit":      None,                       # unlimited (Model C)
+        "ask_used":        _mc_q.get("used"),
+        "ask_limit":       _mc_q.get("limit"),         # 20 / 1 / None(unlimited)
+        "ask_remaining":   _mc_q.get("remaining"),
         "compat_used":     usage.get("compat_count", 0),
-        "compat_limit":    plan_data["compat_limit"],
+        "compat_limit":    PLANS["free"]["compat_limit"],
         "period_end":      sub.get("current_period_end"),
-        "features":        plan_data["features"],
+        "features":        PLANS["free"]["features"],
     }
 
 
@@ -18425,7 +18623,7 @@ async def create_stripe_checkout_session(request: dict, authorization: Optional[
     """
     from antar_engine.payment_engine import create_stripe_checkout
     chart_id    = request.get("chart_id", "")
-    plan_key    = request.get("plan_key", "seeker_monthly")
+    plan_key    = request.get("plan_key", "ask_unlimited_monthly")
     success_url = request.get("success_url", "https://antar.world/upgrade/success")
     cancel_url  = request.get("cancel_url",  "https://antar.world/upgrade")
 
@@ -18498,6 +18696,150 @@ async def verify_stripe_payment(request: dict):
     return {"success": True, "plan": result["plan"], "subscription": sub}
 
 
+# ── In-App Purchase verification (Apple IAP + Google Play Billing) ──
+# [iap 2026-06-29] Native apps must use store billing (Apple GL 3.1.1 /
+# Google Play Billing). These routes validate a store receipt and grant the
+# SAME entitlement the Stripe path grants, so web-Stripe and store-IAP users
+# are treated identically everywhere downstream.
+
+def _apply_iap_result(res: dict, chart_id: str, provider: str) -> dict:
+    """Converge a validated IAP onto the existing entitlement path.
+    subscription -> activate_subscription (plan=seeker => unlimited Ask);
+    consumable   -> compat_slot_purchases upsert (same shape the Stripe
+    webhook writes). Raises 402 if the receipt did not validate."""
+    from antar_engine.subscription_engine import activate_subscription
+    if not res.get("valid"):
+        raise HTTPException(402, res.get("error") or "purchase not valid")
+    txid = res.get("transaction_id") or ""
+    if res.get("kind") == "subscription":
+        sub = activate_subscription(
+            chart_id=chart_id,
+            plan=res.get("plan") or "seeker",
+            provider=provider,
+            provider_sub_id=str(txid),
+            period_end_iso=res.get("period_end_iso") or "",
+            sb=supabase,
+        )
+        try:
+            from antar_engine.entitlements import bust_entitlement_cache
+            bust_entitlement_cache(chart_id)
+        except Exception:
+            pass
+        return {"success": True, "kind": "subscription", "plan": res.get("plan"),
+                "environment": res.get("environment"), "subscription": sub}
+    # consumable -> one compatibility slot
+    try:
+        supabase.table("compat_slot_purchases").upsert({
+            "chart_id": chart_id,
+            "stripe_session_id": f"{provider}:{txid}",   # idempotency key
+            "status": "paid",
+        }, on_conflict="stripe_session_id").execute()
+    except Exception as _e:
+        raise HTTPException(500, f"compat slot grant failed: {_e}")
+    return {"success": True, "kind": "consumable",
+            "environment": res.get("environment"), "transaction_id": txid}
+
+
+@app.post("/api/v1/payments/apple/verify-receipt")
+async def verify_apple_receipt(request: dict):
+    """
+    [iap] Validate an App Store receipt, then grant the same entitlement
+    Stripe grants. Body: { chart_id, receipt_data }.
+      ask_unlimited_monthly / ask_unlimited_annual -> seeker subscription
+      compat_chart                                 -> one compatibility slot
+    """
+    from antar_engine.iap_engine import verify_apple
+    chart_id     = request.get("chart_id", "")
+    receipt_data = request.get("receipt_data", "")
+    if not chart_id:
+        raise HTTPException(400, "chart_id required")
+    res = verify_apple(receipt_data)
+    return _apply_iap_result(res, chart_id, provider="apple")
+
+
+@app.post("/api/v1/payments/google/verify-purchase")
+async def verify_google_purchase(request: dict):
+    """
+    [iap] Validate a Google Play purchase, then grant the same entitlement
+    Stripe grants. Body: { chart_id, product_id, purchase_token, kind? }.
+    """
+    from antar_engine.iap_engine import verify_google
+    chart_id       = request.get("chart_id", "")
+    product_id     = request.get("product_id", "")
+    purchase_token = request.get("purchase_token", "")
+    kind           = request.get("kind", "")
+    if not chart_id:
+        raise HTTPException(400, "chart_id required")
+    res = verify_google(product_id, purchase_token, kind=kind)
+    return _apply_iap_result(res, chart_id, provider="google")
+
+
+# ── Native push notifications (Capacitor + FCM) [push 2026-06-29] ──
+# Gives the native shell a genuine native capability (push) — clears Apple
+# Guideline 4.2 for a wrapped web app and delivers the high-urgency transit
+# alerts already computed in alert_engine.
+
+@app.post("/api/v1/push/register")
+async def push_register(request: dict, authorization: Optional[str] = Header(None)):
+    """[push] Register a device for transit-alert push. Auth-gated.
+    Body: { chart_id?, platform, token }  platform: ios | android"""
+    user_id, _ = _st_identity(authorization)
+    if not user_id:
+        return _st_guest_401()
+    token = request.get("token", "")
+    if not token:
+        raise HTTPException(400, "token required")
+    try:
+        supabase.table("device_tokens").upsert({
+            "user_id":    user_id,
+            "chart_id":   request.get("chart_id") or None,
+            "platform":   request.get("platform") or "unknown",
+            "token":      token,
+            "updated_at": datetime.utcnow().isoformat() + "Z",
+        }, on_conflict="token").execute()
+    except Exception as e:
+        raise HTTPException(500, f"register failed: {e}")
+    return {"ok": True}
+
+
+@app.post("/api/v1/push/unregister")
+async def push_unregister(request: dict, authorization: Optional[str] = Header(None)):
+    """[push] Remove a device token (sign-out / notifications off)."""
+    user_id, _ = _st_identity(authorization)
+    if not user_id:
+        return _st_guest_401()
+    token = request.get("token", "")
+    if not token:
+        raise HTTPException(400, "token required")
+    try:
+        supabase.table("device_tokens").delete().eq(
+            "token", token
+        ).eq("user_id", user_id).execute()
+    except Exception as e:
+        raise HTTPException(500, f"unregister failed: {e}")
+    return {"ok": True}
+
+
+@app.post("/api/v1/push/send")
+async def push_send(request: dict):
+    """[push] Server/cron: send a push to a chart's owner. Auth via the shared
+    ALERT_SECRET (same gate the alert pipeline uses).
+    Body: { secret, chart_id, title?, body, data? }."""
+    if request.get("secret", "") != os.getenv("ALERT_SECRET", "antar-alerts-2026"):
+        raise HTTPException(403, "forbidden")
+    from antar_engine.push_engine import send_to_chart
+    chart_id = request.get("chart_id", "")
+    body = request.get("body", "")
+    if not chart_id:
+        raise HTTPException(400, "chart_id required")
+    if not body:
+        raise HTTPException(400, "body required")
+    return send_to_chart(
+        chart_id, request.get("title", "Antar"), body,
+        supabase, data=request.get("data") or {},
+    )
+
+
 @app.post("/api/v1/payments/stripe/webhook")
 async def handle_stripe_webhook(request: Request):
     """Stripe webhook — signature-verified; handles all subscription lifecycle events."""
@@ -18543,7 +18885,7 @@ async def handle_stripe_webhook(request: Request):
             chart_id = (obj.get("client_reference_id") or
                         obj.get("metadata", {}).get("chart_id", ""))
             sub_id = (obj.get("subscription") or obj.get("id", ""))
-            plan_key = obj.get("metadata", {}).get("plan", "seeker_monthly")
+            plan_key = obj.get("metadata", {}).get("plan", "ask_unlimited_monthly")
             plan = plan_key.split("_")[0]
             if chart_id:
                 days = 366 if "annual" in plan_key or "yearly" in plan_key else 32
@@ -18665,7 +19007,7 @@ async def create_razorpay_order_endpoint(request: dict):
     """
     from antar_engine.payment_engine import create_razorpay_order
     chart_id = request.get("chart_id", "")
-    plan_key = request.get("plan_key", "seeker_monthly")
+    plan_key = request.get("plan_key", "ask_unlimited_monthly")
 
     if not chart_id:
         raise HTTPException(400, "chart_id required")
@@ -18690,7 +19032,7 @@ async def verify_razorpay_payment_endpoint(request: dict):
         order_id   = request.get("order_id", ""),
         signature  = request.get("signature", ""),
         chart_id   = request.get("chart_id", ""),
-        plan_key   = request.get("plan_key", "seeker_monthly"),
+        plan_key   = request.get("plan_key", "ask_unlimited_monthly"),
     )
 
     if result.get("error"):
@@ -18729,7 +19071,7 @@ async def handle_razorpay_webhook(request: Request):
             payment  = payload.get("payment", {}).get("entity", {})
             notes    = payment.get("notes", {})
             chart_id = notes.get("chart_id", "")
-            plan_key = notes.get("plan", "seeker_monthly")
+            plan_key = notes.get("plan", "ask_unlimited_monthly")
             plan     = plan_key.split("_")[0]
             if chart_id:
                 from antar_engine.subscription_engine import activate_subscription
@@ -19577,7 +19919,7 @@ async def _get_dashboard_inner(chart_id: str, language: str = "en"):
         "plan":          plan,
         "is_paid":       plan != "free",
         "pred_used":     usage.get("pred_count",0),
-        "pred_limit":    3 if plan == "free" else 999,
+        "pred_limit":    None,   # [model-c] unlimited life readings
         "compat_used":   usage.get("compat_count",0),
         "compat_limit":  1 if plan == "free" else (10 if plan == "seeker" else 999),
 
