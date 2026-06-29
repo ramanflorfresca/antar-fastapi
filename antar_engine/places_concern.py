@@ -581,7 +581,7 @@ def compose_city_reasons(
 
     # ── INTENT (only with a concern) ─────────────────────────────────────────
     if has_concern and signals:
-        reasons.append({"layer": "INTENT", "text": compose_primary_reason(concern, signals[0], lang)})
+        reasons.append({"layer": "INTENT", "text": compose_primary_reason(concern, signals[0], lang, tier=scored.get("tier"))})
 
     return reasons[:4]
 

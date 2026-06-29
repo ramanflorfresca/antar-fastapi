@@ -42,7 +42,59 @@ def _planet(planet: str, lang: str) -> str:
 # Per-city pieces
 # ─────────────────────────────────────────────────────────────────────────────
 
-def compose_primary_reason(concern: str, signal: Optional[dict], lang: str) -> str:
+# [places-band-reconcile 2026-06-28] A city's `tier` is the aggregate verdict
+# across ALL its signals; a single supportive line must never let the card read
+# more positive than that band (the old plain_summary inversion, redux). Cap the
+# reason tone to the tier: FLOW may speak fully supportive, MIXED downgrades a
+# supportive line to a trade-off, STRAIN reframes it as friction. Override frames
+# reuse the recognised "<planet>'s <angle> line crosses within <d>km, and it ..."
+# opening so the /concern planet-removal scrub strips them identically.
+_BAND_POL_RANK = {"supportive": 2, "mixed": 1, "friction": 0}
+_BAND_TIER_CAP = {"FLOW": 2, "MIXED": 1, "STRAIN": 0}
+_BAND_OVERRIDE_FRAMES = {
+    "en": {
+        "MIXED": ("{planet}'s {angle} line crosses within {distance}km, and it touches "
+                  "{axis} here \u2014 but it reads as a mixed current for {domain}, the lift "
+                  "coming with some drag."),
+        "STRAIN": ("{planet}'s {angle} line crosses within {distance}km, and it touches "
+                   "{axis} here \u2014 but the wider ground runs strained for {domain}, so the "
+                   "support is real yet uneven, with friction more than ease."),
+    },
+    "es": {
+        "MIXED": ("La l\u00ednea {angle} de {planet} cruza a menos de {distance}km y toca {axis} "
+                  "aqu\u00ed \u2014 pero se lee como una corriente mixta para {domain}, el impulso "
+                  "viene con algo de arrastre."),
+        "STRAIN": ("La l\u00ednea {angle} de {planet} cruza a menos de {distance}km y toca {axis} "
+                   "aqu\u00ed \u2014 pero el terreno general est\u00e1 tensionado para {domain}, as\u00ed "
+                   "que el apoyo es real pero desigual, con m\u00e1s fricci\u00f3n que facilidad."),
+    },
+}
+
+
+def _band_reconcile(signal, tier, lang, concern):
+    """Return a tier-appropriate override string when the signal's own polarity
+    is MORE positive than its computed tier allows; else None (use the normal
+    polarity frame). Guarantees a STRAIN/MIXED card never emits "easier current"
+    / "steady strength" prose that contradicts its badge."""
+    if not signal or tier not in _BAND_TIER_CAP:
+        return None
+    pol = signal.get("polarity", "mixed")
+    if _BAND_POL_RANK.get(pol, 1) <= _BAND_TIER_CAP[tier]:
+        return None  # signal not more positive than the band -> no override
+    frames = _BAND_OVERRIDE_FRAMES.get(lang) or _BAND_OVERRIDE_FRAMES["en"]
+    frame = frames.get(tier)
+    if not frame:
+        return None
+    return frame.format(
+        planet=_planet(signal["planet"], lang),
+        angle=signal["angle"],
+        distance=int(round(signal.get("distance_km", 0))),
+        axis=_axis(signal["angle"], lang),
+        domain=_domain(concern, lang),
+    )
+
+
+def compose_primary_reason(concern: str, signal: Optional[dict], lang: str, tier: Optional[str] = None) -> str:
     lang = _lang(lang)
     if not signal:
         # No karaka line near — lead with a gentle, true neutral statement.
@@ -51,6 +103,9 @@ def compose_primary_reason(concern: str, signal: Optional[dict], lang: str) -> s
                     f"cruza cerca; este lugar es de fondo neutro para ese tema.")
         return (f"No strong karaka line for {_domain(concern, lang)} crosses "
                 f"close by; this place reads as neutral ground for that thread.")
+    _override = _band_reconcile(signal, tier, lang, concern)
+    if _override is not None:
+        return _override
     frame = PLACES_TEMPLATES["primary_reasons"].get(
         (lang, concern, signal["angle"], signal["polarity"])
     )
@@ -65,10 +120,14 @@ def compose_primary_reason(concern: str, signal: Optional[dict], lang: str) -> s
     )
 
 
-def compose_secondary_reasons(concern: str, signals: list[dict], lang: str, limit: int = 2) -> list[str]:
+def compose_secondary_reasons(concern: str, signals: list[dict], lang: str, limit: int = 2, tier: Optional[str] = None) -> list[str]:
     lang = _lang(lang)
     out = []
     for sig in signals[:limit]:
+        _ov = _band_reconcile(sig, tier, lang, concern)
+        if _ov is not None:
+            out.append(_ov)
+            continue
         frame = PLACES_TEMPLATES["primary_reasons"].get(
             (lang, concern, sig["angle"], sig["polarity"])
         ) or PLACES_TEMPLATES["primary_reasons"].get((lang, concern, sig["angle"], "mixed"))
@@ -136,8 +195,8 @@ def enrich_ranked_city(concern: str, scored: dict, lang: str) -> dict:
         "lon": scored["city"]["lon"],
         "score": scored["score"],
         "tier": scored["tier"],
-        "primary_reason": compose_primary_reason(concern, top, lang),
-        "secondary_reasons": compose_secondary_reasons(concern, signals[1:], lang),
+        "primary_reason": compose_primary_reason(concern, top, lang, tier=scored.get("tier")),
+        "secondary_reasons": compose_secondary_reasons(concern, signals[1:], lang, tier=scored.get("tier")),
         "watch_outs": compose_watch_outs(concern, scored.get("_watch", []), lang),
     }
 
