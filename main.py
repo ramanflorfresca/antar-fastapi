@@ -20878,6 +20878,36 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
         except Exception as _lf_re:
             print(f"[monthly-deepdive] remedies scrub failed (non-blocking): {_lf_re}")
 
+        # ── [window-sizing 2026-06-29] shadow review log (Fix #2) ──────────
+        # SHADOW-ONLY surface scan so date-width enforcement is reviewable on
+        # every chart. The chokepoint-routed fields are often clean; the volume
+        # lives in domains[], which the layered-fields path builds AFTER the
+        # central strip pass (the flagged overlap). Never mutates copy here.
+        try:
+            from antar_engine import window_sizing as _ws
+            if isinstance(result, dict) and _ws.current_mode() != "off":
+                _ws_log = []
+                for _wf, _wt in (("overview", "masik"), ("month_theme", "masik")):
+                    _wv = result.get(_wf)
+                    if isinstance(_wv, str):
+                        _, _wl = _ws.size_dates_in_text(_wv, _wt, "shadow")
+                        for _we in _wl:
+                            _we["field"] = _wf
+                            _ws_log.append(_we)
+                for _wi, _wd in enumerate(result.get("domains") or []):
+                    if isinstance(_wd, dict):
+                        for _wdf in ("hook", "depth", "substance"):
+                            _wdv = _wd.get(_wdf)
+                            if isinstance(_wdv, str):
+                                _, _wl = _ws.size_dates_in_text(_wdv, "masik", "shadow")
+                                for _we in _wl:
+                                    _we["field"] = f"domains[{_wi}].{_wdf}"
+                                    _ws_log.append(_we)
+                if _ws_log:
+                    result["_debug_window_sized"] = _ws_log
+        except Exception as _ws_e:
+            print(f"[monthly-deepdive] window-sizing shadow non-fatal: {_ws_e}")
+
         return _ent_month_view(result, chart_id)
     except HTTPException:
         raise
