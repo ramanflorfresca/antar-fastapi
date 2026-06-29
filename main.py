@@ -4280,9 +4280,9 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
                     "upgrade_url": "https://antar.world/upgrade",
                     "plans": [
                         {
-                            "name": "Seeker",
-                            "price_monthly": "$4.99",
-                            "price_annual": "$39",
+                            "name": "Ask Unlimited",
+                            "price_monthly": "$7.99",
+                            "price_annual": "$59.99",
                             "features": [
                                 "Unlimited predictions",
                                 "Career & wealth reading",

@@ -42,9 +42,9 @@ PLANS = {
         "ask_limit":     999,
         "compat_limit":  999,
         "alerts":        ["high", "medium", "opportunity"],
-        "price_usd":     4.99,
+        "price_usd":     7.99,    # [pricing-3bucket] retired $4.99
         "price_inr":     399,
-        "price_usd_annual": 39,
+        "price_usd_annual": 59.99,
         "price_inr_annual": 2999,
         "features": [
             "Unlimited life readings",

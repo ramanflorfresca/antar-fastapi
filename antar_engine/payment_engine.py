@@ -115,18 +115,15 @@ def get_stripe_price_for_country(plan_key: str, country_code: str = "US") -> tup
     return price_id, "usd"
 
 RAZORPAY_PLANS = {
-    # [model-c 2026-06-29] Single subscription — live plan keys.
-    "ask_unlimited_monthly": os.getenv("RAZORPAY_PLAN_ASK_UNLIMITED_MONTHLY", ""),
-    "ask_unlimited_annual":  os.getenv("RAZORPAY_PLAN_ASK_UNLIMITED_ANNUAL", ""),
-    # DEPRECATED tier keys — retained for historical subscriptions.
+    # [pricing-3bucket 2026-06-29] India excluded this launch — no Ask sub
+    # via Razorpay. DEPRECATED tier keys retained for historical orders.
     "seeker_monthly":      os.getenv("RAZORPAY_PLAN_SEEKER_MONTHLY", ""),
     "navigator_monthly":   os.getenv("RAZORPAY_PLAN_NAVIGATOR_MONTHLY", ""),
     "navigator_annual":    os.getenv("RAZORPAY_PLAN_NAVIGATOR_ANNUAL", ""),
 }
 
 PLAN_AMOUNTS_INR = {
-    "ask_unlimited_monthly": 19900,   # ₹199 in paise  [model-c]
-    "ask_unlimited_annual":  199900,  # ₹1,999 in paise [model-c]
+    # [pricing-3bucket 2026-06-29] India excluded this launch — no Ask sub.
     "seeker_monthly":      14900,    # ₹149 in paise  (deprecated)
     "navigator_monthly":   29900,    # ₹299 in paise  (deprecated)
     "navigator_annual":    299000,   # ₹2,990 in paise (deprecated)
@@ -139,6 +136,82 @@ PLAN_AMOUNTS_USD = {
     "navigator_monthly":   1299,     # $12.99 in cents (deprecated)
     "navigator_annual":    10999,    # $109.99 in cents (deprecated)
 }
+
+
+# ── [pricing-3bucket 2026-06-29] SINGLE SOURCE OF TRUTH ───────────────
+# Product IDs identical across Stripe + Apple + Google:
+#   ask_unlimited_monthly | ask_unlimited_annual | compat_chart
+# Amounts are minor units. BR/MX bill local currency; everyone else bills
+# the bucket amount in USD (the cheaper LatAm/AR points are realised on the
+# app stores via store price tiers). India is excluded this launch.
+PRICING_PRODUCTS = ("ask_unlimited_monthly", "ask_unlimited_annual", "compat_chart")
+EXCLUDED_COUNTRIES = {"IN"}
+
+PRICING_BUCKET_BY_COUNTRY = {
+    "US": "us_ca", "CA": "us_ca",
+    "BR": "latam", "MX": "latam", "CO": "latam", "CL": "latam", "PE": "latam",
+    "AR": "argentina",
+}
+PRICING_DEFAULT_BUCKET = "us_ca"   # rest-of-world bills the US/CA bucket in USD
+
+PRICING_AMOUNTS = {
+    "us_ca":     {"ask_unlimited_monthly": 799, "ask_unlimited_annual": 5999, "compat_chart": 99},
+    "latam":     {"ask_unlimited_monthly": 399, "ask_unlimited_annual": 2999, "compat_chart": 49},
+    "argentina": {"ask_unlimited_monthly": 249, "ask_unlimited_annual": 1999, "compat_chart": 49},
+}
+# Stripe local-currency billing overrides (BR/MX).
+PRICING_LOCAL_CURRENCY = {
+    "BR": {"currency": "brl", "ask_unlimited_monthly": 1990, "ask_unlimited_annual": 14900, "compat_chart": 290},
+    "MX": {"currency": "mxn", "ask_unlimited_monthly": 7900, "ask_unlimited_annual": 59900, "compat_chart": 990},
+}
+# Countries with a pre-created Stripe Price catalog (lookup_key currency).
+# Everyone else uses on-the-fly price_data at the bucket amount in USD.
+CATALOG_CURRENCY_BY_COUNTRY = {"US": "usd", "CA": "usd", "BR": "brl", "MX": "mxn"}
+
+
+def is_excluded_country(country_code: str) -> bool:
+    return (country_code or "").upper() in EXCLUDED_COUNTRIES
+
+
+def resolve_price(country_code: str, product_key: str):
+    """(amount_minor_units, currency) for a product in a country. Local
+    currency for BR/MX; otherwise the bucket amount billed in USD. Returns
+    (None, None) for unknown (deprecated tier) product keys."""
+    cc = (country_code or "US").upper()
+    loc = PRICING_LOCAL_CURRENCY.get(cc)
+    if loc and product_key in loc:
+        return loc[product_key], loc["currency"]
+    bucket = PRICING_BUCKET_BY_COUNTRY.get(cc, PRICING_DEFAULT_BUCKET)
+    amts = PRICING_AMOUNTS.get(bucket, {})
+    if product_key in amts:
+        return amts[product_key], "usd"
+    return None, None
+
+
+def stripe_lookup_key(country_code: str, product_key: str):
+    """lookup_key into the pre-created Stripe catalog, or None when the
+    country bills on the fly (LatAm-other / Argentina / rest-of-world)."""
+    cur = CATALOG_CURRENCY_BY_COUNTRY.get((country_code or "").upper())
+    return f"{product_key}_{cur}" if cur else None
+
+
+_PRICE_ID_CACHE = {}
+def _stripe_price_id_for_lookup(lookup_key: str) -> str:
+    """Resolve a Stripe Price id from a lookup_key (cached). Empty on miss."""
+    if not lookup_key:
+        return ""
+    if lookup_key in _PRICE_ID_CACHE:
+        return _PRICE_ID_CACHE[lookup_key]
+    try:
+        import stripe
+        stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+        res = stripe.Price.list(lookup_keys=[lookup_key], limit=1)
+        pid = res.data[0].id if res.data else ""
+    except Exception:
+        pid = ""
+    if pid:
+        _PRICE_ID_CACHE[lookup_key] = pid
+    return pid
 
 
 def create_stripe_checkout(
@@ -164,18 +237,30 @@ def create_stripe_checkout(
         import stripe
         stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 
-        price_id, currency = get_stripe_price_for_country(plan_key, country_code)
+        # [pricing-3bucket 2026-06-29] region gating + single-model pricing.
+        if is_excluded_country(country_code):
+            return {"error": "unavailable_in_region",
+                    "country": (country_code or "").upper()}
+
+        price_id, currency, amount = "", "usd", None
+        if plan_key in ("ask_unlimited_monthly", "ask_unlimited_annual"):
+            # Catalog Price for US/CA(usd), BR(brl), MX(mxn); everyone else
+            # bills the bucket amount in USD on the fly.
+            _lk = stripe_lookup_key(country_code, plan_key)
+            if _lk:
+                price_id = _stripe_price_id_for_lookup(_lk)
+            if not price_id:
+                amount, currency = resolve_price(country_code, plan_key)
+        else:
+            # DEPRECATED tier keys — legacy env-var catalog + fallback.
+            price_id, currency = get_stripe_price_for_country(plan_key, country_code)
+            if not price_id:
+                _ca = PLAN_AMOUNTS_BY_COUNTRY.get(country_code, {})
+                amount = _ca.get(plan_key, PLAN_AMOUNTS_USD.get(plan_key, 999))
+                currency = _ca.get("currency", "usd")
 
         if not price_id:
-            # No pre-created Price — build on the fly from fallback amounts
-            country_amounts = PLAN_AMOUNTS_BY_COUNTRY.get(country_code, {})
-            if country_amounts:
-                amount = country_amounts.get(plan_key, 999)
-                currency = country_amounts.get("currency", "usd")
-            else:
-                amount = PLAN_AMOUNTS_USD.get(plan_key, 999)
-                currency = "usd"
-
+            # Build on the fly from the resolved amount/currency.
             plan_name = plan_key.replace("_", " ").title()
             interval = "year" if "annual" in plan_key else "month"
 
@@ -237,11 +322,15 @@ def create_compat_slot_checkout(
     try:
         import stripe
         stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
+        if is_excluded_country(country_code):
+            return {"error": "unavailable_in_region",
+                    "country": (country_code or "").upper()}
+        _amt, _cur = resolve_price(country_code, "compat_chart")
         session = stripe.checkout.Session.create(
             line_items=[{
                 "price_data": {
-                    "currency": "usd",
-                    "unit_amount": 99,
+                    "currency": _cur,
+                    "unit_amount": _amt,
                     "product_data": {
                         "name": "Antar — additional compatibility chart",
                         "description": "Permanently unlock full compatibility with one more chart",
@@ -309,6 +398,10 @@ def create_razorpay_order(
     plan_key: str,
 ) -> dict:
     """Create Razorpay order for Indian payments."""
+    # [pricing-3bucket 2026-06-29] India is excluded this launch — the Ask
+    # subscription is not sold via Razorpay.
+    if plan_key in ("ask_unlimited_monthly", "ask_unlimited_annual"):
+        return {"error": "unavailable_in_region", "country": "IN"}
     try:
         import razorpay
         client = razorpay.Client(
