@@ -788,6 +788,7 @@ def apply_user_facing_strips(
     field_type: str = 'plain',
     depth: str = 'user',
     source: str = 'llm',
+    window_technique: str = None,
 ) -> Any:
     """
     Single enforcement point for all user-facing LLM output.
@@ -816,12 +817,12 @@ def apply_user_facing_strips(
         return None
     if isinstance(content, list):
         return [
-            apply_user_facing_strips(item, language, field_type, depth, source)
+            apply_user_facing_strips(item, language, field_type, depth, source, window_technique)
             for item in content
         ]
     if isinstance(content, dict):
         return {
-            k: apply_user_facing_strips(v, language, field_type, depth, source)
+            k: apply_user_facing_strips(v, language, field_type, depth, source, window_technique)
             for k, v in content.items()
         }
     if not isinstance(content, str):
@@ -864,6 +865,17 @@ def apply_user_facing_strips(
         result = _strip_planet_names(result, language, keep_planet_actors=keep_planet_actors)
         result = _strip_raw_scores(result)
         # (no day-name strip — that's the whole point of this field type)
+
+    # [window-sizing 2026-06-29] date-width enforcement. Kill switch
+    # WINDOW_SIZING=off|shadow|on (default shadow). Opt-in per surface via
+    # window_technique; only narrative field types. Daily 'window' fields
+    # (fast-transit day precision) are intentionally exempt.
+    if window_technique and field_type in ('plain', 'headline', 'timing'):
+        try:
+            from antar_engine.window_sizing import enforce as _ws_enforce
+            result = _ws_enforce(result, window_technique, field_name=field_type)
+        except Exception:
+            pass
 
     return result
 

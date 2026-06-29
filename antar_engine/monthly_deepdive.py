@@ -20,6 +20,7 @@ from typing import Optional
 
 # [output-strips] migrate monthly_deepdive
 from antar_engine.output_strips import apply_user_facing_strips
+from antar_engine import window_sizing as _window_sizing
 
 # [cp-day1] masik phal import
 from antar_engine.lal_kitab_masik import build_masik_context_block, calculate_masik_phal
@@ -598,11 +599,19 @@ async def generate_monthly_deepdive(
     #   strong_planets[], weak_planets[], remedies[].planet,
     #   chart_id, month_key
     _lang = language  # [loc-2] was hard-coded 'en'
+    # [window-sizing] open shadow buffer for date-width enforcement
+    try:
+        _window_sizing.begin_capture()
+    except Exception:
+        pass
     for _f in ('month_theme', 'overview', 'best_week', 'caution_week', 'monthly_mantra'):
         _v = result.get(_f)
         if isinstance(_v, str) and _v:
+            # masik/dasha narration sizes to month; best_week/caution_week
+            # are score_day (fast-transit day precision) and stay exempt.
+            _wt = 'masik' if _f in ('month_theme', 'overview') else None
             result[_f] = apply_user_facing_strips(
-                _v, language=_lang, field_type='plain'
+                _v, language=_lang, field_type='plain', window_technique=_wt
             )
     # [readability 2026-06-10] simplify pass on long prose, then re-strip.
     try:
@@ -635,6 +644,15 @@ async def generate_monthly_deepdive(
                     _r['practice'] = apply_user_facing_strips(
                         _pr, language=_lang, field_type='timing'
                     )
+
+    # [window-sizing] attach shadow log (what dates WOULD widen under
+    # WINDOW_SIZING). In shadow mode the prose above is unchanged.
+    try:
+        _ws_log = _window_sizing.drain_capture()
+        if _ws_log:
+            result['_debug_window_sized'] = _ws_log
+    except Exception:
+        pass
 
     # Save to cache — [loc-2] language-keyed. The `deepdive` JSONB column holds
     # {"en": {...}, "es": {...}, "pt": {...}} so a single-language write keeps
