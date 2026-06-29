@@ -20899,7 +20899,7 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
                         for _wdf in ("hook", "depth", "substance"):
                             _wdv = _wd.get(_wdf)
                             if isinstance(_wdv, str):
-                                _, _wl = _ws.size_dates_in_text(_wdv, "masik", "shadow")
+                                _, _wl = _ws.size_dates_in_text(_wdv, "score_day", "shadow")
                                 for _we in _wl:
                                     _we["field"] = f"domains[{_wi}].{_wdf}"
                                     _ws_log.append(_we)

@@ -181,52 +181,84 @@ def size_window(date_or_range, technique) -> dict:
     return out
 
 
-def size_dates_in_text(text, technique, mode="shadow"):
-    """Find day-precise dates in free narration and size them to `technique`.
+# Leading connectors that mark a date as week/day-precise (fast-transit) and
+# therefore EXEMPT from widening — "the week of July 13", "by June 8th",
+# "between …", "around …", "early/mid/late …". A bare coarse date with NO such
+# connector is the only thing that widens. "week of …" IS the tell that a date
+# is score_day/fast-transit, not a dasha/annual claim.
+_WEEK_CONNECTOR_RE = re.compile(
+    r"(?:the\s+week\s+of|week\s+of|first\s+week\s+of|last\s+week\s+of|"
+    r"by|between|around|before|after|during|through|until|"
+    r"early|mid|late)\s*$",
+    re.IGNORECASE,
+)
 
-    mode="shadow": text returned UNCHANGED; `log` reports what would widen.
-    mode="on":     each over-precise date rewritten to its sized label.
-    Returns (text_out, log) where log = [{original, sized, resolution}, ...].
+
+def _has_week_connector(preceding) -> bool:
+    return bool(_WEEK_CONNECTOR_RE.search(preceding or ""))
+
+
+def size_dates_in_text(text, technique, mode="shadow"):
+    """Size only BARE coarse dates; leave week/day-anchored dates untouched.
+
+    EXEMPT (never widened): day-ranges ("June 8-14"); dates preceded by a
+    week/day connector ("the week of", "by", "between", "around",
+    "early/mid/late"); and dates on a 'day'-resolution technique (score_day,
+    daily, panchanga). Only a bare month/day or month/year with NO week-connector
+    on a coarse technique (dasha/AD/masik/transit) widens.
+
+    mode="shadow": text UNCHANGED; `log` reports each date's disposition
+                   ({action:"widen",sized,resolution} | {action:"exempt",reason}).
+    mode="on":     only widen-class dates rewritten; exempt dates left verbatim.
     Never raises.
     """
     log = []
     if not text or not isinstance(text, str):
         return text, log
     resolution = _resolution_for(technique)
-    # day-resolution techniques are EXEMPT — day precision is legitimate.
-    if resolution == "day":
-        return text, log
     try:
-        def _repl_point(m):
+        events = []  # (start, end, original, action, info)
+
+        # 1) intra-month day-ranges are always week-precise → exempt
+        for m in _DAY_RANGE_RE.finditer(text):
+            events.append((m.start(), m.end(), m.group(0), "exempt", "week-range"))
+
+        # 2) point dates (skip any inside a captured day-range)
+        for m in _POINT_DATE_RE.finditer(text):
+            if any(s <= m.start() < e for s, e, _a, _b, _c in events):
+                continue
             original = m.group(0)
-            sized = size_window(original, technique)
-            label = sized.get("label") or original
-            if not sized.get("widened"):
-                return original
-            # preserve a leading connector word's grammar ("by June 22" -> "by 2027"
-            # reads wrong; prefer "around <label>")
-            log.append({"original": original.strip(), "sized": label,
-                        "resolution": resolution})
-            return label
+            preceding = text[max(0, m.start() - 20):m.start()]
+            if _has_week_connector(preceding):
+                events.append((m.start(), m.end(), original, "exempt", "week-anchored"))
+            elif resolution == "day":
+                events.append((m.start(), m.end(), original, "exempt", "fast-transit"))
+            else:
+                sized = size_window(original, technique)
+                if sized.get("widened"):
+                    events.append((m.start(), m.end(), original, "widen", sized.get("label")))
+                else:
+                    events.append((m.start(), m.end(), original, "exempt", "day"))
 
-        def _repl_dayrange(m):
-            mon = _MONTHS[m.group(1).lower()]
-            yr = date.today().year
-            anchor = date(yr, mon, min(int(m.group(2)), 28))
-            sized = size_window(anchor, technique)
-            label = sized.get("label") or m.group(0)
-            log.append({"original": m.group(0).strip(), "sized": label,
-                        "resolution": resolution})
-            return label
+        events.sort()
+        for _s, _e, orig, action, info in events:
+            if action == "widen":
+                log.append({"original": orig.strip(), "sized": info,
+                            "resolution": resolution, "action": "widen"})
+            else:
+                log.append({"original": orig.strip(), "action": "exempt",
+                            "reason": info})
 
-        out = _DAY_RANGE_RE.sub(_repl_dayrange, text)
-        out = _POINT_DATE_RE.sub(_repl_point, out)
+        if mode == "on":
+            parts, idx = [], 0
+            for _s, _e, orig, action, info in events:
+                parts.append(text[idx:_s])
+                parts.append(info if action == "widen" else text[_s:_e])
+                idx = _e
+            parts.append(text[idx:])
+            out_text = re.sub(r"\s{2,}", " ", "".join(parts)).strip()
+            return out_text, log
 
-        if mode == "on" and log:
-            out = re.sub(r"\bby\s+(?=\d{4}\b)", "around ", out)
-            out = re.sub(r"\s{2,}", " ", out).strip()
-            return out, log
-        # shadow (or nothing matched): return original text, keep the log
         return text, log
     except Exception:
         return text, log
