@@ -2706,12 +2706,27 @@ async def get_chart_signature(chart_id: str, language: str = "en", authorization
 
         first_name = row.data.get("first_name") or row.data.get("name", "")
 
-        return {
+        payload = {
             "chart_id":            chart_id,
             "first_name":          first_name,
             "planet_signatures":   planet_sigs,
             "character_archetype": char_arch,
         }
+        # [lang-propagation 2026-07-04] `language` was accepted and
+        # silently ignored — honor it via response-time translation
+        # (es/pt/fr), the same pattern /compat uses. EN unchanged.
+        _sig_lang = (language or "en").split("-")[0].lower()
+        if _sig_lang in ("es", "pt", "fr"):
+            try:
+                from antar_engine.translation_middleware import translate_dict as _sig_td
+                payload = await _sig_td(
+                    payload, language=_sig_lang,
+                    fields_to_translate=["planet_signatures", "character_archetype"],
+                    endpoint_name="signature",
+                )
+            except Exception as _sig_te:
+                print(f"[signature] translation non-fatal: {_sig_te}")
+        return payload
 
     except Exception as e:
         print(f"[signature] Error for {chart_id}: {e}")
@@ -9679,7 +9694,16 @@ async def create_chart(
             "house_lords":       chart_data.get("house_lords", {}),
             "atmakaraka":        chart_data.get("atmakaraka", ""),
         },
-        "language_preference": _lang_from_country(request.birth_country),
+        # [lang-persist 2026-07-04] The client's explicit preference
+        # WINS (frontend detects market and sends it); birth-country
+        # inference is the fallback only. Previously the explicit field
+        # was accepted by the model and silently discarded here.
+        "language_preference": (
+            getattr(request, "language_preference", None)
+            if getattr(request, "language_preference", None)
+            in ("en", "es", "pt", "fr", "hi", "hinglish")
+            else _lang_from_country(request.birth_country)
+        ),
         "patra_complete":      False,
         # [TIER1E 2026-06-09] Records which geocoder branch produced the
         # row's coords.  Lets us query (and later re-confirm) rows whose
@@ -10515,6 +10539,22 @@ _PLACES_COND_PLAIN = {
            "combust": "una posici\u00f3n f\u00e1cilmente eclipsada", "sleeping": "una posici\u00f3n dormida que necesita activaci\u00f3n"},
 }
 _PLACES_DIGNITY_RE = [
+    # [narration-integrity 2026-07-04] residual astrocartography /
+    # dignity vocabulary — covers CACHED payloads composed before the
+    # places_templates de-jargon pass, so old rows read clean too.
+    (re.compile(r"\b(?:AC|ASC)\s+line\b", re.I), "arrival line"),
+    (re.compile(r"\bMC\s+line\b", re.I), "career line"),
+    (re.compile(r"\bDC\s+line\b", re.I), "partnership line"),
+    (re.compile(r"\bIC\s+line\b", re.I), "home line"),
+    (re.compile(r"\bcrosses\s+within\s+\d+\s*km\b", re.I), "runs close to this place"),
+    (re.compile(r"\bcruza\s+a\s+menos\s+de\s+\d+\s*km\b", re.I), "llega a este lugar"),
+    (re.compile(r"\b(?:already\s+)?in\s+its\s+own\s+sign\b", re.I), "on solid home ground"),
+    (re.compile(r"\bya\s+en\s+su\s+propio\s+signo\b", re.I), "sobre terreno propio y firme"),
+    (re.compile(r"\byour\s+relocated\s+chart\b", re.I), "your read for this place"),
+    (re.compile(r"\brelocated\s+chart\b", re.I), "read for this place"),
+    (re.compile(r"\btu\s+carta\s+reubicada\b", re.I), "tu lectura para este lugar"),
+    (re.compile(r"\bin\s+your\s+chart\b", re.I), "for you"),
+    (re.compile(r"\ben\s+tu\s+carta\b", re.I), "para ti"),
     (re.compile(r"\bexalted\b", re.I), "exceptionally strong"),
     (re.compile(r"\bexaltad(o|a|os|as)\b", re.I), "excepcionalmente fuerte"),
     (re.compile(r"\bdebilitated\b", re.I), "weakened"),
@@ -10533,6 +10573,13 @@ def _places_strip_hard(content, language):
     if isinstance(out, str):
         for _rx, _repl in _PLACES_DIGNITY_RE:
             out = _rx.sub(_repl, out)
+        # [narration-integrity 2026-07-04] the planet->plain translation
+        # above lowercases sentence heads ("your growth ...") — re-case.
+        try:
+            from antar_engine.narration_integrity import sentence_case as _ni_sc
+            out = _ni_sc(out)
+        except Exception:
+            pass
         return out
     if isinstance(out, list):
         return [_places_strip_hard(x, language) if isinstance(x, str) else x for x in out]
@@ -11286,7 +11333,7 @@ async def astrocartography_waitlist(request: WaitlistRequest):
 # ════════════════════════════════════════════════════════════════════
 import time as _st_time
 
-SETTINGS_AVAILABLE_LANGS = ["en", "es", "pt", "hi", "hinglish"]
+SETTINGS_AVAILABLE_LANGS = ["en", "es", "pt", "fr", "hi", "hinglish"]
 _SETTINGS_PORTAL_RETURN_URL = "https://antar.world/settings?billing=back"
 
 _SETTINGS_DEFAULT_NOTIFS = {
@@ -13599,6 +13646,7 @@ class CompatibilityStartRequest(BaseModel):
     chart_id_b:         Optional[str] = None
     name_a:             str = "Person A"
     name_b:             str = "Person B"
+    language:           Optional[str] = "en"
     compatibility_type: str = "cofounder"
     employee_role:      Optional[str] = None   # legacy role field
     compat_type:        Optional[str] = None   # V2: preferred reason field
@@ -14222,6 +14270,7 @@ IMPORTANT: Lead with timing analysis — is NOW a good time for this {_compat_ty
         compat_type=request.compatibility_type,
         has_time_a=has_time_a, has_time_b=has_time_b,
         employee_role=_emp_role,
+        language=(request.language or "en"),
     )
 
     # Extract score from layer1 text
@@ -14407,7 +14456,12 @@ IMPORTANT: Lead with timing analysis — is NOW a good time for this {_compat_ty
         "has_time_a":       has_time_a,
         "has_time_b":       has_time_b,
         "confidence_pct":   90 if (has_time_a and has_time_b) else 65,
-        "next_question":    "Would you like to analyze startup or business alignment?",
+        "next_question":    {
+            "es": "\u00bfQuieres analizar la alineaci\u00f3n de negocio o startup?",
+            "pt": "Quer analisar o alinhamento de neg\u00f3cio ou startup?",
+            "fr": "Voulez-vous analyser l\u2019alignement business ou startup ?",
+        }.get((request.language or "en").split("-")[0].lower(),
+              "Would you like to analyze startup or business alignment?"),
         "can_continue":     True,
         "field_mode_layer": _field_mode_layer or None,
         "nakshatra_layer":  _nakshatra_layer or None,
@@ -15871,6 +15925,34 @@ def _ask_scrub_payload(payload: dict, fields: list, language: str = 'en') -> dic
         import logging as _ask_log
         _ask_log.getLogger('antar.ask').warning(
             f'[ask-scrub] non-fatal: {_ask_e}'
+        )
+    # [narration-integrity 2026-07-04] flag->fallback: after every strip
+    # pass above, a prose field must be BOTH jargon-clean and
+    # grammatically whole, or it is replaced with a safe fallback —
+    # never shipped half-amputated ('no strong confirms').
+    # timing/window are deterministic date strings: untouched.
+    try:
+        from antar_engine.narration_integrity import guard_field as _ni_guard
+        _NI_FB = ('The picture is steady — use the verdict and window '
+                  'above as your guide.')
+        for _f in fields:
+            if _f in ('timing', 'window'):
+                continue
+            _vv = payload.get(_f)
+            if isinstance(_vv, str) and _vv:
+                payload[_f] = _ni_guard(_vv, fallback=_NI_FB)
+        _acts_ni = payload.get('actions')
+        if isinstance(_acts_ni, list):
+            payload['actions'] = [
+                _cleaned for _cleaned in (
+                    _ni_guard(_x, fallback='') if isinstance(_x, str) else _x
+                    for _x in _acts_ni
+                ) if _cleaned
+            ]
+    except Exception as _ni_e:
+        import logging as _ni_log
+        _ni_log.getLogger('antar.ask').warning(
+            f'[narration-integrity] non-fatal: {_ni_e}'
         )
     return payload
 
@@ -18086,15 +18168,25 @@ async def debug_predict_context(
         # Count tokens
         ctx_str = _dj.dumps(ctx, indent=2, default=str)
         token_estimate = len(ctx_str.split()) * 1.3
+        # [ashtakavarga-predict] flags were checking top-level keys but the
+        # context nests under chart_static/live — they ALL returned False in
+        # prod. Fixed to nested lookup + ashtakavarga/d10 first-classed.
+        _cs = ctx.get("chart_static", {}) if isinstance(ctx, dict) else {}
+        _lv = ctx.get("live", {}) if isinstance(ctx, dict) else {}
+        _divs = (_cs.get("natal") or {}).get("divisional_charts") or {}
         return {
             "token_estimate": int(token_estimate),
             "char_count": len(ctx_str),
             "top_level_keys": list(ctx.keys()) if isinstance(ctx, dict) else [],
-            "jaimini_present": bool((ctx.get("jaimini") or {}) if isinstance(ctx, dict) else False),
-            "lal_kitab_present": bool((ctx.get("lal_kitab") or {}) if isinstance(ctx, dict) else False),
-            "transits_present": bool((ctx.get("transits") or {}) if isinstance(ctx, dict) else False),
-            "d9_present": bool((ctx.get("divisional_charts") or {}).get("d9") if isinstance(ctx, dict) else False),
-            "varshaphal_present": bool((ctx.get("varshaphal") or {}) if isinstance(ctx, dict) else False),
+            "jaimini_present": bool(_cs.get("jaimini")),
+            "lal_kitab_present": bool(_cs.get("lal_kitab")),
+            "transits_present": bool(_lv.get("current_transits")),
+            "d9_present": bool(_divs.get("d9")),
+            "d10_present": bool(_divs.get("d10")),
+            "ashtakavarga_present": bool((_cs.get("ashtakavarga") or {}).get("sav_by_sign")),
+            "ashtakavarga_applied": bool((_lv.get("transit_strength") or {}).get("transits")),
+            "vargottama": (_cs.get("natal") or {}).get("vargottama", []),
+            "varshaphal_present": bool(_cs.get("varshphal")),
             "full_context": ctx,
         }
     except Exception as e:

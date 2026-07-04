@@ -91,6 +91,17 @@ LAYER 3 — TRANSITS (always computed live)
   Key rule: Dashas open the window. Transits trigger the event within it.
   Use for: Narrowing timing from months to weeks.
   Flag: Sade Sati, Saturn return, Jupiter over lagna = major life events.
+  ASHTAKAVARGA WEIGHTING (mandatory whenever transit_strength / bindus data is present):
+    Every transit signal MUST be modulated by its strength score before narration.
+    Transiting planet's own bindus in the occupied sign:
+      0-2 = transit is WEAK for this chart — downgrade or drop the signal,
+      3-4 = normal strength,
+      5+  = amplified — upgrade timing confidence for this window.
+    Sign total (sav/sign_sav): >30 = supportive terrain, <25 = strained terrain.
+    A "textbook favorable" transit with low bindus must NOT be narrated as a strong window.
+    This filter applies to the D1 rasi chart only — never re-derive it from D9/D10.
+    NEVER write the words bindu, ashtakavarga, or SAV in user-facing text —
+    express it only as the strength or reliability of the window.
 
 LAYER 4 — D9 NAVAMSHA (if d9 available in divisional_charts)
   Check: D9 lagna + planet positions for relationship/soul quality

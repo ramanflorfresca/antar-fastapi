@@ -655,6 +655,19 @@ WEALTH ANALYSIS CONTEXT:
 
     trans_block = transits_prompt_block(transit_data) if transit_data else "Transit data not available"
 
+    # [ashtakavarga-predict] append bindu transit-strength filter to the transit
+    # block (D1 only). Default /predict path — the biggest gap closed here.
+    try:
+        from antar_engine.ashtakavarga import (
+            get_transit_weighting, format_ashtakavarga_context_block,
+        )
+        _av_w = get_transit_weighting(chart_data, transit_data)
+        _av_block = format_ashtakavarga_context_block(_av_w)
+        if _av_block:
+            trans_block = trans_block + "\n\n" + _av_block
+    except Exception as _av_e:
+        print(f"[ctx_builder] ashtakavarga block failed (non-fatal): {_av_e}")
+
     # Rare divisional charts — only load for soul/karma/spiritual queries
     _d60      = divisional_charts.get('d60', {}) if _include_rare_divs else {}
     _d24      = divisional_charts.get('d24', {})

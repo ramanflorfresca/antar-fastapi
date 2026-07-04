@@ -612,3 +612,191 @@ def compute_full_ashtakavarga_for_storage(chart_data: dict) -> dict:
         "sarvashtakavarga": sarva,
         "generated_at": _dt.utcnow().isoformat() + "Z",
     }
+
+
+# ── [ashtakavarga-predict] Transit weighting for /predict context paths ──────────
+
+SIGN_NAME_TO_INDEX = {s: i for i, s in enumerate(SIGNS)}
+
+_SLOW_FIRST = ["Saturn", "Jupiter", "Rahu", "Ketu",
+               "Mars", "Sun", "Venus", "Mercury", "Moon"]
+
+
+def _av_sign_index(entry) -> "int | None":
+    """Resolve a sign index from a transit/planet entry (index or name)."""
+    if not isinstance(entry, dict):
+        return None
+    si = entry.get("sign_index")
+    if isinstance(si, int):
+        return si % 12
+    for key in ("sign", "current_sign"):
+        name = entry.get(key)
+        if isinstance(name, str):
+            idx = SIGN_NAME_TO_INDEX.get(name.strip().title())
+            if idx is not None:
+                return idx
+    return None
+
+
+def _av_normalize_chart(chart_data: dict) -> dict:
+    """Shallow copy of chart_data with sign_index filled from sign names.
+
+    compute_bhinnashtakavarga silently defaults missing sign_index to 0,
+    which poisons results — this guard derives it from the sign name.
+    """
+    cd = dict(chart_data or {})
+    lagna = dict(cd.get("lagna") or {}) if isinstance(cd.get("lagna"), dict) else {}
+    if "sign_index" not in lagna:
+        idx = _av_sign_index(lagna)
+        if idx is not None:
+            lagna["sign_index"] = idx
+    cd["lagna"] = lagna
+    planets = {}
+    for p, pd in (cd.get("planets") or {}).items():
+        if not isinstance(pd, dict):
+            continue
+        pd2 = dict(pd)
+        if "sign_index" not in pd2:
+            idx = _av_sign_index(pd2)
+            if idx is not None:
+                pd2["sign_index"] = idx
+        planets[p] = pd2
+    cd["planets"] = planets
+    return cd
+
+
+def _av_extract_transit_signs(transits) -> dict:
+    """Normalize any transit payload shape → {planet: sign_index}.
+
+    Handles:
+      - JSON path:  {planet: {sign, house, ...}}
+      - prose path: {"current_transits": [{planet, current_sign, ...}]}
+      - bare list:  [{planet, sign|current_sign, ...}]
+    """
+    out = {}
+    if isinstance(transits, dict) and isinstance(transits.get("current_transits"), list):
+        transits = transits["current_transits"]
+    if isinstance(transits, dict):
+        for planet, entry in transits.items():
+            idx = _av_sign_index(entry)
+            if idx is not None:
+                out[str(planet)] = idx
+    elif isinstance(transits, list):
+        for entry in transits:
+            if not isinstance(entry, dict):
+                continue
+            planet = entry.get("planet") or entry.get("name")
+            idx = _av_sign_index(entry)
+            if planet and idx is not None:
+                out[str(planet)] = idx
+    return out
+
+
+def get_transit_weighting(chart_data: dict, transits, stored: dict = None) -> dict:
+    """THE missing multiplier: weight every current transit by bindus.
+
+    For each transiting planet:
+      bav_bindus = that planet's own Bhinnashtakavarga bindus in the sign
+                   it currently occupies (Ketu → Mars table, Rahu → SAV only)
+      sav_bindus = Sarvashtakavarga total of the occupied sign
+      strength / multiplier from get_transit_strength thresholds.
+
+    stored: optional charts.ashtakavarga JSONB
+            ({"sarvashtakavarga": [...], "bhinnashtakavarga": {...}}).
+            Falls back to computing from chart_data (pure Python, cheap).
+
+    Ashtakavarga is a D1 system — this must never be fed D9/D10 positions.
+    """
+    cd = _av_normalize_chart(chart_data)
+    transit_signs = _av_extract_transit_signs(transits)
+    if not transit_signs:
+        return {}
+
+    stored = stored or {}
+    sav = stored.get("sarvashtakavarga")
+    bav_all = stored.get("bhinnashtakavarga") or {}
+    if not (isinstance(sav, list) and len(sav) == 12):
+        sav = compute_sarvashtakavarga(cd)
+
+    def _bav_for(planet):
+        rows = bav_all.get(planet)
+        if isinstance(rows, list) and len(rows) == 12:
+            return rows
+        return compute_bhinnashtakavarga(planet, cd)
+
+    result = {}
+    for planet in _SLOW_FIRST:
+        if planet not in transit_signs:
+            continue
+        sign_idx = transit_signs[planet]
+        sav_bindus = sav[sign_idx]
+        sav_note = ("supportive" if sav_bindus > 30
+                    else "strained" if sav_bindus < 25 else "average")
+
+        bav_planet = "Mars" if planet == "Ketu" else planet
+        if bav_planet in PLANETS:
+            bav_rows = _bav_for(bav_planet)
+            bindus = bav_rows[sign_idx]
+            thresholds = BINDU_THRESHOLDS.get(bav_planet, {"weak": 3, "strong": 5})
+            if bindus >= 7:
+                strength = "very_strong"
+            elif bindus >= thresholds["strong"]:
+                strength = "strong"
+            elif bindus >= thresholds["weak"]:
+                strength = "neutral"
+            elif bindus >= 1:
+                strength = "weak"
+            else:
+                strength = "very_weak"
+            multiplier = BINDU_MULTIPLIER[strength]
+        else:
+            # Rahu: no BAV in the 7-planet scheme — judge by SAV terrain only
+            bindus = None
+            strength = ("strong" if sav_bindus > 30
+                        else "weak" if sav_bindus < 25 else "neutral")
+            multiplier = BINDU_MULTIPLIER[strength]
+
+        result[planet] = {
+            "sign": SIGNS[sign_idx],
+            "sign_index": sign_idx,
+            "bav_bindus": bindus,
+            "sav_bindus": sav_bindus,
+            "sav_note": sav_note,
+            "strength": strength,
+            "multiplier": multiplier,
+        }
+
+    return {"sav_by_sign": sav, "transits": result}
+
+
+def format_ashtakavarga_context_block(weighting: dict) -> str:
+    """Prose-context block. INTERNAL vocabulary — the narrator is instructed
+    elsewhere to never expose bindu/ashtakavarga words to the user."""
+    transits = (weighting or {}).get("transits") or {}
+    if not transits:
+        return ""
+    lines = ["=== TRANSIT STRENGTH FILTER (Ashtakavarga — internal only) ==="]
+    for planet in _SLOW_FIRST:
+        w = transits.get(planet)
+        if not w:
+            continue
+        if w["bav_bindus"] is None:
+            lines.append(
+                f"  {planet:<8} in {w['sign']:<12} sign total {w['sav_bindus']}/56 "
+                f"({w['sav_note']} terrain) -> {w['strength'].upper()}"
+            )
+        else:
+            lines.append(
+                f"  {planet:<8} in {w['sign']:<12} {w['bav_bindus']}/8 own bindus, "
+                f"sign total {w['sav_bindus']}/56 ({w['sav_note']}) -> {w['strength'].upper()}"
+            )
+    lines.append(
+        "  RULE: every transit signal above MUST be weighted by this filter. "
+        "0-2 own bindus = weak window even if the transit looks favorable on paper "
+        "— downgrade or drop it. 5+ = amplified — upgrade timing confidence. "
+        "Sign total >30 supports any transit in that sign; <25 strains it. "
+        "NEVER use the words bindu/ashtakavarga/SAV in user-facing text — "
+        "express only as strength of the window."
+    )
+    lines.append("=== END TRANSIT STRENGTH FILTER ===")
+    return "\n".join(lines)

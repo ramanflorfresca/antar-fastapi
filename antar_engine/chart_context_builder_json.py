@@ -468,11 +468,28 @@ def _build_natal_summary(chart_data: Dict[str, Any]) -> Dict[str, Any]:
                 },
             }
 
+
+    # [ashtakavarga-predict] vargottama: same sign in D1 and D9 = extra planetary
+    # strength (D9 as a strength input, per doctrine — no bindus on D9).
+    vargottama = []
+    try:
+        _d9_planets = (div.get("d9") or {}).get("planets") or {}
+        for _p, _pd in planets_raw.items():
+            if not isinstance(_pd, dict):
+                continue
+            _d1_sign = _pd.get("sign")
+            _d9_sign = (_d9_planets.get(_p) or {}).get("sign") if isinstance(_d9_planets.get(_p), dict) else None
+            if _d1_sign and _d9_sign and _d1_sign == _d9_sign:
+                vargottama.append(_p)
+    except Exception:
+        vargottama = []
+
     return {
         "lagna": lagna,
         "planets": planets_compact,
         "divisional_charts": key_divs,
         "atmakaraka": cd.get("atmakaraka", ""),
+        "vargottama": vargottama,
         "yogas": cd.get("yogas", [])[:15],  # cap at 15
         "house_lords": cd.get("house_lords", {}),
     }
@@ -553,6 +570,24 @@ def _build_live(
     except Exception as e:
         print(f"[json_ctx] transits failed (non-fatal): {e}")
 
+    # [ashtakavarga-predict] apply the bindu filter to live transits (D1 only).
+    # Annotates each transit with its own-BAV bindus + sign SAV so the
+    # narrator can weight the transit layer — transits are no longer inert.
+    transit_strength = {}
+    try:
+        from antar_engine.ashtakavarga import get_transit_weighting
+        transit_strength = get_transit_weighting(chart_data, current_transits) or {}
+        for _p, _w in (transit_strength.get("transits") or {}).items():
+            if _p in current_transits and isinstance(current_transits[_p], dict):
+                current_transits[_p]["bindus"] = _w.get("bav_bindus")
+                current_transits[_p]["sign_sav"] = _w.get("sav_bindus")
+                current_transits[_p]["strength"] = _w.get("strength")
+        # keep live block lean: drop the 12-sign table, keep per-transit map
+        transit_strength.pop("sav_by_sign", None)
+    except Exception as _tw_e:
+        print(f"[json_ctx] ashtakavarga weighting failed (non-fatal): {_tw_e}")
+        transit_strength = {}
+
     # Current Kala Hora
     current_hora: Dict[str, Any] = {}
     try:
@@ -592,8 +627,10 @@ def _build_live(
         "question": question,
         "concern": concern,
         "question_domain": question_domain,
+        "d10_emphasis": question_domain == "career",
         "language": language,
         "current_transits": current_transits,
+        "transit_strength": transit_strength,
         "current_hora": current_hora,
     }
 
@@ -655,12 +692,51 @@ async def build_chart_context_json(
     natal_signature = chart_record.get("planet_signatures") or {}
     archetype = chart_record.get("character_archetype") or {}
 
+
+    # [ashtakavarga-predict] SAV + BAV into chart_static (D1 transit-strength filter).
+    # Source: charts.ashtakavarga JSONB (precomputed by backfill), sometimes a
+    # JSON string — parse defensively. Compute-fallback if column empty.
+    # Deterministic: only sav/bav copied (no generated_at) — KV-cache safe.
+    ashtakavarga_block = {}
+    try:
+        _av_stored = chart_record.get("ashtakavarga") or {}
+        if isinstance(_av_stored, str):
+            try:
+                _av_stored = json.loads(_av_stored)
+            except Exception:
+                _av_stored = {}
+        if not isinstance(_av_stored, dict):
+            _av_stored = {}
+        # Stored column can be STALE (verified: test chart's grid generated
+        # 2026-04-19, birth data corrected later — grids diverge). Compute is
+        # microseconds — always derive from CURRENT chart_data; stored column
+        # is fallback only if compute fails.
+        try:
+            from antar_engine.ashtakavarga import (
+                compute_full_ashtakavarga_for_storage, _av_normalize_chart,
+            )
+            _av_fresh = compute_full_ashtakavarga_for_storage(_av_normalize_chart(chart_data))
+            if _av_fresh.get("sarvashtakavarga"):
+                _av_stored = _av_fresh
+        except Exception as _av_ce:
+            print(f"[json_ctx] ashtakavarga fresh compute failed, using stored: {_av_ce}")
+        ashtakavarga_block = {
+            "system": "D1_transit_strength_filter",
+            "sav_by_sign": _av_stored.get("sarvashtakavarga") or [],
+            "bav_by_planet": _av_stored.get("bhinnashtakavarga") or {},
+        }
+    except Exception as _av_e:
+        print(f"[json_ctx] ashtakavarga static failed (non-fatal): {_av_e}")
+        ashtakavarga_block = {}
+        _av_stored = {}
+
     chart_static = {
         "natal": natal,
         "dashas": dashas,
         "lal_kitab": lk_static,
         "jaimini": jaimini_static,
         "varshphal": varshphal,
+        "ashtakavarga": ashtakavarga_block,
         "dkp_context": dkp_context,
         "natal_signature": natal_signature,
         "archetype": archetype,
