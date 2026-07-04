@@ -43,7 +43,7 @@ from antar_engine.translation_glossary import build_translation_system_prompt
 
 logger = logging.getLogger(__name__)
 
-SUPPORTED_LANGUAGES = ("es", "pt")
+SUPPORTED_LANGUAGES = ("es", "pt", "fr")
 TRANSLATOR_MODEL = HAIKU_MODEL
 
 # Keys never sent to the translator — IDs, metadata, enums, volatile fields,
@@ -310,6 +310,7 @@ async def _call_translator(strings, target_language):
     language_name = {
         "es": "Spanish (LATAM neutral)",
         "pt": "Brazilian Portuguese",
+        "fr": "French (France)",
     }[target_language]
 
     # 2-arg signature per the Loc-4 Sanskrit-handling addendum.

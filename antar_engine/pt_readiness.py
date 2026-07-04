@@ -39,6 +39,22 @@ PT_READY = {
 # PT output is response-time machine translation (the clean path) — so the
 # registry default is True. Source-generated surfaces must be wired
 # explicitly through gate_language() AND listed above.
+# [fr-gate 2026-07-04] French mirrors the PT launch pattern:
+# response-time machine-translated surfaces are clean by construction
+# (registry default True); source-generated surfaces stay English
+# until each is verified natively in FR. Same keys as PT_READY.
+FR_READY = {
+    "welcome": False,
+    "weekly-briefing": False,
+    "monthly-deepdive": False,
+    "annual-plan": False,
+    "daily-week": False,
+    "executive-summary": False,
+    "dashboard": False,
+    "life-arc": False,
+    "practices-schedule": False,
+}
+
 _DEFAULT = True
 
 
@@ -50,8 +66,9 @@ def gate_language(surface: str, language: str, default: bool = _DEFAULT) -> str:
     substituted for pt.
     """
     lang = (language or "en").split("-")[0].lower()
-    if lang not in ("en", "es", "pt"):
+    if lang not in ("en", "es", "pt", "fr"):
         return "en"
-    if lang == "pt" and not PT_READY.get(surface, default):
+    _registry = {"pt": PT_READY, "fr": FR_READY}.get(lang)
+    if _registry is not None and not _registry.get(surface, default):
         return "en"
     return lang

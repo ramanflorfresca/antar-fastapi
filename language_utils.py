@@ -2,7 +2,7 @@
 Antar Language Utilities
 """
 
-VALID_LANGUAGES = {"en", "hi", "hinglish", "es", "pt"}
+VALID_LANGUAGES = {"en", "hi", "hinglish", "es", "pt", "fr"}
 VALID_REMEDY_STYLES = {"traditional", "secular"}
 
 _LANGUAGE_BLOCKS = {
@@ -22,12 +22,21 @@ _LANGUAGE_BLOCKS = {
     "es": (
         "LANGUAGE INSTRUCTION: Respond ENTIRELY in Latin American Spanish.\n"
         "Professional, clear. No European Spanish (no vosotros).\n"
+        "Compose natively in Spanish — never translate English phrasing word-for-word.\n"
         "Never revert to English mid-sentence.\n"
         "Numbers/dates in standard format. Never translate: Antar, Seeker, Navigator.\n\n"
     ),
     "pt": (
         "LANGUAGE INSTRUCTION: Respond ENTIRELY in Brazilian Portuguese.\n"
         "Professional, clear. Not European Portuguese.\n"
+        "Compose natively in Portuguese — never translate English phrasing word-for-word.\n"
+        "Never revert to English mid-sentence.\n"
+        "Numbers/dates in standard format. Never translate: Antar, Seeker, Navigator.\n\n"
+    ),
+    "fr": (
+        "LANGUAGE INSTRUCTION: Respond ENTIRELY in French (France).\n"
+        "Warm, clear, modern French — no anglicisms, no literal calques.\n"
+        "Compose natively in French — never translate English phrasing word-for-word.\n"
         "Never revert to English mid-sentence.\n"
         "Numbers/dates in standard format. Never translate: Antar, Seeker, Navigator.\n\n"
     ),

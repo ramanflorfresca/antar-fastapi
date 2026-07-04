@@ -717,6 +717,7 @@ async def run_layer1_llm(
     has_time_a: bool,
     has_time_b: bool,
     employee_role: str = "",
+    language: str = "en",
 ) -> str:
     """Call LLM for Layer 1 analysis."""
     import openai
@@ -724,6 +725,15 @@ async def run_layer1_llm(
         brief_a, brief_b, name_a, name_b,
         compat_type, has_time_a, has_time_b, employee_role
     )
+    # [lang-propagation 2026-07-04] the reading is AUTHORED natively in
+    # the target language (quality gate: never translate post-hoc).
+    _lang_block = ""
+    try:
+        from language_utils import build_language_instruction
+        _lang_block = build_language_instruction(
+            (language or "en").split("-")[0].lower())
+    except Exception:
+        _lang_block = ""
     client = openai.AsyncOpenAI(
         api_key=os.getenv("DEEPSEEK_API_KEY"),
         base_url="https://api.deepseek.com/v1",
@@ -731,7 +741,7 @@ async def run_layer1_llm(
     resp = await client.chat.completions.create(
         model="deepseek-chat",
         messages=[
-            {"role":"system","content":"You are a master Vedic astrologer. Be specific, direct, and grounded in the chart data. Never fabricate planetary positions."},
+            {"role":"system","content":_lang_block + "You are a master Vedic astrologer. Be specific, direct, and grounded in the chart data. Never fabricate planetary positions."},
             {"role":"user","content":prompt}
         ],
         temperature=0.4,

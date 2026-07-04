@@ -614,6 +614,12 @@ def detect_language(
     if cc in ENGLISH_COUNTRIES:
         return _build_locale("en", "en", cc, bc, needs_prompt=False)
 
+    # [lang-prompt 2026-07-04] Residence in a Phase-2 language country
+    # (FR/DE/IT/…): serve English today, but flag the app to offer the
+    # language choice instead of silently anglophoning the user.
+    if cc in OTHER_LANGUAGE_MAP:
+        return _build_locale("en", "en", cc, bc, needs_prompt=True)
+
     # ── Fallback: English ───────────────────────────────────────
     return _build_locale("en", "en", cc, bc, needs_prompt=False)
 
