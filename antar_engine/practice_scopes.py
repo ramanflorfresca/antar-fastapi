@@ -33,11 +33,11 @@ BENEFICS = {"Jupiter", "Venus", "Mercury", "Moon"}
 DUSTHANA = {6, 8, 12}
 
 SCOPES = {
-    "natal_weakness": {"label": "Natal weakness", "ttl_days": None},
-    "dasha_period":   {"label": "Dasha period", "ttl_days": "varies"},
-    "varshphal_year": {"label": "Varshphal (yearly LK)", "ttl_days": 365},
-    "monthly_lk":     {"label": "Monthly chart (LK)", "ttl_days": 30},
-    "daily_transit":  {"label": "Today's transit", "ttl_days": 1},
+    "natal_weakness": {"label": "Core pattern", "ttl_days": None},
+    "dasha_period":   {"label": "Current chapter", "ttl_days": "varies"},
+    "varshphal_year": {"label": "This year's focus", "ttl_days": 365},
+    "monthly_lk":     {"label": "This month's focus", "ttl_days": 30},
+    "daily_transit":  {"label": "Today", "ttl_days": 1},
 }
 
 # ── timeframe-router maps (COWORK brief) ────────────────────────────────────

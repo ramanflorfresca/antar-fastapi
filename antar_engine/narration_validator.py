@@ -73,6 +73,19 @@ _RULES = [
         r"\bthe\s+your\b|\ban?\s+and\b", re.IGNORECASE)),
     # Sentence starting lowercase after terminal punctuation.
     ("lowercase_sentence_start", re.compile(r"[.!?]\s+[a-z]")),
+    # [narration-integrity 2026-07-04] internal/system vocabulary the
+    # 2026-06 rules missed — these sailed through the live Ask
+    # voice-gate ("multiple wealth combinations in your blueprint",
+    # "One layer shows some friction", "The annual setup").
+    ("internal_vocab", re.compile(
+        r"\b(?:blueprint|signal\s+floor|wealth\s+combinations?|"
+        r"annual\s+setup|convergence\s+(?:score|met)|natal)\b", re.IGNORECASE)),
+    ("bare_layer", re.compile(
+        r"\b(?:one|a|an|the|another|this|that|each|every|second|third)\s+layers?\b",
+        re.IGNORECASE)),
+    ("astrocarto_jargon", re.compile(
+        r"\b(?:AC|MC|DC|IC|ASC)\s+lines?\b|\brelocated\s+chart\b|"
+        r"\bannual\s+chart\b|\bnatal\s+chart\b", re.IGNORECASE)),
 ]
 
 

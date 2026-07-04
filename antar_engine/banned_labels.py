@@ -201,12 +201,20 @@ def strip_energy_labels(text: str, language: str = "en") -> str:
     # `<x>-and-<y> layer`, `<x>-and-<y> signal`, `<x>-and-<y> vibe`.
     # Same leak class — the model was paraphrasing past the
     # `energy`-only regex.
-    out = re.sub(
+    # [narration-integrity 2026-07-04] NEVER delete these constructions
+    # word-by-word — in-place deletion is what produced "no strong
+    # confirms" on the live Ask surface. Any sentence still carrying a
+    # '<x> energy/layer/influence/signal/vibe' construction after the
+    # canonical swaps above is dropped WHOLE. If every sentence is
+    # dropped, return "" — callers treat empty as flag -> fallback.
+    _generic_energy = re.compile(
         r"\b[\w-]+(?:\s+and\s+[\w-]+)?\s+(?:energy|layer|influence|signal|vibe)\b",
-        "",
-        out,
         flags=re.IGNORECASE,
     )
+    if _generic_energy.search(out):
+        _sents = re.split(r"(?<=[.!?])\s+", out)
+        _kept = [_s for _s in _sents if not _generic_energy.search(_s)]
+        out = " ".join(_kept).strip()
     # Metaphor verbs: 'pressing through' / 'flowing through' /
     # 'moving through' / 'coursing through' — drop the verb phrase.
     out = re.sub(

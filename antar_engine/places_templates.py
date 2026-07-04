@@ -60,26 +60,26 @@ AXIS = {
 # ── Sentence frames per polarity (filled with planet / axis / domain / dist) ─
 _PRIMARY_FRAMES = {
     "en": {
-        "supportive": "{planet}'s {angle} line crosses within {distance}km, and it pours steady strength into {axis} here — {domain} finds an easier current.",
-        "mixed":      "{planet}'s {angle} line crosses within {distance}km. It touches {axis}, but the support is uneven — {domain} moves in fits and starts here.",
-        "friction":   "{planet}'s {angle} line crosses within {distance}km, yet {planet} sits under strain in your chart — presence on {axis} here comes with visible friction in {domain}.",
+        "supportive": "{planet}'s pull is strong in this place, pouring steady strength into {axis} — {domain} finds an easier current here.",
+        "mixed":      "{planet}'s pull reaches this place and touches {axis}, but the support is uneven — {domain} moves in fits and starts here.",
+        "friction":   "{planet}'s pull reaches this place, yet {planet} is under strain for you — showing up on {axis} here comes with visible friction in {domain}.",
     },
     "es": {
-        "supportive": "La línea {angle} de {planet} cruza a menos de {distance}km y vierte fuerza constante en {axis} aquí — {domain} encuentra una corriente más fácil.",
-        "mixed":      "La línea {angle} de {planet} cruza a menos de {distance}km. Toca {axis}, pero el apoyo es desigual — {domain} avanza a tramos aquí.",
-        "friction":   "La línea {angle} de {planet} cruza a menos de {distance}km, pero {planet} está tensionado en tu carta — su presencia en {axis} trae fricción visible en {domain}.",
+        "supportive": "La fuerza de {planet} llega con claridad a este lugar y vierte apoyo constante en {axis} — {domain} encuentra una corriente más fácil aquí.",
+        "mixed":      "La fuerza de {planet} llega a este lugar y toca {axis}, pero el apoyo es desigual — {domain} avanza a tramos aquí.",
+        "friction":   "La fuerza de {planet} llega a este lugar, pero {planet} está bajo tensión para ti — su presencia en {axis} trae fricción visible en {domain}.",
     },
 }
 
 # ── Watch-out frames ────────────────────────────────────────────────────────
 _WATCH_FRAMES = {
     "en": {
-        "friction_line": "{planet} runs close here while under strain in your chart — expect {domain} to ask for more patience than usual.",
+        "friction_line": "{planet} runs close here while under strain for you — expect {domain} to ask for more patience than usual.",
         "hidden_cost_house": "{planet} settles into the hidden-cost ground of this place — energy can drain into things you don't see coming. Build slack into your timelines.",
         "endings_house": "{planet} falls into the endings-and-release ground here — cycles close faster than elsewhere; keep what matters portable.",
     },
     "es": {
-        "friction_line": "{planet} pasa cerca aquí mientras está tensionado en tu carta — {domain} pedirá más paciencia de lo habitual.",
+        "friction_line": "{planet} pasa cerca aquí mientras está bajo tensión para ti — {domain} pedirá más paciencia de lo habitual.",
         "hidden_cost_house": "{planet} se asienta en el terreno de los costos ocultos de este lugar — la energía puede escaparse en lo que no ves venir. Deja margen en tus plazos.",
         "endings_house": "{planet} cae en el terreno de los cierres aquí — los ciclos terminan más rápido que en otros sitios; mantén lo importante portátil.",
     },
@@ -88,7 +88,7 @@ _WATCH_FRAMES = {
 # ── Texture lines (one per concern x tier) ──────────────────────────────────
 _TEXTURE = {
     "en": {
-        ("career", "FLOW"):   "For {domain}, the map opens up — several places carry your working karakas on supportive ground.",
+        ("career", "FLOW"):   "For {domain}, the map opens up — several places carry your working strengths on supportive ground.",
         ("career", "MIXED"):  "For {domain}, the map is workable but mixed — strength and friction sit close together across these places.",
         ("career", "STRAIN"): "For {domain}, the map asks for care — the strongest places still come with a pull you'll want to plan around.",
         ("love", "FLOW"):     "For {domain}, the relating lines fall warmly — a handful of places soften how you meet and are met.",
@@ -108,7 +108,7 @@ _TEXTURE = {
         ("health", "STRAIN"): "For {domain}, the lines run tight — even the calmer places ask you to protect your energy.",
     },
     "es": {
-        ("career", "FLOW"):   "Para {domain}, el mapa se abre — varios lugares llevan tus karakas laborales sobre terreno favorable.",
+        ("career", "FLOW"):   "Para {domain}, el mapa se abre — varios lugares llevan tus fuerzas laborales sobre terreno favorable.",
         ("career", "MIXED"):  "Para {domain}, el mapa es viable pero mixto — fuerza y fricción conviven en estos lugares.",
         ("career", "STRAIN"): "Para {domain}, el mapa pide cuidado — incluso los mejores lugares traen una tensión que conviene prever.",
         ("love", "FLOW"):     "Para {domain}, las líneas afectivas caen con calidez — algunos lugares suavizan cómo te encuentras con el otro.",
@@ -176,12 +176,12 @@ _HEADLINE = {
 # ── Global pattern (one per concern x tier) ─────────────────────────────────
 _GLOBAL = {
     "en": {
-        "FLOW":   "Your strongest ground for {domain} clusters where supportive karaka lines and friendly relocated houses meet.",
+        "FLOW":   "Your strongest ground for {domain} clusters where your key supports and friendly local conditions meet.",
         "MIXED":  "Your map for {domain} is a patchwork — strength and friction trade places from region to region.",
         "STRAIN": "No place hands {domain} an easy ride; the differences here are about which trade-off suits you.",
     },
     "es": {
-        "FLOW":   "Tu terreno más fuerte para {domain} se agrupa donde las líneas karaka favorables y las casas reubicadas amistosas se encuentran.",
+        "FLOW":   "Tu terreno más fuerte para {domain} se agrupa donde tus apoyos clave y las condiciones locales amistosas se encuentran.",
         "MIXED":  "Tu mapa para {domain} es un mosaico — fuerza y fricción se alternan de región en región.",
         "STRAIN": "Ningún lugar le da a {domain} un camino fácil; aquí la diferencia está en qué compromiso te conviene.",
     },
@@ -217,47 +217,47 @@ CONDITIONS = ["exalted", "own_sign", "friend", "neutral", "enemy",
 # NATAL — keyed by condition; {planet},{domain},{placed} interpolated.
 _NATAL_FRAMES = {
     "en": {
-        "exalted":     "Your {planet} — exalted in your chart — is one of your real strengths for {domain}{placed}.",
-        "own_sign":    "Your {planet} — already in its own sign — gives {domain} dependable ground here{placed}.",
+        "exalted":     "Your {planet} — at its strongest in you — is one of your real strengths for {domain}{placed}.",
+        "own_sign":    "Your {planet} — on solid home ground in you — gives {domain} dependable footing here{placed}.",
         "friend":      "Your {planet} sits in friendly territory, lending quiet support to {domain} here{placed}.",
         "neutral":     "Your {planet} is steady but unremarkable for {domain} here — neither lift nor drag{placed}.",
         "enemy":       "Your {planet} works against some resistance for {domain} here — it delivers, but it costs{placed}.",
-        "debilitated": "Your {planet} is weakened in your chart, so {domain} in a place like this asks more of you than it returns{placed}.",
-        "combust":     "Your {planet} is easily overshadowed in your chart — its signal for {domain} can get drowned out here{placed}.",
-        "sleeping":    "Your {planet} is dormant in your chart — {domain} here needs you to wake it deliberately{placed}.",
+        "debilitated": "Your {planet} is a weak spot for you, so {domain} in a place like this asks more of you than it returns{placed}.",
+        "combust":     "Your {planet} is easily overshadowed in you — its voice for {domain} can get drowned out here{placed}.",
+        "sleeping":    "Your {planet} is dormant for you — {domain} here needs you to wake it deliberately{placed}.",
     },
     "es": {
-        "exalted":     "Tu {planet} — exaltado en tu carta — es una de tus verdaderas fortalezas para {domain}{placed}.",
-        "own_sign":    "Tu {planet} — ya en su propio signo — le da a {domain} terreno confiable aquí{placed}.",
+        "exalted":     "Tu {planet} — en su punto más fuerte en ti — es una de tus verdaderas fortalezas para {domain}{placed}.",
+        "own_sign":    "Tu {planet} — sobre terreno propio y firme en ti — le da a {domain} un apoyo confiable aquí{placed}.",
         "friend":      "Tu {planet} está en territorio amigo, dando apoyo silencioso a {domain} aquí{placed}.",
         "neutral":     "Tu {planet} es estable pero discreto para {domain} aquí — ni impulso ni lastre{placed}.",
         "enemy":       "Tu {planet} trabaja con cierta resistencia para {domain} aquí — cumple, pero cuesta{placed}.",
-        "debilitated": "Tu {planet} está debilitado en tu carta, así que {domain} en un lugar así te pide más de lo que devuelve{placed}.",
-        "combust":     "Tu {planet} se eclipsa con facilidad en tu carta — su señal para {domain} puede ahogarse aquí{placed}.",
-        "sleeping":    "Tu {planet} está dormido en tu carta — {domain} aquí necesita que lo despiertes deliberadamente{placed}.",
+        "debilitated": "Tu {planet} es un punto débil para ti, así que {domain} en un lugar así te pide más de lo que devuelve{placed}.",
+        "combust":     "Tu {planet} se eclipsa con facilidad en ti — su voz para {domain} puede ahogarse aquí{placed}.",
+        "sleeping":    "Tu {planet} está dormido para ti — {domain} aquí necesita que lo despiertes deliberadamente{placed}.",
     },
 }
 
 # Relocated-house clause ("placed") appended when the karaka lands in a
 # concern-relevant house at this relocation. No house numbers — domain words.
 _PLACED_CLAUSE = {
-    "en": ", and here it rises to the top of your relocated chart",
-    "es": ", y aquí sube a lo alto de tu carta reubicada",
+    "en": ", and this place puts it front and centre",
+    "es": ", y este lugar lo pone en primer plano",
 }
 
 # DASHA — kind ∈ current | upcoming | building | neutral; {planet} interpolated.
 _DASHA_FRAMES = {
     "en": {
-        "current":  "Your {planet} period is live, and this relocation puts that energy front and centre — the chapter you're in literally takes its visible form here.",
+        "current":  "Your {planet} period is live, and this place puts it front and centre — the chapter you're in takes visible form here.",
         "upcoming": "{planet} opens the long chapter you're about to enter, and this place gives that next chapter its visible form — you'd be arriving early to your own future.",
         "building": "{planet} is on your horizon, and this place is tuned to the chapter building toward you rather than the one you're leaving.",
-        "neutral":  "The timing here is quiet — no major period lord is amplified by this relocation, so the place works on chart strength alone.",
+        "neutral":  "The timing here is quiet — nothing about this place amplifies your current chapter, so it works on your baseline strengths alone.",
     },
     "es": {
-        "current":  "Tu periodo de {planet} está activo, y esta reubicación pone esa energía en primer plano — el capítulo en el que estás toma aquí su forma visible.",
+        "current":  "Tu periodo de {planet} está activo, y este lugar lo pone en primer plano — el capítulo en el que estás toma aquí forma visible.",
         "upcoming": "{planet} abre el largo capítulo en el que estás a punto de entrar, y este lugar le da forma visible a ese próximo capítulo — llegarías temprano a tu propio futuro.",
         "building": "{planet} está en tu horizonte, y este lugar está afinado al capítulo que se acerca, no al que dejas.",
-        "neutral":  "El momento aquí es tranquilo — ningún regente de periodo mayor se amplifica con esta reubicación, así que el lugar funciona por la fuerza de la carta sola.",
+        "neutral":  "El momento aquí es tranquilo — nada de este lugar amplifica tu capítulo actual, así que funciona por tus fuerzas de base.",
     },
 }
 

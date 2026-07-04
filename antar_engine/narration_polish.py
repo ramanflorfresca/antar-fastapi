@@ -272,6 +272,15 @@ def strip_internal_metrics(text: str) -> str:
     # Ensure the result still ends with terminal punctuation.
     if out and out[-1] not in ".!?":
         out += "."
+    # [narration-integrity 2026-07-04] never ship a mangled fragment —
+    # if the joins above left broken grammar, annihilate; every caller
+    # already handles "" (flag -> fallback / field skipped).
+    try:
+        from antar_engine.narration_integrity import has_broken_grammar
+        if out and has_broken_grammar(out):
+            return ""
+    except Exception:
+        pass
     return out
 
 

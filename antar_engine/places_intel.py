@@ -290,7 +290,7 @@ _PLANET_GOVERNS = {
 _COND_CLAUSE = {
     "en": {
         "exalted": "It is exalted in your chart — this is one of your real strengths.",
-        "own_sign": "It sits in its own sign — solid, dependable ground for you.",
+        "own_sign": "It stands on solid home ground — dependable footing for you.",
         "friend": "It sits in a friendly sign — generally supportive.",
         "neutral": "It is neutral in your chart — neither a strong help nor a drag.",
         "enemy": "It sits in an unfriendly sign — it works, but against some resistance.",
