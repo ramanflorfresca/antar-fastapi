@@ -34,6 +34,7 @@ from antar_engine.constants import HAIKU_MODEL
 
 import hashlib
 import json
+import re
 import logging
 import os
 from functools import wraps
@@ -310,6 +311,55 @@ def _apply_translations(data, translations, skip_set, path=""):
     return data
 
 
+# [translator-gate 2026-07-04] English function words that do not exist in
+# es/pt/fr — two or more distinct hits means the "translation" is still
+# English (Haiku has been observed returning English PARAPHRASES of the
+# authored copy, which then shipped and got cached).
+_ENGLISH_MARKERS = re.compile(
+    r"\b(?:the|you|your|is|are|and|of|what|before|from|with|can|will|"
+    r"finds?|sees?|others?|any)\b", re.IGNORECASE)
+
+
+def _looks_english(text: str) -> bool:
+    if not isinstance(text, str) or len(text.strip()) < 4:
+        return False
+    return len(set(m.lower() for m in _ENGLISH_MARKERS.findall(text))) >= 2
+
+
+async def _translator_round(strings, language_name, system_prompt, extra_rule=""):
+    """One translator call. Returns the parsed {path: translated} dict."""
+    user_message = (
+        f"Translate these English strings to {language_name}.\n"
+        "Preserve the EXACT JSON structure. Translate ONLY the values, not the keys.\n"
+        f"Every output value MUST be written entirely in {language_name} — "
+        "returning English, or an English paraphrase, is an error.\n"
+        + extra_rule +
+        "\nInput (English):\n"
+        f"{json.dumps(strings, ensure_ascii=False, indent=2)}\n\n"
+        "Output the same JSON object with every value translated."
+    )
+    client = _get_anthropic()
+    response = await client.messages.create(
+        model=TRANSLATOR_MODEL,
+        max_tokens=8192,
+        system=system_prompt,
+        messages=[{"role": "user", "content": user_message}],
+    )
+    text = response.content[0].text.strip()
+    if text.startswith("```"):
+        # Strip a ```json ... ``` fence if the model added one.
+        if text.count("```") >= 2:
+            text = text.split("```", 2)[1]
+        text = text.strip()
+        if text.startswith("json"):
+            text = text[4:]
+        text = text.strip().strip("`").strip()
+    translated = json.loads(text)
+    if not isinstance(translated, dict):
+        raise ValueError("translator did not return a JSON object")
+    return translated
+
+
 async def _call_translator(strings, target_language):
     """Translate a flat {path: english} dict via Claude Haiku. Returns {path: translated}."""
     language_name = {
@@ -321,35 +371,31 @@ async def _call_translator(strings, target_language):
     # 2-arg signature per the Loc-4 Sanskrit-handling addendum.
     system_prompt = build_translation_system_prompt(language_name, target_language)
 
-    user_message = (
-        f"Translate these English strings to {language_name}.\n"
-        "Preserve the EXACT JSON structure. Translate ONLY the values, not the keys.\n\n"
-        "Input (English):\n"
-        f"{json.dumps(strings, ensure_ascii=False, indent=2)}\n\n"
-        "Output the same JSON object with every value translated."
-    )
+    translated = await _translator_round(strings, language_name, system_prompt)
 
-    client = _get_anthropic()
-    response = await client.messages.create(
-        model=TRANSLATOR_MODEL,
-        max_tokens=8192,
-        system=system_prompt,
-        messages=[{"role": "user", "content": user_message}],
-    )
-
-    text = response.content[0].text.strip()
-    if text.startswith("```"):
-        # Strip a ```json ... ``` fence if the model added one.
-        if text.count("```") >= 2:
-            text = text.split("```", 2)[1]
-        text = text.strip()
-        if text.startswith("json"):
-            text = text[4:]
-        text = text.strip().strip("`").strip()
-
-    translated = json.loads(text)
-    if not isinstance(translated, dict):
-        raise ValueError("translator did not return a JSON object")
+    # [translator-gate 2026-07-04] retry ONCE for values that came back
+    # still-English; keep the ORIGINAL authored string (never a paraphrase)
+    # for anything that fails twice. English-in-target is a rendering bug;
+    # a silently rewritten English sentence is a voice bug — worse.
+    _still_en = {k: strings[k] for k, v in translated.items()
+                 if k in strings and isinstance(v, str) and _looks_english(v)}
+    if _still_en:
+        logger.warning(
+            f"[translation] {len(_still_en)} value(s) returned in English — retrying once")
+        try:
+            retry = await _translator_round(
+                _still_en, language_name, system_prompt,
+                extra_rule=("REMINDER: your previous attempt returned English. "
+                            f"Write every value in {language_name} only.\n"))
+            for k, v in retry.items():
+                if k in translated and isinstance(v, str) and not _looks_english(v):
+                    translated[k] = v
+        except Exception as _re:
+            logger.warning(f"[translation] retry failed (non-fatal): {_re}")
+        for k in _still_en:
+            if _looks_english(translated.get(k, "")):
+                logger.warning(f"[translation] still English after retry, keeping ORIGINAL: {k}")
+                translated[k] = strings[k]
 
     # Any key the translator dropped or mangled falls back to its English source.
     for key, english in strings.items():
