@@ -53,6 +53,11 @@ GLOBAL_SKIP_FIELDS = {
     "generated_at", "_translation_status", "language", "score", "rating",
     "count", "latitude", "longitude", "url", "image_url", "icon", "color",
     "lagna", "rasi", "nakshatra",
+    # [sig-hotfix 2026-07-04] Antar structural enums — frontends switch
+    # on these values / cross-reference them against count-dict keys
+    # (dominant_mode vs mode_counts). Never translate, on any surface.
+    "mode", "match_level", "dominant_mode", "dominant_field",
+    "verdict", "tier", "band", "scope", "practice_scope",
 }
 
 _anthropic_client = None

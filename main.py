@@ -2721,7 +2721,11 @@ async def get_chart_signature(chart_id: str, language: str = "en", authorization
                 from antar_engine.translation_middleware import translate_dict as _sig_td
                 payload = await _sig_td(
                     payload, language=_sig_lang,
-                    fields_to_translate=["planet_signatures", "character_archetype"],
+                    # [sig-hotfix 2026-07-04] prose leaves ONLY — container-
+                    # level recursion translated enums (mode/match_level/
+                    # dominant_mode) and broke mode_counts key matching.
+                    fields_to_translate=["tagline", "strength", "blind_spot",
+                                         "description"],
                     endpoint_name="signature",
                 )
             except Exception as _sig_te:
