@@ -520,6 +520,14 @@ def _select_system_prompt_v2(language: Optional[str]) -> str:
         return WELCOME_SYSTEM_PROMPT_ES
     if code == "pt":
         return WELCOME_SYSTEM_PROMPT_PT
+    if code == "fr":
+        # [loc-3 2026-07-04] no authored FR template yet — compose
+        # natively on the EN base with the hard FR block prepended.
+        try:
+            from language_utils import build_language_instruction
+            return build_language_instruction("fr") + WELCOME_SYSTEM_PROMPT
+        except Exception:
+            return WELCOME_SYSTEM_PROMPT
     return WELCOME_SYSTEM_PROMPT
 
 

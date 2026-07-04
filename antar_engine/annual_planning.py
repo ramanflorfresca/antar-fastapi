@@ -472,11 +472,22 @@ Retorne APENAS este JSON:
 
 
 def _select_annual_prompt(language: str) -> str:
-    """[loc-2] Pick the annual-plan system prompt for the user's language."""
-    return {
+    """[loc-2] Pick the annual-plan system prompt for the user's language.
+    [loc-3 2026-07-04] Non-EN prompts carry the hard LANGUAGE INSTRUCTION
+    block as reinforcement (EN fragments were leaking into PT output);
+    FR composes natively on the EN base + FR block."""
+    lang = (language or "en").lower()[:2]
+    base = {
         "es": ANNUAL_SYSTEM_PROMPT_ES,
         "pt": ANNUAL_SYSTEM_PROMPT_PT,
-    }.get((language or "en").lower(), ANNUAL_SYSTEM_PROMPT)
+    }.get(lang, ANNUAL_SYSTEM_PROMPT)
+    if lang in ("es", "pt", "fr"):
+        try:
+            from language_utils import build_language_instruction
+            return build_language_instruction(lang) + base
+        except Exception:
+            pass
+    return base
 
 
 def _safe_jsonb_annual(v):

@@ -24,15 +24,15 @@ PT_READY = {
     "day-deep": True,
 
     # ── Source-generated per-language — known PT defects (Part C). ──
-    "welcome": False,            # ignores language=pt, returns EN/ES
-    "weekly-briefing": False,    # English fragments leak into PT
-    "monthly-deepdive": False,   # English fragments leak into PT
-    "annual-plan": False,        # English fragments leak into PT
-    "daily-week": False,         # PT energy layer collapses to raw planet names
-    "executive-summary": False,  # ES-only translation layer, no PT path
-    "dashboard": False,          # ES-only translation layer, no PT path
-    "life-arc": False,           # chapter-arc language wire-up missing (Loc-3)
-    "practices-schedule": False, # only an ES translator exists
+    "welcome": True,             # [loc-3] v2 engine has authored PT prompt; the gate was the only blocker
+    "weekly-briefing": True,     # [loc-3] hard LANGUAGE block prepended as reinforcement
+    "monthly-deepdive": True,    # [loc-3] hard LANGUAGE block prepended as reinforcement
+    "annual-plan": True,         # [loc-3] hard LANGUAGE block prepended as reinforcement
+    "daily-week": True,          # [loc-3] pt routes signal prose through gated middleware
+    "executive-summary": True,   # [loc-3] pt/fr middleware route added
+    "dashboard": True,           # [loc-3] es/pt/fr middleware route added
+    "life-arc": True,            # [loc-3] cache-path translate_dict covers pt/fr
+    "practices-schedule": True,  # [loc-3] middleware backstop covers pt/fr
 }
 
 # Unlisted surfaces hit the gate only through translation_middleware, whose
@@ -48,11 +48,11 @@ FR_READY = {
     "weekly-briefing": False,
     "monthly-deepdive": False,
     "annual-plan": False,
-    "daily-week": False,
-    "executive-summary": False,
-    "dashboard": False,
-    "life-arc": False,
-    "practices-schedule": False,
+    "daily-week": True,        # [loc-3] middleware-routed
+    "executive-summary": True, # [loc-3] middleware-routed
+    "dashboard": True,         # [loc-3] middleware-routed
+    "life-arc": True,          # [loc-3] middleware-routed
+    "practices-schedule": True, # [loc-3] middleware-routed
 }
 
 _DEFAULT = True

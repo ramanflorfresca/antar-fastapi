@@ -503,7 +503,19 @@ def _select_monthly_prompt(language: str) -> str:
     (language column, seeded en/es/pt); the hardcoded EN/ES/PT constants are
     the fallback inside prompt_registry."""
     from antar_engine.prompt_registry import get_system_prefix
-    return get_system_prefix("month", language=(language or "en"))
+    # [loc-3 2026-07-04] es/pt carry the hard LANGUAGE INSTRUCTION block
+    # as reinforcement (EN fragments were leaking); fr composes natively
+    # on the EN registry base + FR block.
+    lang = (language or "en").lower()[:2]
+    base = get_system_prefix(
+        "month", language=lang if lang in ("en", "es", "pt") else "en")
+    if lang in ("es", "pt", "fr"):
+        try:
+            from language_utils import build_language_instruction
+            return build_language_instruction(lang) + base
+        except Exception:
+            pass
+    return base
 
 
 def _safe_jsonb_monthly(v):

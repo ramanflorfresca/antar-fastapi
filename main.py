@@ -13580,7 +13580,7 @@ async def compat_six_layer(request: CompatRequest):
             print(f"[compat] deep_read non-fatal: {_de}")
 
     # ── Translate user-facing fields for es/pt ──
-    if language in ("es", "pt"):
+    if language in ("es", "pt", "fr"):
         try:
             from antar_engine.translation_middleware import translate_dict
             response = await translate_dict(
@@ -15354,7 +15354,7 @@ async def ask_prashna(request: PrashnaRequest):
         # user-facing field name; nested arrays inside `remedy` are recursed because
         # the container key `remedy` is in the allowlist. Cache hits when the same
         # EN strings have been translated before.
-        if language in ("es", "pt"):
+        if language in ("es", "pt", "fr"):
             try:
                 from antar_engine.translation_middleware import translate_dict as _pr_td
                 _prashna_resp = await _pr_td(
@@ -18437,6 +18437,19 @@ async def get_executive_summary(chart_id: str, language: str = "en"):
                 else:
                     inst["name_es"] = inst.get("name", k)
         result["plain_signal"] = _build_plain_dashboard_signal(instruments, language)
+        # [loc-3 2026-07-04] the hand-rolled translator above is ES-only —
+        # pt/fr route prose through the gated middleware instead.
+        if language in ("pt", "fr"):
+            try:
+                from antar_engine.translation_middleware import translate_dict as _ex_td
+                result = await _ex_td(
+                    result, language=language,
+                    fields_to_translate=["symptom_plain", "symptom",
+                                         "plain_signal", "headline", "note"],
+                    endpoint_name="executive-summary", chart_id=chart_id,
+                )
+            except Exception as _ex_te:
+                print(f"[exec-summary] pt/fr translate non-fatal: {_ex_te}")
         return result
     except Exception as e:
         import traceback
@@ -19748,6 +19761,24 @@ async def get_dashboard(chart_id: str, language: str = 'en'):
             except Exception:
                 _w5_result.setdefault('jaimini', {})
                 _w5_result.setdefault('lal_kitab', {})
+        # [loc-3 2026-07-04] dashboard had NO language path at all —
+        # translate prose keys at response time; jaimini/lal_kitab
+        # subtrees (raw chart data) are never descended into.
+        if isinstance(_w5_result, dict) and language in ("es", "pt", "fr"):
+            try:
+                from antar_engine.translation_middleware import translate_dict as _db_td
+                _w5_result = await _db_td(
+                    _w5_result, language=language,
+                    fields_to_translate=["headline", "summary", "text",
+                                         "label", "note", "description",
+                                         "body", "title", "message",
+                                         "insight", "gist"],
+                    fields_to_skip=["jaimini", "lal_kitab", "key",
+                                    "state", "tone", "planet"],
+                    endpoint_name="dashboard", chart_id=chart_id,
+                )
+            except Exception as _db_te:
+                print(f"[dashboard] translate non-fatal: {_db_te}")
         return _w5_result
     except Exception as e:
         import traceback
@@ -21970,7 +22001,7 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
                 # [es-loc 2026-06-09] Loc-4 backstop — the hand-rolled dict only
                 # covers known phrases; PLANET_PRACTICE_META + REMEDIES can ship
                 # new EN strings the dict doesn't know. translate_dict catches them.
-                if language in ("es", "pt"):
+                if language in ("es", "pt", "fr"):
                     try:
                         from antar_engine.translation_middleware import translate_dict as _pr_td
                         _sched = await _pr_td(
@@ -22093,7 +22124,7 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
         if language == "es": _sched = _translate_practice_schedule_es(_sched)
         _sched = _gem_localize_why(_sched, language)
         # [es-loc 2026-06-09] Loc-4 backstop for the generated path.
-        if language in ("es", "pt"):
+        if language in ("es", "pt", "fr"):
             try:
                 from antar_engine.translation_middleware import translate_dict as _pr_td
                 _sched = await _pr_td(
@@ -24835,6 +24866,23 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
 
         if language == "es":
             signals = _translate_daily_signals_es(signals)
+        elif language in ("pt", "fr"):
+            # [loc-3 2026-07-04] no hand-rolled dict for pt/fr — route
+            # the signal prose through the gated translation middleware
+            # so the energy layer never collapses to raw planet names.
+            try:
+                from antar_engine.translation_middleware import translate_dict as _dw_td
+                signals = await _dw_td(
+                    signals, language=language,
+                    fields_to_translate=[
+                        "energy", "signal", "move", "aligned_for",
+                        "friction_for", "quality_label", "event_signal",
+                        "trigger", "wow",
+                    ],
+                    endpoint_name="daily-week", chart_id=chart_id,
+                )
+            except Exception as _dw_te:
+                print(f"[daily-week] pt/fr translate non-fatal: {_dw_te}")
 
         # === LIVE TRANSIT HIGHLIGHTS ===
         _transit_highlights = []
@@ -24882,7 +24930,7 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
             _bw_days = signals if isinstance(signals, list) else []
             _bw_per = [_bw("weekday", language, _d) if isinstance(_d, dict) else [] for _d in _bw_days]
             _bw_agg = _bw("week", language, {"days": _bw_days, "dasha_md": _bw_md, "dasha_ad": _bw_ad})
-            if language in ("es", "pt"):
+            if language in ("es", "pt", "fr"):
                 try:
                     from antar_engine.translation_middleware import translate_dict as _bwt
                     _bw_bundle = await _bwt({"agg": _bw_agg, "per": _bw_per}, language=language,
@@ -25388,7 +25436,7 @@ async def predict_year_attention(request: dict, language: str = None):
         print(f"[year-attention] layered domains failed (non-blocking): {_lf_ye}")
 
     # ── translate at response time (English source; planet/name/key/colour kept) ──
-    if language in ("es", "pt"):
+    if language in ("es", "pt", "fr"):
         try:
             payload = await _translate_dict(
                 payload,
@@ -25686,7 +25734,7 @@ async def predict_day_deep(request: DeepReadRequest, refresh: int = 0, force_ref
             payload.setdefault("highlights", [])
 
     # ── translate at response time (English is the source of truth) ──
-    if language in ("es", "pt"):
+    if language in ("es", "pt", "fr"):
         try:
             from antar_engine.translation_middleware import translate_dict as _tdict
             payload = await _tdict(
@@ -28172,7 +28220,7 @@ async def get_life_arc(
                     # [es-loc 2026-06-09] cache-hit localization backstop. translate_dict
                     # recurses into diagnostic.* + highlights[] + current_stuckness_sources[]
                     # because their container keys are in the allowlist.
-                    if language in ("es", "pt"):
+                    if language in ("es", "pt", "fr"):
                         try:
                             from antar_engine.translation_middleware import translate_dict as _la_td
                             life_arc = await _la_td(
