@@ -126,6 +126,92 @@ _QUESTION_TEMPLATES = {
 }
 
 
+
+# ── [honest-windows 2026-07-04] polarity-neutral era statements ──────────────
+# Live validation on 4 real charts (Raman a4c9d57b, Harleen e3a3dac7,
+# Shashi 9dff84f7, Akash 7c38b6b7): the detector reliably finds DOMAIN and
+# the ~1-year ERA — it does NOT know polarity (began vs strained vs ended)
+# and it does NOT know the month (a "Jan-Feb 2002" claim missed a real
+# Jun 2001 move). These templates claim only what the engine knows:
+# ask, don't assert; era only; domain-appropriate event vocabulary.
+# {w} = era label from _fmt_window_era ("2001–2002" or "1998").
+_NEUTRAL_STATEMENT_TEMPLATES = {
+    # relationship-domain — beginning / turning point / strain / ending
+    "serious_partnership_began":
+        "Around {w}, did a close relationship go through something "
+        "significant — a beginning, a turning point, a strain, or an "
+        "ending?",
+    "serious_partnership_ended":
+        "Around {w}, did a close relationship go through something "
+        "significant — a beginning, a turning point, a strain, or an "
+        "ending?",
+    # career-domain — job change / role shift / new direction / setback
+    "career_pivot":
+        "Around {w}, did something shift in your work life — a job "
+        "change, a new direction, a role shift, or a setback?",
+    "professional_setback":
+        "Around {w}, did something shift in your work life — a job "
+        "change, a new direction, a role shift, or a setback?",
+    "business_start":
+        "Around {w}, did something shift in your work life — a venture "
+        "starting, a new direction, or a major professional decision?",
+    # relocation-domain — move / new home / change of base
+    "major_relocation":
+        "Around {w}, did your base change — a move, a new home, or a "
+        "significant change in where your life was centered?",
+    # financial-domain — purchase / gain / strain / loss
+    "major_acquisition":
+        "Around {w}, did something significant happen around money or "
+        "assets — a major purchase, a gain, a strain, or a loss?",
+    "financial_disruption":
+        "Around {w}, did something significant happen around money or "
+        "assets — a major purchase, a gain, a strain, or a loss?",
+    "legal_entanglement":
+        "Around {w}, did a formal or contractual matter take real "
+        "attention — an agreement, a dispute, or paperwork that "
+        "mattered?",
+    # family-domain — arrival / departure / shift at home
+    "family_expansion_first":
+        "Around {w}, did your family or household change in a significant "
+        "way — an arrival, a departure, or a shift at home?",
+    "family_expansion_second":
+        "Around {w}, did your family or household change in a significant "
+        "way — an arrival, a departure, or a shift at home?",
+    # sensitive — admin-only surfaces; never asked cold on onboarding
+    "loss_of_father":
+        "Around {w}, did something significant happen around your father "
+        "— his health, your relationship with him, or a loss?",
+    "loss_of_mother":
+        "Around {w}, did something significant happen around your mother "
+        "— her health, your relationship with her, or a loss?",
+}
+
+
+def _fmt_window_era(ws: str, we: str, min_days: int = 365) -> str:
+    """Era label at the engine's honest resolution (~1 year).
+
+    The dasha/PD window can be a slice as narrow as days — that is
+    engine plumbing, not real-world precision. Expand the window to at
+    least min_days around its midpoint, then print calendar years only:
+    "2001–2002" or "1998". Never month- or day-level on past events.
+    """
+    try:
+        a = datetime.strptime(str(ws)[:10], "%Y-%m-%d")
+        b = datetime.strptime(str(we)[:10], "%Y-%m-%d")
+    except Exception:
+        y1, y2 = str(ws)[:4], str(we)[:4]
+        return y1 if y1 == y2 else f"{y1}–{y2}"
+    if b < a:
+        a, b = b, a
+    if (b - a).days < min_days:
+        mid = a + (b - a) / 2
+        half = timedelta(days=min_days // 2)
+        a, b = mid - half, mid + half
+    if a.year == b.year:
+        return str(a.year)
+    return f"{a.year}–{b.year}"
+
+
 def _fmt_window(ws: str, we: str) -> str:
     """'2025-06-17','2025-11-20' -> 'Jun – Nov 2025' (human, jargon-free)."""
     try:

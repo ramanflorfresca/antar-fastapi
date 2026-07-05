@@ -26544,9 +26544,12 @@ async def get_signature_statements(chart_id: str, language: str = "en"):
         # becomes the Stage-4 anchor for every later dated prediction.
         statements = []
         try:
-            from antar_engine.past_predictions import (_QUESTION_TEMPLATES,
-                                                       _fmt_window,
-                                                       _strip_gate)
+            from antar_engine.past_predictions import (
+                _QUESTION_TEMPLATES,            # legacy (admin harness shape)
+                _NEUTRAL_STATEMENT_TEMPLATES,   # [honest-windows 2026-07-04]
+                _fmt_window,                    # legacy month-level (unused here)
+                _fmt_window_era,                # era resolution (~1 year)
+                _strip_gate)
             _Q_ES = {
                 "serious_partnership_began":
                     "¿Comenzó una relación o sociedad seria entre {w}?",
@@ -26565,14 +26568,56 @@ async def get_signature_statements(chart_id: str, language: str = "en"):
                 "business_start":
                     "¿Iniciaste un negocio o proyecto propio entre {w}?",
             }
+            # [honest-windows 2026-07-04] neutral ES mirrors of
+            # _NEUTRAL_STATEMENT_TEMPLATES — era label {w} is
+            # language-neutral (years only).
+            _REL_ES = ("Alrededor de {w}, ¿pasó una relación cercana por "
+                       "algo significativo — un comienzo, un punto de giro, "
+                       "una tensión o un final?")
+            _CAR_ES = ("Alrededor de {w}, ¿cambió algo en tu vida laboral — "
+                       "un cambio de trabajo, una nueva dirección, un giro "
+                       "de rol o un revés?")
+            _MON_ES = ("Alrededor de {w}, ¿pasó algo significativo con "
+                       "dinero o bienes — una compra importante, una "
+                       "ganancia, una presión o una pérdida?")
+            _FAM_ES = ("Alrededor de {w}, ¿cambió tu familia u hogar de "
+                       "forma significativa — una llegada, una partida o un "
+                       "cambio en casa?")
+            _Q_ES_NEUTRAL = {
+                "serious_partnership_began": _REL_ES,
+                "serious_partnership_ended": _REL_ES,
+                "career_pivot": _CAR_ES,
+                "professional_setback": _CAR_ES,
+                "business_start":
+                    ("Alrededor de {w}, ¿cambió algo en tu vida laboral — "
+                     "el inicio de un proyecto propio, una nueva dirección "
+                     "o una gran decisión profesional?"),
+                "major_relocation":
+                    ("Alrededor de {w}, ¿cambió tu base — una mudanza, un "
+                     "nuevo hogar o un cambio importante del lugar donde "
+                     "hacías tu vida?"),
+                "major_acquisition": _MON_ES,
+                "financial_disruption": _MON_ES,
+                "family_expansion_first": _FAM_ES,
+                "family_expansion_second": _FAM_ES,
+            }
             _ANCHOR_FIRST = ["serious_partnership_began", "major_relocation",
                              "family_expansion_first", "major_acquisition",
                              "business_start", "career_pivot"]
             # [ledger-brief 2026-06-11] cold questions are BENIGN ONLY —
             # divorce/loss/death are never asked cold. Painful (and the
             # remaining types) unlock only after >=1 confirmed anchor.
-            _COLD_OK = {"serious_partnership_began", "major_relocation",
-                        "career_pivot", "business_start"}
+            # [honest-windows 2026-07-04] neutral phrasing asserts no
+            # polarity, so neutral-safe types may be asked cold — this
+            # is what varies event vocabulary per chart instead of every
+            # chart getting relationship+move. loss_of_* and legal stay
+            # anchor-gated (never cold).
+            _COLD_OK = {"serious_partnership_began",
+                        "serious_partnership_ended", "major_relocation",
+                        "career_pivot", "professional_setback",
+                        "business_start", "major_acquisition",
+                        "financial_disruption", "family_expansion_first",
+                        "family_expansion_second"}
             from antar_engine.event_convergence import load_confirmed_events \
                 as _lce_sig
             _has_anchor = bool(_lce_sig(chart_res.data))
@@ -26583,17 +26628,21 @@ async def get_signature_statements(chart_id: str, language: str = "en"):
                 key=lambda p: (_ANCHOR_FIRST.index(p["event_type"])
                                if p["event_type"] in _ANCHOR_FIRST else 99,
                                -p["confidence"]))
-            for _p in _sig_sorted[:2]:
-                _w = _fmt_window(_p["window_start"],
-                                 _p["window_end"]).replace(" – ", " and ")
-                _tpl = _QUESTION_TEMPLATES.get(_p["event_type"])
+            # [honest-windows 2026-07-04] polarity-neutral prompts at era
+            # resolution (~1 year). The engine detects domain + season, not
+            # month or polarity — the statement must not claim more.
+            # 3 dated slots (the Barnum era line below was removed).
+            _seen_prompts = set()
+            for _p in _sig_sorted[:3]:
+                _w = _fmt_window_era(_p["window_start"], _p["window_end"])
+                _tpl = _NEUTRAL_STATEMENT_TEMPLATES.get(_p["event_type"])
                 if not _tpl:
                     continue
+                if (_tpl, _w) in _seen_prompts:
+                    continue  # same neutral prompt + same era — skip dup
+                _seen_prompts.add((_tpl, _w))
                 _q_en = _tpl.format(w=_w)
-                _q_es = _Q_ES.get(_p["event_type"], "").format(w=_w)
-                if " and " not in _w:  # single-month window reads better as "around"
-                    _q_en = _q_en.replace(f"between {_w}", f"around {_w}")
-                    _q_es = _q_es.replace(f"entre {_w}", f"alrededor de {_w}")
+                _q_es = _Q_ES_NEUTRAL.get(_p["event_type"], "").format(w=_w)
                 import hashlib as _sq_hash
                 _sq_id = "sq_" + _sq_hash.sha256(
                     f"{chart_id}|{_p['event_type']}|{_p['window_start']}|"
@@ -26605,7 +26654,7 @@ async def get_signature_statements(chart_id: str, language: str = "en"):
                     "mode": "question",
                     "text": _strip_gate(_q_en),
                     "text_es": _strip_gate(_q_es) if _q_es else "",
-                    "window": f"{_p['window_start'][:4]}-{_p['window_end'][:4]}",
+                    "window": _w,  # era label — honest resolution
                     "window_start": _p["window_start"],
                     "window_end": _p["window_end"],
                     "locks": _p.get("locks", {}).get("count")
@@ -26640,52 +26689,11 @@ async def get_signature_statements(chart_id: str, language: str = "en"):
         # questions (single-source rule)
         events = map_all_events(birth_year, lagna, ads)
 
-        # Statement 3: Current period (almost always verifiable — builds immediate trust)
-        # Get current MD from dasha_periods
-        try:
-            cur_md_res = supabase.table("dasha_periods")                 .select("planet_or_sign,start_date,end_date")                 .eq("chart_id", chart_id)                 .eq("system", "vimsottari")                 .lte("start_date", "2026-04-14")                 .gte("end_date", "2026-04-14")                 .execute()
-
-            if cur_md_res.data:
-                cur = cur_md_res.data[0]
-                cur_start = str(cur.get("start_date",""))[:4]
-                cur_end   = str(cur.get("end_date",""))[:4]
-                cur_planet = cur.get("planet_or_sign","")
-
-                # Map planet to human description of its energy
-                PERIOD_DESCRIPTIONS = {
-                    "Mars":    ("career pressure and income friction",
-                                "presión profesional y fricción de ingresos"),
-                    "Rahu":    ("rapid change and unconventional opportunities",
-                                "cambio rápido y oportunidades poco convencionales"),
-                    "Saturn":  ("discipline, delays, and structural rebuilding",
-                                "disciplina, retrasos y reconstrucción estructural"),
-                    "Jupiter": ("expansion, opportunity, and wisdom growth",
-                                "expansión, oportunidades y crecimiento de sabiduría"),
-                    "Moon":    ("emotional shifts and relationship changes",
-                                "cambios emocionales y transformaciones en relaciones"),
-                    "Sun":     ("identity clarification and authority building",
-                                "clarificación de identidad y construcción de autoridad"),
-                    "Venus":   ("creative income and partnership opportunities",
-                                "ingresos creativos y oportunidades de asociación"),
-                    "Mercury": ("communication, deals, and intellectual growth",
-                                "comunicación, acuerdos y crecimiento intelectual"),
-                    "Ketu":    ("spiritual seeking and letting go of old patterns",
-                                "búsqueda espiritual y soltar patrones antiguos"),
-                }
-
-                desc_en, desc_es = PERIOD_DESCRIPTIONS.get(
-                    cur_planet,
-                    ("significant life changes", "cambios significativos de vida")
-                )
-
-                statements.append({
-                    "id":      "current_period",
-                    "text":    f"Since {cur_start} your chart shows {desc_en}.",
-                    "text_es": f"Desde {cur_start} tu carta muestra {desc_es}.",
-                    "window":  f"{cur_start}-present",
-                })
-        except Exception:
-            pass
+        # [honest-windows 2026-07-04] "Since {year} your chart shows ..."
+        # era line REMOVED — unfalsifiable Barnum filler (true for
+        # everyone, the exact copy the landing page attacks). Only dated,
+        # domain-specific, polarity-neutral prompts remain; the third slot
+        # now goes to a third convergence-sourced question.
 
         return {
             "chart_id":   chart_id,
