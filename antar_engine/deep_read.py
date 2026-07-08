@@ -26,6 +26,7 @@ from __future__ import annotations
 from antar_engine.constants import SONNET_MODEL
 
 import json
+import re
 from datetime import datetime, date
 from typing import Optional, List, Dict, Any
 
@@ -530,53 +531,96 @@ def _fallback_synth(echoes: dict, themes: List[dict],
     }
 
 
+# ── no-invention gate (polarity-aware) ───────────────────────────────────────
+
+_ADVERSE_CUES = re.compile(
+    r"(?i)\b(strain|strained|worr\w+|pressure|trouble\w*|loss|lose|losing|"
+    r"difficult\w*|hard|tension|conflict\w*|fragile|drain\w*|stress\w*|"
+    r"struggl\w*|risk\w*|guard|protect|careful|caution\w*|avoid|setback\w*|"
+    r"friction|discomfort|expense|cost\w*)\b"
+)
+
+
+def _grounding_ok(synth: dict, house_scan: list):
+    """(ok, offending). Reject an ADVERSE claim about a life-area whose computed
+    house state is NOT friction/mixed — that contradicts the house_scan the
+    Today card also reads. Neutral/positive mentions are fine (all 12 houses are
+    in the model's input); only manufactured strain is caught."""
+    from antar_engine.today_narration import _AREA_MENTIONS
+    from antar_engine.life_areas import AREA_HOUSE
+    state_by = {r.get("house"): r.get("state") for r in (house_scan or [])}
+    texts = [synth.get("opening", ""), synth.get("closing", "")]
+    texts += [t.get("paragraph", "") for t in (synth.get("themes") or [])]
+    blob = " ".join(t for t in texts if t)
+    offending = []
+    for sent in re.split(r"(?<=[.!?])\s+", blob):
+        if not _ADVERSE_CUES.search(sent):
+            continue
+        for rx, area in _AREA_MENTIONS:
+            if rx.search(sent):
+                st = state_by.get(AREA_HOUSE.get(area))
+                if st not in ("friction", "mixed"):
+                    offending.append((area, st or "neutral"))
+    return (not offending, offending)
+
+
 async def synthesize(claude_client, echoes: dict, themes: List[dict],
                      body_signals: List[dict], house_scan: List[dict],
                      committed: Optional[dict] = None) -> dict:
     if claude_client is None:
         return _fallback_synth(echoes, themes, body_signals, committed)
     live = _build_synth_live(echoes, themes, body_signals, house_scan, committed)
-    try:
-        import time as _time_dr
-        _t0 = _time_dr.monotonic()
-        resp = await claude_client.messages.create(
-            model=SONNET_MODEL,
-            max_tokens=1000,
-            temperature=0.4,
-            system=[
-                {"type": "text", "text": _SYNTH_STATIC,
-                 "cache_control": {"type": "ephemeral"}},
-                {"type": "text", "text": live},
-            ],
-            messages=[{"role": "user", "content": "Write the Deep Read JSON now."}],
-            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
-        )
+    _MAX_ATTEMPTS = 2
+    for _attempt in range(_MAX_ATTEMPTS):
         try:
-            _u = resp.usage
-            print(f"[deep_read] synth {_time_dr.monotonic() - _t0:.2f}s "
-                  f"in={getattr(_u, 'input_tokens', 0)} "
-                  f"out={getattr(_u, 'output_tokens', 0)} "
-                  f"cache_hit={getattr(_u, 'cache_read_input_tokens', 0) or 0} "
-                  f"cache_write={getattr(_u, 'cache_creation_input_tokens', 0) or 0}")
-        except Exception:
-            pass
-        raw = resp.content[0].text.strip()
-        data = _extract_json(raw)
-        opening = (data.get("opening") or "").strip() or _fallback_opening(echoes, committed)
-        closing = (data.get("closing") or "").strip() or _fallback_closing(echoes)
-        pmap = {}
-        for d in (data.get("themes") or []):
-            if isinstance(d, dict) and d.get("key"):
-                pmap[d["key"]] = (d.get("paragraph") or "").strip()
-        out_themes = []
-        for t in themes:
-            para = pmap.get(t["key"]) or _fallback_paragraph(t)
-            out_themes.append({"key": t["key"], "title": t["title"],
-                               "tone": t["tone"], "paragraph": para})
-        return {"opening": opening, "themes": out_themes, "closing": closing}
-    except Exception as e:
-        print(f"[deep_read] synth failed (fallback): {e}")
-        return _fallback_synth(echoes, themes, body_signals, committed)
+            import time as _time_dr
+            _t0 = _time_dr.monotonic()
+            resp = await claude_client.messages.create(
+                model=SONNET_MODEL,
+                max_tokens=1000,
+                temperature=0.4,
+                system=[
+                    {"type": "text", "text": _SYNTH_STATIC,
+                     "cache_control": {"type": "ephemeral"}},
+                    {"type": "text", "text": live},
+                ],
+                messages=[{"role": "user", "content": "Write the Deep Read JSON now."}],
+                extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"},
+            )
+            try:
+                _u = resp.usage
+                print(f"[deep_read] synth {_time_dr.monotonic() - _t0:.2f}s "
+                      f"in={getattr(_u, 'input_tokens', 0)} "
+                      f"out={getattr(_u, 'output_tokens', 0)} "
+                      f"cache_hit={getattr(_u, 'cache_read_input_tokens', 0) or 0} "
+                      f"cache_write={getattr(_u, 'cache_creation_input_tokens', 0) or 0}")
+            except Exception:
+                pass
+            raw = resp.content[0].text.strip()
+            data = _extract_json(raw)
+            opening = (data.get("opening") or "").strip() or _fallback_opening(echoes, committed)
+            closing = (data.get("closing") or "").strip() or _fallback_closing(echoes)
+            pmap = {}
+            for d in (data.get("themes") or []):
+                if isinstance(d, dict) and d.get("key"):
+                    pmap[d["key"]] = (d.get("paragraph") or "").strip()
+            out_themes = []
+            for t in themes:
+                para = pmap.get(t["key"]) or _fallback_paragraph(t)
+                out_themes.append({"key": t["key"], "title": t["title"],
+                                   "tone": t["tone"], "paragraph": para})
+            result = {"opening": opening, "themes": out_themes, "closing": closing}
+            _ok, _bad = _grounding_ok(result, house_scan)
+            if _ok:
+                return result
+            print(f"[deep_read] no-invention gate rejected {_bad} (attempt "
+                  f"{_attempt + 1}/{_MAX_ATTEMPTS}); "
+                  f"{'retrying' if _attempt + 1 < _MAX_ATTEMPTS else 'using grounded fallback'}")
+        except Exception as e:
+            print(f"[deep_read] synth failed (fallback): {e}")
+            return _fallback_synth(echoes, themes, body_signals, committed)
+    # every attempt manufactured strain about a fine area -> grounded synth.
+    return _fallback_synth(echoes, themes, body_signals, committed)
 
 
 # ── orchestrator ─────────────────────────────────────────────────────────────
