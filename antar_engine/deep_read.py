@@ -22,8 +22,8 @@ Strip contract:
 
 English is the source of truth; the caller translates at response time.
 """
-from antar_engine.constants import SONNET_MODEL
 from __future__ import annotations
+from antar_engine.constants import SONNET_MODEL
 
 import json
 from datetime import datetime, date

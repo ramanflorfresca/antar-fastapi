@@ -4060,6 +4060,35 @@ def _current_md_lord(chart_id: str):
     return None
 
 
+def _running_md_ad(chart_id: str) -> dict:
+    """[Fix B2] Active Vimsottari MD + AD lords for the chart today
+    (planet names), for the daily vote engine's Source D. Fail-soft."""
+    out = {"md_lord": None, "ad_lord": None}
+    try:
+        from datetime import datetime as _dd
+        _ds = get_dashas_for_chart(chart_id)
+        _vim = _ds.get("vimsottari", []) if isinstance(_ds, dict) else (_ds or [])
+        _now = _dd.utcnow()
+        for _r in _vim:
+            _lvl = (_r.get("level") or "").lower()
+            if _lvl not in ("mahadasha", "antardasha", "bhukti"):
+                continue
+            try:
+                _sd = _dd.strptime(str(_r.get("start_date", ""))[:10], "%Y-%m-%d")
+                _ed = _dd.strptime(str(_r.get("end_date", ""))[:10], "%Y-%m-%d")
+            except Exception:
+                continue
+            if _sd <= _now <= _ed:
+                _lord = _r.get("lord_or_sign") or _r.get("planet_or_sign")
+                if _lvl == "mahadasha" and not out["md_lord"]:
+                    out["md_lord"] = _lord
+                elif _lvl in ("antardasha", "bhukti") and not out["ad_lord"]:
+                    out["ad_lord"] = _lord
+    except Exception as _e:
+        print(f"[daily-signal] dasha md/ad lookup failed for {chart_id}: {_e}")
+    return out
+
+
 @app.get("/api/v1/chart/{chart_id}", response_model=ChartResponse)
 async def get_chart(chart_id: str):
     chart_id = _ensure_full_uuid(chart_id)
@@ -17587,18 +17616,25 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 _th_tilt = build_patra_tilt(cid, supabase, birth_date=row.get("birth_date"))
             except Exception:
                 _th_tilt = {}
+            try:
+                _th_dasha = _running_md_ad(cid)
+            except Exception:
+                _th_dasha = {}
             _th = select_today_highlight(
                 signal0=dict(signals[0]) if signals else {},
                 lk_daily=_th_lk,
                 natal_chart=cd if isinstance(cd, dict) else {},
                 panchanga=panchanga,
                 patra_tilt=_th_tilt,
+                dasha=_th_dasha,
             )
             _th_dbg = _th.pop("_debug_reasoning", {})
             _th_dbg["_prev_el_movimiento"] = result.get("el_movimiento", "")
             result["headline"]          = _th["headline"]
             result["highlight"]         = _th["highlight"]
             result["highlight_domains"] = _th["highlight_domains"]
+            # [Fix B] fine house-anchored life-areas (father/home/network/…)
+            result["highlight_areas"] = _th.get("highlight_areas") or []
             result["direction"]         = _th["direction"]
             result["strength"]          = _th["strength"]
             result["hora"]              = _th["hora"]
@@ -17639,6 +17675,9 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             result["el_movimiento"] = _d1_move
             result["move"] = _d1_move
             result["_debug_reasoning"] = _th_dbg
+            # [Fix A] first-class, stable evidence trail (admin/dev-
+            # visible; not rendered). Always present on a daily read.
+            result["evidence"] = _th.get("evidence") or {}
             # [admin-inspect] capture the deterministic engine pick (raw bundle)
             _ai_c = _inspect_active()
             if _ai_c is not None:
@@ -17678,7 +17717,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                                                       _date=_nar_date, _fname=_nar_fname):
                             try:
                                 from antar_engine.today_narration import summarize_drivers
-                                _drv = summarize_drivers(_dbg, _engine.get("highlight_domains"))
+                                _drv = summarize_drivers(_dbg, _engine.get("highlight_areas") or _engine.get("highlight_domains"))
                                 _sys = build_narration_system(
                                     engine=_engine, nudge=_nudge, first_name=_fname,
                                     patra_domains=(sorted(_tilt.keys()) if isinstance(_tilt, dict) else []),
@@ -17686,9 +17725,16 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                                 )
                                 _raw, _ = await call_llm_claude(
                                     prompt="Write the Today narration JSON now.",
-                                    system_override=_sys, max_tokens_override=350,
+                                    system_override=_sys, max_tokens_override=700,
                                 )
-                                _n = parse_and_validate(_raw, language="en")
+                                # [Fix C] allowed set = chosen fine areas + any
+                                # area with a real net vote (|net| >= floor).
+                                _allowed = set(_engine.get("highlight_areas") or [])
+                                _net_map = (_dbg.get("net") or {})
+                                _allowed |= {a for a, v in _net_map.items()
+                                             if abs(float(v or 0)) >= 0.5}
+                                _n = parse_and_validate(_raw, language="en",
+                                                        allowed_areas=_allowed)
                                 if _n:
                                     try:
                                         from antar_engine.readability import simplify_payload_fields as _rb_simplify

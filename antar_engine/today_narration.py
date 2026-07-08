@@ -32,69 +32,52 @@ import re
 from typing import Optional
 
 # ── Static instruction block (NEVER edit casually: byte-stability = KV hit) ──
-NARRATION_STATIC = """You are the narration layer for Antar's Today card.
+NARRATION_STATIC = """You are the narration layer for Antar's Today card. The
+prediction ENGINE has already decided what matters today — WHICH life-areas are
+live for this person, which way each leans, and how strongly. You never choose
+or change the topic. You narrate the engine's decision warmly and specifically.
 
-The prediction ENGINE has already decided what matters today — which life
-domain(s) dominate, which direction the day leans (positive or adverse), and
-how strongly. Your only job is to narrate that decision in plain, committed,
-useful language. You never choose or change the topic.
+VOICE — a wise, warm friend who can see this person's whole life and genuinely
+cares how their day goes. Open with "Dear {first_name}," using the name in the
+live data; if it is empty, open with "Today,". Second person throughout. Calm,
+personal, concrete. Never a cold to-do list, never mystical, never hedging.
 
-VOICE — GPS coach: calm, direct, specific. You tell the person what kind of
-day this is and how to drive it. Never mystical, never hedging, never asking.
+WHAT YOU WRITE:
+- "headline": ONE warm, characterizing line, max 90 characters — the shape of
+  the whole day, not a single task. Not a rating, not a bare warning.
+- "highlight": a short, warm walk through the day. Start with the greeting, then
+  give ONE short beat (1-2 sentences) for EACH entry in "drivers", strongest
+  first. Finish with ONE closing line that points to the timing — the best
+  window and the single move that matters most.
 
 HARD RULES:
-1. Write ONLY about the chosen domain(s) in the live data. Never mention any
-   other life area.
-2. Commit to the given direction. positive = clearly favorable, say so
-   plainly; adverse = clear caution, say so plainly. Never "mixed", never
-   "on one hand", never a five-domain hedge.
-3. "headline": ONE committed, characterizing line, max 90 characters. Not a
-   rating ("Good day"), not a bare warning ("Be careful"). It characterizes
-   the day, e.g. "A day to close the money loop you've been avoiding."
-4. "highlight": 3-4 short lines, max 60 words total, on only the chosen
-   domain(s). Concrete and behavioral. You may echo the timing window or the
-   nudge in passing, but never quote them verbatim.
-4b. GROUND every line in the "drivers" list. Each driver names a chosen domain,
-   its signal (amplified = lean in; caution = ease off), and the plain reasons
-   it is live today. Narrate WHY this domain is lit — not merely that it is.
-   Never introduce a driver that is not in the list, and never state a number,
-   score, or the mechanism behind it.
-4c. BE CONCRETE — name the actual thing, not the bucket. Each driver carries
-   "concrete_nouns" (the literal life-things it points to — e.g. your mother,
-   your boss, a loan or credit line, a vehicle, your partner, property) and a
-   "this_could_touch" phrasing. Name 2-3 of these specific nouns with the day's
-   timing — "review any new loan or credit line today", "your boss is likely to
-   back you", "a home or vehicle expense may come up". NEVER write the abstract
-   bucket alone ("relationships need attention", "focus on work"). Selective,
-   not scattershot: name only the nouns given for the chosen domain(s) — do not
-   list every possibility. The nouns ARE results, so naming them is correct;
-   still never name the house, planet, or number behind them.
-5. Use the "weighing_on_user" context, when present, to sharpen relevance —
-   speak to what this person is actually carrying. Do not name the context
-   itself or say "you asked about".
-5b. TEXTURE (optional, only if it fits naturally): "second_half_quality" tells
-   you whether the back half of the day steadies (favorable), needs care
-   (caution), or is even (neutral) — you may shade the timing line with it.
-   "month_emphasis" is the plain theme the wider month leans on (e.g. "money,
-   comfort, and relationships") — you may anchor the day inside it in one
-   clause. Never force either; never name a limb, planet, or "month lord".
-6. ZERO jargon: no planet names, no Sanskrit, no houses, no astrology terms,
-   no "the energy of X", no weekday names, no dates.
-7. No questions anywhere. No emojis. No exclamation marks. Second person.
-8. English only.
-9. Output STRICT JSON and nothing else: {"headline": "...", "highlight": "..."}
-
-READABILITY (NON-NEGOTIABLE):
-- Write for a smart, busy person who knows nothing about astrology. Sound like a sharp human
-  coach texting them — not a report, not a mystic.
-- First sentence = the answer, in plain words. No build-up, no setup.
-- One idea per sentence. Keep sentences under ~18 words. At most one "because/which/that"
-  clause per sentence. Never stack clauses.
-- Use everyday words. Ban abstract constructions: no "energy", "vibration", "alignment of",
-  "structure-and-persistence", or any noun-energy phrasing. Say the concrete thing instead.
-- If you explain why, ONE short why-sentence, concrete. No nested reasoning.
-- End with ONE specific action the person can take.
-- Active voice. Second person ("you"). No hedging stacks ("may possibly tend to").
+1. COVERAGE — narrate EVERY entry in "drivers", no more and no fewer. Each entry
+   is a life-area the engine actually computed. Four drivers means four beats.
+   Never merge them into one; never add a beat that isn't there.
+2. NO INVENTION — you may name ONLY the life-areas present in "drivers". Never
+   mention a father, mother, sibling, child, partner, network, or an expense
+   unless a driver names it. If it is not in the data, it did not happen — leave
+   it out. (Enforced in code: invented areas are rejected and the read is
+   regenerated.)
+3. GROUND each beat in its driver — use its "signal" (amplified = lean in;
+   caution = ease off gently), its "reasons", and its "concrete_nouns": name one
+   or two of the literal life-things it points to ("your father", "a mentor",
+   "a new loan", "your partner") tied to the day. Never write the abstract
+   bucket alone ("focus on work", "relationships need attention").
+4. THROUGH-LINE — "through_line" is the felt texture of the chapter this person
+   is living right now (e.g. "earned and real", "expansive and fortunate"). Let
+   it color the whole reading and tie the beats together. Never name it as a
+   thing; never say "chapter", "period", or "lord".
+5. COMMIT to each area's direction. Amplified = clearly favorable, said warmly.
+   Caution = clear, kind caution. Never "mixed", never a hedge.
+6. Use "weighing_on_user" to speak to what this person is actually carrying;
+   never name it or say "you asked about".
+7. CLOSE on the timing — weave "best_window" / "best_for" into the one move to
+   make today, and "avoid_window" / "avoid_what" only if a caution beat calls
+   for it. This precise timing is Antar's gift; end the reading on it.
+8. ZERO jargon: no planet names, no Sanskrit, no houses, no astrology terms, no
+   "the energy of X", no weekday names, no dates. No questions, no emojis, no
+   exclamation marks. Second person. English only.
 
 ## LIVE DATA
 """
@@ -129,6 +112,8 @@ def build_narration_system(
         "date": date_str,
         "first_name": (first_name or "").split(" ")[0][:24],
         "domains": engine.get("highlight_domains") or [],
+        "areas": engine.get("highlight_areas") or [],
+        "through_line": (engine.get("evidence") or {}).get("dasha_tone", ""),
         "direction": engine.get("direction"),
         "strength": engine.get("strength"),
         "drivers": drivers or [],
@@ -160,6 +145,7 @@ _DRIVER_REASON = {
     "lk_avoid":   ("your own pattern asks for extra care here today", 0),
     "moon_house": ("this is where your attention naturally lands today", 1),
     "patra":      ("it connects to what you're focused on right now", 2),
+    "dasha":      ("this is the chapter your life is moving through right now", 0),
 }
 
 
@@ -193,6 +179,8 @@ def summarize_drivers(debug: Optional[dict], chosen: Optional[list] = None) -> l
                 house_for[domain] = int(kind[len("moon_house"):])
             except Exception:
                 pass
+        elif kind.startswith("dasha"):
+            key = "dasha"
         else:
             key = kind
         entry = _DRIVER_REASON.get(key)
@@ -214,8 +202,15 @@ def summarize_drivers(debug: Optional[dict], chosen: Optional[list] = None) -> l
         nouns, theme, phrase = [], "", ""
         try:
             from antar_engine.house_significations import resolve_signal
+            from antar_engine.life_areas import AREA_HOUSE as _AREA_HOUSE
+            # Prefer the actually-activated house (Moon-attention vote); else
+            # fall back to the fine area's own anchor house so LK-only votes
+            # (e.g. father via the 9th) still resolve the right nouns.
+            _hs = house_for.get(d)
+            if _hs is None:
+                _hs = _AREA_HOUSE.get(d)
             _direction = "positive" if signal == "amplified" else "adverse"
-            _sig = resolve_signal(house_for.get(d), d, _direction, limit=3)
+            _sig = resolve_signal(_hs, d, _direction, limit=3)
             nouns = _sig.get("nouns", [])
             theme = _sig.get("theme", "")
             phrase = _sig.get("phrase", "")
@@ -259,8 +254,38 @@ def _extract_json(raw: str) -> Optional[dict]:
     return obj if isinstance(obj, dict) else None
 
 
-def parse_and_validate(raw: str, language: str = "en") -> Optional[dict]:
-    """Parse Claude's JSON and enforce the contract. None = use the template."""
+# Life-area mentions the narrator might invent. Each phrase -> the fine
+# area that MUST have been voted for the prose to name it. Deliberately
+# limited to the relative/network/expense nouns the model tends to
+# embroider (father/mother/siblings/children/partner/network/expense);
+# a false reject only falls back to the grounded engine template, so we
+# err strict. Generic words (home, family, loss) are intentionally NOT
+# here — only unambiguous, person-or-ledger nouns.
+_AREA_MENTIONS = [
+    (re.compile(r"(?i)\b(father|dad)\b"), "father"),
+    (re.compile(r"(?i)\b(mother|mom|mum)\b"), "home"),
+    (re.compile(r"(?i)\b(sibling|siblings|brother|sister)\b"), "siblings"),
+    (re.compile(r"(?i)\b(children|kids?|daughter|son)\b"), "children"),
+    (re.compile(r"(?i)\b(partner|spouse|marriage|husband|wife)\b"), "partner"),
+    (re.compile(r"(?i)\b(network|friends?|allies|colleagues?)\b"), "network"),
+    (re.compile(r"(?i)\b(expense|expenses|spending|overspend\w*)\b"), "expense"),
+]
+
+
+def ungrounded_areas(text: str, allowed: set) -> set:
+    """Areas the prose names that were NOT computed (not in `allowed`)."""
+    hits = set()
+    for rx, area in _AREA_MENTIONS:
+        if area not in allowed and rx.search(text or ""):
+            hits.add(area)
+    return hits
+
+
+def parse_and_validate(raw: str, language: str = "en",
+                       allowed_areas: Optional[set] = None) -> Optional[dict]:
+    """Parse Claude's JSON and enforce the contract. None = use the template.
+    When allowed_areas is given, the no-invention gate rejects any prose that
+    names a life-area no source voted for."""
     obj = _extract_json(raw)
     if not obj:
         return None
@@ -289,7 +314,7 @@ def parse_and_validate(raw: str, language: str = "en") -> Optional[dict]:
 
     if not (10 <= len(headline) <= 120):
         return None
-    if not (80 <= len(highlight) <= 700):
+    if not (80 <= len(highlight) <= 1300):
         return None
     if "?" in headline or "?" in highlight:
         return None
@@ -297,6 +322,13 @@ def parse_and_validate(raw: str, language: str = "en") -> Optional[dict]:
         return None
     if _JARGON_RX.search(headline) or _JARGON_RX.search(highlight):
         return None
+    # [Fix C] no-invention gate — the model may only speak to computed votes.
+    if allowed_areas is not None:
+        _bad = ungrounded_areas(headline + " " + highlight, set(allowed_areas))
+        if _bad:
+            print(f"[today-narration] no-invention gate rejected "
+                  f"{sorted(_bad)} (allowed={sorted(allowed_areas)})")
+            return None
     return {"headline": headline, "highlight": highlight}
 
 
