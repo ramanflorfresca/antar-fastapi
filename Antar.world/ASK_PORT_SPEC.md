@@ -108,8 +108,21 @@ the peak is the window. Convergence now means the systems truly stack.
 - On Raman: identical to Slice 4 (his systems genuinely overlap) — no regression,
   strictly more correct for staggered-window charts.
 
-Remaining (nice-to-have): systems returning MULTIPLE graded windows per period
-(currently one window each) would let net(t) find secondary peaks too.
+### ✅ Slice 4c — Multiple graded windows per system + secondary peaks *(this commit)*
+`_vimshottari_windows` now collects ALL qualifying windows (prefers the tight AD
+windows — possibly several — falling back to the broad MD only if no AD qualifies).
+The timeline takes per-system window LISTS; a system adds its weight to a month if
+ANY of its windows covers it. The **primary window is the peak-level sub-run**
+(where systems stack strongest); other at/above-bar runs return as
+`secondary_windows` [{label, score}], surfaced in the payload + prompt.
+- On Raman: career tightened to Jul–Nov 2026 (the real Vim+Varshphal overlap
+  peak, vs 4b's arbitrary Jul–Aug first-AD); wealth/business broadened to
+  Jul 2026–Jun 2028 — honest, because Rahu-in-11th makes the whole Rahu MD a
+  wealth backdrop (4b's tight window hid that). Disjoint-window charts now show a
+  tight primary peak + a secondary opening.
+- Tradeoff flagged: lone continuous systems yield an honestly-broad window; if a
+  crisper always-tight window is preferred, cap the primary run length (1-line
+  threshold) — kept honest by default.
 
 ### ✅ Slice 5 — Jargon-leak gate on the Ask narration *(this commit)*
 Finding: the `read`/`next` are ALREADY covered by a comprehensive

@@ -407,38 +407,76 @@ def _month_starts(start, end):
     return out
 
 
-def _weighted_convergence_timeline(locks, today, horizon):
-    """[slice-4b] net(t) over monthly buckets. Each active system adds its
-    weight to the months its window covers; the peak overlap = timing_score,
-    and the contiguous run at/above the bar around the (first) peak = the
-    window. Returns (timing_score, convergence_met, window_start, window_end).
-    Scores TEMPORAL overlap, so non-overlapping systems never falsely stack."""
+def _vimshottari_windows(dashas, chart_data, houses, lords, today, horizon):
+    """[slice-4c] ALL qualifying Vimshottari windows in the horizon (not just the
+    earliest) so net(t) can weigh multiple openings. Prefers the tight AD windows
+    (possibly several); falls back to the broad MD window only if no AD qualifies,
+    mirroring _vimshottari_lock's AD preference. A window qualifies when its lord
+    rules or occupies a target house."""
+    planets = (chart_data or {}).get("planets") or {}
+
+    def _q(p):
+        return bool(p) and (p in lords or (planets.get(p) or {}).get("house") in houses)
+
+    ad, md = [], []
+    for r in _rows(dashas, "vimsottari"):
+        lv = _level(r)
+        is_ad = lv in ("antardasha", "antar", "2")
+        is_md = lv in ("mahadasha", "1")
+        if not (is_ad or is_md):
+            continue
+        s, e = _win(r)
+        if not s or not e or e < today or s > horizon:
+            continue
+        if _q(_lord(r)):
+            (ad if is_ad else md).append((max(s, today), min(e, horizon)))
+    return ad if ad else md
+
+
+def _weighted_convergence_timeline(sys_windows, today, horizon):
+    """[slice-4c] net(t) over monthly buckets from PER-SYSTEM window lists. A
+    system adds its weight to a month if ANY of its windows covers it (no
+    within-system double count). The earliest at/above-bar run is the primary
+    window; later runs are returned as secondary peaks. Returns
+    (timing_score, convergence_met, window_start, window_end, secondary_windows),
+    timing_score = the PRIMARY run's peak; secondary_windows = [{label, score}]."""
     months = _month_starts(today, horizon)
     if not months:
-        return 0.0, False, None, None
+        return 0.0, False, None, None, []
     net = []
     for mo in months:
         mend = _month_end(mo)
         w = 0.0
-        for k, v in locks.items():
-            if not v.get("active"):
-                continue
-            s, e = v.get("start"), v.get("end")
-            if s and e and s <= mend and e >= mo:
-                w += _SYS_WEIGHT.get(k, 1.0)
+        for sysname, wins in sys_windows.items():
+            if any(s and e and s <= mend and e >= mo for (s, e) in (wins or [])):
+                w += _SYS_WEIGHT.get(sysname, 1.0)
         net.append(round(w, 2))
-    peak = max(net)
-    if peak < _CONVERGENCE_BAR:
-        return round(peak, 2), False, None, None
-    pk = net.index(peak)
+    if max(net) < _CONVERGENCE_BAR:
+        return round(max(net), 2), False, None, None, []
+    runs, i = [], 0
+    while i < len(net):
+        if net[i] >= _CONVERGENCE_BAR:
+            j = i
+            while j + 1 < len(net) and net[j + 1] >= _CONVERGENCE_BAR:
+                j += 1
+            runs.append((i, j, max(net[i:j + 1])))
+            i = j + 1
+        else:
+            i += 1
+    peak = max(net)                                 # primary = the strongest,
+    pk = net.index(peak)                            # peak-level sub-window
+    prun = next(r for r in runs if r[0] <= pk <= r[1])
     lo = hi = pk
-    while lo - 1 >= 0 and net[lo - 1] >= _CONVERGENCE_BAR:
+    while lo - 1 >= prun[0] and net[lo - 1] == peak:
         lo -= 1
-    while hi + 1 < len(net) and net[hi + 1] >= _CONVERGENCE_BAR:
+    while hi + 1 <= prun[1] and net[hi + 1] == peak:
         hi += 1
     ws = max(months[lo], today)
     we = min(_month_end(months[hi]), horizon)
-    return round(peak, 2), True, ws, we
+    secondary = [{"label": _fmt_window(max(months[a], today),
+                                       min(_month_end(months[b]), horizon)),
+                  "score": rp} for (a, b, rp) in runs if not (a <= pk <= b)]
+    return round(peak, 2), True, ws, we, secondary
 
 
 def build_convergence_timing(concern, chart_data, dashas, birth_date,
@@ -466,8 +504,14 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
     # [slice-4b] net(t) weighted convergence over monthly buckets — scores
     # actual TEMPORAL overlap (non-overlapping systems never falsely stack).
     lock_count = sum(1 for v in locks.values() if v["active"])  # kept for compat
-    timing_score, convergence_met, _tl_ws, _tl_we = _weighted_convergence_timeline(
-        locks, today, horizon)
+    _vim_wins = _vimshottari_windows(dashas, chart_data, houses, lords, today, horizon)
+    _sys_windows = {"vimshottari": _vim_wins}
+    for _sk in ("chara", "varshphal"):
+        _slk = locks.get(_sk, {})
+        if _slk.get("active") and _slk.get("start") and _slk.get("end"):
+            _sys_windows[_sk] = [(_slk["start"], _slk["end"])]
+    timing_score, convergence_met, _tl_ws, _tl_we, _tl_secondary = \
+        _weighted_convergence_timeline(_sys_windows, today, horizon)
 
     # Domain-relevant planets — active lock planets first, then target-house
     # lords, then natural karakas. Used to pick domain-matched practices.
@@ -556,6 +600,7 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
         "window_end": window_end.isoformat() if window_end else None,
         "window_label": window_label or None,
         "timing_score": timing_score,
+        "secondary_windows": _tl_secondary,
         "next_window_label": (next_win or {}).get("label"),
         "next_window_why": (next_win or {}).get("why"),
         "relevant_planets": relevant_planets,
@@ -724,6 +769,10 @@ def consultation_prompt_block(conv: dict, concern: str, dasha_str: str) -> str:
         lines.append("TIMING WINDOW: none — frame as a building/preparation phase, do NOT invent dates")
     if conv.get("next_window_label"):
         lines.append(f"AFTER THIS WINDOW: next opening {conv['next_window_label']} — {conv.get('next_window_why', '')}")
+    _secw = [w.get("label", "") for w in (conv.get("secondary_windows") or []) if w.get("label")]
+    if _secw:
+        lines.append("ALSO SUPPORTIVE (secondary windows — mention briefly, do not "
+                     "over-emphasize): " + "; ".join(_secw))
     # [ask-slice2] agency dial — how hard to lean on when-to-receive vs.
     # what-to-do, from the Stage-1 promise band.
     _band = conv.get("promise_band")
