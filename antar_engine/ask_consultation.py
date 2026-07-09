@@ -658,6 +658,15 @@ def consultation_prompt_block(conv: dict, concern: str, dasha_str: str) -> str:
         lines.append("TIMING WINDOW: none — frame as a building/preparation phase, do NOT invent dates")
     if conv.get("next_window_label"):
         lines.append(f"AFTER THIS WINDOW: next opening {conv['next_window_label']} — {conv.get('next_window_why', '')}")
+    # [ask-slice2] agency dial — how hard to lean on when-to-receive vs.
+    # what-to-do, from the Stage-1 promise band.
+    _band = conv.get("promise_band")
+    if _band == "strong":
+        lines.append("AGENCY FRAMING: the chart strongly promises this — LEAD with the timing (when to receive it) and how to prepare. Mention any practice lightly, as support, not the headline.")
+    elif _band == "moderate":
+        lines.append("AGENCY FRAMING: the chart promises this moderately — balance the timing with concrete effort; name the practice or remedy as the way to earn the window.")
+    elif _band in ("weak", "absent"):
+        lines.append("AGENCY FRAMING: the chart's natural promise here is modest — LEAD with what to DO. The window helps, but effort, the remedy, and the practice are what make it land. Never fatalistic: the user has real agency here.")
     lines.append("=== END CONSULTATION FACTS ===")
     return "\n".join(lines)
 

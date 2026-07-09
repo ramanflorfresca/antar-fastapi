@@ -16193,9 +16193,16 @@ async def ask_endpoint(request: AskRequest):
                     _ask_conv_block = consultation_prompt_block(
                         _ask_conv, _ask_concern, _ask_dasha_str
                     )
+                    # [ask-slice2] agency dial: weak/absent promise surfaces
+                    # MORE remedy/practice (lead with the work); strong promise
+                    # fewer (lead with timing). Scales with agency_weight.
+                    _ask_aw = _ask_conv.get("agency_weight")
+                    _ask_limit = (max(1, min(4, round(1 + _ask_aw * 3.5)))
+                                  if isinstance(_ask_aw, (int, float)) else 3)
                     _ask_practices = _ask_get_practices(
                         chart_id, chart_data, _ask_jd, _ask_lk,
                         chart_row.data.get("current_country"), _ask_bdate,
+                        limit=_ask_limit,
                         relevant_planets=_ask_conv.get("relevant_planets"),
                     )
                     print(f"[ask] consultation: locks={_ask_conv.get('lock_count')} "

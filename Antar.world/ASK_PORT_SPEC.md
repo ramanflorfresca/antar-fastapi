@@ -64,12 +64,16 @@ scored as nothing.
   wealth → 0.68, business → 0.78 — while marriage/children barely move (Rahu
   relevance 0.3), so no spurious inflation.
 
-### Slice 2 — Agency-scaled narration + remedy/practice routing
-Wire `agency_weight` into the answer: high promise → whisper the practice, lead
-with timing; low promise → lead with the remedy/mantra/practice for that window.
-Hook already exists — `build_convergence_timing.relevant_planets` is computed
-"to pick domain-matched practices" and `patch_ask_domain_practices` wires them;
-formalize the inverse-to-promise weighting.
+### ✅ Slice 2 — Agency-scaled narration + practice routing *(this commit)*
+`agency_weight` now steers the answer, backend-only (response contract
+read/next/timing/practices unchanged — no frontend change):
+- **`consultation_prompt_block`** gains an AGENCY FRAMING line keyed to
+  `promise_band`: strong → lead with timing, whisper the practice; moderate →
+  balance; weak/absent → lead with what to DO (effort + remedy + practice),
+  never fatalistic.
+- **`/ask` consultation path** scales the practice-card count by `agency_weight`
+  (`limit = clamp(round(1 + agency_weight·3.5), 1, 4)`): strong promise → 2
+  cards, weak/absent → 4. `agency_weight=None` → default 3 (unchanged).
 
 ### Slice 3 — Verdict/enum honesty
 Reconcile the client-facing verdict chip with promise. Today the enum (SUPPORTED/
