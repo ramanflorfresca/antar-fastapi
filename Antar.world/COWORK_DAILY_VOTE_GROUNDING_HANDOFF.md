@@ -20,9 +20,14 @@ Every beat now traces to a specific vote.
 | **D.1** | **Top-N coverage**: narrate every area above a floor (cap 5, strongest first), not just top-2 — keeps the honest quiet day | `today_highlight.py` |
 | **D.2** | **Warm voice** ("Dear {name}…") walking each computed area, through-line as connective tone, Antar timing as the close | `today_narration.py` (`NARRATION_STATIC` → `_fb_today`) |
 
-**D.2 note:** the warm voice is staged as the code fallback but a live `llm_prompts` row
-(`today/en` v1) still serves the old cold body. Flip with `patch_d_prompt_db_flip.py --apply`
-(backs up v1, inserts v2 live; reversible). Pairs with the Lovable daily-render update.
+**D.2 status — LIVE (2026-07-08):** the warm voice was flipped live by updating the
+`llm_prompts` today/en row in place (v1→v2, via `patch_d_prompt_db_flip.py --apply`; the
+table's `llm_prompts_one_live` constraint means UPDATE, never INSERT a second live row).
+Rollback: restore the old body from `llm_prompts_today_en_v1.<ts>.bak.txt`. Registry live
+cache TTL is 60s. `today_narration_cache` is keyed by engine fingerprint (not prompt
+version), so pre-existing cold reads linger until they miss — purge that table to force warm
+for all (costs a re-narration spike). Still pairs with the Lovable daily-render update so the
+multi-beat body renders as intended.
 
 ---
 
