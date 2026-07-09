@@ -81,5 +81,7 @@ def test_drivers_reach_the_narration_payload():
     )
     assert '"drivers"' in sys_prompt
     assert "this area is specifically lit for you today" in sys_prompt
-    # the grounding rule is present in the static instruction
-    assert "GROUND every line in the \"drivers\" list" in sys_prompt
+    # the grounding rule is present in the static instruction (warm-voice copy,
+    # 2026-07-08): "GROUND each beat in its driver" + the no-invention rule.
+    assert "GROUND each beat in its driver" in sys_prompt
+    assert "NO INVENTION" in sys_prompt
