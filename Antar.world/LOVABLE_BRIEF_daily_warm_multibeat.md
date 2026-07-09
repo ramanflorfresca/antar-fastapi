@@ -47,16 +47,31 @@ other fields:
 5. **Quiet days** (`direction: "quiet"`, `highlight_areas: []`) — the `highlight`
    is a short honest "quiet day" note; render it plainly, skip the beat treatment.
 
-## Paragraph breaks — pick one
-The warm `highlight` currently arrives as **one flowing string**. Two options:
-- **Frontend-only (ship today):** render `highlight` with sensible paragraph
-  styling; optionally split into paragraphs on sentence groups for breathing room.
-- **Backend-assisted (recommended, small change):** we add explicit paragraph
-  breaks (`\n\n`) between beats, or a structured `beats[]` array
-  (`[{area, text}]`) aligned to `highlight_areas`, so the app renders clean
-  per-beat paragraphs (or cards) with zero heuristics. **Tell us which and we'll
-  ship it** — `beats[]` is the cleaner contract if you want per-area cards or
-  icons.
+## Structured beats — `beats[]` is now in the payload
+So you don't have to split the prose, the response also carries a deterministic
+`beats[]` array — one entry per computed life-area, strongest first, aligned to
+`highlight_areas`:
+
+```json
+"beats": [
+  { "area": "father",  "life_area": "father, fortune and the long view", "signal": "amplified", "nouns": ["your father", "a mentor or teacher"] },
+  { "area": "work",    "life_area": "career, your boss and reputation",   "signal": "amplified", "nouns": ["your boss", "a promotion", "your reputation"] },
+  { "area": "network", "life_area": "income, gains and your network",     "signal": "caution",   "nouns": ["income", "a gain or payout", "your network or friends"] }
+]
+```
+- `area` — the fine life-area slug; `life_area` — a plain-English theme label.
+- `signal` — `"amplified"` (lean in) or `"caution"` (ease off) → drive the card's
+  tint/icon.
+- `nouns` — 1–3 concrete, plain-English things this beat touches (never jargon) →
+  render as the card's specifics.
+- Empty (`[]`) on quiet days. Every beat is computed — nothing is invented.
+
+**Two ways to render, your choice:**
+- **Warm narrative:** render `highlight` as the flowing "Dear {name}…" reading
+  (paragraph styling). `beats[]` can drive small inline anchors/icons.
+- **Structured cards:** render `beats[]` as a house-by-house set of cards
+  (theme + nouns + amplified/caution accent), with `highlight` as the intro.
+Both are backed by the same computed data, so they never disagree.
 
 ## Do NOT render
 `evidence` and `_debug_reasoning` are the internal audit trail (votes → net →

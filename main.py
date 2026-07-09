@@ -17708,6 +17708,20 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             # [Fix A] first-class, stable evidence trail (admin/dev-
             # visible; not rendered). Always present on a daily read.
             result["evidence"] = _th.get("evidence") or {}
+            # [beats] structured per-area cards for the warm multi-beat
+            # render — deterministic, from the same drivers the narrator
+            # uses (plain nouns, no jargon). Empty on quiet days.
+            try:
+                from antar_engine.today_narration import summarize_drivers as _sd_beats
+                result["beats"] = [{
+                    "area":      _b.get("domain"),
+                    "life_area": _b.get("life_area") or "",
+                    "signal":    _b.get("signal"),
+                    "nouns":     _b.get("concrete_nouns") or [],
+                } for _b in (_sd_beats(_th_dbg, _th.get("highlight_areas")) or [])]
+            except Exception as _bts_e:
+                print(f"[daily-signal] beats build skipped: {_bts_e}")
+                result["beats"] = []
             # [admin-inspect] capture the deterministic engine pick (raw bundle)
             _ai_c = _inspect_active()
             if _ai_c is not None:
