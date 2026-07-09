@@ -84,11 +84,21 @@ Applied to `conv["verdict"]` (matches the softened opening + the prompt's stated
 verdict) and to the `/ask` client chip (`_det_verdict`, incl. the event-engine
 value). Fail-open (band=None → unchanged).
 
-### Slice 4 — Unify the timing locks into weighted, time-indexed votes
-Replace the binary 2-of-3 `_vimshottari_lock`/`_chara_lock`/`_varshphal_lock` with
-signed weighted votes over the horizon → `net(t)`; the peak crossing the threshold
-is the "when". Removes the brittle 2-of-3 cliff (a lone strong system stops reading
-as "building phase"); confidence becomes continuous.
+### ✅ Slice 4 — Weighted, continuous timing convergence *(this commit)*
+Replaced the binary 2-of-3 cliff with a weighted `timing_score`: Vimshottari
+primary (1.2), Chara (1.0), Varshphal (0.7); convergence bar = 1.2, so a lone
+Vimshottari lock qualifies while Chara/Varshphal alone (< 1.2) still need a
+second system. Confidence is now continuous (scaled by `timing_score / 2.9`).
+Output contract preserved (`lock_count` kept; `timing_score` added).
+- Verified on Raman: **wealth / business / property flip NOT_YET → SUPPORTED**
+  (lone Vimshottari lock, score 1.2 — the primary timing system was being
+  dismissed as "building phase"); **education stays NOT_YET** (score 0.7, a lone
+  weak system — correct discrimination); marriage/children stay NO. The promise
+  layer keeps the flips honest (wealth conf 0.56, business 0.64, not inflated).
+
+Note: the full monthly-bucket `net(t)` peak-finding (systems returning multiple
+graded windows) is a future refinement; the weighted-score convergence already
+removes the cliff and makes confidence continuous.
 
 ### ✅ Slice 5 — Jargon-leak gate on the Ask narration *(this commit)*
 Finding: the `read`/`next` are ALREADY covered by a comprehensive

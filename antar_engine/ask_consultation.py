@@ -390,9 +390,12 @@ def _varshphal_lock(chart_data, birth_date, houses, lords, karakas, today):
 def build_convergence_timing(concern, chart_data, dashas, birth_date,
                              horizon_months: int = 24) -> dict:
     """
-    Deterministic 2-of-3 convergence across Vimshottari + Chara + Varshphal.
-    Returns lock states, lock_count, convergence_met, and a timing window
-    (overlap of the agreeing systems' windows, clipped to the horizon).
+    Deterministic WEIGHTED convergence across Vimshottari + Chara + Varshphal
+    [slice-4]: each system carries a weight and convergence is a continuous
+    timing_score crossing a bar — a lone strong system qualifies, no 2-of-3
+    cliff. Returns lock states, lock_count, timing_score, convergence_met, and
+    a timing window (overlap of the agreeing systems' windows, clipped to the
+    horizon).
     """
     today = date.today()
     horizon = today + timedelta(days=horizon_months * 30)
@@ -406,8 +409,17 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
         "chara":       _chara_lock(dashas, lagna_idx, houses, lords, today, horizon),
         "varshphal":   _varshphal_lock(chart_data, birth_date, houses, lords, karakas, today),
     }
-    lock_count = sum(1 for v in locks.values() if v["active"])
-    convergence_met = lock_count >= 2
+    # [slice-4] Weighted, continuous convergence. Each system carries a weight
+    # (Vimshottari primary, Chara moderate, Varshphal the annual overlay); a
+    # lone STRONG system can now cross the bar instead of always reading as a
+    # 'building phase'.
+    _SYS_WEIGHT = {"vimshottari": 1.2, "chara": 1.0, "varshphal": 0.7}
+    timing_score = round(sum(_SYS_WEIGHT.get(k, 1.0)
+                             for k, v in locks.items() if v.get("active")), 2)
+    lock_count = sum(1 for v in locks.values() if v["active"])  # kept for compat
+    _CONVERGENCE_BAR = 1.2   # a lone Vimshottari lock (1.2) qualifies; Chara or
+                             # Varshphal alone (< 1.2) need a second system.
+    convergence_met = timing_score >= _CONVERGENCE_BAR
 
     # Domain-relevant planets — active lock planets first, then target-house
     # lords, then natural karakas. Used to pick domain-matched practices.
@@ -447,12 +459,17 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
 
     window_label = _fmt_window(window_start, window_end)
     if convergence_met and window_label:
-        summary = f"{lock_count} of 3 timing systems converge: window {window_label}"
-        public_summary = f"{lock_count} of 3 timing systems point to {window_label}"
-    elif lock_count == 1:
-        only = next(k for k, v in locks.items() if v["active"])
-        summary = f"1 of 3 systems active ({only}) — no convergence; treat as a building phase"
-        public_summary = "1 of 3 timing systems active — building phase, no strong window yet"
+        if lock_count >= 2:
+            summary = f"{lock_count} of 3 timing systems converge (score {timing_score}): window {window_label}"
+            public_summary = f"{lock_count} of 3 timing systems point to {window_label}"
+        else:
+            _only = next((k for k, v in locks.items() if v.get("active")), "primary")
+            summary = f"primary timing system active ({_only}, score {timing_score}): window {window_label}"
+            public_summary = f"the main timing system points to {window_label}"
+    elif lock_count >= 1:
+        _only = next((k for k, v in locks.items() if v.get("active")), "one")
+        summary = f"1 of 3 systems active ({_only}, score {timing_score}) — below convergence; building phase"
+        public_summary = "1 timing system active — building phase, no strong window yet"
     else:
         summary = "0 of 3 systems active — no supportive window inside the horizon"
         public_summary = "No strong timing window in the next 24 months — building phase"
@@ -477,12 +494,15 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
     except Exception:
         _prom = {"promise": None, "band": None, "agency_weight": None, "factors": []}
     _pband = _prom.get("band")
+    # [slice-4] continuous timing strength: shape the band by whether the
+    # window is open now / future / absent, then scale within it by the score.
+    _ts_norm = min(1.0, timing_score / 2.9)   # 2.9 = all three systems active
     if convergence_met and window_start and window_end and window_start <= today <= window_end:
-        _t_scalar = 1.0
+        _t_scalar = round(0.75 + 0.25 * _ts_norm, 3)
     elif convergence_met and window_start and window_start > today:
-        _t_scalar = 0.8
-    elif lock_count == 1:
-        _t_scalar = 0.4
+        _t_scalar = round(0.55 + 0.25 * _ts_norm, 3)
+    elif lock_count >= 1:
+        _t_scalar = round(0.25 + 0.15 * _ts_norm, 3)
     else:
         _t_scalar = 0.15
     _confidence = (round(_prom["promise"] * _t_scalar, 2)
@@ -504,6 +524,7 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
         "window_start": window_start.isoformat() if window_start else None,
         "window_end": window_end.isoformat() if window_end else None,
         "window_label": window_label or None,
+        "timing_score": timing_score,
         "next_window_label": (next_win or {}).get("label"),
         "next_window_why": (next_win or {}).get("why"),
         "relevant_planets": relevant_planets,
