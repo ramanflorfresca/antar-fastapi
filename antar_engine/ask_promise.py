@@ -90,7 +90,8 @@ def _yoga_relevant(concern: str, cat: str, name: str, involved: list,
 
 
 def assess_promise(chart_data: dict, houses: List[int], karakas: List[str],
-                   *, concern: str = "general") -> dict:
+                   *, md_lord: str = "", ad_lord: str = "",
+                   concern: str = "general") -> dict:
     """Score the chart's PROMISE for `concern` in [0,1] + band + agency_weight
     + an audit `factors` trail. Fail-open: returns promise=None if unassessable."""
     out = {"promise": None, "band": None, "agency_weight": None, "factors": []}
@@ -113,9 +114,21 @@ def assess_promise(chart_data: dict, houses: List[int], karakas: List[str],
         factors = []
         comps = []  # (weight, value in [-1, 1])
 
-        # ── 1. Karaka dignity (D1) ──────────────────────────────────────────
+        # ── 1. Karaka dignity (D1); nodes scored contextually [slice-1b] ────
+        try:
+            from antar_engine.planet_significations import (
+                contextual_strength as _ctx, dasha_relevance as _drel,
+                NODES as _NODES)
+        except Exception:
+            _ctx = None; _drel = None; _NODES = set()
         kpts = []
         for k in karakas:
+            if _ctx and k in _NODES:
+                _cs = _ctx(k, chart_data)
+                kpts.append(_cs["points"])
+                factors.append({"stage": "promise", "factor": f"karaka {k}",
+                                "detail": _cs["summary"], "points": _cs["points"]})
+                continue
             sgn = (planets.get(k) or {}).get("sign")
             if sgn not in SIGNS:
                 continue
@@ -194,6 +207,19 @@ def assess_promise(chart_data: dict, houses: List[int], karakas: List[str],
                                 "points": round(avg, 1)})
         except Exception:
             pass
+
+        # ── 5. Running chapter lord(s) — the era's significator [slice-1b] ──
+        if _ctx and _drel:
+            for _lord, _w in ((md_lord, 0.28), (ad_lord, 0.12)):
+                _lord = (_lord or "").strip().title()
+                if not _lord:
+                    continue
+                _rel = _drel(_lord, concern, houses, chart_data)
+                _cs = _ctx(_lord, chart_data)
+                comps.append((_w * _rel, _clamp(_cs["points"] / 2.0)))
+                factors.append({"stage": "promise", "factor": f"chapter lord {_lord}",
+                                "detail": f"{_cs['summary']} | relevance {_rel}",
+                                "points": _cs["points"]})
 
         if not comps:
             return out

@@ -216,6 +216,21 @@ def _fmt_window(s: Optional[date], e: Optional[date]) -> str:
 
 # ───────────────────────── per-system locks ──────────────────────────────
 
+def _current_dasha_lords(dashas, today):
+    """[slice-1b] Running Vimshottari MD + AD lords for the promise engine."""
+    md = ad = ""
+    for r in _rows(dashas, "vimsottari"):
+        lv = _level(r)
+        s, e = _win(r)
+        if not (s and e and s <= today <= e):
+            continue
+        if lv in ("mahadasha", "1") and not md:
+            md = _lord(r)
+        elif lv in ("antardasha", "antar", "2") and not ad:
+            ad = _lord(r)
+    return md, ad
+
+
 def _vimshottari_lock(dashas, chart_data, houses, lords, today, horizon):
     """Earliest current/upcoming Vimshottari period whose lord rules or
     occupies a target house. AD windows preferred (tighter)."""
@@ -456,7 +471,9 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
     # Fail-open: assess_promise never raises; promise=None => unchanged output.
     try:
         from antar_engine.ask_promise import assess_promise
-        _prom = assess_promise(chart_data, houses, karakas, concern=concern)
+        _md_l, _ad_l = _current_dasha_lords(dashas, today)
+        _prom = assess_promise(chart_data, houses, karakas,
+                               md_lord=_md_l, ad_lord=_ad_l, concern=concern)
     except Exception:
         _prom = {"promise": None, "band": None, "agency_weight": None, "factors": []}
     _pband = _prom.get("band")

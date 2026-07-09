@@ -47,6 +47,23 @@ humble-but-actionable when thin — not blanket hedging.
   marriage (moderate promise, no window) → honest 0.08, agency 0.45; softening
   fires on weak/absent bands.
 
+### ✅ Slice 1b — Era/context significations layer *(this commit)*
+Sign-dignity alone read the nodes as "neutral" and never weighted the running
+Mahadasha lord — so a Rahu-MD-in-11th (a textbook modern tech/fame/gains chapter)
+scored as nothing.
+- **`antar_engine/planet_significations.py`** — `ERA_SIGNIFICATIONS` (classical +
+  modern per planet; Rahu-modern = technology / AI / media / fame / foreign /
+  disruption); `contextual_strength(planet, chart_data)` scoring house-context
+  (nodes are functional benefits in 3/6/11, 11th best for Rahu) + conjunction
+  color + dispositor channel; `dasha_relevance(planet, concern, houses)`.
+- **`assess_promise`** now scores node karakas contextually and adds the running
+  MD/AD lord as the era's significator (weighted by relevance).
+  `build_convergence_timing` extracts + passes the current lords. Fail-open.
+- Verified on Raman `a4c9d57b`: Rahu reads at max strength 2.0 (11th + Sun/Venus
+  + Mars-10th dispositor); career promise 0.58 → 0.67 (**strong**) under Rahu MD,
+  wealth → 0.68, business → 0.78 — while marriage/children barely move (Rahu
+  relevance 0.3), so no spurious inflation.
+
 ### Slice 2 — Agency-scaled narration + remedy/practice routing
 Wire `agency_weight` into the answer: high promise → whisper the practice, lead
 with timing; low promise → lead with the remedy/mantra/practice for that window.
