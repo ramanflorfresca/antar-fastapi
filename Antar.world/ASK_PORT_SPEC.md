@@ -86,9 +86,22 @@ signed weighted votes over the horizon → `net(t)`; the peak crossing the thres
 is the "when". Removes the brittle 2-of-3 cliff (a lone strong system stops reading
 as "building phase"); confidence becomes continuous.
 
-### Slice 5 — No-invention gate + jargon scrub on the Ask narration
-Port the daily `_AREA_MENTIONS` no-invention gate + `output_strips` onto the Ask
-`read`/narration so it can only speak to computed factors — the jargon-leak fix.
+### ✅ Slice 5 — Jargon-leak gate on the Ask narration *(this commit)*
+Finding: the `read`/`next` are ALREADY covered by a comprehensive
+validate→regenerate→fail-closed voice-gate (`narration_validator.validate_narration`
+catches planet/sign/house names, the full Sanskrit/system set — dasha, mahadasha,
+nakshatra, lagna, karaka, vimshottari, jaimini, chara, varshphal — MD/AD codes,
+energy constructions). The original "jargon leaks" defect was largely fixed by
+that gate (`[ask-voice-gate 2026-06-16]`). The real remaining gap was **actions[]**,
+which weren't validated on the happy path. Slice 5 closes it, respecting the
+gate's deliberate no-blind-stripping design:
+1. actions[] join the voice-gate's violation check → a jargon-y action triggers
+   the same regenerate→fail-closed as the prose.
+2. a final non-destructive net drops any residual jargon-carrying action after
+   payload assembly (a list — safe to prune).
+Note: `_AREA_MENTIONS`-style life-area no-invention was intentionally NOT ported —
+the Ask question fixes one concern and the verdict is Python-authoritative, so
+domain-drift isn't the failure mode; forcing it risks false rejects.
 
 ### Slice 6 — es/pt coverage
 `_AREA_MENTIONS` and the softened phrases are EN-only; extend for the live LATAM

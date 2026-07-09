@@ -16581,7 +16581,9 @@ async def ask_endpoint(request: AskRequest):
                             _lead = re.compile(r"^\s*(yes|likely|not\s+yet|not\s+now|not\s+this\s+year|no)\b[^.!?]{0,200}[.!?]\s*", re.IGNORECASE)
                             _r = (_vp + " " + _lead.sub("", _r or "", count=1)).strip()
                     return _r, _n
-                _vios = _ask_voice_vios(read_txt, next_txt)
+                # [ask-slice5] actions[] join the gate — a jargon-y action
+                # triggers the same regenerate->fail-closed as the prose.
+                _vios = _ask_voice_vios(read_txt, next_txt, *(_ask_actions or []))
                 if _vios:
                     print(f"[ask][voice-gate] explore violations -> regenerate: {_vios[:6]}")
                     _corr = (_sys + "\n\nREWRITE (your previous answer was rejected). "
@@ -16675,6 +16677,16 @@ async def ask_endpoint(request: AskRequest):
                 payload["verdict"]  = _det_verdict
                 payload["timing"]   = _det_timing
                 payload["actions"]  = _ask_actions
+                # [ask-slice5] final jargon net — read/next are owned by the
+                # voice-gate; drop any residual jargon-carrying action (a list,
+                # safe to prune) so nothing leaks past.
+                try:
+                    from antar_engine.narration_validator import validate_narration as _vng_act
+                    payload["actions"] = [a for a in (payload["actions"] or [])
+                                          if isinstance(a, str) and a.strip()
+                                          and not _vng_act(a, language="en")]
+                except Exception:
+                    pass
                 payload["practices"] = _ask_practices
                 payload["convergence"] = _ask_conv.get("public_summary")
             # [ask-scrub] explore
