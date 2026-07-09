@@ -96,9 +96,20 @@ Output contract preserved (`lock_count` kept; `timing_score` added).
   weak system — correct discrimination); marriage/children stay NO. The promise
   layer keeps the flips honest (wealth conf 0.56, business 0.64, not inflated).
 
-Note: the full monthly-bucket `net(t)` peak-finding (systems returning multiple
-graded windows) is a future refinement; the weighted-score convergence already
-removes the cliff and makes confidence continuous.
+### ✅ Slice 4b — net(t) temporal-overlap convergence *(this commit)*
+Slice 4 summed ALL active systems' weights regardless of whether their windows
+overlap in time — so two systems active in *different* windows could report
+"converged" when they never coincide. Slice 4b builds `net(t)` over monthly
+buckets: each active system adds its weight to the months its window covers; the
+PEAK overlap is `timing_score`, and the contiguous run at/above the bar around
+the peak is the window. Convergence now means the systems truly stack.
+- Verified: overlapping Vim+Chara → peak 2.2, window = the stacked span;
+  NON-overlapping → 1.2 (Vim alone, no false 2.2); lone weak (0.7) → no window.
+- On Raman: identical to Slice 4 (his systems genuinely overlap) — no regression,
+  strictly more correct for staggered-window charts.
+
+Remaining (nice-to-have): systems returning MULTIPLE graded windows per period
+(currently one window each) would let net(t) find secondary peaks too.
 
 ### ✅ Slice 5 — Jargon-leak gate on the Ask narration *(this commit)*
 Finding: the `read`/`next` are ALREADY covered by a comprehensive

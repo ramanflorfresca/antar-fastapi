@@ -387,6 +387,60 @@ def _varshphal_lock(chart_data, birth_date, houses, lords, karakas, today):
 
 # ───────────────────────── convergence (2-of-3) ──────────────────────────
 
+_SYS_WEIGHT = {"vimshottari": 1.2, "chara": 1.0, "varshphal": 0.7}
+_CONVERGENCE_BAR = 1.2   # a lone Vimshottari lock (1.2) crosses; Chara or
+                         # Varshphal alone (< 1.2) need a second system.
+
+
+def _month_end(d):
+    nxt = date(d.year + 1, 1, 1) if d.month == 12 else date(d.year, d.month + 1, 1)
+    return nxt - timedelta(days=1)
+
+
+def _month_starts(start, end):
+    out, y, m = [], start.year, start.month
+    while (y, m) <= (end.year, end.month):
+        out.append(date(y, m, 1))
+        m += 1
+        if m > 12:
+            m = 1; y += 1
+    return out
+
+
+def _weighted_convergence_timeline(locks, today, horizon):
+    """[slice-4b] net(t) over monthly buckets. Each active system adds its
+    weight to the months its window covers; the peak overlap = timing_score,
+    and the contiguous run at/above the bar around the (first) peak = the
+    window. Returns (timing_score, convergence_met, window_start, window_end).
+    Scores TEMPORAL overlap, so non-overlapping systems never falsely stack."""
+    months = _month_starts(today, horizon)
+    if not months:
+        return 0.0, False, None, None
+    net = []
+    for mo in months:
+        mend = _month_end(mo)
+        w = 0.0
+        for k, v in locks.items():
+            if not v.get("active"):
+                continue
+            s, e = v.get("start"), v.get("end")
+            if s and e and s <= mend and e >= mo:
+                w += _SYS_WEIGHT.get(k, 1.0)
+        net.append(round(w, 2))
+    peak = max(net)
+    if peak < _CONVERGENCE_BAR:
+        return round(peak, 2), False, None, None
+    pk = net.index(peak)
+    lo = hi = pk
+    while lo - 1 >= 0 and net[lo - 1] >= _CONVERGENCE_BAR:
+        lo -= 1
+    while hi + 1 < len(net) and net[hi + 1] >= _CONVERGENCE_BAR:
+        hi += 1
+    ws = max(months[lo], today)
+    we = min(_month_end(months[hi]), horizon)
+    return round(peak, 2), True, ws, we
+
+
 def build_convergence_timing(concern, chart_data, dashas, birth_date,
                              horizon_months: int = 24) -> dict:
     """
@@ -409,17 +463,11 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
         "chara":       _chara_lock(dashas, lagna_idx, houses, lords, today, horizon),
         "varshphal":   _varshphal_lock(chart_data, birth_date, houses, lords, karakas, today),
     }
-    # [slice-4] Weighted, continuous convergence. Each system carries a weight
-    # (Vimshottari primary, Chara moderate, Varshphal the annual overlay); a
-    # lone STRONG system can now cross the bar instead of always reading as a
-    # 'building phase'.
-    _SYS_WEIGHT = {"vimshottari": 1.2, "chara": 1.0, "varshphal": 0.7}
-    timing_score = round(sum(_SYS_WEIGHT.get(k, 1.0)
-                             for k, v in locks.items() if v.get("active")), 2)
+    # [slice-4b] net(t) weighted convergence over monthly buckets — scores
+    # actual TEMPORAL overlap (non-overlapping systems never falsely stack).
     lock_count = sum(1 for v in locks.values() if v["active"])  # kept for compat
-    _CONVERGENCE_BAR = 1.2   # a lone Vimshottari lock (1.2) qualifies; Chara or
-                             # Varshphal alone (< 1.2) need a second system.
-    convergence_met = timing_score >= _CONVERGENCE_BAR
+    timing_score, convergence_met, _tl_ws, _tl_we = _weighted_convergence_timeline(
+        locks, today, horizon)
 
     # Domain-relevant planets — active lock planets first, then target-house
     # lords, then natural karakas. Used to pick domain-matched practices.
@@ -432,25 +480,8 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
         if p and p not in relevant_planets:
             relevant_planets.append(p)
 
-    window_start = window_end = None
-    if convergence_met:
-        active = [(v["start"], v["end"]) for v in locks.values()
-                  if v["active"] and v["start"] and v["end"]]
-        # best pairwise overlap, earliest start wins
-        best = None
-        for i in range(len(active)):
-            for j in range(i + 1, len(active)):
-                s = max(active[i][0], active[j][0])
-                e = min(active[i][1], active[j][1])
-                if s <= e and (best is None or s < best[0]):
-                    best = (s, e)
-        if best:
-            window_start, window_end = best
-        else:
-            # systems agree the theme is active but in staggered windows —
-            # surface the earliest one honestly
-            active.sort(key=lambda w: w[0])
-            window_start, window_end = active[0]
+    # [slice-4b] window = the net(t) peak run (real temporal agreement).
+    window_start, window_end = _tl_ws, _tl_we
 
     # Next opening after the current window (or after today if none) — e.g.
     # funding: Mars chapter tail ends Aug 2026, Rahu opens the gains area next.
