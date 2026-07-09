@@ -451,6 +451,30 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
     }
     _verdict, _verdict_phrase = _derive_verdict_phrase(
         _conv_for_verdict, concern, date.today())
+
+    # ── Stage 1: PROMISE + earned confidence + agency dial [ask-promise] ──
+    # Fail-open: assess_promise never raises; promise=None => unchanged output.
+    try:
+        from antar_engine.ask_promise import assess_promise
+        _prom = assess_promise(chart_data, houses, karakas, concern=concern)
+    except Exception:
+        _prom = {"promise": None, "band": None, "agency_weight": None, "factors": []}
+    _pband = _prom.get("band")
+    if convergence_met and window_start and window_end and window_start <= today <= window_end:
+        _t_scalar = 1.0
+    elif convergence_met and window_start and window_start > today:
+        _t_scalar = 0.8
+    elif lock_count == 1:
+        _t_scalar = 0.4
+    else:
+        _t_scalar = 0.15
+    _confidence = (round(_prom["promise"] * _t_scalar, 2)
+                   if _prom.get("promise") is not None else None)
+    # Over-claim guard: strong timing, weak/absent promise -> soften the
+    # opening (enum unchanged) and let the answer lean toward agency.
+    if _pband in ("weak", "absent") and _verdict in ("SUPPORTED", "LIKELY"):
+        _verdict_phrase = _soften_ask_phrase(
+            concern, _pband, window_label or (next_win or {}).get("label"))
     return {
         "concern": concern,
         "houses": houses,
@@ -469,6 +493,12 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
         "public_summary": public_summary,
         "verdict":        _verdict,         # [lead-verdict]
         "verdict_phrase": _verdict_phrase,  # [lead-verdict]
+        # [ask-promise] Stage-1 evidence + earned confidence + agency dial.
+        "promise":         _prom.get("promise"),
+        "promise_band":    _pband,
+        "promise_factors": _prom.get("factors"),
+        "agency_weight":   _prom.get("agency_weight"),
+        "confidence":      _confidence,
     }
 
 
@@ -556,6 +586,20 @@ def _derive_verdict_phrase(conv: dict, concern: str, today: date) -> tuple:
     if next_label:
         return "NO", f"No strong {noun} this cycle — next opening {next_label}."
     return "NO", f"No strong {noun} in the next 24 months."
+
+
+def _soften_ask_phrase(concern: str, band: str, window_label) -> str:
+    """[ask-promise] Rewrite an over-claimed opening: strong timing but a
+    weak/absent chart promise. Honest + agency-leaning, keeps the window,
+    never says "you don't have this"."""
+    noun = _DOMAIN_NOUN.get(concern, "opening")
+    wl = window_label or "the months ahead"
+    if band == "absent":
+        return (f"{noun.capitalize()} isn't a strong natural promise in your "
+                f"chart. The supportive window is {wl} — treat it as something to "
+                f"work toward with focus and the right practice, not to wait for.")
+    return (f"{noun.capitalize()} is a modest promise, not a strong one. The "
+            f"window {wl} can still deliver with steady effort and the right support.")
 
 
 def consultation_prompt_block(conv: dict, concern: str, dasha_str: str) -> str:
