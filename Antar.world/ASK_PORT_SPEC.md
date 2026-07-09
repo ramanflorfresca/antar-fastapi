@@ -75,10 +75,14 @@ read/next/timing/practices unchanged — no frontend change):
   (`limit = clamp(round(1 + agency_weight·3.5), 1, 4)`): strong promise → 2
   cards, weak/absent → 4. `agency_weight=None` → default 3 (unchanged).
 
-### Slice 3 — Verdict/enum honesty
-Reconcile the client-facing verdict chip with promise. Today the enum (SUPPORTED/
-LIKELY/…) is timing-only; decide whether a weak-promise SUPPORTED should downgrade
-the chip (using existing enums, no new ones) so the chip matches the softened copy.
+### ✅ Slice 3 — Verdict/enum honesty *(this commit)*
+Slice 1 softened the opening for weak/absent promise but left the verdict enum +
+client chip claiming SUPPORTED/LIKELY. `promise_adjusted_verdict(verdict, band)`
+reconciles them — DOWNGRADE-only, existing enums:
+`absent + (YES/SUPPORTED/LIKELY) → NOT_YET`; `weak + (YES/SUPPORTED) → LIKELY`.
+Applied to `conv["verdict"]` (matches the softened opening + the prompt's stated
+verdict) and to the `/ask` client chip (`_det_verdict`, incl. the event-engine
+value). Fail-open (band=None → unchanged).
 
 ### Slice 4 — Unify the timing locks into weighted, time-indexed votes
 Replace the binary 2-of-3 `_vimshottari_lock`/`_chara_lock`/`_varshphal_lock` with

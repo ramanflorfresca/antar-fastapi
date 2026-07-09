@@ -492,6 +492,7 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
     if _pband in ("weak", "absent") and _verdict in ("SUPPORTED", "LIKELY"):
         _verdict_phrase = _soften_ask_phrase(
             concern, _pband, window_label or (next_win or {}).get("label"))
+        _verdict = promise_adjusted_verdict(_verdict, _pband)
     return {
         "concern": concern,
         "houses": houses,
@@ -617,6 +618,19 @@ def _soften_ask_phrase(concern: str, band: str, window_label) -> str:
                 f"work toward with focus and the right practice, not to wait for.")
     return (f"{noun.capitalize()} is a modest promise, not a strong one. The "
             f"window {wl} can still deliver with steady effort and the right support.")
+
+
+def promise_adjusted_verdict(verdict: str, promise_band) -> str:
+    """[slice-3] Reconcile a timing verdict with the chart's promise so the
+    client chip never over-claims vs. the softened opening. DOWNGRADE-only,
+    existing enums (YES/SUPPORTED/LIKELY/NOT_THIS_YEAR/NOT_YET/NO)."""
+    v = (verdict or "").upper()
+    b = (promise_band or "").lower()
+    if b == "absent" and v in ("YES", "SUPPORTED", "LIKELY"):
+        return "NOT_YET"
+    if b == "weak" and v in ("YES", "SUPPORTED"):
+        return "LIKELY"
+    return verdict
 
 
 def consultation_prompt_block(conv: dict, concern: str, dasha_str: str) -> str:

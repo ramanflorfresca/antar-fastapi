@@ -16674,6 +16674,17 @@ async def ask_endpoint(request: AskRequest):
                     _det_timing = _ee_timing
                 if _ask_verdict and _ask_verdict != _det_verdict:
                     print(f"[ask] verdict-freelance suppressed: model={_ask_verdict} det={_det_verdict}")
+                # [slice-3] the chip must not over-claim vs. the promise-
+                # softened opening — downgrade-only, on weak/absent promise.
+                try:
+                    from antar_engine.ask_consultation import promise_adjusted_verdict as _pav
+                    _pv = _pav(_det_verdict, _ask_conv.get("promise_band"))
+                    if _pv != _det_verdict:
+                        print(f"[ask][slice-3] chip reconciled to promise: "
+                              f"{_det_verdict}->{_pv} (band={_ask_conv.get('promise_band')})")
+                        _det_verdict = _pv
+                except Exception as _pae:
+                    print(f"[ask][slice-3] verdict reconcile skipped: {_pae}")
                 payload["verdict"]  = _det_verdict
                 payload["timing"]   = _det_timing
                 payload["actions"]  = _ask_actions
