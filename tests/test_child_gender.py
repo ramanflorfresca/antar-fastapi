@@ -57,6 +57,32 @@ def test_neuter_lord_casts_no_nature_vote():
     assert "5th house sign" in srcs and "5th-lord's sign" in srcs
 
 
+def test_d7_outweighs_d1():
+    # D1 points female (Taurus 5th, Venus lord in Taurus, Jupiter in Taurus) but
+    # the D7 progeny chart points male — the heavier D7 weighting must win.
+    chart = _chart(
+        "Taurus", "Venus",
+        {"Venus": {"sign": "Taurus", "sign_index": 1, "house": 2},
+         "Jupiter": {"sign": "Taurus", "sign_index": 1, "house": 2}},
+        "Aries",  # D7 5th = Leo (male), lord Sun in Leo (male), Sun occupies it
+        {"Sun": {"sign": "Leo", "sign_index": 4, "house": 5}},
+    )
+    sig = child_gender_signal(chart)
+    assert sig["leaning"] == "boy"        # D7 dominance flips the D1 female lean
+
+
+def test_lopsided_tally_is_clear():
+    chart = _chart(
+        "Aries", "Mars",
+        {"Mars": {"sign": "Leo", "sign_index": 4, "house": 1},
+         "Jupiter": {"sign": "Sagittarius", "sign_index": 8, "house": 5}},
+        "Aries",
+        {"Sun": {"sign": "Leo", "sign_index": 4, "house": 5}},
+    )
+    sig = child_gender_signal(chart)
+    assert sig["leaning"] == "boy" and sig["strength"] == "clear"
+
+
 def test_missing_data_returns_empty():
     assert child_gender_signal({}) == {}
     assert child_gender_signal({"planets": {}}) == {}

@@ -15729,18 +15729,30 @@ def _ask_child_gender_block(chart_data):
     if not sig or not sig.get("factors"):
         return ""
     m, f, lean = sig["male"], sig["female"], sig["leaning"]
+    strength = sig.get("strength", "slight")
     if lean == "boy":
-        head = ("Traditional indications LEAN BOY / SON — %d male-leaning signals "
-                "against %d female-leaning." % (m, f))
+        if strength == "clear":
+            head = ("The signs point CLEARLY to a BOY / SON — %d male indicators "
+                    "against %d, and the progeny chart itself agrees. Answer with "
+                    "confidence: it is most likely a boy." % (m, f))
+        else:
+            head = ("The signs lean toward a BOY / SON — %d male against %d "
+                    "female — a mild edge, so hold it lightly." % (m, f))
     elif lean == "girl":
-        head = ("Traditional indications LEAN GIRL / DAUGHTER — %d female-leaning "
-                "signals against %d male-leaning." % (f, m))
+        if strength == "clear":
+            head = ("The signs point CLEARLY to a GIRL / DAUGHTER — %d female "
+                    "indicators against %d, and the progeny chart itself agrees. "
+                    "Answer with confidence: it is most likely a girl." % (f, m))
+        else:
+            head = ("The signs lean toward a GIRL / DAUGHTER — %d female against "
+                    "%d male — a mild edge, so hold it lightly." % (f, m))
     else:
         head = ("Indications are EVENLY SPLIT (%d male vs %d female) — genuinely "
                 "uncertain; say so honestly." % (m, f))
-    lines = ["7. BOY-OR-GIRL (a traditional progeny-gender LEANING, NOT a "
-             "certainty and NOT medical fact — frame it gently, name it as an "
-             "indication, and note it is not guaranteed):",
+    lines = ["7. BOY-OR-GIRL (a traditional progeny-gender read from the D7 "
+             "progeny chart — commit to the direction the signs give, but keep "
+             "ONE honest note that it is a traditional indication, not a "
+             "medical certainty):",
              "   " + head]
     for fct in sig["factors"]:
         src = _ASK_GENDER_SOURCE_PLAIN.get(fct["source"], fct["source"])

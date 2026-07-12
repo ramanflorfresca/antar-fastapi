@@ -120,27 +120,35 @@ def child_gender_signal(chart_data: dict) -> Dict[str, Any]:
     d7_planets = d7.get("planets") or {}
     d7_lagna_si = _sidx(d7.get("lagna"))
     if d7_lagna_si is not None:
+        # D7 is THE progeny varga — it outweighs the D1 5th house (a D1 house
+        # sign carries w2; the same D7 factors carry w3 / w2 so the divisional
+        # chart dedicated to children dominates the judgement).
         d7_fifth_si = (d7_lagna_si + 4) % 12
         d7_fifth_sign = SIGNS[d7_fifth_si]
         add("D7 5th-house sign", d7_fifth_sign,
-            _sign_vote(d7_fifth_si), weight=2)            # progeny varga — primary
+            _sign_vote(d7_fifth_si), weight=3)            # progeny varga — dominant
         d7_fifth_lord = SIGN_LORDS.get(d7_fifth_sign)
         if d7_fifth_lord:
             lsi = _planet_sign_index(d7_planets, d7_fifth_lord)
             lsign = SIGNS[lsi] if isinstance(lsi, int) else "?"
-            add("D7 5th-lord's sign", f"{d7_fifth_lord} in {lsign}", _sign_vote(lsi))
+            add("D7 5th-lord's sign", f"{d7_fifth_lord} in {lsign}",
+                _sign_vote(lsi), weight=2)
         for pl in _occupants(d7_planets, 5):
-            add("planet in the D7 5th", pl, _planet_vote(pl))
+            add("planet in the D7 5th", pl, _planet_vote(pl), weight=2)
 
     if not factors:
         return {}
 
     male = sum(f["weight"] for f in factors if f["vote"] == "male")
     female = sum(f["weight"] for f in factors if f["vote"] == "female")
-    if male > female:
-        leaning = "boy"
-    elif female > male:
-        leaning = "girl"
+    hi, lo = max(male, female), min(male, female)
+    margin = hi - lo
+    if male == female:
+        leaning, strength = "mixed", "none"
     else:
-        leaning = "mixed"
-    return {"leaning": leaning, "male": male, "female": female, "factors": factors}
+        leaning = "boy" if male > female else "girl"
+        # With D7 weighted to dominate, a lopsided tally is meaningful — commit
+        # to a CLEAR call; only a thin spread stays a mild lean.
+        strength = "clear" if (lo == 0 or hi >= 2 * lo or margin >= 4) else "slight"
+    return {"leaning": leaning, "strength": strength, "margin": margin,
+            "male": male, "female": female, "factors": factors}
