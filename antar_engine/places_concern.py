@@ -73,7 +73,13 @@ _STRONG_KM = 300.0
 _MODERATE_KM = 700.0
 
 # Tier thresholds on the 0-100 score.
-_TIER_FLOW = 60
+# [places-calibration 2026-07-12] FLOW lowered 60 -> 55. The old 60 was set for
+# the pre-calibration score range that maxed near 57 (so FLOW was unreachable);
+# with the corrected range a cluster of genuinely-strong, on-a-good-line cities
+# lands at 55-59 and should read as "clearly good", not "trade-offs". Validated
+# across 4 charts: FLOW stays ~1% of cities (off-line cities score <35, nowhere
+# near 55), so this surfaces real strengths without inflating weak charts.
+_TIER_FLOW = 55
 _TIER_STRAIN = 35
 
 # [places-domain-screen] weight of the negative-house screen subtracted

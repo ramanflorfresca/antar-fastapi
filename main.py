@@ -10514,18 +10514,26 @@ def _places_iso_now():
     return _places_dt.now(_places_tz.utc).isoformat()
 
 
+# [places-cache-bust 2026-07-12] Version salt on every places cache key. Bumping
+# this invalidates ALL places caches (concern / lines / city) in one place — used
+# to force existing users onto a new scoring calibration without waiting out the
+# 24h TTL. (The in-memory cache also clears on deploy; this covers hot-reload and
+# any process that outlives a deploy.)
+_PLACES_CACHE_VERSION = "2026-07-12-calib-flow-reachable"
+
+
 def _places_cache_get(key):
-    e = _PLACES_CACHE.get(key)
+    e = _PLACES_CACHE.get((_PLACES_CACHE_VERSION, key))
     if not e:
         return None
     if e[0] < _places_time.time():
-        _PLACES_CACHE.pop(key, None)
+        _PLACES_CACHE.pop((_PLACES_CACHE_VERSION, key), None)
         return None
     return e[1]
 
 
 def _places_cache_set(key, val):
-    _PLACES_CACHE[key] = (_places_time.time() + _PLACES_TTL, val)
+    _PLACES_CACHE[(_PLACES_CACHE_VERSION, key)] = (_places_time.time() + _PLACES_TTL, val)
 
 
 def _places_load_chart(chart_id):
