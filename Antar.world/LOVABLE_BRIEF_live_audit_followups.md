@@ -36,6 +36,19 @@ Better: drop the numbers and colour off the per-city `tier` string
 ("FLOW"/"MIXED"/"STRAIN") the backend already sends, so a future calibration
 change can't desync the legend again.
 
+## 4. Places responses are cached too long on the client
+After a backend change, the Places screen kept showing the OLD result — the
+frontend served its own cached copy and **no `/api/v1/places/concern` call
+fired** (confirmed via network trace: switching to a not-yet-cached concern
+triggered a fresh fetch and returned the corrected content). So users can see
+stale Places reads for a while after a backend fix ships.
+
+**Fix:** shorten the client cache for the Places endpoints (`/places/concern`,
+`/places/lines`, `/places/city`) and/or key the cache on a **build/version tag**
+so a new backend build invalidates it. If you use React Query, drop `staleTime`
+for these queries (e.g. a few minutes) and include an app-version string in the
+query key.
+
 ---
 _Optional hardening:_ the backend no longer emits `L1:`/`L2:` debug into
 `factors[]`, but older cached predictions may still contain them — the frontend

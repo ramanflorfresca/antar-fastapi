@@ -60,6 +60,59 @@ def _repair_contradictory_window(tw: str) -> str:
         pass
     return tw
 
+
+_PROSE_SENT_RE = re.compile(r'[^.!?]*[.!?]')
+_PROSE_HORIZON_RE = re.compile(
+    r'\b(?:the\s+|these\s+)?(?:next|coming)\s+'
+    r'(?:few\s+|several\s+|couple\s+of\s+)?'
+    r'(?:(\d+)|a|one|two|three|four|five|six|seven|eight|nine|ten|twelve)?\s*'
+    r'(week|month)s?\b', re.I)
+
+
+def _window_months_out(timing_window: str):
+    """Months from today to the timing_window's absolute date, or None."""
+    if not timing_window:
+        return None
+    m = _TW_ABS_RE.search(timing_window)
+    if not m:
+        return None
+    try:
+        from datetime import date as _date
+        mo = _TW_MONTH_N[m.group(1)[:3].lower()]
+        yr = int(m.group(2))
+        t = _date.today()
+        return (yr - t.year) * 12 + (mo - t.month)
+    except Exception:
+        return None
+
+
+def _scrub_prose_horizon_mismatch(summary: str, timing_window: str) -> str:
+    """[timing-coherence 2026-07-12] When the window is a FAR absolute date but a
+    prose sentence claims a NEARER relative horizon ("the next six months are your
+    window"), drop that one sentence so the prose can't contradict the concrete
+    label. Best-effort: only fires when the window date is clearly far out."""
+    if not summary or not isinstance(summary, str):
+        return summary
+    months_out = _window_months_out(timing_window)
+    if months_out is None or months_out <= 9:
+        return summary                              # window near-ish; leave prose alone
+    kept, dropped = [], False
+    for m in _PROSE_SENT_RE.finditer(summary):
+        sent = m.group(0)
+        h = _PROSE_HORIZON_RE.search(sent)
+        if h:
+            word = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5,
+                    "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "twelve": 12}
+            n = int(h.group(1)) if h.group(1) else word.get(
+                (h.group(0).split()[-2].lower() if len(h.group(0).split()) >= 2 else ""), 6)
+            horizon = n if h.group(2).lower() == "month" else max(1, n // 4)
+            if horizon < months_out - 1:            # prose horizon clearly nearer than window
+                dropped = True
+                continue
+        kept.append(sent)
+    out = "".join(kept).strip()
+    return out if (dropped and out) else summary
+
 # ═══ E1: EMOTIONAL INTELLIGENCE LAYER ═══
 # Detects emotional state from question text and adapts Claude's tone.
 # Does NOT change the verdict or score — only the delivery.
@@ -331,8 +384,12 @@ READABILITY (NON-NEGOTIABLE):
 - Active voice. Second person ("you"). No hedging stacks ("may possibly tend to").
 
 - plain_summary must directly answer what the user asked
-- plain_summary must NOT contradict timing_window (never say "now is your window" 
+- plain_summary must NOT contradict timing_window (never say "now is your window"
   if timing_window says a window is closing)
+- plain_summary and timing_window must name the SAME timeframe. If timing_window is
+  a specific date or range (e.g. "February 2028"), the prose must not also claim a
+  DIFFERENT nearer horizon like "the next six months" — pick one and use it in both.
+  Never pair a short relative horizon ("next N months/weeks") with a far date.
 - plain_summary must contain ZERO astrological terms (no house numbers, no planet 
   names, no dasha names, no nakshatra names, no yoga names)
 - signal_line must be under 12 words, no jargon
@@ -596,6 +653,18 @@ def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
             f"plain_english: contradictory timing_window repaired ({tw!r} -> {_tw_fixed!r})")
         tw = _tw_fixed
     result["timing_window"] = tw if tw else "Next 4 weeks"
+
+    # [timing-coherence 2026-07-12] Keep the prose from contradicting the window:
+    # if the window is a far absolute date, drop any prose sentence that claims a
+    # nearer relative horizon ("the next six months are your window").
+    _ps_now = result.get("plain_summary")
+    if isinstance(_ps_now, str) and _ps_now:
+        _ps_fixed = _scrub_prose_horizon_mismatch(_ps_now, result["timing_window"])
+        if _ps_fixed != _ps_now:
+            logger.warning(
+                "plain_english: prose horizon dropped to match far window "
+                f"(window={result['timing_window']!r})")
+            result["plain_summary"] = _ps_fixed
 
     # confidence
     conf = parsed.get("confidence", "medium").lower()

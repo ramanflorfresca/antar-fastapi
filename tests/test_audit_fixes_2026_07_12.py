@@ -1,5 +1,7 @@
 """Guards for the live-audit fixes (2026-07-12): P2 timing, P5 axis, P6 casing."""
-from antar_engine.plain_english import _repair_contradictory_window
+from antar_engine.plain_english import (
+    _repair_contradictory_window, _scrub_prose_horizon_mismatch,
+)
 from antar_engine.narration_polish import fix_capitalization
 from antar_engine.places_templates import AXIS
 
@@ -23,6 +25,26 @@ def test_pure_absolute_window_untouched():
 def test_near_date_within_horizon_untouched():
     # A date inside the stated horizon is not a contradiction; leave it.
     assert _repair_contradictory_window("next month") == "next month"
+
+
+# ── P2b: prose horizon must not contradict a far window ─────────────────────
+def test_prose_near_horizon_dropped_for_far_window():
+    ps = ("Your position is strong. The next six months are your active window "
+          "to secure funding. Document all terms clearly.")
+    out = _scrub_prose_horizon_mismatch(ps, "February 2028")
+    assert "next six months" not in out.lower()
+    assert "Your position is strong." in out          # other sentences kept
+    assert "Document all terms clearly." in out
+
+
+def test_prose_untouched_for_near_window():
+    ps = "The next three months are your window. Keep momentum."
+    assert _scrub_prose_horizon_mismatch(ps, "August 2026") == ps
+
+
+def test_prose_without_horizon_untouched():
+    ps = "Your position is strong. Move decisively."
+    assert _scrub_prose_horizon_mismatch(ps, "February 2028") == ps
 
 
 # ── P5: axis reframes carry no jargon ("axis"/"eje") ────────────────────────
