@@ -16261,6 +16261,28 @@ async def ask_endpoint(request: AskRequest):
                                                f"No strong {_noun} in the next 24 months.")
                                 else:
                                     _phrase = ""
+                                # [Finding-2 bridge] EE is authoritative for the
+                                # verdict + strong window, but the thin-convergence
+                                # window_label may name a DIFFERENT (usually earlier)
+                                # supportive opening. Stapling both read as a
+                                # contradiction ("next window Jun 2027. Best window:
+                                # Jul 2026."). For NOT_YET/NO, reconcile into ONE
+                                # two-tier phrase and re-point window_label at the
+                                # strong (EE) window; keep the earlier opening as
+                                # partial_window_label.
+                                _conv_win = (_ask_conv.get("window_label") or "").strip()
+                                if (_client in ("NOT_YET", "NO") and _label and _conv_win
+                                        and _conv_win.lower() != _label.lower()):
+                                    if _client == "NOT_YET":
+                                        _phrase = (f"Not yet — an earlier opening {_conv_win} "
+                                                   f"to lay groundwork; the strong {_noun} is "
+                                                   f"{_label}.")
+                                    else:
+                                        _phrase = (f"No strong {_noun} yet — an earlier opening "
+                                                   f"{_conv_win} to prepare; the next real window "
+                                                   f"is {_label}.")
+                                    _ask_conv["partial_window_label"] = _conv_win
+                                    _ask_conv["window_label"] = _label
                                 if _phrase:
                                     _ask_conv["verdict"] = _client
                                     _ask_conv["verdict_phrase"] = _phrase
