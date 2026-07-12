@@ -66,7 +66,17 @@ _RULES = [
     ("cosmic_timing_filler", re.compile(
         r"\bthe\s+sky\s+aligns?\b|\bthe\s+stars?\s+align\b|"
         r"\bwhen\s+the\s+(?:structure|stars?|sky|alignment|chart|cosmos|universe)\s+aligns?\b|"
-        r"\bcosmos\s+aligns?\b|\buniverse\s+aligns?\b", re.IGNORECASE)),
+        r"\bcosmos\s+aligns?\b|\buniverse\s+aligns?\b|"
+        r"\bthe\s+(?:sky|stars?|planets?|cosmos|universe|heavens?)\s+"
+        r"(?:is\s+|are\s+|to\s+|finally\s+|slowly\s+)*"
+        r"(?:lin(?:e|es|ing)\s+up|align\w*|com\w+\s+into\s+alignment)\b",
+        re.IGNORECASE)),
+    # Bare "chart"/"horoscope"/"astrology" — the immutable contract bans "chart"
+    # anywhere, but the validator only caught qualified forms (natal/annual/
+    # relocated chart). "the deeper partnership chart" leaked to the live Ask read.
+    ("chart_or_horoscope_word", re.compile(
+        r"\b(?:charts?|horoscopes?|astrolog(?:y|ical|ically|er|ers))\b",
+        re.IGNORECASE)),
     # Splice mangles from blind substitution / empty fills.
     ("splice_mangle", re.compile(
         r"\ba\s+of\b|\bthe\s+current\s+your\b|\byour\s+your\b|"
