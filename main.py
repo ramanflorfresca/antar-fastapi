@@ -16377,31 +16377,104 @@ async def ask_endpoint(request: AskRequest):
                 # no clock is computable (e.g. lat/lng unresolved).
                 _ask_clock_line = ""
                 _ask_has_clock = False
+                # [ask-reflective-frame 2026-07-12] Only impose the within-day
+                # "today" clock/window when the question actually carries today/
+                # now intent. A non-temporal reflective question ("is it funding
+                # or loan", "is it a boy or girl") must answer its SUBSTANCE — it
+                # must never be shoe-horned into "act before HH:MM". Mirrors the
+                # decision path, which already gates its intraday clock on
+                # is_tactical_question.
                 try:
-                    _ask_lat, _ask_lng, _ask_loc_src = _resolve_moment_coords(chart_row.data)
-                    _ask_tz_off = float(chart_row.data.get('tz_offset') or 0.0)
-                    _ask_intraday = _ds_build_intraday_window(
-                        lat=float(_ask_lat), lng=float(_ask_lng),
-                        tz_offset_hours=_ask_tz_off,
-                        concern=_ask_concern,
-                        language=language,
-                    )
-                    if _ask_intraday:
-                        _iw = _ask_intraday[0] or {}
-                        # The hora_karana payload's `reasons[0]` carries the
-                        # 'X closes at HH:MM local' phrase; the boundary
-                        # itself is in _iw['end'] (HH:MM) when present.
-                        _reasons = _iw.get('reasons') or []
-                        _end_clk = _iw.get('end') or ''
-                        if _reasons or _end_clk:
-                            _ask_clock_line = (
-                                f"COMPUTED INTRADAY CLOCK: {(_reasons[0] if _reasons else _end_clk)}"
-                            )
-                            _ask_has_clock = True
-                            print(f"[ask][intraday] clock available via {_ask_loc_src}: {_ask_clock_line!r}")
-                except Exception as _iwe:
-                    print(f"[ask][intraday] non-fatal: {_iwe}")
+                    from antar_engine.hora_karana import is_tactical_question as _refl_is_tac
+                    _ask_tactical = bool(_refl_is_tac(question))
+                except Exception:
+                    _ask_tactical = False
+                if _ask_tactical:
+                    try:
+                        _ask_lat, _ask_lng, _ask_loc_src = _resolve_moment_coords(chart_row.data)
+                        _ask_tz_off = float(chart_row.data.get('tz_offset') or 0.0)
+                        _ask_intraday = _ds_build_intraday_window(
+                            lat=float(_ask_lat), lng=float(_ask_lng),
+                            tz_offset_hours=_ask_tz_off,
+                            concern=_ask_concern,
+                            language=language,
+                        )
+                        if _ask_intraday:
+                            _iw = _ask_intraday[0] or {}
+                            # The hora_karana payload's `reasons[0]` carries the
+                            # 'X closes at HH:MM local' phrase; the boundary
+                            # itself is in _iw['end'] (HH:MM) when present.
+                            _reasons = _iw.get('reasons') or []
+                            _end_clk = _iw.get('end') or ''
+                            if _reasons or _end_clk:
+                                _ask_clock_line = (
+                                    f"COMPUTED INTRADAY CLOCK: {(_reasons[0] if _reasons else _end_clk)}"
+                                )
+                                _ask_has_clock = True
+                                print(f"[ask][intraday] clock available via {_ask_loc_src}: {_ask_clock_line!r}")
+                    except Exception as _iwe:
+                        print(f"[ask][intraday] non-fatal: {_iwe}")
+                else:
+                    print("[ask][intraday] skipped — non-tactical reflective question "
+                          "(no today/now intent); answering substance, no within-day clock")
                 _ask_noun_csv = ", ".join(_ask_noun_palette)
+                # [ask-reflective-frame 2026-07-12] OPENING + timing contract
+                # branch on today/now intent. Tactical → the tuned "today /
+                # within-day window" contract (unchanged). Non-tactical → answer
+                # the substance of the question; no fabricated "today" verdict,
+                # no within-day clock.
+                if _ask_tactical:
+                    _opening_block = (
+                        "OPENING SENTENCE: state the VERDICT directly in the shape:\n"
+                        "  \"[Domain/topic] is [verdict-adjective] today — [brief imperative].\"\n"
+                        "where verdict-adjective is ONE of: favorable, moderately favorable, "
+                        "mixed, neutral, under pressure, strained, blocked, stalled, "
+                        "open, clear, tight, charged.\n"
+                        "Examples of the SHAPE only (do not copy the words):\n"
+                        "  - \"Speculation is moderately favorable today — hold steady, don't add risk.\"\n"
+                        "  - \"Speculation is under pressure today — wait, don't deploy into a new bet.\"\n"
+                        "  - \"Career conversations are open today — make the senior call before midday.\"\n"
+                        "  - \"Property decisions are strained right now — postpone the offer.\"\n"
+                    )
+                    _window_block = (
+                        "WINDOW (REQUIRED in the read body, not just in `next`): every read MUST "
+                        "name an explicit short-horizon window the user can act on TODAY. Use ONE "
+                        "of these phrase forms inside the read:\n"
+                        "  - \"best window: [time-of-day]\" (e.g. \"best window: late morning\")\n"
+                        "  - \"the favorable stretch is [time-of-day]\"\n"
+                        "  - \"act before [time-of-day]\" or \"act after [time-of-day]\"\n"
+                        "  - \"today's window holds through [time-of-day]\"\n"
+                        "  - \"today's window is short — act before midday\"\n"
+                        "where [time-of-day] is one of: morning, late morning, midday, early "
+                        "afternoon, late afternoon, evening, after sunset, night.\n"
+                        "DO NOT name any month, year, quarter, season, or specific date — the engine "
+                        "did not compute one. The within-day window above is the ONLY timing you may "
+                        "carry.\n"
+                    )
+                else:
+                    _opening_block = (
+                        "OPENING SENTENCE: ANSWER THE QUESTION ASKED, directly, in sentence 1. "
+                        "If it is an either/or, say which side the chart favors; if it asks about "
+                        "the nature or quality of something, name it. Do NOT frame it as a 'today' "
+                        "verdict and do NOT use the word 'today' — the user did not ask about today. "
+                        "Shape:\n"
+                        "  \"[The specific thing asked] [leans toward / points to / looks like] "
+                        "[the answer] — [one-line why].\"\n"
+                        "Examples of the SHAPE only (do not copy the words):\n"
+                        "  - \"This reads more like a loan than outside funding — the money arrives "
+                        "with repayment strings, not equity.\"\n"
+                        "  - \"Your business partner looks dependable with money, weaker on "
+                        "follow-through.\"\n"
+                        "  - \"This points to a new role elsewhere rather than a promotion in place.\"\n"
+                    )
+                    _window_block = (
+                        "TIMING: the user did NOT ask about today or a within-day window. Do NOT "
+                        "invent a 'today', an 'act before [time]', a 'best window: [time-of-day]', "
+                        "or any within-day clock — that answers a question they did not ask. Answer "
+                        "the substance. Carry NO timing unless a concrete horizon is already present "
+                        "in the facts below, in which case you may reference it plainly. Never name a "
+                        "specific date the engine did not compute.\n"
+                    )
                 _sys = (
                     # [prompt-registry 2026-06-10] editable body (immutable
                     # contract header prepended inside _registry_prefix).
@@ -16422,16 +16495,7 @@ async def ask_endpoint(request: AskRequest):
                     "REQUIRED NOUNS (use AT LEAST 2 of these in your `read`, name them directly):\n"
                     f"  {_ask_noun_csv}\n"
                     "\n"
-                    "OPENING SENTENCE: state the VERDICT directly in the shape:\n"
-                    "  \"[Domain/topic] is [verdict-adjective] today — [brief imperative].\"\n"
-                    "where verdict-adjective is ONE of: favorable, moderately favorable, "
-                    "mixed, neutral, under pressure, strained, blocked, stalled, "
-                    "open, clear, tight, charged.\n"
-                    "Examples of the SHAPE only (do not copy the words):\n"
-                    "  - \"Speculation is moderately favorable today — hold steady, don't add risk.\"\n"
-                    "  - \"Speculation is under pressure today — wait, don't deploy into a new bet.\"\n"
-                    "  - \"Career conversations are open today — make the senior call before midday.\"\n"
-                    "  - \"Property decisions are strained right now — postpone the offer.\"\n"
+                    + _opening_block +
                     "\n"
                     "FORBIDDEN OPENINGS — do NOT begin with any of these (the contract bans them "
                     "as the \"generic predictions\" failure):\n"
@@ -16450,19 +16514,7 @@ async def ask_endpoint(request: AskRequest):
                     "(from the required list, or a closely-related life-noun like \"document\", "
                     "\"deal\", \"meeting\", \"phone call\", \"your boss\", \"your mother\").\n"
                     "\n"
-                    "WINDOW (REQUIRED in the read body, not just in `next`): every read MUST "
-                    "name an explicit short-horizon window the user can act on TODAY. Use ONE "
-                    "of these phrase forms inside the read:\n"
-                    "  - \"best window: [time-of-day]\" (e.g. \"best window: late morning\")\n"
-                    "  - \"the favorable stretch is [time-of-day]\"\n"
-                    "  - \"act before [time-of-day]\" or \"act after [time-of-day]\"\n"
-                    "  - \"today's window holds through [time-of-day]\"\n"
-                    "  - \"today's window is short — act before midday\"\n"
-                    "where [time-of-day] is one of: morning, late morning, midday, early "
-                    "afternoon, late afternoon, evening, after sunset, night.\n"
-                    "DO NOT name any month, year, quarter, season, or specific date — the engine "
-                    "did not compute one. The within-day window above is the ONLY timing you may "
-                    "carry.\n"
+                    + _window_block +
                     "\n"
                     "`next` = ONE CONCRETE ACTION starting with an imperative verb (Review, Close, "
                     "Send, Call, Check, Hold, Cancel, Sign, Wait, Protect, Skip, Postpone, Open, "
@@ -16641,7 +16693,16 @@ async def ask_endpoint(request: AskRequest):
                             _vp = (_ask_conv.get("verdict_phrase") or "").strip()
                             if _vp:
                                 _fc.append(_vp if _vp.endswith((".", "!", "?")) else _vp + ".")
-                            _win = (_ask_conv.get("window_label") or _ee_timing or "").strip()
+                            # [ask-window-source 2026-07-12] the window MUST come
+                            # from the same engine as the verdict phrase. In event-
+                            # engine PRIMARY mode the convergence verdict/window are
+                            # suppressed — but the convergence window_label was still
+                            # leaking in here, so a NOT_YET("next window Nov") phrase
+                            # got a contradicting "Best window: Jul–Nov" (the earlier,
+                            # already-open convergence peak) appended. Prefer the EE
+                            # window when primary so it dedupes against _vp cleanly.
+                            _win = ((_ee_timing if _ee_primary else None)
+                                    or _ask_conv.get("window_label") or _ee_timing or "").strip()
                             # [ask-voice-gate dedupe] don't restate the window if the
                             # verdict phrase already names it.
                             if _win and _win.lower() not in _vp.lower():
