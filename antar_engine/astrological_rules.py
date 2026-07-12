@@ -653,7 +653,8 @@ def detect_concern(question: str) -> str:
     Returns one of: career, finance, marriage, love, divorce, health,
                     foreign, speculation, loss, wealth, spiritual, general,
                     property (residence/local-move keyword bridge 2026-06-05),
-                    legal (litigation keyword path 2026-07-12)
+                    legal (litigation keyword path 2026-07-12),
+                    children (progeny/gender keyword path 2026-07-12)
     Order matters — more specific matches before general ones.
 
     BUSINESS-CONTEXT OVERRIDE: when business/finance keywords co-occur
@@ -742,6 +743,24 @@ def detect_concern(question: str) -> str:
                    "demanda","juicio","litigio","pleito","tribunal","corte judicial"]
     if any(w in q for w in legal_words):
         return "legal"
+
+    # ── Children / Progeny ─────────────────────────────────────
+    # [children-routing 2026-07-12] Progeny questions (incl. "boy or girl")
+    # had no keyword path and fell through to "general", so the children recipe
+    # ([5,9,2]) + the D7 gender read were unreachable from detect_concern.
+    # Placed before love/marriage so "have a child with my husband" routes here.
+    # Substring-safe: bare "son" is avoided ("reason"/"person"/"season" ⊃ son).
+    children_words = ["child","children","baby","babies","pregnan","conceive",
+                      "conception","expecting a baby","have kids","having kids",
+                      "have a kid","start a family","starting a family",
+                      "boy or girl","girl or boy","boy or a girl","girl or a boy",
+                      "son or daughter","daughter or son","have a son","a son or",
+                      "have a daughter","my daughter","my son","gender of the baby",
+                      "gender of my baby","gender of the child",
+                      # Spanish
+                      "hijo","hija","embaraz","bebé","bebe","niño o niña","tener hijos"]
+    if any(w in q for w in children_words):
+        return "children"
 
     # ── Business-context check (computed once, used below) ────
     _biz_words = ["business","venture","company","firm","startup","revenue",

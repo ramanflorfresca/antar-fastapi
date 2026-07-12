@@ -15536,6 +15536,19 @@ def _ask_build_layer_context(chart_data, dashas, birth_date, concern, question="
     except Exception:
         pass
 
+    # 7. Boy-or-girl leaning — only for a gender question in the children concern.
+    #    [ask-child-gender 2026-07-12] Gender is a planetary-gender / D7 read,
+    #    not a house-strength split, so it gets its own dedicated block.
+    try:
+        from antar_engine.event_evidence import CONCERN_TO_EVENT as _C2E
+        if (_C2E.get(concern or "") == "children"
+                and _ask_is_gender_question(question)):
+            _gb = _ask_child_gender_block(chart_data)
+            if _gb:
+                lines.append(_gb)
+    except Exception:
+        pass
+
     if len(lines) <= 1:
         return ""
     lines.append("=== END CHART TIMING LAYERS ===")
@@ -15597,6 +15610,20 @@ def _ask_is_either_or(question) -> bool:
     for f in _ASK_EITHER_OR_FILLERS:
         q = q.replace(f, " ")
     return " or " in q
+
+
+# [ask-child-gender 2026-07-12] A "boy or girl" question is NOT a house-strength
+# split (so it has no channel role) — it is a classical planetary-gender read.
+# Gate the D7 gender block on these markers, within the children concern only.
+_ASK_GENDER_MARKERS = ("boy or girl", "girl or boy", "boy or a girl",
+                       "girl or a boy", "son or daughter", "daughter or son",
+                       "male or female", "gender", "boy", "girl",
+                       "niño o niña", "varón o niña", "género")
+
+
+def _ask_is_gender_question(question) -> bool:
+    q = (question or "").lower()
+    return any(m in q for m in _ASK_GENDER_MARKERS)
 
 
 def _ask_house_significator_block(chart_data, concern, either_or=False):
@@ -15673,6 +15700,53 @@ def _ask_house_significator_block(chart_data, concern, either_or=False):
             seg += "; " + ", ".join(parts) + " sits here"
         out.append(seg)
     return "\n".join(out)
+
+
+# [ask-child-gender 2026-07-12] Plain, jargon-free labels for the gender factors
+# so the block never exposes "5th house" / "Jupiter" / "Aries" to the model.
+_ASK_GENDER_SOURCE_PLAIN = {
+    "5th house sign": "the children-area sign",
+    "5th-lord's sign": "the children-area ruler's sign",
+    "5th-lord's nature": "the children-area ruler itself",
+    "planet in the 5th": "a planet sitting in the children-area",
+    "Jupiter (child-significator) sign": "the child-significator's sign",
+    "D7 5th-house sign": "the progeny chart's child-area sign",
+    "D7 5th-lord's sign": "the progeny chart's child-area ruler's sign",
+    "planet in the D7 5th": "a planet in the progeny chart's child-area",
+}
+
+
+def _ask_child_gender_block(chart_data):
+    """Boy-or-girl leaning for /ask — classical planetary-gender read across the
+    children-area, its ruler, the child-significator, and the D7 progeny chart
+    (see antar_engine.child_gender). Rendered jargon-free; a leaning, not a
+    certainty. Empty string when the chart can't support a read."""
+    try:
+        from antar_engine.child_gender import child_gender_signal
+    except Exception:
+        return ""
+    sig = child_gender_signal(chart_data)
+    if not sig or not sig.get("factors"):
+        return ""
+    m, f, lean = sig["male"], sig["female"], sig["leaning"]
+    if lean == "boy":
+        head = ("Traditional indications LEAN BOY / SON — %d male-leaning signals "
+                "against %d female-leaning." % (m, f))
+    elif lean == "girl":
+        head = ("Traditional indications LEAN GIRL / DAUGHTER — %d female-leaning "
+                "signals against %d male-leaning." % (f, m))
+    else:
+        head = ("Indications are EVENLY SPLIT (%d male vs %d female) — genuinely "
+                "uncertain; say so honestly." % (m, f))
+    lines = ["7. BOY-OR-GIRL (a traditional progeny-gender LEANING, NOT a "
+             "certainty and NOT medical fact — frame it gently, name it as an "
+             "indication, and note it is not guaranteed):",
+             "   " + head]
+    for fct in sig["factors"]:
+        src = _ASK_GENDER_SOURCE_PLAIN.get(fct["source"], fct["source"])
+        side = "boy/son" if fct["vote"] == "male" else "girl/daughter"
+        lines.append("   • %s points toward %s" % (src, side))
+    return "\n".join(lines)
 
 
 def _ask_get_practices(chart_id, chart_data, jaimini_data, lal_kitab_data,
