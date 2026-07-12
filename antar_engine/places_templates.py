@@ -99,14 +99,18 @@ PLANET_NAME = {
 }
 
 # ── Angle reframes (plain axes, no jargon) ──────────────────────────────────
+# [places-jargon 2026-07-12] Plain axis reframes. The old values leaked the
+# technical word "axis" (e.g. "the visible-work axis", "the partnership axis")
+# into user-facing reason lines — inconsistent with AC ("the way you arrive and
+# are seen"). Now fully plain, no "axis"/"eje".
 AXIS = {
     "en": {
-        "MC": "the visible-work axis", "AC": "the way you arrive and are seen",
-        "DC": "the partnership axis", "IC": "the home-and-foundations axis",
+        "MC": "your public standing and visible work", "AC": "the way you arrive and are seen",
+        "DC": "your partnerships and close one-to-one ties", "IC": "your home and foundations",
     },
     "es": {
-        "MC": "el eje del trabajo visible", "AC": "la forma en que llegas y te ven",
-        "DC": "el eje de la pareja", "IC": "el eje del hogar y los cimientos",
+        "MC": "tu reputación y tu trabajo visible", "AC": "la forma en que llegas y te ven",
+        "DC": "tus alianzas y tus vínculos cercanos", "IC": "tu hogar y tus cimientos",
     },
 }
 

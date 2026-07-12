@@ -7135,31 +7135,35 @@ State a specific year. Never predict past events as future windows.
         f"Life stage: {patra.life_stage_name}",
         f"Country: {desh.period_quality if desh else 'N/A'}",
     ]
-    # [l1-debug] surface L1+L2 in factors
-    # Carry L1 (natal_promise) + L2 (dasha_state) telemetry into
-    # the factors[] array so /predict callers can diagnose why a
-    # concern dropped to FLAT without needing Railway logs.
-    try:
-        if '_natal_promise' in dir() and _natal_promise:
-            factors.append(
-                f"L1: concern={concern} "
-                f"verdict={_natal_promise.get('verdict')} "
-                f"score={_natal_promise.get('score')} "
-                f"classical={_natal_promise.get('classical')} "
-                f"modern={_natal_promise.get('modern')} "
-                f"lk={_natal_promise.get('lk')} "
-                f"archetype={_natal_promise.get('archetype')} "
-                f"fit={_natal_promise.get('vehicle_fit')}"
-            )
-        if '_anchor_decision' in dir() and _anchor_decision:
-            _l2_reason = str(_anchor_decision.get('dasha_reason') or '')[:140]
-            factors.append(
-                f"L2: dasha_state={_anchor_decision.get('dasha_state')} "
-                f"matched_via={_anchor_decision.get('matched_via')} "
-                f"reason={_l2_reason}"
-            )
-    except Exception as _ldbg_e:
-        print(f'[predict] L1/L2 telemetry append failed (non-fatal): {_ldbg_e}')
+    # [l1-debug] L1+L2 telemetry — DEV DIAGNOSTIC ONLY.
+    # [leak-fix 2026-07-12] These raw internal tokens (verdict=STRUCTURALLY_
+    # SUPPORTED, archetype=MASS_SERVER, raw scores) were appended to the
+    # user-facing factors[] array and were LEAKING into the Ask "How we read
+    # this" panel. factors[] is rendered to users, so this must never carry raw
+    # engine telemetry. Gate behind PREDICT_L1L2_DEBUG (default off): devs can
+    # flip it on to diagnose a FLAT concern; production factors[] stays clean.
+    if (os.environ.get("PREDICT_L1L2_DEBUG", "") or "").lower() in ("1", "true", "on"):
+        try:
+            if '_natal_promise' in dir() and _natal_promise:
+                factors.append(
+                    f"L1: concern={concern} "
+                    f"verdict={_natal_promise.get('verdict')} "
+                    f"score={_natal_promise.get('score')} "
+                    f"classical={_natal_promise.get('classical')} "
+                    f"modern={_natal_promise.get('modern')} "
+                    f"lk={_natal_promise.get('lk')} "
+                    f"archetype={_natal_promise.get('archetype')} "
+                    f"fit={_natal_promise.get('vehicle_fit')}"
+                )
+            if '_anchor_decision' in dir() and _anchor_decision:
+                _l2_reason = str(_anchor_decision.get('dasha_reason') or '')[:140]
+                factors.append(
+                    f"L2: dasha_state={_anchor_decision.get('dasha_state')} "
+                    f"matched_via={_anchor_decision.get('matched_via')} "
+                    f"reason={_l2_reason}"
+                )
+        except Exception as _ldbg_e:
+            print(f'[predict] L1/L2 telemetry append failed (non-fatal): {_ldbg_e}')
 
     # ── STORE PREDICTION — capture the DB id for conversation linking ──
     prediction_db_id = None
@@ -10968,6 +10972,14 @@ async def places_concern_endpoint(req: PlacesConcernReq):
         _p3_dctx = None
 
     ranked = []
+    # [places-dedupe 2026-07-12] The NATAL and DASHA/TIMING reason layers are
+    # chart-level (strongest karaka's natal condition + current dasha) — they are
+    # location-invariant, so they came out IDENTICAL on every city card and made
+    # the list read copy-pasted. They're already covered chart-wide by
+    # chart_intelligence + dasha_context, so surface each unique invariant line
+    # only ONCE (on the first card it appears) and let the per-city cards lead
+    # with what actually differs: the signature, AGE, and INTENT/WATCH.
+    _seen_invariant = set()
     for _i, s in enumerate(scored):
         c = _pcomp.enrich_ranked_city(req.concern, s, req.language)
         c["rank"] = _i + 1
@@ -10980,7 +10992,15 @@ async def places_concern_endpoint(req: PlacesConcernReq):
         )
         for _r in _reasons:
             _r["text"] = _places_strip(_r["text"], req.language)
-        c["reasons"] = _reasons
+        _deduped = []
+        for _r in _reasons:
+            if _r.get("layer") in ("NATAL", "DASHA"):
+                _sig = (_r.get("layer"), _r.get("text"))
+                if _sig in _seen_invariant:
+                    continue                     # identical chart-level line already shown
+                _seen_invariant.add(_sig)
+            _deduped.append(_r)
+        c["reasons"] = _deduped
         c["watch"] = _places_strip(
             _pcomp.compose_watch_single(req.concern, s.get("_watch", []), req.language), req.language)
         c["primary_reason"] = _places_strip(c["primary_reason"], req.language)

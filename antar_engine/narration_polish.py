@@ -153,11 +153,15 @@ def promote_clock(data: dict, language: str = "en") -> dict:
 # Sentence-boundary capitalization
 # ─────────────────────────────────────────────────────────────────────
 
-# Match the lowercase letter that starts a sentence — either at the
-# absolute start of the string, or after `. ` / `! ` / `? ` / `— ` /
-# `– ` (em/en dash followed by space).
+# Match the lowercase letter that starts a sentence — at the absolute start of
+# the string, or after `. ` / `! ` / `? `.
+# [casing-fix 2026-07-12] An em/en dash is NOT a sentence boundary — it joins a
+# parenthetical or appositive ("a financial ask — whether a raise, loan, or…").
+# The old pattern also matched after `— ` / `– `, forcing wrong mid-sentence
+# capitals ("— Whether", "— Because", "— A strategic investor"). Dropped so the
+# clause after a dash keeps its natural lowercase.
 _SENT_START_RE = re.compile(
-    r"(?:^|(?<=[.!?]\s)|(?<=[—–]\s))([a-z])",
+    r"(?:^|(?<=[.!?]\s))([a-z])",
 )
 
 

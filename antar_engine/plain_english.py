@@ -18,6 +18,48 @@ from antar_engine.symptom_library import build_diagnostic_prompt_block, get_doma
 
 logger = logging.getLogger(__name__)
 
+
+_TW_REL_RE = re.compile(
+    r'\bnext\s+(?:(\d+)|a|one|two|three|four|five|six|seven|eight|nine|ten|twelve)\s*'
+    r'(week|month)s?\b', re.I)
+_TW_ABS_RE = re.compile(
+    r'\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|'
+    r'aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\s+(20\d{2})', re.I)
+_TW_WORD_N = {"a": 1, "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+              "seven": 7, "eight": 8, "nine": 9, "ten": 10, "twelve": 12}
+_TW_MONTH_N = {"jan": 1, "feb": 2, "mar": 3, "apr": 4, "may": 5, "jun": 6, "jul": 7,
+               "aug": 8, "sep": 9, "oct": 10, "nov": 11, "dec": 12}
+
+
+def _repair_contradictory_window(tw: str) -> str:
+    """[timing-contradiction 2026-07-12] Repair a self-contradictory timing_window
+    that mixes a SHORT relative horizon with a FAR absolute date, e.g. "next six
+    months (strongest through February 2028)" — Feb 2028 is ~19 months out, not
+    within six months. When a "next N months/weeks" horizon co-occurs with a
+    "<Month> <Year>" beyond that horizon, keep the concrete date (the actionable
+    part) and drop the contradicting relative prefix. Otherwise return unchanged."""
+    if not tw or not isinstance(tw, str):
+        return tw
+    rel = _TW_REL_RE.search(tw)
+    abs_ = _TW_ABS_RE.search(tw)
+    if not (rel and abs_):
+        return tw
+    try:
+        from datetime import date as _date
+        n = int(rel.group(1)) if rel.group(1) else _TW_WORD_N.get(
+            rel.group(0).split()[1].lower(), 6)
+        horizon_months = n if rel.group(2).lower() == "month" else max(1, n // 4)
+        mo = _TW_MONTH_N[abs_.group(1)[:3].lower()]
+        yr = int(abs_.group(2))
+        today = _date.today()
+        months_out = (yr - today.year) * 12 + (mo - today.month)
+        if months_out > horizon_months + 1:        # date clearly past the horizon
+            fixed = tw[abs_.start():].strip(" ().,–—-")
+            return (fixed[0].upper() + fixed[1:]) if fixed else tw
+    except Exception:
+        pass
+    return tw
+
 # ═══ E1: EMOTIONAL INTELLIGENCE LAYER ═══
 # Detects emotional state from question text and adapts Claude's tone.
 # Does NOT change the verdict or score — only the delivery.
@@ -548,6 +590,11 @@ def _validate_and_clean(parsed: dict, chart_context: dict) -> dict:
     if any(v in tw.lower() for v in vague):
         logger.warning(f"plain_english: vague timing_window rejected: {tw}")
         tw = "Next 4 weeks"
+    _tw_fixed = _repair_contradictory_window(tw)
+    if _tw_fixed != tw:
+        logger.warning(
+            f"plain_english: contradictory timing_window repaired ({tw!r} -> {_tw_fixed!r})")
+        tw = _tw_fixed
     result["timing_window"] = tw if tw else "Next 4 weeks"
 
     # confidence
