@@ -295,8 +295,12 @@ def test_vim_pd_sd_or_note():
 
 def test_board_assembles_and_serializes():
     board = _board()
-    assert board["generated"]["event"] == "relocation"
-    assert board["generated"]["event_houses"] == [4, 3, 12]
+    # Derive expectations from the source of truth so the test tracks the event
+    # taxonomy (property now maps to the domestic_move recipe) instead of
+    # hardcoding a value that drifts whenever the recipes are refined.
+    _exp_event = CONCERN_TO_EVENT["property"]
+    assert board["generated"]["event"] == _exp_event
+    assert board["generated"]["event_houses"] == EVENT_MAP[_exp_event]["houses"]
     assert set(board["houses_from_lagna"].keys()) == set(range(1, 13))
     assert board["houses_from_lagna"][4]["event_house"] is True
     assert board["double_transit"]["classical_verdict"] in ("fires", "likely", "weak", "none")
@@ -326,7 +330,10 @@ def test_event_map_matches_spec_table():
     assert EVENT_MAP["career"]["houses"] == [10, 6, 11]
     assert EVENT_MAP["health"]["houses"] == [1, 6, 8]
     assert EVENT_MAP["litigation"]["houses"] == [6, 8, 12]
-    assert EVENT_MAP["relocation"]["houses"] == [4, 3, 12]
+    # relocation was split into long-distance relocation (12=foreign, 9=long
+    # journeys, 3=change of place, 4=home) and local domestic_move ([4,3,11]).
+    assert EVENT_MAP["relocation"]["houses"] == [12, 9, 3, 4]
+    assert EVENT_MAP["domestic_move"]["houses"] == [4, 3, 11]
 
 
 # ── yoga key-casing fix (swept into Phase 1) ─────────────────────────────────

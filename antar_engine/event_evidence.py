@@ -296,7 +296,12 @@ def _vim_tree_from_rows(dashas: dict, today: date,
             return None
         return {"lord": _lord(r),
                 "start_datetime": datetime.combine(s, datetime.min.time(), tzinfo=timezone.utc),
-                "end_datetime": datetime.combine(e, datetime.min.time(), tzinfo=timezone.utc)}
+                "end_datetime": datetime.combine(e, datetime.min.time(), tzinfo=timezone.utc),
+                # [pd-sd-fix] phase_analyzer._compute_pratyantardashas reads
+                # ad["duration_years"]; the row-fallback AD omitted it, so PD/SD
+                # evidence silently fell back to unavailable. Supply it (value
+                # only needs to be > 0 — it cancels inside the proportional math).
+                "duration_years": max((e - s).days / 365.25, 0.0)}
 
     now = datetime.combine(today, datetime.min.time(), tzinfo=timezone.utc) + timedelta(hours=12)
     out = {"md": _row_period(md_row), "ad": _row_period(ad_row),
