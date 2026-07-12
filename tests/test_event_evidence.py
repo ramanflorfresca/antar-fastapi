@@ -296,7 +296,7 @@ def test_vim_pd_sd_or_note():
 def test_board_assembles_and_serializes():
     board = _board()
     # Derive expectations from the source of truth so the test tracks the event
-    # taxonomy (property now maps to the domestic_move recipe) instead of
+    # taxonomy (property now maps to the property_purchase recipe) instead of
     # hardcoding a value that drifts whenever the recipes are refined.
     _exp_event = CONCERN_TO_EVENT["property"]
     assert board["generated"]["event"] == _exp_event
@@ -334,6 +334,10 @@ def test_event_map_matches_spec_table():
     # journeys, 3=change of place, 4=home) and local domestic_move ([4,3,11]).
     assert EVENT_MAP["relocation"]["houses"] == [12, 9, 3, 4]
     assert EVENT_MAP["domestic_move"]["houses"] == [4, 3, 11]
+    # property_purchase (real-estate acquisition) is distinct from a local move:
+    # 4=property/home/land, 2=assets, 11=gains.
+    assert EVENT_MAP["property_purchase"]["houses"] == [4, 2, 11]
+    assert CONCERN_TO_EVENT["property"] == "property_purchase"
 
 
 # ── yoga key-casing fix (swept into Phase 1) ─────────────────────────────────

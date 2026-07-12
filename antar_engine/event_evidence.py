@@ -69,6 +69,11 @@ EVENT_MAP = {
     "foreign_move":  {"houses": [12, 9, 3], "divisions": [1, 12]},
     "domestic_move": {"houses": [4, 3, 11], "divisions": [1, 4],
                       "note": "4=home/inner-foundation, 3=short-distance change of place, 11=goal-satisfaction"},
+    # [evmap-2026-07-12] property_purchase: acquiring/investing in real estate
+    # (distinct from a local relocation). 4=property/home/land, 2=assets,
+    # 11=gains. D4 (chaturthamsha) is the property divisional.
+    "property_purchase": {"houses": [4, 2, 11], "divisions": [1, 4],
+                          "note": "4=property/home/land, 2=assets, 11=gains-from-acquisition"},
     "marriage":   {"houses": [7, 2],        "divisions": [9],
                    "extra_dt_planets": ["Venus"]},
     # [evmap-2026-06-07] children: 5H (children), 9H (putrakaraka/dharma),
@@ -103,9 +108,11 @@ CONCERN_TO_EVENT = {
     "reconciliation": "reconciliation",
     "health": "health",
     "legal": "litigation",
-    # [evmap-2026-06-07] property + domestic move → domestic_move (4H);
+    # [evmap-2026-07-12] property → property_purchase (real-estate acquisition,
+    # houses [4,2,11]); a local relocation should pass "domestic_move" ([4,3,11]);
     # foreign → foreign_move (12H). Caller can pre-disambiguate by keyword.
-    "property": "domestic_move",
+    "property": "property_purchase",
+    "property_purchase": "property_purchase",
     "domestic_move": "domestic_move",
     "foreign": "foreign_move",
     "foreign_move": "foreign_move",
