@@ -15520,10 +15520,123 @@ def _ask_build_layer_context(chart_data, dashas, birth_date, concern):
     except Exception:
         pass
 
+    # 6. House significators for THIS concern — the nature-of-outcome layer.
+    #    [ask-nature-of-source 2026-07-12] The five layers above are all TIMING
+    #    (when); they carry nothing about the NATURE of an outcome, so either/or
+    #    and nature questions ("is it funding or loan") had no material to reason
+    #    with and the model confabulated. This surfaces the concern's classical
+    #    houses (via EVENT_MAP) with each house's plain theme, its ruler +
+    #    ruler strength, and occupants — e.g. for funding it exposes the
+    #    gains / other-people's-money channel (11th/8th) vs the debt channel (6th).
+    try:
+        _hs = _ask_house_significator_block(chart_data, concern)
+        if _hs:
+            lines.append(_hs)
+    except Exception:
+        pass
+
     if len(lines) <= 1:
         return ""
     lines.append("=== END CHART TIMING LAYERS ===")
     return "\n".join(lines)
+
+
+# [ask-nature-of-source 2026-07-12] Plain strength words so the narrator never
+# parrots "debilitated"/"exalted" into a user-facing read.
+_ASK_DIGNITY_PLAIN = {
+    "exalted": "very strong", "own": "strong", "friendly": "supported",
+    "neutral": "mixed", "debilitated": "weak",
+}
+
+# [ask-nature-of-source 2026-07-12] Channel roles per event: when a concern's
+# houses split into competing channels (e.g. funding vs loan), the raw house
+# theme alone lets the model mis-assign a dual-use house — the 8th ("other
+# people's money") reads as either investment OR a loan. Labelling the channel
+# keeps the read aligned with the classical mapping: 11th + 8th = the funding /
+# outside-capital side (gains, investors, settlements, other people's money);
+# 6th = the loan / debt side (money you borrow and repay); 2nd = your own
+# savings. Keyed by event; only events with a genuine either/or need entries.
+_ASK_CHANNEL_ROLE = {
+    "funding": {
+        11: "the FUNDING side — gains, investors, your network, desires fulfilled",
+        8:  "the FUNDING side — outside capital, other people's money, a settlement",
+        6:  "the LOAN side — money you borrow and must repay",
+        2:  "your OWN savings (self-funded)",
+    },
+}
+
+
+def _ask_house_significator_block(chart_data, concern):
+    """Concern-scoped house significators for /ask (the nature-of-outcome layer).
+
+    Reuses the concern→houses recipe (event_evidence.EVENT_MAP), the canonical
+    plain-language house themes (house_significations), and the chart's own
+    house_lords + planet placements. For each of the concern's houses it names
+    the plain theme, the ruler and the ruler's strength, and any occupants —
+    the raw signals that let a narrator distinguish, e.g., the gains /
+    other-people's-money channel (11th/8th) from the debt channel (6th) when
+    answering "is it funding or loan". Internal reference; never invents timing.
+    """
+    try:
+        from antar_engine.event_evidence import CONCERN_TO_EVENT, EVENT_MAP
+        from antar_engine.house_significations import house_theme
+        from antar_engine.antar_ephemeris import _planet_strength
+    except Exception:
+        return ""
+    if not isinstance(chart_data, dict):
+        return ""
+    event = CONCERN_TO_EVENT.get(concern or "general", "general")
+    houses = (EVENT_MAP.get(event) or {}).get("houses") or []
+    house_lords = chart_data.get("house_lords") or {}
+    planets = chart_data.get("planets") or {}
+    if not houses or not house_lords:
+        return ""
+
+    occ, psign = {}, {}
+    for p, d in planets.items():
+        if isinstance(d, dict):
+            h = d.get("house")
+            if isinstance(h, int):
+                occ.setdefault(h, []).append(p)
+            psign[p] = d.get("sign")
+
+    def _strength(pl):
+        # Nodes have no classical exaltation — skip a misleading dignity word.
+        if pl in ("Rahu", "Ketu"):
+            return ""
+        s = psign.get(pl)
+        if not s:
+            return ""
+        try:
+            return _ASK_DIGNITY_PLAIN.get(_planet_strength(pl, s), "")
+        except Exception:
+            return ""
+
+    roles = _ASK_CHANNEL_ROLE.get(event) or {}
+    out = ["6. WHAT'S BEHIND THIS (the nature of the outcome, NOT its timing — "
+           "internal reference, translate to plain words):"]
+    if roles:
+        out.append("   (weigh the two sides against each other to answer which "
+                   "kind of outcome the chart favors)")
+    for h in houses:
+        theme = house_theme(h) or ("house " + str(h))
+        hl = house_lords.get(str(h)) or house_lords.get(h) or {}
+        lord = hl.get("lord") if isinstance(hl, dict) else ""
+        seg = "   • " + theme
+        if roles.get(h):
+            seg += " [" + roles[h] + "]"
+        if lord:
+            st = _strength(lord)
+            seg += " — its ruler " + lord + (" is " + st if st else "")
+        here = occ.get(h) or []
+        if here:
+            parts = []
+            for pl in here:
+                st = _strength(pl)
+                parts.append(pl + (" (" + st + ")" if st else ""))
+            seg += "; " + ", ".join(parts) + " sits here"
+        out.append(seg)
+    return "\n".join(out)
 
 
 def _ask_get_practices(chart_id, chart_data, jaimini_data, lal_kitab_data,
