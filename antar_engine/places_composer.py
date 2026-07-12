@@ -18,6 +18,7 @@ from typing import Optional
 
 from antar_engine.places_templates import (
     PLACES_TEMPLATES, DOMAIN, AXIS, _GLOBAL, PLANET_NAME, LAYER_TEMPLATES,
+    PLANET_ENERGY_SHORT, CONCERN_NOUN, AXIS_SHORT, SIGNATURE_CHANNEL,
 )
 
 
@@ -182,6 +183,45 @@ def compose_watch_single(concern: str, watch_list: list[dict], lang: str):
     return outs[0] if outs else None
 
 
+def compose_signature(concern: str, scored: dict, lang: str) -> Optional[dict]:
+    """WHAT this place is good for, for THIS concern — the dominant concern-line's
+    energy named plainly ("Money through relationships & taste"), plus one line
+    of where/why. Falls back to the strongest concern-karaka house hit when no
+    line runs near. Returns None only when the city has neither — a genuinely
+    background match. Emits NO planet names, so the jargon scrub leaves it be."""
+    lang = _lang(lang)
+    signals = scored.get("_signals") or []
+    planet = axis = None
+    if signals:                                   # strongest concern-line hit
+        planet, axis = signals[0]["planet"], signals[0]["angle"]
+    else:                                         # fallback — background house support
+        hits = scored.get("_house_hits") or []
+        hits = [h for h in hits if h.get("is_karaka")] or hits
+        if hits:
+            planet = hits[0].get("planet")
+    energy = PLANET_ENERGY_SHORT.get(lang, {}).get(planet)
+    if not energy:
+        return None
+    noun = CONCERN_NOUN.get(lang, {}).get(concern, concern)
+    best_for = f"{noun} through {energy}"
+    if axis:                                      # line-based: name where it lands
+        where = AXIS_SHORT.get(lang, {}).get(axis, "")
+        channel = SIGNATURE_CHANNEL.get(lang, {}).get(concern, "")
+        if lang == "es":
+            line = f"Su fuerza aquí: {energy} en {where} — {channel}."
+        else:
+            line = f"Its edge here: {energy}, landing on {where} — {channel}."
+    else:                                         # house-based background support
+        channel = SIGNATURE_CHANNEL.get(lang, {}).get(concern, "")
+        if lang == "es":
+            line = f"Sin una línea fuerte cerca; el apoyo es de fondo: {energy} — {channel}."
+        else:
+            line = f"No strong line runs here; the support is in the background: {energy} — {channel}."
+    return {"best_for": best_for, "energy": energy,
+            "axis": AXIS_SHORT.get(lang, {}).get(axis) if axis else None,
+            "from_line": bool(axis), "line": line}
+
+
 def enrich_ranked_city(concern: str, scored: dict, lang: str) -> dict:
     """Attach composed strings to a scored city; drop underscore internals."""
     lang = _lang(lang)
@@ -195,6 +235,7 @@ def enrich_ranked_city(concern: str, scored: dict, lang: str) -> dict:
         "lon": scored["city"]["lon"],
         "score": scored["score"],
         "tier": scored["tier"],
+        "signature": compose_signature(concern, scored, lang),
         "primary_reason": compose_primary_reason(concern, top, lang, tier=scored.get("tier")),
         "secondary_reasons": compose_secondary_reasons(concern, signals[1:], lang, tier=scored.get("tier")),
         "watch_outs": compose_watch_outs(concern, scored.get("_watch", []), lang),

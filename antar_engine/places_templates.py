@@ -35,6 +35,59 @@ DOMAIN = {
     },
 }
 
+# ── City "signature" — WHAT each place is good for ──────────────────────────
+# [places-signature 2026-07-12] The score alone never says what a place is FOR.
+# Each city's strongest concern-line (planet + angle) names the specific energy
+# it channels; these plain phrases render that as a "best for" chip + one line,
+# WITHOUT emitting planet names (so the jargon scrub leaves them untouched).
+# Short energy label per planet — the "what it channels" in a couple of words.
+PLANET_ENERGY_SHORT = {
+    "en": {
+        "Sun": "leadership & visibility", "Moon": "emotional connection",
+        "Mars": "drive & boldness", "Mercury": "skill & trade",
+        "Jupiter": "growth & guidance", "Venus": "relationships & taste",
+        "Saturn": "structure & discipline", "Rahu": "ambition & bold leaps",
+        "Ketu": "focus & letting go",
+    },
+    "es": {
+        "Sun": "liderazgo y visibilidad", "Moon": "conexión emocional",
+        "Mars": "empuje y audacia", "Mercury": "habilidad y comercio",
+        "Jupiter": "crecimiento y guía", "Venus": "vínculos y buen gusto",
+        "Saturn": "estructura y disciplina", "Rahu": "ambición y saltos audaces",
+        "Ketu": "enfoque y soltar",
+    },
+}
+# The concern noun that fronts the "best for" chip: "<Concern> through <energy>".
+CONCERN_NOUN = {
+    "en": {"money": "Money", "career": "Career", "love": "Love",
+           "health": "Health", "peace": "Peace", "family": "Family"},
+    "es": {"money": "Dinero", "career": "Carrera", "love": "Amor",
+           "health": "Salud", "peace": "Paz", "family": "Familia"},
+}
+# Short axis phrase — WHERE the energy plays out (compact form of AXIS).
+AXIS_SHORT = {
+    "en": {"MC": "your public work and standing", "AC": "how you show up day to day",
+           "DC": "your partnerships and one-to-one deals", "IC": "your home and inner base"},
+    "es": {"MC": "tu trabajo visible y tu reputación", "AC": "cómo te presentas cada día",
+           "DC": "tus alianzas y tratos uno a uno", "IC": "tu hogar y tu base interior"},
+}
+# How the energy serves this specific concern — the closing clause of the line.
+SIGNATURE_CHANNEL = {
+    "en": {"money": "value tends to arrive this way",
+           "career": "your work tends to rise this way",
+           "love": "connection tends to come this way",
+           "health": "vitality tends to steady this way",
+           "peace": "calm tends to settle this way",
+           "family": "roots tend to deepen this way"},
+    "es": {"money": "el valor tiende a llegar por esta vía",
+           "career": "tu trabajo tiende a crecer por esta vía",
+           "love": "la conexión tiende a llegar por esta vía",
+           "health": "la vitalidad tiende a estabilizarse por esta vía",
+           "peace": "la calma tiende a asentarse por esta vía",
+           "family": "las raíces tienden a profundizar por esta vía"},
+}
+
+
 # ── Planet names as actors (Path B). Localised for display only. ────────────
 PLANET_NAME = {
     "en": {"Sun": "Sun", "Moon": "Moon", "Mars": "Mars", "Mercury": "Mercury",
