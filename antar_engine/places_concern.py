@@ -63,6 +63,10 @@ MALEFICS = {"Saturn", "Mars", "Rahu", "Ketu", "Sun"}
 
 # Karaka rank weights (1st karaka matters most).
 _KARAKA_RANK_W = [1.0, 0.75, 0.55]
+# [places-calibration 2026-07-12] Light rank taper for the best-line karaka
+# score — the primary karaka on a line counts full; secondary/tertiary lines
+# still count strongly (a real karaka line is a real signal regardless of rank).
+_KARAKA_RANK_TAPER = [1.0, 0.9, 0.8]
 
 # Proximity bands (km).
 _STRONG_KM = 300.0
@@ -90,6 +94,32 @@ _MAX_PER_COUNTRY = 2
 # cities qualify (e.g. a thin region_filter). Filters the pool only — it
 # never changes how a city scores.
 POPULATION_FLOOR = 500_000
+
+
+def _karaka_score_from_norms(norm: dict, karakas: list) -> float:
+    """[places-calibration 2026-07-12] Concern-karaka line support in [0,1].
+
+    `norm` maps each karaka PRESENT near a line to its condition-weighted
+    strength normalised to [0,1] (strength / max-condition 1.5). The strongest
+    present karaka (rank-tapered) carries the score; extra karaka lines add a
+    modest bonus. A single strong PRIMARY karaka line therefore reaches ~1.0 —
+    the old all-three normaliser capped it near 0.44 and put FLOW out of reach."""
+    best = 0.0
+    for i, planet in enumerate(karakas):
+        taper = _KARAKA_RANK_TAPER[i] if i < len(_KARAKA_RANK_TAPER) else 0.7
+        best = max(best, taper * norm.get(planet, 0.0))
+    extra = sum(sorted(norm.values(), reverse=True)[1:])  # non-dominant lines
+    return min(1.0, best + 0.20 * extra)
+
+
+def _angle_score_from_prox(best_prox_per_angle: dict) -> float:
+    """[places-calibration 2026-07-12] Best relevant angle in [0,1], with a light
+    bonus for covering more than one angle. Replaces the average, which halved a
+    single strong angle line."""
+    ap = list(best_prox_per_angle.values())
+    if not ap:
+        return 0.0
+    return min(1.0, max(ap) + 0.15 * sum(sorted(ap, reverse=True)[1:]))
 
 
 def _proximity(distance_km: float) -> float:
@@ -220,19 +250,21 @@ def score_city_for_concern(
         if prox > best_prox_per_angle.get(angle, 0.0):
             best_prox_per_angle[angle] = prox
 
-    # karaka_score — rank-weighted best strength per karaka, normalised by the
-    # best achievable (rank weight x max condition weight 1.5).
-    karaka_num = 0.0
-    karaka_den = 0.0
-    for i, planet in enumerate(karakas):
-        rank_w = _KARAKA_RANK_W[i] if i < len(_KARAKA_RANK_W) else 0.4
-        karaka_den += rank_w * 1.5
-        if planet in best_per_karaka:
-            karaka_num += rank_w * best_per_karaka[planet]["strength"]
-    karaka_score = (karaka_num / karaka_den) if karaka_den else 0.0
+    # karaka_score — [places-calibration 2026-07-12] REWARD THE BEST LINE, don't
+    # demand all three karakas converge. The old normaliser divided by the sum of
+    # ALL karaka rank-weights x max condition, so a single strong line (the common
+    # geographic reality) could never exceed ~0.44 even when exalted — which alone
+    # capped FLOW out of reach for every chart. Now: the strongest present karaka
+    # line (rank-tapered, normalised by max condition 1.5) carries the score, and
+    # additional karaka lines add a modest bonus toward 1.0.
+    norm = {p: min(1.0, best_per_karaka[p]["strength"] / 1.5) for p in best_per_karaka}
+    karaka_score = _karaka_score_from_norms(norm, karakas)
 
-    # angle_score — average best proximity across the concern's angles.
-    angle_score = (sum(best_prox_per_angle.values()) / len(angles)) if angles else 0.0
+    # angle_score — [places-calibration 2026-07-12] the BEST relevant angle, not
+    # the average. Being strongly on one concern angle (e.g. the career MC line)
+    # is a full angle signal; averaging across [MC, AC] halved it when only one
+    # angle carried a line. A light bonus keeps two-angle coverage slightly ahead.
+    angle_score = _angle_score_from_prox(best_prox_per_angle)
 
     # ── 3-4. Relocated house score ──────────────────────────────────────────
     if relocation is None:
