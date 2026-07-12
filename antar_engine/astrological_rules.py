@@ -652,7 +652,8 @@ def detect_concern(question: str) -> str:
     Map a user question to a canonical concern domain.
     Returns one of: career, finance, marriage, love, divorce, health,
                     foreign, speculation, loss, wealth, spiritual, general,
-                    property (residence/local-move keyword bridge 2026-06-05)
+                    property (residence/local-move keyword bridge 2026-06-05),
+                    legal (litigation keyword path 2026-07-12)
     Order matters — more specific matches before general ones.
 
     BUSINESS-CONTEXT OVERRIDE: when business/finance keywords co-occur
@@ -722,6 +723,25 @@ def detect_concern(question: str) -> str:
                      "should i leave","leave my partner","leave my spouse"]
     if any(w in q for w in divorce_words):
         return "divorce"
+
+    # ── Legal / Litigation ─────────────────────────────────────
+    # [legal-routing 2026-07-12] Legal questions had no keyword path — they all
+    # fell through to "general", so the litigation recipe ([6,8,12]) was
+    # unreachable from detect_concern (only the haiku intent classifier could
+    # reach it). Conservative MULTIWORD tokens avoid substring traps ("issue"
+    # ⊃ "sue", "courtship" ⊃ "court", "in case"/"use case" ⊃ "case"). Placed
+    # before the finance/career blocks so "win the case" doesn't route to work.
+    legal_words = ["lawsuit","litigat","court case","in court","to court",
+                   "court hearing","legal case","legal battle","legal dispute",
+                   "legal notice","legal matter","legal fight","legal trouble",
+                   "legal action","legal proceeding","win the case","lose the case",
+                   "win or lose the case","the case against","case against me",
+                   "file a case","filing a case","plaintiff","defendant",
+                   "arbitration","tribunal",
+                   # Spanish
+                   "demanda","juicio","litigio","pleito","tribunal","corte judicial"]
+    if any(w in q for w in legal_words):
+        return "legal"
 
     # ── Business-context check (computed once, used below) ────
     _biz_words = ["business","venture","company","firm","startup","revenue",

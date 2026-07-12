@@ -15420,7 +15420,7 @@ async def ask_prashna(request: PrashnaRequest):
 ASK_YESNO_COOLDOWN_HOURS = 24
 
 
-def _ask_build_layer_context(chart_data, dashas, birth_date, concern):
+def _ask_build_layer_context(chart_data, dashas, birth_date, concern, question=""):
     """
     Lean 5-layer conclusions block for /ask (explore mode).
     Shares /predict's primitives (dasha_periods rows via get_dashas_for_chart,
@@ -15529,7 +15529,8 @@ def _ask_build_layer_context(chart_data, dashas, birth_date, concern):
     #    ruler strength, and occupants — e.g. for funding it exposes the
     #    gains / other-people's-money channel (11th/8th) vs the debt channel (6th).
     try:
-        _hs = _ask_house_significator_block(chart_data, concern)
+        _hs = _ask_house_significator_block(
+            chart_data, concern, either_or=_ask_is_either_or(question))
         if _hs:
             lines.append(_hs)
     except Exception:
@@ -15552,21 +15553,53 @@ _ASK_DIGNITY_PLAIN = {
 # houses split into competing channels (e.g. funding vs loan), the raw house
 # theme alone lets the model mis-assign a dual-use house — the 8th ("other
 # people's money") reads as either investment OR a loan. Labelling the channel
-# keeps the read aligned with the classical mapping: 11th + 8th = the funding /
-# outside-capital side (gains, investors, settlements, other people's money);
-# 6th = the loan / debt side (money you borrow and repay); 2nd = your own
-# savings. Keyed by event; only events with a genuine either/or need entries.
+# keeps the read aligned with the classical mapping. Keyed by event; only
+# events with a genuine either/or split need entries, and the labels are only
+# emitted when the question itself is an either/or (see _ask_is_either_or) so
+# open questions ("how is my career") are never forced into a two-sided frame.
 _ASK_CHANNEL_ROLE = {
+    # "is it funding or loan" — 11th+8th (gains / other people's money) vs 6th
+    # (money you borrow and repay); 2nd = self-funded. (founder steer 2026-07-12)
     "funding": {
         11: "the FUNDING side — gains, investors, your network, desires fulfilled",
         8:  "the FUNDING side — outside capital, other people's money, a settlement",
         6:  "the LOAN side — money you borrow and must repay",
         2:  "your OWN savings (self-funded)",
     },
+    # "promotion or a new job" — 10th (your current standing / rise in place) &
+    # 11th (the gain the step brings) vs 6th (a new role / change of employer).
+    "career": {
+        10: "the PROMOTION side — rising in your current position, your standing with the boss",
+        11: "the PROMOTION side — the raise or goal reached where you are",
+        6:  "the NEW-JOB side — a new role, a change of employer, a fresh service",
+    },
+    # "will I win or lose" — 6th (overcoming the opponent) vs 8th (delay / hidden
+    # turns) & 12th (loss, cost, setback). Horary reading of the querent's side.
+    "litigation": {
+        6:  "the WIN side — overcoming the opponent, prevailing",
+        8:  "the SETBACK side — delay, complications, hidden turns",
+        12: "the LOSS side — a costly outcome, a settlement against you",
+    },
 }
 
 
-def _ask_house_significator_block(chart_data, concern):
+# [ask-nature-of-source 2026-07-12] Emit channel-role labels only when the
+# question is genuinely an either/or ("X or Y", "vs"). Keeps open questions of
+# the same concern from being forced into a two-sided frame.
+_ASK_EITHER_OR_FILLERS = ("sooner or later", "now or never", "more or less",
+                          "one or two", "give or take", "hit or miss")
+
+
+def _ask_is_either_or(question) -> bool:
+    q = " " + (question or "").lower().strip() + " "
+    if " vs " in q or " vs. " in q or " versus " in q:
+        return True
+    for f in _ASK_EITHER_OR_FILLERS:
+        q = q.replace(f, " ")
+    return " or " in q
+
+
+def _ask_house_significator_block(chart_data, concern, either_or=False):
     """Concern-scoped house significators for /ask (the nature-of-outcome layer).
 
     Reuses the concern→houses recipe (event_evidence.EVENT_MAP), the canonical
@@ -15612,19 +15645,22 @@ def _ask_house_significator_block(chart_data, concern):
         except Exception:
             return ""
 
-    roles = _ASK_CHANNEL_ROLE.get(event) or {}
+    roles = (_ASK_CHANNEL_ROLE.get(event) or {}) if either_or else {}
     out = ["6. WHAT'S BEHIND THIS (the nature of the outcome, NOT its timing — "
            "internal reference, translate to plain words):"]
     if roles:
         out.append("   (weigh the two sides against each other to answer which "
                    "kind of outcome the chart favors)")
     for h in houses:
-        theme = house_theme(h) or ("house " + str(h))
         hl = house_lords.get(str(h)) or house_lords.get(h) or {}
         lord = hl.get("lord") if isinstance(hl, dict) else ""
-        seg = "   • " + theme
-        if roles.get(h):
-            seg += " [" + roles[h] + "]"
+        # When a channel role exists it is the DOMAIN-CORRECT meaning of this
+        # house for the question (e.g. the 6th is "overcoming the opponent" in a
+        # lawsuit, not its generic "loans/daily work" theme) — lead with it and
+        # drop the generic theme to avoid a jarring mismatch. Otherwise use the
+        # canonical plain theme.
+        role = roles.get(h)
+        seg = "   • " + (role if role else (house_theme(h) or ("house " + str(h))))
         if lord:
             st = _strength(lord)
             seg += " — its ruler " + lord + (" is " + st if st else "")
@@ -16267,7 +16303,7 @@ async def ask_endpoint(request: AskRequest):
             try:
                 if isinstance(chart_data, dict) and chart_data:
                     _ask_layers_block = _ask_build_layer_context(
-                        chart_data, _ask_dashas, _ask_bdate, _ask_concern
+                        chart_data, _ask_dashas, _ask_bdate, _ask_concern, question
                     )
             except Exception as _ale:
                 logger.warning(f"[ask] layer context failed (non-fatal): {_ale}")
