@@ -9126,6 +9126,22 @@ COUNTRY_CAPITALS = {
     "RU":(55.7558,37.6173,"Europe/Moscow"),
 }
 
+_TZF_SINGLETON = None
+
+
+def _tz_from_coords(lat, lng):
+    """IANA timezone id for coords via timezonefinder (offline, DST-capable).
+    Lazy singleton. Falls back to 'UTC' if unresolved (rare: open ocean)."""
+    global _TZF_SINGLETON
+    try:
+        if _TZF_SINGLETON is None:
+            from timezonefinder import TimezoneFinder
+            _TZF_SINGLETON = TimezoneFinder()
+        return _TZF_SINGLETON.timezone_at(lat=float(lat), lng=float(lng)) or "UTC"
+    except Exception:
+        return "UTC"
+
+
 async def _geocode_city(city: str, country: str) -> tuple:
     if not city:
         raise HTTPException(status_code=422, detail="birth_city/birth_place is required and cannot be empty")
@@ -9161,6 +9177,27 @@ async def _geocode_city(city: str, country: str) -> tuple:
                     return (lat, lng, tz, "google")
         except Exception as ge:
             print(f"Geocode error: {ge}")
+    # [geocode-fallback 2026-07-12] Keyless Nominatim (OpenStreetMap) so cities
+    # outside the 60-city table resolve even with NO Google key (prod has none) —
+    # real coords + DST-correct IANA tz via timezonefinder. This is what unblocks
+    # migrated users (e.g. Albuquerque -> America/Denver) and the birth-coord
+    # backfill. Results are cached/persisted upstream, keeping request volume well
+    # within Nominatim's usage policy.
+    try:
+        import httpx
+        async with httpx.AsyncClient() as client:
+            r = await client.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={"q": f"{city}, {country}", "format": "json", "limit": 1},
+                headers={"User-Agent": "AntarAstro/1.0 (support@antar.world)"},
+                timeout=8.0,
+            )
+            _arr = r.json()
+            if _arr:
+                _lat, _lng = float(_arr[0]["lat"]), float(_arr[0]["lon"])
+                return (_lat, _lng, _tz_from_coords(_lat, _lng), "nominatim")
+    except Exception as ne:
+        print(f"Nominatim geocode error: {ne}")
     # [TIER1C 2026-06-09] No more silent country-capital fallback.
     # Returning COUNTRY_CAPITALS[country] here previously persisted the
     # country geographic centroid as the user's "birth coords" — 25+
