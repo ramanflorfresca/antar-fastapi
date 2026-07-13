@@ -17816,7 +17816,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         # + fixed country offset only when the city can't be geocoded.
         _moment_loc = None
         try:
-            _moment_loc = await _resolve_current_moment_location(row)
+            _moment_loc = await _resolve_current_moment_location(row, cid)
         except Exception as _mle:
             print(f"[daily-signal] current-location resolve non-fatal: {_mle}")
         _moment_tz = _iana_offset_hours(_moment_loc[2]) if _moment_loc else None
@@ -23829,10 +23829,15 @@ _MOMENT_GEO_CACHE: dict = {}
 from antar_engine.tz_utils import iana_offset_hours as _iana_offset_hours
 
 
-async def _resolve_current_moment_location(row):
-    """Geocode the user's CURRENT city -> (lat, lng, iana_tz). Cached in-process;
-    best-effort. Returns None when there is no current_city or the geocode fails,
-    so callers fall back to the existing country-capital behavior with no change."""
+async def _resolve_current_moment_location(row, chart_id=None):
+    """Resolve the user's CURRENT location -> (lat, lng, iana_tz).
+
+    [P0 2026-07-12] Order: (1) persisted current_latitude/longitude/timezone on
+    the chart (no geocode) → (2) geocode via _geocode_city and PERSIST the result
+    so it's a one-time cost, not per-request. In-process cached by city. Every
+    DB touch is best-effort/try-excepted so this works whether or not the
+    `current_*` columns exist yet (migration: sql_current_location_columns.sql),
+    and returns None (caller falls back) when there's no city or geocode fails."""
     city = (row.get("current_city") or "").strip()
     country = (row.get("current_country") or "").strip()
     if not city:
@@ -23840,12 +23845,41 @@ async def _resolve_current_moment_location(row):
     key = (city.lower(), country.lower())
     if key in _MOMENT_GEO_CACHE:
         return _MOMENT_GEO_CACHE[key]
+
     result = None
-    try:
-        lat, lng, tz_id, _src = await _geocode_city(city, country)
-        result = (float(lat), float(lng), tz_id)
-    except Exception:
-        result = None                       # geocode 409 / network / unknown city
+    # (1) persisted coords on the chart (skip geocode entirely)
+    if chart_id:
+        try:
+            _pr = supabase.table("charts").select(
+                "current_latitude,current_longitude,current_timezone,current_geocode_city"
+            ).eq("id", chart_id).limit(1).execute()
+            if _pr.data:
+                _d0 = _pr.data[0]
+                if (_d0.get("current_latitude") is not None
+                        and _d0.get("current_longitude") is not None
+                        and _d0.get("current_timezone")
+                        and (_d0.get("current_geocode_city") or "").strip().lower() == city.lower()):
+                    result = (float(_d0["current_latitude"]), float(_d0["current_longitude"]),
+                              _d0["current_timezone"])
+        except Exception:
+            pass  # columns not present yet / read error → geocode below
+
+    # (2) geocode + persist (one-time)
+    if result is None:
+        try:
+            lat, lng, tz_id, _src = await _geocode_city(city, country)
+            result = (float(lat), float(lng), tz_id)
+            if chart_id:
+                try:
+                    supabase.table("charts").update({
+                        "current_latitude": float(lat), "current_longitude": float(lng),
+                        "current_timezone": tz_id, "current_geocode_city": city,
+                    }).eq("id", chart_id).execute()
+                except Exception:
+                    pass  # columns not present yet → skip persist; request still served
+        except Exception:
+            result = None                    # geocode 409 / network / unknown city
+
     _MOMENT_GEO_CACHE[key] = result
     return result
 

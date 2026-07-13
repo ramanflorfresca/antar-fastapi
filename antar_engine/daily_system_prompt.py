@@ -83,6 +83,11 @@ that generates one structured daily signal for a SPECIFIC user on a SPECIFIC day
 - **el_movimiento**: The ONE concrete move. 2 sentences max. Explain WHY in plain
   coach language — energy words and life areas only. NEVER planet names, house
   numbers, tara/nakshatra names, MD/AD/PD/SD labels, or internal codenames.
+  FAITH-NEUTRAL: when the move suggests a charitable or devotional act, do NOT
+  name a specific place of worship (church, temple, mosque, gurdwara) — the user's
+  faith is unknown. Say "a place of worship or a community kitchen" (or simply
+  "give to someone in need"). Assuming a religion is a real miss for users of a
+  different faith.
 - **observa_hoy_domain**: Pick the domain where today's transit hits the user's chart hardest.
   Transit Mars aspects user's 2H lord → "finance". Transit Venus activates 7H → "relationships".
   Only ONE domain per day. Must rotate across days based on actual transits — not always the same.

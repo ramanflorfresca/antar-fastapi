@@ -3,14 +3,26 @@
 **Severity:** High · **Type:** correctness (timing) + data quality
 **Found:** live-audit, 2026-07-12, on user Kulbir (`b1ec259a-4c53-4525-9bb9-61ca134638e2`)
 
-**Status (2026-07-12):** **P1 DONE** — daily-signal now geocodes the user's
-`current_city` (via existing `_geocode_city`: local 60-city table → Google) and
-computes the panchanga/hora with those coords + a **DST-correct IANA offset**
-(`antar_engine.tz_utils.iana_offset_hours`), falling back to the old
-country-capital behavior only when the city can't be geocoded. Works fully in
-prod (Google key present); local table covers 60 major cities. **P0 (persist
-geocoded current coords/tz to avoid per-request geocoding + backfill), P2 (real
-birth coords), P3 (faith-aware remedy) still open.**
+**Status (2026-07-12):**
+- **P1 DONE** — daily-signal geocodes `current_city` and computes the
+  panchanga/hora with those coords + DST-correct IANA offset
+  (`antar_engine.tz_utils.iana_offset_hours`), fallback preserved.
+- **P0 DONE (code) — migration pending** — `_resolve_current_moment_location`
+  now reads persisted `current_latitude/longitude/timezone` first, else geocodes
+  and PERSISTS (one-time, not per-request). All DB touches best-effort so it works
+  before/after the columns exist. **ACTION: run `sql_current_location_columns.sql`
+  in Supabase, then optionally `scripts/backfill_current_location.py --wet-run`.**
+- **P3 DONE** — the daily system prompt now forbids naming a specific place of
+  worship (church/temple/mosque/gurdwara); says "a place of worship or a community
+  kitchen" since faith is unknown. (Note: the "church" text was LLM-generated;
+  there is no stored `religion` field.)
+- **P2 TOOLING DONE — recompute is a deliberate op, NOT auto-run.**
+  `scripts/audit_birth_coords.py` found **16 definite** India-centroid placeholders
+  (incl. Kulbir/Faridabad, Shashi, Siddipet, Aluva, Agra) + 70 "suspect" (Delhi
+  coords, missing city). Fixing them = geocode birth_city + **recompute the natal
+  chart** (ascendant + houses shift → every downstream read changes), so it's left
+  as a deliberate, verified operation. The script does a read-only per-chart
+  lagna diff (`--chart-id <id>`) to preview the impact before applying.
 
 ## One-line
 For a user who has migrated, the daily reading's **sunrise-anchored timing**
