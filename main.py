@@ -17819,7 +17819,8 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         from antar_engine.daily_prediction_engine import generate_weekly_signals
         from antar_engine.daily_panchanga import calculate_panchanga, format_daily_for_user
         res = supabase.table("charts").select(
-            "chart_data,birth_date,name,gender,latitude,longitude,current_country,birth_country,current_city,lal_kitab_data"
+            "chart_data,birth_date,name,gender,latitude,longitude,current_country,birth_country,current_city,"
+            "children_status,marital_status,lal_kitab_data"
         ).eq("id", cid).execute()
         if not res.data: raise HTTPException(404, "Chart not found")
         row = res.data[0]
@@ -18121,12 +18122,16 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             # uses (plain nouns, no jargon). Empty on quiet days.
             try:
                 from antar_engine.today_narration import summarize_drivers as _sd_beats
+                # [life-context 2026-07-13] pass the user's own status so we never
+                # name a child/spouse they don't have (Kulbir: no children).
+                _life_ctx = {"children_status": row.get("children_status"),
+                             "marital_status": row.get("marital_status")}
                 result["beats"] = [{
                     "area":      _b.get("domain"),
                     "life_area": _b.get("life_area") or "",
                     "signal":    _b.get("signal"),
                     "nouns":     _b.get("concrete_nouns") or [],
-                } for _b in (_sd_beats(_th_dbg, _th.get("highlight_areas")) or [])]
+                } for _b in (_sd_beats(_th_dbg, _th.get("highlight_areas"), _life_ctx) or [])]
             except Exception as _bts_e:
                 print(f"[daily-signal] beats build skipped: {_bts_e}")
                 result["beats"] = []

@@ -88,6 +88,13 @@ that generates one structured daily signal for a SPECIFIC user on a SPECIFIC day
   faith is unknown. Say "a place of worship or a community kitchen" (or simply
   "give to someone in need"). Assuming a religion is a real miss for users of a
   different faith.
+- LIFE-CONTEXT — never assert a relationship the user may not have. A house has
+  MANY meanings: the 5th is creativity, romance, projects, learning, and
+  speculation as much as CHILDREN; the 7th is business partners, deals, clients,
+  and the public as much as a SPOUSE. Do NOT name "a child / son / daughter" or
+  "your wife / husband / spouse" unless the day's evidence is clearly about them —
+  many users have no children and no partner. Default to the broader meaning
+  ("a project you're making", "a partnership or a deal").
 - **observa_hoy_domain**: Pick the domain where today's transit hits the user's chart hardest.
   Transit Mars aspects user's 2H lord → "finance". Transit Venus activates 7H → "relationships".
   Only ONE domain per day. Must rotate across days based on actual transits — not always the same.

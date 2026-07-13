@@ -149,12 +149,54 @@ _DRIVER_REASON = {
 }
 
 
-def summarize_drivers(debug: Optional[dict], chosen: Optional[list] = None) -> list:
+# [life-context 2026-07-13] A house is multivalent — the 5th is children AND
+# creativity / romance / ventures; the 7th is a spouse AND business partners /
+# deals / the public. Never assert a life fact we don't know: only surface
+# "a child" or "your spouse" when the chart's own status positively supports it;
+# otherwise use the house's neutral meanings. (Kulbir: children_status=
+# no_children_unsure -> the 5th must read as a venture/creativity, not "a child".)
+_HAS_KIDS_POS = {"has_children", "have_children", "have_kids", "has_kids",
+                 "parent", "kids", "children", "yes"}
+_PARTNERED_POS = {"married", "partnered", "engaged", "in_relationship",
+                  "relationship", "committed", "cohabiting"}
+_CHILD_WORDS = re.compile(r"(?i)\b(child|children|kid|kids|son|daughter|baby)\b")
+_SPOUSE_WORDS = re.compile(r"(?i)\b(spouse|wife|husband)\b")
+
+
+def _has_kids(ctx) -> bool:
+    return str((ctx or {}).get("children_status") or "").strip().lower() in _HAS_KIDS_POS
+
+
+def _is_partnered(ctx) -> bool:
+    return str((ctx or {}).get("marital_status") or "").strip().lower() in _PARTNERED_POS
+
+
+def _apply_life_context(domain, nouns, theme, ctx):
+    """Drop assumed-relationship nouns the user's status doesn't support and
+    reword the theme. Safe default: assume nothing unless positively known."""
+    if not ctx:
+        return nouns, theme
+    if domain in ("children", "child") and not _has_kids(ctx):
+        nouns = [n for n in nouns if not _CHILD_WORDS.search(n)] or \
+                ["a creative project", "a venture or idea", "something you're making"]
+        if _CHILD_WORDS.search(theme or ""):
+            theme = "creativity, romance and the things you make"
+    if domain in ("partner", "partnership", "marriage") and not _is_partnered(ctx):
+        nouns = [n for n in nouns if not _SPOUSE_WORDS.search(n)] or \
+                ["a partner or close collaborator", "a deal or agreement"]
+        if _SPOUSE_WORDS.search(theme or ""):
+            theme = "your partnerships and the deals you make"
+    return nouns, theme
+
+
+def summarize_drivers(debug: Optional[dict], chosen: Optional[list] = None,
+                      context: Optional[dict] = None) -> list:
     """Turn the engine's _debug_reasoning into a per-chosen-domain driver list:
         [{"domain": "money", "signal": "amplified",
           "reasons": ["this area is specifically lit for you today", ...]}, ...]
     Reads only the structured votes (already jargon-free); never the raw LK
-    text or the el_movimiento sentence (which carry mechanism/jargon)."""
+    text or the el_movimiento sentence (which carry mechanism/jargon).
+    `context` (children_status / marital_status) gates assumed-life nouns."""
     if not isinstance(debug, dict):
         return []
     chosen = chosen or debug.get("chosen") or []
@@ -214,6 +256,8 @@ def summarize_drivers(debug: Optional[dict], chosen: Optional[list] = None) -> l
             nouns = _sig.get("nouns", [])
             theme = _sig.get("theme", "")
             phrase = _sig.get("phrase", "")
+            # [life-context] don't name a child/spouse the user doesn't have.
+            nouns, theme = _apply_life_context(d, nouns, theme, context)
         except Exception:
             pass
         out.append({
