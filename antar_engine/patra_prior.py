@@ -32,7 +32,10 @@ W_BEHAVIOR_TOP = 0.8
 W_BEHAVIOR_SECOND = 0.4
 W_BASELINE = 0.5          # stated signup concern (split across compound reasons)
 W_LIFESTAGE = 0.25        # gentle, never decisive
-BEHAVIOR_LOOKBACK_DAYS = 30
+BEHAVIOR_LOOKBACK_DAYS = 180   # [personalization-C] 30 was too short — real users
+                               # ask in bursts; a 6-month memory captures the
+                               # standing interest (recency inside still favours the
+                               # last week 2:1 via _add).
 BEHAVIOR_MIN_ASKS = 2     # fewer than this and the baseline stays in charge
 
 # ── taxonomy → locked selectable palette ────────────────────────────────────
@@ -159,6 +162,21 @@ def _behavior_counts(chart_id: str, sb) -> dict:
             .order("created_at", desc=True).limit(10).execute()
         for row in (r.data or []):
             _add(row.get("domain"), row.get("created_at"))
+    except Exception:
+        pass
+
+    # [personalization-C 2026-07-13] The `predictions` table is the real Ask
+    # history (concern per question) — intent_classify_log / prashna_log are
+    # essentially empty in prod, so the behaviour tilt never fired. Feed the
+    # actual asked concerns here; _norm maps finance/wealth/career/love/... onto
+    # the coarse domains, "general"/unmapped drop out.
+    try:
+        r = sb.table("predictions") \
+            .select("concern, created_at") \
+            .eq("chart_id", chart_id).gte("created_at", since) \
+            .order("created_at", desc=True).limit(40).execute()
+        for row in (r.data or []):
+            _add(row.get("concern"), row.get("created_at"))
     except Exception:
         pass
 
