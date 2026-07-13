@@ -17782,7 +17782,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         from antar_engine.daily_prediction_engine import generate_weekly_signals
         from antar_engine.daily_panchanga import calculate_panchanga, format_daily_for_user
         res = supabase.table("charts").select(
-            "chart_data,birth_date,name,gender,latitude,longitude,current_country,birth_country,lal_kitab_data"
+            "chart_data,birth_date,name,gender,latitude,longitude,current_country,birth_country,current_city,lal_kitab_data"
         ).eq("id", cid).execute()
         if not res.data: raise HTTPException(404, "Chart not found")
         row = res.data[0]
@@ -17811,14 +17811,24 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
 
         # Local "today" — same helpers /daily-week uses
         current_country = row.get("current_country") or row.get("birth_country") or ""
+        # [desh-kaal-patra 2026-07-12] Prefer the user's ACTUAL current city for
+        # the sunrise-anchored timezone + coords. Falls back to the country-capital
+        # + fixed country offset only when the city can't be geocoded.
+        _moment_loc = None
+        try:
+            _moment_loc = await _resolve_current_moment_location(row)
+        except Exception as _mle:
+            print(f"[daily-signal] current-location resolve non-fatal: {_mle}")
+        _moment_tz = _iana_offset_hours(_moment_loc[2]) if _moment_loc else None
+        effective_offset = (_moment_tz if _moment_tz is not None
+                            else _COUNTRY_TZ_OFFSETS.get((current_country or "").upper(), 0))
         # [daily-signal-date] when caller supplied ?date, use that midnight as the
         # start_date — this date already flows into generate_weekly_signals,
         # today_narration_cache, commit_today_signal, and the deep-read prewarmer.
         if _ds_requested_date is not None:
             start_date = _ds_requested_date.replace(hour=0, minute=0, second=0, microsecond=0)
         else:
-            start_date = _get_local_start_date(tz_offset=None, current_country=current_country)
-        effective_offset = _COUNTRY_TZ_OFFSETS.get((current_country or "").upper(), 0)
+            start_date = _get_local_start_date(tz_offset=effective_offset)
 
         # [es-latency] Block only on TODAY (signals[0]). Generating all 7
         # days inline was the cold-cache cost behind 20-45s es latency —
@@ -17844,7 +17854,12 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         result.setdefault("chart_id", cid)
 
         # Today's panchanga timing block (carried over from the original endpoint)
-        _pan_lat, _pan_lng, _pan_src = _resolve_moment_coords(row)
+        # [desh-kaal-patra 2026-07-12] Use the geocoded current-city coords when
+        # available (matched to the DST-correct offset above); else fall back.
+        if _moment_loc:
+            _pan_lat, _pan_lng, _pan_src = _moment_loc[0], _moment_loc[1], "current_city"
+        else:
+            _pan_lat, _pan_lng, _pan_src = _resolve_moment_coords(row)
         lat, lng = float(_pan_lat), float(_pan_lng)
         # [daily-signal-date] thread the requested date so the 5 limbs +
         # sunrise/sunset/rahu kalam/abhijit/lucky_hours all match start_date.
@@ -23804,6 +23819,35 @@ def _resolve_moment_coords(chart_row: dict, req_lat=None, req_lng=None,
     except (TypeError, ValueError):
         pass
     return float(default[0]), float(default[1]), "default"
+
+
+# [desh-kaal-patra 2026-07-12] Resolve the user's ACTUAL current location so
+# sunrise-anchored daily timing (best window, Rahu Kalam, Abhijit, lucky hours)
+# is computed for the city they LIVE in now — not the country capital + a fixed
+# country tz offset (which put a New-Mexico user on Washington-DC/Eastern time).
+_MOMENT_GEO_CACHE: dict = {}
+from antar_engine.tz_utils import iana_offset_hours as _iana_offset_hours
+
+
+async def _resolve_current_moment_location(row):
+    """Geocode the user's CURRENT city -> (lat, lng, iana_tz). Cached in-process;
+    best-effort. Returns None when there is no current_city or the geocode fails,
+    so callers fall back to the existing country-capital behavior with no change."""
+    city = (row.get("current_city") or "").strip()
+    country = (row.get("current_country") or "").strip()
+    if not city:
+        return None
+    key = (city.lower(), country.lower())
+    if key in _MOMENT_GEO_CACHE:
+        return _MOMENT_GEO_CACHE[key]
+    result = None
+    try:
+        lat, lng, tz_id, _src = await _geocode_city(city, country)
+        result = (float(lat), float(lng), tz_id)
+    except Exception:
+        result = None                       # geocode 409 / network / unknown city
+    _MOMENT_GEO_CACHE[key] = result
+    return result
 
 
 def _get_local_start_date(tz_offset: float = None, current_country: str = None):

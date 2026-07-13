@@ -3,6 +3,15 @@
 **Severity:** High · **Type:** correctness (timing) + data quality
 **Found:** live-audit, 2026-07-12, on user Kulbir (`b1ec259a-4c53-4525-9bb9-61ca134638e2`)
 
+**Status (2026-07-12):** **P1 DONE** — daily-signal now geocodes the user's
+`current_city` (via existing `_geocode_city`: local 60-city table → Google) and
+computes the panchanga/hora with those coords + a **DST-correct IANA offset**
+(`antar_engine.tz_utils.iana_offset_hours`), falling back to the old
+country-capital behavior only when the city can't be geocoded. Works fully in
+prod (Google key present); local table covers 60 major cities. **P0 (persist
+geocoded current coords/tz to avoid per-request geocoding + backfill), P2 (real
+birth coords), P3 (faith-aware remedy) still open.**
+
 ## One-line
 For a user who has migrated, the daily reading's **sunrise-anchored timing**
 (best window, Rahu Kalam, Abhijit, lucky hours) is computed for the **capital of
