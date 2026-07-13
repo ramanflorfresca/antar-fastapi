@@ -1482,6 +1482,11 @@ class PatraUpdateRequest(BaseModel):
     career_stage: Optional[str] = None
     health_status: Optional[str] = None
     financial_status: Optional[str] = None
+    # [profile-capture 2026-07-13] current location — so the daily/timing engine
+    # can compute for where the user actually lives (desh). update_patra writes
+    # every non-None field, so these flow through automatically.
+    current_city: Optional[str] = None
+    current_country: Optional[str] = None
 
 class LanguageSetRequest(BaseModel):
     language: str = Field(..., example="es")
@@ -4828,12 +4833,21 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
         print(f"[predict] [WS1] transit re-compute failed (non-fatal): {_tf_tr_e}")
 
     # ── PATRA (must come before C4) ──────────────────────────────
+    # [kill-fake-defaults 2026-07-13] An UNANSWERED profile field must read
+    # "unknown", never a fabricated value. Defaulting to "no_children_unsure" /
+    # "mid_career" / "excellent" / "stable" made the engine personalize on facts
+    # it never had (e.g. telling a childless user about "the children area").
+    # Also normalize the blanket column-default values to "unknown" so they stop
+    # acting as real signals until the user actually answers (see onboarding).
+    def _prof(field):
+        _v = str(chart_record.get(field) or "").strip().lower()
+        return "unknown" if _v in ("", "unknown", "no_children_unsure", "mid_career") else _v
     user_profile = {
-        "marital_status":   chart_record.get("marital_status", "unknown"),
-        "children_status":  chart_record.get("children_status", "no_children_unsure"),
-        "career_stage":     chart_record.get("career_stage", "mid_career"),
-        "health_status":    chart_record.get("health_status", "excellent"),
-        "financial_status": chart_record.get("financial_status", "stable"),
+        "marital_status":   _prof("marital_status"),
+        "children_status":  _prof("children_status"),
+        "career_stage":     _prof("career_stage"),
+        "health_status":    _prof("health_status"),
+        "financial_status": _prof("financial_status"),
         "birth_country":    chart_record.get("country_code", ""),
         "current_country":  chart_record.get("current_country") or chart_record.get("country_code", ""),
         "countries_lived":  chart_record.get("countries_lived", []),
@@ -10174,10 +10188,14 @@ async def get_career_reading(
     chart_data   = chart_record["chart_data"]
     dashas       = get_dashas_for_chart(request.chart_id)
 
+    # [kill-fake-defaults 2026-07-13] unanswered -> "unknown", not a fabricated value.
+    def _prof2(field):
+        _v = str(chart_record.get(field) or "").strip().lower()
+        return "unknown" if _v in ("", "unknown", "no_children_unsure", "mid_career") else _v
     user_profile = {
-        "marital_status":   chart_record.get("marital_status", "unknown"),
-        "career_stage":     chart_record.get("career_stage", "mid_career"),
-        "financial_status": chart_record.get("financial_status", "stable"),
+        "marital_status":   _prof2("marital_status"),
+        "career_stage":     _prof2("career_stage"),
+        "financial_status": _prof2("financial_status"),
         "birth_country":    chart_record.get("country_code", ""),
         "current_country":  chart_record.get("current_country") or chart_record.get("country_code", ""),
     }
