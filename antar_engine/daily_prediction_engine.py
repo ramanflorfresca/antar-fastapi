@@ -847,6 +847,32 @@ def _strip_day_names_from_signal(signal_json: dict, language: str) -> dict:
     return signal_json
 
 
+import re as _re_faith
+# [faith-neutral P3 2026-07-12] The daily nudge kept naming a specific place of
+# worship ("donation at the church...") — a real miss for users of another faith
+# (e.g. a Sikh). The system-prompt rule alone didn't hold (LLMs default to
+# "church"), so neutralize deterministically here. Replaces "<article> <house of
+# worship>" with "a place of worship", keeping the surrounding sentence intact.
+_FAITH_HOUSE_RE = _re_faith.compile(
+    r'\b(?:the|a|an|your|his|her|their|el|la|un|una|tu|su)\s+'
+    r'(?:local\s+)?(?:church|temple|mosque|gurdwara|gurudwara|synagogue|'
+    r'mandir|masjid|iglesia|templo|mezquita|sinagoga)\b', _re_faith.I)
+_FAITH_BARE_RE = _re_faith.compile(
+    r'\b(?:church|mosque|gurdwara|gurudwara|synagogue|mandir|masjid|'
+    r'iglesia|mezquita|sinagoga)\b', _re_faith.I)
+
+
+def _faith_neutralize(text):
+    """Swap a named house of worship for a faith-neutral phrase. Best-effort."""
+    if not text or not isinstance(text, str):
+        return text
+    es = any(w in text.lower() for w in ("iglesia", "templo", "mezquita", "sinagoga"))
+    neutral = "un lugar de culto" if es else "a place of worship"
+    out = _FAITH_HOUSE_RE.sub(neutral, text)
+    out = _FAITH_BARE_RE.sub(neutral, out)
+    return out
+
+
 def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
     """
     Apply centralized output strips to user-facing fields before cache write.
@@ -873,16 +899,16 @@ def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
     for _f in ('senal_de_hoy', 'observa_hoy_text', 'verdict_subline', 'el_movimiento'):
         _v = signal_json.get(_f)
         if isinstance(_v, str) and _v:
-            signal_json[_f] = apply_user_facing_strips(
+            signal_json[_f] = _faith_neutralize(apply_user_facing_strips(
                 _v, language=language, field_type='plain'
-            )
+            ))
 
     # List plain fields
     for _f in ('haz_hoy', 'evita_hoy'):
         _arr = signal_json.get(_f)
         if isinstance(_arr, list):
             signal_json[_f] = [
-                apply_user_facing_strips(_x, language=language, field_type='plain')
+                _faith_neutralize(apply_user_facing_strips(_x, language=language, field_type='plain'))
                 if isinstance(_x, str) and _x else _x
                 for _x in _arr
             ]

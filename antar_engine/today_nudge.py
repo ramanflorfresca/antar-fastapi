@@ -37,28 +37,35 @@ _COUNTRY_ALIAS = {
     "VENEZUELA": "VE", "URUGUAY": "UY", "PARAGUAY": "PY",
 }
 
+# [faith-neutral P3 2026-07-12] Country != religion. The old map named a specific
+# house of worship per country (US -> "church"), which is wrong for anyone of a
+# minority faith — e.g. a Sikh in the US being told "church". Lead with a SECULAR
+# giving place (universally appropriate charity) and offer "a place of worship"
+# generically for those who want the devotional option. English source; the es
+# path is LLM-translated by @translate_response.
 _GIVING_PLACE_BY_COUNTRY = {
-    # South Asia — mandir / gurudwara
-    "IN": "mandir or gurudwara",
-    "NP": "mandir",
-    "LK": "temple",
-    # Latin America — English source ("church"); @translate_response renders
-    # "iglesia"/"igreja" on the es path, so en stays clean and es is unchanged.
-    "MX": "church", "CO": "church", "EC": "church", "GT": "church",
-    "BO": "church", "VE": "church", "UY": "church", "PY": "church",
-    "HN": "church", "SV": "church", "NI": "church", "CR": "church",
-    "PA": "church", "DO": "church", "CU": "church", "CL": "church",
-    "PE": "church or soup kitchen",
-    "AR": "church or soup kitchen",
-    "BR": "church",
-    "ES": "church",
+    # South Asia
+    "IN": "community kitchen or a place of worship",
+    "NP": "community kitchen or a place of worship",
+    "LK": "community kitchen or a place of worship",
+    # Latin America (soup kitchen / comedor)
+    "MX": "soup kitchen or a place of worship", "CO": "soup kitchen or a place of worship",
+    "EC": "soup kitchen or a place of worship", "GT": "soup kitchen or a place of worship",
+    "BO": "soup kitchen or a place of worship", "VE": "soup kitchen or a place of worship",
+    "UY": "soup kitchen or a place of worship", "PY": "soup kitchen or a place of worship",
+    "HN": "soup kitchen or a place of worship", "SV": "soup kitchen or a place of worship",
+    "NI": "soup kitchen or a place of worship", "CR": "soup kitchen or a place of worship",
+    "PA": "soup kitchen or a place of worship", "DO": "soup kitchen or a place of worship",
+    "CU": "soup kitchen or a place of worship", "CL": "soup kitchen or a place of worship",
+    "PE": "soup kitchen or a place of worship", "AR": "soup kitchen or a place of worship",
+    "BR": "soup kitchen or a place of worship", "ES": "soup kitchen or a place of worship",
     # Anglosphere
-    "US": "church or community kitchen",
-    "GB": "church or food bank",
-    "CA": "church or food bank",
-    "AU": "church or food bank",
+    "US": "community kitchen or a place of worship",
+    "GB": "food bank or a place of worship",
+    "CA": "food bank or a place of worship",
+    "AU": "food bank or a place of worship",
 }
-_GIVING_PLACE_DEFAULT = "church, temple, or community kitchen near you"
+_GIVING_PLACE_DEFAULT = "community kitchen or a place of worship near you"
 
 # ── Nudge banks — keyed by the engine's lead highlight domain ────────────────
 # Adverse day: hold-the-line nudges in the SAME domain the highlight flags.

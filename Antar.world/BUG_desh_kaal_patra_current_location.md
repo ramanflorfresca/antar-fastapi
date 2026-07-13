@@ -16,6 +16,26 @@
   worship (church/temple/mosque/gurdwara); says "a place of worship or a community
   kitchen" since faith is unknown. (Note: the "church" text was LLM-generated;
   there is no stored `religion` field.)
+**RE-AUDIT (2026-07-12, live on `ddfb5f2`):**
+- Migration verified ✓ (columns exist). Deploy verified ✓.
+- **P1/P0 do NOT yet fix migrated users** — prod has **no `GOOGLE_MAPS_API_KEY`**
+  and the built-in table is only 60 cities, so Albuquerque can't be geocoded →
+  the code correctly falls back to country-capital (DC/Eastern). The fix is
+  right; the blocker is **prod has no geocoder**. **ACTION: set
+  `GOOGLE_MAPS_API_KEY` in Railway** (correct coords + IANA tz, unblocks P1/P0/P2
+  and the backfill), or add a keyless Nominatim+timezonefinder fallback.
+- **P3 was fixed in the WRONG place first** (LLM prompt) and still leaked. Real
+  source found: `today_nudge._GIVING_PLACE_BY_COUNTRY` hard-coded country→religion
+  ("US"→"church"). Now faith-neutral ("community kitchen or a place of worship")
+  + a deterministic `_faith_neutralize` net over every nudge alias. **P3 DONE
+  for real.**
+- **P2 impact is smaller than feared:** Kulbir's lagna is **Sagittarius from BOTH**
+  the India-centroid and real Faridabad (only degree/house-cusps shift) — low
+  impact for him. Per-chart impact varies (some flip sign). And `build_chart`
+  ALONE is insufficient for a recompute (drops divisional_charts/yogas/
+  house_lords/atmakaraka) — a safe recompute must route through the full
+  `create_chart` pipeline, not an ad-hoc script.
+
 - **P2 TOOLING DONE — recompute is a deliberate op, NOT auto-run.**
   `scripts/audit_birth_coords.py` found **16 definite** India-centroid placeholders
   (incl. Kulbir/Faridabad, Shashi, Siddipet, Aluva, Agra) + 70 "suspect" (Delhi

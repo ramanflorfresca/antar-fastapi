@@ -18065,6 +18065,16 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     _d1_move = _af0[0].strip()
             result["el_movimiento"] = _d1_move
             result["move"] = _d1_move
+            # [faith-neutral P3 2026-07-12] Final net across every nudge alias —
+            # never name a specific house of worship (source: today_nudge map +
+            # any LLM path). Belt-and-suspenders over the source fix.
+            try:
+                from antar_engine.daily_prediction_engine import _faith_neutralize
+                for _nf in ("todays_nudge", "move", "el_movimiento"):
+                    if isinstance(result.get(_nf), str) and result[_nf]:
+                        result[_nf] = _faith_neutralize(result[_nf])
+            except Exception:
+                pass
             result["_debug_reasoning"] = _th_dbg
             # [Fix A] first-class, stable evidence trail (admin/dev-
             # visible; not rendered). Always present on a daily read.
