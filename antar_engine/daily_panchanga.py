@@ -432,6 +432,12 @@ def calculate_panchanga(lat: float = 28.6, lng: float = 77.2, tz_offset: float =
             "important_decisions": ["Jupiter", "Sun", "Mercury"],
         }
 
+        # [lucky-hours-fix 2026-07-12] Planetary hours (horas) start at SUNRISE,
+        # not midnight. The old code used the hora index directly as a clock hour
+        # (hora 0 -> 12 AM), so every "lucky hour" landed at 1/3/6 AM regardless of
+        # location or day. Anchor to the (now location-correct) local sunrise: the
+        # 1st hora is the day-lord at sunrise, each next hora ~1h later.
+        _sr_base = int(round(sunrise_hour)) if sunrise_hour else 6
         lucky_hours = {}
         for category, favorable_planets in FAVORABLE_HOURS.items():
             windows = []
@@ -439,7 +445,7 @@ def calculate_panchanga(lat: float = 28.6, lng: float = 77.2, tz_offset: float =
                 planet_idx = (day_lord_idx + hour_num) % 7
                 planet = PLANETARY_HOUR_SEQUENCE[planet_idx]
                 if planet in favorable_planets:
-                    h = hour_num
+                    h = (_sr_base + hour_num) % 24
                     period = "AM" if h < 12 else "PM"
                     h12    = h % 12 or 12
                     windows.append(f"{h12}:00 {period}")
