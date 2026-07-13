@@ -67,6 +67,27 @@ city → real coords + timezone).
   `children_status`/`marital_status` are real, the reading stops guessing about
   kids/partners.
 
+## HOW to ask — smart & low-friction (don't build a form wall)
+A 4-question form at signup kills completion. Capture it these three ways instead:
+
+1. **"Make it yours" — AFTER the first reading, not before.** Once they've seen
+   value, show a dismissible card with one-tap **chips** (no text input), each
+   step skippable, with progress dots. On each tap, PATCH that one field and
+   advance; at the end re-render Today. Friendly chip labels map to the enum
+   strings above.
+2. **Just-in-time top-up (the smart part).** If a field is still unknown AND the
+   current reading is about to lean on it, show a tiny inline chip pair instead of
+   assuming — e.g. a relationship-heavy read with `marital_status` unknown →
+   "Quick — are you partnered? [Single] [Partnered]". One tap, in context, then
+   re-render. The question feels earned and the payoff is instant.
+3. **Settings → "Your details".** The same four questions, always editable.
+
+**City:** pre-fill from browser geolocation / IP and let the user just **confirm**
+("You're in Albuquerque? ✓ Yes / Change") — never make them type it if we can guess.
+
+**Auth:** `POST /api/v1/user/patra` needs a signed-in user. For a guest, run the
+personalize step right after "Continue with Google" (the save-your-chart moment).
+
 ## Out of scope (backend handles)
 - Geocoding the city, timezone, DST — all backend.
 - Applying the profile to predictions (the "only tell them what's applicable"
