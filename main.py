@@ -1016,7 +1016,7 @@ async def _daily_push_job():
         print("[push_cron] APNs not configured — skipping daily nudge")
         return
     try:
-        res = supabase.table("device_tokens").select("token, chart_id").execute()
+        res = supabase.table("device_tokens").select("token, chart_id, platform").execute()
         rows = res.data or []
     except Exception as e:
         print(f"[push_cron] token fetch failed: {e}")
@@ -1027,7 +1027,8 @@ async def _daily_push_job():
     by_chart: dict = {}
     for r in rows:
         if r.get("token"):
-            by_chart.setdefault(r.get("chart_id"), []).append({"token": r["token"]})
+            by_chart.setdefault(r.get("chart_id"), []).append(
+                {"token": r["token"], "platform": r.get("platform")})
     total = {"sent": 0, "failed": 0, "pruned": 0}
     for _cid, toks in by_chart.items():
         summary = await push_sender.send_to_tokens(
