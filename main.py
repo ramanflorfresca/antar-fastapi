@@ -1005,9 +1005,48 @@ async def _deep_read_warm_job():
         print(f"[deep-read-warm] job FATAL: {e}")
 
 
+# ── Daily push nudge cron ─────────────────────────────────────────────────────
+async def _daily_push_job():
+    """Daily cron — nudges every device with a registered token to open today's
+    reading. Sends a lightweight alert (not the content itself), so there's no
+    per-chart LLM cost and nothing sensitive rides in the payload. No-op until
+    APNs is configured (APNS_* env vars). Dead tokens are pruned by the sender."""
+    from antar_engine import push_sender
+    if not push_sender.is_configured():
+        print("[push_cron] APNs not configured — skipping daily nudge")
+        return
+    try:
+        res = supabase.table("device_tokens").select("token, chart_id").execute()
+        rows = res.data or []
+    except Exception as e:
+        print(f"[push_cron] token fetch failed: {e}")
+        return
+    if not rows:
+        print("[push_cron] no device tokens registered")
+        return
+    by_chart: dict = {}
+    for r in rows:
+        if r.get("token"):
+            by_chart.setdefault(r.get("chart_id"), []).append({"token": r["token"]})
+    total = {"sent": 0, "failed": 0, "pruned": 0}
+    for _cid, toks in by_chart.items():
+        summary = await push_sender.send_to_tokens(
+            supabase, toks,
+            title="Antar",
+            body="Your reading for today is ready ☀️",
+            data={"type": "daily"},
+        )
+        for k in total:
+            total[k] += summary.get(k, 0)
+    print(f"[push_cron] daily nudge — charts={len(by_chart)} sent={total['sent']} "
+          f"failed={total['failed']} pruned={total['pruned']}")
+
+
 scheduler = AsyncIOScheduler(timezone="UTC")
 scheduler.add_job(_birthday_recompute_job, "cron", hour=2, minute=0,
                   id="birthday_lk_recompute", replace_existing=True)
+scheduler.add_job(_daily_push_job, "cron", hour=14, minute=0,
+                  id="daily_push_nudge", replace_existing=True)
 scheduler.add_job(_ping_checkin_job, "cron", hour=8, minute=0,
                   id="ping_checkin_daily", replace_existing=True)
 scheduler.add_job(_monthly_briefing_job, "cron", day=1, hour=6, minute=0,
@@ -1492,6 +1531,11 @@ class PushTokenRequest(BaseModel):
     chart_id: str
     token: str
     platform: str = "ios"          # "ios" | "android"
+
+class PushTestRequest(BaseModel):
+    chart_id: str
+    title: Optional[str] = None
+    body: Optional[str] = None
 
 class LanguageSetRequest(BaseModel):
     language: str = Field(..., example="es")
@@ -7830,6 +7874,28 @@ async def register_push_token(
         print(f"[push-token] device_tokens write failed: {e}")
         return {"status": "deferred"}
     return {"status": "stored"}
+
+
+@app.post("/api/v1/user/push-test")
+async def push_test(request: PushTestRequest, authorization: str = Header(...)):
+    """Fire a test push to the caller's OWN chart tokens — for verifying the APNs
+    setup end to end once the APNS_* env vars are in place. Owner-guarded."""
+    user_id = verify_token(authorization)
+    owned = supabase.table("charts").select("id") \
+        .eq("id", request.chart_id).eq("user_id", user_id).limit(1).execute()
+    if not owned.data:
+        raise HTTPException(404, "Chart not found")
+    from antar_engine import push_sender
+    if not push_sender.is_configured():
+        return {"status": "not_configured",
+                "detail": "APNS_KEY_P8 / APNS_KEY_ID / APNS_TEAM_ID not set on the server"}
+    summary = await push_sender.send_to_chart(
+        supabase, request.chart_id,
+        title=(request.title or "Antar"),
+        body=(request.body or "Test push ✅"),
+        data={"type": "test"},
+    )
+    return {"status": "sent", **summary}
 
 # ── Monthly Briefing ──────────────────────────────────────────────────────────
 

@@ -31,25 +31,44 @@ configured, but iOS had no push entitlement and no APNs callbacks, so
 - **No table to create** — `device_tokens` already exists. (The earlier
   `sql_push_tokens.sql` was retired to avoid a duplicate token table.)
 
-## ⛔ Left to do — needs the Apple Developer portal + a sender (not code)
+## ✅ The sender is BUILT (direct APNs) — `antar_engine/push_sender.py`
+- Signs an ES256 provider JWT with your `.p8` (cached, auto-refreshed), sends over
+  HTTP/2 (added `h2` to requirements), prunes dead tokens (410 / BadDeviceToken /
+  Unregistered) from `device_tokens`. Fail-open + no-op until configured.
+- **Daily cron** `_daily_push_job` (main.py, 14:00 UTC) nudges every registered
+  device: *"Your reading for today is ready ☀️"* with `data:{type:"daily"}`. It
+  sends a lightweight alert, not the content — zero per-chart LLM cost, nothing
+  sensitive in the payload. (Prefs-aware sending / per-timezone timing = later.)
+- **Test endpoint** `POST /api/v1/user/push-test { chart_id }` (owner-guarded) —
+  fires a push to your own device to verify the whole chain.
+- Verified locally: JWT signing, HTTP/2 client, fail-open all pass. Only real APNs
+  delivery is untestable without the `.p8`.
 
-1. **Enable the capability on the App ID** (you must — portal login):
+## ⛔ Left to do — the Apple Developer portal + env vars (no more code)
+
+1. **Enable the capability on the App ID** (portal login):
    - Apple Developer → Certificates, IDs & Profiles → your `world.antar.app` App ID
      → enable **Push Notifications**. Regenerate the provisioning profile.
-   - In Xcode: open `App.xcworkspace` → target **App** → Signing & Capabilities →
-     **+ Capability → Push Notifications** (this reconciles the entitlement above).
+   - In Xcode: target **App** → Signing & Capabilities → **+ Capability → Push
+     Notifications** (reconciles the `aps-environment` entitlement).
 2. **Create an APNs Auth Key** (portal): Keys → **+** → enable **Apple Push
    Notifications service (APNs)** → download the `.p8` **once** (can't re-download).
    Note the **Key ID** and your **Team ID**.
-3. **The sender** — the piece that actually pushes the daily reading. Two options:
-   - **Direct APNs** — a small backend job that signs a JWT with the `.p8` and
-     POSTs to `api.push.apple.com`. No third party. (Android would need FCM too.)
-   - **Firebase Cloud Messaging** — one API for both iOS + Android; upload the
-     `.p8` to FCM. Adds `@capacitor/push-notifications` works as-is on iOS; Android
-     needs the FCM `google-services.json` + `@capacitor/android` (not yet installed).
-   Wire this into the existing daily-reading generation so each `push_tokens` row
-   for a chart gets that chart's Today headline. **Tell me which sender you want
-   and I'll build the send side.**
+3. **Set these env vars on Railway** (then redeploy):
+   ```
+   APNS_KEY_P8      = <contents of the .p8>   # newlines OK, or use literal \n
+   APNS_KEY_ID      = <10-char Key ID>
+   APNS_TEAM_ID     = <10-char Team ID>
+   APNS_BUNDLE_ID   = world.antar.app         # (default, optional)
+   APNS_USE_SANDBOX = 1                        # dev/TestFlight tokens; 0 for App Store
+   ```
+   > **Sandbox vs production** matters: a token registered by a `development`/direct-
+   > Xcode build only works against `api.sandbox.push.apple.com` (`APNS_USE_SANDBOX=1`).
+   > A token from an **App Store / TestFlight** build needs `api.push.apple.com`
+   > (`APNS_USE_SANDBOX=0`). Wrong host → `BadDeviceToken`.
+4. **Verify:** with a real device token in `device_tokens`, call
+   `POST /api/v1/user/push-test {chart_id}` — expect `{status:"sent", sent:1}` and a
+   banner on the phone.
 
 ## Android note
 Android is currently **iOS-first / incomplete** — `@capacitor/android` isn't in
