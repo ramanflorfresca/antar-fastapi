@@ -22,10 +22,14 @@ configured, but iOS had no push entitlement and no APNs callbacks, so
   and POSTs the token to the backend. Fail-open throughout.
 - `App.tsx` — mounts `<PushRegistrar/>` (no-op in a browser, active in the wrapper).
 
-**Backend** (`antarai/main.py`) — ready to deploy
+**Backend** (`antarai/main.py`) — deployed
 - `POST /api/v1/user/push-token` — verifies the bearer token, checks the caller
-  owns the chart, upserts `{token, platform, chart_id, user_id}` into `push_tokens`.
-- Run **`Antar.world/sql_push_tokens.sql`** in Supabase to create the table first.
+  owns the chart, and writes `{token, platform, chart_id, user_id, updated_at}`
+  into the **existing `device_tokens` table** (reused — it already has owner-scoped
+  RLS from the security migration; the backend writes with the service-role key so
+  RLS is bypassed). Manual upsert-by-token, no schema change needed.
+- **No table to create** — `device_tokens` already exists. (The earlier
+  `sql_push_tokens.sql` was retired to avoid a duplicate token table.)
 
 ## ⛔ Left to do — needs the Apple Developer portal + a sender (not code)
 

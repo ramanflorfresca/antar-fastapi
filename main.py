@@ -7794,10 +7794,15 @@ async def register_push_token(
     request: PushTokenRequest,
     authorization: str = Header(...)
 ):
-    """Store an APNs/FCM device token for a chart so the daily-reading job can
-    push to it. Idempotent per (token) — the native app re-sends on every launch,
-    and tokens can migrate between charts on the same device, so we upsert on the
-    token and keep it pointed at the most recent chart/user."""
+    """Store an APNs/FCM device token in the `device_tokens` table so the
+    daily-reading job can push to it. Idempotent per token — the native app
+    re-sends on every launch, and a token can migrate between charts on the same
+    device, so we keep the row pointed at the most recent chart/user. Fail-open:
+    a token save never breaks app launch.
+
+    Reuses the existing (owner-RLS'd) `device_tokens` table rather than a parallel
+    one; the backend writes with the service-role key so RLS is bypassed. A manual
+    upsert (select → update|insert) avoids depending on a UNIQUE(token) index."""
     user_id = verify_token(authorization)
 
     # Ownership check — the token can only be attached to a chart the caller owns.
@@ -7806,19 +7811,23 @@ async def register_push_token(
     if not owned.data:
         raise HTTPException(404, "Chart not found")
 
-    row = {
-        "token":      request.token,
+    fields = {
         "platform":   (request.platform or "ios").lower(),
         "chart_id":   request.chart_id,
         "user_id":    user_id,
         "updated_at": datetime.now(timezone.utc).isoformat(),
     }
     try:
-        # Requires a UNIQUE constraint on push_tokens.token (see SQL).
-        supabase.table("push_tokens").upsert(row, on_conflict="token").execute()
+        existing = supabase.table("device_tokens").select("id") \
+            .eq("token", request.token).limit(1).execute()
+        if existing.data:
+            supabase.table("device_tokens").update(fields) \
+                .eq("token", request.token).execute()
+        else:
+            supabase.table("device_tokens").insert({**fields, "token": request.token}).execute()
     except Exception as e:
         # Fail-open: never break app launch over a token save.
-        print(f"[push-token] upsert failed: {e}")
+        print(f"[push-token] device_tokens write failed: {e}")
         return {"status": "deferred"}
     return {"status": "stored"}
 
