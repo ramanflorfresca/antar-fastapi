@@ -1488,6 +1488,11 @@ class PatraUpdateRequest(BaseModel):
     current_city: Optional[str] = None
     current_country: Optional[str] = None
 
+class PushTokenRequest(BaseModel):
+    chart_id: str
+    token: str
+    platform: str = "ios"          # "ios" | "android"
+
 class LanguageSetRequest(BaseModel):
     language: str = Field(..., example="es")
 
@@ -7783,6 +7788,39 @@ async def update_patra(
         "age":             patra.age,
         "age_trigger":     patra.age_trigger,
     }
+
+@app.post("/api/v1/user/push-token")
+async def register_push_token(
+    request: PushTokenRequest,
+    authorization: str = Header(...)
+):
+    """Store an APNs/FCM device token for a chart so the daily-reading job can
+    push to it. Idempotent per (token) — the native app re-sends on every launch,
+    and tokens can migrate between charts on the same device, so we upsert on the
+    token and keep it pointed at the most recent chart/user."""
+    user_id = verify_token(authorization)
+
+    # Ownership check — the token can only be attached to a chart the caller owns.
+    owned = supabase.table("charts").select("id") \
+        .eq("id", request.chart_id).eq("user_id", user_id).limit(1).execute()
+    if not owned.data:
+        raise HTTPException(404, "Chart not found")
+
+    row = {
+        "token":      request.token,
+        "platform":   (request.platform or "ios").lower(),
+        "chart_id":   request.chart_id,
+        "user_id":    user_id,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        # Requires a UNIQUE constraint on push_tokens.token (see SQL).
+        supabase.table("push_tokens").upsert(row, on_conflict="token").execute()
+    except Exception as e:
+        # Fail-open: never break app launch over a token save.
+        print(f"[push-token] upsert failed: {e}")
+        return {"status": "deferred"}
+    return {"status": "stored"}
 
 # ── Monthly Briefing ──────────────────────────────────────────────────────────
 
