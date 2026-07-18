@@ -11342,7 +11342,15 @@ async def places_city_endpoint(req: PlacesCityReq):
     city_dict["velocity"] = _places_velocity(req.city.name, req.city.country_code)
     active = _pcn.find_lines_near_city(all_lines, req.city.lat, req.city.lon, max_distance_km=700.0)
 
-    if req.concern and req.concern in _pcn.VALID_CONCERNS:
+    # [places-scoring-mode 2026-07-18] Two scorers live here and they DISAGREE:
+    # score_city_for_concern() is concern-weighted, balanced_score() averages all
+    # concerns. If a caller ranks a city in the concern list (green 65) but then
+    # opens the detail WITHOUT the concern, it silently lands in balanced_score()
+    # and can come back a different tier (red) for the same city. That mismatch
+    # must never be invisible again: surface `scoring_mode` in the payload and
+    # log the fallback so a dropped concern is diagnosable from the response.
+    _scoring_mode = "concern" if (req.concern and req.concern in _pcn.VALID_CONCERNS) else "balanced"
+    if _scoring_mode == "concern":
         scored = _pcn.score_city_for_concern(
             chart, city_dict, req.concern,
             all_lines=all_lines, conditions=conditions, relocation=relocation,
@@ -11351,6 +11359,12 @@ async def places_city_endpoint(req: PlacesCityReq):
         headline = _pcomp.compose_headline(req.concern, scored["tier"], req.city.name, req.language)
         watch = _pcomp.compose_watch_outs(req.concern, scored.get("_watch", []), req.language)
     else:
+        if req.concern:
+            print(f"[places/city] concern={req.concern!r} not in VALID_CONCERNS "
+                  f"— falling back to balanced_score (tier may differ from the list view)")
+        else:
+            print("[places/city] no concern supplied — balanced_score used "
+                  "(tier may differ from the concern list view)")
         scored = _pcn.balanced_score(
             chart, city_dict, all_lines=all_lines, conditions=conditions, relocation=relocation,
         )
@@ -11363,6 +11377,10 @@ async def places_city_endpoint(req: PlacesCityReq):
         "language": req.language,
         "generated_at": _places_iso_now(),
         "concern": req.concern,
+        # "concern" = concern-weighted score (matches the ranked list); "balanced"
+        # = concern-agnostic average. If this says "balanced" while the user came
+        # from a concern list, the client dropped the concern — that is the bug.
+        "scoring_mode": _scoring_mode,
         "relocation": _places_public_relocation(relocation),
         "active_lines": active,
         "score": scored["score"],
