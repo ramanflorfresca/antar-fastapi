@@ -488,7 +488,14 @@ def rank_cities_for_concern(
     all_lines = compute_all_lines(chart.get("birth_jd"), chart)
     conditions = compute_all_conditions(chart)
 
-    pool = cities
+    # [places-two-tier 2026-07-18] The city table serves two jobs: (1) the pool we
+    # RANK recommendations from, and (2) a lookup wide enough that any user's
+    # current city can be scored as their baseline. Cities carrying
+    # rankable=False exist only for that baseline lookup — they must never be
+    # recommended (they'd bury real destinations under smaller metros) and
+    # keeping them out also holds the scoring cost down. Missing flag == rankable,
+    # so the original curated set is unaffected.
+    pool = [c for c in cities if c.get("rankable", True)]
     if region_filter:
         rf = region_filter.strip().lower()
         pool = [
