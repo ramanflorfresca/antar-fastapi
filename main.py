@@ -11131,6 +11131,54 @@ async def places_concern_endpoint(req: PlacesConcernReq):
         chart, req.concern, _places_cities(), region_filter=req.region_filter,
         trace=_rank_trace,
     )
+    # [places-baseline 2026-07-18] Frame Places against WHERE THE USER IS NOW —
+    # not their birth city. Score their CURRENT city for this same concern and
+    # express every ranked city as a delta against it: somewhere else is only a
+    # recommendation if it actually beats where they already live. When nothing
+    # meaningfully beats it we say so ("already well placed") rather than
+    # inventing reasons to move.
+    _MEANINGFUL_GAIN = 3          # ignore noise-level score differences
+    _baseline = None
+    _cur_name = (rec.get("current_city") or "").strip()
+    if _cur_name:
+        # Match must survive diacritics and name variants, or we silently lose the
+        # baseline for most of the world: stored "Bogota" has to find "Bogotá",
+        # "Medellin" -> "Medellín", "New York" -> "New York City".
+        import unicodedata as _ud
+
+        def _norm_city(_s):
+            _s = _ud.normalize("NFKD", str(_s or "")).encode("ascii", "ignore").decode("ascii")
+            return " ".join(_s.strip().lower().split())
+
+        _want = _norm_city(_cur_name)
+        _cur_cc = _norm_city(rec.get("current_country") or "")
+        _tbl = _places_cities()
+        _cands = [c for c in _tbl if _norm_city(c.get("name")) == _want]
+        if not _cands and len(_want) >= 4:      # prefix either direction
+            _cands = [c for c in _tbl
+                      if _norm_city(c.get("name")).startswith(_want)
+                      or _want.startswith(_norm_city(c.get("name")))]
+        if len(_cands) > 1 and _cur_cc:
+            _cands = [c for c in _cands
+                      if _cur_cc in (_norm_city(c.get("country_code")),
+                                     _norm_city(c.get("country")))] or _cands
+        if _cands:
+            try:
+                _b = _pcn.score_city_for_concern(
+                    chart, _cands[0], req.concern,
+                    all_lines=all_lines, conditions=conditions,
+                )
+                _baseline = {
+                    "city":    _cands[0].get("name"),
+                    "country": _cands[0].get("country"),
+                    "score":   _b.get("score"),
+                    "tier":    _b.get("tier"),
+                }
+            except Exception as _be:
+                print(f"[places/concern] baseline scoring failed for {_cur_name!r}: {_be}")
+        else:
+            print(f"[places/concern] current_city {_cur_name!r} not in city table — no baseline")
+
     # Phase 3: per-chart context for the 4-layer reasoning.
     _p3_name = rec.get("first_name") or rec.get("name") or None
     _p3_age = _pintel.compute_age(rec.get("birth_date"))
@@ -11152,6 +11200,10 @@ async def places_concern_endpoint(req: PlacesConcernReq):
     for _i, s in enumerate(scored):
         c = _pcomp.enrich_ranked_city(req.concern, s, req.language)
         c["rank"] = _i + 1
+        # Gain vs the user's current city (None when we have no baseline).
+        if _baseline and isinstance(s.get("score"), (int, float)) \
+           and isinstance(_baseline.get("score"), (int, float)):
+            c["delta"] = int(round(s["score"] - _baseline["score"]))
         c["one_line"] = _places_strip(
             _pcomp.compose_one_line(req.concern, s["tier"], req.language), req.language)
         _reasons = _pcn.compose_city_reasons(
@@ -11191,6 +11243,18 @@ async def places_concern_endpoint(req: PlacesConcernReq):
         "user_name": _p3_name,
         "user_age": _p3_age,
         "generated_at": _places_iso_now(),
+        # Where the user is NOW, scored for this same concern. null when their
+        # current city is unknown or outside the city table — clients must
+        # degrade to plain absolute scores in that case.
+        "baseline": _baseline,
+        # True when nothing on the list beats the current city by a meaningful
+        # margin: say "you're already well placed" instead of manufacturing a move.
+        "already_well_placed": bool(_baseline) and not any(
+            isinstance(c.get("delta"), int) and c["delta"] >= _MEANINGFUL_GAIN for c in ranked),
+        "better_count": sum(
+            1 for c in ranked
+            if isinstance(c.get("delta"), int) and c["delta"] >= _MEANINGFUL_GAIN),
+        "meaningful_gain": _MEANINGFUL_GAIN,
         "texture_line": _places_strip(
             _pcomp.compose_texture_line(req.concern, ranked, req.language), req.language
         ),
