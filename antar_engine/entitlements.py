@@ -150,6 +150,19 @@ def compat_slot_allows(chart_id_a: str, chart_id_b: Optional[str], tier: str,
                 except Exception:
                     return False
             return True
+    # 4. [gamification] an earned compatibility credit — the monthly free read
+    #    and streak-milestone rewards. Checked last so a real purchase or an
+    #    included slot is always used before something the user earned.
+    try:
+        from antar_engine import gamification as _gam
+        if _gam.balance(sb, chart_id_a, "compat") > 0:
+            if not consume:
+                return True
+            if _gam.spend(sb, chart_id_a, "compat", 1,
+                          f"compat_read:{chart_id_b}"):
+                return True
+    except Exception as e:
+        print(f"[gamification] compat credit check skipped (non-blocking): {e}")
     return False
 
 
@@ -395,12 +408,25 @@ def entitlement_summary(chart_id: str, sb) -> dict:
     """
     tier = get_entitlement(chart_id, sb)
     quota = ask_quota(chart_id, sb, tier)
+    # [gamification] Earned credits are additive to the free daily allowance.
+    # ask_remaining stays the FREE remainder so existing callers keep their
+    # meaning; ask_total_available is what the user can actually ask right now.
+    try:
+        from antar_engine import gamification as _gam
+        _earned_ask = _gam.balance(sb, chart_id, "ask")
+        _earned_compat = _gam.balance(sb, chart_id, "compat")
+    except Exception:
+        _earned_ask = _earned_compat = 0
+    _free_rem = quota["remaining"]
     return {
         "tier": tier,
         "ask_used": quota["used"],
         "ask_limit": quota["limit"],
-        "ask_remaining": quota["remaining"],
+        "ask_remaining": _free_rem,
         "ask_trial": quota.get("trial"),
+        "ask_credits": _earned_ask,
+        "ask_total_available": (None if _free_rem is None else _free_rem + _earned_ask),
+        "compat_credits": _earned_compat,
         "features": {f: FEATURE_MATRIX[f][tier] for f in FEATURE_MATRIX},
         "compat_slots": compat_slots(chart_id, sb, tier),
     }

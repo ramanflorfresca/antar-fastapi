@@ -12546,6 +12546,35 @@ async def get_entitlements_endpoint(chart_id: str):
     return entitlement_summary(chart_id, supabase)
 
 
+@app.get("/api/v1/streak/{chart_id}")
+async def get_streak_endpoint(chart_id: str, tz_offset: int = 0):
+    """
+    [gamification] Streak + earned-credit state for the UI.
+
+    Read-only: it does NOT count a day. Only /home does that, so opening a
+    settings screen can't silently keep a streak alive.
+    """
+    from antar_engine import gamification as _gam
+    return _gam.state(supabase, chart_id, tz_offset or 0)
+
+
+@app.post("/api/v1/streak/{chart_id}/touch")
+async def post_streak_touch(chart_id: str, tz_offset: int = 0):
+    """
+    [gamification] Explicitly register today's activity and settle rewards.
+
+    /home already does this; this exists for clients that open on a different
+    surface. Same-day idempotent — awards can't double-pay.
+    """
+    from antar_engine import gamification as _gam
+    row = supabase.table("charts").select("user_id").eq("id", chart_id).execute()
+    if not row.data:
+        raise HTTPException(status_code=404, detail="Chart not found")
+    res = _gam.touch(supabase, chart_id, tz_offset or 0, row.data[0].get("user_id"))
+    res["state"] = _gam.state(supabase, chart_id, tz_offset or 0)
+    return res
+
+
 # ════════════════════════════════════════════════════════════════════
 # ADMIN API — read-only, auth-gated (admin.antar.world frontend).
 # Gate: verified Supabase JWT AND email allowlist. The allowlist HERE is
@@ -16569,7 +16598,19 @@ async def ask_endpoint(request: AskRequest):
     if _ask_tier not in ("seeker", "navigator") and not _ent_unlim(chart_id, supabase) and not _ask_bypass_cap:
         _tr = _ent_trial(chart_id, supabase, request.tz_offset or 0)
         _limit = int(_tr.get("daily_limit") or 1)
+        # [gamification] Streak-earned credits are spent ONLY after the free
+        # daily allowance is gone, so a user never burns something they earned
+        # while a free question is still sitting unused.
+        _gam_spent = False
         if int(_tr.get("used_today") or 0) >= _limit:
+            try:
+                from antar_engine import gamification as _gam
+                _gam_spent = _gam.spend(supabase, chart_id, "ask", 1, "ask_question")
+                if _gam_spent:
+                    print(f"[gamification] chart={chart_id[:8]} spent 1 earned ask credit")
+            except Exception as _ge:
+                print(f"[gamification] credit spend skipped (non-blocking): {_ge}")
+        if int(_tr.get("used_today") or 0) >= _limit and not _gam_spent:
             # [soft-cap 2026-06-07] /ask must SOFT-wall — never 402. Founder
             # rule: existing users anchored to 20/day for 30 days; after that
             # 1/day soft cap with "resets tomorrow" + optional upgrade CTA.
@@ -26590,6 +26631,18 @@ async def get_home(
         raise HTTPException(status_code=404, detail="Chart not found")
     row = res.data[0]
 
+    # [gamification] Home is the app-open surface, so this is where a day gets
+    # counted. touch() is same-day idempotent and every award is keyed, so
+    # calling it on each load is safe. Wrapped because a streak must never be
+    # able to break someone's daily reading.
+    _streak_state = None
+    try:
+        from antar_engine import gamification as _gam
+        _gam.touch(supabase, chart_id, tz_offset or 0, row.get("user_id"))
+        _streak_state = _gam.state(supabase, chart_id, tz_offset or 0)
+    except Exception as _se:
+        print(f"[gamification] home touch skipped (non-blocking): {_se}")
+
     from antar_engine.home_composer import _safe_json as _hsj, compose_home_payload as _home_compose, _strip_home_payload as _home_strip
 
     # ── tz_offset normalization: composer expects MINUTES east of UTC.
@@ -26704,7 +26757,15 @@ async def get_home(
 
     # [strip-3surfaces-returns 2026-06-09]
     payload = _strip_payload_leaves(payload, language=locals().get('language', 'en'))
-    return _ent_home_view(payload, chart_id)   # [launch-ent]
+    _home_out = _ent_home_view(payload, chart_id)   # [launch-ent]
+    # [gamification] Ride along on the call the app already makes — the streak
+    # widget shouldn't cost an extra round trip on cold start.
+    try:
+        if _streak_state and isinstance(_home_out, dict):
+            _home_out["streak"] = _streak_state
+    except Exception:
+        pass
+    return _home_out
 
 
 @app.get("/api/v1/predict/week")
