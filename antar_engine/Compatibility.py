@@ -246,25 +246,43 @@ def _yoni_score(chart_a: dict, chart_b: dict) -> dict:
         "Purva Bhadrapada":"Lion","Dhanishtha":"Lion",
         "Uttara Ashadha":"Mongoose",
     }
-    FRIENDLY_YONI = {
-        ("Horse","Horse"):4,("Elephant","Elephant"):4,("Cat","Cat"):4,
-        ("Dog","Dog"):4,("Rat","Rat"):4,("Cow","Cow"):4,
-        ("Tiger","Tiger"):4,("Deer","Deer"):4,("Monkey","Monkey"):4,
-        ("Lion","Lion"):4,("Goat","Goat"):4,("Buffalo","Buffalo"):4,
-        ("Horse","Deer"):3,("Deer","Horse"):3,
-        ("Dog","Deer"):3,("Deer","Dog"):3,
-        ("Rat","Elephant"):2,("Elephant","Rat"):1,
-        ("Cat","Dog"):1,("Dog","Cat"):1,
-        ("Mongoose","Serpent"):0,("Serpent","Mongoose"):0,
-    }
+    # Full 14x14 Yoni Kuta table (out of 4). The previous dict held only ~22 of
+    # the 196 pairs, so every unlisted pair silently fell back to 2/4 = 50% —
+    # which was ~90% of real couples. Row/col order is fixed by _YONI_ORDER.
+    # 4 = same yoni, 3 = friendly, 2 = neutral, 1 = enemy, 0 = bitter enemy.
+    # The seven classical bitter-enemy pairs (0) are Horse-Buffalo,
+    # Elephant-Lion, Goat-Monkey, Serpent-Mongoose, Dog-Deer, Cat-Rat,
+    # Cow-Tiger — these sit symmetrically in the matrix below.
+    _YONI_ORDER = ["Horse","Elephant","Goat","Serpent","Dog","Cat","Rat",
+                   "Cow","Buffalo","Tiger","Deer","Monkey","Lion","Mongoose"]
+    _YONI_TABLE = [
+        # Hor Ele Goa Ser Dog Cat Rat Cow Buf Tig Dee Mon Lio Mng
+        [  4,  2,  2,  3,  2,  2,  2,  1,  0,  1,  3,  3,  1,  2],  # Horse
+        [  2,  4,  3,  3,  2,  2,  2,  2,  3,  1,  2,  3,  0,  2],  # Elephant
+        [  2,  3,  4,  2,  1,  2,  1,  3,  3,  1,  2,  0,  1,  3],  # Goat
+        [  3,  3,  2,  4,  2,  1,  1,  1,  1,  2,  2,  2,  2,  0],  # Serpent
+        [  2,  2,  1,  2,  4,  2,  1,  2,  2,  1,  0,  2,  1,  1],  # Dog
+        [  2,  2,  2,  1,  2,  4,  0,  2,  2,  1,  3,  3,  1,  2],  # Cat
+        [  2,  2,  1,  1,  1,  0,  4,  2,  2,  2,  2,  2,  2,  3],  # Rat
+        [  1,  2,  3,  1,  2,  2,  2,  4,  3,  0,  3,  2,  1,  2],  # Cow
+        [  0,  3,  3,  1,  2,  2,  2,  3,  4,  1,  2,  2,  1,  2],  # Buffalo
+        [  1,  1,  1,  2,  1,  1,  2,  0,  1,  4,  2,  1,  1,  2],  # Tiger
+        [  3,  2,  2,  2,  0,  3,  2,  3,  2,  2,  4,  2,  1,  2],  # Deer
+        [  3,  3,  0,  2,  2,  3,  2,  2,  2,  1,  2,  4,  2,  3],  # Monkey
+        [  1,  0,  1,  2,  1,  1,  2,  1,  1,  1,  1,  2,  4,  2],  # Lion
+        [  2,  2,  3,  0,  1,  2,  3,  2,  2,  2,  2,  3,  2,  4],  # Mongoose
+    ]
 
     nak_a = chart_a.get("planets",{}).get("Moon",{}).get("nakshatra","Ashwini")
     nak_b = chart_b.get("planets",{}).get("Moon",{}).get("nakshatra","Ashwini")
     ya = YONI_MAP.get(nak_a, "Horse")
     yb = YONI_MAP.get(nak_b, "Horse")
 
-    score = FRIENDLY_YONI.get((ya, yb), FRIENDLY_YONI.get((yb, ya), 2))
-    score = min(4, score)
+    try:
+        score = _YONI_TABLE[_YONI_ORDER.index(ya)][_YONI_ORDER.index(yb)]
+    except ValueError:
+        score = 2  # unknown yoni name — neutral rather than a false claim
+    score = max(0, min(4, score))
 
     return {
         "name": "Yoni",
@@ -598,10 +616,13 @@ def _dasha_timing_alignment(chart_a: dict, chart_b: dict,
     CONSOLIDATION_DASHAS = ["Saturn","Ketu"]
     ACTION_DASHAS       = ["Mars","Sun","Rahu"]
 
+    ALL_DASHA_LORDS = set(EXPANSION_DASHAS) | set(CONSOLIDATION_DASHAS) | set(ACTION_DASHAS)
+
     def classify_dasha(planet):
-        if planet in EXPANSION_DASHAS:    return "expansion"
+        if planet in EXPANSION_DASHAS:     return "expansion"
         if planet in CONSOLIDATION_DASHAS: return "consolidation"
-        return "action"
+        if planet in ACTION_DASHAS:        return "action"
+        return "unknown"   # was: fell through to "action"
 
     # Get current dasha from chart_data
     def get_current_dasha(chart_data):
@@ -616,6 +637,27 @@ def _dasha_timing_alignment(chart_a: dict, chart_b: dict,
 
     type_a = classify_dasha(md_a)
     type_b = classify_dasha(md_b)
+
+    # Missing dasha data used to classify as "action" for BOTH people, which
+    # made type_a == type_b and produced the single most confident claim in the
+    # system ("synchronized", 90) off the back of no data at all. Say we don't
+    # know instead, and score it neutral.
+    if "unknown" in (type_a, type_b):
+        return {
+            "alignment":      "unknown",
+            "score":          55,
+            "person_a_dasha": f"{md_a}-{ad_a}" if md_a else "",
+            "person_b_dasha": f"{md_b}-{ad_b}" if md_b else "",
+            "type_a":         type_a,
+            "type_b":         type_b,
+            "narrative": (
+                "Current planetary periods aren't available for both charts, so "
+                "timing alignment can't be read here. Exact birth times would "
+                "make this section meaningful."
+            ),
+            "future_insight": "",
+            "yin_yang":       "",
+        }
 
     # Both in same type = aligned
     if type_a == type_b:

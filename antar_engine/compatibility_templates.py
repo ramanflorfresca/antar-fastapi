@@ -307,6 +307,213 @@ _NEW_LINES = {
     },
 }
 
+# ── Role-specific lines ─────────────────────────────────────────────────────
+# Previously only "managerial" existed, so get_line() fell back to it for
+# sales/marketing/finance and all four roles produced identical copy — the role
+# picker changed the score by a point or two and nothing a user could read.
+# These are written per function: a sales seat fails differently than a finance
+# seat, and the line should say so.
+
+_NEW_LINES["employee"]["sales"] = {
+    "soul": {
+        "FLOW":   "{b_name} wants what a sales seat rewards — the drive is real, not performed.",
+        "MIXED":  "{b_name} will chase the number, but check what they think they're selling.",
+        "STRAIN": "{b_name} isn't motivated by what this seat pays out — quota will feel like a costume.",
+    },
+    "chemistry": {
+        "FLOW":   "{b_name} builds rapport fast — the thing you can't train.",
+        "MIXED":  "{b_name} warms up after a cycle or two; early calls will be stiffer than later ones.",
+        "STRAIN": "Rapport is effortful for {b_name} — expect a longer ramp on relationship-led deals.",
+    },
+    "public": {
+        "FLOW":   "{b_name} carries your name well in the room — put them in front of buyers.",
+        "MIXED":  "{b_name} represents you fine; brief them tightly before the big meetings.",
+        "STRAIN": "Watch how {b_name} tells your story externally — the pitch may drift.",
+    },
+    "lifepath": {
+        "FLOW":   "{b_name}'s timing supports a push — they have the appetite for a heavy quarter.",
+        "MIXED":  "{b_name}'s attention is partly elsewhere; a big number this year is a stretch, not a gift.",
+        "STRAIN": "This isn't {b_name}'s season for grind — pipeline will slip before they say so.",
+    },
+    "communication": {
+        "FLOW":   "{b_name} handles objections cleanly and updates you without being chased.",
+        "MIXED":  "{b_name} sells well but reports unevenly — set a forecast cadence early.",
+        "STRAIN": "{b_name} goes quiet under pressure, which is when you most need the truth.",
+    },
+    "friction": {
+        "FLOW":   "{b_name} takes rejection without carrying it — that's rare and worth paying for.",
+        "MIXED":  "Losses land harder on {b_name} than they'll admit; check in after a bad month.",
+        "STRAIN": "Rejection sticks to {b_name} — churn risk is real in a high-no seat.",
+    },
+}
+
+_NEW_LINES["employee"]["marketing"] = {
+    "soul": {
+        "FLOW":   "{b_name} believes in the kind of thing you're building — taste and mission line up.",
+        "MIXED":  "{b_name}'s instincts differ from your brand in places; align on the story before the spend.",
+        "STRAIN": "{b_name} would build a different brand than the one you have.",
+    },
+    "chemistry": {
+        "FLOW":   "{b_name} reads a room and an audience the same way you do.",
+        "MIXED":  "{b_name}'s read on the audience is decent but needs your correction on tone.",
+        "STRAIN": "{b_name}'s sense of what appeals runs against yours — expect creative rounds.",
+    },
+    "public": {
+        "FLOW":   "{b_name} is a genuine asset to how the market sees you.",
+        "MIXED":  "{b_name} handles the public story competently; keep approval on the big swings.",
+        "STRAIN": "{b_name}'s public instincts could cost you brand equity — supervise external work.",
+    },
+    "lifepath": {
+        "FLOW":   "{b_name} is in a building season — good for a brand that needs patient compounding.",
+        "MIXED":  "{b_name} can run campaigns now but a long brand arc may outlast their focus.",
+        "STRAIN": "{b_name}'s timing favours short bursts, not the slow work brand actually needs.",
+    },
+    "communication": {
+        "FLOW":   "{b_name} writes and briefs clearly — the message survives the handoff.",
+        "MIXED":  "{b_name} communicates well in one register; test them outside their comfort format.",
+        "STRAIN": "Message discipline is the risk with {b_name} — expect drift between channels.",
+    },
+    "friction": {
+        "FLOW":   "{b_name} takes creative criticism as material, not injury.",
+        "MIXED":  "{b_name} defends their work harder than they take notes — keep feedback specific.",
+        "STRAIN": "Critique lands personally with {b_name} — creative review will be costly.",
+    },
+}
+
+_NEW_LINES["employee"]["finance"] = {
+    "soul": {
+        "FLOW":   "{b_name} is genuinely motivated by order and correctness — the seat suits them.",
+        "MIXED":  "{b_name} values some things this seat doesn't reward; confirm they want the rigour.",
+        "STRAIN": "{b_name} is not built for a role where being right matters more than being fast.",
+    },
+    "chemistry": {
+        "FLOW":   "{b_name} works easily with you without needing much social scaffolding.",
+        "MIXED":  "{b_name} is more transactional with you than warm — fine for the function.",
+        "STRAIN": "Working closely with {b_name} takes effort; keep the interface formal.",
+    },
+    "public": {
+        "FLOW":   "{b_name} can face auditors, investors, or a board without you in the room.",
+        "MIXED":  "{b_name} handles external financial conversations adequately with prep.",
+        "STRAIN": "Don't put {b_name} in front of investors or auditors unaccompanied.",
+    },
+    "lifepath": {
+        "FLOW":   "{b_name}'s season supports steady, unglamorous work — exactly what closes books.",
+        "MIXED":  "{b_name} can hold the cadence, though month-end may compete with other pulls.",
+        "STRAIN": "{b_name}'s timing pulls toward change, which is the wrong energy for controls.",
+    },
+    "communication": {
+        "FLOW":   "{b_name} raises problems early and in writing — the trait that prevents surprises.",
+        "MIXED":  "{b_name} reports accurately but late, or on time but thin — pick your cadence.",
+        "STRAIN": "{b_name} tends to sit on bad numbers. In finance that's the expensive failure.",
+    },
+    "friction": {
+        "FLOW":   "{b_name} holds the line on process without making it personal.",
+        "MIXED":  "{b_name} bends on process under pressure — decide now which controls are hard.",
+        "STRAIN": "{b_name} avoids the confrontation that enforcing controls requires.",
+    },
+}
+
+# Working *under* someone in that function — the same six layers, read from
+# the other direction.
+_NEW_LINES["boss-or-manager"]["sales"] = {
+    "soul": {
+        "FLOW":   "{b_name} measures what you also think matters — you'll agree on what a win is.",
+        "MIXED":  "{b_name} defines success by the number; make sure that's a game you want.",
+        "STRAIN": "{b_name} rewards things you don't value — you'll feel it in every review.",
+    },
+    "chemistry": {
+        "FLOW":   "{b_name} likes working with you, and in a sales org that opens doors.",
+        "MIXED":  "You'll get on with {b_name} once you've delivered a quarter.",
+        "STRAIN": "You and {b_name} don't click naturally — your numbers will have to speak.",
+    },
+    "public": {
+        "FLOW":   "{b_name} sells your wins upward — credit reaches the people who matter.",
+        "MIXED":  "{b_name} shares credit unevenly; make your contribution legible yourself.",
+        "STRAIN": "{b_name} takes the room. Expect to fight to be seen.",
+    },
+    "lifepath": {
+        "FLOW":   "{b_name} is in a season of expansion — good years to be on their team.",
+        "MIXED":  "{b_name}'s trajectory supports you in some windows, not all.",
+        "STRAIN": "{b_name} is in a contracting phase; their pressure will land on you.",
+    },
+    "communication": {
+        "FLOW":   "{b_name} gives you the number, the context, and the reason behind both.",
+        "MIXED":  "{b_name} tells you what to hit, not always why — ask for the reasoning.",
+        "STRAIN": "{b_name} communicates in targets and silence. You'll be guessing.",
+    },
+    "friction": {
+        "FLOW":   "{b_name} handles a bad month without turning it on you.",
+        "MIXED":  "{b_name} gets sharp when the pipeline thins — don't take it as a verdict.",
+        "STRAIN": "{b_name} manages by pressure when numbers slip. Know that before you sign.",
+    },
+}
+
+_NEW_LINES["boss-or-manager"]["marketing"] = {
+    "soul": {
+        "FLOW":   "You and {b_name} would build the same brand — taste is aligned at the root.",
+        "MIXED":  "{b_name}'s taste overlaps yours but isn't it; expect to bend on some work.",
+        "STRAIN": "{b_name} wants a brand you don't believe in. That gets tiring fast.",
+    },
+    "chemistry": {
+        "FLOW":   "{b_name} gets your instincts without long explanation.",
+        "MIXED":  "{b_name} comes around to your ideas — usually a round or two later.",
+        "STRAIN": "Your creative instincts read as wrong to {b_name} on first pass.",
+    },
+    "public": {
+        "FLOW":   "{b_name} puts your work in front of the right people with your name on it.",
+        "MIXED":  "{b_name} shows the work upward, though not always with attribution.",
+        "STRAIN": "Your work will travel under {b_name}'s name more than yours.",
+    },
+    "lifepath": {
+        "FLOW":   "{b_name}'s season supports patient brand work — you'll be allowed to build.",
+        "MIXED":  "{b_name} will back long work in some quarters and demand numbers in others.",
+        "STRAIN": "{b_name} needs short-term proof right now. Brand work will be squeezed.",
+    },
+    "communication": {
+        "FLOW":   "{b_name} gives usable creative direction — specific, not vibes.",
+        "MIXED":  "{b_name}'s feedback needs translating; ask for examples rather than adjectives.",
+        "STRAIN": "{b_name} critiques by feel and changes their mind. Get decisions in writing.",
+    },
+    "friction": {
+        "FLOW":   "Disagreements with {b_name} stay about the work.",
+        "MIXED":  "Creative disagreement with {b_name} is survivable if you pick your battles.",
+        "STRAIN": "Pushing back on {b_name}'s taste costs you standing. Weigh that.",
+    },
+}
+
+_NEW_LINES["boss-or-manager"]["finance"] = {
+    "soul": {
+        "FLOW":   "You and {b_name} both think being right matters more than being quick.",
+        "MIXED":  "{b_name} weighs risk differently than you — worth surfacing before it's live.",
+        "STRAIN": "{b_name}'s relationship with risk and rules isn't yours. That's a hard mismatch.",
+    },
+    "chemistry": {
+        "FLOW":   "{b_name} is straightforward to work with — no politics tax.",
+        "MIXED":  "{b_name} keeps it professional and cool; don't read distance as disapproval.",
+        "STRAIN": "The working relationship with {b_name} will stay effortful.",
+    },
+    "public": {
+        "FLOW":   "{b_name} backs your numbers in the room, which is the whole job.",
+        "MIXED":  "{b_name} supports your work externally with preparation.",
+        "STRAIN": "{b_name} may not defend your numbers when they're questioned. Document everything.",
+    },
+    "lifepath": {
+        "FLOW":   "{b_name} is in a steady season — good for learning the craft properly.",
+        "MIXED":  "{b_name}'s focus shifts; some periods will be well-supervised and some won't.",
+        "STRAIN": "{b_name} is distracted right now. In finance that means you carry the risk.",
+    },
+    "communication": {
+        "FLOW":   "{b_name} is exact about what they want and when. You'll rarely be surprised.",
+        "MIXED":  "{b_name} assumes context you may not have — confirm the ask in writing.",
+        "STRAIN": "{b_name} is vague until the deadline, then precise about what's wrong.",
+    },
+    "friction": {
+        "FLOW":   "{b_name} takes a flagged error as useful, not as an accusation.",
+        "MIXED":  "{b_name} is uneven about bad news — lead with the fix.",
+        "STRAIN": "Raising a problem to {b_name} carries a cost. That's dangerous in this function.",
+    },
+}
+
 # ── Headlines: 7 reasons x 3 tiers ──────────────────────────────────────────
 _HEADLINES = {
     "romantic": {
@@ -500,3 +707,294 @@ def template_counts() -> dict:
         "details": sum(len(t) for t in _DETAILS.values()),      # 21
         "generic_fallback": sum(len(b) for b in _GENERIC.values()),  # 18
     }
+
+
+# ── Additional specialist roles (employee direction only) ───────────────────
+# One-way by design: these read "how will this person be, working for me".
+
+_NEW_LINES["employee"]["social"] = {
+    "soul": {
+        "FLOW":   "{b_name} actually cares about the audience, not just the metrics.",
+        "MIXED":  "{b_name} will chase engagement — decide now whether that's the goal.",
+        "STRAIN": "{b_name} wants attention for its own sake. Your brand will pay for it.",
+    },
+    "chemistry": {
+        "FLOW":   "{b_name} has the instinct for tone that can't be briefed into someone.",
+        "MIXED":  "{b_name} finds the voice eventually; the first months will read as off-brand.",
+        "STRAIN": "{b_name}'s natural register isn't your audience's. That gap shows publicly.",
+    },
+    "public": {
+        "FLOW":   "{b_name} is safe with the keys to your public accounts.",
+        "MIXED":  "{b_name} handles the feed well; keep approval on anything reactive.",
+        "STRAIN": "{b_name} posting unsupervised is a real risk — put a review gate in place.",
+    },
+    "lifepath": {
+        "FLOW":   "{b_name} is in a visible season — their reach compounds while they're with you.",
+        "MIXED":  "{b_name} can hold a calendar, but the always-on cadence may wear thin.",
+        "STRAIN": "The relentlessness of social will burn {b_name} out in this period.",
+    },
+    "communication": {
+        "FLOW":   "{b_name} writes fast and on-message, and knows when not to reply.",
+        "MIXED":  "{b_name} is quick but uneven — agree the escalation rule for a pile-on.",
+        "STRAIN": "{b_name} answers publicly from the gut. That's how a small issue becomes a day.",
+    },
+    "friction": {
+        "FLOW":   "{b_name} handles a bad comment thread without absorbing it.",
+        "MIXED":  "Criticism online sticks to {b_name} more than they let on.",
+        "STRAIN": "{b_name} takes a pile-on personally and will escalate rather than de-escalate.",
+    },
+}
+
+_NEW_LINES["employee"]["operations"] = {
+    "soul": {
+        "FLOW":   "{b_name} genuinely likes order — this is the rare person who wants the job.",
+        "MIXED":  "{b_name} tolerates process without loving it; expect drift without check-ins.",
+        "STRAIN": "{b_name} is bored by process, and ops is mostly process.",
+    },
+    "chemistry": {
+        "FLOW":   "{b_name} coordinates across your team without friction.",
+        "MIXED":  "{b_name} works well with some of your team and not others — watch the seams.",
+        "STRAIN": "{b_name} rubs people the wrong way, which is expensive in a coordinating seat.",
+    },
+    "public": {
+        "FLOW":   "{b_name} can hold vendor and partner relationships on your behalf.",
+        "MIXED":  "{b_name} manages suppliers adequately; keep the big negotiations yourself.",
+        "STRAIN": "Don't hand {b_name} your vendor relationships without oversight.",
+    },
+    "lifepath": {
+        "FLOW":   "{b_name} is in a consolidating season — the right energy for building systems.",
+        "MIXED":  "{b_name} can maintain the machine, though rebuilding it may be a stretch now.",
+        "STRAIN": "{b_name} is in a restless phase. Ops needs someone who wants the steady grind.",
+    },
+    "communication": {
+        "FLOW":   "{b_name} closes loops and tells you what slipped before you ask.",
+        "MIXED":  "{b_name} keeps things moving but reports thinly — ask for written status.",
+        "STRAIN": "{b_name} lets things slip quietly. In ops, silence is the failure mode.",
+    },
+    "friction": {
+        "FLOW":   "{b_name} holds process under pressure instead of abandoning it.",
+        "MIXED":  "{b_name} cuts corners when the week gets hard — agree what's non-negotiable.",
+        "STRAIN": "{b_name} abandons the system exactly when it matters most.",
+    },
+}
+
+_NEW_LINES["employee"]["cfo"] = {
+    "soul": {
+        "FLOW":   "{b_name} treats stewardship of money as a duty, not a task.",
+        "MIXED":  "{b_name}'s instincts on capital differ from yours — align before you raise or spend.",
+        "STRAIN": "{b_name}'s relationship with risk is not one you should hand the treasury to.",
+    },
+    "chemistry": {
+        "FLOW":   "You and {b_name} can disagree about numbers without it becoming personal.",
+        "MIXED":  "{b_name} keeps a professional distance — workable, occasionally cold.",
+        "STRAIN": "The working relationship is strained, and a CFO who can't tell you hard truths is useless.",
+    },
+    "public": {
+        "FLOW":   "{b_name} holds a board or an investor room with credibility.",
+        "MIXED":  "{b_name} manages external financial scrutiny with preparation.",
+        "STRAIN": "{b_name} will not hold up under board or diligence pressure.",
+    },
+    "lifepath": {
+        "FLOW":   "{b_name}'s season supports the long view a CFO seat requires.",
+        "MIXED":  "{b_name} can steward the near term; a multi-year arc is less certain.",
+        "STRAIN": "{b_name} is in a volatile phase — wrong timing for custody of the balance sheet.",
+    },
+    "communication": {
+        "FLOW":   "{b_name} brings you bad numbers early and without decoration.",
+        "MIXED":  "{b_name} reports accurately but softens the framing — read past it.",
+        "STRAIN": "{b_name} manages the message rather than the truth. That is the CFO failure mode.",
+    },
+    "friction": {
+        "FLOW":   "{b_name} will say no to you and mean it — which is the point of the role.",
+        "MIXED":  "{b_name} pushes back inconsistently; they may fold when you push hard.",
+        "STRAIN": "{b_name} won't hold the line against you. Don't put them in the seat that must.",
+    },
+}
+
+_NEW_LINES["employee"]["ceo"] = {
+    "soul": {
+        "FLOW":   "{b_name} wants to build the same thing you do, for the same reasons.",
+        "MIXED":  "{b_name}'s sense of the mission overlaps yours but diverges under pressure.",
+        "STRAIN": "{b_name} would take the company somewhere you don't want it to go.",
+    },
+    "chemistry": {
+        "FLOW":   "People want to follow {b_name} — the part of leadership you can't install.",
+        "MIXED":  "{b_name} earns loyalty slowly; the first year will be quieter than you'd like.",
+        "STRAIN": "{b_name} doesn't naturally command a room, which makes everything else harder.",
+    },
+    "public": {
+        "FLOW":   "{b_name} represents the company well to market, press and capital.",
+        "MIXED":  "{b_name} is credible externally with preparation and a tight narrative.",
+        "STRAIN": "{b_name} as the public face of this company is a liability, not an asset.",
+    },
+    "lifepath": {
+        "FLOW":   "{b_name} is entering a season of authority — the timing supports a top seat.",
+        "MIXED":  "{b_name}'s arc supports leading for a while, not necessarily for the whole ride.",
+        "STRAIN": "{b_name}'s period pulls away from responsibility. Wrong moment for this seat.",
+    },
+    "communication": {
+        "FLOW":   "{b_name} sets direction people can actually act on.",
+        "MIXED":  "{b_name} communicates vision well and detail poorly — pair them accordingly.",
+        "STRAIN": "{b_name} leaves people guessing at the strategy. That compounds through the org.",
+    },
+    "friction": {
+        "FLOW":   "{b_name} takes hard news without shooting the messenger.",
+        "MIXED":  "{b_name} gets brittle in a bad quarter — the team will feel it.",
+        "STRAIN": "{b_name} manages by pressure under stress, and that culture spreads from the top.",
+    },
+}
+
+_NEW_LINES["employee"]["engineering"] = {
+    "soul": {
+        "FLOW":   "{b_name} cares whether the thing is actually well built.",
+        "MIXED":  "{b_name} ships, though craft and speed pull at them differently than at you.",
+        "STRAIN": "{b_name}'s idea of done isn't yours. Expect that argument repeatedly.",
+    },
+    "chemistry": {
+        "FLOW":   "{b_name} collaborates well — reviews won't turn into standoffs.",
+        "MIXED":  "{b_name} works better alone than in pairs; scope their work accordingly.",
+        "STRAIN": "{b_name} is hard to work alongside, and engineering is a team sport now.",
+    },
+    "public": {
+        "FLOW":   "{b_name} can talk to customers or a conference without you translating.",
+        "MIXED":  "{b_name} explains their work adequately outside the team with prep.",
+        "STRAIN": "Keep {b_name} away from customer-facing technical conversations.",
+    },
+    "lifepath": {
+        "FLOW":   "{b_name}'s season supports deep focused building.",
+        "MIXED":  "{b_name} can deliver, though attention may fragment across the year.",
+        "STRAIN": "{b_name} is in a scattered period — bad timing for a hard technical push.",
+    },
+    "communication": {
+        "FLOW":   "{b_name} flags blockers early and writes things down.",
+        "MIXED":  "{b_name} goes heads-down and surfaces late — set a check-in rhythm.",
+        "STRAIN": "{b_name} disappears into problems silently. You'll find out when it's late.",
+    },
+    "friction": {
+        "FLOW":   "{b_name} takes code review as improvement, not judgement.",
+        "MIXED":  "{b_name} defends decisions longer than needed but gets there.",
+        "STRAIN": "Review with {b_name} becomes territorial. That poisons a team fast.",
+    },
+}
+
+_NEW_LINES["employee"]["people"] = {
+    "soul": {
+        "FLOW":   "{b_name} genuinely believes people are the point, which this seat requires.",
+        "MIXED":  "{b_name} cares about people and process unevenly — check which one wins.",
+        "STRAIN": "{b_name} sees people work as administration. That's the wrong instinct here.",
+    },
+    "chemistry": {
+        "FLOW":   "People open up to {b_name}. That's the whole job and it can't be trained.",
+        "MIXED":  "{b_name} builds trust slowly — fine, but slower than you may need.",
+        "STRAIN": "People won't confide in {b_name}, which makes this role structurally hard.",
+    },
+    "public": {
+        "FLOW":   "{b_name} represents your culture credibly to candidates.",
+        "MIXED":  "{b_name} recruits adequately; sharpen their pitch before senior hires.",
+        "STRAIN": "{b_name} will misrepresent your culture externally, in either direction.",
+    },
+    "lifepath": {
+        "FLOW":   "{b_name} is in a settled season — the steadiness people work needs.",
+        "MIXED":  "{b_name} can hold the function though their own attention may wander.",
+        "STRAIN": "{b_name} is in a turbulent period. People will sense it and trust less.",
+    },
+    "communication": {
+        "FLOW":   "{b_name} handles a hard conversation without making it worse.",
+        "MIXED":  "{b_name} manages routine conversations well and difficult ones unevenly.",
+        "STRAIN": "{b_name} avoids the hard conversation, which is most of this job.",
+    },
+    "friction": {
+        "FLOW":   "{b_name} holds confidence and stays neutral when it's costly.",
+        "MIXED":  "{b_name} can be pulled into taking sides — watch that in disputes.",
+        "STRAIN": "{b_name} carries others' conflict into their own. That compounds badly here.",
+    },
+}
+
+_NEW_LINES["employee"]["legal"] = {
+    "soul": {
+        "FLOW":   "{b_name} has a real instinct for principle, not just for rules.",
+        "MIXED":  "{b_name} knows the rules; on grey areas your judgements will differ.",
+        "STRAIN": "{b_name}'s sense of where the line sits isn't yours. That is dangerous here.",
+    },
+    "chemistry": {
+        "FLOW":   "{b_name} works with you without turning every question into a memo.",
+        "MIXED":  "{b_name} is formal with you — appropriate, if occasionally slow.",
+        "STRAIN": "The relationship is effortful, and you'll stop asking. That's the real risk.",
+    },
+    "public": {
+        "FLOW":   "{b_name} holds up opposite counsel or a regulator.",
+        "MIXED":  "{b_name} represents you competently in routine external matters.",
+        "STRAIN": "{b_name} will be outmatched in a serious external negotiation.",
+    },
+    "lifepath": {
+        "FLOW":   "{b_name}'s season supports the patience long matters require.",
+        "MIXED":  "{b_name} can carry current matters; a multi-year case is less certain.",
+        "STRAIN": "{b_name} is in a period that fights against patience. Litigation would suffer.",
+    },
+    "communication": {
+        "FLOW":   "{b_name} tells you the risk in plain words and then gives you a decision.",
+        "MIXED":  "{b_name} is thorough but buries the answer — ask for the recommendation first.",
+        "STRAIN": "{b_name} hedges everything. You'll get no usable answer when you need one.",
+    },
+    "friction": {
+        "FLOW":   "{b_name} tells you no early, which is cheaper than late.",
+        "MIXED":  "{b_name} raises concerns but can be talked past — decide what's absolute.",
+        "STRAIN": "{b_name} won't hold a position against you. In legal, that's the whole value.",
+    },
+}
+
+# ── Marriage: distinct from dating ─────────────────────────────────────────
+_NEW_LINES["marriage"] = {"managerial": {
+    "soul": {
+        "FLOW":   "You and {b_name} want the same shape of life — the foundation marriage rests on.",
+        "MIXED":  "You and {b_name} share most values and diverge on some that matter. Name them before, not after.",
+        "STRAIN": "You and {b_name} are building toward different lives. Marriage magnifies that, it doesn't resolve it.",
+    },
+    "chemistry": {
+        "FLOW":   "Physical and emotional rhythm between you and {b_name} is easy and likely to last.",
+        "MIXED":  "Attraction between you and {b_name} is real but needs tending — it won't run on its own.",
+        "STRAIN": "Physical rhythms differ enough that it will need conscious attention, early.",
+    },
+    "public": {
+        "FLOW":   "You and {b_name} function well as a couple in the world — families and social life included.",
+        "MIXED":  "You and {b_name} present well together with a little effort around family expectations.",
+        "STRAIN": "The public and family side of this marriage will take real work.",
+    },
+    "lifepath": {
+        "FLOW":   "Your life arcs with {b_name} move in step — the seasons of growth line up.",
+        "MIXED":  "Some of your years with {b_name} align and some pull apart. Plan around the gaps.",
+        "STRAIN": "Your timelines diverge. Long stretches will feel like living parallel lives.",
+    },
+    "communication": {
+        "FLOW":   "You and {b_name} can say hard things to each other and stay close.",
+        "MIXED":  "You and {b_name} communicate well until stress — then old patterns return.",
+        "STRAIN": "Under pressure you and {b_name} stop reaching each other. In a marriage that compounds.",
+    },
+    "friction": {
+        "FLOW":   "Little corrosive friction sits between you — disagreements stay recoverable.",
+        "MIXED":  "There's friction between you and {b_name} that is workable if it's named rather than stored.",
+        "STRAIN": "There is a real friction pattern here. It doesn't make the marriage wrong, but it makes it work.",
+    },
+}}
+
+
+# ── Marriage headlines + details ───────────────────────────────────────────
+# Registered after the fact so the marriage reason doesn't silently inherit the
+# business copy via get_headline()'s fallback.
+_HEADLINES["marriage"] = {
+    "FLOW":   "A marriage with real foundations — this one is built to hold.",
+    "MIXED":  "A workable marriage that asks for honesty early rather than patience later.",
+    "STRAIN": "A demanding match — possible, but it will ask a great deal of you both.",
+}
+
+_DETAILS["marriage"] = {
+    "FLOW":   ("{a_name} and {b_name} have the rarer thing: alignment that survives ordinary life. "
+               "Values, timing and temperament support each other rather than compete. Protect it by "
+               "not taking it for granted."),
+    "MIXED":  ("{a_name} and {b_name} have genuine ground to build on and specific gaps to close. "
+               "Marriage doesn't dissolve those gaps — it makes them daily. Named early they become "
+               "the structure of the relationship; left unspoken they become the argument you keep having."),
+    "STRAIN": ("{a_name} and {b_name} face real structural differences — in values, timing, or "
+               "temperament. This isn't a verdict against the marriage; karmically intense pairings "
+               "are often the most transformative. But it will need conscious work, not hope."),
+}

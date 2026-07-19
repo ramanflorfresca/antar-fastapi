@@ -13616,7 +13616,9 @@ async def compat_six_layer(request: CompatRequest):
                   or res_b.data[0].get("name") or "")
         b_name = (str(_b_raw).split() or ["Partner"])[0]
         chart_b["current_dasha"] = _current_dasha_str(get_dashas_for_chart(chart_b_id))
-        _cb_key = chart_b_id
+        # Same reason as the raw branch: cb["name"] can override the stored
+        # name, so it has to be part of the key or the first name wins all day.
+        _cb_key = f"{chart_b_id}:{b_name}"
         _birth_b = res_b.data[0].get("birth_date", "")
     else:
         _date = cb.get("date") or cb.get("birth_date")
@@ -13633,7 +13635,11 @@ async def compat_six_layer(request: CompatRequest):
         b_name = cb.get("name") or "Partner"
         chart_b = _cl.build_chart_from_raw(b_name, _date, _time, place.get("lat"), place.get("lon"), place.get("tz", "UTC"))
         chart_b_id = None
-        _cb_key = f"raw:{_date}:{_time}:{place.get('lat')}:{place.get('lon')}"
+        # b_name belongs in the key: it is interpolated into every user-facing
+        # string below, so two partners with the same birth data but different
+        # names must not share a cache entry (a typo-then-correction otherwise
+        # keeps showing the old name for the rest of the day).
+        _cb_key = f"raw:{_date}:{_time}:{place.get('lat')}:{place.get('lon')}:{b_name}"
         _birth_b = _date or ""
 
     # ── Cache key — day-scoped + dasha-aware (busts on dasha boundary) ──

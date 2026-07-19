@@ -27,12 +27,37 @@ from antar_engine.Compatibility import SIGNS, SIGN_RULER
 from antar_engine import compatibility_templates as TPL
 from antar_engine import compatibility_synastry as SYN
 
-VALID_REASONS = ("romantic", "business", "cofounder", "friend", "family",
-                 "employee", "boss-or-manager")
+VALID_REASONS = ("romantic", "marriage", "business", "cofounder", "friend",
+                 "family", "employee", "boss-or-manager")
 ROLE_REQUIRED_REASONS = ("employee", "boss-or-manager")
-VALID_ROLES = ("sales", "marketing", "finance", "managerial")
+# One-way by design: the user supplies the other person's birth data, so these
+# read "how will they be, for me". The boss-or-manager direction is kept for
+# back-compat but is not expanded — a user rarely has their boss's birth time.
+VALID_ROLES = ("sales", "marketing", "social", "operations", "finance", "cfo",
+               "ceo", "engineering", "people", "legal", "managerial")
 
 LAYER_ORDER = ["soul", "chemistry", "public", "lifepath", "communication", "friction"]
+
+# Reasons where "can they actually do the work?" is part of the question, and a
+# seventh capability layer (read from chart_b alone) is appended.
+CAPABILITY_REASONS = ("employee", "boss-or-manager", "cofounder", "business")
+
+CAPABILITY_WEIGHT = {
+    "employee":        0.30,   # hiring: performance is the point
+    "boss-or-manager": 0.25,   # their competence shapes your experience
+    "cofounder":       0.25,   # a cofounder who can't execute sinks the venture
+    "business":        0.20,
+}
+
+_CAP_LAYER_NAME = {
+    "employee":        "Capability for the role",
+    "boss-or-manager": "Their capability as a lead",
+    "cofounder":       "Capability to build",
+    "business":        "Capability to deliver",
+}
+
+from antar_engine import compatibility_capability as _CAP
+from antar_engine import compatibility_evidence as _EV
 
 LAYER_DEFINITIONS = {
     "soul":          {"sources": ["d9_overall", "graha_maitri", "varna"],            "weights": [0.50, 0.35, 0.15]},
@@ -46,6 +71,11 @@ LAYER_DEFINITIONS = {
 # Per-reason weighting of the 6 layers (sum to 1.0 each).
 REASON_WEIGHTS = {
     "romantic":        {"soul": 0.20, "chemistry": 0.25, "public": 0.05, "lifepath": 0.20, "communication": 0.15, "friction": 0.15},
+    # Marriage is not dating with a longer horizon. The classical emphasis
+    # shifts to what survives: shared dharma (soul), constitutional health and
+    # progeny (Nadi/friction), and whether the two life-arcs stay in step
+    # (lifepath). Chemistry still matters, but it stops being the headline.
+    "marriage":        {"soul": 0.25, "chemistry": 0.15, "public": 0.10, "lifepath": 0.20, "communication": 0.15, "friction": 0.15},
     "business":        {"soul": 0.10, "chemistry": 0.10, "public": 0.20, "lifepath": 0.20, "communication": 0.20, "friction": 0.20},
     "cofounder":       {"soul": 0.15, "chemistry": 0.10, "public": 0.20, "lifepath": 0.25, "communication": 0.15, "friction": 0.15},
     "friend":          {"soul": 0.20, "chemistry": 0.25, "public": 0.05, "lifepath": 0.15, "communication": 0.20, "friction": 0.15},
@@ -56,10 +86,17 @@ REASON_WEIGHTS = {
 
 # Role modifiers (applied to employee + boss-or-manager weights, then renormalized).
 ROLE_MODIFIERS = {
-    "sales":      {"chemistry": +0.10, "communication": +0.05, "lifepath": -0.10, "friction": -0.05},
-    "marketing":  {"communication": +0.10, "chemistry": +0.05, "soul": -0.05, "lifepath": -0.10},
-    "finance":    {"friction": +0.10, "public": +0.05, "chemistry": -0.05, "soul": -0.10},
-    "managerial": {"public": +0.10, "lifepath": +0.05, "chemistry": -0.05, "friction": -0.10},
+    "sales":       {"chemistry": +0.10, "communication": +0.05, "lifepath": -0.10, "friction": -0.05},
+    "marketing":   {"communication": +0.10, "chemistry": +0.05, "soul": -0.05, "lifepath": -0.10},
+    "social":      {"communication": +0.10, "public": +0.10, "chemistry": +0.05, "soul": -0.10, "lifepath": -0.15},
+    "operations":  {"friction": +0.10, "communication": +0.05, "lifepath": +0.05, "chemistry": -0.10, "public": -0.10},
+    "finance":     {"friction": +0.10, "public": +0.05, "chemistry": -0.05, "soul": -0.10},
+    "cfo":         {"friction": +0.10, "public": +0.10, "soul": -0.05, "chemistry": -0.15},
+    "ceo":         {"public": +0.15, "lifepath": +0.10, "soul": +0.05, "chemistry": -0.15, "friction": -0.15},
+    "engineering": {"friction": +0.10, "communication": +0.05, "chemistry": -0.10, "public": -0.05},
+    "people":      {"chemistry": +0.10, "communication": +0.10, "soul": +0.05, "public": -0.10, "friction": -0.15},
+    "legal":       {"friction": +0.10, "communication": +0.10, "public": +0.05, "chemistry": -0.15, "soul": -0.10},
+    "managerial":  {"public": +0.10, "lifepath": +0.05, "chemistry": -0.05, "friction": -0.10},
 }
 
 _COMPAT_MAP = {"strong": 90, "moderate": 65, "challenging": 40}
@@ -230,24 +267,69 @@ def effective_weights(reason: str, role: str | None) -> dict:
         base = {k: max(0.0, v) for k, v in base.items()}
         total = sum(base.values()) or 1.0
         base = {k: v / total for k, v in base.items()}
+
+    # Capability takes a share of the total for reasons where doing the work
+    # is part of the question. When you hire, "can they do it" outweighs any
+    # single relational layer — so it is the largest single term for employee.
+    cap_w = CAPABILITY_WEIGHT.get(reason, 0.0)
+    if cap_w:
+        base = {k: v * (1.0 - cap_w) for k, v in base.items()}
+        base["capability"] = cap_w
     return base
 
 
 def build_layers(engine_result: dict, reason: str, role: str | None,
                  chart_a: dict, chart_b: dict, a_name: str, b_name: str) -> tuple:
-    """Return (layers list, {key: score}). Always 6 layers in fixed order."""
+    """
+    Return (layers list, {key: score}).
+
+    Six relational layers for every reason, plus a seventh 'capability' layer
+    for the reasons where the question is partly "can they actually do it?"
+    (hiring, reporting, cofounding). That layer reads chart_b alone — see
+    compatibility_capability.
+    """
     layers, scores = [], {}
     for key in LAYER_ORDER:
         score = compute_layer_score(engine_result, key, chart_a, chart_b)
         scores[key] = score
         badge = _badge(score)
+        line = TPL.get_line(reason, key, badge, role, a_name, b_name)
+        # Cite the placement behind the grade. Empty when the engine didn't
+        # produce a nameable fact — we stay quiet rather than generalise.
+        ev = _EV.evidence_for(key, engine_result, chart_a, chart_b, a_name, b_name)
         layers.append({
             "key": key,
             "name": TPL.LAYER_NAMES[key],
             "passed": score >= 65,
             "badge": badge,
-            "line": TPL.get_line(reason, key, badge, role, a_name, b_name),
+            "line": f"{line} {ev}".strip() if ev else line,
+            "evidence": ev,
         })
+
+    if reason in CAPABILITY_REASONS:
+        try:
+            cap = _CAP.capability(chart_b, reason, role)
+            score = cap["score"]
+            scores["capability"] = score
+            layers.append({
+                "key": "capability",
+                "name": _CAP_LAYER_NAME.get(reason, "Capability & fit"),
+                "passed": score >= 65,
+                "badge": _badge(score),
+                "line": _CAP.capability_line(cap, b_name, role),
+                "headline": _CAP.capability_headline(cap, b_name, role, reason),
+                # Drivers are the actual placements behind the number, so the
+                # UI can show the reasoning instead of asking for trust.
+                "drivers": [
+                    {"planet": d["planet"], "sign": d["sign"], "house": d["house"],
+                     "dignity": d["dignity"], "means": d.get("means", ""),
+                     "score": d["score"]}
+                    for d in cap["drivers"]
+                ],
+            })
+        except Exception as _e:  # never let capability break a reading
+            print(f"[compat-capability] skipped: {_e}")
+
     return layers, scores
 
 
@@ -288,7 +370,10 @@ def build_compat_response(
                 layer["detail"] = d.strip()
 
     weights = effective_weights(reason, role)
-    overall = sum(scores[k] * weights.get(k, 0.0) for k in LAYER_ORDER)
+    # Iterate the scores actually produced (LAYER_ORDER + optional capability)
+    # rather than LAYER_ORDER, or the capability layer would be shown to the
+    # user but silently excluded from the number it is supposed to drive.
+    overall = sum(scores[k] * weights.get(k, 0.0) for k in scores)
     score = int(round(max(20, min(98, overall))))
 
     tier = _overall_tier(score)
