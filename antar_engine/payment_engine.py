@@ -193,14 +193,17 @@ PRICING_BUCKET_BY_COUNTRY = {
 PRICING_DEFAULT_BUCKET = "us_ca"   # rest-of-world bills the US/CA bucket in USD
 
 PRICING_AMOUNTS = {
-    "us_ca":     {"ask_unlimited_monthly": 799, "ask_unlimited_annual": 5999, "compat_chart": 99},
-    "latam":     {"ask_unlimited_monthly": 399, "ask_unlimited_annual": 2999, "compat_chart": 49},
-    "argentina": {"ask_unlimited_monthly": 249, "ask_unlimited_annual": 1999, "compat_chart": 49},
+    # [pricing-2026-07] $4.99/mo, $39.99/yr. These amounts drive on-the-fly
+    # price_data for every country WITHOUT a pre-created Stripe catalog, so
+    # they are the live price for most of the world — not a fallback.
+    "us_ca":     {"ask_unlimited_monthly": 499, "ask_unlimited_annual": 3999, "compat_chart": 99},
+    "latam":     {"ask_unlimited_monthly": 249, "ask_unlimited_annual": 1999, "compat_chart": 99},
+    "argentina": {"ask_unlimited_monthly": 199, "ask_unlimited_annual": 1499, "compat_chart": 99},
 }
 # Stripe local-currency billing overrides (BR/MX).
 PRICING_LOCAL_CURRENCY = {
-    "BR": {"currency": "brl", "ask_unlimited_monthly": 1990, "ask_unlimited_annual": 14900, "compat_chart": 290},
-    "MX": {"currency": "mxn", "ask_unlimited_monthly": 7900, "ask_unlimited_annual": 59900, "compat_chart": 990},
+    "BR": {"currency": "brl", "ask_unlimited_monthly": 1290, "ask_unlimited_annual": 9900},  # compat_chart billed $0.99 USD globally
+    "MX": {"currency": "mxn", "ask_unlimited_monthly": 4900, "ask_unlimited_annual": 39900},  # compat_chart billed $0.99 USD globally
 }
 # Countries with a pre-created Stripe Price catalog (lookup_key currency).
 # Everyone else uses on-the-fly price_data at the bucket amount in USD.
