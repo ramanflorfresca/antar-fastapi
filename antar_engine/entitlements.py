@@ -21,7 +21,12 @@ from antar_engine.subscription_engine import get_subscription
 
 # ── Constants ─────────────────────────────────────────────────────
 
-TIER_RANK = {"free": 0, "seeker": 1, "navigator": 2}
+# [pricing-2026-07] Collapsed to free + one paid tier ($4.99/mo, $39.99/yr).
+# "seeker" and "navigator" are retained as ALIASES of "paid" so historical
+# rows in `subscriptions` and any in-flight webhook still resolve — they are
+# unreachable from the current pricing UI and rank identically to paid.
+TIER_RANK = {"free": 0, "paid": 1, "seeker": 1, "navigator": 1}
+PAID_TIERS = ("paid", "seeker", "navigator")
 UPGRADE_URL = "https://antar.world/upgrade"
 
 # 30-day Ask trial (replaced the lifetime-3 cap on 2026-06-05).
@@ -37,17 +42,21 @@ ASK_TRIAL_LAUNCH_ISO = "2026-06-05T00:00:00+00:00"
 # levers are Ask volume (soft-capped below) and ADDITIONAL compatibility
 # charts (per-chart one-time purchase — see compat_slots). No content
 # feature is ever gated.
+# Only two levers are metered: Ask volume and compatibility partner count.
+# Every content surface is full for everyone — free has to be genuinely
+# usable or the streak never forms, and the streak is what converts.
+_FULL_FOR_ALL = {"free": "full", "paid": "full", "seeker": "full", "navigator": "full"}
 FEATURE_MATRIX = {
-    "today":         {"free": "full",     "seeker": "full",    "navigator": "full"},
-    "month":         {"free": "full",     "seeker": "full",    "navigator": "full"},
-    "year":          {"free": "full",     "seeker": "full",    "navigator": "full"},
-    "cycle":         {"free": "full",     "seeker": "full",    "navigator": "full"},
-    "ask":           {"free": "limited",  "seeker": "full",    "navigator": "full"},
-    "compatibility": {"free": "full",     "seeker": "full",    "navigator": "full"},
-    "places":        {"free": "full",     "seeker": "full",    "navigator": "full"},
-    "practice":      {"free": "full",     "seeker": "full",    "navigator": "full"},
-    "history":       {"free": "full",     "seeker": "full",    "navigator": "full"},
-    "remedies":      {"free": "full",     "seeker": "full",    "navigator": "full"},
+    "today":         dict(_FULL_FOR_ALL),
+    "month":         dict(_FULL_FOR_ALL),
+    "year":          dict(_FULL_FOR_ALL),
+    "cycle":         dict(_FULL_FOR_ALL),
+    "ask":           {"free": "limited", "paid": "full", "seeker": "full", "navigator": "full"},
+    "compatibility": {"free": "limited", "paid": "full", "seeker": "full", "navigator": "full"},
+    "places":        dict(_FULL_FOR_ALL),
+    "practice":      dict(_FULL_FOR_ALL),
+    "history":       dict(_FULL_FOR_ALL),
+    "remedies":      dict(_FULL_FOR_ALL),
 }
 
 # Lowest tier at which the feature is "full".
@@ -56,8 +65,8 @@ FEATURE_REQUIRED_TIER = {
     "month":         "free",
     "year":          "free",
     "cycle":         "free",
-    "ask":           "seeker",    # unlimited Ask = any active Ask subscription
-    "compatibility": "free",      # [final-launch] feature open; extra charts per-chart
+    "ask":           "paid",      # unlimited Ask = any active subscription
+    "compatibility": "paid",      # unlimited partners = any active subscription
     "places":        "free",      # [final-launch]
     "practice":      "free",
     "remedies":      "free",      # [final-launch] remedies free for everyone
@@ -72,8 +81,26 @@ FEATURE_REQUIRED_TIER = {
 
 # [final-launch] every user gets 1 compatibility chart free; navigator
 # keeps the 2 it was sold with (grandfathered until the SKU collapse).
-COMPAT_INCLUDED_SLOTS = {"free": 1, "seeker": 1, "navigator": 2}
+# [pricing-2026-07] Paid = unlimited partners. Free keeps 1 lifetime included
+# slot, PLUS one earned compatibility per calendar month via gamification, plus
+# whatever streak milestones grant. Free stays genuinely usable; paid removes
+# the ceiling.
+COMPAT_UNLIMITED = 10**6
+COMPAT_INCLUDED_SLOTS = {
+    "free": 1,
+    "paid": COMPAT_UNLIMITED,
+    "seeker": COMPAT_UNLIMITED,
+    "navigator": COMPAT_UNLIMITED,
+}
 COMPAT_SLOT_PRICE = {"usd_cents": 99, "label": "$0.99"}
+
+# ── Fair use ──────────────────────────────────────────────────────
+# "Unlimited" is the promise and it converts far better than a number. These
+# ceilings exist only to stop scripted abuse and are never shown in the UI.
+# For scale: the heaviest real user has ever asked 17 questions in one day,
+# during a 20/day trial window — no genuine user will reach these.
+FAIR_USE_ASK_PER_DAY = 25
+FAIR_USE_NEW_PARTNERS_PER_DAY = 20
 
 
 def _compat_partners(chart_id: str, sb) -> list:
@@ -193,7 +220,7 @@ def get_entitlement(chart_id: str, sb) -> str:
         sub = get_subscription(chart_id, sb) or {}
         plan = str(sub.get("plan") or "free").lower()
         status = str(sub.get("status") or "").lower()
-        if plan in ("seeker", "navigator") and status in ("active", "trialing"):
+        if plan in PAID_TIERS and status in ("active", "trialing"):
             tier = plan
     except Exception:
         tier = "free"
@@ -380,7 +407,7 @@ def ask_quota(chart_id: str, sb, tier: Optional[str] = None) -> dict:
     unlimited. Free reports TODAY's usage against 20/day in the 30-day trial,
     then 1/day forever (soft cap, never expires)."""
     tier = tier or get_entitlement(chart_id, sb)
-    if tier in ("seeker", "navigator") or has_unlimited_ask(chart_id, sb):
+    if tier in PAID_TIERS or has_unlimited_ask(chart_id, sb):
         return {"used": None, "limit": None, "remaining": None, "trial": None}
     st = ask_trial_state(chart_id, sb)
     remaining = max(0, st["daily_limit"] - st["used_today"])

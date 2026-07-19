@@ -18,8 +18,16 @@ from datetime import datetime, timezone, timedelta
 # Strategy: Below Spotify in every LATAM market
 # ══════════════════════════════════════════════════════════════════
 
-# USD (US/Global) — Seeker $7.99/mo, Navigator $12.99/mo, Nav Annual $109.99/yr
+# [pricing-2026-07] ONE paid tier. USD $4.99/mo, $39.99/yr.
+#   - paid_monthly / paid_annual are the only live keys.
+#   - Regional prices sit at ~45-55% of US for LATAM and ~25% for India,
+#     anchored below the local Spotify/Netflix price in each market.
+#   - Annual discounts run DEEPER outside the US (36-44% vs 33%): card
+#     failure and involuntary churn are much higher there, so twelve months
+#     paid up front is worth more than the extra margin.
 STRIPE_PRICES = {
+    "paid_monthly": os.getenv("STRIPE_PRICE_PAID_MONTHLY", ""),   # $4.99
+    "paid_annual":  os.getenv("STRIPE_PRICE_PAID_ANNUAL", ""),    # $39.99
     # [model-c 2026-06-29] Single subscription — the only live plan keys.
     "ask_unlimited_monthly": os.getenv("STRIPE_PRICE_ASK_UNLIMITED_MONTHLY", ""),
     "ask_unlimited_annual":  os.getenv("STRIPE_PRICE_ASK_UNLIMITED_ANNUAL", ""),
@@ -36,36 +44,66 @@ STRIPE_PRICES_BY_COUNTRY = {
         "seeker_monthly":      os.getenv("STRIPE_PRICE_SEEKER_MONTHLY_COP", ""),
         "navigator_monthly":   os.getenv("STRIPE_PRICE_NAVIGATOR_MONTHLY_COP", ""),
         "navigator_annual":    "",  # Not created in Stripe yet
+        # [pricing-2026-07] COP 12,900 / COP 99,900 (~35% off)
+        "paid_monthly":        os.getenv("STRIPE_PRICE_PAID_MONTHLY_COP", ""),
+        "paid_annual":         os.getenv("STRIPE_PRICE_PAID_ANNUAL_COP", ""),
     },
     "MX": {  # Mexico — MXN | Seeker $79 | Nav $129 | Nav Annual $1,290
         "seeker_monthly":      os.getenv("STRIPE_PRICE_SEEKER_MONTHLY_MXN", ""),
         "navigator_monthly":   os.getenv("STRIPE_PRICE_NAVIGATOR_MONTHLY_MXN", ""),
         "navigator_annual":    os.getenv("STRIPE_PRICE_NAVIGATOR_ANNUAL_MXN", ""),
+        # [pricing-2026-07] MX$49 / MX$399 (~32% off)
+        "paid_monthly":        os.getenv("STRIPE_PRICE_PAID_MONTHLY_MXN", ""),
+        "paid_annual":         os.getenv("STRIPE_PRICE_PAID_ANNUAL_MXN", ""),
     },
     "BR": {  # Brazil — BRL | Seeker R$19.90 | Nav R$39.90 | Nav Annual R$399.90
         "seeker_monthly":      os.getenv("STRIPE_PRICE_SEEKER_MONTHLY_BRL", ""),
         "navigator_monthly":   os.getenv("STRIPE_PRICE_NAVIGATOR_MONTHLY_BRL", ""),
         "navigator_annual":    os.getenv("STRIPE_PRICE_NAVIGATOR_ANNUAL_BRL", ""),
+        # [pricing-2026-07] R$12.90 / R$99 (~36% off)
+        "paid_monthly":        os.getenv("STRIPE_PRICE_PAID_MONTHLY_BRL", ""),
+        "paid_annual":         os.getenv("STRIPE_PRICE_PAID_ANNUAL_BRL", ""),
     },
     "AR": {  # Argentina — ARS | Seeker $2,990 | Nav $5,990 | Nav Annual $45,900
         "seeker_monthly":      os.getenv("STRIPE_PRICE_SEEKER_MONTHLY_ARS", ""),
         "navigator_monthly":   os.getenv("STRIPE_PRICE_NAVIGATOR_MONTHLY_ARS", ""),
         "navigator_annual":    os.getenv("STRIPE_PRICE_NAVIGATOR_ANNUAL_ARS", ""),
+        # [pricing-2026-07] priced in USD — ARS inflation makes a fixed price stale in months
+        "paid_monthly":        os.getenv("STRIPE_PRICE_PAID_MONTHLY_ARS", ""),
+        "paid_annual":         os.getenv("STRIPE_PRICE_PAID_ANNUAL_ARS", ""),
     },
     "PE": {  # Peru — PEN | Seeker S/12.90 | Nav S/21.90 | Nav Annual S/199.90
         "seeker_monthly":      os.getenv("STRIPE_PRICE_SEEKER_MONTHLY_PEN", ""),
         "navigator_monthly":   os.getenv("STRIPE_PRICE_NAVIGATOR_MONTHLY_PEN", ""),
         "navigator_annual":    os.getenv("STRIPE_PRICE_NAVIGATOR_ANNUAL_PEN", ""),
+        # [pricing-2026-07] S/9.90 / S/79 (~33% off)
+        "paid_monthly":        os.getenv("STRIPE_PRICE_PAID_MONTHLY_PEN", ""),
+        "paid_annual":         os.getenv("STRIPE_PRICE_PAID_ANNUAL_PEN", ""),
     },
     "EC": {  # Ecuador — USD | Seeker $4.99 | Nav $7.99 | Nav Annual $74.99
         "seeker_monthly":      os.getenv("STRIPE_PRICE_SEEKER_MONTHLY_EC", ""),
         "navigator_monthly":   os.getenv("STRIPE_PRICE_NAVIGATOR_MONTHLY_EC", ""),
         "navigator_annual":    os.getenv("STRIPE_PRICE_NAVIGATOR_ANNUAL_EC", ""),
+        # [pricing-2026-07] USD $2.99 / $24.99 — Ecuador uses USD but at LATAM purchasing power
+        "paid_monthly":        os.getenv("STRIPE_PRICE_PAID_MONTHLY_EC", ""),
+        "paid_annual":         os.getenv("STRIPE_PRICE_PAID_ANNUAL_EC", ""),
+    },
+    "IN": {  # India — INR | ₹149/mo, ₹999/yr (~44% off)
+        # [pricing-2026-07] Added — there was no IN block, so Indian users
+        # fell through to USD pricing. ₹149 is the local Netflix-mobile /
+        # YouTube-Premium anchor; ₹999 is the strong annual price point.
+        # NOTE: Stripe requires an Indian entity to charge in INR. Without
+        # one these stay empty and IN falls back to USD.
+        "paid_monthly":        os.getenv("STRIPE_PRICE_PAID_MONTHLY_INR", ""),
+        "paid_annual":         os.getenv("STRIPE_PRICE_PAID_ANNUAL_INR", ""),
     },
     "CA": {  # Canada — CAD | Seeker C$12.99 | Nav C$19.99 | Nav Annual C$199.99
         "seeker_monthly":      os.getenv("STRIPE_PRICE_SEEKER_MONTHLY_CAD", ""),
         "navigator_monthly":   os.getenv("STRIPE_PRICE_NAVIGATOR_MONTHLY_CAD", ""),
         "navigator_annual":    os.getenv("STRIPE_PRICE_NAVIGATOR_ANNUAL_CAD", ""),
+        # [pricing-2026-07] CA$6.99 / CA$54.99 (~34% off) — near US parity, high-income market
+        "paid_monthly":        os.getenv("STRIPE_PRICE_PAID_MONTHLY_CAD", ""),
+        "paid_annual":         os.getenv("STRIPE_PRICE_PAID_ANNUAL_CAD", ""),
     },
 }
 

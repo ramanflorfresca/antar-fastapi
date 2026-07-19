@@ -24,6 +24,9 @@ from openai import AsyncOpenAI
 # Antar engine modules
 from antar_engine import chart, vimsottari, jaimini, ashtottari, utils, constants
 from antar_engine.constants import SONNET_MODEL
+# [pricing-2026-07] Single paid tier. "seeker"/"navigator" remain as aliases so
+# historical subscription rows still resolve — see entitlements.PAID_TIERS.
+from antar_engine.entitlements import PAID_TIERS as _PAID_TIERS
 from antar_engine.karakas import psychological_profile, get_all_karakas
 from antar_engine import transits, divisional, timing_engine, nation_engine, remedy_selector
 from antar_engine.natal_signatures import ensure_signatures, build_signature_context_block, compute_natal_signatures, derive_archetype
@@ -15261,7 +15264,7 @@ async def ask_prashna(request: PrashnaRequest):
             )
             _pz_tz = getattr(request, "tz_offset", 0) or 0
             if (chart_id
-                    and _pz_tier(chart_id, supabase) not in ("seeker", "navigator")
+                    and _pz_tier(chart_id, supabase) not in _PAID_TIERS
                     and not _pz_unlim(chart_id, supabase)):
                 _pz_st = _pz_trial(chart_id, supabase, _pz_tz)
                 _pz_lim = int(_pz_st.get("daily_limit") or 1)
@@ -15498,7 +15501,7 @@ async def ask_prashna(request: PrashnaRequest):
                 increment_ask_usage as _pz_inc,
             )
             if (chart_id
-                    and _pz_tier2(chart_id, supabase) not in ("seeker", "navigator")
+                    and _pz_tier2(chart_id, supabase) not in _PAID_TIERS
                     and not _pz_unlim2(chart_id, supabase)):
                 _pz_inc(chart_id, supabase, getattr(request, "tz_offset", 0) or 0)
         except Exception as _pz_ie:
@@ -16595,7 +16598,7 @@ async def ask_endpoint(request: AskRequest):
         _ask_bypass_cap = False
     # [final-launch] any active Ask subscription => unlimited (SKU-rename-proof)
     # [ask-debug-bypass 2026-06-07] _ask_bypass_cap allowlists dev/test charts
-    if _ask_tier not in ("seeker", "navigator") and not _ent_unlim(chart_id, supabase) and not _ask_bypass_cap:
+    if _ask_tier not in _PAID_TIERS and not _ent_unlim(chart_id, supabase) and not _ask_bypass_cap:
         _tr = _ent_trial(chart_id, supabase, request.tz_offset or 0)
         _limit = int(_tr.get("daily_limit") or 1)
         # [gamification] Streak-earned credits are spent ONLY after the free
@@ -17284,7 +17287,7 @@ async def ask_endpoint(request: AskRequest):
                 read_txt = "I couldn't read a clear signal just now — try asking again in a moment."
 
             # [ask-debug-bypass 2026-06-07] bypass allowlist also skips increment
-            if (_ask_tier not in ("seeker", "navigator") and _ask_answered
+            if (_ask_tier not in _PAID_TIERS and _ask_answered
                     and not _ask_bypass_cap):  # [ask-launch]
                 _ent_ask_inc(chart_id, supabase, request.tz_offset or 0)
             # [evmap-2026-06-07] NOT_YET must carry the next window.
@@ -17730,7 +17733,7 @@ async def ask_endpoint(request: AskRequest):
             )
 
             # [ask-debug-bypass 2026-06-07] bypass allowlist also skips increment
-            if (_ask_tier not in ("seeker", "navigator") and bool(why)
+            if (_ask_tier not in _PAID_TIERS and bool(why)
                     and not _ask_bypass_cap):  # [ask-launch]
                 _ent_ask_inc(chart_id, supabase, request.tz_offset or 0)
             payload = {
