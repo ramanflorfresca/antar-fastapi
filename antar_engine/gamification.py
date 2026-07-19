@@ -424,3 +424,61 @@ def practice_reward_message(streak: int, awards: list) -> str:
         return (f"{streak}-day streak. {nxt['in_days']} more "
                 f"{'day' if nxt['in_days'] == 1 else 'days'} to your next reward.")
     return "Practice logged. Every day counts."
+
+
+def history(sb, chart_id: str, limit: int = 30) -> list:
+    """
+    Recent ledger entries for a "how did I earn this?" view.
+
+    Grants and spends both appear, newest first, with the reason rendered for
+    humans and an `expired` flag so the UI can grey out dead credits rather
+    than silently dropping them (a credit that vanishes with no explanation
+    reads as a bug).
+    """
+    uid = _uid(sb, chart_id)
+    if not uid:
+        return []
+    try:
+        rows = (sb.table("reward_ledger")
+                  .select("kind,delta,reason,expires_at,created_at")
+                  .eq("user_id", uid)
+                  .order("created_at", desc=True)
+                  .limit(int(limit)).execute().data or [])
+    except Exception as e:
+        print(f"[gamification] history read failed (non-blocking): {e}")
+        return []
+    now = datetime.now(timezone.utc)
+    out = []
+    for r in rows:
+        exp = r.get("expires_at")
+        expired = False
+        if exp:
+            try:
+                expired = datetime.fromisoformat(str(exp).replace("Z", "+00:00")) < now
+            except Exception:
+                pass
+        out.append({
+            "kind": r.get("kind"),
+            "delta": int(r.get("delta") or 0),
+            "label": _reason_label(r.get("reason") or ""),
+            "expires_at": exp,
+            "expired": expired,
+            "created_at": r.get("created_at"),
+        })
+    return out
+
+
+def _reason_label(reason: str) -> str:
+    """Ledger reasons are machine keys; give the UI something readable."""
+    if reason.startswith("streak_"):
+        return f"{reason.split('_')[-1]}-day streak"
+    if reason.startswith("practice_"):
+        return f"{reason.split('_')[-1]} days of practice"
+    if reason.startswith("monthly_compat_"):
+        parts = reason.split("_")
+        return f"Monthly free reading ({parts[-2]}-{parts[-1]})"
+    if reason.startswith("compat_read:"):
+        return "Compatibility reading"
+    if reason == "ask_question":
+        return "Question asked"
+    return reason.replace("_", " ").capitalize()

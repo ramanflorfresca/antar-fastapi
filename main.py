@@ -12561,6 +12561,19 @@ async def get_streak_endpoint(chart_id: str, tz_offset: int = 0):
     return _gam.state(supabase, chart_id, tz_offset or 0)
 
 
+@app.get("/api/v1/streak/{chart_id}/history")
+async def get_streak_history_endpoint(chart_id: str, limit: int = 30):
+    """
+    [gamification] "How did I earn this?" — recent grants and spends.
+
+    A bare credit count is weak motivation; "+3 from your 1-week streak,
+    expires Sep 17" makes the reward feel earned and surfaces expiry before
+    it silently removes value.
+    """
+    from antar_engine import gamification as _gam
+    return {"entries": _gam.history(supabase, chart_id, min(int(limit or 30), 100))}
+
+
 @app.post("/api/v1/streak/{chart_id}/touch")
 async def post_streak_touch(chart_id: str, tz_offset: int = 0):
     """
