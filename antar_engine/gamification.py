@@ -334,3 +334,93 @@ def state(sb, chart_id: str, tz_offset: int = 0) -> dict:
         "ask_credits": min(ask_bal, MAX_ASK_BALANCE),
         "compat_credits": balance(sb, chart_id, "compat"),
     }
+
+
+# ── Practices ───────────────────────────────────────────────────────────────
+# Practice completion is a different, higher-intent act than opening the app.
+# Astrology without remedy is diagnosis without treatment, so the ritual is the
+# part of the product worth paying people to keep doing — these milestones are
+# deliberately richer than the login ladder.
+#
+# The practice streak stays where it already lives (practice_log, computed by
+# _practice_calc_streak in main.py). This only settles the REWARDS for it, so
+# there is one ledger and one truth about what a user has earned.
+PRACTICE_MILESTONES = {
+    3:   {"ask": 1,  "compat": 0, "label": "3 days of practice"},
+    7:   {"ask": 3,  "compat": 1, "label": "7 days of practice"},
+    14:  {"ask": 3,  "compat": 0, "label": "14 days of practice"},
+    21:  {"ask": 5,  "compat": 1, "label": "a full 21-day cycle"},
+    40:  {"ask": 8,  "compat": 1, "label": "a 40-day sadhana"},
+    90:  {"ask": 15, "compat": 2, "label": "90 days of practice"},
+}
+_P_REPEAT_AFTER = 90
+_P_REPEAT_EVERY = 40        # the classical sadhana cycle, not a round number
+_P_REPEAT_REWARD = {"ask": 8, "compat": 1, "label": "another 40-day cycle"}
+
+
+def practice_milestone_for(streak: int) -> dict | None:
+    if streak in PRACTICE_MILESTONES:
+        return PRACTICE_MILESTONES[streak]
+    if streak > _P_REPEAT_AFTER and (streak - _P_REPEAT_AFTER) % _P_REPEAT_EVERY == 0:
+        return _P_REPEAT_REWARD
+    return None
+
+
+def next_practice_milestone(streak: int) -> dict:
+    for day in sorted(PRACTICE_MILESTONES):
+        if day > streak:
+            return {"at": day, "in_days": day - streak, **PRACTICE_MILESTONES[day]}
+    nxt = _P_REPEAT_AFTER + _P_REPEAT_EVERY
+    while nxt <= streak:
+        nxt += _P_REPEAT_EVERY
+    return {"at": nxt, "in_days": nxt - streak, **_P_REPEAT_REWARD}
+
+
+def award_practice(sb, chart_id: str, practice_streak: int) -> list:
+    """
+    Settle rewards for reaching `practice_streak` days of practice.
+
+    Idempotent per (user, milestone): award_key is 'practice_<n>', so logging
+    a second practice on the same day cannot pay twice. Returns the awards
+    granted now (empty if this streak length was already settled).
+    """
+    ms = practice_milestone_for(int(practice_streak or 0))
+    if not ms:
+        return []
+    uid = _uid(sb, chart_id)
+    if not uid:
+        return []
+    key = f"practice_{int(practice_streak)}"
+    out = []
+    if ms["ask"] and _grant(sb, uid, "ask", ms["ask"], key, key,
+                            ASK_CREDIT_TTL_DAYS, chart_id):
+        out.append({"kind": "ask", "amount": ms["ask"], "for": ms["label"]})
+    if ms["compat"] and _grant(sb, uid, "compat", ms["compat"], key, key,
+                               COMPAT_CREDIT_TTL_DAYS, chart_id):
+        out.append({"kind": "compat", "amount": ms["compat"], "for": ms["label"]})
+    return out
+
+
+def practice_reward_message(streak: int, awards: list) -> str:
+    """
+    Message for a completed practice — states only what was actually granted.
+
+    The previous copy promised "a free Deep Dive Location Audit" at day 7 and
+    nothing was ever granted. Copy here is generated FROM the awards list, so
+    it cannot drift from what the ledger did.
+    """
+    if awards:
+        parts = []
+        for a in awards:
+            n = a["amount"]
+            if a["kind"] == "ask":
+                parts.append(f"{n} bonus question{'s' if n != 1 else ''}")
+            else:
+                parts.append(f"{n} compatibility read{'s' if n != 1 else ''}")
+        earned = " and ".join(parts)
+        return f"{streak}-day streak — you've earned {earned}."
+    if streak >= 3:
+        nxt = next_practice_milestone(streak)
+        return (f"{streak}-day streak. {nxt['in_days']} more "
+                f"{'day' if nxt['in_days'] == 1 else 'days'} to your next reward.")
+    return "Practice logged. Every day counts."

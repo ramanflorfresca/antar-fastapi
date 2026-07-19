@@ -22932,11 +22932,24 @@ async def complete_practice_endpoint(chart_id: str, req: _PracticeCompleteReq):
             if _p in _types: _ptype = _p
         supabase.table("practice_log").insert({"chart_id": chart_id, "practice_id": req.practice_id, "planet": _planet, "practice_type": _ptype, "completed_at": _now.isoformat(), "streak_count": _streak + 1, "user_note": req.user_note}).execute()
         _new = _streak + 1
-        if _new == 7: _msg = "7-day streak unlocked! You earned a free Deep Dive Location Audit."
-        elif _new == 21: _msg = "21-day cycle complete. Your energy pattern has shifted."
-        elif _new >= 3: _msg = f"{_new}-day streak! Consistency is building momentum."
-        else: _msg = "Practice logged. Every day counts."
-        return {"status": "ok", "streak_count": _new, "message": _msg}
+        # [gamification] The old copy promised "a free Deep Dive Location Audit"
+        # at day 7 and nothing was ever granted — the app told users they had
+        # earned something and then didn't deliver it. Rewards are now real,
+        # and the message is generated FROM what the ledger actually granted so
+        # the two can't drift apart again.
+        _awards = []
+        try:
+            from antar_engine import gamification as _gam
+            _awards = _gam.award_practice(supabase, chart_id, _new)
+            _msg = _gam.practice_reward_message(_new, _awards)
+        except Exception as _ge:
+            print(f"[gamification] practice award skipped (non-blocking): {_ge}")
+            _msg = (f"{_new}-day streak! Consistency is building momentum."
+                    if _new >= 3 else "Practice logged. Every day counts.")
+        if _new == 21 and not _awards:
+            _msg = "21-day cycle complete. Your energy pattern has shifted."
+        return {"status": "ok", "streak_count": _new, "message": _msg,
+                "awards": _awards}
     except Exception as e:
         print(f"[PRACTICE] Complete error: {e}")
         return {"status": "error", "message": str(e)}
