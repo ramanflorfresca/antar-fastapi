@@ -1005,9 +1005,49 @@ async def _deep_read_warm_job():
         print(f"[deep-read-warm] job FATAL: {e}")
 
 
+# ── Daily push nudge cron ─────────────────────────────────────────────────────
+async def _daily_push_job():
+    """Daily cron — nudges every device with a registered token to open today's
+    reading. Sends a lightweight alert (not the content itself), so there's no
+    per-chart LLM cost and nothing sensitive rides in the payload. No-op until
+    APNs is configured (APNS_* env vars). Dead tokens are pruned by the sender."""
+    from antar_engine import push_sender
+    if not push_sender.is_configured():
+        print("[push_cron] APNs not configured — skipping daily nudge")
+        return
+    try:
+        res = supabase.table("device_tokens").select("token, chart_id, platform").execute()
+        rows = res.data or []
+    except Exception as e:
+        print(f"[push_cron] token fetch failed: {e}")
+        return
+    if not rows:
+        print("[push_cron] no device tokens registered")
+        return
+    by_chart: dict = {}
+    for r in rows:
+        if r.get("token"):
+            by_chart.setdefault(r.get("chart_id"), []).append(
+                {"token": r["token"], "platform": r.get("platform")})
+    total = {"sent": 0, "failed": 0, "pruned": 0}
+    for _cid, toks in by_chart.items():
+        summary = await push_sender.send_to_tokens(
+            supabase, toks,
+            title="Antar",
+            body="Your reading for today is ready ☀️",
+            data={"type": "daily"},
+        )
+        for k in total:
+            total[k] += summary.get(k, 0)
+    print(f"[push_cron] daily nudge — charts={len(by_chart)} sent={total['sent']} "
+          f"failed={total['failed']} pruned={total['pruned']}")
+
+
 scheduler = AsyncIOScheduler(timezone="UTC")
 scheduler.add_job(_birthday_recompute_job, "cron", hour=2, minute=0,
                   id="birthday_lk_recompute", replace_existing=True)
+scheduler.add_job(_daily_push_job, "cron", hour=14, minute=0,
+                  id="daily_push_nudge", replace_existing=True)
 scheduler.add_job(_ping_checkin_job, "cron", hour=8, minute=0,
                   id="ping_checkin_daily", replace_existing=True)
 scheduler.add_job(_monthly_briefing_job, "cron", day=1, hour=6, minute=0,
@@ -1487,6 +1527,16 @@ class PatraUpdateRequest(BaseModel):
     # every non-None field, so these flow through automatically.
     current_city: Optional[str] = None
     current_country: Optional[str] = None
+
+class PushTokenRequest(BaseModel):
+    chart_id: str
+    token: str
+    platform: str = "ios"          # "ios" | "android"
+
+class PushTestRequest(BaseModel):
+    chart_id: str
+    title: Optional[str] = None
+    body: Optional[str] = None
 
 class LanguageSetRequest(BaseModel):
     language: str = Field(..., example="es")
@@ -7784,6 +7834,70 @@ async def update_patra(
         "age_trigger":     patra.age_trigger,
     }
 
+@app.post("/api/v1/user/push-token")
+async def register_push_token(
+    request: PushTokenRequest,
+    authorization: str = Header(...)
+):
+    """Store an APNs/FCM device token in the `device_tokens` table so the
+    daily-reading job can push to it. Idempotent per token — the native app
+    re-sends on every launch, and a token can migrate between charts on the same
+    device, so we keep the row pointed at the most recent chart/user. Fail-open:
+    a token save never breaks app launch.
+
+    Reuses the existing (owner-RLS'd) `device_tokens` table rather than a parallel
+    one; the backend writes with the service-role key so RLS is bypassed. A manual
+    upsert (select → update|insert) avoids depending on a UNIQUE(token) index."""
+    user_id = verify_token(authorization)
+
+    # Ownership check — the token can only be attached to a chart the caller owns.
+    owned = supabase.table("charts").select("id") \
+        .eq("id", request.chart_id).eq("user_id", user_id).limit(1).execute()
+    if not owned.data:
+        raise HTTPException(404, "Chart not found")
+
+    fields = {
+        "platform":   (request.platform or "ios").lower(),
+        "chart_id":   request.chart_id,
+        "user_id":    user_id,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+    try:
+        existing = supabase.table("device_tokens").select("id") \
+            .eq("token", request.token).limit(1).execute()
+        if existing.data:
+            supabase.table("device_tokens").update(fields) \
+                .eq("token", request.token).execute()
+        else:
+            supabase.table("device_tokens").insert({**fields, "token": request.token}).execute()
+    except Exception as e:
+        # Fail-open: never break app launch over a token save.
+        print(f"[push-token] device_tokens write failed: {e}")
+        return {"status": "deferred"}
+    return {"status": "stored"}
+
+
+@app.post("/api/v1/user/push-test")
+async def push_test(request: PushTestRequest, authorization: str = Header(...)):
+    """Fire a test push to the caller's OWN chart tokens — for verifying the APNs
+    setup end to end once the APNS_* env vars are in place. Owner-guarded."""
+    user_id = verify_token(authorization)
+    owned = supabase.table("charts").select("id") \
+        .eq("id", request.chart_id).eq("user_id", user_id).limit(1).execute()
+    if not owned.data:
+        raise HTTPException(404, "Chart not found")
+    from antar_engine import push_sender
+    if not push_sender.is_configured():
+        return {"status": "not_configured",
+                "detail": "APNS_KEY_P8 / APNS_KEY_ID / APNS_TEAM_ID not set on the server"}
+    summary = await push_sender.send_to_chart(
+        supabase, request.chart_id,
+        title=(request.title or "Antar"),
+        body=(request.body or "Test push ✅"),
+        data={"type": "test"},
+    )
+    return {"status": "sent", **summary}
+
 # ── Monthly Briefing ──────────────────────────────────────────────────────────
 
 @app.post("/api/v1/predict/monthly-briefing", response_model=MonthlyBriefingResponse)
@@ -11017,6 +11131,54 @@ async def places_concern_endpoint(req: PlacesConcernReq):
         chart, req.concern, _places_cities(), region_filter=req.region_filter,
         trace=_rank_trace,
     )
+    # [places-baseline 2026-07-18] Frame Places against WHERE THE USER IS NOW —
+    # not their birth city. Score their CURRENT city for this same concern and
+    # express every ranked city as a delta against it: somewhere else is only a
+    # recommendation if it actually beats where they already live. When nothing
+    # meaningfully beats it we say so ("already well placed") rather than
+    # inventing reasons to move.
+    _MEANINGFUL_GAIN = 3          # ignore noise-level score differences
+    _baseline = None
+    _cur_name = (rec.get("current_city") or "").strip()
+    if _cur_name:
+        # Match must survive diacritics and name variants, or we silently lose the
+        # baseline for most of the world: stored "Bogota" has to find "Bogotá",
+        # "Medellin" -> "Medellín", "New York" -> "New York City".
+        import unicodedata as _ud
+
+        def _norm_city(_s):
+            _s = _ud.normalize("NFKD", str(_s or "")).encode("ascii", "ignore").decode("ascii")
+            return " ".join(_s.strip().lower().split())
+
+        _want = _norm_city(_cur_name)
+        _cur_cc = _norm_city(rec.get("current_country") or "")
+        _tbl = _places_cities()
+        _cands = [c for c in _tbl if _norm_city(c.get("name")) == _want]
+        if not _cands and len(_want) >= 4:      # prefix either direction
+            _cands = [c for c in _tbl
+                      if _norm_city(c.get("name")).startswith(_want)
+                      or _want.startswith(_norm_city(c.get("name")))]
+        if len(_cands) > 1 and _cur_cc:
+            _cands = [c for c in _cands
+                      if _cur_cc in (_norm_city(c.get("country_code")),
+                                     _norm_city(c.get("country")))] or _cands
+        if _cands:
+            try:
+                _b = _pcn.score_city_for_concern(
+                    chart, _cands[0], req.concern,
+                    all_lines=all_lines, conditions=conditions,
+                )
+                _baseline = {
+                    "city":    _cands[0].get("name"),
+                    "country": _cands[0].get("country"),
+                    "score":   _b.get("score"),
+                    "tier":    _b.get("tier"),
+                }
+            except Exception as _be:
+                print(f"[places/concern] baseline scoring failed for {_cur_name!r}: {_be}")
+        else:
+            print(f"[places/concern] current_city {_cur_name!r} not in city table — no baseline")
+
     # Phase 3: per-chart context for the 4-layer reasoning.
     _p3_name = rec.get("first_name") or rec.get("name") or None
     _p3_age = _pintel.compute_age(rec.get("birth_date"))
@@ -11038,6 +11200,10 @@ async def places_concern_endpoint(req: PlacesConcernReq):
     for _i, s in enumerate(scored):
         c = _pcomp.enrich_ranked_city(req.concern, s, req.language)
         c["rank"] = _i + 1
+        # Gain vs the user's current city (None when we have no baseline).
+        if _baseline and isinstance(s.get("score"), (int, float)) \
+           and isinstance(_baseline.get("score"), (int, float)):
+            c["delta"] = int(round(s["score"] - _baseline["score"]))
         c["one_line"] = _places_strip(
             _pcomp.compose_one_line(req.concern, s["tier"], req.language), req.language)
         _reasons = _pcn.compose_city_reasons(
@@ -11077,6 +11243,18 @@ async def places_concern_endpoint(req: PlacesConcernReq):
         "user_name": _p3_name,
         "user_age": _p3_age,
         "generated_at": _places_iso_now(),
+        # Where the user is NOW, scored for this same concern. null when their
+        # current city is unknown or outside the city table — clients must
+        # degrade to plain absolute scores in that case.
+        "baseline": _baseline,
+        # True when nothing on the list beats the current city by a meaningful
+        # margin: say "you're already well placed" instead of manufacturing a move.
+        "already_well_placed": bool(_baseline) and not any(
+            isinstance(c.get("delta"), int) and c["delta"] >= _MEANINGFUL_GAIN for c in ranked),
+        "better_count": sum(
+            1 for c in ranked
+            if isinstance(c.get("delta"), int) and c["delta"] >= _MEANINGFUL_GAIN),
+        "meaningful_gain": _MEANINGFUL_GAIN,
         "texture_line": _places_strip(
             _pcomp.compose_texture_line(req.concern, ranked, req.language), req.language
         ),
@@ -11228,7 +11406,15 @@ async def places_city_endpoint(req: PlacesCityReq):
     city_dict["velocity"] = _places_velocity(req.city.name, req.city.country_code)
     active = _pcn.find_lines_near_city(all_lines, req.city.lat, req.city.lon, max_distance_km=700.0)
 
-    if req.concern and req.concern in _pcn.VALID_CONCERNS:
+    # [places-scoring-mode 2026-07-18] Two scorers live here and they DISAGREE:
+    # score_city_for_concern() is concern-weighted, balanced_score() averages all
+    # concerns. If a caller ranks a city in the concern list (green 65) but then
+    # opens the detail WITHOUT the concern, it silently lands in balanced_score()
+    # and can come back a different tier (red) for the same city. That mismatch
+    # must never be invisible again: surface `scoring_mode` in the payload and
+    # log the fallback so a dropped concern is diagnosable from the response.
+    _scoring_mode = "concern" if (req.concern and req.concern in _pcn.VALID_CONCERNS) else "balanced"
+    if _scoring_mode == "concern":
         scored = _pcn.score_city_for_concern(
             chart, city_dict, req.concern,
             all_lines=all_lines, conditions=conditions, relocation=relocation,
@@ -11237,6 +11423,12 @@ async def places_city_endpoint(req: PlacesCityReq):
         headline = _pcomp.compose_headline(req.concern, scored["tier"], req.city.name, req.language)
         watch = _pcomp.compose_watch_outs(req.concern, scored.get("_watch", []), req.language)
     else:
+        if req.concern:
+            print(f"[places/city] concern={req.concern!r} not in VALID_CONCERNS "
+                  f"— falling back to balanced_score (tier may differ from the list view)")
+        else:
+            print("[places/city] no concern supplied — balanced_score used "
+                  "(tier may differ from the concern list view)")
         scored = _pcn.balanced_score(
             chart, city_dict, all_lines=all_lines, conditions=conditions, relocation=relocation,
         )
@@ -11249,6 +11441,10 @@ async def places_city_endpoint(req: PlacesCityReq):
         "language": req.language,
         "generated_at": _places_iso_now(),
         "concern": req.concern,
+        # "concern" = concern-weighted score (matches the ranked list); "balanced"
+        # = concern-agnostic average. If this says "balanced" while the user came
+        # from a concern list, the client dropped the concern — that is the bug.
+        "scoring_mode": _scoring_mode,
         "relocation": _places_public_relocation(relocation),
         "active_lines": active,
         "score": scored["score"],

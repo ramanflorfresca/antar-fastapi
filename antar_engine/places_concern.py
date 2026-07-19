@@ -36,6 +36,12 @@ CONCERN_MAP: dict[str, dict] = {
     "health": {"karakas": ["Sun", "Mars", "Saturn"],       "angles": ["AC"],       "houses": [1, 6],        "neg_houses": [8, 12],    "weights": {"karakas": 0.45, "angles": 0.30, "houses": 0.25}},
     "peace":  {"karakas": ["Moon", "Jupiter", "Ketu"],     "angles": ["IC"],       "houses": [4, 12],       "neg_houses": [6, 8],     "weights": {"karakas": 0.50, "angles": 0.30, "houses": 0.20}},
     "family": {"karakas": ["Moon", "Sun", "Jupiter"],      "angles": ["IC", "AC"], "houses": [4, 9, 7],     "neg_houses": [6, 8, 12], "weights": {"karakas": 0.45, "angles": 0.30, "houses": 0.25}},
+    # [places-business 2026-07-18] startup / venture — deliberately NOT the same
+    # as "career" (employment + status). Trade and partnership (7) lead, with
+    # profession (10), gains/network (11) and self-started enterprise (3).
+    # Mercury = commerce, Mars = initiative, Jupiter = expansion. 6 is left OUT
+    # of neg_houses on purpose: it is upachaya and reads as out-competing rivals.
+    "business": {"karakas": ["Mercury", "Mars", "Jupiter"], "angles": ["MC", "AC"], "houses": [7, 10, 11, 3], "neg_houses": [8, 12], "weights": {"karakas": 0.40, "angles": 0.35, "houses": 0.25}},
 }
 
 # Legacy aliases accepted for one release, then drop. resolve_concern() maps
@@ -482,7 +488,14 @@ def rank_cities_for_concern(
     all_lines = compute_all_lines(chart.get("birth_jd"), chart)
     conditions = compute_all_conditions(chart)
 
-    pool = cities
+    # [places-two-tier 2026-07-18] The city table serves two jobs: (1) the pool we
+    # RANK recommendations from, and (2) a lookup wide enough that any user's
+    # current city can be scored as their baseline. Cities carrying
+    # rankable=False exist only for that baseline lookup — they must never be
+    # recommended (they'd bury real destinations under smaller metros) and
+    # keeping them out also holds the scoring cost down. Missing flag == rankable,
+    # so the original curated set is unaffected.
+    pool = [c for c in cities if c.get("rankable", True)]
     if region_filter:
         rf = region_filter.strip().lower()
         pool = [

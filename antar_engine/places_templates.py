@@ -16,7 +16,7 @@ Coverage (materialised into PLACES_TEMPLATES at import):
 
 from __future__ import annotations
 
-CONCERNS = ["money", "career", "love", "health", "peace", "family"]
+CONCERNS = ["money", "career", "love", "health", "peace", "family", "business"]
 ANGLES = ["AC", "MC", "DC", "IC"]
 POLARITIES = ["supportive", "mixed", "friction"]
 TIERS = ["FLOW", "MIXED", "STRAIN"]
@@ -27,11 +27,13 @@ DOMAIN = {
         "money": "your resources", "career": "your working life",
         "love": "your relating life", "health": "your body and vitality",
         "peace": "your inner ground", "family": "your roots and home",
+        "business": "your venture and enterprise",
     },
     "es": {
         "money": "tus recursos", "career": "tu vida laboral",
         "love": "tu vida afectiva", "health": "tu cuerpo y vitalidad",
         "peace": "tu terreno interior", "family": "tus raíces y tu hogar",
+        "business": "tu negocio y emprendimiento",
     },
 }
 
@@ -60,9 +62,11 @@ PLANET_ENERGY_SHORT = {
 # The concern noun that fronts the "best for" chip: "<Concern> through <energy>".
 CONCERN_NOUN = {
     "en": {"money": "Money", "career": "Career", "love": "Love",
-           "health": "Health", "peace": "Peace", "family": "Family"},
+           "health": "Health", "peace": "Peace", "family": "Family",
+           "business": "Business"},
     "es": {"money": "Dinero", "career": "Carrera", "love": "Amor",
-           "health": "Salud", "peace": "Paz", "family": "Familia"},
+           "health": "Salud", "peace": "Paz", "family": "Familia",
+           "business": "Negocio"},
 }
 # Short axis phrase — WHERE the energy plays out (compact form of AXIS).
 AXIS_SHORT = {
@@ -78,13 +82,15 @@ SIGNATURE_CHANNEL = {
            "love": "connection tends to come this way",
            "health": "vitality tends to steady this way",
            "peace": "calm tends to settle this way",
-           "family": "roots tend to deepen this way"},
+           "family": "roots tend to deepen this way",
+           "business": "ventures tend to gain traction this way"},
     "es": {"money": "el valor tiende a llegar por esta vía",
            "career": "tu trabajo tiende a crecer por esta vía",
            "love": "la conexión tiende a llegar por esta vía",
            "health": "la vitalidad tiende a estabilizarse por esta vía",
            "peace": "la calma tiende a asentarse por esta vía",
-           "family": "las raíces tienden a profundizar por esta vía"},
+           "family": "las raíces tienden a profundizar por esta vía",
+           "business": "los negocios tienden a ganar tracción por esta vía"},
 }
 
 
@@ -160,6 +166,9 @@ _TEXTURE = {
         ("family", "FLOW"):   "For {domain}, the home-and-roots lines fall kindly — these places hold family close.",
         ("family", "MIXED"):  "For {domain}, the home-and-roots lines are mixed — belonging is available but takes tending here.",
         ("family", "STRAIN"): "For {domain}, the home-and-roots lines feel stretched — the warmest places still ask for effort.",
+        ("business", "FLOW"):   "For {domain}, the map opens up — several places give it room to find customers and momentum.",
+        ("business", "MIXED"):  "For {domain}, the map is workable but mixed — traction and drag sit close together across these places.",
+        ("business", "STRAIN"): "For {domain}, the map asks for care — even the strongest places make you work for every deal.",
         ("health", "FLOW"):   "For {domain}, the supportive lines settle well — several places help the body find an easy, restorative rhythm.",
         ("health", "MIXED"):  "For {domain}, the lines are mixed — recovery is possible but the body wants steadier pacing here.",
         ("health", "STRAIN"): "For {domain}, the lines run tight — even the calmer places ask you to protect your energy.",
@@ -180,6 +189,9 @@ _TEXTURE = {
         ("family", "FLOW"):   "Para {domain}, las líneas de hogar y raíces caen con amabilidad — estos lugares sostienen a la familia.",
         ("family", "MIXED"):  "Para {domain}, las líneas de hogar y raíces son mixtas — la pertenencia existe pero hay que cultivarla.",
         ("family", "STRAIN"): "Para {domain}, las líneas de hogar y raíces se sienten estiradas — los lugares más cálidos aún piden esfuerzo.",
+        ("business", "FLOW"):   "Para {domain}, el mapa se abre — varios lugares le dan espacio para encontrar clientes e impulso.",
+        ("business", "MIXED"):  "Para {domain}, el mapa es viable pero mixto — la tracción y el freno conviven en estos lugares.",
+        ("business", "STRAIN"): "Para {domain}, el mapa pide cuidado — incluso los mejores lugares te hacen trabajar cada trato.",
         ("health", "FLOW"):   "Para {domain}, las líneas favorables se asientan bien — varios lugares ayudan al cuerpo a encontrar un ritmo reparador.",
         ("health", "MIXED"):  "Para {domain}, las líneas son mixtas — la recuperación es posible pero el cuerpo pide un ritmo más estable.",
         ("health", "STRAIN"): "Para {domain}, las líneas van tensas — incluso los lugares más calmos piden cuidar tu energía.",
@@ -204,6 +216,9 @@ _HEADLINE = {
         ("family", "FLOW"):   "{city} holds {domain} close.",
         ("family", "MIXED"):  "{city} keeps {domain} workable, with tending.",
         ("family", "STRAIN"): "{city} stretches {domain} — warmth here takes effort.",
+        ("business", "FLOW"):   "{city} gives {domain} room to build.",
+        ("business", "MIXED"):  "{city} backs {domain}, with terms attached.",
+        ("business", "STRAIN"): "{city} makes {domain} earn every step.",
         ("health", "FLOW"):   "{city} helps {domain} find a restorative rhythm.",
         ("health", "MIXED"):  "{city} supports {domain}, with steadier pacing.",
         ("health", "STRAIN"): "{city} asks you to protect {domain} here.",
@@ -224,6 +239,9 @@ _HEADLINE = {
         ("family", "FLOW"):   "{city} sostiene {domain} de cerca.",
         ("family", "MIXED"):  "{city} mantiene {domain} viable, con cuidado.",
         ("family", "STRAIN"): "{city} estira {domain} — la calidez aquí cuesta.",
+        ("business", "FLOW"):   "{city} le da a {domain} espacio para construir.",
+        ("business", "MIXED"):  "{city} respalda {domain}, pero con condiciones.",
+        ("business", "STRAIN"): "{city} hace que {domain} gane cada paso.",
         ("health", "FLOW"):   "{city} ayuda a {domain} a encontrar un ritmo reparador.",
         ("health", "MIXED"):  "{city} apoya {domain}, con un ritmo más estable.",
         ("health", "STRAIN"): "{city} pide cuidar {domain} aquí.",
@@ -352,6 +370,9 @@ _ONE_LINE = {
         ("family", "FLOW"):   "Where roots and home are held close.",
         ("family", "MIXED"):  "Belonging that takes some tending.",
         ("family", "STRAIN"): "Warmth that here takes real effort.",
+        ("business", "FLOW"):   "Where a venture finds customers and momentum.",
+        ("business", "MIXED"):  "Traction is real here, but it comes with drag.",
+        ("business", "STRAIN"): "A market that makes you earn every deal.",
         ("health", "FLOW"):   "Where the body finds an easy, restorative rhythm.",
         ("health", "MIXED"):  "Recovery is here, but the body wants steadier pacing.",
         ("health", "STRAIN"): "Vitality you'd have to protect, not assume.",
@@ -372,6 +393,9 @@ _ONE_LINE = {
         ("family", "FLOW"):   "Donde las raíces y el hogar se sostienen de cerca.",
         ("family", "MIXED"):  "Una pertenencia que requiere cuidado.",
         ("family", "STRAIN"): "Una calidez que aquí cuesta esfuerzo real.",
+        ("business", "FLOW"):   "Donde un negocio encuentra clientes e impulso.",
+        ("business", "MIXED"):  "Hay tracción real, pero viene con freno.",
+        ("business", "STRAIN"): "Un mercado que te hace ganar cada trato.",
         ("health", "FLOW"):   "Donde el cuerpo encuentra un ritmo reparador.",
         ("health", "MIXED"):  "Hay recuperación, pero el cuerpo pide un ritmo más estable.",
         ("health", "STRAIN"): "Una vitalidad que tendrías que proteger, no dar por hecha.",
