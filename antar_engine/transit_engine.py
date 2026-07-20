@@ -270,6 +270,16 @@ def get_full_transit_report(chart_data: Dict, date: datetime = None) -> Dict:
     Complete transit analysis for a chart.
     Returns aspects, house activation, and major transit events.
     """
+    # [nesting-guard 2026-07-20] Callers pass the chart inconsistently: some hand
+    # in the row's `chart_data` blob (planets at top level), others hand in the
+    # whole row (planets one level down under "chart_data"). When the planets
+    # are nested, compute_transit_aspects silently found none and returned an
+    # EMPTY aspect list - 31 real aspects reduced to 0, so every transit ASPECT
+    # (Saturn square Moon, etc.) vanished from the reading while house activation
+    # still worked. Unwrap one level when the top level has no planets.
+    if not chart_data.get("planets") and isinstance(chart_data.get("chart_data"), dict):
+        chart_data = chart_data["chart_data"]
+
     natal_planets = chart_data.get("planets", {})
     lagna = chart_data.get("lagna", {})
 
