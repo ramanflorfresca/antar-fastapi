@@ -16756,7 +16756,8 @@ async def ask_endpoint(request: AskRequest):
                 chart_row = supabase.table("charts") \
                     .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, latitude, longitude, "
                             "marital_status, children_status, career_stage, health_status, financial_status, "
-                            "life_work, life_relationship, life_kids") \
+                            "life_work, life_relationship, life_kids, "
+                            "birth_time, timezone_offset") \
                     .eq("id", chart_id).single().execute()
             except Exception as _nfe:
                 if "PGRST116" in str(_nfe) or "0 rows" in str(_nfe):
@@ -16783,6 +16784,21 @@ async def ask_endpoint(request: AskRequest):
                 )
             except Exception as _lce:
                 logger.warning(f"[ask] life context failed (non-fatal): {_lce}")
+
+            # [birth-time-confidence 2026-07-20] Every house claim rests on the
+            # ascendant, which moves a sign roughly every two hours. The cusp
+            # margin is a property of the chart alone, so this works TODAY —
+            # before birth_time_accuracy is captured — and simply sharpens once
+            # the user answers. Renders "" for a chart sitting safely mid-sign.
+            _ask_btc_block = ""
+            try:
+                from antar_engine.birth_time_confidence import (
+                    assess_chart_row as _btc_assess,
+                    confidence_prompt_block as _btc_block,
+                )
+                _ask_btc_block = _btc_block(_btc_assess(chart_row.data)) or ""
+            except Exception as _bte:
+                logger.warning(f"[ask] birth-time confidence failed (non-fatal): {_bte}")
 
             # ── Layer parity with /predict (2026-06-03) ──────────────────
             # Same intent classifier + same dasha resolution as /predict, so
@@ -17037,6 +17053,7 @@ async def ask_endpoint(request: AskRequest):
                     + f"\n\n{_ask_layers_block}"
                     + f"\n\n{diagnostic_block}"
                     + (f"\n\n{_ask_life_block}" if _ask_life_block else "")
+                    + (f"\n\n{_ask_btc_block}" if _ask_btc_block else "")
                 )
             else:
                 # [reflective-mode 2026-06-07] [noun-injection 2026-06-08]
@@ -17224,6 +17241,7 @@ async def ask_endpoint(request: AskRequest):
                     + f"\n\n{_ask_layers_block}"
                     + f"\n\n{diagnostic_block}"
                     + (f"\n\n{_ask_life_block}" if _ask_life_block else "")
+                    + (f"\n\n{_ask_btc_block}" if _ask_btc_block else "")
                 )
 
             # [ask-scratch] ephemeral override for THIS call only.
