@@ -981,7 +981,11 @@ def _build_deepdive_context(
             lines.append('(Format as "Week of <Month> <D> — <reason>" using one of the above dates.)')
 
             # [cp-day4a] HOT DOMAINS injection
-            _hot_domains, _tally = _aggregate_hot_domains(_events, top_n=3)
+            # top_n comes from the function default (5) — do not pin it here.
+            # It was pinned to 3, which silently discarded every house below
+            # third place: on a live reading that dropped the 5th (speculation,
+            # 10 events) and the 7th (partnership, 8 events) entirely.
+            _hot_domains, _tally = _aggregate_hot_domains(_events)
             logger.info(
                 f'[monthly-day4a] hot domains: {_hot_domains} '
                 f'(scores={_tally})'
