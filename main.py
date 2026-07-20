@@ -11873,7 +11873,7 @@ def _st_get_profile(user_id):
         import logging as _l
         _l.getLogger("antar.settings").warning(f"[settings] profile read failed: {_e}")
     row = {
-        "user_id": user_id, "interface_lang": "en", "analysis_lang": "en",
+        "user_id": user_id, "language": "en",
         "notifications": _SETTINGS_DEFAULT_NOTIFS,
     }
     try:
@@ -11981,10 +11981,23 @@ async def settings_me(authorization: Optional[str] = Header(None), language: str
         "email": email,
         "avatar_url": p.get("avatar_url") or "",
         "primary_chart_id": p.get("primary_chart_id"),
-        "interface_language": p.get("interface_lang") or "en",
-        "analysis_language": p.get("analysis_lang") or "en",
+        # [lang-column-fix 2026-07-20] real column is `language`, with the same
+        # geo-derived fallback as /me/language so /me agrees with it.
+        "interface_language": _me_iface_lang(p, user_id),
+        "analysis_language": _me_iface_lang(p, user_id),
     }
     return _st_cache_set(("me", user_id), payload)
+
+
+def _me_iface_lang(profile, user_id):
+    iface = (profile.get("language") or "").strip().lower()
+    if iface not in ("en", "es", "pt"):
+        iface = "en"
+    if iface == "en":
+        pref = _lang_pref_for_user(user_id)
+        if pref:
+            iface = pref
+    return iface
 
 
 @app.patch("/api/v1/me")
@@ -12482,6 +12495,24 @@ async def delete_account(chart_id: str, authorization: Optional[str] = Header(No
 
 
 
+def _lang_pref_for_user(user_id):
+    """The geo-derived interface language from the user's chart
+    (charts.language_preference), or None. Used to gap-fill the interface
+    language when the profile still holds the browser-seeded default."""
+    try:
+        prof = supabase.table("profiles").select("primary_chart_id") \
+            .eq("user_id", user_id).limit(1).execute().data
+        cid = (prof[0].get("primary_chart_id") if prof else None)
+        q = supabase.table("charts").select("language_preference")
+        row = (q.eq("id", cid).limit(1).execute().data if cid
+               else q.eq("user_id", user_id).limit(1).execute().data)
+        pref = (row[0].get("language_preference") if row else "") or ""
+        pref = pref.strip().lower()
+        return pref if pref in ("es", "pt") else None
+    except Exception:
+        return None
+
+
 @app.get("/api/v1/me/language")
 async def settings_language(authorization: Optional[str] = Header(None), chart_id: Optional[str] = None):
     user_id, _ = _st_identity(authorization)
@@ -12501,9 +12532,24 @@ async def settings_language(authorization: Optional[str] = Header(None), chart_i
     if cached:
         return cached
     p = _st_get_profile(user_id)
+    # [lang-column-fix 2026-07-20] The real profiles column is `language`, not
+    # `interface_lang`/`analysis_lang` — those never existed, so this endpoint
+    # returned "en" for EVERYONE. English users never noticed; Spanish-market
+    # users (Colombia etc.) saw English despite their chart deriving es.
+    iface = (p.get("language") or "").strip().lower()
+    if iface not in ("en", "es", "pt"):
+        iface = "en"
+    # Gap-fill: when the profile still holds the browser-seeded default ("en")
+    # but the chart's geo-derived preference is es/pt, honor the preference. A
+    # real Settings pick updates BOTH profile and chart pref (see PATCH), so
+    # this only fires for users who never explicitly chose.
+    if iface == "en":
+        pref = _lang_pref_for_user(user_id)
+        if pref:
+            iface = pref
     payload = {
-        "interface": p.get("interface_lang") or "en",
-        "analysis": p.get("analysis_lang") or "en",
+        "interface": iface,
+        "analysis": iface,
         "available": SETTINGS_AVAILABLE_LANGS,
     }
     return _st_cache_set(("lang", user_id), payload)
@@ -12516,21 +12562,28 @@ async def settings_language_patch(request: Request, authorization: Optional[str]
     if not user_id:
         return _st_guest_401()
     body = await request.json()
-    updates = {}
-    for key, col in (("interface", "interface_lang"), ("analysis", "analysis_lang")):
-        if key in body:
-            if body[key] not in SETTINGS_AVAILABLE_LANGS:
-                return JSONResponse(status_code=400, content={
-                    "error": f"unsupported language for {key}", "available": SETTINGS_AVAILABLE_LANGS})
-            updates[col] = body[key]
-    if not updates:
+    # The profiles table has a single `language` column (interface). Accept the
+    # "interface" key (and "analysis" for back-compat) and write the REAL column.
+    picked = body.get("interface") or body.get("analysis")
+    if picked is None:
         return JSONResponse(status_code=400, content={"error": "nothing to update"})
+    if picked not in SETTINGS_AVAILABLE_LANGS:
+        return JSONResponse(status_code=400, content={
+            "error": "unsupported language", "available": SETTINGS_AVAILABLE_LANGS})
     _st_get_profile(user_id)
-    updates["updated_at"] = datetime.utcnow().isoformat()
-    supabase.table("profiles").update(updates).eq("user_id", user_id).execute()
+    supabase.table("profiles").update(
+        {"language": picked, "updated_at": datetime.utcnow().isoformat()}
+    ).eq("user_id", user_id).execute()
+    # Sync the chart's derived preference to the explicit pick, so the GET
+    # geo-fallback can't later override a deliberate choice (e.g. a Colombian
+    # who genuinely wants English).
+    try:
+        supabase.table("charts").update({"language_preference": picked}) \
+            .eq("user_id", user_id).execute()
+    except Exception:
+        pass
     _st_cache_bust(user_id)
-    if "analysis_lang" in updates:
-        _st_bust_prediction_cache(user_id, updates["analysis_lang"])
+    _st_bust_prediction_cache(user_id, picked)
     return await settings_language(authorization=authorization)
 
 
