@@ -306,14 +306,83 @@ _ENERGY_TO_DOMAIN = {
 }
 
 
-def _domain_from_event_text(text: str) -> str:
-    if not isinstance(text, str):
-        return "career"
+# [year-domain 2026-07-20] Explicit topic words beat energy fragments. The
+# legacy event string often NAMES the life area outright ("the health focus
+# begins", "activates your communication sector"), and that is a far better
+# signal than inferring it from a planet's energy label.
+_SECTOR_WORDS = (
+    ("health", "health"), ("illness", "health"), ("body", "health"),
+    ("relationship", "love"), ("partnership", "love"), ("marriage", "love"),
+    ("spouse", "love"), ("romance", "love"),
+    ("family", "family"), ("home", "family"), ("mother", "family"),
+    ("father", "family"), ("child", "family"), ("domestic", "family"),
+    ("business", "business"), ("venture", "business"), ("enterprise", "business"),
+    ("communication sector", "business"), ("trade", "business"),
+    ("career", "career"), ("work", "career"), ("job", "career"),
+    ("profession", "career"), ("authority", "career"),
+)
+
+# Verbs separating the TRANSITING energy (left) from the NATAL/affected
+# energy (right). Everything before these is the transit and must not decide
+# the domain on its own.
+_ASPECT_VERBS = ("activates", "squares", "opposes", "sextiles", "trines",
+                 "conjuncts", "conjoins", "aspects", "quincunxes",
+                 "semi-squares", "opposes natal", "meets")
+
+
+def _domain_from_event_text(text: str) -> Optional[str]:
+    """Classify an event into one of the five year domains, or None.
+
+    [year-domain 2026-07-20] This used to scan the whole string left-to-right
+    against _ENERGY_TO_DOMAIN and default to "career". Every legacy event reads
+    "your <TRANSIT> energy <verb> your natal <NATAL> energy ...", so the scan
+    always hit the TRANSIT planet first and classified by that. With a year of
+    Mars transits ("action and drive" -> career) EVERY event became Career:
+
+        "...squares your natal emotional and nurturing energy"  -> should be family
+        "...the health focus begins"                            -> should be health
+        "...as relationships"                                   -> should be love
+
+    All three were labelled Career, and _humanize_event then rewrote them with
+    career wording ("A heavier work week"), so the misattribution was invisible
+    downstream. Meanwhile Health/Love/Family had zero events and rendered as
+    "quietly supportive all year" — signal both lost from its true domain and
+    falsely reported as absent.
+
+    Order of evidence, strongest first:
+      1. an explicitly named life area anywhere in the text
+      2. the NATAL (affected) side, i.e. after the aspect verb
+      3. the transit side — last resort, it says what is acting, not on what
+
+    Returns None when nothing matches. The caller must decide what to do with
+    an unclassifiable event; silently calling it "career" is what caused this.
+    """
+    if not isinstance(text, str) or not text.strip():
+        return None
     t = text.lower()
+
+    # 1. explicit sector word
+    for word, dom in _SECTOR_WORDS:
+        if word in t:
+            return dom
+
+    # 2. natal / affected side (after the aspect verb)
+    right = ""
+    for verb in _ASPECT_VERBS:
+        idx = t.find(verb)
+        if idx >= 0:
+            right = t[idx + len(verb):]
+            break
+    if right:
+        for frag, dom in _ENERGY_TO_DOMAIN.items():
+            if frag in right:
+                return dom
+
+    # 3. transit side — weakest evidence
     for frag, dom in _ENERGY_TO_DOMAIN.items():
         if frag in t:
             return dom
-    return "career"
+    return None
 
 
 def _polarity_magnitude_from_event(text: str) -> Tuple[int, float]:
@@ -543,6 +612,16 @@ def _build_events(legacy_response: Dict[str, Any], period_start: _date,
         # [lk-real-fix2 2026-06-08] REAL LK gate: domain -> natal houses
         # -> LK condition. The candidate must show natal promise.
         domain = _domain_from_event_text(raw_text)
+        if domain is None:
+            # [year-domain 2026-07-20] Was silently relabelled "career". Drop it
+            # instead: a mislabelled event is worse than a missing one, because
+            # _humanize_event rewrites the wording to match the wrong domain and
+            # the error becomes undetectable downstream.
+            _lk_decisions.append({
+                "date": date_lbl, "domain": None, "passed": False,
+                "reason": "unclassifiable domain — dropped rather than defaulted to career",
+            })
+            continue
         _gate_pass, _gate_reason = _lk_gate_candidate(domain, natal_chart, lk_data)
         _lk_decisions.append({
             "date": date_lbl, "domain": domain,
@@ -563,7 +642,9 @@ def _build_events(legacy_response: Dict[str, Any], period_start: _date,
         out.append({
             "month_index": mi,
             "date_label":  _format_event_date_label(date_lbl),
-            "domain":      _YEAR_DOMAIN_LABEL.get(domain, "Career"),
+            # domain is guaranteed non-None and in the map by the gate above —
+            # no silent "Career" fallback (see _domain_from_event_text).
+            "domain":      _YEAR_DOMAIN_LABEL[domain],
             "polarity":    polarity,
             "magnitude":   round(float(magnitude), 2),
             "text":        text,
@@ -625,12 +706,27 @@ def _build_arcs(events: List[Dict[str, Any]], months: List[str],
     for key in _YEAR_DOMAIN_ORDER:
         label = _YEAR_DOMAIN_LABEL[key]
         trend = _trend_for_domain(events, label)
-        when_phrase = _arc_peak_phrase(events, label, months) \
-                        if trend != _TREND_STEADY else "quietly supportive all year"
+        # [year-arcs 2026-07-20] "no events at all" and "events that net to
+        # steady" are NOT the same claim, and collapsing them told users
+        # "quietly supportive all year" about domains the engine knew nothing
+        # about. On a real reading four of five arcs said that on zero
+        # evidence. Absence of signal is reported as absence, not as mild good
+        # news — same anti-hallucination rule the rest of the engine follows.
+        _n = sum(1 for e in events
+                 if str(e.get("domain", "")).lower() == label.lower())
+        if _n == 0:
+            when_phrase = "no clear signal this year"
+        elif trend == _TREND_STEADY:
+            when_phrase = "quietly supportive all year"
+        else:
+            when_phrase = _arc_peak_phrase(events, label, months)
         arcs.append({
             "key":   key,
             "name":  label,
             "trend": trend,
+            # event_count lets the UI distinguish an evidenced steady arc from
+            # an empty one without re-deriving it from `when` text.
+            "event_count": _n,
             "when":  _scrub(when_phrase, language, "plain"),
         })
     return arcs
