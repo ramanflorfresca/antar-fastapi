@@ -1338,6 +1338,28 @@ async def generate_weekly_signals(
             from antar_engine.daily_precision import apply_precision_to_score as _aps
             score, is_friction = _aps(score, _precision)
 
+        # [signals 2026-07-20] Assemble the five inputs behind the verdict so the
+        # card can SHOW its reasoning. The score was built from two of them
+        # (tara + Moon house) and the card displayed neither — which is why the
+        # read felt thinner than a competitor showing a fabricated percentage.
+        # Lal Kitab and the running dasha were already in daily_context and had
+        # never been consulted.
+        _signals = None
+        try:
+            from antar_engine.daily_precision import build_day_signals as _bds
+            _ctx0 = daily_context or {}
+            _signals = _bds(
+                _precision or {},
+                dasha_md=_ctx0.get("md", ""), dasha_ad=_ctx0.get("ad", ""),
+                dasha_pd=_ctx0.get("pd", ""),
+                lk_sleeping=_ctx0.get("sleeping_planets", ""),
+                moon_nakshatra=nakshatra,
+                lit_domain=(_precision or {}).get("lit_domain", ""),
+            )
+        except Exception as _sig_e:
+            logger.warning(f"[daily-week] signals failed for {date_str}: {_sig_e}")
+            _signals = None
+
         # [moon-transit 2026-07-20] The Moon is sampled once at local noon, which
         # picks the WRONG governing nakshatra on ~12% of days — those where it
         # crosses in the early afternoon, leaving most remaining waking hours to
@@ -1618,6 +1640,7 @@ async def generate_weekly_signals(
                 "moon_nakshatra": nakshatra,
                 "color": _color,
                 "food": _food,
+                "signals": _signals,
                 "moon_shift": _moon_shift,
                 "moon_sign": moon_sign,
                 "moon_degree": moon_data["degree"],
@@ -1664,6 +1687,7 @@ async def generate_weekly_signals(
                 "moon_nakshatra": nakshatra,
                 "color": _color,
                 "food": _food,
+                "signals": _signals,
                 "moon_shift": _moon_shift,
                 "moon_sign": moon_sign,
                 "moon_degree": moon_data["degree"],
@@ -1752,6 +1776,7 @@ def generate_weekly_signals_sync(
             "moon_nakshatra": nakshatra,
             "color": _color,
             "food": _food,
+            "signals": _signals,
             "moon_shift": _moon_shift,
             "moon_sign": moon_sign,
             "moon_degree": moon_data["degree"],

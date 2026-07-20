@@ -138,3 +138,114 @@ def strongest_signal_phrase(precision: Dict[str, Any]) -> Optional[str]:
     if domain:
         return f"Today leans toward {domain} — put your attention there."
     return None
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# The five signals, shown
+# ─────────────────────────────────────────────────────────────────────────────
+# [signals 2026-07-20] The day's score was built from TWO inputs — tara and the
+# Moon's house from lagna — and the card displayed NEITHER. That is why the read
+# feels thinner than a competitor showing a fabricated "78%": they show one
+# invented number, we showed none of the real ones.
+#
+# Lal Kitab and the running dasha were already loaded into daily_context and
+# never consulted. This assembles all five into one honest breakdown, each row
+# carrying what it is, which way it leans, and how hard it counts.
+#
+# Weights are PROVISIONAL engineering values, not doctrine — same footing as
+# _TARA_SCORE_DELTA above. They are exposed so the reasoning is inspectable
+# rather than asserted. A signal with no data returns available=False and is
+# rendered as unknown, never as neutral: "we did not read this" and "this reads
+# neutral" are different claims and collapsing them is how a fake precision
+# starts.
+
+# Natural benefic / malefic, used for the dasha lord's tilt.
+_BENEFIC = {"Jupiter", "Venus", "Mercury", "Moon"}
+_MALEFIC = {"Saturn", "Mars", "Sun", "Rahu", "Ketu"}
+
+
+def _dir_from(delta: int) -> str:
+    if delta >= 2:
+        return "strong"
+    if delta == 1:
+        return "supportive"
+    if delta == 0:
+        return "neutral"
+    if delta == -1:
+        return "friction"
+    return "adverse"
+
+
+def build_day_signals(precision: dict,
+                      dasha_md: str = "", dasha_ad: str = "", dasha_pd: str = "",
+                      lk_sleeping: str = "",
+                      moon_nakshatra: str = "",
+                      lit_domain: str = "") -> list:
+    """The five inputs behind the day's verdict, each scored and labelled.
+
+    Returns a list of rows: key, label, value, direction, weight, available.
+    Never raises; a signal that cannot be computed is marked unavailable rather
+    than defaulted to zero.
+    """
+    p = precision or {}
+    rows = []
+
+    # 1. NAKSHATRA — the Moon's star and its count from the user's birth star.
+    tq = p.get("tara_quality")
+    rows.append({
+        "key": "nakshatra",
+        "label": "Moon's star",
+        "value": f"{moon_nakshatra} · {p.get('tara')}" if p.get("tara") else (moon_nakshatra or ""),
+        "direction": _dir_from(p.get("tara_score_delta", 0)) if tq else "unknown",
+        "weight": int(p.get("tara_score_delta", 0) or 0),
+        "available": bool(tq),
+    })
+
+    # 2. MOON PLACEMENT — which of the user's houses the Moon is transiting.
+    h = p.get("moon_house_from_lagna")
+    rows.append({
+        "key": "moon_house",
+        "label": "Moon is lighting",
+        "value": lit_domain or p.get("lit_domain") or "",
+        "direction": _dir_from(p.get("house_score_delta", 0)) if h else "unknown",
+        "weight": int(p.get("house_score_delta", 0) or 0),
+        "available": h is not None,
+    })
+
+    # 3. DASHA — the running period. The antardasha is the practical driver;
+    #    the pratyantar is too fast to lead with but is shown when present.
+    lord = (dasha_ad or dasha_md or "").strip().title()
+    if lord and lord.lower() != "unknown":
+        d = 1 if lord in _BENEFIC else (-1 if lord in _MALEFIC else 0)
+        chain = " → ".join([x for x in (dasha_md, dasha_ad, dasha_pd)
+                            if x and str(x).lower() != "unknown"])
+        rows.append({
+            "key": "dasha", "label": "Running period", "value": chain or lord,
+            "direction": _dir_from(d), "weight": d, "available": True,
+        })
+    else:
+        rows.append({"key": "dasha", "label": "Running period", "value": "",
+                     "direction": "unknown", "weight": 0, "available": False})
+
+    # 4. LAL KITAB — a sleeping planet is a real drag on the houses it rules.
+    sleeping = (lk_sleeping or "").strip()
+    rows.append({
+        "key": "lal_kitab", "label": "Lal Kitab",
+        "value": f"{sleeping} asleep" if sleeping else "nothing asleep",
+        "direction": "friction" if sleeping else "neutral",
+        "weight": -1 if sleeping else 0,
+        "available": True,
+    })
+
+    # 5. TRANSIT — the day's lit domain is the Moon's transit expressed as life
+    #    area. Named separately because users read "transit" as a distinct idea.
+    rows.append({
+        "key": "transit", "label": "Today's transit",
+        "value": lit_domain or p.get("lit_domain") or "",
+        "direction": "supportive" if (p.get("house_score_delta", 0) or 0) > 0
+                     else ("friction" if (p.get("house_score_delta", 0) or 0) < 0 else "neutral"),
+        "weight": 0,      # already counted via moon_house; shown, not double-scored
+        "available": bool(lit_domain or p.get("lit_domain")),
+        "note": "counted once, with the Moon's placement",
+    })
+    return rows
