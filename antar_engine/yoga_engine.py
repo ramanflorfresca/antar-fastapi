@@ -778,3 +778,117 @@ def detect_yogas_for_question(
             _normalized.setdefault(_k.lower(), _v)
         d_charts = _normalized
     return detector(chart_data, d_charts)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Viparita Raja Yoga — the reversal yogas
+# ─────────────────────────────────────────────────────────────────────────────
+# [vry 2026-07-20] The production yoga path had NO dusthana handling at all
+# (zero references to viparita/dusthana in this module), so the single most
+# important corrective to "6/8/12 means your life is ruined" never reached a
+# user. astrological_rules.detect_yogas has a version, but nothing in main.py
+# calls it — DOMAIN_DETECTORS below is the live path.
+#
+# That older version also carries a real classical error: it requires
+# `lord_placed_in != house_num`, excluding the lord in its OWN dusthana. But
+# that placement IS the named yoga:
+#
+#   Harsha  — 6th lord in 6, 8 or 12   (immunity; defeats enemies and disease)
+#   Sarala  — 8th lord in 6, 8 or 12   (longevity; survives what others don't)
+#   Vimala  — 12th lord in 6, 8 or 12  (clean exits; spends well, few losses)
+#
+# Own-house placement is arguably the strongest form, and the old rule dropped
+# exactly those cases.
+#
+# Why this matters beyond doctrine: dusthana lords sitting in dusthanas is a
+# marker that shows up repeatedly in charts of people who built things from
+# adversity — the 8th is other people's money, research and crisis, the 12th is
+# foreign ground and large-scale spend. Reading them as pure misfortune is
+# superstition, not Parashara.
+
+_DUSTHANA = (6, 8, 12)
+
+_VRY_NAMES = {
+    6:  ("Harsha Yoga",
+         "obstacles, competition and health",
+         "You tend to come out ahead of whatever comes at you. Competition, "
+         "illness and opposition resolve in your favour more often than they "
+         "should — this is the classical immunity pattern."),
+    8:  ("Sarala Yoga",
+         "crisis, other people's money and transformation",
+         "Upheaval that would derail most people tends to reposition you. "
+         "This is the pattern behind surviving — and often profiting from — "
+         "situations that break others."),
+    12: ("Vimala Yoga",
+         "loss, expenditure and letting go",
+         "What you spend and what you release tend to come back as leverage. "
+         "Losses close cleanly rather than bleeding, and distance or foreign "
+         "ground works in your favour."),
+}
+
+
+def detect_viparita_raja_yogas(chart_data: dict, d_charts: dict = None) -> list[dict]:
+    """Dusthana lord placed in a dusthana. Includes its own house — that is the
+    named yoga, not an edge case."""
+    try:
+        planets = chart_data.get("planets") or {}
+        lagna_sign = (chart_data.get("lagna") or {}).get("sign", "")
+        if not lagna_sign or lagna_sign not in SIGN_INDEX:
+            return []
+        li = SIGN_INDEX[lagna_sign]
+    except Exception:
+        return []
+
+    def _house_of(planet: str) -> int:
+        s = (planets.get(planet) or {}).get("sign", "")
+        if s not in SIGN_INDEX:
+            return 0
+        return ((SIGN_INDEX[s] - li) % 12) + 1
+
+    out = []
+    for h in _DUSTHANA:
+        try:
+            lord = get_house_lord(lagna_sign, h)
+            placed = _house_of(lord)
+        except Exception:
+            continue
+        if placed not in _DUSTHANA:
+            continue
+        name, governs, meaning = _VRY_NAMES[h]
+        own = (placed == h)
+        out.append({
+            "yoga_name":   name,
+            "system":      "yoga",
+            "planet":      lord,
+            "rule_id":     f"YOGA_VIPARITA_{name.split()[0].upper()}_H{h}_IN_H{placed}",
+            "domain":      "career",
+            # Own-house placement is the stronger classical form.
+            "strength":    "strong" if own else "moderate",
+            "confidence":  0.85 if own else 0.78,
+            "prediction": (
+                f"{name} — your {h}th lord ({lord}), which governs {governs}, "
+                f"sits in the {placed}th. {meaning}"
+            ),
+            "warning": (
+                "This pattern needs a hard situation to show itself — it is not "
+                "a smooth-sailing yoga, and it activates most clearly during "
+                f"{lord}'s dasha."
+            ),
+            "remedy_planet": lord,
+            "concern_relevance": 0.85,
+        })
+    return out
+
+
+# Fold VRY into every domain detector rather than registering it as its own
+# domain: a reversal pattern is context for whatever the user asked about, not
+# a separate question. Wrapping keeps each detector's own logic untouched.
+def _with_vry(detector):
+    def _wrapped(chart_data, d_charts):
+        base = detector(chart_data, d_charts) or []
+        return base + detect_viparita_raja_yogas(chart_data, d_charts)
+    _wrapped.__name__ = getattr(detector, "__name__", "detector") + "_with_vry"
+    return _wrapped
+
+
+DOMAIN_DETECTORS = {k: _with_vry(v) for k, v in DOMAIN_DETECTORS.items()}
