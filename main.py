@@ -16748,8 +16748,15 @@ async def ask_endpoint(request: AskRequest):
     if mode == "explore":
         try:
             try:
+                # [ask-life-context 2026-07-20] The life columns are pulled here
+                # so /ask can be situation-aware. Both families are needed:
+                # `life_*` comes from the onboarding life-stage step, the patra
+                # set from the profile card, and no chart has both (see
+                # life_context._norm_marital, which prefers patra then falls back).
                 chart_row = supabase.table("charts") \
-                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, latitude, longitude") \
+                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, latitude, longitude, "
+                            "marital_status, children_status, career_stage, health_status, financial_status, "
+                            "life_work, life_relationship, life_kids") \
                     .eq("id", chart_id).single().execute()
             except Exception as _nfe:
                 if "PGRST116" in str(_nfe) or "0 rows" in str(_nfe):
@@ -16762,6 +16769,20 @@ async def ask_endpoint(request: AskRequest):
             _ask_jd    = _safe_jsonb(chart_row.data.get("jaimini_data"))
             _ask_lk    = _safe_jsonb(chart_row.data.get("lal_kitab_data"))
             _ask_bdate = str(chart_row.data.get("birth_date") or "")[:10]
+
+            # [ask-life-context 2026-07-20] /ask is the surface people bring an
+            # actual problem to, and it was the ONLY major surface with no life
+            # context — /predict, /career and the monthly briefing all had it.
+            # So Ask could answer a divorced user's question in terms of their
+            # spouse. Renders to "" when nothing is known, which keeps the read
+            # situation-neutral rather than guessing.
+            _ask_life_block = ""
+            try:
+                _ask_life_block = life_context_to_prompt_block(
+                    get_life_context(chart_record=chart_row.data)
+                )
+            except Exception as _lce:
+                logger.warning(f"[ask] life context failed (non-fatal): {_lce}")
 
             # ── Layer parity with /predict (2026-06-03) ──────────────────
             # Same intent classifier + same dasha resolution as /predict, so
@@ -17015,6 +17036,7 @@ async def ask_endpoint(request: AskRequest):
                     + f"\n\n{_ask_conv_block}"
                     + f"\n\n{_ask_layers_block}"
                     + f"\n\n{diagnostic_block}"
+                    + (f"\n\n{_ask_life_block}" if _ask_life_block else "")
                 )
             else:
                 # [reflective-mode 2026-06-07] [noun-injection 2026-06-08]
@@ -17201,6 +17223,7 @@ async def ask_endpoint(request: AskRequest):
                     + (f"\n\n{_ask_clock_line}" if _ask_clock_line else "")
                     + f"\n\n{_ask_layers_block}"
                     + f"\n\n{diagnostic_block}"
+                    + (f"\n\n{_ask_life_block}" if _ask_life_block else "")
                 )
 
             # [ask-scratch] ephemeral override for THIS call only.
