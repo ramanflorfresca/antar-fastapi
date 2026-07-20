@@ -197,10 +197,60 @@ DOMAIN_PRIMARY_HOUSE = {
 }
 
 
+# ── Life-context noun gating ────────────────────────────────────────────────
+# A house is real regardless of circumstance, but the NOUN we use to name it
+# is not. The 7th is always "partnership"; whether that reads as "your spouse"
+# or "a business partner" depends entirely on who is reading.
+#
+# Telling a divorced, single reader that "a few disagreements with your spouse"
+# are coming does not land as a near-miss — it proves the system doesn't know
+# them, and every correct thing around it stops being believable. One wrong
+# noun costs more trust than five right houses earn.
+#
+# Rule: suppress a noun only on KNOWN contradicting facts. Unknown never
+# suppresses (same principle as event_gating.stage_factor) — with no data we
+# fall back to the neutral noun rather than guessing at someone's private life.
+_NOUN_REQUIRES = {
+    "your spouse":  "partnered",
+    "your partner": "partnered",
+    "your wife":    "partnered",
+    "your husband": "partnered",
+    "romance":      "not_partnered_ok",   # fine for single; odd for married
+    "a child":      "has_children",
+    "your children": "has_children",
+}
+
+
+def _life_allows(noun: str, life: Optional[dict]) -> bool:
+    """False only when life context KNOWN-contradicts the noun."""
+    if not life:
+        return True
+    req = _NOUN_REQUIRES.get(str(noun).strip().lower())
+    if not req:
+        return True
+    if req == "partnered":
+        # Known single / divorced / widowed and not currently partnered.
+        if life.get("partnered") is False:
+            return False
+    elif req == "has_children":
+        if life.get("has_children") is False:
+            return False
+    elif req == "not_partnered_ok":
+        # "romance" is not wrong for a married reader, just less apt — allow.
+        return True
+    return True
+
+
 def select_nouns(house: int, direction: Optional[str] = None,
-                 domain: Optional[str] = None, limit: int = 3) -> list:
+                 domain: Optional[str] = None, limit: int = 3,
+                 life: Optional[dict] = None) -> list:
     """The 2-3 literal nouns an activated house points to, domain-filtered.
-    Caps at `limit` (default 3) — never the full signification list."""
+    Caps at `limit` (default 3) — never the full signification list.
+
+    `life` is an optional {partnered: bool|None, has_children: bool|None}
+    from life_context. Nouns the reader's known circumstances contradict are
+    dropped; if that empties a domain pool we fall back to the house's neutral
+    nouns so the house still gets named, just not in the wrong words."""
     sig = HOUSE_SIGNIFICATIONS.get(house)
     if not sig:
         return []
@@ -209,6 +259,13 @@ def select_nouns(house: int, direction: Optional[str] = None,
         pool = sig.get("by_domain", {}).get(domain)
     if not pool:
         pool = sig.get("nouns", [])
+    if life:
+        gated = [n for n in pool if _life_allows(n, life)]
+        if not gated:
+            # Domain pool fully contradicted — fall back to the neutral list,
+            # gated the same way, so the house is still named.
+            gated = [n for n in sig.get("nouns", []) if _life_allows(n, life)]
+        pool = gated or pool
     # de-dup, preserve order, cap
     seen, out = set(), []
     for n in pool:

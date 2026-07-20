@@ -177,7 +177,7 @@ _EVENT_WEIGHT = {
 # domains, pad with these in priority.
 _FALLBACK_DOMAINS = ('career', 'wealth', 'health', 'relationships')
 
-def _aggregate_hot_domains(events: list, top_n: int = 3) -> tuple[list, dict]:
+def _aggregate_hot_domains(events: list, top_n: int = 5) -> tuple[list, dict]:
     """
     Return (domain_list, score_map).  domain_list is the top_n domains
     by weighted event score, padded from _FALLBACK_DOMAINS if fewer
@@ -201,7 +201,19 @@ def _aggregate_hot_domains(events: list, top_n: int = 3) -> tuple[list, dict]:
         # so the narrator can name the literal life-things, not the bucket.
         if house not in slot['houses']:
             slot['houses'].append(house)
-    ranked = sorted(tally.items(), key=lambda kv: (-kv[1]['score'], kv[0]))
+    # [house-coverage 2026-07-19] Ties used to fall to alphabetical order, which
+    # is not a judgement about the chart: on a real reading 'spiritual' and
+    # 'career' both scored 24 and 'career' took the last slot purely because c
+    # sorts before s. Break ties on evidence — event count first, then how many
+    # distinct houses fed the domain — and only fall back to the name when the
+    # chart genuinely says nothing to separate them.
+    ranked = sorted(
+        tally.items(),
+        key=lambda kv: (-kv[1]['score'],
+                        -kv[1].get('event_count', 0),
+                        -len(kv[1].get('houses') or []),
+                        kv[0]),
+    )
     ordered = [d for d, _ in ranked]
     # Pad with fallback domains if we don't have enough
     for d in _FALLBACK_DOMAINS:
@@ -550,6 +562,7 @@ async def generate_monthly_deepdive(
     birth_date:    Optional[str] = None,   # [cp-day1] birth_date kwarg
     language:      str = "en",
     lk_data:       Optional[dict] = None,  # [2026-06-07] LK JSONB for condition engine
+    chart_record:  Optional[dict] = None,  # [life-context 2026-07-19] patra row
 ) -> dict:
     """
     Generate or return cached monthly deep-dive.
@@ -572,11 +585,24 @@ async def generate_monthly_deepdive(
     # [cp-day1] pass birth_date to context builder
     _bd = birth_date or chart_data.get('birth_date') or ''
     _dbg: dict = {}
+    # [life-context 2026-07-19] Resolve the reader's known circumstances so the
+    # noun layer can name the 7th as "a business partner" rather than "your
+    # spouse" for someone single or divorced. None on any failure — unknown
+    # must never suppress a house, only steer the wording.
+    _life = None
+    try:
+        from antar_engine.life_context import resolve_life_facts as _rlf
+        _life = _rlf(chart_record or {})
+    except Exception as _lce:
+        logger.debug("life-context unavailable (non-fatal): %s", _lce)
+    if _dbg is not None and _life:
+        _dbg["life_context"] = _life
+
     context = _build_deepdive_context(
         chart_data, dashas, first_name, lagna,
         moon_sign, current_dasha, age, country_code,
         lk_context, now, _bd,
-        lk_data=lk_data, debug_out=_dbg,
+        lk_data=lk_data, debug_out=_dbg, life=_life,
     )
 
     # Call Claude
@@ -732,6 +758,9 @@ def _build_deepdive_context(
     birth_date:    str = '',   # [cp-day1] accept birth_date
     lk_data:       Optional[dict] = None,   # [2026-06-07] LK JSONB for condition engine
     debug_out:     Optional[dict] = None,   # [2026-06-07] votes trail, filled in-place
+    # [life-context 2026-07-19] {partnered, has_children} or None when unknown.
+    # Gates the NOUN, never the house — see house_significations._life_allows.
+    life:          Optional[dict] = None,
 ) -> str:
     month_str = now.strftime("%B %Y")
     planets   = chart_data.get("planets", {})
@@ -810,13 +839,13 @@ def _build_deepdive_context(
                 for _p in _strong_names:
                     _h = (_planets_md.get(_p) or {}).get("house")
                     if isinstance(_h, int):
-                        for _n in select_nouns(_h, "positive", None, 2):
+                        for _n in select_nouns(_h, "positive", None, 2, life=life):
                             if _n not in _seen_n:
                                 _seen_n.add(_n); _bless.append(_n)
                 for _p in _weak_names:
                     _h = (_planets_md.get(_p) or {}).get("house")
                     if isinstance(_h, int):
-                        for _n in select_nouns(_h, "adverse", None, 2):
+                        for _n in select_nouns(_h, "adverse", None, 2, life=life):
                             if _n not in _seen_n:
                                 _seen_n.add(_n); _test.append(_n)
                 if _bless or _test:
@@ -974,7 +1003,7 @@ def _build_deepdive_context(
                     )
                     _nouns = []
                     for _h in (_slot.get('houses') or []):
-                        for _n in select_nouns(_h, None, _d, limit=2):
+                        for _n in select_nouns(_h, None, _d, limit=2, life=life):
                             if _n not in _nouns:
                                 _nouns.append(_n)
                     if not _nouns:  # padded fallback domain (no houses in tally)

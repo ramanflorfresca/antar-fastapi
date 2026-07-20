@@ -21937,6 +21937,9 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
             language=language,
             birth_date=chart_record.get("birth_date", ""),
             lk_data=_safe_jsonb(chart_record.get("lal_kitab_data")),
+            # [life-context 2026-07-19] carries marital/children status so the
+            # noun layer never says "your spouse" to someone single or divorced.
+            chart_record=chart_record,
         )
         _md_month_key = _md_dt.now(_md_tz.utc).strftime("%Y-%m")
         _md_cached = _md_read_cache(chart_id, _md_month_key, supabase, language)

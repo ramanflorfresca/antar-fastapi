@@ -321,3 +321,47 @@ def life_context_to_prompt_block(lc: dict) -> str:
                  "NOT license dated event claims — stay humble on exact timing.")
     lines.append("=== END LIFE CONTEXT ===")
     return "\n".join(lines)
+
+
+# ── Noun-gating facts [life-context 2026-07-19] ─────────────────────────────
+
+def resolve_life_facts(row: Optional[dict]) -> Optional[dict]:
+    """
+    Reduce a chart row to the tri-state facts the noun layer needs:
+        {"partnered": True|False|None, "has_children": True|False|None}
+
+    True/False mean KNOWN; None means we have no data and the caller must not
+    infer anything. This is deliberately narrow — it exists to stop the reading
+    calling someone's 7th house "your spouse" when they are single or divorced,
+    which reads as the system not knowing them and discredits everything around
+    it. It is not a general profile.
+
+    "divorced" maps to partnered=False: the marriage is real history the chart
+    may well be describing, but the present-tense noun "your spouse" is wrong.
+    Returns None when nothing is known, so callers can skip gating entirely.
+    """
+    if not isinstance(row, dict):
+        return None
+    marital = _norm_marital(row)         # single|relationship|married|divorced|None
+    children = _norm_children(row)       # yes|no|None
+
+    partnered: Optional[bool]
+    if marital in ("married", "relationship"):
+        partnered = True
+    elif marital in ("single", "divorced"):
+        partnered = False
+    else:
+        partnered = None
+
+    has_children: Optional[bool]
+    if children == "yes":
+        has_children = True
+    elif children == "no":
+        has_children = False
+    else:
+        has_children = None
+
+    if partnered is None and has_children is None:
+        return None                      # nothing known — do not gate at all
+    return {"partnered": partnered, "has_children": has_children,
+            "marital": marital, "children": children}
