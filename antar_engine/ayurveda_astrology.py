@@ -391,12 +391,12 @@ INSTRUCTIONS:
 # The mechanism is already in PLANET_DOSHA: each graha maps to a dosha, and
 # each dosha has a known direction of imbalance and its culinary correction.
 _DOSHA_MECHANISM = {
-    "Pitta":      ("runs hot", "cooling, less spice — heat compounds irritability"),
-    "Vata":       ("runs dry and restless", "warm, oily, grounding food steadies it"),
-    "Kapha":      ("runs heavy and slow", "light, warm, less sweet keeps you moving"),
-    "Kapha/Vata": ("swings between heavy and restless", "warm, simple, regular meals"),
-    "Vata/Pitta": ("runs restless and hot", "steady mealtimes, easy on spice"),
-    "Pitta/Vata": ("runs hot and scattered", "cooling but grounding — not raw, not fiery"),
+    "Pitta":      ("runs hot today", "so eat cooling and go light on spice"),
+    "Vata":       ("runs dry and restless today", "so warm, oily, grounding food settles it"),
+    "Kapha":      ("runs heavy today", "so keep it light and warm"),
+    "Kapha/Vata": ("swings between heavy and restless today", "so keep meals warm, simple and regular"),
+    "Vata/Pitta": ("runs restless and hot today", "so keep mealtimes steady and go easy on spice"),
+    "Pitta/Vata": ("runs hot and scattered today", "so eat cooling but grounding"),
 }
 
 
@@ -406,9 +406,43 @@ def _food_reason(planet: str, mode: str) -> str:
     tendency, correction = _DOSHA_MECHANISM.get(dosha, ("", ""))
     if not tendency:
         return ""
-    if mode == "balance":
-        return f"{planet} {tendency} today — {correction}"
-    return f"{planet} {tendency}; {correction}"
+    # One clause, one dash. The earlier version produced "Mars runs hot today —
+    # cooling, less spice — heat compounds irritability": three fragments and
+    # two dashes for a line that has to be read in a glance.
+    return f"{planet} {tendency}, {correction}"
+
+
+
+# [food-plain 2026-07-20] The dataset entries carry their own trailing
+# explanation and Ayurvedic vocabulary, written for a practitioner:
+#
+#   "Shatavari in warm milk - deeply nourishing"
+#   "Lotus seeds - calms excess Vata"
+#   "Cold beverages - aggravate watery Kapha"
+#
+# Shipped verbatim into a list, that is a wall of text with three separate
+# mini-explanations, and "Vata"/"Kapha" mean nothing to the reader. The card
+# already carries ONE mechanism line; the items themselves only need to name
+# the food. Cut everything after the dash, drop parenthetical asides, and drop
+# any item still carrying dosha vocabulary rather than showing jargon.
+_DOSHA_WORDS = ("vata", "pitta", "kapha", "ojas", "ama ")
+
+
+def _plain_food(items, limit=3):
+    out = []
+    for raw in items or []:
+        s = str(raw)
+        s = re.split(r"\s+[-\u2013\u2014]\s+", s)[0]      # cut the explanation tail
+        s = re.sub(r"\s*\([^)]*\)", "", s)                # drop "(til)", "(traditional)"
+        s = re.sub(r"\s{2,}", " ", s).strip(" ,;")
+        if not s or len(s) < 3:
+            continue
+        if any(w in s.lower() for w in _DOSHA_WORDS):     # never show dosha jargon
+            continue
+        out.append(s[:1].upper() + s[1:])
+        if len(out) >= limit:
+            break
+    return out
 
 
 def food_for_day(nakshatra, weekday_index, tara_quality=None,
@@ -523,11 +557,16 @@ def food_for_day(nakshatra, weekday_index, tara_quality=None,
         "mode":        g.get("mode"),
         "duration":    duration.replace("&mdash;", "\u2014"),
         "duration_days": duration_days,
-        "eat":         eat,
-        "avoid":       avoid[:3],
+        "eat":         _plain_food(eat, 3),
+        "avoid":       _plain_food(avoid, 2),
         "herb":        entry.get("herb", ""),
-        # "" unless today IS the planet's day — never cross-day instructions
+        # [food-plain] The remedy dish is a RITUAL ("offer rice pudding to the
+        # Moon on full Moon night"), not dietary advice. On a card that is
+        # meant to answer "what do I eat today" it read as nonsense. Kept in
+        # the payload for a future practice surface; the day card must not
+        # render it.
         "remedy_dish": remedy,
+        "remedy_is_ritual": True,
         "best_day":    best_day,
         "is_best_day": bool(remedy),
         "why":         why,
