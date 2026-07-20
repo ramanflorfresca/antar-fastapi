@@ -182,3 +182,105 @@ def turning_point(profile: Dict[str, Any],
         "from_nakshatra": profile.get("from_nakshatra"),
         "to_nakshatra": profile.get("to_nakshatra"),
     }
+
+
+def split_day(profile: Dict[str, Any],
+              natal_moon_nak: str,
+              natal_lagna_sign: str,
+              weekday_index: int,
+              chart_data: Optional[dict] = None,
+              moon_sign: str = "") -> Dict[str, Any]:
+    """The day as BEFORE / AFTER the Moon's nakshatra change.
+
+    [split-day 2026-07-20] Chosen over a single turning-point line because the
+    day genuinely has two characters and users think in "before lunch / after
+    lunch" terms. But this is deliberately NOT a doubled reading: the verdict
+    prose and the do/don't list are LLM-written for the day as a whole and do
+    not change at the boundary. Only three things flip deterministically —
+    tara quality, colour, and food — so only those are split, as one compact row
+    each.
+
+    `material` is the important field. When both halves resolve to the same tara
+    quality AND the same colour graha, nothing the user would act on has
+    changed, and the UI must NOT split — showing two identical rows is noise
+    that costs trust. Roughly speaking the split earns its place only when the
+    day actually turns.
+
+    Returns {} when there is no crossing or the inputs are unusable.
+    """
+    if not profile or not profile.get("changes_at"):
+        return {}
+    a_nak = profile.get("from_nakshatra")
+    b_nak = profile.get("to_nakshatra")
+    if not a_nak or not b_nak:
+        return {}
+
+    try:
+        from antar_engine.daily_precision import compute_daily_precision
+        from antar_engine.color_therapy import color_for_day
+        from antar_engine.ayurveda_astrology import food_for_day
+    except Exception:
+        return {}
+
+    def _half(nak: str) -> Dict[str, Any]:
+        try:
+            pr = compute_daily_precision(
+                natal_moon_nak=natal_moon_nak,
+                natal_lagna_sign=natal_lagna_sign,
+                today_moon_nak=nak,
+                today_moon_sign=moon_sign,
+            ) or {}
+        except Exception:
+            pr = {}
+        tq = pr.get("tara_quality")
+        col = color_for_day(nak, weekday_index, tq,
+                            lagna_sign=natal_lagna_sign,
+                            chart_data=chart_data) or {}
+        fd = food_for_day(nak, weekday_index, tq) or {}
+        return {
+            "nakshatra":    nak,
+            "tara":         pr.get("tara"),
+            "tara_quality": tq,
+            "color":        col.get("primary"),
+            "color_graha":  col.get("primary_from"),
+            "wear":         col.get("wear"),
+            "why_wear":     col.get("why_wear"),
+            "soften":       col.get("soften"),
+            "why_soften":   col.get("why_soften"),
+            "eat":          fd.get("eat"),
+            "avoid":        fd.get("avoid"),
+            "why_eat":      fd.get("why_eat"),
+            "food_graha":   fd.get("planet"),
+        }
+
+    before, after = _half(a_nak), _half(b_nak)
+
+    # `material` gates whether the UI shows two rows or one.
+    #
+    # First version tested "tara quality differs OR colour graha differs", which
+    # was tautological: adjacent nakshatras ALWAYS have different lords (the
+    # Vimshottari lord cycle never repeats consecutively), so colour always
+    # changes and every crossing scored material — 58 of 58 over 60 days. A gate
+    # that never says no is not a gate.
+    #
+    # What actually warrants doubling the row is the day changing CHARACTER:
+    # crossing the favourable/adverse line. A favorable -> very_favorable step
+    # is a different label, not a different day, and splitting on it would put a
+    # two-row strip on nearly every card for no user benefit.
+    _ADV = {"caution", "unfavorable", "unfavourable", "adverse", "difficult"}
+    _b_adv = str(before.get("tara_quality") or "").strip().lower() in _ADV
+    _a_adv = str(after.get("tara_quality") or "").strip().lower() in _ADV
+    material = (_b_adv != _a_adv)
+
+    tp = turning_point(profile, before.get("tara_quality"), after.get("tara_quality"))
+
+    return {
+        "at":        profile["changes_at"],
+        "material":  bool(material),
+        "direction": tp.get("direction"),
+        "headline":  tp.get("text"),
+        "before":    before,
+        "after":     after,
+        # which half the day's single verdict/actions were written for
+        "governing": "after" if profile.get("nakshatra") == b_nak else "before",
+    }

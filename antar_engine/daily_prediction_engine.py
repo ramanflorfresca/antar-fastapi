@@ -1355,6 +1355,23 @@ async def generate_weekly_signals(
                         f"-> governing={_prof['nakshatra']} (changes {_prof.get('changes_at')})")
                 nakshatra = _prof["nakshatra"]
                 _moon_shift = _prof
+                # Before/after halves, so the card can show how the day turns
+                # rather than averaging two different days into one verdict.
+                # `material` is False when the character does not actually flip,
+                # and the UI must render a single reading in that case.
+                try:
+                    from antar_engine.moon_transit import split_day as _split
+                    _ctx = daily_context or {}
+                    _sd = _split(_prof,
+                                 _ctx.get("moon_nakshatra", ""),
+                                 _ctx.get("lagna_sign", ""),
+                                 target_date.weekday(),
+                                 _ctx.get("chart_data"),
+                                 moon_sign)
+                    if _sd:
+                        _moon_shift = {**_prof, "split": _sd}
+                except Exception as _sd_e:
+                    logger.warning(f"[daily-week] day split failed for {date_str}: {_sd_e}")
         except Exception as _mt_e:
             logger.warning(f"[daily-week] moon transit failed for {date_str}: {_mt_e}")
 
