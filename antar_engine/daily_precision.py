@@ -228,7 +228,13 @@ def build_day_signals(precision: dict,
                      "direction": "unknown", "weight": 0, "available": False})
 
     # 4. LAL KITAB — a sleeping planet is a real drag on the houses it rules.
-    sleeping = (lk_sleeping or "").strip()
+    #    _extract_sleeping_planets returns the STRING "none detected" rather than
+    #    an empty value when nothing is asleep, so a bare truthiness check scored
+    #    a clean chart as friction and printed "none detected asleep". Test the
+    #    sentinel, not the emptiness.
+    _raw = (lk_sleeping or "").strip()
+    _none = (not _raw) or _raw.lower() in ("none detected", "none", "n/a", "unknown")
+    sleeping = "" if _none else _raw
     rows.append({
         "key": "lal_kitab", "label": "Lal Kitab",
         "value": f"{sleeping} asleep" if sleeping else "nothing asleep",

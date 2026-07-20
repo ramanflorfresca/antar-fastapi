@@ -26169,6 +26169,38 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
             _transit_highlights = _strip_payload_leaves(_transit_highlights, language=language)
         except Exception as _dse:
             print(f"[daily-week] strip scrub non-fatal: {_dse}")
+        # [signals-transit 2026-07-20] Fill the transit row with REAL transit
+        # data. build_day_signals runs inside the engine loop, which has no
+        # access to the week-level transit report, so its transit row was just
+        # restating the Moon's lit domain under a different name — four signals
+        # padded to look like five, which is the same fake-precision move a
+        # competitor's invented percentage makes.
+        #
+        # activated_areas is genuinely distinct: which of the user's houses the
+        # SLOW planets are sitting in ("Sun and Jupiter in your 4th"). Slow
+        # planets barely move in a day, so a week-level computation is
+        # legitimate per-day. When it is empty we mark the row unavailable
+        # rather than inventing a value.
+        try:
+            _areas = _transit_activated_areas or []
+            _top = _areas[0] if _areas else None
+            for _sig_day in (signals or []):
+                for _row in (_sig_day.get("signals") or []):
+                    if _row.get("key") != "transit":
+                        continue
+                    if _top:
+                        _pl = ", ".join(_top.get("planets") or [])
+                        _row["value"] = (f"{_pl} in your {_top.get('area','')}"
+                                         if _pl else str(_top.get("area", "")))
+                        _row["available"] = True
+                        _row["note"] = "slow planets, so this holds for days"
+                    else:
+                        _row["value"] = ""
+                        _row["direction"] = "unknown"
+                        _row["available"] = False
+        except Exception as _ta_e:
+            print(f"[daily-week] transit signal patch non-fatal: {_ta_e}")
+
         # [daily-verify 2026-07-20] Enrol TODAY's claim so the user can mark it
         # right or wrong. The tracker, tables, endpoints and frontend types all
         # existed already, but save_trackable_claim() is only called from
