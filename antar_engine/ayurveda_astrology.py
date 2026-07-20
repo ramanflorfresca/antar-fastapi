@@ -6,6 +6,8 @@ No user input needed — pure calculation.
 """
 
 # Planetary Ayurveda associations
+import re
+
 PLANET_DOSHA = {
     "Sun":     {"dosha": "Pitta",       "element": "Fire",         "taste": "pungent, bitter"},
     "Moon":    {"dosha": "Kapha/Vata",  "element": "Water",        "taste": "sweet, salty"},
@@ -382,6 +384,33 @@ INSTRUCTIONS:
 #   balance    -> balance_with     (pacify; the day's graha runs against you,
 #                                   and stoking it is the wrong move)
 
+
+# [graha-reason 2026-07-20] Food advice needs its mechanism too. "Eat black
+# sesame" is folklore; "Saturn is dry and airy today — warm, oily, grounding
+# food steadies it" is a physiological claim the user can feel the truth of.
+# The mechanism is already in PLANET_DOSHA: each graha maps to a dosha, and
+# each dosha has a known direction of imbalance and its culinary correction.
+_DOSHA_MECHANISM = {
+    "Pitta":      ("runs hot", "cooling, less spice — heat compounds irritability"),
+    "Vata":       ("runs dry and restless", "warm, oily, grounding food steadies it"),
+    "Kapha":      ("runs heavy and slow", "light, warm, less sweet keeps you moving"),
+    "Kapha/Vata": ("swings between heavy and restless", "warm, simple, regular meals"),
+    "Vata/Pitta": ("runs restless and hot", "steady mealtimes, easy on spice"),
+    "Pitta/Vata": ("runs hot and scattered", "cooling but grounding — not raw, not fiery"),
+}
+
+
+def _food_reason(planet: str, mode: str) -> str:
+    """One clause explaining WHY these foods, from the graha's dosha."""
+    dosha = (PLANET_DOSHA.get(planet) or {}).get("dosha", "")
+    tendency, correction = _DOSHA_MECHANISM.get(dosha, ("", ""))
+    if not tendency:
+        return ""
+    if mode == "balance":
+        return f"{planet} {tendency} today — {correction}"
+    return f"{planet} {tendency}; {correction}"
+
+
 def food_for_day(nakshatra, weekday_index, tara_quality=None) -> dict:
     """Today's eat / avoid guidance. Returns {} when inputs are unusable —
     the surface then shows nothing rather than inventing a diet."""
@@ -396,9 +425,48 @@ def food_for_day(nakshatra, weekday_index, tara_quality=None) -> dict:
     if not entry:
         return {}
 
+    _WD = ["Monday", "Tuesday", "Wednesday", "Thursday",
+           "Friday", "Saturday", "Sunday"]
+    try:
+        today_name = _WD[int(weekday_index) % 7]
+    except (TypeError, ValueError):
+        today_name = ""
+
     strengthen = entry.get("strengthen_with", []) or []
     balance    = entry.get("balance_with", []) or []
     avoid      = entry.get("avoid_if_afflicted", []) or []
+
+    # [food-daily 2026-07-20] 14 of the entries name a specific weekday
+    # ("Mustard oil in cooking on Saturdays", "Alcohol on Tuesday"). Those are
+    # correct as standing practice but wrong as TODAY's instruction: a Monday
+    # card was rendering "Mustard oil ... on Saturdays". Strip the day clause
+    # when today is not that day, and drop the item entirely if nothing
+    # actionable survives — never show a user an instruction for another day.
+    _DAYS = ("Monday", "Tuesday", "Wednesday", "Thursday",
+             "Friday", "Saturday", "Sunday")
+
+    def _today_safe(items, today_name):
+        out = []
+        for s in items or []:
+            named = [d for d in _DAYS if d in s]
+            if not named:
+                out.append(s)
+                continue
+            if today_name and today_name in named:
+                out.append(s)          # it IS that day — keep as written
+                continue
+            # strip a trailing/inline day clause: "X on Saturdays", "X on Tuesday"
+            cleaned = re.sub(r"\s*(?:—\s*)?\b(?:especially\s+)?on\s+\w+days?\b", "", s)
+            cleaned = re.sub(r"\s{2,}", " ", cleaned).strip(" ,—-")
+            # if the day WAS the instruction (e.g. "Fasting on Saturdays"),
+            # nothing meaningful is left — drop it rather than show a fragment
+            if len(cleaned) >= 8 and not cleaned.lower().startswith("fasting"):
+                out.append(cleaned)
+        return out
+
+    strengthen = _today_safe(strengthen, today_name)
+    balance    = _today_safe(balance, today_name)
+    avoid      = _today_safe(avoid, today_name)
 
     if g.get("mode") == "balance":
         eat = (balance or strengthen)[:3]
@@ -412,12 +480,6 @@ def food_for_day(nakshatra, weekday_index, tara_quality=None) -> dict:
     # it on a Friday tells the user to do something on a different day, which is
     # exactly the kind of small incoherence that makes a reading confusing. Only
     # surface it when TODAY is that day.
-    _WD = ["Monday", "Tuesday", "Wednesday", "Thursday",
-           "Friday", "Saturday", "Sunday"]
-    try:
-        today_name = _WD[int(weekday_index) % 7]
-    except (TypeError, ValueError):
-        today_name = ""
     best_day = (entry.get("best_day") or "").strip()
     remedy = entry.get("remedy_food", "") if best_day and best_day == today_name else ""
 
@@ -435,4 +497,8 @@ def food_for_day(nakshatra, weekday_index, tara_quality=None) -> dict:
         "best_day":    best_day,
         "is_best_day": bool(remedy),
         "why":         why,
+        # the mechanism, not the mythology
+        "why_eat":     _food_reason(planet, g.get("mode")),
+        "why_avoid":   (f"these push {planet} further in the direction it is "
+                        f"already leaning") if avoid else "",
     }

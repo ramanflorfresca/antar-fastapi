@@ -83,6 +83,42 @@ _WEAR_HINT = {
 # Adverse tara values as emitted by the daily engine.
 _ADVERSE_TARA = {"caution", "unfavorable", "unfavourable", "adverse", "difficult"}
 
+# [graha-reason 2026-07-20] A colour instruction with no mechanism is a
+# horoscope column. "Wear red, avoid green" tells the user nothing and reads as
+# superstition; "go easy on green — Mercury is agitated, words land sharper
+# than you mean" is a claim they can actually test against their own day.
+#
+# Each graha therefore carries what it DOES in ordinary life, phrased as
+# behaviour rather than mythology. `enhances` is what wearing its colour is
+# meant to support; `risk` is what over-amplifying it looks like when the graha
+# is already agitated — that is the line used when we tell someone to soften a
+# colour. Kept to one short clause each: long explanations get skipped.
+_GRAHA_EFFECT = {
+    "Sun":     {"enhances": "authority and being seen clearly",
+                "risk": "ego hardening into a stand-off with someone senior"},
+    "Moon":    {"enhances": "emotional steadiness and reading people well",
+                "risk": "moods swinging faster than the situation warrants"},
+    "Mars":    {"enhances": "decisiveness and physical drive",
+                "risk": "speed turning into conflict you cannot walk back"},
+    "Mercury": {"enhances": "clear speech and quick analysis",
+                "risk": "words landing sharper than you meant them"},
+    "Jupiter": {"enhances": "judgement, generosity and the long view",
+                "risk": "over-promising, or expanding past what you can hold"},
+    "Venus":   {"enhances": "rapport, taste and easy negotiation",
+                "risk": "smoothing over a hard truth that needed saying"},
+    "Saturn":  {"enhances": "patience, structure and staying power",
+                "risk": "heaviness hardening into delay or isolation"},
+    "Rahu":    {"enhances": "unconventional moves and visibility",
+                "risk": "overreach, or a shortcut that costs more later"},
+    "Ketu":    {"enhances": "focus and depth of research",
+                "risk": "withdrawing so far you miss a signal that mattered"},
+}
+
+
+def graha_effect(planet: str) -> Dict[str, str]:
+    """What this graha actually does, in behavioural terms. {} when unknown."""
+    return _GRAHA_EFFECT.get((planet or "").strip().title(), {})
+
 
 def _color_of(planet: str) -> Optional[str]:
     p = (planet or "").strip().title()
@@ -122,6 +158,19 @@ def weekday_lord(weekday_index: int) -> str:
         return _WEEKDAY_LORD[int(weekday_index) % 7]
     except (TypeError, ValueError):
         return "Sun"
+
+
+def _wear_reason(planet: str) -> str:
+    """One clause: what wearing this colour is meant to support."""
+    e = graha_effect(planet)
+    return f"supports {e['enhances']}" if e.get("enhances") else ""
+
+
+def _soften_reason(planet: str) -> str:
+    """One clause: why NOT to amplify this graha today. This is the line that
+    turns 'avoid green' from superstition into something testable."""
+    e = graha_effect(planet)
+    return e.get("risk", "")
 
 
 def resolve_day_graha(nakshatra: Optional[str],
@@ -191,7 +240,9 @@ def color_for_day(nakshatra: Optional[str],
             "gem":           _gem_of(nak_lord),
             "why": (f"Both the day and the Moon's nakshatra answer to "
                     f"{nak_lord} today — a single, undiluted colour."),
+            "why_wear": _wear_reason(nak_lord),
             "soften": None,
+            "why_soften": None,
         }
 
     if adverse and vara_color:
@@ -206,7 +257,9 @@ def color_for_day(nakshatra: Optional[str],
             "gem":           _gem_of(vara),
             "why": (f"The Moon sits in a nakshatra that runs against you today, "
                     f"so lean on {vara}'s steadier frame rather than amplifying it."),
+            "why_wear": _wear_reason(vara),
             "soften": (f"Go easy on {nak_color}" if nak_color else None),
+            "why_soften": _soften_reason(nak_lord),
         }
 
     # Normal case: the live nakshatra lord leads, the weekday supports.
@@ -220,7 +273,9 @@ def color_for_day(nakshatra: Optional[str],
             "gem":           _gem_of(nak_lord),
             "why": (f"The Moon is in {nakshatra}, ruled by {nak_lord} — that is "
                     f"the energy actually live today."),
+            "why_wear": _wear_reason(nak_lord),
             "soften": None,
+            "why_soften": None,
         }
 
     # No usable nakshatra — fall back to the weekday, which is always true.
@@ -232,5 +287,7 @@ def color_for_day(nakshatra: Optional[str],
         "support_from":  None,
         "gem":           _gem_of(vara),
         "why":           f"{vara} rules today.",
+        "why_wear":      _wear_reason(vara),
         "soften":        None,
+        "why_soften":    None,
     }
