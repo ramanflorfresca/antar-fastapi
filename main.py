@@ -26179,9 +26179,18 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
                 try:
                     _end = (_w.get("end") or "").strip()
                     if _end:
+                        # effective_offset may be MINUTES (web contract, IST=330)
+                        # or HOURS (country default, 5.5). Normalise before use —
+                        # treating 330 as hours put show_after 13.75 days in the
+                        # PAST, which surfaced the ask immediately instead of
+                        # after the window closed. Same unit trap as _get_local_
+                        # start_date; keep the two consistent.
+                        _tzh = float(effective_offset or 0)
+                        if abs(_tzh) > 14:
+                            _tzh /= 60.0
                         _et = datetime.strptime(_end, "%I:%M %p").time()
                         _local_end = datetime.combine(start_date.date(), _et)
-                        _show_after = (_local_end - timedelta(hours=float(effective_offset))) \
+                        _show_after = (_local_end - timedelta(hours=_tzh)) \
                             .replace(tzinfo=timezone.utc).isoformat()
                 except Exception:
                     _show_after = None
