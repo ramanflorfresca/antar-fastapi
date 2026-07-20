@@ -18,6 +18,7 @@ guarantees the marketing page can never claim a currency Stripe won't
 actually charge.
 """
 
+import ipaddress
 import logging
 from pathlib import Path
 from typing import Optional
@@ -82,6 +83,22 @@ def lookup_country(ip: str) -> Optional[str]:
     if cached is not None:
         # cached == "" means "we looked this up before and got nothing"
         return cached or None
+
+    # [geo-guard 2026-07-20] Never geolocate a non-public address. Railway sits
+    # behind carrier-grade NAT, so request.client.host is routinely 100.64.x.x
+    # (RFC 6598) — a PRIVATE range that must never be treated as a user's real
+    # location. Also covers 10/8, 192.168/16, 127/8, link-local and IPv6 ULA.
+    # MaxMind raises on some of these and silently misses others, so the check
+    # belongs here rather than relying on the lookup to fail.
+    try:
+        _addr = ipaddress.ip_address(ip)
+        if (_addr.is_private or _addr.is_loopback or _addr.is_link_local
+                or _addr.is_reserved or _addr.is_multicast or _addr.is_unspecified):
+            _lookup_cache[ip] = ""
+            return None
+    except ValueError:
+        _lookup_cache[ip] = ""
+        return None
 
     try:
         resp = _reader.country(ip)

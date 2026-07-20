@@ -21450,9 +21450,10 @@ async def restore_chart(
         from antar_engine.geo_lookup import extract_client_ip
         _geo_ip = extract_client_ip(request) if request is not None else ""
         if _geo_ip and background_tasks is not None:
+            # tz_offset corroborates the IP — see _persist_current_country_from_ip.
             background_tasks.add_task(
                 _persist_current_country_from_ip,
-                [c["id"] for c in charts], _geo_ip)
+                [c["id"] for c in charts], _geo_ip, tz_offset)
     except Exception as _ge:
         print(f"[geo-persist] schedule failed (non-fatal): {_ge}")
 
@@ -24355,19 +24356,51 @@ _COUNTRY_TZ_OFFSETS = {
 
 
 
-def _persist_current_country_from_ip(chart_ids, client_ip: str):
+def _persist_current_country_from_ip(chart_ids, client_ip: str, tz_offset=None):
     """
     [geo-persist] Background task: derive the user's CURRENT country from
     the request IP (MaxMind GeoLite2 — same path as /geo/country) and
     persist charts.current_country when empty or stale. This feeds
     _resolve_moment_coords() so moment-chart ascendants localize correctly
     for relocated users. Lookup failure writes nothing; never raises.
+
+    [geo-guard 2026-07-20] Corroborate against the client's OWN timezone before
+    writing. A real user in India was relabelled IN -> US because the web app
+    routes through the `railway-proxy` edge function: from Railway's side the
+    edge server IS the client, so the IP resolves to wherever that function
+    runs. The IP is public, so the private-range guard in geo_lookup cannot
+    catch this — only the contradiction can.
+
+    The browser's tz_offset is far stronger evidence of where someone is than a
+    proxied IP: it comes from the user's own device. +330 (IST) cannot be the
+    US under any timezone. So when the two disagree by more than 6 hours we
+    keep the existing value rather than trusting the IP. 6h is deliberately
+    loose — it never fires on legitimate within-country spread (a US chart
+    defaulting to -5 while the user sits in Hawaii at -10) but always catches
+    a cross-continent proxy egress.
+
+    current_country drives moment-chart localisation, daily timing, and
+    regional pricing, so a wrong value here is not cosmetic.
     """
     try:
         from antar_engine.geo_lookup import lookup_country
         cc = (lookup_country(client_ip) or "").strip().upper()
         if not cc or len(cc) != 2:
             return
+
+        if tz_offset is not None:
+            try:
+                _tzh = float(tz_offset)
+                if abs(_tzh) > 14:          # minutes (web contract) -> hours
+                    _tzh /= 60.0
+                _expected = _COUNTRY_TZ_OFFSETS.get(cc)
+                if _expected is not None and abs(_tzh - float(_expected)) > 6:
+                    print(f"[geo-persist] SKIP ip={client_ip} -> {cc} "
+                          f"(client tz {_tzh:+.1f}h vs {cc} {float(_expected):+.1f}h) "
+                          f"— IP is probably a proxy, not the user")
+                    return
+            except (TypeError, ValueError):
+                pass  # unusable tz — fall through to the IP result
         for _cid in (chart_ids or []):
             try:
                 _r = supabase.table("charts").select("current_country") \
