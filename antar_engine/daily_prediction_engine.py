@@ -929,6 +929,15 @@ def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
         # from the text rather than shipping a self-contradiction.
         for w in windows:
             if isinstance(w, dict):
+                # [window-bounds 2026-07-20] The LLM also emits the structured
+                # start/end backwards ("09:33 AM" -> "08:21 AM"). _fix_reversed_range
+                # only mends prose; these fields drive the full-day view, so swap
+                # a same-half-day pair whose end precedes its start. A genuine
+                # overnight window (PM -> AM) is left alone.
+                _s, _e = _hour24(w.get('start')), _hour24(w.get('end'))
+                if (_s is not None and _e is not None and _e < _s
+                        and (_s < 12) == (_e < 12)):
+                    w['start'], w['end'] = w.get('end'), w.get('start')
                 w['text'] = _reconcile_window_text(
                     w.get('text'), w.get('start'), w.get('end'))
                 t = w.get('text')
