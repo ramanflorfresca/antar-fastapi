@@ -988,6 +988,20 @@ def _build_deepdive_context(
             # [2026-06-07] evidence trail: transit hot-domain houses
             if debug_out is not None:
                 debug_out["transit_hot_domains"] = _hot_domains
+                # [house-coverage 2026-07-19] The tally scores ALL twelve houses
+                # and is then truncated to the top 3 for the narration. That
+                # truncation is invisible downstream: houses that genuinely fired
+                # — 7th/partner, 4th/home, 5th/children — silently never reach
+                # the reading, which is why the monthly can look narrower than a
+                # traditional house-by-house sweep. Keep the full tally on the
+                # evidence trail so what was computed and dropped is inspectable.
+                debug_out["transit_all_domains"] = {
+                    _d: {"score": _v.get("score"),
+                         "events": _v.get("event_count"),
+                         "houses": _v.get("houses"),
+                         "surfaced": _d in _hot_domains}
+                    for _d, _v in (_tally or {}).items()
+                }
                 _tv = debug_out.setdefault("votes", [])
                 for _hd in _hot_domains:
                     for _hh in (_tally.get(_hd, {}).get("houses") or []):

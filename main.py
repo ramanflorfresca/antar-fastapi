@@ -22115,9 +22115,23 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
                     build_fallback_domains as _lf_fb,
                 )
                 _lf_lang = language or "en"
-                _lf_pkey = str(result.get("month_key") or "")
+                # [stale-domains-fix 2026-07-19] Key the cache on the PERIOD,
+                # not the calendar month. The reading window is anchored to the
+                # user's birth day (period_method=birth_day_of_month), so for
+                # anyone not born on the 1st the two roll over on different
+                # days: a user born on the 10th got June's domains — "the week
+                # of June 22", "launch by June 15" — served all the way through
+                # a July 10 -> Aug 10 reading, because month_key stayed
+                # "2026-07" across both periods. period_start changes exactly
+                # when the content it describes changes.
+                _lf_pkey = str(result.get("period_start")
+                               or result.get("month_key") or "")
                 _lf_inputs = _lf_min(result)
-                _lf_cached = _layered_cache_get(chart_id, "month", _lf_pkey, _lf_lang)
+                # `refresh` must reach the layered cache too, or a stale entry
+                # can never be cleared — force_refresh used to rebuild the base
+                # reading while leaving these domains untouched.
+                _lf_cached = (None if refresh else
+                              _layered_cache_get(chart_id, "month", _lf_pkey, _lf_lang))
                 if _lf_cached is not None:
                     result["domains"] = _lf_cached
                 else:
