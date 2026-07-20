@@ -908,7 +908,8 @@ def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
         _arr = signal_json.get(_f)
         if isinstance(_arr, list):
             signal_json[_f] = [
-                _faith_neutralize(apply_user_facing_strips(_x, language=language, field_type='plain'))
+                _fix_reversed_range(
+                    _faith_neutralize(apply_user_facing_strips(_x, language=language, field_type='plain')))
                 if isinstance(_x, str) and _x else _x
                 for _x in _arr
             ]
@@ -968,6 +969,35 @@ def _hour24(clock: str):
     elif ap == "am" and h == 12:
         h = 0
     return h + mm / 60.0
+
+
+def _fix_reversed_range(text):
+    """Swap a 'between H1 and H2' range whose end is BEFORE its start.
+
+    The model sometimes emits a caution window backwards -- "Between 2:18 PM and
+    1:07 PM" -- which reads as broken. When the two clock times are within the
+    same ~12h span and the second is earlier, they are reversed, not a genuine
+    overnight window, so swap them. A real overnight range (e.g. 10 PM to 2 AM)
+    has the second time in AM and the first in PM and is left alone.
+    """
+    if not isinstance(text, str) or not text.strip():
+        return text
+    import re as _r
+    m = _r.search(
+        r'\b(?:between|from)\s+(\d{1,2}(?::\d{2})?\s*[AaPp][Mm])\s+'
+        r'(?:and|to|[-\u2013\u2014])\s+(\d{1,2}(?::\d{2})?\s*[AaPp][Mm])',
+        text, _r.IGNORECASE)
+    if not m:
+        return text
+    a, b = _hour24(m.group(1)), _hour24(m.group(2))
+    if a is None or b is None or b >= a:
+        return text
+    # b < a. Genuine overnight (PM -> AM) is legitimate; only swap when both
+    # sit in the same half-day (both AM or both PM), which cannot be overnight.
+    both_same_half = (a < 12) == (b < 12)
+    if not both_same_half:
+        return text
+    return text[:m.start(1)] + m.group(2) + text[m.end(1):m.start(2)] + m.group(1) + text[m.end(2):]
 
 
 def _reconcile_window_text(text, start, end):
