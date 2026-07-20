@@ -1338,6 +1338,22 @@ async def generate_weekly_signals(
             from antar_engine.daily_precision import apply_precision_to_score as _aps
             score, is_friction = _aps(score, _precision)
 
+        # [color-therapy 2026-07-20] Which colour activates today's live energy.
+        # Uses the nakshatra lord (the daily-moving signal) led by the vara lord
+        # (the day's standing frame), and respects tara: on an adverse tara we
+        # must NOT amplify the nakshatra lord — that pours energy into the graha
+        # causing the trouble. Returns None when inputs are unusable; the caller
+        # shows nothing rather than inventing a colour.
+        _color = None
+        try:
+            from antar_engine.color_therapy import color_for_day as _cfd
+            _color = _cfd(nakshatra,
+                          target_date.weekday(),
+                          (_precision or {}).get("tara_quality"))
+        except Exception as _col_e:
+            logger.warning(f"[daily-week] colour compute failed for {date_str}: {_col_e}")
+            _color = None
+
         # Compute panchang quality for this day
         try:
             panchang = _eph_memo("panchang", target_date, 0.0, lambda: calculate_panchang(target_date, 0.0, 0.0))
@@ -1540,6 +1556,7 @@ async def generate_weekly_signals(
                 "date": date_str,
                 "day": weekday,
                 "moon_nakshatra": nakshatra,
+                "color": _color,
                 "moon_sign": moon_sign,
                 "moon_degree": moon_data["degree"],
                 "mercury_sign": mercury_sign,
@@ -1583,6 +1600,7 @@ async def generate_weekly_signals(
                 "date": date_str,
                 "day": weekday,
                 "moon_nakshatra": nakshatra,
+                "color": _color,
                 "moon_sign": moon_sign,
                 "moon_degree": moon_data["degree"],
                 "mercury_sign": mercury_sign,
@@ -1668,6 +1686,7 @@ def generate_weekly_signals_sync(
             "date": date_str,
             "day": weekday,
             "moon_nakshatra": nakshatra,
+            "color": _color,
             "moon_sign": moon_sign,
             "moon_degree": moon_data["degree"],
             "mercury_sign": mercury_sign,
