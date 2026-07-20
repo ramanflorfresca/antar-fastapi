@@ -24507,6 +24507,26 @@ def _get_local_start_date(tz_offset: float = None, current_country: str = None):
         )
     if tz_offset is None:
         tz_offset = 0
+
+    # [tz-unit 2026-07-20] Accept BOTH conventions. The frontend's documented
+    # contract (src/lib/timezone.ts) is MINUTES east of UTC — IST = +330 — but
+    # this helper and _COUNTRY_TZ_OFFSETS are in HOURS, and /daily-week passed
+    # the request value straight through. The clamp below then pinned every
+    # non-UTC user to an extreme:
+    #     India    +330 -> +14h  (8.5h fast -> shows TOMORROW after 15:30 IST)
+    #     Colombia -300 -> -12h  (7h slow  -> shows YESTERDAY in the morning)
+    # That is what made the week strip say MON while the day panel said TUE:
+    # /predict-week already used minutes, this path used hours.
+    #
+    # The two units separate cleanly, so normalising is unambiguous rather than
+    # a guess: real hour offsets never exceed |14|, and real minute offsets are
+    # either 0 or at least |60| (no zone sits between UTC+0:01 and UTC+0:59).
+    try:
+        if abs(float(tz_offset)) > 14:
+            tz_offset = float(tz_offset) / 60.0
+    except (TypeError, ValueError):
+        tz_offset = 0
+
     # Clamp to valid range
     tz_offset = max(-12, min(14, tz_offset))
     local_now = datetime.now(timezone.utc) + timedelta(hours=tz_offset)
@@ -25905,8 +25925,11 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
     Returns 7-day daily signal array starting from TODAY in user's local timezone.
 
     Args:
-        tz_offset: UTC offset in hours (e.g. -5 for Colombia/EST, -3 for Brazil)
-                   If not provided, auto-detected from chart's current_country.
+        tz_offset: UTC offset. The web client sends MINUTES east of UTC
+                   (IST = +330, Colombia = -300) per src/lib/timezone.ts;
+                   hours (-5, -3) are also accepted for older callers.
+                   _get_local_start_date normalises both. If not provided,
+                   auto-detected from chart's current_country (hours).
         language: Language code (e.g. "en", "es", "hi"). Default "en".
 
     WOW event signal fires for today when executive summary shows PEAK/ACTIVE instrument.
