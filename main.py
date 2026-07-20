@@ -1851,47 +1851,56 @@ async def call_llm_claude(
     ]
     system = system_override if system_override else SYSTEM_PROMPT
 
-    # KV Cache: split static (cacheable) vs dynamic tail
+    # KV Cache: split static (cacheable) vs dynamic tail.
+    #
+    # [cache-surcharge-fix 2026-07-19] A prompt with NO "## LIVE DATA" marker
+    # used to be marked cacheable in its entirety. The Ask surfaces build their
+    # system prompt without that marker and open it with per-request data (the
+    # date, the timing-window state, the conversation/layers/diagnostic blocks),
+    # so every question wrote a brand-new ~4k-token cache entry that nothing
+    # could ever read — a permanent 1.25x write premium on every Ask, for a
+    # cache with a structurally impossible hit rate.
+    #
+    # Unmarked now means "not cacheable" rather than "all cacheable". Callers
+    # that genuinely have a stable prefix declare it with the marker (see
+    # prompt_registry.build_system_prompt, used by today/year/deep-read).
     _SPLIT = "## LIVE DATA"
     if _SPLIT in system:
         _static_part, _dynamic_part = system.split(_SPLIT, 1)
         _dynamic_part = _SPLIT + _dynamic_part
     else:
-        _static_part = system
-        _dynamic_part = ""
+        _static_part = ""
+        _dynamic_part = system
 
-    # Debug: log cacheable block hash + chunk hashes to pinpoint drift
-    import hashlib as _hashlib
-    _static_hash = _hashlib.sha256(_static_part.encode('utf-8')).hexdigest()[:12]
-    _dynamic_hash = _hashlib.sha256(_dynamic_part.encode('utf-8')).hexdigest()[:12] if _dynamic_part else "none"
-    print(f"[claude-cache-debug] static_len={len(_static_part)} static_hash={_static_hash} dynamic_len={len(_dynamic_part)} dynamic_hash={_dynamic_hash}")
-    
-    # Chunk-level hashing: hash every 2K-char region of the static block
-    # If chunks 0-5 match between calls but chunk 6 differs → we know drift is in bytes 12000-14000
-    _CHUNK = 2000
-    _chunk_hashes = []
-    for _i in range(0, len(_static_part), _CHUNK):
-        _ch = _hashlib.sha256(_static_part[_i:_i+_CHUNK].encode('utf-8')).hexdigest()[:8]
-        _chunk_hashes.append(f"{_i//_CHUNK}:{_ch}")
-    print(f"[claude-cache-chunks] {'|'.join(_chunk_hashes)}")
-    
-    # Also log first 200 and last 200 chars of static
-    _head = _static_part[:200].replace('\n', ' ')
-    _tail = _static_part[-200:].replace('\n', ' ')
-    print(f"[claude-cache-head] {_head[:200]}")
-    print(f"[claude-cache-tail] {_tail[:200]}")
-    
-    # CHUNK 2 IDENTIFIED AS DRIFT ZONE — log its contents
-    _chunk2 = _static_part[4000:6000].replace('\n', ' ')
-    print(f"[claude-cache-chunk2] {_chunk2[:2000]}")
+    # [cache-surcharge-fix 2026-07-19] Sonnet 4.6 silently refuses to cache a
+    # prefix below 2048 tokens — no error, just cache_creation_input_tokens=0.
+    # Marking a sub-minimum prefix costs nothing but is misleading in the logs,
+    # so fold it into the dynamic tail and don't claim to be caching.
+    _MIN_CACHEABLE_CHARS = 8200        # ~2048 tokens at ~4 chars/token
+    if _static_part and len(_static_part) < _MIN_CACHEABLE_CHARS:
+        _dynamic_part = _static_part + _dynamic_part
+        _static_part = ""
 
-    _system_blocks = [
-        {
+    # The chunk-level drift instrumentation that used to live here is gone: it
+    # was hunting a cache that could never hit (unmarked prompts were being
+    # marked cacheable wholesale), and it printed 2000 chars of raw prompt —
+    # which carries the user's chart — into the logs on every single call.
+    if _static_part:
+        import hashlib as _hashlib
+        _static_hash = _hashlib.sha256(_static_part.encode("utf-8")).hexdigest()[:12]
+        print(f"[claude-cache] cacheable_prefix={len(_static_part)}c "
+              f"hash={_static_hash} dynamic={len(_dynamic_part)}c")
+
+    # Only emit a cache_control block when there is genuinely stable content to
+    # cache. An empty text block is rejected by the API, and marking volatile
+    # content cacheable buys a write premium with no possible read.
+    _system_blocks = []
+    if _static_part:
+        _system_blocks.append({
             "type": "text",
             "text": _static_part,
-            "cache_control": {"type": "ephemeral"}
-        }
-    ]
+            "cache_control": {"type": "ephemeral"},
+        })
     if _dynamic_part:
         _system_blocks.append({"type": "text", "text": _dynamic_part})
 
