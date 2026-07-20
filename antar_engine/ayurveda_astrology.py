@@ -400,15 +400,41 @@ _DOSHA_MECHANISM = {
 }
 
 
+# What eating a graha's own foods FEEDS, when the day supports that graha
+# (strengthen mode). Distinct from the dosha correction, which is for pacifying
+# an agitated graha (balance mode).
+_GRAHA_FEEDS = {
+    "Sun":     "vitality and confidence",
+    "Moon":    "calm and emotional steadiness",
+    "Mars":    "drive and stamina",
+    "Mercury": "mental sharpness",
+    "Jupiter": "steadiness and good judgement",
+    "Venus":   "ease and warmth",
+    "Saturn":  "endurance and patience",
+    "Rahu":    "focus for unconventional work",
+    "Ketu":    "depth and concentration",
+}
+
+
 def _food_reason(planet: str, mode: str) -> str:
-    """One clause explaining WHY these foods, from the graha's dosha."""
+    """One clause explaining WHY these foods — and it MUST match the mode.
+
+    [food-mode-fix 2026-07-20] This used to ignore `mode` and always return the
+    dosha-PACIFYING reason ("Mars runs hot, so eat cooling"). But on a
+    STRENGTHEN day the food list is the graha's own building foods (red lentils,
+    beetroot for Mars) — heating, not cooling — so a strengthen list got a
+    "cool it down" explanation. Direct contradiction on the card.
+
+    strengthen -> feed the graha's energy (the day supports it).
+    balance    -> pacify the dosha (the graha is agitated / against you today).
+    """
+    if mode == "strengthen":
+        feeds = _GRAHA_FEEDS.get(planet)
+        return f"{planet} carries the day, so these foods feed your {feeds}" if feeds else ""
     dosha = (PLANET_DOSHA.get(planet) or {}).get("dosha", "")
     tendency, correction = _DOSHA_MECHANISM.get(dosha, ("", ""))
     if not tendency:
         return ""
-    # One clause, one dash. The earlier version produced "Mars runs hot today —
-    # cooling, less spice — heat compounds irritability": three fragments and
-    # two dashes for a line that has to be read in a glance.
     return f"{planet} {tendency}, {correction}"
 
 
