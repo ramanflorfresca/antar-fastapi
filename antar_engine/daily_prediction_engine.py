@@ -921,8 +921,15 @@ def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
     # to their plain-Spanish equivalents just like every other field.
     windows = signal_json.get('windows') or []
     if isinstance(windows, list):
+        # [window-coherence 2026-07-20] The LLM writes start/end/text together
+        # and sometimes contradicts itself: a 10 PM window described as "morning
+        # hours". The clock is deterministic; the prose is not — so when they
+        # disagree, trust the clock and drop the misleading time-of-day claim
+        # from the text rather than shipping a self-contradiction.
         for w in windows:
             if isinstance(w, dict):
+                w['text'] = _reconcile_window_text(
+                    w.get('text'), w.get('start'), w.get('end'))
                 t = w.get('text')
                 if isinstance(t, str) and t:
                     w['text'] = apply_user_facing_strips(
@@ -930,6 +937,91 @@ def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
                     )
 
     return signal_json
+
+
+# [window-coherence 2026-07-20] ----------------------------------------------
+_TOD_WORDS = {
+    "morning":   (5, 12),
+    "afternoon": (12, 17),
+    "evening":   (17, 21),
+    "night":     (21, 29),      # 29 == 5 next day; night wraps midnight
+    "midday":    (11, 14),
+    "noon":      (11, 14),
+    "midnight":  (23, 25),
+    "dawn":      (4, 7),
+    "dusk":      (17, 20),
+}
+
+
+def _hour24(clock: str):
+    """'10:00 PM' -> 22.0, tolerant. None if unparseable."""
+    if not isinstance(clock, str) or not clock.strip():
+        return None
+    import re as _r
+    m = _r.match(r'\s*(\d{1,2})(?::(\d{2}))?\s*([AaPp][Mm])?', clock.strip())
+    if not m:
+        return None
+    h = int(m.group(1)); mm = int(m.group(2) or 0)
+    ap = (m.group(3) or "").lower()
+    if ap == "pm" and h != 12:
+        h += 12
+    elif ap == "am" and h == 12:
+        h = 0
+    return h + mm / 60.0
+
+
+def _reconcile_window_text(text, start, end):
+    """Drop a time-of-day phrase from a window's text when it contradicts the
+    window's actual clock times. Deterministic: the clock wins.
+
+    Also strips a leading 'After ... around H:MM' clause whose stated hour does
+    not match `start` — the LLM sometimes narrates a different pivot time than
+    the window it labelled.
+    """
+    if not isinstance(text, str) or not text.strip():
+        return text
+    import re as _r
+    sh = _hour24(start)
+    if sh is None:
+        return text
+
+    low = text.lower()
+    for word, (lo, hi) in _TOD_WORDS.items():
+        if word not in low:
+            continue
+        # does `start` fall in this phrase's band? (night wraps past midnight)
+        in_band = (lo <= sh < hi) or (hi > 24 and (sh >= lo or sh < hi - 24))
+        if in_band:
+            continue
+        # contradiction — excise the "<word> hours"/"the <word>" phrase cleanly
+        # subject position: "Morning hours carry/bring/offer ..." -> "This window
+        # carries ...". Fix the verb agreement in the same pass.
+        text = _r.sub(
+            rf'^\s*(?:the\s+|early\s+|late\s+)?{word}\s+hours?\s+'
+            rf'(carry|bring|offer|hold|favor|favour|suit|support)\b',
+            lambda m: 'This window ' + {
+                'carry':'carries','bring':'brings','offer':'offers','hold':'holds',
+                'favor':'favors','favour':'favours','suit':'suits','support':'supports',
+            }[m.group(1).lower()],
+            text, flags=_r.IGNORECASE)
+        text = _r.sub(rf'\b(?:the\s+|early\s+|late\s+)?{word}\s+hours?\b',
+                      'this window', text, flags=_r.IGNORECASE)
+        text = _r.sub(rf'\b(?:in|during)\s+the\s+{word}\b',
+                      'in this window', text, flags=_r.IGNORECASE)
+        text = _r.sub(rf'\bthe\s+{word}\b', 'this window', text, flags=_r.IGNORECASE)
+        low = text.lower()
+
+    # leading "After ... around 9:19 AM," pivot that disagrees with start
+    m = _r.match(r'^\s*After[^,]*?\baround\s+(\d{1,2}(?::\d{2})?\s*[AaPp][Mm])\b[^,]*,\s*',
+                 text)
+    if m:
+        pivot = _hour24(m.group(1))
+        if pivot is not None and abs(pivot - sh) > 0.75:
+            rest = text[m.end():]
+            text = rest[:1].upper() + rest[1:] if rest else text
+    text = _r.sub(r'\s{2,}', ' ', text).strip()
+    return text
+# ----------------------------------------------------------------------------
 
 # ──────────────────────────────────────────────
 # NEW: LLM call for daily signal text

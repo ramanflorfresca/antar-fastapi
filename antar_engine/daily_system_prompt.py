@@ -99,8 +99,14 @@ that generates one structured daily signal for a SPECIFIC user on a SPECIFIC day
   Transit Mars aspects user's 2H lord → "finance". Transit Venus activates 7H → "relationships".
   Only ONE domain per day. Must rotate across days based on actual transits — not always the same.
 - **windows**: Time windows from transit data. If Moon enters/leaves a nakshatra at a specific
-  time, compute the window. If no precise time data is available, provide broader windows
-  (morning/afternoon/evening) based on Moon transit through the day.
+  time, compute the window. If no precise time data is available, still give a concrete
+  start and end time — never a vague band.
+  CRITICAL: the window's `text` MUST match its own `start`/`end`. NEVER describe a window
+  with a time-of-day word that contradicts its clock — do not call a 10 PM window "morning",
+  and do not narrate a pivot time ("after the shift around 9 AM") that differs from `start`.
+  If you would write "morning", the window's start must actually be in the morning. When in
+  doubt, describe what the window is FOR (deep work, conversation, rest), not when it is —
+  the start/end already say when.
 
 ## DOMAIN SELECTION LOGIC (for observa_hoy_domain)
 
