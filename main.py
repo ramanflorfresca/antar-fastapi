@@ -7892,6 +7892,59 @@ async def update_patra(
         "age_trigger":     patra.age_trigger,
     }
 
+@app.get("/api/v1/user/profile-gaps/{chart_id}")
+async def get_profile_gaps(chart_id: str, limit: int = 2):
+    """What we still need to ask this user before we can read precisely.
+
+    [profile-gaps 2026-07-20] Drives an in-app prompt: rather than collecting
+    everything once at signup and never again, surface the missing fact that
+    would most change the reading, with the reason it matters. Charts created
+    before a question existed are the main beneficiaries — they were never
+    asked at all.
+
+    Deliberately unauthenticated-read like the other chart-scoped GETs here;
+    it returns no personal data, only which questions are outstanding. Writes
+    still go through POST /api/v1/user/patra, which verifies ownership.
+
+    Fail-open: on any error return no gaps. A broken prompt must never block a
+    reading.
+    """
+    try:
+        row = supabase.table("charts").select(
+            "id, birth_date, birth_time, latitude, longitude, timezone_offset, "
+            "birth_time_accuracy, marital_status, children_status, career_stage, "
+            "current_city, life_work, life_relationship, life_kids"
+        ).eq("id", chart_id).single().execute()
+    except Exception as e:
+        # birth_time_accuracy may not exist yet (migration pending) — retry
+        # without it rather than failing the whole prompt.
+        if "birth_time_accuracy" in str(e) or "PGRST204" in str(e) or "42703" in str(e):
+            try:
+                row = supabase.table("charts").select(
+                    "id, birth_date, birth_time, latitude, longitude, timezone_offset, "
+                    "marital_status, children_status, career_stage, current_city, "
+                    "life_work, life_relationship, life_kids"
+                ).eq("id", chart_id).single().execute()
+            except Exception:
+                return {"gaps": [], "total_gaps": 0, "all_fields": [], "complete": True}
+        elif "PGRST116" in str(e) or "0 rows" in str(e):
+            raise HTTPException(404, "Chart not found")
+        else:
+            return {"gaps": [], "total_gaps": 0, "all_fields": [], "complete": True}
+
+    if not row.data:
+        raise HTTPException(404, "Chart not found")
+    try:
+        from antar_engine.profile_gaps import gap_summary, find_gaps
+        out = gap_summary(row.data)
+        if limit != 2:
+            out["gaps"] = find_gaps(row.data, limit=max(0, min(int(limit), 6)))
+        return out
+    except Exception as _pge:
+        print(f"[profile-gaps] failed (non-fatal): {_pge}")
+        return {"gaps": [], "total_gaps": 0, "all_fields": [], "complete": True}
+
+
 @app.post("/api/v1/user/push-token")
 async def register_push_token(
     request: PushTokenRequest,
