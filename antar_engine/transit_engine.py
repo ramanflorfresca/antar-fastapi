@@ -272,7 +272,36 @@ def get_full_transit_report(chart_data: Dict, date: datetime = None) -> Dict:
     """
     natal_planets = chart_data.get("planets", {})
     lagna = chart_data.get("lagna", {})
-    lagna_degree = lagna.get("degree", 0) if isinstance(lagna, dict) else 0
+
+    # [lagna-abs 2026-07-20] compute_transit_house_activation and
+    # detect_major_transits both do `int(natal_lagna_degree / 30)` — they expect
+    # ABSOLUTE ecliptic longitude (0-360). chart_data.lagna.degree is the degree
+    # WITHIN the sign (0-30), so every chart collapsed to sign index 0:
+    #
+    #   Capricorn 24.69 -> int(24.69/30) = 0   (read as Aries)
+    #   Libra      8.28 -> int(8.28/30)  = 0   (read as Aries)
+    #
+    # Every user therefore got IDENTICAL activated houses. Verified live: with
+    # Sun and Jupiter transiting Cancer, the engine reported "house 4 / home"
+    # for both a Capricorn and a Libra lagna, when the truth is the 7th
+    # (partners) and the 10th (career) respectively. That is a generic reading
+    # wearing the language of a personal one.
+    #
+    # Prefer an explicit absolute field if the chart carries one, else rebuild
+    # it from sign + degree. Fall back to the raw value only when the sign is
+    # unknown, and never silently treat 0 as a real Aries lagna.
+    lagna_degree = 0.0
+    if isinstance(lagna, dict):
+        _abs = lagna.get("longitude", lagna.get("absolute_degree"))
+        if isinstance(_abs, (int, float)) and 0 <= float(_abs) <= 360:
+            lagna_degree = float(_abs)
+        else:
+            _sign = str(lagna.get("sign", "")).strip().title()
+            _deg = lagna.get("degree", 0) or 0
+            if _sign in SIGNS:
+                lagna_degree = SIGNS.index(_sign) * 30.0 + float(_deg)
+            else:
+                lagna_degree = float(_deg)
 
     transit_pos = get_current_transit_positions(date)
     aspects = compute_transit_aspects(transit_pos, natal_planets)
