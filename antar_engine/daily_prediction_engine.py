@@ -1350,7 +1350,11 @@ async def generate_weekly_signals(
             from antar_engine.color_therapy import color_for_day as _cfd
             _color = _cfd(nakshatra,
                           target_date.weekday(),
-                          (_precision or {}).get("tara_quality"))
+                          (_precision or {}).get("tara_quality"),
+                          # lagna makes the reason chart-specific: the same
+                          # Saturn colour activates career for one user and
+                          # money for another. Absent -> generic fallback.
+                          lagna_sign=(daily_context or {}).get("lagna_sign"))
         except Exception as _col_e:
             logger.warning(f"[daily-week] colour compute failed for {date_str}: {_col_e}")
             _color = None

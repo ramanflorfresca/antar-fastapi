@@ -120,6 +120,84 @@ def graha_effect(planet: str) -> Dict[str, str]:
     return _GRAHA_EFFECT.get((planet or "").strip().title(), {})
 
 
+# [activates 2026-07-20] A colour is only meaningful once the user knows what it
+# touches in THEIR chart. The same Saturn colour activates a different area of
+# life depending on the lagna, because Saturn rules different houses from
+# different ascendants.
+#
+# House numbers never appear in output. "Activates your 10th house" is jargon
+# that means nothing to someone who did not ask for an astrology lesson —
+# "activates career and visibility; work matters should move more easily today"
+# is the same fact in language they can act on. The number stays internal.
+_SIGNS_ORDER = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+                "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
+
+_SIGN_LORD = {
+    "Aries": "Mars", "Taurus": "Venus", "Gemini": "Mercury", "Cancer": "Moon",
+    "Leo": "Sun", "Virgo": "Mercury", "Libra": "Venus", "Scorpio": "Mars",
+    "Sagittarius": "Jupiter", "Capricorn": "Saturn", "Aquarius": "Saturn",
+    "Pisces": "Jupiter",
+}
+
+# Plain-language life area per house, and what a smooth day there feels like.
+_HOUSE_AREA = {
+    1:  ("presence and health",          "you should come across the way you intend today"),
+    2:  ("money and family",             "money and family matters should sit easier today"),
+    3:  ("communication and initiative", "speaking up and reaching out should land well today"),
+    4:  ("home and peace of mind",       "home and headspace should feel settled today"),
+    5:  ("creativity and children",      "creative work and matters with children go smoothly"),
+    6:  ("competition and routine",      "you should hold your ground in anything contested"),
+    7:  ("partners and clients",         "one-to-one dealings should go smoothly today"),
+    8:  ("shared money and change",      "shared money and anything mid-transition move your way"),
+    9:  ("luck, mentors and travel",     "advice and openings should come more easily today"),
+    10: ("career and visibility",        "work matters should move smoothly today"),
+    11: ("income and networks",          "income and the people around you work in your favour"),
+    12: ("rest and letting go",          "stepping back should cost you less than usual"),
+}
+
+# The chhaya grahas rule no sign, so they activate through the house they sit in
+# rather than one they own. Without chart placement we say nothing rather than
+# inventing an area.
+_NO_RULERSHIP = ("Rahu", "Ketu")
+
+
+def houses_ruled(planet: str, lagna_sign: str) -> list:
+    """Which houses this graha rules from the given lagna. [] when unknown."""
+    p = (planet or "").strip().title()
+    lag = (lagna_sign or "").strip().title()
+    if p in _NO_RULERSHIP or lag not in _SIGNS_ORDER:
+        return []
+    li = _SIGNS_ORDER.index(lag)
+    return [((_SIGNS_ORDER.index(sign) - li) % 12) + 1
+            for sign, lord in _SIGN_LORD.items() if lord == p]
+
+
+def activation_for(planet: str, lagna_sign: str) -> Dict[str, Any]:
+    """What wearing this graha's colour actually activates, in plain words.
+
+    Returns {} when the lagna is unknown or the graha rules nothing — the
+    surface then shows the colour without an activation line rather than
+    guessing at someone's life.
+    """
+    houses = houses_ruled(planet, lagna_sign)
+    if not houses:
+        return {}
+    # Where a graha rules two houses, lead with the more publicly consequential
+    # one. 10 and 11 outrank 1; the 12th is the least actionable, so it trails.
+    _rank = {10: 0, 11: 1, 7: 2, 2: 3, 9: 4, 5: 5, 4: 6, 3: 7, 1: 8, 6: 9, 8: 10, 12: 11}
+    houses = sorted(houses, key=lambda h: _rank.get(h, 99))
+    # A graha can rule two houses. Name only the leading one: joining both with
+    # "and" produced "money and family and how you come across", which is worse
+    # than saying less. The second house still informs the ranking above.
+    primary = houses[0]
+    area, outcome = _HOUSE_AREA[primary]
+    return {
+        "areas":   area,
+        "outcome": outcome,
+        "houses":  houses,          # internal only — never render this
+    }
+
+
 def _color_of(planet: str) -> Optional[str]:
     p = (planet or "").strip().title()
     if p in _SHADOW_COLORS:
@@ -160,8 +238,16 @@ def weekday_lord(weekday_index: int) -> str:
         return "Sun"
 
 
-def _wear_reason(planet: str) -> str:
-    """One clause: what wearing this colour is meant to support."""
+def _wear_reason(planet: str, lagna_sign: Optional[str] = None) -> str:
+    """One clause explaining the colour.
+
+    Prefers the CHART-SPECIFIC activation when the lagna is known — that is the
+    version the user can act on, because it names their own life areas. Falls
+    back to the generic behavioural effect otherwise. No house numbers, ever.
+    """
+    act = activation_for(planet, lagna_sign) if lagna_sign else {}
+    if act:
+        return f"activates {act['areas']} &mdash; {act['outcome']}".replace("&mdash;", "\u2014")
     e = graha_effect(planet)
     return f"supports {e['enhances']}" if e.get("enhances") else ""
 
@@ -212,7 +298,8 @@ def resolve_day_graha(nakshatra: Optional[str],
 
 def color_for_day(nakshatra: Optional[str],
                   weekday_index: int,
-                  tara_quality: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                  tara_quality: Optional[str] = None,
+                  lagna_sign: Optional[str] = None) -> Optional[Dict[str, Any]]:
     """Return today's colour guidance, or None when the inputs are unusable.
 
     None means "we don't know" and the caller must show nothing — a fabricated
@@ -240,7 +327,7 @@ def color_for_day(nakshatra: Optional[str],
             "gem":           _gem_of(nak_lord),
             "why": (f"Both the day and the Moon's nakshatra answer to "
                     f"{nak_lord} today — a single, undiluted colour."),
-            "why_wear": _wear_reason(nak_lord),
+            "why_wear": _wear_reason(nak_lord, lagna_sign),
             "soften": None,
             "why_soften": None,
         }
@@ -257,7 +344,7 @@ def color_for_day(nakshatra: Optional[str],
             "gem":           _gem_of(vara),
             "why": (f"The Moon sits in a nakshatra that runs against you today, "
                     f"so lean on {vara}'s steadier frame rather than amplifying it."),
-            "why_wear": _wear_reason(vara),
+            "why_wear": _wear_reason(vara, lagna_sign),
             "soften": (f"Go easy on {nak_color}" if nak_color else None),
             "why_soften": _soften_reason(nak_lord),
         }
@@ -273,7 +360,7 @@ def color_for_day(nakshatra: Optional[str],
             "gem":           _gem_of(nak_lord),
             "why": (f"The Moon is in {nakshatra}, ruled by {nak_lord} — that is "
                     f"the energy actually live today."),
-            "why_wear": _wear_reason(nak_lord),
+            "why_wear": _wear_reason(nak_lord, lagna_sign),
             "soften": None,
             "why_soften": None,
         }
@@ -287,7 +374,7 @@ def color_for_day(nakshatra: Optional[str],
         "support_from":  None,
         "gem":           _gem_of(vara),
         "why":           f"{vara} rules today.",
-        "why_wear":      _wear_reason(vara),
+        "why_wear":      _wear_reason(vara, lagna_sign),
         "soften":        None,
         "why_soften":    None,
     }
