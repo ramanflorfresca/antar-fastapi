@@ -1058,6 +1058,13 @@ def _build_deepdive_context(
                     _d: {"score": _v.get("score"),
                          "events": _v.get("event_count"),
                          "houses": _v.get("houses"),
+                         # [highlight-reconcile 2026-07-19] the signed tone has to
+                         # travel with the tally, not just the unsigned score: the
+                         # highlights layer is built from dasha lords and strong/weak
+                         # planets and has no idea what the transits say. Without
+                         # tone here it cannot tell that its own "money runs tight"
+                         # contradicts the transit-driven "push for that payout".
+                         "tone": _v.get("tone"),
                          "surfaced": _d in _hot_domains}
                     for _d, _v in (_tally or {}).items()
                 }

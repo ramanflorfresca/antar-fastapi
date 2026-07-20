@@ -494,6 +494,67 @@ def _dedupe_and_rank(conds: List[Condition], scope: str) -> List[Condition]:
     return grouped[:limit]
 
 
+# [highlight-reconcile 2026-07-19] Highlights and the body of the reading are
+# built by two engines that never spoke to each other. Highlights come from the
+# dasha lord plus the strong/weak planet lists; the overview and the actions come
+# from the transit house tally. On a real reading that produced, side by side:
+#
+#     HIGHLIGHT: "Money runs tight this month — defer big purchases"
+#     ACTION:    "Push for that payout or raise before June 30"
+#
+# Both are defensible in isolation — a weak Venus and a live 11th house are not
+# the same claim — but printed together they read as the engine contradicting
+# itself, which costs more trust than either line earns.
+#
+# The transit tally is the more specific signal (it names houses and drives the
+# actions the user actually follows), so where the two disagree the generic
+# canned highlight is the one that goes. We DROP rather than rewrite: silence
+# beats a sentence no evidence supports, consistent with the anti-hallucination
+# rule below.
+#
+# Only confident domain pairs are mapped. 'mind' and 'opportunity' have no clean
+# transit counterpart, so they are never dropped — a wrong mapping would suppress
+# a true highlight, which is the worse error.
+_HL_DOMAIN_TO_TRANSIT = {
+    "money":         "wealth",
+    "work":          "career",
+    "body":          "health",
+    "relationships": "relationships",
+}
+
+# Same threshold the monthly ACTIVATE/AVOID split uses, so a domain cannot be
+# labelled "lean in" there and contradicted here (or vice versa).
+_TONE_CONTRADICTION = 0.5
+
+
+def _reconcile_with_transits(conds: List[Condition], ctx: Dict[str, Any]) -> List[Condition]:
+    """Drop highlights whose valence contradicts the transit tone for the same
+    domain. Fail-open: no tally, unmapped domain, or no valence -> keep."""
+    tally = ctx.get("domain_tone")
+    if not isinstance(tally, dict) or not tally:
+        return conds
+    kept: List[Condition] = []
+    for c in conds:
+        dom = getattr(c, "true_domain", None) or c.domain
+        val = (getattr(c, "valence", "") or "").strip().lower()
+        t_dom = _HL_DOMAIN_TO_TRANSIT.get(dom)
+        if not t_dom or val not in ("positive", "negative"):
+            kept.append(c)
+            continue
+        try:
+            tone = float((tally.get(t_dom) or {}).get("tone") or 0.0)
+        except (TypeError, ValueError):
+            kept.append(c)
+            continue
+        contradicted = (
+            (val == "positive" and tone <= -_TONE_CONTRADICTION) or
+            (val == "negative" and tone >= _TONE_CONTRADICTION)
+        )
+        if not contradicted:
+            kept.append(c)
+    return kept
+
+
 def build_highlights(scope: str, language: str, ctx: Dict[str, Any]) -> List[Dict[str, Any]]:
     """Return [{domain, text, priority}, ...]. Never raises."""
     try:
@@ -518,6 +579,7 @@ def build_highlights(scope: str, language: str, ctx: Dict[str, Any]) -> List[Dic
             return []
 
         conds = _dedupe_and_rank(conds, scope)
+        conds = _reconcile_with_transits(conds, ctx)
 
         # Respect the floor only when we genuinely have the data; if detection
         # produced fewer than the floor, return what's real rather than padding

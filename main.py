@@ -22072,12 +22072,23 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
             except Exception:
                 pass
             if isinstance(result, dict):
+                # [highlight-reconcile 2026-07-19] Hand the transit tally to the
+                # composer so it can drop highlights that contradict the actions.
+                # Without this the two engines print opposite advice side by side
+                # ("money runs tight" above "push for that payout"). Absent on a
+                # cached result generated before this shipped -> composer no-ops.
+                _hlm_tone = {}
+                try:
+                    _hlm_tone = (result.get("_debug_reasoning") or {}).get("transit_all_domains") or {}
+                except Exception:
+                    _hlm_tone = {}
                 result["highlights"] = _bh_month("month", language, {
                     "energy_level":   result.get("energy_level"),
                     "strong_planets": result.get("strong_planets"),
                     "weak_planets":   result.get("weak_planets"),
                     "dasha_md": _hlm_md,
                     "dasha_ad": _hlm_ad,
+                    "domain_tone": _hlm_tone,
                 })
         except Exception as _hlm_err:
             print(f"[monthly-deepdive] highlights failed: {_hlm_err}")
