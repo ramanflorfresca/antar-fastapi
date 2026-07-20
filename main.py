@@ -22042,7 +22042,12 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
             # noun layer never says "your spouse" to someone single or divorced.
             chart_record=chart_record,
         )
-        _md_month_key = _md_dt.now(_md_tz.utc).strftime("%Y-%m")
+        # [period-key 2026-07-20] MUST match the write-side derivation in
+        # generate_monthly_deepdive, or every read misses and every request pays
+        # a full regeneration. Both call period_cache_key() for exactly that reason.
+        from antar_engine.monthly_deepdive import period_cache_key as _md_period_key
+        _md_month_key = _md_period_key(chart_record.get("birth_date", ""),
+                                       _md_dt.now(_md_tz.utc))
         # [refresh-honesty 2026-07-20] `refresh`/`force_refresh` deliberately do
         # NOT block (see the note above: a cold Sonnet call is ~12-18s). But the
         # response said nothing about that, so a caller asking to refresh got the

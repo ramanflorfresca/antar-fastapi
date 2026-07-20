@@ -579,7 +579,10 @@ async def generate_monthly_deepdive(
     if language not in ("en", "es", "pt"):
         language = "en"
     now        = datetime.now(timezone.utc)
-    month_key  = now.strftime("%Y-%m")
+    # [period-key 2026-07-20] anchored to the reading's own period, not the
+    # calendar month — see period_cache_key(). Read and write must use the same
+    # derivation or every request becomes a permanent miss.
+    month_key  = period_cache_key(birth_date, now)
 
     # Check cache
     if not force_refresh:
@@ -728,6 +731,32 @@ async def generate_monthly_deepdive(
         logger.warning(f"[monthly] Cache save failed: {e}")
 
     return result
+
+
+def period_cache_key(birth_date, now=None) -> str:
+    """Cache key for the monthly deep-dive, anchored to the reading's own period.
+
+    [period-key 2026-07-20] This used to be `now.strftime('%Y-%m')` — the calendar
+    month — while the reading itself runs birth-day to birth-day. The two disagree
+    for the tail of every month: with a 26th anchor the period flips to
+    Jul 26 -> Aug 25 on Jul 26, but the key stays '2026-07' until Aug 1, so for six
+    days the endpoint serves the PREVIOUS period's reading as current. The window
+    is as wide as the anchor is early — a 10th anchor is wrong for ~20 days.
+
+    Keying on period_start makes the key change exactly when the reading changes.
+    Falls back to the calendar month when birth_date is missing or unparseable,
+    which is the old behaviour and no worse than it was.
+    """
+    try:
+        if birth_date:
+            # local import: jyotish_periods is not a module-level dependency here
+            from antar_engine.jyotish_periods import month_period as _pk_mp
+            ps, _ = _pk_mp(birth_date, now.date()) if now is not None else _pk_mp(birth_date)
+            if ps:
+                return str(ps)
+    except Exception:
+        pass
+    return (now or datetime.now(timezone.utc)).strftime("%Y-%m")
 
 
 def _read_cache(chart_id: str, month_key: str, supabase, language: str = "en") -> Optional[dict]:
