@@ -7751,13 +7751,27 @@ def _strip_payload_leaves(payload, language: str = "en"):
         out = _sbrt(out, has_hard_clock=_shct(out))
         return out
 
-    def _walk(obj):
+    # [curated-strip-exempt 2026-07-20] These subtrees are DETERMINISTIC
+    # templates, not LLM prose, and the graha name is the mechanism being
+    # explained — "Saturn runs dry and restless" is the whole point. Running
+    # strip_planet_traits over them rewrote every planet into a codename and
+    # produced garbage on the live day card:
+    #
+    #   "Offer rice pudding to the your Emotional Radar on full
+    #    your Emotional Radar night"
+    #   "The your Emotional Radar sits in a that runs against you today"
+    #
+    # The jargon strip exists for model output that leaks Sanskrit and internal
+    # metrics. It must not touch curated copy.
+    _CURATED_KEYS = {"color", "food", "moon_shift"}
+
+    def _walk(obj, curated=False):
         if isinstance(obj, dict):
-            return {k: _walk(v) for k, v in obj.items()}
+            return {k: _walk(v, curated or k in _CURATED_KEYS) for k, v in obj.items()}
         if isinstance(obj, list):
-            return [_walk(v) for v in obj]
+            return [_walk(v, curated) for v in obj]
         if isinstance(obj, str):
-            return _scrub(obj)
+            return obj if curated else _scrub(obj)
         return obj
 
     try:

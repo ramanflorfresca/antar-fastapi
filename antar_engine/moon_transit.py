@@ -222,6 +222,19 @@ def split_day(profile: Dict[str, Any],
     except Exception:
         return {}
 
+    # Raw tara enums were rendering literally on the card ("very_favorable",
+    # "caution"). The API must ship display copy, not internal keys.
+    _QUALITY_LABEL = {
+        "very_favorable": "Strongly in your favour",
+        "favorable":      "In your favour",
+        "neutral":        "Neutral",
+        "caution":        "Handle with care",
+        "unfavorable":    "Runs against you",
+        "unfavourable":   "Runs against you",
+        "adverse":        "Runs against you",
+        "difficult":      "Runs against you",
+    }
+
     def _half(nak: str) -> Dict[str, Any]:
         try:
             pr = compute_daily_precision(
@@ -241,6 +254,8 @@ def split_day(profile: Dict[str, Any],
             "nakshatra":    nak,
             "tara":         pr.get("tara"),
             "tara_quality": tq,
+            # human copy for the card; tara_quality stays for logic
+            "quality_label": _QUALITY_LABEL.get(str(tq or "").strip().lower(), ""),
             "color":        col.get("primary"),
             "color_graha":  col.get("primary_from"),
             "wear":         col.get("wear"),

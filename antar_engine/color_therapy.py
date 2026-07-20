@@ -389,7 +389,10 @@ def color_for_day(nakshatra: Optional[str],
             "why": (f"The Moon sits in a nakshatra that runs against you today, "
                     f"so lean on {vara}'s steadier frame rather than amplifying it."),
             "why_wear": _wear_reason(vara, lagna_sign, chart_data),
-            "soften": (f"Go easy on {nak_color}" if nak_color else None),
+            # Bare colour only. Shipping "Go easy on X" made the card read
+            # "Go easy on Go easy on Red/Coral" once the UI added its own
+            # label. The API sends the value; the UI owns the wording.
+            "soften": (nak_color or None),
             "why_soften": _soften_reason(nak_lord),
         }
 
