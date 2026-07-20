@@ -194,9 +194,15 @@ def _aggregate_hot_domains(events: list, top_n: int = 5) -> tuple[list, dict]:
         if not domain:
             continue
         weight = _EVENT_WEIGHT.get(etype, 1)
-        slot = tally.setdefault(domain, {'score': 0, 'event_count': 0, 'houses': []})
+        slot = tally.setdefault(domain, {'score': 0, 'event_count': 0,
+                                         'houses': [], 'tone': 0.0})
         slot['score']       += weight
         slot['event_count'] += 1
+        # [do-dont 2026-07-19] `score` is unsigned activation — it says a house
+        # is LIVE, not whether to lean in or hold back. Carry the signed tone
+        # too so the reading can tell "act here" apart from "avoid here";
+        # without it every active house reads as an opportunity.
+        slot['tone'] += _score_event_tone(ev)
         # noun layer (2026-06-07): remember WHICH natal house drove this domain
         # so the narrator can name the literal life-things, not the bucket.
         if house not in slot['houses']:
@@ -1015,6 +1021,26 @@ def _build_deepdive_context(
                     if _nouns:
                         lines.append(
                             f'       concrete things this points to: {", ".join(_nouns[:4])}')
+                    # [do-dont 2026-07-19] Every house carries BOTH a positive
+                    # and an adverse reading in house_significations, and only
+                    # the positive was ever reaching the page — so an afflicted
+                    # house arrived as an opportunity. The 5th scoring high with
+                    # negative tone means "hold off on speculation", not "back
+                    # your idea"; printing only the upside is how a reading gets
+                    # someone into a trade the chart was warning them off.
+                    from antar_engine.house_significations import select_phrase
+                    _tone = float(_slot.get('tone') or 0.0)
+                    _dir = 'adverse' if _tone < -0.5 else ('positive' if _tone > 0.5 else None)
+                    if _dir:
+                        _ph = []
+                        for _h in (_slot.get('houses') or []):
+                            _p = select_phrase(_h, _dir)
+                            if _p and _p not in _ph:
+                                _ph.append(_p)
+                        if _ph:
+                            _label = 'AVOID / hold back' if _dir == 'adverse' else 'ACTIVATE / lean in'
+                            lines.append(
+                                f'       {_label} (tone {_tone:+.1f}): {"; ".join(_ph[:2])}')
                 except Exception:
                     pass
                 _rank += 1
@@ -1039,6 +1065,14 @@ def _build_deepdive_context(
                 for _hd in _hot_domains:
                     for _hh in (_tally.get(_hd, {}).get("houses") or []):
                         _tv.append(f"transit:{_hd}:house{_hh}")
+            lines.append('')
+            lines.append('')
+            lines.append('DO / DO-NOT BALANCE — a domain marked "AVOID / hold back" above is a '
+                         'WARNING, not an opportunity. Write its action as something to STOP, '
+                         'DELAY or PROTECT AGAINST, using the avoid phrasing given. A domain '
+                         'marked "ACTIVATE / lean in" gets a do-this action. Never turn an '
+                         'AVOID domain into encouragement — if the month says hold off on '
+                         'speculation, the action says hold off, with the date.')
             lines.append('')
             lines.append('COMPUTED JSON VALUES — priority_actions MUST cover exactly these domains in this order:')
             lines.append(f'  priority_action_domains: {_json_sch.dumps(_hot_domains)}')
