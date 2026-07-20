@@ -2564,16 +2564,26 @@ async def save_chat_message(
     chart_id: str,
     question: str,
     response_data: dict,
-    language: str = "en"
+    language: str = "en",
+    domain_override: Optional[str] = None,
 ) -> str:
     """
     Save a chat message (question + answer) to Supabase.
     Returns the message_id.
-    
+
     Extracts:
     - domain from question keywords (finance/career/relationships/health)
     - question_type (timing/blockage/decision/opportunity)
     - key_date from timing_window field
+
+    [ask-history 2026-07-19] `domain_override` lets a caller supply a domain it
+    already classified properly. /ask runs ask_intent.classify_intent on every
+    question and then discarded the result; the keyword scan below is a much
+    weaker signal (it reads "business" as finance and misses anything phrased
+    without a trigger word). Passing the classified concern makes this table a
+    usable record of what a user actually cares about, which is the input the
+    monthly ranking needs — priorities revealed by behaviour rather than
+    self-reported in a settings screen that goes stale.
     """
     import re as _re
     from datetime import datetime, timezone
@@ -2650,6 +2660,10 @@ async def save_chat_message(
             year_match = _re.search(r'(202[4-9]|203\d)', timing_window)
             if year_match:
                 key_date = year_match.group(0)
+
+    # A caller-supplied classification beats the keyword scan above.
+    if isinstance(domain_override, str) and domain_override.strip():
+        domain = domain_override.strip().lower()
 
     # ── Build record ──────────────────────────────────────────────
     record = {
@@ -16571,6 +16585,37 @@ def _ask_scrub_payload(payload: dict, fields: list, language: str = 'en') -> dic
 # _ask_localize call sites to include actions/practices/convergence.
 
 
+
+async def _ask_persist(supabase, chart_id, question, payload, language, mode, domain=None):
+    """
+    [ask-history 2026-07-19] Record one Ask exchange.
+
+    Two things depend on this and neither worked before, because /ask never
+    called save_chat_message at all:
+
+      1. Conversation history. Ask had no memory of what was already discussed,
+         so every question started cold — unlike any messaging surface a user
+         has ever used.
+      2. Revealed priorities. What someone asks about is the honest signal of
+         what they care about; a settings screen is a self-report that goes
+         stale. chat_messages already carries a `domain` column for exactly
+         this and was sitting empty.
+
+    Never raises and never blocks the answer — a logging failure must not cost
+    the user the reply they already paid a question for.
+    """
+    try:
+        if not (chart_id and question):
+            return
+        await save_chat_message(
+            supabase, chart_id, str(question),
+            payload if isinstance(payload, dict) else {},
+            language or "en", domain_override=domain,
+        )
+    except Exception as _ape:
+        print(f"[ask-history] persist skipped (non-blocking): {_ape}")
+
+
 @app.post("/api/v1/ask")
 async def ask_endpoint(request: AskRequest):
     """
@@ -17434,6 +17479,8 @@ async def ask_endpoint(request: AskRequest):
                 "read", "next", "timing", "actions", "practices",
                 "convergence", "what", "why",
             ], chart_id)
+            await _ask_persist(supabase, chart_id, question, payload, language,
+                               "explore", locals().get("_ask_concern"))
             return payload
 
         except Exception as e:
@@ -17795,6 +17842,8 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _rb_e:
                 print(f"[ask] readability non-fatal: {_rb_e}")
             payload = await _ask_localize(payload, language, ["why", "timing"], chart_id)
+            await _ask_persist(supabase, chart_id, question, payload, language,
+                               "yesno", locals().get("_ask_concern"))
             return payload
 
         except Exception as e:
@@ -21768,7 +21817,11 @@ async def get_weekly_briefing(chart_id: str, refresh: bool = False, language: st
             lagna=chart_record.get("lagna_sign", "") or chart_data.get("lagna", {}).get("sign", ""),
             moon_sign=chart_record.get("moon_sign", "") or planets.get("Moon", {}).get("sign", ""),
             current_dasha=_current_dasha,
-            age=None,
+            # [age 2026-07-19] was hardcoded None while birth_date sat two
+            # lines below. A 52-year-old founder and a 24-year-old student got
+            # the same reading shape from identical transits — the engine had
+            # no idea which it was talking to. Same house, very different advice.
+            age=_md_age_from(chart_record.get("birth_date")),
             country_code=country_code,
             dkp_context=dkp_ctx,
             supabase=supabase,
@@ -21863,6 +21916,18 @@ async def _monthly_regen_bg(kwargs):
 
 
 # ── Sprint E: Monthly deep-dive ───────────────────────────────────────────────
+
+def _md_age_from(birth_date) -> Optional[int]:
+    """Whole years from an ISO birth_date, or None if unparseable."""
+    try:
+        from datetime import datetime as _d, timezone as _tz
+        b = _d.strptime(str(birth_date)[:10], "%Y-%m-%d")
+        n = _d.now(_tz.utc)
+        return n.year - b.year - ((n.month, n.day) < (b.month, b.day))
+    except Exception:
+        return None
+
+
 @app.get("/api/v1/monthly-deepdive/{chart_id}")
 @translate_response(
     fields_to_translate=["practice", "text"],
