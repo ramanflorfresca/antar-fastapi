@@ -124,6 +124,43 @@ def weekday_lord(weekday_index: int) -> str:
         return "Sun"
 
 
+def resolve_day_graha(nakshatra: Optional[str],
+                      weekday_index: int,
+                      tara_quality: Optional[str] = None) -> Dict[str, Any]:
+    """Which graha the day's remedial advice should follow, and how.
+
+    [day-graha 2026-07-20] Shared by colour AND food so the day card gives ONE
+    coherent instruction ("wear saffron, eat warm golden foods") instead of two
+    unrelated ones derived from different planets.
+
+    Returns:
+      planet   - the graha to work with
+      mode     - 'strengthen' on a workable tara, 'balance' on an adverse one.
+                 Adverse tara must NOT amplify the nakshatra lord; classical
+                 remedy pacifies instead, and food has a direct analogue
+                 (balance_with / cooling foods vs strengthen_with).
+      source   - 'both' | 'nakshatra' | 'vara', for explaining the choice
+      soften   - the graha to go easy on, when we deliberately stepped away
+                 from the nakshatra lord
+    """
+    vara = weekday_lord(weekday_index)
+    nak_lord = nakshatra_lord(nakshatra)
+    adverse = str(tara_quality or "").strip().lower() in _ADVERSE_TARA
+
+    if nak_lord and nak_lord == vara:
+        return {"planet": nak_lord, "mode": "balance" if adverse else "strengthen",
+                "source": "both", "soften": None, "vara": vara, "nakshatra_lord": nak_lord}
+    if adverse:
+        # lean on the steadier weekday frame, pacify rather than amplify
+        return {"planet": vara, "mode": "balance", "source": "vara",
+                "soften": nak_lord, "vara": vara, "nakshatra_lord": nak_lord}
+    if nak_lord:
+        return {"planet": nak_lord, "mode": "strengthen", "source": "nakshatra",
+                "soften": None, "vara": vara, "nakshatra_lord": nak_lord}
+    return {"planet": vara, "mode": "strengthen", "source": "vara",
+            "soften": None, "vara": vara, "nakshatra_lord": None}
+
+
 def color_for_day(nakshatra: Optional[str],
                   weekday_index: int,
                   tara_quality: Optional[str] = None) -> Optional[Dict[str, Any]]:

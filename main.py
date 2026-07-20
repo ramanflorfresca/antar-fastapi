@@ -26155,6 +26155,40 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
             _transit_highlights = _strip_payload_leaves(_transit_highlights, language=language)
         except Exception as _dse:
             print(f"[daily-week] strip scrub non-fatal: {_dse}")
+        # [daily-verify 2026-07-20] Enrol TODAY's claim so the user can mark it
+        # right or wrong. The tracker, tables, endpoints and frontend types all
+        # existed already, but save_trackable_claim() is only called from
+        # /api/v1/predict AND short-circuits on concern=="daily" — so the daily
+        # surface enrolled nothing, /pending-feedback stayed empty forever and
+        # /accuracy returned null while telling the user to "verify a few
+        # predictions". This connects the loop.
+        #
+        # Only signals[0] (today) is enrolled — future days are not yet
+        # verifiable. show_after is the END of the anchor window converted to
+        # UTC, so the user is asked once the thing could actually have happened,
+        # not at 9am when it still could. Idempotent via
+        # upsert(chart_id, correlation_key="daily-<date>").
+        try:
+            if signals:
+                from antar_engine.prediction_tracker import (
+                    save_daily_claim as _sdc, _peak_window as _pw,
+                )
+                _today_sig = signals[0]
+                _w = _pw(_today_sig) or {}
+                _show_after = None
+                try:
+                    _end = (_w.get("end") or "").strip()
+                    if _end:
+                        _et = datetime.strptime(_end, "%I:%M %p").time()
+                        _local_end = datetime.combine(start_date.date(), _et)
+                        _show_after = (_local_end - timedelta(hours=float(effective_offset))) \
+                            .replace(tzinfo=timezone.utc).isoformat()
+                except Exception:
+                    _show_after = None
+                _sdc(chart_id, _today_sig, supabase, _show_after)
+        except Exception as _enr_e:
+            print(f"[daily-verify] enrolment non-fatal: {_enr_e}")
+
         from fastapi.responses import JSONResponse
         return JSONResponse(
             content={

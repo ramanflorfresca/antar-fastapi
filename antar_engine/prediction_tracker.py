@@ -182,3 +182,90 @@ def get_accuracy_score(chart_id: str, sb) -> dict:
         "accuracy_pct":  None,
         "message":       "Verify a few predictions to see your accuracy score",
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Daily claim enrolment
+# ─────────────────────────────────────────────────────────────────────────────
+# [daily-verify 2026-07-20] The verification loop was fully built and never
+# connected: save_trackable_claim() is called from exactly ONE place
+# (/api/v1/predict) and begins with `if concern == "daily": return {}`. So the
+# surface users actually open every day enrolled nothing, /pending-feedback was
+# permanently empty, and /accuracy permanently returned null while telling the
+# user to "verify a few predictions".
+#
+# A daily claim also cannot use extract_trackable_claim(): that parses markdown
+# **Window** blocks and defaults show_after to +21 DAYS. A daily call has to be
+# checkable the same evening, or the user has forgotten what was predicted.
+#
+# Idempotency is free: record_feedback already upserts on
+# (chart_id, correlation_key), so a stable key of "daily-<date>" means repeated
+# generation (prewarm, refresh, multiple devices) can never double-enrol.
+
+def _peak_window(day: dict) -> dict:
+    """The window the day's claim is anchored to — peak if present, else the
+    first window. Returns {} when the day has none."""
+    wins = day.get("windows") or []
+    for w in wins:
+        if str(w.get("type", "")).lower() == "peak":
+            return w
+    return wins[0] if wins else {}
+
+
+def build_daily_claim(day: dict) -> dict:
+    """The single most checkable thing said about this day.
+
+    Prefers the peak window's own text — it is the most specific and carries a
+    clock time, which is what makes it falsifiable at all. Falls back to the
+    day's verdict subline. Returns {} when nothing checkable exists; an
+    unfalsifiable claim must never enter the accuracy pool, because it would
+    inflate the score without meaning anything.
+    """
+    if not isinstance(day, dict):
+        return {}
+    w = _peak_window(day)
+    claim = (w.get("text") or "").strip()
+    if not claim:
+        claim = (day.get("verdict_subline") or day.get("senal_de_hoy") or "").strip()
+    if not claim or len(claim) < 20:
+        return {}
+    window_label = ""
+    if w.get("start") and w.get("end"):
+        window_label = f"{w['start']}–{w['end']}"
+    return {
+        "claim":        re.sub(r"\s+", " ", claim)[:280],
+        "window_label": window_label,
+        "domain":       (day.get("lit_domain") or day.get("observa_hoy_domain") or "general"),
+        "date":         day.get("date") or "",
+    }
+
+
+def save_daily_claim(chart_id: str, day: dict, sb, show_after_iso: str = None) -> dict:
+    """Enrol today's claim for same-day verification. Never raises.
+
+    show_after_iso: when the ask should surface — normally the END of the peak
+    window, so the user is asked after the thing could have happened rather
+    than at 9am when it still could. Caller supplies it because only the caller
+    knows the user's timezone.
+    """
+    try:
+        built = build_daily_claim(day)
+        if not built or not built.get("date"):
+            return {}
+        key = f"daily-{built['date']}"
+        row = {
+            "chart_id":        chart_id,
+            "correlation_key": key,
+            "trackable_claim": built["claim"],
+            "claim_window":    built["window_label"] or built["date"],
+            "concern":         built["domain"],
+            "show_after":      show_after_iso or datetime.now(timezone.utc).isoformat(),
+            "feedback_status": "pending",
+        }
+        res = sb.table("user_correlations").upsert(
+            row, on_conflict="chart_id,correlation_key"
+        ).execute()
+        return res.data[0] if res.data else {}
+    except Exception:
+        # Enrolment must never break the daily surface.
+        return {}

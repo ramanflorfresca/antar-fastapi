@@ -363,3 +363,76 @@ INSTRUCTIONS:
 
 === END AYURVEDA BLOCK ===
 """
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Daily food guidance
+# ─────────────────────────────────────────────────────────────────────────────
+# [food-daily 2026-07-20] get_planetary_food_guidance() above is DASHA-scoped —
+# a multi-year constitutional signal. Useful, but it cannot answer "what should
+# I eat today", because it returns the same answer for years at a time.
+#
+# This follows the SAME graha the day's colour follows (color_therapy.
+# resolve_day_graha), so the day card reads as one instruction — "wear saffron,
+# eat warm golden foods" — rather than two unrelated recommendations derived
+# from different planets.
+#
+# The tara mode matters and has a direct culinary analogue:
+#   strengthen -> strengthen_with  (feed the graha; the day supports it)
+#   balance    -> balance_with     (pacify; the day's graha runs against you,
+#                                   and stoking it is the wrong move)
+
+def food_for_day(nakshatra, weekday_index, tara_quality=None) -> dict:
+    """Today's eat / avoid guidance. Returns {} when inputs are unusable —
+    the surface then shows nothing rather than inventing a diet."""
+    try:
+        from antar_engine.color_therapy import resolve_day_graha
+    except Exception:
+        return {}
+
+    g = resolve_day_graha(nakshatra, weekday_index, tara_quality)
+    planet = g.get("planet")
+    entry = PLANET_AYURVEDA_FOODS.get(planet) or {}
+    if not entry:
+        return {}
+
+    strengthen = entry.get("strengthen_with", []) or []
+    balance    = entry.get("balance_with", []) or []
+    avoid      = entry.get("avoid_if_afflicted", []) or []
+
+    if g.get("mode") == "balance":
+        eat = (balance or strengthen)[:3]
+        why = (f"{planet} runs against you today — eat to settle it, not to "
+               f"stoke it.")
+    else:
+        eat = strengthen[:3]
+        why = f"{planet} carries the day — these foods feed that energy."
+
+    # The remedy dish is day-bound ("Wheat halwa ... on Sunday morning"). Showing
+    # it on a Friday tells the user to do something on a different day, which is
+    # exactly the kind of small incoherence that makes a reading confusing. Only
+    # surface it when TODAY is that day.
+    _WD = ["Monday", "Tuesday", "Wednesday", "Thursday",
+           "Friday", "Saturday", "Sunday"]
+    try:
+        today_name = _WD[int(weekday_index) % 7]
+    except (TypeError, ValueError):
+        today_name = ""
+    best_day = (entry.get("best_day") or "").strip()
+    remedy = entry.get("remedy_food", "") if best_day and best_day == today_name else ""
+
+    # On a balance day the graha is already agitated, so its afflicted-foods
+    # list is exactly what to stay off. On a strengthen day the same list is
+    # still the sensible avoid, just less urgent.
+    return {
+        "planet":      planet,
+        "mode":        g.get("mode"),
+        "eat":         eat,
+        "avoid":       avoid[:3],
+        "herb":        entry.get("herb", ""),
+        # "" unless today IS the planet's day — never cross-day instructions
+        "remedy_dish": remedy,
+        "best_day":    best_day,
+        "is_best_day": bool(remedy),
+        "why":         why,
+    }

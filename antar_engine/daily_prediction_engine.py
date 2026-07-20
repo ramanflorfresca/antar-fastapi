@@ -1345,6 +1345,7 @@ async def generate_weekly_signals(
         # causing the trouble. Returns None when inputs are unusable; the caller
         # shows nothing rather than inventing a colour.
         _color = None
+        _food = None
         try:
             from antar_engine.color_therapy import color_for_day as _cfd
             _color = _cfd(nakshatra,
@@ -1353,6 +1354,18 @@ async def generate_weekly_signals(
         except Exception as _col_e:
             logger.warning(f"[daily-week] colour compute failed for {date_str}: {_col_e}")
             _color = None
+        # Food follows the SAME graha as the colour (shared resolve_day_graha),
+        # so the day card reads as one instruction rather than two unrelated
+        # recommendations. Adverse tara switches eat-list from strengthen to
+        # balance for the same reason the colour falls back to the vara lord.
+        try:
+            from antar_engine.ayurveda_astrology import food_for_day as _ffd
+            _food = _ffd(nakshatra,
+                         target_date.weekday(),
+                         (_precision or {}).get("tara_quality")) or None
+        except Exception as _food_e:
+            logger.warning(f"[daily-week] food compute failed for {date_str}: {_food_e}")
+            _food = None
 
         # Compute panchang quality for this day
         try:
@@ -1557,6 +1570,7 @@ async def generate_weekly_signals(
                 "day": weekday,
                 "moon_nakshatra": nakshatra,
                 "color": _color,
+                "food": _food,
                 "moon_sign": moon_sign,
                 "moon_degree": moon_data["degree"],
                 "mercury_sign": mercury_sign,
@@ -1601,6 +1615,7 @@ async def generate_weekly_signals(
                 "day": weekday,
                 "moon_nakshatra": nakshatra,
                 "color": _color,
+                "food": _food,
                 "moon_sign": moon_sign,
                 "moon_degree": moon_data["degree"],
                 "mercury_sign": mercury_sign,
@@ -1687,6 +1702,7 @@ def generate_weekly_signals_sync(
             "day": weekday,
             "moon_nakshatra": nakshatra,
             "color": _color,
+            "food": _food,
             "moon_sign": moon_sign,
             "moon_degree": moon_data["degree"],
             "mercury_sign": mercury_sign,
