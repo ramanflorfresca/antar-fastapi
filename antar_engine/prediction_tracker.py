@@ -223,20 +223,39 @@ def build_daily_claim(day: dict) -> dict:
     """
     if not isinstance(day, dict):
         return {}
-    w = _peak_window(day)
-    claim = (w.get("text") or "").strip()
+
+    # [claim-specificity 2026-07-20] The claim MUST be a day-specific, falsifiable
+    # PREDICTION. The old version used the peak window's text, which is identical
+    # boilerplate every day ("the one universally auspicious window of the day —
+    # use it for planning...") AND an instruction, not a prediction. You cannot
+    # honestly mark "use it for planning, do not let it pass unused" right or
+    # wrong, and asking the same sentence daily makes the accuracy score
+    # meaningless.
+    #
+    # Priority, most-checkable first:
+    #   1. A specific EVENT that fired today ("someone with real authority is
+    #      taking notice of your capabilities today") — a concrete claim about
+    #      what happens, the ideal thing to verify.
+    #   2. The day's character (verdict / signal) — checkable as "did the day
+    #      feel like this".
+    ev = day.get("event_signal") or {}
+    kind = "day"
+    claim = ""
+    if ev.get("fires") and (ev.get("hint") or "").strip():
+        claim = ev["hint"].strip()
+        kind = "event"
     if not claim:
         claim = (day.get("verdict_subline") or day.get("senal_de_hoy") or "").strip()
     if not claim or len(claim) < 20:
         return {}
-    window_label = ""
-    if w.get("start") and w.get("end"):
-        window_label = f"{w['start']}–{w['end']}"
     return {
-        "claim":        re.sub(r"\s+", " ", claim)[:280],
-        "window_label": window_label,
-        "domain":       (day.get("lit_domain") or day.get("observa_hoy_domain") or "general"),
-        "date":         day.get("date") or "",
+        "claim":  re.sub(r"\s+", " ", claim)[:280],
+        "kind":   kind,
+        # Day-level, not a single window — the verify header adapts on `kind`.
+        "window_label": "",
+        "domain": (ev.get("category") or day.get("lit_domain")
+                   or day.get("observa_hoy_domain") or "general"),
+        "date":   day.get("date") or "",
     }
 
 
@@ -253,11 +272,14 @@ def save_daily_claim(chart_id: str, day: dict, sb, show_after_iso: str = None) -
         if not built or not built.get("date"):
             return {}
         key = f"daily-{built['date']}"
+        # store kind in claim_window as a light tag the FE reads; keeps the
+        # user_correlations schema unchanged.
+        _cw = "event" if built.get("kind") == "event" else "day"
         row = {
             "chart_id":        chart_id,
             "correlation_key": key,
             "trackable_claim": built["claim"],
-            "claim_window":    built["window_label"] or built["date"],
+            "claim_window":    _cw,
             "concern":         built["domain"],
             "show_after":      show_after_iso or datetime.now(timezone.utc).isoformat(),
             "feedback_status": "pending",
