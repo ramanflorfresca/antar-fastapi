@@ -984,8 +984,12 @@ def _fix_reversed_range(text):
         return text
     import re as _r
     m = _r.search(
-        r'\b(?:between|from)\s+(\d{1,2}(?::\d{2})?\s*[AaPp][Mm])\s+'
-        r'(?:and|to|[-\u2013\u2014])\s+(\d{1,2}(?::\d{2})?\s*[AaPp][Mm])',
+        r'\b(?:between|from)\s+'
+        r'(?:approximately|approx\.?|around|about|roughly|~)?\s*'
+        r'(\d{1,2}(?::\d{2})?\s*[AaPp][Mm])\s+'
+        r'(?:and|to|[-\u2013\u2014])\s+'
+        r'(?:approximately|approx\.?|around|about|roughly|~)?\s*'
+        r'(\d{1,2}(?::\d{2})?\s*[AaPp][Mm])',
         text, _r.IGNORECASE)
     if not m:
         return text
