@@ -416,6 +416,48 @@ _GRAHA_FEEDS = {
 }
 
 
+# A 1–2 word food CHARACTER for the garnish line ("eat {texture} food"), by
+# mode. The frontend garnish used to parse this out of the why_eat prose, which
+# broke the moment the strengthen wording changed to "…feed your drive and
+# stamina" (no texture word to extract). So the backend now states it outright.
+#   strengthen -> the character of the graha's own building foods
+#   balance    -> the dosha-correction direction (matches the why_eat clause)
+_GRAHA_TEXTURE = {
+    "Sun":     "warm",
+    "Moon":    "cooling",
+    "Mars":    "warm, hearty",
+    "Mercury": "fresh, light",
+    "Jupiter": "warm, nourishing",
+    "Venus":   "sweet, rich",
+    "Saturn":  "warm, grounding",
+    "Rahu":    "grounding",
+    "Ketu":    "light, simple",
+}
+
+# The leading texture adjectives inside each _DOSHA_MECHANISM correction clause,
+# for the balance-mode garnish. Kept explicit rather than regex-parsed so the
+# garnish never drifts from the sentence.
+_DOSHA_TEXTURE = {
+    "Vata":       "warm, grounding",
+    "Kapha":      "light, warm",
+    "Kapha/Vata": "warm, simple",
+    "Vata/Pitta": "steady, mild",
+    "Pitta/Vata": "cooling, grounding",
+}
+
+
+def _food_texture(planet: str, mode: str) -> str:
+    """A short adjective for the garnish 'eat {texture} food' line — mode-correct
+    and always populated so the card never drops the eat clause."""
+    if mode == "strengthen":
+        return _GRAHA_TEXTURE.get(planet, "")
+    dosha = (PLANET_DOSHA.get(planet) or {}).get("dosha", "")
+    # Pitta pacifies with cooling; the rest come from the explicit table above.
+    if dosha == "Pitta":
+        return "cooling"
+    return _DOSHA_TEXTURE.get(dosha, "")
+
+
 def _food_reason(planet: str, mode: str) -> str:
     """One clause explaining WHY these foods — and it MUST match the mode.
 
@@ -598,6 +640,9 @@ def food_for_day(nakshatra, weekday_index, tara_quality=None,
         "why":         why,
         # the mechanism, not the mythology
         "why_eat":     _food_reason(planet, g.get("mode")),
+        # explicit garnish adjective so the card's "eat {texture} food" line
+        # never has to parse it back out of why_eat (which breaks on strengthen)
+        "texture":     _food_texture(planet, g.get("mode")),
         "why_avoid":   (f"these push {planet} further in the direction it is "
                         f"already leaning") if avoid else "",
     }
