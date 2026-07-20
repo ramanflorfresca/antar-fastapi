@@ -2677,13 +2677,29 @@ async def save_chat_message(
         "question_type": question_type,
         "key_date": key_date,
         "confidence": response_data.get("signal_confidence", ""),
-        "archetype_name": response_data.get("archetype_name", ""),
         "language": language,
         "why_this": response_data.get("why_this", ""),
         "bridge_practice_note": response_data.get("bridge_practice_note", ""),
-        "contradiction_detected": response_data.get("contradiction_detected", False),
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
+
+    # [ask-history 2026-07-19] This function was written against a schema the
+    # table never had: it wrote `answer`, `archetype_name` and
+    # `contradiction_detected`, none of which exist, so EVERY call failed with
+    # PGRST204 and the whole function has never once written a row. It looked
+    # fine because nothing called it — the rows in chat_messages come from two
+    # other endpoints that insert directly.
+    #
+    # The real answer column is `prediction_text`. /ask returns its answer under
+    # `read` (explore) or `why` (yes/no), so take whichever is present.
+    _ans = (response_data.get("prediction_text")
+            or response_data.get("read")
+            or response_data.get("why")
+            or response_data.get("answer") or "")
+    if _ans:
+        record["prediction_text"] = str(_ans)[:8000]
+    if not record.get("plain_summary"):
+        record["plain_summary"] = str(_ans)[:500]
 
     try:
         result = supabase.table("chat_messages").insert(record).execute()
@@ -2691,7 +2707,23 @@ async def save_chat_message(
             msg_id = result.data[0].get("id", "")
             return msg_id
     except Exception as e:
-        print(f"save_chat_message error: {e}")
+        # A column drift like the one above should degrade, not silently lose
+        # the row: drop whatever the schema rejected and retry once with the
+        # core fields that are certain to exist.
+        msg = str(e)
+        if "PGRST204" in msg or "Could not find" in msg:
+            _core = {k: v for k, v in record.items() if k in (
+                "chart_id", "question", "prediction_text", "plain_summary",
+                "domain", "language", "created_at")}
+            try:
+                result = supabase.table("chat_messages").insert(_core).execute()
+                print(f"[ask-history] inserted core fields after schema drift: {msg[:90]}")
+                if result.data:
+                    return result.data[0].get("id", "")
+            except Exception as e2:
+                print(f"save_chat_message retry failed: {e2}")
+        else:
+            print(f"save_chat_message error: {e}")
 
     return ""
 
