@@ -411,7 +411,8 @@ def _food_reason(planet: str, mode: str) -> str:
     return f"{planet} {tendency}; {correction}"
 
 
-def food_for_day(nakshatra, weekday_index, tara_quality=None) -> dict:
+def food_for_day(nakshatra, weekday_index, tara_quality=None,
+                 dasha_md=None, dasha_ad=None) -> dict:
     """Today's eat / avoid guidance. Returns {} when inputs are unusable —
     the surface then shows nothing rather than inventing a diet."""
     try:
@@ -486,9 +487,42 @@ def food_for_day(nakshatra, weekday_index, tara_quality=None) -> dict:
     # On a balance day the graha is already agitated, so its afflicted-foods
     # list is exactly what to stay off. On a strengthen day the same list is
     # still the sensible avoid, just less urgent.
+    # [food-duration 2026-07-20] Ayurvedic correction is CUMULATIVE, not
+    # same-day. Telling someone to eat black sesame today without saying how
+    # long implies a one-day fix, which is not how any of this works and is the
+    # kind of claim that makes the whole thing feel arbitrary.
+    #
+    # Duration scales with WHY this graha matters today, which is the honest
+    # distinction:
+    #
+    #   balance mode   -> today. The tara is adverse NOW; this is acute
+    #                     settling, not a programme.
+    #   strengthen     -> one mandala (40 days), the classical unit for
+    #                     remedial dietary practice. Long enough for a real
+    #                     shift, short enough to actually attempt.
+    #   dasha lord     -> the graha is running the user's CURRENT period, so
+    #                     this is not a passing transit. Worth sustaining for
+    #                     as long as the period lasts.
+    _md = (dasha_md or "").strip().title()
+    _ad = (dasha_ad or "").strip().title()
+    if planet in (_md, _ad) and planet:
+        _which = "mahadasha" if planet == _md else "antardasha"
+        duration_days = None
+        duration = (f"{planet} is running your current {_which}, so this is not a "
+                    f"one-day fix &mdash; sustaining it through the period is what shifts things")
+    elif g.get("mode") == "balance":
+        duration_days = 1
+        duration = "Just for today &mdash; this is settling, not a programme"
+    else:
+        duration_days = 40
+        duration = ("Hold this for about 40 days &mdash; one mandala &mdash; and the "
+                    "effect compounds; a single day changes little")
+
     return {
         "planet":      planet,
         "mode":        g.get("mode"),
+        "duration":    duration.replace("&mdash;", "\u2014"),
+        "duration_days": duration_days,
         "eat":         eat,
         "avoid":       avoid[:3],
         "herb":        entry.get("herb", ""),

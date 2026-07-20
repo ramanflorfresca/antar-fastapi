@@ -1404,7 +1404,12 @@ async def generate_weekly_signals(
             from antar_engine.ayurveda_astrology import food_for_day as _ffd
             _food = _ffd(nakshatra,
                          target_date.weekday(),
-                         (_precision or {}).get("tara_quality")) or None
+                         (_precision or {}).get("tara_quality"),
+                         # Duration scales with WHY the graha matters: a passing
+                         # transit is a 40-day mandala, the running dasha lord
+                         # is a commitment for the period.
+                         dasha_md=(daily_context or {}).get("md"),
+                         dasha_ad=(daily_context or {}).get("ad")) or None
         except Exception as _food_e:
             logger.warning(f"[daily-week] food compute failed for {date_str}: {_food_e}")
             _food = None
