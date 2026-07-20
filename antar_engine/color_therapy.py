@@ -155,10 +155,49 @@ _HOUSE_AREA = {
     12: ("rest and letting go",          "stepping back should cost you less than usual"),
 }
 
-# The chhaya grahas rule no sign, so they activate through the house they sit in
-# rather than one they own. Without chart placement we say nothing rather than
-# inventing an area.
+# The chhaya grahas rule no sign of their own, but they are NOT inert: classically
+# Rahu and Ketu act through their DISPOSITOR — the lord of the sign they occupy —
+# and take on the colouring of any graha they sit with. Rahu in Libra behaves as
+# Venus; Rahu conjunct Saturn takes Saturn's flavour.
+#
+# Returning "no activation" for them (the first version of this) was wrong, and
+# it mattered: Rahu and Ketu rule six of the twenty-seven nakshatras between
+# them (Ardra, Swati, Shatabhisha / Ashwini, Magha, Mula), so roughly a fifth of
+# all days were losing their activation line.
 _NO_RULERSHIP = ("Rahu", "Ketu")
+
+
+def effective_graha(planet: str, chart_data: Optional[dict] = None) -> str:
+    """The graha whose qualities actually apply.
+
+    For Rahu/Ketu this resolves to a conjunct planet if there is one (strongest
+    colouring), else the dispositor of the sign they occupy. Everything else
+    returns itself. Falls back to the node itself when the chart is unavailable.
+    """
+    p = (planet or "").strip().title()
+    if p not in _NO_RULERSHIP or not isinstance(chart_data, dict):
+        return p
+    planets = chart_data.get("planets") or {}
+    own_sign = (planets.get(p) or {}).get("sign")
+    if not own_sign:
+        return p
+    # 1. conjunction wins — a node with a graha takes that graha's nature.
+    #    With MORE than one graha in the sign, pick the closest by degree: dict
+    #    order is insertion order and has no astrological meaning, so choosing
+    #    "the first one found" would silently pick different planets for
+    #    identical charts.
+    own_deg = (planets.get(p) or {}).get("degree")
+    conj = [(other, (d or {}).get("degree"))
+            for other, d in planets.items()
+            if other not in (p, "Rahu", "Ketu") and (d or {}).get("sign") == own_sign]
+    if conj:
+        if own_deg is not None and all(dg is not None for _, dg in conj):
+            conj.sort(key=lambda t: abs(float(t[1]) - float(own_deg)))
+        else:
+            conj.sort(key=lambda t: t[0])   # stable, not arbitrary
+        return conj[0][0]
+    # 2. otherwise the dispositor of the occupied sign
+    return _SIGN_LORD.get(own_sign, p)
 
 
 def houses_ruled(planet: str, lagna_sign: str) -> list:
@@ -172,14 +211,17 @@ def houses_ruled(planet: str, lagna_sign: str) -> list:
             for sign, lord in _SIGN_LORD.items() if lord == p]
 
 
-def activation_for(planet: str, lagna_sign: str) -> Dict[str, Any]:
+def activation_for(planet: str, lagna_sign: str,
+                   chart_data: Optional[dict] = None) -> Dict[str, Any]:
     """What wearing this graha's colour actually activates, in plain words.
 
     Returns {} when the lagna is unknown or the graha rules nothing — the
     surface then shows the colour without an activation line rather than
     guessing at someone's life.
     """
-    houses = houses_ruled(planet, lagna_sign)
+    # Rahu/Ketu resolve to whatever graha actually carries them.
+    acting = effective_graha(planet, chart_data)
+    houses = houses_ruled(acting, lagna_sign)
     if not houses:
         return {}
     # Where a graha rules two houses, lead with the more publicly consequential
@@ -238,17 +280,18 @@ def weekday_lord(weekday_index: int) -> str:
         return "Sun"
 
 
-def _wear_reason(planet: str, lagna_sign: Optional[str] = None) -> str:
+def _wear_reason(planet: str, lagna_sign: Optional[str] = None,
+                 chart_data: Optional[dict] = None) -> str:
     """One clause explaining the colour.
 
     Prefers the CHART-SPECIFIC activation when the lagna is known — that is the
     version the user can act on, because it names their own life areas. Falls
     back to the generic behavioural effect otherwise. No house numbers, ever.
     """
-    act = activation_for(planet, lagna_sign) if lagna_sign else {}
+    act = activation_for(planet, lagna_sign, chart_data) if lagna_sign else {}
     if act:
         return f"activates {act['areas']} &mdash; {act['outcome']}".replace("&mdash;", "\u2014")
-    e = graha_effect(planet)
+    e = graha_effect(effective_graha(planet, chart_data))
     return f"supports {e['enhances']}" if e.get("enhances") else ""
 
 
@@ -299,7 +342,8 @@ def resolve_day_graha(nakshatra: Optional[str],
 def color_for_day(nakshatra: Optional[str],
                   weekday_index: int,
                   tara_quality: Optional[str] = None,
-                  lagna_sign: Optional[str] = None) -> Optional[Dict[str, Any]]:
+                  lagna_sign: Optional[str] = None,
+                  chart_data: Optional[dict] = None) -> Optional[Dict[str, Any]]:
     """Return today's colour guidance, or None when the inputs are unusable.
 
     None means "we don't know" and the caller must show nothing — a fabricated
@@ -327,7 +371,7 @@ def color_for_day(nakshatra: Optional[str],
             "gem":           _gem_of(nak_lord),
             "why": (f"Both the day and the Moon's nakshatra answer to "
                     f"{nak_lord} today — a single, undiluted colour."),
-            "why_wear": _wear_reason(nak_lord, lagna_sign),
+            "why_wear": _wear_reason(nak_lord, lagna_sign, chart_data),
             "soften": None,
             "why_soften": None,
         }
@@ -344,7 +388,7 @@ def color_for_day(nakshatra: Optional[str],
             "gem":           _gem_of(vara),
             "why": (f"The Moon sits in a nakshatra that runs against you today, "
                     f"so lean on {vara}'s steadier frame rather than amplifying it."),
-            "why_wear": _wear_reason(vara, lagna_sign),
+            "why_wear": _wear_reason(vara, lagna_sign, chart_data),
             "soften": (f"Go easy on {nak_color}" if nak_color else None),
             "why_soften": _soften_reason(nak_lord),
         }
@@ -360,7 +404,7 @@ def color_for_day(nakshatra: Optional[str],
             "gem":           _gem_of(nak_lord),
             "why": (f"The Moon is in {nakshatra}, ruled by {nak_lord} — that is "
                     f"the energy actually live today."),
-            "why_wear": _wear_reason(nak_lord, lagna_sign),
+            "why_wear": _wear_reason(nak_lord, lagna_sign, chart_data),
             "soften": None,
             "why_soften": None,
         }
@@ -374,7 +418,7 @@ def color_for_day(nakshatra: Optional[str],
         "support_from":  None,
         "gem":           _gem_of(vara),
         "why":           f"{vara} rules today.",
-        "why_wear":      _wear_reason(vara, lagna_sign),
+        "why_wear":      _wear_reason(vara, lagna_sign, chart_data),
         "soften":        None,
         "why_soften":    None,
     }

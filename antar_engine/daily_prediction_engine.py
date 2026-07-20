@@ -1338,6 +1338,26 @@ async def generate_weekly_signals(
             from antar_engine.daily_precision import apply_precision_to_score as _aps
             score, is_friction = _aps(score, _precision)
 
+        # [moon-transit 2026-07-20] The Moon is sampled once at local noon, which
+        # picks the WRONG governing nakshatra on ~12% of days — those where it
+        # crosses in the early afternoon, leaving most remaining waking hours to
+        # the incoming nakshatra. tara bala is derived from the nakshatra and can
+        # invert across that boundary, so the whole reading flips. Prefer the
+        # nakshatra covering most waking hours, and remember when it turns.
+        _moon_shift = None
+        try:
+            from antar_engine.moon_transit import moon_day_profile as _mdp
+            _prof = _mdp(target_date, tz_offset) or {}
+            if _prof.get("nakshatra"):
+                if _prof.get("differs_from_noon"):
+                    logger.info(
+                        f"[moon-transit] {date_str}: noon={_prof.get('noon_nakshatra')} "
+                        f"-> governing={_prof['nakshatra']} (changes {_prof.get('changes_at')})")
+                nakshatra = _prof["nakshatra"]
+                _moon_shift = _prof
+        except Exception as _mt_e:
+            logger.warning(f"[daily-week] moon transit failed for {date_str}: {_mt_e}")
+
         # [color-therapy 2026-07-20] Which colour activates today's live energy.
         # Uses the nakshatra lord (the daily-moving signal) led by the vara lord
         # (the day's standing frame), and respects tara: on an adverse tara we
@@ -1351,6 +1371,7 @@ async def generate_weekly_signals(
             _color = _cfd(nakshatra,
                           target_date.weekday(),
                           (_precision or {}).get("tara_quality"),
+                          chart_data=daily_context.get("chart_data") if daily_context else None,
                           # lagna makes the reason chart-specific: the same
                           # Saturn colour activates career for one user and
                           # money for another. Absent -> generic fallback.
@@ -1575,6 +1596,7 @@ async def generate_weekly_signals(
                 "moon_nakshatra": nakshatra,
                 "color": _color,
                 "food": _food,
+                "moon_shift": _moon_shift,
                 "moon_sign": moon_sign,
                 "moon_degree": moon_data["degree"],
                 "mercury_sign": mercury_sign,
@@ -1620,6 +1642,7 @@ async def generate_weekly_signals(
                 "moon_nakshatra": nakshatra,
                 "color": _color,
                 "food": _food,
+                "moon_shift": _moon_shift,
                 "moon_sign": moon_sign,
                 "moon_degree": moon_data["degree"],
                 "mercury_sign": mercury_sign,
@@ -1707,6 +1730,7 @@ def generate_weekly_signals_sync(
             "moon_nakshatra": nakshatra,
             "color": _color,
             "food": _food,
+            "moon_shift": _moon_shift,
             "moon_sign": moon_sign,
             "moon_degree": moon_data["degree"],
             "mercury_sign": mercury_sign,
