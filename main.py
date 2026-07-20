@@ -1530,6 +1530,22 @@ class PatraUpdateRequest(BaseModel):
     # every non-None field, so these flow through automatically.
     current_city: Optional[str] = None
     current_country: Optional[str] = None
+    # [birth-time-confidence 2026-07-20] exact | approximate | unknown. Validated
+    # here rather than trusting the client, because a junk value would silently
+    # land in the DB constraint's reject path and lose the whole patra update.
+    birth_time_accuracy: Optional[str] = None
+
+    # pydantic v2 in this codebase — `validator` is not imported anywhere;
+    # the module aliases field_validator as _chart_field_validator (line ~1316).
+    @_chart_field_validator("birth_time_accuracy", mode="before")
+    @classmethod
+    def _btc_valid(cls, v):
+        if v is None:
+            return v
+        v = str(v).strip().lower()
+        if v not in ("exact", "approximate", "unknown"):
+            raise ValueError("birth_time_accuracy must be exact, approximate or unknown")
+        return v
 
 class PushTokenRequest(BaseModel):
     chart_id: str
