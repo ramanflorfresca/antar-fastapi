@@ -1850,6 +1850,7 @@ async def call_llm_claude(
     history: Optional[List[Dict[str, str]]] = None,
     system_override: str = "",
     max_tokens_override: Optional[int] = None,
+    temperature_override: Optional[float] = None,
 ) -> tuple[str, Optional[int]]:
     """
     Calls Claude Sonnet for high-quality predictions.
@@ -1925,7 +1926,12 @@ async def call_llm_claude(
         response = await claude_client.messages.create(
             model=SONNET_MODEL,
             max_tokens=max_tokens_override or 1200,
-            temperature=0.35,
+            # [year-determinism 2026-07-20] temperature 0 for structured factual
+            # narration (the year read), so the SAME chart-state yields the SAME
+            # prose. The Anthropic API has no seed param, so temperature is the
+            # only lever; 0 is near-deterministic per prompt. Cold-cache calls no
+            # longer lock in a random first draft. Creative surfaces keep 0.35.
+            temperature=(0.35 if temperature_override is None else temperature_override),
             system=_system_blocks,
             messages=messages,
             extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"}
@@ -26623,6 +26629,8 @@ async def predict_year_attention(request: dict, language: str = None):
                 prompt="Write the Year narration JSON now.",
                 system_override=_yn_sys,
                 max_tokens_override=600,
+                # deterministic: same year-state -> same prose, warm or cold cache
+                temperature_override=0.0,
             )
             _yn = parse_and_validate_year(_yn_raw, language="en")
             # [readability 2026-06-10] simplify pre-cache, then re-strip.
