@@ -29,7 +29,7 @@ update charts set protected = true where id in (
   'e3a3dac7-cb91-468c-b9fe-51ff74ef1217',  -- Harleen  (Gemini, 1975-01-08, Kuwait) — regression fixture
   '20a4c417-053a-4822-9561-85584e2b8e95',  -- Shashi   (Libra,  1970-11-02, IN)     — regression fixture
   'a4c9d57b-fb9c-4890-8fe7-4a9904f515ed',  -- Raman    (Capricorn) — 10-event ground truth
-  'a2b1178f-17e5-4321-b5c2-2eb7c684385d'   -- Rishipal (Aquarius)  — 5-event out-of-sample set
+  'a2b1178f-17e5-4321-b5c2-2eb7c684385d'   -- Rishipal (Sagittarius) — 5-event out-of-sample set
 );
 
 create or replace function block_protected_chart_delete()

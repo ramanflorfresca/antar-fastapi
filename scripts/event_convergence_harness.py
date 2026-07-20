@@ -52,7 +52,7 @@ GROUND_TRUTH = {
             ("business_start",            "2015-06-15", T_YEAR),   # solo startup
         ],
     },
-    "a2b1178f-17e5-4321-b5c2-2eb7c684385d": {  # Rishipal — Aquarius, 1976-09-01
+    "a2b1178f-17e5-4321-b5c2-2eb7c684385d": {  # Rishipal — Sagittarius, 1976-09-01 14:30 IST New Delhi
         "label": "Rishipal",
         "events": [
             ("serious_partnership_began", "2004-07-25", T_DATE),   # 1st marriage
