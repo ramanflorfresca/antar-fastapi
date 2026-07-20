@@ -21965,7 +21965,7 @@ def _md_age_from(birth_date) -> Optional[int]:
     fields_to_translate=["practice", "text"],
     endpoint_name="monthly-deepdive",
 )
-async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: str = "en", force_refresh: bool = False):
+async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: str = "en", force_refresh: bool = False, wait: bool = False):
     """
     Returns the monthly deep-dive for the current month.
     Auto-generated on the 1st. Sprint E.
@@ -21977,7 +21977,9 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
     if language not in ("en", "es", "pt"):
         language = "en"
 
-    refresh = bool(refresh or force_refresh)
+    # `wait` implies a refresh — it is the blocking form of the same request.
+    wait    = bool(wait)
+    refresh = bool(refresh or force_refresh or wait)
     try:
         chart_res = supabase.table("charts").select("*").eq("id", chart_id).execute()
         if not chart_res.data:
@@ -22026,26 +22028,42 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
             lagna=chart_record.get("lagna_sign", "") or chart_data.get("lagna", {}).get("sign", ""),
             moon_sign=chart_record.get("moon_sign", "") or chart_data.get("planets", {}).get("Moon", {}).get("sign", ""),
             current_dasha=_current_dasha,
-            age=None,
             country_code=chart_record.get("current_country") or chart_record.get("country_code", ""),
             lk_context=lk_ctx,
             supabase=supabase,
             claude_client=claude_client,
             language=language,
             birth_date=chart_record.get("birth_date", ""),
+            # [age-fix 2026-07-20] was None. The life-stage layer silently fell
+            # back to generic phrasing for every monthly reading.
+            age=_md_age_from(chart_record.get("birth_date")),
             lk_data=_safe_jsonb(chart_record.get("lal_kitab_data")),
             # [life-context 2026-07-19] carries marital/children status so the
             # noun layer never says "your spouse" to someone single or divorced.
             chart_record=chart_record,
         )
         _md_month_key = _md_dt.now(_md_tz.utc).strftime("%Y-%m")
-        _md_cached = _md_read_cache(chart_id, _md_month_key, supabase, language)
+        # [refresh-honesty 2026-07-20] `refresh`/`force_refresh` deliberately do
+        # NOT block (see the note above: a cold Sonnet call is ~12-18s). But the
+        # response said nothing about that, so a caller asking to refresh got the
+        # OLD reading back with no indication it was stale and no way to know a
+        # regeneration was in flight. In the app that reads as "pull-to-refresh
+        # did nothing"; it also cost a wrong verification during development.
+        #
+        # Keep the latency behaviour, drop the lie: flag the payload as stale and
+        # regenerating so the UI can say "updating..." and re-poll. `wait=true` is
+        # the explicit opt-in for callers that genuinely want to block.
+        _md_cached = None if wait else _md_read_cache(chart_id, _md_month_key, supabase, language)
         if _md_cached:
-            result = _md_cached
+            # copy before mutating: _read_cache hands back the cached blob, and
+            # writing flags onto it would poison what the next reader sees.
+            result = dict(_md_cached)
             if refresh:
                 _layered_spawn(_monthly_regen_bg(dict(_md_kwargs, force_refresh=True)))
+                result["stale"] = True
+                result["regenerating"] = True
         else:
-            # truly cold — no cached month yet — generate once, synchronously
+            # truly cold (or wait=true) — generate once, synchronously
             result = await generate_monthly_deepdive(**dict(_md_kwargs, force_refresh=True))
 
         # ── Layer-2 concrete signals (highlights) — Month ──────────────
@@ -22373,7 +22391,8 @@ async def get_annual_plan(chart_id: str, refresh: bool = False, language: str = 
             moon_sign=chart_record.get("moon_sign", "") or chart_data.get("planets", {}).get("Moon", {}).get("sign", ""),
             current_dasha=_current_dasha,
             birth_date=chart_record.get("birth_date", ""),
-            age=None,
+            # [age-fix 2026-07-20] was None — same miss as the monthly path.
+            age=_md_age_from(chart_record.get("birth_date")),
             country_code=country_code,
             dkp_context=dkp_ctx,
             lk_context=lk_ctx,
