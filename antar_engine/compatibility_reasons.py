@@ -167,8 +167,99 @@ def normalize_reason(compat_type=None, mode=None, default="romantic") -> str:
     return raw if raw in REASON_DEFINITIONS else default
 
 
-def reasons_directory() -> dict:
-    """Static directory for GET /api/v1/compatibility/reasons."""
+# [compat-i18n 2026-07-20] The picker is a fixed set of UI strings, not generated
+# prose, so it is translated from a curated table rather than the LLM
+# translate_dict path: deterministic, zero latency, zero cost, and it cannot
+# drift between runs. Spanish users previously saw this whole screen in English
+# because the endpoint took no language at all.
+_REASON_I18N = {
+    "es": {
+        "label": {
+            "romantic": "Pareja romántica", "business": "Socio de negocios",
+            "cofounder": "Cofundador(a)", "friend": "Amistad",
+            "family": "Familiar", "employee": "Alguien que me reporta",
+            "boss-or-manager": "Alguien a quien le reporto",
+        },
+        "question": {
+            "romantic": "¿Cómo somos como pareja?",
+            "cofounder": "¿Deberíamos construir esta empresa juntos?",
+            "business": "¿Funcionará esta sociedad?",
+            "friend": "¿De qué está hecha nuestra amistad?",
+            "family": "¿Qué me pide esta relación?",
+            "employee": "¿Esta persona funcionará bien en mi equipo?",
+            "boss-or-manager": "¿Prosperaré con esta persona como líder?",
+        },
+        "sublabel": {
+            "romantic": "Pareja, matrimonio, noviazgo",
+            "cofounder": "Sociedad con participación accionaria",
+            "business": "Negocio o contrato en general",
+            "friend": "No romántica, platónica",
+            "family": "Padres, hermanos, suegros, hijos",
+            "employee": "Tú eres el empleador / gerente",
+            "boss-or-manager": "Tú eres quien reporta",
+        },
+        "role_label": {
+            "sales": "Ventas / Desarrollo", "marketing": "Marketing",
+            "finance": "Finanzas / Operaciones", "managerial": "Liderazgo",
+        },
+        "role_sublabel": {
+            "sales": "Ingresos, negocios, pipeline",
+            "marketing": "Marca, creatividad, contenido",
+            "finance": "Contabilidad, control financiero",
+            "managerial": "P&L, gestión de equipo",
+        },
+    },
+    "pt": {
+        "label": {
+            "romantic": "Parceiro(a) romântico(a)", "business": "Sócio(a) de negócios",
+            "cofounder": "Cofundador(a)", "friend": "Amizade",
+            "family": "Familiar", "employee": "Alguém que me reporta",
+            "boss-or-manager": "Alguém a quem eu reporto",
+        },
+        "question": {
+            "romantic": "Como somos como casal?",
+            "cofounder": "Devemos construir esta empresa juntos?",
+            "business": "Esta parceria vai funcionar?",
+            "friend": "Do que é feita a nossa amizade?",
+            "family": "O que esta relação me pede?",
+            "employee": "Esta pessoa vai funcionar bem na minha equipe?",
+            "boss-or-manager": "Vou prosperar com esta pessoa como líder?",
+        },
+        "sublabel": {
+            "romantic": "Parceria, casamento, namoro",
+            "cofounder": "Sociedade com participação societária",
+            "business": "Negócio ou contrato em geral",
+            "friend": "Não romântica, platônica",
+            "family": "Pais, irmãos, sogros, filhos",
+            "employee": "Você é o empregador / gestor",
+            "boss-or-manager": "Você é quem reporta",
+        },
+        "role_label": {
+            "sales": "Vendas / BD", "marketing": "Marketing",
+            "finance": "Finanças / Operações", "managerial": "Liderança",
+        },
+        "role_sublabel": {
+            "sales": "Receita, negócios, pipeline",
+            "marketing": "Marca, criativo, conteúdo",
+            "finance": "Contabilidade, controladoria",
+            "managerial": "P&L, gestão de equipe",
+        },
+    },
+}
+
+
+def reasons_directory(language: str = "en") -> dict:
+    """Static directory for GET /api/v1/compatibility/reasons.
+
+    `language` accepts regional tags ("es-AR", "pt-BR"); anything without a
+    curated table falls back to the English source strings.
+    """
+    lang = (language or "en").strip().lower().replace("_", "-").split("-")[0]
+    tbl = _REASON_I18N.get(lang) or {}
+
+    def _tr(group: str, key: str, fallback: str) -> str:
+        return (tbl.get(group) or {}).get(key) or fallback
+
     questions = {
         "romantic":        ("How are we as a couple?",                "Partnership, marriage, dating"),
         "cofounder":       ("Should we build this company together?", "Equity-tied venture partnership"),
@@ -184,6 +275,14 @@ def reasons_directory() -> dict:
         {"key": "finance",    "label": "Finance / Ops", "sublabel": "Accounting, controllership"},
         {"key": "managerial", "label": "Leadership",    "sublabel": "P&L, team management"},
     ]
+    role_dir = [
+        {
+            "key": r["key"],
+            "label": _tr("role_label", r["key"], r["label"]),
+            "sublabel": _tr("role_sublabel", r["key"], r["sublabel"]),
+        }
+        for r in role_dir
+    ]
     # Stable display order (employer/report last, per the picker design).
     order = ["romantic", "cofounder", "business", "friend", "family", "employee", "boss-or-manager"]
     out = []
@@ -191,7 +290,10 @@ def reasons_directory() -> dict:
         d = REASON_DEFINITIONS[key]
         q, sub = questions[key]
         entry = {
-            "key": key, "label": d["label"], "question": q, "sublabel": sub,
+            "key": key,
+            "label": _tr("label", key, d["label"]),
+            "question": _tr("question", key, q),
+            "sublabel": _tr("sublabel", key, sub),
             "needs_role": d["needs_role"], "direction": d["direction"],
         }
         if d["needs_role"]:

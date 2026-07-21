@@ -14161,9 +14161,23 @@ async def compat_six_layer(request: CompatRequest):
 
 
 @app.get("/api/v1/compatibility/reasons")
-async def get_compatibility_reasons():
+async def get_compatibility_reasons(language: str = "en", chart_id: Optional[str] = None):
+    """The reason picker. Took no language at all, so every Spanish user saw
+    this entire screen in English; `chart_id` lets it honour the stored
+    preference when the client forgets to send one."""
     from antar_engine import compatibility_reasons as _R
-    return _R.reasons_directory()
+    lang = language or "en"
+    # Same resolution order the other localized routes use:
+    # explicit query param -> chart.language_preference -> "en".
+    if (not language or language == "en") and chart_id:
+        try:
+            _c = supabase.table("charts").select("language_preference") \
+                .eq("id", chart_id).limit(1).execute()
+            if _c.data:
+                lang = _c.data[0].get("language_preference") or lang
+        except Exception:
+            pass
+    return _R.reasons_directory(lang)
 
 
 @app.post("/api/v1/timing/windows")
