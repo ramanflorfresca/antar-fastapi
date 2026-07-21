@@ -26048,6 +26048,25 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
             raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
         chart_data = chart_resp.data
 
+        # [lang-safety 2026-07-20] 'en' is the ambiguous DEFAULT the client sends
+        # when it has NOT resolved a language (stale localStorage, a signup that
+        # never synced its interface language). A stored non-English preference,
+        # by contrast, is an explicit choice. So when the request is the bare
+        # default 'en' yet the chart prefers another language, honor the stored
+        # preference — otherwise a Spanish user (Jonatan, CO, preference=es) keeps
+        # getting English cards because his UI language is stuck on 'en'. This
+        # drives generation, the cache key AND the es translation path below, so
+        # resolving it here fixes all three at once.
+        if (language or "en").strip().lower() == "en":
+            _stored_pref = (
+                (chart_data.get("language_preference") or "").strip().lower()
+                or (chart_data.get("language") or "").strip().lower()
+            )
+            if _stored_pref and _stored_pref != "en":
+                language = _pt_gate("daily-week", _stored_pref)
+                print(f"[daily-week] lang-safety: request 'en' overridden to stored "
+                      f"preference '{language}' for chart {chart_id[:8]}")
+
         # 2. Extract natal Moon sign
         # Handle BOTH storage formats:
         #   (a) planets = {"Moon": {"sign": "..."}, "Sun": {...}, ...}   (current schema)
