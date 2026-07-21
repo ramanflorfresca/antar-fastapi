@@ -14162,7 +14162,7 @@ async def compat_six_layer(request: CompatRequest):
 
 @app.get("/api/v1/compatibility/reasons")
 async def get_compatibility_reasons(
-    language: str = "en",
+    language: Optional[str] = None,
     chart_id: Optional[str] = None,
     authorization: Optional[str] = Header(None),
     accept_language: Optional[str] = Header(None),
@@ -14179,8 +14179,13 @@ async def get_compatibility_reasons(
     the majority of our es/pt charts are unauthenticated.
     """
     from antar_engine import compatibility_reasons as _R
+    # `language` defaults to None, NOT "en", so an explicit ?language=en is
+    # distinguishable from "client sent nothing". Without that distinction the
+    # fallbacks below would override a user who deliberately chose English on a
+    # Spanish device — the frontend now always sends the param, so that case is
+    # real and not hypothetical.
     lang = language or "en"
-    if not language or language == "en":
+    if language is None:
         if chart_id:
             try:
                 _c = supabase.table("charts").select("language_preference") \
