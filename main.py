@@ -14165,15 +14165,18 @@ async def get_compatibility_reasons(
     language: str = "en",
     chart_id: Optional[str] = None,
     authorization: Optional[str] = Header(None),
+    accept_language: Optional[str] = Header(None),
 ):
     """The reason picker. Took no language at all, so every Spanish user saw
     this entire screen in English.
 
     Resolution order: explicit `language` -> `chart_id`'s stored preference ->
-    the signed-in user's stored preference (from the bearer token). That last
-    hop matters: shipped clients call this endpoint authenticated but WITHOUT a
-    language param, so resolving from the token fixes them in place instead of
-    waiting on a frontend release.
+    the signed-in user's stored preference (bearer token) -> the browser's
+    Accept-Language. The last two hops matter because shipped clients call this
+    endpoint WITHOUT a language param, so resolving server-side fixes them in
+    place instead of waiting on a frontend release. Accept-Language
+    specifically covers GUESTS, who have no token and no stored chart —
+    the majority of our es/pt charts are unauthenticated.
     """
     from antar_engine import compatibility_reasons as _R
     lang = language or "en"
@@ -14191,6 +14194,17 @@ async def get_compatibility_reasons(
                 _uid, _ = _st_identity(authorization)
                 if _uid:
                     lang = _lang_pref_for_user(_uid) or lang
+            except Exception:
+                pass
+        if lang == "en" and accept_language:
+            # Guests only. "es-CO,es;q=0.9,en;q=0.8" -> "es". Take the FIRST
+            # tag rather than scanning for any es/pt, so a user whose primary
+            # language is English keeps English even when Spanish trails.
+            try:
+                _first = accept_language.split(",")[0].strip().lower()
+                _base = _first.split("-")[0]
+                if _base in ("es", "pt"):
+                    lang = _base
             except Exception:
                 pass
     return _R.reasons_directory(lang)
