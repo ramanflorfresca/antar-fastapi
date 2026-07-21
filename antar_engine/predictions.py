@@ -950,7 +950,14 @@ def build_layered_predictions(
     if question:
         try:
             from antar_engine.venture_context import venture_context_block
-            venture_ctx = venture_context_block(question, career_stage)
+            # Pull the sector from the chart record too — the question rarely
+            # names it ("growth is slow"), while the profile may already say
+            # "wholesale cloth" or "restaurant", which changes the significators.
+            venture_ctx = venture_context_block(
+                question, career_stage,
+                ventures=(chart_data or {}).get("ventures"),
+                profession=(chart_data or {}).get("profession") or "",
+            )
         except Exception:
             venture_ctx = {}
 

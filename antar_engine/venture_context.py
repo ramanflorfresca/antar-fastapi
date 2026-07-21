@@ -93,18 +93,56 @@ _VENTURE_NATURE: Tuple[Tuple[str, Tuple[str, ...], List[str], str], ...] = (
     ), ["Venus", "Mercury"],
         "content and media ventures run on Venus (aesthetics, audience) with "
         "Mercury (communication)"),
+    # Food is NOT retail: a restaurant is read from Venus+Moon as nourishment
+    # and repeat custom, a shop from Venus+Mercury as desirability and trade.
+    # Keeping "restaurant" in the retail markers made them indistinguishable.
     ("retail", (
-        "retail", "store", "shop", "ecommerce", "e-commerce", "restaurant",
-        "cafe", "food", "hospitality", "tienda", "restaurante",
-    ), ["Venus", "Moon"],
-        "retail and hospitality run on Venus (desirability) with Moon (the "
-        "public, repeat custom)"),
+        "retail", "store", "shop", "ecommerce", "e-commerce", "boutique",
+        "tienda", "comercio",
+    ), ["Venus", "Mercury"],
+        "retail runs on Venus (desirability, what people want) with Mercury "
+        "(trade, turnover)"),
     ("manufacturing", (
         "manufactur", "factory", "production", "hardware", "construction",
         "logistics", "supply chain", "fabrica", "fábrica",
     ), ["Mars", "Saturn"],
         "manufacturing and construction run on Mars (machinery, drive) with "
         "Saturn (process, endurance)"),
+    ("wholesale", (
+        "wholesale", "wholesaler", "distribution", "distributor", "trading house",
+        "bulk supply", "b2b supply", "mayorista", "distribuidor",
+    ), ["Mercury", "Moon"],
+        "wholesale and distribution run on Mercury (trade, margin, turnover) "
+        "with Moon (volume, circulation, the public's demand)"),
+    ("import_export", (
+        "import", "export", "import-export", "cross-border", "customs",
+        "shipping", "freight", "overseas trade", "importacion", "exportacion",
+    ), ["Mercury", "Rahu"],
+        "import-export runs on Mercury (trade) with Rahu (foreign, distance, "
+        "the unconventional route) — the 9th and 12th carry it"),
+    ("textile", (
+        "cloth", "textile", "garment", "apparel", "fabric", "fashion label",
+        "clothing", "saree", "tela", "ropa",
+    ), ["Venus", "Mercury"],
+        "cloth and garments run on Venus (beauty, adornment, desirability) with "
+        "Mercury (trade)"),
+    ("food", (
+        "restaurant", "cafe", "cloud kitchen", "catering", "bakery", "food truck",
+        "restaurante", "cafeteria", "panaderia",
+    ), ["Venus", "Moon"],
+        "food and hospitality run on Venus (taste, pleasure) with Moon "
+        "(nourishment, the public, repeat custom)"),
+    ("realestate", (
+        "real estate", "property development", "builder", "construction firm",
+        "brokerage of property", "inmobiliaria",
+    ), ["Mars", "Venus"],
+        "real estate runs on Mars (land, building) with Venus (value, the deal)"),
+    ("education_biz", (
+        "school", "edtech", "coaching institute", "training institute", "academy",
+        "tutoring", "academia",
+    ), ["Jupiter", "Mercury"],
+        "education ventures run on Jupiter (teaching, authority) with Mercury "
+        "(curriculum, communication)"),
     ("services", (
         "consulting", "consultancy", "agency", "services", "freelance",
         "coaching", "training", "recruit", "servicios", "consultoria",
@@ -136,10 +174,24 @@ def detect_venture_nature(question: str, context: str = "") -> Optional[Dict]:
 
 
 def venture_context_block(question: str, career_stage: Optional[str] = None,
-                          context: str = "") -> Dict:
-    """Everything this module can infer, for the reading context."""
+                          context: str = "", ventures=None,
+                          profession: str = "") -> Dict:
+    """Everything this module can infer, for the reading context.
+
+    `ventures` and `profession` come from the chart record. They are consulted
+    because the question often does not name the sector — someone asks "growth
+    is slow", not "my wholesale cloth business is slow" — while the profile may
+    already say it. This is the difference between reading "a business" and
+    reading THIS business: cloth is Venus, trade is Mercury, import-export pulls
+    in Rahu and the 9th/12th. Same 10th house, different verdict.
+    """
+    extra = " ".join([
+        context or "",
+        " ".join(ventures) if isinstance(ventures, (list, tuple)) else str(ventures or ""),
+        profession or "",
+    ]).strip()
     agency = detect_agency(question, career_stage)
-    nature = detect_venture_nature(question, context)
+    nature = detect_venture_nature(question, extra)
     return {
         "agency": agency,
         "agency_houses": houses_for_agency(agency),
