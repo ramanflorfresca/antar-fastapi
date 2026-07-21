@@ -115,6 +115,35 @@ def _yoga_strength(conditions: list[bool]) -> str:
 # WEALTH & BILLIONAIRE YOGAS
 # ══════════════════════════════════════════════════════════════════════════════
 
+def _d2_lagna(d2) -> str:
+    """D-2 Hora lagna sign, tolerant of both stored shapes.
+
+    calculator output : {"lagna": "Leo"}                (lowercase, string)
+    detector's guess  : {"Lagna": {"sign": "Leo"}}      (capitalised, nested)
+    """
+    if not isinstance(d2, dict):
+        return ""
+    for key in ("lagna", "Lagna", "LAGNA"):
+        v = d2.get(key)
+        if isinstance(v, str) and v:
+            return v
+        if isinstance(v, dict):
+            sign = v.get("sign") or v.get("Sign")
+            if sign:
+                return str(sign)
+    return ""
+
+
+def _d2_planet(d2, name: str) -> dict:
+    """A planet's D-2 entry regardless of where/how the varga stores planets."""
+    if not isinstance(d2, dict):
+        return {}
+    planets = d2.get("planets") if isinstance(d2.get("planets"), dict) else d2
+    if not isinstance(planets, dict):
+        return {}
+    return planets.get(name) or planets.get(name.capitalize()) or {}
+
+
 def detect_wealth_yogas(
     chart_data: dict,
     d_charts: dict,
@@ -276,10 +305,21 @@ def detect_wealth_yogas(
     })
 
     # ── 6. D-2 Hora confirmation ──────────────────────────────────
-    d2_lagna_sign = d2.get("Lagna", {}).get("sign", "") if d2 else ""
+    # [d2-shape 2026-07-21] The stored D-2 is {"lagna": "Leo", "planets": {...}}
+    # — lowercase key, PLAIN STRING — but this read expected
+    # {"Lagna": {"sign": ...}}. It silently resolved to "" on every real chart,
+    # so the Hora (wealth) chart reported "uncalculated" and its confirmation
+    # never contributed. D-2 is THE wealth varga; losing it gutted the promise
+    # verdict. Accept both shapes.
+    d2_lagna_sign = _d2_lagna(d2)
     d2_benefic    = d2_lagna_sign in ["Cancer", "Leo"]  # Moon hora or Sun hora lagna
-    d2_jupiter    = d2.get("Jupiter", {}).get("strength", "") in ("exalted", "own") if d2 else False
-    d2_venus      = d2.get("Venus",   {}).get("strength", "") in ("exalted", "own") if d2 else False
+    # Own-sign fallback: the stored varga carries sign/hora_type but no
+    # "strength" field, so a strength-only test was always False.
+    _jd, _vd = _d2_planet(d2, "Jupiter"), _d2_planet(d2, "Venus")
+    d2_jupiter = (_jd.get("strength", "") in ("exalted", "own")
+                  or _jd.get("sign") in ("Sagittarius", "Pisces", "Cancer"))
+    d2_venus = (_vd.get("strength", "") in ("exalted", "own")
+                or _vd.get("sign") in ("Taurus", "Libra", "Pisces"))
 
     yogas.append({
         "name":        "D-2 Hora — Wealth Chart Confirmation",

@@ -961,14 +961,36 @@ _NO_PROMISE_CEILING = 0.60   # transits alone cannot deliver an unpromised thing
 _PROMISE_ACTIVE_BOOST = 1.12 # promise + period agreeing leads the reading
 
 
+def _present_yogas(items) -> list:
+    """Only the yogas a chart actually HAS.
+
+    Detectors return a dict per yoga *checked* (present True or False), so
+    truthiness of the list says nothing about the chart. Plain strings (the
+    legacy detected_yogas shape) are treated as present.
+    """
+    out = []
+    for y in items or []:
+        if isinstance(y, dict):
+            if y.get("present") is False:
+                continue
+            out.append(y)
+        elif y:
+            out.append(y)
+    return out
+
+
 def assess_promise_period(l1, l3, detected_yogas, concern: str = "") -> dict:
     """Classify the structural ground under a reading.
 
     promise  = natal yoga for this concern (layer 3 / detected_yogas)
     period   = dasha windows for this concern (layer 1)
     """
-    yogas = [y for y in (detected_yogas or []) if y]
-    promise_present = bool(yogas) or bool(l3)
+    # [promise-count 2026-07-21] Detectors emit one dict PER yoga checked, each
+    # carrying present: True/False — a chart with zero real yogas still returns
+    # the full list. Counting the list therefore made promise_present always
+    # True and the no_promise gate unreachable. Count the FLAG.
+    yogas = _present_yogas(detected_yogas) or _present_yogas(l3)
+    promise_present = bool(yogas)
     period_active = bool(l1)
 
     if not promise_present:
@@ -987,11 +1009,20 @@ def assess_promise_period(l1, l3, detected_yogas, concern: str = "") -> dict:
             "prepare rather than push."
         )
 
+    n = len(yogas)
+    promise_strength = ("strong" if n >= 3 else "moderate" if n == 2 else
+                        "thin" if n == 1 else "none")
+    named = [
+        (y.get("name") or "").split(" —")[0] for y in yogas if isinstance(y, dict)
+    ]
+
     return {
         "gate": gate,
+        "promise_strength": promise_strength,
+        "promise_yogas": [n_ for n_ in named if n_],
         "promise_present": promise_present,
         "period_active": period_active,
-        "promise_count": len(yogas) or len(l3 or []),
+        "promise_count": len(yogas),
         "period_count": len(l1 or []),
         "note": note,
         "concern": concern,
