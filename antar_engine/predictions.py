@@ -922,6 +922,8 @@ def build_layered_predictions(
     # capability; promise plus its own dasha is what actually delivers.
     subject_promise = {}
     dasha_rel = {}
+    transit_focus = {}
+    vocation = {}
     try:
         from antar_engine.subject_promise import (
             assess_subject_promise, dasha_relevance, SUBJECT_HOUSES,
@@ -957,8 +959,19 @@ def build_layered_predictions(
             _st.get("next_md", ""), _st.get("days_to_next_md"),
         )
         dasha_rel["md_ends"] = _st.get("md_ends")
+
+        # Step 5: transits on THIS subject's houses (not a flat confluence count).
+        # Step 6: does the chart suit THIS kind of work at all?
+        from antar_engine.subject_promise import transit_activation, vocational_fit
+        _hs = subject_promise.get("houses") or []
+        transit_focus = transit_activation(chart_data, _hs)
+        vocation = vocational_fit(
+            chart_data, venture_ctx.get("nature_karakas"),
+            venture_ctx.get("nature") or "",
+        )
     except Exception:
         subject_promise, dasha_rel = {}, {}
+        transit_focus, vocation = {}, {}
     all_preds = sorted(l1 + l2 + l3 + l4, key=lambda x: x["confidence"], reverse=True)
     all_preds = apply_structural_hierarchy(all_preds, structure)
 
@@ -981,6 +994,8 @@ def build_layered_predictions(
         "venture_context":    venture_ctx,
         "subject_promise":    subject_promise,
         "dasha_relevance":    dasha_rel,
+        "transit_focus":      transit_focus,
+        "vocational_fit":     vocation,
         # v2: WOW FIELDS prompt block — append to your LLM prompt string
         "wow_prompt_block":   build_wow_fields_prompt_block(
                                   {"lead": all_preds[0] if all_preds else {}, "all_predictions": all_preds},
@@ -1179,6 +1194,29 @@ def predictions_to_context_block(predictions: dict, chart_data: dict, concern: s
                     "  RULE: say plainly that the capability is real but this "
                     "period is about something else. Do not promise delivery now."
                 )
+        lines.append("")
+
+    _tf = predictions.get("transit_focus") or {}
+    if _tf.get("available") and (_tf.get("hits") or _tf.get("note")):
+        lines.append("═══ WHAT IS TRANSITING THIS SUBJECT NOW ═══")
+        for _h in (_tf.get("hits") or [])[:6]:
+            lines.append(f"  {'[season]' if _h.get('slow') else '[timing]'} {_h.get('line')}")
+        lines.append(f"  {_tf.get('note','')}")
+        lines.append("")
+
+    _vf = predictions.get("vocational_fit") or {}
+    if _vf.get("available"):
+        lines.append("═══ IS THIS KIND OF WORK RIGHT FOR THEM ═══")
+        lines.append(f"Verdict: {str(_vf.get('verdict','')).upper()} "
+                     f"for {_vf.get('nature') or 'this work'} "
+                     f"(significators {', '.join(_vf.get('karakas') or [])})")
+        for _e in (_vf.get("evidence") or [])[:6]:
+            lines.append(f"  - {_e}")
+        if _vf.get("verdict") == "against the grain":
+            lines.append(
+                "  RULE: say so honestly. Name the kind of work this chart IS "
+                "built for rather than only cheerleading the current one."
+            )
         lines.append("")
 
     _vc = predictions.get("venture_context") or {}

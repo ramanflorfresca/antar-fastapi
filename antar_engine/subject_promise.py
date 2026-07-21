@@ -331,3 +331,127 @@ def read_dasha_state(vimsottari: list, now=None) -> dict:
             out["ad"] = r.get("parent_lord") or ""
             break
     return out
+
+
+# ── STEP 5: TRANSIT PRESSURE ON THE SUBJECT'S HOUSES ─────────────────────
+# Transit was previously read as a flat "confluence count" with no idea which
+# houses the question cared about. What a reader actually does is narrower:
+# is anything currently sitting on THIS subject's houses, and is it a slow
+# planet (structural, months-to-years) or a fast one (timing, days)?
+
+_SLOW = ("Jupiter", "Saturn", "Rahu", "Ketu")
+_TRANSIT_TONE = {
+    "Jupiter": ("expands and legitimises", "+"),
+    "Saturn":  ("slows, tests and formalises", "-"),
+    "Rahu":    ("amplifies, disrupts, scales unconventionally", "+"),
+    "Ketu":    ("detaches, dissolves interest", "-"),
+    "Mars":    ("energises and forces action", "+"),
+    "Venus":   ("smooths and attracts", "+"),
+    "Mercury": ("quickens dealing and negotiation", "+"),
+    "Sun":     ("brings visibility and authority", "+"),
+    "Moon":    ("colours the mood, briefly", "0"),
+}
+
+
+def transit_activation(chart_data: dict, houses: List[int], now=None) -> dict:
+    """Which of the subject's houses are lit right now, and by what.
+
+    Whole-sign from the natal lagna, matching how the rest of the engine reads
+    houses. Slow planets are reported separately because they set the season;
+    fast ones only set the day.
+    """
+    try:
+        lagna = chart_data["lagna"]["sign"]
+        lagna_idx = SIGNS.index(lagna)
+    except Exception:
+        return {"available": False, "hits": [], "structural": [], "note": ""}
+
+    try:
+        from antar_engine.transit_engine import get_current_transit_positions
+        pos = get_current_transit_positions(now) or {}
+    except Exception:
+        return {"available": False, "hits": [], "structural": [], "note": ""}
+
+    want = set(houses or [])
+    hits, structural = [], []
+    for planet, data in pos.items():
+        if not isinstance(data, dict):
+            continue
+        si = data.get("sign_index")
+        if si is None:
+            continue
+        house = ((int(si) - lagna_idx) % 12) + 1
+        if house not in want:
+            continue
+        tone, sign = _TRANSIT_TONE.get(planet, ("moves through", "0"))
+        entry = {
+            "planet": planet, "house": house, "sign": data.get("sign"),
+            "retrograde": bool(data.get("retrograde")),
+            "slow": planet in _SLOW, "polarity": sign,
+            "line": (f"{planet} is transiting your {house}th "
+                     f"({HOUSE_MEANING.get(house, '')}) — it {tone}"
+                     + (" (retrograde — the effect is under review, not yet final)"
+                        if data.get("retrograde") else "")),
+        }
+        hits.append(entry)
+        if entry["slow"]:
+            structural.append(entry)
+
+    if structural:
+        note = ("Slow planets are sitting on this subject's houses — this is a "
+                "season, not a mood. Time decisions around them.")
+    elif hits:
+        note = ("Only fast planets are touching these houses — useful for timing "
+                "a specific action, not for the shape of the period.")
+    else:
+        note = ("Nothing is transiting this subject's houses right now — the "
+                "period, not the sky, is what is driving this.")
+    return {"available": True, "hits": hits, "structural": structural, "note": note}
+
+
+# ── STEP 6: IS THIS KIND OF WORK RIGHT FOR THIS PERSON? ──────────────────
+
+def vocational_fit(chart_data: dict, karakas: Optional[List[str]],
+                   nature: str = "") -> dict:
+    """Does the chart actually support THIS kind of work?
+
+    A venture's significators (tech -> Mercury/Rahu, retail -> Venus/Moon) are
+    only an asset if those planets are strong in THIS chart. Someone building a
+    Mercury/Rahu business with both weak is pushing uphill; the same person may
+    be perfectly built for a different kind of venture.
+    """
+    if not karakas:
+        return {"available": False, "verdict": "", "evidence": []}
+    try:
+        planets = chart_data["planets"]
+    except Exception:
+        return {"available": False, "verdict": "", "evidence": []}
+
+    score, evidence = 0, []
+    for k in karakas:
+        dig = _dignity(k, planets)
+        pos = _house_of(k, planets)
+        if dig in ("exalted", "own"):
+            score += 2
+            evidence.append(f"{k} — the significator of {nature or 'this work'} — is {dig} in your chart. Natural fit.")
+        elif dig == "debilitated":
+            nb = neecha_bhanga(k, planets)
+            if nb["cancelled"]:
+                score += 1
+                evidence.append(f"{k} is debilitated but cancelled ({nb['reasons'][0]}) — a late-blooming strength in this work.")
+            else:
+                score -= 2
+                evidence.append(f"{k} is debilitated — this kind of work asks for a muscle your chart has to build deliberately.")
+        else:
+            evidence.append(f"{k} is in neutral dignity — workable, neither gift nor obstacle.")
+        if pos in _KENDRA or pos in _TRIKONA:
+            score += 1
+            evidence.append(f"  …and {k} sits in the {pos}th, a strong angle — you can actually use it.")
+        elif pos in _DUSTHANA:
+            score -= 1
+            evidence.append(f"  …but {k} sits in the {pos}th, so it costs you something to deploy.")
+
+    verdict = ("well suited" if score >= 3 else "workable" if score >= 0
+               else "against the grain")
+    return {"available": True, "verdict": verdict, "score": score,
+            "karakas": list(karakas), "nature": nature, "evidence": evidence}
