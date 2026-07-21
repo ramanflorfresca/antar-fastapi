@@ -22161,6 +22161,7 @@ def _md_age_from(birth_date) -> Optional[int]:
     # are NOT listed, so the frontend still switches on their English values.
     fields_to_translate=[
         "practice", "text", "hook", "best_week", "caution_week",
+        "status_label",
     ],
     endpoint_name="monthly-deepdive",
 )
@@ -26819,6 +26820,11 @@ async def predict_year_attention(request: dict, language: str = None):
                 fields_to_translate=[
                     "headline", "gist", "use", "remedy", "issue", "watch",
                     "note", "text", "governs", "steps", "best", "worst",
+                    # [loc-sweep 2026-07-20] the domain rows' display label
+                    # ("Move now" / "Hold steady") leaked English. It is display
+                    # text (rendered directly; status_color drives the colour),
+                    # so it is safe to translate.
+                    "status_label",
                 ],
                 fields_to_skip=[
                     "planet", "name", "key", "human", "color", "range", "tab",
