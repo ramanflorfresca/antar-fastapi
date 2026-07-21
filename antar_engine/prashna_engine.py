@@ -1791,6 +1791,26 @@ def compute_prashna_verdict(
     else:
         domain, houses = detect_domain(question)
 
+    # [agency 2026-07-21] "Sales" is the 3rd house only when the USER sells.
+    # A founder whose team or partners sell is asking about the 7th (clients,
+    # partners) and 6th (staff, delivery) — reading it from the 3rd measures
+    # the wrong person entirely. Only overrides for venture-side domains, and
+    # only when the question actually says who acts.
+    try:
+        from antar_engine.venture_context import detect_agency, houses_for_agency
+        _venture_domains = {
+            "business", "startup", "company", "venture", "new business",
+            "growth", "sales", "revenue", "customer", "customers", "users",
+            "signups", "traction", "churn", "marketing", "scale",
+        }
+        if (domain or "").lower() in _venture_domains:
+            _agency = detect_agency(question)
+            _ah = houses_for_agency(_agency)
+            if _ah:
+                houses = _ah
+    except Exception:
+        pass
+
     # Determine significators
     lagna_sign = chart["lagna_sign"]
     lord_1_id = get_sign_lord(lagna_sign)

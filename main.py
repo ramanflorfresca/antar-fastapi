@@ -5439,6 +5439,10 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
         concern=concern,
         detected_yogas=detected_yogas,
         chart_id=request.chart_id,
+        # [venture-context 2026-07-21] the question itself carries WHO acts
+        # ("my team sells") and WHAT the venture is ("saas platform") — both
+        # change which houses and significators the reading should use.
+        question=request.question,
     )
     predictions_context = predictions_to_context_block(predictions, chart_data, concern)
 

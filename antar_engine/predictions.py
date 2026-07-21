@@ -858,6 +858,8 @@ def build_layered_predictions(
     concern: str = "general",
     detected_yogas: list[str] = None,
     chart_id: Optional[str] = None,
+    question: Optional[str] = None,
+    career_stage: Optional[str] = None,
 ) -> dict:
     """
     Main entry point. Call this from your /predict endpoint.
@@ -896,7 +898,25 @@ def build_layered_predictions(
     l3 = layer3_yoga_activation(chart_data, dashas, detected_yogas or [], concern)
     l4 = layer4_personal_mirror(user_id, chart_data, dashas, life_events, supabase, concern) if user_id else []
 
+    for _p in l1:
+        _p.setdefault("_structural", True)
+    for _p in l3:
+        _p.setdefault("_structural", True)
+
+    structure = assess_promise_period(l1, l3, detected_yogas, concern)
+
+    # Who is executing, and what kind of venture — both change which houses and
+    # significators the prose should reason from. Optional: absent question ->
+    # empty dict, and the context block simply omits the section.
+    venture_ctx = {}
+    if question:
+        try:
+            from antar_engine.venture_context import venture_context_block
+            venture_ctx = venture_context_block(question, career_stage)
+        except Exception:
+            venture_ctx = {}
     all_preds = sorted(l1 + l2 + l3 + l4, key=lambda x: x["confidence"], reverse=True)
+    all_preds = apply_structural_hierarchy(all_preds, structure)
 
     # Store high-confidence predictions for fulfillment tracking
     if user_id and all_preds:
@@ -913,6 +933,8 @@ def build_layered_predictions(
         "highest_confidence": all_preds[0]["confidence"] if all_preds else 0,
         "has_personal_data":  len(l4) > 0,
         "concern":            concern,
+        "structure":          structure,
+        "venture_context":    venture_ctx,
         # v2: WOW FIELDS prompt block — append to your LLM prompt string
         "wow_prompt_block":   build_wow_fields_prompt_block(
                                   {"lead": all_preds[0] if all_preds else {}, "all_predictions": all_preds},
@@ -921,6 +943,86 @@ def build_layered_predictions(
     }
 
     return result
+
+
+
+# ═══════════════════════════════════════════════════════════════════
+# PROMISE → PERIOD → TRANSIT  (hierarchy, 2026-07-21)
+# ═══════════════════════════════════════════════════════════════════
+# The four layers used to be pooled flat and sorted by each prediction's own
+# confidence, so a transit line could headline a reading with NO natal promise
+# behind it. Classical order is the opposite: the chart must PROMISE the thing
+# (yoga), the PERIOD must activate it (dasha), and only then does transit set
+# the fine timing. A promise that is absent is disqualifying, not "one vote of
+# four"; a promise that is present AND running in its dasha should dominate —
+# when someone's expansion period opens, what they are working on grows.
+
+_NO_PROMISE_CEILING = 0.60   # transits alone cannot deliver an unpromised thing
+_PROMISE_ACTIVE_BOOST = 1.12 # promise + period agreeing leads the reading
+
+
+def assess_promise_period(l1, l3, detected_yogas, concern: str = "") -> dict:
+    """Classify the structural ground under a reading.
+
+    promise  = natal yoga for this concern (layer 3 / detected_yogas)
+    period   = dasha windows for this concern (layer 1)
+    """
+    yogas = [y for y in (detected_yogas or []) if y]
+    promise_present = bool(yogas) or bool(l3)
+    period_active = bool(l1)
+
+    if not promise_present:
+        gate, note = "no_promise", (
+            "No natal yoga for this area — transits can time what the chart "
+            "promises, not create what it does not."
+        )
+    elif period_active:
+        gate, note = "promise_active", (
+            "The chart promises this and the running period activates it — "
+            "the structural ground is doing the work, not the day's transits."
+        )
+    else:
+        gate, note = "promise_dormant", (
+            "The chart promises this, but the period is not activating it yet — "
+            "prepare rather than push."
+        )
+
+    return {
+        "gate": gate,
+        "promise_present": promise_present,
+        "period_active": period_active,
+        "promise_count": len(yogas) or len(l3 or []),
+        "period_count": len(l1 or []),
+        "note": note,
+        "concern": concern,
+    }
+
+
+def apply_structural_hierarchy(all_preds: list, structure: dict) -> list:
+    """Re-rank so promise+period outrank transit, and cap unpromised claims.
+
+    Confidence is only ever LOWERED by the gate — a strong transit cannot
+    manufacture a promise. Ordering, not truth, is what the boost changes.
+    """
+    gate = (structure or {}).get("gate")
+    if not all_preds or not gate:
+        return all_preds
+    out = []
+    for p in all_preds:
+        q = dict(p)
+        try:
+            conf = float(q.get("confidence") or 0)
+        except Exception:
+            conf = 0.0
+        layer = str(q.get("layer") or q.get("source") or "")
+        structural = layer in ("1", "3", "layer_1", "layer_3") or q.get("_structural")
+        if gate == "no_promise":
+            q["confidence"] = min(conf, _NO_PROMISE_CEILING)
+            q["_gated"] = True
+        elif gate == "promise_active" and structural:
+            q["confidence"] = min(0.99, conf * _PROMISE_ACTIVE_BOOST)
+        out.append(q)
+    return sorted(out, key=lambda x: float(x.get("confidence") or 0), reverse=True)
 
 
 def predictions_to_context_block(predictions: dict, chart_data: dict, concern: str) -> str:
@@ -942,6 +1044,62 @@ def predictions_to_context_block(predictions: dict, chart_data: dict, concern: s
         f"Personal data: {'YES — use Layer 4 personal mirror' if predictions['has_personal_data'] else 'Building — 3+ events needed'}",
         "",
     ]
+
+    # [promise-first 2026-07-21] Lead with the structural verdict. The engine
+    # already knew whether the chart promises this and whether the period
+    # activates it — but none of it reached the prose, so answers were written
+    # off transits and read as generic. State the ground first, explicitly.
+    _st = predictions.get("structure") or {}
+    if _st:
+        _gate = _st.get("gate")
+        lines += [
+            "═══ STRUCTURAL GROUND — READ THIS FIRST ═══",
+            f"Promise (natal yoga): {'PRESENT' if _st.get('promise_present') else 'ABSENT'}"
+            f" ({_st.get('promise_count', 0)} signal(s))",
+            f"Period (running dasha): {'ACTIVATING' if _st.get('period_active') else 'NOT YET'}"
+            f" ({_st.get('period_count', 0)} window(s))",
+            f"Verdict: {_gate}",
+            _st.get("note", ""),
+        ]
+        if _gate == "no_promise":
+            lines.append(
+                "RULE: do NOT promise an outcome the chart does not support. "
+                "Say plainly what is missing and what would have to change."
+            )
+        elif _gate == "promise_active":
+            lines.append(
+                "RULE: lead with the promise and the period — they are doing "
+                "the work. Transit detail is fine timing, not the headline."
+            )
+        else:
+            lines.append(
+                "RULE: the promise is real but dormant. Frame as preparation, "
+                "not push, and name what opens it."
+            )
+        lines.append("")
+
+    _vc = predictions.get("venture_context") or {}
+    if _vc.get("agency") in ("self", "others") or _vc.get("nature"):
+        lines.append("═══ VENTURE CONTEXT ═══")
+        if _vc.get("agency") == "others":
+            lines.append(
+                "The user is NOT the one executing — their team/partners are. "
+                "Read the 7th (clients, partners) and 6th (staff, delivery), "
+                "NOT the 3rd (their own outreach). Advice must be about who "
+                "they enable, not about them personally selling harder."
+            )
+        elif _vc.get("agency") == "self":
+            lines.append(
+                "The user IS the one executing — their own effort (3rd) is the "
+                "live variable."
+            )
+        if _vc.get("nature"):
+            lines.append(
+                f"Venture type: {_vc['nature']} — significators "
+                f"{', '.join(_vc.get('nature_karakas') or [])}. "
+                f"{_vc.get('nature_why', '')}"
+            )
+        lines.append("")
 
     for pred in predictions["all_predictions"][:5]:
         lines += [
