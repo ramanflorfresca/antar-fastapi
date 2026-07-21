@@ -2766,7 +2766,12 @@ def apply_d10_dashamsa_signals(chart_data: dict, concern: str) -> list:
     Key signals: lagna lord strength, Sun strength, Saturn strength,
     and planets in 10H of D-10.
     """
-    if concern not in ("career", "general"):
+    # [d10-gate 2026-07-21] Was ("career", "general") only, so business,
+    # startup, sales and funding questions received ZERO D-10 signals — the
+    # career-destiny chart was switched off for exactly the people asking about
+    # their work. D-10 governs profession in every form, employed or not.
+    if concern not in ("career", "general", "business", "startup", "sales",
+                       "funding", "job", "wealth", "finance"):
         return []
 
     signals = []

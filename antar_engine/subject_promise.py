@@ -411,8 +411,32 @@ def transit_activation(chart_data: dict, houses: List[int], now=None) -> dict:
 
 # ── STEP 6: IS THIS KIND OF WORK RIGHT FOR THIS PERSON? ──────────────────
 
+def _d10_view(chart_data: dict, d_charts: Optional[dict] = None) -> dict:
+    """The D-10 (Dashamsha) planets, from wherever they live.
+
+    Accepts the stored shape {"lagna": "Taurus", "planets": {...}} and the
+    calculator shape {"Lagna": {...}, "Sun": {...}}, because both exist.
+    """
+    src = None
+    if isinstance(d_charts, dict):
+        src = d_charts.get("d10") or d_charts.get("D10")
+    if src is None and isinstance(chart_data, dict):
+        dc = chart_data.get("divisional_charts") or {}
+        src = dc.get("d10") or dc.get("D10")
+    if not isinstance(src, dict):
+        return {}
+    planets = src.get("planets") if isinstance(src.get("planets"), dict) else None
+    if planets is None:
+        planets = {k: v for k, v in src.items()
+                   if isinstance(v, dict) and k.lower() != "lagna"}
+    lagna = src.get("lagna") or src.get("Lagna")
+    if isinstance(lagna, dict):
+        lagna = lagna.get("sign")
+    return {"lagna": lagna, "planets": planets or {}}
+
+
 def vocational_fit(chart_data: dict, karakas: Optional[List[str]],
-                   nature: str = "") -> dict:
+                   nature: str = "", d_charts: Optional[dict] = None) -> dict:
     """Does the chart actually support THIS kind of work?
 
     A venture's significators (tech -> Mercury/Rahu, retail -> Venus/Moon) are
@@ -427,10 +451,33 @@ def vocational_fit(chart_data: dict, karakas: Optional[List[str]],
     except Exception:
         return {"available": False, "verdict": "", "evidence": []}
 
+    # [d10 2026-07-21] Profession is judged from D-10, the career chart — that
+    # is the whole point of the varga. This read D-1 only, which answers "what
+    # is this person like", not "which line of work succeeds for them". D-1 is
+    # kept as corroboration.
+    d10 = _d10_view(chart_data, d_charts)
+    d10_planets = d10.get("planets") or {}
+    using_d10 = bool(d10_planets)
+
     score, evidence = 0, []
+    if using_d10:
+        evidence.append(
+            f"Read from D-10 (the career chart), lagna {d10.get('lagna') or '?'}."
+        )
     for k in karakas:
-        dig = _dignity(k, planets)
-        pos = _house_of(k, planets)
+        if using_d10:
+            dig = _dignity(k, d10_planets)
+            pos = _house_of(k, d10_planets)
+            dig_d1 = _dignity(k, planets)
+            if dig == "neutral" and dig_d1 in ("exalted", "own"):
+                score += 1
+                evidence.append(
+                    f"{k} is only neutral in D-10 but {dig_d1} in the birth chart "
+                    f"— the talent is there; the profession has to be built into it."
+                )
+        else:
+            dig = _dignity(k, planets)
+            pos = _house_of(k, planets)
         if dig in ("exalted", "own"):
             score += 2
             evidence.append(f"{k} — the significator of {nature or 'this work'} — is {dig} in your chart. Natural fit.")
@@ -454,4 +501,5 @@ def vocational_fit(chart_data: dict, karakas: Optional[List[str]],
     verdict = ("well suited" if score >= 3 else "workable" if score >= 0
                else "against the grain")
     return {"available": True, "verdict": verdict, "score": score,
-            "karakas": list(karakas), "nature": nature, "evidence": evidence}
+            "karakas": list(karakas), "nature": nature, "evidence": evidence,
+            "source": "D-10" if using_d10 else "D-1 (no D-10 available)"}
