@@ -511,6 +511,13 @@ _YOGA_NAME_ALIASES = {
 }
 
 
+# Concerns for which the full divisional career reading is worth building.
+_CAREER_CONCERNS = {
+    "career", "business", "startup", "job", "work", "vocation",
+    "sales", "funding", "wealth", "finance", "money", "growth", "general",
+}
+
+
 def _canonical_yoga(name: str) -> str:
     """Display name -> YOGA_DATA key. Returns "" when there is no match."""
     base = str(name or "").split(" — ")[0].split(" (")[0].strip().lower()
@@ -1014,9 +1021,46 @@ def build_layered_predictions(
             chart_data, venture_ctx.get("nature_karakas"),
             venture_ctx.get("nature") or "",
         )
+
+        # Step 6b: the classical career reading — Atmakaraka, Amatyakaraka,
+        # the 10th lord in D-1, the D-10 lagna and its lord, D-9 for soul
+        # purpose and D-2 for wealth.
+        #
+        # This already existed and was already in production, but ONLY behind
+        # /api/v1/career. A user asking Ask Antar "is this business right for
+        # me" never reached it — they got vocational_fit's two-karaka score
+        # alone. Same question, two different engines, and Ask was using the
+        # thinner one.
+        #
+        # It is also the layer that survives an imprecise birth time best. The
+        # chara karakas rank planets BY DEGREE, and degrees move slowly, so
+        # Atmakaraka and Amatyakaraka stay put where the D-10 lagna — which
+        # turns over every twelve minutes — does not. That is why the earlier
+        # D-10 house-rule experiment made the benchmark worse and this should
+        # not: it reads the karakas, not the varga houses.
+        career_reading = {}
+        try:
+            from antar_engine.divisional_career import (
+                build_career_analysis, career_analysis_to_context_block,
+            )
+            if concern in _CAREER_CONCERNS:
+                _ca = build_career_analysis(chart_data=chart_data, dashas=dashas)
+                career_reading = {
+                    "available": True,
+                    "atmakaraka":   getattr(_ca, "d9_atmakaraka_sign", ""),
+                    "d1_10th_lord": getattr(_ca, "d1_10th_lord", ""),
+                    "d10_lagna":    getattr(_ca, "d10_lagna", ""),
+                    "d10_10th_lord": getattr(_ca, "d10_10th_lord", ""),
+                    "d10_theme":    getattr(_ca, "d10_career_theme", ""),
+                    "d9_soul_purpose": getattr(_ca, "d9_soul_purpose", ""),
+                    "context_block": career_analysis_to_context_block(_ca),
+                }
+        except Exception:
+            career_reading = {}
     except Exception:
         subject_promise, dasha_rel = {}, {}
         transit_focus, vocation = {}, {}
+        career_reading = {}
     all_preds = sorted(l1 + l2 + l3 + l4, key=lambda x: x["confidence"], reverse=True)
     all_preds = apply_structural_hierarchy(all_preds, structure)
 
@@ -1041,6 +1085,7 @@ def build_layered_predictions(
         "dasha_relevance":    dasha_rel,
         "transit_focus":      transit_focus,
         "vocational_fit":     vocation,
+        "career_reading":     career_reading,
         # v2: WOW FIELDS prompt block — append to your LLM prompt string
         "wow_prompt_block":   build_wow_fields_prompt_block(
                                   {"lead": all_preds[0] if all_preds else {}, "all_predictions": all_preds},
@@ -1284,6 +1329,26 @@ def predictions_to_context_block(predictions: dict, chart_data: dict, concern: s
         for _h in (_tf.get("hits") or [])[:6]:
             lines.append(f"  {'[season]' if _h.get('slow') else '[timing]'} {_h.get('line')}")
         lines.append(f"  {_tf.get('note','')}")
+        lines.append("")
+
+    _cr = predictions.get("career_reading") or {}
+    if _cr.get("available"):
+        lines.append("═══ CLASSICAL CAREER READING (chara karakas + vargas) ═══")
+        if _cr.get("atmakaraka"):
+            lines.append(f"Atmakaraka in D-9: {_cr['atmakaraka']} — the soul's own agenda.")
+        if _cr.get("d1_10th_lord"):
+            lines.append(f"10th lord (D-1): {_cr['d1_10th_lord']}")
+        if _cr.get("d10_lagna"):
+            lines.append(f"D-10 lagna: {_cr['d10_lagna']}"
+                         + (f", its 10th lord {_cr['d10_10th_lord']}"
+                            if _cr.get("d10_10th_lord") else ""))
+        for _k in ("d10_theme", "d9_soul_purpose"):
+            if _cr.get(_k):
+                lines.append(f"  {_cr[_k]}")
+        lines.append("  RULE: this is the DEGREE-based reading and it is the most "
+                     "robust layer when the birth time is approximate. Where it "
+                     "and the significator score disagree, say so rather than "
+                     "averaging them into a bland verdict.")
         lines.append("")
 
     _vf = predictions.get("vocational_fit") or {}
