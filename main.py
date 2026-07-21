@@ -7903,6 +7903,13 @@ async def get_patra_questions():
     return {"questions": get_circumstance_questions()}
 
 @app.post("/api/v1/user/patra")
+# [patra-save-fix 2026-07-20] The frontend (src/lib/api.ts updatePatra) sends
+# PATCH, but only POST was defined — so every "Your details" save returned 405,
+# which patchPatra swallows as a transient failure and requeues. The optimistic
+# local merge made the chip look saved while the DB never heard it (Zafat's
+# marital/children/career were all None). Accept PATCH on the same handler so
+# every already-shipped client saves immediately, no Publish required.
+@app.patch("/api/v1/user/patra")
 async def update_patra(
     request: PatraUpdateRequest,
     authorization: str = Header(...)
