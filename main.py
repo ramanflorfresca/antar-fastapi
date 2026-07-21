@@ -4932,6 +4932,22 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
     # ── Concern detection (must come before C3 and C4) ────────
     concern = _detect_concern(request.question)
 
+    # [founder-concern 2026-07-21] "Where the person is, and what they are
+    # doing" — step 6 of the reading order. For someone RUNNING A BUSINESS,
+    # "my work", "my professional growth", "will this take off" are questions
+    # about their COMPANY (7/10/11 — market, enterprise, gains), not about an
+    # employee's standing (10/6/2). Same words, different subject, because the
+    # asker is different. Without this a founder's question about their own
+    # venture was read as a career question and answered about promotions.
+    try:
+        _lc = get_life_context(request.chart_id, supabase=supabase) or {}
+        if _lc.get("career_stage") == "running_business" and concern in ("career", "general"):
+            print(f"[concern] founder override: {concern} -> business "
+                  f"(career_stage=running_business)")
+            concern = "business"
+    except Exception as _lce:
+        print(f"[concern] founder override skipped (non-fatal): {_lce}")
+
     # [gap2-life-nouns 2026-06-09] Part A — persist profession +
     # ventures on the charts row. Today these arrive on the
     # request but are only consumed live (DKP block), never
