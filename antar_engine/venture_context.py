@@ -149,6 +149,13 @@ _VENTURE_NATURE: Tuple[Tuple[str, Tuple[str, ...], List[str], str], ...] = (
     ), ["Mercury", "Jupiter"],
         "service ventures run on Mercury (skill, dealing) with Jupiter "
         "(counsel, reputation)"),
+    ("occult", (
+        "astrology", "astrologer", "spiritual", "spirituality", "healing",
+        "healer", "tarot", "vedic", "occult", "meditation", "yoga studio",
+        "temple", "guru", "espiritual", "astrologia",
+    ), ["Ketu", "Jupiter"],
+        "astrology, spirituality and healing run on Ketu (the occult, moksha, "
+        "deep research) with Jupiter (wisdom, the teacher)"),
     ("health", (
         "clinic", "healthcare", "medical", "wellness", "pharma", "hospital",
         "salud", "clinica", "clínica",
