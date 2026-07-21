@@ -136,7 +136,9 @@ DOMAIN_HOUSE_MAP = {
     "job":          [10],
     "promotion":    [10],
     "promoted":     [10],
-    "raise":        [10],
+    # NOTE: a second "raise" key for funding appears below; in a dict
+    # literal the LAST wins, so this salary sense never applied.
+    # Disambiguated by phrase instead — see detect_domain().
     "business":     [7, 10],
     "finance":      [2, 11],
     "money":        [2, 11],
@@ -178,10 +180,27 @@ DOMAIN_HOUSE_MAP = {
     # ── rescue-only synonyms (2026-06-03): appended LAST so every key
     #    above matches first — these only catch would-be-general misses.
     "company":      [7, 10],
-    "startup":      [7, 10],
+    "startup":      [7, 10, 11],
     "incorporate":  [7, 10],
-    "venture":      [7, 10],
+    "venture":      [7, 10, 11],
     "new business": [7, 10],
+    # [business-domain 2026-07-21] Operating a company had no vocabulary here.
+    # A founder asking about growth, sales, churn or hiring fell through to
+    # "general" (or was overridden to career) and got job-move language back.
+    # 11th = customers/gains, 7th = partners & clients, 10th = the enterprise,
+    # 3rd = outbound/marketing effort.
+    "growth":       [11, 10, 7],
+    "sales":        [11, 7, 3],
+    "revenue":      [11, 2, 10],
+    "customer":     [11, 7],
+    "customers":    [11, 7],
+    "users":        [11, 7],
+    "signups":      [11, 7],
+    "traction":     [11, 10, 7],
+    "churn":        [11, 6],
+    "marketing":    [3, 11, 7],
+    "hiring":       [6, 10],
+    "scale":        [11, 10, 7],
 }
 
 # YES/NO intent patterns
@@ -885,6 +904,30 @@ def detect_prashna_intent(question: str) -> bool:
         if pattern.search(question):
             return True
     return False
+
+# [diagnostic-intent 2026-07-21] "Why is my growth slow?" is NOT a go/no-go
+# question, but every YOUR MOVE was templated as one ("Move on X this week",
+# "Hold off on X"). A founder describing an ongoing problem was told to make a
+# decision they had not asked about. These markers spot the difference.
+_DIAGNOSTIC_MARKERS = (
+    "why is", "why are", "why isn", "why aren", "why does", "why do", "why did",
+    "how do i", "how can i", "what should i do", "what do i do", "not working",
+    "isn't working", "is slow", "so slow", "very slow", "stuck", "struggling",
+    "no traction", "not growing", "going nowhere", "por que", "por qué",
+    "no funciona", "muy lento", "estancado",
+)
+
+
+def is_diagnostic_question(question: str) -> bool:
+    """True when the user is describing a situation rather than weighing a
+    decision. Yes/No intent always wins — "should I..." stays a decision."""
+    q = (question or "").lower().strip()
+    if not q:
+        return False
+    if detect_prashna_intent(question):
+        return False
+    return any(m in q for m in _DIAGNOSTIC_MARKERS)
+
 
 def detect_domain(question: str) -> Tuple[str, List[int]]:
     """
@@ -1846,7 +1889,8 @@ def compute_prashna_verdict(
     # [prashna-gradient 2026-06-09] Deterministic gradient layer.
     pathing_state   = derive_pathing_state(verdict, step_c.get("type"), edge_yoga)
     verdict_word    = derive_verdict_word(pathing_state)
-    confidence_band = derive_confidence_band(final_score)
+    # NOTE: computed AFTER proof_bars below so the evidence can cap it.
+    confidence_band = None  # set below, once proof_bars exist
     # Structured timing — includes the NO-path forward scan that
     # closes the 'TIMING UNCLEAR' gap.
     timing_v2 = _estimate_timing_v2(
@@ -1856,13 +1900,15 @@ def compute_prashna_verdict(
         timestamp=datetime.fromisoformat(chart["timestamp"]),
         lat=chart.get("lat", 0.0), lng=chart.get("lng", 0.0),
     )
-    your_move = derive_your_move(pathing_state, domain, timing_v2)
+    your_move = derive_your_move(pathing_state, domain, timing_v2,
+                                 diagnostic=is_diagnostic_question(question))
 
     # ─── Weakest Planet for Remedy ───
     weakest = find_weakest_planet(chart)
 
     # ═══ NEW: Proof Bars ═══
     proof_bars = build_proof_bars(step_a, step_c, edge_yoga, jaimini_locks, jaimini_bonus)
+    confidence_band = derive_confidence_band(final_score, proof_bars)
 
     return {
         "verdict": verdict,
@@ -2052,17 +2098,66 @@ def derive_verdict_word(pathing_state: str) -> str:
     }.get(pathing_state, "Not now")
 
 
-def derive_confidence_band(score: int) -> str:
-    """Numeric → low | moderate | high. Raw score stays in _score."""
+# A proof bar counts as "active" once it is meaningfully positive. The dead
+# states all sit low by construction: broker NONE=0, alignment NONE=15,
+# handshake PENDING=30, command LOW=35 — while command HIGH=88,
+# handshake APPLYING=72 and alignment PARTIAL=72 clear the line.
+_PROOF_ACTIVE_MIN = 50
+
+
+def count_active_proof_bars(proof_bars: Optional[dict]) -> Tuple[int, int]:
+    """(active, total) over the four proof bars. (0, 0) when unavailable."""
+    if not isinstance(proof_bars, dict) or not proof_bars:
+        return 0, 0
+    total = active = 0
+    for bar in proof_bars.values():
+        if not isinstance(bar, dict):
+            continue
+        total += 1
+        try:
+            if float(bar.get("value") or 0) >= _PROOF_ACTIVE_MIN:
+                active += 1
+        except Exception:
+            pass
+    return active, total
+
+
+def derive_confidence_band(score: int, proof_bars: Optional[dict] = None) -> str:
+    """Numeric → low | moderate | high. Raw score stays in _score.
+
+    [confidence-honesty 2026-07-21] The band used to come from the score ALONE
+    while the card displayed "N of 4 signals active" from `proof_bars` — two
+    unrelated inputs, so users saw "CONFIDENCE · HIGH" sitting next to
+    "2 of 4 signals active" over a half-filled bar. That is precisely the
+    hollow-percentage pattern this product exists to beat.
+
+    The score still sets the band; the visible evidence now CAPS it. HIGH
+    requires at least 3 of 4 bars active, MODERATE at least 2. The cap can only
+    lower a band, never raise one, so a weak score stays weak.
+    """
     try:
         s = int(score or 0)
     except Exception:
         return "moderate"
     if s >= 70:
-        return "high"
-    if s >= 40:
-        return "moderate"
-    return "low"
+        band = "high"
+    elif s >= 40:
+        band = "moderate"
+    else:
+        band = "low"
+
+    active, total = count_active_proof_bars(proof_bars)
+    if total:
+        if active <= 1:
+            ceiling = "low"
+        elif active == 2:
+            ceiling = "moderate"
+        else:
+            ceiling = "high"
+        order = {"low": 0, "moderate": 1, "high": 2}
+        if order[ceiling] < order[band]:
+            band = ceiling
+    return band
 
 
 # Domain → noun palette for the Python-authored YOUR MOVE.
@@ -2079,18 +2174,94 @@ _PRASHNA_DOMAIN_NOUN = {
     "foreign":      "the application",
     "finance":      "the position",
     "funding":      "the round",
+    "business":     "the venture",
+    "startup":      "the venture",
+    "company":      "the venture",
+    "venture":      "the venture",
+    "growth":       "growth",
+    "revenue":      "revenue",
+    "sales":        "sales",
+    "customer":     "customer growth",
+    "customers":    "customer growth",
+    "users":        "user growth",
+    "signups":      "user growth",
+    "traction":     "traction",
+    "churn":        "retention",
+    "marketing":    "the marketing push",
+    "hiring":       "the hire",
+    "scale":        "scaling",
     "general":      "this decision",
+    # [noun-coverage 2026-07-21] detect_domain() returns the matched KEYWORD
+    # ("job", "series", "money"), not a canonical domain ("career", "funding"),
+    # so most questions silently fell back to the flat "this decision". Cover
+    # every DOMAIN_HOUSE_MAP key — see the completeness test below.
+    "job":          "the role",
+    "promotion":    "the role",
+    "promoted":     "the role",
+    "fund":         "the round",
+    "loan":         "the loan",
+    "equity":       "the round",
+    "investor":     "the round",
+    "series":       "the round",
+    "raise":        "the round",
+    "money":        "the move",
+    "investment":   "the move",
+    "love":         "the conversation",
+    "partner":      "the conversation",
+    "surgery":      "the procedure",
+    "illness":      "the treatment",
+    "exam":         "the exam",
+    "study":        "the course",
+    "travel":       "the trip",
+    "abroad":       "the move abroad",
+    "visa":         "the application",
+    "move":         "the move",
+    "court":        "the case",
+    "lawsuit":      "the case",
+    "baby":         "the decision",
+    "pregnancy":    "the decision",
+    "house":        "the property",
+    "real estate":  "the property",
+    "land":         "the property",
+    "incorporate":  "the incorporation",
+    "new business": "the venture",
+    "purpose":      "this direction",
+    "direction":    "this direction",
 }
 
 
+def _diagnostic_move(pathing_state: str, noun: str, window: str) -> str:
+    """Guidance for a question that describes a problem instead of proposing a
+    decision. Says what to DO about an ongoing situation — never "move/hold",
+    which only makes sense when the user is choosing."""
+    if pathing_state == "clean_yes":
+        return f"The constraint is lifting. Put your effort behind {noun} now."
+    if pathing_state == "yes_via_intermediary":
+        return f"Pushing solo is the bottleneck — {noun} opens through someone else. Ask for the introduction."
+    if pathing_state == "forming":
+        return f"The turn has not landed yet. Use this stretch to prepare {noun}, not to push harder."
+    if pathing_state == "window_passed":
+        return (f"Effort is not what is missing. Rebuild the ground under {noun} and re-check {window}."
+                if window else
+                f"Effort is not what is missing. Rebuild the ground under {noun} before pushing again.")
+    if pathing_state == "blocked":
+        return (f"Harder pushing will not move {noun} right now. Fix what is underneath it and reassess {window}."
+                if window else
+                f"Harder pushing will not move {noun} right now. Fix what is underneath it first.")
+    return f"Steady work on {noun} beats a big push right now."
+
+
 def derive_your_move(pathing_state: str, domain: str,
-                      timing: Optional[dict] = None) -> str:
+                      timing: Optional[dict] = None,
+                      diagnostic: bool = False) -> str:
     """Verb-first one-line action keyed off the pathing_state. Plain
     English only — no planet, house, or Sanskrit terms. Used by
     the API to populate the user-facing `your_move` field."""
     noun = _PRASHNA_DOMAIN_NOUN.get((domain or "general").lower(),
                                      "this decision")
     window = (timing or {}).get("window_label", "") if isinstance(timing, dict) else ""
+    if diagnostic:
+        return _diagnostic_move(pathing_state, noun, window)
     if pathing_state == "clean_yes":
         return f"Move on {noun} this week — the window is open."
     if pathing_state == "yes_via_intermediary":

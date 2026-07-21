@@ -43,7 +43,14 @@ INTENT_DOMAINS = [
 # prashna-domain → detect_concern taxonomy (for the explore branch, which
 # keys diagnostics/convergence off the concern classifier, not detect_domain).
 DOMAIN_TO_CONCERN = {
-    "career": "career", "business": "career",
+    "career": "career",
+    # [business-domain 2026-07-21] was "career". Collapsing business into career
+    # is why a founder asking "why is my startup growth slow" was answered as a
+    # JOB question — headline "the career step you're considering", CTA "make
+    # the career move". CONCERN_HOUSES/CONCERN_KARAKAS have carried a real
+    # "business" entry ([7,10,11] = partners, enterprise, customers/gains;
+    # Mercury+Jupiter) all along, so nothing downstream needed inventing.
+    "business": "business",
     "finance": "finance", "funding": "funding",
     "relationship": "relationship", "health": "health",
     "legal": "legal", "property": "property",
