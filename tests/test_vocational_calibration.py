@@ -18,6 +18,14 @@ Chance is ~2/14 (two picks out of eight, per person).
     17-chart cohort, 14 graded                 7/14
     + per-sector normalisation, 7 categories   8/14
     + YH (spiritual), SB (inherited)           9/15  vs 4.3/15 chance
+    + JS (SaaS, ~$1M ARR)                     10/16  vs 4.6/16 chance
+
+JS is the first chart in the cohort the engine ranks FIRST for technology. Tech
+had been the weakest signature in the set — no chart ranked it top, including
+three of the largest tech fortunes ever built. His birth data was confirmed on
+2026-07-21 after the integrity audit found his stored row carried India's
+geographic centroid and a placeholder birth_time of 12:53 that could not produce
+his own recorded lagna. Real data: Kochi, 23:20, Aquarius rising 4.64.
 
 SB is worth watching. He is the only person here whose outcome was inherited
 rather than built, and he ranks LAST of seven for the sector he actually runs.
@@ -129,8 +137,10 @@ COHORT = [
      "a saas platform",     "software, THEN space and cars — see ALSO_ACCEPTABLE"),
     ("MZ",          "1984-05-14", "08:00", 41.0340, -73.7629, -4.0,
      "a saas platform",     "software  [tz -4: EDT]"),
-    # JS is EXCLUDED: birth city unknown. Substituting Delhi produced a
-    # different lagna than his stored chart, so any result would be noise.
+    ("JS",          "1974-06-10", "23:20",  9.9312,  76.2673,  5.5,
+     "a saas platform",     "SaaS with live clients, ~$1M ARR — birth data "
+                            "CONFIRMED 2026-07-21 (Kochi, 23:20; the stored row "
+                            "had India's centroid and a placeholder 12:53)"),
 ]
 
 CATEGORIES = [
