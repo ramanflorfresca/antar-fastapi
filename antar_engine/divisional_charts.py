@@ -46,12 +46,16 @@ def _get_divisional_sign(longitude: float, division: int) -> str:
         else:                         start = 3
         return SIGNS[(start + division_num) % 12]
 
-    # D10: 1-15 degrees → sign itself, 16-30 → 9th from sign
+    # [d10-halfsplit 2026-07-21] This split the sign at 15 degrees — Hora (D-2)
+    # logic — so it could only ever return TWO signs instead of ten, and the
+    # stored D-10 was simply the starting sign with the division never applied.
+    # A Dashamsha is TEN parts of 3 degrees: odd sign starts from itself, even
+    # sign from the 9th sign from it (+8, counting itself as the 1st).
+    # See tests/test_d10_dashamsha.py.
     if division == 10:
-        if degree_in_sign < 15:
-            return SIGNS[sign_num]
-        else:
-            return SIGNS[(sign_num + 8) % 12]
+        part = int(degree_in_sign // 3)              # 0..9
+        start = sign_num if sign_num % 2 == 0 else (sign_num + 8) % 12
+        return SIGNS[(start + part) % 12]
 
     # Standard calculation for other divisions
     result_sign = (sign_num * division + division_num) % 12

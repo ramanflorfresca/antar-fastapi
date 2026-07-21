@@ -151,8 +151,12 @@ def _divisional_sign_index(longitude: float, division: int) -> int:
     # ── D-10: Dashamsha ──────────────────────────────────────────
     # Odd signs: start from same sign; Even signs: start from 9th sign (Capricorn)
     elif division == 10:
+        # [d10-offbyone 2026-07-21] Even signs start from the 9TH SIGN FROM the
+        # sign — and "9th from X" counts X itself as the 1st, so it is +8, not
+        # +9. This was +9, putting every even-sign placement one sign too far.
+        # Odd signs were already correct. See tests/test_d10_dashamsha.py.
         if sign_idx % 2 == 0:   return (sign_idx + portion_num) % 12
-        else:                   return (sign_idx + 9 + portion_num) % 12
+        else:                   return (sign_idx + 8 + portion_num) % 12
 
     # ── D-12: Dwadashamsha ───────────────────────────────────────
     # Starts from same sign, 2.5° each portion
