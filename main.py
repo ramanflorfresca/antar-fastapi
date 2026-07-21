@@ -1754,9 +1754,27 @@ async def _validation_exception_handler(request: Request, exc: RequestValidation
     )
 
 def get_dashas_for_chart(chart_id: str) -> dict:
-    result = supabase.table("dasha_periods").select("*").eq("chart_id", chart_id).order("sequence").limit(500).execute()
+    # [dasha-truncation 2026-07-21] This used .limit(500). Charts carry ~903
+    # dasha rows, so 45% of every timeline was silently discarded — and because
+    # `sequence` is NOT chronological, the dropped rows punched arbitrary HOLES
+    # rather than trimming the tail. One chart had a 59-day hole sitting exactly
+    # over today, so "no pratyantardasha is running" was reported for a date that
+    # obviously has one. Everything downstream (predictions, daily card,
+    # life-arc, Ask) read from this. Page through instead of capping.
+    _rows = []
+    _page, _size = 0, 1000
+    while True:
+        _res = (supabase.table("dasha_periods").select("*")
+                .eq("chart_id", chart_id).order("sequence")
+                .range(_page * _size, _page * _size + _size - 1).execute())
+        _batch = _res.data or []
+        _rows.extend(_batch)
+        if len(_batch) < _size or _page >= 20:   # 20-page backstop
+            break
+        _page += 1
+
     dashas_by_system = {}
-    for row in result.data:
+    for row in _rows:
         system = row["system"]
         if system not in dashas_by_system:
             dashas_by_system[system] = []
