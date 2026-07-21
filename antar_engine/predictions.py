@@ -485,6 +485,43 @@ def layer2_confluence(
 # LAYER 3 — Natal Yoga Activation
 # ══════════════════════════════════════════════════════════════════════════════
 
+
+# [yoga-name-mismatch 2026-07-21] yoga_engine emits display names
+# ("Raj Yoga — Power & Prominence"); YOGA_DATA is keyed on canonical ones
+# ("Raja Yoga"). The `not in YOGA_DATA -> continue` guard therefore skipped
+# EVERY yoga, so Layer 3 (yoga activation) returned nothing for every user and
+# the promise layer was permanently silent. Normalise before lookup.
+_YOGA_NAME_ALIASES = {
+    "raj yoga": "Raja Yoga",
+    "raja yoga": "Raja Yoga",
+    "dhana yoga": "Dhana Yoga",
+    "lakshmi yoga": "Lakshmi Yoga",
+    "viparita raja yoga": "Viparita Raja Yoga",
+    "harsha yoga": "Viparita Raja Yoga",
+    "sarala yoga": "Viparita Raja Yoga",
+    "vimala yoga": "Viparita Raja Yoga",
+    "hamsa yoga": "Hamsa Yoga",
+    "malavya yoga": "Malavya Yoga",
+    "sasa yoga": "Sasa Yoga",
+    "ruchaka yoga": "Ruchaka Yoga",
+    "bhadra yoga": "Bhadra Yoga",
+    "kemadruma yoga": "Kemadruma Yoga",
+    "vish yoga": "Vish Yoga",
+    "grahan yoga": "Grahan Yoga",
+}
+
+
+def _canonical_yoga(name: str) -> str:
+    """Display name -> YOGA_DATA key. Returns "" when there is no match."""
+    base = str(name or "").split(" — ")[0].split(" (")[0].strip().lower()
+    if base in _YOGA_NAME_ALIASES:
+        return _YOGA_NAME_ALIASES[base]
+    for k in YOGA_DATA:
+        if k.lower() == base:
+            return k
+    return ""
+
+
 def layer3_yoga_activation(
     chart_data: dict,
     dashas: dict,
@@ -508,8 +545,9 @@ def layer3_yoga_activation(
     md_planet  = current_md["lord_or_sign"] if current_md else ""
     ad_planet  = current_ad["lord_or_sign"] if current_ad else ""
 
-    for yoga_name in detected_yogas:
-        if yoga_name not in YOGA_DATA:
+    for _raw_name in detected_yogas:
+        yoga_name = _canonical_yoga(_raw_name)
+        if not yoga_name:
             continue
 
         yoga_energy, yoga_desc = YOGA_DATA[yoga_name]
@@ -1115,6 +1153,43 @@ def apply_structural_hierarchy(all_preds: list, structure: dict) -> list:
             q["confidence"] = min(0.99, conf * _PROMISE_ACTIVE_BOOST)
         out.append(q)
     return sorted(out, key=lambda x: float(x.get("confidence") or 0), reverse=True)
+
+
+
+def answer_confidence(predictions: dict) -> float:
+    """Confidence in the ANSWER, from how much of the reading agrees.
+
+    Previously /predict used predictions["highest_confidence"] — the score of
+    the single best individual prediction, which is ~0.9 for almost every chart
+    and read 0.99 on screen no matter what the reading actually said. A number
+    that never varies tells the user nothing, which is the "fake percentage"
+    problem this product exists to avoid.
+
+    Built from what actually agrees: promise, period alignment, structural
+    transit, and personal history.
+    """
+    st = (predictions or {}).get("structure") or {}
+    dr = (predictions or {}).get("dasha_relevance") or {}
+    tf = (predictions or {}).get("transit_focus") or {}
+    sp = (predictions or {}).get("subject_promise") or {}
+
+    score = 0.30                                     # floor: a chart was read
+    if st.get("promise_present"):
+        score += {"strong": 0.25, "moderate": 0.18,
+                  "thin": 0.10}.get(st.get("promise_strength"), 0.10)
+    if sp.get("verdict") in ("strong", "supported"):
+        score += 0.10
+    if dr.get("state") in ("fully_active", "active", "opening"):
+        score += 0.18
+    elif dr.get("state") == "window":
+        score += 0.08
+    if tf.get("structural"):
+        score += 0.10
+    elif tf.get("hits"):
+        score += 0.04
+    if (predictions or {}).get("has_personal_data"):
+        score += 0.07
+    return round(min(0.92, max(0.25, score)), 2)
 
 
 def predictions_to_context_block(predictions: dict, chart_data: dict, concern: str) -> str:

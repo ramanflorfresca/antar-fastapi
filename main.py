@@ -7433,7 +7433,14 @@ State a specific year. Never predict past events as future windows.
         except Exception as _vr_tt_e:
             print(f'[predict] [WS1] timeframe-tense guard failed (non-fatal): {_vr_tt_e}')
 
-    confidence = predictions["highest_confidence"] or 0.75
+    # [confidence 2026-07-21] was predictions["highest_confidence"] — the best
+    # SINGLE prediction's score, ~0.9 for everyone and 0.99 on screen no matter
+    # what the reading said. Derive it from how much of the reading agrees.
+    try:
+        from antar_engine.predictions import answer_confidence as _ans_conf
+        confidence = _ans_conf(predictions)
+    except Exception:
+        confidence = predictions.get("highest_confidence") or 0.75
     # FIX 9: Layer 2 counter should reflect actual transit injection, not just predictions['layer_2']
     _layer2_count = len(predictions['layer_2'])
     if _layer2_count == 0:

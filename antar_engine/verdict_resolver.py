@@ -330,6 +330,21 @@ def _band(
 # [b-life-nouns] V2.2 gap (b): subjects now name the decision being weighed,
 # not the bare category. Doctrine: "concrete life-nouns, not abstractions."
 _CONCERN_NOUNS: Dict[str, Dict[str, str]] = {
+    # [nouns 2026-07-21] business/funding/sales had NO entry, so they fell back
+    # to the generic "the main move you're weighing" and every CTA read
+    # "Act On The Main Move within the window shown." — the exact generic
+    # phrasing this product exists to avoid.
+    "business": {"subject": "your business", "act": "make the growth move",
+                 "watch": "the market read"},
+    "startup":  {"subject": "your venture", "act": "make the growth move",
+                 "watch": "the market read"},
+    "sales":    {"subject": "the sales push", "act": "push the sales move",
+                 "watch": "the pipeline read"},
+    "funding":  {"subject": "the raise you're weighing", "act": "approach investors",
+                 "watch": "the funding read"},
+    "loan":     {"subject": "the borrowing you're weighing", "act": "apply for the facility",
+                 "watch": "the credit read"},
+
     "speculation":  {"subject": "the speculative call you're weighing", "act": "deploy capital", "watch": "the speculative read"},
     "property":     {"subject": "the property move you're sitting on",    "act": "move on a purchase", "watch": "the property read"},
     "career":       {"subject": "the career step you're considering",      "act": "make the career move", "watch": "the career read"},
