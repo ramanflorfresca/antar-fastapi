@@ -538,16 +538,14 @@ def calculate_all_divisional_charts(planets: dict, lagna_longitude: float) -> di
         planet_positions = {}
         for planet, data in planets.items():
             longitude = data.get("longitude", 0)
-            if planet in ("Rahu", "Ketu"):
-                # Rahu/Ketu are always opposite in navamsa
-                if planet == "Rahu":
-                    sign = _get_divisional_sign(longitude, div_num)
-                else:
-                    # Ketu is 180 degrees from Rahu
-                    ketu_long = (longitude + 180) % 360
-                    sign = _get_divisional_sign(ketu_long, div_num)
-            else:
-                sign = _get_divisional_sign(longitude, div_num)
+            # [ketu-divisional 2026-07-21] This added 180 degrees to KETU'S OWN
+            # longitude. The stored Ketu longitude is ALREADY 180 from Rahu, so
+            # the extra half-turn landed Ketu exactly on Rahu — every divisional
+            # chart showed the nodes in the SAME sign, which is impossible. Ketu
+            # therefore had no independent position in ANY varga, and "where
+            # does Ketu cut" could not be read at all. Use each node's own
+            # longitude; the opposition is already in the data.
+            sign = _get_divisional_sign(longitude, div_num)
 
             sign_idx = SIGNS.index(sign) if sign in SIGNS else 0
             house = ((sign_idx - lagna_idx) % 12) + 1

@@ -112,3 +112,43 @@ if __name__ == "__main__":
         except Exception:
             print(f"ERROR {fn.__name__}")
             traceback.print_exc()
+
+
+def test_ketu_varga_comes_from_ketus_own_longitude():
+    """Ketu's divisional position must be computed from KETU's longitude.
+
+    Regression for a bug that added 180 degrees to Ketu's OWN longitude — which
+    is already opposite Rahu — landing Ketu exactly on Rahu in every varga, so
+    Ketu had no independent position anywhere and "where does Ketu cut" was
+    unreadable.
+
+    NOTE: this does NOT assert the nodes never share a varga sign. In compressed
+    divisions (D-2 has only two possible signs) two opposite points legitimately
+    collide. The invariant is the SOURCE longitude, not separation.
+    """
+    from antar_engine.divisional_charts import (
+        calculate_all_divisional_charts, _get_divisional_sign,
+    )
+    rahu_lon, ketu_lon = 226.78, 46.78          # genuinely 180 apart
+    planets = {"Rahu": {"longitude": rahu_lon}, "Ketu": {"longitude": ketu_lon}}
+    charts = calculate_all_divisional_charts(planets, 294.69)
+    div_of = {"d1": 1, "d3": 3, "d4": 4, "d5": 5, "d7": 7,
+              "d9": 9, "d10": 10, "d12": 12}
+    bad = []
+    for name, div in div_of.items():
+        pl = (charts.get(name) or {}).get("planets") or {}
+        got = (pl.get("Ketu") or {}).get("sign")
+        want = _get_divisional_sign(ketu_lon, div)
+        if got and got != want:
+            bad.append(f"{name}: Ketu got {got}, want {want} (from Ketu's own longitude)")
+    assert not bad, "Ketu varga positions not derived from Ketu:\n  " + "\n  ".join(bad)
+
+
+def test_ketu_is_independent_of_rahu_in_d10():
+    """D-10 has ten distinct parts, so the nodes must NOT coincide there."""
+    from antar_engine.divisional_charts import calculate_all_divisional_charts
+    planets = {"Rahu": {"longitude": 226.78}, "Ketu": {"longitude": 46.78}}
+    pl = calculate_all_divisional_charts(planets, 294.69)["d10"]["planets"]
+    assert pl["Rahu"]["sign"] != pl["Ketu"]["sign"], (
+        f"nodes coincide in D-10: both {pl['Rahu']['sign']}"
+    )
