@@ -217,7 +217,8 @@ def assess_subject_promise(chart_data: dict, subject: str,
 
 
 def dasha_relevance(subject_result: dict, md_lord: str = "",
-                    ad_lord: str = "") -> dict:
+                    ad_lord: str = "", next_md: str = "",
+                    days_to_next: Optional[int] = None) -> dict:
     """Does the running period belong to the subject, or to something else?
 
     This is the step that decides whether a promise is live now or merely on
@@ -226,6 +227,7 @@ def dasha_relevance(subject_result: dict, md_lord: str = "",
     """
     lords = set((subject_result or {}).get("lords", {}).values())
     md, ad = (md_lord or "").strip(), (ad_lord or "").strip()
+    nxt = (next_md or "").strip()
     md_hit, ad_hit = md in lords, ad in lords
 
     if md_hit and ad_hit:
@@ -249,5 +251,83 @@ def dasha_relevance(subject_result: dict, md_lord: str = "",
             f"belongs to this subject — the promise is real but not the theme of "
             f"this period. Build, do not force."
         )
+    # The chapter about to open can matter more than the one closing — someone
+    # in the last weeks of a period should be told what they are walking into.
+    handoff = ""
+    if nxt and days_to_next is not None and days_to_next <= 180:
+        owns = nxt in lords
+        handoff = (
+            f"The {md or 'current'} period ends in {days_to_next} days and "
+            f"{nxt} takes over"
+            + (f" — and {nxt} owns part of this subject, so the incoming chapter "
+               f"is pointed at it." if owns else
+               f". Read the slowness as the tail of a closing chapter, not a "
+               f"verdict on the thing itself.")
+        )
+        if owns and state == "dormant":
+            state = "opening"
+
     return {"state": state, "note": note, "md": md, "ad": ad,
-            "subject_lords": sorted(lords)}
+            "next_md": nxt, "days_to_next_md": days_to_next,
+            "handoff": handoff, "subject_lords": sorted(lords)}
+
+
+# ── DASHA STATE ──────────────────────────────────────────────────────────
+# The stored Vimshottari list is a FLAT mix of levels ("mahadasha" and
+# "pratyantardasha"), with no antardasha level of its own — the AD lord is only
+# recoverable from a pratyantardasha's `parent_lord`. The previous helper took
+# the first record containing today regardless of level, so it could return a
+# 165-day pratyantardasha as if it were the mahadasha, and antardasha always
+# came back None. Read the levels explicitly instead.
+
+def _as_utc(x):
+    from datetime import datetime, timezone
+    from dateutil import parser as _dp
+    try:
+        d = _dp.parse(str(x))
+    except Exception:
+        return None
+    return d if d.tzinfo else d.replace(tzinfo=timezone.utc)
+
+
+def read_dasha_state(vimsottari: list, now=None) -> dict:
+    """Current MD / AD / PD plus the NEXT mahadasha and days until it starts.
+
+    The upcoming mahadasha matters as much as the running one: someone in the
+    last weeks of a period is being told about a chapter that is closing, not
+    the one they are about to live in.
+    """
+    from datetime import datetime, timezone
+    now = now or datetime.now(timezone.utc)
+    rows = [r for r in (vimsottari or []) if isinstance(r, dict)]
+    out = {"md": "", "ad": "", "pd": "", "md_ends": None,
+           "next_md": "", "next_md_starts": None, "days_to_next_md": None}
+    if not rows:
+        return out
+
+    mds = sorted([r for r in rows if r.get("level") == "mahadasha"],
+                 key=lambda r: _as_utc(r.get("start")) or now)
+    for r in mds:
+        s, e = _as_utc(r.get("start")), _as_utc(r.get("end"))
+        if s and e and s <= now <= e:
+            out["md"] = r.get("lord_or_sign") or ""
+            out["md_ends"] = str(r.get("end"))[:10]
+            break
+    for r in mds:
+        s = _as_utc(r.get("start"))
+        if s and s > now:
+            out["next_md"] = r.get("lord_or_sign") or ""
+            out["next_md_starts"] = str(r.get("start"))[:10]
+            out["days_to_next_md"] = (s - now).days
+            break
+
+    # The AD lord is the pratyantardasha's parent.
+    for r in rows:
+        if r.get("level") != "pratyantardasha":
+            continue
+        s, e = _as_utc(r.get("start")), _as_utc(r.get("end"))
+        if s and e and s <= now <= e:
+            out["pd"] = r.get("lord_or_sign") or ""
+            out["ad"] = r.get("parent_lord") or ""
+            break
+    return out

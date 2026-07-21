@@ -915,6 +915,50 @@ def build_layered_predictions(
             venture_ctx = venture_context_block(question, career_stage)
         except Exception:
             venture_ctx = {}
+
+    # [subject-promise 2026-07-21] The promise of THE SUBJECT, read from the
+    # houses the question actually belongs to (funding -> 8th, career -> 10th),
+    # then whether the RUNNING PERIOD is pointed at it. Promise alone is a
+    # capability; promise plus its own dasha is what actually delivers.
+    subject_promise = {}
+    dasha_rel = {}
+    try:
+        from antar_engine.subject_promise import (
+            assess_subject_promise, dasha_relevance, SUBJECT_HOUSES,
+        )
+        _subject = ""
+        if question:
+            try:
+                from antar_engine.prashna_engine import detect_domain
+                _subject, _ = detect_domain(question)
+            except Exception:
+                _subject = ""
+        _subject = (_subject or concern or "").lower()
+
+        # Agency wins for venture subjects: if the user's TEAM sells, the
+        # question is about the 7th/6th, not their own 3rd-house effort.
+        _houses = venture_ctx.get("agency_houses") if venture_ctx.get("agency") in ("self", "others") else None
+        if not _houses:
+            _houses = SUBJECT_HOUSES.get(_subject)
+
+        subject_promise = assess_subject_promise(chart_data, _subject, _houses)
+
+        # read_dasha_state reads the LEVELS explicitly: _current_period took the
+        # first record covering today regardless of level and could return a
+        # 165-day pratyantardasha as the mahadasha.
+        _st = {}
+        try:
+            from antar_engine.subject_promise import read_dasha_state
+            _st = read_dasha_state((dashas or {}).get("vimsottari", []) or [])
+        except Exception:
+            _st = {}
+        dasha_rel = dasha_relevance(
+            subject_promise, _st.get("md", ""), _st.get("ad", ""),
+            _st.get("next_md", ""), _st.get("days_to_next_md"),
+        )
+        dasha_rel["md_ends"] = _st.get("md_ends")
+    except Exception:
+        subject_promise, dasha_rel = {}, {}
     all_preds = sorted(l1 + l2 + l3 + l4, key=lambda x: x["confidence"], reverse=True)
     all_preds = apply_structural_hierarchy(all_preds, structure)
 
@@ -935,6 +979,8 @@ def build_layered_predictions(
         "concern":            concern,
         "structure":          structure,
         "venture_context":    venture_ctx,
+        "subject_promise":    subject_promise,
+        "dasha_relevance":    dasha_rel,
         # v2: WOW FIELDS prompt block — append to your LLM prompt string
         "wow_prompt_block":   build_wow_fields_prompt_block(
                                   {"lead": all_preds[0] if all_preds else {}, "all_predictions": all_preds},
@@ -1107,6 +1153,32 @@ def predictions_to_context_block(predictions: dict, chart_data: dict, concern: s
                 "RULE: the promise is real but dormant. Frame as preparation, "
                 "not push, and name what opens it."
             )
+        lines.append("")
+
+    # Subject-specific promise + whether the running period is pointed at it.
+    _sp = predictions.get("subject_promise") or {}
+    _dr = predictions.get("dasha_relevance") or {}
+    if _sp.get("verdict") and _sp.get("verdict") != "no_data":
+        lines += [
+            "═══ THIS SUBJECT IN THIS CHART ═══",
+            f"Subject: {_sp.get('subject') or 'general'} — read from houses "
+            f"{_sp.get('houses')} ({', '.join(str(h) for h in (_sp.get('houses') or []))})",
+            f"Verdict: {str(_sp.get('verdict')).upper()} (score {_sp.get('score')})",
+        ]
+        for _e in (_sp.get("evidence") or [])[:8]:
+            lines.append(f"  - {_e}")
+        if _dr.get("note"):
+            lines += [
+                f"Period alignment: {str(_dr.get('state','')).upper()}",
+                f"  {_dr['note']}",
+            ]
+            if _dr.get("handoff"):
+                lines.append(f"  UPCOMING: {_dr['handoff']}")
+            if _dr.get("state") == "dormant":
+                lines.append(
+                    "  RULE: say plainly that the capability is real but this "
+                    "period is about something else. Do not promise delivery now."
+                )
         lines.append("")
 
     _vc = predictions.get("venture_context") or {}
