@@ -111,14 +111,60 @@ def get_planet_longitude(jd_utc, planet):
     return lon_deg, sign_index, lon_in_sign, nakshatra_idx, nakshatra_lord, nak_portion
 
 
-def _tz_name_to_offset(timezone: str) -> float:
-    """IANA timezone name → UTC offset in decimal hours."""
+def _tz_name_to_offset(timezone: str, birth_date: str = None,
+                       birth_time: str = None) -> float:
+    """IANA timezone name → UTC offset in decimal hours AT THE MOMENT OF BIRTH.
+
+    The birth moment is not optional. This function used to resolve the offset
+    against datetime.utcnow() — today — which is wrong twice over:
+
+      1. It applied TODAY'S daylight-saving state to a birth decades earlier.
+         A January 1980 New York birth was read at -4 instead of -5, which moves
+         the LAGNA (Capricorn -> Aquarius) and therefore every house, every
+         house lord, every divisional chart and the dasha balance. The chart
+         belonged to a different person.
+      2. It made charts seasonally NON-DETERMINISTIC. The same user computed in
+         January and in July got different charts, because "now" had moved.
+
+    India and Colombia — the two largest markets — observe no DST and have had
+    stable offsets, which is exactly why this survived: it is invisible where
+    most of the users are, and wrong for every user in the US, Europe,
+    Australia or Chile.
+
+    DST transitions are handled explicitly rather than left to pytz's default:
+      • ambiguous  (the hour repeats when clocks go back) -> take the FIRST
+        pass, i.e. still-daylight-time, which is the civil reading of the clock.
+      • nonexistent (the hour skipped when clocks go forward) -> the wall time
+        never happened; resolve against the offset in force just before the
+        jump instead of silently shifting the birth an hour.
+    """
     try:
-        tz  = pytz.timezone(timezone)
-        now = datetime.utcnow()
-        return tz.utcoffset(now).total_seconds() / 3600.0
+        tz = pytz.timezone(timezone)
     except Exception:
         return 5.5   # IST fallback
+
+    if not birth_date:
+        # No birth moment supplied: refuse to guess with today's DST state.
+        # A fixed reference in deep winter is at least deterministic, and
+        # every caller inside this module passes the real date.
+        naive = datetime(1980, 1, 1, 12, 0)
+    else:
+        try:
+            hh, mm = (birth_time or "12:00").split(":")[:2]
+            y, mo, d = str(birth_date).split("-")[:3]
+            naive = datetime(int(y), int(mo), int(d), int(hh), int(mm))
+        except Exception:
+            naive = datetime(1980, 1, 1, 12, 0)
+
+    try:
+        aware = tz.localize(naive, is_dst=None)
+    except pytz.exceptions.AmbiguousTimeError:
+        aware = tz.localize(naive, is_dst=True)     # first pass through the hour
+    except pytz.exceptions.NonExistentTimeError:
+        aware = tz.localize(naive, is_dst=False)    # pre-jump offset
+    except Exception:
+        return 5.5
+    return aware.utcoffset().total_seconds() / 3600.0
 
 
 def _calculate_chart_raw(birth_date, birth_time, lat, lon, tz_offset):
@@ -257,7 +303,7 @@ def calculate_chart(
     if tz_offset is not None:
         resolved_offset = tz_offset
     elif timezone is not None:
-        resolved_offset = _tz_name_to_offset(timezone)
+        resolved_offset = _tz_name_to_offset(timezone, birth_date, birth_time)
     else:
         raise ValueError("calculate_chart() requires either 'tz_offset' or 'timezone'")
 

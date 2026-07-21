@@ -22676,9 +22676,18 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
                     # so the per-day scan runs through anchor - 1.
                     _sd_pe_disp = _sd_date.fromisoformat(_p1_pe_disp)
                     _sd_pe_inclusive = _sd_pe_disp - _sd_td(days=1)
+                    # Panchanga is a LOCAL-SUNRISE calculation, so it must run
+                    # where the user IS, not where they were born. Reading a
+                    # Delhi-born, Bogota-resident user from Delhi coordinates
+                    # put the Vedic day boundary ~11 hours out and every clock
+                    # window in the wrong timezone entirely.
                     _sd_loc = {
-                        "lat": chart_record.get("latitude") or 28.6,
-                        "lng": chart_record.get("longitude") or 77.2,
+                        "lat": (chart_record.get("current_latitude")
+                                or chart_record.get("latitude") or 28.6),
+                        "lng": (chart_record.get("current_longitude")
+                                or chart_record.get("longitude") or 77.2),
+                        "tz_offset": _iana_offset_hours(
+                            chart_record.get("current_timezone")),
                     }
                     _sd_series = _sd_range(
                         chart_data, _sd_ps, _sd_pe_inclusive, _sd_loc,

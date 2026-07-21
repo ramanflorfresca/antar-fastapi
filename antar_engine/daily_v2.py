@@ -215,6 +215,27 @@ def _split_range_string(value, tz_offset_hours: float = 0.0):
     return None, None
 
 
+def _residence_tz_offset(chart_record: dict):
+    """UTC offset of where the user LIVES NOW, DST-correct for today.
+
+    Derived from the persisted `current_timezone` IANA id rather than stored as
+    a number, because an offset is not a stable property of a place — it moves
+    twice a year. `tz_offset_hours` on the chart is the BIRTH offset and is only
+    a fallback: it is the wrong clock for anyone who has moved.
+    """
+    try:
+        from antar_engine.tz_utils import iana_offset_hours
+        off = iana_offset_hours(chart_record.get("current_timezone"))
+        if off is not None:
+            return float(off)
+    except Exception:
+        pass
+    try:
+        return float(chart_record.get("tz_offset_hours") or 0.0)
+    except Exception:
+        return 0.0
+
+
 def _coerce_window_pair(value, tz_offset_hours: float = 0.0):
     """[dv2-polish 2026-06-08] Accept either a dict ({start,end} or
     {start_local,end_local}) OR a flat range string and return a uniform
@@ -300,11 +321,18 @@ def _direct_hora_windows(chart_record: Dict[str, Any], target_date,
                    or chart_record.get("latitude") or 28.6)
             lng = (chart_record.get("current_longitude")
                    or chart_record.get("longitude") or 77.2)
-            tz_offset = chart_record.get("tz_offset_hours") or 0
+            # Residence tz first. tz_offset_hours is the BIRTH offset, which is
+            # the wrong clock for someone who has moved — it is only a fallback.
+            tz_offset = _residence_tz_offset(chart_record)
         try:
-            tz_offset = int(round(float(tz_offset)))
+            # NOT int(round(...)). Rounding to whole hours put every Indian user
+            # on +6 instead of +5:30 and every Nepali user on +6 instead of
+            # +5:45, shifting sunrise — and therefore the Vedic day boundary,
+            # rahu kalam, abhijit and every clock window shown on the card — by
+            # half an hour for the single largest group of users in the product.
+            tz_offset = float(tz_offset)
         except Exception:
-            tz_offset = 0
+            tz_offset = 0.0
         # Best: prefer panchanga's abhijit (universally auspicious midday window).
         pan = calculate_panchanga(lat=float(lat), lng=float(lng),
                                   tz_offset=tz_offset, target_date=target_date) or {}
