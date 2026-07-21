@@ -280,19 +280,118 @@ def _with_minutes(block: dict, fallback: int = None) -> dict:
     return out
 
 
+# [practice-i18n 2026-07-20] The pose/breath/action TITLES were authored as plain
+# strings while their prose siblings (detail, why_this_works) carry {en, es}. A
+# Spanish user therefore read "Warrior II" and "Bellows Breath" as headings above
+# a fully Spanish description. The ES copy lives here rather than restructuring
+# 54 literals inline across the nine entries: purely additive, so the English
+# path is byte-identical and a missing key simply falls back to English.
+# Sanskrit names are kept in parentheses — they are the pose's proper name.
+_ES_PRACTICE = {
+    "Sun": {
+        "body_name": "Saludo al Sol (Surya Namaskar)",
+        "body_cue": "Muévete con la respiración. Estírate hacia arriba al inhalar, pliégate al exhalar. Deja que la columna despierte desde la base.",
+        "breath_name": "Respiración Luminosa (Kapalabhati, suave)",
+        "breath_pattern": "Exhalaciones cortas y activas, inhalaciones pasivas",
+        "da_title": "Ofrece agua al Sol naciente",
+        "da_frequency": "Cada domingo durante 9 semanas",
+    },
+    "Moon": {
+        "body_name": "Ángulo Atado Reclinado (Supta Baddha Konasana)",
+        "body_cue": "Recuéstate, plantas de los pies juntas, rodillas abiertas. Deja que la gravedad abra el pecho. Suaviza el vientre con cada exhalación.",
+        "breath_name": "Respiración Oceánica (Ujjayi)",
+        "breath_pattern": "Inhala y exhala lento con un susurro suave en la garganta",
+        "da_title": "Ofrece leche / guarda plata",
+        "da_frequency": "Cada lunes durante 9 semanas",
+    },
+    "Mars": {
+        "body_name": "Guerrero II (Virabhadrasana II)",
+        "body_cue": "Rodilla delantera flexionada, brazos amplios y firmes. Mirada más allá de la mano delantera. Siente el poder sin tensión.",
+        "breath_name": "Respiración de Fuelle (Bhastrika, moderada)",
+        "breath_pattern": "Inhalación y exhalación forzadas por igual",
+        "da_title": "Ofrece dulces en un templo de Hanuman / dona lentejas rojas",
+        "da_frequency": "Cada martes durante 9 semanas",
+    },
+    "Mercury": {
+        "body_name": "Torsión Espinal Sentada (Ardha Matsyendrasana)",
+        "body_cue": "Columna larga. Gira desde el ombligo, no desde los hombros. Respira hacia los riñones.",
+        "breath_name": "Respiración Alterna (Nadi Shodhana)",
+        "breath_pattern": "Inhala izquierda, exhala derecha, inhala derecha, exhala izquierda",
+        "da_title": "Dona moong dal verde, alimenta a una vaca",
+        "da_frequency": "Cada miércoles durante 9 semanas",
+    },
+    "Jupiter": {
+        "body_name": "Postura del Árbol (Vrksasana)",
+        "body_cue": "Enraiza un pie, lleva el otro a la pierna interna. Crece alto por la coronilla. Firme, no rígido.",
+        "breath_name": "Respiración en Tres Partes (Dirga)",
+        "breath_pattern": "Llena vientre, costillas, pecho; vacía en orden inverso",
+        "da_title": "Dona amarillo / honra a los maestros",
+        "da_frequency": "Cada jueves durante 9 semanas",
+    },
+    "Venus": {
+        "body_name": "Postura del Camello (Ustrasana, suave)",
+        "body_cue": "Abre el frente del corazón. Manos en la zona lumbar o en los talones. Guía con el pecho, no con el mentón.",
+        "breath_name": "Respiración del Corazón Sonriente",
+        "breath_pattern": "Inhala 5 · retén suave 2 · exhala 6",
+        "da_title": "Dona blanco / cuida a las mujeres de la familia",
+        "da_frequency": "Cada viernes durante 9 semanas",
+    },
+    "Saturn": {
+        "body_name": "Postura de la Montaña (Tadasana)",
+        "body_cue": "Pies firmes. Columna larga. Coronilla que se eleva. Hombros que se suavizan. Siente el peso repartido en ambos pies.",
+        "breath_name": "Exhalación Extendida",
+        "breath_pattern": "Inhala 4 · Exhala 8",
+        "da_title": "Alimenta perros negros / ofrece ajonjolí negro a los cuervos",
+        "da_frequency": "Cada sábado durante 9 semanas",
+    },
+    "Rahu": {
+        "body_name": "Piernas en la Pared (Viparita Karani)",
+        "body_cue": "Piernas apoyadas en la pared, brazos abiertos. Deja que la mente acelerada se vacíe hacia abajo. Aquí no hay nada que perseguir.",
+        "breath_name": "Exhalación Larga con Pausa",
+        "breath_pattern": "Inhala 4 · Exhala 6 · Pausa 4",
+        "da_title": "Alimenta cuervos / dona a quienes están al margen",
+        "da_frequency": "Diario (cuervos) + cada sábado durante 9 semanas",
+    },
+    "Ketu": {
+        "body_name": "Postura del Niño (Balasana)",
+        "body_cue": "Pliégate hacia adelante, frente al suelo, brazos en reposo. Deja que la espalda se ensanche. Entrega el peso al suelo.",
+        "breath_name": "Respiración Testigo",
+        "breath_pattern": "Respiración natural, simplemente observada, sin control",
+        "da_title": "Ten un perro / dona cobijas",
+        "da_frequency": "Práctica diaria + donaciones continuas",
+    },
+}
+
+
 def get_planet_content(planet: str, language: str = "en") -> dict:
     """Localised content block for one planet — every piece from the same entry."""
     entry = PRACTICE_LIBRARY.get(planet)
     if not entry:
         return {}
     da = entry["daily_action"]
+    # Only es has curated title copy; every other language keeps the English
+    # source, matching _loc()'s en/es contract.
+    es = _ES_PRACTICE.get(planet, {}) if str(language).lower().startswith("es") else {}
+
+    body = _with_minutes(entry["body"])
+    if es.get("body_name"):
+        body["name"] = es["body_name"]
+    if es.get("body_cue"):
+        body["cue"] = es["body_cue"]
+
+    breath = _with_minutes(entry["breath"], fallback=_BREATH_MINUTES.get(planet, 3))
+    if es.get("breath_name"):
+        breath["name"] = es["breath_name"]
+    if es.get("breath_pattern"):
+        breath["pattern"] = es["breath_pattern"]
+
     return {
         "what_it_governs": _loc(entry["what_it_governs"], language),
         "when_weak_symptoms": _loc(entry["when_weak_symptoms"], language),
         "mantra": build_mantra_response(planet, language),
-        "body": _with_minutes(entry["body"]),
-        "breath": _with_minutes(entry["breath"], fallback=_BREATH_MINUTES.get(planet, 3)),
-        "daily_action": {"title": da["title"], "detail": _loc(da["detail"], language), "frequency": da["frequency"], "minutes": None, "duration_minutes": None},
+        "body": body,
+        "breath": breath,
+        "daily_action": {"title": es.get("da_title") or da["title"], "detail": _loc(da["detail"], language), "frequency": es.get("da_frequency") or da["frequency"], "minutes": None, "duration_minutes": None},
         "affirmation": _loc(entry["affirmation"], language),
         "chakras_balanced": list(entry["chakras_balanced"]),
         "why_this_works": _loc(entry["why_this_works"], language),
