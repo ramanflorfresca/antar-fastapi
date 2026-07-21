@@ -2,7 +2,7 @@
 tests/test_vocational_calibration.py
 Real people, real professions — the benchmark vocational_fit is measured on.
 
-Seventeen charts supplied by the product owner, who knows the actual outcomes,
+Nineteen charts supplied by the product owner, who knows the actual outcomes,
 including the unglamorous ones ("surviving, not big"). That is worth more than
 a celebrity list: it contains FAILURES, and failures are what discriminate.
 
@@ -17,6 +17,15 @@ Chance is ~2/14 (two picks out of eight, per person).
     same scoring, 14-chart cohort              7/14
     17-chart cohort, 14 graded                 7/14
     + per-sector normalisation, 7 categories   8/14
+    + YH (spiritual), SB (inherited)           9/15  vs 4.3/15 chance
+
+SB is worth watching. He is the only person here whose outcome was inherited
+rather than built, and he ranks LAST of seven for the sector he actually runs.
+That is the engine possibly doing its job — saying this work is not his natural
+fit, which is exactly what "not self-made" means. It is one chart, so it is a
+hypothesis and not a finding. If it holds across more inherited-outcome charts,
+it is the strongest evidence yet that the score tracks FIT rather than SUCCESS,
+and those two come apart precisely where a surname did the work.
 
 TRIED AND REJECTED (2026-07-21): reading the D-10 house placement of each
 sector's karakas — +1.25 in a house the sector runs on, +0.5 in a kendra or
@@ -93,6 +102,17 @@ COHORT = [
      "car OEM manufacturing","automotive OEM manufacturing"),
     ("Prashan",     "1985-12-14", "20:50", 27.7172,  85.3240,  5.75,
      "liquor distribution", "liquor distribution  [tz +5:45 Nepal, NOT +5:30]"),
+    ("YH",          "1929-08-26", "19:00", 32.1877,  74.1945,  5.5,
+     "spiritual healing",   "spiritual leader; built a large US following in the 1970s-80s. "
+                            "Gujranwala was British India — IST (+5:30) since 1906."),
+    # SB is the cohort's first INHERITED outcome and is graded separately.
+    # Everyone else built the thing they are scored on. A large business run
+    # well but received, not founded, does not test "is this work right for
+    # them" — it tests whether the engine over-credits an outcome that a
+    # surname supplied. Kept because that is worth knowing, flagged so it
+    # cannot quietly pad the headline.
+    ("SB",          "1977-03-10", "06:12", 22.5726,  88.3639,  5.5,
+     "hospitality hotel",   "large food/FMCG business — INHERITED, not self-made"),
     # ── UNRELIABLE BIRTH TIMES — scored separately, see UNRELIABLE_TIME ──
     # Three public tech fortunes. The OUTCOMES are beyond dispute; the TIMES are
     # not. Published celebrity times conflict (BG 21:00 vs 22:00, EM 06:20 vs
@@ -154,6 +174,9 @@ ALSO_ACCEPTABLE = {"EM": ["a construction firm"]}
 # luck into the score would make the benchmark feel stronger than it is.
 UNRELIABLE_TIME = {"BG", "EM", "MZ"}
 
+# Outcome was inherited, not built. Reported, not graded — see the COHORT note.
+INHERITED = {"SB"}
+
 
 def _build(date, time, lat, lon, tz):
     from antar_engine.chart import calculate_chart
@@ -183,6 +206,12 @@ def score_cohort(verbose=False):
         target = ACTUAL_AS_CATEGORY.get(actual, actual)
         order = sorted(scores, key=scores.get, reverse=True)
         rank = order.index(target) + 1
+        if name in INHERITED:
+            rows.append((name, target, rank, len(scores), order[0], True))
+            if verbose:
+                print(f"  {name:12} {target[:20]:21} rank {rank}/{len(scores)}  "
+                      f"top: {order[0]}   [inherited, not self-made]")
+            continue
         if name in UNRELIABLE_TIME:
             rows.append((name, target, rank, len(scores), order[0], True))
             if verbose:
@@ -196,7 +225,7 @@ def score_cohort(verbose=False):
         if verbose:
             print(f"  {name:12} {target[:20]:21} rank {rank}/{len(scores)}  "
                   f"top: {max(scores, key=scores.get)}")
-    graded = len(COHORT) - len(UNRELIABLE_TIME)
+    graded = len(COHORT) - len(UNRELIABLE_TIME) - len(INHERITED)
     return hits, graded, rows, strict_hits
 
 
@@ -215,5 +244,6 @@ if __name__ == "__main__":
     print(f"\ncorrect profession in top-2: {hits}/{total}  "
           f"(chance {exp:.1f}/{total} — top-2 of {len(CATEGORIES)})")
     print(f"strict (no ALSO_ACCEPTABLE):  {strict}/{total}")
+    print(f"{len(INHERITED)} chart excluded: outcome inherited, not built")
     print(f"{len(UNRELIABLE_TIME)} charts excluded: birth time unverified, and D-10 "
           f"turns over every ~12 min")
