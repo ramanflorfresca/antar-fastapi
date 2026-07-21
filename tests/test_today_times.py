@@ -72,3 +72,21 @@ def test_activity_phrase_wins_over_noun():
     assert _first_purpose(
         ["the one thing that actually matters today", "art"], "FB"
     ).startswith("the one thing")
+
+
+def test_a_purpose_is_a_phrase_not_a_sentence():
+    """Regression: a fix for the time contradiction shipped THIS to production.
+
+        "The day's most auspicious window — use it for In career: make one
+         deliberate, well-prepared move before 10:50 PM — the late-night
+         window is your sharpest slot for anything that needs to land cleanly.."
+
+    aligned_for lines were added as purpose candidates. They are sentences, so
+    they passed the two-word guard trivially, and windows[] is built BEFORE the
+    time-stripping pass — so the invented clock time came along with it.
+    """
+    assert _first_purpose([LIVE_MOVE], "FB") == "FB"
+    assert _first_purpose(["Rest today and keep it simple."], "FB") == "FB"
+    assert _first_purpose(["a" * 4 + " word " * 12], "FB") == "FB"
+    # a real short purpose still passes
+    assert _first_purpose(["harsh environments"], "FB") == "harsh environments"

@@ -57,6 +57,21 @@ def _sane(s0: int, s1: int) -> bool:
     return True
 
 
+_CLOCK = r"\d{1,2}(?::\d{2})?\s*[AaPp]\.?[Mm]\.?"
+_TIME_PHRASE = re.compile(
+    r"(?:\b(?:between|from)\s+" + _CLOCK + r"\s*(?:and|to|[-–—])\s*" + _CLOCK + r")"
+    r"|(?:\b(?:before|after|by|around|until|till|past)\s+" + _CLOCK + r")"
+    r"|(?:\b(?:entre|de)\s+(?:las\s+)?" + _CLOCK + r"\s*(?:y|a)\s*(?:las\s+)?" + _CLOCK + r")"
+    r"|(?:\b(?:antes de|despues de|después de|hasta)\s+(?:las\s+)?" + _CLOCK + r")"
+    r"|(?:" + _CLOCK + r")",
+    re.IGNORECASE,
+)
+# A clause that only asserts timing carries no content once the clock is gone.
+_TIMING_WORD = re.compile(
+    r"\b(window|franja|ventana|slot|late-night|early morning|midday|"
+    r"madrugada|mediod[ií]a)\b", re.IGNORECASE)
+
+
 def _first_purpose(src: Any, fallback: str) -> str:
     """First purpose token that reads as an ACTIVITY, else the fallback.
 
@@ -73,8 +88,19 @@ def _first_purpose(src: Any, fallback: str) -> str:
         # Count words on the token AS IT WILL RENDER. "avoid ugliness" is two
         # words but the caller strips the avoid- prefix before use, leaving the
         # bare noun this guard exists to reject.
-        if len(_strip_avoid_prefix(c).split()) >= 2:
-            return c
+        tok = _strip_avoid_prefix(c)
+        n = len(tok.split())
+        if n < 2:
+            continue
+        # ...and it must still be a PHRASE, not a sentence. Feeding a whole
+        # aligned_for line in here rendered "The day's most auspicious window —
+        # use it for In career: make one deliberate, well-prepared move before
+        # 10:50 PM — ...". A purpose slots into a frame; a sentence does not.
+        if n > 10 or _TIME_PHRASE.search(tok) or any(ch in tok for ch in ":—–"):
+            continue
+        if tok.rstrip().endswith("."):
+            continue
+        return tok
     return fallback
 
 
@@ -256,21 +282,6 @@ def _dedup_passthrough(llm_windows: List[Dict[str, Any]]) -> List[Dict[str, Any]
 #
 # Prose says WHAT, windows say WHEN. These strip the timing claims out of the
 # prose rather than trying to reconcile two sources that cannot both be right.
-
-_CLOCK = r"\d{1,2}(?::\d{2})?\s*[AaPp]\.?[Mm]\.?"
-_TIME_PHRASE = re.compile(
-    r"(?:\b(?:between|from)\s+" + _CLOCK + r"\s*(?:and|to|[-–—])\s*" + _CLOCK + r")"
-    r"|(?:\b(?:before|after|by|around|until|till|past)\s+" + _CLOCK + r")"
-    r"|(?:\b(?:entre|de)\s+(?:las\s+)?" + _CLOCK + r"\s*(?:y|a)\s*(?:las\s+)?" + _CLOCK + r")"
-    r"|(?:\b(?:antes de|despues de|después de|hasta)\s+(?:las\s+)?" + _CLOCK + r")"
-    r"|(?:" + _CLOCK + r")",
-    re.IGNORECASE,
-)
-# A clause that only asserts timing carries no content once the clock is gone.
-_TIMING_WORD = re.compile(
-    r"\b(window|franja|ventana|slot|late-night|early morning|midday|"
-    r"madrugada|mediod[ií]a)\b", re.IGNORECASE)
-
 
 def _clean_fragment(seg: str) -> str:
     seg = _TIME_PHRASE.sub("", seg)

@@ -18764,12 +18764,14 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 # that actually matters today"); panchanga.do_today carries bare
                 # day-quality nouns ("art", "ugliness") that render as "use it
                 # for art". Prefer the phrase, keep the nouns as fallback.
+                # aligned_for/friction_for are deliberately NOT candidates:
+                # they are whole sentences, and a purpose has to slot into
+                # "use it for ___". Passing them rendered the entire move,
+                # invented clock time and all, inside the window text.
                 best_for=([(result.get("todays_move") or {}).get("best_for") or ""]
-                          + list(panchanga.get("do_today") or [])
-                          + list(result.get("aligned_for") or [])),
+                          + list(panchanga.get("do_today") or [])),
                 avoid_for=([(result.get("todays_move") or {}).get("avoid_what") or ""]
-                           + list(panchanga.get("dont_today") or [])
-                           + list(result.get("friction_for") or [])),
+                           + list(panchanga.get("dont_today") or [])),
             )
 
             # ── [today-times] One authority on WHEN ─────────────────────
