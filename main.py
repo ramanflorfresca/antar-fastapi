@@ -4526,6 +4526,37 @@ async def _ensure_chart_complete(chart_id: str, chart_data: dict,
     return chart_record
 
 
+
+def _subject_natal_promise(predictions: dict) -> dict:
+    """Bridge today's subject-promise work into the resolver's existing
+    `natal_promise` hook.
+
+    resolve_domain_verdict already knows what to do with a definitive natal
+    promise — STRUCTURALLY_SUPPORTED forces at least MIXED, and FAVORABLE when
+    there is also an anchor — but the call site never passed one, so the hook
+    was dead and a well-promised subject could still resolve FLAT and get
+    redirected to an unrelated "live" area.
+
+    Deliberately ONE-DIRECTIONAL: we only ever emit STRUCTURALLY_SUPPORTED.
+    A weak promise is NOT reported as STRUCTURALLY_BLOCKED, because that forces
+    FLAT outright and this scoring path is shared by every concern — the
+    downside of wrongly silencing a real signal is far worse than leaving a
+    weak one to score on its own merits.
+    """
+    sp = (predictions or {}).get("subject_promise") or {}
+    dr = (predictions or {}).get("dasha_relevance") or {}
+    if sp.get("verdict") in ("strong", "supported") and \
+       dr.get("state") in ("active", "fully_active", "window", "opening"):
+        return {
+            "verdict": "STRUCTURALLY_SUPPORTED",
+            "why": (f"subject promise {sp.get('verdict')} "
+                    f"(score {sp.get('score')}, houses {sp.get('houses')}) with "
+                    f"period {dr.get('state')}"),
+            "source": "subject_promise",
+        }
+    return {}
+
+
 @app.post("/api/v1/predict", response_model=PredictResponse)
 async def predict(request: PredictRequest, authorization: Optional[str] = Header(None)):
     user_id = None
@@ -5616,6 +5647,11 @@ Do not use any planet names or astrological jargon — translate everything into
             rarity_signals=rarity_signals,
             precision_windows=precision_windows,
             anchor_decision=_anchor_decision,
+            # [subject-promise->resolver 2026-07-21] Feed the hook that was
+            # already here and never supplied. Without it a subject with real
+            # natal promise and an active period still scored FLAT and got
+            # redirected to an unrelated area.
+            natal_promise=_subject_natal_promise(predictions if 'predictions' in dir() else {}),
             language=getattr(request, 'language', 'en') or 'en',
             chart_type=(chart_record.get('chart_type') if isinstance(chart_record, dict) else None),  # [compat-exclude] chart_type
         )
@@ -5648,12 +5684,35 @@ Do not use any planet names or astrological jargon — translate everything into
             archetype=_arch_hint,
             concern=concern,
         )
+        # [promise-conflict 2026-07-21] calculate_natal_promise is knife-edge on
+        # this path: for `business` it reads the FIRST house as primary, and
+        # swings from -55 to +125 depending on that one field. Measured on two
+        # charts with known outcomes it gets one right and the other wrong
+        # whichever way it is configured, so the config is NOT being changed on
+        # the evidence of a single chart.
+        #
+        # What it must not do is force FLAT on its own when the subject-level
+        # reading disagrees. STRUCTURALLY_BLOCKED overrides the band outright,
+        # which is how a founder with a Raj yoga, a 10th/11th lord exchange and
+        # an active period got "no chart-specific signal — pivot to property".
+        # Suppress only that case. One-directional: a BLOCKED that nothing
+        # contradicts still stands, and we never upgrade anything here.
+        try:
+            _sp_view = _subject_natal_promise(predictions if 'predictions' in dir() else {})
+            if (_natal_promise.get("verdict") == "STRUCTURALLY_BLOCKED"
+                    and _sp_view.get("verdict") == "STRUCTURALLY_SUPPORTED"):
+                print(f"[predict] natal_promise BLOCKED suppressed — "
+                      f"{_sp_view.get('why')}")
+                _natal_promise = None
+        except Exception as _pc_e:
+            print(f"[predict] promise conflict check skipped: {_pc_e}")
+
         print(
             f"[predict] natal_promise concern={concern} "
-            f"verdict={_natal_promise.get('verdict')} "
-            f"score={_natal_promise.get('score')} "
-            f"archetype={_natal_promise.get('archetype')} "
-            f"fit={_natal_promise.get('vehicle_fit')}"
+            f"verdict={(_natal_promise or {}).get('verdict')} "
+            f"score={(_natal_promise or {}).get('score')} "
+            f"archetype={(_natal_promise or {}).get('archetype')} "
+            f"fit={(_natal_promise or {}).get('vehicle_fit')}"
         )
     except Exception as _np_e:
         print(f"[predict] natal_promise failed (non-fatal): {_np_e}")
