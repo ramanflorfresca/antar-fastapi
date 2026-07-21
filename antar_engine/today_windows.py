@@ -58,13 +58,23 @@ def _sane(s0: int, s1: int) -> bool:
 
 
 def _first_purpose(src: Any, fallback: str) -> str:
-    """First non-empty string purpose token from a str or list, else fallback."""
-    if isinstance(src, str) and src.strip():
-        return src.strip()
-    if isinstance(src, (list, tuple)):
-        for item in src:
-            if isinstance(item, str) and item.strip():
-                return item.strip()
+    """First purpose token that reads as an ACTIVITY, else the fallback.
+
+    panchanga.do_today / dont_today are day-quality nouns — "art", "design",
+    "beautification", "ugliness". Dropped into the sentence frame they produced
+    "The day's most auspicious window - use it for art." and "Avoid ugliness in
+    this window", which is not advice a founder can act on. A bare noun is
+    therefore rejected in favour of a phrase; "harsh environments" survives,
+    "ugliness" does not.
+    """
+    cands = [src] if isinstance(src, str) else list(src or []) if isinstance(src, (list, tuple)) else []
+    cands = [c.strip() for c in cands if isinstance(c, str) and c.strip()]
+    for c in cands:
+        # Count words on the token AS IT WILL RENDER. "avoid ugliness" is two
+        # words but the caller strips the avoid- prefix before use, leaving the
+        # bare noun this guard exists to reject.
+        if len(_strip_avoid_prefix(c).split()) >= 2:
+            return c
     return fallback
 
 
@@ -232,4 +242,84 @@ def _dedup_passthrough(llm_windows: List[Dict[str, Any]]) -> List[Dict[str, Any]
             continue
         seen.add(k)
         out.append(w)
+    return out
+
+
+# ── [today-times] LLM prose must not state its own clock times ───────────
+# The windows[] block is computed from panchanga and is the single authority
+# on WHEN. The LLM-authored move/aligned_for/friction_for strings were also
+# inventing times, and they did not agree with it — one live card carried FOUR
+# different answers to "when": a computed best window of 11:49 AM-12:37 PM, a
+# computed steer-clear of 3:50-5:38 PM, a move saying "before 10:50 PM - the
+# late-night window is your sharpest slot", and a friction line announcing
+# "Between 7:39 PM and 8:51 PM is a caution window".
+#
+# Prose says WHAT, windows say WHEN. These strip the timing claims out of the
+# prose rather than trying to reconcile two sources that cannot both be right.
+
+_CLOCK = r"\d{1,2}(?::\d{2})?\s*[AaPp]\.?[Mm]\.?"
+_TIME_PHRASE = re.compile(
+    r"(?:\b(?:between|from)\s+" + _CLOCK + r"\s*(?:and|to|[-–—])\s*" + _CLOCK + r")"
+    r"|(?:\b(?:before|after|by|around|until|till|past)\s+" + _CLOCK + r")"
+    r"|(?:\b(?:entre|de)\s+(?:las\s+)?" + _CLOCK + r"\s*(?:y|a)\s*(?:las\s+)?" + _CLOCK + r")"
+    r"|(?:\b(?:antes de|despues de|después de|hasta)\s+(?:las\s+)?" + _CLOCK + r")"
+    r"|(?:" + _CLOCK + r")",
+    re.IGNORECASE,
+)
+# A clause that only asserts timing carries no content once the clock is gone.
+_TIMING_WORD = re.compile(
+    r"\b(window|franja|ventana|slot|late-night|early morning|midday|"
+    r"madrugada|mediod[ií]a)\b", re.IGNORECASE)
+
+
+def _clean_fragment(seg: str) -> str:
+    seg = _TIME_PHRASE.sub("", seg)
+    seg = re.sub(r"\s{2,}", " ", seg)
+    seg = re.sub(r"\s+([,.;:!?])", r"\1", seg)
+    seg = re.sub(r"[,;:]\s*$", "", seg.strip())
+    return seg.strip(" -–—,;:")
+
+
+def strip_invented_times(text: str) -> str:
+    """Remove the prose's own clock claims, keeping what it says to DO.
+
+    A clause is dropped outright when removing the clock leaves it asserting
+    nothing ("is a caution window"), or when it names a timing slot it has no
+    authority to name ("the late-night window is your sharpest slot").
+    Returns "" when nothing of substance survives, so callers can drop the line.
+    """
+    if not isinstance(text, str) or not text.strip():
+        return ""
+    kept: List[str] = []
+    for seg in re.split(r"\s+[—–]\s+", text):
+        had_clock = bool(_TIME_PHRASE.search(seg))
+        cleaned = _clean_fragment(seg)
+        if not cleaned:
+            continue
+        # Drop a clause that was only ever about timing.
+        if _TIMING_WORD.search(cleaned):
+            continue
+        if had_clock and len(cleaned.split()) < 4:
+            continue
+        kept.append(cleaned)
+    out = " — ".join(kept).strip()
+    if not out:
+        return ""
+    # A dropped leading clause can leave the sentence starting mid-flow.
+    if out[:1].islower():
+        out = out[0].upper() + out[1:]
+    if out[-1] not in ".!?":
+        out += "."
+    return out
+
+
+def strip_invented_times_list(items: Any) -> List[str]:
+    """strip_invented_times over a list, dropping entries left with nothing."""
+    if not isinstance(items, (list, tuple)):
+        return []
+    out = []
+    for it in items:
+        s = strip_invented_times(it) if isinstance(it, str) else ""
+        if s:
+            out.append(s)
     return out

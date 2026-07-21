@@ -18760,9 +18760,35 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 rahu_kalam=result.get("rahu_kalam", ""),
                 llm_windows=result.get("windows") or [],
                 language=language,
-                best_for=(panchanga.get("do_today") or result.get("aligned_for") or []),
-                avoid_for=(panchanga.get("dont_today") or result.get("friction_for") or []),
+                # todays_move already carries ACTIVITY phrases ("the one thing
+                # that actually matters today"); panchanga.do_today carries bare
+                # day-quality nouns ("art", "ugliness") that render as "use it
+                # for art". Prefer the phrase, keep the nouns as fallback.
+                best_for=([(result.get("todays_move") or {}).get("best_for") or ""]
+                          + list(panchanga.get("do_today") or [])
+                          + list(result.get("aligned_for") or [])),
+                avoid_for=([(result.get("todays_move") or {}).get("avoid_what") or ""]
+                           + list(panchanga.get("dont_today") or [])
+                           + list(result.get("friction_for") or [])),
             )
+
+            # ── [today-times] One authority on WHEN ─────────────────────
+            # windows[] above is computed from panchanga. The LLM prose was
+            # inventing its own, contradictory, clock times alongside it.
+            from antar_engine.today_windows import (
+                strip_invented_times, strip_invented_times_list,
+            )
+            for _k in ("move", "el_movimiento", "headline", "highlight",
+                       "observa_hoy_text", "senal_de_hoy"):
+                if isinstance(result.get(_k), str):
+                    _fixed = strip_invented_times(result[_k])
+                    if _fixed:
+                        result[_k] = _fixed
+            for _k in ("aligned_for", "friction_for"):
+                if isinstance(result.get(_k), list):
+                    _fixed_l = strip_invented_times_list(result[_k])
+                    if _fixed_l:
+                        result[_k] = _fixed_l
         except Exception as _tw_err:
             print(f"[daily-signal] window rebuild skipped: {_tw_err}")
 
