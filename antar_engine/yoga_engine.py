@@ -753,6 +753,44 @@ DOMAIN_DETECTORS = {
     "health":       detect_health_yogas,
     "marriage":     detect_marriage_yogas,
     "children":     detect_children_yogas,
+    # [promise-first 2026-07-21] Business, career and growth questions had NO
+    # detector at all, so detect_yogas_for_question() returned [] and the
+    # "Yoga activation" layer — the PROMISE layer — was silent for every
+    # founder. The reading then rested on transits alone, which inverts the
+    # order: promise first (is this even indicated?), then period, then transit.
+    #
+    # detect_wealth_yogas reads 2 (accumulated wealth), 9 (fortune) and
+    # 11 (income/gains) — Dhana yogas — which is precisely the promise behind
+    # "will this venture grow and produce financial freedom". VRY is folded in
+    # by the wrapper below, so adversity-reversal yogas count too.
+    "business":     detect_wealth_yogas,
+    "career":       detect_wealth_yogas,
+    "growth":       detect_wealth_yogas,
+    "sales":        detect_wealth_yogas,
+    "revenue":      detect_wealth_yogas,
+    "finance":      detect_wealth_yogas,
+    "money":        detect_wealth_yogas,
+}
+
+# detect_domain() returns the matched KEYWORD ("startup", "users", "traction"),
+# not a canonical domain, so the lookup must normalise or the promise layer
+# stays silent for exactly the questions this fix is for.
+_DOMAIN_DETECTOR_ALIASES = {
+    "startup": "business", "company": "business", "venture": "business",
+    "incorporate": "business", "new business": "business", "scale": "business",
+    "traction": "business", "marketing": "business", "churn": "business",
+    "customer": "business", "customers": "business", "users": "business",
+    "signups": "business", "hiring": "career", "job": "career",
+    "promotion": "career", "promoted": "career", "investment": "wealth",
+    "fund": "funding", "investor": "funding", "equity": "funding",
+    "series": "funding", "raise": "funding", "loan": "funding",
+    "house": "property", "real estate": "property", "land": "property",
+    # Detectors that already existed but were unreachable from the synonyms
+    # detect_domain() actually returns.
+    "relationship": "marriage", "love": "marriage", "partner": "marriage",
+    "surgery": "health", "illness": "health",
+    "court": "legal", "lawsuit": "legal",
+    "baby": "children", "pregnancy": "children",
 }
 
 def detect_yogas_for_question(
@@ -764,7 +802,9 @@ def detect_yogas_for_question(
     Main entry point. Pass the domain and charts.
     Returns list of yoga dicts for the LLM context block.
     """
-    detector = DOMAIN_DETECTORS.get(domain)
+    _d = (domain or "").strip().lower()
+    _d = _DOMAIN_DETECTOR_ALIASES.get(_d, _d)
+    detector = DOMAIN_DETECTORS.get(_d)
     if not detector:
         return []
     # Key-casing fix (2026-06-05): get_all_d_charts returns lowercase keys
