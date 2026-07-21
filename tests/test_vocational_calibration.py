@@ -16,6 +16,13 @@ Chance is ~2/14 (two picks out of eight, per person).
     contextual_strength + Ketu severance       5/9   (9-chart cohort)
     same scoring, 14-chart cohort              7/14
     17-chart cohort, 14 graded                 7/14
+    + per-sector normalisation, 7 categories   8/14
+
+Read the ratio, not the raw count. Chance is 2/len(CATEGORIES) per person, so
+merging the duplicate occult slot RAISED chance from 3.5/14 to 4.0/14. Both
+7/14-of-8 and 8/14-of-7 are about twice chance: normalisation fixed a real bug
+without yet moving the hit rate much. What it did move is WHICH sectors win,
+and the live verdict band — see below.
         (BG/EM/MZ carry unverified birth times and are NOT graded — see
          UNRELIABLE_TIME. Ungraded, they score 2/3.)
 
@@ -92,7 +99,12 @@ COHORT = [
 CATEGORIES = [
     "a saas platform", "a construction firm", "hospitality hotel",
     "wholesale distribution", "content media film", "a coaching institute",
-    "spiritual healing", "astrology practice",
+    # ONE occult slot, not two. "spiritual healing" and "astrology practice"
+    # both resolve to Ketu+Jupiter, so they scored identically and always tied;
+    # which one landed first was dict ordering. Listing both advertised eight
+    # independent options when the engine only distinguishes seven, and cost
+    # whoever drew the losing half of the tie a rank.
+    "spiritual or astrology practice",
 ]
 
 # Map each person's actual work onto the category whose NATURE it shares, so
@@ -109,8 +121,8 @@ ACTUAL_AS_CATEGORY = {
     "liquor distribution": "wholesale distribution",
     "wholesale of cloth": "wholesale distribution",
     "content media film": "content media film",
-    "spiritual healing": "spiritual healing",
-    "astrology practice": "astrology practice",
+    "spiritual healing": "spiritual or astrology practice",
+    "astrology practice": "spiritual or astrology practice",
 }
 
 
@@ -172,7 +184,7 @@ def score_cohort(verbose=False):
 
 
 def test_beats_chance():
-    """Top-2 of 8 categories: chance is ~2/N per person. Must beat it."""
+    """Top-2 of N categories: chance is 2/N per person. Must beat it."""
     hits, total, _, _ = score_cohort()
     assert hits >= 3, (
         f"vocational_fit put the real profession in the top-2 for only "
@@ -182,7 +194,9 @@ def test_beats_chance():
 
 if __name__ == "__main__":
     hits, total, rows, strict = score_cohort(verbose=True)
-    print(f"\ncorrect profession in top-2: {hits}/{total}  (chance ~2/{total})")
+    exp = 2.0 * total / len(CATEGORIES)
+    print(f"\ncorrect profession in top-2: {hits}/{total}  "
+          f"(chance {exp:.1f}/{total} — top-2 of {len(CATEGORIES)})")
     print(f"strict (no ALSO_ACCEPTABLE):  {strict}/{total}")
     print(f"{len(UNRELIABLE_TIME)} charts excluded: birth time unverified, and D-10 "
           f"turns over every ~12 min")

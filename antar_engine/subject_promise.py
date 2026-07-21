@@ -19,6 +19,7 @@ When the chart cannot be read the functions return a "no_data" verdict rather
 than a confident guess.
 """
 
+import os
 from typing import Dict, List, Optional
 
 from antar_engine.d_charts_calculator import (
@@ -464,8 +465,35 @@ NATURE_HOUSES = {
 KETU_EXEMPT = {"occult"}
 
 
+_VOCATIONAL_BASELINE = None
+
+
+def _baseline(nature: str):
+    """Mean/sd of the raw score for `nature` over a random population.
+
+    Raw scores are NOT comparable across sectors, because each sector sums a
+    DIFFERENT pair of karakas and those pairs do not score on the same scale.
+    Rahu's contextual points run systematically low, Venus's and Jupiter's run
+    high — so before this, Mercury+Rahu (tech) lost to Venus+Mercury (content)
+    and Ketu+Jupiter (spiritual) for almost every chart, whoever it belonged to.
+    Across seventeen real charts NOT ONE ranked tech first, including three of
+    the largest tech fortunes ever built. That was the scale, not the chart.
+    """
+    global _VOCATIONAL_BASELINE
+    if _VOCATIONAL_BASELINE is None:
+        import json as _json
+        try:
+            with open(os.path.join(os.path.dirname(__file__),
+                                   "vocational_baseline.json")) as fh:
+                _VOCATIONAL_BASELINE = (_json.load(fh) or {}).get("sectors") or {}
+        except Exception:
+            _VOCATIONAL_BASELINE = {}
+    return _VOCATIONAL_BASELINE.get(nature)
+
+
 def vocational_fit(chart_data: dict, karakas: Optional[List[str]],
-                   nature: str = "", d_charts: Optional[dict] = None) -> dict:
+                   nature: str = "", d_charts: Optional[dict] = None,
+                   normalize: bool = True) -> dict:
     """Does this chart support THIS kind of work?
 
     Scored from planet_significations.contextual_strength, NOT sign dignity.
@@ -509,8 +537,17 @@ def vocational_fit(chart_data: dict, karakas: Optional[List[str]],
             evidence.append(f"Ketu sits in {label} house {kh}, a house this "
                             f"work runs on — it cuts the material fruit.")
 
-    verdict = ("well suited" if score >= 2.5 else "workable" if score >= 0
+    # Rank and judge on the NORMALISED score. `raw` is kept for debugging and
+    # for regenerating the baseline, but must never be compared across sectors.
+    base = _baseline(nature) if normalize else None
+    if base and base.get("sd"):
+        rel = (score - float(base["mean"])) / float(base["sd"])
+    else:
+        rel = score
+    verdict = ("well suited" if rel >= 0.75 else "workable" if rel >= -0.4
                else "against the grain")
-    return {"available": True, "verdict": verdict, "score": round(score, 2),
+    return {"available": True, "verdict": verdict,
+            "score": round(rel, 2), "raw": round(score, 2),
+            "normalized": bool(base),
             "karakas": list(karakas), "nature": nature, "evidence": evidence,
             "source": "D-1 context + D-10 Ketu"}

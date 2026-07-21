@@ -1,0 +1,42 @@
+{
+  "_note": "Mean and sd of vocational_fit raw score over 400 random charts. Raw scores are NOT comparable across sectors; these make them so.",
+  "_seed": 20260721,
+  "_charts": 400,
+  "sectors": {
+    "content": {
+      "mean": 0.4298,
+      "sd": 1.7143,
+      "n": 400
+    },
+    "education_biz": {
+      "mean": 0.5272,
+      "sd": 1.6549,
+      "n": 400
+    },
+    "food": {
+      "mean": 0.6098,
+      "sd": 1.6509,
+      "n": 400
+    },
+    "manufacturing": {
+      "mean": 0.5092,
+      "sd": 1.7374,
+      "n": 400
+    },
+    "occult": {
+      "mean": 1.7376,
+      "sd": 1.4462,
+      "n": 800
+    },
+    "tech": {
+      "mean": 0.539,
+      "sd": 1.604,
+      "n": 400
+    },
+    "wholesale": {
+      "mean": 0.3673,
+      "sd": 1.7669,
+      "n": 400
+    }
+  }
+}
