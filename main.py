@@ -18438,6 +18438,14 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         # its own prewarmer.
         if language == "es":
             signals = _translate_daily_signals_es(signals)
+            # [remedial-es 2026-07-20] localize the deterministic colour/food/timing
+            # block too — see the daily-week route for the rationale.
+            try:
+                from antar_engine.remedial_es import localize_remedial_es
+                for _d in signals:
+                    localize_remedial_es(_d)
+            except Exception as _res_e:
+                print(f"[today] remedial-es localize failed (non-fatal): {_res_e}")
         result = dict(signals[0]) if signals else {"chart_id": cid, "signal": "", "fallback": True}
         result.setdefault("chart_id", cid)
 
@@ -26138,6 +26146,17 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
 
         if language == "es":
             signals = _translate_daily_signals_es(signals)
+            # [remedial-es 2026-07-20] _translate_daily_signals_es covers the LLM
+            # prose but NOT the deterministic colour/food/timing block, which the
+            # engines emit in English. Localize it from its structured fields so a
+            # Spanish user never sees "Wear Red/Coral · eat warm, hearty food" on
+            # an otherwise-Spanish card.
+            try:
+                from antar_engine.remedial_es import localize_remedial_es
+                for _d in signals:
+                    localize_remedial_es(_d)
+            except Exception as _res_e:
+                print(f"[daily-week] remedial-es localize failed (non-fatal): {_res_e}")
         elif language in ("pt", "fr"):
             # [loc-3 2026-07-04] no hand-rolled dict for pt/fr — route
             # the signal prose through the gated translation middleware
