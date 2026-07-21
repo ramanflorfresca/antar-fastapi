@@ -5318,15 +5318,18 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
     # ── YOGA DETECTION ────────────────────────────────────────────
     detected_yogas = []
     try:
+        # [business-concern 2026-07-21] "business" was missing here, so a
+        # startup question fell through to a GUESSED "career" domain.
         domain_for_yogas = concern if concern in (
             "wealth","legal","health","marriage","children",
-            "property","foreign","education","career","billionaire","funding"
+            "property","foreign","education","career","billionaire","funding",
+            "business",
         ) else "career"
         relevant_divisions = {
             "wealth":[2,11], "billionaire":[2,10], "funding":[2,10],
             "legal":[6], "health":[6], "marriage":[9], "children":[7],
             "property":[4], "foreign":[12], "education":[24],
-            "career":[9,10], "spirituality":[20],
+            "career":[9,10], "spirituality":[20], "business":[2,9,10],
         }.get(domain_for_yogas, [9,10])
         d_charts_for_yogas = get_all_d_charts(chart_data, relevant_divisions)
         yoga_results = detect_yogas_for_question(domain_for_yogas, chart_data, d_charts_for_yogas)

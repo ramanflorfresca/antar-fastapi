@@ -701,6 +701,47 @@ def detect_concern(question: str) -> str:
     if any(w in q for w in specul_words):
         return "speculation"
 
+    # ── Running a business / startup growth (2026-07-21) ──────
+    # There was no business branch at all, so "my startup's growth is slow,
+    # my team does the selling" matched nothing and fell through to "general".
+    # "general" then made the yoga step fall back to a guessed "career" domain,
+    # and the answer came back about property. CONCERN_HOUSES already carries
+    # business -> [7, 10, 11] (market, enterprise, gains); it simply was never
+    # reachable. Placed AFTER property and speculation so "buy a house" and
+    # "should i buy stocks" keep their own routes.
+    business_words = [
+        "my startup", "our startup", "the startup", "startup growth", "my company",
+        "our company", "my business", "our business", "my venture", "saas",
+        "my product", "our product", "my app", "our app", "my platform",
+        "customers", "customer growth", "users are", "user growth", "signups",
+        "sign-ups", "onboarding users", "churn", "retention", "traction",
+        "product market fit", "product-market fit",
+        "revenue is", "revenue slow", "sales are", "sales team", "not closing",
+        "close deals", "closing deals", "pipeline", "leads", "go to market",
+        "go-to-market", "scale the", "scaling the", "grow the business",
+        "growing the business", "business growth", "cofounder", "co-founder",
+        "my team is", "hiring", "burn rate", "runway",
+        "mi startup", "mi empresa", "mi negocio", "clientes", "ventas",
+        # People name their company ("tezopsai growth is slow") and describe
+        # selling without ever using the word "sales team", so match the SHAPE
+        # of the complaint too, not just the nouns.
+        "growth is slow", "growth is very slow", "growth has slowed",
+        "growth is flat", "growth stalled", "not growing", "isn't growing",
+        "isnt growing", "slow growth", "no growth", "growth pick", "pickup",
+        "pick up", "making sales", "the selling", "does the selling",
+        "doing the selling", "selling for me", "not selling", "no sales",
+        "getting users", "getting customers", "acquire customers",
+        "acquiring customers", "no customers", "few customers",
+    ]
+    # Short acronyms MUST be word-bounded: plain substring matching made "arr"
+    # (annual recurring revenue) fire inside "m-arr-ied", routing a marriage
+    # question to business.
+    import re as _re
+    business_tokens = ["arr", "mrr", "pmf", "b2b", "b2c", "gtm"]
+    _re_bus = _re.compile(r"\b(" + "|".join(business_tokens) + r")\b")
+    if any(w in q for w in business_words) or _re_bus.search(q):
+        return "business"
+
     # ── Reconciliation / Reunion (PRECEDES divorce so "any chance of
     #    reuniting after the breakup" routes here, not divorce) ──
     reconcile_words = [
