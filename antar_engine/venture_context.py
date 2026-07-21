@@ -82,7 +82,10 @@ _VENTURE_NATURE: Tuple[Tuple[str, Tuple[str, ...], List[str], str], ...] = (
         "software and data ventures run on Mercury (logic, product) with Rahu "
         "(disruption, scale, the unconventional)"),
     ("finance", (
-        "fintech", "trading", "investment firm", "hedge", "lending", "insurance",
+        # NOT bare "trading": "rice trading business" is agri-commodity trade,
+        # which belongs in wholesale, not with hedge funds.
+        "fintech", "day trading", "stock trading", "trading desk",
+        "investment firm", "hedge", "lending", "insurance",
         "brokerage", "financiera",
     ), ["Jupiter", "Mercury"],
         "financial ventures run on Jupiter (capital, expansion) with Mercury "
@@ -109,6 +112,7 @@ _VENTURE_NATURE: Tuple[Tuple[str, Tuple[str, ...], List[str], str], ...] = (
         "manufacturing and construction run on Mars (machinery, drive) with "
         "Saturn (process, endurance)"),
     ("wholesale", (
+        "rice", "grain", "agri", "commodity", "produce", "liquor", "beverage",
         "wholesale", "wholesaler", "distribution", "distributor", "trading house",
         "bulk supply", "b2b supply", "mayorista", "distribuidor",
     ), ["Mercury", "Moon"],
@@ -127,6 +131,10 @@ _VENTURE_NATURE: Tuple[Tuple[str, Tuple[str, ...], List[str], str], ...] = (
         "cloth and garments run on Venus (beauty, adornment, desirability) with "
         "Mercury (trade)"),
     ("food", (
+        # "hospitality" listed HERE and before the health entry: the health
+        # markers contain "hospital", which is a substring of "hospitality",
+        # so a hotel group was being read as a medical venture.
+        "hospitality", "hotel", "resort", "hoteleria",
         "restaurant", "cafe", "cloud kitchen", "catering", "bakery", "food truck",
         "restaurante", "cafeteria", "panaderia",
     ), ["Venus", "Moon"],

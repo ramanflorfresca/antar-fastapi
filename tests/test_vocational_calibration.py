@@ -2,7 +2,7 @@
 tests/test_vocational_calibration.py
 Real people, real professions — the benchmark vocational_fit is measured on.
 
-Ten charts supplied by the product owner, who knows the actual outcomes,
+Fourteen charts supplied by the product owner, who knows the actual outcomes,
 including the unglamorous ones ("surviving, not big"). That is worth more than
 a celebrity list: it contains FAILURES, and failures are what discriminate.
 
@@ -10,10 +10,16 @@ Purpose is measurement, not a pass/fail gate. The scoring is not good yet.
 The point is that any change to vocational_fit must MOVE THIS NUMBER, and a
 regression is visible immediately instead of shipping on a hunch.
 
-Baseline (2026-07-21), correct profession in the engine's top-2 of 8 categories,
-chance is ~2/9:
-    sign-dignity scoring (original)            2/9
-    contextual_strength + Ketu severance       5/9
+Baseline (2026-07-21), correct profession in the engine's top-2 of 8 categories.
+Chance is ~2/14 (two picks out of eight, per person).
+    sign-dignity scoring (original)            2/9   (9-chart cohort)
+    contextual_strength + Ketu severance       5/9   (9-chart cohort)
+    same scoring, 14-chart cohort              7/14
+
+Two timezone traps live in this data and are load-bearing:
+  Greensboro NC 1957-09-21 is EDT (-4) — US DST ran Apr 28 to Oct 27 1957.
+  Kathmandu is UTC+5:45 (5.75), not +5:30.
+Getting either wrong moves the lagna and silently corrupts the benchmark.
 
 Run: ./venv311/bin/python tests/test_vocational_calibration.py
 """
@@ -43,15 +49,42 @@ COHORT = [
      "wholesale of cloth",  "distributor, car paint"),
     ("SRK",         "1965-11-02", "02:30", 28.6139,  77.2090,  5.5,
      "content media film",  "actor"),
+    ("Joe Ess",     "1957-09-21", "04:27", 36.0726, -79.7920, -4.0,
+     "hospitality hotel",   "CEO, hospitality  [tz -4: US DST ran Apr 28-Oct 27 1957]"),
+    ("Gerardo",     "1974-12-28", "06:20",  5.5353, -73.3678, -5.0,
+     "construction wood",   "construction, wood, military contracts (Tunja, Colombia)"),
+    ("Rice",        "1972-10-18", "04:38", 28.6139,  77.2090,  5.5,
+     "rice commodity trade","rice business; took it public, delisted 2019-2021"),
+    ("Anish Chanan","1969-02-14", "11:50", 28.6139,  77.2090,  5.5,
+     "car OEM manufacturing","automotive OEM manufacturing"),
+    ("Prashan",     "1985-12-14", "20:50", 27.7172,  85.3240,  5.75,
+     "liquor distribution", "liquor distribution  [tz +5:45 Nepal, NOT +5:30]"),
     # JS is EXCLUDED: birth city unknown. Substituting Delhi produced a
     # different lagna than his stored chart, so any result would be noise.
 ]
 
 CATEGORIES = [
-    "a saas platform", "a construction firm", "a restaurant",
-    "wholesale of cloth", "content media film", "a coaching institute",
+    "a saas platform", "a construction firm", "hospitality hotel",
+    "rice commodity trade", "content media film", "a coaching institute",
     "spiritual healing", "astrology practice",
 ]
+
+# Map each person's actual work onto the category whose NATURE it shares, so
+# ranking is apples-to-apples (car OEM and construction are both Mars+Saturn
+# manufacturing; liquor and rice are both Mercury+Moon wholesale).
+ACTUAL_AS_CATEGORY = {
+    "a saas platform": "a saas platform",
+    "a construction firm": "a construction firm",
+    "construction wood": "a construction firm",
+    "car OEM manufacturing": "a construction firm",
+    "hospitality hotel": "hospitality hotel",
+    "rice commodity trade": "rice commodity trade",
+    "liquor distribution": "rice commodity trade",
+    "wholesale of cloth": "rice commodity trade",
+    "content media film": "content media film",
+    "spiritual healing": "spiritual healing",
+    "astrology practice": "astrology practice",
+}
 
 
 def _build(date, time, lat, lon, tz):
@@ -78,11 +111,12 @@ def score_cohort(verbose=False):
             if not nat:
                 continue
             scores[cat] = vocational_fit(cd, nat["karakas"], nat["nature"])["score"]
-        rank = sorted(scores, key=scores.get, reverse=True).index(actual) + 1
+        target = ACTUAL_AS_CATEGORY.get(actual, actual)
+        rank = sorted(scores, key=scores.get, reverse=True).index(target) + 1
         hits += rank <= 2
-        rows.append((name, actual, rank, len(scores), max(scores, key=scores.get)))
+        rows.append((name, target, rank, len(scores), max(scores, key=scores.get)))
         if verbose:
-            print(f"  {name:12} {actual[:20]:21} rank {rank}/{len(scores)}  "
+            print(f"  {name:12} {target[:20]:21} rank {rank}/{len(scores)}  "
                   f"top: {max(scores, key=scores.get)}")
     return hits, len(COHORT), rows
 
