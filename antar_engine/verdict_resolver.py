@@ -335,15 +335,15 @@ _CONCERN_NOUNS: Dict[str, Dict[str, str]] = {
     # "Act On The Main Move within the window shown." — the exact generic
     # phrasing this product exists to avoid.
     "business": {"subject": "your business", "act": "make the growth move",
-                 "watch": "the market read"},
+                 "obj": "the growth move", "watch": "the market read"},
     "startup":  {"subject": "your venture", "act": "make the growth move",
-                 "watch": "the market read"},
+                 "obj": "the growth move", "watch": "the market read"},
     "sales":    {"subject": "the sales push", "act": "push the sales move",
-                 "watch": "the pipeline read"},
+                 "obj": "the sales push", "watch": "the pipeline read"},
     "funding":  {"subject": "the raise you're weighing", "act": "approach investors",
-                 "watch": "the funding read"},
+                 "obj": "the raise", "watch": "the funding read"},
     "loan":     {"subject": "the borrowing you're weighing", "act": "apply for the facility",
-                 "watch": "the credit read"},
+                 "obj": "the application", "watch": "the credit read"},
 
     "speculation":  {"subject": "the speculative call you're weighing", "act": "deploy capital", "watch": "the speculative read"},
     "property":     {"subject": "the property move you're sitting on",    "act": "move on a purchase", "watch": "the property read"},
@@ -493,6 +493,33 @@ def _compose_verdict_line(
     return f"{subj_cap} is well-supported by your chart."
 
 
+
+# [move-grammar 2026-07-21] `act` is an IMPERATIVE ("make the career move") and
+# reads correctly only in the FAVORABLE branch. The FLAT/WEAK/MIXED branches use
+# it as a noun object and produced "do not force make the career move today",
+# "Hold off on make the career move", "save make the career move for a stronger
+# window." Long-standing, and visible on every concern whose act is a verb
+# phrase. Use the noun form in those positions.
+_ACT_VERB_PREFIXES = ("make ", "approach ", "push ", "apply for ", "act on ",
+                      "take ", "start ", "close ", "sign ")
+
+
+def _obj(concern: str) -> str:
+    """Noun form of the move — for "do not force X" / "save X" positions."""
+    n = _nouns(concern)
+    explicit = n.get("obj")
+    if explicit:
+        return explicit
+    act = n.get("act", "") or ""
+    low = act.lower()
+    for pref in _ACT_VERB_PREFIXES:
+        if low.startswith(pref):
+            rest = act[len(pref):].strip()
+            if rest:
+                return rest
+    return n.get("subject", act)
+
+
 def _compose_move(
     band: str,
     tf: str,
@@ -517,17 +544,17 @@ def _compose_move(
             return f"Pivot to {ga} where the window is open instead of forcing {nouns['subject']}."
         if is_es:
             return f"Quédate con tu rutina base; no fuerces {act} {tense_es}."
-        return f"Hold your baseline routine; do not force {act} {tense_en}."
+        return f"Hold your baseline routine; do not force {_obj(concern)} {tense_en}."
 
     if band == VERDICT_WEAK:
         if is_es:
             return f"Frena {act}; revisa de nuevo {watch} en 24-48 horas."
-        return f"Hold off on {act}; re-check {watch} in 24-48 hours."
+        return f"Hold off on {_obj(concern)}; re-check {watch} in 24-48 hours."
 
     if band == VERDICT_MIXED:
         if is_es:
             return f"Mueve la pieza pequeña hoy; reserva {act} para una ventana más fuerte."
-        return f"Move the small piece today; save {act} for a stronger window."
+        return f"Move the small piece today; save {_obj(concern)} for a stronger window."
 
     # FAVORABLE
     if is_es:

@@ -4545,13 +4545,23 @@ def _subject_natal_promise(predictions: dict) -> dict:
     """
     sp = (predictions or {}).get("subject_promise") or {}
     dr = (predictions or {}).get("dasha_relevance") or {}
-    if sp.get("verdict") in ("strong", "supported") and \
-       dr.get("state") in ("active", "fully_active", "window", "opening"):
+    tf = (predictions or {}).get("transit_focus") or {}
+
+    # A slow planet sitting on the subject's own houses counts as live, even
+    # when the period is about something else. Without this, a chart with real
+    # promise AND a structural transit still resolved FLAT and was told
+    # "nothing unusual is active in your chart for this area" — while the same
+    # response reported two transit signals and two yoga signals. That is not a
+    # cautious answer, it is a false one.
+    _period_live = dr.get("state") in ("active", "fully_active", "window", "opening")
+    _transit_live = bool(tf.get("structural"))
+    if sp.get("verdict") in ("strong", "supported") and (_period_live or _transit_live):
         return {
             "verdict": "STRUCTURALLY_SUPPORTED",
             "why": (f"subject promise {sp.get('verdict')} "
-                    f"(score {sp.get('score')}, houses {sp.get('houses')}) with "
-                    f"period {dr.get('state')}"),
+                    f"(score {sp.get('score')}, houses {sp.get('houses')}); "
+                    f"period {dr.get('state')}; "
+                    f"structural transits {len(tf.get('structural') or [])}"),
             "source": "subject_promise",
         }
     return {}
