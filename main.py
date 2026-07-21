@@ -22154,7 +22154,14 @@ def _md_age_from(birth_date) -> Optional[int]:
 
 @app.get("/api/v1/monthly-deepdive/{chart_id}")
 @translate_response(
-    fields_to_translate=["practice", "text"],
+    # [loc-sweep 2026-07-20] Was ["practice","text"] — the templated hook and
+    # week labels leaked English on es cards ("Work opens up this month — Week of
+    # July 20 is the one to use."). Add every prose display field. Structural
+    # enums (work/mind/money/people status, domain, energy_level, status_color)
+    # are NOT listed, so the frontend still switches on their English values.
+    fields_to_translate=[
+        "practice", "text", "hook", "best_week", "caution_week",
+    ],
     endpoint_name="monthly-deepdive",
 )
 async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: str = "en", force_refresh: bool = False, wait: bool = False):
@@ -27144,6 +27151,9 @@ async def predict_day_deep(request: DeepReadRequest, refresh: int = 0, force_ref
     fields_to_translate=[
         "headline", "gist", "do", "dont", "use", "remedy",
         "info", "note", "governs", "text", "steps", "tab",
+        # [loc-sweep 2026-07-20] the four-horizon prose leaked English
+        # ("Today genuinely favors home & peace…", "Make your real move…")
+        "line", "action", "hook", "title", "summary", "label", "sub",
     ],
     fields_to_skip=["cycleName", "name", "planet"],
     endpoint_name="home",
@@ -29629,10 +29639,30 @@ async def get_life_arc(
                                     "character", "preparation_advice",
                                     "headline", "narration", "summary",
                                     "life_phase_summary", "tensions",
+                                    # [loc-sweep 2026-07-20] the cycle timeline, the
+                                    # what's-ahead hooks, the predicted-event labels
+                                    # and the arc's display labels all leaked English.
+                                    # Leaf keys only (NOT the cycle_timeline container),
+                                    # so structural date/kind/category leaves stay put.
+                                    "hook", "title", "body", "depth", "substance",
+                                    "event_label", "confidence_note", "gist",
+                                    "began_label", "end_label", "here_label",
+                                    "when_label", "window_label",
                                 ],
                                 endpoint_name="life-arc",
                                 chart_id=chart_id,
                             )
+                            # [loc-sweep] verdict is prose here but globally
+                            # skip-protected (it is an enum on ask/prashna), so
+                            # translate it explicitly under a non-skipped key.
+                            _vv = life_arc.get("verdict")
+                            if isinstance(_vv, str) and _vv.strip():
+                                _vt = await _la_td(
+                                    {"__verdict": _vv}, language=language,
+                                    endpoint_name="life-arc-verdict", chart_id=chart_id,
+                                )
+                                if _vt.get("__verdict"):
+                                    life_arc["verdict"] = _vt["__verdict"]
                         except Exception as _la_te:
                             print(f"[es-loc] life-arc cache-hit translate non-fatal: {_la_te}")
                     return _ent_cycle_view(life_arc, chart_id)
