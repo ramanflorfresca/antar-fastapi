@@ -1156,6 +1156,84 @@ app.add_middleware(
 )
 
 
+# [lang-middleware 2026-07-20] ONE place decides the language for EVERY request.
+#
+# Before this, each route resolved language on its own, so any route that forgot
+# the parameter silently served English to Spanish and Portuguese users — we
+# fixed the compatibility picker, the day card and /me/language one at a time
+# and kept finding more. That is unwinnable route-by-route: every new endpoint
+# is another chance to forget.
+#
+# Instead: when a request carries NO explicit `language` query parameter, derive
+# it from the caller's IP (MaxMind GeoLite2, already shipped and used by
+# /geo/country) and inject it into the query string BEFORE routing. Every
+# endpoint that takes a `language` parameter then picks it up with no per-route
+# change, including endpoints written in the future.
+#
+# Precedence, highest first:
+#   1. explicit ?language=  — the user chose; we never override it
+#   2. IP country           — "where the user logged in from"
+#   3. Accept-Language      — when the IP is unknown or behind a VPN/proxy
+#   4. "en"
+#
+# Deliberate limits: an explicit parameter always wins, so the in-app language
+# switcher keeps working; only the query string is touched, so POST bodies are
+# untouched; and any failure falls through silently — a geo lookup must never
+# be able to break a request.
+_LANG_SAFE = {"es", "pt", "en"}
+
+
+def _accept_language_base(header_value: str) -> str:
+    """First tag of an Accept-Language header -> bare code. "es-CO,en;q=0.8" -> "es".
+
+    Uses the FIRST tag only: someone whose primary language is English keeps
+    English even when Spanish appears later in their list.
+    """
+    try:
+        first = (header_value or "").split(",")[0].strip().lower()
+        base = first.split("-")[0]
+        return base if base in _LANG_SAFE else ""
+    except Exception:
+        return ""
+
+
+def _language_for_request(request: Request) -> str:
+    """IP -> country -> language, then Accept-Language. Never raises."""
+    try:
+        from antar_engine.geo_lookup import extract_client_ip, lookup_country
+        ip = extract_client_ip(request)
+        if ip:
+            # lookup_country is TTLCached (1h) over an in-process mmdb reader,
+            # so this stays cheap enough to run on every request.
+            lang = _lang_from_country(lookup_country(ip))
+            if lang in ("es", "pt"):
+                return lang
+    except Exception:
+        pass
+    return _accept_language_base(request.headers.get("accept-language") or "") or "en"
+
+
+@app.middleware("http")
+async def _inject_request_language(request: Request, call_next):
+    try:
+        if (
+            request.url.path.startswith("/api/")
+            and "language" not in request.query_params
+        ):
+            lang = _language_for_request(request)
+            # Only inject a non-English result: "en" is already every route's
+            # default, so injecting it would add work and change nothing.
+            if lang in ("es", "pt"):
+                qs = request.scope.get("query_string", b"") or b""
+                add = f"language={lang}".encode()
+                request.scope["query_string"] = (qs + b"&" + add) if qs else add
+            # Exposed for routes that would rather read it than take a param.
+            request.state.resolved_language = lang
+    except Exception:
+        pass  # language detection must never break a request
+    return await call_next(request)
+
+
 # [cors-on-errors] Unhandled exceptions are caught by Starlette ServerErrorMiddleware,
 # which sits OUTSIDE the CORS middleware -- so a raw 500 reaches the browser with NO
 # Access-Control-Allow-Origin header and gets misreported by the browser as a
