@@ -18,6 +18,23 @@ Chance is ~2/14 (two picks out of eight, per person).
     17-chart cohort, 14 graded                 7/14
     + per-sector normalisation, 7 categories   8/14
 
+TRIED AND REJECTED (2026-07-21): reading the D-10 house placement of each
+sector's karakas — +1.25 in a house the sector runs on, +0.5 in a kendra or
+trikona, -0.75 in a dusthana, -0.75 conjunct Ketu. This was the obvious next
+step and the owner's own thesis ("does the D-10 have a strong combination for
+this kind of job"). It scored 5/14 against 8/14 without it, barely above the
+4.0/14 chance line: Joe Ess 1->4, Kulbir 2->4, Yogi 2->4, Gogi 1->2.
+
+It is not that D-10 is irrelevant — it is the career chart. Two likelier
+causes, both worth testing before trying again:
+  1. NATURE_HOUSES was derived for D-1 reasoning and reused unchanged for D-10.
+     A sector's D-10 houses are probably not its D-1 houses.
+  2. D-10 houses are counted from the D-10 LAGNA, which turns over every ~12
+     minutes of birth time. House-based D-10 rules multiply birth-time error in
+     a way the D-1 karaka reading does not.
+Ketu's D-10 house is still read, because that rule was derived from observed
+outcomes rather than assumed.
+
 Read the ratio, not the raw count. Chance is 2/len(CATEGORIES) per person, so
 merging the duplicate occult slot RAISED chance from 3.5/14 to 4.0/14. Both
 7/14-of-8 and 8/14-of-7 are about twice chance: normalisation fixed a real bug
