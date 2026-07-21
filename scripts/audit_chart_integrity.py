@@ -1,3 +1,27 @@
+"""
+scripts/audit_chart_integrity.py
+Recompute every stored chart from its own columns and compare the LAGNA.
+
+The lagna is the right invariant: it is derived from birth date, time, latitude,
+longitude and UTC offset TOGETHER, so corruption in any one of them surfaces
+here. A stored lagna that disagrees with a recompute from the chart's own
+columns means the user is being read from a chart that does not match their
+birth data.
+
+Read-only. Writes /tmp/lagna_moved.json and changes nothing.
+Run:  ./venv311/bin/python scripts/audit_chart_integrity.py
+
+First run (2026-07-21) over 220 production charts found 3 — and NONE of them was
+the daylight-saving bug this was written to look for:
+  * a Bogota chart whose LONGITUDE had lost its minus sign, computed at +74E in
+    Kazakhstan instead of -74W. Real lagna Aquarius, shown Cancer.
+  * a US chart on the Eastern country-level fallback (-4) whose coordinates are
+    in Mountain time (-6). Real lagna Taurus, shown Aries.
+  * a chart on INDIA'S CENTROID (20.5937, 78.9629) rather than a real birth
+    city, whose stored birth_time cannot produce its stored lagna.
+The first two were repaired; the third was flagged needs_reconfirm rather than
+guessed. 217 of 220 were already correct.
+"""
 import sys; sys.path.insert(0,"/Users/ramandeepsinghchadha/antarai")
 import os, json
 from dotenv import load_dotenv; load_dotenv("/Users/ramandeepsinghchadha/antarai/.env")
