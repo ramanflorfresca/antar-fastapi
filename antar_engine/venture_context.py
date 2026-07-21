@@ -106,13 +106,18 @@ _VENTURE_NATURE: Tuple[Tuple[str, Tuple[str, ...], List[str], str], ...] = (
         "retail runs on Venus (desirability, what people want) with Mercury "
         "(trade, turnover)"),
     ("manufacturing", (
+        # Milling and processing are MANUFACTURE, not trade: a rice mill runs
+        # plant, labour and process risk like any factory. Only the onward
+        # selling of someone else's goods is wholesale.
         "manufactur", "factory", "production", "hardware", "construction",
         "logistics", "supply chain", "fabrica", "fábrica",
+        "rice mill", "flour mill", "milling", "processing plant",
+        "agro processing", "food processing", "refinery", "plant",
     ), ["Mars", "Saturn"],
         "manufacturing and construction run on Mars (machinery, drive) with "
         "Saturn (process, endurance)"),
     ("wholesale", (
-        "rice", "grain", "agri", "commodity", "produce", "liquor", "beverage",
+        "grain trade", "commodity trade", "produce", "liquor", "beverage",
         "wholesale", "wholesaler", "distribution", "distributor", "trading house",
         "bulk supply", "b2b supply", "mayorista", "distribuidor",
     ), ["Mercury", "Moon"],
