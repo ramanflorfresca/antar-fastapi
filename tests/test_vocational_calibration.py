@@ -15,7 +15,9 @@ Chance is ~2/14 (two picks out of eight, per person).
     sign-dignity scoring (original)            2/9   (9-chart cohort)
     contextual_strength + Ketu severance       5/9   (9-chart cohort)
     same scoring, 14-chart cohort              7/14
-    17-chart cohort (+3 public tech fortunes)  9/17
+    17-chart cohort, 14 graded                 7/14
+        (BG/EM/MZ carry unverified birth times and are NOT graded — see
+         UNRELIABLE_TIME. Ungraded, they score 2/3.)
 
 Rice was RECLASSIFIED from wholesale to manufacture on the owner's correction
 (milling is plant, labour and process risk — the same shape as a factory). That
@@ -67,9 +69,16 @@ COHORT = [
      "car OEM manufacturing","automotive OEM manufacturing"),
     ("Prashan",     "1985-12-14", "20:50", 27.7172,  85.3240,  5.75,
      "liquor distribution", "liquor distribution  [tz +5:45 Nepal, NOT +5:30]"),
-    # Three public tech fortunes. Birth data is from published records, not from
-    # the owner, so it is weaker evidence than the rest of this cohort — but the
-    # outcomes are not in dispute, which is the point.
+    # ── UNRELIABLE BIRTH TIMES — scored separately, see UNRELIABLE_TIME ──
+    # Three public tech fortunes. The OUTCOMES are beyond dispute; the TIMES are
+    # not. Published celebrity times conflict (BG 21:00 vs 22:00, EM 06:20 vs
+    # 07:30) and MZ's has no credible source at all.
+    #
+    # This matters more here than anywhere else in the engine: D-10 divides each
+    # sign into ten 3-degree parts, so a placement turns over roughly every 12
+    # minutes of clock time. A 40-minute error does not nudge these charts, it
+    # reshuffles the whole D-10. A miss on these three is uninterpretable — it
+    # could be the scorer, or it could be the wrong chart.
     ("BG",          "1955-10-28", "21:00", 47.6062, -122.3321, -8.0,
      "a saas platform",     "software  [tz -8: US DST ended Sep 25 1955]"),
     ("EM",          "1971-06-28", "06:20", -25.7479, 28.2293,  2.0,
@@ -111,6 +120,11 @@ ACTUAL_AS_CATEGORY = {
 # other chart gets an alternative, and the strict-tech number is printed too.
 ALSO_ACCEPTABLE = {"EM": ["a construction firm"]}
 
+# Excluded from the headline number. Not because they miss — BG and EM both hit
+# — but because a hit on an unverified time is luck, not evidence, and averaging
+# luck into the score would make the benchmark feel stronger than it is.
+UNRELIABLE_TIME = {"BG", "EM", "MZ"}
+
 
 def _build(date, time, lat, lon, tz):
     from antar_engine.chart import calculate_chart
@@ -140,14 +154,21 @@ def score_cohort(verbose=False):
         target = ACTUAL_AS_CATEGORY.get(actual, actual)
         order = sorted(scores, key=scores.get, reverse=True)
         rank = order.index(target) + 1
+        if name in UNRELIABLE_TIME:
+            rows.append((name, target, rank, len(scores), order[0], True))
+            if verbose:
+                print(f"  {name:12} {target[:20]:21} rank {rank}/{len(scores)}  "
+                      f"top: {order[0]}   [birth time unverified]")
+            continue
         strict_hits += rank <= 2
         best = min([rank] + [order.index(a) + 1 for a in ALSO_ACCEPTABLE.get(name, [])])
         hits += best <= 2
-        rows.append((name, target, rank, len(scores), max(scores, key=scores.get)))
+        rows.append((name, target, rank, len(scores), order[0], False))
         if verbose:
             print(f"  {name:12} {target[:20]:21} rank {rank}/{len(scores)}  "
                   f"top: {max(scores, key=scores.get)}")
-    return hits, len(COHORT), rows, strict_hits
+    graded = len(COHORT) - len(UNRELIABLE_TIME)
+    return hits, graded, rows, strict_hits
 
 
 def test_beats_chance():
@@ -163,3 +184,5 @@ if __name__ == "__main__":
     hits, total, rows, strict = score_cohort(verbose=True)
     print(f"\ncorrect profession in top-2: {hits}/{total}  (chance ~2/{total})")
     print(f"strict (no ALSO_ACCEPTABLE):  {strict}/{total}")
+    print(f"{len(UNRELIABLE_TIME)} charts excluded: birth time unverified, and D-10 "
+          f"turns over every ~12 min")
