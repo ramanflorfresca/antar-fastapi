@@ -1105,6 +1105,44 @@ def _tidy_signal(signal_json: dict, language: str = "en") -> dict:
     for w in signal_json.get("windows") or []:
         if isinstance(w, dict) and isinstance(w.get("text"), str):
             w["text"] = _fix(w["text"])
+    # signals[] is built deterministically, not written by the model, so it
+    # never passed through the jargon strip — and shipped "Swati · Naidhana"
+    # onto a real user's card. Naidhana is on the banned list precisely because
+    # it means nothing to a reader and, translated, means "death star". The
+    # replacement rules already existed; they were simply never applied here.
+    # Replacing jargon with an abstraction is not an improvement. The generic
+    # strip turns "Swati · Naidhana" into "lunar energy · transformative lunar
+    # energy", which is longer, vaguer and still tells the reader nothing. The
+    # tara is a nine-step scale of how the day treats you; say THAT.
+    _TARA_PLAIN = {
+        "janma":     "mixed for you",
+        "sampat":    "things come to you",
+        "vipat":     "avoid risk today",
+        "kshema":    "safe and steady",
+        "pratyari":  "expect resistance",
+        "sadhana":   "effort pays off",
+        "naidhana":  "protect what you have",
+        "mitra":     "people are on your side",
+        "ati-mitra": "strongly in your favour",
+        "atimitra":  "strongly in your favour",
+    }
+    for sig in signal_json.get("signals") or []:
+        if not isinstance(sig, dict) or not isinstance(sig.get("value"), str):
+            continue
+        parts = [p.strip() for p in re.split(r"[·|]", sig["value"])]
+        rebuilt = [_TARA_PLAIN.get(p.lower(), p) for p in parts if p]
+        if rebuilt:
+            sig["value"] = " · ".join(rebuilt)
+    try:
+        from antar_engine.output_strips import apply_user_facing_strips
+        for sig in signal_json.get("signals") or []:
+            if isinstance(sig, dict):
+                for k in ("label", "value", "note"):
+                    if isinstance(sig.get(k), str) and sig[k]:
+                        sig[k] = apply_user_facing_strips(
+                            sig[k], language=language, field_type="plain")
+    except Exception:
+        pass
     signal_json["windows"] = _resolve_window_overlaps(signal_json.get("windows"))
     # "wow" was rendering byte-identical to observa_hoy_text, so the same
     # paragraph appeared twice on one card.
