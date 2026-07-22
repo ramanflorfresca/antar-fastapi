@@ -80,6 +80,15 @@ def _strength(chart: dict, planet: str) -> float:
         return 0.0
 
 
+def _dispositor(chart: dict, planet: str) -> Optional[str]:
+    """The lord of the sign a planet occupies — who it answers to."""
+    d = ((chart or {}).get("planets") or {}).get(planet) or {}
+    si = d.get("sign_index")
+    if not isinstance(si, int):
+        return None
+    return SIGN_LORD[si % 12]
+
+
 def ownership_axis(chart: dict) -> Dict:
     """Owned or employed — a SEPARATE question from what kind of work it is.
 
@@ -111,15 +120,40 @@ def ownership_axis(chart: dict) -> Dict:
         own += 1.0; why.append("own+1: Mars strong and placed for initiative")
     if _strength(chart, L1) >= 1.5:
         own += 0.5; why.append("own+0.5: lagna lord strong — self-directed")
+    # Three charts in ten scored 0-0 on the first pass and were decided by the
+    # tie-break rather than by any reading. These add the classical markers that
+    # were missing: who the career lord ANSWERS TO (its dispositor), and whether
+    # the self is tied to the profession at all.
+    if h_L1 is not None and h_L1 == h_L10:
+        own += 1.0; why.append("own+1: lagna lord and 10th lord together — the person IS the business")
+    disp10 = _dispositor(chart, L10)
+    if disp10 in (L1, "Sun"):
+        own += 1.0; why.append(f"own+1: 10th lord answers to {disp10} — the career reports to the self")
+    if _house_of(chart, "Rahu") is not None and _house_of(chart, "Rahu") == h_L10:
+        own += 1.0; why.append("own+1: Rahu with the 10th lord — the unconventional, self-made route")
+    if _house_of(chart, "Rahu") == 10:
+        own += 1.0; why.append("own+1: Rahu IN the 10th — the self-made, rule-breaking career")
+    if _strength(chart, "Sun") >= 1.5:
+        own += 0.5; why.append("own+0.5: Sun strong — carries their own authority")
 
     if h_sat == 10 or L10 == "Saturn":
         emp += 1.5; why.append("employed+1.5: Saturn on the career house — the karaka of serving another")
-    if h_L10 == 6:
-        emp += 1.5; why.append("employed+1.5: 10th lord in the 6th — the career sits in the house of service")
+    # NOT "10th lord in the 6th". That is a NATURE marker — it says the work is
+    # service-shaped — and it already scores on that axis. Counting it here too
+    # was the same collapse this split exists to prevent, and it dragged every
+    # service-natured OWNER to "employed": JS runs B2B SaaS with live clients,
+    # which is service work he owns, and this single rule outweighed everything
+    # else in his chart.
     if _house_of(chart, L6) == 10:
         emp += 1.0; why.append("employed+1: 6th lord in the 10th — employment defines the work")
     if _house_of(chart, "Moon") == 10:
         emp += 0.5; why.append("employed+0.5: Moon on the career house — works within another's structure")
+    if h_sat is not None and h_sat == h_L10:
+        emp += 1.0; why.append("employed+1: Saturn sits with the 10th lord — the work is owed to someone")
+    if _dispositor(chart, L10) == "Saturn":
+        emp += 1.0; why.append("employed+1: the 10th lord answers to Saturn — structure above the self")
+    if L10 in ("Moon", "Saturn"):
+        emp += 0.5; why.append(f"employed+0.5: {L10} rules the career — a role inside another's frame")
 
     return {"owned": round(own, 2), "employed": round(emp, 2),
             "verdict": "owned" if own > emp else "employed", "reasons": why}
@@ -183,6 +217,22 @@ def career_mode(chart: dict) -> Dict:
         add("venture", 1.5, "Rahu on the career/gains axis — unconventional, scale-seeking")
     if _strength(chart, "Rahu") >= 1.0 and _strength(chart, "Mercury") >= 1.0:
         add("venture", 0.5, "Rahu and Mercury both strong — technology at scale")
+
+    # A venture is DEFINED by outside capital and existential risk — the 8th.
+    # Without it, Rahu and the 3rd describe self-employment, not a startup, and
+    # the bucket was accumulating to 5 of 10 charts on that basis alone. The 8th
+    # is the gate on this mode, not one contributor among several.
+    _h8L = _house_of(chart, L8)
+    eighth_live = (
+        _h8L in (10, 11)
+        or _h8L == _house_of(chart, L10)
+        or _house_of(chart, L10) == 8
+        or _house_of(chart, L11) == 8
+    )
+    if not eighth_live and venture > 0:
+        venture *= 0.4
+        reasons.append("venture x0.4: no 8th-house involvement — outside capital and "
+                       "existential risk are what make a venture a venture")
 
     # ── PROMINENCE — how big, in ANY mode. Deliberately not a discriminator.
     prominence = _strength(chart, L10) + 0.4 * sum(
