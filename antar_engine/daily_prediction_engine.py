@@ -890,7 +890,7 @@ _ABSTRACT_SUBJECTS = (
 # qualities as much as it likes, PROVIDED it also names one of these — that is
 # what lets the reader check tonight whether the day went as described.
 _CONCRETE_ANCHORS = (
-    "someone", "somebody", "anyone", "person", "people", "they", "he ", "she ",
+    "someone", "somebody", "anyone", "person", "people", "they",
     "call", "message", "text", "email", "conversation", "talk", "reply",
     "meeting", "deal", "contract", "offer", "negotiation", "proposal",
     "money", "payment", "invoice", "bill", "debt", "price", "number",
@@ -902,7 +902,13 @@ _CONCRETE_ANCHORS = (
     # an abstraction ("use the clarity for finishing") and so are no evidence
     # that anything observable was named.
 )
-_ANCHOR_RE = re.compile("|".join(re.escape(w) for w in _CONCRETE_ANCHORS), re.I)
+# Word-bounded, like every other matcher in this engine has had to become.
+# The first cut used bare substrings and "he " matched inside "t-he ", so a
+# headline about "the clarity" counted as naming a person and passed. That is
+# the fifth substring trap found in this codebase; bare `in` on human sentences
+# does not work.
+_ANCHOR_RE = re.compile(
+    "|".join(r"\b" + re.escape(w) + r"\w*" for w in _CONCRETE_ANCHORS), re.I)
 _ABSTRACT_RE = re.compile(
     "|".join(r"\b" + re.escape(w) for w in _ABSTRACT_SUBJECTS), re.I)
 _HEADLINE_FIELDS = ("senal_de_hoy", "signal", "verdict_subline")
