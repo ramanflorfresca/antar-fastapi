@@ -1384,6 +1384,11 @@ class ChartResponse(BaseModel):
     # API-verifiable on read
     birth_lat:         Optional[float] = None
     birth_lng:         Optional[float] = None
+    # [merge-redirect 2026-07-22] Set when the caller asked for an id that has
+    # been merged into this chart. MUST be declared here: response_model
+    # filtering silently drops any key the model does not know about, so the
+    # hint was being computed and then thrown away before it reached anyone.
+    merged_from:       Optional[str] = None
     # [chart-identity P4 2026-06-26] identity fields for the profile card
     birth_place:       Optional[str] = None
     moon_sign:         Optional[str] = None
