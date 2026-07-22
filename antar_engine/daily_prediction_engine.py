@@ -1,3 +1,4 @@
+import re
 """
 daily_prediction_engine.py — 7-Day Daily Signal Generator (v2 — LLM-backed)
 Antar Intelligence Platform
@@ -907,6 +908,127 @@ def _detect_english_leak(signal_json: dict, language: str) -> list:
     return leaks
 
 
+_DANGLING_FIXES = (
+    # A stripped weekday leaves its possessive behind: "Tuesday's stronger
+    # window" -> "'s stronger window". Seen live on a real card.
+    (re.compile(r"(?:^|(?<=\s))['’]s\b\s*", re.I), ""),
+    # ...or leaves a preposition pointing at nothing: "priorities for." /
+    # "prepare for ." / "good for  ."
+    (re.compile(r"\b(for|on|by|until|before|after|through)\s*(?=[.,;!?]|$)", re.I), ""),
+    (re.compile(r"\s{2,}"), " "),
+    (re.compile(r"\s+([.,;!?])"), r"\1"),
+    (re.compile(r"([.,;!?])\1+"), r"\1"),
+)
+
+
+def _clean_temporal_fragments(text):
+    """Repair the wreckage a day-name strip leaves in a sentence.
+
+    Removing "Tuesday" from "Tuesday's stronger action window" satisfies the
+    no-day-names rule and produces "'s stronger action window", which is worse
+    than the violation. Same for "prepare for ." Cosmetic, but it is the first
+    thing a user notices and it makes the whole card look unfinished.
+    """
+    if not isinstance(text, str) or not text.strip():
+        return text
+    out = text
+    for rx, rep in _DANGLING_FIXES:
+        out = rx.sub(rep, out)
+    return out.strip()
+
+
+def _hhmm(clock):
+    """"10:44 AM" -> minutes since midnight, or None."""
+    if not isinstance(clock, str):
+        return None
+    m = re.match(r"\s*(\d{1,2}):(\d{2})\s*([AaPp])[Mm]", clock.strip())
+    if not m:
+        return None
+    h, mi, ap = int(m.group(1)), int(m.group(2)), m.group(3).lower()
+    if ap == "a" and h == 12:
+        h = 0
+    if ap == "p" and h != 12:
+        h += 12
+    return h * 60 + mi
+
+
+def _resolve_window_overlaps(windows):
+    """A peak window must not sit inside a caution window.
+
+    A real card offered a "sharpest window" of 10:20-11:08 AM while the caution
+    window ran 10:44-11:56 AM, then explained the collision in prose: "avoid the
+    overlap with the caution period that begins at 10:44." That asks the user to
+    do arithmetic to find out when they are actually allowed to act.
+
+    The good window is trimmed to end where the caution begins. If nothing
+    usable is left (under 10 minutes), the window is dropped rather than shown
+    as a slot too short to use.
+    """
+    if not isinstance(windows, list):
+        return windows
+    CAUTION = {"caution", "avoid", "friction", "rahu", "rahu_kalam"}
+    GOOD = {"peak", "best", "auspicious", "abhijit", "connection", "reflection"}
+    bad = []
+    for w in windows:
+        if not isinstance(w, dict):
+            continue
+        if str(w.get("type", "")).lower() in CAUTION:
+            a, b = _hhmm(w.get("start")), _hhmm(w.get("end"))
+            if a is not None and b is not None:
+                bad.append((a, b))
+    if not bad:
+        return windows
+    out = []
+    for w in windows:
+        if not isinstance(w, dict) or str(w.get("type", "")).lower() not in GOOD:
+            out.append(w)
+            continue
+        a, b = _hhmm(w.get("start")), _hhmm(w.get("end"))
+        if a is None or b is None:
+            out.append(w)
+            continue
+        for ca, cb in bad:
+            if a < cb and ca < b:          # they overlap at all
+                if a < ca:
+                    b = min(b, ca)         # trim back to the caution's start
+                else:
+                    a = max(a, cb)         # or forward past its end
+        if b - a < 10:
+            continue                       # nothing usable left; do not show it
+        def _fmt(mins):
+            h, mi = divmod(mins, 60)
+            ap = "AM" if h < 12 else "PM"
+            hh = h % 12 or 12
+            return f"{hh}:{mi:02d} {ap}"
+        w = dict(w)
+        w["start"], w["end"] = _fmt(a), _fmt(b)
+        out.append(w)
+    return out
+
+
+def _tidy_signal(signal_json: dict) -> dict:
+    """Final pass over everything the user actually reads."""
+    if not isinstance(signal_json, dict):
+        return signal_json
+    for k, v in list(signal_json.items()):
+        if isinstance(v, str):
+            signal_json[k] = _clean_temporal_fragments(v)
+        elif isinstance(v, list):
+            signal_json[k] = [
+                _clean_temporal_fragments(x) if isinstance(x, str) else x for x in v
+            ]
+    for w in signal_json.get("windows") or []:
+        if isinstance(w, dict) and isinstance(w.get("text"), str):
+            w["text"] = _clean_temporal_fragments(w["text"])
+    signal_json["windows"] = _resolve_window_overlaps(signal_json.get("windows"))
+    # "wow" was rendering byte-identical to observa_hoy_text, so the same
+    # paragraph appeared twice on one card.
+    if (signal_json.get("wow") or "").strip() and \
+       (signal_json.get("wow") or "").strip() == (signal_json.get("observa_hoy_text") or "").strip():
+        signal_json["wow"] = None
+    return signal_json
+
+
 def _strip_day_names_from_signal(signal_json: dict, language: str) -> dict:
     """Last-resort: regex-strip day names from regulated fields."""
     banned = _BANNED_TEMPORAL_ES if language == 'es' else _BANNED_TEMPORAL_EN
@@ -1673,7 +1795,7 @@ async def generate_weekly_signals(
                     # strip-exemption was removed still carry raw jargon —
                     # re-strip on read. All strippers are idempotent.
                     llm_signal = _strip_day_names_from_signal(llm_signal, language)
-                    llm_signal = _strip_all_jargon_from_signal(llm_signal, language)
+                    llm_signal = _tidy_signal(_strip_all_jargon_from_signal(llm_signal, language))
 
             # [async-fast] fast_mode: never call Claude inline on a cache
             # miss — fall through to the v1 template branch (differentiated
@@ -1809,13 +1931,13 @@ async def generate_weekly_signals(
                                 # validators only check two leak classes; Vedic jargon,
                                 # Spanish planet names, and X/56 scores still need scrubbing.
                                 retry_signal = _strip_day_names_from_signal(retry_signal, language)
-                                retry_signal = _strip_all_jargon_from_signal(retry_signal, language)
+                                retry_signal = _tidy_signal(_strip_all_jargon_from_signal(retry_signal, language))
                                 llm_signal = retry_signal
                                 logger.info(f"[daily-week] Retry succeeded for {date_str}")
                             else:
                                 # Strip what we can, accept with warnings
                                 retry_signal = _strip_day_names_from_signal(retry_signal, language)
-                                retry_signal = _strip_all_jargon_from_signal(retry_signal, language)
+                                retry_signal = _tidy_signal(_strip_all_jargon_from_signal(retry_signal, language))
                                 retry_signal['_validation_warnings'] = {
                                     'day_names': retry_day, 'english_leaks': retry_eng
                                 }
@@ -1824,14 +1946,14 @@ async def generate_weekly_signals(
                         else:
                             # Retry failed entirely — strip first attempt
                             llm_signal = _strip_day_names_from_signal(llm_signal, language)
-                            llm_signal = _strip_all_jargon_from_signal(llm_signal, language)
+                            llm_signal = _tidy_signal(_strip_all_jargon_from_signal(llm_signal, language))
                             llm_signal['_validation_warnings'] = {
                                 'day_names': day_violations, 'english_leaks': eng_leaks
                             }
                     else:
                         # First pass clean — still strip as safety net
                         llm_signal = _strip_day_names_from_signal(llm_signal, language)
-                        llm_signal = _strip_all_jargon_from_signal(llm_signal, language)
+                        llm_signal = _tidy_signal(_strip_all_jargon_from_signal(llm_signal, language))
 
 
                 # Cache if successful
