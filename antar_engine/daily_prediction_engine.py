@@ -872,6 +872,38 @@ _VALIDATED_FIELDS = ['senal_de_hoy', 'observa_hoy_text', 'verdict_subline', 'el_
 # plain field.
 
 
+# The headline is the ONLY line many users read. It kept opening on a faculty —
+# "Strong intellectual current today", "Your intelligence is high" — which names
+# a quality of mind rather than anything the reader can act on or recognise. Two
+# separate users said they did not understand what it meant.
+#
+# A prompt rule alone did not hold, so this detects the pattern and forces the
+# corrective retry that already exists for day-name violations.
+_ABSTRACT_SUBJECTS = (
+    "intellectual", "intelligence", "mental energy", "cognitive", "energy",
+    "vibration", "alignment", "manifestation", "potential", "capacity",
+    "clarity", "awareness", "consciousness", "aura", "frequency", "vitality",
+    "intuition", "creative current", "current",
+)
+_ABSTRACT_OPENER = re.compile(
+    r"^\s*(?:a|an|the|your|there is|there's|today's)?\s*"
+    r"(?:strong|high|heightened|powerful|elevated|deep|good|great|low|weak)?\s*"
+    r"(?:" + "|".join(re.escape(w) for w in _ABSTRACT_SUBJECTS) + r")\b",
+    re.I,
+)
+_HEADLINE_FIELDS = ("senal_de_hoy", "signal", "verdict_subline")
+
+
+def _validate_headline_concrete(signal_json: dict, language: str) -> list:
+    """Fields whose headline opens on an abstraction instead of a situation."""
+    bad = []
+    for f in _HEADLINE_FIELDS:
+        v = signal_json.get(f)
+        if isinstance(v, str) and v.strip() and _ABSTRACT_OPENER.match(v.strip()):
+            bad.append(f)
+    return bad
+
+
 def _validate_no_day_names(signal_json: dict, language: str) -> list:
     """FIX 14b: Check for forbidden day-of-week names in regulated fields."""
     banned = _BANNED_TEMPORAL_ES if language == 'es' else _BANNED_TEMPORAL_EN
@@ -1343,6 +1375,25 @@ async def _call_claude_daily_signal_retry(
             corrective_parts.append(f"- In fields: {violations['day_names']}")
         if caught_eng_words:
             corrective_parts.append(f"- English words leaked into {language} output: {caught_eng_words}")
+
+        for _f in violations.get('abstract_headline', []) or []:
+            corrective_parts.append(
+                f"- The headline field '{_f}' opened on an ABSTRACTION: "
+                f"\"{str(failed_signal.get(_f, ''))[:110]}\""
+            )
+            corrective_parts.append(
+                "  Two real users read a headline like this and said they did not "
+                "understand what it meant. Do not name a quality of mind "
+                "(intellect, intelligence, energy, clarity, potential, current). "
+                "Open on something the reader could confirm happened by tonight: "
+                "a conversation, a message, a decision, someone's reaction, money "
+                "moving. "
+                "BAD:  'Strong intellectual current today - communicate and wrap up.' "
+                "GOOD: 'Words land well today. Have the conversation you have been "
+                "putting off, before evening.' "
+                "GOOD: 'Someone senior notices your work today. Say the one sentence "
+                "that moves the deal.'"
+            )
 
         corrective_parts.append("")
         corrective_parts.append(f"REGENERATE the entire signal_json for {day_data.get('iso_date', '')}. This time:")
@@ -1940,19 +1991,23 @@ async def generate_weekly_signals(
                 if llm_signal:
                     day_violations = _validate_no_day_names(llm_signal, language)
                     eng_leaks = _detect_english_leak(llm_signal, language)
+                    abstract = _validate_headline_concrete(llm_signal, language)
 
                     # [cold-fix] eng-leak is non-load-bearing: it no longer
                     # triggers the corrective retry (a 2nd es Sonnet). The
                     # jargon strip below still cleans any leak.
-                    if day_violations:
-                        logger.warning(f"[daily-week] Validation failed for {date_str}: day_names={day_violations} eng_leaks={eng_leaks}")
+                    if day_violations or abstract:
+                        logger.warning(f"[daily-week] Validation failed for {date_str}: "
+                                       f"day_names={day_violations} eng_leaks={eng_leaks} "
+                                       f"abstract_headline={abstract}")
 
                         # Build corrective retry prompt with specific violations
                         retry_signal = await _call_claude_daily_signal_retry(
                             context=daily_context,
                             day_data=day_prompt_data,
                             language=language,
-                            violations={'day_names': day_violations, 'eng_leaks': eng_leaks},
+                            violations={'day_names': day_violations, 'eng_leaks': eng_leaks,
+                                        'abstract_headline': abstract},
                             failed_signal=llm_signal,
                         )
                         if retry_signal:
