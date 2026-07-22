@@ -915,6 +915,12 @@ _DANGLING_FIXES = (
     # ...or leaves a preposition pointing at nothing: "priorities for." /
     # "prepare for ." / "good for  ."
     (re.compile(r"\b(for|on|by|until|before|after|through)\s*(?=[.,;!?]|$)", re.I), ""),
+    # Two weekdays in one phrase both become the same relative phrase:
+    # "Monday or Wednesday" -> "later this week or later this week".
+    (re.compile(r"\b(later this week|the next)\b(?:\s*(?:,|or|and)\s*\1\b)+", re.I), r"\1"),
+    (re.compile(r"\b(en los pr\u00f3ximos d\u00edas)\b(?:\s*(?:,|o|y)\s*\1\b)+", re.I), r"\1"),
+    # "act on later this week" reads wrong; the phrase is already adverbial.
+    (re.compile(r"\bon\s+(later this week)\b", re.I), r"\1"),
     (re.compile(r"\s{2,}"), " "),
     (re.compile(r"\s+([.,;!?])"), r"\1"),
     (re.compile(r"([.,;!?])\1+"), r"\1"),
@@ -1006,20 +1012,23 @@ def _resolve_window_overlaps(windows):
     return out
 
 
-def _tidy_signal(signal_json: dict) -> dict:
-    """Final pass over everything the user actually reads."""
+def _tidy_signal(signal_json: dict, language: str = "en") -> dict:
+    """Final pass over everything the user actually reads.
+
+    _VALIDATED_FIELDS is a short list; day names also reach haz_hoy, evita_hoy
+    and the window texts, which is where the broken sentences were seen.
+    """
     if not isinstance(signal_json, dict):
         return signal_json
+    _fix = lambda t: _clean_temporal_fragments(_substitute_day_names(t, language))
     for k, v in list(signal_json.items()):
         if isinstance(v, str):
-            signal_json[k] = _clean_temporal_fragments(v)
+            signal_json[k] = _fix(v)
         elif isinstance(v, list):
-            signal_json[k] = [
-                _clean_temporal_fragments(x) if isinstance(x, str) else x for x in v
-            ]
+            signal_json[k] = [_fix(x) if isinstance(x, str) else x for x in v]
     for w in signal_json.get("windows") or []:
         if isinstance(w, dict) and isinstance(w.get("text"), str):
-            w["text"] = _clean_temporal_fragments(w["text"])
+            w["text"] = _fix(w["text"])
     signal_json["windows"] = _resolve_window_overlaps(signal_json.get("windows"))
     # "wow" was rendering byte-identical to observa_hoy_text, so the same
     # paragraph appeared twice on one card.
@@ -1029,13 +1038,36 @@ def _tidy_signal(signal_json: dict) -> dict:
     return signal_json
 
 
+# Replacing a weekday beats deleting it. Deletion satisfies the no-day-names
+# rule and wrecks the sentence: "opens Thursday" -> "opens.", "Tuesday's
+# stronger window" -> "'s stronger window", "priorities for Friday" ->
+# "priorities for." All three shipped to real cards. A relative phrase keeps
+# the meaning AND the grammar, and stays true whichever day the card is read.
+_DAY_POSSESSIVE = re.compile(
+    r"\b(?:mon|tues|wednes|thurs|fri|satur|sun)day['\u2019]s\b", re.I)
+_DAY_POSSESSIVE_ES = re.compile(
+    r"\bdel? (?:lunes|martes|mi[eé]rcoles|jueves|viernes|s[aá]bado|domingo)\b", re.I)
+
+
+def _substitute_day_names(text: str, language: str) -> str:
+    if not isinstance(text, str) or not text.strip():
+        return text
+    if language == 'es':
+        out = _DAY_POSSESSIVE_ES.sub("de los pr\u00f3ximos d\u00edas", text)
+        return (_BANNED_TEMPORAL_ES.sub("en los pr\u00f3ximos d\u00edas", out)
+                if _BANNED_TEMPORAL_ES.search(out) else out)
+    out = _DAY_POSSESSIVE.sub("the next", text)
+    return (_BANNED_TEMPORAL_EN.sub("later this week", out)
+            if _BANNED_TEMPORAL_EN.search(out) else out)
+
+
 def _strip_day_names_from_signal(signal_json: dict, language: str) -> dict:
-    """Last-resort: regex-strip day names from regulated fields."""
+    """Replace day names in regulated fields, then repair any wreckage."""
     banned = _BANNED_TEMPORAL_ES if language == 'es' else _BANNED_TEMPORAL_EN
     for f in _VALIDATED_FIELDS:
         val = signal_json.get(f, '')
         if isinstance(val, str) and banned.search(val):
-            cleaned = banned.sub('', val)
+            cleaned = _substitute_day_names(val, language)
             cleaned = _re_val.sub(r'\s{2,}', ' ', cleaned).strip()
             cleaned = _re_val.sub(r'^[,\s—–-]+', '', cleaned).strip()
             signal_json[f] = cleaned or val
@@ -1795,7 +1827,7 @@ async def generate_weekly_signals(
                     # strip-exemption was removed still carry raw jargon —
                     # re-strip on read. All strippers are idempotent.
                     llm_signal = _strip_day_names_from_signal(llm_signal, language)
-                    llm_signal = _tidy_signal(_strip_all_jargon_from_signal(llm_signal, language))
+                    llm_signal = _tidy_signal(_strip_all_jargon_from_signal(llm_signal, language), language)
 
             # [async-fast] fast_mode: never call Claude inline on a cache
             # miss — fall through to the v1 template branch (differentiated
@@ -1931,13 +1963,13 @@ async def generate_weekly_signals(
                                 # validators only check two leak classes; Vedic jargon,
                                 # Spanish planet names, and X/56 scores still need scrubbing.
                                 retry_signal = _strip_day_names_from_signal(retry_signal, language)
-                                retry_signal = _tidy_signal(_strip_all_jargon_from_signal(retry_signal, language))
+                                retry_signal = _tidy_signal(_strip_all_jargon_from_signal(retry_signal, language), language)
                                 llm_signal = retry_signal
                                 logger.info(f"[daily-week] Retry succeeded for {date_str}")
                             else:
                                 # Strip what we can, accept with warnings
                                 retry_signal = _strip_day_names_from_signal(retry_signal, language)
-                                retry_signal = _tidy_signal(_strip_all_jargon_from_signal(retry_signal, language))
+                                retry_signal = _tidy_signal(_strip_all_jargon_from_signal(retry_signal, language), language)
                                 retry_signal['_validation_warnings'] = {
                                     'day_names': retry_day, 'english_leaks': retry_eng
                                 }
@@ -1946,14 +1978,14 @@ async def generate_weekly_signals(
                         else:
                             # Retry failed entirely — strip first attempt
                             llm_signal = _strip_day_names_from_signal(llm_signal, language)
-                            llm_signal = _tidy_signal(_strip_all_jargon_from_signal(llm_signal, language))
+                            llm_signal = _tidy_signal(_strip_all_jargon_from_signal(llm_signal, language), language)
                             llm_signal['_validation_warnings'] = {
                                 'day_names': day_violations, 'english_leaks': eng_leaks
                             }
                     else:
                         # First pass clean — still strip as safety net
                         llm_signal = _strip_day_names_from_signal(llm_signal, language)
-                        llm_signal = _tidy_signal(_strip_all_jargon_from_signal(llm_signal, language))
+                        llm_signal = _tidy_signal(_strip_all_jargon_from_signal(llm_signal, language), language)
 
 
                 # Cache if successful
