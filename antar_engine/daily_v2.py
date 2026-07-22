@@ -566,3 +566,77 @@ def compose_daily_contract(chart_id: str,
 
 
 __all__ = ["compose_daily_contract"]
+
+
+# ── Domain strip for the Today card ──────────────────────────────────────
+# The five areas people have actually consulted astrologers about for
+# centuries: work, money, relationships, health, and the state of the mind.
+# Somebody arrives because something in one of those is going wrong — not to
+# learn the day's texture. The monthly view already answers it in that shape
+# ("Career RISING — push the visible, high-stakes work") and the daily card
+# never did, even though score_day computes the same per-domain states every
+# time it runs.
+#
+# Deterministic on purpose: these come from the day's arithmetic, not from the
+# writer, so they cannot drift, cannot invent, and say the same thing every
+# time the same chart meets the same day.
+_DOMAIN_LABELS = {
+    "work":   {"en": "Career",  "es": "Carrera",   "pt": "Carreira"},
+    "money":  {"en": "Money",   "es": "Dinero",    "pt": "Dinheiro"},
+    "people": {"en": "Love",    "es": "Vínculos",  "pt": "Relações"},
+    "body":   {"en": "Health",  "es": "Salud",     "pt": "Saúde"},
+    "mind":   {"en": "Mind",    "es": "Mente",     "pt": "Mente"},
+}
+_STATE_WORD = {
+    "favorable": {"en": "RISING",  "es": "AL ALZA",   "pt": "EM ALTA"},
+    "steady":    {"en": "STEADY",  "es": "ESTABLE",   "pt": "ESTÁVEL"},
+    "caution":   {"en": "CARE",    "es": "CUIDADO",   "pt": "CUIDADO"},
+}
+# Order matters: whatever needs care is read first, then what is rising. A
+# person who came with a problem should not have to scroll past the good news.
+_DOMAIN_RANK = {"caution": 0, "favorable": 1, "steady": 2}
+
+
+# MEASURED BEFORE SHIPPING (2026-07-22, two charts x 14 days, 140 readings):
+#   steady 71 · caution 42 · favorable 27
+# Two defects this surfaced, both in score_day's domain scoring, NOT here:
+#   1. `people` returned STEADY on 27 of 28 chart-days. The relationship domain
+#      is effectively dead — nothing daily is moving it.
+#   2. One chart returned money=CAUTION and mind=CAUTION on all 14 days. A
+#      domain driven by a natal or dasha constant swamps the daily transit
+#      variation and freezes. Telling somebody "money needs care" every single
+#      day is indistinguishable from telling them nothing, and it is worse than
+#      silence because they will act on it once and then stop believing it.
+# The strip is correct; the inputs need work before it earns the top of the card.
+def domain_strip(chart_data: Dict[str, Any], target_date=None,
+                 location: Optional[Dict[str, Any]] = None,
+                 language: str = "en") -> list:
+    """[{key, label, state, state_label, line}] for the five life areas."""
+    lang = (language or "en").split("-")[0].lower()
+    if lang not in ("en", "es", "pt"):
+        lang = "en"
+    try:
+        from antar_engine.score_day import score_day
+        d = target_date or _date.today()
+        if isinstance(d, _dt):
+            d = d.date()
+        sd = score_day(chart_data, d, location or {}) or {}
+        states = sd.get("domain_states") or {}
+    except Exception:
+        return []
+    out = []
+    for key in ("work", "money", "people", "body", "mind"):
+        state = states.get(key) or "steady"
+        line = (_STATE_LINES.get(state) or {}).get(key)
+        if not line:
+            continue
+        out.append({
+            "key": key,
+            "label": (_DOMAIN_LABELS[key].get(lang) or _DOMAIN_LABELS[key]["en"]),
+            "state": state,
+            "state_label": (_STATE_WORD.get(state, {}).get(lang)
+                            or _STATE_WORD.get(state, {}).get("en") or ""),
+            "line": line,
+        })
+    out.sort(key=lambda x: _DOMAIN_RANK.get(x["state"], 3))
+    return out
