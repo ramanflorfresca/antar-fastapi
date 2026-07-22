@@ -30103,7 +30103,30 @@ async def get_life_arc(
             if life_arc:
                 # Invalidate if library version changed since cache was written
                 cached_lib_ver = life_arc.get("_library_version")
-                if cached_lib_ver and cached_lib_ver == _lib_version:
+                # [stale-phase 2026-07-22] The cache was invalidated ONLY on a
+                # library-version bump — no time expiry, no period expiry. So a
+                # reading generated on 17 June was still being served on 22 July
+                # with a pratyantardasha that ended on 28 June and a sookshma
+                # that ended on 18 June. The headline described a period the
+                # user had already left a month earlier.
+                #
+                # A TTL would be a guess. The correct boundary is astrological:
+                # regenerate when the sub-period the reading was written about
+                # has actually ended. The payload already carries pd_end_date,
+                # so no extra query is needed.
+                _phase_expired = False
+                try:
+                    from datetime import date as _pd_date
+                    _vim = ((life_arc.get("current_phase") or {}).get("vimsottari") or {})
+                    _pd_end = str(_vim.get("pd_end_date") or "")[:10]
+                    if _pd_end and _pd_end < _pd_date.today().isoformat():
+                        _phase_expired = True
+                        print(f"[life_arc] Cache STALE for {chart_id}: "
+                              f"pratyantardasha ended {_pd_end}, regenerating")
+                except Exception:
+                    _phase_expired = False
+
+                if cached_lib_ver and cached_lib_ver == _lib_version and not _phase_expired:
                     print(f"[life_arc] Cache HIT for {chart_id} (lib={_lib_version})")
                     if not include_readings and isinstance(life_arc, dict):
                         life_arc.pop("system_readings", None)
