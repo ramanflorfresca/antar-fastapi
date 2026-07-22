@@ -477,6 +477,48 @@ CONCERN_VOICE_EXAMPLES = {
 }
 
 
+def _current_period(dashas: dict, system: str = "vimsottari", level: int = 1) -> dict:
+    """The period running NOW, not the first one in the list.
+
+    Callers were using dashas[system][0], which is the period running at BIRTH.
+    On a 51-year-old chart that resolved to a mahadasha that ended in 1976, and
+    it was being handed to the Ask engine and the daily practice briefing as
+    "current". Every answer was reasoning about the wrong decade.
+
+    Falls back to the first entry only when nothing covers today, so behaviour
+    is never worse than it was.
+    """
+    from datetime import date as _d
+    # `level` arrives as a NAME ("mahadasha", "antardasha", "pratyantardasha"),
+    # not an integer — 819 vimsottari rows on a live chart, none of them numeric.
+    _NAMES = {1: ("mahadasha", "md", "1"),
+              2: ("antardasha", "ad", "2"),
+              3: ("pratyantardasha", "pd", "3"),
+              4: ("sookshma", "sd", "4")}
+    want = _NAMES.get(level, ())
+    today = _d.today().isoformat()
+    rows = dashas.get(system) or []
+    if not isinstance(rows, list):
+        return {}
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        lv = str(r.get("level") or "").strip().lower()
+        if lv and want and lv not in want:
+            continue
+        start = str(r.get("start_date") or r.get("start") or "")[:10]
+        end = str(r.get("end_date") or r.get("end") or "")[:10]
+        if start and end and start <= today <= end:
+            return r
+    return rows[0] if rows and isinstance(rows[0], dict) else {}
+
+
+def _period_lord(dashas: dict, system: str = "vimsottari", level: int = 1,
+                 default: str = "unknown") -> str:
+    p = _current_period(dashas, system, level)
+    return p.get("lord_or_sign") or p.get("planet_or_sign") or default
+
+
 def build_predict_prompt(
     question: str,
     chart_data: dict,
@@ -515,8 +557,8 @@ def build_predict_prompt(
     moon_nak  = chart_data["planets"]["Moon"]["nakshatra"]
     sun_sign  = chart_data["planets"]["Sun"]["sign"]
 
-    vim_current = dashas.get("vimsottari", [{}])[0].get("lord_or_sign", "unknown")
-    jai_current = dashas.get("jaimini",    [{}])[0].get("lord_or_sign", "unknown")
+    vim_current = _period_lord(dashas, "vimsottari", 1, "unknown")
+    jai_current = _period_lord(dashas, "jaimini", 1, "unknown")
 
     events_text = ""
     if life_events:
@@ -664,6 +706,29 @@ NAVIGATION CHECK - verify before submitting:
     return prompt
 
 
+def _monthly_period_block(dashas: dict) -> str:
+    """The periods the month sits inside.
+
+    build_monthly_briefing_prompt accepted `dashas` and referenced it ZERO
+    times — the dasha was passed in and discarded, so a monthly briefing was
+    written with no idea which period the month falls in. The mahadasha says
+    what the years are about; the antardasha and pratyantardasha are what makes
+    THIS month different from the last one, which is the entire job of a
+    monthly reading.
+    """
+    out = []
+    for lvl, label in ((1, "Mahadasha"), (2, "Antardasha"), (3, "Pratyantardasha")):
+        p = _current_period(dashas, "vimsottari", lvl)
+        lord = p.get("lord_or_sign") or p.get("planet_or_sign")
+        end = str(p.get("end_date") or p.get("end") or "")[:10]
+        if lord:
+            out.append(f"- {label}: {lord}" + (f" (until {end})" if end else ""))
+    chara = _period_lord(dashas, "jaimini", 1, "")
+    if chara:
+        out.append(f"- Chara dasha sign: {chara}")
+    return "\n".join(out) if out else "- (period data unavailable)"
+
+
 def build_monthly_briefing_prompt(
     chart_data: dict,
     dashas: dict,
@@ -690,6 +755,9 @@ from a separate engine and are NOT in your data. You describe this period's
 conditions and how to use them; you never invent event timing.
 
 Life data: {lagna} rising, Moon in {moon_nak}.
+
+RUNNING PERIODS — this month is lived inside these:
+{_monthly_period_block(dashas)}
 
 {predictions_context}
 
@@ -747,7 +815,7 @@ def build_daily_practice_prompt(
     """60-second daily briefing."""
     lagna    = chart_data["lagna"]["sign"]
     moon_nak = chart_data["planets"]["Moon"]["nakshatra"]
-    vim_md   = dashas.get("vimsottari", [{}])[0].get("lord_or_sign", "Jupiter")
+    vim_md   = _period_lord(dashas, "vimsottari", 1, "Jupiter")
     tone     = MARKET_TONES.get((country_code or "US").upper(), DEFAULT_TONE)
     cc       = (country_code or "US").upper()
     sound    = get_sound_block(vim_md, cc)
