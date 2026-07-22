@@ -133,11 +133,32 @@ def _structural_layer(chart: dict, d: _date) -> Dict[str, Any]:
     birth_jd = (chart or {}).get("birth_jd")
     if birth_jd is None:
         return out
+    # [dasha-layer-dead 2026-07-22] This passed a NAIVE datetime while the
+    # dasha periods carry tzinfo, so every call raised
+    #     TypeError: can't compare offset-naive and offset-aware datetimes
+    # which the bare except swallowed into vim = {}. Lords came back all None,
+    # the layer scored 0.0, and its domain bias was 0.0 — for every chart, on
+    # every day, since it was written. The running dasha is the single most
+    # important timing factor in Vedic astrology and it has been contributing
+    # nothing to the daily score.
+    #
+    # Try aware first, fall back to naive, so it works whichever shape a given
+    # chart's periods carry instead of silently going dark again.
+    vim = {}
     try:
         from antar_engine.life_arc.phase_analyzer import get_current_vimsottari
-        vim = get_current_vimsottari(chart, birth_jd,
-                                     now=_dt(d.year, d.month, d.day, 12, 0, 0)) or {}
-    except Exception:
+        from datetime import timezone as _tz
+        try:
+            vim = get_current_vimsottari(
+                chart, birth_jd,
+                now=_dt(d.year, d.month, d.day, 12, 0, 0, tzinfo=_tz.utc)) or {}
+        except TypeError:
+            vim = get_current_vimsottari(
+                chart, birth_jd, now=_dt(d.year, d.month, d.day, 12, 0, 0)) or {}
+    except Exception as _e:
+        import logging as _l
+        _l.getLogger("antar.score_day").warning(
+            f"[score_day] vimsottari unavailable, dasha layer inert: {_e}")
         vim = {}
     lords = {
         "md": vim.get("md"), "ad": vim.get("ad"),
@@ -173,8 +194,57 @@ def _structural_layer(chart: dict, d: _date) -> Dict[str, Any]:
         for dom, wgt in _HOUSE_DOMAIN_WEIGHTS.get(h, {"work": 1.0}).items():
             domain_bias[dom] += contrib * wgt
 
+        # What the lord RULES, not only where it sits. A dasha lord owning the
+        # 6th, 8th or 12th delivers loss results from wherever it stands; one
+        # owning the 2nd or 11th delivers gain. Reading occupancy alone missed
+        # this entirely.
+        for rh in _houses_ruled(chart, lord):
+            if rh in _LOSS_HOUSES:
+                domain_bias["money"] -= 0.35 * w
+                if rh == 6:
+                    domain_bias["body"] -= 0.20 * w
+            elif rh in _WEALTH_HOUSES:
+                domain_bias["money"] += 0.30 * w
+
     out["score"]   = layer_score
     out["domains"] = domain_bias
+    return out
+
+
+# ── House rulership ───────────────────────────────────────────────────
+_SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra",
+          "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
+_SIGN_LORD = ["Mars", "Venus", "Mercury", "Moon", "Sun", "Mercury",
+              "Venus", "Mars", "Jupiter", "Saturn", "Saturn", "Jupiter"]
+
+# The classical loss set and wealth set. A dasha lord RULING these delivers
+# their results wherever it happens to sit — which the occupancy-only reading
+# could not see at all.
+_LOSS_HOUSES = (6, 8, 12)
+_WEALTH_HOUSES = (2, 11)
+_SPECULATION_HOUSE = 5
+
+
+def _lagna_index(chart: dict) -> Optional[int]:
+    lg = (chart or {}).get("lagna") or {}
+    i = lg.get("sign_index")
+    if isinstance(i, int) and 0 <= i <= 11:
+        return i
+    try:
+        return _SIGNS.index(lg.get("sign"))
+    except Exception:
+        return None
+
+
+def _houses_ruled(chart: dict, planet: str) -> List[int]:
+    """Houses (1..12) whose sign this planet lords, counted from the lagna."""
+    li = _lagna_index(chart)
+    if li is None or not planet:
+        return []
+    out = []
+    for h in range(1, 13):
+        if _SIGN_LORD[(li + h - 1) % 12] == planet:
+            out.append(h)
     return out
 
 
@@ -239,6 +309,16 @@ def _transit_layer(chart: dict, d: _date) -> Dict[str, Any]:
         layer_score += contrib
         for dom, wgt in _HOUSE_DOMAIN_WEIGHTS.get(natal_house, {"work": 1.0}).items():
             domain_bias[dom] += contrib * wgt
+
+        # SPECULATION IS EXPOSURE, NOT INCOME. The 5th is the bet — the punt,
+        # the position, the table. Money that arrives through it is money that
+        # was first put AT RISK, so the 5th under any hard aspect reads as
+        # exposure rather than gain. A benefic making the hard aspect is the
+        # more dangerous case, not the safer one: it is what makes the bet feel
+        # like a good idea. This is deliberately asymmetric — a supported 5th
+        # adds nothing extra, because the upside is already counted above.
+        if natal_house == _SPECULATION_HOUSE and harmony < 0:
+            domain_bias["money"] += harmony * strength * 0.45
         aspects_used.append(a)
 
     out["aspects"] = aspects_used
