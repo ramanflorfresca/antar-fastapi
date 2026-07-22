@@ -551,14 +551,26 @@ def _extract_current_dashas(dashas_dict: dict) -> dict:
 def _extract_chara_dasha(dashas_dict: dict) -> str:
     """Extract current Jaimini Chara Dasha sign."""
     today = datetime.now().strftime("%Y-%m-%d")
-    chara = dashas_dict.get("chara_dasha", dashas_dict.get("jaimini_chara", []))
+    # [chara-key 2026-07-22] The dict handed to this engine keys the Jaimini
+    # periods as "jaimini". This looked only for "chara_dasha" / "jaimini_chara",
+    # found nothing, and returned "not available" on EVERY chart — so Chara
+    # dasha, one of the systems the product is meant to read from, has never
+    # reached a single reading despite being computed and stored.
+    chara = (dashas_dict.get("jaimini")
+             or dashas_dict.get("chara_dasha")
+             or dashas_dict.get("jaimini_chara")
+             or [])
     if not chara:
         return "not available"
 
     for d in chara:
-        start = d.get("start_date") or d.get("start", "")
-        end = d.get("end_date") or d.get("end", "")
-        if start <= today <= end:
+        if not isinstance(d, dict):
+            continue
+        # Stored as full ISO ("1974-11-26T00:00:00+00:00"); compare on the date
+        # part alone so a period starting today is not excluded by the "T".
+        start = str(d.get("start_date") or d.get("start", ""))[:10]
+        end = str(d.get("end_date") or d.get("end", ""))[:10]
+        if start and end and start <= today <= end:
             return d.get("planet_or_sign") or d.get("lord_or_sign", "unknown")
 
     return "not available"
