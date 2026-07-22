@@ -9527,6 +9527,33 @@ CITY_COORDS_LOOKUP = {
     "seattle":(47.6062,-122.3321,"America/Los_Angeles"),
     "san francisco":(37.7749,-122.4194,"America/Los_Angeles"),
     "bogota":(4.7110,-74.0721,"America/Bogota"),
+    # [geocode-fix 2026-07-22] Colombian cities, listed because the fallback
+    # geocoder gets them wrong in ways that are hard to notice. "Santiago de
+    # Cali" is the official name of CALI, COLOMBIA — it was resolving to
+    # Santiago, CHILE, 4,000km away and in a different timezone, and two live
+    # charts were being read on Chilean coordinates until an integrity audit
+    # caught it. Exact-match entries here bypass the geocoder entirely.
+    "santiago de cali":(3.4516,-76.5320,"America/Bogota"),
+    "cali":(3.4516,-76.5320,"America/Bogota"),
+    "medellin":(6.2442,-75.5812,"America/Bogota"),
+    "medellín":(6.2442,-75.5812,"America/Bogota"),
+    "barranquilla":(10.9685,-74.7813,"America/Bogota"),
+    "cartagena":(10.3910,-75.4794,"America/Bogota"),
+    "bucaramanga":(7.1193,-73.1227,"America/Bogota"),
+    "cucuta":(7.8939,-72.5078,"America/Bogota"),
+    "cúcuta":(7.8939,-72.5078,"America/Bogota"),
+    "pereira":(4.8133,-75.6961,"America/Bogota"),
+    "manizales":(5.0703,-75.5138,"America/Bogota"),
+    "tunja":(5.5353,-73.3678,"America/Bogota"),
+    "santa marta":(11.2408,-74.1990,"America/Bogota"),
+    "ibague":(4.4389,-75.2322,"America/Bogota"),
+    "ibagué":(4.4389,-75.2322,"America/Bogota"),
+    "villavicencio":(4.1420,-73.6266,"America/Bogota"),
+    "neiva":(2.9273,-75.2819,"America/Bogota"),
+    "pasto":(1.2136,-77.2811,"America/Bogota"),
+    "armenia":(4.5339,-75.6811,"America/Bogota"),
+    "monteria":(8.7479,-75.8814,"America/Bogota"),
+    "montería":(8.7479,-75.8814,"America/Bogota"),
     "lima":(-12.0464,-77.0428,"America/Lima"),
     "santiago":(-33.4489,-70.6693,"America/Santiago"),
     "buenos aires":(-34.6037,-58.3816,"America/Argentina/Buenos_Aires"),
