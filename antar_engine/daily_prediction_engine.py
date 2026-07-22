@@ -1052,14 +1052,31 @@ def _resolve_window_overlaps(windows):
         if a is None or b is None:
             out.append(w)
             continue
-        for ca, cb in bad:
-            if a < cb and ca < b:          # they overlap at all
-                if a < ca:
-                    b = min(b, ca)         # trim back to the caution's start
-                else:
-                    a = max(a, cb)         # or forward past its end
-        if b - a < 10:
-            continue                       # nothing usable left; do not show it
+        # Keep the LARGEST clear stretch rather than trimming repeatedly. The
+        # sequential version collapsed a window to nothing when two cautions
+        # straddled it, and a real card lost all three of its good windows —
+        # leaving only the caution. That is strictly worse than the overlap it
+        # was written to fix: the user is told when NOT to act and never when
+        # to act.
+        segments, cursor = [], a
+        for ca, cb in sorted(bad):
+            if cb <= cursor or ca >= b:
+                continue
+            if ca > cursor:
+                segments.append((cursor, min(ca, b)))
+            cursor = max(cursor, cb)
+            if cursor >= b:
+                break
+        if cursor < b:
+            segments.append((cursor, b))
+        segments = [(x, y) for x, y in segments if y - x >= 10]
+        if not segments:
+            # Fully buried. Keep the window rather than deleting it — a good
+            # window that shares time with a caution is still information, and
+            # the caution is shown alongside it.
+            out.append(w)
+            continue
+        a, b = max(segments, key=lambda seg: seg[1] - seg[0])
         def _fmt(mins):
             h, mi = divmod(mins, 60)
             ap = "AM" if h < 12 else "PM"
