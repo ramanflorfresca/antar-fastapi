@@ -8116,7 +8116,41 @@ async def update_patra(
     result = supabase.table("charts").update(update_data) \
         .eq("id", request.chart_id).eq("user_id", user_id).execute()
     if not result.data:
-        raise HTTPException(404, "Chart not found")
+        # [patra-silent-404 2026-07-22] A bare 404 here is indistinguishable
+        # from a network blip, so the client swallowed it and the card looked
+        # saved while nothing was written — the user taps an answer and nothing
+        # happens, repeatedly, with no error anywhere.
+        #
+        # 71 of 92 live charts carry user_id = NULL, so the ownership filter
+        # matches zero rows for most charts in the base. Say WHICH failure it
+        # was, and log it, so this is diagnosable instead of silent.
+        try:
+            probe = supabase.table("charts").select("id,user_id,deleted_at") \
+                .eq("id", request.chart_id).limit(1).execute().data or []
+        except Exception:
+            probe = []
+        if not probe:
+            logger_msg = f"[patra] chart {request.chart_id} does not exist"
+            detail = {"code": "CHART_NOT_FOUND",
+                      "message": "That chart no longer exists."}
+        elif probe[0].get("deleted_at"):
+            logger_msg = f"[patra] chart {request.chart_id} is deleted"
+            detail = {"code": "CHART_DELETED",
+                      "message": "That chart has been merged or removed. "
+                                 "Reload to pick up the current one."}
+        elif not probe[0].get("user_id"):
+            logger_msg = (f"[patra] chart {request.chart_id} has NO user_id — "
+                          f"caller {user_id} cannot save to an unclaimed chart")
+            detail = {"code": "CHART_UNCLAIMED",
+                      "message": "This chart is not linked to your account yet, "
+                                 "so answers cannot be saved to it."}
+        else:
+            logger_msg = (f"[patra] chart {request.chart_id} belongs to "
+                          f"{probe[0].get('user_id')}, not {user_id}")
+            detail = {"code": "CHART_NOT_YOURS",
+                      "message": "That chart belongs to another account."}
+        print(logger_msg)
+        raise HTTPException(409, detail)
     patra = build_patra_context(
         birth_date=result.data[0]["birth_date"],
         user_profile=update_data,
