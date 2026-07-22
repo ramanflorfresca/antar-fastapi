@@ -305,7 +305,31 @@ def _transit_layer(chart: dict, d: _date) -> Dict[str, Any]:
         # supportive; a benefic opposition is net friction; a malefic trine is
         # workable rather than harmful.
         tone = 0.7 * harmony + 0.3 * planet_tone
-        contrib = tone * strength * 0.6   # bounded transit weight
+        # ASHTAKAVARGA — the classical filter for judging a transit. The same
+        # planet crossing a sign with 7 bindus and one with 1 bindu are not the
+        # same event: the first delivers, the second is largely inert. score_day
+        # used NO ashtakavarga at all, so every transit was weighted purely on
+        # aspect and planet nature, as if the natal chart had no opinion about
+        # where that planet is standing. This is also what ties the transit back
+        # to D-1: bindus are computed from the natal chart itself.
+        av_mult = 1.0
+        av_bindus = None
+        try:
+            from antar_engine.ashtakavarga import get_transit_strength
+            tsi = a.get("transit_sign_index")
+            if tsi is None:
+                tsign = a.get("transit_sign")
+                tsi = _SIGNS.index(tsign) if tsign in _SIGNS else None
+            if tsi is not None:
+                av = get_transit_strength(tp, int(tsi), chart) or {}
+                av_mult = float(av.get("multiplier") or 1.0)
+                av_bindus = av.get("bindus")
+                a["av_bindus"] = av_bindus
+                a["av_label"] = av.get("label")
+        except Exception:
+            av_mult = 1.0
+
+        contrib = tone * strength * 0.6 * av_mult   # bounded transit weight
         layer_score += contrib
         for dom, wgt in _HOUSE_DOMAIN_WEIGHTS.get(natal_house, {"work": 1.0}).items():
             domain_bias[dom] += contrib * wgt
