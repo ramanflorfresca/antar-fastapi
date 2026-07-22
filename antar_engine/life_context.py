@@ -156,6 +156,18 @@ def _patra_real(row: dict, col: str) -> Optional[str]:
     return v
 
 
+def real_patra_value(row: dict, col: str) -> Optional[str]:
+    """Public wrapper over _patra_real, for callers outside this module.
+
+    Several places in main.py read these columns directly with a hardcoded
+    fallback — `chart_record.get("health_status", "excellent")` — which turns a
+    schema default into an asserted fact about a real person. Every one of the
+    92 live charts carries "excellent" health and "stable" finances because
+    those are COLUMN DEFAULTS, not answers anybody gave. Use this instead.
+    """
+    return _patra_real(row, col)
+
+
 def _norm_career(row: dict) -> Optional[str]:
     real = _patra_real(row, "career_stage")
     if real is not None:
@@ -316,7 +328,25 @@ def life_context_to_prompt_block(lc: dict) -> str:
         lines.append(f"- Health context present: {lc['health_status']}. Acknowledge "
                      "energy/wellbeing where relevant.")
     if lc.get("financial_status"):
-        lines.append(f"- Financial context present: {lc['financial_status']}.")
+        fin = str(lc["financial_status"]).lower()
+        if any(t in fin for t in ("debt", "struggl", "tight", "broke", "loss",
+                                  "crisis", "deuda", "apret")):
+            lines.append(
+                "- MONEY IS TIGHT and there is DEBT. Read the 6th house as a live "
+                "condition, not an abstraction. Two hard rules follow. "
+                "(1) NEVER prescribe a remedy that costs money — no gemstones, no "
+                "yantras to buy, no paid rituals, no donations framed as an "
+                "obligation. Recommending a stone to someone servicing debt is "
+                "the single fastest way to lose their trust, and it is advice "
+                "that makes their situation worse. Use free remedies only: "
+                "mantra, fasting, timing, discipline, service. "
+                "(2) Do not suggest investing, lending, expanding or large "
+                "purchases. Frame money reads around recovery, cashflow, "
+                "renegotiation and staying solvent — not growth."
+            )
+        else:
+            lines.append(f"- Financial context: {lc['financial_status']}. Let it shape "
+                         "how bold the money advice is allowed to be.")
     lines.append("HONESTY: situation sharpens framing and domain choice only. It does "
                  "NOT license dated event claims — stay humble on exact timing.")
     lines.append("=== END LIFE CONTEXT ===")

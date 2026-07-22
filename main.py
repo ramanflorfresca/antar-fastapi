@@ -13814,12 +13814,20 @@ async def chapter_arc_endpoint(
     chart_data   = chart_record["chart_data"]
     dashas       = get_dashas_for_chart(request.chart_id)
 
+    # [sentinel-leak 2026-07-22] These read the columns DIRECTLY and defaulted
+    # to "excellent" / "stable" / "mid_career", which promotes a schema default
+    # into an asserted fact about a real person. All 92 live charts carry
+    # health="excellent" and financial="stable" because those are COLUMN
+    # DEFAULTS, not answers anybody gave — so the engine believed every user was
+    # healthy and financially comfortable, including one carrying heavy debt.
+    # life_context already filtered these; this path bypassed it.
+    from antar_engine.life_context import real_patra_value as _rpv
     user_profile = {
-        "marital_status":   chart_record.get("marital_status", "unknown"),
-        "children_status":  chart_record.get("children_status", "no_children_unsure"),
-        "career_stage":     chart_record.get("career_stage", "mid_career"),
-        "health_status":    chart_record.get("health_status", "excellent"),
-        "financial_status": chart_record.get("financial_status", "stable"),
+        "marital_status":   _rpv(chart_record, "marital_status") or "",
+        "children_status":  _rpv(chart_record, "children_status") or "",
+        "career_stage":     _rpv(chart_record, "career_stage") or "",
+        "health_status":    _rpv(chart_record, "health_status") or "",
+        "financial_status": _rpv(chart_record, "financial_status") or "",
         "birth_country":    chart_record.get("country_code", ""),
         "current_country":  chart_record.get("current_country") or chart_record.get("country_code", ""),
         "countries_lived":  chart_record.get("countries_lived", []),
@@ -20672,10 +20680,14 @@ async def get_personal_remedies(
             pass
 
     # Build patra object for remedy personalisation
+    from antar_engine.life_context import real_patra_value as _lc_real
     class Patra:
         age          = (now.year - int(str(birth_date)[:4])) if birth_date else 35
         career_stage = row.get("career_stage","") or ""
-        health_status= row.get("health_status","") or ""
+        # Same sentinel trap: "excellent" here is the column default, not a
+        # statement about this person's health, and remedy selection must not
+        # treat it as one.
+        health_status= (_lc_real(row, "health_status") or "")
         marital_status=row.get("marital_status","") or ""
 
     patra = Patra()
