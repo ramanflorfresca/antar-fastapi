@@ -67,6 +67,13 @@ _STATE_LINES = {
         "money":  "Hold off on new spending or speculative money moves today — timing isn't with you.",
         "people": "Go easy in tense conversations today — postpone confrontation if you can.",
     },
+    "volatile": {
+        "mind":   "Your head swings today — strong clarity and real fog in the same day; decide early, not late.",
+        "body":   "Energy swings today — you'll feel strong and then flat; don't book the day on the good hour.",
+        "work":   "Work cuts both ways today — a real opening and a real setback are both live; take the opening, don't chase the setback.",
+        "money":  "Money moves BOTH ways today — gain and loss are both live. Do not put money at risk: this is exactly the day it cuts both ways.",
+        "people": "People run hot and cold today — one conversation lands, another stings. Don't settle anything important on the strength of either.",
+    },
     "steady": {
         "mind":   "Mental texture is steady today — focused, ordinary work moves things.",
         "body":   "Body is steady today — keep the habit, don't push past warning signs.",
