@@ -4360,8 +4360,24 @@ async def get_chart(chart_id: str):
     # [chart-tombstone 2026-06-09] PII has been purged on delete; the row
     # only survives for referential integrity. Treat as not-found for any
     # public read.
+    #
+    # [merge-redirect 2026-07-22] EXCEPT when the row was merged into another
+    # chart rather than deleted. The duplicate cleanup retired 87 rows and
+    # recorded parent_chart_id on each, precisely so a client still holding the
+    # old id could be carried forward. Without this the browser's cached id
+    # 404s, chartId never resolves, and the Today tab renders blank while
+    # Settings, Places and Ask keep working — because only Today gates on the
+    # chart query. Follow the pointer instead, and tell the client which id it
+    # should be using now so it can update what it has cached.
     if r.get("deleted_at") is not None:
-        raise HTTPException(status_code=404, detail="Chart not found")
+        parent = r.get("parent_chart_id")
+        merged_from = None
+        if parent:
+            _p = supabase.table("charts").select("*").eq("id", parent).execute()
+            if _p.data and _p.data[0].get("deleted_at") is None:
+                merged_from, r = chart_id, _p.data[0]
+        if merged_from is None:
+            raise HTTPException(status_code=404, detail="Chart not found")
     response = ChartResponse(
         id=r["id"],
         birth_date=r["birth_date"],
@@ -4370,6 +4386,10 @@ async def get_chart(chart_id: str):
         planets=r["chart_data"]["planets"]
     )
     response_dict = response.dict()
+    if r.get("id") != chart_id:
+        # Client is holding a retired id: hand back the live one so it can
+        # replace what it has stored rather than 404ing again on every load.
+        response_dict["merged_from"] = chart_id
     # [life-stage 2026-06-09] hydrate three nullable life-context fields
     response_dict["life_work"]         = r.get("life_work")
     response_dict["life_relationship"] = r.get("life_relationship")
