@@ -236,6 +236,14 @@ def _lagna_index(chart: dict) -> Optional[int]:
         return None
 
 
+def _houses_ruled_by(chart: dict, house: int) -> List[str]:
+    """Which planet(s) lord a given house for this chart."""
+    li = _lagna_index(chart)
+    if li is None:
+        return []
+    return [_SIGN_LORD[(li + house - 1) % 12]]
+
+
 def _houses_ruled(chart: dict, planet: str) -> List[int]:
     """Houses (1..12) whose sign this planet lords, counted from the lagna."""
     li = _lagna_index(chart)
@@ -341,8 +349,29 @@ def _transit_layer(chart: dict, d: _date) -> Dict[str, Any]:
         # more dangerous case, not the safer one: it is what makes the bet feel
         # like a good idea. This is deliberately asymmetric — a supported 5th
         # adds nothing extra, because the upside is already counted above.
-        if natal_house == _SPECULATION_HOUSE and harmony < 0:
-            domain_bias["money"] += harmony * strength * 0.45
+        # Affliction of the 5th, or of its LORD, is the speculation signature.
+        # Two corrections to the first version of this rule:
+        #
+        #   A conjunction scored harmony 0.0, so `harmony < 0` never fired for a
+        #   MALEFIC conjunct the 5th — which is the textbook affliction, not an
+        #   edge case. Mars conjunct the 5th on 2 bindus is precisely "impulsive
+        #   bet, no protection".
+        #
+        #   A house is afflicted through its LORD as much as through itself. The
+        #   5th lord under a hard aspect to any money house carries the same
+        #   meaning as a malefic sitting on the 5th.
+        #
+        # Weighted by how little ashtakavarga support the sign carries: low
+        # bindus is where a malefic does real damage.
+        _malefic_conj = (_asp == "conjunction" and tp in _MALEFIC)
+        _fifth_lords = _houses_ruled_by(chart, _SPECULATION_HOUSE)
+        _lord_hit = (tp in _fifth_lords or a.get("natal_planet") in _fifth_lords)
+        if natal_house == _SPECULATION_HOUSE and (harmony < 0 or _malefic_conj):
+            _sev = harmony if harmony < 0 else -1.0
+            _thin = 1.0 + (0.5 if (av_bindus is not None and av_bindus <= 3) else 0.0)
+            domain_bias["money"] += _sev * strength * 0.45 * _thin
+        elif _lord_hit and harmony < 0 and natal_house in (2, 5, 8, 11, 12):
+            domain_bias["money"] += harmony * strength * 0.35
         aspects_used.append(a)
 
     out["aspects"] = aspects_used
