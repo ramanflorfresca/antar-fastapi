@@ -80,6 +80,51 @@ def _strength(chart: dict, planet: str) -> float:
         return 0.0
 
 
+def ownership_axis(chart: dict) -> Dict:
+    """Owned or employed — a SEPARATE question from what kind of work it is.
+
+    Collapsing this into the nature axis is what made every earlier version
+    trade one bias for the other. JS reads service-natured because his 10th lord
+    is in the 6th, and that is CORRECT — B2B SaaS with live clients is service
+    work. He simply owns it. Rishipal reads trade-natured, also correct —
+    consulting is transactional client work — but he does it inside a firm.
+
+    Nature and ownership are independent, and the classical markers differ:
+    Saturn is the karaka of working under another, the Sun of standing in your
+    own name, Mars of initiative. The lagna lord tied to the 10th fuses self and
+    career, which is what ownership actually means.
+    """
+    own, emp = 0.0, 0.0
+    why: List[str] = []
+
+    L1, L10, L6 = _lord_of(chart, 1), _lord_of(chart, 10), _lord_of(chart, 6)
+    h_L1, h_L10 = _house_of(chart, L1), _house_of(chart, L10)
+    h_sat, h_sun = _house_of(chart, "Saturn"), _house_of(chart, "Sun")
+
+    if h_L1 == 10:
+        own += 1.5; why.append("own+1.5: lagna lord in the 10th — the career carries your own name")
+    if h_L10 == 1:
+        own += 1.5; why.append("own+1.5: 10th lord in the 1st — self and profession fused")
+    if h_sun == 10 or L10 == "Sun":
+        own += 1.0; why.append("own+1: Sun on the career house — standing in your own right")
+    if _strength(chart, "Mars") >= 1.0 and _house_of(chart, "Mars") in (1, 3, 10, 11):
+        own += 1.0; why.append("own+1: Mars strong and placed for initiative")
+    if _strength(chart, L1) >= 1.5:
+        own += 0.5; why.append("own+0.5: lagna lord strong — self-directed")
+
+    if h_sat == 10 or L10 == "Saturn":
+        emp += 1.5; why.append("employed+1.5: Saturn on the career house — the karaka of serving another")
+    if h_L10 == 6:
+        emp += 1.5; why.append("employed+1.5: 10th lord in the 6th — the career sits in the house of service")
+    if _house_of(chart, L6) == 10:
+        emp += 1.0; why.append("employed+1: 6th lord in the 10th — employment defines the work")
+    if _house_of(chart, "Moon") == 10:
+        emp += 0.5; why.append("employed+0.5: Moon on the career house — works within another's structure")
+
+    return {"owned": round(own, 2), "employed": round(emp, 2),
+            "verdict": "owned" if own > emp else "employed", "reasons": why}
+
+
 def career_mode(chart: dict) -> Dict:
     """Which way this chart earns: {mode, enterprise, service, reasons, prominence}."""
     if not chart or not chart.get("planets"):
@@ -143,14 +188,24 @@ def career_mode(chart: dict) -> Dict:
     prominence = _strength(chart, L10) + 0.4 * sum(
         _strength(chart, p) for p in _occupants(chart, 10))
 
+    # NATURE: what kind of work, regardless of who owns it.
+    nature = max((service, "service"), (business, "trade"), (venture, "venture"))[1]
+    own = ownership_axis(chart)
+
+    # Legacy single answer, kept for callers that want one word.
     enterprise = max(business, venture)
-    if enterprise < ENTERPRISE_GATE or enterprise <= service:
+    if own["verdict"] == "employed" or enterprise < ENTERPRISE_GATE:
         mode = MODE_JOB
     else:
         mode = MODE_BUSINESS if business >= venture else MODE_VENTURE
 
     return {
         "mode": mode,
+        "nature": nature,
+        "ownership": own["verdict"],
+        "own_pts": own["owned"],
+        "emp_pts": own["employed"],
+        "ownership_reasons": own["reasons"],
         "enterprise": round(enterprise, 2),
         "service": round(service, 2),
         "business": round(business, 2),
