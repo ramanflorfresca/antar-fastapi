@@ -1133,16 +1133,15 @@ def _tidy_signal(signal_json: dict, language: str = "en") -> dict:
         rebuilt = [_TARA_PLAIN.get(p.lower(), p) for p in parts if p]
         if rebuilt:
             sig["value"] = " · ".join(rebuilt)
-    try:
-        from antar_engine.output_strips import apply_user_facing_strips
-        for sig in signal_json.get("signals") or []:
-            if isinstance(sig, dict):
-                for k in ("label", "value", "note"):
-                    if isinstance(sig.get(k), str) and sig[k]:
-                        sig[k] = apply_user_facing_strips(
-                            sig[k], language=language, field_type="plain")
-    except Exception:
-        pass
+    # NOT the generic strip. Run over this row it produced
+    #     "Moon's star"          -> "your emotional and nurturing energy's star"
+    #     "Mars -> Moon -> Venus" -> "your action and drive energy -> your
+    #                                emotional and nurturing energy -> ..."
+    # Planet names are the most CREDIBLE thing on the card: concrete, checkable,
+    # and what any astrologer would say out loud. Replacing them with feelings
+    # vocabulary is what makes the read sound like a horoscope. The strip exists
+    # to remove untranslated technical terms from PROSE, not to launder every
+    # proper noun out of a labelled data row.
     signal_json["windows"] = _resolve_window_overlaps(signal_json.get("windows"))
     # "wow" was rendering byte-identical to observa_hoy_text, so the same
     # paragraph appeared twice on one card.
