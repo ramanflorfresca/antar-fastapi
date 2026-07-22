@@ -2899,9 +2899,39 @@ async def get_domain_pattern(supabase, chart_id: str) -> dict:
         return {}
 
 
+_PROCESS_STARTED_AT = datetime.utcnow().isoformat()
+
+
 @app.get("/health")
 async def health():
     return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+
+
+# [deploy-verify 2026-07-22] Which commit is actually serving traffic?
+#
+# Twice in one day work was believed live when it was not: a Lovable publish
+# redeployed an older tree byte-for-byte, and there was no way to confirm from
+# outside whether a Railway deploy had picked up a given commit. "It's
+# deployed" and "the fix is running" are different claims, and without this
+# there is no way to tell them apart except by guessing from behaviour.
+#
+# Railway injects RAILWAY_GIT_COMMIT_SHA at build time. Nothing secret is
+# exposed — a commit SHA of a private repo is not a credential, and the
+# alternative is debugging blind.
+@app.get("/version")
+async def version():
+    sha = (os.getenv("RAILWAY_GIT_COMMIT_SHA")
+           or os.getenv("SOURCE_COMMIT")
+           or os.getenv("GIT_COMMIT") or "")
+    return {
+        "commit":        sha[:12] or "unknown",
+        "commit_full":   sha or "unknown",
+        "branch":        os.getenv("RAILWAY_GIT_BRANCH") or "unknown",
+        "deployed_at":   os.getenv("RAILWAY_DEPLOYMENT_CREATED_AT") or "unknown",
+        "service":       os.getenv("RAILWAY_SERVICE_NAME") or "unknown",
+        "started_at":    _PROCESS_STARTED_AT,
+        "now":           datetime.utcnow().isoformat(),
+    }
 
 
 # ── Chart ─────────────────────────────────────────────────────────────────────
