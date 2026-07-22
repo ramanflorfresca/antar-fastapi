@@ -55,10 +55,39 @@ _BENEFIC = {"Jupiter", "Venus", "Mercury", "Moon"}
 _MALEFIC = {"Saturn", "Mars", "Sun", "Rahu", "Ketu"}
 
 # Map natal house -> one of the five domain slots.
+# A house rarely governs one area of life. Forcing a 1:1 map produced two
+# demonstrable failures:
+#
+#   `people` drew from the 7th ALONE — one house out of twelve — so the
+#   relationship domain sat STEADY on 27 of 28 measured chart-days while `mind`
+#   drew from four houses and swamped everything.
+#
+#   The 5th mapped to `mind` only. In Jyotish the 5th IS speculation — the bet,
+#   the punt, the position. So a speculative money loss could not reach the
+#   money domain at all; the wiring made it unreachable.
+#
+# Weighted and multi-domain, following the classical groupings: wealth is
+# 2/5/9/11, loss is 6/8/12, and the 8th and 12th are money houses (other
+# people's money, and expenditure) as much as they are anything else.
+_HOUSE_DOMAIN_WEIGHTS = {
+    1:  {"body": 0.7, "mind": 0.3},
+    2:  {"money": 1.0},
+    3:  {"work": 0.7, "people": 0.3},          # siblings, peers, outreach
+    4:  {"mind": 0.6, "body": 0.2, "people": 0.2},   # home, mother, peace
+    5:  {"money": 0.5, "mind": 0.3, "people": 0.2},  # SPECULATION, children
+    6:  {"body": 0.5, "work": 0.3, "money": 0.2},    # illness, service, debt
+    7:  {"people": 0.8, "work": 0.2},          # partner, clients
+    8:  {"money": 0.5, "body": 0.3, "mind": 0.2},    # sudden loss, others' money
+    9:  {"mind": 0.7, "work": 0.3},
+    10: {"work": 1.0},
+    11: {"money": 0.6, "people": 0.4},         # gains AND friends
+    12: {"money": 0.4, "mind": 0.4, "body": 0.2},    # expenditure, sleep
+}
+
+# Kept for callers that still want a single dominant slot.
 _HOUSE_TO_DOMAIN = {
-    1: "body",  2: "money", 3: "work",  4: "mind",
-    5: "mind",  6: "body",  7: "people", 8: "body",
-    9: "mind", 10: "work", 11: "money", 12: "mind",
+    h: max(w.items(), key=lambda kv: kv[1])[0]
+    for h, w in _HOUSE_DOMAIN_WEIGHTS.items()
 }
 
 # Map planet -> domain slot. Used by the panchanga nakshatra-lord bias.
@@ -141,8 +170,8 @@ def _structural_layer(chart: dict, d: _date) -> Dict[str, Any]:
         # Natal house gates the bleed: promise > 0 amplifies, < 0 dampens.
         contrib = base * w * (1.0 + 0.2 * promise.get(h, 0.0))
         layer_score += contrib
-        dom = _HOUSE_TO_DOMAIN.get(h, "work")
-        domain_bias[dom] += contrib
+        for dom, wgt in _HOUSE_DOMAIN_WEIGHTS.get(h, {"work": 1.0}).items():
+            domain_bias[dom] += contrib * wgt
 
     out["score"]   = layer_score
     out["domains"] = domain_bias
@@ -183,16 +212,33 @@ def _transit_layer(chart: dict, d: _date) -> Dict[str, Any]:
         # Strength may come 0..1 or 0..100 — normalise.
         if strength > 1.0:
             strength /= 100.0
+        # Planet nature alone is not the signal. This scored a Venus OPPOSITION
+        # identically to a Venus trine, because both are Venus — so a day
+        # carrying Venus opposite natal Jupiter on the 2nd at 0.1 degrees, and
+        # Venus square natal Venus on the 11th, was reported as "money carries
+        # tailwind, chase what you're owed". The aspect decides HOW the energy
+        # arrives; a benefic by hard aspect is still friction, and every
+        # tradition treats square and opposition as hard.
         if tp in _BENEFIC:
-            tone = +1.0
+            planet_tone = +1.0
         elif tp in _MALEFIC:
-            tone = -1.0
+            planet_tone = -1.0
         else:
-            tone = 0.0
+            planet_tone = 0.0
+        _asp = str(a.get("aspect") or "").strip().lower()
+        harmony = {
+            "trine": 1.0, "sextile": 0.7,
+            "conjunction": 0.0,          # planet nature decides a conjunction
+            "square": -0.8, "opposition": -1.0,
+        }.get(_asp, 0.0)
+        # Harmony leads, planet nature colours it. A benefic trine is fully
+        # supportive; a benefic opposition is net friction; a malefic trine is
+        # workable rather than harmful.
+        tone = 0.7 * harmony + 0.3 * planet_tone
         contrib = tone * strength * 0.6   # bounded transit weight
         layer_score += contrib
-        dom = _HOUSE_TO_DOMAIN.get(natal_house, "work")
-        domain_bias[dom] += contrib
+        for dom, wgt in _HOUSE_DOMAIN_WEIGHTS.get(natal_house, {"work": 1.0}).items():
+            domain_bias[dom] += contrib * wgt
         aspects_used.append(a)
 
     out["aspects"] = aspects_used
@@ -283,13 +329,55 @@ def _normalize_score(raw: float) -> int:
 
 
 def _states_from_bias(bias: Dict[str, float]) -> Dict[str, str]:
-    """Map per-slot bias into the contract's state enum."""
+    """Absolute bucketing. Kept for callers that want the raw reading."""
     out: Dict[str, str] = {}
     for dom in DOMAIN_SLOTS:
         v = bias.get(dom, 0.0)
         if v >= 0.25:
             out[dom] = STATE_FAVORABLE
         elif v <= -0.25:
+            out[dom] = STATE_CAUTION
+        else:
+            out[dom] = STATE_STEADY
+    return out
+
+
+def _states_relative(today: Dict[str, float],
+                     window: List[Dict[str, float]]) -> Dict[str, str]:
+    """State of each domain TODAY, judged against this chart's own baseline.
+
+    Absolute thresholds froze domains. The dasha stack contributes the same
+    number every day for weeks, so if that constant alone cleared -0.25 the
+    domain read CARE every single day — one chart returned money=CARE and
+    mind=CARE on all fourteen days measured. A warning that never turns off is
+    indistinguishable from no warning, and worse: the user acts on it once,
+    sees nothing, and stops believing the card.
+
+    So the question is no longer "is this number negative" but "is today
+    unusual FOR THIS PERSON". The constant sits in both today's value and the
+    window mean, and cancels. What survives is the part that actually moves —
+    which is the part a daily reading is supposed to be about. It also makes
+    every day distinct, because no two days carry the same transit arithmetic.
+
+    Thresholds are in standard deviations of the chart's own 31-day spread:
+    beyond 0.75 sigma is a real departure, and roughly a fifth of days qualify
+    in each direction — close to how often something is actually worth saying.
+    """
+    out: Dict[str, str] = {}
+    for dom in DOMAIN_SLOTS:
+        vals = [w.get(dom, 0.0) for w in window] or [0.0]
+        mean = sum(vals) / len(vals)
+        var = sum((v - mean) ** 2 for v in vals) / len(vals)
+        sd = var ** 0.5
+        v = today.get(dom, 0.0)
+        if sd < 1e-6:
+            # Genuinely flat for this chart across the window: nothing to say.
+            out[dom] = STATE_STEADY
+            continue
+        z = (v - mean) / sd
+        if z >= 0.75:
+            out[dom] = STATE_FAVORABLE
+        elif z <= -0.75:
             out[dom] = STATE_CAUTION
         else:
             out[dom] = STATE_STEADY
@@ -304,6 +392,41 @@ def _coerce_date(x) -> _date:
     if isinstance(x, str):
         return _date.fromisoformat(x[:10])
     return _date.today()
+
+
+# Bias-only computation + cache, so the 31-day baseline window does not cost 31
+# full score_day passes. Keyed on the chart's own geometry rather than identity,
+# because callers rebuild the dict each request.
+_BIAS_CACHE: Dict[tuple, Dict[str, float]] = {}
+_BIAS_CACHE_MAX = 20000
+
+
+def _chart_key(chart: dict) -> str:
+    lg = (chart or {}).get("lagna") or {}
+    pl = (chart or {}).get("planets") or {}
+    sun = (pl.get("Sun") or {}).get("longitude")
+    moon = (pl.get("Moon") or {}).get("longitude")
+    return f"{lg.get('sign')}|{round(float(lg.get('degree') or 0), 3)}|{sun}|{moon}"
+
+
+def _bias_for(chart: dict, d: _date, loc: dict) -> Dict[str, float]:
+    ck = (_chart_key(chart), d.isoformat(),
+          round(float((loc or {}).get("lat") or 0), 2),
+          round(float((loc or {}).get("lng") or 0), 2))
+    hit = _BIAS_CACHE.get(ck)
+    if hit is not None:
+        return hit
+    bias = {dom: 0.0 for dom in DOMAIN_SLOTS}
+    for layer in (_structural_layer(chart, d),
+                  _transit_layer(chart, d),
+                  _panchanga_layer(chart, d, loc)):
+        for k, v in (layer.get("domains") or {}).items():
+            if k in bias:
+                bias[k] += v
+    if len(_BIAS_CACHE) > _BIAS_CACHE_MAX:
+        _BIAS_CACHE.clear()
+    _BIAS_CACHE[ck] = bias
+    return bias
 
 
 # ── Public API ────────────────────────────────────────────────────────
@@ -335,11 +458,21 @@ def score_day(chart: dict, date_input, location: Optional[dict] = None) -> Dict[
             if k in bias:
                 bias[k] += v
 
+    # Judge each domain against this chart's own 31-day spread, so a constant
+    # dasha contribution cannot pin a domain to CARE forever and every day
+    # differs from its neighbours.
+    try:
+        window = [_bias_for(chart, d + _td(days=k), loc) for k in range(-15, 16)]
+        states = _states_relative(bias, window)
+    except Exception:
+        states = _states_from_bias(bias)
+
     return {
         "date":          d.isoformat(),
         "score":         _normalize_score(raw),
         "raw_score":     raw,
-        "domain_states": _states_from_bias(bias),
+        "domain_states": states,
+        "domain_states_absolute": _states_from_bias(bias),
         "domain_bias":   bias,
         "layers": {
             "structural": structural,
