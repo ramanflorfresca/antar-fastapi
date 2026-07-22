@@ -808,6 +808,12 @@ async def build_daily_context(chart_id: str, supabase_client) -> dict:
             "life_stage": life_stage,
             "sleeping_planets": sleeping_planets,
             "formatted_transits": formatted_transits,
+            # Needed by _validate_no_invented_specifics: the only place names
+            # the reading is permitted to use are the ones the chart actually
+            # contains.
+            "chart_row": {k: row.get(k) for k in
+                          ("birth_city", "birth_country", "current_city",
+                           "current_country", "first_name", "name")},
             "chart_data": chart_data,  # raw natal data for transit analyzer
             "lk_data": lk_data,  # raw LK data for daily diagnostic
             "tz_offset": 0,  # placeholder — actual tz_offset passed separately at call site
@@ -912,6 +918,57 @@ _ANCHOR_RE = re.compile(
 _ABSTRACT_RE = re.compile(
     "|".join(r"\b" + re.escape(w) for w in _ABSTRACT_SUBJECTS), re.I)
 _HEADLINE_FIELDS = ("senal_de_hoy", "signal", "verdict_subline")
+
+
+# Words that may legitimately be capitalised in a reading. Everything else that
+# looks like a proper noun is treated as INVENTED, because the chart cannot know
+# it. A real card shipped:
+#
+#   "Someone from your past — perhaps a familiar face from Delhi or an old
+#    Colorado connection — steps back into your world today."
+#
+# Colorado appears nowhere in that user's data. Fabricated specificity is worse
+# than vagueness: vague is forgettable, but a named place the reader knows to be
+# wrong tells them the whole thing is guesswork. Rule 11b told the model not to
+# invent a person, company or amount; it named a US state instead.
+_PROPER_NOUN_OK = set("""
+Sun Moon Mars Mercury Jupiter Venus Saturn Rahu Ketu
+Aries Taurus Gemini Cancer Leo Virgo Libra Scorpio Sagittarius Capricorn Aquarius Pisces
+Ashwini Bharani Krittika Rohini Mrigashira Ardra Punarvasu Pushya Ashlesha Magha
+Purva Uttara Phalguni Hasta Chitra Swati Vishakha Anuradha Jyeshtha Mula Ashadha
+Shravana Dhanishta Shatabhisha Bhadrapada Revati Abhijit
+Monday Tuesday Wednesday Thursday Friday Saturday Sunday
+January February March April May June July August September October November December
+Antar AM PM I You Your Today Tomorrow Tonight The A An It If And But So When What Where Who Why How
+This That These Those There Here One Two Three Four Five Six Seven Eight Nine Ten
+Rahu-Kalam Abhijit Kalam Lal Kitab Vedic
+""".split())
+
+
+def _validate_no_invented_specifics(signal_json: dict, chart_row: dict = None) -> list:
+    """Fields naming a place or proper noun the chart has no basis for.
+
+    The user's own birth and current city are allowed — those are known facts.
+    Anything else capitalised mid-sentence is a fabrication.
+    """
+    allowed = set(_PROPER_NOUN_OK)
+    for k in ("birth_city", "current_city", "birth_country", "current_country",
+              "first_name", "name"):
+        v = (chart_row or {}).get(k)
+        if isinstance(v, str):
+            allowed.update(re.findall(r"[A-Z][a-zA-Z]+", v))
+    bad = []
+    for f in _VALIDATED_FIELDS:
+        v = signal_json.get(f)
+        if not isinstance(v, str) or not v.strip():
+            continue
+        # mid-sentence capitals only: skip a word that starts a sentence
+        for m in re.finditer(r"(?<![.!?]\s)(?<!^)\b([A-Z][a-zA-Z]{2,})\b", v):
+            w = m.group(1)
+            if w not in allowed:
+                bad.append((f, w))
+                break
+    return bad
 
 
 def _validate_headline_concrete(signal_json: dict, language: str) -> list:
@@ -1456,6 +1513,16 @@ async def _call_claude_daily_signal_retry(
             corrective_parts.append(f"- In fields: {violations['day_names']}")
         if caught_eng_words:
             corrective_parts.append(f"- English words leaked into {language} output: {caught_eng_words}")
+
+        for _f, _w in violations.get('invented_specifics', []) or []:
+            corrective_parts.append(
+                f"- You invented a proper noun in '{_f}': \"{_w}\". The chart "
+                f"contains no such fact. Naming a place, person or organisation "
+                f"the data does not contain is worse than being vague — the "
+                f"reader recognises it as wrong and stops believing the rest. "
+                f"Describe the KIND of person or situation "
+                f"(\"someone you worked with years ago\"), never a named place."
+            )
 
         for _f in violations.get('abstract_headline', []) or []:
             corrective_parts.append(
@@ -2073,11 +2140,13 @@ async def generate_weekly_signals(
                     day_violations = _validate_no_day_names(llm_signal, language)
                     eng_leaks = _detect_english_leak(llm_signal, language)
                     abstract = _validate_headline_concrete(llm_signal, language)
+                    invented = _validate_no_invented_specifics(
+                        llm_signal, (daily_context or {}).get("chart_row") or {})
 
                     # [cold-fix] eng-leak is non-load-bearing: it no longer
                     # triggers the corrective retry (a 2nd es Sonnet). The
                     # jargon strip below still cleans any leak.
-                    if day_violations or abstract:
+                    if day_violations or abstract or invented:
                         logger.warning(f"[daily-week] Validation failed for {date_str}: "
                                        f"day_names={day_violations} eng_leaks={eng_leaks} "
                                        f"abstract_headline={abstract}")
@@ -2088,7 +2157,8 @@ async def generate_weekly_signals(
                             day_data=day_prompt_data,
                             language=language,
                             violations={'day_names': day_violations, 'eng_leaks': eng_leaks,
-                                        'abstract_headline': abstract},
+                                        'abstract_headline': abstract,
+                                        'invented_specifics': invented},
                             failed_signal=llm_signal,
                         )
                         if retry_signal:
