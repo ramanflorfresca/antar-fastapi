@@ -18901,6 +18901,28 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             # item (21-43 day arc); Today carries no remedy. Practice tab
             # owns remedies, anchored to the current dasha/varshphal.
         })
+        # [domain-strip 2026-07-22] The five areas people actually consult an
+        # astrologer about — work, money, relationships, health, the state of
+        # the mind. Nobody opens the app to learn the day's texture; they open
+        # it because something is wrong in one of those. The monthly view has
+        # answered in that shape for months and the daily card never did.
+        #
+        # `notable` is the field the UI should render on: a domain is worth a
+        # row when it has MOVED, not merely when it is non-neutral. A CARE badge
+        # lit for a fortnight is wallpaper — the user acts once, sees nothing,
+        # and stops reading. Quiet days stay quiet; when something moves, it
+        # gets said.
+        try:
+            from antar_engine.daily_v2 import domain_strip as _dstrip
+            result["domains"] = _dstrip(
+                chart_data, start_date.date() if hasattr(start_date, "date") else start_date,
+                {"lat": lat, "lng": lng, "tz_offset": effective_offset},
+                language,
+            )
+        except Exception as _de:
+            logger.warning(f"[daily-signal] domain strip failed (non-fatal): {_de}")
+            result["domains"] = []
+
         result.pop("day_mantra", None)
         if isinstance(result.get("panchanga"), dict):
             result["panchanga"].pop("mantra", None)

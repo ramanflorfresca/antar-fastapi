@@ -615,6 +615,27 @@ _DOMAIN_RANK = {"caution": 0, "favorable": 1, "steady": 2}
 #      day is indistinguishable from telling them nothing, and it is worse than
 #      silence because they will act on it once and then stop believing it.
 # The strip is correct; the inputs need work before it earns the top of the card.
+def _stale_days(chart_data, key, state, target_date, location, limit=6) -> int:
+    """How many consecutive days this domain has already held this state.
+
+    A CARE badge that has been lit for a fortnight is not a warning, it is
+    wallpaper — the user acts on it once, sees nothing, and stops reading the
+    card. Rather than fake the score, the card simply stops repeating itself.
+    """
+    from datetime import timedelta as _td
+    n = 0
+    try:
+        from antar_engine.score_day import score_day
+        for k in range(1, limit + 1):
+            prev = score_day(chart_data, target_date - _td(days=k), location or {})
+            if (prev.get("domain_states") or {}).get(key) != state:
+                break
+            n += 1
+    except Exception:
+        return 0
+    return n
+
+
 def domain_strip(chart_data: Dict[str, Any], target_date=None,
                  location: Optional[Dict[str, Any]] = None,
                  language: str = "en") -> list:
@@ -637,6 +658,8 @@ def domain_strip(chart_data: Dict[str, Any], target_date=None,
         line = (_STATE_LINES.get(state) or {}).get(key)
         if not line:
             continue
+        held = 0 if state == "steady" else _stale_days(
+            chart_data, key, state, d, location)
         out.append({
             "key": key,
             "label": (_DOMAIN_LABELS[key].get(lang) or _DOMAIN_LABELS[key]["en"]),
@@ -644,6 +667,9 @@ def domain_strip(chart_data: Dict[str, Any], target_date=None,
             "state_label": (_STATE_WORD.get(state, {}).get(lang)
                             or _STATE_WORD.get(state, {}).get("en") or ""),
             "line": line,
+            # NEW today, or a continuing run the card should stop shouting about.
+            "days_held": held,
+            "notable": state != "steady" and held < 3,
         })
     out.sort(key=lambda x: _DOMAIN_RANK.get(x["state"], 3))
     return out
