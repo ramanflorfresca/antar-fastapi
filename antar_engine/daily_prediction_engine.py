@@ -627,6 +627,78 @@ def _extract_sleeping_planets(lk_data: dict) -> str:
     return str(sleeping)
 
 
+# House meanings in PLAIN words. The writer is told what a house governs in
+# ordinary language so it does not have to translate jargon itself — when it
+# has to, it reaches for vague abstractions instead.
+_HOUSE_PLAIN = {
+    1:  "you yourself, your health and how you come across",
+    2:  "money in hand, savings, family, what you say",
+    3:  "your own effort, siblings, short trips, courage",
+    4:  "home, mother, property, peace of mind",
+    5:  "children, creativity, learning, speculation",
+    6:  "work, service, competitors, debts, health routine",
+    7:  "partner, clients, deals, the other side of a table",
+    8:  "sudden change, other people's money, deep research",
+    9:  "luck, father, teachers, long journeys, belief",
+    10: "career, reputation, public standing, the boss",
+    11: "income, gains, friends, networks, what you get paid",
+    12: "expense, foreign places, rest, letting go",
+}
+
+# What a transiting planet DOES, in the plainest terms available.
+_PLANET_PLAIN = {
+    "Sun": "attention and authority", "Moon": "mood and the public",
+    "Mars": "push, conflict and machinery", "Mercury": "talk, paperwork and trade",
+    "Jupiter": "growth, advice and opening doors", "Venus": "money, comfort and people liking you",
+    "Saturn": "slow grind, discipline and delay", "Rahu": "sudden scale and hunger",
+    "Ketu": "cutting away and detachment",
+}
+
+
+def _format_transits_for_writer(rpt: dict) -> str:
+    """Turn a transit report into concrete lines the daily writer can use.
+
+    Prefers `major_transits` when present, but falls back to the material that
+    is almost always there — which houses are being lit up, and the tightest
+    aspects. A node RETURN (transit Rahu on natal Rahu) is called out
+    explicitly: it happens roughly every 18.6 years and is one of the few
+    genuinely rare things a daily card can honestly report.
+    """
+    if not isinstance(rpt, dict):
+        return ""
+    lines = []
+
+    for t in (rpt.get("major_transits") or [])[:6]:
+        desc = t.get("description") or t.get("type", "")
+        lines.append(f"- {t.get('planet','')}: {desc}")
+
+    for area in (rpt.get("activated_areas") or [])[:6]:
+        h = area.get("house")
+        pls = ", ".join(area.get("planets") or [])
+        if not (h and pls):
+            continue
+        lines.append(f"- {pls} now crossing house {h} — {_HOUSE_PLAIN.get(h, area.get('area',''))}")
+
+    for a in (rpt.get("top_aspects") or [])[:5]:
+        tp, np_ = a.get("transit_planet"), a.get("natal_planet")
+        if not (tp and np_):
+            continue
+        orb = a.get("orb")
+        orb_s = f", {orb:.1f}deg off exact" if isinstance(orb, (int, float)) else ""
+        if tp == np_ and a.get("aspect") == "conjunction" and tp in ("Rahu", "Ketu"):
+            lines.append(
+                f"- {tp} RETURN: transiting {tp} is back on his natal {tp}{orb_s}. "
+                f"This comes round about every 18-19 years — treat it as rare and say so."
+            )
+            continue
+        lines.append(
+            f"- transiting {tp} ({_PLANET_PLAIN.get(tp,'')}) {a.get('aspect')} natal "
+            f"{np_} in house {a.get('natal_house','?')}"
+            f" ({_HOUSE_PLAIN.get(a.get('natal_house'), '')}){orb_s}"
+        )
+    return "\n".join(lines)
+
+
 async def build_daily_context(chart_id: str, supabase_client) -> dict:
     """
     Fetch full chart context from Supabase for daily signal generation.
@@ -698,19 +770,20 @@ async def build_daily_context(chart_id: str, supabase_client) -> dict:
         life_stage = _get_life_stage(row.get("birth_date"))
         current_country = row.get("current_country") or row.get("birth_country") or ""
 
-        # Get transit report
+        # Get transit report.
+        #
+        # This used to read ONLY `major_transits` and, finding it empty, told the
+        # writer "No transit data available." — while `top_aspects`,
+        # `house_activation` and `activated_areas` in the same report were full.
+        # A user with Sun and Jupiter crossing his 10th, a Rahu return at 0.62
+        # orb and Venus sextile natal Mercury was handed a blank page, so the
+        # card fell back to abstractions ("your intelligence is high") because
+        # abstraction is all that is left when nothing concrete is supplied.
         formatted_transits = "No transit data available."
         try:
             from antar_engine.transit_engine import get_full_transit_report
             transit_rpt = get_full_transit_report(chart_data)
-            major = transit_rpt.get("major_transits", [])
-            if major:
-                lines = []
-                for t in major[:6]:
-                    desc = t.get("description") or t.get("type", "")
-                    planet = t.get("planet", "")
-                    lines.append(f"- {planet}: {desc}")
-                formatted_transits = "\n".join(lines)
+            formatted_transits = _format_transits_for_writer(transit_rpt) or formatted_transits
         except Exception as te:
             logger.warning(f"[daily-context] transit computation failed: {te}")
 
