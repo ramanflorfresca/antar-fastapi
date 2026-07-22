@@ -522,6 +522,7 @@ async def generate_annual_plan(
     claude_client,
     force_refresh:  bool = False,
     language:       str = "en",
+    dasha_levels:   Optional[dict] = None,
 ) -> dict:
     """
     Generate or return cached annual plan.
@@ -544,7 +545,8 @@ async def generate_annual_plan(
     context = _build_annual_context(
         chart_data, dashas, first_name, lagna,
         moon_sign, current_dasha, birth_date,
-        age, country_code, dkp_context, lk_context, now
+        age, country_code, dkp_context, lk_context, now,
+        dasha_levels=dasha_levels,
     )
 
     # Call Claude — wrapped so a hard failure falls back to the previous
@@ -711,23 +713,57 @@ def _build_annual_context(
     dkp_context:   Optional[str],
     lk_context:    Optional[str],
     now:           datetime,
+    dasha_levels:  Optional[dict] = None,
 ) -> str:
     year = now.year
     planets = chart_data.get("planets", {})
 
     # Get upcoming dasha transitions
+    # [upcoming-fix 2026-07-22] This took vim[:4] — the FIRST four periods in
+    # the list, not the next four. A chart born in 1974 was telling the model
+    # "Mercury period ends: 1976-08-13" under a heading that says UPCOMING, and
+    # every annual plan has been written against transitions that happened
+    # decades ago. Filter to periods that end in the FUTURE, nearest first.
     dasha_transitions = []
-    vim = dashas.get("vimsottari", [])
-    for p in vim[:4]:
+    _today_iso = now.strftime("%Y-%m-%d")
+    vim = dashas.get("vimsottari", []) or []
+    _future = []
+    for p in vim:
         lord = p.get("lord_or_sign") or p.get("planet_or_sign", "")
         end  = str(p.get("end_date") or p.get("end", ""))[:10]
-        if lord and end:
-            dasha_transitions.append(f"{lord} period ends: {end}")
+        if lord and end and end >= _today_iso:
+            _future.append((end, lord))
+    for end, lord in sorted(_future)[:4]:
+        dasha_transitions.append(f"{lord} period ends: {end}")
+    if not dasha_transitions:
+        dasha_transitions.append("(no upcoming transition on record)")
 
     # Key planet positions
     saturn_sign  = planets.get("Saturn",  {}).get("sign", "")
     jupiter_sign = planets.get("Jupiter", {}).get("sign", "")
     rahu_sign    = planets.get("Rahu",    {}).get("sign", "")
+
+    # [yearly-levels 2026-07-22] The running sub-periods. The mahadasha says
+    # what the decade is about; the ANTARDASHA and PRATYANTARDASHA say what
+    # happens inside THIS year, and the chara dasha sign says which area of
+    # life the year is being lived from. None of this reached the prompt
+    # before — the whole annual reading was written from the mahadasha NAME.
+    lvl = dasha_levels or {}
+    def _lp(key):
+        d = lvl.get(key) or {}
+        p = d.get("planet_or_sign")
+        e = str(d.get("end_date") or "")[:10]
+        return f"{p} (until {e})" if p and e else (p or None)
+
+    period_lines = []
+    for key, label in (("vimsottari_1", "Mahadasha"),
+                       ("vimsottari_2", "Antardasha"),
+                       ("vimsottari_3", "Pratyantardasha"),
+                       ("jaimini_1", "Chara dasha sign"),
+                       ("jaimini_2", "Chara antardasha")):
+        v = _lp(key)
+        if v:
+            period_lines.append(f"{label}: {v}")
 
     lines = [
         f"ANNUAL PLAN REQUEST — Year {year}",
@@ -743,6 +779,9 @@ def _build_annual_context(
         f"Saturn in: {saturn_sign or 'unknown'}",
         f"Jupiter in: {jupiter_sign or 'unknown'}",
         f"Rahu in: {rahu_sign or 'unknown'}",
+        "",
+        "RUNNING PERIODS — the year is lived inside these:",
+    ] + (period_lines or ["(sub-periods unavailable)"]) + [
         "",
         "UPCOMING DASHA TRANSITIONS:",
     ] + dasha_transitions

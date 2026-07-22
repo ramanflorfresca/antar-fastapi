@@ -23060,10 +23060,42 @@ async def get_annual_plan(chart_id: str, refresh: bool = False, language: str = 
                 _current_dasha = _dr.data[0].get("planet_or_sign", "")
         except Exception:
             pass
+        # [yearly-dashas 2026-07-22] This passed dashas={}. The prompt builder
+        # reads dashas["vimsottari"] to write the UPCOMING DASHA TRANSITIONS
+        # block, so that heading has been printing with nothing under it on
+        # every annual plan ever generated. The year is defined by which period
+        # you are in and when it turns; the reading could not see either.
+        try:
+            _yr_dashas = get_dashas_for_chart(chart_id) or {}
+        except Exception as _yd:
+            logger.warning(f"[yearly] dasha fetch failed: {_yd}")
+            _yr_dashas = {}
+
+        # Sub-periods AND chara dasha, which the owner names as core to a yearly
+        # reading: the mahadasha says what the decade is about, the antardasha
+        # and pratyantardasha say what happens inside THIS year, and the chara
+        # dasha sign says which area of life the year is being lived from.
+        _yr_levels = {}
+        try:
+            from datetime import date as _d2
+            _today = str(_d2.today())
+            for _sys, _lvls in (("vimsottari", (1, 2, 3)), ("jaimini", (1, 2))):
+                for _lvl in _lvls:
+                    _q = supabase.table("dasha_periods") \
+                        .select("planet_or_sign,start_date,end_date") \
+                        .eq("chart_id", chart_id).eq("system", _sys).eq("level", _lvl) \
+                        .lte("start_date", _today).gte("end_date", _today) \
+                        .limit(1).execute()
+                    if _q.data:
+                        _yr_levels[f"{_sys}_{_lvl}"] = _q.data[0]
+        except Exception as _le:
+            logger.warning(f"[yearly] sub-period fetch failed: {_le}")
+
         result = await generate_annual_plan(
             chart_id=chart_id,
             chart_data=chart_data,
-            dashas={},
+            dashas=_yr_dashas,
+            dasha_levels=_yr_levels,
             first_name=chart_record.get("first_name", ""),
             lagna=chart_record.get("lagna_sign", "") or chart_data.get("lagna", {}).get("sign", ""),
             moon_sign=chart_record.get("moon_sign", "") or chart_data.get("planets", {}).get("Moon", {}).get("sign", ""),
