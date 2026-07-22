@@ -12178,9 +12178,16 @@ def _st_get_profile(user_id):
 
 def _st_user_charts(user_id):
     try:
+        # [ghost-charts 2026-07-22] Must exclude soft-deleted rows. Settings ->
+        # Charts listed anything with a matching user_id, so a chart that had
+        # been merged away or removed still appeared, and picking it would
+        # switch the reader onto a chart the rest of the system treats as gone.
+        # 129 rows now carry deleted_at after the duplicate cleanup, two of them
+        # on real accounts.
         r = supabase.table("charts").select(
             "id, first_name, name, birth_date, birth_time, birth_city, birth_place, relationship, created_at"
-        ).eq("user_id", user_id).order("created_at", desc=False).execute()
+        ).eq("user_id", user_id).is_("deleted_at", "null") \
+         .order("created_at", desc=False).execute()
         return r.data or []
     except Exception as _e:
         import logging as _l
