@@ -971,6 +971,32 @@ def _validate_no_invented_specifics(signal_json: dict, chart_row: dict = None) -
     return bad
 
 
+# A claim needs something to HAPPEN or something to DO. Atmospheric headlines
+# ("a favorable day for trade and direct conversation") clear the concrete-anchor
+# bar — "conversation" is a real noun — while still predicting nothing. So the
+# headline must also carry an event verb or an instruction.
+_EVENT_VERBS = (
+    "reach", "reaches", "arrive", "arrives", "call", "calls", "message",
+    "messages", "notice", "notices", "offer", "offers", "ask", "asks",
+    "pay", "pays", "move", "moves", "come", "comes", "return", "returns",
+    "land", "lands", "open", "opens", "reply", "replies", "respond",
+    "responds", "show", "shows", "surface", "surfaces", "resurface",
+    "resurfaces", "appear", "appears", "happen", "happens", "close",
+    "closes", "arrive", "sign", "signs", "want", "wants", "bring", "brings",
+    "llega", "llegan", "aparece", "responde", "ofrece", "paga",
+)
+_IMPERATIVES = (
+    "send", "call", "ask", "say", "write", "finish", "close", "chase",
+    "make", "have", "take", "check", "confirm", "follow up", "reply",
+    "hold", "wait", "start", "book", "pay", "collect", "push",
+    "envia", "envía", "llama", "pregunta", "termina", "cobra",
+)
+_CLAIM_RE = re.compile(
+    "|".join(r"\b" + re.escape(w) + r"\b" for w in set(_EVENT_VERBS + _IMPERATIVES)),
+    re.I,
+)
+
+
 def _validate_headline_concrete(signal_json: dict, language: str) -> list:
     """Fields whose headline opens on an abstraction instead of a situation."""
     bad = []
@@ -983,7 +1009,11 @@ def _validate_headline_concrete(signal_json: dict, language: str) -> list:
         # word was too narrow — "Today carries real intellectual strength
         # wrapped inside emotional weight" sailed through and was exactly the
         # sentence a user said he could not understand.
+        # Reject when it leans on an abstraction with nothing observable, OR
+        # when it is purely atmospheric — no event, no instruction.
         if _ABSTRACT_RE.search(v) and not _ANCHOR_RE.search(v):
+            bad.append(f)
+        elif f == "senal_de_hoy" and not _CLAIM_RE.search(v):
             bad.append(f)
     return bad
 
@@ -1530,7 +1560,10 @@ async def _call_claude_daily_signal_retry(
                 f"\"{str(failed_signal.get(_f, ''))[:110]}\""
             )
             corrective_parts.append(
-                "  Two real users read a headline like this and said they did not "
+                "  It must be THE CLAIM for the day: one sentence naming what is "
+                "likely to happen and what to do about it, drawn from the "
+                "strongest signal you were given. Two real users read a headline "
+                "like this and said they did not "
                 "understand what it meant. Do not name a quality of mind "
                 "(intellect, intelligence, energy, clarity, potential, current). "
                 "Open on something the reader could confirm happened by tonight: "

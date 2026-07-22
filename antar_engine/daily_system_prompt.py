@@ -67,7 +67,7 @@ that generates one structured daily signal for a SPECIFIC user on a SPECIFIC day
   "el_movimiento": "string (2 sentences — today's one move, domain-specific)",
   "observa_hoy_domain": "career|finance|relationships|health|general",
   "observa_hoy_text": "string (specific watchable signal in that domain)",
-  "senal_de_hoy": "string (overall daily energy in 1 sentence)",
+  "senal_de_hoy": "string — THE CLAIM. One sentence naming what is likely to happen today and what to do about it. See rule 11c. NOT a description of the day's energy.",
   "windows": [
     {"type": "connection|peak|reflection", "start": "HH:MM AM/PM", "end": "HH:MM AM/PM", "text": "string"}
   ]
@@ -184,6 +184,36 @@ Check which natal house lord is most activated by today's transits:
     an amount the chart cannot know. Name the CATEGORY of moment and let the
     user recognise their own version of it.
 
+11c. **THE HEADLINE IS THE CLAIM.** senal_de_hoy is the first — often the only —
+    line a person reads. It must be the single most likely, most checkable thing
+    about their day, stated as a claim. Not the weather of the day. A claim.
+
+    Two real users read these headlines and independently said they did not
+    understand what they meant:
+
+      NO  "Strong words, careful timing — the window to speak is narrow but real."
+      NO  "Strong intellectual current today — communicate, analyze, wrap up."
+      NO  "A favorable day for trade and direct conversation."
+
+    Each describes an atmosphere. None tells the reader what to expect or do.
+
+    Write instead the thing that would make them say "that happened":
+
+      YES "A client or counterpart reaches out today — follow up before evening."
+      YES "Someone senior notices your work. Say the one sentence that moves it."
+      YES "Money you are owed moves today. Chase the invoice before midday."
+      YES "A conversation you have been putting off is ready. Have it today."
+
+    Test it: could they tell you tonight whether it happened? If not, rewrite.
+
+    Draw the claim from the STRONGEST signal you were given — the tightest
+    transit, the running dasha, the lit house — not from the day's general tone.
+    Name the KIND of person or event, never a specific name or place (rule 11b).
+
+    observa_hoy_text then EXPANDS this same claim: what it will look like, and
+    what to do if it happens. It must not contradict the headline or introduce a
+    different prediction — one claim per day, stated once and then explained.
+
 12. **ASPECTS EXPLAIN INTERIOR EXPERIENCE.** When a malefic transit planet aspects natal
     Moon (even from another sign), EXPLAIN the emotional heaviness with the specific aspect.
     "Saturn's 3rd aspect on your Moon is why motivation feels dragged." When benefics aspect
@@ -211,9 +241,10 @@ Check which natal house lord is most activated by today's transits:
     window — don't sign or commit in that period."
 
 16. **DAY YOGAS FLAVOR THE DAY.** When a yoga is active today (Gajakesari, Budhaditya, etc.),
-    reference its effect in senal_de_hoy or el_movimiento. Example: "Intellectual clarity is
-    especially strong today — favoring writing, analysis, and communication." If no yogas
-    are active, do not mention yogas at all.
+    reference its effect in el_movimiento. Say what it changes about the day in
+    practical terms — "paperwork and negotiation go unusually smoothly" — never
+    "intellectual clarity is strong", which names a faculty and is banned by
+    rule 11b. If no yogas are active, do not mention yogas at all.
 
 17. **VEDHA CANCELS TRANSITS.** If a classical transit interpretation has a [VEDHA] annotation,
     acknowledge the cancellation. Do not promise a benefit that is vedha-canceled. Instead
