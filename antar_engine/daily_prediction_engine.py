@@ -880,17 +880,31 @@ _VALIDATED_FIELDS = ['senal_de_hoy', 'observa_hoy_text', 'verdict_subline', 'el_
 # A prompt rule alone did not hold, so this detects the pattern and forces the
 # corrective retry that already exists for day-name violations.
 _ABSTRACT_SUBJECTS = (
-    "intellectual", "intelligence", "mental energy", "cognitive", "energy",
-    "vibration", "alignment", "manifestation", "potential", "capacity",
-    "clarity", "awareness", "consciousness", "aura", "frequency", "vitality",
-    "intuition", "creative current", "current",
+    "intellectual", "intelligence", "mental", "cognitive", "emotional weight",
+    "energy", "vibration", "alignment", "manifestation", "potential",
+    "capacity", "clarity", "awareness", "consciousness", "aura", "frequency",
+    "vitality", "intuition", "current", "strength of mind", "inner state",
 )
-_ABSTRACT_OPENER = re.compile(
-    r"^\s*(?:a|an|the|your|there is|there's|today's)?\s*"
-    r"(?:strong|high|heightened|powerful|elevated|deep|good|great|low|weak)?\s*"
-    r"(?:" + "|".join(re.escape(w) for w in _ABSTRACT_SUBJECTS) + r")\b",
-    re.I,
+
+# Things a person can actually observe happening. A headline may talk about
+# qualities as much as it likes, PROVIDED it also names one of these — that is
+# what lets the reader check tonight whether the day went as described.
+_CONCRETE_ANCHORS = (
+    "someone", "somebody", "anyone", "person", "people", "they", "he ", "she ",
+    "call", "message", "text", "email", "conversation", "talk", "reply",
+    "meeting", "deal", "contract", "offer", "negotiation", "proposal",
+    "money", "payment", "invoice", "bill", "debt", "price", "number",
+    "client", "customer", "boss", "partner", "colleague", "family", "friend",
+    "sign", "send", "ask", "answer", "say", "speak", "write", "decide",
+    "sleep", "food", "eat", "travel", "trip", "document", "paperwork",
+    "buy", "sell", "pay", "meet",
+    # NOT finish / close / start / wait: those verbs apply just as happily to
+    # an abstraction ("use the clarity for finishing") and so are no evidence
+    # that anything observable was named.
 )
+_ANCHOR_RE = re.compile("|".join(re.escape(w) for w in _CONCRETE_ANCHORS), re.I)
+_ABSTRACT_RE = re.compile(
+    "|".join(r"\b" + re.escape(w) for w in _ABSTRACT_SUBJECTS), re.I)
 _HEADLINE_FIELDS = ("senal_de_hoy", "signal", "verdict_subline")
 
 
@@ -899,7 +913,14 @@ def _validate_headline_concrete(signal_json: dict, language: str) -> list:
     bad = []
     for f in _HEADLINE_FIELDS:
         v = signal_json.get(f)
-        if isinstance(v, str) and v.strip() and _ABSTRACT_OPENER.match(v.strip()):
+        if not (isinstance(v, str) and v.strip()):
+            continue
+        # Flag only when the line leans on an abstraction AND offers nothing
+        # observable anywhere in it. Requiring the abstraction to be the first
+        # word was too narrow — "Today carries real intellectual strength
+        # wrapped inside emotional weight" sailed through and was exactly the
+        # sentence a user said he could not understand.
+        if _ABSTRACT_RE.search(v) and not _ANCHOR_RE.search(v):
             bad.append(f)
     return bad
 
