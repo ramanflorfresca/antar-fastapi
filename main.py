@@ -17170,6 +17170,34 @@ async def ask_endpoint(request: AskRequest):
             # So Ask could answer a divorced user's question in terms of their
             # spouse. Renders to "" when nothing is known, which keeps the read
             # situation-neutral rather than guessing.
+            # [profile-harvest 2026-07-22] Keep what the user just told us.
+            # A coverage audit found profession and ventures set on 1 of 179
+            # live charts and career_stage on 3 — so life_context,
+            # venture_context and vocational_fit were all reading empty strings
+            # for ~99% of users, and every "is this work right for you" answer
+            # reasoned about somebody the engine knew nothing about.
+            #
+            # People state these facts plainly, unprompted, in the question
+            # itself ("my SaaS startup", "my wife", "my wholesale cloth
+            # business") — and /ask threw them away and asked them to fill in a
+            # settings form instead. This writes ONLY into fields that are
+            # currently empty, so a value the user entered deliberately always
+            # wins, and it runs BEFORE life context so this question already
+            # benefits rather than only the next one.
+            try:
+                from antar_engine.profile_harvest import (
+                    harvest_profile_facts, apply_harvest,
+                )
+                _harvest = harvest_profile_facts(question, chart_row.data)
+                if _harvest:
+                    _hres = apply_harvest(supabase, chart_id, _harvest)
+                    for _f, _v in _harvest.items():
+                        chart_row.data[_f] = _v["value"]
+                    logger.info(f"[ask] harvested {_hres.get('written')} "
+                                f"from question for chart {chart_id}")
+            except Exception as _he:
+                logger.warning(f"[ask] profile harvest failed (non-fatal): {_he}")
+
             _ask_life_block = ""
             try:
                 _ask_life_block = life_context_to_prompt_block(

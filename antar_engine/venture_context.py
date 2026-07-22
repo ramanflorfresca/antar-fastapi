@@ -18,6 +18,8 @@ Both are DERIVED, never invented: when the question carries no signal the
 functions return "unknown"/None and callers keep their existing defaults.
 """
 
+import re
+from functools import lru_cache
 from typing import Dict, List, Optional, Tuple
 
 # ── 1. AGENCY ────────────────────────────────────────────────────────────
@@ -74,7 +76,7 @@ def houses_for_agency(agency: str) -> Optional[List[int]]:
 # Ordered most-specific first: "fintech" must beat the bare "finance" lean.
 _VENTURE_NATURE: Tuple[Tuple[str, Tuple[str, ...], List[str], str], ...] = (
     ("tech", (
-        "saas", "software", "app", "platform", "api", "ai ", " ai", "ml ",
+        "saas", "software", "app", "platform", "api", "ai", "ml",
         "machine learning", "startup", "tech", "developer", "engineering",
         "product", "code", "data", "cloud", "crypto", "web3", "automation",
         "tecnologia", "tecnología", "aplicacion", "aplicación",
@@ -109,7 +111,7 @@ _VENTURE_NATURE: Tuple[Tuple[str, Tuple[str, ...], List[str], str], ...] = (
         # Milling and processing are MANUFACTURE, not trade: a rice mill runs
         # plant, labour and process risk like any factory. Only the onward
         # selling of someone else's goods is wholesale.
-        "manufactur", "factory", "production", "hardware", "construction",
+        "manufactur*", "factory", "production", "hardware", "construction",
         "logistics", "supply chain", "fabrica", "fábrica",
         "rice mill", "flour mill", "milling", "processing plant",
         "agro processing", "food processing", "refinery", "plant",
@@ -117,7 +119,7 @@ _VENTURE_NATURE: Tuple[Tuple[str, Tuple[str, ...], List[str], str], ...] = (
         "manufacturing and construction run on Mars (machinery, drive) with "
         "Saturn (process, endurance)"),
     ("wholesale", (
-        "grain trade", "commodity trade", "produce", "liquor", "beverage",
+        "grain trad*", "commodity trad*", "produce", "liquor", "beverage",
         "wholesale", "wholesaler", "distribution", "distributor", "trading house",
         "bulk supply", "b2b supply", "mayorista", "distribuidor",
     ), ["Mercury", "Moon"],
@@ -178,6 +180,40 @@ _VENTURE_NATURE: Tuple[Tuple[str, Tuple[str, ...], List[str], str], ...] = (
 )
 
 
+@lru_cache(maxsize=64)
+def _markers_re(markers: Tuple[str, ...]):
+    """Word-boundary matcher for a marker tuple.
+
+    Plain `substring in text` is why this detector kept mis-routing real
+    questions, three separate times: "hospital" fired inside "hospitality",
+    "trading" inside "rice trading", "app" inside "appraisals", and "api"
+    inside "capital". Each was fixed by editing the word list, which fixes one
+    sentence and leaves the mechanism intact.
+
+    Boundaries are applied only where the marker actually starts or ends with a
+    word character, so multi-word and punctuated markers ("import-export",
+    "e-commerce", "b2b supply") still match as written.
+    """
+    parts = []
+    for m in markers:
+        m = m.strip()
+        if not m:
+            continue
+        # A trailing "*" marks a STEM: match any suffix. Needed for markers
+        # like "manufactur*" (manufacturing / manufacturer / manufactured),
+        # where a closing boundary would match none of the real words.
+        stem = m.endswith("*")
+        if stem:
+            m = m[:-1]
+        pat = re.escape(m)
+        if m and m[0].isalnum():
+            pat = r"\b" + pat
+        if m and m[-1].isalnum() and not stem:
+            pat = pat + r"\b"
+        parts.append(pat)
+    return re.compile("|".join(parts), re.I)
+
+
 def detect_venture_nature(question: str, context: str = "") -> Optional[Dict]:
     """{"nature", "karakas", "why"} or None when the text says nothing.
 
@@ -188,7 +224,7 @@ def detect_venture_nature(question: str, context: str = "") -> Optional[Dict]:
     if not blob.strip():
         return None
     for nature, markers, karakas, why in _VENTURE_NATURE:
-        if any(m in blob for m in markers):
+        if _markers_re(markers).search(blob):
             return {"nature": nature, "karakas": list(karakas), "why": why}
     return None
 
