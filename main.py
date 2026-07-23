@@ -30164,11 +30164,22 @@ async def get_life_arc(
                     # narration_polish strippers + invented-vocab kill.
                     try:
                         from antar_engine.output_strips import apply_user_facing_strips as _cyc_aufs
-                        def _cyc_walk(obj):
+                        # [paddhati-strip 2026-07-23] The paddhati block is a
+                        # DATA block, not prose. Running the user-facing strip
+                        # over it turned "Mahadasha Mars" into "major period
+                        # your action and drive energy" and deleted the house
+                        # numbers — the same planet-name laundering that was
+                        # removed from the daily signals row this morning, for
+                        # the same reason: the planet names are the credible
+                        # part, and feelings vocabulary in their place reads as
+                        # a horoscope. The strip exists to clean PROSE.
+                        def _cyc_walk(obj, _key=None):
+                            if _key == "paddhati":
+                                return obj
                             if isinstance(obj, dict):
-                                return {k: _cyc_walk(v) for k, v in obj.items()}
+                                return {k: _cyc_walk(v, k) for k, v in obj.items()}
                             if isinstance(obj, list):
-                                return [_cyc_walk(v) for v in obj]
+                                return [_cyc_walk(v, _key) for v in obj]
                             if isinstance(obj, str) and obj:
                                 # [es-loc 2026-06-09] honor the request language so the cache scrub
                                 # doesn't anglicize an ES payload it just deserialized.
