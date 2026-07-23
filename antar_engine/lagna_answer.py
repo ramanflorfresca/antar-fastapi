@@ -21,14 +21,22 @@ is that it fruits during the period of a planet sitting IN it, or of its lord.
 That is a date, and a date can be wrong — which is the point. Without it, "you
 have a strong image" is flattery that costs nothing.
 
-Worked example from the chart this was built against: Sun, Rahu and Venus all
-sit inside his Arudha Lagna, with Ketu opposing it. Three planets on the image
-house is a great deal of recognition potential and Ketu opposite is why little
-of it has arrived — Ketu severs what it faces. Rahu's eighteen-year mahadasha
-begins 13 August 2026. The planet of scale and mass attention, sitting in his
-house of image, starts its period in three weeks. That is a falsifiable claim
-with a date on it, and it came out of the arithmetic rather than out of
-encouragement.
+A CLAIM THIS MODULE MADE AND THEN HAD TO WITHDRAW. The first version read a
+crowded Arudha Lagna as "a great deal of recognition available". Tested against
+charts with known outcomes, it inverted:
+
+    Amitabh Bachchan    world famous          one planet in the AL
+    Elon Musk           world famous          AL EMPTY
+    the product owner   not publicly known    THREE planets in the AL
+
+So occupants describe the CHARACTER of how someone is read — authority,
+appeal, scale, gravity — and say nothing about REACH. The module now says only
+that. It does not predict fame, because nothing here has been shown to.
+
+The classical alternative, planets in the upachayas (3rd, 6th, 10th, 11th) from
+the Arudha, orders the extremes correctly — Amitabh 3, the owner 0 — but two
+non-famous charts also score 2, and there is exactly one verified famous chart
+on hand. One case is not a test, so it is not implemented.
 """
 
 from typing import Dict, List, Optional
@@ -126,12 +134,20 @@ def name_and_fame(chart: dict, dashas: Optional[dict] = None) -> Dict:
         for p in inside:
             if p in IN_ARUDHA:
                 what.append(f"{p} in your image house: {IN_ARUDHA[p]}.")
-        if len(inside) >= 3:
-            why.append(f"Three planets sit in your Arudha Lagna ({al['sign']}) — "
-                       f"{', '.join(inside)}. That is a crowded image house: a great "
-                       f"deal of recognition is available, and it is not subtle.")
-        else:
-            why.append(f"{', '.join(inside)} in your Arudha Lagna ({al['sign']}).")
+        # NOT "a crowded image house means a great deal of recognition". That
+        # was my inference, not a classical rule, and it is FALSIFIED:
+        #
+        #   Amitabh Bachchan   world famous       one planet (Saturn) in AL
+        #   Elon Musk          world famous       AL EMPTY
+        #   the product owner  not publicly known THREE planets in AL
+        #
+        # The occupants describe the CHARACTER of how a person is read. They do
+        # not measure how widely. Saying otherwise flattered a chart that has
+        # not produced fame, which is exactly the failure this codebase keeps
+        # recording negative results to avoid.
+        why.append(f"{', '.join(inside)} in your Arudha Lagna ({al['sign']}) — this "
+                   f"describes the CHARACTER of how you are read, not how widely. "
+                   f"Reach is a separate question this reading does not answer.")
     else:
         what.append(f"Your image house is empty, so how you are seen follows its "
                     f"lord {al['lord']} rather than any planet sitting there.")
