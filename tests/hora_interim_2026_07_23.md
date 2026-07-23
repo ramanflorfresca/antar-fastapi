@@ -81,6 +81,32 @@ original tag restrictions unchanged.
   - Vijay Mallya is an INFERENCE from "18 Dec 1955, Bantwal Karnataka", not a
     stated identification. If wrong, that row is wrong.
 
+## GROUP ASSIGNMENT — the decision, and a protocol slip I have to own
+
+Asked whether Mallya and Modi belong in group A given they built wealth at
+scale and then lost control of it, the owner answered: GROUP A, they built it.
+The pre-registration stands exactly as written, groups A/B/C unchanged, no new
+group D.
+
+THE SLIP: the protocol says grouping is assigned BEFORE scoring. I showed the
+score table first and asked afterwards. That is the wrong order and it is the
+exact mechanism by which a pre-registered test quietly stops being one.
+
+Three things reduce the damage, none of which excuse it:
+
+  1. The answer chosen was the one that changes NOTHING — the pre-registration
+     as originally written. The alternatives (a new group D, or exclusion) were
+     the ones that would have moved the goalposts.
+  2. It works AGAINST the hypothesis. Modi scores H1=3, well below the cohort
+     mean of 4.27, and this assignment puts him in the wealth group. A
+     self-serving assignment would have excluded him.
+  3. Both men were named by the owner as wealthy BEFORE any chart was computed.
+
+Rule for the remaining charts, and this one is not negotiable: EVERY GROUP
+ASSIGNMENT IS COLLECTED BEFORE I COMPUTE ANYTHING. I will ask for name + date +
+time + place + group + time-reliability in one block, and score only after the
+whole block is in hand.
+
 ## The question the cohort actually raises
 
 Mallya and Modi both built real wealth at scale and then lost control of it —
