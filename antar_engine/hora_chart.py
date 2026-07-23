@@ -145,12 +145,17 @@ def hora_positions(chart: dict) -> Dict[str, str]:
 def hora_split(chart: dict) -> Dict:
     """Layer 1 — how the chart divides between forged and received wealth.
 
-    The oldest rule in the hora literature and the only one this codebase has
-    any evidence for, and even that evidence is thin: across Gates (7), Musk (6)
-    and Ambani (5) the billionaire mean was 6.00 against a cohort mean of 4.27,
-    permutation p=0.038. That is n=3, chosen already knowing the outcome, and it
-    is recorded as a DIRECTION not a finding. The band language below therefore
-    describes a channel and never predicts an amount.
+    The oldest rule in the hora literature. It describes the CHARACTER of a
+    wealth channel — generated versus received — and NOTHING about amount.
+
+    A pilot of three billionaires (Gates 7, Musk 6, Ambani 5, mean 6.00 vs
+    cohort 4.27, p=0.038) suggested the wealthy sit high in the Sun's hora.
+    That was tested on eight further wealthy charts and REFUTED: they averaged
+    3.88, below the cohort, opposite to the pilot. See
+    tests/negative_result_sun_hora_wealth.md. So the split must NOT be read as
+    a wealth-amount signal in either direction. The band language below is about
+    channel character only, and is deliberately written so no sentence in it
+    means "you will be rich" or "you will not".
     """
     pos = {p: h for p, h in hora_positions(chart).items() if p != "Lagna"}
     if len(pos) < 7:
