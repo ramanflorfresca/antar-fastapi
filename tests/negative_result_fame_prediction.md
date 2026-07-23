@@ -42,15 +42,21 @@ Dropping AM and AS leaves Amitabh 3 and YH 3 against the same controls, which
 computes to p ≈ 0.045. That is cherry-picking: the two were removed only after
 their scores were seen. The honest number is 0.152 with all four.
 
+## The labels were checked, and they hold
+
+The obvious escape from a p of 0.152 was to doubt the fame labels — two of the
+four were initials. The owner confirmed them afterwards: AM is a world-famous
+billionaire, AS is world-famous in politics. Together with a globally known
+actor and the founder of an international spiritual movement, all four are
+genuinely famous by any measure.
+
+So the labels were right and the rule still failed. That closes the escape
+route, and makes this a stronger negative result rather than a weaker one.
+
 ## What would make this testable
 
-The fame LABELS need checking before the rule does. Two of the four charts are
-initials the author of this file cannot identify, so their fame is taken on the
-owner's word without knowing the degree — "famous" spans a local reputation and
-a global one, and a binary label collapses that.
-
-A real test needs 10+ genuinely well-known people with reliable birth times, and
-a fame measure with more than two levels.
+10+ well-known people with reliable birth times, and a fame measure with more
+than two levels — a village reputation and a global one should not share a flag.
 
 ## The standing rule this reinforces
 
