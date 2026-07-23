@@ -29212,18 +29212,103 @@ _life_arc_inflight = {}
 _life_arc_prewarm_tasks = set()
 
 
+def _cycle_karakas(chart_data: dict) -> dict:
+    """The 7 Chara karakas as {name: sign_index} for the moving-lagna reading.
+
+    Computed from the natal planets' degree-in-sign, the standard Jaimini rank.
+    Returns {} on any shortfall so the cycle reading simply omits the layer.
+    """
+    try:
+        from antar_engine.jaimini_engine import compute_7_karakas, Planet
+        SIGNS_ = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra",
+                  "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
+        planets = {}
+        for name, d in (chart_data.get("planets") or {}).items():
+            lon = d.get("longitude") if isinstance(d, dict) else None
+            if not isinstance(lon, (int, float)):
+                si = d.get("sign_index"); deg = d.get("degree")
+                if isinstance(si, int) and isinstance(deg, (int, float)):
+                    lon = si * 30.0 + float(deg)
+            if isinstance(lon, (int, float)):
+                planets[name] = Planet(name=name, sign=int(lon // 30) % 12,
+                                       degree=float(lon),
+                                       degree_in_sign=float(lon) % 30)
+        return {k.karaka: k.sign for k in compute_7_karakas(planets)}
+    except Exception as _ke:
+        print(f"[cycle] karaka compute failed (non-fatal): {_ke}")
+        return {}
+
+
 def _cycle_paddhati_block(chart_id: str, chart_data: dict) -> dict:
-    """Vimshottari + varga dignity + chara dasha, cross-checked. Never raises."""
+    """Every current-cycle system at once, cross-checked. Never raises.
+
+    Vimshottari MD/AD/PD + varga dignity, chara-dasha sign AND its karaka
+    rotation (moving lagna), the annual Muntha, and the slow transits currently
+    on the running lords. Each is an independent opinion; agreement is the signal.
+    """
     try:
         from antar_engine.cycle_paddhati import cycle_reading
         from antar_engine.prompt_builder import _period_lord
         _d = get_dashas_for_chart(chart_id) or {}
+
+        # Mahadasha handover: the current MD's end date and the incoming lord.
+        # A 7yr→18yr change weeks away outranks every sub-period detail, so it is
+        # detected here and surfaced at the top of the reading.
+        _md_ends = _next_md = None
+        try:
+            from datetime import date as _date
+            _today = _date.today().isoformat()
+            _mds = [r for r in (_d.get("vimsottari") or [])
+                    if isinstance(r, dict)
+                    and str(r.get("level", "")).lower() == "mahadasha"]
+            _mds.sort(key=lambda r: str(r.get("start_date") or ""))
+            for _i, _r in enumerate(_mds):
+                _s = str(_r.get("start_date") or "")[:10]
+                _e = str(_r.get("end_date") or "")[:10]
+                if _s <= _today <= _e:
+                    _md_ends = _e
+                    if _i + 1 < len(_mds):
+                        _nxt = _mds[_i + 1]
+                        _next_md = (_nxt.get("lord_or_sign")
+                                    or _nxt.get("planet_or_sign")
+                                    or _nxt.get("lord"))
+                    break
+        except Exception as _he:
+            print(f"[cycle] handover detect failed (non-fatal): {_he}")
+
+        # Transits: the layer that was declared and never wired. Live now.
+        transits = None
+        try:
+            from antar_engine.transits_engine import calculate_current_transits
+            _t = calculate_current_transits(chart_data) or {}
+            transits = _t.get("transits") or _t.get("current_transits") or (
+                _t if isinstance(_t, list) else None)
+        except Exception as _te:
+            print(f"[cycle] transit compute failed (non-fatal): {_te}")
+
+        # Muntha: the annual Tajika pointer for the current year of life.
+        muntha = None
+        try:
+            from antar_engine.jyotish_periods import muntha_sign as _muntha
+            _lag = (chart_data.get("lagna") or {}).get("sign")
+            _bd = str(chart_data.get("birth_date")
+                      or (chart_data.get("birth") or {}).get("date") or "")[:10]
+            if _lag and _bd:
+                muntha = _muntha(_lag, _bd) or None
+        except Exception as _me:
+            print(f"[cycle] muntha compute failed (non-fatal): {_me}")
+
         return cycle_reading(
             chart_data,
             _period_lord(_d, "vimsottari", 1, ""),
             _period_lord(_d, "vimsottari", 2, ""),
             _period_lord(_d, "vimsottari", 3, ""),
-            _period_lord(_d, "jaimini", 1, ""),
+            chara_sign=_period_lord(_d, "jaimini", 1, ""),
+            transits=transits,
+            karakas=_cycle_karakas(chart_data),
+            muntha=muntha,
+            md_ends=_md_ends,
+            next_md=_next_md,
         )
     except Exception as _pe:
         print(f"[cycle] paddhati block failed (non-fatal): {_pe}")
