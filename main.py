@@ -29413,6 +29413,23 @@ async def _life_arc_compute(chart_id, horizon_months, language,
     # ── 5. Assemble response ─────────────────────────────────────────────
     from antar_engine.life_arc.signatures.wealth_jump import SIGNATURE_METADATA as _wj_meta
 
+    # [cycle-prose 2026-07-23] The paddhati bundle is deterministic sentences —
+    # handover, verdict, timing, the chara moving-lagna rotation, the transits on
+    # the running lords, the cross-system agreement. Narrate it into the reading a
+    # user actually sees, under a strict no-invention gate (the model may only
+    # rephrase the given facts, never add a planet, house, or date). Compute the
+    # block once here so the prose and the raw data come from the same object.
+    _paddhati = _cycle_paddhati_block(chart_id, chart_data)
+    _paddhati_prose = ""
+    try:
+        from antar_engine.cycle_narrator import narrate_cycle
+        _who = str(chart_record.get("first_name")
+                   or chart_record.get("name") or "").strip()
+        _paddhati_prose = await narrate_cycle(_paddhati, _who,
+                                              call_llm_claude, language)
+    except Exception as _npe:
+        print(f"[cycle] prose narration failed (non-fatal): {_npe}")
+
     response = {
         "chart_id": chart_id,
         # [class-a 2026-06-09] archetype dropped from response — internal CAPS codename
@@ -29432,7 +29449,8 @@ async def _life_arc_compute(chart_id, horizon_months, language,
         #
         # Conviction here comes from AGREEMENT between systems that share no
         # arithmetic, not from stacking more of the same evidence.
-        "paddhati": _cycle_paddhati_block(chart_id, chart_data),
+        "paddhati": _paddhati,
+        "paddhati_prose": _paddhati_prose,
         "predicted_events": predicted_events,
         "diagnostic": diagnostic,
         "timeline_visual_data": timeline,
@@ -30259,7 +30277,14 @@ async def get_life_arc(
                         # part, and feelings vocabulary in their place reads as
                         # a horoscope. The strip exists to clean PROSE.
                         def _cyc_walk(obj, _key=None):
-                            if _key == "paddhati":
+                            # [cycle-prose 2026-07-23] paddhati_prose is written to
+                            # the narration contract already — plain language, no
+                            # Sanskrit, planet names KEPT on purpose because they are
+                            # the credible part. Re-running the user-facing strip
+                            # would launder "Saturn" into feelings-vocabulary and
+                            # delete the house numbers, exactly the damage the raw
+                            # paddhati block is skipped to avoid. Skip both.
+                            if _key in ("paddhati", "paddhati_prose"):
                                 return obj
                             if isinstance(obj, dict):
                                 return {k: _cyc_walk(v, k) for k, v in obj.items()}
