@@ -1044,6 +1044,15 @@ def build_layered_predictions(
             _special_lagna_ctx = special_lagna_context(chart_data, concern)
         except Exception:
             _special_lagna_ctx = ""
+        # WHAT / HOW / WHEN / WHY from the reference the question belongs to.
+        # Recognition is the Arudha, marriage the Upapada, prosperity the Sri
+        # Lagna — and each answer carries a computed DATE, because a reading
+        # without one is a compliment rather than a claim.
+        try:
+            from antar_engine.lagna_answer import answer_from_reference
+            _lagna_ans = answer_from_reference(chart_data, concern, dashas)
+        except Exception:
+            _lagna_ans = {}
         try:
             from antar_engine.divisional_career import (
                 build_career_analysis, career_analysis_to_context_block,
@@ -1067,6 +1076,7 @@ def build_layered_predictions(
         transit_focus, vocation = {}, {}
         career_reading = {}
         _special_lagna_ctx = ""
+        _lagna_ans = {}
     all_preds = sorted(l1 + l2 + l3 + l4, key=lambda x: x["confidence"], reverse=True)
     all_preds = apply_structural_hierarchy(all_preds, structure)
 
@@ -1093,6 +1103,7 @@ def build_layered_predictions(
         "vocational_fit":     vocation,
         "career_reading":     career_reading,
         "special_lagnas":     _special_lagna_ctx,
+        "lagna_answer":       _lagna_ans,
         # v2: WOW FIELDS prompt block — append to your LLM prompt string
         "wow_prompt_block":   build_wow_fields_prompt_block(
                                   {"lead": all_preds[0] if all_preds else {}, "all_predictions": all_preds},
@@ -1345,6 +1356,19 @@ def predictions_to_context_block(predictions: dict, chart_data: dict, concern: s
     _sl_block = predictions.get("special_lagnas") or ""
     if _sl_block:
         lines.append(_sl_block)
+        lines.append("")
+
+    _la = predictions.get("lagna_answer") or {}
+    if _la.get("available"):
+        lines.append(f"═══ ANSWERED FROM THE {_la['reference'].upper()} — "
+                     f"WHAT / HOW / WHEN / WHY ═══")
+        for key, label in (("what", "WHAT"), ("how", "HOW"),
+                           ("when", "WHEN"), ("why", "WHY")):
+            for item in (_la.get(key) or []):
+                lines.append(f"  {label}: {item}")
+        lines.append("  RULE: the WHEN lines are computed dates, not atmosphere. "
+                     "Use them. A recognition or wealth answer with no date in it "
+                     "is flattery, and the user will read it as such.")
         lines.append("")
 
     _cr = predictions.get("career_reading") or {}

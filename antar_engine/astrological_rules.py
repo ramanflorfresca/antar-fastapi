@@ -664,6 +664,25 @@ def detect_concern(question: str) -> str:
     """
     q = question.lower()
 
+    # ── Name, fame, reputation → its own concern (2026-07-22) ──────────
+    # There was no route for this at all: "will I be known for this work" fell
+    # into career, which reads the 10th and answers a question about the JOB.
+    # Recognition is the Arudha Lagna — what the world sees, which is a
+    # different reference from what the person does. Checked early and with
+    # word boundaries, because "famous" inside "infamous" and "name" inside
+    # "surname" are exactly the substring traps this file has been bitten by.
+    import re as _fre
+    _fame_markers = (
+        r"\bfamous\b", r"\bfame\b", r"\bwell[- ]known\b", r"\brecognition\b",
+        r"\brecognised\b", r"\brecognized\b", r"\breputation\b", r"\brenown",
+        r"\bname and fame\b", r"\bmake a name\b", r"\bknown for\b",
+        r"\bpublic (?:image|profile|figure)\b", r"\bhow (?:do|will) people see me\b",
+        r"\bwhat do people think of me\b", r"\bmy image\b", r"\bmy standing\b",
+        r"\bfamoso\b", r"\bfama\b", r"\breconocimiento\b", r"\bmi imagen\b",
+    )
+    if any(_fre.search(m, q) for m in _fame_markers):
+        return "fame"
+
     # ── Residence / local move → property (keyword bridge 2026-06-05) ──
     # Home, rent, and local-relocation questions must reach the 4th-house
     # domain ("property" — already wired in CONCERN_HOUSES, CONCERN_KARAKAS
