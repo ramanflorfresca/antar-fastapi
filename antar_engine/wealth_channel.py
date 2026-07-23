@@ -89,16 +89,27 @@ HORA_MEANING = {
     "Cancer": ("the Moon's hora", "wealth that flows rather than is forged — it "
                                   "comes through others, and it moves"),
 }
-_OWN_HORA = {"Sun": "Leo", "Moon": "Cancer"}
+# NOT "in its own sign". In D-2 every planet falls in Cancer or Leo and nowhere
+# else, so "own sign" can only ever fire for the Sun or the Moon — it is
+# impossible by construction for Jupiter, Mars, Mercury, Venus and Saturn.
+# Measured across 93 live charts: the rule was possible for 33% and fired for
+# 18%, meaning two thirds of people could not score whatever their wealth. It
+# was measuring which sign the Sri Lagna fell in, not prosperity.
+#
+# The real D-2 dignity is by NATURE. The Sun's hora is active and masculine,
+# the Moon's receptive — so a malefic prospers in the Sun's hora and a benefic
+# in the Moon's. That applies to all nine and is structurally fair.
+_BENEFIC_HORA = {"Jupiter", "Venus", "Mercury", "Moon"}
+_MALEFIC_HORA = {"Sun", "Mars", "Saturn", "Rahu", "Ketu"}
 
 
 def hora_wealth(chart: dict) -> Dict:
     """Where the Sri Lagna's lord sits in D-2 — the classical wealth judgement.
 
-    Sri Lagna says where prosperity settles and its nakshatra lord says through
-    what channel. This says whether the lord carrying it is placed to actually
-    hold wealth. A lord in its OWN hora — the Sun in Leo, the Moon in Cancer —
-    is the strongest statement D-2 makes.
+    Sri Lagna says where prosperity settles; its nakshatra lord says through
+    what channel; this says whether the lord carrying it is placed to hold what
+    it brings. Also reports how the whole chart divides between the two horas,
+    which is the part that says whether wealth is forged or received.
     """
     try:
         from antar_engine.sri_lagna import sri_lagna
@@ -109,18 +120,38 @@ def hora_wealth(chart: dict) -> Dict:
         return {"available": False}
     lord = sl["lord"]
     d2 = ((chart.get("divisional_charts") or {}).get("d2") or {}).get("planets") or {}
-    seat = (d2.get(lord) or {}).get("sign") if isinstance(d2.get(lord), dict) else d2.get(lord)
+    grab = lambda p: ((d2.get(p) or {}).get("sign")
+                      if isinstance(d2.get(p), dict) else d2.get(p))
+    seat = grab(lord)
     if seat not in HORA_MEANING:
         return {"available": False}
     hora_name, hora_desc = HORA_MEANING[seat]
-    own = _OWN_HORA.get(lord) == seat
+
+    suited = ((lord in _BENEFIC_HORA and seat == "Cancer")
+              or (lord in _MALEFIC_HORA and seat == "Leo"))
+
+    sun_h = [p for p in d2 if grab(p) == "Leo"]
+    moon_h = [p for p in d2 if grab(p) == "Cancer"]
+
     line = (f"In the wealth chart your prosperity lord {lord} sits in {hora_name} "
             f"— {hora_desc}.")
-    if own:
-        line += (f" And {lord} is in its own hora, which is the strongest thing "
-                 f"the wealth chart can say about it: what it holds, it keeps.")
+    if suited:
+        line += (f" {lord} is suited to that hora, so what it brings, it is "
+                 f"placed to hold.")
+    else:
+        line += (f" {lord} is not naturally at home there — money arrives but "
+                 f"has to be worked to stay.")
+    if len(sun_h) >= 6:
+        line += (" And most of your chart sits in the Sun's hora: wealth here is "
+                 "forged rather than received.")
+    elif len(moon_h) >= 6:
+        line += (" And most of your chart sits in the Moon's hora: wealth here "
+                 "arrives through others more than through force.")
+
     return {"available": True, "lord": lord, "hora": seat,
-            "hora_name": hora_name, "own_hora": own, "line": line}
+            "hora_name": hora_name, "suited": suited,
+            "sun_hora_count": len(sun_h), "moon_hora_count": len(moon_h),
+            "line": line}
 
 
 def _nakshatra_of(longitude: float) -> tuple:
