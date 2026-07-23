@@ -18920,7 +18920,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 language,
             )
         except Exception as _de:
-            logger.warning(f"[daily-signal] domain strip failed (non-fatal): {_de}")
+            print(f"[daily-signal] domain strip failed (non-fatal): {_de}")
             result["domains"] = []
 
         result.pop("day_mantra", None)
@@ -23068,7 +23068,7 @@ async def get_annual_plan(chart_id: str, refresh: bool = False, language: str = 
         try:
             _yr_dashas = get_dashas_for_chart(chart_id) or {}
         except Exception as _yd:
-            logger.warning(f"[yearly] dasha fetch failed: {_yd}")
+            print(f"[yearly] dasha fetch failed: {_yd}")
             _yr_dashas = {}
 
         # Sub-periods AND chara dasha, which the owner names as core to a yearly
@@ -23089,7 +23089,7 @@ async def get_annual_plan(chart_id: str, refresh: bool = False, language: str = 
                     if _q.data:
                         _yr_levels[f"{_sys}_{_lvl}"] = _q.data[0]
         except Exception as _le:
-            logger.warning(f"[yearly] sub-period fetch failed: {_le}")
+            print(f"[yearly] sub-period fetch failed: {_le}")
 
         result = await generate_annual_plan(
             chart_id=chart_id,
