@@ -33,6 +33,8 @@ from typing import Dict, List, Optional
 
 SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra",
          "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
+SIGN_LORD = ["Mars", "Venus", "Mercury", "Moon", "Sun", "Mercury",
+             "Venus", "Mars", "Jupiter", "Saturn", "Saturn", "Jupiter"]
 NAKSHATRA_LORDS = [
     ("Ashwini", "Ketu"), ("Bharani", "Venus"), ("Krittika", "Sun"),
     ("Rohini", "Moon"), ("Mrigashira", "Mars"), ("Ardra", "Rahu"),
@@ -77,6 +79,50 @@ CHANNEL_PLANET = {
 }
 
 
+# D-2, the Hora chart, is where wealth is actually judged. Every planet falls
+# into one of two signs: Leo, the Sun's hora, or Cancer, the Moon's hora. The
+# product owner's instruction, and it is the classical chain — Sri Lagna, its
+# nakshatra, its LORD, and then how that lord sits in D-2.
+HORA_MEANING = {
+    "Leo":    ("the Sun's hora", "wealth that has to be generated — earned by "
+                                 "your own effort, in your own name"),
+    "Cancer": ("the Moon's hora", "wealth that flows rather than is forged — it "
+                                  "comes through others, and it moves"),
+}
+_OWN_HORA = {"Sun": "Leo", "Moon": "Cancer"}
+
+
+def hora_wealth(chart: dict) -> Dict:
+    """Where the Sri Lagna's lord sits in D-2 — the classical wealth judgement.
+
+    Sri Lagna says where prosperity settles and its nakshatra lord says through
+    what channel. This says whether the lord carrying it is placed to actually
+    hold wealth. A lord in its OWN hora — the Sun in Leo, the Moon in Cancer —
+    is the strongest statement D-2 makes.
+    """
+    try:
+        from antar_engine.sri_lagna import sri_lagna
+        sl = sri_lagna(chart)
+    except Exception:
+        return {"available": False}
+    if not sl.get("available"):
+        return {"available": False}
+    lord = sl["lord"]
+    d2 = ((chart.get("divisional_charts") or {}).get("d2") or {}).get("planets") or {}
+    seat = (d2.get(lord) or {}).get("sign") if isinstance(d2.get(lord), dict) else d2.get(lord)
+    if seat not in HORA_MEANING:
+        return {"available": False}
+    hora_name, hora_desc = HORA_MEANING[seat]
+    own = _OWN_HORA.get(lord) == seat
+    line = (f"In the wealth chart your prosperity lord {lord} sits in {hora_name} "
+            f"— {hora_desc}.")
+    if own:
+        line += (f" And {lord} is in its own hora, which is the strongest thing "
+                 f"the wealth chart can say about it: what it holds, it keeps.")
+    return {"available": True, "lord": lord, "hora": seat,
+            "hora_name": hora_name, "own_hora": own, "line": line}
+
+
 def _nakshatra_of(longitude: float) -> tuple:
     idx = int((longitude % 360) // (360.0 / 27)) % 27
     return NAKSHATRA_LORDS[idx]
@@ -103,6 +149,9 @@ def wealth_channel(chart: dict, dashas: Optional[dict] = None) -> Dict:
         lines.append(f"Its lord {sl_lord} sits in your {_ord(lord_house)} house, "
                      f"which is where it ends up once it arrives.")
     lines.append(f"The channel is {channel} — {CHANNEL_PLANET.get(channel, '')}.")
+    hw = hora_wealth(chart)
+    if hw.get("available"):
+        lines.append(hw["line"])
 
     # WHEN. Two ways the channel goes live: its own period, or a period lord
     # sitting on it. The second is the one people miss, and on the chart this
@@ -121,6 +170,80 @@ def wealth_channel(chart: dict, dashas: Optional[dict] = None) -> Dict:
         "timing": timing,
         "lines": lines,
     }
+
+
+def _lagna_index(chart):
+    return (chart.get('lagna') or {}).get('sign_index', 0)
+
+
+def wealth_windows(chart: dict, dashas: Optional[dict], birth) -> Dict:
+    """When the wealth periods actually run — ANTARDASHA level, plus chara dasha.
+
+    The first version of this counted mahadashas only, and told a founder
+    currently running a SaaS at about $1M ARR that he had ZERO wealth years
+    remaining. His success was happening inside an antardasha the model could
+    not see. A sixteen-year mahadasha is not the resolution at which businesses
+    succeed — and every timing finding that has survived scrutiny in this
+    codebase landed on an ANTARDASHA lord, never a mahadasha.
+
+    It also told a 35-year-old carrying heavy debt that his first opportunity
+    was at 55. That is the kind of claim no chart supports at that resolution,
+    and the harm of being wrong is one-sided.
+
+    A wealth-giver is the lord of the 2nd, 11th or 9th, or any planet sitting in
+    the 2nd or 11th.
+    """
+    from datetime import date as _date
+    out = {"running": [], "next": [], "chara": None, "years_ahead": 0.0}
+    if not dashas or not birth:
+        return out
+    li = (chart.get("lagna") or {}).get("sign_index", 0) or 0
+    lord = lambda h: SIGN_LORD[(li + h - 1) % 12]
+    givers = {lord(h) for h in (2, 11, 9)}
+    for p, d in (chart.get("planets") or {}).items():
+        if isinstance(d, dict) and d.get("house") in (2, 11):
+            givers.add(p)
+
+    today = _date.today()
+    age = (today - birth).days / 365.25
+    for r in (dashas.get("vimsottari") or []):
+        if not isinstance(r, dict):
+            continue
+        lvl = str(r.get("level") or "").lower()
+        if lvl not in ("mahadasha", "antardasha"):
+            continue
+        who = r.get("lord_or_sign") or r.get("planet_or_sign")
+        if who not in givers:
+            continue
+        try:
+            s = _date.fromisoformat(str(r.get("start_date"))[:10])
+            e = _date.fromisoformat(str(r.get("end_date"))[:10])
+        except Exception:
+            continue
+        a0 = (s - birth).days / 365.25
+        if lvl == "antardasha":
+            lo, hi = max(a0, age, 25), min((e - birth).days / 365.25, 70)
+            if hi > lo:
+                out["years_ahead"] += hi - lo
+        if s <= today <= e:
+            out["running"].append({"level": lvl, "lord": who, "ends": e.isoformat()})
+        elif s > today and a0 < 70:
+            out["next"].append({"level": lvl, "lord": who, "starts": s.isoformat(),
+                                "ends": e.isoformat(), "age": round(a0)})
+    out["next"].sort(key=lambda x: x["starts"])
+    out["next"] = out["next"][:4]
+    # Chara dasha as the second opinion, per the owner's instruction that a
+    # wealth reading should carry it alongside Vimshottari.
+    for r in (dashas.get("jaimini") or []):
+        if not isinstance(r, dict):
+            continue
+        s, e = str(r.get("start_date"))[:10], str(r.get("end_date"))[:10]
+        if s and e and s <= today.isoformat() <= e:
+            out["chara"] = {"sign": r.get("planet_or_sign") or r.get("lord_or_sign"),
+                            "until": e}
+            break
+    out["years_ahead"] = round(out["years_ahead"], 1)
+    return out
 
 
 def _ord(n: int) -> str:
