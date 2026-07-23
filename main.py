@@ -29212,6 +29212,23 @@ _life_arc_inflight = {}
 _life_arc_prewarm_tasks = set()
 
 
+def _cycle_paddhati_block(chart_id: str, chart_data: dict) -> dict:
+    """Vimshottari + varga dignity + chara dasha, cross-checked. Never raises."""
+    try:
+        from antar_engine.cycle_paddhati import cycle_reading
+        from antar_engine.prompt_builder import _period_lord
+        _d = get_dashas_for_chart(chart_id) or {}
+        return cycle_reading(
+            chart_data,
+            _period_lord(_d, "vimsottari", 1, ""),
+            _period_lord(_d, "vimsottari", 2, ""),
+            _period_lord(_d, "vimsottari", 3, ""),
+            _period_lord(_d, "jaimini", 1, ""),
+        )
+    except Exception as _pe:
+        print(f"[cycle] paddhati block failed (non-fatal): {_pe}")
+        return {"available": False}
+
 async def _life_arc_compute(chart_id, horizon_months, language,
                             chart_record, chart_data, _lib_version):
     """
@@ -29320,6 +29337,17 @@ async def _life_arc_compute(chart_id, horizon_months, language,
         "language": language,
         "generated_at": _la_dt.utcnow().isoformat() + "Z",
         "current_phase": current_phase,
+        # [paddhati 2026-07-22] The cycle read the Vimshottari lords, the chara
+        # sign and transits — and NOT ONE of the fifteen divisional charts stored
+        # on every record. That is the layer classical practice uses to answer
+        # what this tab exists for: not "which period is running" but "will this
+        # period actually deliver". A dasha lord gives according to its varga
+        # dignity; the same Mars period is a different life depending on whether
+        # Mars is vargottama or debilitated in navamsa.
+        #
+        # Conviction here comes from AGREEMENT between systems that share no
+        # arithmetic, not from stacking more of the same evidence.
+        "paddhati": _cycle_paddhati_block(chart_id, chart_data),
         "predicted_events": predicted_events,
         "diagnostic": diagnostic,
         "timeline_visual_data": timeline,
