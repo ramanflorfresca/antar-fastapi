@@ -104,54 +104,29 @@ _MALEFIC_HORA = {"Sun", "Mars", "Saturn", "Rahu", "Ketu"}
 
 
 def hora_wealth(chart: dict) -> Dict:
-    """Where the Sri Lagna's lord sits in D-2 — the classical wealth judgement.
+    """The D-2 reading. Delegates to antar_engine.hora_chart.
 
-    Sri Lagna says where prosperity settles; its nakshatra lord says through
-    what channel; this says whether the lord carrying it is placed to hold what
-    it brings. Also reports how the whole chart divides between the two horas,
-    which is the part that says whether wealth is forged or received.
+    This used to lead with the Sri Lagna lord's placement, which put the
+    weakest of the three classical layers first and the strongest — the split
+    between the two horas — last, as an afterthought. hora_chart reverses that
+    and adds the layer that was missing entirely: the rasi's 2nd and 11th lords
+    located in D-2, which is the mainstream technique.
     """
     try:
-        from antar_engine.sri_lagna import sri_lagna
-        sl = sri_lagna(chart)
+        from antar_engine.hora_chart import read_hora_chart
+        r = read_hora_chart(chart)
     except Exception:
         return {"available": False}
-    if not sl.get("available"):
+    if not r.get("available"):
         return {"available": False}
-    lord = sl["lord"]
-    d2 = ((chart.get("divisional_charts") or {}).get("d2") or {}).get("planets") or {}
-    grab = lambda p: ((d2.get(p) or {}).get("sign")
-                      if isinstance(d2.get(p), dict) else d2.get(p))
-    seat = grab(lord)
-    if seat not in HORA_MEANING:
-        return {"available": False}
-    hora_name, hora_desc = HORA_MEANING[seat]
-
-    suited = ((lord in _BENEFIC_HORA and seat == "Cancer")
-              or (lord in _MALEFIC_HORA and seat == "Leo"))
-
-    sun_h = [p for p in d2 if grab(p) == "Leo"]
-    moon_h = [p for p in d2 if grab(p) == "Cancer"]
-
-    line = (f"In the wealth chart your prosperity lord {lord} sits in {hora_name} "
-            f"— {hora_desc}.")
-    if suited:
-        line += (f" {lord} is suited to that hora, so what it brings, it is "
-                 f"placed to hold.")
-    else:
-        line += (f" {lord} is not naturally at home there — money arrives but "
-                 f"has to be worked to stay.")
-    if len(sun_h) >= 6:
-        line += (" And most of your chart sits in the Sun's hora: wealth here is "
-                 "forged rather than received.")
-    elif len(moon_h) >= 6:
-        line += (" And most of your chart sits in the Moon's hora: wealth here "
-                 "arrives through others more than through force.")
-
-    return {"available": True, "lord": lord, "hora": seat,
-            "hora_name": hora_name, "suited": suited,
-            "sun_hora_count": len(sun_h), "moon_hora_count": len(moon_h),
-            "line": line}
+    s = r["split"]
+    return {"available": True,
+            "band": s["band"], "z": s["z"],
+            "sun_hora_count": s["sun_hora"], "moon_hora_count": s["moon_hora"],
+            "second_lord": r["second_lord"], "eleventh_lord": r["eleventh_lord"],
+            "lagna_hora": r["lagna_hora"],
+            "line": " ".join(r["lines"]),
+            "lines": r["lines"]}
 
 
 def _nakshatra_of(longitude: float) -> tuple:
@@ -182,13 +157,35 @@ def wealth_channel(chart: dict, dashas: Optional[dict] = None) -> Dict:
     lines.append(f"The channel is {channel} — {CHANNEL_PLANET.get(channel, '')}.")
     hw = hora_wealth(chart)
     if hw.get("available"):
-        lines.append(hw["line"])
+        lines.extend(hw["lines"])
 
-    # WHEN. Two ways the channel goes live: its own period, or a period lord
-    # sitting on it. The second is the one people miss, and on the chart this
-    # was built against it is the only one that happens this decade.
+    # WHEN — AND THE ANSWER IS THAT THIS MODULE NO LONGER CLAIMS ONE.
+    #
+    # It used to. It said the channel goes live in the Sri Lagna nakshatra
+    # lord's period, or when a period lord sits on that planet. Tested against
+    # Gates, Ambani and Musk over 11 dated wealth events:
+    #
+    #     hits 1/11, expected 2.8 from their own timelines, p = 0.962
+    #
+    # WORSE than chance, and the single hit is on the one birth time that is
+    # not verified. The classical 2nd/11th-lord dasha rule was tested at the
+    # same time and scored 6/11 against 5.2 expected (p=0.425) — it reads like
+    # a success and is exactly noise, because that rule is true for roughly
+    # half of an adult life. See tests/negative_result_d2_wealth_chain.md.
+    #
+    # So there is no validated wealth-timing rule in this codebase, and saying
+    # "your money arrives in your Venus period" to a man carrying debt now
+    # would be a horoscope. The dasha facts are still computed and returned,
+    # because they are facts about the chart — but they are flagged untested
+    # and they are NOT put in the user-facing WHEN.
     timing = _channel_timing(chart, channel, dashas)
-    lines.extend(timing["lines"])
+    timing["validated"] = False
+    timing["note"] = ("No wealth-timing rule in this engine has survived "
+                      "testing. These periods describe when the channel planet "
+                      "is emphasised, not when money arrives.")
+    lines.append("What this does not tell you is when. No timing rule for "
+                 "wealth has held up when tested, so the chart gives you the "
+                 "shape of the channel and not a date.")
 
     return {
         "available": True,

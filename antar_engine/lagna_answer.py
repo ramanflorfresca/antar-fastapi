@@ -215,13 +215,39 @@ def answer_from_reference(chart: dict, topic: str,
         return name_and_fame(chart, dashas)
     if ref == "sri":
         try:
-            from antar_engine.wealth_channel import wealth_channel
+            from antar_engine.wealth_channel import wealth_channel, SRI_HOUSE_PLACE
+            from antar_engine.hora_chart import read_hora_chart
             w = wealth_channel(chart, dashas)
             if not w.get("available"):
                 return {"available": False}
+            hora = read_hora_chart(chart)
+
+            # WHEN used to be w["timing"]["lines"] — the Sri Lagna nakshatra
+            # lord's periods. That rule scored 1/11 against 2.8 expected
+            # (p=0.962) on Gates, Ambani and Musk: WORSE than chance. It is not
+            # a wealth date and it must not be presented as one. Nothing else
+            # in this engine has survived a wealth-timing test either, so the
+            # honest WHEN is a refusal with the reason attached — a user who is
+            # told a false date makes decisions on it.
+            when = ["No timing rule for wealth has held up when I tested it "
+                    "against people whose wealth is a matter of record, so I "
+                    "am not going to give you a date. What the chart does tell "
+                    "you is the shape of the channel, and that does not expire."]
+
+            what = [f"Wealth reaches you "
+                    f"{SRI_HOUSE_PLACE.get(w['sri_lagna_house'], 'through this area of life')}."]
+            how = [f"The channel is {w['channel_planet']}, from the Sri Lagna's "
+                   f"nakshatra {w['channel_nakshatra']}."]
+            if hora.get("available"):
+                how.extend(hora["lines"])
+            why = []
+            if w.get("sri_lagna_lord_house"):
+                why.append(f"Sri Lagna falls in {w['sri_lagna_sign']}, your "
+                           f"{_ord(w['sri_lagna_house'])} house; its lord "
+                           f"{w['sri_lagna_lord']} sits in your "
+                           f"{_ord(w['sri_lagna_lord_house'])}.")
             return {"available": True, "reference": "sri",
-                    "what": [w["lines"][0]], "how": w["lines"][2:3],
-                    "when": w["timing"]["lines"], "why": w["lines"][1:2]}
+                    "what": what, "how": how, "when": when, "why": why}
         except Exception:
             return {"available": False}
     if ref == "upapada":
