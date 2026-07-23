@@ -34,4 +34,12 @@ def get_library_version() -> str:
         meta = getattr(module, "SIGNATURE_METADATA", {})
         if meta.get("enabled_in_library"):
             parts.append(f"{name}={meta.get('version', '?')}")
-    return ("|".join(parts) if parts else "empty") + "|hl=4"
+    # [paddhati 2026-07-23] hl bumped 4 -> 5. The cycle payload gained the
+    # `paddhati` block — varga dignity of the running dasha lords, cross-checked
+    # against the chara dasha sign. Signature versions alone do not cover a
+    # change to the payload SHAPE, so without this bump every cached reading
+    # keeps being served without the new block until its pratyantardasha
+    # happens to expire. That is exactly how a week of pre-fix daily cards
+    # reached users earlier today. Bump this salt whenever the cycle response
+    # gains or loses a field.
+    return ("|".join(parts) if parts else "empty") + "|hl=5"
