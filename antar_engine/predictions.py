@@ -1040,6 +1040,11 @@ def build_layered_predictions(
         # not: it reads the karakas, not the varga houses.
         career_reading = {}
         try:
+            from antar_engine.special_lagnas import special_lagna_context
+            _special_lagna_ctx = special_lagna_context(chart_data, concern)
+        except Exception:
+            _special_lagna_ctx = ""
+        try:
             from antar_engine.divisional_career import (
                 build_career_analysis, career_analysis_to_context_block,
             )
@@ -1061,6 +1066,7 @@ def build_layered_predictions(
         subject_promise, dasha_rel = {}, {}
         transit_focus, vocation = {}, {}
         career_reading = {}
+        _special_lagna_ctx = ""
     all_preds = sorted(l1 + l2 + l3 + l4, key=lambda x: x["confidence"], reverse=True)
     all_preds = apply_structural_hierarchy(all_preds, structure)
 
@@ -1086,6 +1092,7 @@ def build_layered_predictions(
         "transit_focus":      transit_focus,
         "vocational_fit":     vocation,
         "career_reading":     career_reading,
+        "special_lagnas":     _special_lagna_ctx,
         # v2: WOW FIELDS prompt block — append to your LLM prompt string
         "wow_prompt_block":   build_wow_fields_prompt_block(
                                   {"lead": all_preds[0] if all_preds else {}, "all_predictions": all_preds},
@@ -1329,6 +1336,15 @@ def predictions_to_context_block(predictions: dict, chart_data: dict, concern: s
         for _h in (_tf.get("hits") or [])[:6]:
             lines.append(f"  {'[season]' if _h.get('slow') else '[timing]'} {_h.get('line')}")
         lines.append(f"  {_tf.get('note','')}")
+        lines.append("")
+
+    # [special-lagnas 2026-07-22] Which reference the question is read FROM.
+    # The ascendant is what the person IS; the arudha is what the world SEES.
+    # A question about standing or reputation read from the ascendant answers a
+    # question nobody asked, and a marriage question belongs to the Upapada.
+    _sl_block = predictions.get("special_lagnas") or ""
+    if _sl_block:
+        lines.append(_sl_block)
         lines.append("")
 
     _cr = predictions.get("career_reading") or {}
