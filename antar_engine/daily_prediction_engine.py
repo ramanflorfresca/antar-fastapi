@@ -1776,6 +1776,23 @@ def _dpc_scrub_signal(obj):
         return obj
 
 
+# [logic-version 2026-07-22] Bump when the generation logic changes in a way
+# that should invalidate previously written cards: the prompt contract, the
+# validators, or the strip pipeline.
+#
+# Without this, a fix ships and users keep reading pre-fix cards for a week. It
+# happened exactly that way today: the claim-headline rule, the invented-place
+# rejection and the plain-language tara mapping all shipped, and the cards for
+# 23-27 July had been written on 20 July and were served unchanged. The user saw
+# "Heavy structural pressure today" — a headline the new validator rejects —
+# because nothing told the cache the rules had moved.
+#
+# v2: claim-first headline + event-verb requirement, invented proper-noun
+#     rejection, day-name substitution, window overlap trimming, plain tara,
+#     planet names preserved in the signals row.
+DAILY_LOGIC_VERSION = 2
+
+
 async def _get_cached_signal(chart_id: str, date_str: str, language: str, supabase_client) -> Optional[dict]:
     """Check Supabase daily_signals cache."""
     try:
@@ -1786,6 +1803,15 @@ async def _get_cached_signal(chart_id: str, date_str: str, language: str, supaba
             cached = res.data[0].get("signal_json")
             if cached:
                 _payload = _safe_json(cached) if isinstance(cached, str) else cached
+                # Written under older generation rules: discard rather than serve
+                # a card the current validators would have rejected.
+                if isinstance(_payload, dict):
+                    _v = _payload.get("_logic_version")
+                    if _v != DAILY_LOGIC_VERSION:
+                        logger.info(
+                            f"[daily-cache] {chart_id} {date_str}: stale logic "
+                            f"v{_v} != v{DAILY_LOGIC_VERSION}, regenerating")
+                        return None
                 # [daily-cache-scrub 2026-06-09] scrub stale rows on hit
                 return _dpc_scrub_signal(_payload)
     except Exception as e:
@@ -1798,6 +1824,8 @@ async def _save_cached_signal(chart_id: str, date_str: str, language: str, signa
     try:
         # [daily-cache-scrub 2026-06-09] scrub before persisting
         signal_json = _dpc_scrub_signal(signal_json)
+        if isinstance(signal_json, dict):
+            signal_json["_logic_version"] = DAILY_LOGIC_VERSION
         supabase_client.table("daily_signals_cache").upsert({
             "chart_id": chart_id,
             "signal_date": date_str,
