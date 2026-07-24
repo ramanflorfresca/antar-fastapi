@@ -35,7 +35,8 @@ git push origin main
 - antar_engine/astrocartography.py — Swiss Ephemeris MC/ASC computation
 
 ### Test chart ID (use for all curl tests)
-de02bb52-d43a-4b09-be25-b45a07bfbf8a  (Capricorn Rising)
+de0c6265-96cc-41ba-a39c-e55868fa5806
+(previous test chart de02bb52-… was deleted from the charts table — verified gone 2026-06-04)
 
 ### Base URL
 https://antar-fastapi-production.up.railway.app

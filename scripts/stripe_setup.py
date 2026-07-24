@@ -41,8 +41,6 @@ CATALOG = [
     ("ask_unlimited_monthly_mxn", "mxn", 7900,  "month",    "ask_unlimited_monthly", "Ask Unlimited"),
     ("ask_unlimited_annual_mxn",  "mxn", 59900, "year",     "ask_unlimited_annual",  "Ask Unlimited"),
     ("compat_chart_usd",          "usd", 99,    "one_time", "compat_chart",          "Additional compatibility chart"),
-    ("compat_chart_brl",          "brl", 290,   "one_time", "compat_chart",          "Additional compatibility chart"),
-    ("compat_chart_mxn",          "mxn", 990,   "one_time", "compat_chart",          "Additional compatibility chart"),
 ]
 
 # Representative country per bucket (for the reconciliation rows).
@@ -129,8 +127,8 @@ def reconcile(live_results=None):
             amt, cur = resolve_price(cc, product)
             backend = f"{amt} {cur}"
             lk = stripe_lookup_key(cc, product)
-            if lk:
-                camt, ccur = _catalog_amount(lk)
+            camt, ccur = _catalog_amount(lk) if lk else (None, None)
+            if lk and camt is not None:
                 if live_results and lk in live_results:
                     lpid, lamt, _ = live_results[lk]
                     stripe_cell = f"{lamt} {ccur} *"
@@ -140,12 +138,14 @@ def reconcile(live_results=None):
                     cmp_amt = camt
                 ok = (cmp_amt == amt and ccur == cur)
             else:
+                # No catalog price -> create-checkout bills resolve_price on the
+                # fly (compat is always flat $0.99 USD; LatAm/AR subs too).
                 stripe_cell = "on-the-fly"
-                ok = True  # web bills the backend amount directly (USD)
+                ok = True
             status = "OK" if ok else "MISMATCH"
             if not ok:
                 mismatches += 1
-            note = "" if lk else "  (web=USD bucket; store localizes)"
+            note = "" if (lk and camt is not None) else "  (on-the-fly USD; store localizes)"
             print(f"{product:<24}{label:<11}{backend:<14}{stripe_cell:<20}{in_iap:<8}{status}{note}")
     print("=" * 96)
     print(f"* = verified against LIVE Stripe price" if live_results else

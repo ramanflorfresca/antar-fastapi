@@ -115,7 +115,9 @@ DAILY = {
 
 
 def _call(client: httpx.Client, url: str) -> dict | None:
-    r = client.get(url, params={"refresh": "true"}, timeout=60.0)
+    # Bumped from 60s to 180s — daily-week generates 7 sequential LLM calls
+    # (one per day) and can legitimately take 90-120s on a force_refresh
+    r = client.get(url, params={"refresh": "true"}, timeout=180.0)
     if r.status_code != 200:
         print(f"   ✖ HTTP {r.status_code} — {r.text[:200]}", file=sys.stderr)
         return None

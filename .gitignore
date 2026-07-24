@@ -41,6 +41,8 @@ main.py.bak_*
 antar_engine/chart_context_builder.py.bak_*
 *.bak
 *.bak_*
+*.bak.*
+**/*.bak.*
 main.py.bak
 patch_*.py
 b_*_v3.json
@@ -49,3 +51,4 @@ extract.py
 billionaire.py
 .env.find_chartid
 .env.find_chartid
+main.py.bak # if not already there
