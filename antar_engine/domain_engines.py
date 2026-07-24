@@ -665,6 +665,29 @@ def run_timing_engine(
         # Malefic in dusthana = bad window
         if lord in ["Saturn","Mars","Rahu","Ketu"] and lord_house in [6, 8, 12]:
             window_score = 0.30
+            # [L3-archetype] V2.1 translate_dasha_window_weight — flat 0.30
+            # gets translated through Viparita + archetype fit so Saturn-in-6
+            # MASS_SERVER and Rahu-in-6/11 DISRUPTOR charts don't read their
+            # active dasha as "bad window."
+            try:
+                from antar_engine.transit_translation import (
+                    resolve_wealth_archetype as _resolve_arch_d,
+                    translate_dasha_window_weight as _xlate_dasha,
+                )
+                _arch_d = chart_data.get("_l3_archetype_cache") if isinstance(chart_data, dict) else None
+                if not _arch_d:
+                    _arch_d = _resolve_arch_d(chart_data if isinstance(chart_data, dict) else None)
+                    if isinstance(chart_data, dict):
+                        try:
+                            chart_data["_l3_archetype_cache"] = _arch_d
+                        except Exception:
+                            pass
+                _new_score, _why_d = _xlate_dasha(lord, lord_house, _arch_d, window_score)
+                if _why_d:
+                    window_score = _new_score
+            except Exception:
+                # never fail run_timing_engine on translation error
+                pass
 
         is_current = sd <= now <= ed
 

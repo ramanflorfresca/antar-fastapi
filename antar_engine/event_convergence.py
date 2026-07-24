@@ -64,6 +64,15 @@ D9_TARGET_EVENTS = AUSPICIOUS_EVENTS
 
 DEFAULT_PROMISE_FLOOR = 2.0
 
+# [cycle-calibration FIX 3 2026-06-24] Lal Kitab / classical graha-paripakva
+# maturity ages. A dasha lord cannot DELIVER an event before it matures; the
+# delivery (karaka-PD) lock is suppressed when the lord is immature at the
+# window. Rahu/Ketu use the standard shadow-planet maturity ages.
+_MATURITY_AGE = {
+    "Jupiter": 16, "Sun": 22, "Moon": 24, "Venus": 25, "Mars": 28,
+    "Mercury": 34, "Saturn": 36, "Rahu": 42, "Ketu": 48,
+}
+
 
 # ── shared helpers ───────────────────────────────────────────────────────────
 
@@ -988,6 +997,20 @@ def converge_events(
                 c.get("pd_lord") and c["granularity"] == "PD"
                 and c["pd_lord"] in {promise.get("karaka"), promise.get("lord")}
             )
+            # [cycle-calibration FIX 3 2026-06-24] Lal Kitab maturity-age gate.
+            # The delivering PD lord must be matured (graha paripakva) at the
+            # window, else it cannot deliver — drop ONLY the delivery lock; a
+            # double-transit trigger is unaffected.
+            if d_hit:
+                _mat_age = _MATURITY_AGE.get(c.get("pd_lord"))
+                if _mat_age is not None:
+                    try:
+                        _mw = datetime.strptime(c["window_start"][:10], "%Y-%m-%d")
+                        _age_at_w = (_mw - birth_dt).days / 365.25
+                        if _age_at_w < _mat_age:
+                            d_hit = False
+                    except (ValueError, TypeError):
+                        pass
             trigger_hit = d_hit or bool(t_hit)
             trigger_src = ("karaka_pd" if d_hit else
                            ("double_transit" if t_hit else None))

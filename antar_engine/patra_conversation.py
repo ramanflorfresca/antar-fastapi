@@ -23,275 +23,90 @@ asking questions that feel surprisingly personal.
 from __future__ import annotations
 from typing import Optional
 
+# [patra-catalog] single source of truth for question copy (en/es, dejargoned)
+from antar_engine.patra_catalog import render_question
+
 
 # ── Chart-driven question triggers ────────────────────────────────────────────
 # Each trigger looks at chart conditions and generates a natural question.
 # The answer extracts one or more Patra fields.
 
-def get_smart_patra_questions(chart_data: dict, dashas: dict) -> list[dict]:
+def get_smart_patra_questions(
+    chart_data: dict,
+    dashas: dict,
+    language: Optional[str] = "en",
+) -> list[dict]:
     """
-    Generate chart-specific natural questions.
-    Each question is derived from something real in the chart.
+    Generate chart-specific onboarding questions, rendered in the caller's
+    language from antar_engine.patra_catalog.
 
-    Returns list of:
-    {
-        "id":         str,
-        "question":   str,    ← what the user sees/hears
-        "reason":     str,    ← internal: why this question was triggered
-        "options":    list,   ← tap options (or None for open text)
-        "extracts":   list,   ← which Patra fields this answer fills
-    }
+    Branching logic (which question fires for whom) stays here — it reads
+    the chart.  All USER-FACING copy lives in patra_catalog.PATRA_QUESTIONS
+    and is dejargoned + localized (en/es) there.
+
+    Returns a list of question dicts in the shape the frontend expects:
+        {id, question, reason, options[{label, value, patra}], extracts}
+
+    `language` defaults to "en"; "es" returns Spanish strings.  Unknown
+    language codes fall back to English inside render_question().
     """
-    questions = []
+    questions: list[dict] = []
 
     lagna      = chart_data["lagna"]["sign"]
     moon_sign  = chart_data["planets"]["Moon"]["sign"]
-    moon_nak   = chart_data["planets"]["Moon"]["nakshatra"]
+    # (moon_nak kept available in case future branches need it)
+    moon_nak   = chart_data["planets"]["Moon"].get("nakshatra", "")
     vim_dasha  = dashas.get("vimsottari", [{}])[0].get("lord_or_sign", "")
-    jai_dasha  = dashas.get("jaimini", [{}])[0].get("lord_or_sign", "")
+    jai_dasha  = dashas.get("jaimini",    [{}])[0].get("lord_or_sign", "")
 
     planets    = chart_data["planets"]
-    venus      = planets.get("Venus", {})
+    venus      = planets.get("Venus",   {})
     jupiter    = planets.get("Jupiter", {})
-    saturn     = planets.get("Saturn", {})
-    mars       = planets.get("Mars", {})
-    sun        = planets.get("Sun", {})
-    moon       = planets.get("Moon", {})
+    saturn     = planets.get("Saturn",  {})
+    mars       = planets.get("Mars",    {})
+    sun        = planets.get("Sun",     {})
+    moon       = planets.get("Moon",    {})
 
-    # ── RELATIONSHIP questions ─────────────────────────────────────
-    # Triggered by: Venus dasha, 7th lord activity, or Moon in relational signs
+    def _emit(qid: str) -> None:
+        q = render_question(qid, language)
+        if q:
+            questions.append(q)
 
+    # ── RELATIONSHIP ─────────────────────────────────────────────
     if vim_dasha == "Venus" or venus.get("sign") in ["Libra", "Taurus", "Pisces"]:
-        questions.append({
-            "id":      "relationship_venus_dasha",
-            "question": (
-                "Your chart has a very active Venus energy right now. "
-                "Are you navigating this in a relationship, or is this "
-                "energy looking for somewhere to go?"
-            ),
-            "reason":  "Venus dasha or exalted Venus active",
-            "options": [
-                {"label": "In a relationship",     "value": "in_relationship",  "patra": {"marital_status": "in_relationship"}},
-                {"label": "Married",               "value": "married",          "patra": {"marital_status": "married"}},
-                {"label": "Single — ready",        "value": "single",           "patra": {"marital_status": "single"}},
-                {"label": "It's complicated",      "value": "separated",        "patra": {"marital_status": "separated"}},
-                {"label": "Recently out of one",   "value": "divorced",         "patra": {"marital_status": "divorced"}},
-            ],
-            "extracts": ["marital_status"],
-        })
-
+        _emit("relationship_venus_dasha")
     elif moon_sign in ["Cancer", "Scorpio", "Pisces"] or vim_dasha == "Moon":
-        questions.append({
-            "id":      "relationship_moon_dasha",
-            "question": (
-                "Your Moon is in a deeply feeling sign. "
-                "Is this emotional depth being channelled through "
-                "a close partnership right now?"
-            ),
-            "reason":  "Emotional moon sign or Moon dasha",
-            "options": [
-                {"label": "Yes — in a relationship",  "value": "in_relationship", "patra": {"marital_status": "in_relationship"}},
-                {"label": "Yes — married",            "value": "married",         "patra": {"marital_status": "married"}},
-                {"label": "No — processing solo",     "value": "single",          "patra": {"marital_status": "single"}},
-                {"label": "Going through a split",    "value": "separated",       "patra": {"marital_status": "separated"}},
-            ],
-            "extracts": ["marital_status"],
-        })
-
+        _emit("relationship_moon_dasha")
     else:
-        questions.append({
-            "id":      "relationship_general",
-            "question": (
-                "To give you the most relevant reading — "
-                "are you navigating life as a solo person right now, "
-                "or within a partnership?"
-            ),
-            "reason":  "General relationship status needed",
-            "options": [
-                {"label": "Solo",                 "value": "single",           "patra": {"marital_status": "single"}},
-                {"label": "In a relationship",    "value": "in_relationship",  "patra": {"marital_status": "in_relationship"}},
-                {"label": "Married",              "value": "married",          "patra": {"marital_status": "married"}},
-                {"label": "Separated / Divorced", "value": "divorced",         "patra": {"marital_status": "divorced"}},
-                {"label": "Widowed",              "value": "widowed",          "patra": {"marital_status": "widowed"}},
-            ],
-            "extracts": ["marital_status"],
-        })
+        _emit("relationship_general")
 
-    # ── CHILDREN questions ────────────────────────────────────────
-    # Triggered by: Jupiter dasha (children's karaka), 5th house,
-    # or user is in householder life stage
-
+    # ── CHILDREN ─────────────────────────────────────────────────
     if vim_dasha == "Jupiter":
-        questions.append({
-            "id":      "children_jupiter_dasha",
-            "question": (
-                "Jupiter is your active planet right now — "
-                "this is the planet of children, wisdom, and expansion. "
-                "Is Jupiter blessing you through children already, "
-                "or is this energy still building?"
-            ),
-            "reason":  "Jupiter dasha active — 5th house themes prominent",
-            "options": [
-                {"label": "I have young children",     "value": "young_children",        "patra": {"children_status": "young_children"}},
-                {"label": "My children are older",     "value": "older_children",        "patra": {"children_status": "older_children"}},
-                {"label": "Expecting a child",         "value": "expecting",             "patra": {"children_status": "expecting"}},
-                {"label": "Hoping for children",       "value": "no_children_wants",     "patra": {"children_status": "no_children_wants"}},
-                {"label": "Not the path I'm on",       "value": "no_children_by_choice", "patra": {"children_status": "no_children_by_choice"}},
-            ],
-            "extracts": ["children_status"],
-        })
-
+        _emit("children_jupiter_dasha")
     elif jupiter.get("sign") in ["Cancer", "Pisces", "Sagittarius"]:
-        questions.append({
-            "id":      "children_strong_jupiter",
-            "question": (
-                "You have a very strong Jupiter in your chart — "
-                "Jupiter rules children and family legacy. "
-                "Has Jupiter's energy around family already manifested "
-                "for you, or is it still ahead?"
-            ),
-            "reason":  "Strong Jupiter placement",
-            "options": [
-                {"label": "Yes — I have children",     "value": "young_children",    "patra": {"children_status": "young_children"}},
-                {"label": "Children are grown",        "value": "adult_children",    "patra": {"children_status": "adult_children"}},
-                {"label": "Expecting soon",            "value": "expecting",         "patra": {"children_status": "expecting"}},
-                {"label": "Still ahead for me",        "value": "no_children_wants", "patra": {"children_status": "no_children_wants"}},
-                {"label": "Probably not my path",      "value": "no_children_by_choice", "patra": {"children_status": "no_children_by_choice"}},
-            ],
-            "extracts": ["children_status"],
-        })
+        _emit("children_strong_jupiter")
 
-    # ── CAREER questions ──────────────────────────────────────────
-    # Triggered by: Saturn dasha, Mercury dasha, Sun placement, Rahu
-
+    # ── CAREER ───────────────────────────────────────────────────
     if vim_dasha == "Saturn":
-        questions.append({
-            "id":      "career_saturn_dasha",
-            "question": (
-                "Saturn is your active planet — it's asking you to "
-                "build something real and lasting. "
-                "Is Saturn applying this pressure to an established career, "
-                "or is it helping you figure out what to build?"
-            ),
-            "reason":  "Saturn dasha — career restructuring themes",
-            "options": [
-                {"label": "I'm established — refining",  "value": "senior_career",  "patra": {"career_stage": "senior_career"}},
-                {"label": "Mid-career — pushing forward", "value": "mid_career",    "patra": {"career_stage": "mid_career"}},
-                {"label": "Building my own thing",       "value": "entrepreneur",   "patra": {"career_stage": "entrepreneur"}},
-                {"label": "In transition — figuring it out", "value": "transition", "patra": {"career_stage": "transition"}},
-                {"label": "Early in my path",            "value": "early_career",   "patra": {"career_stage": "early_career"}},
-                {"label": "Retired",                     "value": "retired",        "patra": {"career_stage": "retired"}},
-            ],
-            "extracts": ["career_stage"],
-        })
-
+        _emit("career_saturn_dasha")
     elif vim_dasha == "Rahu":
-        questions.append({
-            "id":      "career_rahu_dasha",
-            "question": (
-                "Rahu is hungry and ambitious in your chart right now. "
-                "Is this ambition pointed at your own venture, "
-                "climbing inside an organization, or something you're "
-                "still discovering?"
-            ),
-            "reason":  "Rahu dasha — ambition and foreign themes",
-            "options": [
-                {"label": "My own business / startup",   "value": "entrepreneur",   "patra": {"career_stage": "entrepreneur"}},
-                {"label": "Corporate — climbing",        "value": "mid_career",     "patra": {"career_stage": "mid_career"}},
-                {"label": "Senior leadership",           "value": "senior_career",  "patra": {"career_stage": "senior_career"}},
-                {"label": "Creative / independent",      "value": "creative",       "patra": {"career_stage": "creative"}},
-                {"label": "Still discovering",           "value": "transition",     "patra": {"career_stage": "transition"}},
-                {"label": "Studying / preparing",        "value": "student",        "patra": {"career_stage": "student"}},
-            ],
-            "extracts": ["career_stage"],
-        })
-
+        _emit("career_rahu_dasha")
     elif vim_dasha in ["Sun", "Mercury"]:
-        questions.append({
-            "id":      "career_sun_mercury",
-            "question": (
-                "Your chart is pointing strongly toward your professional world. "
-                "Where would you say you are in your work life right now?"
-            ),
-            "reason":  "Sun or Mercury dasha — professional themes",
-            "options": [
-                {"label": "Just starting out",       "value": "early_career",   "patra": {"career_stage": "early_career"}},
-                {"label": "Established professional", "value": "mid_career",    "patra": {"career_stage": "mid_career"}},
-                {"label": "Running my own business",  "value": "entrepreneur",  "patra": {"career_stage": "entrepreneur"}},
-                {"label": "Senior / leadership",      "value": "senior_career", "patra": {"career_stage": "senior_career"}},
-                {"label": "Creative path",            "value": "creative",      "patra": {"career_stage": "creative"}},
-                {"label": "In transition",            "value": "transition",    "patra": {"career_stage": "transition"}},
-            ],
-            "extracts": ["career_stage"],
-        })
+        _emit("career_sun_mercury")
 
-    # ── FINANCIAL questions ───────────────────────────────────────
-    # Triggered by: 2nd/11th house lord, Venus, Jupiter conditions
-
+    # ── FINANCIAL ────────────────────────────────────────────────
     if vim_dasha in ["Venus", "Jupiter"]:
-        questions.append({
-            "id":      "financial_abundance_dasha",
-            "question": (
-                "This is typically an expansive period financially. "
-                "Is the expansion you're sensing building on an already "
-                "stable foundation, or are you working to establish that "
-                "foundation first?"
-            ),
-            "reason":  "Venus or Jupiter dasha — financial expansion themes",
-            "options": [
-                {"label": "Already stable — growing",   "value": "growing",    "patra": {"financial_status": "growing"}},
-                {"label": "Stable — protecting it",     "value": "stable",     "patra": {"financial_status": "stable"}},
-                {"label": "Building toward stability",  "value": "debt",       "patra": {"financial_status": "debt"}},
-                {"label": "Established — legacy focus", "value": "wealthy",    "patra": {"financial_status": "wealthy"}},
-                {"label": "In a financial transition",  "value": "transition", "patra": {"financial_status": "transition"}},
-            ],
-            "extracts": ["financial_status"],
-        })
-
+        _emit("financial_abundance_dasha")
     elif vim_dasha == "Saturn":
-        questions.append({
-            "id":      "financial_saturn_pressure",
-            "question": (
-                "Saturn periods often bring financial lessons. "
-                "Is Saturn teaching you about building wealth, "
-                "protecting it, or recovering after a contraction?"
-            ),
-            "reason":  "Saturn dasha — financial discipline themes",
-            "options": [
-                {"label": "Building — working hard",    "value": "stable",     "patra": {"financial_status": "stable"}},
-                {"label": "Recovering — rebuilding",    "value": "debt",       "patra": {"financial_status": "debt"}},
-                {"label": "Protecting what I have",     "value": "growing",    "patra": {"financial_status": "growing"}},
-                {"label": "In transition financially",  "value": "transition", "patra": {"financial_status": "transition"}},
-            ],
-            "extracts": ["financial_status"],
-        })
+        _emit("financial_saturn_pressure")
 
-    # ── HEALTH questions ──────────────────────────────────────────
-    # Only triggered if Saturn, Mars, or Ketu are active
-    # (not asked if no health signals — too intrusive otherwise)
-
-    ketu_dasha = vim_dasha == "Ketu"
-    mars_afflicted = mars.get("sign") in ["Cancer", "Gemini"]
-    saturn_dasha = vim_dasha == "Saturn"
-
+    # ── HEALTH ───────────────────────────────────────────────────
+    # Only triggered if Saturn, Mars, or Ketu are active (too intrusive otherwise).
+    ketu_dasha      = vim_dasha == "Ketu"
+    mars_afflicted  = mars.get("sign") in ["Cancer", "Gemini"]
+    saturn_dasha    = vim_dasha == "Saturn"
     if ketu_dasha or saturn_dasha or mars_afflicted:
-        questions.append({
-            "id":      "health_saturn_ketu",
-            "question": (
-                "Saturn and Ketu periods often ask us to pay attention "
-                "to the body. Is your physical energy something you're "
-                "working with or working around right now?"
-            ),
-            "reason":  "Saturn/Ketu dasha or Mars affliction — health awareness",
-            "options": [
-                {"label": "Strong — no concerns",          "value": "excellent",      "patra": {"health_status": "excellent"}},
-                {"label": "Managing something minor",      "value": "minor_issues",   "patra": {"health_status": "minor_issues"}},
-                {"label": "Living with a chronic thing",   "value": "chronic",        "patra": {"health_status": "chronic"}},
-                {"label": "Recovering — rebuilding",       "value": "recovery",       "patra": {"health_status": "recovery"}},
-                {"label": "Emotional / mental health",     "value": "mental_health",  "patra": {"health_status": "mental_health"}},
-            ],
-            "extracts": ["health_status"],
-        })
+        _emit("health_saturn_ketu")
 
     return questions
 
@@ -499,7 +314,7 @@ def get_onboarding_conversation(
     question bodies in get_smart_patra_questions() are still English-only
     and will be localized in a separate pass.
     """
-    questions = get_smart_patra_questions(chart_data, dashas)
+    questions = get_smart_patra_questions(chart_data, dashas, language=language)
     framing = _patra_framing(language)
 
     # Opening message

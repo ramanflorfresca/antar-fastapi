@@ -158,10 +158,23 @@ def build_forward_event_chips(chart_data: dict, birth_jd: float,
                                 _parse_d(_p["window_end"]), _p["confidence"])
                 except Exception:
                     continue
-                _ch["conviction"] = "medium" if _p["confidence"] >= 3 else "low"
-                _ch["layers_agreeing"] = _p["confidence"]
+                _conf = _p["confidence"]
+                _ch["conviction"] = "medium" if _conf >= 3 else "low"
+                _ch["layers_agreeing"] = _conf
                 _ch["locks"] = _p.get("locks")
                 _ch["source"] = "convergence_v1"
+                # [cycle-calibration FIX 1 2026-06-24] Triple-Lock dated-card gate.
+                # Only 3/3 convergence earns a dated, month/quarter-stamped card.
+                # 2/3 -> SOFT DIRECTIONAL: year-level label, no dated landmark
+                # (timeline_builder skips events flagged directional). 1/3 never
+                # reaches here (engine gate already dropped it).
+                if _conf < 3:
+                    _ch["directional"] = True
+                    try:
+                        _dir_yr = _parse_d(_p["window_start"]).year
+                        _ch["window_label"] = f"a window forms around {_dir_yr}"
+                    except Exception:
+                        _ch["window_label"] = "a directional window"
                 _cv_chips.append(_ch)
             _cv_chips.sort(key=lambda c: c["window_start"])
             print(f"[forward_events] convergence forward: "

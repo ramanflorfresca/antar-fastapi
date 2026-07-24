@@ -459,11 +459,31 @@ def _when_label(kind: str, end_dt: datetime) -> str:
     return _plain_month(end_dt)
 
 
-def _window_label(start: datetime, end: datetime) -> str:
+def _window_label(start: datetime, end: datetime, now: datetime = None) -> str:
+    # [cycle-calibration FIX 2 2026-06-24] distance-scaled precision.
+    # The dated-event timing engine backtested ~0/49 at month resolution years
+    # out, so window width must widen with distance: month precision only for
+    # near windows, quarter for the mid band, year-only beyond 36 months.
+    # NEVER stamp a month on a window whose midpoint is > 36 months out.
     if not start or not end:
         return ""
     mid = start + (end - start) / 2
-    return f"around {_month_phrase(mid)}"
+    if now is None:
+        now = datetime.now(timezone.utc)
+    # normalise tz so the subtraction never raises on naive/aware mismatch
+    try:
+        if getattr(mid, "tzinfo", None) is None and now.tzinfo is not None:
+            now = now.replace(tzinfo=None)
+        elif getattr(mid, "tzinfo", None) is not None and now.tzinfo is None:
+            now = now.replace(tzinfo=timezone.utc)
+    except Exception:
+        pass
+    months_out = (mid.year - now.year) * 12 + (mid.month - now.month)
+    if months_out <= 12:
+        return f"around {_month_phrase(mid)}"        # near: month precision ok
+    if months_out <= 36:
+        return f"Q{((mid.month - 1) // 3) + 1} {mid.year}"   # mid: quarter only
+    return f"around {mid.year}"                       # far: year-level only
 
 
 # ─── verdict + bodies + arc ─────────────────────────────────────────────────
@@ -1037,10 +1057,23 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
             e["title"]        = _scrub_leaks(e.get("title", ""))
             e["window_label"] = _scrub_leaks(e.get("window_label", ""))
 
+    # Forward wealth-ignition (Sri Lagna × K.N. Rao Chara × Vimśottari) —
+    # structured like `arc` (not a scrubbed planet-free node). Non-blocking.
+    wealth_ignition = {}
+    try:
+        from antar_engine.wealth_ignition import build_wealth_ignition
+        wealth_ignition = build_wealth_ignition(
+            chart_data, birth_jd,
+            birth_date_str=birth_date_str or "", now=now,
+        ) or {}
+    except Exception as _wi_e:
+        print(f"[forward_cycle] wealth_ignition skipped: {_wi_e}")
+
     return {
-        "verdict":        _scrub_leaks(verdict),
-        "arc":            arc,
-        "cycle_timeline": nodes,
+        "verdict":         _scrub_leaks(verdict),
+        "arc":             arc,
+        "cycle_timeline":  nodes,
+        "wealth_ignition": wealth_ignition,
     }
 
 

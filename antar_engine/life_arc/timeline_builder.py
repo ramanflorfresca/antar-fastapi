@@ -85,6 +85,10 @@ def build_timeline(
 
     # ── Event window landmarks ───────────────────────────────────────────
     for event in predicted_events:
+        # [cycle-calibration FIX 1 2026-06-24] directional (sub-3-lock) events
+        # are soft text only — they must NOT stamp a dated window landmark.
+        if event.get("directional"):
+            continue
         window = event.get("window", {})
         w_start = window.get("start")
         w_end = window.get("end")
