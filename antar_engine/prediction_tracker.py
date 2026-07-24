@@ -91,20 +91,80 @@ def save_trackable_claim(
     return res.data[0] if res.data else {}
 
 
-def get_pending_feedback(chart_id: str, sb) -> list:
-    """Return up to 3 predictions ready for user verification."""
-    now = datetime.now(timezone.utc).isoformat()
+# [daily-verify-staleness 2026-07-24] A daily claim is built to be checkable
+# "the same evening" (see the enrolment note further down). Nobody can honestly
+# say whether a claim from three days ago played out — and because an ignored
+# claim stays `pending` forever, they stacked: the card showed two and three
+# "TODAY'S SIGNAL — did it play out?" asks at once, each quoting a DIFFERENT
+# day, all labelled today. They read as duplicates because consecutive days
+# produce near-identical event hints.
+#
+# Two rules, both on the read path so no history is rewritten:
+#   1. A daily claim older than DAILY_CLAIM_TTL_DAYS is unanswerable -> expire.
+#   2. At most ONE daily claim is ever askable at a time — the newest.
+# Non-daily claims (career/finance/... with their own long windows) are
+# untouched, and the original oldest-first ordering is preserved exactly.
+DAILY_CLAIM_TTL_DAYS = 2
+
+
+def _daily_claim_date(row) -> str:
+    """The YYYY-MM-DD of a `daily-<date>` correlation key, else ''."""
+    key = str((row or {}).get("correlation_key") or "")
+    return key[6:] if key.startswith("daily-") else ""
+
+
+def _expire_stale_claims(chart_id: str, rows: list, sb) -> None:
+    """Best-effort: take unanswerable daily claims out of the pending pool.
+
+    Without this the same dead rows are re-fetched and re-filtered on every
+    single request, forever. Never raises — expiry is hygiene, not correctness.
+    """
+    for r in rows:
+        try:
+            sb.table("user_correlations").update(
+                {"feedback_status": "expired"}
+            ).eq("chart_id", chart_id).eq(
+                "correlation_key", r.get("correlation_key")
+            ).execute()
+        except Exception:
+            pass
+
+
+def get_pending_feedback(chart_id: str, sb, limit: int = 3) -> list:
+    """Return up to `limit` predictions ready for user verification."""
+    now_dt = datetime.now(timezone.utc)
     res = (
         sb.table("user_correlations")
         .select("*")
         .eq("chart_id", chart_id)
         .eq("feedback_status", "pending")
-        .lte("show_after", now)
+        .lte("show_after", now_dt.isoformat())
         .order("show_after", desc=False)
-        .limit(3)
+        # Over-fetch: the stale/duplicate daily rows being filtered out here are
+        # exactly what a limit(3) at the DB would have handed back.
+        .limit(50)
         .execute()
     )
-    return res.data or []
+    rows = res.data or []
+    cutoff = (now_dt - timedelta(days=DAILY_CLAIM_TTL_DAYS)).date().isoformat()
+
+    dates = [d for d in (_daily_claim_date(r) for r in rows) if d]
+    newest_daily = max(dates) if dates else ""
+
+    out, stale = [], []
+    for r in rows:
+        d = _daily_claim_date(r)
+        if d:
+            if d < cutoff:
+                stale.append(r)
+                continue
+            if d != newest_daily:
+                continue          # only the newest daily claim is askable
+        out.append(r)
+
+    if stale:
+        _expire_stale_claims(chart_id, stale, sb)
+    return out[:limit]
 
 
 def _looks_like_uuid(value) -> bool:
