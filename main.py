@@ -8878,6 +8878,15 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
     if not chart.get("planets"):
         raise HTTPException(422, "chart_data has no planets")
 
+    # [lang-safety 2026-07-24] see _resolve_surface_language. This matters more
+    # here than on the other surfaces: practice is the only consumer of the
+    # shared daily_surface_cache, so serving a bare 'en' to a Spanish user does
+    # not just render one English card — it WRITES that card under language='en'
+    # for the whole local day, across workers and restarts. Resolve before the
+    # L1 key and the L2 read below so both are keyed on the real language.
+    request.language = _resolve_surface_language(
+        "daily-practice", request.language, rec)
+
     local_today = _prac_local_date(request.tz_offset)
     ckey = ("practice", request.chart_id, request.language, local_today.isoformat(),
             bool(request.include_chart_food))
