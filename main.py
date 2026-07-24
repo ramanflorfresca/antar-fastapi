@@ -14296,12 +14296,42 @@ async def track_remedy_endpoint(
 # ── Entry point ───────────────────────────────────────────────────────────────
 
 
+
+# [deprecation-watch 2026-07-24] Three endpoints share the /compatibility prefix
+# and nobody could say which are still called — there is no per-endpoint traffic
+# logging anywhere in this file. Before retiring /api/v1/compatibility (whose
+# prose still names dashas and lagnas at the user, unlike the other two), we
+# need evidence rather than a guess.
+#
+# All THREE are instrumented on purpose. Zero hits on one endpoint is ambiguous
+# between "nothing calls it" and "my logging never ran"; zero hits next to a
+# healthy count on its siblings is conclusive. The user-agent distinguishes the
+# iOS wrapper from the web app, which is the part the frontend repo cannot tell
+# us — a shipped build may still call a path the current code no longer does.
+#
+# Grep Railway for: [deprecation-watch]
+# Remove all three once the decision is made.
+def _deprecation_watch(path: str, http_request=None, **fields):
+    """Log one line per call. Never raises — this must not affect a response."""
+    try:
+        _ua = _ref = ""
+        if http_request is not None:
+            _ua = (http_request.headers.get("user-agent") or "")[:120]
+            _ref = (http_request.headers.get("referer") or "")[:160]
+        _extra = " ".join(f"{k}={v}" for k, v in fields.items() if v not in (None, ""))
+        print(f"[deprecation-watch] HIT {path} {_extra} ua={_ua!r} ref={_ref!r}")
+    except Exception:
+        pass
+
+
 @app.post("/api/v1/compatibility")
-async def get_compatibility(request: dict):
+async def get_compatibility(request: dict, http_request: Request = None):
     """
     Vedic compatibility analysis — D1+D9+Houses+Dasha timing.
     Supports: relationship | business compatibility types.
     """
+    _deprecation_watch("/api/v1/compatibility", http_request,
+                       type=request.get("compatibility_type", "relationship"))
     from antar_engine.Compatibility import calculate_compatibility
 
     chart_id_a   = request.get("chart_id_a")
@@ -14379,7 +14409,8 @@ def _compat_day() -> str:
 
 
 @app.post("/api/v1/compat")
-async def compat_six_layer(request: CompatRequest):
+async def compat_six_layer(request: CompatRequest, http_request: Request = None):
+    _deprecation_watch("/api/v1/compat", http_request, reason=request.reason)
     reason = (request.reason or "").strip()
     role = request.role or None
     language = (request.language or "en").split("-")[0].lower()
@@ -14860,7 +14891,10 @@ def _compute_combined_timing(dasha_a: dict, dasha_b: dict, name_a: str = "Person
 
 
 @app.post("/api/v1/compatibility/start")
-async def compatibility_start(request: CompatibilityStartRequest):
+async def compatibility_start(request: CompatibilityStartRequest,
+                             http_request: Request = None):
+    _deprecation_watch("/api/v1/compatibility/start", http_request,
+                       type=request.compatibility_type)
     from antar_engine.compatibility_session_engine import (
         build_person_brief, run_layer1_llm, detect_no_birth_time_chart
     )
