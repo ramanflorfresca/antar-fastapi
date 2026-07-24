@@ -27044,6 +27044,11 @@ async def predict_year_attention(request: dict, language: str = None):
         raise HTTPException(status_code=404, detail="Chart not found")
     row = res.data[0]
 
+    # [lang-safety 2026-07-24] see _resolve_surface_language. Resolved here, after
+    # the row load and before the payload is composed, so it drives both the
+    # composition and the _translate_dict pass at the end of this handler.
+    language = _resolve_surface_language("year-attention", language, row)
+
     # ── parse JSONB blobs (may arrive as JSON strings) ──
     chart_data   = _hc._safe_json(row.get("chart_data"))
     jaimini_data = _hc._safe_json(row.get("jaimini_data"))

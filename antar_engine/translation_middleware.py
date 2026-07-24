@@ -63,6 +63,50 @@ GLOBAL_SKIP_FIELDS = {
 
 _anthropic_client = None
 
+# [lang-safety 2026-07-24] Surfaces whose decorator honors the chart's stored
+# language_preference when the request carries the ambiguous default 'en'.
+#
+# OPT-IN on purpose. `translate_response` decorates ~30 endpoints; flipping the
+# rescue on for all of them at once is a much larger behaviour change than any
+# one surface needs, so surfaces join this set as they are verified. To extend
+# it, add the endpoint_name here — nothing else is required.
+#
+# Do NOT add "welcome": that surface deliberately treats the query param as the
+# sole source of truth (see the comment above its _pt_gate call in main.py).
+LANG_RESCUE_SURFACES = {"home"}
+
+# chart_id -> (expires_at, preference). A preference changes roughly once in a
+# user's lifetime, and this lookup sits on the bare-'en' path of every request
+# to a rescued surface, so memoize it rather than hitting the DB each time.
+_LANG_PREF_MEMO = {}
+_LANG_PREF_TTL = 300.0
+
+
+def _stored_language_pref(chart_id):
+    """Return the chart's explicit language preference, or '' if none/unknown.
+
+    Any failure is treated as 'no preference' — a language lookup must never be
+    able to break a response.
+    """
+    if not chart_id:
+        return ""
+    import time as _t
+    _hit = _LANG_PREF_MEMO.get(chart_id)
+    if _hit and _hit[0] > _t.time():
+        return _hit[1]
+    try:
+        from antar_engine.translation_cache import _get_supabase
+        r = (_get_supabase().table("charts").select("language_preference")
+             .eq("id", chart_id).limit(1).execute())
+        pref = ((r.data[0].get("language_preference") or "").strip().lower()
+                if r.data else "")
+    except Exception as e:
+        logger.warning(f"[lang-safety] preference lookup failed for "
+                       f"{str(chart_id)[:8]}: {e}")
+        return ""
+    _LANG_PREF_MEMO[chart_id] = (_t.time() + _LANG_PREF_TTL, pref)
+    return pref
+
 # Lightweight per-process cache metrics, keyed by (endpoint_name, language).
 # Resets on each deploy; with `--workers 4` each worker keeps its own copy, so
 # treat the rolling rate as a rough real-time signal. The translation_cache
@@ -170,6 +214,31 @@ def translate_response(fields_to_translate=None, fields_to_skip=None, endpoint_n
                     kwargs["language"] = language
             except Exception:
                 pass
+            # [lang-safety 2026-07-24] 'en' is the ambiguous DEFAULT an unresolved
+            # client sends (stale localStorage, a signup that never synced); a
+            # stored non-English preference is an explicit choice. Honor the
+            # preference over a bare 'en' on opted-in surfaces only.
+            #
+            # This has to live here rather than in the endpoint body: `language`
+            # is captured above and used for the translate_dict pass below, so a
+            # body-local reassignment would compose in the resolved language and
+            # then translate against the original one. kwargs is rewritten too,
+            # for the same body/decorator agreement the pt-gate needs.
+            _surface = endpoint_name or func.__name__
+            if language == "en" and _surface in LANG_RESCUE_SURFACES:
+                try:
+                    _pref = _stored_language_pref(kwargs.get("chart_id"))
+                    if _pref and _pref != "en":
+                        from antar_engine.pt_readiness import gate_language as _ptg
+                        _pref = _ptg(_surface, _pref)
+                        if _pref != "en":
+                            logger.info(f"[lang-safety] {_surface}: request 'en' "
+                                        f"overridden to stored preference '{_pref}'")
+                            language = _pref
+                            if isinstance(kwargs.get("language"), str):
+                                kwargs["language"] = language
+                except Exception as _le:
+                    logger.warning(f"[lang-safety] {_surface} rescue skipped: {_le}")
             response = await func(*args, **kwargs)
             if language not in SUPPORTED_LANGUAGES:
                 return response
