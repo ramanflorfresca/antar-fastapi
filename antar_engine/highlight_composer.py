@@ -156,10 +156,26 @@ def _detect_today(ctx) -> List[Condition]:
             best = next(iter(lucky.values()))
         elif isinstance(lucky, list) and lucky:
             best = lucky[0]
+    rahu = pan.get("rahu_kalam") or ""
+
+    # [abhijit-overrides 2026-07-24] Route both ranges through the windows
+    # resolver instead of rendering the raw panchanga values. This strip used to
+    # print the untrimmed abhijit while windows[] printed a version trimmed to
+    # clear rahu kalam — one payload, one day, two different "best window" start
+    # times on screen. One resolver now owns the day's timing.
+    if isinstance(best, str) or rahu:
+        try:
+            from antar_engine.today_windows import resolve_day_windows
+            _rw = resolve_day_windows(best if isinstance(best, str) else "", rahu)
+            if _rw.get("best"):
+                best = _rw["best"]
+            rahu = _rw.get("avoid", rahu)
+        except Exception:
+            pass   # fall back to the raw panchanga values
+
     conds.append(Condition(domain="timing", text=T.best_window(best if isinstance(best, str) else ""),
                            intensity=2.6, source="best_window"))
 
-    rahu = pan.get("rahu_kalam") or ""
     if rahu:
         conds.append(Condition(domain="timing", text=T.avoid_window(rahu),
                                intensity=2.1, source="avoid_window"))

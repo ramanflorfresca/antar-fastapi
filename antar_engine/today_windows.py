@@ -162,6 +162,60 @@ def _strip_avoid_prefix(s: str) -> str:
     return cleaned or s
 
 
+_MIN_AVOID_SPAN = 10
+
+
+def _subtract(a: Tuple[int, int], b: Tuple[int, int]) -> List[Tuple[int, int]]:
+    """`a` minus `b` — the 0, 1 or 2 pieces of `a` that `b` does not cover."""
+    a0, a1 = a
+    b0, b1 = b
+    if b1 <= a0 or b0 >= a1:
+        return [(a0, a1)]
+    out = []
+    if a0 < b0:
+        out.append((a0, b0))
+    if b1 < a1:
+        out.append((b1, a1))
+    return out
+
+
+def resolve_day_windows(abhijit: str, rahu_kalam: str) -> Dict[str, str]:
+    """[abhijit-overrides 2026-07-24] Single source of truth for the day's best
+    and steer-clear ranges. Every surface must render from this, or they drift.
+
+    Classically Abhijit Muhurta overrides inauspicious periods, Rahu Kalam
+    included — so Abhijit is NEVER trimmed. Instead Rahu Kalam is suspended for
+    the minutes Abhijit covers and the longest surviving slice is shown. The two
+    windows still never overlap on screen, but the override now resolves in
+    favour of the stronger one rather than against it.
+
+    Supersedes the previous rule, which trimmed the BEST window to start after
+    rahu kalam ended. That produced a card whose highlights said the best window
+    began at 11:50 while its own windows[] said 12:14 — same payload, same day.
+
+    Returns {"best": "H:MM AM – H:MM PM", "avoid": ...}; "" when a range is
+    absent or does not survive.
+    """
+    best = _parse_range(abhijit)
+    avoid = _parse_range(rahu_kalam)
+    out = {"best": "", "avoid": ""}
+
+    if best and _sane(best[0], best[1]):
+        out["best"] = f"{_fmt(best[0])} – {_fmt(best[1])}"
+
+    if avoid:
+        pieces = [(avoid[0], avoid[1])]
+        # Only a best window we are actually SHOWING may suspend the avoid one.
+        if best and out["best"]:
+            pieces = _subtract((avoid[0], avoid[1]), (best[0], best[1]))
+        pieces = [p for p in pieces if p[1] - p[0] >= _MIN_AVOID_SPAN
+                  and _sane(p[0], p[1])]
+        if pieces:
+            a0, a1 = max(pieces, key=lambda p: p[1] - p[0])
+            out["avoid"] = f"{_fmt(a0)} – {_fmt(a1)}"
+    return out
+
+
 def build_today_windows(
     abhijit: str,
     rahu_kalam: str,
@@ -195,17 +249,17 @@ def build_today_windows(
 
     out: List[Dict[str, Any]] = []
 
-    best = _parse_range(abhijit)
-    avoid = _parse_range(rahu_kalam)
-    avoid_span = (avoid[0], avoid[1]) if avoid else None
+    # [abhijit-overrides 2026-07-24] Both ranges now come from the shared
+    # resolver, so this surface and the highlights strip can no longer disagree
+    # about when the day's best window starts. Abhijit is never trimmed; rahu
+    # kalam is the one that yields where they overlap.
+    _resolved = resolve_day_windows(abhijit, rahu_kalam)
+    best = _parse_range(_resolved["best"])
+    avoid = _parse_range(_resolved["avoid"])
 
-    # ── BEST (abhijit), salvaged clear of the steer-clear window ──────
+    # ── BEST (abhijit) ────────────────────────────────────────────────
     if best:
         b0, b1, _bs, _be = best
-        if avoid_span:
-            r0, r1 = avoid_span
-            if _overlaps(b0, b1, r0, r1):
-                b0 = max(b0, r1)   # keep only the slice AFTER rahu ends
         if b1 - b0 >= _MIN_BEST_SPAN and _sane(b0, b1):
             out.append({
                 "kind": "best",
