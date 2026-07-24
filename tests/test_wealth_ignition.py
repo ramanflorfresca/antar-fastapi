@@ -1,11 +1,12 @@
 """
-Tests the forward wealth-ignition composer (Jaimini × Vimśottari). The
-Vimśottari side is injected (a known Rahu-MD-from-Aug-2026 timeline) so the
-assertion is deterministic and independent of exact birth time.
+Tests the forward wealth-ignition composer (stored Jaimini Chara × Vimśottari).
+Dashas are supplied in the get_dashas_for_chart() row shape — the same stored
+rows /predict passes — so the test exercises the real production path.
 
-Ground truth (chart owner's chart): Sri Lagna ~18° Sagittarius; the Sagittarius
-Chara sub-period (Nov 2026–May 2027) is the ignition; Rahu MD begins Aug 2026
-and Rahu occupies the 11th → wealth-favourable → the window is a converged PEAK.
+Ground truth (chart owner's chart): Sri Lagna ~18° Sagittarius; current Chara MD
+Taurus with the Capricorn AD running now and Sagittarius AD next (Nov 2026–May
+2027, the ignition); Rahu MD begins Aug 2026 and Rahu occupies the 11th →
+wealth-favourable → the Sagittarius window is a converged PEAK.
 """
 import datetime as _dt
 
@@ -29,46 +30,62 @@ CHART = {
     },
 }
 
+# --- stored jaimini (Chara) rows: Taurus MD + its 12 antardaśās (6mo each) ---
+_AD_SIGNS = ["Gemini", "Taurus", "Aries", "Pisces", "Aquarius", "Capricorn",
+             "Sagittarius", "Scorpio", "Libra", "Virgo", "Leo", "Cancer"]
 
-def _fake_vims(chart_data, birth_jd):
-    def d(y, m, day):
-        return _dt.datetime(y, m, day, tzinfo=UTC)
-    return {
-        "mahadashas": [
-            {"lord": "Mars", "start_datetime": d(2019, 8, 1), "end_datetime": d(2026, 8, 1)},
-            {"lord": "Rahu", "start_datetime": d(2026, 8, 1), "end_datetime": d(2044, 8, 1)},
-        ],
-        "antardashas": [
-            {"lord": "Rahu", "parent_lord": "Rahu",
-             "start_datetime": d(2026, 8, 1), "end_datetime": d(2029, 4, 1)},
-            {"lord": "Jupiter", "parent_lord": "Rahu",
-             "start_datetime": d(2029, 4, 1), "end_datetime": d(2031, 9, 1)},
-        ],
-    }
+
+def _jaimini_rows():
+    rows = [{"level": "mahadasha", "planet_or_sign": "Taurus",
+             "start_date": "2023-11-26", "end_date": "2029-11-26"}]
+    d = _dt.date(2023, 11, 26)
+    for sign in _AD_SIGNS:
+        m = d.month + 6                       # add 6 months
+        y = d.year + (m - 1) // 12
+        m = (m - 1) % 12 + 1
+        nxt = _dt.date(y, m, 26)
+        rows.append({"level": "antardasha", "planet_or_sign": sign,
+                     "start_date": d.isoformat(), "end_date": nxt.isoformat()})
+        d = nxt
+    return rows
+
+
+def _vimshottari_rows():
+    return [
+        {"level": "mahadasha", "planet_or_sign": "Mars",
+         "start_date": "2019-08-01", "end_date": "2026-08-01"},
+        {"level": "mahadasha", "planet_or_sign": "Rahu",
+         "start_date": "2026-08-01", "end_date": "2044-08-01"},
+        {"level": "antardasha", "planet_or_sign": "Rahu", "parent_lord": "Rahu",
+         "start_date": "2026-08-01", "end_date": "2029-04-01"},
+        {"level": "antardasha", "planet_or_sign": "Jupiter", "parent_lord": "Rahu",
+         "start_date": "2029-04-01", "end_date": "2031-09-01"},
+    ]
+
+
+DASHAS = {"jaimini": _jaimini_rows(), "vimshottari": _vimshottari_rows()}
 
 
 def test_wealth_favourability_rules():
     li = WI._lagna_idx(CHART)
     ws = WI._wealth_planet_set(CHART, li, "Jupiter")
-    # Rahu occupies the 11th (Scorpio) -> favourable
-    assert WI._lord_is_wealth_favourable("Rahu", CHART, li, ws)[0]
-    # Jupiter is a dhana karaka + Sri Lagna lord -> favourable
-    assert WI._lord_is_wealth_favourable("Jupiter", CHART, li, ws)[0]
-    # Saturn is the 2nd lord (Aquarius) -> favourable
-    assert WI._lord_is_wealth_favourable("Saturn", CHART, li, ws)[0]
+    assert WI._lord_is_wealth_favourable("Rahu", CHART, li, ws)[0]     # 11th occupant
+    assert WI._lord_is_wealth_favourable("Jupiter", CHART, li, ws)[0]  # dhana karaka
+    assert WI._lord_is_wealth_favourable("Saturn", CHART, li, ws)[0]   # 2nd lord
 
 
-def test_primary_window_is_sagittarius_peak(monkeypatch):
-    monkeypatch.setattr(WI.vimsottari, "calculate_vimsottari_from_chart", _fake_vims)
-    wi = WI.build_wealth_ignition(CHART, birth_jd=2442000.0,
-                                  birth_date_str="1974-11-26", now=NOW)
+def test_reads_stored_chara_rows_and_flags_sagittarius_peak():
+    wi = WI.build_wealth_ignition(CHART, dashas=DASHAS, now=NOW)
     assert wi["available"]
     assert wi["sri_lagna"]["sign"] == "Sagittarius"
+    by_sign = {w["sign"]: w for w in wi["windows"]}
+    # current + upcoming activations from the STORED rows
+    assert by_sign["Capricorn"]["activation"] == "accumulation"
+    assert by_sign["Sagittarius"]["activation"] == "ignition"
     p = wi["primary"]
     assert p["sign"] == "Sagittarius"
-    assert p["activation"] == "ignition"
     assert p["tier"] == "peak"
-    assert p["conviction"] == "medium"       # capped, never high
+    assert p["conviction"] == "medium"            # capped, never high
     assert p["vimsottari_md"] == "Rahu"
     assert p["start"].startswith("2026-11")
 
@@ -77,13 +94,18 @@ def test_primary_window_is_sagittarius_peak(monkeypatch):
     assert "Sagittarius" in block and "Rahu" in block
 
 
+def test_unavailable_without_stored_chara_rows():
+    # No jaimini rows -> no forecast (does NOT recompute with a non-prod method).
+    wi = WI.build_wealth_ignition(CHART, dashas={"vimshottari": _vimshottari_rows()},
+                                  now=NOW)
+    assert wi.get("available") is False
+
+
 if __name__ == "__main__":
-    class _MP:
-        def setattr(self, obj, name, val): setattr(obj, name, val)
-    test_wealth_favourability_rules()
-    print("PASS test_wealth_favourability_rules")
-    test_primary_window_is_sagittarius_peak(_MP())
-    print("PASS test_primary_window_is_sagittarius_peak")
-    WI.vimsottari.calculate_vimsottari_from_chart = _fake_vims
-    wi = WI.build_wealth_ignition(CHART, 2442000.0, "1974-11-26", now=NOW)
+    class _MP:  # noqa
+        pass
+    test_wealth_favourability_rules(); print("PASS favourability")
+    test_reads_stored_chara_rows_and_flags_sagittarius_peak(); print("PASS stored-chara peak")
+    test_unavailable_without_stored_chara_rows(); print("PASS unavailable-without-rows")
+    wi = WI.build_wealth_ignition(CHART, dashas=DASHAS, now=NOW)
     print("\n" + WI.wealth_ignition_to_context_block(wi))

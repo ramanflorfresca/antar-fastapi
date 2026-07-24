@@ -182,8 +182,9 @@ def sri_lagna_activation_windows(chart: dict, chara_antardashas: List[dict],
                                  as_of=None) -> List[Dict]:
     """Forward Chara antardaśā windows that ACTIVATE the Sri Lagna for wealth.
 
-    Given the antardaśā (sub-sign) timeline of the CURRENT Chara Mahādaśā (from
-    jaimini.compute_jaimini_antardashas), return the sub-windows whose sign
+    Given the antardaśā (sub-sign) timeline of the CURRENT Chara Mahādaśā (the
+    stored system='jaimini' rows, normalised to {sign, sign_index, start_date,
+    end_date}), return the sub-windows whose sign
     energises the Sri Lagna — its own sign (ignition), its 2nd/11th (dhana/gains),
     its trines (fortune), or the sign occupied by its lord (lord). These are the
     Jaimini half of the wealth-ignition signal; the caller cross-checks them

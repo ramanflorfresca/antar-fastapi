@@ -5536,7 +5536,8 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
         _wi_bjd = chart_record.get("birth_jd") or (chart_data or {}).get("birth_jd")
         wealth_window_data = build_wealth_ignition(
             chart_data=chart_data,
-            birth_jd=_wi_bjd,
+            dashas=dashas_response,          # stored Jaimini Chara + Vimśottari rows
+            birth_jd=_wi_bjd,                # vimśottari fallback only
             birth_date_str=str(chart_record.get("birth_date") or ""),
         )
         wealth_window_context = wealth_ignition_to_context_block(wealth_window_data)

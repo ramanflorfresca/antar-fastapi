@@ -5,11 +5,12 @@ Forward wealth-ignition forecast — the two-system converged wealth window.
 
 This is the forward projection the engine was missing. `chapter_arc` and the
 nodal-return rarity signal describe the wealth theme in the PRESENT; this module
-projects the dated windows AHEAD by intersecting two independent timing systems:
+projects dated windows AHEAD by intersecting two independent timing systems that
+are ALREADY computed and stored in `dasha_periods` for every chart:
 
-  1. Jaimini (Sri Lagna × K.N. Rao Chara antardaśā) — WHERE prosperity
-     accumulates and WHEN a sub-period energises it (sri_lagna + jaimini).
-  2. Vimśottari (planetary MD/AD) — whether a wealth-favourable planetary
+  1. Jaimini Chara (system='jaimini') — the moving rāśi MD + antardaśā. WHERE
+     prosperity accumulates (Sri Lagna) and WHEN a sub-period energises it.
+  2. Vimśottari (system='vimshottari') — whether a wealth-favourable planetary
      period is running over that same window.
 
 A window where BOTH agree is a converged wealth window — the same "two systems
@@ -17,31 +18,111 @@ agreeing beats one system scoring higher" principle the cycle engine is built
 on. Conviction is capped at "medium" (never "high") per the forward-engine
 discipline: forward accuracy cannot be measured directly.
 
-Voice: this module's output feeds the LLM context (planet/dasha detail allowed,
-like arc/rarity context blocks) — it is NOT a bare user chip.
+The Chara antardaśās are READ from the stored production rows (written by
+jaimini_engine.generate_dasha_rows at onboarding / backfill_chara_dasha.py) —
+this module does NOT recompute them, so it inherits the engine's authoritative
+Chara method for every chart. Callers pass the `get_dashas_for_chart()` result.
+
+Voice: output feeds the LLM context (planet/dasha detail allowed, like the
+arc/rarity context blocks) — it is NOT a bare user chip.
 """
 from __future__ import annotations
 
 import datetime as _dt
 from typing import Dict, List, Optional
 
-from antar_engine import vimsottari
-from antar_engine.jaimini import (
-    compute_jaimini_dashas, get_current_dasha, compute_jaimini_antardashas,
-)
-from antar_engine.sri_lagna import sri_lagna, sri_lagna_activation_windows
+from antar_engine.sri_lagna import sri_lagna, sri_lagna_activation_windows, SIGNS
 
-# Standard sign lords (Rahu/Ketu are never rasi lords here).
+# Standard sign lords (Rahu/Ketu are never rāśi lords here).
 _SIGN_LORD = ["Mars", "Venus", "Mercury", "Moon", "Sun", "Mercury",
               "Venus", "Mars", "Jupiter", "Saturn", "Saturn", "Jupiter"]
-_JAIMINI_LORD_PLANETS = ("Mars", "Venus", "Mercury", "Moon", "Sun",
-                         "Jupiter", "Saturn", "Rahu")
+_SIGN_IDX = {name: i for i, name in enumerate(SIGNS)}
 _DHANA_KARAKAS = {"Jupiter", "Venus"}       # universal wealth significators
+_MD_LEVELS = {"mahadasha", "md", "1", "1.0"}
+_AD_LEVELS = {"antardasha", "ad", "2", "2.0"}
 
+
+# ── stored-row helpers ──────────────────────────────────────────────────────
+
+def _level(r: dict) -> str:
+    return str(r.get("level") or r.get("type") or "").strip().lower()
+
+
+def _sign_of(r: dict) -> str:
+    return str(r.get("planet_or_sign") or r.get("lord_or_sign") or "").strip()
+
+
+def _pd(s) -> Optional[_dt.date]:
+    if isinstance(s, _dt.datetime):
+        return s.date()
+    if isinstance(s, _dt.date):
+        return s
+    try:
+        return _dt.datetime.strptime(str(s)[:10], "%Y-%m-%d").date()
+    except Exception:
+        return None
+
+
+def _pdt(s) -> Optional[_dt.datetime]:
+    d = _pd(s)
+    return _dt.datetime(d.year, d.month, d.day, tzinfo=_dt.timezone.utc) if d else None
+
+
+def _dashas_key(dashas: dict, *names) -> list:
+    for n in names:
+        rows = (dashas or {}).get(n)
+        if rows:
+            return rows
+    return []
+
+
+def _chara_windows_from_rows(jaimini_rows: list,
+                             now_date: _dt.date) -> List[dict]:
+    """Current Chara MD's antardaśā windows, from stored jaimini rows."""
+    mds = [r for r in jaimini_rows if _level(r) in _MD_LEVELS]
+    cur = next((r for r in mds
+                if _pd(r.get("start_date") or r.get("start")) is not None
+                and _pd(r["start_date"]) <= now_date <= _pd(r["end_date"])), None)
+    if not cur:
+        return []
+    s, e = _pd(cur["start_date"]), _pd(cur["end_date"])
+    ads = [r for r in jaimini_rows if _level(r) in _AD_LEVELS
+           and _pd(r.get("start_date")) and s <= _pd(r["start_date"]) <= e]
+    out = []
+    for r in sorted(ads, key=lambda x: str(x.get("start_date"))):
+        sign = _sign_of(r)
+        si = _SIGN_IDX.get(sign)
+        if si is None:
+            continue
+        out.append({"sign": sign, "sign_index": si,
+                    "start_date": _pd(r["start_date"]),
+                    "end_date": _pd(r["end_date"])})
+    return out
+
+
+def _vims_from_rows(vim_rows: list) -> dict:
+    """Normalise stored vimśottari rows to {mahadashas, antardashas} with
+    tz-aware datetimes, matching vimsottari.calculate_vimsottari_from_chart."""
+    mds, ads = [], []
+    for r in vim_rows:
+        rec = {"lord": _sign_of(r),
+               "start_datetime": _pdt(r.get("start_date") or r.get("start")),
+               "end_datetime": _pdt(r.get("end_date") or r.get("end")),
+               "parent_lord": r.get("parent_lord", "")}
+        if not rec["start_datetime"] or not rec["end_datetime"]:
+            continue
+        lv = _level(r)
+        if lv in _MD_LEVELS:
+            mds.append(rec)
+        elif lv in _AD_LEVELS:
+            ads.append(rec)
+    return {"mahadashas": mds, "antardashas": ads}
+
+
+# ── chart / favourability helpers ───────────────────────────────────────────
 
 def _lagna_idx(chart_data: dict) -> Optional[int]:
-    lg = (chart_data or {}).get("lagna") or {}
-    si = lg.get("sign_index")
+    si = ((chart_data or {}).get("lagna") or {}).get("sign_index")
     return si % 12 if isinstance(si, int) else None
 
 
@@ -58,19 +139,13 @@ def _house_from_lagna(sign_idx: int, lagna_idx: int) -> int:
     return ((sign_idx - lagna_idx) % 12) + 1
 
 
-def _wealth_planet_set(chart_data: dict, lagna_idx: int,
-                       sl_lord: str) -> set:
-    """Planets that carry this chart's wealth: 2nd/11th lords & occupants,
-    plus the Sri Lagna lord."""
+def _wealth_planet_set(chart_data: dict, lagna_idx: int, sl_lord: str) -> set:
     psm = _planet_sign_map(chart_data)
     wealth = set()
     if sl_lord:
         wealth.add(sl_lord)
-    # 2nd and 11th sign lords (from lagna)
     for h in (2, 11):
-        sign = (lagna_idx + (h - 1)) % 12
-        wealth.add(_SIGN_LORD[sign])
-    # 2nd / 11th occupants
+        wealth.add(_SIGN_LORD[(lagna_idx + (h - 1)) % 12])
     for p, si in psm.items():
         if _house_from_lagna(si, lagna_idx) in (2, 11):
             wealth.add(p)
@@ -79,14 +154,10 @@ def _wealth_planet_set(chart_data: dict, lagna_idx: int,
 
 def _lord_is_wealth_favourable(lord: str, chart_data: dict, lagna_idx: int,
                                wealth_set: set) -> tuple:
-    """(bool, reason). A Vimśottari period lord is wealth-favourable when it is
-    a dhana karaka, part of the wealth set, occupies the 2nd/11th, or sits with
-    a wealth planet."""
     if not lord:
         return (False, "")
     psm = _planet_sign_map(chart_data)
     si = psm.get(lord)
-    # Most specific reasons first.
     if si is not None and _house_from_lagna(si, lagna_idx) in (2, 11):
         h = _house_from_lagna(si, lagna_idx)
         return (True, f"{lord} occupies the {h}th house of wealth/gains")
@@ -97,7 +168,7 @@ def _lord_is_wealth_favourable(lord: str, chart_data: dict, lagna_idx: int,
         return (True, f"{lord} is a natural wealth significator")
     if lord in wealth_set:
         return (True, f"{lord} is the Sri Lagna lord")
-    if si is not None:  # sits with a wealth planet
+    if si is not None:
         for wp in wealth_set:
             wsi = psm.get(wp)
             if wsi is not None and wsi == si and wp != lord:
@@ -107,36 +178,30 @@ def _lord_is_wealth_favourable(lord: str, chart_data: dict, lagna_idx: int,
 
 
 def _vimsottari_at(vims: dict, when: _dt.datetime) -> tuple:
-    """(md, ad) Vimśottari periods active at `when` (tz-aware)."""
+    """(md, ad) Vimśottari periods active at `when`. AD matched by date within
+    the active MD (parent_lord used only as a tie-break when present)."""
     mds = (vims or {}).get("mahadashas") or []
     ads = (vims or {}).get("antardashas") or []
     md = next((m for m in mds
                if m["start_datetime"] <= when < m["end_datetime"]), None)
     ad = None
     if md:
-        ad = next((a for a in ads
-                   if a.get("parent_lord") == md["lord"]
-                   and a["start_datetime"] <= when < a["end_datetime"]), None)
+        cands = [a for a in ads if a["start_datetime"] <= when < a["end_datetime"]]
+        ad = next((a for a in cands if a.get("parent_lord") == md["lord"]),
+                  cands[0] if cands else None)
     return (md, ad)
 
 
-def _as_dt(d) -> _dt.datetime:
-    if isinstance(d, _dt.datetime):
-        return d if d.tzinfo else d.replace(tzinfo=_dt.timezone.utc)
-    if isinstance(d, _dt.date):
-        return _dt.datetime(d.year, d.month, d.day, tzinfo=_dt.timezone.utc)
-    return _dt.datetime.strptime(str(d)[:10], "%Y-%m-%d").replace(
-        tzinfo=_dt.timezone.utc)
-
-
-def build_wealth_ignition(chart_data: dict, birth_jd: float,
+def build_wealth_ignition(chart_data: dict, dashas: Optional[dict] = None,
+                          birth_jd: Optional[float] = None,
                           birth_date_str: str = "",
                           now: Optional[_dt.datetime] = None,
                           horizon_years: int = 5,
                           language: str = "en") -> dict:
-    """Forward wealth-ignition windows (Jaimini × Vimśottari converged).
+    """Forward wealth-ignition windows (stored Jaimini Chara × Vimśottari).
 
-    Returns {available, sri_lagna, windows:[...], primary:{...}} or
+    `dashas` is the get_dashas_for_chart() result (needs the 'jaimini' and
+    'vimshottari' systems). Returns {available, sri_lagna, windows, primary} or
     {available: False}. Never raises — a forecasting bug must not tank /predict.
     """
     empty = {"available": False}
@@ -144,11 +209,6 @@ def build_wealth_ignition(chart_data: dict, birth_jd: float,
         lagna_idx = _lagna_idx(chart_data)
         if lagna_idx is None:
             return empty
-        try:
-            bdate = _dt.datetime.strptime(str(birth_date_str)[:10], "%Y-%m-%d").date()
-        except Exception:
-            return empty
-
         sl = sri_lagna(chart_data)
         if not sl.get("available"):
             return empty
@@ -158,28 +218,38 @@ def build_wealth_ignition(chart_data: dict, birth_jd: float,
             now = now.replace(tzinfo=_dt.timezone.utc)
         horizon = now + _dt.timedelta(days=365 * horizon_years)
 
-        # 1. Chara MD → antardaśās (Jaimini side)
-        psm = _planet_sign_map(chart_data)
-        mds = compute_jaimini_dashas(lagna_idx, psm, bdate)
-        cur_md = get_current_dasha(mds, now.date())
-        if not cur_md:
+        # 1. Jaimini Chara antardaśās — READ from stored production rows.
+        jrows = _dashas_key(dashas or {}, "jaimini", "chara")
+        chara_windows = _chara_windows_from_rows(jrows, now.date())
+        if not chara_windows:
+            # No authoritative Chara rows for this chart → no forecast (rather
+            # than recompute with a non-production method).
             return empty
-        ads = compute_jaimini_antardashas(cur_md, lagna_idx)
-        sl_windows = sri_lagna_activation_windows(chart_data, ads, as_of=now.date())
+        sl_windows = sri_lagna_activation_windows(
+            chart_data, chara_windows, as_of=now.date())
+        if not sl_windows:
+            return empty
 
-        # 2. Vimśottari timeline (planetary side)
-        try:
-            vims = vimsottari.calculate_vimsottari_from_chart(chart_data, birth_jd)
-        except Exception:
+        # 2. Vimśottari — stored rows preferred; birth_jd fallback.
+        vrows = _dashas_key(dashas or {}, "vimshottari", "vimsottari")
+        if vrows:
+            vims = _vims_from_rows(vrows)
+        elif birth_jd:
+            try:
+                from antar_engine import vimsottari
+                vims = vimsottari.calculate_vimsottari_from_chart(chart_data, birth_jd)
+            except Exception:
+                vims = {}
+        else:
             vims = {}
 
         wealth_set = _wealth_planet_set(chart_data, lagna_idx, sl.get("lord"))
 
         windows: List[dict] = []
         for w in sl_windows:
-            start = _as_dt(w["start_date"])
-            end = _as_dt(w["end_date"])
-            if start > horizon:
+            start = _pdt(w["start_date"])
+            end = _pdt(w["end_date"])
+            if start is None or start > horizon:
                 continue
             mid = start + (end - start) / 2
             md, ad = _vimsottari_at(vims, mid)
@@ -193,15 +263,14 @@ def build_wealth_ignition(chart_data: dict, birth_jd: float,
             strength = float(w.get("strength") or 0.0)
             converged = (md_fav or ad_fav)
             if strength >= 1.0 and converged:
-                tier = "peak"           # Sri Lagna ignition + favourable planet
+                tier = "peak"
             elif strength >= 0.7 and converged:
-                tier = "strong"         # dhana/gains window + favourable planet
+                tier = "strong"
             elif converged:
                 tier = "supported"
             else:
-                tier = "chara_only"     # Jaimini flags it, planet period neutral
-            # conviction discipline: two systems -> medium, else low. Never high.
-            conviction = "medium" if converged else "low"
+                tier = "chara_only"
+            conviction = "medium" if converged else "low"  # never high
 
             reasons = [
                 f"Chara {w['sign']} sub-period activates the Sri Lagna "
@@ -217,24 +286,23 @@ def build_wealth_ignition(chart_data: dict, birth_jd: float,
                     f"Jaimini flag only")
 
             windows.append({
-                "start":        start.date().isoformat(),
-                "end":          end.date().isoformat(),
-                "sign":         w["sign"],
-                "activation":   w["activation"],
-                "strength":     strength,
-                "tier":         tier,
-                "conviction":   conviction,
+                "start":         start.date().isoformat(),
+                "end":           end.date().isoformat(),
+                "sign":          w["sign"],
+                "activation":    w["activation"],
+                "strength":      strength,
+                "tier":          tier,
+                "conviction":    conviction,
                 "vimsottari_md": md_lord,
                 "vimsottari_ad": ad_lord,
                 "md_favourable": md_fav,
                 "ad_favourable": ad_fav,
-                "reasons":      reasons,
+                "reasons":       reasons,
             })
 
         if not windows:
-            return {"available": False}
+            return empty
 
-        # Primary = soonest ignition PEAK; else soonest strong; else soonest.
         primary = (next((w for w in windows if w["tier"] == "peak"), None)
                    or next((w for w in windows if w["tier"] == "strong"), None)
                    or windows[0])
@@ -256,14 +324,13 @@ def build_wealth_ignition(chart_data: dict, birth_jd: float,
 
 
 def wealth_ignition_to_context_block(wi: dict) -> str:
-    """Serialize the forecast for the LLM prompt (planet/dasha detail allowed,
-    like the arc/rarity context blocks). Empty string when unavailable."""
+    """Serialize the forecast for the LLM prompt. Empty when unavailable."""
     if not wi or not wi.get("available"):
         return ""
     sl = wi.get("sri_lagna") or {}
     p = wi.get("primary") or {}
     lines = [
-        "FORWARD WEALTH-IGNITION (Jaimini × Vimśottari, forward projection):",
+        "FORWARD WEALTH-IGNITION (Jaimini Chara × Vimśottari, forward projection):",
         f"- Sri Lagna (wealth reference): {sl.get('degree')}° {sl.get('sign')}, "
         f"lord {sl.get('lord')}, {sl.get('house_from_lagna')}th from ascendant.",
     ]
@@ -271,8 +338,7 @@ def wealth_ignition_to_context_block(wi: dict) -> str:
         lines.append(
             f"- PRIMARY window: {p['start']} → {p['end']} "
             f"({p['tier']}, conviction {p['conviction']}). {' '.join(p['reasons'])}")
-    others = [w for w in (wi.get("windows") or []) if w is not p][:3]
-    for w in others:
+    for w in [w for w in (wi.get("windows") or []) if w is not p][:3]:
         lines.append(
             f"- {w['start']} → {w['end']}: {w['sign']} {w['activation']} "
             f"({w['tier']}, {w['conviction']}).")

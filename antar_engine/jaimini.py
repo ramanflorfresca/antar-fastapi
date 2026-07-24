@@ -146,59 +146,6 @@ def build_planet_map(planet_longitudes: dict[str, float]) -> dict[str, int]:
     return {p: int(lon // 30) % 12 for p, lon in lons.items()}
 
 
-def compute_jaimini_antardashas(md: dict, lagna_sign: int) -> list[dict]:
-    """K.N. Rao Chara antardaśās (sub-signs) for one Mahādaśā sign.
-
-    The MD span is split into 12 equal sub-periods that run in the SAME
-    direction as the Mahādaśā sequence (backward for an even lagna, forward for
-    an odd one). The antardaśā sequence starts one sign 'behind' the MD sign in
-    the direction of travel — i.e. the sign the dasha entered the MD from:
-        backward MD → start = (md_sign + 1) % 12
-        forward  MD → start = (md_sign - 1) % 12
-
-    VALIDATION (empirical): reproduced against a real Capricorn-lagna chart
-    (Taurus MD 1974-anchored, Nov 2023–Nov 2029) — the AD active on 2026-07-22
-    is Capricorn and the next is Sagittarius, matching the chart owner's own
-    software. See tests/test_sri_lagna_chara.py.
-
-    CAVEAT: published K.N. Rao antardaśā START conventions vary; this start-rule
-    is validated on ONE chart (two ground-truth AD points). Cross-check against
-    a second chart / Parasara Light before treating it as universal.
-
-    Parameters
-    ----------
-    md         : one Mahādaśā dict from compute_jaimini_dashas()
-                 (needs sign, sign_index, start_date, end_date)
-    lagna_sign : 0=Aries … 11=Pisces — decides AD direction
-
-    Returns list of 12 dicts: sign, sign_index, parent_sign, parent_sign_index,
-    start_date, end_date, sequence (1-12).
-    """
-    from datetime import timedelta
-
-    backward = lagna_sign in EVEN_LAGNA_SIGNS
-    md_idx = md["sign_index"]
-    start_idx = (md_idx + 1) % 12 if backward else (md_idx - 1) % 12
-
-    seq = [(start_idx - i) % 12 if backward else (start_idx + i) % 12
-           for i in range(12)]
-
-    span_days = (md["end_date"] - md["start_date"]).days
-    ads, cursor = [], md["start_date"]
-    for n, s in enumerate(seq):
-        # Proportional split keeps the last AD ending exactly on the MD end.
-        end = md["start_date"] + timedelta(days=round(span_days * (n + 1) / 12))
-        ads.append({
-            "sign":              SIGN_NAMES[s],
-            "sign_index":        s,
-            "parent_sign":       md["sign"],
-            "parent_sign_index": md_idx,
-            "start_date":        cursor,
-            "end_date":          end,
-            "sequence":          n + 1,
-        })
-        cursor = end
-    return ads
 
 
 # ── Self-test ──────────────────────────────────────────────────────────────────
