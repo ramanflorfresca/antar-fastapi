@@ -1655,6 +1655,7 @@ async def _call_claude_daily_signal(
     context: dict,
     day_data: dict,
     language: str = "en",
+    day_frame: Optional[dict] = None,
 ) -> Optional[dict]:
     """
     Call Claude Sonnet to generate one day's signal text.
@@ -1702,6 +1703,19 @@ async def _call_claude_daily_signal(
                 "cache_control": {"type": "ephemeral"}
             }
         ]
+        # [frame-contract 2026-07-24] The day's binding orientation, identical to
+        # the one today_narration receives — see antar_engine/day_frame.py. This
+        # goes in the DYNAMIC block on purpose: it is per-chart and per-day, so
+        # putting it above the ## LIVE DATA split would poison the KV cache that
+        # every other chart shares. An open day contributes nothing.
+        try:
+            from antar_engine.day_frame import frame_constraint_block
+            _fb = frame_constraint_block(day_frame)
+            if _fb:
+                dynamic_part = (dynamic_part + "\n\n" + _fb) if dynamic_part else _fb
+        except Exception as _fe:
+            logger.warning(f"[daily-llm] day frame not applied (non-fatal): {_fe}")
+
         if dynamic_part:
             system_blocks.append({"type": "text", "text": dynamic_part})
 
@@ -1878,6 +1892,7 @@ async def generate_weekly_signals(
     force_refresh: bool = False,
     fast_mode: bool = False,
     days_to_generate: int = 7,
+    day_frame: Optional[dict] = None,
 ) -> list:
     """
     Generate 7-day daily signal array.
@@ -2206,6 +2221,7 @@ async def generate_weekly_signals(
                     context=daily_context,
                     day_data=day_prompt_data,
                     language=language,
+                    day_frame=day_frame,
                 )
 
                 # ── FIX D: Validate + corrective retry ──

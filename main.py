@@ -18874,6 +18874,27 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         # days inline was the cold-cache cost behind 20-45s es latency —
         # each day is a serial Sonnet call and the user's TODAY card needs
         # exactly one. The rest are warmed off the request path below.
+        # [frame-contract 2026-07-24] Resolve the day's orientation ONCE, before
+        # either writer runs, and hand the same constraint to both — the signal
+        # call below and the narration call further down. They are separate LLM
+        # calls with no shared input, which is why the card could open on
+        # "notice what is COMPLETING" and then tell the reader to pitch, open and
+        # chase. See antar_engine/day_frame.py.
+        #
+        # Dasha position only on this path: rarity detection needs a Swiss
+        # Ephemeris transit pass, and the daily route is already the slowest we
+        # have. An open frame binds nothing, so the cost of skipping it is that
+        # some days simply stay unframed — never that they get framed wrongly.
+        _day_frame = {"orientation": "open", "reason": "", "source": "none"}
+        try:
+            from antar_engine.day_frame import resolve_day_frame
+            _day_frame = resolve_day_frame(dashas=get_dashas_for_chart(cid))
+            if _day_frame.get("orientation") != "open":
+                print(f"[daily-signal] day frame: {_day_frame['orientation']} "
+                      f"({_day_frame['source']}) for chart {cid[:8]}")
+        except Exception as _dfe:
+            print(f"[daily-signal] day frame skipped (non-fatal): {_dfe}")
+
         signals = await generate_weekly_signals(
             natal_moon_sign=natal_moon_sign,
             start_date=start_date,
@@ -18882,6 +18903,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             language=language,
             tz_offset=effective_offset,
             days_to_generate=1,
+            day_frame=_day_frame,
         )
         # [es-cold-fix] No background week-warm here: generation runs
         # synchronous swisseph on the single event loop, so warming the
@@ -19237,6 +19259,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                         # blocking Sonnet call from the cold path.
                         _nar_fname = row.get("name") or ""
                         async def _bg_today_narration(_engine=_th, _dbg=_th_dbg,
+                                                      _frame=_day_frame,
                                                       _tilt=_th_tilt, _lk=_th_lk,
                                                       _pan=panchanga,
                                                       _nudge=result.get("todays_nudge"),
@@ -19248,6 +19271,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                                     engine=_engine, nudge=_nudge, first_name=_fname,
                                     patra_domains=(sorted(_tilt.keys()) if isinstance(_tilt, dict) else []),
                                     lk_daily=_lk, date_str=_date, drivers=_drv, panchanga=_pan,
+                                    day_frame=_frame,
                                 )
                                 _raw, _ = await call_llm_claude(
                                     prompt="Write the Today narration JSON now.",

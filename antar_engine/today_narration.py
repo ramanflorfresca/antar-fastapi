@@ -92,6 +92,7 @@ def build_narration_system(
     date_str: str = "",
     drivers: Optional[list] = None,
     panchanga: Optional[dict] = None,
+    day_frame: Optional[dict] = None,
 ) -> str:
     """Static block + per-day JSON tail (below the KV split)."""
     hora = engine.get("todays_move") or engine.get("hora") or {}
@@ -132,7 +133,20 @@ def build_narration_system(
     # [prompt-registry 2026-06-10] contract header + editable body from the
     # registry; identical '## LIVE DATA' KV-cache split as before.
     from antar_engine.prompt_registry import build_system_prompt
-    return build_system_prompt("today", json.dumps(payload, ensure_ascii=False))
+    _sys = build_system_prompt("today", json.dumps(payload, ensure_ascii=False))
+    # [frame-contract 2026-07-24] The day's binding orientation, byte-identical
+    # to the block the signal call receives — see antar_engine/day_frame.py.
+    # Appended AFTER build_system_prompt so it lands below the '## LIVE DATA'
+    # KV split; it is per-chart and per-day and must not enter the shared
+    # cached prefix. An open day appends nothing.
+    try:
+        from antar_engine.day_frame import frame_constraint_block
+        _fb = frame_constraint_block(day_frame)
+        if _fb:
+            _sys = _sys + "\n\n" + _fb
+    except Exception:
+        pass
+    return _sys
 
 
 # ── driver summary: _debug_reasoning votes -> narratable conclusions ─────────
