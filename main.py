@@ -1354,6 +1354,7 @@ class PredictResponse(BaseModel):
     precision_windows:      List[Dict]     = Field(default_factory=list)
     chakra_reading:         Optional[Dict] = None
     chapter_arc:            Optional[Dict] = None
+    wealth_window:          Optional[Dict] = None   # forward Sri Lagna × Chara × Vimśottari wealth-ignition
     conversation_id:        Optional[str]  = None   # returned so frontend stores and re-sends it
     message_id:             Optional[str]  = None   # DB id of the assistant message row
     plain_summary:          Optional[str]  = None
@@ -5522,6 +5523,26 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
     except Exception as e:
         print(f"Chapter arc error: {e}")
 
+    # ── FORWARD WEALTH-IGNITION (Sri Lagna × K.N. Rao Chara × Vimśottari) ──
+    # The forward projection chapter_arc/rarity describe only in the present:
+    # dated wealth-ignition windows where the Jaimini prosperity reference and a
+    # wealth-favourable planetary period converge. Non-blocking.
+    wealth_window_data = None
+    wealth_window_context = ""
+    try:
+        from antar_engine.wealth_ignition import (
+            build_wealth_ignition, wealth_ignition_to_context_block,
+        )
+        _wi_bjd = chart_record.get("birth_jd") or (chart_data or {}).get("birth_jd")
+        wealth_window_data = build_wealth_ignition(
+            chart_data=chart_data,
+            birth_jd=_wi_bjd,
+            birth_date_str=str(chart_record.get("birth_date") or ""),
+        )
+        wealth_window_context = wealth_ignition_to_context_block(wealth_window_data)
+    except Exception as e:
+        print(f"Wealth-ignition error: {e}")
+
     # ── LAL KITAB VARSHPHAL CONTEXT (zero extra DB queries) ───────
     lk_context = ""
     try:
@@ -6357,12 +6378,14 @@ CRITICAL RULES:
         "remedy","remedies","lal kitab","karma","luck","fix","help","weak"
     ]) or _question_mode in ("remedy","spiritual")
     _is_enrichment = concern in ("career","wealth","money","timing","relationship") or _question_mode in ("timing","career","wealth")
+    _is_wealth     = concern in ("wealth","money","career","timing") or _question_mode in ("timing","career","wealth")
     _is_life_path  = _question_mode == "life_path" or any(kw in _q_low for kw in [
         "purpose","mission","destiny","why am i","life path","soul"
     ])
 
     _gated_extra_blocks = [
         ("rarity",       rarity_context,       True),
+        ("wealth_window", wealth_window_context, _is_wealth),
         ("windows",      windows_context,       True),
         ("arc",          arc_context,           True),
         ("chakra",       chakra_context,        _is_health_spiritual or _question_mode in ("timing", "life_path") or bool(chakra_reading_data and chakra_reading_data.get("sleeping_chakra_bridges"))),
@@ -7630,6 +7653,7 @@ State a specific year. Never predict past events as future windows.
             "remedies":          [r.dict() for r in remedies_out] if remedies_out else [],
             "chakra_reading":    chakra_reading_data,
             "chapter_arc":       chapter_arc_data,
+            "wealth_window":     wealth_window_data,
             "rarity_signals":    rarity_signals,
             "precision_windows": [
                 p.__dict__ if hasattr(p, "__dict__") else p
@@ -7762,6 +7786,7 @@ State a specific year. Never predict past events as future windows.
         precision_windows=precision_windows,
         chakra_reading=chakra_reading_data,
         chapter_arc=chapter_arc_data,
+        wealth_window=wealth_window_data,
         conversation_id=saved_conv_id,
         message_id=saved_msg_id,
         plain_summary=(
