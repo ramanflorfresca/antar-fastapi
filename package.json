@@ -1,7 +1,10 @@
 {
   "dependencies": {
     "@react-native-async-storage/async-storage": "^3.0.1",
+    "d3-geo": "^3.1.1",
     "expo-localization": "^55.0.8",
-    "react-native-public-ip": "^1.0.2"
+    "react-native-public-ip": "^1.0.2",
+    "topojson-client": "^3.1.0",
+    "world-atlas": "^2.0.2"
   }
 }
