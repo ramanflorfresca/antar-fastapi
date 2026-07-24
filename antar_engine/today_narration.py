@@ -292,8 +292,31 @@ _JARGON_RX = re.compile(
     r"(?i)\b(sun|moon|mars|mercury|jupiter|venus|saturn|rahu|ketu|"
     r"nakshatra|dasha|mahadasha|antardasha|tithi|muhurta|hora|lagna|"
     r"ascendant|retrograde|transit|zodiac|horoscope|astrolog\w*|"
+    # [jargon-synonyms 2026-07-24] The list above names the TERMS but not their
+    # SYNONYMS, and the model reaches for a synonym precisely when it senses the
+    # plain term is unwelcome. A live card opened with "A rare nodal return is
+    # active" — "rahu"/"ketu" would have been rejected, "nodal" sailed through.
+    # Anything a reader would have to look up belongs here.
+    r"nodal|nodes?|eclipse|natal|sidereal|ephemeris|jyotish|vedic|"
+    r"sade\s*sati|conjunct\w*|trine|sextile|karmic|karma|"
+    r"solar\s+return|lunar\s+return|equinox|solstice|planetary|planets?|"
     r"monday|tuesday|wednesday|thursday|friday|saturday|sunday|"
     r"\d{1,2}(?:st|nd|rd|th)\s+house|house\s+\d{1,2})\b"
+)
+
+# [cycle-claims 2026-07-24] "something that happens once every 18-19 years" is a
+# factual astronomical claim, and the daily card is the wrong surface to make
+# one: the reader cannot check it, it explains nothing about their day, and it
+# was not computed — the model supplied it from its own knowledge. The
+# no-invention gate below only validates LIFE AREAS, so a claim like this passed
+# every check we had. The daily card talks about the reader's life, not about
+# the sky's arithmetic.
+_CYCLE_CLAIM_RX = re.compile(
+    r"(?i)("
+    r"once\s+(?:in|every)\s+[\w\s-]{0,12}?\d+\s*(?:[-–]\s*\d+\s*)?years?|"
+    r"every\s+\d+\s*(?:[-–]\s*\d+\s*)?years?|"
+    r"\d+\s*(?:[-–]\s*\d+\s*)?[-\s]year\s+cycle"
+    r")"
 )
 
 
@@ -354,7 +377,9 @@ def parse_and_validate(raw: str, language: str = "en",
 
     # Reject RAW jargon leaks outright — a strip-rewritten sentence reads
     # mangled; the engine's clean template is the better fallback.
-    if _JARGON_RX.search(headline) or _JARGON_RX.search(highlight):
+    _jm = _JARGON_RX.search(headline) or _JARGON_RX.search(highlight)
+    if _jm:
+        print(f"[today-narration] jargon gate rejected {_jm.group(0)!r} (pre-strip)")
         return None
 
     # Defense-in-depth: run the standard strip layer, then re-check.
@@ -378,7 +403,13 @@ def parse_and_validate(raw: str, language: str = "en",
         return None
     if "!" in headline or "!" in highlight:
         return None
-    if _JARGON_RX.search(headline) or _JARGON_RX.search(highlight):
+    _jm = _JARGON_RX.search(headline) or _JARGON_RX.search(highlight)
+    if _jm:
+        print(f"[today-narration] jargon gate rejected {_jm.group(0)!r} (post-strip)")
+        return None
+    _cm = _CYCLE_CLAIM_RX.search(headline) or _CYCLE_CLAIM_RX.search(highlight)
+    if _cm:
+        print(f"[today-narration] cycle-claim gate rejected {_cm.group(0)!r}")
         return None
     # [Fix C] no-invention gate — the model may only speak to computed votes.
     if allowed_areas is not None:
