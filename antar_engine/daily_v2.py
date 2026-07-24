@@ -83,6 +83,87 @@ _STATE_LINES = {
     },
 }
 
+# [state-lines-i18n 2026-07-24] _STATE_LINES above is the EN source and stays
+# byte-identical. Its neighbours (_DOMAIN_LABELS, _STATE_WORD) already carried
+# en/es/pt, so a Spanish card rendered a Spanish label and state word above an
+# ENGLISH sentence. That was invisible while domain_strip was silently failing
+# and returning []; fixing that (1527602) put it on screen.
+#
+# Curated table rather than the LLM translate path: this is a fixed 20-string
+# set, so a table costs no latency, cannot drift, and says the same thing every
+# time. A miss falls back to English — never a mistranslation.
+_STATE_LINES_L10N = {
+    "es": {
+        "favorable": {
+            "mind":   "Hoy tienes la mente clara — escribe, decide, resuelve lo que exige pensar.",
+            "body":   "El cuerpo responde bien hoy — buen día para moverte y retomar tus rutinas.",
+            "work":   "Hoy el trabajo premia el esfuerzo visible — empuja lo que de verdad importa.",
+            "money":  "El dinero viene con viento a favor hoy — reclama lo que te deben, envía tus facturas.",
+            "people": "Hoy la gente responde con calidez — pide lo que necesitas, repara la distancia, da el primer paso.",
+        },
+        "caution": {
+            "mind":   "Hoy tu juicio está más nublado de lo normal — evita decisiones que exijan claridad.",
+            "body":   "No te exijas físicamente hoy — tus reservas están más bajas de lo que parecen.",
+            "work":   "No fuerces compromisos grandes de trabajo hoy — ejecuta sí, decide después.",
+            "money":  "Frena gastos nuevos o movimientos especulativos hoy — el momento no te acompaña.",
+            "people": "Ve con calma en las conversaciones tensas hoy — aplaza la confrontación si puedes.",
+        },
+        "volatile": {
+            "mind":   "Hoy tu mente oscila — claridad fuerte y niebla real en el mismo día; decide temprano, no tarde.",
+            "body":   "La energía oscila hoy — te sentirás fuerte y luego plano; no armes el día entero sobre la hora buena.",
+            "work":   "Hoy el trabajo corta por los dos lados — hay una oportunidad real y un revés real; toma la oportunidad, no persigas el revés.",
+            "money":  "El dinero se mueve en AMBOS sentidos hoy — ganancia y pérdida están vivas. No pongas dinero en riesgo: hoy es justo el día en que corta por los dos lados.",
+            "people": "Hoy la gente sopla frío y caliente — una conversación aterriza, otra hiere. No cierres nada importante apoyándote en ninguna de las dos.",
+        },
+        "steady": {
+            "mind":   "Hoy la mente está estable — el trabajo concentrado y ordinario mueve las cosas.",
+            "body":   "El cuerpo está estable hoy — mantén el hábito, no ignores las señales de alerta.",
+            "work":   "El trabajo está estable hoy — protege bloques de concentración, entrega cosas pequeñas.",
+            "money":  "El dinero está tranquilo hoy — no hacen falta grandes movimientos; cuida el colchón.",
+            "people": "Los vínculos están en calma hoy — bastan gestos breves y cálidos.",
+        },
+    },
+    "pt": {
+        "favorable": {
+            "mind":   "Hoje sua cabeça está clara — escreva, decida, resolva o que exige pensar.",
+            "body":   "O corpo responde bem hoje — bom dia para se mover e retomar a rotina.",
+            "work":   "Hoje o trabalho recompensa o esforço visível — empurre o que realmente importa.",
+            "money":  "O dinheiro vem com vento a favor hoje — cobre o que te devem, envie suas faturas.",
+            "people": "Hoje as pessoas respondem com afeto — faça o pedido, repare a distância, dê o primeiro passo.",
+        },
+        "caution": {
+            "mind":   "Hoje seu julgamento está mais nublado que o normal — evite decisões que exijam clareza.",
+            "body":   "Não se force fisicamente hoje — suas reservas estão mais baixas do que parecem.",
+            "work":   "Não force grandes compromissos de trabalho hoje — execute sim, decida depois.",
+            "money":  "Segure gastos novos ou movimentos especulativos hoje — o momento não está a seu favor.",
+            "people": "Vá com calma nas conversas tensas hoje — adie a confrontação se puder.",
+        },
+        "volatile": {
+            "mind":   "Hoje sua mente oscila — clareza forte e névoa real no mesmo dia; decida cedo, não tarde.",
+            "body":   "A energia oscila hoje — você vai se sentir forte e depois sem gás; não monte o dia todo em cima da hora boa.",
+            "work":   "Hoje o trabalho corta dos dois lados — há uma oportunidade real e um revés real; pegue a oportunidade, não corra atrás do revés.",
+            "money":  "O dinheiro se move nos DOIS sentidos hoje — ganho e perda estão vivos. Não coloque dinheiro em risco: hoje é exatamente o dia em que corta dos dois lados.",
+            "people": "Hoje as pessoas sopram quente e frio — uma conversa acerta, outra fere. Não feche nada importante se apoiando em nenhuma das duas.",
+        },
+        "steady": {
+            "mind":   "Hoje a mente está estável — o trabalho concentrado e comum move as coisas.",
+            "body":   "O corpo está estável hoje — mantenha o hábito, não ignore os sinais de alerta.",
+            "work":   "O trabalho está estável hoje — proteja blocos de concentração, entregue coisas pequenas.",
+            "money":  "O dinheiro está tranquilo hoje — não são necessários grandes movimentos; cuide da reserva.",
+            "people": "Os vínculos estão calmos hoje — bastam gestos breves e afetuosos.",
+        },
+    },
+}
+
+
+def _state_line(state: str, key: str, lang: str) -> str:
+    """The domain line for this state, in `lang`, falling back to English."""
+    if lang and lang != "en":
+        loc = ((_STATE_LINES_L10N.get(lang) or {}).get(state) or {}).get(key)
+        if loc:
+            return loc
+    return (_STATE_LINES.get(state) or {}).get(key) or ""
+
 
 def _strength_note(score: int, states: Dict[str, str]) -> str:
     """[dv2-polish 2026-06-08] Human subtitle — no raw counts, no clinical
@@ -655,7 +736,7 @@ def domain_strip(chart_data: Dict[str, Any], target_date=None,
     out = []
     for key in ("work", "money", "people", "body", "mind"):
         state = states.get(key) or "steady"
-        line = (_STATE_LINES.get(state) or {}).get(key)
+        line = _state_line(state, key, lang)
         if not line:
             continue
         held = 0 if state == "steady" else _stale_days(

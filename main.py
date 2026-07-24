@@ -27821,6 +27821,12 @@ async def get_home(
             except Exception:
                 pass
             if cached and _lc_gen == _lc_today:
+                # [lang-echo 2026-07-24] set explicitly rather than trusting the
+                # cached blob: rows written before this change have no language
+                # key, and the decorator may have resolved 'en' to the chart's
+                # stored preference after the row was written.
+                if isinstance(cached, dict):
+                    cached["language"] = language
                 return _ent_home_view(cached, chart_id)   # [launch-ent]
     except Exception as _ce:
         print(f"[home] cache read skipped (table may be missing): {_ce}")
@@ -27902,6 +27908,17 @@ async def get_home(
     # [strip-3surfaces-returns 2026-06-09]
     payload = _strip_payload_leaves(payload, language=locals().get('language', 'en'))
     _home_out = _ent_home_view(payload, chart_id)   # [launch-ent]
+    # [lang-echo 2026-07-24] Report the language actually SERVED, which is not
+    # always the one requested — the decorator can resolve a bare 'en' to the
+    # chart's stored preference. Without this the client caches a Spanish
+    # payload under an 'en' key. /predict/year-attention already echoes it;
+    # this brings /home in line. "language" is in GLOBAL_SKIP_FIELDS, so the
+    # translator leaves the value alone.
+    try:
+        if isinstance(_home_out, dict):
+            _home_out["language"] = language
+    except Exception:
+        pass
     # [gamification] Ride along on the call the app already makes — the streak
     # widget shouldn't cost an extra round trip on cold start.
     try:
