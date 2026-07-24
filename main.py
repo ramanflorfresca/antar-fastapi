@@ -18965,6 +18965,15 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             print(f"[daily-signal] domain strip failed (non-fatal): {_de}")
             result["domains"] = []
 
+        # [day-energy 2026-07-24] One canonical answer to "what kind of day is
+        # this", so the week-strip dot, the status label and the signal badge
+        # stop disagreeing on the same day. See daily_v2.day_energy.
+        try:
+            from antar_engine.daily_v2 import day_energy as _day_energy
+            result["day_energy"] = _day_energy(result, language)
+        except Exception as _dee:
+            print(f"[daily-signal] day_energy failed (non-fatal): {_dee}")
+
         result.pop("day_mantra", None)
         if isinstance(result.get("panchanga"), dict):
             result["panchanga"].pop("mantra", None)
@@ -26851,6 +26860,17 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
         # leaves before serialising — kills 27/56, Budhaditya,
         # aggregate-score garble, energy-prose, etc.
         try:
+            # [day-energy 2026-07-24] Stamp every day in the week with the ONE
+            # canonical energy, so the strip's dot and the day card it opens
+            # can never disagree. See daily_v2.day_energy.
+            try:
+                from antar_engine.daily_v2 import day_energy as _day_energy
+                for _dy in signals:
+                    if isinstance(_dy, dict):
+                        _dy["day_energy"] = _day_energy(_dy, language)
+            except Exception as _dee:
+                print(f"[daily-week] day_energy failed (non-fatal): {_dee}")
+
             signals = _strip_payload_leaves(signals, language=language)
             _week_highlights_agg = _strip_payload_leaves(_week_highlights_agg, language=language)
             _transit_highlights = _strip_payload_leaves(_transit_highlights, language=language)

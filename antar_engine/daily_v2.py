@@ -165,6 +165,69 @@ def _state_line(state: str, key: str, lang: str) -> str:
     return (_STATE_LINES.get(state) or {}).get(key) or ""
 
 
+# ── Day energy: ONE answer to "what kind of day is this" ────────────────────
+# [day-energy 2026-07-24] The payload carried FIVE uncoordinated answers, and
+# they disagreed on the same day: verdict_label='Neutral', score=5,
+# strength='low', direction='quiet', tara_quality='favorable'. The card renders
+# its week-strip dot, its status label and its signal badge from different ones,
+# so a single day showed a grey LIGHTER-TOUCH dot beside a GOOD label beside a
+# STRONG badge. That is not a rendering bug — the API handed the client four
+# answers and it picked three.
+#
+# verdict_label is the worst offender: it is LLM-authored, while score and
+# is_friction_day are computed. The writer and the arithmetic were never tied
+# together, so the label drifts from the dot by construction.
+#
+# This is the canonical field. Derived from the two DETERMINISTIC inputs only,
+# using the engine's own threshold (_score_day: is_friction = score < 4), and
+# banded to match the three states the week strip already shows.
+_DAY_ENERGY_LABELS = {
+    "steady":   {"en": "STEADY DAY",
+                 "es": "DÍA ESTABLE",
+                 "pt": "DIA ESTÁVEL"},
+    "light":    {"en": "LIGHTER-TOUCH DAY",
+                 "es": "DÍA DE RITMO SUAVE",
+                 "pt": "DIA DE RITMO LEVE"},
+    "friction": {"en": "FRICTION DAY",
+                 "es": "DÍA DE FRICCIÓN",
+                 "pt": "DIA DE ATRITO"},
+}
+# Semantic, not a colour — the client owns the palette.
+_DAY_ENERGY_TONE = {"steady": "positive", "light": "neutral", "friction": "caution"}
+
+
+def day_energy(day: Dict[str, Any], language: str = "en") -> Dict[str, Any]:
+    """{key, label, tone, score} — the single source of truth for day energy.
+
+    Every chip that answers "what kind of day is this" must render from this
+    one object. Anything reading strength / direction / tara_quality /
+    verdict_label for that purpose will drift, because those are internals
+    that measure different things.
+    """
+    lang = (language or "en").split("-")[0].lower()
+    if lang not in ("en", "es", "pt"):
+        lang = "en"
+    d = day if isinstance(day, dict) else {}
+    try:
+        score = int(d.get("score", 5))
+    except (TypeError, ValueError):
+        score = 5
+    score = max(0, min(10, score))
+
+    if d.get("is_friction_day") or score < 4:
+        key = "friction"
+    elif score >= 7:
+        key = "steady"
+    else:
+        key = "light"
+    return {
+        "key":   key,
+        "label": _DAY_ENERGY_LABELS[key].get(lang) or _DAY_ENERGY_LABELS[key]["en"],
+        "tone":  _DAY_ENERGY_TONE[key],
+        "score": score,
+    }
+
+
 def _strength_note(score: int, states: Dict[str, str]) -> str:
     """[dv2-polish 2026-06-08] Human subtitle — no raw counts, no clinical
     labels ('favorable' / 'need care'). A friend's day-mood phrase."""
