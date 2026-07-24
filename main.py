@@ -18941,7 +18941,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         try:
             from antar_engine.daily_v2 import domain_strip as _dstrip
             result["domains"] = _dstrip(
-                chart_data, start_date.date() if hasattr(start_date, "date") else start_date,
+                cd, start_date.date() if hasattr(start_date, "date") else start_date,
                 {"lat": lat, "lng": lng, "tz_offset": effective_offset},
                 language,
             )
