@@ -29503,16 +29503,23 @@ async def _life_arc_compute(chart_id, horizon_months, language,
     # antar_engine/life_arc/forward_cycle_engine.py header).
     try:
         from antar_engine.life_arc.forward_cycle_engine import build_forward_cycle as _fwd_build
+        try:
+            _fwd_dashas = get_dashas_for_chart(chart_id)   # stored Jaimini Chara + Vimśottari
+        except Exception as _fd_err:
+            print(f"[life_arc] dasha fetch for forward_cycle failed (non-blocking): {_fd_err}")
+            _fwd_dashas = None
         _fwd = _fwd_build(
             chart_data=chart_data,
             birth_jd=birth_jd,
             now=_la_dt.utcnow(),
             birth_date_str=birth_date_str,
             language=language,
+            dashas=_fwd_dashas,
         )
-        response["verdict"]        = _fwd.get("verdict", "")
-        response["arc"]            = _fwd.get("arc", {})
-        response["cycle_timeline"] = _fwd.get("cycle_timeline", [])
+        response["verdict"]         = _fwd.get("verdict", "")
+        response["arc"]             = _fwd.get("arc", {})
+        response["cycle_timeline"]  = _fwd.get("cycle_timeline", [])
+        response["wealth_ignition"] = _fwd.get("wealth_ignition", {})
     except Exception as _fwd_err:
         print(f"[life_arc] forward_cycle engine failed (non-blocking): {_fwd_err}")
         response.setdefault("verdict", "")

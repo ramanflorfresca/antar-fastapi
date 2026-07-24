@@ -101,6 +101,22 @@ def test_unavailable_without_stored_chara_rows():
     assert wi.get("available") is False
 
 
+def test_life_arc_threading_surfaces_wealth_ignition():
+    # /life-arc path: build_forward_cycle must thread `dashas` into the forecast
+    # and return it under the "wealth_ignition" key.
+    import swisseph as swe
+    from antar_engine.life_arc.forward_cycle_engine import build_forward_cycle
+    birth_jd = swe.julday(1974, 11, 26, 12.0)
+    res = build_forward_cycle(CHART, birth_jd, now=NOW.replace(tzinfo=None),
+                              birth_date_str="1974-11-26", language="en",
+                              dashas=DASHAS)
+    assert "wealth_ignition" in res
+    wi = res["wealth_ignition"]
+    assert wi.get("available") is True
+    assert wi["primary"]["sign"] == "Sagittarius"
+    assert wi["primary"]["tier"] == "peak"
+
+
 if __name__ == "__main__":
     class _MP:  # noqa
         pass

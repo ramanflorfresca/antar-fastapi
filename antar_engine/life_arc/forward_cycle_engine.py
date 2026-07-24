@@ -897,7 +897,8 @@ def _chara_rashi_lord(chart_data: dict, birth_date_str: str,
 def build_forward_cycle(chart_data: dict, birth_jd: float,
                         now: Optional[datetime] = None,
                         birth_date_str: str = "",
-                        language: str = "en") -> dict:
+                        language: str = "en",
+                        dashas: Optional[dict] = None) -> dict:
     """
     Returns {"verdict": str, "arc": {...}, "cycle_timeline": [...]} or a
     cleanly-empty stub so a forward-engine bug never tanks the rest of
@@ -1059,15 +1060,13 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
 
     # Forward wealth-ignition (Sri Lagna × K.N. Rao Chara × Vimśottari) —
     # structured like `arc` (not a scrubbed planet-free node). Non-blocking.
-    # NOTE: reads the STORED Jaimini Chara rows via `dashas`. build_forward_cycle
-    # has no dashas dict in scope, so this stays inert here (returns {}) until the
-    # /life-arc caller threads get_dashas_for_chart() in — the live surface is
-    # /predict, which passes them. birth_jd covers the vimśottari fallback only.
+    # Reads the STORED Jaimini Chara rows via `dashas` (passed by _life_arc_compute
+    # from get_dashas_for_chart). birth_jd covers the vimśottari fallback only.
     wealth_ignition = {}
     try:
         from antar_engine.wealth_ignition import build_wealth_ignition
         wealth_ignition = build_wealth_ignition(
-            chart_data, dashas=None, birth_jd=birth_jd,
+            chart_data, dashas=dashas, birth_jd=birth_jd,
             birth_date_str=birth_date_str or "", now=now,
         ) or {}
     except Exception as _wi_e:
