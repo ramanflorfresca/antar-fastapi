@@ -15237,7 +15237,7 @@ COMBINED TIMING CONTEXT:
 {request.name_b} current cycle: {_pre_timing['md_b']} ({_pre_timing['phase_label_b']}, {_pre_timing['remaining_b']} months remaining)
 Alignment status: {_pre_timing['status'].upper()} — {_pre_timing['description']}
 Overlap window: {_pre_timing['overlap_months']} months
-IMPORTANT: Lead with timing analysis — is NOW a good time for this {_compat_type}? Be specific about the window (months, not vague). No astrology jargon in output.
+IMPORTANT: Lead with timing analysis — is NOW a good time for this {_compat_type}? Be specific about the window (months, not vague). Keep this section in plain language; the astrological basis goes in the final section.
 """
     brief_b = brief_b + "\n" + _timing_inject
 
@@ -15249,6 +15249,18 @@ IMPORTANT: Lead with timing analysis — is NOW a good time for this {_compat_ty
         employee_role=_emp_role,
         language=(request.language or "en"),
     )
+
+    # [compat-disclosure 2026-07-24] Two-layer disclosure — plain reading on the
+    # default surface, astrological evidence one tap down. Same pattern as
+    # mantra.advanced on the practice surface. Split BEFORE the score regex and
+    # before the session row is written, so the stored layer1_analysis (which
+    # also feeds the layer-2 prompts) is the plain text.
+    _compat_advanced = ""
+    try:
+        from antar_engine.compatibility_session_engine import split_advanced_astrology
+        layer1, _compat_advanced = split_advanced_astrology(layer1)
+    except Exception as _sae:
+        print(f"[compat] advanced split skipped (non-fatal): {_sae}")
 
     # Extract score from layer1 text
     import re as _re
@@ -15430,6 +15442,11 @@ IMPORTANT: Lead with timing analysis — is NOW a good time for this {_compat_ty
         "layer":            1,
         "chart_id_b":       chart_id_b,
         "analysis":         layer1,
+        # [compat-disclosure 2026-07-24] Layer two of the disclosure tier: the
+        # astrological evidence for everything in `analysis`. Render it behind
+        # an expander — `analysis` is complete without it. Empty string when the
+        # model omitted the section, so the client can just hide the control.
+        "advanced_astrology": _compat_advanced,
         "has_time_a":       has_time_a,
         "has_time_b":       has_time_b,
         "confidence_pct":   90 if (has_time_a and has_time_b) else 65,

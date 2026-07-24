@@ -488,7 +488,9 @@ OUTPUT FORMAT (respond in this exact structure):
 
 ## What Works — Strengths
 [3-4 specific strengths grounded in actual planetary data]
-Each strength MUST reference specific planets, signs, houses, or dasha periods.
+Each strength MUST be stated as OBSERVABLE HUMAN BEHAVIOUR — how these two
+actually work together, what one does that the other needs. The planetary basis
+belongs in the final section, never here.
 {cfg['extra_sections']}
 
 ## Watch Points — Growth Areas
@@ -497,14 +499,68 @@ Never say "this will fail" — frame as "this requires conscious attention"
 
 ## Timing — Key Windows
 [2-3 specific timing insights based on both dasha timelines]
-Be specific: exact years, which dasha period, what it means for this {compat_type} context.
+Be specific about WHEN — exact years and months. Name the calendar window and
+what changes for this {compat_type} in plain terms. Do not name the period or
+the planet driving it here; that goes in the final section.
 
 ## The Core Question
 [One honest, direct paragraph: given all of this, what is the fundamental nature of this {compat_type} partnership?]
 
+## The Astrology Behind This
+[The technical grounding for everything above — this section is the ONLY place
+astrological vocabulary may appear, and it must be complete enough to stand on
+its own. Name the specific planets, signs, houses, yogas and dasha periods, and
+tie each one to the claim it supports above: which strength it produces, which
+watch point it explains, which timing window it drives. Write it for a reader
+who knows the vocabulary and wants the evidence, not for a beginner.]
+
+EVERY SECTION EXCEPT THE LAST: zero astrological vocabulary. No planet names, no
+signs, no houses, no dasha or period names, no Sanskrit, no "energy of X". A
+reader who never opens the last section must still get a complete, confident,
+useful reading. A reader who does open it must find the full chain of evidence.
+
 After your analysis, end with exactly this line:
 ---
 Would you like me to analyze how this partnership aligns with your startup or business context?"""
+
+
+# ── Two-layer disclosure ────────────────────────────────────────────────────
+# [compat-disclosure 2026-07-24] Compat used to ship astrological vocabulary
+# straight to the reader: the prompt REQUIRED it ("Each strength MUST reference
+# specific planets, signs, houses, or dasha periods") while a second prompt in
+# the same feature said "No astrology jargon in output", and no strip existed
+# anywhere on the path to settle it. So the jargon level in a paid reading
+# varied by which instruction the model happened to weight.
+#
+# Founder's call: two layers, the same disclosure-tier pattern the practice
+# surface uses for mantra.advanced. The default surface is plain language and
+# complete on its own; the evidence lives one tap down for readers who want it.
+#
+# The model writes both in one pass under a single heading; this splits them so
+# the client never has to parse markdown, and so a legacy client rendering
+# layer1_analysis wholesale simply stops seeing jargon.
+_ADVANCED_HEADING = "## The Astrology Behind This"
+
+
+def split_advanced_astrology(markdown: str):
+    """(plain, advanced) — the reading minus its technical section, and that
+    section's body.
+
+    Idempotent: text with no such section returns (text, ""). Never raises; on
+    anything unexpected the whole reading is returned as the plain layer, which
+    is the pre-change behaviour.
+    """
+    if not isinstance(markdown, str) or _ADVANCED_HEADING not in markdown:
+        return (markdown if isinstance(markdown, str) else ""), ""
+    try:
+        head, _, tail = markdown.partition(_ADVANCED_HEADING)
+        # The model is told to close with a '---' + follow-up question. Anything
+        # after that belongs to the plain layer, not to the evidence block.
+        advanced, sep, rest = tail.partition("\n---")
+        plain = head.rstrip() + ((sep + rest) if sep else "")
+        return plain.rstrip(), advanced.strip()
+    except Exception:
+        return markdown, ""
 
 
 def build_layer2_prompt(
