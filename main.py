@@ -18806,7 +18806,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         from antar_engine.daily_panchanga import calculate_panchanga, format_daily_for_user
         res = supabase.table("charts").select(
             "chart_data,birth_date,name,gender,latitude,longitude,current_country,birth_country,current_city,"
-            "children_status,marital_status,lal_kitab_data"
+            "children_status,marital_status,lal_kitab_data,language_preference"
         ).eq("id", cid).execute()
         if not res.data: raise HTTPException(404, "Chart not found")
         row = res.data[0]
@@ -18816,6 +18816,13 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 cd = json.loads(cd)
             except Exception:
                 cd = {}
+
+        # [lang-safety 2026-07-24] see _resolve_surface_language. This route had no
+        # stored-preference rescue at all, so a Spanish user whose client sends the
+        # bare default 'en' got a Spanish week strip from /daily-week and an ENGLISH
+        # Today card from here. Resolved before generation so it drives
+        # generate_weekly_signals AND the es localization branch below.
+        language = _resolve_surface_language("daily-signal", language, row)
 
         # Natal Moon sign — supports both planet storage formats (see /daily-week)
         natal_moon_sign = None
@@ -22490,6 +22497,11 @@ async def get_weekly_briefing(chart_id: str, refresh: bool = False, language: st
         chart_data   = chart_record.get("chart_data", {})
         planets      = chart_data.get("planets", {})
 
+        # [lang-safety 2026-07-24] see _resolve_surface_language — a bare 'en' from
+        # an unresolved client must not override a stored Spanish preference.
+        # Resolved before generation so it drives the per-language cache key too.
+        language = _resolve_surface_language("weekly-briefing", language, chart_record)
+
         # Get DKP context
         dkp_ctx = ""
         country_code = chart_record.get("current_country") or chart_record.get("country_code", "")
@@ -22676,6 +22688,13 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
             raise HTTPException(status_code=404, detail="Chart not found")
         chart_record = chart_res.data[0]
         chart_data   = chart_record.get("chart_data", {})
+
+        # [lang-safety 2026-07-24] see _resolve_surface_language — a bare 'en' from
+        # an unresolved client must not override a stored Spanish preference.
+        # Resolved before _md_kwargs and _md_read_cache so it drives generation AND
+        # the per-language cache read; this also brings monthly under _pt_gate,
+        # which it was never wired through (same outcome for en/es/pt/fr).
+        language = _resolve_surface_language("monthly-deepdive", language, chart_record)
 
         # Get LK context if available
         lk_ctx = ""
@@ -23184,6 +23203,39 @@ async def get_annual_plan(chart_id: str, refresh: bool = False, language: str = 
 
 from antar_engine.practice_engine import generate_practice_schedule, format_practice_for_predict_prompt
 from antar_engine.pt_readiness import gate_language as _pt_gate  # [pt-gate]
+
+
+def _resolve_surface_language(surface: str, language: str, chart_row: dict) -> str:
+    """[lang-safety 2026-07-24] Resolve the language a content surface should serve.
+
+    'en' is the ambiguous DEFAULT a client sends when it has NOT resolved a
+    language (stale localStorage, a signup that never synced its interface
+    language). A stored non-English preference, by contrast, is an explicit
+    choice — so honor the stored preference over a bare 'en'.
+
+    The global _inject_request_language middleware cannot cover this: it only
+    injects a geo-resolved language when the request carried NO `language` param
+    at all, and these clients always send one. An explicit-but-unresolved 'en'
+    therefore has to be rescued at the surface.
+
+    Extracted 2026-07-24 from /daily-week, which was the ONLY surface that had
+    this block — so the same user got a Spanish week strip alongside an English
+    Today card, weekly briefing and monthly deep-dive. One rule, four surfaces.
+    """
+    lang = _pt_gate(surface, language)
+    if (lang or "en").strip().lower() != "en" or not isinstance(chart_row, dict):
+        return lang
+    stored = (
+        (chart_row.get("language_preference") or "").strip().lower()
+        or (chart_row.get("language") or "").strip().lower()
+    )
+    if stored and stored != "en":
+        resolved = _pt_gate(surface, stored)
+        if resolved != lang:
+            print(f"[{surface}] lang-safety: request 'en' overridden to stored "
+                  f"preference '{resolved}'")
+        return resolved
+    return lang
 import json as _pjson
 def _safe_jsonb(v):
     if isinstance(v, str):
@@ -26595,24 +26647,14 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
             raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
         chart_data = chart_resp.data
 
-        # [lang-safety 2026-07-20] 'en' is the ambiguous DEFAULT the client sends
-        # when it has NOT resolved a language (stale localStorage, a signup that
-        # never synced its interface language). A stored non-English preference,
-        # by contrast, is an explicit choice. So when the request is the bare
-        # default 'en' yet the chart prefers another language, honor the stored
-        # preference — otherwise a Spanish user (Jonatan, CO, preference=es) keeps
+        # [lang-safety 2026-07-20] Honor the chart's stored preference over a bare
+        # default 'en' — otherwise a Spanish user (Jonatan, CO, preference=es) keeps
         # getting English cards because his UI language is stuck on 'en'. This
         # drives generation, the cache key AND the es translation path below, so
         # resolving it here fixes all three at once.
-        if (language or "en").strip().lower() == "en":
-            _stored_pref = (
-                (chart_data.get("language_preference") or "").strip().lower()
-                or (chart_data.get("language") or "").strip().lower()
-            )
-            if _stored_pref and _stored_pref != "en":
-                language = _pt_gate("daily-week", _stored_pref)
-                print(f"[daily-week] lang-safety: request 'en' overridden to stored "
-                      f"preference '{language}' for chart {chart_id[:8]}")
+        # [2026-07-24] Logic extracted to _resolve_surface_language so today/weekly/
+        # monthly share it; behaviour here is unchanged.
+        language = _resolve_surface_language("daily-week", language, chart_data)
 
         # 2. Extract natal Moon sign
         # Handle BOTH storage formats:
