@@ -165,3 +165,84 @@ def sri_lagna_wealth_reading(chart: dict) -> Dict:
         "notes": notes,
         "lord_strength": round(lord_pts, 2),
     }
+
+
+# Activation types when a Chara antardaśā sign lands on a house counted FROM the
+# Sri Lagna. Strength is a 0-1 weight for the forward wealth-ignition vote.
+_SL_ACTIVATION = {
+    1:  ("ignition",     1.0),   # the Sri Lagna sign itself — direct activation
+    2:  ("accumulation", 0.7),   # 2nd from SL — the reference's dhana house
+    11: ("gains",        0.7),   # 11th from SL — its gains house
+    5:  ("fortune",      0.5),   # trine from SL — dharma/luck
+    9:  ("fortune",      0.5),   # trine from SL — dharma/luck
+}
+
+
+def sri_lagna_activation_windows(chart: dict, chara_antardashas: List[dict],
+                                 as_of=None) -> List[Dict]:
+    """Forward Chara antardaśā windows that ACTIVATE the Sri Lagna for wealth.
+
+    Given the antardaśā (sub-sign) timeline of the CURRENT Chara Mahādaśā (from
+    jaimini.compute_jaimini_antardashas), return the sub-windows whose sign
+    energises the Sri Lagna — its own sign (ignition), its 2nd/11th (dhana/gains),
+    its trines (fortune), or the sign occupied by its lord (lord). These are the
+    Jaimini half of the wealth-ignition signal; the caller cross-checks them
+    against Vimśottari favourability before emitting a forecast.
+
+    Each returned dict: start_date, end_date, sign, sign_index, activation,
+    strength (0-1), house_from_sri_lagna, sri_lagna_sign, sri_lagna_lord.
+    Only windows ending on/after `as_of` (default: today) are returned.
+    """
+    import datetime as _dt
+
+    sl = sri_lagna(chart)
+    if not sl.get("available") or not chara_antardashas:
+        return []
+
+    ref = as_of or _dt.date.today()
+    if isinstance(ref, _dt.datetime):
+        ref = ref.date()
+
+    sl_idx = sl["sign_index"]
+    lord = sl["lord"]
+    lord_sign_idx = None
+    ld = ((chart or {}).get("planets") or {}).get(lord) or {}
+    if isinstance(ld.get("sign_index"), int):
+        lord_sign_idx = ld["sign_index"] % 12
+
+    out: List[Dict] = []
+    for ad in chara_antardashas:
+        end = ad.get("end_date")
+        if end is None:
+            continue
+        if isinstance(end, _dt.datetime):
+            end = end.date()
+        if end < ref:
+            continue
+
+        ad_idx = ad["sign_index"]
+        house = ((ad_idx - sl_idx) % 12) + 1
+        activation, strength = _SL_ACTIVATION.get(house, (None, 0.0))
+
+        # The sign holding the Sri Lagna lord also activates the reference, even
+        # when it is not one of the wealth/trine houses above.
+        if activation is None and lord_sign_idx is not None and ad_idx == lord_sign_idx:
+            activation, strength = ("lord", 0.6)
+
+        if activation is None:
+            continue
+
+        out.append({
+            "start_date":           ad.get("start_date"),
+            "end_date":             ad.get("end_date"),
+            "sign":                 ad["sign"],
+            "sign_index":           ad_idx,
+            "activation":           activation,
+            "strength":             strength,
+            "house_from_sri_lagna": house,
+            "sri_lagna_sign":       sl["sign"],
+            "sri_lagna_lord":       lord,
+        })
+
+    out.sort(key=lambda w: str(w.get("start_date")))
+    return out
