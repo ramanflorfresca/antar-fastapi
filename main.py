@@ -12321,6 +12321,25 @@ def _st_bust_prediction_cache(user_id, analysis_lang):
 async def settings_me(authorization: Optional[str] = Header(None), language: str = "en"):
     user_id, email = _st_identity(authorization)
     if not user_id:
+        # [auth-guest 2026-07-25] Diagnostic for the "signed in with Google but
+        # the app says guest" report. The backend is correct either way; this
+        # only makes the CAUSE visible in Railway. Two distinct causes, and the
+        # log line names which:
+        #   no-bearer  -> the frontend never attached the Supabase session to
+        #                 the request (OAuth redirect did not persist / restore
+        #                 the session). This is the silent 200-guest below.
+        #   bad-bearer -> a token WAS sent and Supabase rejected it (expired,
+        #                 or minted for a different project). _st_identity has
+        #                 already logged the concrete reason above.
+        # Grep Railway for: [auth-guest]
+        try:
+            import logging as _al
+            _al.getLogger("antar.settings").info(
+                f"[auth-guest] /me guest: cause="
+                f"{'bad-bearer' if authorization else 'no-bearer'}"
+            )
+        except Exception:
+            pass
         # [me-401] A bearer was SUPPLIED but rejected (expired/invalid):
         # return 401 so the client refreshes its session and retries,
         # instead of silently rendering guest (which strands the user on
