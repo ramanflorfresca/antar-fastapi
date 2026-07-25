@@ -3007,6 +3007,73 @@ async def get_chart_signature(chart_id: str, language: str = "en", authorization
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# CHART IDENTITY — the "this is your chart" summary for the profile surface
+# [chart-identity 2026-07-25] The profile showed "No chart on file yet" for a
+# fully-populated primary chart because no endpoint returned the chart's
+# identity — /me/charts deliberately strips signs ("no signs / planets /
+# nakshatras"). This is the account surface for the user's OWN chart, where the
+# ascendant / Sun / Moon / running period ARE the content the user asked to see.
+# ─────────────────────────────────────────────────────────────────────────────
+def _chart_identity_for(chart_id: str, language: str = "en") -> dict:
+    row = supabase.table("charts").select(
+        "chart_data,first_name,name").eq("id", chart_id).single().execute()
+    if not row.data:
+        raise HTTPException(404, "Chart not found")
+    cd = row.data.get("chart_data") or {}
+    if isinstance(cd, str):
+        try:
+            cd = json.loads(cd)
+        except Exception:
+            cd = {}
+    _name = row.data.get("first_name") or row.data.get("name") or ""
+    try:
+        _dashas = get_dashas_for_chart(chart_id)
+        _vim = _dashas.get("vimsottari", []) if isinstance(_dashas, dict) else (_dashas or [])
+    except Exception as _de:
+        print(f"[chart-identity] dasha load failed (non-fatal): {_de}")
+        _vim = []
+    from antar_engine.chart_identity import build_chart_identity
+    out = build_chart_identity(cd, _vim, name=_name)
+    out["chart_id"] = chart_id
+    return out
+
+
+@app.get("/api/v1/me/chart-identity")
+async def get_my_chart_identity(authorization: Optional[str] = Header(None),
+                                language: str = "en"):
+    """The signed-in user's primary chart identity — powers the profile card."""
+    user_id, _ = _st_identity(authorization)
+    if not user_id:
+        return _st_guest_401()
+    p = _st_get_profile(user_id)
+    primary = p.get("primary_chart_id") or p.get("chart_id")
+    if not primary:
+        charts = _st_user_charts(user_id)
+        primary = charts[0]["id"] if charts else None
+    if not primary:
+        return {"available": False, "reason": "no_chart"}
+    try:
+        return _chart_identity_for(primary, language)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[chart-identity] error for {primary}: {e}")
+        return {"available": False, "reason": "error"}
+
+
+@app.get("/api/v1/chart/{chart_id}/identity")
+async def get_chart_identity(chart_id: str, language: str = "en"):
+    """Chart identity by id — same payload, for any chart the caller can name."""
+    try:
+        return _chart_identity_for(chart_id, language)
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[chart-identity] error for {chart_id}: {e}")
+        return {"available": False, "reason": "error"}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # PAST-EVENTS: Signature verification screen
 # ─────────────────────────────────────────────────────────────────────────────
 
