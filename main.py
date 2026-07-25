@@ -1008,6 +1008,55 @@ async def _deep_read_warm_job():
         print(f"[deep-read-warm] job FATAL: {e}")
 
 
+# ── Daily surface prewarm cron ────────────────────────────────────────────────
+async def _daily_surface_prewarm_job():
+    """[daily-prewarm 2026-07-25] Warm the daily surface (daily-week + daily-signal
+    share one cache) for active charts BEFORE their morning, in each chart's
+    STORED language.
+
+    Why this exists: the backend is ~2s warm but ~4 min cold, and the client
+    fires a burst of daily-signal/daily-week calls on login. On the first open
+    of the day they ALL miss the cache at once and each starts its own
+    generation — a stampede that leaves the user on a spinner for minutes
+    (confirmed in Railway logs). Prewarming collapses that to cache hits.
+
+    Stored language, not 'en': the stampede's stray bare-'en' calls are already
+    redirected to the chart's stored preference by _resolve_surface_language, so
+    warming that one language absorbs them too. Active = a Today load in the last
+    7 days (today_narration_cache), same signal _deep_read_warm_job uses. All
+    generators dedupe on cache, so overlap with the lazy warm costs nothing.
+    _prewarm_daily_week_cache is defined later; it resolves at call time."""
+    import asyncio as _aio
+    from datetime import datetime as _dt2, timedelta as _td2
+    try:
+        cutoff = (_dt2.utcnow() - _td2(days=7)).strftime("%Y-%m-%d")
+        rows = (supabase.table("today_narration_cache").select("chart_id")
+                .gte("narration_date", cutoff).limit(5000).execute()).data or []
+        chart_ids = sorted({r["chart_id"] for r in rows if r.get("chart_id")})
+        if not chart_ids:
+            print("[daily-prewarm] no active charts")
+            return
+        crows = (supabase.table("charts")
+                 .select("id,language_preference,language")
+                 .in_("id", chart_ids).is_("deleted_at", "null").execute()).data or []
+        print(f"[daily-prewarm] warming {len(crows)} active charts")
+        for c in crows:
+            lang = ((c.get("language_preference") or c.get("language") or "en")
+                    .split("-")[0].lower())
+            if lang not in ("en", "es", "pt", "fr"):
+                lang = "en"
+            try:
+                # tz_offset=None -> _prewarm_daily_week_cache derives it from the
+                # chart's country, matching the local_date the user's request computes.
+                await _prewarm_daily_week_cache(c["id"], None, lang)
+            except Exception as _ce:
+                print(f"[daily-prewarm] chart {str(c.get('id'))[:8]} non-fatal: {_ce}")
+            await _aio.sleep(2)  # spread Sonnet load
+        print("[daily-prewarm] done")
+    except Exception as e:
+        print(f"[daily-prewarm] job FATAL: {e}")
+
+
 # ── Daily push nudge cron ─────────────────────────────────────────────────────
 async def _daily_push_job():
     """Daily cron — nudges every device with a registered token to open today's
@@ -1059,6 +1108,8 @@ scheduler.add_job(_daily_polarity_log_job, "cron", hour=3, minute=0,
                   id="daily_polarity_log", replace_existing=True)
 scheduler.add_job(_deep_read_warm_job, "cron", hour=1, minute=0,
                   id="deep_read_warm_asia", replace_existing=True)
+scheduler.add_job(_daily_surface_prewarm_job, "cron", hour=10, minute=0,
+                  id="daily_surface_prewarm", replace_existing=True)
 scheduler.add_job(_deep_read_warm_job, "cron", hour=9, minute=0,
                   id="deep_read_warm_americas", replace_existing=True)
 
