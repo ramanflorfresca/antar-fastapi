@@ -12311,8 +12311,16 @@ def _st_user_charts(user_id):
         # switch the reader onto a chart the rest of the system treats as gone.
         # 129 rows now carry deleted_at after the duplicate cleanup, two of them
         # on real accounts.
+        # [phantom-columns-42703 2026-07-25] Neither `birth_place` NOR
+        # `relationship` exists on charts (verified against the live schema:
+        # place is birth_city; there is no relationship column at all). Naming
+        # either made the WHOLE select fail with 42703, the except below
+        # swallowed it, and every profile load returned [] -> "No chart on file
+        # yet" for accounts that DO have charts. Confirmed in Railway logs.
+        # _st_chart_shape reads both via .get(), so they degrade to None with no
+        # regression — `relationship` was always None here anyway.
         r = supabase.table("charts").select(
-            "id, first_name, name, birth_date, birth_time, birth_city, birth_place, relationship, created_at"
+            "id, first_name, name, birth_date, birth_time, birth_city, created_at"
         ).eq("user_id", user_id).is_("deleted_at", "null") \
          .order("created_at", desc=False).execute()
         return r.data or []
