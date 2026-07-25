@@ -1833,6 +1833,35 @@ async def _get_cached_signal(chart_id: str, date_str: str, language: str, supaba
     return None
 
 
+async def _sf_wait_for_signal(chart_id, date_str, language, supabase_client,
+                              timeout=75.0, interval=1.5):
+    """Wait for a PEER's generation of this day to land in the cache, then return
+    it — used when singleflight.try_acquire said someone else is already
+    generating. Returns the cached signal dict, or None if it never arrives in
+    `timeout`s (caller then generates itself — fail open).
+
+    Timeout is deliberately GENEROUS. A cold single-day generation runs 30-50s
+    (LLM + the validation-retry loop), so a short wait would time out and the
+    loser would generate anyway — the worst outcome, since it waited AND paid.
+    75s comfortably covers a worst-case winner; only a crashed winner makes a
+    waiter hit the ceiling, and the lock's own TTL bounds that. When the winner
+    succeeds the waiter returns the instant the cache appears, not at the ceiling."""
+    import asyncio as _aio
+    import time as _time
+    deadline = _time.monotonic() + timeout
+    while True:
+        # Check first — the winner may already have written the cache.
+        try:
+            sig = await _get_cached_signal(chart_id, date_str, language, supabase_client)
+        except Exception:
+            sig = None
+        if sig:
+            return sig
+        if _time.monotonic() >= deadline:
+            return None
+        await _aio.sleep(interval)
+
+
 async def _save_cached_signal(chart_id: str, date_str: str, language: str, signal_json: dict, supabase_client):
     """Save to Supabase daily_signals_cache (upsert)."""
     try:
@@ -2121,6 +2150,31 @@ async def generate_weekly_signals(
             # per day) and let the route's background full pass fill the cache.
             if not llm_signal and fast_mode:
                 logger.info(f"[daily-week] fast_mode: deferring LLM generation for {date_str}")
+
+            # [singleflight 2026-07-25] Coalesce concurrent generations of THIS
+            # (chart, date, language) across all workers. On a login burst the
+            # same day is requested many times at once; without this each request
+            # generates it independently. If a peer already holds the lock, wait
+            # for its cache write instead of generating a duplicate; only fall
+            # through to our own generation if that wait times out (fail open).
+            # Sets _sf_owned so the lock is released after the cache write below.
+            _sf_owned = False
+            if not llm_signal and not fast_mode and chart_id and supabase_client:
+                try:
+                    from antar_engine import singleflight as _sf
+                    if _sf.try_acquire(supabase_client, chart_id, date_str, language):
+                        _sf_owned = True
+                    else:
+                        _peer = await _sf_wait_for_signal(
+                            chart_id, date_str, language, supabase_client)
+                        if _peer:
+                            _peer = _strip_day_names_from_signal(_peer, language)
+                            llm_signal = _tidy_signal(
+                                _strip_all_jargon_from_signal(_peer, language), language)
+                            logger.info(f"[singleflight] {date_str} served from peer generation")
+                except Exception as _sfe:
+                    logger.warning(f"[singleflight] guard skipped (non-fatal): {_sfe}")
+
             if not llm_signal and not fast_mode:
                 # Build day-specific data for prompt
                 day_prompt_data = {
@@ -2287,6 +2341,17 @@ async def generate_weekly_signals(
                 if llm_signal and supabase_client:
                     await _save_cached_signal(chart_id, date_str, language, llm_signal, supabase_client)
                     logger.info(f"[daily-week] Cached LLM signal for {chart_id}/{date_str}/{language}")
+
+            # [singleflight 2026-07-25] Release our generation lock now the cache
+            # is written (or generation is done), so peers waiting on it can read
+            # the result. Guarded by _sf_owned so a peer/wait path never releases
+            # a lock it does not hold. Held only if we acquired above.
+            if locals().get("_sf_owned"):
+                try:
+                    from antar_engine import singleflight as _sf
+                    _sf.release(supabase_client, chart_id, date_str, language)
+                except Exception:
+                    pass
 
         # ── Build result ──
         if llm_signal:
