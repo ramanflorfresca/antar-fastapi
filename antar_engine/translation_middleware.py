@@ -63,17 +63,16 @@ GLOBAL_SKIP_FIELDS = {
 
 _anthropic_client = None
 
-# [lang-safety 2026-07-24] Surfaces whose decorator honors the chart's stored
-# language_preference when the request carries the ambiguous default 'en'.
-#
-# OPT-IN on purpose. `translate_response` decorates ~30 endpoints; flipping the
-# rescue on for all of them at once is a much larger behaviour change than any
-# one surface needs, so surfaces join this set as they are verified. To extend
-# it, add the endpoint_name here — nothing else is required.
-#
-# Do NOT add "welcome": that surface deliberately treats the query param as the
-# sole source of truth (see the comment above its _pt_gate call in main.py).
-LANG_RESCUE_SURFACES = {"home"}
+# [selection-wins 2026-07-26] Founder rule: the language is WHATEVER THE USER
+# SELECTED — the decorator must never override the requested language with a
+# stored preference. This set is now EMPTY: a requested 'en' means the user
+# wants English and /home serves English. (Was {"home"}, which flipped a
+# requested 'en' to a stored 'es' and made an explicit English toggle
+# impossible — the exact confusion this rule removes.) The _stored_language_pref
+# lookup below is retained only for a genuinely-absent language, and with an
+# empty set it is currently unused; kept so a future no-language fallback can
+# use it without re-adding the override behaviour.
+LANG_RESCUE_SURFACES: set = set()
 
 # chart_id -> (expires_at, preference). A preference changes roughly once in a
 # user's lifetime, and this lookup sits on the bare-'en' path of every request

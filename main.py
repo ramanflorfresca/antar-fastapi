@@ -23444,36 +23444,34 @@ from antar_engine.pt_readiness import gate_language as _pt_gate  # [pt-gate]
 
 
 def _resolve_surface_language(surface: str, language: str, chart_row: dict) -> str:
-    """[lang-safety 2026-07-24] Resolve the language a content surface should serve.
+    """Resolve the language a content surface should serve.
 
-    'en' is the ambiguous DEFAULT a client sends when it has NOT resolved a
-    language (stale localStorage, a signup that never synced its interface
-    language). A stored non-English preference, by contrast, is an explicit
-    choice — so honor the stored preference over a bare 'en'.
+    [selection-wins 2026-07-26] Founder rule: the language is WHATEVER THE USER
+    SELECTED — no confusion, no second-guessing. Whatever language the request
+    carries is honored exactly (after the PT/FR readiness gate). The client owns
+    language resolution now — an explicit in-app toggle, persisted via
+    PATCH /me/language — so a requested 'en' means the user wants English and we
+    serve English.
 
-    The global _inject_request_language middleware cannot cover this: it only
-    injects a geo-resolved language when the request carried NO `language` param
-    at all, and these clients always send one. An explicit-but-unresolved 'en'
-    therefore has to be rescued at the surface.
-
-    Extracted 2026-07-24 from /daily-week, which was the ONLY surface that had
-    this block — so the same user got a Spanish week strip alongside an English
-    Today card, weekly briefing and monthly deep-dive. One rule, four surfaces.
+    This deliberately REPLACES the 2026-07-24 stored-preference override, which
+    flipped a requested 'en' to a stored 'es'. That was correct when the client
+    could not resolve a language, but it made a user who toggled English unable
+    to get English — the exact confusion this rule removes. Stored preference is
+    now consulted ONLY when the request carries no language at all (guests /
+    pre-resolution), never to override a real selection.
     """
-    lang = _pt_gate(surface, language)
-    if (lang or "en").strip().lower() != "en" or not isinstance(chart_row, dict):
-        return lang
-    stored = (
-        (chart_row.get("language_preference") or "").strip().lower()
-        or (chart_row.get("language") or "").strip().lower()
-    )
-    if stored and stored != "en":
-        resolved = _pt_gate(surface, stored)
-        if resolved != lang:
-            print(f"[{surface}] lang-safety: request 'en' overridden to stored "
-                  f"preference '{resolved}'")
-        return resolved
-    return lang
+    lang = (language or "").strip().lower()
+    if not lang:
+        # No selection on the wire — fall back to the chart's stored selection,
+        # then English. (The global _inject_request_language middleware usually
+        # fills this from geo before we get here; this is the last resort.)
+        if isinstance(chart_row, dict):
+            lang = (
+                (chart_row.get("language_preference") or "").strip().lower()
+                or (chart_row.get("language") or "").strip().lower()
+            )
+        lang = lang or "en"
+    return _pt_gate(surface, lang)
 import json as _pjson
 def _safe_jsonb(v):
     if isinstance(v, str):
