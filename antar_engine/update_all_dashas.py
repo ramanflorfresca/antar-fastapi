@@ -8,7 +8,7 @@ Date: 2026-03-10
 
 import sys
 from supabase import create_client
-from antar_engine import chart, vimsottari, jaimini, ashtottari, utils
+from antar_engine import chart, vimsottari, jaimini, ashtottari, utils, yogini_dasha
 from datetime import datetime, timedelta
 import os
 from dotenv import load_dotenv
@@ -92,6 +92,29 @@ def update_chart_dashas(chart_id):
             "parent_id": None
         }).execute()
     print(f"  Stored {len(ast['mahadashas'])} Ashtottari dashas")
+
+    # store new Yogini (maha = level 1, antar = level 2)
+    # [yogini 2026-07-26] 36-year 8-Yoginī cycle; its short, repeatable periods
+    # make it a strong timing/confirmation overlay on Vimśottarī.
+    yog = yogini_dasha.calculate_yogini_from_chart(chart_data, birth_jd)
+    for seq, md in enumerate(yog['mahadashas']):
+        supabase.table("dasha_periods").insert({
+            "chart_id": chart_id, "system": "yogini", "type": "mahadasha",
+            "level": 1, "sequence": seq, "planet_or_sign": md['lord'],
+            "start_date": md['start_date'], "end_date": md['end_date'],
+            "duration_years": md['duration_years'],
+            "metadata": {"yogini": md['yogini']}, "parent_id": None,
+        }).execute()
+    for seq, ad in enumerate(yog['antardashas']):
+        supabase.table("dasha_periods").insert({
+            "chart_id": chart_id, "system": "yogini", "type": "antardasha",
+            "level": 2, "sequence": seq, "planet_or_sign": ad['lord'],
+            "start_date": ad['start_date'], "end_date": ad['end_date'],
+            "duration_years": ad['duration_years'],
+            "metadata": {"yogini": ad['yogini'], "parent_lord": ad['parent_lord']},
+            "parent_id": None,
+        }).execute()
+    print(f"  Stored {len(yog['mahadashas'])} Yogini maha + {len(yog['antardashas'])} antar")
 
 def main():
     # Fetch all chart IDs
