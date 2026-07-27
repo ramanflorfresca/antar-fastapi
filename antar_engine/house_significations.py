@@ -263,6 +263,16 @@ def select_nouns(house: int, direction: Optional[str] = None,
     from life_context. Nouns the reader's known circumstances contradict are
     dropped; if that empties a domain pool we fall back to the house's neutral
     nouns so the house still gets named, just not in the wrong words."""
+    # [life-gate] when no explicit life dict is passed, fall back to the active
+    # context (set by life-arc / other orchestrators). This makes EVERY noun
+    # selection in a gated context respect the reader's known facts — no
+    # hunting down each call site to thread `life=` through.
+    if life is None:
+        try:
+            from antar_engine.life_context import active_life
+            life = active_life()
+        except Exception:
+            life = None
     sig = HOUSE_SIGNIFICATIONS.get(house)
     if not sig:
         return []

@@ -686,9 +686,13 @@ async def generate_annual_plan(
     for _f in ('year_theme', 'year_summary', 'year_mantra'):
         _v = result.get(_f)
         if isinstance(_v, str) and _v:
-            result[_f] = apply_user_facing_strips(
-                _v, language=_lang, field_type='plain'
-            )
+            _v = apply_user_facing_strips(_v, language=_lang, field_type='plain')
+            # [energy-strip] "your growth and wisdom energy('s)" is clumsy jargon-
+            # tell — drop the trailing "energy" so it reads "your growth and
+            # wisdom". Targets only the "your <words> energy" construction.
+            _v = re.sub(r"(\byour [\w' ]+?)\s+energy('s)?\b", r"\1", _v, flags=re.I)
+            _v = re.sub(r"\s{2,}", " ", _v).strip()
+            result[_f] = _v
 
     # peak_windows[<domain>].signal — plain per domain
     _pw = result.get('peak_windows')

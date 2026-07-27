@@ -14822,7 +14822,7 @@ function readableInner(title,d){
   body+=(r.sections||[]).map(s=>`<div class=fld><div class=lbl>${s.label}</div><div class=val>${s.text}</div></div>`).join('');
   body+=(r.lists||[]).map(s=>`<div class=fld><div class=lbl>${s.label}</div>`+s.items.map(t=>`<div class=li>${t}</div>`).join('')+`</div>`).join('');
   if(d.flag_count) body+=`<div class=muted style="font-size:12px;margin-top:8px">⚠ ${d.flag_count} audit flag(s) — jargon/broken</div>`;
-  return cardInner(title,pills,body||'<div class=muted>no content</div>');
+  return cardInner(title,pills,body||'<div class=muted>still generating — give it a moment and reload, or open its own tab above.</div>');
 }
 function dailyInner(title,d){if(!d||d.error)return cardInner(title,['<span class="pill r">error</span>'],'<div class=muted>'+((d&&d.error)||'no response')+'</div>');const c=dailyBody(d);return cardInner(title,c.pills,c.body);}
 async function loadAll(id){
@@ -14842,13 +14842,26 @@ async function loadAll(id){
     const nm=(d.identity&&d.identity.name)||'', bd=(d.birth&&d.birth.date)||'?', city=(d.current&&d.current.city)||'?', ctry=(d.current&&d.current.country)||'?', prof=(d.selected&&d.selected.profession)||'no profession set';
     el.innerHTML='<b style="color:#fff">'+nm+'</b> · born '+bd+' · now '+city+', '+ctry+' · '+prof+' &nbsp; <a class=tok onclick="MODE=\'details\';setSeg(\'details\');load(\''+id+'\')">edit chart details →</a>';
   }).catch(()=>{});
-  defs.forEach(x=>{
-    fetch(x.url,{headers:H()}).then(r=>r.json().then(d=>({ok:r.ok,d}))).then(({ok,d})=>{
-      const el=document.getElementById('dash_'+x.k); if(!el)return;
-      if(!ok&&!d.error)d.error='HTTP '+(d.status||'error');
-      el.innerHTML=(x.kind==='daily')?dailyInner(x.title,d):readableInner(x.title,d);
-    }).catch(e=>{const el=document.getElementById('dash_'+x.k); if(el)el.innerHTML=cardInner(x.title,['<span class="pill r">error</span>'],'<div class=muted>'+e+'</div>');});
-  });
+  defs.forEach(x=>fetchSurface(x,id,0));
+}
+function _readEmpty(d){const r=(d&&d.readable)||{};return !(r.headline||(r.sections&&r.sections.length)||(r.lists&&r.lists.length));}
+function fetchSurface(x,id,attempt){
+  fetch(x.url,{headers:H()}).then(r=>r.json().then(d=>({ok:r.ok,d}))).then(({ok,d})=>{
+    const el=document.getElementById('dash_'+x.k); if(!el)return;
+    if(!ok&&!d.error)d.error='HTTP '+(d.status||'error');
+    // heavy surfaces return empty while regenerating in the background — show a
+    // generating state and auto-retry rather than a misleading "no content".
+    if(x.kind!=='daily'&&!d.error&&_readEmpty(d)&&attempt<5){
+      el.innerHTML=cardInner(x.title,['<span class=pill>generating…</span>'],'<div class=muted style="padding:12px 0">first build is running in the background (~15–40s) — auto-retrying… (try '+(attempt+1)+'/5)</div>');
+      setTimeout(()=>fetchSurface(x,id,attempt+1),9000);
+      return;
+    }
+    el.innerHTML=(x.kind==='daily')?dailyInner(x.title,d):readableInner(x.title,d);
+    if(x.k==='ask') el.innerHTML+='<div style="margin-top:10px;border-top:1px solid var(--line2);padding-top:10px"><a class=tok onclick="MODE=\'ask\';setSeg(\'ask\');load(\''+id+'\')">💬 Open the Ask chat — type any question, follow-ups too →</a><div class=muted style="font-size:11px;margin-top:3px">(this card is a quick career-timing snapshot; the chat answers anything)</div></div>';
+  }).catch(e=>{const el=document.getElementById('dash_'+x.k); if(!el)return;
+    if(attempt<5){setTimeout(()=>fetchSurface(x,id,attempt+1),9000);
+      el.innerHTML=cardInner(x.title,['<span class=pill>retrying…</span>'],'<div class=muted>'+e+' — auto-retrying…</div>');}
+    else el.innerHTML=cardInner(x.title,['<span class="pill r">error</span>'],'<div class=muted>'+e+'</div>');});
 }
 function dailyBody(d){const f=d.fields,coh=d.coherence||{coherent:true};
   const pills=[d.day_energy?`<span class=pill>${d.day_energy.label}</span>`:'',
