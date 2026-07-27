@@ -14243,7 +14243,7 @@ async def admin_debug_page():
     """Self-contained debugger UI (same-origin so it can call the admin API).
     Data endpoints are admin-gated; the admin pastes their bearer token here."""
     from fastapi.responses import HTMLResponse
-    return HTMLResponse(_PRED_DEBUG_HTML)
+    return HTMLResponse(_PRED_DEBUG_HTML, headers={"Cache-Control": "no-store, max-age=0"})
 
 
 @app.get("/admin")
@@ -14251,7 +14251,9 @@ async def admin_debug_page_short():
     """Short alias for the admin panel — same page as
     /api/v1/admin/debug/predictions. The data endpoints stay admin-gated."""
     from fastapi.responses import HTMLResponse
-    return HTMLResponse(_PRED_DEBUG_HTML)
+    # [no-cache 2026-07-27] never let the browser cache the admin page — a stale
+    # cached copy is why new modes appeared missing after a deploy.
+    return HTMLResponse(_PRED_DEBUG_HTML, headers={"Cache-Control": "no-store, max-age=0"})
 
 
 _PRED_DEBUG_HTML = r"""<!doctype html><html><head><meta charset=utf-8>
