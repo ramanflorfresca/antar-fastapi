@@ -18844,6 +18844,21 @@ async def ask_endpoint(request: AskRequest):
     if not question:
         return JSONResponse(status_code=400, content={"error": "Question is required"})
 
+    # [life-gate] resolve the reader's known facts once — appended to the
+    # narrator's system prompt below so Ask never tells a business owner about
+    # "your boss" or the childless about "your child". Same contract as the
+    # other four surfaces. Fail-open to no constraint.
+    _ask_life_block = ""
+    try:
+        from antar_engine.life_context import (
+            resolve_life_facts as _rlf_ask, life_constraint_block as _lcb_ask)
+        _lrow_ask = (supabase.table("charts").select(
+            "career_stage,profession,life_work,marital_status,children_status")
+            .eq("id", chart_id).single().execute().data or {})
+        _ask_life_block = _lcb_ask(_rlf_ask(_lrow_ask))
+    except Exception as _alge:
+        logger.warning(f"[ask] life-gate skipped (non-fatal): {_alge}")
+
     # ── Entitlement: Ask soft caps [ask-launch] ──
     # seeker/navigator → unlimited. Free: 20/day during the 30-day window
     # (anchor: existing users June 5, new users signup; UTC reset), then
@@ -19458,6 +19473,8 @@ async def ask_endpoint(request: AskRequest):
                       f"({len(_sys)} chars) — not persisted")
             raw = ""
             try:
+                if _ask_life_block and isinstance(_sys, str):
+                    _sys = _sys + _ask_life_block
                 _t = await call_llm_claude(prompt=question, system_override=_sys)
                 raw = _t[0] if isinstance(_t, tuple) else _t
             except Exception as _ce:
