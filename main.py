@@ -13913,6 +13913,85 @@ async def admin_compare_daily(chart_id: str, language: str = "en",
             "language": language, "day_frame": frame.get("orientation"), "columns": cols}
 
 
+async def _gen_daily_for_admin(chart_id, cd, natal_moon, tz, language, day_frame):
+    """Generate ONE fresh daily card (persist=False) with a given day_frame —
+    the primitive behind the Logic-diff. Returns (day_dict)."""
+    from datetime import datetime as _gdt
+    from antar_engine.daily_prediction_engine import generate_weekly_signals
+    sigs = await generate_weekly_signals(
+        natal_moon_sign=natal_moon, start_date=_gdt.utcnow(), chart_id=chart_id,
+        supabase_client=supabase, language=language, tz_offset=tz,
+        days_to_generate=1, day_frame=day_frame, persist=False)
+    return sigs[0] if sigs else {}
+
+
+@app.get("/api/v1/admin/logic-diff/{chart_id}")
+async def admin_logic_diff(chart_id: str, factor: str = "day_frame",
+                           language: str = "en",
+                           admin_email: str = Depends(_require_debug)):
+    """Agentic ablation: generate today's card WITH a logic factor vs WITHOUT it,
+    side by side — 'how is my prediction coming with this logic, and without it?'
+    Fresh per side, persist=False (never touches the real cache).
+
+    factor=day_frame: with = the chart's real dasha shaping (completing/starting);
+    without = neutral 'open'. Extensible: add factors here as they become
+    cleanly toggleable in the generator."""
+    from antar_engine.daily_prediction_engine import (
+        _COSMIC_LEAK_RX, _MECHANICS_JARGON_RX, _looks_broken)
+    from antar_engine.daily_v2 import day_energy as _de
+    row = supabase.table("charts").select(
+        "chart_data,first_name,name,current_country,birth_country").eq("id", chart_id).single().execute()
+    if not row.data:
+        raise HTTPException(404, "Chart not found")
+    cd = row.data.get("chart_data") or {}
+    if isinstance(cd, str):
+        try: cd = json.loads(cd)
+        except Exception: cd = {}
+    natal_moon = ((cd.get("planets") or {}).get("Moon") or {}).get("sign") or "Aries"
+    _cc = (row.data.get("current_country") or row.data.get("birth_country") or "").upper()
+    tz = float(_COUNTRY_TZ_OFFSETS.get(_cc, _COUNTRY_TZ_OFFSETS.get("DEFAULT", 0))) * 60
+
+    if factor != "day_frame":
+        raise HTTPException(400, "supported factors: day_frame")
+
+    real_frame = {"orientation": "open"}
+    try:
+        from antar_engine.day_frame import resolve_day_frame
+        real_frame = resolve_day_frame(dashas=get_dashas_for_chart(chart_id))
+    except Exception:
+        pass
+    off_frame = {"orientation": "open"}
+
+    def _a(x):
+        if not isinstance(x, str) or not x.strip():
+            return {"cosmic": False, "mechanics": False, "broken": False}
+        return {"cosmic": bool(_COSMIC_LEAK_RX.search(x)),
+                "mechanics": bool(_MECHANICS_JARGON_RX.search(x)),
+                "broken": _looks_broken(x)}
+
+    def _col(label, d, note):
+        fields = {f: {"text": d.get(f), "audit": _a(d.get(f))}
+                  for f in ("verdict_subline", "senal_de_hoy", "observa_hoy_text", "el_movimiento")}
+        for f in ("haz_hoy", "evita_hoy"):
+            fields[f] = [{"text": x, "audit": _a(x)} for x in (d.get(f) or []) if isinstance(x, str)]
+        alla = [fields[f]["audit"] for f in ("verdict_subline", "senal_de_hoy", "observa_hoy_text", "el_movimiento")]
+        alla += [it["audit"] for f in ("haz_hoy", "evita_hoy") for it in fields[f]]
+        return {"provider": label, "note": note, "day_energy": _de(d, language), "fields": fields,
+                "audit_clean": not any(a["cosmic"] or a["mechanics"] or a["broken"] for a in alla)}
+
+    with_d = await _gen_daily_for_admin(chart_id, cd, natal_moon, tz, language, real_frame)
+    off_d = await _gen_daily_for_admin(chart_id, cd, natal_moon, tz, language, off_frame)
+    cols = [
+        _col(f"WITH day_frame ({real_frame.get('orientation')})", with_d,
+             "the chart's real dasha shaping"),
+        _col("WITHOUT day_frame (open)", off_d, "neutral — no shaping applied"),
+    ]
+    return {"chart_id": chart_id, "name": row.data.get("first_name") or row.data.get("name"),
+            "factor": factor, "frame_was": real_frame.get("orientation"),
+            "no_effect": real_frame.get("orientation") == "open",
+            "columns": cols}
+
+
 def _dbg_audit_text(txt):
     """Shared per-string audit used across surfaces."""
     from antar_engine.daily_prediction_engine import (
@@ -14086,6 +14165,7 @@ _PRED_DEBUG_HTML = r"""<!doctype html><html><head><meta charset=utf-8>
     <button data-m=details class=on>Details</button>
     <button data-m=daily>Daily</button>
     <button data-m=compare>Compare LLMs</button>
+    <button data-m=logic>Logic diff</button>
     <button data-m=life-arc>Life-arc</button>
     <button data-m=monthly>Monthly</button>
     <button data-m=ask>Ask</button>
@@ -14166,6 +14246,13 @@ async function load(id){
       return cardHTML(col.provider,c.pills,c.body);
     }).join('');
     p.innerHTML=`<div style=margin-bottom:12px><b>${d.name}</b> <span class=muted>— same chart, same day, each LLM. frame: ${d.day_frame}</span></div><div class=cardgrid>${cols}</div>`; return;
+  }
+  if(MODE==='logic'){
+    const r=await fetch('/api/v1/admin/logic-diff/'+id+'?factor=day_frame&language='+lang,{headers:H()});
+    const d=await r.json(); if(!r.ok){p.innerHTML='<div class=empty style=color:#ff7b7e>error '+r.status+'</div>';return;}
+    const cols=d.columns.map(col=>{const c=dailyBody(col); c.pills.unshift('<span class=pill>'+col.note+'</span>'); return cardHTML(col.provider,c.pills,c.body);}).join('');
+    const banner=d.no_effect?'<span class=flag>no effect today — frame is already "open", so both sides are identical</span>':'';
+    p.innerHTML=`<div style=margin-bottom:12px><b>${d.name}</b> <span class=muted>— factor: ${d.factor} · frame was: ${d.frame_was}</span> ${banner}</div><div class=cardgrid>${cols}</div>`; return;
   }
   // life-arc / monthly / ask
   const concern=document.getElementById('concern').value.trim()||'career';
