@@ -13698,16 +13698,101 @@ async def admin_preview_daily(chart_id: str, language: str = "en",
         arr = d.get(f) or []
         fields[f] = [{"text": x, "audit": _audit(x)} for x in arr if isinstance(x, str)]
     de = _day_energy(d, language)
+    # [coherence 2026-07-27] does the verdict prose agree with the day_energy chip?
+    from antar_engine.daily_v2 import verdict_energy_coherent
+    coh = verdict_energy_coherent(de, d.get("verdict_subline"))
     flat = [fields[f]["audit"] for f in ("verdict_subline", "senal_de_hoy", "observa_hoy_text", "el_movimiento")]
     flat += [it["audit"] for f in ("haz_hoy", "evita_hoy") for it in fields[f]]
-    clean = not any(a["cosmic"] or a["mechanics"] or a["broken"] for a in flat)
+    clean = (not any(a["cosmic"] or a["mechanics"] or a["broken"] for a in flat)
+             and coh["coherent"])
     return {
         "chart_id": chart_id, "name": row.data.get("first_name") or row.data.get("name"),
         "language": language, "day_frame": frame.get("orientation"),
-        "day_energy": de, "fields": fields,
+        "day_energy": de, "coherence": coh, "fields": fields,
         "llm_generated": d.get("llm_generated"), "fallback": d.get("fallback"),
         "audit_clean": clean,
     }
+
+
+def _dbg_audit_text(txt):
+    """Shared per-string audit used across surfaces."""
+    from antar_engine.daily_prediction_engine import (
+        _COSMIC_LEAK_RX, _MECHANICS_JARGON_RX, _looks_broken)
+    if not isinstance(txt, str) or not txt.strip():
+        return {"cosmic": False, "mechanics": False, "broken": False}
+    return {"cosmic": bool(_COSMIC_LEAK_RX.search(txt)),
+            "mechanics": bool(_MECHANICS_JARGON_RX.search(txt)),
+            "broken": _looks_broken(txt)}
+
+
+def _dbg_audit_walk(obj, min_len=14):
+    """Walk any payload and collect every user-facing string that trips the
+    jargon/broken audit — path-tagged so the debugger can point at the leak."""
+    flagged = []
+    _SKIP = {"chart_id", "id", "date", "start_date", "end_date", "language",
+             "system", "planet_or_sign", "url", "color", "generated_at"}
+    def walk(o, path=""):
+        if isinstance(o, dict):
+            for k, v in o.items():
+                if k not in _SKIP:
+                    walk(v, f"{path}.{k}")
+        elif isinstance(o, list):
+            for i, v in enumerate(o):
+                walk(v, f"{path}[{i}]")
+        elif isinstance(o, str) and len(o.strip()) >= min_len:
+            a = _dbg_audit_text(o)
+            if a["cosmic"] or a["mechanics"] or a["broken"]:
+                flagged.append({"path": path.lstrip("."), "text": o[:160], "audit": a})
+    walk(obj)
+    return flagged
+
+
+@app.get("/api/v1/admin/preview/{surface}/{chart_id}")
+async def admin_preview_surface(surface: str, chart_id: str, language: str = "en",
+                                concern: str = "career",
+                                admin_email: str = Depends(_require_debug)):
+    """Preview + jargon/broken audit for the OTHER surfaces: life-arc, monthly,
+    ask. Reuses each surface's real generator so it shows what the user gets."""
+    surface = (surface or "").lower()
+    payload, meta = {}, {}
+    try:
+        if surface in ("life-arc", "lifearc", "cycle"):
+            res = await get_life_arc(chart_id, language=language)
+            payload = res if isinstance(res, dict) else {}
+            meta = {"verdict": payload.get("verdict"),
+                    "nodes": len((payload.get("cycle_timeline") or []))}
+        elif surface in ("monthly", "monthly-deepdive", "month"):
+            res = await get_monthly_deepdive(chart_id, language=language)
+            payload = res if isinstance(res, dict) else {}
+            meta = {"stale": payload.get("stale"), "regenerating": payload.get("regenerating")}
+        elif surface == "ask":
+            row = supabase.table("charts").select("chart_data,birth_date").eq(
+                "id", chart_id).single().execute()
+            if not row.data:
+                raise HTTPException(404, "Chart not found")
+            cd = row.data.get("chart_data") or {}
+            if isinstance(cd, str):
+                try: cd = json.loads(cd)
+                except Exception: cd = {}
+            dashas = get_dashas_for_chart(chart_id)
+            from antar_engine.ask_consultation import build_convergence_timing
+            payload = build_convergence_timing(concern, cd, dashas,
+                                               str(row.data.get("birth_date") or "")[:10], 36)
+            meta = {"concern": concern, "window": payload.get("window_label"),
+                    "confidence": payload.get("confidence"),
+                    "varga": (payload.get("varga_confirm") or {}).get("status"),
+                    "locks": {k: v.get("active") for k, v in (payload.get("locks") or {}).items()}}
+        else:
+            raise HTTPException(400, f"unknown surface '{surface}' (life-arc|monthly|ask)")
+    except HTTPException:
+        raise
+    except Exception as e:
+        return {"surface": surface, "chart_id": chart_id, "error": str(e)[:200],
+                "flagged": [], "audit_clean": False}
+    flagged = _dbg_audit_walk(payload)
+    return {"surface": surface, "chart_id": chart_id, "language": language,
+            "meta": meta, "flagged": flagged, "flag_count": len(flagged),
+            "audit_clean": len(flagged) == 0}
 
 
 @app.get("/api/v1/admin/debug/predictions")
@@ -13743,6 +13828,8 @@ _PRED_DEBUG_HTML = """<!doctype html><html><head><meta charset=utf-8>
  <b>Antar · Prediction Debugger</b>
  <input id=tok placeholder="admin bearer token" style="width:230px">
  <input id=q placeholder="search name / email…" style="width:200px">
+ <select id=surface><option value=daily>Daily</option><option value=life-arc>Life-arc</option><option value=monthly>Monthly</option><option value=ask>Ask</option></select>
+ <input id=concern placeholder="ask concern (career…)" style="width:130px" value=career>
  <select id=lang><option value=en>EN</option><option value=es>ES</option><option value=pt>PT</option></select>
  <label class=muted><input type=checkbox id=refresh> force regenerate</label>
  <button onclick=search()>Search</button>
@@ -13766,23 +13853,43 @@ async function search(){
   l.innerHTML=d.charts.map(c=>`<div class=row onclick="load('${c.id}')"><b>${c.name}</b> <small>${c.lang}</small><br><small>${c.email||c.birth_date} · ${c.city||''}</small><br><small style=color:#555>${c.id}</small></div>`).join('');
  }catch(e){l.innerHTML='<div class=row style=color:#e5484d>'+e+'</div>';}
 }
+const badge=(a)=>[a.cosmic?'<span class=flag>cosmic</span>':'',a.mechanics?'<span class=flag>jargon</span>':'',a.broken?'<span class=flag>broken</span>':''].join('');
 async function load(id){
  const p=document.getElementById('panel'); p.className=''; p.innerHTML='generating…';
  const lang=document.getElementById('lang').value, rf=document.getElementById('refresh').checked;
+ const surface=document.getElementById('surface').value;
  try{
+  if(surface==='daily'){ return loadDaily(id,lang,rf,p); }
+  const concern=document.getElementById('concern').value.trim()||'career';
+  const r=await fetch('/api/v1/admin/preview/'+surface+'/'+id+'?language='+lang+'&concern='+encodeURIComponent(concern),{headers:H()});
+  const d=await r.json();
+  if(!r.ok){p.innerHTML='<span style=color:#e5484d>error '+r.status+': '+(d.detail||'')+'</span>';return;}
+  const flags=(d.flagged||[]).map(o=>`<div class="fld bad"><div class=lbl>${o.path} ${badge(o.audit)}</div>${o.text}</div>`).join('')||'<div class=muted style=margin-top:10px>no jargon/broken strings found</div>';
+  p.innerHTML=`<div class=card>
+   <div style=display:flex;gap:10px;align-items:center;margin-bottom:6px;flex-wrap:wrap>
+     <b style=font-size:18px>${surface}</b>
+     ${Object.entries(d.meta||{}).map(([k,v])=>`<span class=pill>${k}: ${typeof v==='object'?JSON.stringify(v):v}</span>`).join('')}
+     <span class="pill ${d.audit_clean?'ok':''}" style="border-color:${d.audit_clean?'#3fb950':'#e5484d'}">${d.audit_clean?'✓ clean':'✗ '+d.flag_count+' flagged'}</span>
+   </div>
+   ${d.error?'<div style=color:#e5484d>'+d.error+'</div>':''}
+   <div class=lbl style=margin-top:12px>Flagged strings</div>${flags}
+  </div>`;
+ }catch(e){p.innerHTML='<span style=color:#e5484d>'+e+'</span>';}
+}
+async function loadDaily(id,lang,rf,p){
   const r=await fetch('/api/v1/admin/preview-daily/'+id+'?language='+lang+'&refresh='+rf,{headers:H()});
   const d=await r.json();
   if(!r.ok){p.innerHTML='<span style=color:#e5484d>error '+r.status+': '+(d.detail||'')+'</span>';return;}
-  const badge=(a)=>[a.cosmic?'<span class=flag>cosmic</span>':'',a.mechanics?'<span class=flag>jargon</span>':'',a.broken?'<span class=flag>broken</span>':''].join('');
   const fld=(name,o)=>o&&o.text?`<div class="fld ${(o.audit.cosmic||o.audit.mechanics||o.audit.broken)?'bad':''}"><div class=lbl>${name} ${badge(o.audit)}</div>${o.text}</div>`:'';
   const list=(name,arr)=>(arr&&arr.length)?`<div class=lbl style=margin-top:14px>${name}</div>`+arr.map(o=>`<div class="fld ${(o.audit.cosmic||o.audit.mechanics||o.audit.broken)?'bad':''}">${o.text} ${badge(o.audit)}</div>`).join(''):'';
-  const f=d.fields;
+  const f=d.fields, coh=d.coherence||{coherent:true};
   p.innerHTML=`<div class=card>
-   <div style=display:flex;gap:10px;align-items:center;margin-bottom:6px>
+   <div style=display:flex;gap:10px;align-items:center;margin-bottom:6px;flex-wrap:wrap>
      <b style=font-size:18px>${d.name}</b>
      <span class=pill>${d.day_energy?d.day_energy.label:''}</span>
      <span class=pill>frame: ${d.day_frame}</span>
      <span class=pill>${d.llm_generated?'LLM':'template'}${d.fallback?' · fallback':''}</span>
+     ${coh.coherent?'':'<span class=flag>incoherent: '+coh.note+'</span>'}
      <span class="pill ${d.audit_clean?'ok':''}" style="border-color:${d.audit_clean?'#3fb950':'#e5484d'}">${d.audit_clean?'✓ clean':'✗ issues'}</span>
    </div>
    ${fld('Verdict',f.verdict_subline)}
@@ -13792,7 +13899,6 @@ async function load(id){
    ${fld('Watch for',f.observa_hoy_text)}
    ${fld('The move',f.el_movimiento)}
   </div>`;
- }catch(e){p.innerHTML='<span style=color:#e5484d>'+e+'</span>';}
 }
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
 </script></body></html>"""

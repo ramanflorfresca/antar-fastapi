@@ -228,6 +228,44 @@ def day_energy(day: Dict[str, Any], language: str = "en") -> Dict[str, Any]:
     }
 
 
+# [coherence 2026-07-27] The deterministic day_energy chip and the LLM verdict
+# prose can disagree — a live card showed a FRICTION chip over "A steady day…".
+# This flags that contradiction (tone words in the prose fighting the chip). It
+# is a heuristic AUDIT, deliberately conservative: it only fires on a clear
+# opposite-polarity clash, so the debugger can surface real drift without noise.
+_POS_WORDS = ("steady", "calm", "quiet", "favorable", "favourable", "good",
+              "strong", "supportive", "smooth", "easy", "rewarding", "bright",
+              "flows", "flowing", "in your favor", "on your side")
+_NEG_WORDS = ("friction", "hard ", "harder", "difficult", "tense", "challenging",
+              "rough", "strained", "caution", "careful", "misfire", "tricky",
+              "testing", "heavy", "hold off", "hold back", "avoid forcing",
+              "not the moment", "steer clear")
+
+
+def verdict_energy_coherent(day_energy_obj, verdict_text):
+    """{coherent, note} — does the verdict prose agree with the day_energy chip?
+
+    Only flags an OPPOSITE-polarity clash: a friction/caution chip under purely
+    positive prose (no friction cue), or a steady/positive chip under purely
+    negative prose. A 'light'/neutral chip tolerates either lean.
+    """
+    if not isinstance(day_energy_obj, dict) or not isinstance(verdict_text, str):
+        return {"coherent": True, "note": ""}
+    t = verdict_text.lower()
+    if not t.strip():
+        return {"coherent": True, "note": ""}
+    pos = any(w in t for w in _POS_WORDS)
+    neg = any(w in t for w in _NEG_WORDS)
+    key = day_energy_obj.get("key")
+    if key == "friction" and pos and not neg:
+        return {"coherent": False,
+                "note": "day_energy says FRICTION but the verdict reads positive"}
+    if key == "steady" and neg and not pos:
+        return {"coherent": False,
+                "note": "day_energy says STEADY but the verdict reads negative"}
+    return {"coherent": True, "note": ""}
+
+
 def _strength_note(score: int, states: Dict[str, str]) -> str:
     """[dv2-polish 2026-06-08] Human subtitle — no raw counts, no clinical
     labels ('favorable' / 'need care'). A friend's day-mood phrase."""
