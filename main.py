@@ -14088,11 +14088,22 @@ async def admin_compare_surface(surface: str, chart_id: str, language: str = "en
             return prov, {"provider": prov, "unavailable": True,
                           "note": f"{prov.upper()}_API_KEY not set"}
         t0 = _t.monotonic()
+        card = None
         tok = _lad.set_forced_provider(prov)  # per-task context (isolated under gather)
         try:
             if surface == "daily":
                 d = await _gen_daily_for_admin(chart_id, cd, natal_moon, tz, language, frame)
-                primary = [d.get("verdict_subline"), d.get("senal_de_hoy")]
+                def _txt(x):
+                    return (x or {}).get("text") if isinstance(x, dict) else x
+                card = {
+                    "verdict": _txt(d.get("verdict_subline")),
+                    "signal": _txt(d.get("senal_de_hoy")),
+                    "watch": _txt(d.get("observa_hoy_text")),
+                    "move": _txt(d.get("el_movimiento")),
+                    "do": [t for t in (_txt(x) for x in (d.get("haz_hoy") or [])) if t],
+                    "avoid": [t for t in (_txt(x) for x in (d.get("evita_hoy") or [])) if t],
+                }
+                primary = [card["verdict"], card["signal"]]
                 flagged = _dbg_audit_walk({k: d.get(k) for k in
                     ("verdict_subline", "senal_de_hoy", "observa_hoy_text", "el_movimiento", "haz_hoy", "evita_hoy")})
             elif surface == "monthly":
@@ -14107,7 +14118,7 @@ async def admin_compare_surface(surface: str, chart_id: str, language: str = "en
                 primary = [res.get("verdict")]
                 flagged = _dbg_audit_walk(res)
             return prov, {"provider": prov, "ms": int((_t.monotonic() - t0) * 1000),
-                          "primary": [x for x in primary if x],
+                          "primary": [x for x in primary if x], "card": card,
                           "flagged": flagged, "flag_count": len(flagged),
                           "audit_clean": len(flagged) == 0}
         except Exception as e:
@@ -14496,9 +14507,19 @@ async function load(id){
       if(col.unavailable)return cardHTML(col.provider,['<span class=pill r>unavailable</span>'],'<div class=muted>'+col.note+'</div>');
       if(col.error)return cardHTML(col.provider,['<span class=pill r>error</span>'],'<div class=muted>'+col.error+'</div>');
       const pills=['<span class=pill>'+col.ms+'ms</span>',cleanPill(col.audit_clean)];
-      const prim=(col.primary||[]).map(t=>`<div class=val>${t}</div>`).join('');
+      let bodyc='';
+      if(col.card){const c=col.card;
+        if(c.verdict)bodyc+=`<div class=fld><div class=lbl>Verdict</div><div class="val" style="border-left-color:#8ab4ff;font-weight:600">${c.verdict}</div></div>`;
+        if(c.signal)bodyc+=`<div class=fld><div class=lbl>Signal</div><div class=val>${c.signal}</div></div>`;
+        if((c.do||[]).length)bodyc+=`<div class=fld><div class=lbl>What to do</div>`+c.do.map(t=>`<div class=li>${t}</div>`).join('')+`</div>`;
+        if((c.avoid||[]).length)bodyc+=`<div class=fld><div class=lbl>What to avoid</div>`+c.avoid.map(t=>`<div class=li>${t}</div>`).join('')+`</div>`;
+        if(c.watch)bodyc+=`<div class=fld><div class=lbl>Watch for</div><div class=val>${c.watch}</div></div>`;
+        if(c.move)bodyc+=`<div class=fld><div class=lbl>The move</div><div class=val>${c.move}</div></div>`;
+      } else {
+        bodyc=(col.primary||[]).map(t=>`<div class=val>${t}</div>`).join('');
+      }
       const flags=(col.flagged||[]).map(o=>`<div class="li bad"><div class=lbl>${o.path} ${badge(o.audit)}</div>${o.text}</div>`).join('')||'<div class=muted style=font-size:12px;margin-top:6px>no jargon/broken flags</div>';
-      return cardHTML(col.provider,pills,prim+'<div class=lbl style=margin-top:10px>Flagged</div>'+flags);
+      return cardHTML(col.provider,pills,bodyc+'<div class=lbl style=margin-top:10px>Flagged</div>'+flags);
     }).join('');
     p.innerHTML=`<div style=margin-bottom:12px><b>${d.name}</b> <span class=muted>— ${tlabel} prediction, same chart, each LLM${d.day_frame?' · frame: '+d.day_frame:''}</span></div><div class=cardgrid>${cols}</div>`; return;
   }

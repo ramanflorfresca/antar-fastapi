@@ -1478,16 +1478,23 @@ def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
                 _v, language=language, field_type='plain'
             )))
 
-    # List plain fields
+    # List plain fields — MUST also pass the cosmic gate. Previously only the
+    # scalar fields were scrubbed, so "nodal return / karmic axis / 18-year
+    # cycle" leaked through haz_hoy/evita_hoy (this is why Shashi's avoid item
+    # kept carrying "the nodal return amplifies temptation" after the gate fix).
     for _f in ('haz_hoy', 'evita_hoy'):
         _arr = signal_json.get(_f)
         if isinstance(_arr, list):
-            signal_json[_f] = [
-                _fix_reversed_range(
-                    _faith_neutralize(apply_user_facing_strips(_x, language=language, field_type='plain')))
+            _scrubbed = [
+                _scrub_cosmic_leak(_fix_reversed_range(
+                    _faith_neutralize(apply_user_facing_strips(_x, language=language, field_type='plain'))))
                 if isinstance(_x, str) and _x else _x
                 for _x in _arr
             ]
+            # a scrub can empty an item whose whole sentence was the leak — drop
+            # those so the card never shows a blank bullet.
+            signal_json[_f] = [_x for _x in _scrubbed
+                               if not (isinstance(_x, str) and not _x.strip())]
 
     # [why-block-leak-fix] el_movimiento now stripped above — it renders
     # directly on the Today card and must never carry raw jargon.
