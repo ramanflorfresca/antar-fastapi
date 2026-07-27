@@ -18620,6 +18620,38 @@ async def ask_evidence_debug(request: AskEvidenceRequest, http_request: Request)
     }
 
 
+def _ask_life_scrub(text, life):
+    """Deterministic backstop that removes life-fact contradictions from the
+    FINAL Ask text, whatever narrator produced it (the prompt block covers the
+    direct narrator; the event-engine narrator has its own prompt, so this
+    guarantees it). Never asserts a fact — only softens a contradicting one."""
+    if not isinstance(text, str) or not text or not life:
+        return text
+    import re as _r
+    t = text
+    if life.get("employed") is not True:   # business owner / unknown → no boss
+        # "boss figure"/"boss or manager" first so the standalone swap can't
+        # produce "authority figure figure".
+        t = _r.sub(r"\b(a |the |your )?(key )?boss figure\b", "a key authority figure", t, flags=_r.I)
+        t = _r.sub(r"\byour boss\b", "a key decision-maker", t, flags=_r.I)
+        t = _r.sub(r"\bthe boss\b", "a key decision-maker", t, flags=_r.I)
+        t = _r.sub(r"\byour manager\b", "a senior colleague", t, flags=_r.I)
+        t = _r.sub(r"\b(a|an) boss\b", "an authority figure", t, flags=_r.I)
+        t = _r.sub(r"\bboss\b", "authority figure", t, flags=_r.I)
+        # tidy redundancy the swaps can create
+        t = _r.sub(r"a key (decision-maker|authority figure)\s+or\s+(any |a |an )?"
+                   r"(key |decision-maker |authority figure)+", "a key authority figure ", t, flags=_r.I)
+        t = _r.sub(r"authority figure\s+or\s+(any |a |an )?authority figure", "authority figure", t, flags=_r.I)
+        t = _r.sub(r"\bfigure figure\b", "figure", t, flags=_r.I)
+    if life.get("partnered") is False:     # single/divorced → no present spouse
+        t = _r.sub(r"\byour spouse\b", "a partner", t, flags=_r.I)
+        t = _r.sub(r"\byour (husband|wife)\b", "a partner", t, flags=_r.I)
+    if life.get("has_children") is False:  # childless → no "your child"
+        t = _r.sub(r"\byour children\b", "people close to you", t, flags=_r.I)
+        t = _r.sub(r"\byour child\b", "someone close to you", t, flags=_r.I)
+    return _r.sub(r"\s{2,}", " ", t).strip()
+
+
 # [ask-scrub] helper
 def _ask_scrub_payload(payload: dict, fields: list, language: str = 'en') -> dict:
     '''Idempotent scrub for /ask response payloads.
@@ -18849,13 +18881,15 @@ async def ask_endpoint(request: AskRequest):
     # "your boss" or the childless about "your child". Same contract as the
     # other four surfaces. Fail-open to no constraint.
     _ask_life_block = ""
+    _ask_life = None
     try:
         from antar_engine.life_context import (
             resolve_life_facts as _rlf_ask, life_constraint_block as _lcb_ask)
         _lrow_ask = (supabase.table("charts").select(
             "career_stage,profession,life_work,marital_status,children_status")
             .eq("id", chart_id).single().execute().data or {})
-        _ask_life_block = _lcb_ask(_rlf_ask(_lrow_ask))
+        _ask_life = _rlf_ask(_lrow_ask)
+        _ask_life_block = _lcb_ask(_ask_life)
     except Exception as _alge:
         logger.warning(f"[ask] life-gate skipped (non-fatal): {_alge}")
 
@@ -19769,6 +19803,12 @@ async def ask_endpoint(request: AskRequest):
                 "read", "next", "timing", "actions", "practices",
                 "convergence", "what", "why",
             ], chart_id)
+            # [life-gate] deterministic backstop AFTER localization — no boss for
+            # a business owner, no spouse for the single, whatever narrator wrote it.
+            if _ask_life:
+                for _lf in ("read", "next", "why"):
+                    if isinstance(payload.get(_lf), str):
+                        payload[_lf] = _ask_life_scrub(payload[_lf], _ask_life)
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "explore", locals().get("_ask_concern"))
             return payload
@@ -19829,6 +19869,10 @@ async def ask_endpoint(request: AskRequest):
                 except Exception as _rb_e:
                     print(f"[ask] readability non-fatal: {_rb_e}")
                 payload = await _ask_localize(payload, language, ["why", "timing"], chart_id)
+                if _ask_life:
+                    for _lf in ("why", "read", "verdict"):
+                        if isinstance(payload.get(_lf), str):
+                            payload[_lf] = _ask_life_scrub(payload[_lf], _ask_life)
                 return payload
 
             # 2. NOT LOCKED — cast a fresh chart at the moment of asking.
