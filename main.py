@@ -13897,6 +13897,84 @@ async def admin_edit_chart(chart_id: str, request: Request,
     return {"ok": True, "chart_id": chart_id, "updated": updates, "by": admin_email}
 
 
+@app.get("/api/v1/admin/field-options")
+async def admin_field_options_endpoint(admin_email: str = Depends(_require_debug)):
+    """Dropdown choices for the create/edit forms — same source as Details."""
+    try:
+        from antar_engine.patra_catalog import admin_field_options
+        return {"field_options": admin_field_options()}
+    except Exception:
+        return {"field_options": {}}
+
+
+@app.post("/api/v1/admin/chart/create")
+async def admin_create_chart(request: Request,
+                             admin_email: str = Depends(_require_debug)):
+    """Create a REAL chart from birth data — reuses the production create_chart
+    pipeline (geocode → planets/lagna/dashas/divisionals/Lal Kitab → insert), so
+    a chart made here is identical to a signed-up user's. Unowned (user_id=None).
+    Life-facts the create pipeline doesn't persist are PATCHed on after."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        raise HTTPException(400, "body must be an object")
+    if not body.get("birth_date"):
+        raise HTTPException(400, "birth_date is required (YYYY-MM-DD)")
+
+    name = (body.get("name") or "").strip()
+    try:
+        req = ChartCreateRequest(
+            birth_date=str(body["birth_date"])[:10],
+            birth_time=(body.get("birth_time") or "12:00")[:5],
+            birth_city=body.get("birth_city") or None,
+            birth_place=body.get("birth_city") or None,
+            birth_country=body.get("birth_country") or None,
+            full_name=name or None,
+            gender=body.get("gender") or None,
+            language_preference=(body.get("language_preference") or "en"),
+            current_city=body.get("current_city") or None,
+            current_country=body.get("current_country") or None,
+            life_work=body.get("life_work") or None,
+            life_relationship=body.get("life_relationship") or None,
+            life_kids=body.get("life_kids") or None,
+        )
+    except Exception as e:
+        raise HTTPException(400, f"invalid birth data: {str(e)[:140]}")
+
+    try:
+        resp = await create_chart(req, authorization=None)
+        chart_id = getattr(resp, "chart_id", None) or (resp.get("chart_id") if isinstance(resp, dict) else None)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(500, f"chart creation failed: {str(e)[:160]}")
+    if not chart_id:
+        raise HTTPException(500, "chart created but no id returned")
+
+    # create_chart doesn't persist name/first_name from full_name, nor the
+    # selected-by-user enums — PATCH them so the new chart is complete.
+    extra = {}
+    if name:
+        extra["name"] = name
+        extra["first_name"] = name
+    for f in ("marital_status", "children_status", "career_stage", "profession",
+              "financial_status", "health_status"):
+        v = body.get(f)
+        if isinstance(v, str) and v.strip():
+            extra[f] = v.strip()
+    if extra:
+        try:
+            supabase.table("charts").update(extra).eq("id", chart_id).execute()
+        except Exception as e:
+            print(f"[admin-create] post-patch non-fatal: {e}")
+    return {"ok": True, "chart_id": chart_id, "name": name,
+            "lagna": getattr(resp, "lagna", None),
+            "moon_sign": getattr(resp, "moon_sign", None),
+            "dasha_count": getattr(resp, "dasha_count", None)}
+
+
 @app.get("/api/v1/admin/compare-daily/{chart_id}")
 async def admin_compare_daily(chart_id: str, language: str = "en",
                               providers: str = "anthropic,deepseek,kimi",
@@ -14485,6 +14563,7 @@ _PRED_DEBUG_HTML = r"""<!doctype html><html><head><meta charset=utf-8>
   <select id=lang><option value=en>EN</option><option value=es>ES</option><option value=pt>PT</option></select>
   <input id=concern placeholder=concern value=career style="width:96px">
   <button onclick=search()>Search</button>
+  <button class=ghost onclick=newChart()>&#43; New chart</button>
   <button class=ghost onclick=loadConfig()>&#9881; Config</button>
  </div>
 </header>
@@ -14540,6 +14619,63 @@ async function search(){
   if(!d.charts||!d.charts.length){l.innerHTML='<div class=row class=muted>no charts</div>';return;}
   l.innerHTML=d.charts.map(c=>`<div class=row id="r_${c.id}" onclick="selectChart('${c.id}','${c.lang||''}')"><b>${c.name}</b> <small>${c.email||c.birth_date}${c.city?' · '+c.city:''} · <b style=color:#8ab4ff>${c.lang}</b></small><span class=id>${c.id}</span></div>`).join('');
  }catch(e){l.innerHTML='<div class=row style=color:#ff7b7e>'+e+'</div>';}
+}
+async function newChart(){
+ setSeg(''); CUR=null;
+ const p=document.getElementById('panel');
+ p.innerHTML='<div class=empty>loading form…</div>';
+ let OPTS={};
+ try{const r=await fetch('/api/v1/admin/field-options',{headers:H()}); if(r.ok) OPTS=(await r.json()).field_options||{};}catch(e){}
+ const sel=(id,opts,ph)=>`<select id="${id}"><option value="">${ph||'(none)'}</option>`+(opts||[]).map(o=>`<option value="${o.value}">${o.label}</option>`).join('')+`</select>`;
+ const txt=(id,ph)=>`<input id="${id}" placeholder="${ph||''}">`;
+ const row=(lbl,ctrl)=>`<div style=display:flex;justify-content:space-between;gap:12px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line2)><span class=muted>${lbl}</span>${ctrl}</div>`;
+ const langOpts=[{value:'en',label:'English'},{value:'es',label:'Spanish'},{value:'pt',label:'Portuguese'}];
+ p.innerHTML=`<div style=max-width:900px>
+   <div style=display:flex;gap:10px;align-items:center;margin-bottom:14px><b style=font-size:16px>New chart</b>
+     <button onclick=submitNewChart()>Create &amp; compute</button><span id=ncMsg class=muted></span></div>
+   <div class=cardgrid>
+    <div class=card><div class=chd><span class=prov>Identity &amp; birth</span></div>
+      ${row('Full name',txt('nc_name','e.g. Maria Lopez'))}
+      ${row('Birth date *',txt('nc_bd','YYYY-MM-DD'))}
+      ${row('Birth time',txt('nc_bt','HH:MM (24h, default 12:00)'))}
+      ${row('Birth city',txt('nc_bcity','e.g. Bogotá'))}
+      ${row('Birth country',txt('nc_bcountry','ISO code e.g. CO / US / IN'))}
+      ${row('Gender',sel('nc_gender',OPTS.gender))}
+      ${row('Language',sel('nc_lang',langOpts,'English'))}
+    </div>
+    <div class=card><div class=chd><span class=prov>Current &amp; life facts</span></div>
+      ${row('Current city',txt('nc_ccity','where they live now'))}
+      ${row('Current country',txt('nc_ccountry','ISO code'))}
+      ${row('Marital status',sel('nc_marital',OPTS.marital_status))}
+      ${row('Children',sel('nc_children',OPTS.children_status))}
+      ${row('Career stage',sel('nc_career',OPTS.career_stage))}
+      ${row('Profession',txt('nc_profession','free text, e.g. Founder'))}
+      ${row('Financial',sel('nc_financial',OPTS.financial_status))}
+      ${row('Health',sel('nc_health',OPTS.health_status))}
+    </div>
+   </div>
+   <div class=muted style=margin-top:10px;font-size:12px>* birth date required. Country as ISO code (CO, US, IN…) so the birthplace geocodes correctly — lagna depends on it. The chart computes planets, dashas &amp; divisionals on create.</div>
+ </div>`;
+}
+async function submitNewChart(){
+ const g=id=>{const el=document.getElementById(id);return el?el.value.trim():'';};
+ const body={name:g('nc_name'),birth_date:g('nc_bd'),birth_time:g('nc_bt'),
+   birth_city:g('nc_bcity'),birth_country:g('nc_bcountry'),gender:g('nc_gender'),
+   language_preference:g('nc_lang')||'en',current_city:g('nc_ccity'),current_country:g('nc_ccountry'),
+   marital_status:g('nc_marital'),children_status:g('nc_children'),career_stage:g('nc_career'),
+   profession:g('nc_profession'),financial_status:g('nc_financial'),health_status:g('nc_health')};
+ const m=document.getElementById('ncMsg');
+ if(!body.birth_date){m.innerHTML='<span style=color:#ff7b7e>birth date required</span>';return;}
+ m.textContent='creating + computing chart… (~5-10s)';
+ try{
+  const r=await fetch('/api/v1/admin/chart/create',{method:'POST',headers:{...H(),'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  if(!r.ok){m.innerHTML='<span style=color:#ff7b7e>'+(d.detail||'error')+'</span>';return;}
+  m.innerHTML='<span style=color:#3fb950>✓ created ('+d.lagna+' lagna, '+d.dasha_count+' dashas) — loading…</span>';
+  document.getElementById('q').value=body.name||d.chart_id;
+  await search();
+  setSeg('all'); MODE='all'; selectChart(d.chart_id, body.language_preference);
+ }catch(e){m.textContent=''+e;}
 }
 function fldHTML(name,o){return o&&o.text?`<div class=fld><div class=lbl>${name} ${badge(o.audit)}</div><div class="val ${bad(o.audit)?'bad':''}">${o.text}</div></div>`:'';}
 function listHTML(name,arr){return (arr&&arr.length)?`<div class=fld><div class=lbl>${name}</div>`+arr.map(o=>`<div class="li ${bad(o.audit)?'bad':''}">${o.text} ${badge(o.audit)}</div>`).join('')+`</div>`:'';}
