@@ -1393,16 +1393,21 @@ def _scrub_cosmic_leak(text):
 # both reached a live card. High-precision patterns only: each marks an
 # unrecoverable structural break (a dropped word), so a hit triggers a
 # regeneration rather than a repair — we can't know what word was lost.
+# `(?<!-)` on each dangling-word pattern: a function word that is the TAIL of a
+# hyphenated compound ("check-in,", "follow-on.", "run-on;") is not dangling —
+# the hyphen creates a false word boundary that these patterns would otherwise
+# read as a standalone preposition/article. Same false-positive family as the
+# em-dash compound guard above.
 _BROKEN_PATTERNS = (
     # a function word left dangling before a DASH break or clause end. The dash
     # must be an em/en dash, or a SPACE-BOUNDED hyphen — a word-internal hyphen
     # ("behind-the-scenes", "state-of-the-art") is a compound, not a break.
-    re.compile(r"\b(in|on|at|to|of|the|a|an|for|with|and|or|but|your|his|her|"
+    re.compile(r"\b(?<!-)(in|on|at|to|of|the|a|an|for|with|and|or|but|your|his|her|"
                r"their|before|after|by|into|onto|from)\b(?:\s*[—–]\s*|\s+-\s+)"
                r"(?=[a-z]|$)", re.I),
-    re.compile(r"\b(in|on|at|to|of|the|a|an|for|with|and|or|but|your|his|her|"
+    re.compile(r"\b(?<!-)(in|on|at|to|of|the|a|an|for|with|and|or|but|your|his|her|"
                r"their|before|after|by|into|onto|from)\s*[.,;!?]", re.I),
-    re.compile(r"\b(in|on|at|to|of|the|a|an|for|with|and|or|but|your)\s*$", re.I),
+    re.compile(r"\b(?<!-)(in|on|at|to|of|the|a|an|for|with|and|or|but|your)\s*$", re.I),
     # determiner + word + possessive/determiner with no noun between
     # ("the favorable your", "a strong the")
     re.compile(r"\b(the|a|an)\s+\w+\s+(your|his|her|their|the|a|an)\s+\w+", re.I),
