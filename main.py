@@ -13839,6 +13839,52 @@ async def admin_chart_details(chart_id: str, admin_email: str = Depends(_require
     }
 
 
+# Fields the admin panel may edit on a chart. Birth data is deliberately EXCLUDED
+# — changing it would desync the pre-computed chart_data (planets/dashas); that
+# needs a full recompute, not a field poke.
+_ADMIN_EDITABLE_FIELDS = {
+    "name", "first_name", "display_name", "gender",
+    "current_city", "current_country",
+    "marital_status", "children_status", "career_stage", "profession",
+    "financial_status", "health_status",
+    "life_work", "life_relationship", "life_kids",
+    "language_preference",
+    "ventures",  # list — accepts array or comma string
+}
+
+
+@app.patch("/api/v1/admin/chart/{chart_id}")
+async def admin_edit_chart(chart_id: str, request: Request,
+                           admin_email: str = Depends(_require_debug)):
+    """Save edited chart fields from the panel (allowlisted). Fills in what's
+    missing, fixes what's wrong. Birth data is not editable here (needs recompute)."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        raise HTTPException(400, "body must be an object of field:value")
+    updates = {}
+    for k, v in body.items():
+        if k not in _ADMIN_EDITABLE_FIELDS:
+            continue
+        if k == "ventures":
+            if isinstance(v, str):
+                v = [x.strip() for x in v.split(",") if x.strip()]
+            elif not isinstance(v, list):
+                v = None
+        elif isinstance(v, str):
+            v = v.strip() or None
+        updates[k] = v
+    if not updates:
+        raise HTTPException(400, f"no editable fields (allowed: {sorted(_ADMIN_EDITABLE_FIELDS)})")
+    try:
+        supabase.table("charts").update(updates).eq("id", chart_id).execute()
+    except Exception as e:
+        raise HTTPException(500, f"update failed: {str(e)[:160]}")
+    return {"ok": True, "chart_id": chart_id, "updated": updates, "by": admin_email}
+
+
 @app.get("/api/v1/admin/compare-daily/{chart_id}")
 async def admin_compare_daily(chart_id: str, language: str = "en",
                               providers: str = "anthropic,deepseek,kimi",
@@ -14223,11 +14269,18 @@ async function load(id){
   if(MODE==='details'){
     const r=await fetch('/api/v1/admin/chart-details/'+id,{headers:H()});
     const d=await r.json(); if(!r.ok){p.innerHTML='<div class=empty style=color:#ff7b7e>error '+r.status+'</div>';return;}
-    const kv=o=>Object.entries(o).map(([k,v])=>`<div style=display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--line2)><span class=muted>${k}</span><span style=text-align:right>${v==null?'<span class=muted>&mdash;</span>':(typeof v==='object'?JSON.stringify(v):v)}</span></div>`).join('');
+    // read-only key/value rows
+    const ro=o=>Object.entries(o).map(([k,v])=>`<div style=display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--line2)><span class=muted>${k}</span><span style=text-align:right>${v==null?'<span class=muted>&mdash;</span>':(typeof v==='object'?JSON.stringify(v):v)}</span></div>`).join('');
+    // editable rows — `map` is {label: {col, val}}
+    const ed=map=>Object.entries(map).map(([lbl,f])=>`<div style=display:flex;justify-content:space-between;gap:12px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line2)><span class=muted>${lbl}</span><input class=efld data-col="${f.col}" value="${f.val==null?'':(Array.isArray(f.val)?f.val.join(', '):f.val)}" placeholder="${f.val==null?'(missing)':''}" style="width:190px;text-align:right"></div>`).join('');
+    const sec=(t,html)=>`<div class=card><div class=chd><span class=prov>${t}</span></div>${html}</div>`;
     const warn=[]; const cc=(d.current.country||'');
-    if(d.current.city&&/bogot/i.test(d.current.city)&&cc!=='CO')warn.push('current city looks Colombian but country is "'+cc+'"');
-    const sec=(t,o)=>`<div class=card><div class=chd><span class=prov>${t}</span></div>${kv(o)}</div>`;
-    p.innerHTML=`<div style=margin-bottom:10px><b>${d.identity.name||''}</b> ${d.is_primary?'<span class="pill g">primary</span>':'<span class=pill>secondary</span>'} ${d.identity.protected?'<span class=pill>protected</span>':''} ${warn.map(w=>'<span class=flag>'+w+'</span>').join('')}</div><div class=cardgrid>${sec('Identity',d.identity)}${sec('Birth',d.birth)}${sec('Current location',d.current)}${sec('Selected by user',d.selected)}${sec('Astrology',d.astro)}</div>`;
+    if(d.current.city&&/bogot/i.test(d.current.city)&&cc!=='CO')warn.push('city "'+d.current.city+'" vs country "'+cc+'"');
+    const idFields={name:{col:'name',val:d.identity.name},first_name:{col:'first_name',val:d.identity.first_name},gender:{col:'gender',val:d.identity.gender},language_preference:{col:'language_preference',val:d.identity.language_preference}};
+    const curFields={current_city:{col:'current_city',val:d.current.city},current_country:{col:'current_country',val:d.current.country}};
+    const selFields={marital_status:{col:'marital_status',val:d.selected.marital_status},children_status:{col:'children_status',val:d.selected.children_status},career_stage:{col:'career_stage',val:d.selected.career_stage},profession:{col:'profession',val:d.selected.profession},financial_status:{col:'financial_status',val:d.selected.financial_status},health_status:{col:'health_status',val:d.selected.health_status},ventures:{col:'ventures',val:d.selected.ventures},life_work:{col:'life_work',val:d.selected.life_work},life_relationship:{col:'life_relationship',val:d.selected.life_relationship},life_kids:{col:'life_kids',val:d.selected.life_kids}};
+    p.innerHTML=`<div style=display:flex;gap:8px;align-items:center;margin-bottom:12px><b>${d.identity.name||''}</b> ${d.is_primary?'<span class="pill g">primary</span>':'<span class=pill>secondary</span>'} ${d.identity.protected?'<span class=pill>protected</span>':''} ${warn.map(w=>'<span class=flag>'+w+'</span>').join('')} <button onclick="saveChart('${id}')">Save changes</button> <span id=saveMsg class=muted></span></div>
+      <div class=cardgrid>${sec('Identity (editable)',ed(idFields))}${sec('Current location (editable)',ed(curFields))}${sec('Selected by user (editable)',ed(selFields))}${sec('Birth (read-only — needs recompute)',ro(d.birth))}${sec('Astrology (computed)',ro(d.astro))}</div>`;
     return;
   }
   if(MODE==='daily'){
@@ -14263,6 +14316,17 @@ async function load(id){
   pills.push(cleanPill(d.audit_clean));
   p.innerHTML='<div class=cardgrid>'+cardHTML(MODE,pills,(d.error?'<div style=color:#ff7b7e>'+d.error+'</div>':'')+'<div class=lbl>Flagged strings</div>'+flags)+'</div>';
  }catch(e){p.innerHTML='<div class=empty style=color:#ff7b7e>'+e+'</div>';}
+}
+async function saveChart(id){
+ const m=document.getElementById('saveMsg'); m.textContent='saving...';
+ const body={};
+ document.querySelectorAll('.efld').forEach(el=>{const c=el.dataset.col,v=el.value.trim(); body[c]=(c==='ventures')?v:(v||null);});
+ try{
+  const r=await fetch('/api/v1/admin/chart/'+id,{method:'PATCH',headers:{...H(),'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const d=await r.json();
+  m.innerHTML=r.ok?'<span style=color:#3fb950>✓ saved '+Object.keys(d.updated).length+' fields</span>':'<span style=color:#ff7b7e>'+(d.detail||'error')+'</span>';
+  if(r.ok) setTimeout(()=>load(id),700);
+ }catch(e){m.textContent=''+e;}
 }
 async function loadConfig(){
  const p=document.getElementById('panel'); p.innerHTML='<div class=empty>loading config…</div>';
