@@ -315,7 +315,10 @@ _CYCLE_CLAIM_RX = re.compile(
     r"(?i)("
     r"once\s+(?:in|every)\s+[\w\s-]{0,12}?\d+\s*(?:[-–]\s*\d+\s*)?years?|"
     r"every\s+\d+\s*(?:[-–]\s*\d+\s*)?years?|"
-    r"\d+\s*(?:[-–]\s*\d+\s*)?[-\s]year\s+cycle"
+    r"\d+\s*(?:[-–]\s*\d+\s*)?[-\s]year\s+cycle|"
+    # [gate-widen 2026-07-27] compare view proved these slip through both models
+    r"karmic(?:\s+(?:reset|axis|cycle|gateway|gate|window|node|lesson|theme|reckoning))?|"
+    r"(?:cosmic|celestial|astral)\s+\w+"
     r")"
 )
 

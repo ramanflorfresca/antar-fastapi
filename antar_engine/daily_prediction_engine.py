@@ -1324,9 +1324,13 @@ _COSMIC_LEAK_RX = re.compile(
     r"nodal|nodes?|eclipse|sidereal|ephemeris|jyotish|vedic|zodiac|retrograde|"
     r"lunar\s+return|solar\s+return|saturn\s+return|"
     r"once\s+(?:in|every)\s+[\w\s-]{0,12}?\d+\s*(?:[-–]\s*\d+\s*)?years?|"
-    r"every\s+\d+\s*(?:[-–]\s*\d+\s*)?years?|\d+\s*[-–]\s*\d+\s*year|"
+    r"every\s+\d+\s*(?:[-–]\s*\d+\s*)?years?|"
+    # [gate-widen 2026-07-27] compare view proved these slip through:
+    r"\d+\s*[-–\s]\s*year\s+cycle|\d+\s*[-–]\s*\d+\s*year|"   # "18-year cycle" (single #) + ranges
+    r"karmic(?:\s+(?:reset|axis|cycle|gateway|gate|window|node|lesson|theme|reckoning))?|"  # karmic + bare
+    r"(?:cosmic|celestial|astral)\s+\w+|"                    # "cosmic reset", "celestial shift"
     r"what\s+is\s+completing|not\s+what\s+is\s+starting|coming\s+full\s+circle|"
-    r"a\s+new\s+cycle|karmic\s+cycle"
+    r"a\s+new\s+cycle"
     r")\b"
 )
 
