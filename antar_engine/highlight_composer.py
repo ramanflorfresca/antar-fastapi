@@ -405,6 +405,10 @@ def _detect_cycle(ctx) -> List[Condition]:
             continue
         dom = T.area_to_domain(ev.get("domain") or "")
         when = ev.get("window") or ev.get("predicted_window_start") or ev.get("when") or ""
+        # `window` is often a {start,end} dict — pull the start date, never let
+        # the raw dict repr ("{'start': …") leak into the highlight text.
+        if isinstance(when, dict):
+            when = when.get("start") or when.get("date") or when.get("label") or ""
         d, text = T.cycle_event(dom, str(when)[:10] if when else "")
         conds.append(Condition(domain=d, text=text, intensity=2.2, source="cycle_event", backed_by=["vimshottari"], confidence="low"))
 

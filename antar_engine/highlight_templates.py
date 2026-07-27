@@ -407,6 +407,10 @@ def cycle_chapter(lord: str) -> str:
 def cycle_event(domain: str, when: str) -> str:
     domain = domain if domain in VALID_DOMAINS else "opportunity"
     when = (when or "").strip()
+    # defensive: a dict/list repr or other junk must never render as a "when";
+    # fall back to the arc-scoped phrasing rather than leaking "{'start': …".
+    if "{" in when or "}" in when or "[" in when:
+        when = ""
     base = {
         "money":         "A real money shift is likely",
         "work":          "A career shift is likely",
