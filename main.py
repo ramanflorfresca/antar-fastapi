@@ -14411,7 +14411,7 @@ async def admin_debug_page():
     """Self-contained debugger UI (same-origin so it can call the admin API).
     Data endpoints are admin-gated; the admin pastes their bearer token here."""
     from fastapi.responses import HTMLResponse
-    return HTMLResponse(_PRED_DEBUG_HTML, headers={"Cache-Control": "no-store, max-age=0"})
+    return HTMLResponse(_admin_page_html(), headers={"Cache-Control": "no-store, max-age=0"})
 
 
 @app.get("/admin")
@@ -14421,7 +14421,7 @@ async def admin_debug_page_short():
     from fastapi.responses import HTMLResponse
     # [no-cache 2026-07-27] never let the browser cache the admin page — a stale
     # cached copy is why new modes appeared missing after a deploy.
-    return HTMLResponse(_PRED_DEBUG_HTML, headers={"Cache-Control": "no-store, max-age=0"})
+    return HTMLResponse(_admin_page_html(), headers={"Cache-Control": "no-store, max-age=0"})
 
 
 _PRED_DEBUG_HTML = r"""<!doctype html><html><head><meta charset=utf-8>
@@ -14494,6 +14494,22 @@ _PRED_DEBUG_HTML = r"""<!doctype html><html><head><meta charset=utf-8>
 </div>
 <script>
 let MODE='all', CUR=null;
+// [stale-tab guard] the served page carries a content hash; if a newer version
+// has deployed while this tab stayed open, show a reload bar instead of letting
+// the user debug against dead JS (the recurring "panel is buggy" = old cache).
+const ADMIN_VERSION="__ADMIN_VERSION__";
+async function _checkVersion(){
+  try{const r=await fetch('/api/v1/admin/version',{cache:'no-store'});if(!r.ok)return;
+    const v=(await r.json()).version;
+    if(v&&v!==ADMIN_VERSION&&!document.getElementById('verbar')){
+      const b=document.createElement('div');b.id='verbar';
+      b.style.cssText='position:fixed;top:0;left:0;right:0;z-index:99;background:#1f6feb;color:#fff;text-align:center;padding:9px;cursor:pointer;font-weight:700;box-shadow:0 2px 10px #0008';
+      b.textContent='⟳ A newer panel version has deployed — click to reload';
+      b.onclick=()=>location.reload();document.body.appendChild(b);
+    }
+  }catch(e){}
+}
+setInterval(_checkVersion,45000);window.addEventListener('focus',_checkVersion);
 const TK=document.getElementById('tok');
 TK.value=localStorage.getItem('antar_debug_tok')||'';
 const H=()=>{localStorage.setItem('antar_debug_tok',TK.value.trim());return{Authorization:'Bearer '+TK.value.trim()};};
@@ -14695,6 +14711,22 @@ async function saveCfg(k){
  }catch(e){m.textContent=''+e;}
 }
 </script></body></html>"""
+
+# Content hash of the panel page — changes exactly when the page changes, and is
+# identical across workers (no per-process/env drift). Served pages get it
+# injected; /api/v1/admin/version returns it so an open tab can detect a deploy.
+import hashlib as _hashlib
+_ADMIN_VERSION = _hashlib.md5(_PRED_DEBUG_HTML.encode("utf-8")).hexdigest()[:8]
+
+
+def _admin_page_html() -> str:
+    return _PRED_DEBUG_HTML.replace("__ADMIN_VERSION__", _ADMIN_VERSION)
+
+
+@app.get("/api/v1/admin/version")
+async def admin_page_version():
+    """Current panel content hash — no auth (it's just a build stamp)."""
+    return {"version": _ADMIN_VERSION}
 
 
 # ── [admin-inspect 2026-06-10] Prediction Inspector (read-only) ──────────────
