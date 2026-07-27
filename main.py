@@ -13713,11 +13713,14 @@ async def admin_preview_daily(chart_id: str, language: str = "en",
         frame = resolve_day_frame(dashas=get_dashas_for_chart(chart_id))
     except Exception:
         pass
+    _now = _pdt.utcnow()
     sigs = await generate_weekly_signals(
-        natal_moon_sign=natal_moon, start_date=_pdt.utcnow(), chart_id=chart_id,
+        natal_moon_sign=natal_moon, start_date=_now, chart_id=chart_id,
         supabase_client=supabase, language=language, tz_offset=tz,
         days_to_generate=1, force_refresh=bool(refresh), day_frame=frame)
     d = sigs[0] if sigs else {}
+    # run the real headline layer so the panel == the actual app card
+    d = _enrich_daily_with_highlight(chart_id, cd, d, language, _now)
 
     def _audit(txt):
         if not isinstance(txt, str) or not txt.strip():
@@ -13743,6 +13746,8 @@ async def admin_preview_daily(chart_id: str, language: str = "en",
         "chart_id": chart_id, "name": row.data.get("first_name") or row.data.get("name"),
         "language": language, "day_frame": frame.get("orientation"),
         "day_energy": de, "coherence": coh, "fields": fields,
+        "headline": d.get("headline"), "verdict_label": d.get("verdict_label"),
+        "highlight": d.get("highlight"),
         "llm_generated": d.get("llm_generated"), "fallback": d.get("fallback"),
         "audit_clean": clean,
     }
@@ -13959,19 +13964,71 @@ async def admin_compare_daily(chart_id: str, language: str = "en",
             "language": language, "day_frame": frame.get("orientation"), "columns": cols}
 
 
+def _enrich_daily_with_highlight(chart_id, cd, d, language, start_date):
+    """Run the SAME deterministic headline layer the user endpoint runs
+    (select_today_highlight) so the admin panel shows EXACTLY what the app shows
+    — a real headline + a filled verdict line — instead of the raw engine card
+    whose verdict_subline the LLM leaves empty. Fully fail-open: any missing
+    dependency degrades to the base card, never raises."""
+    if not isinstance(d, dict):
+        return d
+    try:
+        from antar_engine.today_highlight import select_today_highlight
+        from antar_engine.lal_kitab_advanced import compute_lk_daily_diagnostic as _lkfn
+        row = {}
+        try:
+            rr = supabase.table("charts").select("lal_kitab_data,birth_date").eq(
+                "id", chart_id).single().execute()
+            row = rr.data or {}
+        except Exception:
+            row = {}
+        tgt = start_date.date() if hasattr(start_date, "date") else start_date
+        try:
+            lk = _lkfn(lk_data=_safe_jsonb(row.get("lal_kitab_data")),
+                       chart_data=cd if isinstance(cd, dict) else {},
+                       target_date=tgt, language=language)
+        except Exception:
+            lk = {}
+        try:
+            from antar_engine.patra_prior import build_patra_tilt
+            tilt = build_patra_tilt(chart_id, supabase, birth_date=row.get("birth_date"))
+        except Exception:
+            tilt = {}
+        try:
+            dasha = _running_md_ad(chart_id)
+        except Exception:
+            dasha = {}
+        th = select_today_highlight(
+            signal0=dict(d), lk_daily=lk,
+            natal_chart=cd if isinstance(cd, dict) else {},
+            panchanga=(cd.get("panchanga") if isinstance(cd, dict) else {}) or {},
+            patra_tilt=tilt, dasha=dasha)
+        d["headline"] = th.get("headline") or d.get("headline") or ""
+        d["highlight"] = th.get("highlight") or d.get("highlight") or ""
+        # the app leads with `headline`; back-fill the empty verdict_subline so the
+        # panel (and any field-bound client) never shows a blank verdict line.
+        if not (str(d.get("verdict_subline") or "")).strip():
+            d["verdict_subline"] = d["headline"]
+    except Exception as _e:
+        print(f"[admin-daily-highlight] non-fatal: {_e}")
+    return d
+
+
 async def _gen_daily_for_admin(chart_id, cd, natal_moon, tz, language, day_frame):
     """Generate ONE fresh daily card (persist=False) with a given day_frame —
     the primitive behind the Logic-diff. Returns (day_dict)."""
     from datetime import datetime as _gdt
     from antar_engine.daily_prediction_engine import generate_weekly_signals
+    _now = _gdt.utcnow()
     sigs = await generate_weekly_signals(
-        natal_moon_sign=natal_moon, start_date=_gdt.utcnow(), chart_id=chart_id,
+        natal_moon_sign=natal_moon, start_date=_now, chart_id=chart_id,
         supabase_client=supabase, language=language, tz_offset=tz,
         days_to_generate=1, day_frame=day_frame, persist=False,
         # [compare-fix] fast_mode=False → real LLM generation, not the template
         # defer. Without this the compare/logic-diff compared templates.
         fast_mode=False)
-    return sigs[0] if sigs else {}
+    d = sigs[0] if sigs else {}
+    return _enrich_daily_with_highlight(chart_id, cd, d, language, _now)
 
 
 @app.get("/api/v1/admin/logic-diff/{chart_id}")
