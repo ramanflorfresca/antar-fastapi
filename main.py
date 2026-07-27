@@ -14350,6 +14350,19 @@ async def admin_preview_surface(surface: str, chart_id: str, language: str = "en
             from antar_engine.ask_consultation import build_convergence_timing
             payload = build_convergence_timing(concern, cd, dashas,
                                                str(row.data.get("birth_date") or "")[:10], 36)
+            # build_convergence_timing's prose is an ENGLISH seed (the real Ask
+            # pipeline translates it at delivery via the LLM). The panel can't
+            # call the real /ask (daily quota + LLM cost), so localize the prose
+            # here through the same cached translation layer the app uses.
+            if (language or "en").lower() != "en":
+                try:
+                    from antar_engine.translation_middleware import translate_dict
+                    payload = await translate_dict(
+                        payload, language,
+                        fields_to_translate=["verdict_phrase", "summary", "public_summary"],
+                        endpoint_name="admin-ask", chart_id=chart_id)
+                except Exception:
+                    pass
             meta = {"concern": concern, "window": payload.get("window_label"),
                     "confidence": payload.get("confidence"),
                     "varga": (payload.get("varga_confirm") or {}).get("status"),
