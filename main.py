@@ -13748,6 +13748,80 @@ async def admin_preview_daily(chart_id: str, language: str = "en",
     }
 
 
+@app.get("/api/v1/admin/compare-daily/{chart_id}")
+async def admin_compare_daily(chart_id: str, language: str = "en",
+                              providers: str = "anthropic,deepseek,kimi",
+                              admin_email: str = Depends(_require_debug)):
+    """Generate today's card under each provider, side by side — the point of the
+    panel. Fresh generation per provider, persist=False so the real cache is
+    never touched. Providers without an API key are reported, not attempted."""
+    from datetime import datetime as _cdt
+    from antar_engine.daily_prediction_engine import (
+        generate_weekly_signals, _COSMIC_LEAK_RX, _MECHANICS_JARGON_RX, _looks_broken)
+    from antar_engine.daily_v2 import day_energy as _de, verdict_energy_coherent as _vc
+    row = supabase.table("charts").select(
+        "chart_data,first_name,name,current_country,birth_country").eq("id", chart_id).single().execute()
+    if not row.data:
+        raise HTTPException(404, "Chart not found")
+    cd = row.data.get("chart_data") or {}
+    if isinstance(cd, str):
+        try: cd = json.loads(cd)
+        except Exception: cd = {}
+    natal_moon = ((cd.get("planets") or {}).get("Moon") or {}).get("sign") or "Aries"
+    _cc = (row.data.get("current_country") or row.data.get("birth_country") or "").upper()
+    tz = float(_COUNTRY_TZ_OFFSETS.get(_cc, _COUNTRY_TZ_OFFSETS.get("DEFAULT", 0))) * 60
+    frame = {"orientation": "open"}
+    try:
+        from antar_engine.day_frame import resolve_day_frame
+        frame = resolve_day_frame(dashas=get_dashas_for_chart(chart_id))
+    except Exception:
+        pass
+    _keys = {"anthropic": os.getenv("ANTHROPIC_API_KEY"),
+             "deepseek": os.getenv("DEEPSEEK_API_KEY"),
+             "kimi": os.getenv("MOONSHOT_API_KEY") or os.getenv("KIMI_API_KEY")}
+    import time as _t
+    cols = []
+    for prov in [p.strip().lower() for p in providers.split(",") if p.strip()]:
+        if prov not in ("anthropic", "deepseek", "kimi"):
+            continue
+        if not _keys.get(prov):
+            cols.append({"provider": prov, "unavailable": True,
+                         "note": f"{prov.upper()}_API_KEY not set on the server"})
+            continue
+        t0 = _t.monotonic()
+        try:
+            sigs = await generate_weekly_signals(
+                natal_moon_sign=natal_moon, start_date=_cdt.utcnow(), chart_id=chart_id,
+                supabase_client=supabase, language=language, tz_offset=tz,
+                days_to_generate=1, day_frame=frame,
+                provider_override=prov, persist=False)
+            d = sigs[0] if sigs else {}
+
+            def _a(x):
+                if not isinstance(x, str) or not x.strip():
+                    return {"cosmic": False, "mechanics": False, "broken": False}
+                return {"cosmic": bool(_COSMIC_LEAK_RX.search(x)),
+                        "mechanics": bool(_MECHANICS_JARGON_RX.search(x)),
+                        "broken": _looks_broken(x)}
+            de = _de(d, language)
+            fields = {f: {"text": d.get(f), "audit": _a(d.get(f))}
+                      for f in ("verdict_subline", "senal_de_hoy", "observa_hoy_text", "el_movimiento")}
+            for f in ("haz_hoy", "evita_hoy"):
+                fields[f] = [{"text": x, "audit": _a(x)} for x in (d.get(f) or []) if isinstance(x, str)]
+            alla = [fields[f]["audit"] for f in ("verdict_subline", "senal_de_hoy", "observa_hoy_text", "el_movimiento")]
+            alla += [it["audit"] for f in ("haz_hoy", "evita_hoy") for it in fields[f]]
+            coh = _vc(de, d.get("verdict_subline"))
+            cols.append({
+                "provider": prov, "day_energy": de, "coherence": coh, "fields": fields,
+                "llm_generated": d.get("llm_generated"), "ms": int((_t.monotonic() - t0) * 1000),
+                "audit_clean": (not any(a["cosmic"] or a["mechanics"] or a["broken"] for a in alla)) and coh["coherent"],
+            })
+        except Exception as e:
+            cols.append({"provider": prov, "error": str(e)[:200], "ms": int((_t.monotonic() - t0) * 1000)})
+    return {"chart_id": chart_id, "name": row.data.get("first_name") or row.data.get("name"),
+            "language": language, "day_frame": frame.get("orientation"), "columns": cols}
+
+
 def _dbg_audit_text(txt):
     """Shared per-string audit used across surfaces."""
     from antar_engine.daily_prediction_engine import (

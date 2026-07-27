@@ -1813,6 +1813,7 @@ async def _call_claude_daily_signal(
     day_data: dict,
     language: str = "en",
     day_frame: Optional[dict] = None,
+    provider_override: Optional[str] = None,
 ) -> Optional[dict]:
     """
     Call Claude Sonnet to generate one day's signal text.
@@ -1885,8 +1886,11 @@ async def _call_claude_daily_signal(
         _raw_via_adapter = None
         try:
             from antar_engine import llm_adapter as _lad
-            _prov, _mdl = _lad.resolve(None)
-            if _prov != "anthropic":
+            # [compare] an explicit override forces that provider (incl.
+            # anthropic, via the adapter's KV-cache-preserving path).
+            _prov, _mdl = _lad.resolve(None, provider=provider_override) if provider_override \
+                else _lad.resolve(None)
+            if provider_override or _prov != "anthropic":
                 _raw_via_adapter = (await _lad.complete(
                     system=system_blocks,
                     messages=[{"role": "user", "content": user_prompt}],
@@ -2098,9 +2102,16 @@ async def generate_weekly_signals(
     fast_mode: bool = False,
     days_to_generate: int = 7,
     day_frame: Optional[dict] = None,
+    provider_override: Optional[str] = None,
+    persist: bool = True,
 ) -> list:
     """
     Generate 7-day daily signal array.
+
+    [compare 2026-07-27] provider_override forces a specific LLM (anthropic/
+    deepseek/kimi) for this run, ignoring config — used by the admin compare
+    view. persist=False skips ALL cache read/write so a comparison never
+    pollutes the real per-user cache.
 
     v2: If chart_id + supabase_client provided, uses Claude LLM for text
     generation with full chart context. Falls back to v1 templates if
@@ -2301,7 +2312,8 @@ async def generate_weekly_signals(
         llm_signal = None
         if use_llm:
             # FIX 14: force_refresh — delete stale cache + skip read
-            if force_refresh and supabase_client:
+            # [compare] persist=False never touches the cache (no delete either).
+            if force_refresh and supabase_client and persist:
                 try:
                     supabase_client.table("daily_signals_cache").delete().eq(
                         "chart_id", chart_id
@@ -2310,8 +2322,8 @@ async def generate_weekly_signals(
                 except Exception as _fr_e:
                     logger.warning(f"[daily-week] force_refresh delete failed (non-fatal): {_fr_e}")
 
-            # Check cache first (skipped when force_refresh)
-            if supabase_client and not force_refresh:
+            # Check cache first (skipped when force_refresh or not persisting)
+            if supabase_client and not force_refresh and persist:
                 llm_signal = await _get_cached_signal(chart_id, date_str, language, supabase_client)
                 if llm_signal:
                     logger.info(f"[daily-week] Cache HIT for {chart_id}/{date_str}/{language}")
@@ -2452,6 +2464,7 @@ async def generate_weekly_signals(
                     day_data=day_prompt_data,
                     language=language,
                     day_frame=day_frame,
+                    provider_override=provider_override,
                 )
 
                 # ── FIX D: Validate + corrective retry ──
@@ -2522,8 +2535,8 @@ async def generate_weekly_signals(
                         llm_signal = _tidy_signal(_strip_all_jargon_from_signal(llm_signal, language), language)
 
 
-                # Cache if successful
-                if llm_signal and supabase_client:
+                # Cache if successful (never when persist=False — compare runs)
+                if llm_signal and supabase_client and persist:
                     await _save_cached_signal(chart_id, date_str, language, llm_signal, supabase_client)
                     logger.info(f"[daily-week] Cached LLM signal for {chart_id}/{date_str}/{language}")
 
