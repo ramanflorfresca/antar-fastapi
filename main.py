@@ -14756,6 +14756,11 @@ async function submitNewChart(){
  }catch(e){m.textContent=''+e;}
 }
 let CHAT_MSGS=[], CHAT_CID=null;   // [{role:'user'|'assistant', text, data?}]
+function dashAsk(id){
+  const el=document.getElementById('dashAskIn'); const q=el?el.value.trim():'';
+  MODE='ask'; setSeg('ask'); load(id);
+  setTimeout(()=>{const ta=document.getElementById('chatIn'); if(ta&&q){ta.value=q; sendChat(id);} else if(ta){ta.focus();}},80);
+}
 async function askBox(id){
  if(CHAT_CID!==id){CHAT_CID=id; CHAT_MSGS=[];}
  const p=document.getElementById('panel');
@@ -14833,10 +14838,15 @@ async function loadAll(id){
     {k:'monthly',  title:'🗓 This Month',   url:'/api/v1/admin/preview/monthly/'+id+'?language='+lang, kind:'read'},
     {k:'annual',   title:'📅 This Year',    url:'/api/v1/admin/preview/annual/'+id+'?language='+lang, kind:'read'},
     {k:'life-arc', title:'⌛ This Cycle',    url:'/api/v1/admin/preview/life-arc/'+id+'?language='+lang, kind:'read'},
-    {k:'ask',      title:'❓ Ask · '+concern,url:'/api/v1/admin/preview/ask/'+id+'?language='+lang+'&concern='+encodeURIComponent(concern), kind:'read'},
   ];
+  // Ask is a CHAT, not a static snapshot — render a launcher card that drops
+  // you straight into the conversation (the recurring "ask still not working").
+  const askCard=`<div class=card id="dash_ask"><div class=chd><span class=prov>❓ Ask Antar</span><span class=pill>chat · real engine · quota-free</span></div>
+    <div class=muted style="font-size:12px;margin-bottom:8px">Type a question — you'll drop into a full chat with follow-ups.</div>
+    <textarea id=dashAskIn placeholder="e.g. 'Will my career move happen this year?' · 'Good time to relocate?'" style="width:100%;min-height:54px;padding:9px;border-radius:9px;border:1px solid #2c2c38;background:var(--chip);color:var(--txt);font:13px inherit;resize:vertical"></textarea>
+    <div style="margin-top:8px;display:flex;gap:8px;align-items:center"><button onclick="dashAsk('${id}')">Ask →</button><span class=muted style="font-size:11px">opens the Ask chat</span></div></div>`;
   p.innerHTML='<div id=detailsStrip class=muted style="margin-bottom:14px">loading chart…</div><div class=cardgrid id=dashgrid>'+
-    defs.map(x=>`<div class=card id="dash_${x.k}"><div class=chd><span class=prov>${x.title}</span><span class=pill>generating…</span></div><div class=muted style="padding:14px 0">running the real generator…</div></div>`).join('')+'</div>';
+    defs.map(x=>`<div class=card id="dash_${x.k}"><div class=chd><span class=prov>${x.title}</span><span class=pill>generating…</span></div><div class=muted style="padding:14px 0">running the real generator…</div></div>`).join('')+askCard+'</div>';
   fetch('/api/v1/admin/chart-details/'+id,{headers:H()}).then(r=>r.json()).then(d=>{
     const el=document.getElementById('detailsStrip'); if(!el)return;
     const nm=(d.identity&&d.identity.name)||'', bd=(d.birth&&d.birth.date)||'?', city=(d.current&&d.current.city)||'?', ctry=(d.current&&d.current.country)||'?', prof=(d.selected&&d.selected.profession)||'no profession set';
