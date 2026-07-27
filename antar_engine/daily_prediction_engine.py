@@ -1342,6 +1342,64 @@ def _scrub_cosmic_leak(text):
     return out if out else ""   # empty is better than a cosmic-jargon leak
 
 
+# [completeness 2026-07-27] Catch TRUNCATED / grammatically-broken user-facing
+# sentences before they ship — "offer it in the — your steadiness lands well
+# today" and "the favorable your growth and wisdom energy transit is blocked"
+# both reached a live card. High-precision patterns only: each marks an
+# unrecoverable structural break (a dropped word), so a hit triggers a
+# regeneration rather than a repair — we can't know what word was lost.
+_BROKEN_PATTERNS = (
+    # a function word left dangling before a dash or the end of a clause/string
+    re.compile(r"\b(in|on|at|to|of|the|a|an|for|with|and|or|but|your|his|her|"
+               r"their|before|after|by|into|onto|from)\s*[—–-]\s*(?=[a-z]|$)", re.I),
+    re.compile(r"\b(in|on|at|to|of|the|a|an|for|with|and|or|but|your|his|her|"
+               r"their|before|after|by|into|onto|from)\s*[.,;!?]", re.I),
+    re.compile(r"\b(in|on|at|to|of|the|a|an|for|with|and|or|but|your)\s*$", re.I),
+    # determiner + word + possessive/determiner with no noun between
+    # ("the favorable your", "a strong the")
+    re.compile(r"\b(the|a|an)\s+\w+\s+(your|his|her|their|the|a|an)\s+\w+", re.I),
+)
+# The determiner-gap pattern above is too broad alone ("the best of the day" is
+# fine); only flag it when the middle word is an ADJECTIVE-shaped token that
+# clearly wants a noun. Kept simple: flagged only via _looks_broken's guard.
+_ADJ_HINT = re.compile(r"\w+(ly|ful|ous|ive|able|ible|al|ic|ant|ent)$", re.I)
+
+
+def _looks_broken(text) -> bool:
+    """True if a user-facing sentence has an unrecoverable structural break."""
+    if not isinstance(text, str) or len(text.strip()) < 8:
+        return False
+    t = text.strip()
+    # dangling function word before dash / punctuation / end
+    for rx in _BROKEN_PATTERNS[:3]:
+        if rx.search(t):
+            return True
+    # determiner + adjective + determiner (no noun): "the favorable your ..."
+    for m in _BROKEN_PATTERNS[3].finditer(t):
+        mid = m.group(0).split()[1]
+        if _ADJ_HINT.search(mid):
+            return True
+    # an em-dash with no real content after it (< 2 words to the next stop)
+    for seg in re.split(r"[—–]", t)[1:]:
+        tail = seg.strip()
+        if tail and len(re.findall(r"\w+", tail.split(".")[0])) < 2:
+            return True
+    return False
+
+
+def _broken_fields(signal_json: dict) -> list:
+    """User-facing fields carrying a truncated/broken sentence."""
+    bad = []
+    for f in ("verdict_subline", "senal_de_hoy", "observa_hoy_text", "el_movimiento"):
+        if _looks_broken(signal_json.get(f)):
+            bad.append(f)
+    for f in ("haz_hoy", "evita_hoy"):
+        arr = signal_json.get(f)
+        if isinstance(arr, list) and any(_looks_broken(x) for x in arr):
+            bad.append(f)
+    return bad
+
+
 def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
     """
     Apply centralized output strips to user-facing fields before cache write.
@@ -1616,6 +1674,18 @@ async def _call_claude_daily_signal_retry(
                 "putting off, before evening.' "
                 "GOOD: 'Someone senior notices your work today. Say the one sentence "
                 "that moves the deal.'"
+            )
+
+        for _f in violations.get('broken_sentences', []) or []:
+            _bv = failed_signal.get(_f, '')
+            if isinstance(_bv, list):
+                _bv = next((x for x in _bv if isinstance(x, str)), '')
+            corrective_parts.append(
+                f"- The field '{_f}' was a BROKEN, incomplete sentence: "
+                f"\"{str(_bv)[:110]}\". A word or clause is missing (e.g. 'offer "
+                "it in the —' or 'the favorable your ...'). Every sentence must be "
+                "complete and grammatical, with no dropped words, no dangling "
+                "'the/in/for' before a dash, and no missing noun after an adjective."
             )
 
         corrective_parts.append("")
@@ -2315,14 +2385,17 @@ async def generate_weekly_signals(
                     abstract = _validate_headline_concrete(llm_signal, language)
                     invented = _validate_no_invented_specifics(
                         llm_signal, (daily_context or {}).get("chart_row") or {})
+                    # [completeness 2026-07-27] truncated/broken sentences are
+                    # unrecoverable — regenerate rather than ship "offer it in the —".
+                    broken = _broken_fields(llm_signal)
 
                     # [cold-fix] eng-leak is non-load-bearing: it no longer
                     # triggers the corrective retry (a 2nd es Sonnet). The
                     # jargon strip below still cleans any leak.
-                    if day_violations or abstract or invented:
+                    if day_violations or abstract or invented or broken:
                         logger.warning(f"[daily-week] Validation failed for {date_str}: "
                                        f"day_names={day_violations} eng_leaks={eng_leaks} "
-                                       f"abstract_headline={abstract}")
+                                       f"abstract_headline={abstract} broken={broken}")
 
                         # Build corrective retry prompt with specific violations
                         retry_signal = await _call_claude_daily_signal_retry(
@@ -2331,7 +2404,8 @@ async def generate_weekly_signals(
                             language=language,
                             violations={'day_names': day_violations, 'eng_leaks': eng_leaks,
                                         'abstract_headline': abstract,
-                                        'invented_specifics': invented},
+                                        'invented_specifics': invented,
+                                        'broken_sentences': broken},
                             failed_signal=llm_signal,
                         )
                         if retry_signal:
