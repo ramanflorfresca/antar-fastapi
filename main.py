@@ -13748,6 +13748,97 @@ async def admin_preview_daily(chart_id: str, language: str = "en",
     }
 
 
+@app.get("/api/v1/admin/chart-details/{chart_id}")
+async def admin_chart_details(chart_id: str, admin_email: str = Depends(_require_debug)):
+    """Full inspector for a chart: identity, birth vs current location, the
+    life-facts the USER selected (what personalizes their predictions), and the
+    astro summary + running periods. Answers 'which chart is this and what did I
+    choose'."""
+    row = supabase.table("charts").select("*").eq("id", chart_id).single().execute()
+    if not row.data:
+        raise HTTPException(404, "Chart not found")
+    r = row.data
+    cd = r.get("chart_data") or {}
+    if isinstance(cd, str):
+        try: cd = json.loads(cd)
+        except Exception: cd = {}
+    pl = cd.get("planets") or {}
+
+    def g(k):
+        v = r.get(k)
+        return v if v not in ("", None) else None
+
+    # is this the owner's primary chart?
+    primary = None
+    if r.get("user_id"):
+        try:
+            p = supabase.table("profiles").select("primary_chart_id").eq(
+                "user_id", r["user_id"]).limit(1).execute()
+            primary = (p.data[0].get("primary_chart_id") if p.data else None)
+        except Exception:
+            pass
+
+    # running periods (both clocks)
+    periods = {}
+    try:
+        from datetime import date as _d
+        today = _d.today().isoformat()
+        for sysname in ("vimsottari", "yogini"):
+            rows = supabase.table("dasha_periods").select("planet_or_sign,level,metadata,end_date")\
+                .eq("chart_id", chart_id).eq("system", sysname).eq("level", 1)\
+                .lte("start_date", today).gte("end_date", today).limit(1).execute().data
+            if rows:
+                lab = (rows[0].get("metadata") or {}).get("yogini") or rows[0].get("planet_or_sign")
+                periods[sysname] = {"lord": rows[0].get("planet_or_sign"),
+                                    "label": lab, "until": str(rows[0].get("end_date"))[:10]}
+    except Exception:
+        pass
+
+    return {
+        "chart_id": chart_id,
+        "is_primary": (primary == chart_id),
+        "identity": {
+            "name": g("name") or g("first_name"), "first_name": g("first_name"),
+            "display_name": g("display_name"), "email": g("email"),
+            "gender": g("gender"), "user_id": g("user_id"),
+            "protected": bool(r.get("protected")),
+            "created_at": str(g("created_at") or "")[:10],
+            "language_preference": g("language_preference"),
+        },
+        "birth": {
+            "date": str(g("birth_date") or "")[:10], "time": g("birth_time"),
+            "time_accuracy": g("birth_time_accuracy"),
+            "city": g("birth_city"), "country": g("birth_country"),
+            "latitude": g("latitude"), "longitude": g("longitude"),
+            "timezone": g("timezone"), "timezone_offset": g("timezone_offset"),
+        },
+        "current": {
+            "city": g("current_city") or g("current_geocode_city"),
+            "country": g("current_country"),
+            "lived_abroad": g("lived_abroad"), "countries_lived": g("countries_lived"),
+        },
+        "selected": {  # what the USER told us — drives personalization
+            "marital_status": g("marital_status"), "children_status": g("children_status"),
+            "career_stage": g("career_stage"), "profession": g("profession"),
+            "financial_status": g("financial_status"), "health_status": g("health_status"),
+            "ventures": g("ventures"),
+            "life_work": g("life_work"), "life_relationship": g("life_relationship"),
+            "life_kids": g("life_kids"),
+            "signup_reason": g("signup_reason"), "signup_intent": g("signup_intent"),
+            "onboarding_concern": g("onboarding_concern"),
+        },
+        "astro": {
+            "lagna": (cd.get("lagna") or {}).get("sign") or g("lagna_sign"),
+            "sun": (pl.get("Sun") or {}).get("sign") or g("sun_sign"),
+            "moon": (pl.get("Moon") or {}).get("sign") or g("moon_sign"),
+            "moon_nakshatra": (pl.get("Moon") or {}).get("nakshatra"),
+            "atmakaraka": cd.get("atmakaraka"),
+            "vimsottari": periods.get("vimsottari"),
+            "yogini": periods.get("yogini"),
+        },
+    }
+
+
 @app.get("/api/v1/admin/compare-daily/{chart_id}")
 async def admin_compare_daily(chart_id: str, language: str = "en",
                               providers: str = "anthropic,deepseek,kimi",
@@ -13992,7 +14083,8 @@ _PRED_DEBUG_HTML = r"""<!doctype html><html><head><meta charset=utf-8>
   <input id=tok placeholder="admin token" style="width:200px" type=password>
   <input id=q placeholder="search name / email" style="width:190px">
   <div class=segs id=modeSegs>
-    <button data-m=daily class=on>Daily</button>
+    <button data-m=details class=on>Details</button>
+    <button data-m=daily>Daily</button>
     <button data-m=compare>Compare LLMs</button>
     <button data-m=life-arc>Life-arc</button>
     <button data-m=monthly>Monthly</button>
@@ -14046,8 +14138,18 @@ async function load(id){
  CUR=id; document.querySelectorAll('.row').forEach(r=>r.classList.remove('sel'));
  const rr=document.getElementById('r_'+id); if(rr)rr.classList.add('sel');
  const p=document.getElementById('panel'); const lang=document.getElementById('lang').value;
- p.innerHTML='<div class=empty>generating '+MODE+'… (LLM calls can take ~40s)</div>';
+ p.innerHTML='<div class=empty>loading '+MODE+'…</div>';
  try{
+  if(MODE==='details'){
+    const r=await fetch('/api/v1/admin/chart-details/'+id,{headers:H()});
+    const d=await r.json(); if(!r.ok){p.innerHTML='<div class=empty style=color:#ff7b7e>error '+r.status+'</div>';return;}
+    const kv=o=>Object.entries(o).map(([k,v])=>`<div style=display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--line2)><span class=muted>${k}</span><span style=text-align:right>${v==null?'<span class=muted>&mdash;</span>':(typeof v==='object'?JSON.stringify(v):v)}</span></div>`).join('');
+    const warn=[]; const cc=(d.current.country||'');
+    if(d.current.city&&/bogot/i.test(d.current.city)&&cc!=='CO')warn.push('current city looks Colombian but country is "'+cc+'"');
+    const sec=(t,o)=>`<div class=card><div class=chd><span class=prov>${t}</span></div>${kv(o)}</div>`;
+    p.innerHTML=`<div style=margin-bottom:10px><b>${d.identity.name||''}</b> ${d.is_primary?'<span class="pill g">primary</span>':'<span class=pill>secondary</span>'} ${d.identity.protected?'<span class=pill>protected</span>':''} ${warn.map(w=>'<span class=flag>'+w+'</span>').join('')}</div><div class=cardgrid>${sec('Identity',d.identity)}${sec('Birth',d.birth)}${sec('Current location',d.current)}${sec('Selected by user',d.selected)}${sec('Astrology',d.astro)}</div>`;
+    return;
+  }
   if(MODE==='daily'){
     const rf=document.getElementById('force')?true:false;
     const r=await fetch('/api/v1/admin/preview-daily/'+id+'?language='+lang,{headers:H()});
