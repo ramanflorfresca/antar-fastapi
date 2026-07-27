@@ -347,8 +347,94 @@ def list_question_ids() -> list[str]:
     return list(PATRA_QUESTIONS.keys())
 
 
+# ═══════════════════════════════════════════════════════════════════════════
+# Admin editor — dropdown options per patra field
+#
+# The admin chart editor renders these fields as dropdowns matching the choices
+# the user sees in the frontend. VALUES come straight from this catalog (the
+# same stable enum keys the onboarding writes), so the dropdowns can never drift
+# from production. LABELS below are curated for standalone display (the catalog's
+# own labels are question-specific, e.g. "Recently out of one", which read oddly
+# out of context). Order is curated; any catalog value missing a label here is
+# still surfaced (derived label) so nothing becomes unselectable.
+# ═══════════════════════════════════════════════════════════════════════════
+
+_ADMIN_LABELS: dict = {
+    "marital_status": [
+        ("single", "Single"), ("in_relationship", "In a relationship"),
+        ("married", "Married"), ("separated", "Separated / complicated"),
+        ("divorced", "Divorced"), ("widowed", "Widowed"),
+    ],
+    "children_status": [
+        ("young_children", "Young children"), ("older_children", "Older children"),
+        ("adult_children", "Adult children"), ("expecting", "Expecting"),
+        ("no_children_wants", "No children — hoping to"),
+        ("no_children_by_choice", "No children — by choice"),
+    ],
+    "career_stage": [
+        ("student", "Student"), ("early_career", "Early career"),
+        ("mid_career", "Mid-career"), ("senior_career", "Senior / leadership"),
+        ("entrepreneur", "Entrepreneur / own business"),
+        ("creative", "Creative / independent"), ("transition", "In transition"),
+        ("retired", "Retired"),
+    ],
+    "financial_status": [
+        ("growing", "Growing"), ("stable", "Stable"),
+        ("debt", "Building / debt"), ("wealthy", "Wealthy / legacy"),
+        ("transition", "In transition"),
+    ],
+    "health_status": [
+        ("excellent", "Excellent"), ("minor_issues", "Minor issues"),
+        ("chronic", "Chronic condition"), ("recovery", "Recovering"),
+        ("mental_health", "Emotional / mental health"),
+    ],
+}
+
+# fields the admin edits that are NOT in the patra catalog (static choice sets)
+_EXTRA_OPTIONS: dict = {
+    "gender": [
+        ("male", "Male"), ("female", "Female"),
+        ("non_binary", "Non-binary"), ("prefer_not_to_say", "Prefer not to say"),
+    ],
+}
+
+
+def _catalog_values() -> dict:
+    """{patra_field: set(valid values)} derived live from PATRA_QUESTIONS."""
+    vals: dict = {}
+    for q in PATRA_QUESTIONS.values():
+        for opt in q.get("options", []):
+            for field, fv in (opt.get("patra") or {}).items():
+                if fv:
+                    vals.setdefault(field, set()).add(fv)
+    return vals
+
+
+def admin_field_options() -> dict:
+    """{field: [{value, label}]} for the admin chart editor. Patra fields are
+    validated against the live catalog so a stale label here can never inject an
+    invalid code; extra fields (gender) are static."""
+    catalog = _catalog_values()
+    out: dict = {}
+    for field, pairs in _ADMIN_LABELS.items():
+        valid = catalog.get(field, set())
+        seen = set()
+        lst = []
+        for value, label in pairs:
+            if value in valid:
+                lst.append({"value": value, "label": label})
+                seen.add(value)
+        for value in sorted(valid - seen):  # catalog gained a value we didn't label
+            lst.append({"value": value, "label": value.replace("_", " ").title()})
+        out[field] = lst
+    for field, pairs in _EXTRA_OPTIONS.items():
+        out[field] = [{"value": v, "label": l} for v, l in pairs]
+    return out
+
+
 __all__ = [
     "PATRA_QUESTIONS",
     "render_question",
     "list_question_ids",
+    "admin_field_options",
 ]

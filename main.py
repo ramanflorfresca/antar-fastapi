@@ -13799,9 +13799,16 @@ async def admin_chart_details(chart_id: str, admin_email: str = Depends(_require
     except Exception:
         pass
 
+    try:
+        from antar_engine.patra_catalog import admin_field_options
+        _field_opts = admin_field_options()
+    except Exception:
+        _field_opts = {}
+
     return {
         "chart_id": chart_id,
         "is_primary": (primary == chart_id),
+        "field_options": _field_opts,  # dropdown choices matching the frontend
         "identity": {
             "name": g("name") or g("first_name"), "first_name": g("first_name"),
             "display_name": g("display_name"), "email": g("email"),
@@ -14536,8 +14543,27 @@ async function load(id){
     const d=await r.json(); if(!r.ok){p.innerHTML='<div class=empty style=color:#ff7b7e>error '+r.status+'</div>';return;}
     // read-only key/value rows
     const ro=o=>Object.entries(o).map(([k,v])=>`<div style=display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-bottom:1px solid var(--line2)><span class=muted>${k}</span><span style=text-align:right>${v==null?'<span class=muted>&mdash;</span>':(typeof v==='object'?JSON.stringify(v):v)}</span></div>`).join('');
-    // editable rows — `map` is {label: {col, val}}
-    const ed=map=>Object.entries(map).map(([lbl,f])=>`<div style=display:flex;justify-content:space-between;gap:12px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line2)><span class=muted>${lbl}</span><input class=efld data-col="${f.col}" value="${f.val==null?'':(Array.isArray(f.val)?f.val.join(', '):f.val)}" placeholder="${f.val==null?'(missing)':''}" style="width:190px;text-align:right"></div>`).join('');
+    // editable rows — `map` is {label: {col, val}}. Fields with a known choice
+    // set (from the frontend catalog) render as a dropdown; the rest as text.
+    const OPTS=d.field_options||{};
+    const ed=map=>Object.entries(map).map(([lbl,f])=>{
+      const cur=f.val==null?'':(Array.isArray(f.val)?f.val.join(', '):(''+f.val));
+      const opts=OPTS[f.col];
+      let ctrl;
+      if(opts&&opts.length){
+        const known=opts.some(o=>o.value===cur);
+        ctrl=`<select class=efld data-col="${f.col}" style="width:230px">`
+          +`<option value="" ${cur===''?'selected':''}>(none)</option>`
+          +opts.map(o=>`<option value="${o.value}" ${o.value===cur?'selected':''}>${o.label}</option>`).join('')
+          // keep a legacy/custom value that isn't in the catalog so we never
+          // silently drop it — admin can re-pick a canonical option to normalize.
+          +((cur!==''&&!known)?`<option value="${cur}" selected>${cur} — custom</option>`:'')
+          +`</select>`;
+      } else {
+        ctrl=`<input class=efld data-col="${f.col}" value="${cur}" placeholder="${f.val==null?'(missing)':''}" style="width:190px;text-align:right">`;
+      }
+      return `<div style=display:flex;justify-content:space-between;gap:12px;align-items:center;padding:5px 0;border-bottom:1px solid var(--line2)><span class=muted>${lbl}</span>${ctrl}</div>`;
+    }).join('');
     const sec=(t,html)=>`<div class=card><div class=chd><span class=prov>${t}</span></div>${html}</div>`;
     const warn=[]; const cc=(d.current.country||'');
     if(d.current.city&&/bogot/i.test(d.current.city)&&cc!=='CO')warn.push('city "'+d.current.city+'" vs country "'+cc+'"');
