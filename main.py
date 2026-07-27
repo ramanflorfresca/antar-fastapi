@@ -13944,129 +13944,155 @@ async def admin_debug_page_short():
     return HTMLResponse(_PRED_DEBUG_HTML)
 
 
-_PRED_DEBUG_HTML = """<!doctype html><html><head><meta charset=utf-8>
+_PRED_DEBUG_HTML = r"""<!doctype html><html><head><meta charset=utf-8>
 <meta name=viewport content="width=device-width,initial-scale=1">
 <title>Antar · Prediction Debugger</title>
 <style>
- body{font:14px/1.5 -apple-system,system-ui,sans-serif;margin:0;background:#0b0b0f;color:#e7e7ea}
- header{padding:14px 18px;background:#12121a;border-bottom:1px solid #24242e;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
- input,button,select{font:14px inherit;padding:8px 10px;border-radius:8px;border:1px solid #2c2c38;background:#181820;color:#e7e7ea}
- button{cursor:pointer;background:#1f6feb;border-color:#1f6feb}
- #wrap{display:flex;gap:0;height:calc(100vh - 56px)}
- #list{width:320px;overflow:auto;border-right:1px solid #24242e}
- .row{padding:10px 14px;border-bottom:1px solid #1b1b24;cursor:pointer}
- .row:hover{background:#15151d} .row b{color:#fff} .row small{color:#8a8a99}
- #panel{flex:1;overflow:auto;padding:20px}
- .card{background:#12121a;border:1px solid #24242e;border-radius:12px;padding:18px;max-width:720px}
- .fld{margin:12px 0;padding:10px 12px;border-radius:8px;background:#15151d;border-left:3px solid #2c2c38}
- .fld.bad{border-left-color:#e5484d;background:#1e1416}
- .lbl{color:#8a8a99;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
- .flag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:6px;margin-left:6px;background:#e5484d;color:#fff}
- .ok{color:#3fb950} .pill{padding:3px 9px;border-radius:20px;font-size:12px;border:1px solid #2c2c38}
- .muted{color:#8a8a99}
+ :root{--bg:#0a0a0f;--panel:#12121a;--line:#23232e;--line2:#1b1b24;--txt:#e7e7ea;--mut:#8a8a99;--accent:#1f6feb;--ok:#3fb950;--bad:#e5484d;--chip:#181820}
+ *{box-sizing:border-box}
+ body{font:14px/1.55 -apple-system,BlinkMacSystemFont,system-ui,sans-serif;margin:0;background:var(--bg);color:var(--txt)}
+ header{padding:12px 18px;background:linear-gradient(180deg,#14141d,#101017);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5}
+ .brand{font-weight:700;font-size:15px;letter-spacing:-.01em;margin-right:6px}
+ .brand span{color:#8ab4ff}
+ .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:8px}
+ input,button,select{font:13px inherit;padding:8px 11px;border-radius:9px;border:1px solid #2c2c38;background:var(--chip);color:var(--txt);outline:none}
+ input:focus,select:focus{border-color:#3a3a4a}
+ button{cursor:pointer;background:var(--accent);border-color:var(--accent);font-weight:600}
+ button.ghost{background:#262631;border-color:#30303c}
+ .segs{display:inline-flex;border:1px solid #2c2c38;border-radius:9px;overflow:hidden}
+ .segs button{background:transparent;border:0;border-radius:0;padding:8px 12px;font-weight:500;color:var(--mut)}
+ .segs button.on{background:var(--accent);color:#fff}
+ #wrap{display:flex;height:calc(100vh - 92px)}
+ #list{width:290px;min-width:290px;overflow:auto;border-right:1px solid var(--line);background:#0d0d13}
+ .row{padding:11px 15px;border-bottom:1px solid var(--line2);cursor:pointer;transition:background .1s}
+ .row:hover{background:#15151f} .row.sel{background:#182036;border-left:2px solid var(--accent)}
+ .row b{color:#fff;font-weight:600} .row small{color:var(--mut);display:block;font-size:12px}
+ .row .id{color:#4a4a58;font-size:10px;font-family:ui-monospace,monospace}
+ #panel{flex:1;overflow:auto;padding:22px}
+ .muted{color:var(--mut)}
+ .cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;align-items:start}
+ .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
+ .chd{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line2)}
+ .prov{font-weight:700;font-size:16px;text-transform:capitalize}
+ .pill{padding:3px 9px;border-radius:20px;font-size:11.5px;border:1px solid #2c2c38;color:var(--mut);white-space:nowrap}
+ .pill.g{border-color:var(--ok);color:var(--ok)} .pill.r{border-color:var(--bad);color:#ff7b7e}
+ .fld{margin:11px 0}
+ .lbl{color:var(--mut);font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;margin-bottom:3px}
+ .val{background:#15151d;border-left:3px solid #2c2c38;border-radius:0 8px 8px 0;padding:9px 12px}
+ .val.bad{border-left-color:var(--bad);background:#1e1416}
+ .flag{display:inline-block;font-size:10px;padding:1px 6px;border-radius:5px;margin-left:5px;background:var(--bad);color:#fff;vertical-align:middle}
+ .li{background:#15151d;border-radius:8px;padding:7px 11px;margin:5px 0}
+ .li.bad{background:#1e1416;border-left:3px solid var(--bad)}
+ .empty{color:var(--mut);padding:40px;text-align:center}
+ a.tok{color:#8ab4ff;cursor:pointer;text-decoration:underline}
 </style></head><body>
 <header>
- <b>Antar · Prediction Debugger</b>
- <input id=tok placeholder="admin bearer token" style="width:230px">
- <input id=q placeholder="search name / email…" style="width:200px">
- <select id=surface><option value=daily>Daily</option><option value=life-arc>Life-arc</option><option value=monthly>Monthly</option><option value=ask>Ask</option></select>
- <input id=concern placeholder="ask concern (career…)" style="width:130px" value=career>
- <select id=lang><option value=en>EN</option><option value=es>ES</option><option value=pt>PT</option></select>
- <label class=muted><input type=checkbox id=refresh> force regenerate</label>
- <button onclick=search()>Search</button>
- <button onclick=loadConfig() style="background:#30363d;border-color:#30363d">⚙ Config</button>
+ <span class=brand>Antar<span>·</span>Prediction Debugger</span>
+ <div class=bar>
+  <input id=tok placeholder="admin token" style="width:200px" type=password>
+  <input id=q placeholder="search name / email" style="width:190px">
+  <div class=segs id=modeSegs>
+    <button data-m=daily class=on>Daily</button>
+    <button data-m=compare>Compare LLMs</button>
+    <button data-m=life-arc>Life-arc</button>
+    <button data-m=monthly>Monthly</button>
+    <button data-m=ask>Ask</button>
+  </div>
+  <select id=lang><option value=en>EN</option><option value=es>ES</option><option value=pt>PT</option></select>
+  <input id=concern placeholder=concern value=career style="width:96px">
+  <button onclick=search()>Search</button>
+  <button class=ghost onclick=loadConfig()>&#9881; Config</button>
+ </div>
 </header>
-<div id=wrap><div id=list class=muted style="padding:14px">Paste your admin token, then search.</div>
-<div id=panel class=muted>Pick a chart on the left.</div></div>
+<div id=wrap>
+ <div id=list class=muted style="padding:14px">Enter your token, then Search.</div>
+ <div id=panel><div class=empty>Search a chart on the left, pick a mode, click the chart.</div></div>
+</div>
 <script>
-// remember the token across sessions — internal tool, enter once
+let MODE='daily', CUR=null;
 const TK=document.getElementById('tok');
 TK.value=localStorage.getItem('antar_debug_tok')||'';
-TK.addEventListener('change',()=>localStorage.setItem('antar_debug_tok',TK.value.trim()));
 const H=()=>{localStorage.setItem('antar_debug_tok',TK.value.trim());return{Authorization:'Bearer '+TK.value.trim()};};
+document.querySelectorAll('#modeSegs button').forEach(b=>b.onclick=()=>{
+  document.querySelectorAll('#modeSegs button').forEach(x=>x.classList.remove('on'));
+  b.classList.add('on'); MODE=b.dataset.m; if(CUR) load(CUR);
+});
+document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
+const badge=a=>[a.cosmic?'<span class=flag>cosmic</span>':'',a.mechanics?'<span class=flag>jargon</span>':'',a.broken?'<span class=flag>broken</span>':''].join('');
+const bad=a=>a.cosmic||a.mechanics||a.broken;
+const cleanPill=ok=>`<span class="pill ${ok?'g':'r'}">${ok?'\u2713 clean':'\u2717 issues'}</span>`;
+
 async function search(){
- const q=document.getElementById('q').value.trim();
- const l=document.getElementById('list'); l.innerHTML='loading…';
+ const l=document.getElementById('list'); l.innerHTML='<div class=row class=muted>loading…</div>';
  try{
-  const r=await fetch('/api/v1/admin/charts?limit=60&q='+encodeURIComponent(q),{headers:H()});
-  if(!r.ok){l.innerHTML='<div class=row style=color:#e5484d>auth failed ('+r.status+') — check token</div>';return;}
+  const r=await fetch('/api/v1/admin/charts?limit=80&q='+encodeURIComponent(document.getElementById('q').value.trim()),{headers:H()});
+  if(!r.ok){l.innerHTML='<div class=row style=color:#ff7b7e>auth failed ('+r.status+') — check token</div>';return;}
   const d=await r.json();
-  if(!d.charts.length){l.innerHTML='<div class=row class=muted>no charts</div>';return;}
-  l.innerHTML=d.charts.map(c=>`<div class=row onclick="load('${c.id}')"><b>${c.name}</b> <small>${c.lang}</small><br><small>${c.email||c.birth_date} · ${c.city||''}</small><br><small style=color:#555>${c.id}</small></div>`).join('');
- }catch(e){l.innerHTML='<div class=row style=color:#e5484d>'+e+'</div>';}
+  if(!d.charts||!d.charts.length){l.innerHTML='<div class=row class=muted>no charts</div>';return;}
+  l.innerHTML=d.charts.map(c=>`<div class=row id="r_${c.id}" onclick="load('${c.id}')"><b>${c.name}</b> <small>${c.email||c.birth_date}${c.city?' · '+c.city:''} · ${c.lang}</small><span class=id>${c.id}</span></div>`).join('');
+ }catch(e){l.innerHTML='<div class=row style=color:#ff7b7e>'+e+'</div>';}
 }
-const badge=(a)=>[a.cosmic?'<span class=flag>cosmic</span>':'',a.mechanics?'<span class=flag>jargon</span>':'',a.broken?'<span class=flag>broken</span>':''].join('');
+function fldHTML(name,o){return o&&o.text?`<div class=fld><div class=lbl>${name} ${badge(o.audit)}</div><div class="val ${bad(o.audit)?'bad':''}">${o.text}</div></div>`:'';}
+function listHTML(name,arr){return (arr&&arr.length)?`<div class=fld><div class=lbl>${name}</div>`+arr.map(o=>`<div class="li ${bad(o.audit)?'bad':''}">${o.text} ${badge(o.audit)}</div>`).join('')+`</div>`:'';}
+function cardHTML(title,pills,body){return `<div class=card><div class=chd><span class=prov>${title}</span>${pills.join('')}</div>${body}</div>`;}
+function dailyBody(d){const f=d.fields,coh=d.coherence||{coherent:true};
+  const pills=[d.day_energy?`<span class=pill>${d.day_energy.label}</span>`:'',
+    d.llm_generated?'<span class=pill>LLM</span>':'<span class=pill>template</span>',
+    d.day_frame?`<span class=pill>frame:${d.day_frame}</span>`:'',
+    coh.coherent?'':`<span class=flag>incoherent</span>`, cleanPill(d.audit_clean)];
+  return {pills,body:fldHTML('Verdict',f.verdict_subline)+fldHTML('Signal',f.senal_de_hoy)+listHTML('What to do',f.haz_hoy)+listHTML('What to avoid',f.evita_hoy)+fldHTML('Watch for',f.observa_hoy_text)+fldHTML('The move',f.el_movimiento)};}
+
 async function load(id){
- const p=document.getElementById('panel'); p.className=''; p.innerHTML='generating…';
- const lang=document.getElementById('lang').value, rf=document.getElementById('refresh').checked;
- const surface=document.getElementById('surface').value;
+ CUR=id; document.querySelectorAll('.row').forEach(r=>r.classList.remove('sel'));
+ const rr=document.getElementById('r_'+id); if(rr)rr.classList.add('sel');
+ const p=document.getElementById('panel'); const lang=document.getElementById('lang').value;
+ p.innerHTML='<div class=empty>generating '+MODE+'… (LLM calls can take ~40s)</div>';
  try{
-  if(surface==='daily'){ return loadDaily(id,lang,rf,p); }
+  if(MODE==='daily'){
+    const rf=document.getElementById('force')?true:false;
+    const r=await fetch('/api/v1/admin/preview-daily/'+id+'?language='+lang,{headers:H()});
+    const d=await r.json(); if(!r.ok){p.innerHTML='<div class=empty style=color:#ff7b7e>error '+r.status+'</div>';return;}
+    const c=dailyBody(d); p.innerHTML='<div class=cardgrid>'+cardHTML(d.name||'Daily',c.pills,c.body)+'</div>'; return;
+  }
+  if(MODE==='compare'){
+    const r=await fetch('/api/v1/admin/compare-daily/'+id+'?language='+lang+'&providers=anthropic,deepseek,kimi',{headers:H()});
+    const d=await r.json(); if(!r.ok){p.innerHTML='<div class=empty style=color:#ff7b7e>error '+r.status+'</div>';return;}
+    const cols=d.columns.map(col=>{
+      if(col.unavailable)return cardHTML(col.provider,['<span class=pill r>unavailable</span>'],'<div class=muted>'+col.note+'</div>');
+      if(col.error)return cardHTML(col.provider,['<span class=pill r>error</span>'],'<div class=muted>'+col.error+'</div>');
+      const c=dailyBody(col); c.pills.unshift('<span class=pill>'+col.ms+'ms</span>');
+      return cardHTML(col.provider,c.pills,c.body);
+    }).join('');
+    p.innerHTML=`<div style=margin-bottom:12px><b>${d.name}</b> <span class=muted>— same chart, same day, each LLM. frame: ${d.day_frame}</span></div><div class=cardgrid>${cols}</div>`; return;
+  }
+  // life-arc / monthly / ask
   const concern=document.getElementById('concern').value.trim()||'career';
-  const r=await fetch('/api/v1/admin/preview/'+surface+'/'+id+'?language='+lang+'&concern='+encodeURIComponent(concern),{headers:H()});
-  const d=await r.json();
-  if(!r.ok){p.innerHTML='<span style=color:#e5484d>error '+r.status+': '+(d.detail||'')+'</span>';return;}
-  const flags=(d.flagged||[]).map(o=>`<div class="fld bad"><div class=lbl>${o.path} ${badge(o.audit)}</div>${o.text}</div>`).join('')||'<div class=muted style=margin-top:10px>no jargon/broken strings found</div>';
-  p.innerHTML=`<div class=card>
-   <div style=display:flex;gap:10px;align-items:center;margin-bottom:6px;flex-wrap:wrap>
-     <b style=font-size:18px>${surface}</b>
-     ${Object.entries(d.meta||{}).map(([k,v])=>`<span class=pill>${k}: ${typeof v==='object'?JSON.stringify(v):v}</span>`).join('')}
-     <span class="pill ${d.audit_clean?'ok':''}" style="border-color:${d.audit_clean?'#3fb950':'#e5484d'}">${d.audit_clean?'✓ clean':'✗ '+d.flag_count+' flagged'}</span>
-   </div>
-   ${d.error?'<div style=color:#e5484d>'+d.error+'</div>':''}
-   <div class=lbl style=margin-top:12px>Flagged strings</div>${flags}
-  </div>`;
- }catch(e){p.innerHTML='<span style=color:#e5484d>'+e+'</span>';}
-}
-async function loadDaily(id,lang,rf,p){
-  const r=await fetch('/api/v1/admin/preview-daily/'+id+'?language='+lang+'&refresh='+rf,{headers:H()});
-  const d=await r.json();
-  if(!r.ok){p.innerHTML='<span style=color:#e5484d>error '+r.status+': '+(d.detail||'')+'</span>';return;}
-  const fld=(name,o)=>o&&o.text?`<div class="fld ${(o.audit.cosmic||o.audit.mechanics||o.audit.broken)?'bad':''}"><div class=lbl>${name} ${badge(o.audit)}</div>${o.text}</div>`:'';
-  const list=(name,arr)=>(arr&&arr.length)?`<div class=lbl style=margin-top:14px>${name}</div>`+arr.map(o=>`<div class="fld ${(o.audit.cosmic||o.audit.mechanics||o.audit.broken)?'bad':''}">${o.text} ${badge(o.audit)}</div>`).join(''):'';
-  const f=d.fields, coh=d.coherence||{coherent:true};
-  p.innerHTML=`<div class=card>
-   <div style=display:flex;gap:10px;align-items:center;margin-bottom:6px;flex-wrap:wrap>
-     <b style=font-size:18px>${d.name}</b>
-     <span class=pill>${d.day_energy?d.day_energy.label:''}</span>
-     <span class=pill>frame: ${d.day_frame}</span>
-     <span class=pill>${d.llm_generated?'LLM':'template'}${d.fallback?' · fallback':''}</span>
-     ${coh.coherent?'':'<span class=flag>incoherent: '+coh.note+'</span>'}
-     <span class="pill ${d.audit_clean?'ok':''}" style="border-color:${d.audit_clean?'#3fb950':'#e5484d'}">${d.audit_clean?'✓ clean':'✗ issues'}</span>
-   </div>
-   ${fld('Verdict',f.verdict_subline)}
-   ${fld('Signal',f.senal_de_hoy)}
-   ${list('What to do',f.haz_hoy)}
-   ${list('What to avoid',f.evita_hoy)}
-   ${fld('Watch for',f.observa_hoy_text)}
-   ${fld('The move',f.el_movimiento)}
-  </div>`;
+  const r=await fetch('/api/v1/admin/preview/'+MODE+'/'+id+'?language='+lang+'&concern='+encodeURIComponent(concern),{headers:H()});
+  const d=await r.json(); if(!r.ok){p.innerHTML='<div class=empty style=color:#ff7b7e>error '+r.status+'</div>';return;}
+  const flags=(d.flagged||[]).map(o=>`<div class="li bad"><div class=lbl>${o.path} ${badge(o.audit)}</div>${o.text}</div>`).join('')||'<div class=muted>no jargon/broken strings found</div>';
+  const pills=Object.entries(d.meta||{}).filter(([k])=>k!=='locks').map(([k,v])=>`<span class=pill>${k}: ${typeof v==='object'?JSON.stringify(v):v}</span>`);
+  pills.push(cleanPill(d.audit_clean));
+  p.innerHTML='<div class=cardgrid>'+cardHTML(MODE,pills,(d.error?'<div style=color:#ff7b7e>'+d.error+'</div>':'')+'<div class=lbl>Flagged strings</div>'+flags)+'</div>';
+ }catch(e){p.innerHTML='<div class=empty style=color:#ff7b7e>'+e+'</div>';}
 }
 async function loadConfig(){
- const p=document.getElementById('panel'); p.className=''; p.innerHTML='loading config…';
+ const p=document.getElementById('panel'); p.innerHTML='<div class=empty>loading config…</div>';
  try{
-  const r=await fetch('/api/v1/admin/config',{headers:H()});
-  const d=await r.json();
-  if(!r.ok){p.innerHTML='<span style=color:#e5484d>error '+r.status+'</span>';return;}
+  const r=await fetch('/api/v1/admin/config',{headers:H()}); const d=await r.json();
+  if(!r.ok){p.innerHTML='<div class=empty style=color:#ff7b7e>error '+r.status+'</div>';return;}
   const rows=Object.entries(d.config).map(([k,c])=>{
-   const inp=c.choices?`<select id="cfg_${k}">`+c.choices.map(o=>`<option ${o===c.value?'selected':''}>${o}</option>`).join('')+`</select>`:`<input id="cfg_${k}" value="${c.value}" style=width:220px>`;
-   return `<div class=fld><div class=lbl>${k} ${c.overridden?'<span class=pill>overridden</span>':'<span class="pill muted">default</span>'}</div>
-     <div style=display:flex;gap:8px;align-items:center;margin-top:4px>${inp}<button onclick="saveCfg('${k}')">Save</button><span id="msg_${k}" class=muted></span></div>
-     <div class=muted style=font-size:12px;margin-top:4px>${c.help||''}</div></div>`;
+   const inp=c.choices?`<select id=cfg_${k}>`+c.choices.map(o=>`<option ${o===c.value?'selected':''}>${o}</option>`).join('')+`</select>`:`<input id=cfg_${k} value="${c.value}" style=width:240px>`;
+   return `<div class=fld><div class=lbl>${k} ${c.overridden?'<span class=pill>overridden</span>':'<span class=pill>default</span>'}</div><div style=display:flex;gap:8px;align-items:center>${inp}<button onclick="saveCfg('${k}')">Save</button><span id=msg_${k} class=muted></span></div><div class=muted style=font-size:12px;margin-top:3px>${c.help||''}</div></div>`;
   }).join('');
-  p.innerHTML=`<div class=card><div style=display:flex;gap:10px;align-items:center;margin-bottom:8px><b style=font-size:18px>⚙ Backend Config</b><span class=muted>changes go live within ~20s, no redeploy</span></div>${rows}</div>`;
- }catch(e){p.innerHTML='<span style=color:#e5484d>'+e+'</span>';}
+  p.innerHTML='<div class=cardgrid><div class=card style=grid-column:1/-1;max-width:640px><div class=chd><span class=prov>&#9881; Backend Config</span><span class=muted>live within ~20s, no redeploy</span></div>'+rows+'</div></div>';
+ }catch(e){p.innerHTML='<div class=empty style=color:#ff7b7e>'+e+'</div>';}
 }
 async function saveCfg(k){
- const el=document.getElementById('cfg_'+k), msg=document.getElementById('msg_'+k);
- msg.textContent='saving…';
- try{
-  const r=await fetch('/api/v1/admin/config',{method:'PUT',headers:{...H(),'Content-Type':'application/json'},body:JSON.stringify({key:k,value:el.value})});
-  const d=await r.json();
-  msg.innerHTML=r.ok?'<span class=ok>✓ saved</span>':'<span style=color:#e5484d>'+(d.detail||'error')+'</span>';
- }catch(e){msg.textContent=''+e;}
+ const el=document.getElementById('cfg_'+k),m=document.getElementById('msg_'+k); m.textContent='saving…';
+ try{const r=await fetch('/api/v1/admin/config',{method:'PUT',headers:{...H(),'Content-Type':'application/json'},body:JSON.stringify({key:k,value:el.value})});
+  const d=await r.json(); m.innerHTML=r.ok?'<span style=color:#3fb950>\u2713 saved</span>':'<span style=color:#ff7b7e>'+(d.detail||'error')+'</span>';
+ }catch(e){m.textContent=''+e;}
 }
-document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
 </script></body></html>"""
 
 
