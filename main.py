@@ -14286,6 +14286,20 @@ def _readable_surface(surface: str, payload: dict) -> dict:
         addlist("Avoid", diag.get("what_to_avoid"))
         addlist("Timeline", [c.get("body") for c in (payload.get("cycle_timeline") or [])
                              if isinstance(c, dict)])
+    elif surface in ("annual", "year", "annual-plan"):
+        headline = payload.get("year_theme") or payload.get("theme") or ""
+        pills = {"year": payload.get("year"),
+                 "quality": payload.get("year_quality") or payload.get("quality"),
+                 "range": payload.get("range")}
+        add("Summary", payload.get("year_summary"))
+        add("Theme", payload.get("theme"))
+        add("Mantra", payload.get("year_mantra"))
+        addlist("Build this year", payload.get("build_this_year"))
+        addlist("Protect this year", payload.get("protect_this_year"))
+        addlist("Release this year", payload.get("release_this_year"))
+        addlist("Critical dates", [f"{c.get('date')}: {c.get('event')}"
+                                    for c in (payload.get("critical_dates") or [])
+                                    if isinstance(c, dict)])
     elif surface == "ask":
         headline = payload.get("verdict_phrase") or payload.get("public_summary") or ""
         pills = {"concern": payload.get("concern"), "verdict": payload.get("verdict"),
@@ -14318,6 +14332,11 @@ async def admin_preview_surface(surface: str, chart_id: str, language: str = "en
             res = await get_monthly_deepdive(chart_id, language=language)
             payload = res if isinstance(res, dict) else {}
             meta = {"stale": payload.get("stale"), "regenerating": payload.get("regenerating")}
+        elif surface in ("annual", "year", "annual-plan"):
+            res = await get_annual_plan(chart_id, language=language)
+            payload = res if isinstance(res, dict) else {}
+            meta = {"year": payload.get("year"), "range": payload.get("range"),
+                    "quality": payload.get("year_quality") or payload.get("quality")}
         elif surface == "ask":
             row = supabase.table("charts").select("chart_data,birth_date").eq(
                 "id", chart_id).single().execute()
@@ -14336,7 +14355,7 @@ async def admin_preview_surface(surface: str, chart_id: str, language: str = "en
                     "varga": (payload.get("varga_confirm") or {}).get("status"),
                     "locks": {k: v.get("active") for k, v in (payload.get("locks") or {}).items()}}
         else:
-            raise HTTPException(400, f"unknown surface '{surface}' (life-arc|monthly|ask)")
+            raise HTTPException(400, f"unknown surface '{surface}' (life-arc|annual|monthly|ask)")
     except HTTPException:
         raise
     except Exception as e:
@@ -14449,7 +14468,7 @@ _PRED_DEBUG_HTML = r"""<!doctype html><html><head><meta charset=utf-8>
     <button data-m=monthly>Monthly</button>
     <button data-m=ask>Ask</button>
   </div>
-  <select id=ctype title="prediction type for Compare"><option value=daily>Today</option><option value=monthly>Month</option><option value=life-arc>Year</option></select>
+  <select id=ctype title="prediction type for Compare"><option value=daily>Today</option><option value=monthly>Month</option><option value=life-arc>Cycle</option></select>
   <select id=lang><option value=en>EN</option><option value=es>ES</option><option value=pt>PT</option></select>
   <input id=concern placeholder=concern value=career style="width:96px">
   <button onclick=search()>Search</button>
@@ -14504,9 +14523,10 @@ async function loadAll(id){
   const p=document.getElementById('panel'); const lang=document.getElementById('lang').value;
   const concern=document.getElementById('concern').value.trim()||'career';
   const defs=[
-    {k:'daily',    title:'☀ Today',          url:'/api/v1/admin/preview-daily/'+id+'?language='+lang, kind:'daily'},
-    {k:'monthly',  title:'🗓 This Month', url:'/api/v1/admin/preview/monthly/'+id+'?language='+lang, kind:'read'},
-    {k:'life-arc', title:'⌛ This Year / Cycle',url:'/api/v1/admin/preview/life-arc/'+id+'?language='+lang, kind:'read'},
+    {k:'daily',    title:'☀ Today',        url:'/api/v1/admin/preview-daily/'+id+'?language='+lang, kind:'daily'},
+    {k:'monthly',  title:'🗓 This Month',   url:'/api/v1/admin/preview/monthly/'+id+'?language='+lang, kind:'read'},
+    {k:'annual',   title:'📅 This Year',    url:'/api/v1/admin/preview/annual/'+id+'?language='+lang, kind:'read'},
+    {k:'life-arc', title:'⌛ This Cycle',    url:'/api/v1/admin/preview/life-arc/'+id+'?language='+lang, kind:'read'},
     {k:'ask',      title:'❓ Ask · '+concern,url:'/api/v1/admin/preview/ask/'+id+'?language='+lang+'&concern='+encodeURIComponent(concern), kind:'read'},
   ];
   p.innerHTML='<div id=detailsStrip class=muted style="margin-bottom:14px">loading chart…</div><div class=cardgrid id=dashgrid>'+
@@ -14582,7 +14602,7 @@ async function load(id){
   }
   if(MODE==='compare'){
     const ctype=document.getElementById('ctype').value;
-    const tlabel={daily:'Today',monthly:'Month','life-arc':'Year'}[ctype]||ctype;
+    const tlabel={daily:'Today',monthly:'Month','life-arc':'Cycle'}[ctype]||ctype;
     p.innerHTML='<div class=empty>generating '+tlabel+' on each LLM… (can take ~40s+ each)</div>';
     const r=await fetch('/api/v1/admin/compare/'+ctype+'/'+id+'?language='+lang+'&providers=anthropic,deepseek,kimi',{headers:H()});
     const d=await r.json(); if(!r.ok){p.innerHTML='<div class=empty style=color:#ff7b7e>error '+r.status+'</div>';return;}
