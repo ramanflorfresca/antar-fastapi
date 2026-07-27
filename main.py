@@ -1998,6 +1998,17 @@ async def call_llm(
         print(f"LLM error: {e}")
         return "I'm sorry, I'm having trouble connecting to my intuition right now. Please try again later.", None
 
+def _active_claude_model() -> str:
+    """[runtime-config] The Claude model for the central call path — panel-
+    overridable at runtime, defaulting to SONNET_MODEL. Fail-safe: any config
+    issue returns SONNET_MODEL, so a bad/absent config never breaks the call."""
+    try:
+        from antar_engine import app_config
+        return app_config.get(supabase, "claude_model", SONNET_MODEL) or SONNET_MODEL
+    except Exception:
+        return SONNET_MODEL
+
+
 async def call_llm_claude(
     prompt: str,
     history: Optional[List[Dict[str, str]]] = None,
@@ -2077,7 +2088,7 @@ async def call_llm_claude(
     _ai_t0 = _ai_time.monotonic()
     try:
         response = await claude_client.messages.create(
-            model=SONNET_MODEL,
+            model=_active_claude_model(),
             max_tokens=max_tokens_override or 1200,
             # [year-determinism 2026-07-20] temperature 0 for structured factual
             # narration (the year read), so the SAME chart-state yields the SAME
@@ -8682,7 +8693,13 @@ def _prac_local_date(tz_offset):
 # cold worker serves warm instead of regenerating. Table: daily_surface_cache
 # (Antar.world/PHASE1_CACHE.sql). Kill switch: env DAILY_DB_CACHE=off.
 def _daily_db_cache_on():
-    return os.getenv("DAILY_DB_CACHE", "on").strip().lower() != "off"
+    # [runtime-config] panel override (app_config.daily_db_cache) wins over env;
+    # fail-safe to the env default if config is unavailable.
+    try:
+        from antar_engine import app_config
+        return app_config.get_bool(supabase, "daily_db_cache", True)
+    except Exception:
+        return os.getenv("DAILY_DB_CACHE", "on").strip().lower() != "off"
 
 def _daily_surface_get(chart_id, surface, language, local_date, variant=""):
     if not _daily_db_cache_on():
@@ -13795,6 +13812,31 @@ async def admin_preview_surface(surface: str, chart_id: str, language: str = "en
             "audit_clean": len(flagged) == 0}
 
 
+@app.get("/api/v1/admin/config")
+async def admin_get_config(admin_email: str = Depends(_require_debug)):
+    """All runtime config for the panel — effective value, default, choices."""
+    from antar_engine import app_config
+    return {"config": app_config.all_config(supabase)}
+
+
+@app.put("/api/v1/admin/config")
+async def admin_set_config(request: Request,
+                           admin_email: str = Depends(_require_debug)):
+    """Set one config key (validated + allowlisted). Live within ~20s."""
+    from antar_engine import app_config
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    key, value = body.get("key"), body.get("value")
+    if not key:
+        raise HTTPException(400, "key required")
+    res = app_config.set_value(supabase, key, value, by=admin_email)
+    if not res.get("ok"):
+        raise HTTPException(400, res.get("error", "invalid"))
+    return res
+
+
 @app.get("/api/v1/admin/debug/predictions")
 async def admin_debug_page():
     """Self-contained debugger UI (same-origin so it can call the admin API).
@@ -13833,6 +13875,7 @@ _PRED_DEBUG_HTML = """<!doctype html><html><head><meta charset=utf-8>
  <select id=lang><option value=en>EN</option><option value=es>ES</option><option value=pt>PT</option></select>
  <label class=muted><input type=checkbox id=refresh> force regenerate</label>
  <button onclick=search()>Search</button>
+ <button onclick=loadConfig() style="background:#30363d;border-color:#30363d">⚙ Config</button>
 </header>
 <div id=wrap><div id=list class=muted style="padding:14px">Paste your admin token, then search.</div>
 <div id=panel class=muted>Pick a chart on the left.</div></div>
@@ -13899,6 +13942,30 @@ async function loadDaily(id,lang,rf,p){
    ${fld('Watch for',f.observa_hoy_text)}
    ${fld('The move',f.el_movimiento)}
   </div>`;
+}
+async function loadConfig(){
+ const p=document.getElementById('panel'); p.className=''; p.innerHTML='loading config…';
+ try{
+  const r=await fetch('/api/v1/admin/config',{headers:H()});
+  const d=await r.json();
+  if(!r.ok){p.innerHTML='<span style=color:#e5484d>error '+r.status+'</span>';return;}
+  const rows=Object.entries(d.config).map(([k,c])=>{
+   const inp=c.choices?`<select id="cfg_${k}">`+c.choices.map(o=>`<option ${o===c.value?'selected':''}>${o}</option>`).join('')+`</select>`:`<input id="cfg_${k}" value="${c.value}" style=width:220px>`;
+   return `<div class=fld><div class=lbl>${k} ${c.overridden?'<span class=pill>overridden</span>':'<span class="pill muted">default</span>'}</div>
+     <div style=display:flex;gap:8px;align-items:center;margin-top:4px>${inp}<button onclick="saveCfg('${k}')">Save</button><span id="msg_${k}" class=muted></span></div>
+     <div class=muted style=font-size:12px;margin-top:4px>${c.help||''}</div></div>`;
+  }).join('');
+  p.innerHTML=`<div class=card><div style=display:flex;gap:10px;align-items:center;margin-bottom:8px><b style=font-size:18px>⚙ Backend Config</b><span class=muted>changes go live within ~20s, no redeploy</span></div>${rows}</div>`;
+ }catch(e){p.innerHTML='<span style=color:#e5484d>'+e+'</span>';}
+}
+async function saveCfg(k){
+ const el=document.getElementById('cfg_'+k), msg=document.getElementById('msg_'+k);
+ msg.textContent='saving…';
+ try{
+  const r=await fetch('/api/v1/admin/config',{method:'PUT',headers:{...H(),'Content-Type':'application/json'},body:JSON.stringify({key:k,value:el.value})});
+  const d=await r.json();
+  msg.innerHTML=r.ok?'<span class=ok>✓ saved</span>':'<span style=color:#e5484d>'+(d.detail||'error')+'</span>';
+ }catch(e){msg.textContent=''+e;}
 }
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
 </script></body></html>"""
