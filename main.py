@@ -13910,7 +13910,26 @@ async def admin_ask(request: Request, admin_email: str = Depends(_require_debug)
     question = (body.get("question") or "").strip()
     if not chart_id or not question:
         raise HTTPException(400, "chart_id and question are required")
-    req = AskRequest(question=question, chart_id=chart_id,
+    # [ask-chat] threaded follow-ups: when the new message looks like a follow-up
+    # (short, or opens with a continuation cue), fold in the LAST question as
+    # context so "and after that?" resolves — while standalone questions stay
+    # clean for the concern router. history = [{role, content}, …].
+    _q = question
+    try:
+        history = body.get("history") or []
+        prior_qs = [str(h.get("content") or "").strip() for h in history
+                    if isinstance(h, dict) and h.get("role") == "user"
+                    and str(h.get("content") or "").strip()]
+        _low = question.lower()
+        _followup = (len(question.split()) <= 6 or _low.startswith((
+            "and ", "what about", "then ", "after ", "before ", "why", "how about",
+            "also", "ok ", "okay", "so ", "but ")))
+        if _followup and prior_qs:
+            _q = (f"(Earlier in this conversation I asked: \"{prior_qs[-1]}\".) "
+                  f"Now answer this follow-up: {question}")
+    except Exception:
+        _q = question
+    req = AskRequest(question=_q, chart_id=chart_id,
                      language=(body.get("language") or "en"),
                      mode=(body.get("mode") or "explore"))
     tok = _ASK_ADMIN_BYPASS.set(True)
@@ -14728,39 +14747,59 @@ async function submitNewChart(){
   setSeg('all'); MODE='all'; selectChart(d.chart_id, body.language_preference);
  }catch(e){m.textContent=''+e;}
 }
+let CHAT_MSGS=[], CHAT_CID=null;   // [{role:'user'|'assistant', text, data?}]
 async function askBox(id){
+ if(CHAT_CID!==id){CHAT_CID=id; CHAT_MSGS=[];}
  const p=document.getElementById('panel');
- p.innerHTML=`<div style=max-width:840px>
-   <div style=display:flex;gap:8px;align-items:baseline;margin-bottom:12px><b style=font-size:16px>Ask Antar</b> <span class=muted>— free-text question · runs the real /ask engine · quota-free</span></div>
-   <textarea id=askQ placeholder="Ask anything about this chart… e.g. 'Will my career move happen this year?' · 'Is this a good time to relocate?' · 'How is my relationship going?'" style="width:100%;min-height:74px;padding:11px;border-radius:10px;border:1px solid #2c2c38;background:var(--chip);color:var(--txt);font:14px inherit;resize:vertical"></textarea>
-   <div style=display:flex;gap:8px;align-items:center;margin:10px 0>
-     <select id=askMode><option value=explore>Explore (open coaching)</option><option value=yesno>Yes / No (horary)</option></select>
-     <button onclick="runAsk('${id}')">Ask</button>
-     <span id=askMsg class=muted></span>
-     <span class=muted style=font-size:12px;margin-left:auto>⌘/Ctrl + Enter to ask</span>
+ p.innerHTML=`<div style="max-width:860px;display:flex;flex-direction:column;height:calc(100vh - 140px)">
+   <div style="flex-shrink:0;display:flex;gap:8px;align-items:center;margin-bottom:10px">
+     <b style=font-size:16px>Ask Antar</b>
+     <span class=muted style=font-size:12px>chat · real engine · quota-free</span>
+     <select id=askMode style=margin-left:6px><option value=explore>Explore</option><option value=yesno>Yes/No</option></select>
+     <button class=ghost onclick="CHAT_MSGS=[];renderChat()" style="margin-left:auto">New chat</button>
    </div>
-   <div id=askOut></div></div>`;
- const q=document.getElementById('askQ'); q.focus();
- q.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey))runAsk(id);});
+   <div id=chatThread style="flex:1;overflow:auto;padding:6px 2px;display:flex;flex-direction:column"></div>
+   <div style="flex-shrink:0;display:flex;gap:8px;align-items:flex-end;margin-top:10px;border-top:1px solid var(--line);padding-top:10px">
+     <textarea id=chatIn placeholder="Ask anything… follow-ups welcome (e.g. 'and after that?')" style="flex:1;min-height:44px;max-height:140px;padding:10px;border-radius:10px;border:1px solid #2c2c38;background:var(--chip);color:var(--txt);font:14px inherit;resize:vertical"></textarea>
+     <button onclick="sendChat('${id}')" id=chatSend>Send</button>
+   </div>
+   <div class=muted style="flex-shrink:0;font-size:11px;margin-top:4px">Enter to send · Shift+Enter for newline</div>
+ </div>`;
+ renderChat();
+ const ta=document.getElementById('chatIn'); ta.focus();
+ ta.addEventListener('keydown',e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();sendChat(id);}});
 }
-async function runAsk(id){
- const q=document.getElementById('askQ').value.trim(), lang=document.getElementById('lang').value;
- const mode=document.getElementById('askMode').value, msg=document.getElementById('askMsg'), out=document.getElementById('askOut');
- if(!q){msg.innerHTML='<span style=color:#ff7b7e>enter a question</span>';return;}
- msg.textContent='thinking… (~10-30s)'; out.innerHTML='';
+function renderChat(){
+ const t=document.getElementById('chatThread'); if(!t)return;
+ if(!CHAT_MSGS.length){t.innerHTML='<div class=muted style="margin:auto;text-align:center;padding:30px">Ask Antar anything about this chart.<br>It answers with the real prediction engine — and remembers the thread for follow-ups.</div>';return;}
+ t.innerHTML=CHAT_MSGS.map(m=>{
+   if(m.role==='user')return `<div style="align-self:flex-end;max-width:78%;background:#182036;border:1px solid #2c3550;border-radius:12px 12px 3px 12px;padding:9px 13px;margin:6px 0;white-space:pre-wrap">${m.text}</div>`;
+   if(m.role==='thinking')return `<div style="align-self:flex-start;color:var(--mut);padding:9px 13px;margin:6px 0">Antar is thinking… <span style=opacity:.6>(~10-30s)</span></div>`;
+   const d=m.data||{}; let b='';
+   if(d.verdict)b+=`<div class=fld><div class=lbl>Verdict</div><div class="val" style="border-left-color:#8ab4ff;font-weight:600">${d.verdict}${d.timing?' · '+d.timing:''}</div></div>`;
+   if(d.read)b+=`<div class=fld><div class=lbl>${d.verdict?'Answer':''}</div><div class=val>${d.read}</div></div>`;
+   if(d.why)b+=`<div class=fld><div class=lbl>Why</div><div class=val>${d.why}</div></div>`;
+   if(d.next)b+=`<div class=fld><div class=lbl>Next step</div><div class=val>${d.next}</div></div>`;
+   if(d.timing&&!d.verdict)b+=`<div class=fld><div class=lbl>Timing</div><div class=val>${d.timing}</div></div>`;
+   if(m.error)b=`<div style=color:#ff7b7e>${m.error}</div>`;
+   return `<div class=card style="align-self:flex-start;max-width:86%;margin:6px 0">${b||'<div class=muted>no answer</div>'}</div>`;
+ }).join('');
+ t.scrollTop=t.scrollHeight;
+}
+async function sendChat(id){
+ const ta=document.getElementById('chatIn'); const q=ta.value.trim();
+ const lang=document.getElementById('lang').value, mode=document.getElementById('askMode').value;
+ if(!q)return;
+ CHAT_MSGS.push({role:'user',text:q}); CHAT_MSGS.push({role:'thinking'}); ta.value=''; renderChat();
+ const hist=CHAT_MSGS.filter(m=>m.role==='user'||m.role==='assistant').map(m=>({role:m.role,content:m.role==='user'?m.text:(m.data&&(m.data.read||m.data.verdict)||'')}));
  try{
-  const r=await fetch('/api/v1/admin/ask',{method:'POST',headers:{...H(),'Content-Type':'application/json'},body:JSON.stringify({chart_id:id,question:q,language:lang,mode})});
-  const d=await r.json(); msg.textContent='';
-  if(!r.ok){out.innerHTML='<div class=empty style=color:#ff7b7e>'+(d.detail||d.error||('error '+r.status))+'</div>';return;}
-  let body='';
-  if(d.verdict)body+=`<div class=fld><div class=lbl>Verdict</div><div class="val" style="border-left-color:#8ab4ff;font-weight:600">${d.verdict}${d.timing?' · '+d.timing:''}</div></div>`;
-  if(d.read)body+=`<div class=fld><div class=lbl>Answer</div><div class=val>${d.read}</div></div>`;
-  if(d.why)body+=`<div class=fld><div class=lbl>Why</div><div class=val>${d.why}</div></div>`;
-  if(d.next)body+=`<div class=fld><div class=lbl>Next step</div><div class=val>${d.next}</div></div>`;
-  if(d.timing&&!d.verdict)body+=`<div class=fld><div class=lbl>Timing</div><div class=val>${d.timing}</div></div>`;
-  const pills=[]; if(d.mode)pills.push('<span class=pill>'+d.mode+'</span>'); if(d.locked!=null)pills.push('<span class=pill>'+(d.locked?'locked':'open')+'</span>');
-  out.innerHTML='<div class=cardgrid><div class=card>'+cardInner('Antar answers',pills,body||'<div class=muted>no answer returned</div>')+'</div></div>';
- }catch(e){msg.textContent=''+e;}
+  const r=await fetch('/api/v1/admin/ask',{method:'POST',headers:{...H(),'Content-Type':'application/json'},body:JSON.stringify({chart_id:id,question:q,language:lang,mode,history:hist})});
+  const d=await r.json();
+  CHAT_MSGS=CHAT_MSGS.filter(m=>m.role!=='thinking');
+  if(!r.ok)CHAT_MSGS.push({role:'assistant',error:(d.detail||d.error||('error '+r.status))});
+  else CHAT_MSGS.push({role:'assistant',data:d});
+  renderChat();
+ }catch(e){CHAT_MSGS=CHAT_MSGS.filter(m=>m.role!=='thinking');CHAT_MSGS.push({role:'assistant',error:''+e});renderChat();}
 }
 function fldHTML(name,o){return o&&o.text?`<div class=fld><div class=lbl>${name} ${badge(o.audit)}</div><div class="val ${bad(o.audit)?'bad':''}">${o.text}</div></div>`:'';}
 function listHTML(name,arr){return (arr&&arr.length)?`<div class=fld><div class=lbl>${name}</div>`+arr.map(o=>`<div class="li ${bad(o.audit)?'bad':''}">${o.text} ${badge(o.audit)}</div>`).join('')+`</div>`:'';}
