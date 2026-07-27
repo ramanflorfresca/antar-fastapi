@@ -32,28 +32,60 @@ from typing import List, Dict, Any
 
 # ── The tunable table ────────────────────────────────────────────────────────
 # Higher = counts more. Change these and every prediction re-weights.
+#
+# Rationale for the ranking (founder-set 2026-07-26):
+#   * Vimśottarī is the universally-accepted primary daśā (BPHS precedence).
+#   * Jaimini Chara sits just under it and ABOVE Yoginī on purpose — it is
+#     rāśi-based, a genuinely INDEPENDENT axis from the nakshatra daśās, so its
+#     agreement is stronger evidence than a second nakshatra-based clock.
+#   * Yoginī is bumped from 0.70 -> 0.75: Goel and others rate it highly for
+#     timing, but it shares Vimśottarī's Moon-nakshatra basis, so it is partly
+#     correlated — strong confirmer, not an independent one.
+#   * Transit double is the TRIGGER; kept just below the primary daśā so a
+#     transit refines timing WITHIN a daśā theme rather than overriding it.
+#   * Natal yoga is the CEILING — see NOTE below; here it is a same-plane baseline.
 DEFAULT_WEIGHTS: Dict[str, float] = {
-    # Daśās — Vimśottarī is the primary clock; its sub-period is nearly as strong.
-    "vimshottari_maha":  1.00,
-    "vimshottari_antar": 0.90,
-    # Yoginī — the short, repeatable confirmation overlay.
-    "yogini_maha":       0.70,
-    "yogini_antar":      0.60,
-    # Jaimini Chara — rāśi-based second opinion.
-    "jaimini_chara":     0.70,
-    # Gochara (transit) — the timing TRIGGER. The Rao double-transit is strong;
-    # a single slow-planet transit is a softer nudge.
-    "transit_double":    0.85,
-    "transit_saturn":    0.50,
-    "transit_jupiter":   0.50,
-    # Natal promise — a yoga sets the ceiling; without it, no daśā "delivers".
-    "natal_yoga":        0.80,
-    # Divisional verification — does the varga confirm the rāśi promise?
-    "d10_confirm":       0.60,   # career / status (Daśāṃśa)
-    "d9_confirm":        0.60,   # relationships / dharma (Navāṃśa)
+    "vimshottari_maha":   1.00,
+    "vimshottari_antar":  0.85,
+    "jaimini_chara_maha": 0.90,   # independent (sign-based) — ranks above Yoginī
+    "jaimini_chara_antar":0.70,
+    "yogini_maha":        0.75,
+    "yogini_antar":       0.65,
+    "transit_double":     0.85,   # the event trigger (Rao double-transit)
+    "transit_saturn":     0.45,
+    "transit_jupiter":    0.45,
+    "natal_yoga":         0.80,   # promise / ceiling
+    "d10_confirm":        0.60,   # career / status (Daśāṃśa)
+    "d9_confirm":         0.60,   # relationships / dharma (Navāṃśa)
 }
 
-# A technique is "major" (counts toward convergence) at or above this weight.
+# NOTE (future refinement, not yet wired): natal_yoga and the divisionals are
+# really CEILING/VETO multipliers, not same-plane timing votes — a promise absent
+# in the birth chart no daśā can deliver, and a rāśi promise broken in the varga
+# fades. v1 keeps them as flat votes for simplicity; graduating them to
+# multipliers is the next accuracy step.
+
+# [independence 2026-07-26] Convergence must count INDEPENDENT bases, not
+# signals — three clocks only "strike together" when they are genuinely separate
+# measurements. Vimśottarī + Yoginī agreeing is largely ONE basis (both keyed to
+# the Moon's nakshatra); Vimśottarī + Chara + transit agreeing is THREE. Each
+# signal maps to its basis; confidence is driven by how many distinct bases agree.
+SIGNAL_BASIS: Dict[str, str] = {
+    "vimshottari_maha":   "nakshatra_dasha",
+    "vimshottari_antar":  "nakshatra_dasha",
+    "yogini_maha":        "nakshatra_dasha",
+    "yogini_antar":       "nakshatra_dasha",
+    "jaimini_chara_maha": "sign_dasha",
+    "jaimini_chara_antar":"sign_dasha",
+    "transit_double":     "transit",
+    "transit_saturn":     "transit",
+    "transit_jupiter":    "transit",
+    "natal_yoga":         "natal",
+    "d10_confirm":        "divisional",
+    "d9_confirm":         "divisional",
+}
+
+# A signal must clear this weight to let its basis count toward convergence.
 MAJOR_WEIGHT = 0.70
 
 
@@ -63,7 +95,8 @@ def weight_of(signal_type: str, weights: Dict[str, float] = None) -> float:
 
 def score_signals(signals: List[Dict[str, Any]],
                   weights: Dict[str, float] = None) -> Dict[str, Any]:
-    """Combine independent technique-signals into one weighted verdict.
+    """Combine technique-signals into one weighted verdict, counting INDEPENDENT
+    bases for convergence.
 
     Each signal: {"type": <key in weights>, "direction": -1|0|1,
                   "strength": 0..1 (default 1.0), "note": str}
@@ -71,8 +104,8 @@ def score_signals(signals: List[Dict[str, Any]],
     Returns:
       net          — Σ weight×direction×strength (sign = overall lean)
       confidence   — "high" | "moderate" | "tentative" | "mixed" | "none"
-      agree        — how many MAJOR techniques share the net's direction
-      conflict     — how many MAJOR techniques oppose it
+      bases_agree  — count of DISTINCT independent bases backing the lean
+      bases_conflict — count of distinct bases opposing it
       supporting   — the signals that drove the verdict, strongest first
     """
     w = weights or DEFAULT_WEIGHTS
@@ -86,21 +119,28 @@ def score_signals(signals: List[Dict[str, Any]],
         wt = weight_of(s.get("type", ""), w)
         c = wt * d * strength
         net += c
-        contribs.append({**s, "weight": wt, "contribution": c})
+        contribs.append({**s, "weight": wt, "contribution": c,
+                         "basis": SIGNAL_BASIS.get(s.get("type", ""), "other")})
 
     lean = 1 if net > 0 else (-1 if net < 0 else 0)
-    majors = [c for c in contribs if c["weight"] >= MAJOR_WEIGHT]
-    agree = sum(1 for c in majors if (1 if c["contribution"] > 0 else -1) == lean)
-    conflict = sum(1 for c in majors if (1 if c["contribution"] > 0 else -1) == -lean)
+    # A basis counts once, in the direction of its strongest MAJOR signal.
+    basis_dir: Dict[str, float] = {}
+    for c in contribs:
+        if c["weight"] < MAJOR_WEIGHT:
+            continue
+        b = c["basis"]
+        if b not in basis_dir or abs(c["contribution"]) > abs(basis_dir[b]):
+            basis_dir[b] = c["contribution"]
+    bases_agree = sum(1 for v in basis_dir.values() if (1 if v > 0 else -1) == lean)
+    bases_conflict = sum(1 for v in basis_dir.values() if (1 if v > 0 else -1) == -lean)
 
     if lean == 0:
         confidence = "none"
-    elif conflict >= 1 and agree - conflict <= 1:
-        # strong voices pulling opposite ways, and no clear majority
+    elif bases_conflict >= 1 and bases_agree - bases_conflict <= 1:
         confidence = "mixed"
-    elif agree >= 3:
+    elif bases_agree >= 3:
         confidence = "high"
-    elif agree == 2:
+    elif bases_agree == 2:
         confidence = "moderate"
     else:
         confidence = "tentative"
@@ -108,9 +148,9 @@ def score_signals(signals: List[Dict[str, Any]],
     contribs.sort(key=lambda c: abs(c["contribution"]), reverse=True)
     return {
         "net": round(net, 3),
-        "lean": lean,                       # +1 supportive / -1 friction / 0
+        "lean": lean,
         "confidence": confidence,
-        "agree": agree,
-        "conflict": conflict,
+        "bases_agree": bases_agree,
+        "bases_conflict": bases_conflict,
         "supporting": contribs,
     }
