@@ -51,6 +51,7 @@ DEFAULT_WEIGHTS: Dict[str, float] = {
     "jaimini_chara_antar":0.70,
     "yogini_maha":        0.75,
     "yogini_antar":       0.65,
+    "varshphal":          0.65,   # annual (solar-return) chart — supplementary
     "transit_double":     0.85,   # the event trigger (Rao double-transit)
     "transit_saturn":     0.45,
     "transit_jupiter":    0.45,
@@ -77,6 +78,7 @@ SIGNAL_BASIS: Dict[str, str] = {
     "yogini_antar":       "nakshatra_dasha",
     "jaimini_chara_maha": "sign_dasha",
     "jaimini_chara_antar":"sign_dasha",
+    "varshphal":          "annual",
     "transit_double":     "transit",
     "transit_saturn":     "transit",
     "transit_jupiter":    "transit",

@@ -305,6 +305,48 @@ def _next_vim_window(dashas, chart_data, houses, lords, after, horizon):
     return None
 
 
+def _yogini_lock(dashas, chart_data, houses, lords, today, horizon):
+    """[unify 2026-07-26] Earliest current/upcoming Yoginī period whose lord
+    rules or occupies a target house — a fourth confirming clock. Planet-based,
+    so it mirrors _vimshottari_lock exactly (Yoginī stores a graha lord, not a
+    sign). AD windows preferred."""
+    planets = (chart_data or {}).get("planets") or {}
+
+    def qualifies(p):
+        if not p:
+            return False
+        if p in lords:
+            return True
+        return (planets.get(p) or {}).get("house") in houses
+
+    best = None
+    for want_ad in (True, False):
+        for r in _rows(dashas, "yogini"):
+            lv = _level(r)
+            is_ad = lv in ("antardasha", "antar", "2")
+            is_md = lv in ("mahadasha", "1")
+            if want_ad and not is_ad:
+                continue
+            if not want_ad and not is_md:
+                continue
+            s, e = _win(r)
+            if not s or not e or e < today or s > horizon:
+                continue
+            p = _lord(r)
+            if qualifies(p):
+                cs, ce = max(s, today), min(e, horizon)
+                if best is None or cs < best[1]:
+                    kind = "sub-period" if is_ad else "period"
+                    role = "rules" if p in lords else "occupies"
+                    best = (p, cs, ce, f"{p} {kind} {role} a target area, {_fmt_window(cs, ce)}")
+        if best:
+            break
+    if best:
+        return {"active": True, "start": best[1], "end": best[2], "why": best[3], "planet": best[0]}
+    return {"active": False, "start": None, "end": None,
+            "why": "no Yogini period touches the target areas in the horizon", "planet": ""}
+
+
 def _chara_lock(dashas, lagna_idx, houses, lords, today, horizon):
     """Earliest current/upcoming Chara sign period that activates a target
     house (sign sits in a target house from lagna, or sign's lord is a
@@ -387,9 +429,28 @@ def _varshphal_lock(chart_data, birth_date, houses, lords, karakas, today):
 
 # ───────────────────────── convergence (2-of-3) ──────────────────────────
 
-_SYS_WEIGHT = {"vimshottari": 1.2, "chara": 1.0, "varshphal": 0.7}
-_CONVERGENCE_BAR = 1.2   # a lone Vimshottari lock (1.2) crosses; Chara or
-                         # Varshphal alone (< 1.2) need a second system.
+# [unify 2026-07-26] Draw the timing weights from the ONE shared module
+# (prediction_weights) so Ask and the life-arc ECS can no longer drift, and add
+# Yoginī as a fourth system. Vimśottarī stays the reference and the bar equals
+# its weight, so the tuned behaviour is preserved: a lone Vimśottarī lock still
+# crosses; Chara / Yoginī / Varshphal alone do not. Yoginī sits at 0.75 (below
+# Chara's 0.90) because it shares Vimśottarī's nakshatra basis — the same
+# independence ranking the module encodes.
+try:
+    from antar_engine.prediction_weights import DEFAULT_WEIGHTS as _PW
+    _SYS_WEIGHT = {
+        "vimshottari": _PW["vimshottari_maha"],
+        "chara":       _PW["jaimini_chara_maha"],
+        "yogini":      _PW["yogini_maha"],
+        "varshphal":   _PW.get("varshphal", 0.65),
+        "transit":     _PW["transit_double"],
+    }
+    _CONVERGENCE_BAR = _PW["vimshottari_maha"]
+except Exception:
+    # Fail-safe: never let a weights-import issue break the Ask timing path.
+    _SYS_WEIGHT = {"vimshottari": 1.0, "chara": 0.90, "yogini": 0.75,
+                   "varshphal": 0.65, "transit": 0.85}
+    _CONVERGENCE_BAR = 1.0
 
 
 def _month_end(d):
@@ -479,6 +540,91 @@ def _weighted_convergence_timeline(sys_windows, today, horizon):
     return round(peak, 2), True, ws, we, secondary
 
 
+def _transit_windows(concern, chart_data, houses, lagna_idx, today, horizon):
+    """[unify 2026-07-26] Double-transit (Jupiter AND Saturn influencing the
+    concern's target signs) windows inside the horizon — the gochara TRIGGER,
+    returned as (start,end) date tuples so it plugs into the same convergence
+    timeline as the dasha locks. Reuses the cached transit_engine chronology;
+    returns [] on any issue (fail-open)."""
+    try:
+        from antar_engine import transit_engine as _te
+        from datetime import datetime as _dt
+        moon_si = _planet_sign_idx_local(chart_data, "Moon")
+        tgt = _te.event_transit_targets(
+            event_houses=list(houses), lagna_sign_index=lagna_idx,
+            moon_sign_index=moon_si)
+        targets = tgt.get("targets")
+        if not targets:
+            return []
+        start_iso, end_iso = today.isoformat(), horizon.isoformat()
+        chron = _te.build_transit_chronology(start_iso, end_iso,
+                                             ("Jupiter", "Saturn"), step_days=5)
+        wins = _te.double_transit_windows(targets, chron, start_iso, end_iso)
+        out = []
+        for w in wins:
+            try:
+                s = _dt.fromisoformat(w["start"][:10]).date()
+                e = _dt.fromisoformat(w["end"][:10]).date()
+                out.append((s, e))
+            except Exception:
+                continue
+        return out
+    except Exception:
+        return []
+
+
+def _planet_sign_idx_local(chart_data, planet):
+    p = ((chart_data or {}).get("planets") or {}).get(planet) or {}
+    si = p.get("sign_index")
+    if isinstance(si, int):
+        return si % 12
+    nm = p.get("sign")
+    return SIGNS.index(nm) if nm in SIGNS else None
+
+
+# [unify 2026-07-26] D9/D10 confirmation for Ask — does the divisional back the
+# rāśi timing? Career-type concerns judged in D10, relationship/family in D9.
+_VARGA_EXALT = {"Sun": "Aries", "Moon": "Taurus", "Mars": "Capricorn",
+                "Mercury": "Virgo", "Jupiter": "Cancer", "Venus": "Pisces",
+                "Saturn": "Libra"}
+_VARGA_DEBIL = {"Sun": "Libra", "Moon": "Scorpio", "Mars": "Cancer",
+                "Mercury": "Pisces", "Jupiter": "Capricorn", "Venus": "Virgo",
+                "Saturn": "Aries"}
+_CONCERN_VARGA = {
+    "career": "d10", "business": "d10", "finance": "d10", "funding": "d10",
+    "wealth": "d10", "job": "d10", "promotion": "d10",
+    "marriage": "d9", "love": "d9", "relationship": "d9", "divorce": "d9",
+    "reconciliation": "d9", "children": "d9", "family": "d9",
+}
+
+
+def _varga_confirm(concern, chart_data, planet):
+    """{status, mult, note} — the period lord's dignity in the concern's varga.
+    status ∈ confirmed | denied | neutral. Mirrors the life-arc Varga_mult so
+    Ask and the cycle read the divisional the same way. Nodes/absent → neutral."""
+    vk = _CONCERN_VARGA.get((concern or "").lower())
+    if not vk or planet in ("Rahu", "Ketu", "", None):
+        return {"status": "neutral", "mult": 1.0, "note": ""}
+    dv = (chart_data.get("divisional_charts") or {}).get(vk) or {}
+    vp = (dv.get("planets") or {}).get(planet) or {}
+    vsign = vp.get("sign")
+    if vsign not in SIGNS:
+        return {"status": "neutral", "mult": 1.0, "note": ""}
+    d1 = (chart_data.get("planets") or {}).get(planet) or {}
+    d1sign = d1.get("sign")
+    varga_name = "career chart" if vk == "d10" else "relationship chart"
+    if (d1sign and vsign == d1sign) or vsign == _VARGA_EXALT.get(planet):
+        return {"status": "confirmed", "mult": 1.15,
+                "note": f"the {varga_name} strongly backs this"}
+    if SIGN_LORDS.get(vsign) == planet:
+        return {"status": "confirmed", "mult": 1.10,
+                "note": f"the {varga_name} supports this"}
+    if vsign == _VARGA_DEBIL.get(planet):
+        return {"status": "denied", "mult": 0.40,
+                "note": f"the {varga_name} weakens this — the promise is thinner than it looks"}
+    return {"status": "neutral", "mult": 1.0, "note": ""}
+
+
 def build_convergence_timing(concern, chart_data, dashas, birth_date,
                              horizon_months: int = 24) -> dict:
     """
@@ -499,6 +645,7 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
     locks = {
         "vimshottari": _vimshottari_lock(dashas, chart_data, houses, lords, today, horizon),
         "chara":       _chara_lock(dashas, lagna_idx, houses, lords, today, horizon),
+        "yogini":      _yogini_lock(dashas, chart_data, houses, lords, today, horizon),
         "varshphal":   _varshphal_lock(chart_data, birth_date, houses, lords, karakas, today),
     }
     # [slice-4b] net(t) weighted convergence over monthly buckets — scores
@@ -506,10 +653,21 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
     lock_count = sum(1 for v in locks.values() if v["active"])  # kept for compat
     _vim_wins = _vimshottari_windows(dashas, chart_data, houses, lords, today, horizon)
     _sys_windows = {"vimshottari": _vim_wins}
-    for _sk in ("chara", "varshphal"):
+    for _sk in ("chara", "yogini", "varshphal"):
         _slk = locks.get(_sk, {})
         if _slk.get("active") and _slk.get("start") and _slk.get("end"):
             _sys_windows[_sk] = [(_slk["start"], _slk["end"])]
+    # [unify 2026-07-26] Gochara as a fifth window-system — the Rao double-transit
+    # over the concern's target signs. It fits the same window-overlap model the
+    # dasha locks use (it produces (start,end) intervals), so it participates in
+    # convergence directly rather than as a bolt-on. Fail-open: any transit issue
+    # just omits the system, never breaks the timing.
+    try:
+        _tr_wins = _transit_windows(concern, chart_data, houses, lagna_idx, today, horizon)
+        if _tr_wins:
+            _sys_windows["transit"] = _tr_wins
+    except Exception as _tr_e:
+        print(f"[ask-timing] transit windows skipped (non-fatal): {_tr_e}")
     timing_score, convergence_met, _tl_ws, _tl_we, _tl_secondary = \
         _weighted_convergence_timeline(_sys_windows, today, horizon)
 
@@ -588,12 +746,19 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
         _verdict_phrase = _soften_ask_phrase(
             concern, _pband, window_label or (next_win or {}).get("label"))
         _verdict = promise_adjusted_verdict(_verdict, _pband)
+    # [unify 2026-07-26] D9/D10 confirmation on the primary (Vimshottari) lock
+    # planet — the same divisional check the life-arc ECS runs. Additive: exposed
+    # for the narration/verdict layer; does not alter the window math.
+    _varga = _varga_confirm(concern, chart_data,
+                            (locks.get("vimshottari") or {}).get("planet", ""))
+
     return {
         "concern": concern,
         "houses": houses,
         "locks": {k: {"active": v["active"], "why": v["why"],
                       "window": _fmt_window(v["start"], v["end"])}
                   for k, v in locks.items()},
+        "varga_confirm": _varga,
         "lock_count": lock_count,
         "convergence_met": convergence_met,
         "window_start": window_start.isoformat() if window_start else None,
