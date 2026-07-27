@@ -13897,6 +13897,37 @@ async def admin_edit_chart(chart_id: str, request: Request,
     return {"ok": True, "chart_id": chart_id, "updated": updates, "by": admin_email}
 
 
+@app.post("/api/v1/admin/ask")
+async def admin_ask(request: Request, admin_email: str = Depends(_require_debug)):
+    """Ask-anything for the panel: runs the REAL /ask pipeline (same answer the
+    user gets) but quota-free (context bypass), so you can ask any chart any
+    question without burning their daily allowance."""
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    chart_id = (body.get("chart_id") or "").strip()
+    question = (body.get("question") or "").strip()
+    if not chart_id or not question:
+        raise HTTPException(400, "chart_id and question are required")
+    req = AskRequest(question=question, chart_id=chart_id,
+                     language=(body.get("language") or "en"),
+                     mode=(body.get("mode") or "explore"))
+    tok = _ASK_ADMIN_BYPASS.set(True)
+    try:
+        resp = await ask_endpoint(req)
+    finally:
+        _ASK_ADMIN_BYPASS.reset(tok)
+    # ask_endpoint returns a JSONResponse (or dict) — normalize to a dict.
+    try:
+        from starlette.responses import JSONResponse as _JR
+        if isinstance(resp, _JR):
+            return json.loads(resp.body)
+    except Exception:
+        pass
+    return resp if isinstance(resp, dict) else {"read": str(resp)}
+
+
 @app.get("/api/v1/admin/field-options")
 async def admin_field_options_endpoint(admin_email: str = Depends(_require_debug)):
     """Dropdown choices for the create/edit forms — same source as Details."""
@@ -14697,6 +14728,40 @@ async function submitNewChart(){
   setSeg('all'); MODE='all'; selectChart(d.chart_id, body.language_preference);
  }catch(e){m.textContent=''+e;}
 }
+async function askBox(id){
+ const p=document.getElementById('panel');
+ p.innerHTML=`<div style=max-width:840px>
+   <div style=display:flex;gap:8px;align-items:baseline;margin-bottom:12px><b style=font-size:16px>Ask Antar</b> <span class=muted>— free-text question · runs the real /ask engine · quota-free</span></div>
+   <textarea id=askQ placeholder="Ask anything about this chart… e.g. 'Will my career move happen this year?' · 'Is this a good time to relocate?' · 'How is my relationship going?'" style="width:100%;min-height:74px;padding:11px;border-radius:10px;border:1px solid #2c2c38;background:var(--chip);color:var(--txt);font:14px inherit;resize:vertical"></textarea>
+   <div style=display:flex;gap:8px;align-items:center;margin:10px 0>
+     <select id=askMode><option value=explore>Explore (open coaching)</option><option value=yesno>Yes / No (horary)</option></select>
+     <button onclick="runAsk('${id}')">Ask</button>
+     <span id=askMsg class=muted></span>
+     <span class=muted style=font-size:12px;margin-left:auto>⌘/Ctrl + Enter to ask</span>
+   </div>
+   <div id=askOut></div></div>`;
+ const q=document.getElementById('askQ'); q.focus();
+ q.addEventListener('keydown',e=>{if(e.key==='Enter'&&(e.metaKey||e.ctrlKey))runAsk(id);});
+}
+async function runAsk(id){
+ const q=document.getElementById('askQ').value.trim(), lang=document.getElementById('lang').value;
+ const mode=document.getElementById('askMode').value, msg=document.getElementById('askMsg'), out=document.getElementById('askOut');
+ if(!q){msg.innerHTML='<span style=color:#ff7b7e>enter a question</span>';return;}
+ msg.textContent='thinking… (~10-30s)'; out.innerHTML='';
+ try{
+  const r=await fetch('/api/v1/admin/ask',{method:'POST',headers:{...H(),'Content-Type':'application/json'},body:JSON.stringify({chart_id:id,question:q,language:lang,mode})});
+  const d=await r.json(); msg.textContent='';
+  if(!r.ok){out.innerHTML='<div class=empty style=color:#ff7b7e>'+(d.detail||d.error||('error '+r.status))+'</div>';return;}
+  let body='';
+  if(d.verdict)body+=`<div class=fld><div class=lbl>Verdict</div><div class="val" style="border-left-color:#8ab4ff;font-weight:600">${d.verdict}${d.timing?' · '+d.timing:''}</div></div>`;
+  if(d.read)body+=`<div class=fld><div class=lbl>Answer</div><div class=val>${d.read}</div></div>`;
+  if(d.why)body+=`<div class=fld><div class=lbl>Why</div><div class=val>${d.why}</div></div>`;
+  if(d.next)body+=`<div class=fld><div class=lbl>Next step</div><div class=val>${d.next}</div></div>`;
+  if(d.timing&&!d.verdict)body+=`<div class=fld><div class=lbl>Timing</div><div class=val>${d.timing}</div></div>`;
+  const pills=[]; if(d.mode)pills.push('<span class=pill>'+d.mode+'</span>'); if(d.locked!=null)pills.push('<span class=pill>'+(d.locked?'locked':'open')+'</span>');
+  out.innerHTML='<div class=cardgrid><div class=card>'+cardInner('Antar answers',pills,body||'<div class=muted>no answer returned</div>')+'</div></div>';
+ }catch(e){msg.textContent=''+e;}
+}
 function fldHTML(name,o){return o&&o.text?`<div class=fld><div class=lbl>${name} ${badge(o.audit)}</div><div class="val ${bad(o.audit)?'bad':''}">${o.text}</div></div>`:'';}
 function listHTML(name,arr){return (arr&&arr.length)?`<div class=fld><div class=lbl>${name}</div>`+arr.map(o=>`<div class="li ${bad(o.audit)?'bad':''}">${o.text} ${badge(o.audit)}</div>`).join('')+`</div>`:'';}
 function cardHTML(title,pills,body){return `<div class=card><div class=chd><span class=prov>${title}</span>${pills.join('')}</div>${body}</div>`;}
@@ -14750,6 +14815,7 @@ async function load(id){
  const rr=document.getElementById('r_'+id); if(rr)rr.classList.add('sel');
  const p=document.getElementById('panel'); const lang=document.getElementById('lang').value;
  if(MODE==='all'){return loadAll(id);}
+ if(MODE==='ask'){return askBox(id);}
  p.innerHTML='<div class=empty>loading '+MODE+'…</div>';
  try{
   if(MODE==='details'){
@@ -18709,6 +18775,13 @@ async def _ask_persist(supabase, chart_id, question, payload, language, mode, do
         print(f"[ask-history] persist skipped (non-blocking): {_ape}")
 
 
+import contextvars as _cv_ask
+# [admin-ask] when set (by the admin panel's /api/v1/admin/ask), /ask skips the
+# daily cap AND the usage increment for THIS call only — the debugger must be
+# able to ask freely without burning a user's quota. Admin-gated at the caller.
+_ASK_ADMIN_BYPASS = _cv_ask.ContextVar("ask_admin_bypass", default=False)
+
+
 @app.post("/api/v1/ask")
 async def ask_endpoint(request: AskRequest):
     """
@@ -18750,12 +18823,11 @@ async def ask_endpoint(request: AskRequest):
     try:
         _ask_bypass_raw = (os.environ.get("ASK_DEBUG_BYPASS_CHART_IDS") or "").strip()
         _ask_bypass_set = {x.strip() for x in _ask_bypass_raw.split(",") if x.strip()}
-        _ask_bypass_cap = chart_id in _ask_bypass_set
+        _ask_bypass_cap = (chart_id in _ask_bypass_set) or bool(_ASK_ADMIN_BYPASS.get())
         if _ask_bypass_cap:
-            print(f"[ask-debug-bypass] chart_id={chart_id[:8]} on allowlist — "
-                  "cap + increment skipped")
+            print(f"[ask-debug-bypass] chart_id={chart_id[:8]} — cap + increment skipped")
     except Exception:
-        _ask_bypass_cap = False
+        _ask_bypass_cap = bool(_ASK_ADMIN_BYPASS.get())
     # [final-launch] any active Ask subscription => unlimited (SKU-rename-proof)
     # [ask-debug-bypass 2026-06-07] _ask_bypass_cap allowlists dev/test charts
     if _ask_tier not in _PAID_TIERS and not _ent_unlim(chart_id, supabase) and not _ask_bypass_cap:
