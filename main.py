@@ -13989,7 +13989,7 @@ async def admin_create_chart(request: Request,
     extra = {}
     if name:
         extra["name"] = name
-        extra["first_name"] = name
+        extra["first_name"] = name.split()[0]  # first token — never the full name
     for f in ("marital_status", "children_status", "career_stage", "profession",
               "financial_status", "health_status"):
         v = body.get(f)

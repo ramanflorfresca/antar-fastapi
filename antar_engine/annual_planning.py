@@ -270,6 +270,13 @@ RULES:
   window using the peak months — e.g. "Ship through May–June,
   consolidate Q4", "Move on the property question in late summer",
   "Hold off on big partnership moves until November".
+- year_theme: ONE plain, everyday sentence, under 12 words — the year's core
+  tension or opportunity, said the way a person would say it. NEVER use the word
+  "energy". NEVER string two descriptive phrases together with a hyphen (e.g.
+  "your discipline and structure energy-your ambition and breakthrough energy").
+  NEVER lead with an abstraction. Good: "A year to build the foundation before
+  you expand." / "Steady progress if you protect your health first." Bad: any
+  sentence containing "energy" or a phrase-hyphen-phrase construction.
 - Plain English throughout. Zero jargon.
 - Specific timing windows: name months, not vague periods
 - [cp-day4b] peak_windows + critical_dates rule — if the user context
@@ -302,7 +309,7 @@ RULES:
 Return ONLY this JSON:
 {
   "year":          2026,
-  "year_theme":    "One sentence — what this year is fundamentally about. Under 12 words.",
+  "year_theme":    "One PLAIN everyday sentence, under 12 words. No 'energy', no phrase-hyphen-phrase. See the year_theme rule above.",
   "year_quality":  "expansion OR consolidation OR transformation OR harvest OR building",
   "year_summary":  "3-4 sentences. The arc of the year. What will grow, what will shift, what will resolve.",
   "peak_windows": {
@@ -568,15 +575,36 @@ async def generate_annual_plan(
     result["chart_id"] = chart_id
     result["year_key"] = year_key
 
-    # Inject first_name into year_summary
-    if first_name and result.get("year_summary"):
+    # [theme-guard] never ship a clumsy year_theme. The theme must be plain —
+    # if the model leaked "energy" (its jargon tell) or a phrase-hyphen-phrase
+    # join, replace it with a clean quality-based line. Runs BEFORE name
+    # injection so the first name still attaches to the clean theme.
+    _yt = result.get("year_theme") or ""
+    if _yt and ("energy" in _yt.lower() or re.search(r"\w-\w+\s+\w+\s+\w", _yt)):
+        _QUALITY_THEME = {
+            "consolidation": "A year to consolidate and strengthen what you've built.",
+            "expansion":     "A year of expansion — grow, but choose where.",
+            "transformation":"A year of deep change — let the old restructure before the new.",
+            "harvest":       "A harvest year — reap what you've built, then rest into it.",
+            "building":      "A building year — lay the foundation before you expand.",
+        }
+        _q = str(result.get("year_quality") or "building").lower()
+        result["year_theme"] = _QUALITY_THEME.get(
+            _q, "A year to build steadily and choose your moves with care.")
+
+    # Inject the FIRST name only (never the full name), and skip injection when
+    # the text already opens with it — case-insensitively — so we never produce
+    # "Gerardo Murillo, gerardo, this year…" (double name) when first_name holds
+    # a full name or the model already led with the first name.
+    _fn = ((first_name or "").strip().split() or [""])[0]
+    if _fn and result.get("year_summary"):
         ys = result["year_summary"]
-        if not ys.startswith(first_name):
-            result["year_summary"] = f"{first_name}, {ys[0].lower()}{ys[1:]}"
-    if first_name and result.get("year_theme"):
+        if not ys.lower().lstrip().startswith(_fn.lower()):
+            result["year_summary"] = f"{_fn}, {ys[0].lower()}{ys[1:]}"
+    if _fn and result.get("year_theme"):
         yt = result["year_theme"]
-        if not yt.startswith(first_name):
-            result["year_theme"] = f"{first_name}: {yt}"  
+        if not yt.lower().lstrip().startswith(_fn.lower()):
+            result["year_theme"] = f"{_fn}: {yt}"
 
     # [output-strips] strip annual_plan
     # Route every user-facing narrative field through the central
