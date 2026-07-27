@@ -1394,9 +1394,12 @@ def _scrub_cosmic_leak(text):
 # unrecoverable structural break (a dropped word), so a hit triggers a
 # regeneration rather than a repair — we can't know what word was lost.
 _BROKEN_PATTERNS = (
-    # a function word left dangling before a dash or the end of a clause/string
+    # a function word left dangling before a DASH break or clause end. The dash
+    # must be an em/en dash, or a SPACE-BOUNDED hyphen — a word-internal hyphen
+    # ("behind-the-scenes", "state-of-the-art") is a compound, not a break.
     re.compile(r"\b(in|on|at|to|of|the|a|an|for|with|and|or|but|your|his|her|"
-               r"their|before|after|by|into|onto|from)\s*[—–-]\s*(?=[a-z]|$)", re.I),
+               r"their|before|after|by|into|onto|from)\b(?:\s*[—–]\s*|\s+-\s+)"
+               r"(?=[a-z]|$)", re.I),
     re.compile(r"\b(in|on|at|to|of|the|a|an|for|with|and|or|but|your|his|her|"
                r"their|before|after|by|into|onto|from)\s*[.,;!?]", re.I),
     re.compile(r"\b(in|on|at|to|of|the|a|an|for|with|and|or|but|your)\s*$", re.I),
