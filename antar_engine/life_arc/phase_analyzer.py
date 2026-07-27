@@ -345,10 +345,12 @@ async def generate_phase_summary(
     _noun_hint = ""
     try:
         from antar_engine.house_significations import select_nouns
+        from antar_engine.life_context import active_life as _al
+        _life = _al()  # gate boss/child/spouse nouns on the reader's known facts
         _jh = transit_overlay.get("jupiter_house_from_moon")
         _sh = transit_overlay.get("saturn_house_from_moon")
-        _grow = select_nouns(_jh, "positive", None, 3) if isinstance(_jh, int) else []
-        _test = select_nouns(_sh, "adverse", None, 3) if isinstance(_sh, int) else []
+        _grow = select_nouns(_jh, "positive", None, 3, life=_life) if isinstance(_jh, int) else []
+        _test = select_nouns(_sh, "adverse", None, 3, life=_life) if isinstance(_sh, int) else []
         _bits = []
         if _grow:
             _bits.append("supported/growing: " + ", ".join(_grow))

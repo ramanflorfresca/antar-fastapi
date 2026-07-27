@@ -269,8 +269,8 @@ HARD RULES (rule-#12 violations void the output):
 3. Lean-into and avoid items lead with an imperative verb (Build, Protect,
    Postpone, Hold, Close, Start, Limit, Move, Skip, Wait).
 4. Concrete nouns required: your career, your savings, your partner,
-   your home, a contract, a senior, your boss, your daily routine, a loan,
-   your father, etc. NEVER abstract energy-words alone
+   your home, a contract, a senior, your work standing, your daily routine,
+   a loan, your father, etc. NEVER abstract energy-words alone
    (vitality, systems, foundations, momentum, growth) as the only nouns.
 5. Be specific about durations + windows (calculate from the end dates).
 6. Avoid items should reference specific timing (e.g., "before November 2026").
@@ -278,6 +278,17 @@ HARD RULES (rule-#12 violations void the output):
 8. Return ONLY valid JSON, no markdown formatting.
 
 Generate now:"""
+
+    # [life-gate] forbid claims the reader's KNOWN facts contradict — no "your
+    # boss" for a business owner, no "your child" for the childless, etc. Read
+    # from the async context the life-arc orchestrator published.
+    try:
+        from antar_engine.life_context import life_constraint_block, active_life
+        _lblk = life_constraint_block(active_life())
+        if _lblk:
+            prompt = prompt + _lblk
+    except Exception:
+        pass
 
     # [prompt-registry 2026-06-10] admin-editable body + immutable header.
     from antar_engine.prompt_registry import get_system_prefix

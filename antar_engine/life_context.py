@@ -394,17 +394,18 @@ def resolve_life_facts(row: Optional[dict]) -> Optional[dict]:
     # employed: True = has an employer/boss, False = self-employed/business
     # owner, None = unknown. Gates "your boss" in the noun layer so we never
     # tell a business owner (or someone we know nothing about) about their boss.
+    # Reuse _norm_career, which already honors the default-sentinel rule
+    # (career_stage='mid_career' as a Postgres DEFAULT is treated as absent, so
+    # a never-answered chart is 'unknown', NOT 'employed'). "job" => employed,
+    # "running_business" => self-employed; studying/in_transition/None => unknown.
     employed: Optional[bool] = None
-    _cs = str((row.get("career_stage") or "")).strip().lower()
-    _lw = str((row.get("life_work") or "")).strip().lower()
-    _prof = str((row.get("profession") or "")).strip().lower()
-    if (_cs in ("entrepreneur", "self_employed", "founder", "business_owner")
-            or _lw in ("business", "entrepreneur", "self_employed")
-            or _prof in ("founder", "business", "entrepreneur", "self-employed",
-                         "business owner", "ceo")):
+    _career = _norm_career(row)
+    _prof = _clean(row.get("profession"))
+    if _career == "running_business" or _prof in (
+            "founder", "business", "entrepreneur", "self-employed",
+            "business owner", "ceo", "owner"):
         employed = False
-    elif _cs in ("early_career", "mid_career", "senior_career", "corporate",
-                 "employed", "professional"):
+    elif _career == "job":
         employed = True
 
     # Always return the dict (even all-None): the employed gate must fire on
@@ -415,3 +416,63 @@ def resolve_life_facts(row: Optional[dict]) -> Optional[dict]:
     return {"partnered": partnered, "has_children": has_children,
             "employed": employed,
             "marital": marital, "children": children}
+
+
+# ── Shared life-fact gate for LLM narration (contextvar + prompt block) ───────
+# Deeply-nested narration paths (the life-arc: _life_arc_compute → analyze_
+# current_phase → generate_phase_summary → select_nouns, plus generate_
+# diagnostic) can't easily thread a `life` param through every layer. The
+# orchestrator sets the reader's resolved facts once via set_active_life(); any
+# nested function reads them with active_life(). This is the SAME contract the
+# monthly/annual use inline — centralized so all four surfaces stay consistent.
+import contextvars as _cv_life
+_ACTIVE_LIFE = _cv_life.ContextVar("antar_active_life", default=None)
+
+
+def set_active_life(life):
+    """Set the current reader's resolved life facts for this async context.
+    Returns a token; pass it to reset_active_life() in a finally."""
+    return _ACTIVE_LIFE.set(life)
+
+
+def reset_active_life(token):
+    try:
+        _ACTIVE_LIFE.reset(token)
+    except Exception:
+        pass
+
+
+def active_life():
+    """The resolved life facts for the current context, or None."""
+    return _ACTIVE_LIFE.get()
+
+
+def life_constraint_block(life) -> str:
+    """A prompt block forbidding claims the reader's KNOWN facts contradict —
+    no 'your boss' for a business owner, no 'your child' for the childless, no
+    'your spouse' for the single. Empty when nothing is known."""
+    if not life:
+        return ""
+    lines = []
+    emp = life.get("employed")
+    if emp is False:
+        lines.append('- The reader is SELF-EMPLOYED / a business owner — NEVER write '
+                     '"your boss", "jefe", "your manager", or "your employer". Use '
+                     '"your reputation", "your work standing", "an authority figure", '
+                     'or "your business" for career/authority themes.')
+    elif emp is None:
+        lines.append('- The reader is NOT known to be an employee — do NOT assume a '
+                     'boss/employer. Use "your reputation" / "your work standing" / '
+                     '"an authority figure" for career and authority themes.')
+    if life.get("has_children") is False:
+        lines.append('- The reader has NO children — NEVER reference "your child", '
+                     '"your children", or any child-related event as a present fact.')
+    if life.get("partnered") is False:
+        lines.append('- The reader is NOT currently partnered — NEVER reference "your '
+                     'spouse", "your partner", or "your marriage" as a present '
+                     'relationship (use "a partnership" or a future-framed possibility).')
+    if not lines:
+        return ""
+    return ("\n\nKNOWN LIFE FACTS — confirmed about this reader; NEVER write anything "
+            "that contradicts them (this is what makes the reading feel truly known):\n"
+            + "\n".join(lines))

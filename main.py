@@ -31041,6 +31041,16 @@ async def _life_arc_compute(chart_id, horizon_months, language,
     # ── Ensure chart is complete ─────────────────────────────────────────
     chart_record = await _ensure_chart_complete(chart_id, chart_data, chart_record, supabase)
 
+    # [life-gate] resolve the reader's known facts ONCE and publish to the
+    # async context so every nested narration path (diagnostic, phase summary,
+    # noun layer) gates boss/child/spouse claims — same contract as the other
+    # three surfaces. Fail-open.
+    try:
+        from antar_engine.life_context import resolve_life_facts as _rlf_la, set_active_life as _sal_la
+        _sal_la(_rlf_la(chart_record))
+    except Exception as _lae:
+        print(f"[life_arc] life-gate set skipped (non-fatal): {_lae}")
+
     # ── Get archetype ────────────────────────────────────────────────────
     try:
         _planet_sigs, _char_archetype = ensure_signatures(chart_id, chart_data, supabase)
