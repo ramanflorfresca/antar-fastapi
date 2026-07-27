@@ -1937,6 +1937,12 @@ async def _call_claude_daily_signal(
             _cache_r = getattr(response.usage, 'cache_read_input_tokens', 0) or 0
             _cache_w = getattr(response.usage, 'cache_creation_input_tokens', 0) or 0
             logger.info(f"[daily-llm] cache_hit={_cache_r} cache_write={_cache_w} output={response.usage.output_tokens}")
+            try:
+                from antar_engine import llm_adapter as _ladu
+                _ladu.accrue_usage(getattr(response.usage, 'input_tokens', 0),
+                                   getattr(response.usage, 'output_tokens', 0), _cache_r)
+            except Exception:
+                pass
 
         # Parse JSON — handle markdown fences
         if raw_text.startswith("```"):

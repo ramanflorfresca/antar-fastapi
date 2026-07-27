@@ -2122,6 +2122,11 @@ async def call_llm_claude(
         _cache_r = getattr(response.usage, 'cache_read_input_tokens', 0) or 0
         _cache_w = getattr(response.usage, 'cache_creation_input_tokens', 0) or 0
         print(f"[claude] cache_hit={_cache_r} cache_write={_cache_w} output={tokens} total_input={getattr(response.usage, 'input_tokens', 0)}")
+        try:
+            from antar_engine import llm_adapter as _ladu
+            _ladu.accrue_usage(getattr(response.usage, 'input_tokens', 0), tokens, _cache_r)
+        except Exception:
+            pass
         # [admin-inspect] capture (no-op for live traffic)
         _ai_c = _inspect_active()
         if _ai_c is not None:
@@ -14282,6 +14287,7 @@ async def admin_compare_surface(surface: str, chart_id: str, language: str = "en
         t0 = _t.monotonic()
         card = None
         tok = _lad.set_forced_provider(prov)  # per-task context (isolated under gather)
+        _lad.reset_usage()  # meter this provider's tokens (task-local)
         try:
             if surface == "daily":
                 d = await _gen_daily_for_admin(chart_id, cd, natal_moon, tz, language, frame)
@@ -14309,8 +14315,10 @@ async def admin_compare_surface(surface: str, chart_id: str, language: str = "en
                 res = res if isinstance(res, dict) else {}
                 primary = [res.get("verdict")]
                 flagged = _dbg_audit_walk(res)
+            _usage = _lad.get_usage()
             return prov, {"provider": prov, "ms": int((_t.monotonic() - t0) * 1000),
                           "primary": [x for x in primary if x], "card": card,
+                          "tokens": _usage, "cost_usd": _lad.usage_cost(prov, _usage),
                           "flagged": flagged, "flag_count": len(flagged),
                           "audit_clean": len(flagged) == 0}
         except Exception as e:
@@ -14908,7 +14916,10 @@ async function load(id){
     const cols=d.columns.map(col=>{
       if(col.unavailable)return cardHTML(col.provider,['<span class=pill r>unavailable</span>'],'<div class=muted>'+col.note+'</div>');
       if(col.error)return cardHTML(col.provider,['<span class=pill r>error</span>'],'<div class=muted>'+col.error+'</div>');
-      const pills=['<span class=pill>'+col.ms+'ms</span>',cleanPill(col.audit_clean)];
+      const pills=['<span class=pill>'+col.ms+'ms</span>'];
+      if(col.cost_usd!=null)pills.push('<span class="pill g">$'+Number(col.cost_usd).toFixed(4)+'</span>');
+      if(col.tokens)pills.push('<span class=pill title="input / output tokens">'+(col.tokens.input||0)+'→'+(col.tokens.output||0)+' tok</span>');
+      pills.push(cleanPill(col.audit_clean));
       let bodyc='';
       if(col.card){const c=col.card;
         if(c.verdict)bodyc+=`<div class=fld><div class=lbl>Verdict</div><div class="val" style="border-left-color:#8ab4ff;font-weight:600">${c.verdict}</div></div>`;

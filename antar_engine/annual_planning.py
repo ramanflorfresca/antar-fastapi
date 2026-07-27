@@ -604,6 +604,15 @@ async def generate_annual_plan(
     except Exception as _lge:
         logger.debug("[annual] life-gate skipped (non-fatal): %s", _lge)
 
+    # [kal] era grounding — modern-day framing when the chart supports it. Kept
+    # to the annual surface first so the tone can be reviewed before it reaches
+    # the high-frequency daily card.
+    try:
+        from antar_engine.desh_kal_patra import ERA_CONTEXT_NOTE
+        context = context + ERA_CONTEXT_NOTE
+    except Exception:
+        pass
+
     # Call Claude — wrapped so a hard failure falls back to the previous
     # cached row (if any) rather than shipping an empty critical_dates.
     try:

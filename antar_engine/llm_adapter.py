@@ -42,6 +42,54 @@ def set_forced_provider(provider):
     return _FORCED.set((provider or "").lower() or None)
 
 
+# [usage-meter 2026-07-27] Token accounting for the admin Compare cost view.
+# Metering is OFF unless reset_usage() has been called in this async context —
+# then every LLM response (adapter here + the two direct-Anthropic sites in
+# main.py) accrues into a task-local counter. Cost is computed from _PRICING.
+_USAGE = _cv.ContextVar("antar_llm_usage", default=None)
+
+# USD per 1,000,000 tokens (input, output). ESTIMATES — update as prices move.
+_PRICING = {
+    "anthropic": (3.00, 15.00),   # Claude Sonnet class
+    "deepseek":  (0.27, 1.10),    # deepseek-chat
+    "kimi":      (0.60, 2.50),    # moonshot / kimi (approx)
+}
+
+
+def reset_usage():
+    """Start metering for this context (call before a metered generation)."""
+    _USAGE.set({"input": 0, "output": 0, "cached": 0, "calls": 0})
+
+
+def get_usage() -> dict:
+    return dict(_USAGE.get() or {"input": 0, "output": 0, "cached": 0, "calls": 0})
+
+
+def accrue_usage(input_tokens=0, output_tokens=0, cached_tokens=0):
+    """Add one call's tokens to the active meter (no-op if metering is off)."""
+    u = _USAGE.get()
+    if u is None:
+        return
+    try:
+        u["input"] += int(input_tokens or 0)
+        u["output"] += int(output_tokens or 0)
+        u["cached"] += int(cached_tokens or 0)
+        u["calls"] += 1
+    except Exception:
+        pass
+
+
+def usage_cost(provider: str, usage: dict) -> float:
+    """USD cost for a usage dict under a provider's pricing. Cached-read input
+    is billed at ~10% (Anthropic prompt-cache) to keep the estimate honest."""
+    ppm_in, ppm_out = _PRICING.get((provider or "").lower(), _PRICING["anthropic"])
+    billable_in = max(0, int(usage.get("input", 0)) - int(usage.get("cached", 0)))
+    cost = (billable_in / 1e6) * ppm_in
+    cost += (int(usage.get("cached", 0)) / 1e6) * ppm_in * 0.1
+    cost += (int(usage.get("output", 0)) / 1e6) * ppm_out
+    return round(cost, 6)
+
+
 def reset_forced_provider(token):
     try:
         _FORCED.reset(token)
@@ -148,8 +196,23 @@ async def complete(*, system, messages, max_tokens: int = 1200,
             model=mdl, max_tokens=max_tokens, temperature=temperature,
             system=_anthropic_system_blocks(system, cache), messages=messages,
             extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"})
+        try:
+            _u = getattr(r, "usage", None)
+            if _u is not None:
+                accrue_usage(getattr(_u, "input_tokens", 0),
+                             getattr(_u, "output_tokens", 0),
+                             getattr(_u, "cache_read_input_tokens", 0) or 0)
+        except Exception:
+            pass
         return (r.content[0].text if r.content else "") or ""
     r = await _openai(prov).chat.completions.create(
         model=mdl, max_tokens=max_tokens, temperature=temperature,
         messages=[{"role": "system", "content": _flatten_system(system)}, *messages])
+    try:
+        _u = getattr(r, "usage", None)
+        if _u is not None:
+            accrue_usage(getattr(_u, "prompt_tokens", 0),
+                         getattr(_u, "completion_tokens", 0), 0)
+    except Exception:
+        pass
     return (r.choices[0].message.content or "") if r.choices else ""

@@ -442,3 +442,20 @@ def get_domain_dkp_note(
             return f"ECONOMIC CONTEXT ({country_code}): {line.strip()}"
 
     return ""
+
+
+# ── KAL (era) context — grounding note, NOT an astrologer persona ─────────────
+# Fed to prediction prompts so narration reflects the present age WITHOUT asking
+# the LLM to do astrology or name planets. It only biases FRAMING toward modern-
+# era life domains (the real-world footprint of Rahu/Mercury themes) and only
+# when the chart's own signal already supports it — never forcing, never jargon.
+ERA_CONTEXT_NOTE = (
+    "\n\nERA CONTEXT (present day): this is a fast, connected, technology-and-"
+    "commerce age. When the reading's own signal genuinely supports it, prefer "
+    "framing opportunity in modern terms — career and professional moves, "
+    "technology and online work, communication, commerce and money flow, foreign "
+    "or long-distance connections, and rapid reinvention — over purely traditional "
+    "framings (inheritance, ritual, withdrawal from the world). Never force this; "
+    "lean this way only when the chart already points there. Plain everyday "
+    "language only: no planet names, no astrology terms, no jargon."
+)
