@@ -14620,14 +14620,25 @@ async function search(){
   l.innerHTML=d.charts.map(c=>`<div class=row id="r_${c.id}" onclick="selectChart('${c.id}','${c.lang||''}')"><b>${c.name}</b> <small>${c.email||c.birth_date}${c.city?' · '+c.city:''} · <b style=color:#8ab4ff>${c.lang}</b></small><span class=id>${c.id}</span></div>`).join('');
  }catch(e){l.innerHTML='<div class=row style=color:#ff7b7e>'+e+'</div>';}
 }
+// key markets first, then broad alphabetical — value is the ISO-2 the geocoder
+// + tz resolver expect. Used by the create form's country dropdowns.
+const COUNTRIES=[["US","United States"],["IN","India"],["CO","Colombia"],["MX","Mexico"],["ES","Spain"],["BR","Brazil"],["AR","Argentina"],["GB","United Kingdom"],["CA","Canada"],
+ ["AU","Australia"],["AT","Austria"],["BE","Belgium"],["BO","Bolivia"],["CL","Chile"],["CN","China"],["CR","Costa Rica"],["DK","Denmark"],["DO","Dominican Republic"],["EC","Ecuador"],["EG","Egypt"],
+ ["SV","El Salvador"],["FI","Finland"],["FR","France"],["DE","Germany"],["GR","Greece"],["GT","Guatemala"],["HN","Honduras"],["HK","Hong Kong"],["ID","Indonesia"],["IE","Ireland"],["IL","Israel"],
+ ["IT","Italy"],["JP","Japan"],["KE","Kenya"],["MY","Malaysia"],["NL","Netherlands"],["NZ","New Zealand"],["NG","Nigeria"],["NO","Norway"],["PK","Pakistan"],["PA","Panama"],["PY","Paraguay"],
+ ["PE","Peru"],["PH","Philippines"],["PL","Poland"],["PT","Portugal"],["RU","Russia"],["SA","Saudi Arabia"],["SG","Singapore"],["ZA","South Africa"],["KR","South Korea"],["LK","Sri Lanka"],
+ ["SE","Sweden"],["CH","Switzerland"],["TH","Thailand"],["TR","Turkey"],["AE","United Arab Emirates"],["UY","Uruguay"],["VE","Venezuela"],["VN","Vietnam"]];
 async function newChart(){
  setSeg(''); CUR=null;
  const p=document.getElementById('panel');
  p.innerHTML='<div class=empty>loading form…</div>';
  let OPTS={};
  try{const r=await fetch('/api/v1/admin/field-options',{headers:H()}); if(r.ok) OPTS=(await r.json()).field_options||{};}catch(e){}
- const sel=(id,opts,ph)=>`<select id="${id}"><option value="">${ph||'(none)'}</option>`+(opts||[]).map(o=>`<option value="${o.value}">${o.label}</option>`).join('')+`</select>`;
- const txt=(id,ph)=>`<input id="${id}" placeholder="${ph||''}">`;
+ const sel=(id,opts,ph)=>`<select id="${id}" style=min-width:220px><option value="">${ph||'(none)'}</option>`+(opts||[]).map(o=>`<option value="${o.value}">${o.label}</option>`).join('')+`</select>`;
+ const txt=(id,ph)=>`<input id="${id}" placeholder="${ph||''}" style=min-width:220px>`;
+ const dat=(id)=>`<input id="${id}" type=date min=1900-01-01 max=2025-12-31 style=min-width:220px>`;
+ const tim=(id)=>`<input id="${id}" type=time value=12:00 style=min-width:220px>`;
+ const csel=(id)=>`<select id="${id}" style=min-width:220px><option value="">(select country)</option>`+COUNTRIES.map(c=>`<option value="${c[0]}">${c[1]} (${c[0]})</option>`).join('')+`</select>`;
  const row=(lbl,ctrl)=>`<div style=display:flex;justify-content:space-between;gap:12px;align-items:center;padding:6px 0;border-bottom:1px solid var(--line2)><span class=muted>${lbl}</span>${ctrl}</div>`;
  const langOpts=[{value:'en',label:'English'},{value:'es',label:'Spanish'},{value:'pt',label:'Portuguese'}];
  p.innerHTML=`<div style=max-width:900px>
@@ -14636,16 +14647,16 @@ async function newChart(){
    <div class=cardgrid>
     <div class=card><div class=chd><span class=prov>Identity &amp; birth</span></div>
       ${row('Full name',txt('nc_name','e.g. Maria Lopez'))}
-      ${row('Birth date *',txt('nc_bd','YYYY-MM-DD'))}
-      ${row('Birth time',txt('nc_bt','HH:MM (24h, default 12:00)'))}
+      ${row('Birth date *',dat('nc_bd'))}
+      ${row('Birth time',tim('nc_bt'))}
       ${row('Birth city',txt('nc_bcity','e.g. Bogotá'))}
-      ${row('Birth country',txt('nc_bcountry','ISO code e.g. CO / US / IN'))}
+      ${row('Birth country',csel('nc_bcountry'))}
       ${row('Gender',sel('nc_gender',OPTS.gender))}
       ${row('Language',sel('nc_lang',langOpts,'English'))}
     </div>
     <div class=card><div class=chd><span class=prov>Current &amp; life facts</span></div>
       ${row('Current city',txt('nc_ccity','where they live now'))}
-      ${row('Current country',txt('nc_ccountry','ISO code'))}
+      ${row('Current country',csel('nc_ccountry'))}
       ${row('Marital status',sel('nc_marital',OPTS.marital_status))}
       ${row('Children',sel('nc_children',OPTS.children_status))}
       ${row('Career stage',sel('nc_career',OPTS.career_stage))}
@@ -14654,7 +14665,7 @@ async function newChart(){
       ${row('Health',sel('nc_health',OPTS.health_status))}
     </div>
    </div>
-   <div class=muted style=margin-top:10px;font-size:12px>* birth date required. Country as ISO code (CO, US, IN…) so the birthplace geocodes correctly — lagna depends on it. The chart computes planets, dashas &amp; divisionals on create.</div>
+   <div class=muted style=margin-top:10px;font-size:12px>* birth date required. Pick the birth country so the city geocodes correctly — lagna depends on it. Birth time defaults to 12:00 if unknown. The chart computes planets, dashas &amp; divisionals on create (~5-10s).</div>
  </div>`;
 }
 async function submitNewChart(){
