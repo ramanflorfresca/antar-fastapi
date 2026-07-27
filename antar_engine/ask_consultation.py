@@ -693,8 +693,12 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
     window_label = _fmt_window(window_start, window_end)
     if convergence_met and window_label:
         if lock_count >= 2:
-            summary = f"{lock_count} of 3 timing systems converge (score {timing_score}): window {window_label}"
-            public_summary = f"{lock_count} of 3 timing systems point to {window_label}"
+            # denominator = systems actually evaluated (4: vimshottari/chara/
+            # yogini/varshphal). Was hardcoded '3' before yogini was added, so a
+            # 4-way convergence printed the impossible "4 of 3".
+            _n_sys = max(len(locks), lock_count)
+            summary = f"{lock_count} of {_n_sys} timing systems converge (score {timing_score}): window {window_label}"
+            public_summary = f"{lock_count} of {_n_sys} timing systems point to {window_label}"
         else:
             _only = next((k for k, v in locks.items() if v.get("active")), "primary")
             summary = f"primary timing system active ({_only}, score {timing_score}): window {window_label}"

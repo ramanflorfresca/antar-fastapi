@@ -866,6 +866,12 @@ def _build_annual_context(
 
     lines = [
         f"ANNUAL PLAN REQUEST — Year {year}",
+        f"TODAY'S DATE: {_today_iso}. The year is ALREADY IN PROGRESS. Every dated "
+        f"recommendation you write (build_this_year, protect_this_year, "
+        f"release_this_year, avoid items, critical_dates, peak windows) MUST fall "
+        f"on {_today_iso} OR LATER. NEVER advise about, or tell the reader to do "
+        f"something 'before', a month that has already passed. If a window has "
+        f"closed, skip it — only forward-looking advice.",
         f"Name: {first_name or 'not provided'}",
         f"Rising sign: {lagna or 'unknown'}",
         f"Moon sign: {moon_sign or 'unknown'}",
