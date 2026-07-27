@@ -318,17 +318,63 @@ def d_gate(period_lord: str, event_type: str,
     return base
 
 
-# ─── Varga_mult — Tier 1 STUB (returns 1.0) ─────────────────────────────────
+# ─── Varga_mult — Tier 2: real D9 / D10 confirmation ────────────────────────
+# Sidereal exaltation / debilitation. Own-sign comes from SIGN_LORD (above).
+_VARGA_EXALT = {
+    "Sun": "Aries", "Moon": "Taurus", "Mars": "Capricorn", "Mercury": "Virgo",
+    "Jupiter": "Cancer", "Venus": "Pisces", "Saturn": "Libra",
+}
+_VARGA_DEBIL = {
+    "Sun": "Libra", "Moon": "Scorpio", "Mars": "Cancer", "Mercury": "Pisces",
+    "Jupiter": "Capricorn", "Venus": "Virgo", "Saturn": "Aries",
+}
+# Which varga judges which event category (Rao: D9 for relationship/dharma,
+# D10 for career/public life). Others have no clean varga → stay neutral.
+_EVENT_VARGA = {"WORK": "d10", "RELATIONSHIP": "d9", "FAMILY": "d9"}
+
+
+def _varga_planet_sign(chart_data: dict, varga_key: str, planet: str) -> Optional[str]:
+    dv = (chart_data.get("divisional_charts") or {}).get(varga_key) or {}
+    p = (dv.get("planets") or {}).get(planet) or {}
+    s = p.get("sign")
+    return s if isinstance(s, str) and s in SIGNS else None
+
 
 def varga_multiplier(event_type: str, period_lord: str,
                      chart_data: dict,
                      d9: Optional[dict] = None,
                      d10: Optional[dict] = None) -> float:
+    """[varga-tier2 2026-07-26] Does the divisional confirm the D1 promise?
+
+    Judges the PERIOD LORD's dignity in the varga that governs the event —
+    D10 for career, D9 for relationship/family — and returns a multiplier in
+    [0.3, 1.15]:
+        vargottama (same sign D1 & varga) or exalted → 1.15  (boost)
+        own sign in the varga                        → 1.10
+        debilitated in the varga                     → 0.40  (suppress — this is
+            the "marriage the navamsha denies" veto the Tier-1 cap stood in for)
+        neutral, or no varga for this event, or a node → 1.0
+
+    Nodes (Rahu/Ketu) have no varga exaltation scheme here → neutral, never
+    suppressed on a technicality.
     """
-    Tier 2 hook: D9 for relationship events, D10 for career events.
-    Tier 1 returns 1.0 — neutral — so the rest of the engine drops in
-    Tier 2 with zero code rewrite.
-    """
+    vk = _EVENT_VARGA.get(event_category(event_type))
+    if not vk or period_lord in ("Rahu", "Ketu"):
+        return 1.0
+    vsign = _varga_planet_sign(chart_data, vk, period_lord)
+    if not vsign:
+        return 1.0  # missing varga data → don't penalise
+    d1_pd = (chart_data.get("planets") or {}).get(period_lord) or {}
+    d1sign = d1_pd.get("sign") if isinstance(d1_pd, dict) else None
+
+    if d1sign and vsign == d1sign:      # vargottama — strongest confirmation
+        return 1.15
+    if vsign == _VARGA_EXALT.get(period_lord):
+        return 1.15
+    if SIGN_LORD.get(vsign) == period_lord:   # own sign in the varga
+        return 1.10
+    if vsign == _VARGA_DEBIL.get(period_lord):
+        return 0.40
     return 1.0
 
 
@@ -404,16 +450,20 @@ def amplifier(period_lord: str, event_type: str, chart_data: dict,
 
 # ─── conviction mapping ─────────────────────────────────────────────────────
 
-def _conviction(ecs: float) -> str:
+def _conviction(ecs: float, varga_confirmed: bool = False) -> str:
     if ecs >= 0.85:
         raw = "high"
     elif ecs >= 0.55:
         raw = "medium"
     else:
         raw = "subtle"
-    # Tier-1 displayed cap: a D1-only "high" is the marriage-the-navamsha-denies
-    # failure. Until Varga_mult is live, raw=="high" is displayed as TIER1_DISPLAY_CAP.
-    if raw == "high":
+    # [varga-tier2 2026-07-26] The cap existed because a D1-only "high" is the
+    # marriage-the-navamsha-denies failure. Now that Varga_mult is live, a "high"
+    # that was actually CONFIRMED by the governing divisional (vargottama /
+    # exalted / own-sign period lord) is trustworthy and shows as high. An
+    # unconfirmed or D1-only "high" (no varga for this event, or merely neutral)
+    # still displays capped.
+    if raw == "high" and not varga_confirmed:
         return TIER1_DISPLAY_CAP
     return raw
 
@@ -855,7 +905,9 @@ def _events_for_node(period_lord: str, window_start: datetime,
         vm = varga_multiplier(event_type, period_lord, chart_data)
         amp = amplifier(period_lord, event_type, chart_data, mid_date)
         ecs = dg * vm * amp
-        conv = _conviction(ecs)
+        # [varga-tier2] a genuine divisional confirmation (>=1.10) lets an
+        # otherwise-capped "high" display as high.
+        conv = _conviction(ecs, varga_confirmed=(vm >= 1.10))
         if conv == "subtle":
             continue
         out.append((ecs, event_type, {
