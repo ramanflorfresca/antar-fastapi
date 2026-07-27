@@ -1331,15 +1331,56 @@ _COSMIC_LEAK_RX = re.compile(
 )
 
 
+# [mechanics-jargon 2026-07-27] Step 2 of the narration pass: the SOFT jargon
+# class the planet/sign strip misses — astrological MECHANICS verbalized into
+# prose. A live card read "the strong planetary strength in the income zone is
+# real — but the favorable your growth and wisdom energy transit is blocked" and
+# "a hard aspect from a fast-moving planet." These are the engine's own workings
+# leaking as explanation. High-precision astro-context phrases only — bare
+# "energy"/"aspect" are left alone because the product voice uses "the day's
+# energy" and "every aspect of life" legitimately.
+_MECHANICS_JARGON_RX = re.compile(
+    r"(?i)("
+    r"\b(?:hard|soft|challenging|favou?rable|tight|close|exact)\s+aspect\b|"
+    r"\baspect(?:ed|ing|s)?\s+(?:from|by|to)\b|"
+    r"\benergy\s+transit\b|\btransit(?:s|ing|ed)?\s+(?:is|are|of|through|blocked|active|strong)\b|"
+    r"\bplanetary\s+(?:strength|position|energy|influence)\b|"
+    r"\bstrength\s+in\s+the\s+\w+\s+zone\b|"
+    r"\b(?:income|gains?|money|wealth|career|love|marriage|health|home)\s+zone\b|"
+    r"\bfast[-\s]moving\s+planet\b|\bslow[-\s]moving\s+planet\b|"
+    r"\bretrograde\b|\bconjunction\b|\bnakshatra\b|\bhouse\s+lord\b|"
+    r"\b(?:lunar|solar)\s+energy\b"
+    r")"
+)
+
+
+def _mechanics_fields(signal_json: dict) -> list:
+    """User-facing fields verbalizing astrological mechanics."""
+    bad = []
+    for f in ("verdict_subline", "senal_de_hoy", "observa_hoy_text", "el_movimiento"):
+        v = signal_json.get(f)
+        if isinstance(v, str) and _MECHANICS_JARGON_RX.search(v):
+            bad.append(f)
+    for f in ("haz_hoy", "evita_hoy"):
+        arr = signal_json.get(f)
+        if isinstance(arr, list) and any(
+                isinstance(x, str) and _MECHANICS_JARGON_RX.search(x) for x in arr):
+            bad.append(f)
+    return bad
+
+
 def _scrub_cosmic_leak(text):
-    """Drop whole sentences that name astronomy / cycle-rarity / the day frame.
-    Removing the sentence (not the word) avoids mangled fragments."""
+    """Drop whole sentences that name astronomy / cycle-rarity / the day frame /
+    astrological mechanics. Removing the sentence (not the word) avoids mangled
+    fragments; empty is better than a jargon leak (the frame/prompt fixes + the
+    retry are the primary defences — this is the last-resort net)."""
     if not isinstance(text, str) or not text.strip():
         return text
     parts = re.split(r"(?<=[.!?])\s+", text)
-    kept = [p for p in parts if not _COSMIC_LEAK_RX.search(p)]
+    kept = [p for p in parts
+            if not _COSMIC_LEAK_RX.search(p) and not _MECHANICS_JARGON_RX.search(p)]
     out = " ".join(kept).strip()
-    return out if out else ""   # empty is better than a cosmic-jargon leak
+    return out if out else ""
 
 
 # [completeness 2026-07-27] Catch TRUNCATED / grammatically-broken user-facing
@@ -1686,6 +1727,22 @@ async def _call_claude_daily_signal_retry(
                 "it in the —' or 'the favorable your ...'). Every sentence must be "
                 "complete and grammatical, with no dropped words, no dangling "
                 "'the/in/for' before a dash, and no missing noun after an adjective."
+            )
+
+        for _f in violations.get('mechanics_jargon', []) or []:
+            _mv = failed_signal.get(_f, '')
+            if isinstance(_mv, list):
+                _mv = next((x for x in _mv if isinstance(x, str)), '')
+            corrective_parts.append(
+                f"- The field '{_f}' explained the ASTROLOGY MECHANICS instead of "
+                f"the reader's life: \"{str(_mv)[:110]}\". Never write 'transit', "
+                "'aspect', 'planetary strength', 'energy transit', 'the income/gains/"
+                "career zone', 'retrograde', or 'fast-moving planet'. Say only WHAT "
+                "happens in their life and WHAT to do — never why in sky-terms. "
+                "BAD:  'the strong planetary strength in the income zone is real but "
+                "your growth-and-wisdom transit is blocked'. "
+                "GOOD: 'money you're already owed can move today, but don't count on "
+                "a windfall out of nowhere — chase what's pending.'"
             )
 
         corrective_parts.append("")
@@ -2388,14 +2445,18 @@ async def generate_weekly_signals(
                     # [completeness 2026-07-27] truncated/broken sentences are
                     # unrecoverable — regenerate rather than ship "offer it in the —".
                     broken = _broken_fields(llm_signal)
+                    # [mechanics-jargon 2026-07-27] astro mechanics verbalized as
+                    # prose ("energy transit is blocked", "aspect from a planet").
+                    mechanics = _mechanics_fields(llm_signal)
 
                     # [cold-fix] eng-leak is non-load-bearing: it no longer
                     # triggers the corrective retry (a 2nd es Sonnet). The
                     # jargon strip below still cleans any leak.
-                    if day_violations or abstract or invented or broken:
+                    if day_violations or abstract or invented or broken or mechanics:
                         logger.warning(f"[daily-week] Validation failed for {date_str}: "
                                        f"day_names={day_violations} eng_leaks={eng_leaks} "
-                                       f"abstract_headline={abstract} broken={broken}")
+                                       f"abstract_headline={abstract} broken={broken} "
+                                       f"mechanics={mechanics}")
 
                         # Build corrective retry prompt with specific violations
                         retry_signal = await _call_claude_daily_signal_retry(
@@ -2405,7 +2466,8 @@ async def generate_weekly_signals(
                             violations={'day_names': day_violations, 'eng_leaks': eng_leaks,
                                         'abstract_headline': abstract,
                                         'invented_specifics': invented,
-                                        'broken_sentences': broken},
+                                        'broken_sentences': broken,
+                                        'mechanics_jargon': mechanics},
                             failed_signal=llm_signal,
                         )
                         if retry_signal:
