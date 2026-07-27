@@ -894,6 +894,11 @@ def _build_deepdive_context(
                         lines.append(f'  tested / needs care: {", ".join(_test[:5])}')
                     lines.append('(The overview\'s FIRST sentence must name 2-3 of these concrete '
                                  'things. Selective, not a list. Never name a planet or house.)')
+                    if not (life and life.get("employed") is True):
+                        lines.append('(This reader is NOT known to be an employee — NEVER mention '
+                                     'a boss/manager/employer ("jefe"). For career, authority, or '
+                                     '10th-house themes use "your reputation", "your work standing", '
+                                     'or "an authority figure" instead.)')
                     if debug_out is not None:
                         debug_out["overview_nouns"] = {"bless": _bless[:5], "test": _test[:5]}
             except Exception as _cn_err:
@@ -1116,6 +1121,9 @@ def _build_deepdive_context(
                          'Name the CONCRETE life-things listed under each hot domain — a loan or '
                          'credit line, your work standing, a vehicle, your partner, property — never the '
                          'abstract category alone. Selective: name only the 2-3 that fit, never a list.)')
+            if not (life and life.get("employed") is True):
+                lines.append('(Reader is NOT known to be an employee — never write "boss"/"jefe"; '
+                             'use "your reputation" / "your work standing" / "an authority figure".)')
 
             # [cp-day7] monthly energy + week picks injection
             # energy_level from masik strong/weak counts (pinned to fix regression)
