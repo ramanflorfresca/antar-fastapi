@@ -28,6 +28,26 @@ from typing import Any, List, Optional
 
 _clients: dict = {}
 
+# [forced-provider 2026-07-27] A context override so the admin compare view can
+# force a provider for a WHOLE surface generation (monthly/life-arc make many
+# call_llm_claude calls; threading a param through all of them is impractical).
+# resolve() honors this first. Always cleared in a finally by the caller.
+import contextvars as _cv
+_FORCED = _cv.ContextVar("antar_forced_provider", default=None)
+
+
+def set_forced_provider(provider):
+    """Force a provider for everything generated in this context; returns a token
+    to reset. Pass None to clear."""
+    return _FORCED.set((provider or "").lower() or None)
+
+
+def reset_forced_provider(token):
+    try:
+        _FORCED.reset(token)
+    except Exception:
+        pass
+
 _PROVIDER_DEFAULT_MODEL = {
     "anthropic": "claude-sonnet-4-6",
     "deepseek":  "deepseek-chat",
@@ -91,6 +111,10 @@ def _anthropic_system_blocks(system, cache: bool):
 def resolve(supabase=None, provider: Optional[str] = None, model: Optional[str] = None):
     """(provider, model) from explicit args → app_config → anthropic defaults."""
     prov = (provider or "").lower()
+    if not prov:
+        forced = _FORCED.get()
+        if forced:
+            prov = forced
     if not prov and supabase is not None:
         try:
             from antar_engine import app_config
