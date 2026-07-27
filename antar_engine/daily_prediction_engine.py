@@ -1879,19 +1879,38 @@ async def _call_claude_daily_signal(
         # FIX 13: Bumped from 800 → 1500 to prevent JSON truncation
         # (daily signal JSON has 10+ fields including arrays — 800 tokens caused
         # "Unterminated string" parse errors in production logs)
-        response = await client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=1500,
-            temperature=0.3,
-            system=system_blocks,
-            messages=[{"role": "user", "content": user_prompt}],
-            extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"}
-        )
+        # [llm-adapter 2026-07-27] Non-Anthropic providers (panel-selected) route
+        # through the adapter; the Anthropic branch below is unchanged, so the
+        # default provider generates exactly as before.
+        _raw_via_adapter = None
+        try:
+            from antar_engine import llm_adapter as _lad
+            _prov, _mdl = _lad.resolve(None)
+            if _prov != "anthropic":
+                _raw_via_adapter = (await _lad.complete(
+                    system=system_blocks,
+                    messages=[{"role": "user", "content": user_prompt}],
+                    max_tokens=1500, temperature=0.3, provider=_prov, model=_mdl) or "").strip()
+                logger.info(f"[daily-llm] generated via {_prov}/{_mdl}")
+        except Exception as _lae:
+            logger.warning(f"[daily-llm] adapter route failed, using Claude: {_lae}")
+            _raw_via_adapter = None
 
-        raw_text = response.content[0].text.strip()
-        _cache_r = getattr(response.usage, 'cache_read_input_tokens', 0) or 0
-        _cache_w = getattr(response.usage, 'cache_creation_input_tokens', 0) or 0
-        logger.info(f"[daily-llm] cache_hit={_cache_r} cache_write={_cache_w} output={response.usage.output_tokens}")
+        if _raw_via_adapter is not None:
+            raw_text = _raw_via_adapter
+        else:
+            response = await client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=1500,
+                temperature=0.3,
+                system=system_blocks,
+                messages=[{"role": "user", "content": user_prompt}],
+                extra_headers={"anthropic-beta": "prompt-caching-2024-07-31"}
+            )
+            raw_text = response.content[0].text.strip()
+            _cache_r = getattr(response.usage, 'cache_read_input_tokens', 0) or 0
+            _cache_w = getattr(response.usage, 'cache_creation_input_tokens', 0) or 0
+            logger.info(f"[daily-llm] cache_hit={_cache_r} cache_write={_cache_w} output={response.usage.output_tokens}")
 
         # Parse JSON — handle markdown fences
         if raw_text.startswith("```"):

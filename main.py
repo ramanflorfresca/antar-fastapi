@@ -2086,6 +2086,23 @@ async def call_llm_claude(
         _system_blocks.append({"type": "text", "text": _dynamic_part})
 
     _ai_t0 = _ai_time.monotonic()
+    # [llm-adapter 2026-07-27] When the panel selects a NON-Anthropic provider,
+    # route through the adapter (flattened system → DeepSeek/Kimi). The Anthropic
+    # path below is left untouched, so the default provider is byte-for-byte the
+    # same as before — zero risk unless an admin deliberately switches.
+    try:
+        from antar_engine import llm_adapter as _lad
+        _prov, _mdl = _lad.resolve(supabase)
+        if _prov != "anthropic":
+            _txt = await _lad.complete(
+                system=system, messages=messages,
+                max_tokens=max_tokens_override or 1200,
+                temperature=(0.35 if temperature_override is None else temperature_override),
+                supabase=supabase, provider=_prov, model=_mdl)
+            print(f"[llm-adapter] call_llm_claude via {_prov}/{_mdl}")
+            return (_txt or "").strip(), None
+    except Exception as _lae:
+        print(f"[llm-adapter] non-anthropic route failed, using Claude: {_lae}")
     try:
         response = await claude_client.messages.create(
             model=_active_claude_model(),
@@ -13841,6 +13858,14 @@ async def admin_set_config(request: Request,
 async def admin_debug_page():
     """Self-contained debugger UI (same-origin so it can call the admin API).
     Data endpoints are admin-gated; the admin pastes their bearer token here."""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(_PRED_DEBUG_HTML)
+
+
+@app.get("/admin")
+async def admin_debug_page_short():
+    """Short alias for the admin panel — same page as
+    /api/v1/admin/debug/predictions. The data endpoints stay admin-gated."""
     from fastapi.responses import HTMLResponse
     return HTMLResponse(_PRED_DEBUG_HTML)
 

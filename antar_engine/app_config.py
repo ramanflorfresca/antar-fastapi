@@ -46,6 +46,22 @@ ALLOWED_KEYS: Dict[str, dict] = {
 _CACHE: Dict[str, Any] = {}
 _CACHE_AT = 0.0
 _TTL = 20.0  # seconds — a panel change lands within this window
+_SB = None
+
+
+def _sb(supabase):
+    """Use the passed client, else a lazily-created one from env — so engine code
+    with no supabase handle (e.g. the daily generator) can still read config."""
+    global _SB
+    if supabase is not None:
+        return supabase
+    if _SB is None:
+        from supabase import create_client
+        _SB = create_client(
+            os.environ["SUPABASE_URL"],
+            os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+            or os.environ.get("SUPABASE_KEY") or os.environ.get("SUPABASE_ANON_KEY"))
+    return _SB
 
 
 def _load(supabase) -> Dict[str, str]:
@@ -55,7 +71,7 @@ def _load(supabase) -> Dict[str, str]:
         return _CACHE
     out: Dict[str, str] = {}
     try:
-        rows = supabase.table("app_config").select("key,value").execute().data or []
+        rows = _sb(supabase).table("app_config").select("key,value").execute().data or []
         out = {r["key"]: r["value"] for r in rows if r.get("key")}
     except Exception:
         out = {}  # table missing / read failed -> defaults only
