@@ -14165,6 +14165,66 @@ def _dbg_audit_walk(obj, min_len=14):
     return flagged
 
 
+def _readable_surface(surface: str, payload: dict) -> dict:
+    """Pull the ACTUAL human-readable prediction out of a surface payload into a
+    uniform shape the admin dashboard renders directly: a headline, prose
+    sections, and bullet lists. This is the reading the user gets — not an audit.
+    Every surface's real generator is the source, so what shows here == prod."""
+    surface = (surface or "").lower()
+    sections: list = []
+    lists: list = []
+    pills: dict = {}
+    payload = payload if isinstance(payload, dict) else {}
+
+    def add(label, text):
+        if isinstance(text, str) and text.strip():
+            sections.append({"label": label, "text": text.strip()})
+
+    def addlist(label, items):
+        cleaned = [str(i).strip() for i in (items or []) if i and str(i).strip()]
+        if cleaned:
+            lists.append({"label": label, "items": cleaned})
+
+    headline = ""
+    if surface in ("monthly", "monthly-deepdive", "month"):
+        headline = payload.get("month_theme") or payload.get("overview") or ""
+        pills = {"month": payload.get("month"), "energy": payload.get("energy_level")}
+        add("Overview", payload.get("overview"))
+        add("Best week", payload.get("best_week"))
+        add("Caution week", payload.get("caution_week"))
+        add("Mantra", payload.get("monthly_mantra"))
+        addlist("Highlights", [h.get("text") for h in (payload.get("highlights") or [])
+                               if isinstance(h, dict)])
+        addlist("By area", [(f"{d.get('hook','')} {d.get('depth','')}").strip()
+                            for d in (payload.get("domains") or []) if isinstance(d, dict)])
+        addlist("Do now", [a.get("action") for a in (payload.get("priority_actions") or [])
+                           if isinstance(a, dict)])
+    elif surface in ("life-arc", "lifearc", "cycle"):
+        cp = payload.get("current_phase") or {}
+        headline = payload.get("gist") or cp.get("headline") or ""
+        pills = {"scope": payload.get("scope"), "horizon_mo": payload.get("horizon_months")}
+        add("Verdict", payload.get("verdict"))
+        add("Where you are", payload.get("paddhati_prose") or cp.get("headline"))
+        addlist("Highlights", [h.get("text") for h in (payload.get("highlights") or [])
+                               if isinstance(h, dict)])
+        diag = payload.get("diagnostic") or {}
+        addlist("Avoid", diag.get("what_to_avoid"))
+        addlist("Timeline", [c.get("body") for c in (payload.get("cycle_timeline") or [])
+                             if isinstance(c, dict)])
+    elif surface == "ask":
+        headline = payload.get("verdict_phrase") or payload.get("public_summary") or ""
+        pills = {"concern": payload.get("concern"), "verdict": payload.get("verdict"),
+                 "window": payload.get("window_label"),
+                 "confidence": payload.get("confidence"), "locks": payload.get("lock_count")}
+        add("Answer", payload.get("verdict_phrase"))
+        add("Why", payload.get("summary"))
+        addlist("Other windows", [f"{w.get('label')} (score {w.get('score')})"
+                                  for w in (payload.get("secondary_windows") or [])
+                                  if isinstance(w, dict)])
+    pills = {k: v for k, v in pills.items() if v not in (None, "", [])}
+    return {"headline": headline, "sections": sections, "lists": lists, "pills": pills}
+
+
 @app.get("/api/v1/admin/preview/{surface}/{chart_id}")
 async def admin_preview_surface(surface: str, chart_id: str, language: str = "en",
                                 concern: str = "career",
@@ -14209,7 +14269,8 @@ async def admin_preview_surface(surface: str, chart_id: str, language: str = "en
                 "flagged": [], "audit_clean": False}
     flagged = _dbg_audit_walk(payload)
     return {"surface": surface, "chart_id": chart_id, "language": language,
-            "meta": meta, "flagged": flagged, "flag_count": len(flagged),
+            "meta": meta, "readable": _readable_surface(surface, payload),
+            "flagged": flagged, "flag_count": len(flagged),
             "audit_clean": len(flagged) == 0}
 
 
@@ -14304,7 +14365,8 @@ _PRED_DEBUG_HTML = r"""<!doctype html><html><head><meta charset=utf-8>
   <input id=tok placeholder="admin token" style="width:200px" type=password>
   <input id=q placeholder="search name / email" style="width:190px">
   <div class=segs id=modeSegs>
-    <button data-m=details class=on>Details</button>
+    <button data-m=all class=on>All predictions</button>
+    <button data-m=details>Details</button>
     <button data-m=daily>Daily</button>
     <button data-m=compare>Compare LLMs</button>
     <button data-m=logic>Logic diff</button>
@@ -14321,16 +14383,16 @@ _PRED_DEBUG_HTML = r"""<!doctype html><html><head><meta charset=utf-8>
 </header>
 <div id=wrap>
  <div id=list class=muted style="padding:14px">Enter your token, then Search.</div>
- <div id=panel><div class=empty>Search a chart on the left, pick a mode, click the chart.</div></div>
+ <div id=panel><div class=empty>Enter token → Search → click a chart. You'll see all its predictions (Today · Month · Year · Ask) load at once.</div></div>
 </div>
 <script>
-let MODE='daily', CUR=null;
+let MODE='all', CUR=null;
 const TK=document.getElementById('tok');
 TK.value=localStorage.getItem('antar_debug_tok')||'';
 const H=()=>{localStorage.setItem('antar_debug_tok',TK.value.trim());return{Authorization:'Bearer '+TK.value.trim()};};
+function setSeg(m){document.querySelectorAll('#modeSegs button').forEach(x=>x.classList.toggle('on',x.dataset.m===m));}
 document.querySelectorAll('#modeSegs button').forEach(b=>b.onclick=()=>{
-  document.querySelectorAll('#modeSegs button').forEach(x=>x.classList.remove('on'));
-  b.classList.add('on'); MODE=b.dataset.m; if(CUR) load(CUR);
+  setSeg(b.dataset.m); MODE=b.dataset.m; if(CUR) load(CUR);
 });
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
 const badge=a=>[a.cosmic?'<span class=flag>cosmic</span>':'',a.mechanics?'<span class=flag>jargon</span>':'',a.broken?'<span class=flag>broken</span>':''].join('');
@@ -14350,6 +14412,43 @@ async function search(){
 function fldHTML(name,o){return o&&o.text?`<div class=fld><div class=lbl>${name} ${badge(o.audit)}</div><div class="val ${bad(o.audit)?'bad':''}">${o.text}</div></div>`:'';}
 function listHTML(name,arr){return (arr&&arr.length)?`<div class=fld><div class=lbl>${name}</div>`+arr.map(o=>`<div class="li ${bad(o.audit)?'bad':''}">${o.text} ${badge(o.audit)}</div>`).join('')+`</div>`:'';}
 function cardHTML(title,pills,body){return `<div class=card><div class=chd><span class=prov>${title}</span>${pills.join('')}</div>${body}</div>`;}
+function cardInner(title,pills,body){return `<div class=chd><span class=prov>${title}</span>${pills.join('')}</div>${body}`;}
+function readableInner(title,d){
+  if(!d||d.error) return cardInner(title,['<span class="pill r">error</span>'],'<div class=muted>'+((d&&d.error)||'no response')+'</div>');
+  const r=d.readable||{};
+  const pills=Object.entries(r.pills||{}).map(([k,v])=>`<span class=pill>${k}: ${typeof v==='object'?JSON.stringify(v):v}</span>`);
+  pills.push(cleanPill(d.audit_clean));
+  let body=r.headline?`<div class=fld><div class="val" style="border-left-color:#8ab4ff;font-weight:600">${r.headline}</div></div>`:'';
+  body+=(r.sections||[]).map(s=>`<div class=fld><div class=lbl>${s.label}</div><div class=val>${s.text}</div></div>`).join('');
+  body+=(r.lists||[]).map(s=>`<div class=fld><div class=lbl>${s.label}</div>`+s.items.map(t=>`<div class=li>${t}</div>`).join('')+`</div>`).join('');
+  if(d.flag_count) body+=`<div class=muted style="font-size:12px;margin-top:8px">⚠ ${d.flag_count} audit flag(s) — jargon/broken</div>`;
+  return cardInner(title,pills,body||'<div class=muted>no content</div>');
+}
+function dailyInner(title,d){if(!d||d.error)return cardInner(title,['<span class="pill r">error</span>'],'<div class=muted>'+((d&&d.error)||'no response')+'</div>');const c=dailyBody(d);return cardInner(title,c.pills,c.body);}
+async function loadAll(id){
+  const p=document.getElementById('panel'); const lang=document.getElementById('lang').value;
+  const concern=document.getElementById('concern').value.trim()||'career';
+  const defs=[
+    {k:'daily',    title:'☀ Today',          url:'/api/v1/admin/preview-daily/'+id+'?language='+lang, kind:'daily'},
+    {k:'monthly',  title:'🗓 This Month', url:'/api/v1/admin/preview/monthly/'+id+'?language='+lang, kind:'read'},
+    {k:'life-arc', title:'⌛ This Year / Cycle',url:'/api/v1/admin/preview/life-arc/'+id+'?language='+lang, kind:'read'},
+    {k:'ask',      title:'❓ Ask · '+concern,url:'/api/v1/admin/preview/ask/'+id+'?language='+lang+'&concern='+encodeURIComponent(concern), kind:'read'},
+  ];
+  p.innerHTML='<div id=detailsStrip class=muted style="margin-bottom:14px">loading chart…</div><div class=cardgrid id=dashgrid>'+
+    defs.map(x=>`<div class=card id="dash_${x.k}"><div class=chd><span class=prov>${x.title}</span><span class=pill>generating…</span></div><div class=muted style="padding:14px 0">running the real generator…</div></div>`).join('')+'</div>';
+  fetch('/api/v1/admin/chart-details/'+id,{headers:H()}).then(r=>r.json()).then(d=>{
+    const el=document.getElementById('detailsStrip'); if(!el)return;
+    const nm=(d.identity&&d.identity.name)||'', bd=(d.birth&&d.birth.date)||'?', city=(d.current&&d.current.city)||'?', ctry=(d.current&&d.current.country)||'?', prof=(d.selected&&d.selected.profession)||'no profession set';
+    el.innerHTML='<b style="color:#fff">'+nm+'</b> · born '+bd+' · now '+city+', '+ctry+' · '+prof+' &nbsp; <a class=tok onclick="MODE=\'details\';setSeg(\'details\');load(\''+id+'\')">edit chart details →</a>';
+  }).catch(()=>{});
+  defs.forEach(x=>{
+    fetch(x.url,{headers:H()}).then(r=>r.json().then(d=>({ok:r.ok,d}))).then(({ok,d})=>{
+      const el=document.getElementById('dash_'+x.k); if(!el)return;
+      if(!ok&&!d.error)d.error='HTTP '+(d.status||'error');
+      el.innerHTML=(x.kind==='daily')?dailyInner(x.title,d):readableInner(x.title,d);
+    }).catch(e=>{const el=document.getElementById('dash_'+x.k); if(el)el.innerHTML=cardInner(x.title,['<span class="pill r">error</span>'],'<div class=muted>'+e+'</div>');});
+  });
+}
 function dailyBody(d){const f=d.fields,coh=d.coherence||{coherent:true};
   const pills=[d.day_energy?`<span class=pill>${d.day_energy.label}</span>`:'',
     d.llm_generated?'<span class=pill>LLM</span>':'<span class=pill>template</span>',
@@ -14361,6 +14460,7 @@ async function load(id){
  CUR=id; document.querySelectorAll('.row').forEach(r=>r.classList.remove('sel'));
  const rr=document.getElementById('r_'+id); if(rr)rr.classList.add('sel');
  const p=document.getElementById('panel'); const lang=document.getElementById('lang').value;
+ if(MODE==='all'){return loadAll(id);}
  p.innerHTML='<div class=empty>loading '+MODE+'…</div>';
  try{
   if(MODE==='details'){
