@@ -18654,6 +18654,28 @@ async def ask_evidence_debug(request: AskEvidenceRequest, http_request: Request)
     }
 
 
+def _is_career_type_q(q):
+    """True for 'which profession / what career suits me' — a career-TYPE
+    question (answered from the D-10), NOT a timing question ('when will I get a
+    job', which stays on the convergence path)."""
+    ql = (q or "").lower()
+    _phrases = (
+        "which profession", "what profession", "which career", "what career",
+        "what field", "which field", "what job suits", "best career",
+        "best profession", "what work suits", "which line of work",
+        "what line of work", "what kind of work", "what should i do for a living",
+        "which business", "what business should", "career is best", "profession is best",
+        "career suits me", "profession suits me", "career gives me", "suited for me",
+    )
+    if any(p in ql for p in _phrases):
+        return True
+    if (("profession" in ql or "career" in ql or "vocation" in ql or "which job" in ql)
+            and any(w in ql for w in ("best", "suit", "right for me", "for me",
+                                      "should i", "which", "what kind"))):
+        return True
+    return False
+
+
 def _ask_life_scrub(text, life):
     """Deterministic backstop that removes life-fact contradictions from the
     FINAL Ask text, whatever narrator produced it (the prompt block covers the
@@ -19026,6 +19048,31 @@ async def ask_endpoint(request: AskRequest):
             _ask_lk    = _safe_jsonb(chart_row.data.get("lal_kitab_data"))
             _ask_bdate = str(chart_row.data.get("birth_date") or "")[:10]
 
+            # [d10-career] "which profession/career suits me" is a TYPE question,
+            # not a timing one — compute the ranked career fields from the D-10
+            # (KN Rao synthesis) and force the narrator to present THEM, instead
+            # of falling back to vague 'authority roles' prose.
+            _ask_career_block = ""
+            try:
+                if _is_career_type_q(question):
+                    from antar_engine.d10_career import analyze_career
+                    _car = analyze_career(chart_data)
+                    if _car.get("available") and _car.get("careers"):
+                        _fields = "; ".join(
+                            f"{i+1}) {c['field']}" for i, c in enumerate(_car["careers"][:5]))
+                        _ask_career_block = (
+                            "CAREER-TYPE QUESTION — the reader is asking WHICH profession/career "
+                            "suits them. This is computed DETERMINISTICALLY from their D-10 (career "
+                            "chart), D-1 10th house, and Amatyakaraka. You MUST answer by naming "
+                            "THESE ranked career fields, in THIS order — do NOT invent other fields, "
+                            "do NOT answer with only vague 'authority/leadership' advice.\n"
+                            f"RANKED CAREER FIELDS: {_fields}\n"
+                            "Lead with the top 2-3 as the strongest fit, say these come from the "
+                            "pattern of their chart, and close with one concrete next step. Plain "
+                            "language only — never name a planet, house, or 'D-10'.")
+            except Exception as _dce:
+                logger.warning(f"[ask] d10-career skipped (non-fatal): {_dce}")
+
             # [ask-life-context 2026-07-20] /ask is the surface people bring an
             # actual problem to, and it was the ONLY major surface with no life
             # context — /predict, /career and the monthly briefing all had it.
@@ -19336,6 +19383,7 @@ async def ask_endpoint(request: AskRequest):
                     + f"\n\n{_ask_layers_block}"
                     + f"\n\n{diagnostic_block}"
                     + (f"\n\n{_ask_life_block}" if _ask_life_block else "")
+                    + (f"\n\n{_ask_career_block}" if _ask_career_block else "")
                     + (f"\n\n{_ask_btc_block}" if _ask_btc_block else "")
                 )
             else:
@@ -19524,6 +19572,7 @@ async def ask_endpoint(request: AskRequest):
                     + f"\n\n{_ask_layers_block}"
                     + f"\n\n{diagnostic_block}"
                     + (f"\n\n{_ask_life_block}" if _ask_life_block else "")
+                    + (f"\n\n{_ask_career_block}" if _ask_career_block else "")
                     + (f"\n\n{_ask_btc_block}" if _ask_btc_block else "")
                 )
 
