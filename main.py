@@ -14301,12 +14301,21 @@ def _dbg_audit_walk(obj, min_len=14):
     jargon/broken audit — path-tagged so the debugger can point at the leak."""
     flagged = []
     _SKIP = {"chart_id", "id", "date", "start_date", "end_date", "language",
-             "system", "planet_or_sign", "url", "color", "generated_at"}
+             "system", "planet_or_sign", "url", "color", "generated_at",
+             # internal / debug containers — NEVER user-facing, so their raw
+             # astro jargon (D60 karma, yoga names, transit notes, the paddhati
+             # layer) must not raise a false "issues" badge on the panel.
+             "paddhati", "chart_data", "divisional_charts", "natal_chart",
+             "predicted_events", "cycle_cross_check", "timeline_visual_data",
+             "single_system_notes", "honesty_layer"}
     def walk(o, path=""):
         if isinstance(o, dict):
             for k, v in o.items():
-                if k not in _SKIP:
-                    walk(v, f"{path}.{k}")
+                # keys starting with "_" are debug fields (_natal_chart,
+                # _debug_reasoning, _library_version …) — never shown to users.
+                if k in _SKIP or (isinstance(k, str) and k.startswith("_")):
+                    continue
+                walk(v, f"{path}.{k}")
         elif isinstance(o, list):
             for i, v in enumerate(o):
                 walk(v, f"{path}[{i}]")

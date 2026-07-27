@@ -1432,8 +1432,11 @@ def _looks_broken(text) -> bool:
         mid = m.group(0).split()[1]
         if _ADJ_HINT.search(mid):
             return True
-    # an em-dash with no real content after it (< 2 words to the next stop)
-    for seg in re.split(r"[—–]", t)[1:]:
+    # an EM-dash with no real content after it (< 2 words to the next stop).
+    # Split on em-dash ONLY, never en-dash: en-dash is a RANGE connector
+    # ("February–March", "Jul 2026 – Oct 2026") whose short tail is a label, not
+    # a dangling sentence — flagging it was a false positive.
+    for seg in re.split(r"—", t)[1:]:
         tail = seg.strip()
         if tail and len(re.findall(r"\w+", tail.split(".")[0])) < 2:
             return True
