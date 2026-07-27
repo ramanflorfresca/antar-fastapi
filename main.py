@@ -13598,6 +13598,206 @@ async def admin_llm_usage(days: int = 30, admin_email: str = Depends(require_adm
 
 
 
+# ── [pred-debugger 2026-07-27] Prediction Quality Debugger ───────────────────
+# A real tool, not a script: search charts, pick one, see its live daily card
+# plus an automated quality audit (jargon leak / mechanics / broken sentence /
+# day-energy coherence). Backend truth, bypassing the client cache — built after
+# repeatedly mistaking a stale/crashing frontend for a bad prediction.
+#
+# [fixed-access 2026-07-27] Internal-only. Access is a FIXED shared secret set on
+# Railway as ANTAR_DEBUG_TOKEN, OR any admin-allowlisted Supabase token. The
+# secret path means no JWT juggling — paste it once, the page remembers it.
+async def _require_debug(authorization: Optional[str] = Header(None)) -> str:
+    """Fixed internal gate: ANTAR_DEBUG_TOKEN secret OR admin Supabase token."""
+    secret = (os.getenv("ANTAR_DEBUG_TOKEN") or "").strip()
+    presented = ""
+    if authorization and authorization.startswith("Bearer "):
+        presented = authorization[7:].strip()
+    if secret and presented and presented == secret:
+        return "debug-token"
+    # Fall back to the Supabase admin allowlist (require_admin) for real logins.
+    try:
+        return await require_admin(authorization=authorization)
+    except HTTPException:
+        raise HTTPException(status_code=401, detail="Debug access denied")
+
+
+@app.get("/api/v1/admin/charts")
+async def admin_charts_search(q: str = "", limit: int = 40,
+                              admin_email: str = Depends(_require_debug)):
+    """Searchable chart list for the debugger dropdown (name / email / id)."""
+    limit = max(1, min(int(limit or 40), 200))
+    q = (q or "").strip()
+    sel = "id,first_name,name,email,birth_date,current_city,language_preference"
+    try:
+        query = supabase.table("charts").select(sel).is_("deleted_at", "null")
+        if q:
+            import uuid as _uu
+            try:
+                _uu.UUID(q); query = query.eq("id", q)          # exact id
+            except (ValueError, AttributeError):
+                query = query.or_(
+                    f"first_name.ilike.*{q}*,name.ilike.*{q}*,email.ilike.*{q}*")
+        rows = query.order("first_name").limit(limit).execute().data or []
+    except Exception as e:
+        return {"charts": [], "error": str(e)}
+    return {"charts": [{
+        "id": r["id"],
+        "name": r.get("first_name") or r.get("name") or "(unnamed)",
+        "email": r.get("email") or "",
+        "birth_date": str(r.get("birth_date") or "")[:10],
+        "city": r.get("current_city") or "",
+        "lang": r.get("language_preference") or "en",
+    } for r in rows], "count": len(rows)}
+
+
+@app.get("/api/v1/admin/preview-daily/{chart_id}")
+async def admin_preview_daily(chart_id: str, language: str = "en",
+                              refresh: bool = False,
+                              admin_email: str = Depends(_require_debug)):
+    """Today's card for a chart + an automated quality audit. This is what the
+    user's app SHOULD receive (server truth), plus per-field leak/broken flags."""
+    from datetime import datetime as _pdt
+    from antar_engine.daily_prediction_engine import (
+        generate_weekly_signals, _COSMIC_LEAK_RX, _MECHANICS_JARGON_RX, _looks_broken)
+    from antar_engine.daily_v2 import day_energy as _day_energy
+    row = supabase.table("charts").select(
+        "chart_data,first_name,name,current_country,birth_country").eq(
+        "id", chart_id).single().execute()
+    if not row.data:
+        raise HTTPException(404, "Chart not found")
+    cd = row.data.get("chart_data") or {}
+    if isinstance(cd, str):
+        try: cd = json.loads(cd)
+        except Exception: cd = {}
+    natal_moon = ((cd.get("planets") or {}).get("Moon") or {}).get("sign") or "Aries"
+    _cc = (row.data.get("current_country") or row.data.get("birth_country") or "").upper()
+    tz = float(_COUNTRY_TZ_OFFSETS.get(_cc, _COUNTRY_TZ_OFFSETS.get("DEFAULT", 0))) * 60
+    frame = {"orientation": "open"}
+    try:
+        from antar_engine.day_frame import resolve_day_frame
+        frame = resolve_day_frame(dashas=get_dashas_for_chart(chart_id))
+    except Exception:
+        pass
+    sigs = await generate_weekly_signals(
+        natal_moon_sign=natal_moon, start_date=_pdt.utcnow(), chart_id=chart_id,
+        supabase_client=supabase, language=language, tz_offset=tz,
+        days_to_generate=1, force_refresh=bool(refresh), day_frame=frame)
+    d = sigs[0] if sigs else {}
+
+    def _audit(txt):
+        if not isinstance(txt, str) or not txt.strip():
+            return {"cosmic": False, "mechanics": False, "broken": False}
+        return {"cosmic": bool(_COSMIC_LEAK_RX.search(txt)),
+                "mechanics": bool(_MECHANICS_JARGON_RX.search(txt)),
+                "broken": _looks_broken(txt)}
+    fields = {}
+    for f in ("verdict_subline", "senal_de_hoy", "observa_hoy_text", "el_movimiento"):
+        fields[f] = {"text": d.get(f), "audit": _audit(d.get(f))}
+    for f in ("haz_hoy", "evita_hoy"):
+        arr = d.get(f) or []
+        fields[f] = [{"text": x, "audit": _audit(x)} for x in arr if isinstance(x, str)]
+    de = _day_energy(d, language)
+    flat = [fields[f]["audit"] for f in ("verdict_subline", "senal_de_hoy", "observa_hoy_text", "el_movimiento")]
+    flat += [it["audit"] for f in ("haz_hoy", "evita_hoy") for it in fields[f]]
+    clean = not any(a["cosmic"] or a["mechanics"] or a["broken"] for a in flat)
+    return {
+        "chart_id": chart_id, "name": row.data.get("first_name") or row.data.get("name"),
+        "language": language, "day_frame": frame.get("orientation"),
+        "day_energy": de, "fields": fields,
+        "llm_generated": d.get("llm_generated"), "fallback": d.get("fallback"),
+        "audit_clean": clean,
+    }
+
+
+@app.get("/api/v1/admin/debug/predictions")
+async def admin_debug_page():
+    """Self-contained debugger UI (same-origin so it can call the admin API).
+    Data endpoints are admin-gated; the admin pastes their bearer token here."""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(_PRED_DEBUG_HTML)
+
+
+_PRED_DEBUG_HTML = """<!doctype html><html><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>Antar · Prediction Debugger</title>
+<style>
+ body{font:14px/1.5 -apple-system,system-ui,sans-serif;margin:0;background:#0b0b0f;color:#e7e7ea}
+ header{padding:14px 18px;background:#12121a;border-bottom:1px solid #24242e;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+ input,button,select{font:14px inherit;padding:8px 10px;border-radius:8px;border:1px solid #2c2c38;background:#181820;color:#e7e7ea}
+ button{cursor:pointer;background:#1f6feb;border-color:#1f6feb}
+ #wrap{display:flex;gap:0;height:calc(100vh - 56px)}
+ #list{width:320px;overflow:auto;border-right:1px solid #24242e}
+ .row{padding:10px 14px;border-bottom:1px solid #1b1b24;cursor:pointer}
+ .row:hover{background:#15151d} .row b{color:#fff} .row small{color:#8a8a99}
+ #panel{flex:1;overflow:auto;padding:20px}
+ .card{background:#12121a;border:1px solid #24242e;border-radius:12px;padding:18px;max-width:720px}
+ .fld{margin:12px 0;padding:10px 12px;border-radius:8px;background:#15151d;border-left:3px solid #2c2c38}
+ .fld.bad{border-left-color:#e5484d;background:#1e1416}
+ .lbl{color:#8a8a99;font-size:11px;letter-spacing:.08em;text-transform:uppercase}
+ .flag{display:inline-block;font-size:11px;padding:2px 7px;border-radius:6px;margin-left:6px;background:#e5484d;color:#fff}
+ .ok{color:#3fb950} .pill{padding:3px 9px;border-radius:20px;font-size:12px;border:1px solid #2c2c38}
+ .muted{color:#8a8a99}
+</style></head><body>
+<header>
+ <b>Antar · Prediction Debugger</b>
+ <input id=tok placeholder="admin bearer token" style="width:230px">
+ <input id=q placeholder="search name / email…" style="width:200px">
+ <select id=lang><option value=en>EN</option><option value=es>ES</option><option value=pt>PT</option></select>
+ <label class=muted><input type=checkbox id=refresh> force regenerate</label>
+ <button onclick=search()>Search</button>
+</header>
+<div id=wrap><div id=list class=muted style="padding:14px">Paste your admin token, then search.</div>
+<div id=panel class=muted>Pick a chart on the left.</div></div>
+<script>
+// remember the token across sessions — internal tool, enter once
+const TK=document.getElementById('tok');
+TK.value=localStorage.getItem('antar_debug_tok')||'';
+TK.addEventListener('change',()=>localStorage.setItem('antar_debug_tok',TK.value.trim()));
+const H=()=>{localStorage.setItem('antar_debug_tok',TK.value.trim());return{Authorization:'Bearer '+TK.value.trim()};};
+async function search(){
+ const q=document.getElementById('q').value.trim();
+ const l=document.getElementById('list'); l.innerHTML='loading…';
+ try{
+  const r=await fetch('/api/v1/admin/charts?limit=60&q='+encodeURIComponent(q),{headers:H()});
+  if(!r.ok){l.innerHTML='<div class=row style=color:#e5484d>auth failed ('+r.status+') — check token</div>';return;}
+  const d=await r.json();
+  if(!d.charts.length){l.innerHTML='<div class=row class=muted>no charts</div>';return;}
+  l.innerHTML=d.charts.map(c=>`<div class=row onclick="load('${c.id}')"><b>${c.name}</b> <small>${c.lang}</small><br><small>${c.email||c.birth_date} · ${c.city||''}</small><br><small style=color:#555>${c.id}</small></div>`).join('');
+ }catch(e){l.innerHTML='<div class=row style=color:#e5484d>'+e+'</div>';}
+}
+async function load(id){
+ const p=document.getElementById('panel'); p.className=''; p.innerHTML='generating…';
+ const lang=document.getElementById('lang').value, rf=document.getElementById('refresh').checked;
+ try{
+  const r=await fetch('/api/v1/admin/preview-daily/'+id+'?language='+lang+'&refresh='+rf,{headers:H()});
+  const d=await r.json();
+  if(!r.ok){p.innerHTML='<span style=color:#e5484d>error '+r.status+': '+(d.detail||'')+'</span>';return;}
+  const badge=(a)=>[a.cosmic?'<span class=flag>cosmic</span>':'',a.mechanics?'<span class=flag>jargon</span>':'',a.broken?'<span class=flag>broken</span>':''].join('');
+  const fld=(name,o)=>o&&o.text?`<div class="fld ${(o.audit.cosmic||o.audit.mechanics||o.audit.broken)?'bad':''}"><div class=lbl>${name} ${badge(o.audit)}</div>${o.text}</div>`:'';
+  const list=(name,arr)=>(arr&&arr.length)?`<div class=lbl style=margin-top:14px>${name}</div>`+arr.map(o=>`<div class="fld ${(o.audit.cosmic||o.audit.mechanics||o.audit.broken)?'bad':''}">${o.text} ${badge(o.audit)}</div>`).join(''):'';
+  const f=d.fields;
+  p.innerHTML=`<div class=card>
+   <div style=display:flex;gap:10px;align-items:center;margin-bottom:6px>
+     <b style=font-size:18px>${d.name}</b>
+     <span class=pill>${d.day_energy?d.day_energy.label:''}</span>
+     <span class=pill>frame: ${d.day_frame}</span>
+     <span class=pill>${d.llm_generated?'LLM':'template'}${d.fallback?' · fallback':''}</span>
+     <span class="pill ${d.audit_clean?'ok':''}" style="border-color:${d.audit_clean?'#3fb950':'#e5484d'}">${d.audit_clean?'✓ clean':'✗ issues'}</span>
+   </div>
+   ${fld('Verdict',f.verdict_subline)}
+   ${fld('Signal',f.senal_de_hoy)}
+   ${list('What to do',f.haz_hoy)}
+   ${list('What to avoid',f.evita_hoy)}
+   ${fld('Watch for',f.observa_hoy_text)}
+   ${fld('The move',f.el_movimiento)}
+  </div>`;
+ }catch(e){p.innerHTML='<span style=color:#e5484d>'+e+'</span>';}
+}
+document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
+</script></body></html>"""
+
+
 # ── [admin-inspect 2026-06-10] Prediction Inspector (read-only) ──────────────
 # Re-runs the SAME compute + narrate functions a surface uses and returns the
 # raw deterministic bundle, the narrated output, and the exact system prompt.
