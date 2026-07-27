@@ -4,9 +4,23 @@ import React, { useState, useEffect } from "react";
    ANTAR · COMPAT  (compatibility · two-chart alignment)
    --------------------------------------------------------------------------
    Flow screen, not a destination board. Steps:
-     1) Pick the connection type (Romantic / Business / Co-founder / Friend / Family)
+     1) Pick the connection type (Romantic / Business / Co-founder / Friend / Family / Employee)
+     1b) If Employee — pick the role (Sales / Marketing / Product / Leadership /
+         Operations / Engineering / Customer Support). Direction is fixed:
+         the signed-in user is the employer; the picked chart is the candidate.
      2) Pick / add the other chart
      3) See the verdict — score + headline + the layers where you meet vs. pull apart
+
+   API — POST /api/v1/compatibility/start
+     {
+       "chart_id_a": "<user chart>",          // employer (signed-in user)
+       "chart_id_b": "<candidate chart>",     // person being evaluated
+       "name_a": "...", "name_b": "...",
+       "compatibility_type": "employee",      // one of the RELATIONSHIP_TYPES ids
+       "employee_role": "engineering",        // REQUIRED when type === "employee"; one of EMPLOYEE_ROLES ids
+       "language": "en"
+     }
+   Returns: { session_id, layer1_analysis, score, score_breakdown:{ ..., employee_role } }
 
    Visual centerpiece: the two-circle alignment diagram (the user + the other,
    overlap = where you meet). Calm, two-color, same as the rest.
@@ -191,13 +205,40 @@ const StepRelationship = ({ onPick }) => (
   </div>
 );
 
+/* ── STEP 1b · PICK ROLE (employee reason only) ────────────────────────── */
+/* Shown only when reason === "employee". The chosen role id is sent to the
+   API as `employee_role` (see header doc). Direction is fixed: the signed-in
+   user is the employer/senior; the chart they pick in Step 2 is the person
+   being evaluated for this role. */
+const StepRole = ({ onPick }) => (
+  <div style={{ padding: "8px 16px 24px" }}>
+    <Mono size={8} color={T.teal} style={{ display: "block", marginBottom: 14 }}>EMPLOYEE · ROLE</Mono>
+    <div style={{ fontSize: 22, fontWeight: 700, color: T.t1, letterSpacing: "-0.02em", marginBottom: 8 }}>
+      Which role are you hiring for?
+    </div>
+    <div style={{ fontSize: 13, color: T.t2, lineHeight: 1.5, marginBottom: 18 }}>
+      We read the chart against what this specific role demands — drive, reliability, judgment, the right way to manage them.
+    </div>
+    <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+      {EMPLOYEE_ROLES.map(role => (
+        <button key={role.id} onClick={() => onPick(role.id)} style={{ cursor: "pointer",
+          padding: "11px 16px", background: T.card, border: `1px solid ${T.line}`, borderRadius: 10,
+          color: T.t1, fontSize: 14, fontWeight: 600 }}>
+          {role.label}
+        </button>
+      ))}
+    </div>
+  </div>
+);
+
 /* ── STEP 2 · PICK / ADD THE OTHER CHART ───────────────────────────────── */
-const StepChart = ({ relationship, onPick, onAdd }) => {
+const StepChart = ({ relationship, role, onPick, onAdd }) => {
   const r = RELATIONSHIP_TYPES.find(x => x.id === relationship);
+  const roleLabel = role ? EMPLOYEE_ROLES.find(x => x.id === role)?.label : null;
   return (
     <div style={{ padding: "8px 16px 24px" }}>
       <Mono size={8} color={T.teal} style={{ display: "block", marginBottom: 10 }}>
-        STEP 2 · {r.label.toUpperCase()}
+        STEP 2 · {r.label.toUpperCase()}{roleLabel ? ` · ${roleLabel.toUpperCase()}` : ""}
       </Mono>
       <div style={{ fontSize: 21, fontWeight: 700, color: T.t1, letterSpacing: "-0.02em", marginBottom: 16 }}>
         Choose a chart, or add one.
@@ -316,14 +357,16 @@ const CompatList = ({ onNew, onOpen }) => (
 /* ── MAIN ──────────────────────────────────────────────────────────────── */
 export default function AntarCompat() {
   const [tab, setTab] = useState("compat");
-  const [step, setStep] = useState("list"); // list | type | pick | verdict
+  const [step, setStep] = useState("list"); // list | type | role | pick | verdict
   const [relationship, setRelationship] = useState(null);
+  const [role, setRole] = useState(null);   // employee_role — only set when relationship === "employee"
   const [chartId, setChartId] = useState(null);
   const [layer, setLayer] = useState(null);
 
   const back = () => {
     if (step === "verdict") setStep("pick");
-    else if (step === "pick") setStep("type");
+    else if (step === "pick") setStep(relationship === "employee" ? "role" : "type");
+    else if (step === "role") setStep("type");
     else if (step === "type") setStep("list");
   };
 
@@ -342,10 +385,17 @@ export default function AntarCompat() {
             onOpen={(id) => { setChartId(id); setRelationship(SAVED_CHARTS.find(c=>c.id===id).relationship); setStep("verdict"); }} />
         )}
         {tab === "compat" && step === "type" && (
-          <StepRelationship onPick={(id) => { setRelationship(id); setStep("pick"); }} />
+          <StepRelationship onPick={(id) => {
+            setRelationship(id);
+            setRole(null);
+            setStep(id === "employee" ? "role" : "pick");
+          }} />
+        )}
+        {tab === "compat" && step === "role" && (
+          <StepRole onPick={(rid) => { setRole(rid); setStep("pick"); }} />
         )}
         {tab === "compat" && step === "pick" && (
-          <StepChart relationship={relationship}
+          <StepChart relationship={relationship} role={role}
             onPick={(id) => { setChartId(id); setStep("verdict"); }}
             onAdd={() => alert("Add-chart flow not implemented in mockup")} />
         )}
