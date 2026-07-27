@@ -1312,6 +1312,36 @@ def _faith_neutralize(text):
     return out
 
 
+# [cosmic-leak 2026-07-27] The plain scrub (apply_user_facing_strips) removes
+# planet/sign names but NOT astronomy synonyms, cycle-rarity claims, or the
+# day-frame's own "completing/starting" language — a live card opened with "A
+# rare nodal return is active — something that happens once every 18-19 years.
+# Today asks you to notice what is completing, not what is starting." Drop any
+# SENTENCE carrying that class of leak, rather than word-stripping it into
+# fragments. Cheap safety net behind the day_frame silent-rule fix.
+_COSMIC_LEAK_RX = re.compile(
+    r"(?i)\b("
+    r"nodal|nodes?|eclipse|sidereal|ephemeris|jyotish|vedic|zodiac|retrograde|"
+    r"lunar\s+return|solar\s+return|saturn\s+return|"
+    r"once\s+(?:in|every)\s+[\w\s-]{0,12}?\d+\s*(?:[-–]\s*\d+\s*)?years?|"
+    r"every\s+\d+\s*(?:[-–]\s*\d+\s*)?years?|\d+\s*[-–]\s*\d+\s*year|"
+    r"what\s+is\s+completing|not\s+what\s+is\s+starting|coming\s+full\s+circle|"
+    r"a\s+new\s+cycle|karmic\s+cycle"
+    r")\b"
+)
+
+
+def _scrub_cosmic_leak(text):
+    """Drop whole sentences that name astronomy / cycle-rarity / the day frame.
+    Removing the sentence (not the word) avoids mangled fragments."""
+    if not isinstance(text, str) or not text.strip():
+        return text
+    parts = re.split(r"(?<=[.!?])\s+", text)
+    kept = [p for p in parts if not _COSMIC_LEAK_RX.search(p)]
+    out = " ".join(kept).strip()
+    return out if out else ""   # empty is better than a cosmic-jargon leak
+
+
 def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
     """
     Apply centralized output strips to user-facing fields before cache write.
@@ -1338,9 +1368,9 @@ def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
     for _f in ('senal_de_hoy', 'observa_hoy_text', 'verdict_subline', 'el_movimiento'):
         _v = signal_json.get(_f)
         if isinstance(_v, str) and _v:
-            signal_json[_f] = _faith_neutralize(apply_user_facing_strips(
+            signal_json[_f] = _scrub_cosmic_leak(_faith_neutralize(apply_user_facing_strips(
                 _v, language=language, field_type='plain'
-            ))
+            )))
 
     # List plain fields
     for _f in ('haz_hoy', 'evita_hoy'):

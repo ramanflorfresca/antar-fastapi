@@ -141,31 +141,36 @@ def resolve_day_frame(
 # Written as a binding instruction, not a hint. Both prompts receive the same
 # text, so "the frame" means the same thing to the narrator and to the action
 # writer. Domains are untouched — only the VERB changes.
+# [silent-frame 2026-07-27] These are SILENT shaping rules, not content. A prior
+# version let the model verbalize the framing — a live card opened with "A rare
+# nodal return is active… notice what is completing, not what is starting," which
+# is meta-narration plus an invented astronomy claim. The frame must only bend
+# the VERBS of the actions; the reader must never see the framing named.
+_SILENT_RULE = (
+    "- SILENT RULE (critical): NEVER state or hint at this framing. Do not write\n"
+    "  'completing', 'closing', 'coming full circle', 'a new cycle', 'ending',\n"
+    "  'a chapter', or any cosmic/astronomical reason (no 'return', 'cycle',\n"
+    "  'nodal', 'phase', 'the stars/energy/universe', no 'once every N years').\n"
+    "  Apply this ONLY by choosing the verb of each concrete action. If you\n"
+    "  cannot phrase an action without naming the framing, write a plainer action.\n"
+)
 _CONSTRAINT = {
     "completing": (
-        "## DAY FRAME — COMPLETING (binding)\n"
-        "The chart marks today as a CLOSING day: things already in motion are\n"
-        "coming full circle. Every part of what you write must obey this.\n"
-        "- Actions must be about finishing, collecting, closing, repairing or\n"
-        "  releasing something that ALREADY EXISTS.\n"
-        "- Do NOT tell the reader to launch, pitch, propose, initiate, or start\n"
-        "  anything new. Do not open the day with a new commitment.\n"
-        "- Keep the same life domains — change the verb, not the subject.\n"
-        "  Not 'make the pitch' but 'close the loop on the pitch you already\n"
-        "  made'. Not 'chase new income' but 'collect what you are already\n"
-        "  owed'. Not 'open the conversation' but 'finish the conversation you\n"
-        "  started'.\n"
+        "## DAY SHAPING — lean toward finishing (silent)\n"
+        "Shape today's concrete actions toward completing what already exists.\n"
+        "- Actions are about finishing, collecting, closing, repairing, or\n"
+        "  releasing something ALREADY in motion — not new launches.\n"
+        "- Keep the same life domains — change only the verb. Not 'make the\n"
+        "  pitch' but 'follow up on the pitch you already made'; not 'chase new\n"
+        "  income' but 'collect what you're already owed'.\n"
+        + _SILENT_RULE
     ),
     "starting": (
-        "## DAY FRAME — STARTING (binding)\n"
-        "The chart marks today as an OPENING day: a new cycle is beginning and\n"
-        "first moves carry unusual weight. Every part of what you write must\n"
-        "obey this.\n"
-        "- Actions must be about initiating, proposing, reaching out, or\n"
-        "  committing to something new.\n"
-        "- Do NOT tell the reader to wait for closure, tie off loose ends, or\n"
-        "  hold back until something else finishes.\n"
-        "- Keep the same life domains — change the verb, not the subject.\n"
+        "## DAY SHAPING — lean toward initiating (silent)\n"
+        "Shape today's concrete actions toward first moves on something new.\n"
+        "- Actions are about initiating, proposing, or reaching out.\n"
+        "- Keep the same life domains — change only the verb.\n"
+        + _SILENT_RULE
     ),
 }
 
