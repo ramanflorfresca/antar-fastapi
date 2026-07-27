@@ -694,6 +694,17 @@ async def generate_annual_plan(
             _v = re.sub(r"\s{2,}", " ", _v).strip()
             result[_f] = _v
 
+    # [energy-strip] "your/natal X energy" -> "your/natal X" across every annual
+    # prose field (critical_dates especially read "your action and drive energy
+    # opposes your natal growth and wisdom energy" — clumsy).
+    def _de_energy(v):
+        if not isinstance(v, str) or not v:
+            return v
+        v = re.sub(r"(\byour [\w' ]+?)\s+energy('s)?\b", r"\1", v, flags=re.I)
+        v = re.sub(r"(\bnatal )([\w' ]+?)\s+energy\b", r"\1\2", v, flags=re.I)
+        v = re.sub(r"\benergy\b", "", v)  # any stragglers
+        return re.sub(r"\s{2,}", " ", v).strip()
+
     # peak_windows[<domain>].signal — plain per domain
     _pw = result.get('peak_windows')
     if isinstance(_pw, dict):
@@ -701,16 +712,15 @@ async def generate_annual_plan(
             if isinstance(_win, dict):
                 _sig = _win.get('signal')
                 if isinstance(_sig, str) and _sig:
-                    _win['signal'] = apply_user_facing_strips(
-                        _sig, language=_lang, field_type='plain'
-                    )
+                    _win['signal'] = _de_energy(apply_user_facing_strips(
+                        _sig, language=_lang, field_type='plain'))
 
     # build / protect / release string arrays — each item is plain
     for _arr_key in ('build_this_year', 'protect_this_year', 'release_this_year'):
         _arr = result.get(_arr_key)
         if isinstance(_arr, list):
             result[_arr_key] = [
-                apply_user_facing_strips(_x, language=_lang, field_type='plain')
+                _de_energy(apply_user_facing_strips(_x, language=_lang, field_type='plain'))
                 if isinstance(_x, str) and _x else _x
                 for _x in _arr
             ]
@@ -733,9 +743,9 @@ async def generate_annual_plan(
             if isinstance(_c, dict):
                 _ev = _c.get('event')
                 if isinstance(_ev, str) and _ev:
-                    _c['event'] = apply_user_facing_strips(
+                    _c['event'] = _de_energy(apply_user_facing_strips(
                         _ev, language=_lang, field_type='plain'
-                    )
+                    ))
 
     # Save to cache — [loc-2] language-keyed. The `plan` JSONB column holds
     # {"en": {...}, "es": {...}, "pt": {...}} so a single-language write keeps

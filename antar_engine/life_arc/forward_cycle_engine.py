@@ -675,7 +675,10 @@ def _period_lord_nouns(planet, chart_data, n=2):
                 if len(houses) >= 3:
                     break
     try:
-        from antar_engine.house_significations import HOUSE_SIGNIFICATIONS
+        # select_nouns applies the life-fact gate (and reads the active-life
+        # contextvar set by the life-arc orchestrator) — so a business owner
+        # never gets "your boss" from the 10th house here either.
+        from antar_engine.house_significations import select_nouns as _sel_nouns
     except Exception:
         return []
     # Spread across houses (ONE noun per house, primary) — not stack multiple
@@ -684,8 +687,7 @@ def _period_lord_nouns(planet, chart_data, n=2):
     # "your energy and your health" (1H+1H).
     nouns, seen = [], set()
     for h in houses:
-        sig = HOUSE_SIGNIFICATIONS.get(h) or {}
-        for noun in (sig.get("nouns") or []):
+        for noun in _sel_nouns(h, None, None, 3):   # gated + contextvar-aware
             if noun not in seen:
                 seen.add(noun)
                 nouns.append(noun)
