@@ -337,7 +337,24 @@ def parse_response(text: str) -> Dict[str, Dict[str, str]]:
 # ─────────────────────────────────────────────────────────────────────────────
 # Deterministic fallback (used when the model fails OR a field fails validation)
 # ─────────────────────────────────────────────────────────────────────────────
-def _fallback_copy(inp: Dict[str, Any]) -> Dict[str, str]:
+# [loc] depth is NOT in monthly's translate_response list (it's meant to be
+# generated in-language), so these fallback tails must be localized at the
+# source — otherwise they leak English into es/pt cards ("… Treat it as the
+# month's shape, not a fixed appointment.").
+_MONTH_TAIL = {
+    "en": "Treat it as the month's shape, not a fixed appointment.",
+    "es": "Tómalo como la forma del mes, no como una cita fija.",
+    "pt": "Encare como a forma do mês, não como um compromisso fixo.",
+}
+_GENTLE_TAIL = {
+    "en": "Let it stay a gentle direction rather than a hard plan.",
+    "es": "Déjalo como una dirección suave, no como un plan rígido.",
+    "pt": "Deixe como uma direção suave, não como um plano rígido.",
+}
+
+
+def _fallback_copy(inp: Dict[str, Any], language: str = "en") -> Dict[str, str]:
+    _lang = (language or "en")[:2]
     dom = inp["domain"]
     label = _DOMAIN_LABEL.get(dom, dom)
     Label = label[:1].upper() + label[1:]
@@ -368,9 +385,9 @@ def _fallback_copy(inp: Dict[str, Any]) -> Dict[str, str]:
     substance = seed or hook
     # give depth a distinct second beat even in fallback (avoid substance==depth)
     if seed:
-        depth = f"{seed} Treat it as the month's shape, not a fixed appointment."
+        depth = f"{seed} {_MONTH_TAIL.get(_lang, _MONTH_TAIL['en'])}"
     else:
-        depth = f"{hook} Let it stay a gentle direction rather than a hard plan."
+        depth = f"{hook} {_GENTLE_TAIL.get(_lang, _GENTLE_TAIL['en'])}"
     return {"hook": hook, "substance": substance, "depth": depth}
 
 
@@ -391,7 +408,7 @@ def _build_one(inp: Dict[str, Any], phrased: Dict[str, Dict[str, str]],
                language: str) -> Optional[Dict[str, Any]]:
     copy = phrased.get(inp["domain"]) or {}
     if not copy.get("hook"):
-        copy = _fallback_copy(inp)
+        copy = _fallback_copy(inp, language)
     windows = list(inp.get("sourced") or ([inp["window"]] if inp.get("window") else []))
     field = assemble_domain_field(
         domain=inp["domain"],
@@ -408,7 +425,7 @@ def _build_one(inp: Dict[str, Any], phrased: Dict[str, Dict[str, str]],
         return None
     if not field.get("_valid"):
         # the model broke a rule — rebuild from the safe deterministic template
-        fb = _fallback_copy(inp)
+        fb = _fallback_copy(inp, language)
         field = assemble_domain_field(
             domain=inp["domain"], polarity=inp["polarity"],
             conviction=inp["conviction"], altitude=inp["altitude"],

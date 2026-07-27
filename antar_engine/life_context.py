@@ -391,7 +391,27 @@ def resolve_life_facts(row: Optional[dict]) -> Optional[dict]:
     else:
         has_children = None
 
-    if partnered is None and has_children is None:
-        return None                      # nothing known — do not gate at all
+    # employed: True = has an employer/boss, False = self-employed/business
+    # owner, None = unknown. Gates "your boss" in the noun layer so we never
+    # tell a business owner (or someone we know nothing about) about their boss.
+    employed: Optional[bool] = None
+    _cs = str((row.get("career_stage") or "")).strip().lower()
+    _lw = str((row.get("life_work") or "")).strip().lower()
+    _prof = str((row.get("profession") or "")).strip().lower()
+    if (_cs in ("entrepreneur", "self_employed", "founder", "business_owner")
+            or _lw in ("business", "entrepreneur", "self_employed")
+            or _prof in ("founder", "business", "entrepreneur", "self-employed",
+                         "business owner", "ceo")):
+        employed = False
+    elif _cs in ("early_career", "mid_career", "senior_career", "corporate",
+                 "employed", "professional"):
+        employed = True
+
+    # Always return the dict (even all-None): the employed gate must fire on
+    # UNKNOWN employment too — "your boss" is only apt when employed is known-
+    # true. partnered/children gates still only trigger on explicit False, so
+    # returning all-None never over-gates them. Callers that look for known
+    # facts check specific keys `is not None`, so an all-None dict is safe.
     return {"partnered": partnered, "has_children": has_children,
+            "employed": employed,
             "marital": marital, "children": children}

@@ -218,6 +218,13 @@ _NOUN_REQUIRES = {
     "romance":      "not_partnered_ok",   # fine for single; odd for married
     "a child":      "has_children",
     "your children": "has_children",
+    # "your boss" assumes an employer. Only use it when we KNOW the reader is
+    # employed — self-employed / business owners / unknown get the neutral 10th-
+    # house nouns (reputation, work standing, an authority figure) instead.
+    "your boss":    "employed",
+    "the boss":     "employed",
+    "your manager": "employed",
+    "your employer": "employed",
 }
 
 
@@ -238,6 +245,11 @@ def _life_allows(noun: str, life: Optional[dict]) -> bool:
     elif req == "not_partnered_ok":
         # "romance" is not wrong for a married reader, just less apt — allow.
         return True
+    elif req == "employed":
+        # only name "your boss" when employment is KNOWN-true; self-employed
+        # (False) or unknown (None) fall back to the neutral 10th-house nouns.
+        if life.get("employed") is not True:
+            return False
     return True
 
 

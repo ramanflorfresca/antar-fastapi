@@ -886,7 +886,7 @@ def _build_deepdive_context(
                 if _bless or _test:
                     lines.append('')
                     lines.append('CONCRETE LIFE-THINGS THIS MONTH (open the overview on these '
-                                 'real things — your boss, property, a partner, a loan — NOT '
+                                 'real things — your reputation, property, a partner, a loan — NOT '
                                  'abstract "energy" or "areas"):')
                     if _bless:
                         lines.append(f'  strengthened / favored: {", ".join(_bless[:5])}')
@@ -1114,7 +1114,7 @@ def _build_deepdive_context(
             lines.append(f'  priority_action_domains: {_json_sch.dumps(_hot_domains)}')
             lines.append('(Write one verb-first action per domain, citing the transit events above. '
                          'Name the CONCRETE life-things listed under each hot domain — a loan or '
-                         'credit line, your boss, a vehicle, your partner, property — never the '
+                         'credit line, your work standing, a vehicle, your partner, property — never the '
                          'abstract category alone. Selective: name only the 2-3 that fit, never a list.)')
 
             # [cp-day7] monthly energy + week picks injection
