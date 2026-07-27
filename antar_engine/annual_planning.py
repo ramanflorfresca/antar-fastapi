@@ -264,7 +264,7 @@ RULES:
   drawn from the peak_windows the engine just chose. Use plain life
   terms — "your career", "your savings", "a property or vehicle
   decision", "your father or a mentor", "a long-distance move", "your
-  daily routine", "your partner", "your boss". NEVER write the bare
+  daily routine", "your partner", "your work standing". NEVER write the bare
   category alone ("focus on health", "relationships matter").
 - year_summary WINDOW: end the summary with a concrete multi-month
   window using the peak months — e.g. "Ship through May–June,
@@ -512,6 +512,40 @@ def _is_legacy_annual_blob(blob) -> bool:
     return isinstance(blob, dict) and ("year_summary" in blob or "peak_windows" in blob)
 
 
+def _life_constraint_block(life: Optional[dict]) -> str:
+    """A prompt block that forbids claims the reader's KNOWN circumstances
+    contradict — the intelligence layer's core promise: never tell a business
+    owner about 'your boss', never tell someone with no children about 'your
+    child', never tell a single person about 'your spouse'. Empty when nothing
+    is known (unknown must steer wording, never fabricate a fact)."""
+    if not life:
+        return ""
+    lines = []
+    emp = life.get("employed")
+    if emp is False:
+        lines.append('- The reader is SELF-EMPLOYED / a business owner — NEVER write '
+                     '"your boss", "jefe", "your manager", or "your employer". Use '
+                     '"your reputation", "your work standing", "an authority figure", '
+                     'or "your business" for career/10th-house themes.')
+    elif emp is None:
+        lines.append('- The reader is NOT known to be an employee — do NOT assume a '
+                     'boss/employer. Use "your reputation" / "your work standing" / '
+                     '"an authority figure" for career and authority themes.')
+    if life.get("has_children") is False:
+        lines.append('- The reader has NO children — NEVER reference "your child", '
+                     '"your children", or any child-related event as a present fact.')
+    if life.get("partnered") is False:
+        lines.append('- The reader is NOT currently partnered — NEVER reference "your '
+                     'spouse", "your partner", or "your marriage" as a present '
+                     'relationship (5th/7th-house themes: use "a partnership", '
+                     '"a close collaborator", or a future-framed possibility).')
+    if not lines:
+        return ""
+    return ("\n\nKNOWN LIFE FACTS — confirmed about this reader; NEVER write anything "
+            "that contradicts them (this is what makes the reading feel truly known):\n"
+            + "\n".join(lines))
+
+
 async def generate_annual_plan(
     chart_id:       str,
     chart_data:     dict,
@@ -555,6 +589,20 @@ async def generate_annual_plan(
         age, country_code, dkp_context, lk_context, now,
         dasha_levels=dasha_levels,
     )
+
+    # [life-gate] Fetch the reader's KNOWN facts and forbid contradicting them
+    # (no "your boss" for a business owner, no "your child" for the childless).
+    # Fail-open: any read problem just means no extra constraint, never a crash.
+    try:
+        from antar_engine.life_context import resolve_life_facts as _rlf
+        _lrow = (supabase.table("charts").select(
+            "career_stage,profession,life_work,marital_status,children_status")
+            .eq("id", chart_id).single().execute().data or {})
+        _lblock = _life_constraint_block(_rlf(_lrow))
+        if _lblock:
+            context = context + _lblock
+    except Exception as _lge:
+        logger.debug("[annual] life-gate skipped (non-fatal): %s", _lge)
 
     # Call Claude — wrapped so a hard failure falls back to the previous
     # cached row (if any) rather than shipping an empty critical_dates.
