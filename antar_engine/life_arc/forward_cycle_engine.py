@@ -289,10 +289,17 @@ def _linkage(planet: str, target_houses: List[int],
 
 
 def d_gate(period_lord: str, event_type: str,
-           chart_data: dict, chara_rashi_lord: Optional[str] = None) -> float:
+           chart_data: dict, chara_rashi_lord: Optional[str] = None,
+           yogini_lord: Optional[str] = None) -> float:
     """
     Necessary precondition. 0.0 → event removed from candidate set.
-    Dual-system +0.20 bonus when Chara dasha rashi-lord also links the house.
+
+    Multi-system confirmation bonuses when a SECOND/THIRD dasha's lord also
+    links the same house, sized by INDEPENDENCE (see prediction_weights):
+      +0.20  Chara (Jaimini) rashi-lord — an independent SIGN-based system.
+      +0.10  Yoginī mahādaśā lord — nakshatra-based like Vimśottarī, so partly
+             correlated; a real but weaker confirmation. Skipped if it merely
+             duplicates the Chara lord (no new basis).
     """
     target_houses = event_target_houses(event_type)
     if not target_houses:
@@ -302,9 +309,12 @@ def d_gate(period_lord: str, event_type: str,
     if base <= 0:
         return 0.0
     if chara_rashi_lord and chara_rashi_lord != period_lord:
-        ch = _linkage(chara_rashi_lord, target_houses, chart_data, lagna_idx)
-        if ch > 0:
+        if _linkage(chara_rashi_lord, target_houses, chart_data, lagna_idx) > 0:
             base = min(base + 0.20, 1.0)
+    if (yogini_lord and yogini_lord != period_lord
+            and yogini_lord != chara_rashi_lord):
+        if _linkage(yogini_lord, target_houses, chart_data, lagna_idx) > 0:
+            base = min(base + 0.10, 1.0)
     return base
 
 
@@ -830,7 +840,8 @@ def _arc_block(current_md: dict, next_md: Optional[dict], now: datetime) -> dict
 
 def _events_for_node(period_lord: str, window_start: datetime,
                      window_end: datetime, chart_data: dict,
-                     chara_rashi_lord: Optional[str]) -> List[dict]:
+                     chara_rashi_lord: Optional[str],
+                     yogini_lord: Optional[str] = None) -> List[dict]:
     """Enumerate the EVENT_TAXONOMY, gate by D_gate, rank by ECS, format.
     Subtle (ECS<0.55) events emit no named entry — theme only."""
     if not period_lord or not window_start or not window_end:
@@ -838,7 +849,7 @@ def _events_for_node(period_lord: str, window_start: datetime,
     mid_date = (window_start + (window_end - window_start) / 2).date()
     out: List[Tuple[float, str, dict]] = []
     for event_type in EVENT_TAXONOMY.keys():
-        dg = d_gate(period_lord, event_type, chart_data, chara_rashi_lord)
+        dg = d_gate(period_lord, event_type, chart_data, chara_rashi_lord, yogini_lord)
         if dg <= 0:
             continue
         vm = varga_multiplier(event_type, period_lord, chart_data)
@@ -894,6 +905,28 @@ def _chara_rashi_lord(chart_data: dict, birth_date_str: str,
     return None
 
 
+def _yogini_lord(chart_data: dict, birth_jd: float,
+                 now: datetime) -> Optional[str]:
+    """The running Yoginī mahādaśā's graha lord (a THIRD confirming clock).
+
+    Nakshatra-based like Vimśottarī, so it shares that basis — hence a smaller
+    D_gate bonus than Chara (which is an independent sign-based system). Its
+    lord assignment differs from Vimśottarī's cycle, so the running Yoginī lord
+    is usually a different planet and still adds real house-linkage signal."""
+    try:
+        from antar_engine import yogini_dasha
+        r = yogini_dasha.calculate_yogini_from_chart(chart_data, birth_jd)
+        now_naive = now.replace(tzinfo=None) if now.tzinfo else now
+        for md in r.get("mahadashas", []):
+            s = datetime.fromisoformat(md["start_date"]).replace(tzinfo=None)
+            e = datetime.fromisoformat(md["end_date"]).replace(tzinfo=None)
+            if s <= now_naive < e:
+                return md["lord"]
+    except Exception:
+        return None
+    return None
+
+
 def build_forward_cycle(chart_data: dict, birth_jd: float,
                         now: Optional[datetime] = None,
                         birth_date_str: str = "",
@@ -938,6 +971,8 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
             short_md = True
 
     chara_lord = _chara_rashi_lord(chart_data, birth_date_str or "1970-01-01", now)
+    # [yogini 2026-07-26] third confirming clock (nakshatra-based, weaker bonus)
+    yog_lord = _yogini_lord(chart_data, birth_jd, now)
 
     # Build nodes
     nodes: List[dict] = []
@@ -946,7 +981,7 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
     if current_pd and current_pd["lord"]:
         pd_events = _events_for_node(
             current_pd["lord"], current_pd["start"], current_pd["end"],
-            chart_data, chara_lord,
+            chart_data, chara_lord, yog_lord,
         )
         # Founder ruling 2026-06-10: NOW node carries its PD event chips
         # ("NOW node -> current PD window + its event(s)").
@@ -972,7 +1007,7 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
     if sc_period and sc_period["lord"]:
         sc_events = _events_for_node(
             sc_period["lord"], sc_period["start"], sc_period["end"],
-            chart_data, chara_lord,
+            chart_data, chara_lord, yog_lord,
         )
         nodes.append({
             "kind":       "sub_chapter",
@@ -992,7 +1027,7 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
     if next_ad and next_ad["lord"]:
         turn_events = _events_for_node(
             next_ad["lord"], next_ad["start"], next_ad["end"],
-            chart_data, chara_lord,
+            chart_data, chara_lord, yog_lord,
         )
         nodes.append({
             "kind":       "turn",
