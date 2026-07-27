@@ -2350,8 +2350,12 @@ async def generate_weekly_signals(
             # for its cache write instead of generating a duplicate; only fall
             # through to our own generation if that wait times out (fail open).
             # Sets _sf_owned so the lock is released after the cache write below.
+            # [compare-fix] singleflight is for deduping concurrent REAL user
+            # requests; skip it when persist=False (admin compare runs every
+            # provider in parallel on the same chart/date/lang and must NOT
+            # coordinate — each provider generates independently).
             _sf_owned = False
-            if not llm_signal and not fast_mode and chart_id and supabase_client:
+            if not llm_signal and not fast_mode and chart_id and supabase_client and persist:
                 try:
                     from antar_engine import singleflight as _sf
                     if _sf.try_acquire(supabase_client, chart_id, date_str, language):

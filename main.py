@@ -13967,7 +13967,10 @@ async def _gen_daily_for_admin(chart_id, cd, natal_moon, tz, language, day_frame
     sigs = await generate_weekly_signals(
         natal_moon_sign=natal_moon, start_date=_gdt.utcnow(), chart_id=chart_id,
         supabase_client=supabase, language=language, tz_offset=tz,
-        days_to_generate=1, day_frame=day_frame, persist=False)
+        days_to_generate=1, day_frame=day_frame, persist=False,
+        # [compare-fix] fast_mode=False → real LLM generation, not the template
+        # defer. Without this the compare/logic-diff compared templates.
+        fast_mode=False)
     return sigs[0] if sigs else {}
 
 
@@ -14080,13 +14083,12 @@ async def admin_compare_surface(surface: str, chart_id: str, language: str = "en
 
     import time as _t
     by_prov = {}
-    for prov in order:
+    async def _one(prov):
         if not keys.get(prov):
-            by_prov[prov] = {"provider": prov, "unavailable": True,
-                             "note": f"{prov.upper()}_API_KEY not set"}
-            continue
+            return prov, {"provider": prov, "unavailable": True,
+                          "note": f"{prov.upper()}_API_KEY not set"}
         t0 = _t.monotonic()
-        tok = _lad.set_forced_provider(prov)
+        tok = _lad.set_forced_provider(prov)  # per-task context (isolated under gather)
         try:
             if surface == "daily":
                 d = await _gen_daily_for_admin(chart_id, cd, natal_moon, tz, language, frame)
@@ -14104,14 +14106,27 @@ async def admin_compare_surface(surface: str, chart_id: str, language: str = "en
                 res = res if isinstance(res, dict) else {}
                 primary = [res.get("verdict")]
                 flagged = _dbg_audit_walk(res)
-            by_prov[prov] = {"provider": prov, "ms": int((_t.monotonic() - t0) * 1000),
-                             "primary": [x for x in primary if x],
-                             "flagged": flagged, "flag_count": len(flagged),
-                             "audit_clean": len(flagged) == 0}
+            return prov, {"provider": prov, "ms": int((_t.monotonic() - t0) * 1000),
+                          "primary": [x for x in primary if x],
+                          "flagged": flagged, "flag_count": len(flagged),
+                          "audit_clean": len(flagged) == 0}
         except Exception as e:
-            by_prov[prov] = {"provider": prov, "error": str(e)[:200], "ms": int((_t.monotonic() - t0) * 1000)}
+            return prov, {"provider": prov, "error": str(e)[:200], "ms": int((_t.monotonic() - t0) * 1000)}
         finally:
             _lad.reset_forced_provider(tok)
+
+    if surface == "daily":
+        # persist=False → no cache races → run every provider CONCURRENTLY (~1x
+        # wall-clock instead of Nx). This is the main compare speedup.
+        import asyncio as _aio
+        for prov, col in await _aio.gather(*[_one(p) for p in order]):
+            by_prov[prov] = col
+    else:
+        # monthly/life-arc write cache → keep sequential, anthropic last so the
+        # persisted cache is left on the production default.
+        for prov in order:
+            _p, col = await _one(prov)
+            by_prov[_p] = col
     cols = [by_prov[p] for p in want if p in by_prov]  # display in requested order
     return {"surface": surface, "chart_id": chart_id, "name": name,
             "language": language, "day_frame": frame.get("orientation"), "columns": cols}
