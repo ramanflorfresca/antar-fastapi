@@ -9435,7 +9435,10 @@ async def get_user_profile(request: Request):
             "id, first_name, name, display_name, email, birth_date, "
             "birth_city, birth_country, current_city, current_country, "
             "lagna_sign, moon_sign, sun_sign, language, gender, "
-            "marital_status, children_status, career_stage, lagna, "
+            # [phantom-col 2026-07-27] `lagna` does NOT exist on charts (it is
+            # lagna_sign, already selected above). Naming it 42703-failed the
+            # whole profile read — see the [user/profile] error in Railway.
+            "marital_status, children_status, career_stage, "
             # [life-stage 2026-06-09] surface to frontend Profile page
             "life_work, life_relationship, life_kids"
         ).eq("id", chart_id).single().execute()
@@ -9459,7 +9462,9 @@ async def get_user_profile(request: Request):
             "life_relationship": chart.get("life_relationship"),
             "life_kids":         chart.get("life_kids"),
             "lagna_sign": chart.get("lagna_sign", ""),
-            "lagna": chart.get("lagna", ""),
+            # [phantom-col 2026-07-27] `lagna` isn't a column — echo lagna_sign
+            # so the response shape is unchanged for any client reading `lagna`.
+            "lagna": chart.get("lagna_sign", ""),
             "moon_sign": chart.get("moon_sign", ""),
             "sun_sign": chart.get("sun_sign", ""),
             "language": chart.get("language") or "en",
@@ -12511,7 +12516,14 @@ async def settings_me_patch(request: Request, authorization: Optional[str] = Hea
     user_id, email = _st_identity(authorization)
     if not user_id:
         return _st_guest_401()
-    body = await request.json()
+    # [patch-me-500 2026-07-27] An empty or non-JSON body raised JSONDecodeError
+    # uncaught → 500. Treat a missing/invalid body as "nothing to update".
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    if not isinstance(body, dict):
+        body = {}
     updates = {}
     for f in ("name", "avatar_url"):
         if f in body and isinstance(body[f], (str, type(None))):
@@ -12538,7 +12550,14 @@ async def settings_me_patch(request: Request, authorization: Optional[str] = Hea
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": "update failed", "detail": str(e)})
     _st_cache_bust(user_id)
-    return await settings_me(authorization=authorization)
+    # [patch-me-500 2026-07-27] The update succeeded; never let the echo-back read
+    # turn a successful PATCH into a 500. Fall back to a minimal ack on failure.
+    try:
+        return await settings_me(authorization=authorization)
+    except Exception as _me_e:
+        import logging as _l
+        _l.getLogger("antar.settings").warning(f"[settings] me echo after patch failed: {_me_e}")
+        return {"ok": True, "user_id": user_id, "updated": list(updates.keys())}
 
 
 # ════════════════════════════════ CHARTS ════════════════════════════════
