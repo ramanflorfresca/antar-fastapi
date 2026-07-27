@@ -14501,6 +14501,15 @@ function setSeg(m){document.querySelectorAll('#modeSegs button').forEach(x=>x.cl
 document.querySelectorAll('#modeSegs button').forEach(b=>b.onclick=()=>{
   setSeg(b.dataset.m); MODE=b.dataset.m; if(CUR) load(CUR);
 });
+// pick a chart → auto-switch the panel to THAT user's language (Jaime is 'es',
+// so his predictions render in Spanish without touching the selector). The user
+// can still override the selector; changing it re-renders the current chart.
+function selectChart(id,lang){
+  const sel=document.getElementById('lang');
+  if(sel && ['en','es','pt'].includes((lang||'').toLowerCase())) sel.value=lang.toLowerCase();
+  load(id);
+}
+document.getElementById('lang').addEventListener('change',()=>{if(CUR) load(CUR);});
 document.getElementById('q').addEventListener('keydown',e=>{if(e.key==='Enter')search()});
 const badge=a=>[a.cosmic?'<span class=flag>cosmic</span>':'',a.mechanics?'<span class=flag>jargon</span>':'',a.broken?'<span class=flag>broken</span>':''].join('');
 const bad=a=>a.cosmic||a.mechanics||a.broken;
@@ -14513,7 +14522,7 @@ async function search(){
   if(!r.ok){l.innerHTML='<div class=row style=color:#ff7b7e>auth failed ('+r.status+') — check token</div>';return;}
   const d=await r.json();
   if(!d.charts||!d.charts.length){l.innerHTML='<div class=row class=muted>no charts</div>';return;}
-  l.innerHTML=d.charts.map(c=>`<div class=row id="r_${c.id}" onclick="load('${c.id}')"><b>${c.name}</b> <small>${c.email||c.birth_date}${c.city?' · '+c.city:''} · ${c.lang}</small><span class=id>${c.id}</span></div>`).join('');
+  l.innerHTML=d.charts.map(c=>`<div class=row id="r_${c.id}" onclick="selectChart('${c.id}','${c.lang||''}')"><b>${c.name}</b> <small>${c.email||c.birth_date}${c.city?' · '+c.city:''} · <b style=color:#8ab4ff>${c.lang}</b></small><span class=id>${c.id}</span></div>`).join('');
  }catch(e){l.innerHTML='<div class=row style=color:#ff7b7e>'+e+'</div>';}
 }
 function fldHTML(name,o){return o&&o.text?`<div class=fld><div class=lbl>${name} ${badge(o.audit)}</div><div class="val ${bad(o.audit)?'bad':''}">${o.text}</div></div>`:'';}
