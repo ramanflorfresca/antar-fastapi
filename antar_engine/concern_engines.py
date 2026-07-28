@@ -39,6 +39,15 @@ _MALEFICS = {"Mars", "Saturn", "Rahu", "Ketu", "Sun"}
 # concern → spec. polarity: "gain" (is the good thing supported?) or
 # "risk" (is the bad thing elevated?). houses ordered by importance.
 CONCERN_SPEC = {
+    "income": {
+        "polarity": "gain", "varga": "d9",
+        "houses": [11, 2, 10, 6],
+        "house_meaning": {11: "gains and what flows in", 2: "your earnings and savings",
+                          10: "your livelihood and work income",
+                          6: "recurring costs and debt that drag on cash flow"},
+        "karakas": ["Jupiter", "Mercury", "Venus"],
+        "subject": "your income and cash flow",
+    },
     "funding": {
         "polarity": "gain", "varga": "d9",
         "houses": [8, 11, 6, 2],
@@ -75,6 +84,8 @@ CONCERN_SPEC = {
 }
 # question routing → canonical concern
 _ALIASES = {
+    "income": "income", "wealth": "income", "earnings": "income", "salary": "income",
+    "cashflow": "income", "revenue": "income", "money": "income",
     "funding": "funding", "loan": "funding", "investment": "funding", "capital": "funding",
     "love": "relationship_entry", "relationship": "relationship_entry",
     "marriage": "relationship_entry", "partner": "relationship_entry",
@@ -276,6 +287,11 @@ def _facts_block(concern, spec, verdict, drivers, d9, dasha_active, lords, in_ho
         "funding answer must NEVER mention health or relationships; a relationship "
         "answer must NEVER mention career or money. Answer ONLY what was asked. "
         "Ignore any other chart data above that is off this topic.\n"
+        "First say plainly WHERE THEY ARE RIGHT NOW on this theme (e.g. 'income is "
+        "tight right now' / 'income is flowing'), grounded in the current period. "
+        "If it is weak/tight now, say roughly HOW LONG until it turns and cite the "
+        "timing window given above (e.g. 'the turn comes around <window>'). Give a "
+        "multi-week/month horizon — NEVER a same-day 'tonight/before HH:MM' answer.\n"
         "Lead with the verdict in plain words (for funding: say clearly whether "
         "OUTSIDE money — a loan, investment, or funding — is supported and why, in "
         "terms of gains/other-people's-money/debt; for a relationship: whether a "

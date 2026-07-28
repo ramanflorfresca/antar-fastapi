@@ -14593,9 +14593,9 @@ _PRED_DEBUG_HTML = r"""<!doctype html><html><head><meta charset=utf-8>
  .row:hover{background:#15151f} .row.sel{background:#182036;border-left:2px solid var(--accent)}
  .row b{color:#fff;font-weight:600} .row small{color:var(--mut);display:block;font-size:12px}
  .row .id{color:#4a4a58;font-size:10px;font-family:ui-monospace,monospace}
- #panel{flex:1;overflow:auto;padding:22px}
+ #panel{flex:1;min-width:0;overflow-y:auto;overflow-x:hidden;padding:22px}
  .muted{color:var(--mut)}
- .cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:16px;align-items:start}
+ .cardgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:16px;align-items:start;max-width:100%}
  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:18px}
  .chd{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line2)}
  .prov{font-weight:700;font-size:16px;text-transform:capitalize}
@@ -18662,6 +18662,10 @@ def _ask_concern_route(question):
     if any(w in ql for w in ("fund", "loan", "invest", "raise money", "capital",
                              "borrow", "mortgage", "financing")):
         return "funding"
+    if any(w in ql for w in ("income", "cash flow", "cashflow", "earning", "salary",
+                             "revenue", "money coming", "making money", "earn more",
+                             "my money", "financially", "wealth")):
+        return "income"
     if any(w in ql for w in ("divorce", "separat", "break up", "breakup",
                              "leave my partner", "leave my husband", "leave my wife",
                              "split up", "end my marriage", "end my relationship")):
@@ -19368,7 +19372,12 @@ async def ask_endpoint(request: AskRequest):
                 _ask_has_clock = False
                 try:
                     from antar_engine.hora_karana import is_tactical_question as _dec_is_tactical
-                    if _dec_is_tactical(question):
+                    # period-scoped concerns (income/funding/career/relationship/
+                    # health/separation) must NOT get a same-day intraday clock —
+                    # they answer with a multi-week/month window, not "before 23:11
+                    # tonight".
+                    _is_period_q = bool(_ask_concern_block or _ask_career_block)
+                    if _dec_is_tactical(question) and not _is_period_q:
                         _ask_lat, _ask_lng, _ask_loc_src = _resolve_moment_coords(chart_row.data)
                         _ask_tz_off = float(chart_row.data.get('tz_offset') or 0.0)
                         _ask_intraday = _ds_build_intraday_window(
