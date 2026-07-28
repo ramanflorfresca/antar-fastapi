@@ -18654,6 +18654,29 @@ async def ask_evidence_debug(request: AskEvidenceRequest, http_request: Request)
     }
 
 
+def _ask_concern_route(question):
+    """Map a question to a concern engine (funding/relationship_entry/separation/
+    health) or None. Order matters: separation is checked before relationship so
+    'divorce' doesn't fall into the relationship bucket."""
+    ql = (question or "").lower()
+    if any(w in ql for w in ("fund", "loan", "invest", "raise money", "capital",
+                             "borrow", "mortgage", "financing")):
+        return "funding"
+    if any(w in ql for w in ("divorce", "separat", "break up", "breakup",
+                             "leave my partner", "leave my husband", "leave my wife",
+                             "split up", "end my marriage", "end my relationship")):
+        return "separation"
+    if any(w in ql for w in ("meet someone", "find love", "get married", "will i marry",
+                             "new relationship", "someone enter", "find a partner",
+                             "fall in love", "when will i meet", "will i find someone",
+                             "soulmate", "life partner", "settle down")):
+        return "relationship_entry"
+    if any(w in ql for w in ("my health", "illness", "sick", "disease", "my body",
+                             "diagnos", "surgery", "hospital", "medical", "recover")):
+        return "health"
+    return None
+
+
 def _is_career_type_q(q):
     """True for 'which profession / what career suits me' — a career-TYPE
     question (answered from the D-10), NOT a timing question ('when will I get a
@@ -19073,6 +19096,21 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _dce:
                 logger.warning(f"[ask] d10-career skipped (non-fatal): {_dce}")
 
+            # [concern-engines] funding/loan, a relationship entering, separation,
+            # health — route to the deterministic concern engine (right houses +
+            # D-9 + dasha, per the owner's method) and hand the narrator its
+            # verdict + reasoning instead of generic prose.
+            _ask_concern_block = ""
+            try:
+                _ce = _ask_concern_route(question)
+                if _ce:
+                    from antar_engine.concern_engines import analyze_concern
+                    _cr = analyze_concern(_ce, chart_data, get_dashas_for_chart(chart_id))
+                    if _cr.get("available"):
+                        _ask_concern_block = _cr["narration_facts"]
+            except Exception as _cee:
+                logger.warning(f"[ask] concern-engine skipped (non-fatal): {_cee}")
+
             # [ask-life-context 2026-07-20] /ask is the surface people bring an
             # actual problem to, and it was the ONLY major surface with no life
             # context — /predict, /career and the monthly briefing all had it.
@@ -19384,6 +19422,7 @@ async def ask_endpoint(request: AskRequest):
                     + f"\n\n{diagnostic_block}"
                     + (f"\n\n{_ask_life_block}" if _ask_life_block else "")
                     + (f"\n\n{_ask_career_block}" if _ask_career_block else "")
+                    + (f"\n\n{_ask_concern_block}" if _ask_concern_block else "")
                     + (f"\n\n{_ask_btc_block}" if _ask_btc_block else "")
                 )
             else:
@@ -19573,6 +19612,7 @@ async def ask_endpoint(request: AskRequest):
                     + f"\n\n{diagnostic_block}"
                     + (f"\n\n{_ask_life_block}" if _ask_life_block else "")
                     + (f"\n\n{_ask_career_block}" if _ask_career_block else "")
+                    + (f"\n\n{_ask_concern_block}" if _ask_concern_block else "")
                     + (f"\n\n{_ask_btc_block}" if _ask_btc_block else "")
                 )
 
