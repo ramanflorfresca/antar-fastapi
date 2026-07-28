@@ -68,6 +68,22 @@ PLANET_CAREERS = {
 
 _CHARA_ORDER = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Rahu"]
 
+# [kal / era-weighting] In the present age, Rahu (technology, foreign, disruption)
+# and Mercury (commerce, data, communication) are more operative than Jupiter
+# (traditional dharma/advisory) and Ketu (renunciation). This deterministically
+# nudges significator scores so a chart's modern-era fields surface — e.g. a
+# tech founder's Rahu ranks above their Jupiter-finance. TUNABLE: adjust these,
+# or set all to 1.0 to disable era weighting entirely.
+ERA_WEIGHT = {
+    "Rahu": 1.35, "Mercury": 1.25,
+    "Jupiter": 0.85, "Ketu": 0.85,
+    # Sun, Moon, Mars, Venus, Saturn = 1.0 (neutral)
+}
+
+
+def era_weight(planet: str) -> float:
+    return ERA_WEIGHT.get(planet, 1.0)
+
 
 def _sign_n_from(lagna_sign: str, n: int) -> Optional[str]:
     if lagna_sign not in SIGNS:
@@ -167,6 +183,12 @@ def analyze_career(chart_data: dict) -> dict:
 
         if not votes:
             return {"available": False}
+
+        # [era-weighting] nudge each significator by the present-age weight so
+        # modern-era fields (tech/commerce) rank above traditional ones when the
+        # chart supports them.
+        for p in list(votes.keys()):
+            votes[p] *= era_weight(p)
 
         # career fields: each voting planet contributes its significations,
         # weighted by that planet's votes and the signification's rank.

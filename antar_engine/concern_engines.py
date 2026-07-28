@@ -29,7 +29,8 @@ from __future__ import annotations
 from datetime import date
 from typing import Optional
 
-from antar_engine.d10_career import SIGNS, SIGN_LORD, _EXALT, _OWN, _sign_n_from
+from antar_engine.d10_career import (SIGNS, SIGN_LORD, _EXALT, _OWN,
+                                     _sign_n_from, era_weight)
 
 _DEBIL = {p: SIGNS[(SIGNS.index(s) + 6) % 12] for p, s in _EXALT.items()}
 _DUSTHANA = {6, 8, 12}
@@ -207,6 +208,11 @@ def analyze_concern(concern: str, chart_data: dict, dashas: dict) -> dict:
             d9dig, _ = _dignity(primary, d9_sign)
             d9_confirms = d9dig >= 0
 
+        # [era-weighting] nudge significators by the present-age weight (Rahu/
+        # Mercury up, Jupiter/Ketu down) — same lever as the career engine.
+        for p in list(sig.keys()):
+            sig[p]["score"] *= era_weight(p)
+
         # aggregate — RISK subtracts the benefic relief so a protected chart
         # reads calm, not "elevated".
         total = sum(d["score"] for d in sig.values())
@@ -265,6 +271,11 @@ def _facts_block(concern, spec, verdict, drivers, d9, dasha_active, lords, in_ho
         f"THIS analysis — do not invent.\n"
         f"VERDICT: {verdict}{lit}.{d9line}\n"
         f"KEY SIGNIFICATORS: {top}.\n"
+        f"STAY STRICTLY ON ONE TOPIC: {spec['subject']}. Do NOT bring in any other "
+        "life area — a health answer must NEVER mention money, loans, or funding; a "
+        "funding answer must NEVER mention health or relationships; a relationship "
+        "answer must NEVER mention career or money. Answer ONLY what was asked. "
+        "Ignore any other chart data above that is off this topic.\n"
         "Lead with the verdict in plain words (for funding: say clearly whether "
         "OUTSIDE money — a loan, investment, or funding — is supported and why, in "
         "terms of gains/other-people's-money/debt; for a relationship: whether a "
