@@ -18654,6 +18654,27 @@ async def ask_evidence_debug(request: AskEvidenceRequest, http_request: Request)
     }
 
 
+def _ask_question_intent(question):
+    """The interrogative lens: how-is (state) / when (timing) / how-will (channel)
+    / why (cause) / what-will (outcome). Order matters — 'when will' beats
+    'will i', 'how will' beats 'how is'."""
+    ql = (question or "").lower().strip()
+    if (ql.startswith(("when", "how long", "how soon", "what time"))
+            or "when will" in ql or "when do i" in ql or "when can i" in ql
+            or "how long until" in ql or "how long till" in ql):
+        return "timing"
+    if ql.startswith("why") or "why is" in ql or "why do" in ql or "why am i" in ql:
+        return "cause"
+    if (ql.startswith("how will") or "how will" in ql or "how do i get" in ql
+            or "how can i" in ql or "how to get" in ql or "through what" in ql):
+        return "channel"
+    if (ql.startswith("what will") or "what will happen" in ql or "what happens" in ql
+            or "what's going to" in ql or "whats going to" in ql
+            or ql.startswith("will i") or ql.startswith("am i going to")):
+        return "outcome"
+    return "state"   # 'how is', "how's", "what's happening", or default
+
+
 def _ask_concern_route(question):
     """Map a question to a concern engine (funding/relationship_entry/separation/
     health) or None. Order matters: separation is checked before relationship so
@@ -19109,7 +19130,8 @@ async def ask_endpoint(request: AskRequest):
                 _ce = _ask_concern_route(question)
                 if _ce:
                     from antar_engine.concern_engines import analyze_concern
-                    _cr = analyze_concern(_ce, chart_data, get_dashas_for_chart(chart_id))
+                    _cr = analyze_concern(_ce, chart_data, get_dashas_for_chart(chart_id),
+                                          intent=_ask_question_intent(question))
                     if _cr.get("available"):
                         _ask_concern_block = _cr["narration_facts"]
             except Exception as _cee:

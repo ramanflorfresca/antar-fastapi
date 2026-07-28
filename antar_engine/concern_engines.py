@@ -128,7 +128,8 @@ def _planet_in_varga(chart_data: dict, varga: str, planet: str) -> Optional[str]
     return pv.get("sign") if isinstance(pv, dict) else None
 
 
-def analyze_concern(concern: str, chart_data: dict, dashas: dict) -> dict:
+def analyze_concern(concern: str, chart_data: dict, dashas: dict,
+                    intent: str = "state") -> dict:
     """{available, verdict, score, drivers[], d9_confirms, dasha_active[],
     houses[], subject, narration_facts}. Never raises."""
     try:
@@ -251,7 +252,7 @@ def analyze_concern(concern: str, chart_data: dict, dashas: dict) -> dict:
                 verdict = "not indicated right now — steady"
 
         facts = _facts_block(concern, spec, verdict, drivers, d9_confirms,
-                             dasha_active, house_lords, in_house)
+                             dasha_active, house_lords, in_house, intent)
         return {"available": True, "concern": concern, "verdict": verdict,
                 "score": round(total, 2), "polarity": spec["polarity"],
                 "drivers": drivers[:5], "d9_confirms": d9_confirms,
@@ -265,9 +266,31 @@ def _ord(n):
     return {1: "1st", 2: "2nd", 3: "3rd"}.get(n, f"{n}th")
 
 
-def _facts_block(concern, spec, verdict, drivers, d9, dasha_active, lords, in_house):
+# how the answer should LEAD, by question intent (the interrogative).
+_INTENT_LEAD = {
+    "state": "The reader is asking HOW THINGS ARE — lead with WHERE THEY ARE RIGHT "
+             "NOW on {subj}: the current stretch, what's active, what's strong vs "
+             "resisting. Then a short outlook. Present-tense, situational.",
+    "timing": "The reader is asking WHEN — lead with the TIMING: when {subj} opens, "
+              "turns, or resolves (cite the window given above; give a weeks/months "
+              "horizon), then one line of why.",
+    "channel": "The reader is asking HOW it will come — lead with the CHANNEL / MEANS: "
+               "through which parts of life {subj} arrives (e.g. through your network, "
+               "a mentor or senior, shared deals, your own effort, family) — read this "
+               "from the significators and houses above. Then the outlook.",
+    "cause": "The reader is asking WHY — lead with the CAUSE: what in the current "
+             "period is driving {subj} (the key significator's condition and the "
+             "house it touches), in plain everyday terms. Then what to do about it.",
+    "outcome": "The reader is asking WHAT WILL HAPPEN — lead with the likely OUTCOME "
+               "of {subj} as a forecast (the verdict framed forward), then the window "
+               "and one concrete move.",
+}
+
+
+def _facts_block(concern, spec, verdict, drivers, d9, dasha_active, lords, in_house, intent="state"):
     top = "; ".join(f"{d['planet']} ({', '.join(d['why'][:2])})" for d in drivers[:3])
     pol = spec["polarity"]
+    intent_lead = _INTENT_LEAD.get(intent, _INTENT_LEAD["state"]).format(subj=spec["subject"])
     lit = (", and it is active in the current planetary period"
            if dasha_active else ", but no active period is lighting it up yet")
     d9line = (" The navamsa (deeper chart) confirms this." if d9
@@ -287,17 +310,12 @@ def _facts_block(concern, spec, verdict, drivers, d9, dasha_active, lords, in_ho
         "funding answer must NEVER mention health or relationships; a relationship "
         "answer must NEVER mention career or money. Answer ONLY what was asked. "
         "Ignore any other chart data above that is off this topic.\n"
-        "First say plainly WHERE THEY ARE RIGHT NOW on this theme (e.g. 'income is "
-        "tight right now' / 'income is flowing'), grounded in the current period. "
-        "If it is weak/tight now, say roughly HOW LONG until it turns and cite the "
-        "timing window given above (e.g. 'the turn comes around <window>'). Give a "
-        "multi-week/month horizon — NEVER a same-day 'tonight/before HH:MM' answer.\n"
-        "Lead with the verdict in plain words (for funding: say clearly whether "
-        "OUTSIDE money — a loan, investment, or funding — is supported and why, in "
+        f"HOW TO ANSWER: {intent_lead} This is a PERIOD question — give a weeks/"
+        "months horizon, NEVER a same-day 'tonight / before HH:MM' answer. "
+        "Domain framing (for funding: OUTSIDE money — loan/investment/funding, in "
         "terms of gains/other-people's-money/debt; for a relationship: whether a "
-        "real person can enter and how it forms; for separation/health: name it as "
-        "a risk to manage, never a certainty, and stay supportive). Close with one "
-        "concrete next step and, if a timing window was given above, cite it. "
+        "real person can enter and how; for separation/health: a risk to MANAGE, "
+        "never a certainty, stay supportive). Close with one concrete next step. "
         "Plain language only — never name a planet, house number, or 'navamsa'.")
 
 
