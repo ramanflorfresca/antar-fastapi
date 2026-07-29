@@ -19235,8 +19235,13 @@ async def ask_endpoint(request: AskRequest):
                     _rel_dashas = get_dashas_for_chart(chart_id)
                     _ra = analyze_relationship(chart_data, _ask_gender)
                     _rt = relationship_timeline(chart_data, _rel_dashas, _ask_gender)
+                    # second-marriage mode: divorced/separated/widowed → the next
+                    # union reads from the 2nd/8th/9th, not the (spent) 7th.
+                    _ms = str((_lrow_ask or {}).get("marital_status") or "").lower()
+                    _remarry = any(w in _ms for w in ("divorc", "separat", "widow", "remarr"))
                     _mt = marriage_timing(chart_data, _rel_dashas,
-                                          birth_date=_ask_birth_date, gender=_ask_gender)
+                                          birth_date=_ask_birth_date, gender=_ask_gender,
+                                          already_married=_remarry)
                     _partnered = (_ask_life or {}).get("partnered")
                     if _ra.get("available"):
                         _pr = _ra["promise"]

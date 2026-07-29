@@ -470,11 +470,14 @@ def analyze_relationship(chart_data: dict, gender: Optional[str] = None) -> dict
 # Darakaraka, UL lord, a planet in the 7th, or the 2nd/11th lord) — and HOW it
 # plays is read from where that lord sits in the D-9. Mirrors career_timeline.
 
-def _marriage_activation(lord, sig):
-    """How strongly a dasha lord lights up marriage, given the significator set."""
+def _marriage_activation(lord, sig, second=False):
+    """How strongly a dasha lord lights up marriage, given the significator set.
+    In `second` (remarriage) mode the 2nd/8th/9th become primary — the first
+    marriage 'spent' the 7th, and the next spouse is read from the 8th (2nd from
+    7th) and the 2nd/9th (the family you rebuild, a second fortune)."""
     s, why = 0.0, []
     if lord == sig["seventh_lord"]:
-        s += 2.0; why.append("rules your house of partnership")
+        s += (1.2 if second else 2.0); why.append("rules your house of partnership")
     if lord == sig["karaka"]:
         s += 2.0; why.append("is your marriage significator")
     if lord == sig["dk"]:
@@ -482,9 +485,14 @@ def _marriage_activation(lord, sig):
     if lord == sig["ul_lord"]:
         s += 1.5; why.append("rules your marriage-point")
     if lord in sig["in_7"]:
-        s += 1.5; why.append("sits in your house of partnership")
+        s += (1.0 if second else 1.5); why.append("sits in your house of partnership")
     if lord in (sig["second_lord"], sig["eleventh_lord"]):
         s += 1.0; why.append("rules a house of family/fulfilment")
+    if second:
+        if lord == sig.get("eighth_lord"):
+            s += 1.6; why.append("rules the house of a second partner")
+        if lord == sig.get("ninth_lord"):
+            s += 1.2; why.append("rules your house of fortune (a second fortune)")
     return s, why
 
 
@@ -705,24 +713,125 @@ def _transit_marriage_trigger(chart_data, when, targets):
     return hits
 
 
-def _lk_varsh_7th_lit(chart_data, age):
-    """Lal-Kitab varshphal: is the 7th house occupied (partnership activated) in
-    the annual chart for this age? Returns (lit, occupants)."""
+_LK_BENEFIC = {"Venus", "Jupiter", "Moon"}
+_LK_DISRUPT = {"Rahu", "Ketu", "Saturn"}
+
+
+def _lk_varsh_marriage_signal(chart_data, age, second=False):
+    """Lal-Kitab varshphal, distinguishing a UNION year from a RUPTURE year (the
+    owner's rule): a benefic in the annual 7th — or Mars energizing it — reads as
+    a partnership EVENT; Rahu/Ketu/Saturn alone in the 7th reads as upheaval. In
+    remarriage mode the 2nd/9th houses carry the union. Returns (union, rupture,
+    note)."""
     try:
         from antar_engine.lal_kitab import calculate_varshphal_chart
         vp = calculate_varshphal_chart(chart_data, age)
         pl = getattr(vp, "placements", {}) or {}
-        occ = [p for p, h in pl.items() if h == 7]
-        return (len(occ) > 0, occ)
+        occ7 = [p for p, h in pl.items() if h == 7]
+        occ2 = [p for p, h in pl.items() if h == 2]
+        occ9 = [p for p, h in pl.items() if h == 9]
+        union, note = False, ""
+        ben7 = [p for p in occ7 if p in _LK_BENEFIC]
+        if ben7:
+            union, note = True, f"a benefic in the annual 7th ({', '.join(ben7)})"
+        elif "Mars" in occ7:
+            union, note = True, "Mars energizes the annual 7th (a partnership event)"
+        if not union and second and (occ2 or occ9):
+            union = True
+            note = f"the annual 2nd/9th is active ({', '.join(occ2 + occ9)}) — the second-union axis"
+        rupture = bool([p for p in occ7 if p in _LK_DISRUPT]) and not ben7
+        return (union, rupture, note)
     except Exception:
-        return (False, [])
+        return (False, False, "")
+
+
+def _chara_lagna_marriage(dasha_sign, chart_data, gender, second=False):
+    """Judge a Chara-dasha sign the classical way: TREAT THE DASHA SIGN AS THE
+    LAGNA, then read the partnership houses from it using rāśi dṛṣṭi (sign aspects)
+    and the spouse indicators (Darakaraka, 7th lord, marriage karaka, Upapada).
+    In remarriage mode the 2nd/8th/9th from the dasha-lagna also count, and the
+    owner's linkage — the dasha sign whose 2nd or 7th falls on the natal 7th —
+    fires. Returns (score, reasons)."""
+    d1 = (chart_data.get("planets") or {})
+    lagna = ((chart_data.get("lagna") or {}).get("sign"))
+    if dasha_sign not in SIGNS or lagna not in SIGNS:
+        return 0.0, []
+    di = SIGNS.index(dasha_sign)
+    natal7 = _sign_n_from(lagna, 7)
+    natal2, natal8, natal9 = _sign_n_from(lagna, 2), _sign_n_from(lagna, 8), _sign_n_from(lagna, 9)
+    dk = _darakaraka(d1)
+    karaka, _ = _spouse_karaka(gender)
+    ul = _upapada_sign(lagna, d1)
+    seventh_lord = SIGN_LORD.get(natal7)
+
+    def _sgn(p):
+        return (d1.get(p) or {}).get("sign")
+
+    marriage_houses = {7} | ({2, 8, 9} if second else set())
+
+    def _house_from_dasha(sign):
+        return (SIGNS.index(sign) - di) % 12 + 1 if sign in SIGNS else None
+
+    score, why = 0.0, []
+    # A) spouse indicators falling in a marriage house counted FROM the dasha sign.
+    # The 7th-from-the-dasha-sign is the textbook signal (7th lord / Darakaraka /
+    # karaka sitting there) and weighs most; the 2nd/8th/9th are the second-
+    # marriage axis and weigh less.
+    for label, sgn in (("spouse-indicator", _sgn(dk)),
+                       ("marriage significator", _sgn(karaka)),
+                       ("partnership lord", _sgn(seventh_lord))):
+        h = _house_from_dasha(sgn)
+        if h == 7:
+            score += 1.2
+            why.append(f"the {label} sits in the 7th from the {dasha_sign} period")
+        elif h in marriage_houses:
+            score += 0.7
+            why.append(f"the {label} falls in the {h}th from the {dasha_sign} period")
+    # B) Darakaraka casts rāśi dṛṣṭi onto a marriage-house sign from the dasha-lagna
+    try:
+        from antar_engine.jaimini_engine import get_rashi_drishti
+        dk_sign = _sgn(dk)
+        if dk_sign in SIGNS:
+            asp = set(get_rashi_drishti(SIGNS.index(dk_sign)))
+            for h in marriage_houses:
+                hs = (di + h - 1) % 12
+                if hs in asp:
+                    score += 0.7
+                    why.append(f"the spouse-indicator aspects the {h}th from the {dasha_sign} period")
+                    break
+    except Exception:
+        pass
+    # C) the partnership axis of the dasha sign aligns with the natal 7th
+    seventh_from = SIGNS[(di + 6) % 12]
+    if dasha_sign == natal7 or seventh_from == natal7:
+        score += 0.8
+        why.append("this period's partnership axis aligns with your 7th")
+    if ul and (dasha_sign == ul or seventh_from == ul):
+        score += 0.5
+        why.append("this period touches your marriage-point")
+    # D) remarriage linkage — the 2nd (family) axis meeting the natal 7th, or the
+    # dasha sign / its 7th landing on the natal 2nd/8th/9th (second-union axis)
+    if second:
+        second_from = SIGNS[(di + 1) % 12]
+        if second_from == natal7:
+            score += 0.8
+            why.append("this period's family axis meets your 7th (the remarriage link)")
+        for lbl, hs in (("2nd", natal2), ("8th", natal8), ("9th", natal9)):
+            if dasha_sign == hs or seventh_from == hs:
+                score += 0.5
+                why.append(f"aligns with your {lbl} house (second-marriage axis)")
+                break
+    return round(score, 2), why
 
 
 def marriage_timing(chart_data: dict, dashas: dict, birth_date: Optional[str] = None,
-                    gender: Optional[str] = None, today: Optional[str] = None) -> dict:
+                    gender: Optional[str] = None, today: Optional[str] = None,
+                    already_married: bool = False) -> dict:
     """Converge Vimśottarī AD + Chara + transits + LK varshphal on the marriage
     window(s). Returns {available, windows[], best, summary}. Never raises.
-    Each window: {label, start, end, systems[], score}."""
+    Each window: {label, start, end, systems[], score}. When `already_married`
+    (divorced/widowed and seeking again), switches to SECOND-MARRIAGE mode: the
+    2nd/8th/9th houses carry the union, and the varshphal reads by 2nd/9th."""
     try:
         from datetime import date, datetime
         cd = chart_data if isinstance(chart_data, dict) else {}
@@ -730,6 +839,7 @@ def marriage_timing(chart_data: dict, dashas: dict, birth_date: Optional[str] = 
         lagna = ((cd.get("lagna") or {}).get("sign"))
         if not d1 or not lagna:
             return {"available": False}
+        second = bool(already_married)
         today = today or date.today().isoformat()
         tdt = datetime.fromisoformat(today[:10])
 
@@ -743,6 +853,8 @@ def marriage_timing(chart_data: dict, dashas: dict, birth_date: Optional[str] = 
             "in_7": _in_house(d1, 7),
             "second_lord": SIGN_LORD.get(_sign_n_from(lagna, 2)),
             "eleventh_lord": SIGN_LORD.get(_sign_n_from(lagna, 11)),
+            "eighth_lord": SIGN_LORD.get(_sign_n_from(lagna, 8)),
+            "ninth_lord": SIGN_LORD.get(_sign_n_from(lagna, 9)),
         }
         targets = {
             "house of partnership": seventh_sign,
@@ -774,8 +886,8 @@ def marriage_timing(chart_data: dict, dashas: dict, birth_date: Optional[str] = 
                 continue
             if ad["start"] > (str(tdt.year + 6)):   # ~6-year horizon
                 continue
-            act_ad, why = _marriage_activation(ad["lord"], sig)
-            act_md, _ = _marriage_activation(ad["parent"], sig) if ad["parent"] else (0.0, [])
+            act_ad, why = _marriage_activation(ad["lord"], sig, second=second)
+            act_md, _ = _marriage_activation(ad["parent"], sig, second=second) if ad["parent"] else (0.0, [])
             vim_score = act_ad + 0.4 * act_md
             if vim_score < 1.8:              # must be a genuine activator AD
                 continue
@@ -791,19 +903,22 @@ def marriage_timing(chart_data: dict, dashas: dict, birth_date: Optional[str] = 
                 systems.append("Transits: " + "; ".join(th[:3]))
                 score += 1.0
 
-            # 3) LK varshphal 7th lit at the anchor year
+            # 3) LK varshphal — a UNION year (not a rupture year) at the anchor
             if birth_date:
                 try:
                     b = datetime.fromisoformat(str(birth_date)[:10])
                     age = anchor.year - b.year - (1 if (anchor.month, anchor.day) < (b.month, b.day) else 0)
-                    lit, occ = _lk_varsh_7th_lit(cd, age)
-                    if lit:
-                        systems.append(f"Lal-Kitab varshphal: the 7th house is active this year ({', '.join(occ)})")
+                    union, rupture, note = _lk_varsh_marriage_signal(cd, age, second=second)
+                    if union:
+                        systems.append(f"Lal-Kitab varshphal: {note}")
                         score += 1.0
+                    elif rupture:
+                        score -= 0.5   # an upheaval year is not a marriage window
                 except Exception:
                     pass
 
-            # 4) Chara-dasha sign supportive at the anchor
+            # 4) Chara dasha — dasha sign AS LAGNA, judged by rāśi dṛṣṭi + the
+            # spouse indicators (the classical method), second-marriage aware.
             jaim = (dashas or {}).get("jaimini") or (dashas or {}).get("chara") or []
             for cp in jaim if isinstance(jaim, list) else []:
                 if not isinstance(cp, dict):
@@ -812,10 +927,10 @@ def marriage_timing(chart_data: dict, dashas: dict, birth_date: Optional[str] = 
                 e = str(cp.get("end_date") or cp.get("end") or "")[:10]
                 csign = str(cp.get("planet_or_sign") or cp.get("lord_or_sign") or "").title()
                 if s and e and s <= anchor.date().isoformat() <= e and csign in SIGNS:
-                    seventh_from = SIGNS[(SIGNS.index(csign) + 6) % 12]
-                    if csign in (seventh_sign, ul_sign) or seventh_from in (seventh_sign, ul_sign):
-                        systems.append(f"Chara dasha: the {csign} period touches your partnership axis")
-                        score += 0.7
+                    cscore, cwhy = _chara_lagna_marriage(csign, cd, gender, second=second)
+                    if cscore >= 1.0:
+                        systems.append(f"Chara dasha ({csign} as lagna): {cwhy[0]}")
+                        score += min(cscore, 1.5)
                     break
 
             windows.append({
