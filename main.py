@@ -18702,6 +18702,43 @@ def _ask_concern_route(question):
     return None
 
 
+def _is_relationship_q(question):
+    """True for the whole marriage/partnership family — entry, timing, what the
+    partner is like, whether it lasts, married-life quality. Routed to the
+    deterministic relationship engine (7th + Darakaraka + Upapada + D-9 + dasha)."""
+    ql = (question or "").lower()
+    return any(w in ql for w in (
+        "marriage", "marry", "married", "spouse", "wife", "husband", "partner",
+        "relationship", "love life", "my love", "romance", "romantic", "soulmate",
+        "life partner", "settle down", "divorce", "separat", "break up", "breakup",
+        "girlfriend", "boyfriend", "dating", "get engaged", "engagement",
+        "will i find someone", "meet someone", "find love", "fall in love",
+    ))
+
+
+def _relationship_intent(question):
+    """Which facet of the relationship engine to lead with."""
+    ql = (question or "").lower()
+    if any(w in ql for w in ("when", "what year", "what age", "how long until",
+                             "time", "soon", "which year", "at what")):
+        return "timing"
+    if any(w in ql for w in ("what is my partner", "what will my partner", "what will my spouse",
+                             "what is my spouse", "who will i marry", "who will my",
+                             "describe", "what kind of", "what will they be like",
+                             "what is he like", "what is she like", "how do i meet",
+                             "where will i meet", "how will i meet")):
+        return "partner"
+    if any(w in ql for w in ("last", "survive", "work out", "stable", "strain",
+                             "divorce", "separat", "break up", "breakup", "end my",
+                             "leave my", "save my", "falling apart", "problems in",
+                             "trouble in")):
+        return "durability"
+    if any(w in ql for w in ("how is my marriage", "quality", "happy", "harmon",
+                             "married life", "family life")):
+        return "quality"
+    return "entry"
+
+
 def _is_career_type_q(q):
     """True for 'which profession / what career suits me' — a career-TYPE
     question (answered from the D-10), NOT a timing question ('when will I get a
@@ -19007,14 +19044,16 @@ async def ask_endpoint(request: AskRequest):
     # other four surfaces. Fail-open to no constraint.
     _ask_life_block = ""
     _ask_life = None
+    _ask_gender = ""
     try:
         from antar_engine.life_context import (
             resolve_life_facts as _rlf_ask, life_constraint_block as _lcb_ask)
         _lrow_ask = (supabase.table("charts").select(
-            "career_stage,profession,life_work,marital_status,children_status")
+            "career_stage,profession,life_work,marital_status,children_status,gender")
             .eq("id", chart_id).single().execute().data or {})
         _ask_life = _rlf_ask(_lrow_ask)
         _ask_life_block = _lcb_ask(_ask_life)
+        _ask_gender = (_lrow_ask.get("gender") or "")
     except Exception as _alge:
         logger.warning(f"[ask] life-gate skipped (non-fatal): {_alge}")
 
@@ -19178,13 +19217,92 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _dce:
                 logger.warning(f"[ask] d10-career skipped (non-fatal): {_dce}")
 
-            # [concern-engines] funding/loan, a relationship entering, separation,
-            # health — route to the deterministic concern engine (right houses +
-            # D-9 + dasha, per the owner's method) and hand the narrator its
-            # verdict + reasoning instead of generic prose.
+            # [relationship engine] marriage/partnership — the deterministic D-9
+            # engine (7th + Darakaraka + Upapada + gendered karaka + dasha read
+            # through the navamsa). Supersedes the generic concern route for the
+            # relationship/separation family. Framed by the reader's intent AND
+            # their partnered life-fact (existing relationship vs a partner entering).
+            _ask_relationship_block = ""
+            _rel_fired = False
+            try:
+                if _is_relationship_q(question):
+                    _rel_fired = True
+                    from antar_engine.relationships import (
+                        analyze_relationship, relationship_timeline)
+                    _ri = _relationship_intent(question)
+                    _ra = analyze_relationship(chart_data, _ask_gender)
+                    _rt = relationship_timeline(chart_data, get_dashas_for_chart(chart_id),
+                                                _ask_gender)
+                    _partnered = (_ask_life or {}).get("partnered")
+                    if _ra.get("available"):
+                        _pr = _ra["promise"]
+                        _pt = _ra["partner"]
+                        _du = _ra["durability"]
+                        _mg = _ra["mangal"]
+                        _rp = ["RELATIONSHIP QUESTION — answer from THIS deterministic reading "
+                               "of the marriage chart (navamsa), the 7th house, the spouse-"
+                               "indicators and the timing of life-periods. Never name a planet, "
+                               "house, sign, 'navamsa/D-9', Darakaraka, or Upapada — speak in "
+                               "plain life-language."]
+                        # confidence dial (promise band → tone), per the philosophy
+                        _rp.append(
+                            f"MARRIAGE PROMISE: {_pr['band']} "
+                            f"({'lead confidently, the chart supports it' if _pr['band'] in ('strong','moderate') else 'be humble and lean into agency — effort, openness, timing can move it'}).")
+                        # partnered framing — the life-fact gate
+                        if _partnered is True:
+                            _rp.append("The reader is ALREADY partnered/married. Do NOT say a "
+                                       "partner 'will enter' or predict a first marriage. Read "
+                                       "the EXISTING relationship — its stability, its good "
+                                       "windows, what strengthens it.")
+                        elif _partnered is False:
+                            _rp.append("The reader is NOT currently partnered — entry/timing "
+                                       "framing is appropriate.")
+                        # facet lead
+                        if _ri == "partner":
+                            _traits = (_pt["from_darakaraka"] or {}).get("traits") \
+                                or (_pt["from_7th_sign"] or {}).get("traits")
+                            _rp.append(f"LEAD WITH THE PARTNER: they tend to be {_traits}. "
+                                       f"You are likely to meet {_pt['how_met']}. "
+                                       f"Deeper nature (marriage chart): "
+                                       f"{(_pt['from_d9_7th'] or {}).get('traits')}.")
+                        elif _ri == "durability":
+                            _rp.append(
+                                f"LEAD WITH DURABILITY: strain level is {_du['level']}. "
+                                + (f"Watch-points: {'; '.join(_du['flags'])}. " if _du['flags'] else "")
+                                + (f"What relieves it: {'; '.join(_du['relief'])}. " if _du['relief'] else "")
+                                + "Frame as something to tend, never a verdict of doom.")
+                        elif _ri == "quality":
+                            _rp.append(f"LEAD WITH MARRIED-LIFE QUALITY: family harmony looks "
+                                       f"{_ra['quality']['level']}.")
+                        else:  # entry / timing / general
+                            _rp.append(f"The partner tends to be {(_pt['from_darakaraka'] or {}).get('traits')}, "
+                                       f"likely met {_pt['how_met']}.")
+                        # timing (always useful, leads for 'timing' intent)
+                        if _rt.get("available") and _rt.get("current"):
+                            _cw = _rt.get("best_window")
+                            _tl_line = f"TIMING: {_rt['summary']}"
+                            _rp.append(_tl_line + (
+                                " Lead with this window and what to do to be ready."
+                                if _ri in ("entry", "timing") else ""))
+                        # mangal — mention only if present & not cancelled, as a gentle note
+                        if _mg.get("present") and not _mg.get("cancelled"):
+                            _rp.append("There is a friction signature around partnership "
+                                       "(handle early differences with patience); mention it "
+                                       "gently as something to be aware of, not a curse.")
+                        _rp.append("Close with ONE concrete, agency-oriented next step.")
+                        _ask_relationship_block = "\n".join(_rp)
+            except Exception as _ree:
+                logger.warning(f"[ask] relationship-engine skipped (non-fatal): {_ree}")
+
+            # [concern-engines] funding/loan, income, health — route to the
+            # deterministic concern engine (right houses + D-9 + dasha, per the
+            # owner's method). Relationship/separation are handled above by the
+            # richer relationship engine, so skip them here when it fired.
             _ask_concern_block = ""
             try:
                 _ce = _ask_concern_route(question)
+                if _ce in ("relationship_entry", "separation") and _rel_fired:
+                    _ce = None
                 if _ce:
                     from antar_engine.concern_engines import analyze_concern
                     _cr = analyze_concern(_ce, chart_data, get_dashas_for_chart(chart_id),
