@@ -19045,15 +19045,17 @@ async def ask_endpoint(request: AskRequest):
     _ask_life_block = ""
     _ask_life = None
     _ask_gender = ""
+    _ask_birth_date = ""
     try:
         from antar_engine.life_context import (
             resolve_life_facts as _rlf_ask, life_constraint_block as _lcb_ask)
         _lrow_ask = (supabase.table("charts").select(
-            "career_stage,profession,life_work,marital_status,children_status,gender")
+            "career_stage,profession,life_work,marital_status,children_status,gender,birth_date")
             .eq("id", chart_id).single().execute().data or {})
         _ask_life = _rlf_ask(_lrow_ask)
         _ask_life_block = _lcb_ask(_ask_life)
         _ask_gender = (_lrow_ask.get("gender") or "")
+        _ask_birth_date = (_lrow_ask.get("birth_date") or "")
     except Exception as _alge:
         logger.warning(f"[ask] life-gate skipped (non-fatal): {_alge}")
 
@@ -19228,11 +19230,13 @@ async def ask_endpoint(request: AskRequest):
                 if _is_relationship_q(question):
                     _rel_fired = True
                     from antar_engine.relationships import (
-                        analyze_relationship, relationship_timeline)
+                        analyze_relationship, relationship_timeline, marriage_timing)
                     _ri = _relationship_intent(question)
+                    _rel_dashas = get_dashas_for_chart(chart_id)
                     _ra = analyze_relationship(chart_data, _ask_gender)
-                    _rt = relationship_timeline(chart_data, get_dashas_for_chart(chart_id),
-                                                _ask_gender)
+                    _rt = relationship_timeline(chart_data, _rel_dashas, _ask_gender)
+                    _mt = marriage_timing(chart_data, _rel_dashas,
+                                          birth_date=_ask_birth_date, gender=_ask_gender)
                     _partnered = (_ask_life or {}).get("partnered")
                     if _ra.get("available"):
                         _pr = _ra["promise"]
@@ -19277,13 +19281,30 @@ async def ask_endpoint(request: AskRequest):
                         else:  # entry / timing / general
                             _rp.append(f"The partner tends to be {(_pt['from_darakaraka'] or {}).get('traits')}, "
                                        f"likely met {_pt['how_met']}.")
-                        # timing (always useful, leads for 'timing' intent)
-                        if _rt.get("available") and _rt.get("current"):
-                            _cw = _rt.get("best_window")
-                            _tl_line = f"TIMING: {_rt['summary']}"
-                            _rp.append(_tl_line + (
-                                " Lead with this window and what to do to be ready."
-                                if _ri in ("entry", "timing") else ""))
+                        # TIMING — for entry/timing on an unpartnered reader, lead
+                        # with the multi-system CONVERGENCE window (Vimśottarī AD +
+                        # transits + Chara + LK varshphal), which pins a real date a
+                        # mahadasha alone cannot. For durability, name the strain
+                        # window. Otherwise the broad life-phase view.
+                        if (_ri in ("entry", "timing") and _partnered is not True
+                                and _mt.get("available") and _mt.get("best")):
+                            _bw = _mt["best"]
+                            _rp.append(
+                                "TIMING (multiple methods converge): "
+                                + _mt["summary"] + " Basis: "
+                                + " | ".join(_bw["systems"]) + ". "
+                                "Give the reader this window in plain months/years, say "
+                                "several independent methods point to it, and name one "
+                                "way to be ready — never name a system, planet, or house.")
+                        elif _ri == "durability" and _rt.get("available") and _rt.get("strain_window"):
+                            _sw = _rt["strain_window"]
+                            _rp.append(
+                                f"TIMING OF STRAIN: the most testing stretch for the "
+                                f"partnership is around {_sw['years']} "
+                                f"({'; '.join(_sw['strain_why'])}). Frame as a period to "
+                                f"tend the relationship with extra care, not a doom date.")
+                        elif _rt.get("available") and _rt.get("current"):
+                            _rp.append(f"TIMING: {_rt['summary']}")
                         # mangal — mention only if present & not cancelled, as a gentle note
                         if _mg.get("present") and not _mg.get("cancelled"):
                             _rp.append("There is a friction signature around partnership "

@@ -653,3 +653,189 @@ def relationship_timeline(chart_data: dict, dashas: dict, gender: Optional[str] 
                 "summary": summary}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# MARRIAGE TIMING — multi-system CONVERGENCE (the owner's method)
+# ───────────────────────────────────────────────────────────────────────────
+# A mahadasha is too coarse for a wedding date. The real window is where several
+# systems AGREE: the Vimśottarī ANTARDASHA of a marriage-activator, a supportive
+# Chara-dasha sign, a transit trigger (Jupiter on the 7th/Upapada/Darakaraka,
+# Saturn binding the 7th or its lord), and the Lal-Kitab varshphal 7th lit up.
+# Validated on Susanna (marrying 31 Jul 2026): Sun–Venus AD + exalted Jupiter
+# aspecting her Upapada + Chara Virgo (fresh) + Mars in the varshphal 7th — all
+# on the wedding, where Vimśottarī-MD alone saw only a "quiet" Sun period.
+
+def _sign_aspects(from_sign: str, to_sign: str, planet: str) -> bool:
+    """Sign-based graha-drishti (used for slow transit triggers)."""
+    if from_sign not in SIGNS or to_sign not in SIGNS:
+        return False
+    diff = (SIGNS.index(to_sign) - SIGNS.index(from_sign)) % 12 + 1
+    asp = {7}
+    if planet == "Jupiter":
+        asp |= {5, 9}
+    elif planet == "Saturn":
+        asp |= {3, 10}
+    elif planet == "Mars":
+        asp |= {4, 8}
+    return diff in asp
+
+
+def _transit_marriage_trigger(chart_data, when, targets):
+    """At date `when`, do Jupiter/Saturn touch the marriage points (by transit
+    conjunction or aspect)? targets = {'seventh','7th_lord_sign','ul','dk_sign'}."""
+    hits = []
+    try:
+        from antar_engine import transits as _tr
+        tlist = _tr.calculate_transits(chart_data, target_date=when)
+        pos = {}
+        for t in tlist:
+            pos[t.get("planet")] = t.get("sign") or t.get("transit_sign")
+        for grp in ("Jupiter", "Saturn"):
+            gs = pos.get(grp)
+            if not gs:
+                continue
+            for key, tsign in targets.items():
+                if not tsign:
+                    continue
+                if gs == tsign or _sign_aspects(gs, tsign, grp):
+                    hits.append(f"{grp} touches your {key}")
+    except Exception:
+        pass
+    return hits
+
+
+def _lk_varsh_7th_lit(chart_data, age):
+    """Lal-Kitab varshphal: is the 7th house occupied (partnership activated) in
+    the annual chart for this age? Returns (lit, occupants)."""
+    try:
+        from antar_engine.lal_kitab import calculate_varshphal_chart
+        vp = calculate_varshphal_chart(chart_data, age)
+        pl = getattr(vp, "placements", {}) or {}
+        occ = [p for p, h in pl.items() if h == 7]
+        return (len(occ) > 0, occ)
+    except Exception:
+        return (False, [])
+
+
+def marriage_timing(chart_data: dict, dashas: dict, birth_date: Optional[str] = None,
+                    gender: Optional[str] = None, today: Optional[str] = None) -> dict:
+    """Converge Vimśottarī AD + Chara + transits + LK varshphal on the marriage
+    window(s). Returns {available, windows[], best, summary}. Never raises.
+    Each window: {label, start, end, systems[], score}."""
+    try:
+        from datetime import date, datetime
+        cd = chart_data if isinstance(chart_data, dict) else {}
+        d1 = cd.get("planets") or {}
+        lagna = ((cd.get("lagna") or {}).get("sign"))
+        if not d1 or not lagna:
+            return {"available": False}
+        today = today or date.today().isoformat()
+        tdt = datetime.fromisoformat(today[:10])
+
+        karaka, _ = _spouse_karaka(gender)
+        dk = _darakaraka(d1)
+        ul_sign = _upapada_sign(lagna, d1)
+        seventh_sign = _sign_n_from(lagna, 7)
+        sig = {
+            "seventh_lord": SIGN_LORD.get(seventh_sign), "karaka": karaka, "dk": dk,
+            "ul_lord": SIGN_LORD.get(ul_sign) if ul_sign else None,
+            "in_7": _in_house(d1, 7),
+            "second_lord": SIGN_LORD.get(_sign_n_from(lagna, 2)),
+            "eleventh_lord": SIGN_LORD.get(_sign_n_from(lagna, 11)),
+        }
+        targets = {
+            "house of partnership": seventh_sign,
+            "marriage significator": (d1.get(sig["seventh_lord"]) or {}).get("sign"),
+            "marriage point": ul_sign,
+            "spouse indicator": (d1.get(dk) or {}).get("sign") if dk else None,
+        }
+
+        # 1) Vimśottarī ANTARDASHA activator windows (the discrete backbone).
+        vim = (dashas or {}).get("vimsottari") or (dashas or {}).get("vimshottari") or []
+        ads = []
+        for p in vim if isinstance(vim, list) else []:
+            if not isinstance(p, dict):
+                continue
+            lvl = str(p.get("level") or p.get("type") or "").lower()
+            if lvl not in ("antardasha", "antar", "ad", "bhukti"):
+                continue
+            lord = str(p.get("lord_or_sign") or p.get("planet_or_sign") or p.get("lord") or "").title()
+            parent = str(p.get("parent_lord") or p.get("mahadasha_lord") or "").title()
+            s = str(p.get("start_date") or p.get("start") or "")[:10]
+            e = str(p.get("end_date") or p.get("end") or "")[:10]
+            if lord and s and e:
+                ads.append({"lord": lord, "parent": parent, "start": s, "end": e})
+        ads.sort(key=lambda x: x["start"])
+
+        windows = []
+        for ad in ads:
+            if ad["end"] < today:            # only current/future windows
+                continue
+            if ad["start"] > (str(tdt.year + 6)):   # ~6-year horizon
+                continue
+            act_ad, why = _marriage_activation(ad["lord"], sig)
+            act_md, _ = _marriage_activation(ad["parent"], sig) if ad["parent"] else (0.0, [])
+            vim_score = act_ad + 0.4 * act_md
+            if vim_score < 1.8:              # must be a genuine activator AD
+                continue
+            # anchor date for cross-system checks = window start (or today if already in it)
+            wstart = datetime.fromisoformat(ad["start"])
+            anchor = max(wstart, tdt)
+            systems = [f"Vimśottarī: {ad['parent']}–{ad['lord']} period activates the union"]
+            score = 1.0
+
+            # 2) transit trigger at the anchor
+            th = _transit_marriage_trigger(cd, anchor, targets)
+            if th:
+                systems.append("Transits: " + "; ".join(th[:3]))
+                score += 1.0
+
+            # 3) LK varshphal 7th lit at the anchor year
+            if birth_date:
+                try:
+                    b = datetime.fromisoformat(str(birth_date)[:10])
+                    age = anchor.year - b.year - (1 if (anchor.month, anchor.day) < (b.month, b.day) else 0)
+                    lit, occ = _lk_varsh_7th_lit(cd, age)
+                    if lit:
+                        systems.append(f"Lal-Kitab varshphal: the 7th house is active this year ({', '.join(occ)})")
+                        score += 1.0
+                except Exception:
+                    pass
+
+            # 4) Chara-dasha sign supportive at the anchor
+            jaim = (dashas or {}).get("jaimini") or (dashas or {}).get("chara") or []
+            for cp in jaim if isinstance(jaim, list) else []:
+                if not isinstance(cp, dict):
+                    continue
+                s = str(cp.get("start_date") or cp.get("start") or "")[:10]
+                e = str(cp.get("end_date") or cp.get("end") or "")[:10]
+                csign = str(cp.get("planet_or_sign") or cp.get("lord_or_sign") or "").title()
+                if s and e and s <= anchor.date().isoformat() <= e and csign in SIGNS:
+                    seventh_from = SIGNS[(SIGNS.index(csign) + 6) % 12]
+                    if csign in (seventh_sign, ul_sign) or seventh_from in (seventh_sign, ul_sign):
+                        systems.append(f"Chara dasha: the {csign} period touches your partnership axis")
+                        score += 0.7
+                    break
+
+            windows.append({
+                "label": f"{ad['parent']}–{ad['lord']}", "start": ad["start"],
+                "end": ad["end"], "systems": systems, "score": round(score, 2),
+                "why": why,
+            })
+
+        windows.sort(key=lambda w: (-w["score"], w["start"]))
+        best = windows[0] if windows else None
+
+        if best:
+            _yr = best["start"][:7]
+            summary = (f"The strongest partnership window opens around {_yr} "
+                       f"— {len(best['systems'])} independent systems agree.")
+        else:
+            summary = ("No sharply-converging marriage window in the next few years — "
+                       "the opening is broader; effort and openness matter more than a date.")
+
+        return {"available": True, "windows": windows[:5], "best": best,
+                "convergence": (best["score"] if best else 0), "summary": summary}
+    except Exception as e:
+        return {"available": False, "error": str(e)[:160]}
