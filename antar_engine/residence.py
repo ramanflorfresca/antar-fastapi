@@ -33,8 +33,8 @@ RESIDENCE_SPEC = {
     "activator_houses": [4, 12, 3],
     "karakas": ["Moon", "Rahu", "Saturn", "Venus"],
     "varsh_houses": [4, 12],
-    "transit_grahas": ["Saturn", "Rahu", "Jupiter", "Ketu"],
-    "transit_houses": [4, 12, 1],
+    "transit_grahas": ["Saturn", "Rahu", "Jupiter", "Ketu", "Mars"],
+    "transit_houses": [4, 12, 8, 1],
     "malefic_varsh": False,     # ANY planet lighting the varshphal 4th/12th = a move that year
     "varsh_weight": 1.8,        # LK varshphal weighted heavily (owner directive)
     "chara_weight": 1.0,        # Jaimini catches moves the varshphal/Vim miss (owner's charts)
@@ -136,7 +136,16 @@ def residence_timing(chart_data: dict, dashas: dict, birth_date: Optional[str] =
         return res
     for w in res.get("windows", []):
         parts = [x.strip() for x in w["label"].replace("–", "-").split("-")]
-        w["nature"] = _residence_nature(chart_data, parts)
+        nat = _residence_nature(chart_data, parts)
+        # DISRUPTIVE / FORCED move — a hard graha (Mars/Ketu/Rahu) pressing the 4th,
+        # or anything striking the 8th, reads as a home lost or an unsettling forced
+        # change (Harleen 2015: her home burned down — Rahu+Ketu on the 4th).
+        hits = w.get("transit_hits") or []
+        if any((g in ("Mars", "Ketu", "Rahu") and h == 4) or h == 8 for g, h in hits):
+            nat = ["a sudden or forced change — an unsettling move, possibly losing "
+                   "or leaving the current home"] + nat
+        w["nature"] = nat[:2]
+        w["disruptive"] = any((g in ("Mars", "Ketu", "Rahu") and h == 4) or h == 8 for g, h in hits)
     best = res.get("best")
     if best:
         nat = best.get("nature") or []

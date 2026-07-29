@@ -34,8 +34,10 @@ def _house_lords(lagna: str, houses) -> set:
     return {x for x in out if x}
 
 
-def _transit_trigger(chart_data, when, target_signs, grahas):
-    hits = []
+def _transit_trigger(chart_data, when, target_houses, grahas, noun="this matter"):
+    """target_houses = {house_number: sign}. Returns (hit_strings, hit_pairs) where
+    hit_pairs = [(graha, house_number)] for structured downstream use."""
+    hits, pairs = [], []
     try:
         from antar_engine import transits as _tr
         tl = _tr.calculate_transits(chart_data, target_date=when)
@@ -44,13 +46,14 @@ def _transit_trigger(chart_data, when, target_signs, grahas):
             gs = pos.get(g)
             if not gs:
                 continue
-            for label, tsign in target_signs.items():
+            for h, tsign in target_houses.items():
                 if tsign and (gs == tsign or _sign_aspects(gs, tsign, g)):
-                    hits.append(f"{g} presses your {label}")
+                    hits.append(f"{g} presses your house {h} of {noun}")
+                    pairs.append((g, h))
                     break
     except Exception:
         pass
-    return hits
+    return hits, pairs
 
 
 def _sade_sati(chart_data, when):
@@ -110,12 +113,12 @@ def domain_convergence(chart_data: dict, dashas: dict, spec: dict,
         min_score = spec.get("min_score", 2.0)
         noun = spec.get("noun", "this matter")
 
-        # transit targets = the SIGNS of the chosen natal houses
-        target_signs = {}
+        # transit targets = {house_number: its natal sign}
+        target_houses = {}
         for h in transit_houses:
             s = _sign_n_from(lagna, h)
             if s:
-                target_signs[f"house {h} of {noun}"] = s
+                target_houses[h] = s
 
         def _activ(lord):
             s, why = 0.0, []
@@ -192,7 +195,7 @@ def domain_convergence(chart_data: dict, dashas: dict, spec: dict,
                 systems.append(f"Vimśottarī: {md}–{ad} — {(why or why_md or ['activates ' + noun])[0]}")
                 score += 1.0
 
-            th = _transit_trigger(cd, anchor, target_signs, transit_grahas)
+            th, th_pairs = _transit_trigger(cd, anchor, target_houses, transit_grahas, noun)
             if th:
                 systems.append("Transits: " + "; ".join(th[:3]))
                 score += 1.0
@@ -233,7 +236,8 @@ def domain_convergence(chart_data: dict, dashas: dict, spec: dict,
             if score >= min_score and len(systems) >= 2:
                 windows.append({"label": f"{md}–{ad}", "start": f"{yr}-01-01",
                                 "end": f"{yr}-12-31", "year": yr, "systems": systems,
-                                "score": round(score, 2), "why": why or why_md})
+                                "score": round(score, 2), "why": why or why_md,
+                                "transit_hits": th_pairs})
 
         # nearest-first: every listed window already cleared the convergence bar,
         # so the NEAREST is the actionable one for a "when" question (Andres's live
