@@ -48,7 +48,7 @@ _PLANET_AILMENT = {
     "Venus": "the reproductive/urinary system, kidneys, or hormones",
     "Saturn": "chronic/degenerative issues, bones/joints, nerves, or teeth",
     "Rahu": "mysterious/undiagnosed conditions, toxins, or the skin",
-    "Ketu": "mysterious, immune, viral, or latent conditions",
+    "Ketu": "neurological, immune, viral, or mysterious/latent conditions",
 }
 
 HEALTH_SPEC = {
@@ -71,6 +71,70 @@ def _weak(planet, sign):
     return _dig(planet, sign)[0] < 0
 
 
+_MALEFIC_SET = {"Saturn", "Mars", "Sun", "Rahu", "Ketu"}
+
+
+def _house_from(lagna_sign, sign):
+    if lagna_sign not in SIGNS or sign not in SIGNS:
+        return None
+    return (SIGNS.index(sign) - SIGNS.index(lagna_sign)) % 12 + 1
+
+
+def _health_afflictions(pmap, lagna_sign, lagna_lord, house_of, allow_combust=True):
+    """Tally GENUINE health damage (not the crude 'lord in a dusthana'). A malefic
+    in the 6th is Harṣa/Vipaṛīta — protective — so it is NOT counted. Returns
+    (score, afflicted_planets, flags)."""
+    score, afflicted, flags = 0.0, set(), []
+
+    def add(s, p, why):
+        nonlocal score
+        score += s
+        if p:
+            afflicted.add(p)
+        flags.append(why)
+
+    ll = pmap.get(lagna_lord) or {}
+    ll_sign = ll.get("sign")
+    if ll_sign and _weak(lagna_lord, ll_sign):
+        add(1.0, lagna_lord, "the constitution's ruler is debilitated")
+    if allow_combust and _combust(lagna_lord, pmap):
+        add(0.8, lagna_lord, "the constitution's ruler is combust")
+    _cm = _conj_malefics(lagna_lord, pmap)
+    if _cm and lagna_lord not in _MALEFIC_SET:
+        add(0.6, lagna_lord, f"the constitution's ruler is afflicted by {', '.join(_cm)}")
+    # malefics sitting ON the body (1st house) — Ketu/Rahu heavier (congenital/neuro)
+    on_lagna = [p for p in _MALEFIC_SET if house_of(p) == 1]
+    for m in on_lagna:
+        add(0.8 if m in ("Ketu", "Rahu") else 0.6, m, f"{m} sits on the body/self")
+    if len(on_lagna) >= 2:
+        add(0.6, None, "several hard influences press the body at once")
+    # the mind / nervous system (Moon + Mercury) — neurological / cognitive
+    for mind in ("Moon", "Mercury"):
+        v = pmap.get(mind) or {}
+        s = v.get("sign")
+        if s and (_weak(mind, s) or (allow_combust and _combust(mind, pmap))
+                  or _conj_malefics(mind, pmap) or house_of(mind) in (6, 8, 12)):
+            add(0.5, mind, f"the mind/nervous significator ({mind}) is under strain")
+    # lord in the 8th/12th (crisis/undoing) — but NOT the protective 6th
+    if house_of(lagna_lord) in (8, 12):
+        add(0.4, None, "the constitution's ruler sits in a house of crisis/undoing")
+    # the DISEASE houses — a node in the 6th/8th is the classic chronic / autoimmune
+    # / mysterious-illness signature (autism, Type-1 diabetes both live here); Saturn
+    # in the 8th is chronic/degenerative. (Nodes/Saturn in the 6th are NOT counted —
+    # a malefic there is Harṣa/protective.)
+    for node in ("Rahu", "Ketu"):
+        nh = house_of(node)
+        if nh == 6:
+            add(1.0, node, f"{node} sits in the house of chronic/mysterious illness")
+        elif nh == 8:
+            add(0.8, node, f"{node} sits in the house of chronic crises")
+        elif nh == 12:
+            add(0.5, node, f"{node} sits in the house of hospitalisation/undoing")
+    if house_of("Saturn") == 8:
+        add(0.6, "Saturn", "Saturn sits in the house of chronic/degenerative conditions")
+    return round(score, 2), afflicted, flags
+
+
 def analyze_health(chart_data: dict) -> dict:
     """{available, constitution{}, chronic{}, nature[], factors{}, summary}. Never raises."""
     try:
@@ -84,76 +148,51 @@ def analyze_health(chart_data: dict) -> dict:
             return {"available": False}
 
         lagna_lord = SIGN_LORD.get(lagna)
-        ll_sign = (d1.get(lagna_lord) or {}).get("sign")
+
+        # ── genuine affliction tally in D-1 and (confirming) D-9 ─────────────
+        d1_house = lambda p: (d1.get(p) or {}).get("house")
+        d1_score, d1_affl, d1_flags = _health_afflictions(d1, lagna, lagna_lord, d1_house, True)
+        # D-9: houses reckoned from the navamsa lagna; combustion is a D-1 notion.
+        d9_house = lambda p: _house_from(d9_lagna, (d9_pl.get(p) or {}).get("sign"))
+        d9_ll = SIGN_LORD.get(d9_lagna) if d9_lagna else lagna_lord
+        d9_score, d9_affl, _d9f = _health_afflictions(d9_pl, d9_lagna or lagna, d9_ll, d9_house, False) if d9_pl else (0.0, set(), [])
 
         # ── CONSTITUTION / vitality ──────────────────────────────────────────
-        vit, vflags = 0.0, []
-        mal1 = _malefics_on(d1, 1)
-        if len(mal1) >= 2:
-            vit -= 1.0; vflags.append("the body (1st house) is under malefic pressure")
-        if _weak(lagna_lord, ll_sign):
-            vit -= 1.0; vflags.append("the constitution's ruler is weakened")
-        if _house_of(lagna_lord, d1) in (6, 8, 12):
-            vit -= 0.8; vflags.append("the constitution's ruler sits in a house of illness/loss")
-        sun_s = (d1.get("Sun") or {}).get("sign")
-        moon_s = (d1.get("Moon") or {}).get("sign")
-        if _weak("Sun", sun_s):
-            vit -= 0.5; vflags.append("core vitality (Sun) is weak")
-        if _weak("Moon", moon_s) or _conj_malefics("Moon", d1):
-            vit -= 0.5; vflags.append("the mind/emotional vitality (Moon) is under strain")
         constitution = {
-            "score": round(vit, 2),
-            "level": ("robust" if vit >= -0.4 else "moderate" if vit >= -1.6 else "delicate"),
-            "flags": vflags,
+            "score": d1_score,
+            "level": ("robust" if d1_score < 1.0 else "moderate" if d1_score < 2.5 else "delicate"),
+            "flags": d1_flags,
         }
 
-        # ── CHRONIC vs ACUTE — must confirm in D-1 AND D-9 ───────────────────
-        # D-1 constitutional weakness AND the same weakness echoing in the navamsa
-        # = a chronic/structural tendency. D-1 only = acute/transient.
-        d1_weak = (len(mal1) >= 2 or _weak(lagna_lord, ll_sign)
-                   or _house_of(lagna_lord, d1) in (6, 8, 12))
-        # D-9 confirmation: lagna lord weak in D-9, or the D-9 lagna lord weak, or
-        # the Moon weak in D-9, or malefics on the D-9 lagna.
-        d9_ll_sign = (d9_pl.get(lagna_lord) or {}).get("sign")
-        d9_lagna_lord = SIGN_LORD.get(d9_lagna) if d9_lagna else None
-        d9_ll2_sign = (d9_pl.get(d9_lagna_lord) or {}).get("sign") if d9_lagna_lord else None
-        d9_weak = (_weak(lagna_lord, d9_ll_sign)
-                   or (d9_lagna_lord and _weak(d9_lagna_lord, d9_ll2_sign))
-                   or _weak("Moon", (d9_pl.get("Moon") or {}).get("sign")))
-        is_chronic = bool(d1_weak and d9_weak)
+        # ── CHRONIC vs ACUTE — a genuine D-1 stack CONFIRMED in the D-9 ──────
+        # A malefic in the 6th is NOT counted (protective). Chronic requires real,
+        # stacked damage (>=2.0) echoed in the navamsa (>=1.2). D-1-only = acute.
+        is_chronic = bool(d1_score >= 2.0 and d9_score >= 1.2)
         chronic = {
             "is_chronic": is_chronic,
             "kind": ("a chronic / constitutional tendency (it shows in both the birth "
                      "chart and the deeper navamsa — manage it long-term)" if is_chronic
                      else "acute / passing tendencies (they come and go rather than being "
                           "structural)"),
-            "d1_weak": bool(d1_weak), "d9_weak": bool(d9_weak),
+            "d1_score": d1_score, "d9_score": d9_score,
         }
 
-        # ── NATURE / body area — the afflicted health significators ───────────
-        nature = []
-        seen = set()
-        # afflicted planets among the health significators
-        candidates = ["Sun", "Moon", lagna_lord, "Saturn", "Mars"] + _in_house(d1, 6) + _in_house(d1, 8)
-        for p in candidates:
-            if not p or p in seen:
+        # ── NATURE / body area — from the actually-afflicted significators ────
+        nature, seen = [], set()
+        for p in list(d1_affl) + _in_house(d1, 6) + _in_house(d1, 8):
+            if not p or p in seen or p not in _PLANET_AILMENT:
                 continue
-            v = d1.get(p) or {}
-            sgn = v.get("sign")
-            afflicted = (_weak(p, sgn) or _combust(p, d1) or bool(_conj_malefics(p, d1))
-                         or v.get("house") in (6, 8, 12))
-            if afflicted and p in _PLANET_AILMENT:
-                seen.add(p)
-                body = _SIGN_BODY.get(sgn)
-                nature.append(_PLANET_AILMENT[p] + (f" — {body}" if body else ""))
-        # the 6th-house sign itself → the seat of disease
+            seen.add(p)
+            body = _SIGN_BODY.get((d1.get(p) or {}).get("sign"))
+            nature.append(_PLANET_AILMENT[p] + (f" — {body}" if body else ""))
         sixth = _sign_n_from(lagna, 6)
-        if sixth in _SIGN_BODY:
+        if not nature and sixth in _SIGN_BODY:
             nature.append("the seat of illness points to " + _SIGN_BODY[sixth])
         nature = nature[:3]
 
-        factors = {"lagna_lord": lagna_lord, "malefics_on_1st": mal1,
-                   "sixth_sign": sixth, "planets_in_6": _in_house(d1, 6)}
+        factors = {"lagna_lord": lagna_lord, "malefics_on_1st": _malefics_on(d1, 1),
+                   "sixth_sign": sixth, "planets_in_6": _in_house(d1, 6),
+                   "d1_afflicted": sorted(d1_affl), "d9_afflicted": sorted(d9_affl)}
 
         summary = (f"Constitution is {constitution['level']}; tendencies read as "
                    + ("chronic/constitutional" if is_chronic else "acute/passing")
