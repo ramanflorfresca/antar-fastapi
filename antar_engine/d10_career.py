@@ -319,6 +319,67 @@ def analyze_career(chart_data: dict) -> dict:
                 field_w[field] += _lead * 0.8
                 field_from[field].add("leadership signature (Sun/lagna/raja-yoga)")
 
+        # [government / politics axis] The Sun is the karaka of the king / the state.
+        # A government or political career needs the Sun to actually SIGNIFY the
+        # career (Amatyakaraka or a 10th-lord), not merely be well placed — that
+        # gate keeps this off charts with an incidental strong Sun. When the Sun
+        # governs the career AND authority is prominent (Leo 10th, Sun in 1/10/11),
+        # surface government & politics above generic "public-facing" (Jose = govt
+        # job, wants politics: Sun AmK + Leo 10th — the read was there but it ranked
+        # under hospitality because "public-facing" swallowed it). TUNABLE.
+        _gov = 0.0
+        if amk == "Sun":
+            _gov += 1.5
+        if "Sun" in (d1_10lord, d10_10lord):
+            _gov += 1.5
+        if _sun.get("house") in (1, 10, 11):
+            _gov += 1.0
+        if "Leo" in (d1_10sign, d10_10sign):
+            _gov += 1.0
+        if _dignity("Sun", _sun.get("sign")):
+            _gov += 0.5
+        factors["gov_score"] = round(_gov, 2)
+        if _gov >= 2.5:
+            for field in ("government & authority", "politics"):
+                field_w[field] += _gov * 0.75
+                field_from[field].add("Sun governs the career (government/politics signature)")
+
+        # [marketing / branding axis] Marketing/PR/branding = Venus (image, desire,
+        # persuasion) carrying the message of Mercury (communication). But it is
+        # ONLY marketing when the Venus is the EXPRESSIVE/communicative face —
+        # Taurus/Libra/Gemini or in the 3rd (communication) house. Venus buried in
+        # Virgo is the CRITICAL/analytical Venus (Rishipal = audit: Venus+Mercury
+        # both in Virgo → that's accounting, not branding), so it must not fire.
+        # Mercury adds only when it too speaks (Gemini/Libra or 3rd), never the
+        # Virgo-analyst Mercury. This surfaces Susanna (Venus in own-sign Taurus =
+        # marketing head) while leaving Rishipal's audit intact. TUNABLE.
+        _VEN_EXPR = {"Taurus", "Libra", "Gemini"}
+        _MER_COMM = {"Gemini", "Libra"}
+        _ven = votes.get("Venus", 0.0)
+        _mer = votes.get("Mercury", 0.0)
+        _ven_p = d1.get("Venus") or {}
+        _mer_p = d1.get("Mercury") or {}
+        _ven_expressive = _ven_p.get("sign") in _VEN_EXPR or _ven_p.get("house") == 3
+        _mer_comm = _mer >= 1.0 and (_mer_p.get("sign") in _MER_COMM or _mer_p.get("house") == 3)
+        factors["marketing_score"] = round(_ven if _ven_expressive else 0.0, 2)
+        if _ven >= 2.0 and _ven_expressive:
+            field_w["marketing & branding"] += _ven * 1.3 + (_mer * 0.8 if _mer_comm else 0.0)
+            field_from["marketing & branding"].add(
+                "expressive Venus (image/persuasion) = marketing/branding")
+
+        # [construction gate — de-index Saturn] Saturn / Capricorn on their own mean
+        # STRUCTURE: business, management, operations, government — NOT physical
+        # construction. Construction / mining / heavy-industry needs Mars (the
+        # builder's hand, machinery, labor) actually signifying the career. Without
+        # a Mars significator, demote it so a corporate Capricorn (Susanna) isn't
+        # miscast as a builder. TUNABLE.
+        _mars_is_sig = votes.get("Mars", 0.0) >= 1.5
+        if not _mars_is_sig:
+            for f in list(field_w.keys()):
+                fl = f.lower()
+                if any(k in fl for k in ("construction", "mining", "heavy industry")):
+                    field_w[f] *= 0.7
+
         # [nodal-axis venture rule] ONE factor: Rahu's house-theme fields get a
         # modest boost (success channel), Ketu's a modest penalty (dissolution).
         # This is what drops Raman's restaurant (Ketu in 5th = speculation/
