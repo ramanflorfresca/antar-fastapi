@@ -19369,6 +19369,11 @@ async def ask_endpoint(request: AskRequest):
                                "houses of disputes and the timing of life-periods. Never name a "
                                "planet, house, or system — plain life-language only.",
                                f"OUTCOME LEAN: {_o['lean']}. PROPENSITY for disputes: {_pp['level']}."]
+                        _lcause = (_lt.get("cause") or _la.get("likely_causes") or [])
+                        if _lcause:
+                            _lp.append("LIKELY CAUSE / SUBJECT: " + "; ".join(_lcause[:2])
+                                       + ". Name the most likely subject plainly so the reader "
+                                       "recognizes what kind of matter it is.")
                         if _o["lean"] == "favourable":
                             _lp.append("Lead with measured confidence that the position is "
                                        "defensible"
