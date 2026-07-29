@@ -229,7 +229,7 @@ def health_timing(chart_data: dict, dashas: dict, birth_date: Optional[str] = No
     best = res.get("best")
     if best:
         nat = best.get("nature") or []
-        res["summary"] = (f"The most health-sensitive window is around {best['start'][:7]} "
+        res["summary"] = (f"The most health-sensitive window is around {best.get('year', best['start'][:4])} "
                           f"— {len(best['systems'])} systems flag it"
                           + (f", tending to involve {nat[0]}." if nat else "."))
     else:

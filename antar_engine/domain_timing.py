@@ -130,45 +130,76 @@ def domain_convergence(chart_data: dict, dashas: dict, spec: dict,
                 why.append(f"sits in a house of {noun}")
             return s, why
 
+        # Parse Vimśottarī MD + AD periods and Chara (jaimini) sign periods once.
         vim = (dashas or {}).get("vimsottari") or (dashas or {}).get("vimshottari") or []
-        ads = []
+        vim_md, vim_ad = [], []
         for p in vim if isinstance(vim, list) else []:
             if not isinstance(p, dict):
                 continue
-            if str(p.get("level") or p.get("type") or "").lower() not in ("antardasha", "antar", "ad", "bhukti"):
-                continue
+            lvl = str(p.get("level") or p.get("type") or "").lower()
             lord = str(p.get("lord_or_sign") or p.get("planet_or_sign") or p.get("lord") or "").title()
-            parent = str(p.get("parent_lord") or p.get("mahadasha_lord") or "").title()
             s = str(p.get("start_date") or p.get("start") or "")[:10]
             e = str(p.get("end_date") or p.get("end") or "")[:10]
-            if lord and s and e:
-                ads.append({"lord": lord, "parent": parent, "start": s, "end": e})
-        ads.sort(key=lambda x: x["start"])
+            if not (lord and s and e):
+                continue
+            if lvl in ("mahadasha", "maha", "md"):
+                vim_md.append({"lord": lord, "start": s, "end": e})
+            elif lvl in ("antardasha", "antar", "ad", "bhukti"):
+                vim_ad.append({"lord": lord, "start": s, "end": e})
 
+        jaim = (dashas or {}).get("jaimini") or (dashas or {}).get("chara") or []
+        chara = []
+        for cp in jaim if isinstance(jaim, list) else []:
+            if not isinstance(cp, dict):
+                continue
+            s = str(cp.get("start_date") or cp.get("start") or "")[:10]
+            e = str(cp.get("end_date") or cp.get("end") or "")[:10]
+            sign = str(cp.get("planet_or_sign") or cp.get("lord_or_sign") or "").title()
+            lvl = str(cp.get("level") or cp.get("type") or "").lower()
+            if s and e and sign in SIGNS:
+                chara.append({"sign": sign, "start": s, "end": e,
+                              "lvl": 2 if lvl in ("antardasha", "ad", "antar") else 1})
+
+        def _active(periods, iso):
+            hit = [p for p in periods if p["start"] <= iso <= p["end"]]
+            return hit
+
+        prim = houses[0] if houses else None
+        chara_weight = spec.get("chara_weight", 0.8)
+        horizon = spec.get("horizon_years", 6)
+        b = None
+        if birth_date:
+            try:
+                b = datetime.fromisoformat(str(birth_date)[:10])
+            except Exception:
+                b = None
+
+        # YEAR SCAN — the varshphal is a YEARLY layer, so we judge year by year and
+        # let every system vote symmetrically (no single system is the anchor). A
+        # year that Chara/varshphal/transit flag surfaces even when Vimśottarī is
+        # quiet (the owner's case: "varshphal/Jaimini say yes, the Vim didn't").
         windows = []
-        for ad in ads:
-            if ad["end"] < today or ad["start"] > str(tdt.year + 6):
-                continue
-            a_ad, why = _activ(ad["lord"])
-            a_md, _ = _activ(ad["parent"]) if ad["parent"] else (0.0, [])
-            if a_ad + 0.4 * a_md < 1.5:
-                continue
-            wstart = datetime.fromisoformat(ad["start"])
-            anchor = max(wstart, tdt)
-            systems = [f"Vimśottarī: {ad['parent']}–{ad['lord']} — {why[0] if why else 'activates ' + noun}"]
-            score = 1.0
+        for yr in range(tdt.year, tdt.year + horizon + 1):
+            anchor = tdt if yr == tdt.year else datetime(yr, 7, 1)
+            iso = anchor.date().isoformat()
+            systems, score = [], 0.0
+
+            md = (_active(vim_md, iso) or [{}])[0].get("lord")
+            ad = (_active(vim_ad, iso) or [{}])[0].get("lord")
+            a_ad, why = _activ(ad) if ad else (0.0, [])
+            a_md, why_md = _activ(md) if md else (0.0, [])
+            if a_ad >= 1.0 or a_md >= 1.0:
+                systems.append(f"Vimśottarī: {md}–{ad} — {(why or why_md or ['activates ' + noun])[0]}")
+                score += 1.0
 
             th = _transit_trigger(cd, anchor, target_signs, transit_grahas)
             if th:
                 systems.append("Transits: " + "; ".join(th[:3]))
                 score += 1.0
 
-            # Lal-Kitab varshphal — the most accurate YEARLY layer, so weighted
-            # more (spec.varsh_weight). A varshphal hit alone can carry a window.
-            if birth_date:
+            if b:
                 try:
-                    b = datetime.fromisoformat(str(birth_date)[:10])
-                    age = anchor.year - b.year - (1 if (anchor.month, anchor.day) < (b.month, b.day) else 0)
+                    age = yr - b.year - (1 if (anchor.month, anchor.day) < (b.month, b.day) else 0)
                     occ = _varsh_hit(cd, age, varsh_houses, malefic_varsh)
                     if occ:
                         systems.append(f"Lal-Kitab varshphal: {', '.join(occ)} in a house of {noun} this year")
@@ -176,38 +207,42 @@ def domain_convergence(chart_data: dict, dashas: dict, spec: dict,
                 except Exception:
                     pass
 
-            # Sade Sati (health/pressure domains) — Saturn over the natal Moon.
             if spec.get("sade_sati") and _sade_sati(cd, anchor):
                 systems.append("Sade Sati — Saturn's pressure over your Moon is active")
                 score += spec.get("sade_sati_weight", 1.0)
 
-            # Chara — dasha sign as lagna: a karaka/malefic in the primary domain
-            # house counted FROM the dasha sign.
-            jaim = (dashas or {}).get("jaimini") or (dashas or {}).get("chara") or []
-            prim = houses[0] if houses else None
-            for cp in jaim if isinstance(jaim, list) else []:
-                if not isinstance(cp, dict):
-                    continue
-                s = str(cp.get("start_date") or cp.get("start") or "")[:10]
-                e = str(cp.get("end_date") or cp.get("end") or "")[:10]
-                csign = str(cp.get("planet_or_sign") or cp.get("lord_or_sign") or "").title()
-                if s and e and s <= anchor.date().isoformat() <= e and csign in SIGNS and prim:
-                    di = SIGNS.index(csign)
-                    for pl_name in list(karakas) + list(_MAL):
+            cact = _active(chara, iso)
+            if cact and prim:
+                csign = sorted(cact, key=lambda x: -x["lvl"])[0]["sign"]
+                di = SIGNS.index(csign)
+                prim_sign = SIGNS[(di + prim - 1) % 12]
+                natal_prim = _sign_n_from(lagna, prim)
+                chit = None
+                if prim_sign == natal_prim or csign == natal_prim:
+                    chit = f"its {prim}th aligns your natal {prim}th"
+                else:
+                    for pl_name in list(karakas) + list(activator_lords):
                         ps = (d1.get(pl_name) or {}).get("sign")
                         if ps and ((SIGNS.index(ps) - di) % 12 + 1) == prim:
-                            systems.append(f"Chara dasha ({csign} as lagna): {pl_name} sits in the {prim}th from it")
-                            score += 0.8
+                            chit = f"{pl_name} sits in the {prim}th from it"
                             break
-                    break
+                if chit:
+                    systems.append(f"Chara dasha ({csign} as lagna): {chit}")
+                    score += chara_weight
 
-            windows.append({"label": f"{ad['parent']}–{ad['lord']}", "start": ad["start"],
-                            "end": ad["end"], "systems": systems, "score": round(score, 2),
-                            "why": why})
+            if score >= min_score and len(systems) >= 2:
+                windows.append({"label": f"{md}–{ad}", "start": f"{yr}-01-01",
+                                "end": f"{yr}-12-31", "year": yr, "systems": systems,
+                                "score": round(score, 2), "why": why or why_md})
 
-        windows.sort(key=lambda w: (-w["score"], w["start"]))
-        best = windows[0] if windows and windows[0]["score"] >= min_score else None
-        return {"available": True, "windows": windows[:5], "best": best,
-                "convergence": (best["score"] if best else 0)}
+        # nearest-first: every listed window already cleared the convergence bar,
+        # so the NEAREST is the actionable one for a "when" question (Andres's live
+        # 2025 debt matter should lead, not a stronger 2030 property window). Keep
+        # the single strongest separately for callers that want it.
+        windows.sort(key=lambda w: w["start"])
+        best = windows[0] if windows else None
+        strongest = max(windows, key=lambda w: w["score"]) if windows else None
+        return {"available": True, "windows": windows[:6], "best": best,
+                "strongest": strongest, "convergence": (best["score"] if best else 0)}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}

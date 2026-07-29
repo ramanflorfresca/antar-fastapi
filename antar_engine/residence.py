@@ -37,6 +37,7 @@ RESIDENCE_SPEC = {
     "transit_houses": [4, 12, 1],
     "malefic_varsh": False,     # ANY planet lighting the varshphal 4th/12th = a move that year
     "varsh_weight": 1.8,        # LK varshphal weighted heavily (owner directive)
+    "chara_weight": 1.0,        # Jaimini catches moves the varshphal/Vim miss (owner's charts)
     "min_score": 2.0,
 }
 
@@ -139,7 +140,7 @@ def residence_timing(chart_data: dict, dashas: dict, birth_date: Optional[str] =
     best = res.get("best")
     if best:
         nat = best.get("nature") or []
-        res["summary"] = (f"The most likely window for a move is around {best['start'][:7]} "
+        res["summary"] = (f"The most likely window for a move is around {best.get('year', best['start'][:4])} "
                           f"— {len(best['systems'])} systems agree"
                           + (f", pointing to {nat[0]}." if nat else "."))
         res["nature"] = nat

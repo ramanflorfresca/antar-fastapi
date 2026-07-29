@@ -193,7 +193,7 @@ def legal_timing(chart_data: dict, dashas: dict, birth_date: Optional[str] = Non
     best = res.get("best")
     if best:
         cause = best.get("cause") or []
-        res["summary"] = (f"The most legally-charged window is around {best['start'][:7]} "
+        res["summary"] = (f"The most legally-charged window is around {best.get('year', best['start'][:4])} "
                           f"— {len(best['systems'])} systems flag it"
                           + (f", likely about {cause[0]}." if cause else "."))
         res["cause"] = cause
