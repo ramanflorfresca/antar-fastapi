@@ -53,6 +53,28 @@ def _transit_trigger(chart_data, when, target_signs, grahas):
     return hits
 
 
+def _sade_sati(chart_data, when):
+    """Saturn transiting the 12th / 1st / 2nd from the natal Moon — the classic
+    health/pressure period."""
+    try:
+        from antar_engine import transits as _tr
+        d1 = chart_data.get("planets") or {}
+        moon_sign = (d1.get("Moon") or {}).get("sign")
+        if moon_sign not in SIGNS:
+            return False
+        mi = SIGNS.index(moon_sign)
+        tl = _tr.calculate_transits(chart_data, target_date=when)
+        sat = None
+        for t in tl:
+            if t.get("planet") == "Saturn":
+                sat = t.get("sign") or t.get("transit_sign")
+        if sat not in SIGNS:
+            return False
+        return (SIGNS.index(sat) - mi) % 12 in (11, 0, 1)
+    except Exception:
+        return False
+
+
 def _varsh_hit(chart_data, age, houses, malefic_only):
     try:
         from antar_engine.lal_kitab import calculate_varshphal_chart
@@ -141,6 +163,8 @@ def domain_convergence(chart_data: dict, dashas: dict, spec: dict,
                 systems.append("Transits: " + "; ".join(th[:3]))
                 score += 1.0
 
+            # Lal-Kitab varshphal — the most accurate YEARLY layer, so weighted
+            # more (spec.varsh_weight). A varshphal hit alone can carry a window.
             if birth_date:
                 try:
                     b = datetime.fromisoformat(str(birth_date)[:10])
@@ -148,9 +172,14 @@ def domain_convergence(chart_data: dict, dashas: dict, spec: dict,
                     occ = _varsh_hit(cd, age, varsh_houses, malefic_varsh)
                     if occ:
                         systems.append(f"Lal-Kitab varshphal: {', '.join(occ)} in a house of {noun} this year")
-                        score += 1.0
+                        score += spec.get("varsh_weight", 1.0)
                 except Exception:
                     pass
+
+            # Sade Sati (health/pressure domains) — Saturn over the natal Moon.
+            if spec.get("sade_sati") and _sade_sati(cd, anchor):
+                systems.append("Sade Sati — Saturn's pressure over your Moon is active")
+                score += spec.get("sade_sati_weight", 1.0)
 
             # Chara — dasha sign as lagna: a karaka/malefic in the primary domain
             # house counted FROM the dasha sign.

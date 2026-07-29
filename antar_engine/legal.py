@@ -87,6 +87,7 @@ LEGAL_SPEC = {
     "transit_grahas": ["Saturn", "Mars", "Rahu", "Ketu"],
     "transit_houses": [1, 6, 7, 8],
     "malefic_varsh": True,
+    "varsh_weight": 1.6,   # LK varshphal is the most accurate yearly layer — weight it up
     "min_score": 2.0,
 }
 

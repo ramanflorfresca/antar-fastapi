@@ -18739,6 +18739,18 @@ def _relationship_intent(question):
     return "entry"
 
 
+def _is_health_q(question):
+    """True for health / body / illness questions."""
+    ql = (question or "").lower()
+    return any(w in ql for w in (
+        "my health", "health issue", "illness", "sick", "disease", "my body",
+        "diagnos", "surgery", "hospital", "medical", "recover", "chronic",
+        "pain", "ache", "condition", "immunity", "immune", "my energy",
+        "always tired", "fatigue", "wellness", "will i be healthy", "heal",
+        "ailment", "operation", "blood pressure", "diabetes", "anxiety",
+    ))
+
+
 def _is_legal_q(question):
     """True for legal / disputes / litigation questions."""
     ql = (question or "").lower()
@@ -19398,6 +19410,46 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _lee:
                 logger.warning(f"[ask] legal-engine skipped (non-fatal): {_lee}")
 
+            # [health engine] deterministic constitution + chronic/acute (D-1 & D-9)
+            # + nature/body + vulnerable-window timing (varshphal-heavy + Sade Sati).
+            # Supersedes the generic 'health' concern route.
+            _ask_health_block = ""
+            _health_fired = False
+            try:
+                if _is_health_q(question):
+                    _health_fired = True
+                    from antar_engine.health import analyze_health, health_timing
+                    _ha = analyze_health(chart_data)
+                    if _ha.get("available"):
+                        _ht = health_timing(chart_data, get_dashas_for_chart(chart_id),
+                                            birth_date=_ask_birth_date)
+                        _c, _ch = _ha["constitution"], _ha["chronic"]
+                        _hp = ["HEALTH QUESTION — answer from THIS deterministic reading of the "
+                               "body/illness houses and the timing of life-periods. Be caring and "
+                               "NON-alarmist; never diagnose. Never name a planet, house, or "
+                               "system — plain life-language only.",
+                               f"CONSTITUTION: {_c['level']}. TENDENCY: {_ch['kind']}."]
+                        if _ha.get("nature"):
+                            _hp.append("LIKELY AREA (a tendency to be aware of, NOT a diagnosis): "
+                                       + "; ".join(_ha["nature"][:2]) + ".")
+                        if _ch["is_chronic"]:
+                            _hp.append("Frame as something constitutional to MANAGE steadily over "
+                                       "time (routine, prevention, the right specialist) — never as "
+                                       "doom; the chart shows a tendency, not a sentence.")
+                        else:
+                            _hp.append("Frame as passing/manageable — reassure that these come and "
+                                       "go and respond well to timely care.")
+                        if _ht.get("best"):
+                            _hp.append("TIMING: " + _ht["summary"] + " Give this as a window to be "
+                                       "extra attentive to health (checkups, rest), in plain months-"
+                                       "years — a caution to act on, not a scare.")
+                        _hp.append("Close with ONE concrete, preventive lifestyle step, and note "
+                                   "this is not medical advice — a qualified doctor should assess "
+                                   "any real symptom.")
+                        _ask_health_block = "\n".join(_hp)
+            except Exception as _hee:
+                logger.warning(f"[ask] health-engine skipped (non-fatal): {_hee}")
+
             # [concern-engines] funding/loan, income, health — route to the
             # deterministic concern engine (right houses + D-9 + dasha, per the
             # owner's method). Relationship/separation are handled above by the
@@ -19406,6 +19458,8 @@ async def ask_endpoint(request: AskRequest):
             try:
                 _ce = _ask_concern_route(question)
                 if _ce in ("relationship_entry", "separation") and _rel_fired:
+                    _ce = None
+                if _ce == "health" and _health_fired:
                     _ce = None
                 if _ce:
                     from antar_engine.concern_engines import analyze_concern
@@ -19734,6 +19788,7 @@ async def ask_endpoint(request: AskRequest):
                     + (f"\n\n{_ask_career_block}" if _ask_career_block else "")
                     + (f"\n\n{_ask_relationship_block}" if _ask_relationship_block else "")
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
+                    + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
                     + (f"\n\n{_ask_concern_block}" if _ask_concern_block else "")
                     + (f"\n\n{_ask_btc_block}" if _ask_btc_block else "")
                 )
@@ -19926,6 +19981,7 @@ async def ask_endpoint(request: AskRequest):
                     + (f"\n\n{_ask_career_block}" if _ask_career_block else "")
                     + (f"\n\n{_ask_relationship_block}" if _ask_relationship_block else "")
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
+                    + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
                     + (f"\n\n{_ask_concern_block}" if _ask_concern_block else "")
                     + (f"\n\n{_ask_btc_block}" if _ask_btc_block else "")
                 )
