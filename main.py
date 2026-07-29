@@ -18739,6 +18739,19 @@ def _relationship_intent(question):
     return "entry"
 
 
+def _is_legal_q(question):
+    """True for legal / disputes / litigation questions."""
+    ql = (question or "").lower()
+    return any(w in ql for w in (
+        "lawsuit", "court case", "court date", "legal case", "legal matter",
+        "legal dispute", "legal battle", "legal trouble", "legal action",
+        "litigation", "my case", "win the case", "lose the case", "the case go",
+        "being sued", "suing", "sue them", "take them to court", "in court",
+        "trial", "hearing", "settlement", "judge", "verdict", "dispute with",
+        "legal fight", "arbitration", "custody", "restraining order",
+    ))
+
+
 def _is_career_type_q(q):
     """True for 'which profession / what career suits me' — a career-TYPE
     question (answered from the D-10), NOT a timing question ('when will I get a
@@ -19341,6 +19354,45 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _ree:
                 logger.warning(f"[ask] relationship-engine skipped (non-fatal): {_ree}")
 
+            # [legal engine] disputes/litigation — deterministic reading of the
+            # houses of conflict (6/7/8/12) + win-vs-lose lean + convergence timing.
+            _ask_legal_block = ""
+            try:
+                if _is_legal_q(question):
+                    from antar_engine.legal import analyze_legal, legal_timing
+                    _la = analyze_legal(chart_data)
+                    if _la.get("available"):
+                        _lt = legal_timing(chart_data, get_dashas_for_chart(chart_id),
+                                           birth_date=_ask_birth_date)
+                        _o, _pp = _la["outcome"], _la["propensity"]
+                        _lp = ["LEGAL QUESTION — answer from THIS deterministic reading of the "
+                               "houses of disputes and the timing of life-periods. Never name a "
+                               "planet, house, or system — plain life-language only.",
+                               f"OUTCOME LEAN: {_o['lean']}. PROPENSITY for disputes: {_pp['level']}."]
+                        if _o["lean"] == "favourable":
+                            _lp.append("Lead with measured confidence that the position is "
+                                       "defensible"
+                                       + (" — a protective, fortunate hand is with you"
+                                          if _o["jupiter_protection"] else "")
+                                       + "; still counsel diligence and good counsel.")
+                        elif _o["lean"] == "unfavourable":
+                            _lp.append("Be honest it is an uphill position — advise strong "
+                                       "preparation, good counsel, and openness to settlement; "
+                                       "never predict doom, and lean into what they can control.")
+                        else:
+                            _lp.append("It is genuinely contested — the outcome turns on effort, "
+                                       "evidence and timing; advise thorough preparation.")
+                        if _lt.get("best"):
+                            _lp.append("TIMING: " + _lt["summary"] + " Give this as when the "
+                                       "matter is most active / needs attention, in plain "
+                                       "months-years.")
+                        _lp.append("Close with one concrete, practical next step. This is not "
+                                   "legal advice — suggest they consult a qualified lawyer for "
+                                   "the actual case.")
+                        _ask_legal_block = "\n".join(_lp)
+            except Exception as _lee:
+                logger.warning(f"[ask] legal-engine skipped (non-fatal): {_lee}")
+
             # [concern-engines] funding/loan, income, health — route to the
             # deterministic concern engine (right houses + D-9 + dasha, per the
             # owner's method). Relationship/separation are handled above by the
@@ -19675,6 +19727,8 @@ async def ask_endpoint(request: AskRequest):
                     + f"\n\n{diagnostic_block}"
                     + (f"\n\n{_ask_life_block}" if _ask_life_block else "")
                     + (f"\n\n{_ask_career_block}" if _ask_career_block else "")
+                    + (f"\n\n{_ask_relationship_block}" if _ask_relationship_block else "")
+                    + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_concern_block}" if _ask_concern_block else "")
                     + (f"\n\n{_ask_btc_block}" if _ask_btc_block else "")
                 )
@@ -19865,6 +19919,8 @@ async def ask_endpoint(request: AskRequest):
                     + f"\n\n{diagnostic_block}"
                     + (f"\n\n{_ask_life_block}" if _ask_life_block else "")
                     + (f"\n\n{_ask_career_block}" if _ask_career_block else "")
+                    + (f"\n\n{_ask_relationship_block}" if _ask_relationship_block else "")
+                    + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_concern_block}" if _ask_concern_block else "")
                     + (f"\n\n{_ask_btc_block}" if _ask_btc_block else "")
                 )
