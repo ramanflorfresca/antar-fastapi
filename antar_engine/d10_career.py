@@ -130,6 +130,30 @@ _FIELD_ERA = (
 )
 
 
+# [nodal-axis venture rule] Rahu's HOUSE = the venture channel that amplifies;
+# Ketu's = the one that dissolves. Keyed to the house's venture THEMES (5th =
+# speculation/hospitality/creative — that's the restaurant), not the node's sign.
+# MODEST multipliers — ONE factor, the significator synthesis still leads. TUNABLE.
+NODE_BOOST, NODE_PENALTY = 1.18, 0.78
+HOUSE_VENTURE = {
+    1:  ("personal brand", "independent", "self-"),
+    2:  ("finance", "banking", "food & agriculture", "savings"),
+    3:  ("communication", "media", "writing", "sales", "transport"),
+    4:  ("real estate", "property", "agriculture", "consumer goods", "vehicles"),
+    5:  ("entertainment", "arts", "hospitality", "food & beverage", "sports",
+         "creative", "speculation", "performance", "children"),
+    6:  ("service", "health", "law", "operations", "labor"),
+    7:  ("business", "trade", "diplomacy", "partnership", "client"),
+    8:  ("research", "investigation", "surgery", "insurance",
+         "other-people's-money", "occult", "security"),
+    9:  ("teaching", "law", "publishing", "philosophy", "foreign", "advisory"),
+    10: ("management", "government", "authority", "executive", "leadership"),
+    11: ("technology", "commerce", "trade", "networks", "media", "innovation",
+         "engineering & systems", "science", "software", "it / data", "it / software"),
+    12: ("foreign", "healing", "spirituality", "charity", "behind-the-scenes"),
+}
+
+
 def _field_era(field: str) -> float:
     fl = field.lower()
     for keys, mult in _FIELD_ERA:
@@ -268,6 +292,24 @@ def analyze_career(chart_data: dict) -> dict:
         for f in list(field_w.keys()):
             field_w[f] *= _field_era(f)
 
+        # [nodal-axis venture rule] ONE factor: Rahu's house-theme fields get a
+        # modest boost (success channel), Ketu's a modest penalty (dissolution).
+        # This is what drops Raman's restaurant (Ketu in 5th = speculation/
+        # hospitality) while keeping tech (Rahu in 11th = technology/networks).
+        _rahu_h = (d1.get("Rahu") or {}).get("house")
+        _ketu_h = (d1.get("Ketu") or {}).get("house")
+        _rahu_kw = HOUSE_VENTURE.get(_rahu_h, ())
+        _ketu_kw = HOUSE_VENTURE.get(_ketu_h, ())
+        nodal = {"rahu_house": _rahu_h, "ketu_house": _ketu_h}
+        for f in list(field_w.keys()):
+            fl = f.lower()
+            if any(k in fl for k in _rahu_kw):
+                field_w[f] *= NODE_BOOST
+                field_from[f].add(f"Rahu(h{_rahu_h}) amplifies")
+            if any(k in fl for k in _ketu_kw):
+                field_w[f] *= NODE_PENALTY
+                field_from[f].add(f"Ketu(h{_ketu_h}) dissolves")
+
         careers_ranked = sorted(
             ({"field": f, "weight": round(w, 2),
               "from": sorted(field_from[f])} for f, w in field_w.items()),
@@ -286,6 +328,6 @@ def analyze_career(chart_data: dict) -> dict:
 
         return {"available": True, "careers": careers_ranked[:6],
                 "drivers": drivers[:5], "factors": factors, "summary": summary,
-                "top_significator": top}
+                "nodal_axis": nodal, "top_significator": top}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}
