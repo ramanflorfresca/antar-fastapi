@@ -18739,6 +18739,20 @@ def _relationship_intent(question):
     return "entry"
 
 
+def _is_residence_q(question):
+    """True for change-of-residence / relocation TIMING questions (the WHEN — NOT
+    'where should I live', which is astrocartography)."""
+    ql = (question or "").lower()
+    return any(w in ql for w in (
+        "move house", "moving house", "relocat", "change city", "change my city",
+        "move abroad", "move overseas", "settle abroad", "settle down abroad",
+        "emigrate", "migrate", "immigration", "leave the country", "leave my country",
+        "move to another", "another country", "new home", "buy a house", "buy a home",
+        "when will i move", "should i move", "shift to", "move back",
+        "change of residence", "change residence", "new city", "green card", "pr visa",
+    ))
+
+
 def _is_health_q(question):
     """True for health / body / illness questions."""
     ql = (question or "").lower()
@@ -19450,6 +19464,34 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _hee:
                 logger.warning(f"[ask] health-engine skipped (non-fatal): {_hee}")
 
+            # [residence engine] change-of-home TIMING (the WHEN) — disposition +
+            # varshphal-weighted convergence window + nature (local vs distant/foreign).
+            _ask_residence_block = ""
+            try:
+                if _is_residence_q(question):
+                    from antar_engine.residence import analyze_residence, residence_timing
+                    _rra = analyze_residence(chart_data)
+                    if _rra.get("available"):
+                        _rrt = residence_timing(chart_data, get_dashas_for_chart(chart_id),
+                                                birth_date=_ask_birth_date)
+                        _rp2 = ["RESIDENCE / RELOCATION QUESTION (about WHETHER/WHEN a move "
+                                "happens — NOT where to live). Answer from THIS deterministic "
+                                "reading of the home houses + timing. Never name a planet, house, "
+                                "or system — plain life-language only.",
+                                f"HOME DISPOSITION: {_rra['disposition']['level']}."]
+                        if _rrt.get("best"):
+                            _rp2.append("TIMING: " + _rrt["summary"] + " Give the window in plain "
+                                        "months-years and name the kind of move (a new home nearby, "
+                                        "or a distant/foreign relocation).")
+                        else:
+                            _rp2.append("No sharp move-window stands out soon — if they are set on "
+                                        "moving, frame it as effort-led rather than fated, and name "
+                                        "the disposition honestly.")
+                        _rp2.append("Close with one concrete, practical next step.")
+                        _ask_residence_block = "\n".join(_rp2)
+            except Exception as _ree2:
+                logger.warning(f"[ask] residence-engine skipped (non-fatal): {_ree2}")
+
             # [concern-engines] funding/loan, income, health — route to the
             # deterministic concern engine (right houses + D-9 + dasha, per the
             # owner's method). Relationship/separation are handled above by the
@@ -19789,6 +19831,7 @@ async def ask_endpoint(request: AskRequest):
                     + (f"\n\n{_ask_relationship_block}" if _ask_relationship_block else "")
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
+                    + (f"\n\n{_ask_residence_block}" if _ask_residence_block else "")
                     + (f"\n\n{_ask_concern_block}" if _ask_concern_block else "")
                     + (f"\n\n{_ask_btc_block}" if _ask_btc_block else "")
                 )
@@ -19982,6 +20025,7 @@ async def ask_endpoint(request: AskRequest):
                     + (f"\n\n{_ask_relationship_block}" if _ask_relationship_block else "")
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
+                    + (f"\n\n{_ask_residence_block}" if _ask_residence_block else "")
                     + (f"\n\n{_ask_concern_block}" if _ask_concern_block else "")
                     + (f"\n\n{_ask_btc_block}" if _ask_btc_block else "")
                 )
