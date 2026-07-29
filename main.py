@@ -19258,6 +19258,13 @@ async def ask_endpoint(request: AskRequest):
                         _rp.append(
                             f"MARRIAGE PROMISE: {_pr['band']} "
                             f"({'lead confidently, the chart supports it' if _pr['band'] in ('strong','moderate') else 'be humble and lean into agency — effort, openness, timing can move it'}).")
+                        if _pr.get("delayed"):
+                            _rp.append(
+                                "RESTRAINED/LATE: marriage is supported but tends to come "
+                                "LATE and does not arrive passively — it needs deliberate, "
+                                "active effort (putting oneself forward, saying yes to the "
+                                "window). Say this warmly as 'it's there but asks for your "
+                                "initiative', never as denial.")
                         # partnered framing — the life-fact gate
                         if _partnered is True:
                             _rp.append("The reader is ALREADY partnered/married. Do NOT say a "

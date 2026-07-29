@@ -361,6 +361,35 @@ def analyze_relationship(chart_data: dict, gender: Optional[str] = None) -> dict
             _add(k_d9_dig < 0, -0.8, "the marriage significator is weak in the navamsa")
         factors["d9_confirms"] = d9_confirms
 
+        # DENIAL / DELAY — the promise can be PRESENT yet RESTRAINED. Without these,
+        # a never-married chart scores falsely 'strong' (Akash: significators sound
+        # but Saturn rules & aspects the 7th, no Jupiter/Venus grace, a loaded 12th
+        # = withdrawal). These are classical marriage-delay/renunciation factors:
+        # Saturn's restraint on the 7th, the absence of the two marriage benefics,
+        # detachment (Ketu) on the 7th, a heavy 12th. They lower the promise and
+        # raise a 'delayed/effortful' flag — never a dead no.
+        delay_flags = []
+
+        def _delay(cond, w, why):
+            nonlocal p_score
+            if cond:
+                p_score -= w
+                delay_flags.append(why)
+
+        _delay("Saturn" in mal7, 1.0, "Saturn restrains the house of partnership (marriage delayed)")
+        _delay(seventh_lord == "Saturn", 0.5, "Saturn rules your house of partnership (a serious, late union)")
+        _delay(_house_of("Saturn", d1) in (_house_of(seventh_lord, d1), _house_of(karaka, d1)),
+               0.6, "Saturn sits with your marriage lord/significator")
+        _delay(not any(b in ben7 for b in ("Jupiter", "Venus")), 0.8,
+               "neither Jupiter nor Venus graces the 7th — natural support is thin")
+        _delay(_house_of("Ketu", d1) == 7, 1.0, "detachment (Ketu) sits on the 7th")
+        _delay(len(_in_house(d1, 12)) >= 3, 0.6,
+               "a strong pull toward solitude/withdrawal (a loaded 12th)")
+        factors["delay_flags"] = delay_flags
+        # require a STACK (the 'no Jupiter/Venus grace' factor alone is common) so
+        # the delayed flag marks genuine restraint (Akash: 5) not a normal chart.
+        marriage_delayed = len(delay_flags) >= 3
+
         # promise band — a DIAL, never a dead no
         if p_score >= 4.5:
             band = "strong"
@@ -371,7 +400,8 @@ def analyze_relationship(chart_data: dict, gender: Optional[str] = None) -> dict
         else:
             band = "guarded"
         promise = {"score": round(p_score, 2), "band": band, "reasons": p_reasons,
-                   "drivers": drivers}
+                   "drivers": drivers, "delayed": marriage_delayed,
+                   "delay_flags": delay_flags}
 
         # ── PARTNER DESCRIPTION ──────────────────────────────────────────────
         dk_sign = (d1.get(dk) or {}).get("sign") if dk else None
