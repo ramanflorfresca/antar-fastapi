@@ -108,9 +108,12 @@ _CHARA_ORDER = ["Sun", "Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", 
 # nudges significator scores so a chart's modern-era fields surface — e.g. a
 # tech founder's Rahu ranks above their Jupiter-finance. TUNABLE: adjust these,
 # or set all to 1.0 to disable era weighting entirely.
+# [de-overfit 2026-07-28] Cut WAY down after the blind test: the old 1.35/0.85
+# manufactured "tech" and buried a hospitality CEO's real (Venus/Taurus) 10th.
+# Now a light TIEBREAKER only — it nudges, it never overrides the chart.
 ERA_WEIGHT = {
-    "Rahu": 1.35, "Mercury": 1.25,
-    "Jupiter": 0.85, "Ketu": 0.85,
+    "Rahu": 1.08, "Mercury": 1.05,
+    "Jupiter": 0.96, "Ketu": 0.96,
     # Sun, Moon, Mars, Venus, Saturn = 1.0 (neutral)
 }
 
@@ -267,30 +270,54 @@ def analyze_career(chart_data: dict) -> dict:
         for p in list(votes.keys()):
             votes[p] *= era_weight(p)
 
-        # career fields: the TYPE comes from WHERE each significator sits in the
-        # D-10 (its SIGN) + that sign's dispositor — NOT the planet in the
-        # abstract. So Jupiter-as-AmK in Virgo yields commerce/analysis, not law.
+        # Career FIELD = the two 10th-house SIGNS (D-1 birth + D-10 career chart),
+        # each a STRONG BASE, plus each significator's fields from BOTH its D-1 and
+        # D-10 sign. [de-overfit] balancing D-1↔D-10 keeps the real domain in the
+        # BIRTH 10th (Joe's Taurus/Venus = hospitality) from being buried by the
+        # D-10. Era nudge is applied ONCE (to votes above), not doubled on fields.
         field_w: dict = defaultdict(float)
         field_from: dict = defaultdict(set)
-        for planet, w in votes.items():
-            # prefer the significator's D-10 sign (career chart); fall back to D-1
-            psign = ((d10_pl.get(planet) or {}).get("sign")
-                     or (d1.get(planet) or {}).get("sign"))
-            if not psign:
-                continue
-            disp = SIGN_LORD.get(psign)
-            # PRIMARY: the sign's own career significations
-            for i, field in enumerate(SIGN_CAREERS.get(psign, [])[:3]):
-                field_w[field] += w * (1.0 - i * 0.15)
-                field_from[field].add(f"{planet} in {psign}")
-            # SECONDARY: the dispositor's flavor (half weight)
-            for i, field in enumerate(PLANET_CAREERS.get(disp, [])[:2]):
-                field_w[field] += w * 0.5 * (1.0 - i * 0.2)
-                field_from[field].add(f"{psign} ruled by {disp}")
 
-        # field-level era nudge (modern fields up, traditional down)
-        for f in list(field_w.keys()):
-            field_w[f] *= _field_era(f)
+        def _add_sign(sign, weight, tag):
+            for i, field in enumerate(SIGN_CAREERS.get(sign, [])[:3]):
+                if field:
+                    field_w[field] += weight * (1.0 - i * 0.15)
+                    field_from[field].add(tag)
+
+        _add_sign(d1_10sign, 2.6, f"10th-house sign · {d1_10sign} (birth chart)")
+        _add_sign(d10_10sign, 2.6, f"10th sign · {d10_10sign} (career chart)")
+        for planet, w in votes.items():
+            d1s = (d1.get(planet) or {}).get("sign")
+            d10s = (d10_pl.get(planet) or {}).get("sign")
+            if d1s:
+                _add_sign(d1s, w * 0.55, f"{planet} in {d1s} (birth)")
+            if d10s:
+                _add_sign(d10s, w * 0.55, f"{planet} in {d10s} (career chart)")
+                disp = SIGN_LORD.get(d10s)
+                for i, field in enumerate(PLANET_CAREERS.get(disp, [])[:2]):
+                    field_w[field] += w * 0.25 * (1.0 - i * 0.2)
+                    field_from[field].add(f"{d10s} ruled by {disp}")
+
+        # [leadership level] Leo lagna / strong Sun / strong 10th-lord / raja-yoga
+        # = an EXECUTIVE signature independent of domain (Rishipal=Director,
+        # Joe=CEO are both leaders). Add leadership fields weighted by that signal.
+        _lead = 0.0
+        _sun = d1.get("Sun") or {}
+        if d1_lagna == "Leo":
+            _lead += 2.0
+        if _sun.get("house") in (1, 10, 11):
+            _lead += 1.0
+        if _dignity("Sun", _sun.get("sign")):
+            _lead += 1.0
+        if _dignity(d1_10lord, (d1.get(d1_10lord) or {}).get("sign")):
+            _lead += 1.0
+        if any("raj" in str(y).lower() for y in (cd.get("yogas") or [])):
+            _lead += 1.5
+        leadership_level = "executive / leader" if _lead >= 2.5 else "individual / specialist"
+        if _lead >= 2.5:
+            for field in ("leadership & management", "executive roles"):
+                field_w[field] += _lead * 0.8
+                field_from[field].add("leadership signature (Sun/lagna/raja-yoga)")
 
         # [nodal-axis venture rule] ONE factor: Rahu's house-theme fields get a
         # modest boost (success channel), Ketu's a modest penalty (dissolution).
@@ -328,6 +355,7 @@ def analyze_career(chart_data: dict) -> dict:
 
         return {"available": True, "careers": careers_ranked[:6],
                 "drivers": drivers[:5], "factors": factors, "summary": summary,
-                "nodal_axis": nodal, "top_significator": top}
+                "nodal_axis": nodal, "leadership_level": leadership_level,
+                "top_significator": top}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}
