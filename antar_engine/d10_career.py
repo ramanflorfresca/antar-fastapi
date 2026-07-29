@@ -41,7 +41,41 @@ _OWN = {"Sun": {"Leo"}, "Moon": {"Cancer"}, "Mars": {"Aries", "Scorpio"},
         "Mercury": {"Gemini", "Virgo"}, "Jupiter": {"Sagittarius", "Pisces"},
         "Venus": {"Taurus", "Libra"}, "Saturn": {"Capricorn", "Aquarius"}}
 
-# Standard planetary career significations (v1). Ordered most→least prominent.
+# Career TYPE comes from the SIGN a significator occupies (its element + ruler),
+# NOT the planet in the abstract — Jupiter in Virgo (a Mercury sign) means
+# commerce/analysis, not law. This is the primary field source; the sign's
+# dispositor (PLANET_CAREERS below) adds a secondary flavor. Ordered by prominence.
+SIGN_CAREERS = {
+    "Aries":       ["engineering & machinery", "sports & competition",
+                    "defense / police / military", "pioneering / entrepreneurship", "surgery"],
+    "Taurus":      ["finance & banking", "food & agriculture",
+                    "luxury goods & art", "real estate", "stable material trades"],
+    "Gemini":      ["communication & media", "commerce & trade",
+                    "writing & content", "IT / software", "sales & networking"],
+    "Cancer":      ["public-facing & hospitality", "food & beverage",
+                    "real estate & property", "care / nursing", "consumer goods"],
+    "Leo":         ["leadership & management", "government & authority",
+                    "entertainment & performance", "politics", "executive roles"],
+    "Virgo":       ["analysis & accounting", "health & medicine",
+                    "IT / data / detail work", "editing & service", "research & quality"],
+    "Libra":       ["arts & design", "law & diplomacy", "fashion & beauty",
+                    "luxury & hospitality", "advisory / relationship-based"],
+    "Scorpio":     ["research & investigation", "surgery & medicine",
+                    "other-people's-money / insurance / finance", "occult / depth work",
+                    "defense & security"],
+    "Sagittarius": ["teaching & academia", "law", "finance & advisory",
+                    "publishing & philosophy", "foreign / travel"],
+    "Capricorn":   ["business & management", "government & administration",
+                    "construction / mining / heavy industry", "executive / structured roles",
+                    "operations"],
+    "Aquarius":    ["technology & innovation", "science & research",
+                    "networks / community / humanitarian", "unconventional / new-age",
+                    "engineering & systems"],
+    "Pisces":      ["arts / film / imagination", "healing / spirituality / medicine",
+                    "foreign & maritime", "charity & service", "creative / behind-the-scenes"],
+}
+
+# Dispositor flavor only (secondary). Ordered most→least prominent.
 PLANET_CAREERS = {
     "Sun":     ["government / public sector", "leadership & administration",
                 "medicine", "politics", "authority roles"],
@@ -83,6 +117,25 @@ ERA_WEIGHT = {
 
 def era_weight(planet: str) -> float:
     return ERA_WEIGHT.get(planet, 1.0)
+
+
+# [kal / era-weighting — FIELD level] The sign gives the field; this nudges the
+# RESULT toward present-age fields so a modern chart surfaces tech/commerce over
+# purely traditional callings, when both are indicated. TUNABLE.
+_FIELD_ERA = (
+    (("technology", "innovation", "IT", "software", "science", "media", "commerce",
+      "trade", "networks", "data", "engineering & systems", "startup"), 1.30),
+    (("law", "teaching & academia", "publishing", "philosophy", "charity",
+      "priesthood", "clergy"), 0.85),
+)
+
+
+def _field_era(field: str) -> float:
+    fl = field.lower()
+    for keys, mult in _FIELD_ERA:
+        if any(k in fl for k in keys):
+            return mult
+    return 1.0
 
 
 def _sign_n_from(lagna_sign: str, n: int) -> Optional[str]:
@@ -190,15 +243,30 @@ def analyze_career(chart_data: dict) -> dict:
         for p in list(votes.keys()):
             votes[p] *= era_weight(p)
 
-        # career fields: each voting planet contributes its significations,
-        # weighted by that planet's votes and the signification's rank.
+        # career fields: the TYPE comes from WHERE each significator sits in the
+        # D-10 (its SIGN) + that sign's dispositor — NOT the planet in the
+        # abstract. So Jupiter-as-AmK in Virgo yields commerce/analysis, not law.
         field_w: dict = defaultdict(float)
         field_from: dict = defaultdict(set)
         for planet, w in votes.items():
-            careers = PLANET_CAREERS.get(planet, [])
-            for i, field in enumerate(careers[:3]):   # top 3 per planet
-                field_w[field] += w * (1.0 - i * 0.2)
-                field_from[field].add(planet)
+            # prefer the significator's D-10 sign (career chart); fall back to D-1
+            psign = ((d10_pl.get(planet) or {}).get("sign")
+                     or (d1.get(planet) or {}).get("sign"))
+            if not psign:
+                continue
+            disp = SIGN_LORD.get(psign)
+            # PRIMARY: the sign's own career significations
+            for i, field in enumerate(SIGN_CAREERS.get(psign, [])[:3]):
+                field_w[field] += w * (1.0 - i * 0.15)
+                field_from[field].add(f"{planet} in {psign}")
+            # SECONDARY: the dispositor's flavor (half weight)
+            for i, field in enumerate(PLANET_CAREERS.get(disp, [])[:2]):
+                field_w[field] += w * 0.5 * (1.0 - i * 0.2)
+                field_from[field].add(f"{psign} ruled by {disp}")
+
+        # field-level era nudge (modern fields up, traditional down)
+        for f in list(field_w.keys()):
+            field_w[f] *= _field_era(f)
 
         careers_ranked = sorted(
             ({"field": f, "weight": round(w, 2),
