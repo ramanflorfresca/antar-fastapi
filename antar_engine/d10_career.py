@@ -40,6 +40,9 @@ _EXALT = {"Sun": "Aries", "Moon": "Taurus", "Mars": "Capricorn",
 _OWN = {"Sun": {"Leo"}, "Moon": {"Cancer"}, "Mars": {"Aries", "Scorpio"},
         "Mercury": {"Gemini", "Virgo"}, "Jupiter": {"Sagittarius", "Pisces"},
         "Venus": {"Taurus", "Libra"}, "Saturn": {"Capricorn", "Aquarius"}}
+_DEBIL = {"Sun": "Libra", "Moon": "Scorpio", "Mars": "Cancer",
+          "Mercury": "Pisces", "Jupiter": "Capricorn", "Venus": "Virgo",
+          "Saturn": "Aries"}
 
 # Career TYPE comes from the SIGN a significator occupies (its element + ruler),
 # NOT the planet in the abstract — Jupiter in Virgo (a Mercury sign) means
@@ -418,5 +421,189 @@ def analyze_career(chart_data: dict) -> dict:
                 "drivers": drivers[:5], "factors": factors, "summary": summary,
                 "nodal_axis": nodal, "leadership_level": leadership_level,
                 "top_significator": top}
+    except Exception as e:
+        return {"available": False, "error": str(e)[:160]}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# DASHA-TIMED CAREER TIMELINE
+# ───────────────────────────────────────────────────────────────────────────
+# The static ranking above answers "which field fits the chart." But a career is
+# LIVED IN CHAPTERS: each Vimśottarī mahādasha (6–20 yrs) switches on a different
+# planet, and THAT planet's placement — read in the D-10 (career chart) and D-9 —
+# is the arena and field that actually activates. This is the astrologer's real
+# method and the answer to "which profession, at what time":
+#   for the dasha lord → where does it sit in the D-10 (house = arena, sign =
+#   field) and D-9 → that is the chapter. (User's own read: "my Rahu in D-10 is
+#   8th/Sagittarius and my Rahu dasha is starting" → a foreign/deep venture turn.)
+# Deliberately SIMPLE — one clean chapter line per dasha, current one flagged.
+
+# The life-MODE a mahadasha runs in — the nature of the period, independent of
+# field. This is WHY people change careers 2–3 times: each chapter reweights
+# which significator is lit.
+PLANET_CHAPTER = {
+    "Sun":     "authority & visibility — stepping into leadership, government, or your own name",
+    "Moon":    "public & people — the public, care, home/roots, an emotional cadence",
+    "Mars":    "initiative & independence — breaking out on your own, competing, building",
+    "Mercury": "commerce & communication — trade, learning, deals, versatility, words",
+    "Jupiter": "expansion & counsel — growth, teaching/advising, scaling up, wisdom",
+    "Venus":   "relationships & craft — arts, brand, comfort, partnerships, the good life",
+    "Saturn":  "the long grind — structure, service, discipline; slow but durable reward",
+    "Rahu":    "ambition & disruption — ventures, foreign/new fields, sudden elevation, risk",
+    "Ketu":    "dissolution & depth — letting go, spiritual/behind-scenes, research, a niche",
+}
+
+# What a house MEANS inside the D-10 (career chart) — the ARENA a chapter plays in.
+D10_HOUSE_ARENA = {
+    1:  "your own standing & personal brand — visible, independent",
+    2:  "earnings & accumulated professional value",
+    3:  "communication, skill & self-effort — media, writing, hustle",
+    4:  "foundations, a home-base or workplace, real estate/comfort",
+    5:  "creativity, intelligence & speculation — advisory, ideas",
+    6:  "service, employment & competition — daily work, problem-solving",
+    7:  "business, partnership & the market — clients, dealings",
+    8:  "sudden shifts & transformation — research, deep/hidden or other-people's-money, upheaval",
+    9:  "fortune, higher knowledge & the foreign — mentorship, big vision",
+    10: "the peak of the profession — command, authority, government",
+    11: "gains, income realization & large networks",
+    12: "foreign lands, behind-the-scenes & exit — dissolution, spiritual work",
+}
+
+
+def _career_lord_fields(lord: str, d1: dict, d10_pl: dict) -> list:
+    """Top fields a dasha lord ACTIVATES — led by its D-10 sign (the career
+    close-up), then its D-1 sign, then its own significations."""
+    fw: dict = defaultdict(float)
+    d1s = (d1.get(lord) or {}).get("sign")
+    d10s = (d10_pl.get(lord) or {}).get("sign")
+    for i, f in enumerate(SIGN_CAREERS.get(d10s, [])[:3]):   # D-10 sign leads
+        fw[f] += 1.0 * (1.0 - i * 0.2)
+    for i, f in enumerate(SIGN_CAREERS.get(d1s, [])[:2]):
+        fw[f] += 0.6 * (1.0 - i * 0.2)
+    for i, f in enumerate(PLANET_CAREERS.get(lord, [])[:2]):
+        fw[f] += 0.4 * (1.0 - i * 0.2)
+    return [f for f, _ in sorted(fw.items(), key=lambda x: x[1], reverse=True)][:3]
+
+
+def career_timeline(chart_data: dict, dashas: dict, today: Optional[str] = None) -> dict:
+    """Career chapters by Vimśottarī mahadasha, each read through the dasha lord's
+    D-10 (arena+field) and D-9 (inner confirmation). Returns
+    {available, chapters[], current, next_chapter, summary}. Never raises."""
+    try:
+        from datetime import date
+        cd = chart_data if isinstance(chart_data, dict) else {}
+        d1 = cd.get("planets") or {}
+        lagna = ((cd.get("lagna") or {}).get("sign"))
+        dv = cd.get("divisional_charts") or {}
+        d10_pl = ((dv.get("d10") or {}).get("planets") or {})
+        d9_pl = ((dv.get("d9") or {}).get("planets") or {})
+        if not d1 or not lagna:
+            return {"available": False}
+
+        # Extract the Vimśottarī mahadasha sequence from the payload.
+        vim = (dashas or {}).get("vimsottari") or (dashas or {}).get("vimshottari") or []
+        raw = []
+        for p in vim if isinstance(vim, list) else []:
+            if not isinstance(p, dict):
+                continue
+            lord = (p.get("lord_or_sign") or p.get("planet_or_sign") or p.get("lord") or "")
+            lord = str(lord).title()
+            s = str(p.get("start_date") or p.get("start") or "")[:10]
+            e = str(p.get("end_date") or p.get("end") or "")[:10]
+            lvl = str(p.get("level") or p.get("type") or "").lower()
+            dur = float(p.get("duration_years") or p.get("duration") or 0) or 0.0
+            if lord and s and e:
+                raw.append({"lord": lord, "start": s, "end": e, "level": lvl, "dur": dur})
+        # Prefer rows explicitly tagged mahadasha; else fall back to the long ones
+        # (mahadashas are 6–20 yrs; antardashas are < ~3 yrs).
+        mds = [r for r in raw if r["level"] in ("mahadasha", "maha", "md")]
+        if not mds:
+            mds = [r for r in raw if r["dur"] >= 5.0]
+        if not mds:
+            return {"available": False}
+        mds.sort(key=lambda x: x["start"])
+
+        today = today or date.today().isoformat()
+        birth_year = int(mds[0]["start"][:4])
+        cur_idx = None
+        for i, m in enumerate(mds):
+            if m["start"] <= today <= m["end"]:
+                cur_idx = i
+                break
+
+        def _tone(lord):
+            d10s = (d10_pl.get(lord) or {}).get("sign")
+            d1s = (d1.get(lord) or {}).get("sign")
+            for s in (d10s, d1s):
+                if _EXALT.get(lord) == s or s in _OWN.get(lord, set()):
+                    return "rise / favourable"
+                if _DEBIL.get(lord) == s:
+                    return "testing — effort before reward"
+            return "steady"
+
+        def _phase(i):
+            if cur_idx is None:
+                return "future" if mds[i]["start"] > today else "past"
+            if i == cur_idx:
+                return "current"
+            if i == cur_idx + 1:
+                return "next"
+            return "past" if i < cur_idx else "future"
+
+        chapters = []
+        for i, m in enumerate(mds):
+            end_year = int(m["end"][:4])
+            start_year = int(m["start"][:4])
+            # only career-relevant chapters (age ~16+), and don't run past next+1
+            if end_year < birth_year + 16:
+                continue
+            if cur_idx is not None and i > cur_idx + 2:
+                continue
+            lord = m["lord"]
+            d10h = (d10_pl.get(lord) or {}).get("house")
+            d10s = (d10_pl.get(lord) or {}).get("sign")
+            d9h = (d9_pl.get(lord) or {}).get("house")
+            fields = _career_lord_fields(lord, d1, d10_pl)
+            arena = D10_HOUSE_ARENA.get(d10h, "")
+            chapters.append({
+                "lord": lord,
+                "phase": _phase(i),
+                "years": f"{start_year}–{end_year}",
+                "age": f"{max(0, start_year - birth_year)}–{end_year - birth_year}",
+                "nature": PLANET_CHAPTER.get(lord, ""),
+                "d10_house": d10h, "d10_sign": d10s, "d10_arena": arena,
+                "d9_house": d9h,
+                "fields": fields,
+                "tone": _tone(lord),
+            })
+
+        def _line(ch):
+            arena = f" in the arena of {ch['d10_arena']}" if ch["d10_arena"] else ""
+            where = ""
+            if ch["d10_sign"] and ch["d10_house"]:
+                where = (f" In your career chart {ch['lord']} sits in {ch['d10_sign']} "
+                         f"(house {ch['d10_house']}){arena}.")
+            return (f"{ch['years']} (age {ch['age']}) · {ch['lord']} period — "
+                    f"{ch['nature']}.{where} Activates: {', '.join(ch['fields'])}. "
+                    f"Tone: {ch['tone']}.")
+
+        for ch in chapters:
+            ch["line"] = _line(ch)
+
+        current = next((c for c in chapters if c["phase"] == "current"), None)
+        nxt = next((c for c in chapters if c["phase"] == "next"), None)
+
+        if current:
+            summary = ("Right now you are in your " + current["lord"]
+                       + f" period ({current['years']}) — {current['nature'].split(' — ')[0]}"
+                       + f". It activates {', '.join(current['fields'])}.")
+            if nxt:
+                summary += (f" Next opens your {nxt['lord']} period ({nxt['years']}), "
+                            f"shifting toward {', '.join(nxt['fields'][:2])}.")
+        else:
+            summary = ""
+
+        return {"available": True, "chapters": chapters,
+                "current": current, "next_chapter": nxt, "summary": summary}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}

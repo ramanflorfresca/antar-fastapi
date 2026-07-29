@@ -18724,6 +18724,27 @@ def _is_career_type_q(q):
     return False
 
 
+def _is_career_timing_q(q):
+    """True for the 'which profession AT WHAT TIME' family — the reader is asking
+    about the timing/phase of their working life, not just the static field: when
+    to switch, what's right NOW, what's next, why this shift is happening. These
+    get the dasha-timed career TIMELINE (chapters by mahadasha, read through the
+    D-10), on top of / instead of the static ranking."""
+    ql = (q or "").lower()
+    if not any(w in ql for w in ("career", "profession", "job", "work", "business",
+                                 "startup", "venture", "vocation", "living")):
+        return False
+    _timing = (
+        "when", "right now", "at this time", "these days", "currently", "current",
+        "this phase", "this period", "what next", "what's next", "whats next",
+        "next step", "should i change", "should i switch", "change career",
+        "switch career", "change my", "quit", "leave my", "new direction",
+        "this year", "coming years", "future", "going forward", "at what time",
+        "which time", "best time", "good time", "time to", "phase of",
+    )
+    return any(p in ql for p in _timing)
+
+
 def _ask_life_scrub(text, life):
     """Deterministic backstop that removes life-fact contradictions from the
     FINAL Ask text, whatever narrator produced it (the prompt block covers the
@@ -19102,22 +19123,58 @@ async def ask_endpoint(request: AskRequest):
             # of falling back to vague 'authority roles' prose.
             _ask_career_block = ""
             try:
-                if _is_career_type_q(question):
-                    from antar_engine.d10_career import analyze_career
+                _is_ctype = _is_career_type_q(question)
+                _is_ctiming = _is_career_timing_q(question)
+                if _is_ctype or _is_ctiming:
+                    from antar_engine.d10_career import analyze_career, career_timeline
                     _car = analyze_career(chart_data)
+                    _parts = []
                     if _car.get("available") and _car.get("careers"):
                         _fields = "; ".join(
                             f"{i+1}) {c['field']}" for i, c in enumerate(_car["careers"][:5]))
-                        _ask_career_block = (
+                        _parts.append(
                             "CAREER-TYPE QUESTION — the reader is asking WHICH profession/career "
                             "suits them. This is computed DETERMINISTICALLY from their D-10 (career "
                             "chart), D-1 10th house, and Amatyakaraka. You MUST answer by naming "
                             "THESE ranked career fields, in THIS order — do NOT invent other fields, "
                             "do NOT answer with only vague 'authority/leadership' advice.\n"
                             f"RANKED CAREER FIELDS: {_fields}\n"
-                            "Lead with the top 2-3 as the strongest fit, say these come from the "
+                            + (f"LEADERSHIP LEVEL: {_car.get('leadership_level')}.\n"
+                               if _car.get("leadership_level") else "")
+                            + "Lead with the top 2-3 as the strongest fit, say these come from the "
                             "pattern of their chart, and close with one concrete next step. Plain "
                             "language only — never name a planet, house, or 'D-10'.")
+                    # [dasha-timed timeline] the 'at what time' axis — chapters by
+                    # mahadasha, read through the dasha lord's D-10 placement. This
+                    # is the answer to "which profession at what time / what NOW /
+                    # what's next" and grounds even a pure type-question in the phase
+                    # the reader is actually living.
+                    _tl = career_timeline(chart_data, get_dashas_for_chart(chart_id))
+                    if _tl.get("available") and _tl.get("current"):
+                        _cur = _tl["current"]
+                        _nxt = _tl.get("next_chapter")
+                        _tline = (
+                            "CAREER TIMING — a career is lived in CHAPTERS; each major life "
+                            "period activates a different strength. Answer 'which profession at "
+                            "what time' from THIS, and always ground the reader in the chapter "
+                            "they are in NOW.\n"
+                            f"NOW ({_cur['years']}, ~age {_cur['age']}): {_cur['nature']}. "
+                            f"This chapter activates: {', '.join(_cur['fields'])}. "
+                            f"Tone: {_cur['tone']}.\n")
+                        if _nxt:
+                            _tline += (f"NEXT ({_nxt['years']}): {_nxt['nature']}. "
+                                       f"Shifts toward: {', '.join(_nxt['fields'])}.\n")
+                        if _is_ctiming:
+                            _tline += ("The reader is asking about TIMING — lead with the NOW "
+                                       "chapter (what fits and why this is the moment), then name "
+                                       "what the next chapter opens. ")
+                        else:
+                            _tline += ("Weave the NOW chapter in so the fields land as 'what fits "
+                                       "you in this phase of life', not an abstract list. ")
+                        _tline += ("Speak in plain life-language — 'this chapter of your life', "
+                                   "'the years ahead' — never name a planet, dasha, or house.")
+                        _parts.append(_tline)
+                    _ask_career_block = "\n\n".join(_parts)
             except Exception as _dce:
                 logger.warning(f"[ask] d10-career skipped (non-fatal): {_dce}")
 
