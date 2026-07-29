@@ -19230,7 +19230,8 @@ async def ask_endpoint(request: AskRequest):
                 if _is_relationship_q(question):
                     _rel_fired = True
                     from antar_engine.relationships import (
-                        analyze_relationship, relationship_timeline, marriage_timing)
+                        analyze_relationship, relationship_timeline, marriage_timing,
+                        separation_timing)
                     _ri = _relationship_intent(question)
                     _rel_dashas = get_dashas_for_chart(chart_id)
                     _ra = analyze_relationship(chart_data, _ask_gender)
@@ -19301,13 +19302,26 @@ async def ask_endpoint(request: AskRequest):
                                 "Give the reader this window in plain months/years, say "
                                 "several independent methods point to it, and name one "
                                 "way to be ready — never name a system, planet, or house.")
-                        elif _ri == "durability" and _rt.get("available") and _rt.get("strain_window"):
-                            _sw = _rt["strain_window"]
-                            _rp.append(
-                                f"TIMING OF STRAIN: the most testing stretch for the "
-                                f"partnership is around {_sw['years']} "
-                                f"({'; '.join(_sw['strain_why'])}). Frame as a period to "
-                                f"tend the relationship with extra care, not a doom date.")
+                        elif _ri == "durability":
+                            # prefer the multi-system separation CONVERGENCE window;
+                            # fall back to the broad mahadasha-level strain window.
+                            _sep = separation_timing(chart_data, _rel_dashas,
+                                                     birth_date=_ask_birth_date, gender=_ask_gender)
+                            if _sep.get("available") and _sep.get("best") and _sep["best"]["score"] >= 2.0:
+                                _sb = _sep["best"]
+                                _rp.append(
+                                    "TIMING OF STRAIN (multiple methods converge): "
+                                    + _sep["summary"] + " Basis: " + " | ".join(_sb["systems"])
+                                    + ". Frame as a stretch to tend the relationship with extra "
+                                    "care and awareness — never a doom verdict — and give one "
+                                    "concrete way to protect it. Never name a system, planet, or house.")
+                            elif _rt.get("available") and _rt.get("strain_window"):
+                                _sw = _rt["strain_window"]
+                                _rp.append(
+                                    f"TIMING OF STRAIN: the most testing stretch for the "
+                                    f"partnership is around {_sw['years']} "
+                                    f"({'; '.join(_sw['strain_why'])}). Frame as a period to "
+                                    f"tend the relationship with extra care, not a doom date.")
                         elif _rt.get("available") and _rt.get("current"):
                             _rp.append(f"TIMING: {_rt['summary']}")
                         # mangal — mention only if present & not cancelled, as a gentle note

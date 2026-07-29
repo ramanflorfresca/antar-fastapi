@@ -954,3 +954,213 @@ def marriage_timing(chart_data: dict, dashas: dict, birth_date: Optional[str] = 
                 "convergence": (best["score"] if best else 0), "summary": summary}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# SEPARATION TIMING — the mirror of marriage_timing (multi-system convergence)
+# ───────────────────────────────────────────────────────────────────────────
+# A separation is timing-driven, not just natal: a mild chart can still divorce
+# when several systems agree on a rupture — the Vimśottarī sub-period of a strain
+# lord (6/8/12 lord, afflicted karaka, a malefic on the 7th, the node on the love
+# axis), a transit hit (Saturn/Rahu/Ketu/Mars on the 7th, its lord, or the 5th),
+# a Lal-Kitab varshphal 7th/8th loaded with malefics (the 8th = the marriage's
+# longevity), and a Chara sign whose 7th-from holds Ketu/a malefic. Validated on
+# Harleen (÷2014): natal durability only "some", but 2014 converges — Saturn on
+# the 7th, Rahu+Mars in the varshphal 8th, Ketu in the 7th-from her Chara sign.
+
+def _transit_separation_trigger(chart_data, when, targets, fifth_sign):
+    """At date `when`, do Saturn/Rahu/Ketu/Mars stress the marriage — on/aspecting
+    the 7th, its lord, the karaka, or the 5th (romance)?"""
+    hits = []
+    try:
+        from antar_engine import transits as _tr
+        tl = _tr.calculate_transits(chart_data, target_date=when)
+        pos = {t.get("planet"): (t.get("sign") or t.get("transit_sign")) for t in tl}
+        checkset = dict(targets)
+        checkset["house of romance"] = fifth_sign
+        for grp in ("Saturn", "Rahu", "Ketu", "Mars"):
+            gs = pos.get(grp)
+            if not gs:
+                continue
+            for key, tsign in checkset.items():
+                if tsign and (gs == tsign or _sign_aspects(gs, tsign, grp)):
+                    hits.append(f"{grp} presses your {key}")
+                    break
+    except Exception:
+        pass
+    return hits
+
+
+def _lk_varsh_rupture(chart_data, age):
+    """Lal-Kitab varshphal rupture: malefics (Rahu/Ketu/Saturn/Mars) in the annual
+    7th (the partnership) or 8th (the marriage's longevity). Returns (rupture, note)."""
+    try:
+        from antar_engine.lal_kitab import calculate_varshphal_chart
+        vp = calculate_varshphal_chart(chart_data, age)
+        pl = getattr(vp, "placements", {}) or {}
+        mal = {"Rahu", "Ketu", "Saturn", "Mars"}
+        in7 = [p for p, h in pl.items() if h == 7 and p in mal]
+        in8 = [p for p, h in pl.items() if h == 8 and p in mal]
+        if in8:
+            return True, f"the annual 8th (the marriage's longevity) is struck ({', '.join(in8)})"
+        if in7:
+            return True, f"malefics load the annual 7th ({', '.join(in7)})"
+        return False, ""
+    except Exception:
+        return False, ""
+
+
+def _chara_lagna_separation(dasha_sign, chart_data, gender):
+    """Chara sign as lagna: is the 7th-from-it dissolved — Ketu or a malefic sitting
+    in, or casting rāśi dṛṣṭi on, the 7th house from the dasha sign; or the 2nd-
+    from-Upapada (marriage sustenance) afflicted."""
+    d1 = (chart_data.get("planets") or {})
+    lagna = ((chart_data.get("lagna") or {}).get("sign"))
+    if dasha_sign not in SIGNS or lagna not in SIGNS:
+        return 0.0, []
+    di = SIGNS.index(dasha_sign)
+    seventh_from = SIGNS[(di + 6) % 12]
+    score, why = 0.0, []
+    occ = _in_house  # not used; keep house math explicit
+    # malefic / Ketu sitting in the 7th-from-dasha (by house count from dasha sign)
+    for m in ("Ketu", "Rahu", "Saturn", "Mars"):
+        ms = (d1.get(m) or {}).get("sign")
+        if ms and ((SIGNS.index(ms) - di) % 12 + 1) == 7:
+            score += (1.3 if m == "Ketu" else 1.0)
+            why.append(f"{m} sits in the 7th from the {dasha_sign} period (dissolution)")
+    # Ketu casts rāśi dṛṣṭi on the 7th-from-dasha sign
+    try:
+        from antar_engine.jaimini_engine import get_rashi_drishti
+        ketu_s = (d1.get("Ketu") or {}).get("sign")
+        if ketu_s in SIGNS and SIGNS.index(seventh_from) in set(get_rashi_drishti(SIGNS.index(ketu_s))):
+            score += 0.6
+            why.append(f"the detachment node aspects the 7th from the {dasha_sign} period")
+    except Exception:
+        pass
+    return round(score, 2), why
+
+
+def separation_timing(chart_data: dict, dashas: dict, birth_date: Optional[str] = None,
+                      gender: Optional[str] = None, today: Optional[str] = None) -> dict:
+    """Converge the strain systems on the window(s) a marriage is most likely to
+    rupture. Same shape as marriage_timing. Never raises."""
+    try:
+        from datetime import date, datetime
+        cd = chart_data if isinstance(chart_data, dict) else {}
+        d1 = cd.get("planets") or {}
+        lagna = ((cd.get("lagna") or {}).get("sign"))
+        if not d1 or not lagna:
+            return {"available": False}
+        today = today or date.today().isoformat()
+        tdt = datetime.fromisoformat(today[:10])
+        dv = cd.get("divisional_charts") or {}
+        d9_pl = ((dv.get("d9") or {}).get("planets") or {})
+
+        karaka, _ = _spouse_karaka(gender)
+        seventh_sign = _sign_n_from(lagna, 7)
+        seventh_lord = SIGN_LORD.get(seventh_sign)
+        fifth_sign = _sign_n_from(lagna, 5)
+        k_sign = (d1.get(karaka) or {}).get("sign")
+        k_afflicted = (_dig(karaka, k_sign)[0] < 0 or bool(_conj_malefics(karaka, d1))
+                       or _combust(karaka, d1))
+        ketu_h = _house_of("Ketu", d1)
+        rahu_h = _house_of("Rahu", d1)
+        strain_lords = {}
+        for hn, why in ((6, "conflict"), (8, "upheaval"), (12, "loss/parting")):
+            hl = SIGN_LORD.get(_sign_n_from(lagna, hn))
+            if hl:
+                strain_lords.setdefault(hl, f"rules your house of {why}")
+        if k_afflicted:
+            strain_lords[karaka] = "your afflicted marriage significator runs"
+        if ketu_h in (5, 7):
+            strain_lords["Ketu"] = "the detachment node on your love axis runs"
+        if rahu_h == 7 or "Rahu" in _conj_malefics(karaka, d1):
+            strain_lords["Rahu"] = "a disruptive influence on the union runs"
+        for m in _malefics_on(d1, 7):
+            strain_lords.setdefault(m, "a planet pressing your 7th runs")
+
+        targets = {
+            "house of partnership": seventh_sign,
+            "partnership lord": (d1.get(seventh_lord) or {}).get("sign"),
+            "marriage significator": k_sign,
+        }
+
+        vim = (dashas or {}).get("vimsottari") or (dashas or {}).get("vimshottari") or []
+        ads = []
+        for p in vim if isinstance(vim, list) else []:
+            if not isinstance(p, dict):
+                continue
+            if str(p.get("level") or p.get("type") or "").lower() not in ("antardasha", "antar", "ad", "bhukti"):
+                continue
+            lord = str(p.get("lord_or_sign") or p.get("planet_or_sign") or p.get("lord") or "").title()
+            parent = str(p.get("parent_lord") or p.get("mahadasha_lord") or "").title()
+            s = str(p.get("start_date") or p.get("start") or "")[:10]
+            e = str(p.get("end_date") or p.get("end") or "")[:10]
+            if lord and s and e:
+                ads.append({"lord": lord, "parent": parent, "start": s, "end": e})
+        ads.sort(key=lambda x: x["start"])
+
+        windows = []
+        for ad in ads:
+            if ad["end"] < today or ad["start"] > str(tdt.year + 6):
+                continue
+            base, why = 0.0, []
+            for role, lord in (("sub-period", ad["lord"]), ("period", ad["parent"])):
+                w = 1.0 if role == "sub-period" else 0.4
+                if lord in strain_lords:
+                    base += w * 1.2
+                    why.append(strain_lords[lord])
+                # a partnership lord/karaka running through a D-9 friction house
+                if lord in (seventh_lord, karaka) and (d9_pl.get(lord) or {}).get("house") in (6, 8, 12):
+                    base += w * 1.0
+                    why.append("your partnership lord runs through a navamsa friction house")
+            if base < 1.2:
+                continue
+            wstart = datetime.fromisoformat(ad["start"])
+            anchor = max(wstart, tdt)
+            systems = [f"Vimśottarī: {ad['parent']}–{ad['lord']} — {why[0] if why else 'a strain period'}"]
+            score = 1.0
+
+            th = _transit_separation_trigger(cd, anchor, targets, fifth_sign)
+            if th:
+                systems.append("Transits: " + "; ".join(th[:3]))
+                score += 1.0
+            if birth_date:
+                try:
+                    b = datetime.fromisoformat(str(birth_date)[:10])
+                    age = anchor.year - b.year - (1 if (anchor.month, anchor.day) < (b.month, b.day) else 0)
+                    rup, note = _lk_varsh_rupture(cd, age)
+                    if rup:
+                        systems.append(f"Lal-Kitab varshphal: {note}")
+                        score += 1.0
+                except Exception:
+                    pass
+            jaim = (dashas or {}).get("jaimini") or (dashas or {}).get("chara") or []
+            for cp in jaim if isinstance(jaim, list) else []:
+                if not isinstance(cp, dict):
+                    continue
+                s = str(cp.get("start_date") or cp.get("start") or "")[:10]
+                e = str(cp.get("end_date") or cp.get("end") or "")[:10]
+                csign = str(cp.get("planet_or_sign") or cp.get("lord_or_sign") or "").title()
+                if s and e and s <= anchor.date().isoformat() <= e and csign in SIGNS:
+                    cs, cw = _chara_lagna_separation(csign, cd, gender)
+                    if cs >= 1.0:
+                        systems.append(f"Chara dasha ({csign} as lagna): {cw[0]}")
+                        score += min(cs, 1.3)
+                    break
+
+            windows.append({"label": f"{ad['parent']}–{ad['lord']}", "start": ad["start"],
+                            "end": ad["end"], "systems": systems, "score": round(score, 2),
+                            "why": why})
+
+        windows.sort(key=lambda w: (-w["score"], w["start"]))
+        best = windows[0] if windows else None
+        if best and best["score"] >= 2.0:
+            summary = (f"The most testing stretch for a partnership is around "
+                       f"{best['start'][:7]} — {len(best['systems'])} systems flag strain.")
+        else:
+            summary = "No sharply-converging strain window ahead — no structural rupture flagged."
+        return {"available": True, "windows": windows[:5], "best": best,
+                "convergence": (best["score"] if best else 0), "summary": summary}
+    except Exception as e:
+        return {"available": False, "error": str(e)[:160]}
