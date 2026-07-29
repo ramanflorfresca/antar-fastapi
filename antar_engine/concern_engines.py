@@ -225,6 +225,33 @@ def analyze_concern(concern: str, chart_data: dict, dashas: dict,
         for p in list(sig.keys()):
             sig[p]["score"] *= era_weight(p)
 
+        # [node-affliction] a NODE (esp. Ketu) in a MONEY house (2 wealth / 11
+        # gains / 8 other-people's-money) destabilizes it — gains come but don't
+        # hold. Ketu-in-11th is the classic bankruptcy signature (Shashi). The
+        # risk peaks when that node's dasha runs.
+        # Ketu in a money house (2/11/8) dissolves gains — the real instability
+        # (Ketu-in-11th = Shashi's bankruptcy). Rahu in the 11th is the OPPOSITE
+        # — a classic gains asset (no warning); Rahu only warns in 2/8 (inflation
+        # / debt volatility).
+        node_warn = None
+        if not is_risk:
+            for h in [x for x in houses if x in (2, 11, 8)]:
+                occ = in_house.get(h, [])
+                if "Ketu" in occ:
+                    node_warn = {"node": "Ketu", "house": h, "lit": "Ketu" in cur,
+                        "text": (f"Ketu sits in your {_ord(h)} house of "
+                                 f"{spec['house_meaning'].get(h,'gains')} — gains can arrive "
+                                 "suddenly but DON'T HOLD; there is a real risk of loss or "
+                                 "reversal here, sharpest when its long period runs")}
+                    break
+                if "Rahu" in occ and h in (2, 8):
+                    node_warn = {"node": "Rahu", "house": h, "lit": "Rahu" in cur,
+                        "text": (f"Rahu sits in your {_ord(h)} house of "
+                                 f"{spec['house_meaning'].get(h,'wealth')} — gains here are "
+                                 "volatile (inflation then reversal, easy over-reach); protect "
+                                 "against sudden loss in its period")}
+                    break
+
         # aggregate — RISK subtracts the benefic relief so a protected chart
         # reads calm, not "elevated".
         total = sum(d["score"] for d in sig.values())
@@ -241,6 +268,12 @@ def analyze_concern(concern: str, chart_data: dict, dashas: dict,
                 verdict = "supported, conditionally"
             else:
                 verdict = "not strongly indicated right now"
+            # a node in the money house overrides toward instability, not denial —
+            # the gains exist but are fragile; if its period is running, it's acute.
+            if node_warn:
+                verdict = ("supported but UNSTABLE — real loss/reversal risk right now, "
+                           "protect capital" if node_warn["lit"]
+                           else verdict + " — but UNSTABLE: gains here can reverse, protect against loss")
         else:  # risk — only elevated on genuine affliction that's also lit
             if total >= 7 and lit:
                 verdict = "elevated — worth active care"
@@ -252,7 +285,7 @@ def analyze_concern(concern: str, chart_data: dict, dashas: dict,
                 verdict = "not indicated right now — steady"
 
         facts = _facts_block(concern, spec, verdict, drivers, d9_confirms,
-                             dasha_active, house_lords, in_house, intent)
+                             dasha_active, house_lords, in_house, intent, node_warn)
         return {"available": True, "concern": concern, "verdict": verdict,
                 "score": round(total, 2), "polarity": spec["polarity"],
                 "drivers": drivers[:5], "d9_confirms": d9_confirms,
@@ -287,10 +320,14 @@ _INTENT_LEAD = {
 }
 
 
-def _facts_block(concern, spec, verdict, drivers, d9, dasha_active, lords, in_house, intent="state"):
+def _facts_block(concern, spec, verdict, drivers, d9, dasha_active, lords, in_house,
+                 intent="state", node_warn=None):
     top = "; ".join(f"{d['planet']} ({', '.join(d['why'][:2])})" for d in drivers[:3])
     pol = spec["polarity"]
     intent_lead = _INTENT_LEAD.get(intent, _INTENT_LEAD["state"]).format(subj=spec["subject"])
+    node_line = (f"\nCRITICAL INSTABILITY: {node_warn['text']} — you MUST surface this "
+                 "loss/reversal risk in the answer (name it as a real risk to guard "
+                 "against, not a certainty)." if node_warn else "")
     lit = (", and it is active in the current planetary period"
            if dasha_active else ", but no active period is lighting it up yet")
     d9line = (" The navamsa (deeper chart) confirms this." if d9
@@ -303,7 +340,7 @@ def _facts_block(concern, spec, verdict, drivers, d9, dasha_active, lords, in_ho
         f"({', '.join(spec['house_meaning'].values())}), their lords, the natural "
         f"significators, the navamsa, and the running dasha. You MUST answer from "
         f"THIS analysis — do not invent.\n"
-        f"VERDICT: {verdict}{lit}.{d9line}\n"
+        f"VERDICT: {verdict}{lit}.{d9line}{node_line}\n"
         f"KEY SIGNIFICATORS: {top}.\n"
         f"STAY STRICTLY ON ONE TOPIC: {spec['subject']}. Do NOT bring in any other "
         "life area — a health answer must NEVER mention money, loans, or funding; a "
