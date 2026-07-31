@@ -95,6 +95,36 @@ def next_milestone(streak: int) -> dict:
     return {"at": nxt, "in_days": nxt - streak, **_REPEAT_REWARD}
 
 
+# ── Anushthana — the HONEST meaning-layer over the streak ─────────────────────
+# The reward ladder above drives return; this layer gives the streak MEANING an
+# astrologer actually respects. The thresholds are real remedial-practice cycles
+# (not arbitrary numbers), so "you've kept this 40 days" is a true statement about
+# the practice setting in — never loss-aversion, never guilt on a break. This is
+# what keeps gamification consistent with an honest astrologer + life coach.
+ANUSHTHANA_CYCLES = [
+    (11,  "an 11-day start — the practice has taken root"),
+    (21,  "21 days — long enough for a habit to form"),
+    (40,  "a 40-day anushthana — the classical cycle where a practice truly sets and the energy turns"),
+    (108, "108 days — a full, deep commitment"),
+]
+
+
+def anushthana_for(streak: int) -> dict:
+    """Honest commitment framing for a practice streak: the cycle completed, the
+    next real threshold, and how far. No loss aversion, no 'your streak will die'."""
+    streak = max(0, int(streak or 0))
+    completed = [c for c in ANUSHTHANA_CYCLES if streak >= c[0]]
+    nxt = next((c for c in ANUSHTHANA_CYCLES if streak < c[0]), None)
+    return {
+        "days": streak,
+        "completed_cycle": completed[-1][0] if completed else 0,
+        "current": completed[-1][1] if completed else "getting started",
+        "next_at": nxt[0] if nxt else None,
+        "days_to_next": (nxt[0] - streak) if nxt else None,
+        "next_label": nxt[1] if nxt else "you've completed the deep cycle — now keep it as a rhythm",
+    }
+
+
 _UID_CACHE: dict = {}
 
 

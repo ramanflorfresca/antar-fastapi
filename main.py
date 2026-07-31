@@ -22885,10 +22885,34 @@ async def get_focus(chart_id: str, language: str = "en"):
     except Exception as _fe:
         logger.warning(f"[focus] schedule skipped (non-fatal): {_fe}")
     be_ready = _nearest_life_window(cd, dashas, row.get("birth_date"), row.get("gender"))
+
+    # [honest gamification 2026-07-31] Anushthana: the practice streak reframed as
+    # a real remedial commitment cycle, tied to the focus and the be-ready runway.
+    # Meaning, not loss-aversion — celebrates consistency, never guilts a break.
+    from datetime import date as _fd
+    try:
+        _streak = await _practice_calc_streak(chart_id, _fd.today())
+    except Exception:
+        _streak = 0
+    from antar_engine import gamification as _gam
+    _anush = _gam.anushthana_for(_streak)
+    if _streak <= 0:
+        _anush["message"] = ("Begin today — one small act, repeated, is what turns "
+                             "potential into real change.")
+    else:
+        _msg = (f"You've tended {focus_energy or 'your focus'} for {_streak} "
+                f"day{'s' if _streak != 1 else ''}")
+        _msg += (f" — {_anush['days_to_next']} more to {_anush['next_label']}."
+                 if _anush.get("days_to_next") else f" — {_anush['next_label']}.")
+        if be_ready:
+            _msg += f" Runway toward {be_ready.get('kind')}."
+        _anush["message"] = _msg
+
     return {
         "available": True,
         "focus": {"whats_in_play": focus_energy, "one_action": focus_action},
         "be_ready": be_ready,
+        "anushthana": _anush,
     }
 
 
