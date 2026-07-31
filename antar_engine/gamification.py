@@ -125,6 +125,43 @@ def anushthana_for(streak: int) -> dict:
     }
 
 
+def _reward_phrase(kind: str, amount: int) -> str:
+    if kind == "ask":
+        return f"{amount} question{'s' if amount != 1 else ''} to go deeper whenever you need"
+    if kind == "compat":
+        return f"{amount} relationship reading{'s' if amount != 1 else ''}"
+    return str(amount)
+
+
+def reward_message(streak: int, kind: str, amount: int, is_practice: bool = False) -> str:
+    """Coach-voice acknowledgement of a milestone — commitment FIRST, reward second,
+    so a paid-out credit reads as an astrologer noting your consistency, not a game
+    payout. No 'you unlocked'/'level up'/points language."""
+    streak = int(streak or 0)
+    if streak >= 108:
+        ack = f"{streak} days — a deep, sustained commitment."
+    elif streak >= 90:
+        ack = "Three months of steady practice — a rare consistency."
+    elif streak >= 40:
+        ack = ("Forty days — the classical anushthana complete; the energy has had time to turn."
+               if is_practice else
+               "Forty days of showing up — this has become part of who you are.")
+    elif streak >= 30:
+        ack = "A full month of showing up."
+    elif streak >= 21:
+        ack = "Three full weeks — long enough that this is a habit now, not an effort."
+    elif streak >= 14:
+        ack = "Two weeks of steady attention."
+    elif streak >= 7:
+        ack = "A week of showing up — small, consistent attention is how potential becomes real."
+    elif streak >= 3:
+        ack = "Three days in — you've begun, and beginning is the hardest part."
+    else:
+        ack = f"{streak} days of steady practice."
+    verb = "For keeping the practice" if is_practice else "For staying with it"
+    return f"{ack} {verb}, here {'is' if amount == 1 else 'are'} {_reward_phrase(kind, amount)}."
+
+
 _UID_CACHE: dict = {}
 
 
@@ -320,10 +357,12 @@ def touch(sb, chart_id: str, tz_offset: int = 0, user_id=None) -> dict:
         key = f"streak_{streak}"
         if ms["ask"] and _grant(sb, uid, "ask", ms["ask"], key, key,
                                 ASK_CREDIT_TTL_DAYS, chart_id):
-            awards.append({"kind": "ask", "amount": ms["ask"], "for": ms["label"]})
+            awards.append({"kind": "ask", "amount": ms["ask"], "for": ms["label"],
+                           "message": reward_message(streak, "ask", ms["ask"], is_practice=False)})
         if ms["compat"] and _grant(sb, uid, "compat", ms["compat"], key, key,
                                    COMPAT_CREDIT_TTL_DAYS, chart_id):
-            awards.append({"kind": "compat", "amount": ms["compat"], "for": ms["label"]})
+            awards.append({"kind": "compat", "amount": ms["compat"], "for": ms["label"],
+                           "message": reward_message(streak, "compat", ms["compat"], is_practice=False)})
 
     _monthly_compat(sb, uid, chart_id, today)
 
@@ -424,10 +463,12 @@ def award_practice(sb, chart_id: str, practice_streak: int) -> list:
     out = []
     if ms["ask"] and _grant(sb, uid, "ask", ms["ask"], key, key,
                             ASK_CREDIT_TTL_DAYS, chart_id):
-        out.append({"kind": "ask", "amount": ms["ask"], "for": ms["label"]})
+        out.append({"kind": "ask", "amount": ms["ask"], "for": ms["label"],
+                    "message": reward_message(int(practice_streak), "ask", ms["ask"], is_practice=True)})
     if ms["compat"] and _grant(sb, uid, "compat", ms["compat"], key, key,
                                COMPAT_CREDIT_TTL_DAYS, chart_id):
-        out.append({"kind": "compat", "amount": ms["compat"], "for": ms["label"]})
+        out.append({"kind": "compat", "amount": ms["compat"], "for": ms["label"],
+                    "message": reward_message(int(practice_streak), "compat", ms["compat"], is_practice=True)})
     return out
 
 
