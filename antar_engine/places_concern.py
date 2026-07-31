@@ -30,18 +30,25 @@ CONCERN_MAP: dict[str, dict] = {
     # = the dusthana set screened OUT for this domain. 6 is upachaya (positive)
     # for career/health; 12 is positive for peace — so the negative set is
     # domain-specific, not a fixed 6/8/12.
-    "money":  {"karakas": ["Jupiter", "Venus", "Mercury"], "angles": ["MC", "AC"], "houses": [2, 11, 5, 9], "neg_houses": [6, 8, 12], "weights": {"karakas": 0.40, "angles": 0.35, "houses": 0.25}},
-    "career": {"karakas": ["Sun", "Saturn", "Mercury"],    "angles": ["MC", "AC"], "houses": [10, 6, 1],    "neg_houses": [8, 12],    "weights": {"karakas": 0.45, "angles": 0.35, "houses": 0.20}},
-    "love":   {"karakas": ["Venus", "Mars", "Moon"],       "angles": ["AC", "DC"], "houses": [7, 5, 11],    "neg_houses": [6, 8, 12], "weights": {"karakas": 0.40, "angles": 0.40, "houses": 0.20}},
-    "health": {"karakas": ["Sun", "Mars", "Saturn"],       "angles": ["AC"],       "houses": [1, 6],        "neg_houses": [8, 12],    "weights": {"karakas": 0.45, "angles": 0.30, "houses": 0.25}},
-    "peace":  {"karakas": ["Moon", "Jupiter", "Ketu"],     "angles": ["IC"],       "houses": [4, 12],       "neg_houses": [6, 8],     "weights": {"karakas": 0.50, "angles": 0.30, "houses": 0.20}},
-    "family": {"karakas": ["Moon", "Sun", "Jupiter"],      "angles": ["IC", "AC"], "houses": [4, 9, 7],     "neg_houses": [6, 8, 12], "weights": {"karakas": 0.45, "angles": 0.30, "houses": 0.25}},
+    # [P3 relocation-primary 2026-07-29] weights flipped so the RELOCATION CHART
+    # (`houses` = where natal planets fall from the relocated ascendant) is the
+    # PRIMARY score (0.55); the ACG lines (karakas 0.30 + angles 0.15) only
+    # CONFIRM. This is the owner's "true astrocartography" — one coherent re-read
+    # of the chart per place, lines as the map overlay. Distribution stays sane
+    # (FLOW ~3% career / <1% money on Raman across 880 cities). See
+    # Antar.world/ASTROCARTOGRAPHY_DEEPDIVE.md.
+    "money":  {"karakas": ["Jupiter", "Venus", "Mercury"], "angles": ["MC", "AC"], "houses": [2, 11, 5, 9], "neg_houses": [6, 8, 12], "weights": {"karakas": 0.30, "angles": 0.15, "houses": 0.55}},
+    "career": {"karakas": ["Sun", "Saturn", "Mercury"],    "angles": ["MC", "AC"], "houses": [10, 6, 1],    "neg_houses": [8, 12],    "weights": {"karakas": 0.30, "angles": 0.15, "houses": 0.55}},
+    "love":   {"karakas": ["Venus", "Mars", "Moon"],       "angles": ["AC", "DC"], "houses": [7, 5, 11],    "neg_houses": [6, 8, 12], "weights": {"karakas": 0.30, "angles": 0.15, "houses": 0.55}},
+    "health": {"karakas": ["Sun", "Mars", "Saturn"],       "angles": ["AC"],       "houses": [1, 6],        "neg_houses": [8, 12],    "weights": {"karakas": 0.30, "angles": 0.15, "houses": 0.55}},
+    "peace":  {"karakas": ["Moon", "Jupiter", "Ketu"],     "angles": ["IC"],       "houses": [4, 12],       "neg_houses": [6, 8],     "weights": {"karakas": 0.30, "angles": 0.15, "houses": 0.55}},
+    "family": {"karakas": ["Moon", "Sun", "Jupiter"],      "angles": ["IC", "AC"], "houses": [4, 9, 7],     "neg_houses": [6, 8, 12], "weights": {"karakas": 0.30, "angles": 0.15, "houses": 0.55}},
     # [places-business 2026-07-18] startup / venture — deliberately NOT the same
     # as "career" (employment + status). Trade and partnership (7) lead, with
     # profession (10), gains/network (11) and self-started enterprise (3).
     # Mercury = commerce, Mars = initiative, Jupiter = expansion. 6 is left OUT
     # of neg_houses on purpose: it is upachaya and reads as out-competing rivals.
-    "business": {"karakas": ["Mercury", "Mars", "Jupiter"], "angles": ["MC", "AC"], "houses": [7, 10, 11, 3], "neg_houses": [8, 12], "weights": {"karakas": 0.40, "angles": 0.35, "houses": 0.25}},
+    "business": {"karakas": ["Mercury", "Mars", "Jupiter"], "angles": ["MC", "AC"], "houses": [7, 10, 11, 3], "neg_houses": [8, 12], "weights": {"karakas": 0.30, "angles": 0.15, "houses": 0.55}},
 }
 
 # Legacy aliases accepted for one release, then drop. resolve_concern() maps
