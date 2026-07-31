@@ -452,11 +452,6 @@ from antar_engine.patra_conversation import (
 from antar_engine.desh import get_desh_context, desh_to_context_block, build_desh_kaal_patra_block
 from antar_engine.life_question_engine import build_life_question_context, get_life_question_data
 from antar_engine.divisional_career import build_career_analysis, career_analysis_to_context_block
-from antar_engine.astrocartography import (
-    get_best_cities_for_concern, get_current_location_reading,
-    build_astrocartography_prompt, CITY_LINE_DATA,
-    get_city_line_data_for_chart, score_cities_for_chart,
-)
 from antar_engine.yoga_engine import detect_yogas_for_question
 from antar_engine.d_charts_calculator import get_all_d_charts
 from antar_engine.proof_points import generate_proof_points, evaluate_proof_score
@@ -4896,172 +4891,8 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     _q_lower_loc = request.question.lower()
     _is_location_q = any(kw in _q_lower_loc for kw in _LOCATION_KEYWORDS)
 
-    # [P0 astro-consolidation 2026-07-29] The legacy DeepSeek + recommend_cities
-    # path is RETIRED — it was a second "where to live" brain (per-city × per-planet
-    # × per-line explosion on the 171-city legacy table) that bypassed the live
-    # /api/v1/places/* engine. Disabled so places/* is the single source of truth.
-    # See Antar.world/ASTROCARTOGRAPHY_DEEPDIVE.md. (Kept guarded, not deleted, for
-    # a clean revert.)
-    if False and _is_location_q and chart_record.get("astrocartography_data"):
-        try:
-            print(f"[predict] Location question detected — routing to DeepSeek astrocartography")
-
-            from antar_engine.chart_context_builder_json import _fetch_dashas
-            from antar_engine.astrocartography_recommender import recommend_cities
-            import json as _loc_json, httpx as _loc_httpx, os as _loc_os
-
-            _loc_dashas = _fetch_dashas(request.chart_id, supabase)
-
-            # Detect intent from question
-            _loc_intent = "general"
-            _q_l = request.question.lower()
-            if any(w in _q_l for w in ["startup", "empresa", "negocio", "business", "tech", "ai", "msme"]):
-                _loc_intent = "startup"
-            elif any(w in _q_l for w in ["billionaire", "billonario", "billion", "mil millones"]):
-                _loc_intent = "billionaire"
-            elif any(w in _q_l for w in ["wealth", "riqueza", "rich", "rico", "money", "dinero", "fortune"]):
-                _loc_intent = "wealth"
-            elif any(w in _q_l for w in ["career", "carrera", "job", "trabajo", "profession"]):
-                _loc_intent = "career"
-            elif any(w in _q_l for w in ["relationship", "relacion", "partner", "love", "amor", "marriage"]):
-                _loc_intent = "relationships"
-
-            # Detect region from question
-            _loc_region = "global"
-            if any(w in _q_l for w in ["latam", "latin", "colombia", "mexico", "brazil", "argentina", "chile", "peru"]):
-                _loc_region = "latam"
-            elif any(w in _q_l for w in ["europe", "europa", "london", "paris", "berlin", "madrid"]):
-                _loc_region = "europe"
-            elif any(w in _q_l for w in ["asia", "india", "singapore", "japan", "china", "dubai"]):
-                _loc_region = "asia"
-            elif any(w in _q_l for w in ["usa", "us", "united states", "houston", "austin", "new york"]):
-                _loc_region = "north_america"
-
-            # Extract natal yogas
-            _loc_chart_data = chart_record.get("chart_data") or {}
-            _loc_yogas = _loc_chart_data.get("yogas") or []
-            if not _loc_yogas:
-                _loc_planets = _loc_chart_data.get("planets", {})
-                if (_loc_planets.get("Jupiter") or {}).get("house") == 2 and                    (_loc_planets.get("Venus") or {}).get("house") == 11:
-                    _loc_yogas = [{"name": "Dhana Yoga", "planets": ["Jupiter", "Venus"]}]
-
-            # Python ranking
-            _loc_ranking = recommend_cities(
-                chart_record=chart_record,
-                dashas=_loc_dashas,
-                natal_yogas=_loc_yogas,
-                intent=_loc_intent,
-                region=_loc_region,
-                language=language,
-                top_n=5,
-            )
-
-            # DeepSeek narrative
-            _loc_dc = _loc_ranking.get("dasha_context", {})
-            _loc_archetype = (chart_record.get("character_archetype") or {}).get("name", "")
-            _loc_current_city = chart_record.get("current_city") or ""
-            _loc_current_country = chart_record.get("current_country") or ""
-
-            _loc_city_list = []
-            for i, c in enumerate(_loc_ranking.get("top_cities", [])[:5]):
-                _loc_city_list.append({
-                    "rank":        i + 1,
-                    "city":        c["city"],
-                    "score":       c["score"],
-                    "is_current":  c.get("is_current_location", False),
-                    "dasha_notes": c.get("dasha_notes", []),
-                    "yoga_notes":  c.get("yoga_notes", []),
-                    "top_lines":   [{
-                        "planet": l["planet"], "line": l["line"], "strength": l["strength"]
-                    } for l in c.get("line_details", [])[:3]],
-                })
-
-            _loc_prompt = f"""You are Antar's astrocartography interpreter.
-You receive deterministic scores from the Python engine. Do NOT calculate anything.
-
-USER QUESTION: {request.question}
-
-USER CONTEXT:
-- Current location: {_loc_current_city or _loc_current_country or "unknown"}
-- Intent detected: {_loc_intent}
-- Region: {_loc_region}
-- Archetype: {_loc_archetype}
-- Dashas: Current MD {_loc_dc.get("current_md")} until {str(_loc_dc.get("current_md_end",""))[:10]} | Next MD {_loc_dc.get("next_md")} from {str(_loc_dc.get("next_md_start",""))[:10]} (18-year window)
-
-PYTHON RANKING:
-{_loc_json.dumps(_loc_city_list, indent=2)}
-
-STAY-VS-MOVE: {_loc_ranking.get("stay_vs_move", "unknown")}
-MISSING LINES: {", ".join(_loc_ranking.get("missing_lines", [])) or "none"}
-
-Your job:
-1. Answer the user's specific question directly in the first sentence
-2. If stay_vs_move is "stay": explain why current location works
-3. If "move": recommend the top city with exact timing
-4. Mention missing lines honestly if relevant
-5. End with YOUR MOVE — one specific action this week
-6. Do NOT use planet names — use energy language
-   (e.g., "expansion energy" not "Jupiter", "disruption channel" not "Rahu")
-
-{"Respond entirely in Spanish." if language == "es" else "Respond in English."}
-
-Keep response under 200 words. Be warm, specific, actionable."""
-
-            _loc_ds_key = _loc_os.environ.get("DEEPSEEK_API_KEY", "")
-            if not _loc_ds_key:
-                raise ValueError("DEEPSEEK_API_KEY not set — falling back to Claude")
-
-            _loc_resp = _loc_httpx.post(
-                "https://api.deepseek.com/chat/completions",
-                headers={"Authorization": f"Bearer {_loc_ds_key}"},
-                json={
-                    "model":       "deepseek-chat",
-                    "messages":    [{"role": "user", "content": _loc_prompt}],
-                    "temperature": 0.2,
-                    "max_tokens":  400,
-                },
-                timeout=25.0,
-            )
-            _loc_answer = _loc_resp.json()["choices"][0]["message"]["content"].strip()
-            print(f"[predict] Location answer from DeepSeek — {len(_loc_answer)} chars")
-
-            # Save to chat_messages
-            try:
-                supabase.table("chat_messages").insert({
-                    "chart_id":     request.chart_id,
-                    "question":     request.question,
-                    "plain_summary": _loc_answer,
-                    "signal_line":  f"Location: {_loc_ranking.get('top_cities', [{}])[0].get('city', '')}",
-                    "action_item":  "",
-                    "domain":       "location",
-                    "language":     language,
-                }).execute()
-            except Exception:
-                pass
-
-            return {
-                # [predclean 2026-06-09] "prediction" key dropped
-                "plain_summary": _loc_answer,
-                "confidence":    0.80,
-                "factors":       [c["city"] for c in _loc_ranking.get("top_cities", [])[:3]],
-                "signal_line":   f"Top location: {_loc_ranking.get('top_cities', [{}])[0].get('city', '')}",
-                "action_item":   "",
-                "timing_window": f"Next MD: {_loc_dc.get('next_md')} from {str(_loc_dc.get('next_md_start',''))[:10]}",
-                "why_this":      f"Astrocartography + dasha alignment. Stay/move: {_loc_ranking.get('stay_vs_move')}",
-                "model_used":    "deepseek-astrocartography",
-                "rarity_signals": [],
-                "precision_windows": [],
-                "all_domains":   [],
-            }
-
-        except Exception as _loc_e:
-            import traceback
-            print(f"[predict] Location routing failed — falling back to Claude: {_loc_e}")
-            print(f"[predict] {traceback.format_exc()[:300]}")
-            # Fall through to normal Claude path
-    # ================================================================
-    # END LOCATION ROUTING
-    # ================================================================
+    # [P4 astro-consolidation 2026-07-29] Legacy DeepSeek + recommend_cities
+    # location path fully removed. 'Where to live' = /api/v1/places/* only.
 
 
     # Life events
@@ -11072,140 +10903,17 @@ class WaitlistRequest(BaseModel):
     name: Optional[str] = None
 
 @app.post("/api/v1/astrocartography/best-cities", response_model=AstroResponse)
-async def astrocartography_best_cities(
-    request: AstroRequest,
-    authorization: Optional[str] = Header(None),
-):
-    user_id = None
-    if authorization:
-        try:
-            user_id = verify_token(authorization)
-        except HTTPException:
-            pass
-
-    chart_res = supabase.table("charts").select("*").eq("id", request.chart_id).execute()
-    if not chart_res.data:
-        raise HTTPException(404, "Chart not found")
-    chart_record = chart_res.data[0]
-    chart_data   = chart_record["chart_data"]
-    dashas       = get_dashas_for_chart(request.chart_id)
-
-    user_profile = {
-        "marital_status": chart_record.get("marital_status", "unknown"),
-        "career_stage":   chart_record.get("career_stage", "mid_career"),
-        "birth_country":  chart_record.get("birth_country", ""),
-    }
-    patra = build_patra_context(
-        birth_date=chart_record["birth_date"],
-        user_profile=user_profile,
-        primary_concern=request.concern,
-    )
-
-    # Compute live planetary lines from birth JD, or fall back to hardcoded
-    _birth_jd = chart_data.get("birth_jd")
-    _city_line_data = get_city_line_data_for_chart(_birth_jd) if _birth_jd else CITY_LINE_DATA
-
-    top_cities = get_best_cities_for_concern(
-        concern=request.concern,
-        city_line_data=_city_line_data,
-        dashas=dashas,
-        patra=patra,
-    )
-
-    current_reading = None
-    if request.current_city:
-        current_reading = get_current_location_reading(
-            city=request.current_city,
-            chart_data=chart_data,
-            dashas=dashas,
-        )
-
-    locale = get_locale_from_request(
-        country_code=chart_record.get("country_code"),
-        birth_country=chart_record.get("birth_country"),
-        user_language_preference=chart_record.get("language_preference"),
-    )
-    prompt = build_astrocartography_prompt(
-        concern=request.concern,
-        top_cities=top_cities,
-        current_reading=current_reading,
-        chart_data=chart_data,
-        dashas=dashas,
-        patra=patra,
-        language=locale.language,
-    )
-    narrative, _ = await call_llm(prompt)
-
-    # Cache the computed city_line_data in charts.astrocartography_data
-    try:
-        supabase.table("charts").update({
-            "astrocartography_data": _city_line_data
-        }).eq("id", request.chart_id).execute()
-    except Exception as e:
-        print(f"Astro cache error: {e}")
-
-    return AstroResponse(
-        narrative=narrative,
-        top_cities=top_cities[:5],
-        current_reading=current_reading,
-        concern=request.concern,
-    )
+async def astrocartography_best_cities(request: AstroRequest, authorization: Optional[str] = Header(None)):
+    # [P4 astro-consolidation 2026-07-29] Retired — the legacy v1 recommender is
+    # gone; /api/v1/places/concern is the single "where to live" source.
+    raise HTTPException(status_code=410, detail={"error": "deprecated", "use": "/api/v1/places/concern"})
 
 
 @app.post("/api/v1/astrocartography/city-reading")
-async def astrocartography_city_reading(
-    request: CityReadingRequest,
-    authorization: Optional[str] = Header(None),
-):
-    chart_res = supabase.table("charts").select("*").eq("id", request.chart_id).execute()
-    if not chart_res.data:
-        raise HTTPException(404, "Chart not found")
-    chart_record = chart_res.data[0]
-    chart_data   = chart_record["chart_data"]
-    dashas       = get_dashas_for_chart(request.chart_id)
+async def astrocartography_city_reading(request: CityReadingRequest, authorization: Optional[str] = Header(None)):
+    # [P4 astro-consolidation 2026-07-29] Retired — use the named-city read.
+    raise HTTPException(status_code=410, detail={"error": "deprecated", "use": "/api/v1/places/city"})
 
-    reading = get_current_location_reading(
-        city=request.city,
-        chart_data=chart_data,
-        dashas=dashas,
-    )
-
-    locale = get_locale_from_request(
-        country_code=chart_record.get("country_code"),
-        birth_country=chart_record.get("birth_country"),
-        user_language_preference=chart_record.get("language_preference"),
-    )
-
-    prompt = f"""You are Antar. Describe what living in {request.city} means for this person astrologically.
-
-City reading data:
-{reading}
-
-Keep it to 3-4 sentences. Be specific — name the energy, not the planet.
-What does this city activate? What opportunities? What watch-outs?
-End with: should they visit, move, or avoid this city right now?
-
-
-RESPONSE RULES — CRITICAL:
-1. Answer the user's question completely. Then stop.
-2. NEVER end your response with a follow-up question like "Want me to look at a specific timeframe?" or "Should I explore what to focus on?" or "Would you like to know more?" The user asks the questions. You provide answers.
-3. When the timing of an event is months or years away: Name the date clearly. Explain what to do BETWEEN NOW AND THEN. Frame the interim as PREPARATION, not waiting. The user should feel they have agency and a clear path. Never say "unfortunately you will have to wait."
-4. End with a clear, specific, actionable recommendation. One thing. This week. Verb-first.
-
-6. NEVER use planet names (Saturn, Rahu, Mars, Jupiter, Venus, Mercury, Ketu) when writing the parts of your response that the user will see directly. Describe the EFFECT instead of naming the cause. "Your income is being pressure-tested" not "Saturn is testing your income."
-7. NEVER use spiritual platitudes like "the universe is testing you" or "cosmic energy" or "divine timing." Speak like a sharp business advisor who knows timing patterns, not a spiritual guide.
-8. When the user is over 50, avoid death-adjacent framing like "outlast you" or "legacy" unless they specifically asked about succession. Frame longevity as freedom: "building something that runs without you pushing it daily."
-9. When answering follow-up questions, check what you already said. Do NOT repeat the same timing frame. Each follow-up must add a new actionable layer — go deeper, not wider. If you already said "restructuring through 2027" do not say it again in the next response.
-
-10. Every response should address the WHY — why this specific person is experiencing this specific situation right now. The WHY must be specific to their chart data (age, life stage, current chapter), must reframe from victim to participant, and must never use planet names or spiritual platitudes. The user should feel seen and understood, not lectured or patronized. Frame difficulties as chapters with purpose, not punishment.
-
-
-5. When the chart shows a long cycle (10+ years), show the user the NEXT checkpoint (1-3 years), not the full runway. Never say "19-year period" or mention dates more than 5 years away. Frame it as phases: pressure phase → relief phase → growth phase. The user needs to see the next hill, not the entire mountain range.
-
-Respond in {locale.language}."""
-
-    narrative, _ = await call_llm(prompt)
-    return {"city": request.city, "reading": reading, "narrative": narrative}
 
 
 @app.get("/api/v1/astrocartography/{chart_id}")
@@ -12599,13 +12307,29 @@ async def settings_me_patch(request: Request, authorization: Optional[str] = Hea
             _l.getLogger("antar.settings").warning(f"[settings] auth email update failed: {_ee}")
     if "primary_chart_id" in body and body["primary_chart_id"]:
         pcid = body["primary_chart_id"]
-        owned = supabase.table("charts").select("id").eq("id", pcid).eq("user_id", user_id).limit(1).execute()
-        if not owned.data:
-            return JSONResponse(status_code=400, content={"error": "primary_chart_id does not belong to this user"})
+        # [patch-me-500 2026-07-31] ensureChartBound sends a primary_chart_id from
+        # browser localStorage, which can be a malformed/non-UUID value (e.g. a
+        # short demo id). The ownership .eq("id", pcid) then raises Postgres 22P02
+        # "invalid input syntax for uuid", uncaught → 500. Guard: any lookup error
+        # (or a chart not owned) → 400, never a 500. This is also the belt for the
+        # "wrong chart bound" report — a foreign/garbage id is simply rejected.
+        try:
+            owned = supabase.table("charts").select("id").eq("id", pcid).eq("user_id", user_id).limit(1).execute()
+            _ok = bool(owned.data)
+        except Exception as _pce:
+            import logging as _l
+            _l.getLogger("antar.settings").warning(f"[settings] primary_chart_id lookup failed for {pcid!r}: {_pce}")
+            _ok = False
+        if not _ok:
+            return JSONResponse(status_code=400, content={"error": "primary_chart_id is not a valid chart owned by this user"})
         updates["primary_chart_id"] = pcid
     if not updates:
         return JSONResponse(status_code=400, content={"error": "no updatable fields provided"})
-    _st_get_profile(user_id)  # ensure row exists
+    try:
+        _st_get_profile(user_id)  # ensure row exists
+    except Exception as _gpe:
+        import logging as _l
+        _l.getLogger("antar.settings").warning(f"[settings] ensure-profile-row failed (non-fatal): {_gpe}")
     updates["updated_at"] = datetime.utcnow().isoformat()
     try:
         supabase.table("profiles").update(updates).eq("user_id", user_id).execute()

@@ -322,8 +322,14 @@ def build_life_question_context(
     if active_yogas:
         lines.append("WHAT YOUR CHART SHOWS (PRESENT):")
         for y in active_yogas:
-            lines.append(f"  ✓ [{y['strength'].upper()}] {y['name']}")
-            lines.append(f"    {y['implication']}")
+            # [robust 2026-07-31] yoga dicts from some producers lack name/strength/
+            # implication — a bare y['name'] KeyError was crashing the whole life-
+            # question block ("Life question engine error: 'name'"). Read defensively.
+            _nm = y.get("name") or y.get("yoga") or y.get("title") or "a supportive pattern"
+            _st = str(y.get("strength") or "").upper()
+            lines.append(f"  ✓ [{_st}] {_nm}" if _st else f"  ✓ {_nm}")
+            if y.get("implication"):
+                lines.append(f"    {y['implication']}")
             if y.get("timing_note"):
                 lines.append(f"    Timing: {y['timing_note']}")
             lines.append("")
@@ -332,8 +338,10 @@ def build_life_question_context(
     if absent_yogas:
         lines.append("WHAT IS NOT IN THE CHART (ABSENT):")
         for y in absent_yogas:
-            lines.append(f"  ✗ {y['name']}")
-            lines.append(f"    {y['implication']}")
+            _nm = y.get("name") or y.get("yoga") or y.get("title") or "a pattern"
+            lines.append(f"  ✗ {_nm}")
+            if y.get("implication"):
+                lines.append(f"    {y['implication']}")
         lines.append("")
 
     # Timing
