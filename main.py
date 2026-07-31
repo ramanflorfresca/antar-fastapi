@@ -22810,6 +22810,88 @@ def _vim_md_ad_next(dashas):
     return md, ad, nxt
 
 
+def _nearest_life_window(chart_data, dashas, birth_date, gender=None):
+    """[P4 proactive 2026-07-31] The single nearest UPCOMING converged life-window
+    across the domain engines (marriage / legal / health / residence), so Antar can
+    say 'this is coming — here's how to be ready' instead of only answering when
+    asked. Returns {kind, when, systems, prep} or None. Fail-open."""
+    from datetime import date as _d
+    today = _d.today().isoformat()
+    cands = []
+    try:
+        from antar_engine.relationships import marriage_timing
+        from antar_engine.legal import legal_timing
+        from antar_engine.health import health_timing
+        from antar_engine.residence import residence_timing
+        specs = [
+            ("a new relationship / partnership", lambda: marriage_timing(
+                chart_data, dashas, birth_date=birth_date, gender=gender),
+             "put yourself in the rooms where you'd meet someone"),
+            ("a legal / dispute matter", lambda: legal_timing(
+                chart_data, dashas, birth_date=birth_date),
+             "get your paperwork and counsel in order early"),
+            ("a health-sensitive stretch", lambda: health_timing(
+                chart_data, dashas, birth_date=birth_date),
+             "build the rest/checkup habit now, before it peaks"),
+            ("a change of home", lambda: residence_timing(
+                chart_data, dashas, birth_date=birth_date),
+             "start scouting options and finances ahead of time"),
+        ]
+        for kind, fn, prep in specs:
+            try:
+                r = fn() or {}
+                b = r.get("best") or {}
+                start = str(b.get("start") or "")[:10]
+                if start and start >= today and len(b.get("systems", [])) >= 2:
+                    cands.append({"kind": kind, "when": start[:7], "start": start,
+                                  "systems": len(b.get("systems", [])), "prep": prep})
+            except Exception:
+                pass
+    except Exception:
+        pass
+    cands.sort(key=lambda c: (c["start"], -c["systems"]))  # soonest, then strongest
+    return cands[0] if cands else None
+
+
+@app.get("/api/v1/focus/{chart_id}")
+async def get_focus(chart_id: str, language: str = "en"):
+    """[P3/P4 one-guide 2026-07-31] The single FOCUS of this chapter (what's in play
+    now + the one action) PLUS the nearest 'be ready' life-window. Additive — powers
+    the Today 'what's in play for you now' line and a proactive heads-up. Plain
+    language only; never names a planet. Never hard-fails."""
+    try:
+        row = (supabase.table("charts").select(
+            "chart_data,jaimini_data,lal_kitab_data,birth_date,gender,current_country")
+            .eq("id", chart_id).single().execute().data) or {}
+    except Exception:
+        raise HTTPException(404, "Chart not found")
+    cd = row.get("chart_data") or {}
+    if not cd.get("planets"):
+        return {"available": False}
+    dashas = get_dashas_for_chart(chart_id)
+    _vmd, _vad, _vnext = _vim_md_ad_next(dashas)
+    focus_energy, focus_action = "", ""
+    try:
+        from antar_engine.practice_engine import generate_practice_schedule
+        _sched = generate_practice_schedule(
+            chart_data=cd, jaimini_data=row.get("jaimini_data") or {},
+            lal_kitab_data=row.get("lal_kitab_data") or {},
+            current_country=row.get("current_country") or "US",
+            birth_date=str(row.get("birth_date") or ""),
+            vimsottari_md=_vmd, vimsottari_ad=_vad, next_md=_vnext)
+        _pp = (_sched or {}).get("primary_practice") or {}
+        focus_energy = _pp.get("energy_label") or ""
+        focus_action = _pp.get("what") or ""
+    except Exception as _fe:
+        logger.warning(f"[focus] schedule skipped (non-fatal): {_fe}")
+    be_ready = _nearest_life_window(cd, dashas, row.get("birth_date"), row.get("gender"))
+    return {
+        "available": True,
+        "focus": {"whats_in_play": focus_energy, "one_action": focus_action},
+        "be_ready": be_ready,
+    }
+
+
 @app.get("/api/v1/remedies/{chart_id}")
 @translate_response(
     # [pass2 2026-06-10] added charity/gemstone/color/food/metal/mantra/

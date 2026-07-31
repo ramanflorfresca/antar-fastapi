@@ -458,8 +458,21 @@ def _build_remedy(
     if has_health:
         fasting = f"Skip fasting (health condition). Do mantra instead."
 
+    # [P2 one-mantra 2026-07-31] Single canonical mantra source: read the full
+    # navagraha mantra from practice_engine.MANTRAS so the mantra shown WITH a
+    # remedy is byte-identical to the practice/mantra card (was: 'Hroum' vs
+    # 'Hraum' transliteration drift between the two tables). simple_mantra stays
+    # from PLANET_REMEDIES (no duplication there). Lazy import avoids any cycle;
+    # falls back to the local text if unavailable.
+    try:
+        from antar_engine.practice_engine import MANTRAS as _CANON_MANTRAS
+        _canon_full = (_CANON_MANTRAS.get(planet) or {}).get("sanskrit")
+    except Exception:
+        _canon_full = None
+    _full_mantra = _canon_full or data["mantra"]
+
     # Choose mantra based on proficiency
-    mantra = data["simple_mantra"] if is_student or is_elderly else data["mantra"]
+    mantra = data["simple_mantra"] if is_student or is_elderly else _full_mantra
 
     # [remedy-strength-gate 2026-06-09] Attach chart-actual strength
     # so main.py's WHY builder can pick the right template.
@@ -470,7 +483,7 @@ def _build_remedy(
         "domain":       domain,
         "chart_strength": _cs,
         "mantra":       mantra,
-        "full_mantra":  data["mantra"],
+        "full_mantra":  _full_mantra,
         "count":        data["count"],
         "best_time":    data["best_time"],
         "best_day":     data["best_day"],
