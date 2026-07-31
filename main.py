@@ -4896,7 +4896,13 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
     _q_lower_loc = request.question.lower()
     _is_location_q = any(kw in _q_lower_loc for kw in _LOCATION_KEYWORDS)
 
-    if _is_location_q and chart_record.get("astrocartography_data"):
+    # [P0 astro-consolidation 2026-07-29] The legacy DeepSeek + recommend_cities
+    # path is RETIRED — it was a second "where to live" brain (per-city × per-planet
+    # × per-line explosion on the 171-city legacy table) that bypassed the live
+    # /api/v1/places/* engine. Disabled so places/* is the single source of truth.
+    # See Antar.world/ASTROCARTOGRAPHY_DEEPDIVE.md. (Kept guarded, not deleted, for
+    # a clean revert.)
+    if False and _is_location_q and chart_record.get("astrocartography_data"):
         try:
             print(f"[predict] Location question detected — routing to DeepSeek astrocartography")
 
@@ -11944,11 +11950,18 @@ async def places_concern_endpoint(req: PlacesConcernReq):
 
 
 @app.get("/api/v1/places/lines/{chart_id}")
-async def places_lines_endpoint(chart_id: str, language: str = "en"):
+async def places_lines_endpoint(chart_id: str, language: str = "en",
+                                concern: Optional[str] = None):
+    # [P1 astro-declutter 2026-07-29] The map used to return ALL 36 lines + up to
+    # 60 parans unconditionally (~96 objects) — the core "too many options" source.
+    # Now: with a `concern`, return ONLY that goal's lines (karaka×angle) and the
+    # parans among THEM; without one, still return all lines but hard-cap parans.
+    # See Antar.world/ASTROCARTOGRAPHY_DEEPDIVE.md.
     _ent_deny = _ent_places_deny(chart_id)
     if _ent_deny is not None:
         return _ent_deny
-    ckey = ("places_lines", chart_id, language)
+    _concern = (concern or "").strip().lower() or None
+    ckey = ("places_lines", chart_id, language, _concern)
     cached = _places_cache_get(ckey)
     if cached is not None:
         return cached
@@ -11959,12 +11972,22 @@ async def places_lines_endpoint(chart_id: str, language: str = "en"):
 
     all_lines = _pl.compute_all_lines(chart.get("birth_jd"), chart)
     conditions = _pc.compute_all_conditions(chart)
+    lines = all_lines
+    if _concern:
+        try:
+            filtered = _pcn.filter_concern_lines(all_lines, _concern)
+            if filtered:
+                lines = filtered
+        except Exception:
+            pass  # unknown concern → fall back to all lines
     out = {
         "chart_id": chart_id,
         "language": language,
+        "concern": _concern,
         "generated_at": _places_iso_now(),
-        "lines": _places_serialize_lines(all_lines, conditions, language),
-        "parans": _pp.compute_parans(all_lines, conditions),
+        "lines": _places_serialize_lines(lines, conditions, language),
+        # parans only among the shown lines, hard-capped (was 60)
+        "parans": _pp.compute_parans(lines, conditions, max_results=(6 if _concern else 12)),
     }
     _places_cache_set(ckey, out)
     return out
