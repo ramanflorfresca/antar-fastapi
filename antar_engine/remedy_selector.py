@@ -287,4 +287,16 @@ def select_remedies(
     """
     domain = _detect_domain(question)
     remedies = _select_by_priority(domain, chart_data, dashas, patra, focus_planet=focus_planet)
-    return remedies[:limit]
+    remedies = remedies[:limit]
+    # [P1 two-tracks 2026-07-31] tag each remedy so the UI can group the two
+    # classical, COMPLEMENTARY tracks instead of showing them as contradictory:
+    #   calm      = pacify what's testing you (the afflicted/focus planet)
+    #   strengthen= amplify your natural strength (a benefic)
+    _TRACK_LABEL = {"calm": "Calm what's testing you",
+                    "strengthen": "Amplify your natural strength"}
+    for r in remedies:
+        _t = "strengthen" if (r.get("source") == "amplify"
+                              or r.get("remedy_type") == "strengthen") else "calm"
+        r["track"] = _t
+        r["track_label"] = _TRACK_LABEL[_t]
+    return remedies

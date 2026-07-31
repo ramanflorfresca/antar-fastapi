@@ -18187,12 +18187,22 @@ def _ask_get_practices(chart_id, chart_data, jaimini_data, lal_kitab_data,
             pass
         _locale = "IN" if (current_country or "US") == "IN" else "GLOBAL"
 
+        # [coherence 2026-07-31] LEAD with the chart FOCUS — the schedule's own
+        # primary practice IS the convergence primary that the remedy + mantra +
+        # Today focus all use. So Ask practices open on the same planet, THEN add
+        # the domain-relevant planets as supporting. One guide, one focus, still
+        # domain-aware.
         cards = []
+        _focus_pl = _planet_of(_pp) if _pp.get("practice_id") else None
+        if _pp.get("practice_id"):
+            cards.append(_pp)
         for _planet in _rel:
             if len(cards) >= limit:
                 break
+            if _focus_pl and str(_planet).lower() == _focus_pl:
+                continue  # focus already leads
             _hit = _by_planet.get(str(_planet).lower())
-            if _hit:
+            if _hit and _hit is not _pp:
                 cards.append(_hit)
                 continue
             try:

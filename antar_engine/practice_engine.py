@@ -661,7 +661,15 @@ def generate_practice_schedule(
     # Additive + guarded: any failure leaves chart_gemstone=None and the
     # schedule payload otherwise byte-identical to before.
     try:
-        _sched_out["chart_gemstone"] = select_chart_gemstone(planets, lagna)
+        _gem = select_chart_gemstone(planets, lagna)
+        # [P1 two-tracks 2026-07-31] the gemstone is the "amplify your strength"
+        # track (a benefic) — labelled so it reads as COMPLEMENTARY to the
+        # pacify/focus practice+mantra ("calm what's testing you"), not a rival
+        # recommendation naming a different planet.
+        if isinstance(_gem, dict):
+            _gem["track"] = "strengthen"
+            _gem["track_label"] = "Amplify your natural strength"
+        _sched_out["chart_gemstone"] = _gem
     except Exception as _gem_err:
         print(f"[gemstone-engine] non-fatal: {_gem_err}")
         _sched_out["chart_gemstone"] = None
