@@ -140,19 +140,33 @@ def _convergence_score(planet: str, domain: str,
 
 
 def _select_by_priority(domain: str, chart_data: dict,
-                         dashas: dict, patra=None) -> list[dict]:
+                         dashas: dict, patra=None, focus_planet: str = None) -> list[dict]:
     """
-    4-priority selection. Returns up to 3 remedy dicts.
-    Each dict has 'source' key ('convergence'/'dasha'/'lal_kitab'/'amplify')
-    for internal tracking — never shown to the user.
+    Selection. Returns up to 3 remedy dicts. Each dict has a 'source' key
+    ('focus'/'convergence'/'dasha'/'lal_kitab'/'amplify') for internal tracking —
+    never shown to the user.
     """
     lk_pl   = _lk_placements(chart_data)
     planets = LK_DOMAIN_PLANETS.get(domain, LK_DOMAIN_PLANETS["general"])
     results = []
 
+    # ── PRIORITY 0: the chart's FOCUS planet (the SAME convergence primary the
+    # practice + mantra use). Making this authoritative is what stops the remedy
+    # screen from prescribing for a different planet than the practice/mantra.
+    # [P0 coherence 2026-07-31] Not domain-restricted: the focus is the whole
+    # chart's answer to "what needs support now". Falls through when unavailable.
+    if focus_planet:
+        r = _build_remedy(planet=focus_planet, remedy_type="pacify", domain=domain,
+                          patra=patra, chart_data=chart_data)
+        if r:
+            r["source"] = "focus"
+            r["priority_label"] = "The area most in play for you now"
+            results.append(r)
+
     # ── PRIORITY 1: all 3 systems agree (convergence score == 3) ──────────
     p1_planets = [p for p in planets
-                  if _convergence_score(p, domain, chart_data, dashas, lk_pl) >= 3]
+                  if _convergence_score(p, domain, chart_data, dashas, lk_pl) >= 3
+                  and p not in [r["planet"] for r in results]]
     for p in p1_planets[:1]:
         r = _build_remedy(planet=p, remedy_type="pacify", domain=domain, patra=patra, chart_data=chart_data)
         if r:
@@ -214,6 +228,23 @@ def _select_by_priority(domain: str, chart_data: dict,
             r["priority_label"] = "Amplify what's already working"
             results.append(r)
 
+    # [P0 coherence 2026-07-31] If the focus (+tiers) left us short of 3, backfill
+    # with domain remedies as SUPPORTING items — so a focus-first list still has
+    # depth (was: a bare focus remedy returned alone).
+    if results and len(results) < 3:
+        try:
+            have = {r["planet"] for r in results}
+            for e in _engine_select(domain=domain, chart_data=chart_data,
+                                    dashas=dashas, patra=patra, limit=3):
+                if e.get("planet") not in have:
+                    e["source"] = e.get("source") or "support"
+                    results.append(e)
+                    have.add(e.get("planet"))
+                    if len(results) >= 3:
+                        break
+        except Exception:
+            pass
+
     if results:
         return results[:3]
 
@@ -240,15 +271,20 @@ def select_remedies(
     question: str,
     patra=None,
     limit: int = 3,
+    focus_planet: str = None,
 ) -> list[dict]:
     """
     Entry point called by main.py /predict.
-    Runs 4-priority cross-system selection and returns remedy list.
+    Runs cross-system selection and returns remedy list.
+
+    focus_planet (the practice/mantra convergence primary) — when supplied, the
+    top pacification remedy is built for THAT planet so remedy == practice ==
+    mantra. [P0 coherence 2026-07-31]
 
     The 'source' field on each remedy is for internal tracking only.
     The LLM and frontend never see it — they see 'priority_label' and
     'energy_language' only.
     """
     domain = _detect_domain(question)
-    remedies = _select_by_priority(domain, chart_data, dashas, patra)
+    remedies = _select_by_priority(domain, chart_data, dashas, patra, focus_planet=focus_planet)
     return remedies[:limit]

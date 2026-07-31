@@ -541,6 +541,33 @@ class PracticeSchedule:
 # 5. CORE ENGINE
 # ════════════════════════════════════════════
 
+def get_focus_planet(chart_data: dict, jaimini_data: dict = None,
+                     lal_kitab_data: dict = None, birth_date: str = None,
+                     vimsottari_md: dict = None, vimsottari_ad: dict = None,
+                     next_md: dict = None):
+    """[P0 coherence 2026-07-31] The chart's single FOCUS planet — the same
+    convergence primary that the practice, mantra, and (now) the pacification
+    remedy all share, so they stop naming different planets. Returns a planet
+    name or None. Fail-open (never raises)."""
+    try:
+        chart_data = _safe_json(chart_data)
+        jaimini_data = _safe_json(jaimini_data) if jaimini_data else {}
+        lal_kitab_data = _safe_json(lal_kitab_data) if lal_kitab_data else {}
+        planets = _extract_planets(chart_data)
+        if not planets:
+            return None
+        convergence = _score_planet_convergence(
+            planets, _extract_karakas(jaimini_data), _extract_current_dasha(jaimini_data),
+            _extract_varshphal(lal_kitab_data), _extract_sleeping_planets(lal_kitab_data),
+            _extract_masik_phal(lal_kitab_data),
+            _calculate_age(birth_date) if birth_date else None,
+            vimsottari_md=vimsottari_md, vimsottari_ad=vimsottari_ad, next_md=next_md,
+        )
+        return _select_primary_planet(convergence, _extract_sleeping_planets(lal_kitab_data))
+    except Exception:
+        return None
+
+
 def generate_practice_schedule(
     chart_data: dict,
     jaimini_data: dict,

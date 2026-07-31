@@ -5623,13 +5623,28 @@ Do not use any planet names or astrological jargon — translate everything into
     karakas_list = get_all_karakas(chart_data)
     user_age = patra.age
 
+    # [P0 coherence 2026-07-31] Compute the chart's FOCUS planet (the convergence
+    # primary the practice + mantra use) and hand it to the remedy selector so the
+    # remedy names the SAME planet as the practice/mantra shown in the same answer.
+    _focus_planet = None
+    try:
+        from antar_engine.practice_engine import get_focus_planet as _gfp
+        _vmd, _vad, _vnext = _vim_md_ad_next(dashas_response)
+        _focus_planet = _gfp(
+            chart_data, chart_record.get("jaimini_data"), chart_record.get("lal_kitab_data"),
+            birth_date=chart_record.get("birth_date"),
+            vimsottari_md=_vmd, vimsottari_ad=_vad, next_md=_vnext)
+    except Exception as _fpe:
+        logger.warning(f"[predict] focus-planet compute skipped (non-fatal): {_fpe}")
+
     remedy_objects = remedy_selector.select_remedies(
         supabase=supabase,
         chart_data=chart_data,
         dashas=dashas_response,
         transits=current_transits,
         user_age=user_age,
-        question=request.question
+        question=request.question,
+        focus_planet=_focus_planet,
     )
     remedies_out = _build_remedies(remedy_objects)
 
@@ -22756,6 +22771,35 @@ async def handle_razorpay_webhook(request: Request):
 
 # ── Remedies & Practices Endpoint ────────────────────────────────
 
+def _vim_md_ad_next(dashas):
+    """[P0 coherence 2026-07-31] Build current-MD, current-AD, next-MD dicts
+    ({planet_or_sign,start_date,end_date}) from a vimsottari dasha list, in the
+    shape practice_engine's convergence scorer expects — so the remedy FOCUS
+    planet matches the practice/mantra primary."""
+    from datetime import date as _d
+    today = _d.today().isoformat()
+    vim = (dashas or {}).get("vimsottari") if isinstance(dashas, dict) else (dashas or [])
+    vim = vim or []
+    def _lvl(r, n):
+        return str(r.get("level")) == str(n) or str(r.get("type", "")).lower() in (
+            ("mahadasha", "maha", "md") if n == 1 else ("antardasha", "ad", "bhukti"))
+    def _pl(r):
+        return r.get("planet_or_sign") or r.get("lord_or_sign") or r.get("lord") or ""
+    def _mk(r):
+        return {"planet_or_sign": _pl(r), "start_date": str(r.get("start_date", ""))[:10],
+                "end_date": str(r.get("end_date", ""))[:10]}
+    mds = sorted([r for r in vim if _lvl(r, 1)], key=lambda r: str(r.get("start_date", "")))
+    ads = [r for r in vim if _lvl(r, 2)]
+    def _cur(rows):
+        for r in rows:
+            if str(r.get("start_date", ""))[:10] <= today <= str(r.get("end_date", ""))[:10]:
+                return _mk(r)
+        return {}
+    md, ad = _cur(mds), _cur(ads)
+    nxt = next(({**_mk(r)} for r in mds if str(r.get("start_date", ""))[:10] > today), {})
+    return md, ad, nxt
+
+
 @app.get("/api/v1/remedies/{chart_id}")
 @translate_response(
     # [pass2 2026-06-10] added charity/gemstone/color/food/metal/mantra/
@@ -22791,7 +22835,7 @@ async def get_personal_remedies(
 
     # Load chart
     res = supabase.table("charts").select(
-        "chart_data,lal_kitab_data,birth_date,first_name,gender,"
+        "chart_data,lal_kitab_data,jaimini_data,birth_date,first_name,gender,"
         "career_stage,health_status,marital_status,lagna_sign"
     ).eq("id", chart_id).execute()
 
@@ -22844,6 +22888,18 @@ async def get_personal_remedies(
     patra = Patra()
 
     # Select remedies
+    # [P0 coherence 2026-07-31] focus planet = the practice/mantra convergence
+    # primary, so this remedy screen names the SAME planet as the practices screen.
+    _focus_planet = None
+    try:
+        from antar_engine.practice_engine import get_focus_planet as _gfp
+        _vmd, _vad, _vnext = _vim_md_ad_next(dashas)
+        _focus_planet = _gfp(
+            chart_data, row.get("jaimini_data"), row.get("lal_kitab_data"),
+            birth_date=birth_date, vimsottari_md=_vmd, vimsottari_ad=_vad, next_md=_vnext)
+    except Exception as _fpe:
+        logger.warning(f"[remedies] focus-planet compute skipped (non-fatal): {_fpe}")
+
     remedy_objects = remedy_selector.select_remedies(
         supabase=supabase,
         chart_data=chart_data,
@@ -22853,6 +22909,7 @@ async def get_personal_remedies(
         question=question or concern,
         patra=patra,
         limit=3,
+        focus_planet=_focus_planet,
     )
 
     # Build rich structured response
@@ -24123,17 +24180,28 @@ async def generate_life_report(chart_id: str):
     try:
         from antar_engine import remedy_selector
         chart_res = supabase.table("charts").select(
-            "chart_data,birth_date,first_name,career_stage,health_status"
+            "chart_data,jaimini_data,lal_kitab_data,birth_date,first_name,career_stage,health_status"
         ).eq("id", chart_id).execute()
-        chart_data = chart_res.data[0]["chart_data"] if chart_res.data else {}
+        _crow = chart_res.data[0] if chart_res.data else {}
+        chart_data = _crow.get("chart_data") or {}
         dasha_res  = supabase.table("dasha_periods").select("*").eq(
             "chart_id", chart_id
         ).execute()
         dashas = {"vimsottari": dasha_res.data or []}
+        # [P0 coherence 2026-07-31] same focus planet as practices/mantra
+        _focus_planet = None
+        try:
+            from antar_engine.practice_engine import get_focus_planet as _gfp
+            _vmd, _vad, _vnext = _vim_md_ad_next(dashas)
+            _focus_planet = _gfp(chart_data, _crow.get("jaimini_data"), _crow.get("lal_kitab_data"),
+                                 birth_date=_crow.get("birth_date"),
+                                 vimsottari_md=_vmd, vimsottari_ad=_vad, next_md=_vnext)
+        except Exception:
+            pass
         remedies = remedy_selector.select_remedies(
             supabase=supabase, chart_data=chart_data,
             dashas=dashas, transits={}, user_age=35,
-            question="general", patra=None, limit=3,
+            question="general", patra=None, limit=3, focus_planet=_focus_planet,
         )
     except Exception:
         remedies = []
