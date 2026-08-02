@@ -23,7 +23,7 @@ from openai import AsyncOpenAI
 
 # Antar engine modules
 from antar_engine import chart, vimsottari, jaimini, ashtottari, utils, constants
-from antar_engine.constants import SONNET_MODEL
+from antar_engine.constants import SONNET_MODEL, HAIKU_MODEL
 # [pricing-2026-07] Single paid tier. "seeker"/"navigator" remain as aliases so
 # historical subscription rows still resolve — see entitlements.PAID_TIERS.
 from antar_engine.entitlements import PAID_TIERS as _PAID_TIERS
@@ -2010,9 +2010,13 @@ async def call_llm_claude(
     system_override: str = "",
     max_tokens_override: Optional[int] = None,
     temperature_override: Optional[float] = None,
+    model_override: Optional[str] = None,
 ) -> tuple[str, Optional[int]]:
     """
     Calls Claude Sonnet for high-quality predictions.
+    model_override: route a specific call to a faster/cheaper model (e.g.
+    HAIKU_MODEL for a constrained rewrite). Defaults to the panel-configured
+    Sonnet model, so existing callers are byte-for-byte unchanged.
     Used for: plain English summaries, career/wealth predictions, Prashna verdicts.
     Falls back to DeepSeek if Claude unavailable.
     max_tokens_override: FIX 10 — pass a lower ceiling for short/medium questions.
@@ -2100,7 +2104,7 @@ async def call_llm_claude(
         print(f"[llm-adapter] non-anthropic route failed, using Claude: {_lae}")
     try:
         response = await claude_client.messages.create(
-            model=_active_claude_model(),
+            model=model_override or _active_claude_model(),
             max_tokens=max_tokens_override or 1200,
             # [year-determinism 2026-07-20] temperature 0 for structured factual
             # narration (the year read), so the SAME chart-state yields the SAME
@@ -2127,7 +2131,7 @@ async def call_llm_claude(
         if _ai_c is not None:
             _ai_c["llm_calls"].append({
                 "system_prompt": system,
-                "model": "claude-sonnet-4-5",
+                "model": model_override or _active_claude_model(),
                 "latency_ms": int((_ai_time.monotonic() - _ai_t0) * 1000),
                 "user_prompt": prompt,
                 "output_tokens": tokens,
@@ -19932,7 +19936,13 @@ async def ask_endpoint(request: AskRequest):
                              "complete and grammatical. Output JSON only.")
                     _ok = False
                     try:
-                        _t2 = await call_llm_claude(prompt=question, system_override=_corr)
+                        # [ask-latency 2026-08-02] The voice-gate rewrite is a
+                        # constrained "strip forbidden words, stay grammatical"
+                        # task — route it to Haiku so a regeneration doesn't
+                        # double the Sonnet wall (the 30-40s spikes that timed
+                        # out as "That read didn't come through"). Fail-closed
+                        # path below still catches a rewrite that trips the gate.
+                        _t2 = await call_llm_claude(prompt=question, system_override=_corr, model_override=HAIKU_MODEL)
                         _raw2 = _t2[0] if isinstance(_t2, tuple) else _t2
                         if _raw2 and "{" in _raw2 and "}" in _raw2:
                             _p2 = json.loads(_raw2[_raw2.find("{"): _raw2.rfind("}") + 1])
