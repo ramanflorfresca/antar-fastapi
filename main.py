@@ -2787,14 +2787,22 @@ _CAREER_Q_WORDS = (
 
 
 def _guard_signal_subject(signal_line: Optional[str], concern: str, question: str) -> Optional[str]:
-    if not signal_line or " is " not in signal_line:
+    if not signal_line:
         return signal_line
     import re as _re_g
     try:
         from antar_engine.verdict_resolver import _CONCERN_NOUNS as _CN
     except Exception:
         return signal_line
-    _m = _re_g.match(r"^\s*(.{1,45}?)\s+is\s+(.+)$", signal_line, _re_g.DOTALL)
+    # ONLY the FAVORABLE lead form leaks a bare invented subject:
+    #   "{Subject} is well-supported by your chart / for you ..."
+    # FLAT/WEAK/MIXED forms ("Nothing unusual is active for {subj}",
+    # "{subj} is flat for you", "{subj} is mixed ...") must NOT be touched — their
+    # leading words are not the subject-to-validate, and swapping them produces a
+    # broken sentence ("The main move you're weighing is active for the money
+    # decision..."). Match only "<subj> is well[- ]supported ...".
+    _m = _re_g.match(r"^\s*(.{1,45}?)\s+is\s+(well[- ]supported\b.*)$",
+                     signal_line, _re_g.IGNORECASE | _re_g.DOTALL)
     if not _m:
         return signal_line
     _subj, _pred = _m.group(1).strip(), _m.group(2)
