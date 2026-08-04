@@ -2765,6 +2765,45 @@ def _safe_signal_line(signal_line: str, domain: str, language: str = "en") -> st
     return signal_line
 
 
+# [tech-leak-guard 2026-08-04] The narrator sometimes names the chart's industry
+# / venture field ("Tech", a product line like "Vehicles") as the answer SUBJECT.
+# That is correct personalization for a career/business/venture question, but a
+# leak on anything else ("when should I have this conversation" -> "Tech is well-
+# supported by your chart"). When the resolver override doesn't own signal_line
+# (some /predict paths), enforce the invariant: the subject must be one of the
+# engine's known concern nouns; if it's an invented field AND the question isn't
+# career/business, swap it for the neutral general subject. Keeps field-subjects
+# on genuine career/venture questions.
+_CAREER_Q_WORDS = (
+    "career", "job", "work", "business", "startup", "company", "venture",
+    "funding", "raise capital", "promotion", "profession", "industry",
+    "product line", "client", "sales", "hire", "boss", "co-founder",
+    "cofounder", "my role", "at my company", "my company",
+)
+
+
+def _guard_signal_subject(signal_line: Optional[str], concern: str, question: str) -> Optional[str]:
+    if not signal_line or " is " not in signal_line:
+        return signal_line
+    import re as _re_g
+    try:
+        from antar_engine.verdict_resolver import _CONCERN_NOUNS as _CN
+    except Exception:
+        return signal_line
+    _m = _re_g.match(r"^\s*(.{1,45}?)\s+is\s+(.+)$", signal_line, _re_g.DOTALL)
+    if not _m:
+        return signal_line
+    _subj, _pred = _m.group(1).strip(), _m.group(2)
+    _valid = {v["subject"].lower() for v in _CN.values()}
+    if _subj.lower() in _valid:
+        return signal_line                       # already a known concern subject
+    _ql = (question or "").lower()
+    if any(w in _ql for w in _CAREER_Q_WORDS):
+        return signal_line                       # field-subject legit on career/biz Q
+    _proper = _CN["general"]["subject"]          # neutral fallback, no leak
+    return f"{_proper[0].upper() + _proper[1:]} is {_pred}"
+
+
 
 async def save_chat_message(
     supabase,
@@ -7173,7 +7212,7 @@ State a specific year. Never predict past events as future windows.
                     "factors":      _factors,
                     # Optional structured fields for frontend
                     "plain_summary":        _parsed.get("plain_summary", ""),
-                    "signal_line":          _rv.get('verdict_line') or _parsed.get("signal_line", ""),
+                    "signal_line":          _guard_signal_subject(_rv.get('verdict_line') or _parsed.get("signal_line", ""), concern, request.question),
                     "action_item":          _rv.get('the_move') or _parsed.get("action_item", ""),
                     "timing_window":        _rv_tw or _timing_jp,  # [predict-cleanup]
                     "why_this":             _parsed.get("why_this", ""),
@@ -7810,7 +7849,7 @@ State a specific year. Never predict past events as future windows.
             _pe.get("plain_summary") if _pe else None
         ),
         action_item=_pe.get("action_item") if _pe else None,
-        signal_line=_pe.get("signal_line") if _pe else None,
+        signal_line=_guard_signal_subject(_pe.get("signal_line") if _pe else None, concern, request.question),
         timing_window=_pe.get("timing_window") if _pe else None,
         all_domains=_pe.get("all_domains") if _pe else [],
         signal_confidence=_pe.get("confidence") if _pe else None,
