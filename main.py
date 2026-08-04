@@ -1406,7 +1406,6 @@ class PredictResponse(BaseModel):
     plain_summary:          Optional[str]  = None
     action_item:            Optional[str]  = None
     signal_line:            Optional[str]  = None
-    resolver_error_debug:   Optional[str]  = None  # [tech-leak-debug] temporary
     timing_window:          Optional[str]  = None
     all_domains:            List[str]      = Field(default_factory=list)
     signal_confidence:      Optional[str]  = None
@@ -5723,7 +5722,6 @@ Do not use any planet names or astrological jargon — translate everything into
     # the timeframe). Same chart + concern + date + timeframe →
     # identical verdict band and identical verdict_line.
     _resolver_verdict = None
-    _resolver_err_dbg = None  # [tech-leak-debug 2026-08-04] temporary
     try:
         from datetime import datetime as _vr_dt
         # [WS1 timeframe-honesty] resolver scoring anchor = the
@@ -5758,17 +5756,7 @@ Do not use any planet names or astrological jargon — translate everything into
             f"line={_resolver_verdict['verdict_line'][:80]!r}"
         )
     except Exception as _vr_e:
-        import traceback as _vr_tb
-        _resolver_err_dbg = f"THREW {type(_vr_e).__name__}: {str(_vr_e)[:180]} @ {_vr_tb.format_exc().strip().splitlines()[-2][:150] if len(_vr_tb.format_exc().strip().splitlines())>=2 else ''}"
         print(f"[predict] verdict resolver failed (non-fatal): {_vr_e}")
-    # [tech-leak-debug 2026-08-04] capture full resolver state either way
-    if _resolver_err_dbg is None:
-        _resolver_err_dbg = (
-            f"OK none={_resolver_verdict is None} "
-            f"concern={concern!r} "
-            f"verdict={(_resolver_verdict or {}).get('verdict')!r} "
-            f"vline={((_resolver_verdict or {}).get('verdict_line') or '')[:70]!r}"
-        )
 
     # [natal-promise] compute
     # V2.2 L1: compute natal promise for the asked area. This is
@@ -7170,18 +7158,27 @@ State a specific year. Never predict past events as future windows.
                     language=getattr(request, "language", "en") or "en",
                 )
 
+                # [tech-leak-fix 2026-08-04] The JSON-v2 path returned the LLM's
+                # raw signal_line/action_item — so for a vague question the model
+                # leaked the chart's industry as the subject ("Tech is well-
+                # supported by your chart"). Apply the SAME deterministic resolver
+                # override the prose path already uses, so the subject + verdict +
+                # move + confidence are Python-authored, not the model's guess.
+                _rv = _resolver_verdict or {}
+                _rv_w = _rv.get('window') or {}
+                _rv_tw = ' — '.join([p for p in (_rv_w.get('date_range'), _rv_w.get('intraday_boundary')) if p])
                 return {
                     # [predclean 2026-06-09] "prediction" key dropped
                     "confidence":   _conf_float,
                     "factors":      _factors,
                     # Optional structured fields for frontend
                     "plain_summary":        _parsed.get("plain_summary", ""),
-                    "signal_line":          _parsed.get("signal_line", ""),
-                    "action_item":          _parsed.get("action_item", ""),
-                    "timing_window":        _timing_jp,  # [predict-cleanup]
+                    "signal_line":          _rv.get('verdict_line') or _parsed.get("signal_line", ""),
+                    "action_item":          _rv.get('the_move') or _parsed.get("action_item", ""),
+                    "timing_window":        _rv_tw or _timing_jp,  # [predict-cleanup]
                     "why_this":             _parsed.get("why_this", ""),
                     "bridge_practice_note": _parsed.get("bridge_practice_note", ""),
-                    "signal_confidence":    _conf_str,
+                    "signal_confidence":    _rv.get('confidence') or _conf_str,
                     "rarity_signals":       [],
                     "precision_windows":    [],
                     "all_domains":          [],
@@ -7427,11 +7424,6 @@ State a specific year. Never predict past events as future windows.
                     )
         except Exception as _ds_vg_e:
             print(f'[predict] anchor violation guard failed (non-fatal): {_ds_vg_e}')
-
-        # [tech-leak-debug 2026-08-04] temporary — surface why the resolver
-        # returned None (it throws silently, leaving the LLM's leaky signal_line).
-        if _resolver_err_dbg and isinstance(_pe, dict):
-            _pe['resolver_error_debug'] = _resolver_err_dbg
 
         # [verdict-resolver] post-gen verdict override
         # WS0: override signal_line / action_item / timing_window
