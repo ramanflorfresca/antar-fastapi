@@ -1406,6 +1406,7 @@ class PredictResponse(BaseModel):
     plain_summary:          Optional[str]  = None
     action_item:            Optional[str]  = None
     signal_line:            Optional[str]  = None
+    resolver_error_debug:   Optional[str]  = None  # [tech-leak-debug] temporary
     timing_window:          Optional[str]  = None
     all_domains:            List[str]      = Field(default_factory=list)
     signal_confidence:      Optional[str]  = None
@@ -5758,8 +5759,16 @@ Do not use any planet names or astrological jargon — translate everything into
         )
     except Exception as _vr_e:
         import traceback as _vr_tb
-        _resolver_err_dbg = f"{type(_vr_e).__name__}: {str(_vr_e)[:200]} @ {_vr_tb.format_exc().strip().splitlines()[-2][:160] if len(_vr_tb.format_exc().strip().splitlines())>=2 else ''}"
+        _resolver_err_dbg = f"THREW {type(_vr_e).__name__}: {str(_vr_e)[:180]} @ {_vr_tb.format_exc().strip().splitlines()[-2][:150] if len(_vr_tb.format_exc().strip().splitlines())>=2 else ''}"
         print(f"[predict] verdict resolver failed (non-fatal): {_vr_e}")
+    # [tech-leak-debug 2026-08-04] capture full resolver state either way
+    if _resolver_err_dbg is None:
+        _resolver_err_dbg = (
+            f"OK none={_resolver_verdict is None} "
+            f"concern={concern!r} "
+            f"verdict={(_resolver_verdict or {}).get('verdict')!r} "
+            f"vline={((_resolver_verdict or {}).get('verdict_line') or '')[:70]!r}"
+        )
 
     # [natal-promise] compute
     # V2.2 L1: compute natal promise for the asked area. This is
@@ -7422,7 +7431,7 @@ State a specific year. Never predict past events as future windows.
         # [tech-leak-debug 2026-08-04] temporary — surface why the resolver
         # returned None (it throws silently, leaving the LLM's leaky signal_line).
         if _resolver_err_dbg and isinstance(_pe, dict):
-            _pe['_resolver_error'] = _resolver_err_dbg
+            _pe['resolver_error_debug'] = _resolver_err_dbg
 
         # [verdict-resolver] post-gen verdict override
         # WS0: override signal_line / action_item / timing_window
