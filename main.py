@@ -1408,6 +1408,10 @@ class PredictResponse(BaseModel):
     signal_line:            Optional[str]  = None
     timing_window:          Optional[str]  = None
     all_domains:            List[str]      = Field(default_factory=list)
+    # [clarify-ambiguous 2026-08-04] when the question has no pin-able subject,
+    # the answer is a clarifying question + domain chips, not a verdict.
+    needs_clarification:    bool           = False
+    clarification_chips:    List[str]      = Field(default_factory=list)
     signal_confidence:      Optional[str]  = None
     why_this:               Optional[str]  = None
     bridge_practice_note:   Optional[str]  = None
@@ -2802,6 +2806,34 @@ def _guard_signal_subject(signal_line: Optional[str], concern: str, question: st
         return signal_line                       # field-subject legit on career/biz Q
     _proper = _CN["general"]["subject"]          # neutral fallback, no leak
     return f"{_proper[0].upper() + _proper[1:]} is {_pred}"
+
+
+# [clarify-ambiguous 2026-08-04] When a question has no pin-able subject (concern
+# came back "general") AND uses a vague referent ("this conversation / decision /
+# move"), the honest move is to ASK what it's about rather than guess a subject
+# (guessing is what produced the industry leak). Returns a clarification spec, or
+# None to answer normally.
+_CLARIFY_REFERENTS = (
+    "this conversation", "this talk", "this discussion", "this meeting",
+    "this decision", "this move", "this thing", "this matter", "this call",
+    "this step", "this situation", "this issue", "this chat",
+)
+
+
+def _clarification_needed(question: str, concern: str) -> Optional[dict]:
+    if (concern or "").lower() != "general":
+        return None
+    ql = (question or "").lower()
+    _hit = next((r for r in _CLARIFY_REFERENTS if r in ql), None)
+    if not _hit:
+        return None
+    _noun = _hit.replace("this ", "")
+    return {
+        "headline": f"What's this {_noun} about?",
+        "prompt": (f"The timing really depends on the subject — a relationship, "
+                   f"work, family, or money. Tell me which and I'll give you the window."),
+        "chips": ["Relationship", "Work / career", "Family", "Money", "Health"],
+    }
 
 
 
@@ -5059,6 +5091,22 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
 
     # ── Concern detection (must come before C3 and C4) ────────
     concern = _detect_concern(request.question)
+
+    # [clarify-ambiguous 2026-08-04] If the question has no pin-able subject,
+    # ask what it's about instead of guessing (and skip the whole engine + the
+    # LLM call — clarification is instant). Runs BEFORE the founder override so a
+    # vague question isn't force-cast to "business" for entrepreneurs.
+    _clar = _clarification_needed(request.question, concern)
+    if _clar:
+        print(f"[predict] clarification needed for vague question: {request.question[:60]!r}")
+        return PredictResponse(
+            confidence=0.0,
+            signal_confidence="",
+            signal_line=_clar["headline"],
+            plain_summary=_clar["prompt"],
+            needs_clarification=True,
+            clarification_chips=_clar["chips"],
+        )
 
     # [founder-concern 2026-07-21] "Where the person is, and what they are
     # doing" — step 6 of the reading order. For someone RUNNING A BUSINESS,
