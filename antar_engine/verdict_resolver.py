@@ -127,8 +127,18 @@ _TIMEFRAME_MARKERS: List[Tuple[str, List[str]]] = [
     ]),
     (TIMEFRAME_WHEN,  [
         "when will", "when can", "when do", "when does", "when is",
+        # [when-should 2026-08-04] the most natural timing phrasing —
+        # "when should I …" — matched NO marker and fell through to NONE,
+        # so a timing question got answered as today's general status
+        # instead of the future window. Add the common "when …" / timing
+        # openers that were missing.
+        "when should", "when to ", "when's", "when would", "when might",
+        "when could", "how soon", "how long until", "how long before",
+        "how long till", "best time to", "best time for",
         "what year", "which year", "by when",
         "cuándo voy", "cuando voy", "cuándo será", "cuando sera",
+        "cuándo debería", "cuando deberia", "cuándo debo", "cuando debo",
+        "cuándo puedo", "cuando puedo", "cuál es el mejor momento",
         "en qué año", "en que año",
     ]),
 ]
