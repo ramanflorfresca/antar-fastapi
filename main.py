@@ -7438,6 +7438,10 @@ State a specific year. Never predict past events as future windows.
         except Exception as _ds_vg_e:
             print(f'[predict] anchor violation guard failed (non-fatal): {_ds_vg_e}')
 
+        # [tech-leak-debug2] surface resolver state on the PROSE path
+        if isinstance(_pe, dict):
+            _pe['resolver_error_debug'] = _resolver_err_dbg
+
         # [verdict-resolver] post-gen verdict override
         # WS0: override signal_line / action_item / timing_window
         # with the Python-authored verdict so determinism is
