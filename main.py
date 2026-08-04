@@ -5722,6 +5722,7 @@ Do not use any planet names or astrological jargon — translate everything into
     # the timeframe). Same chart + concern + date + timeframe →
     # identical verdict band and identical verdict_line.
     _resolver_verdict = None
+    _resolver_err_dbg = None  # [tech-leak-debug 2026-08-04] temporary
     try:
         from datetime import datetime as _vr_dt
         # [WS1 timeframe-honesty] resolver scoring anchor = the
@@ -5756,6 +5757,8 @@ Do not use any planet names or astrological jargon — translate everything into
             f"line={_resolver_verdict['verdict_line'][:80]!r}"
         )
     except Exception as _vr_e:
+        import traceback as _vr_tb
+        _resolver_err_dbg = f"{type(_vr_e).__name__}: {str(_vr_e)[:200]} @ {_vr_tb.format_exc().strip().splitlines()[-2][:160] if len(_vr_tb.format_exc().strip().splitlines())>=2 else ''}"
         print(f"[predict] verdict resolver failed (non-fatal): {_vr_e}")
 
     # [natal-promise] compute
@@ -7415,6 +7418,11 @@ State a specific year. Never predict past events as future windows.
                     )
         except Exception as _ds_vg_e:
             print(f'[predict] anchor violation guard failed (non-fatal): {_ds_vg_e}')
+
+        # [tech-leak-debug 2026-08-04] temporary — surface why the resolver
+        # returned None (it throws silently, leaving the LLM's leaky signal_line).
+        if _resolver_err_dbg and isinstance(_pe, dict):
+            _pe['_resolver_error'] = _resolver_err_dbg
 
         # [verdict-resolver] post-gen verdict override
         # WS0: override signal_line / action_item / timing_window
