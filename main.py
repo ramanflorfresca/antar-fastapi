@@ -5101,6 +5101,7 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
         print(f"[predict] clarification needed for vague question: {request.question[:60]!r}")
         return PredictResponse(
             confidence=0.0,
+            factors=[],
             signal_confidence="",
             signal_line=_clar["headline"],
             plain_summary=_clar["prompt"],
