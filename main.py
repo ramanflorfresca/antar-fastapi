@@ -4927,7 +4927,6 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         raise HTTPException(status_code=404, detail="Chart not found")
     chart_record = chart_res.data[0]
     chart_data = chart_record["chart_data"]
-    import time as _pt; _pt0 = _pt.monotonic(); _prof = lambda l: print(f"[predict-prof] {l} +{(_pt.monotonic()-_pt0)*1000:.0f}ms")  # [predict-prof temporary]
 
     # --- DEBUG: chart data diagnostic ---
     import json as _dbg_json
@@ -5005,7 +5004,6 @@ async def predict(request: PredictRequest, authorization: Optional[str] = Header
         if isinstance(_raw_transits, list) else _raw_transits
     )
     transit_summary = transits.summarize_transits(_raw_transits)
-    _prof("transits-done")  # [predict-prof temporary]
 
     # Country context — static cultural layer (always available)
     # C2: Use current residence country for DKP, not birth country
@@ -7369,7 +7367,6 @@ State a specific year. Never predict past events as future windows.
         except Exception as _gap2_b_e:
             print(f"[predict] noun-contract injection failed (non-fatal): {_gap2_b_e}")
 
-        _prof("context-built (pre-LLM)")  # [predict-prof temporary]
         prediction_text, tokens_used = await call_llm_claude(
             prompt,
             history=request.conversation_history or [],
@@ -7412,7 +7409,6 @@ State a specific year. Never predict past events as future windows.
         )
 
     print(f"[predict] LLM response len={len(prediction_text) if prediction_text else 0} concern={concern}")
-    _prof("main-LLM-done (Sonnet)")  # [predict-prof temporary]
     # ── C1: Plain English post-processing ────────────────────────
     _pe = None
     try:
@@ -7435,7 +7431,6 @@ State a specific year. Never predict past events as future windows.
             lk_context=lk_context or "",
         )
         print(f"[predict] plain_english ok — signal='{(_pe or {}).get('signal_line','')[:60]}'")
-        _prof("plain_english-done (Haiku)")  # [predict-prof temporary]
     except Exception as _pe_err:
         print(f"[predict] plain_english failed (non-fatal): {_pe_err}")
         _pe = None
@@ -27130,7 +27125,9 @@ Output all {len(transit_contexts)} transit(s) in this format. Nothing else."""
 
     try:
         response = await claude_client.messages.create(
-            model=SONNET_MODEL,
+            # [transit-lang-latency 2026-08-05] was SONNET (~10s for a 300-token
+            # transit→plain-English formatting task) — Haiku does it in ~2-3s.
+            model=HAIKU_MODEL,
             max_tokens=300,
             temperature=0.3,
             messages=[{"role": "user", "content": prompt}]
