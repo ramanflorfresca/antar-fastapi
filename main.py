@@ -5117,6 +5117,40 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
             clarification_chips=_clar["chips"],
         )
 
+    # [profession-naming 2026-08-05] "when will my <field> rise" — the user is
+    # asking when their profession/field advances, and the question NAMES it.
+    # Name that field in the verdict ("Tu música está bien apoyada") instead of a
+    # generic noun or a founder-forced "your business", and capture it to the
+    # profile (owner rule: people tell us their profession, we don't infer it).
+    _subject_override = None
+    try:
+        from antar_engine.subject_extract import extract_rise_subject, to_possessive
+        _q_lang = (getattr(request, "language", None) or "en")
+        _rise_field = extract_rise_subject(request.question, _q_lang)
+        if _rise_field:
+            _subject_override = to_possessive(_rise_field, _q_lang)
+            # A vague/business-forced field-rise is career/vocation timing; a
+            # clearly-domained one (love/health/finance) keeps its scoring domain
+            # and just gains the named subject.
+            if concern in ("general", "business"):
+                concern = "career"
+            print(f"[profession-naming] field={_rise_field!r} "
+                  f"subject_override={_subject_override!r} concern={concern}")
+            # Capture the field as profession ONLY when none is set — never
+            # overwrite an explicit profession the user gave us.
+            try:
+                if not str(chart_record.get("profession") or "").strip():
+                    chart_record["profession"] = _rise_field
+                    supabase.table("charts").update(
+                        {"profession": _rise_field}
+                    ).eq("id", request.chart_id).execute()
+                    print(f"[profession-naming] captured profession={_rise_field!r} "
+                          f"for chart={request.chart_id[:8]}")
+            except Exception as _pcap_e:
+                print(f"[profession-naming] profession capture failed (non-fatal): {_pcap_e}")
+    except Exception as _pn_e:
+        print(f"[profession-naming] detection skipped (non-fatal): {_pn_e}")
+
     # [founder-concern 2026-07-21] "Where the person is, and what they are
     # doing" — step 6 of the reading order. For someone RUNNING A BUSINESS,
     # "my work", "my professional growth", "will this take off" are questions
@@ -5124,9 +5158,11 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
     # employee's standing (10/6/2). Same words, different subject, because the
     # asker is different. Without this a founder's question about their own
     # venture was read as a career question and answered about promotions.
+    # Skipped when the user explicitly named their field (_subject_override) —
+    # "cuando suba mi música" is about music, not the generic company.
     try:
         _lc = get_life_context(request.chart_id, supabase=supabase) or {}
-        if _lc.get("career_stage") == "running_business" and concern in ("career", "general"):
+        if (not _subject_override) and _lc.get("career_stage") == "running_business" and concern in ("career", "general"):
             print(f"[concern] founder override: {concern} -> business "
                   f"(career_stage=running_business)")
             concern = "business"
@@ -5844,6 +5880,7 @@ Do not use any planet names or astrological jargon — translate everything into
             natal_promise=_subject_natal_promise(predictions if 'predictions' in dir() else {}),
             language=getattr(request, 'language', 'en') or 'en',
             chart_type=(chart_record.get('chart_type') if isinstance(chart_record, dict) else None),  # [compat-exclude] chart_type
+            subject_override=_subject_override if '_subject_override' in dir() else None,  # [profession-naming]
         )
         print(
             f"[predict] resolver verdict={_resolver_verdict['verdict']} "
@@ -5952,6 +5989,7 @@ Do not use any planet names or astrological jargon — translate everything into
                 anchor_decision=_anchor_decision,
                 natal_promise=_natal_promise,
                 language=getattr(request, 'language', 'en') or 'en',
+                subject_override=_subject_override if '_subject_override' in dir() else None,  # [profession-naming]
             )
             print(
                 f"[predict] resolver re-run verdict={_resolver_verdict['verdict']} "
@@ -7589,7 +7627,10 @@ State a specific year. Never predict past events as future windows.
                 rewrite_plain_summary as _gap2_rps,
                 is_venture_domain as _gap2_ivd,
             )
-            if _pe and _gap2_ivd(concern):
+            # [profession-naming] when the user named their field, the resolver
+            # already put it in the subject — don't let the venture-splice
+            # overwrite "tu música" with a stored venture name ("Tech").
+            if _pe and _gap2_ivd(concern) and not (_subject_override if '_subject_override' in dir() else None):
                 _gap2_ven = (
                     chart_record.get('ventures')
                     or chart_record.get('active_ventures')

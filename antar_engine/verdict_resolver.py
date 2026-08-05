@@ -475,6 +475,7 @@ def _compose_verdict_line(
     language: str,
     anchor: Optional[Dict[str, Any]] = None,
     redirect: Optional[Dict[str, Any]] = None,
+    subject_override: Optional[str] = None,
 ) -> str:
     # [b-life-nouns] V2.2 gap (b): when `anchor` carries a concrete date_range
     # (precision_window source), weave it into FAVORABLE / MIXED non-tactical
@@ -501,6 +502,38 @@ def _compose_verdict_line(
     # [WS1 timeframe-honesty] tense labels — FLAT branch
     tense_en = _TENSE_LABELS_EN.get(tf, "today") or "today"
     tense_es = _TENSE_LABELS_ES.get(tf, "hoy") or "hoy"
+
+    # [profession-naming 2026-08-05] When the user named their field ("my music"),
+    # name THAT as the subject. Uses gender-neutral phrasings (the adjective
+    # agrees with an inserted masculine noun like "respaldo", never with the
+    # arbitrary override noun) so we never need the override's grammatical gender.
+    if subject_override:
+        so = subject_override
+        if band == VERDICT_FLAT:
+            if is_es:
+                return f"No hay una señal específica para {so} {tense_es or 'ahora'}."
+            return f"Nothing unusual is active for {so} {tense_en or 'right now'}."
+        if band == VERDICT_WEAK:
+            if is_es:
+                return f"El respaldo para {so} está flojo {tense_es or 'ahora'} — ventana floja."
+            return f"Support for {so} is soft {tense_en or 'right now'} — not a strong window."
+        if band == VERDICT_MIXED:
+            if anchor_phrase:
+                if is_es:
+                    return f"El respaldo para {so} es mixto — apoyo estructural, ventana estrecha en {anchor_phrase}."
+                return f"Support for {so} is mixed — structurally supportive, with a narrow window around {anchor_phrase}."
+            if is_es:
+                return f"El respaldo para {so} es mixto — apoyo estructural, ventana estrecha."
+            return f"Support for {so} is mixed — structurally supportive, narrow timing."
+        # FAVORABLE
+        if anchor_phrase:
+            if is_es:
+                return f"Tu carta respalda con fuerza {so} — especialmente {anchor_phrase}."
+            return f"Your chart strongly backs {so} — especially {anchor_phrase}."
+        if is_es:
+            return f"Tu carta respalda con fuerza {so}."
+        return f"Your chart strongly backs {so}."
+
     if band == VERDICT_FLAT:
         if redirect:
             ga = (redirect.get("guessed_area") or "another area").lower()
@@ -590,6 +623,7 @@ def _compose_move(
     language: str,
     anchor: Optional[Dict[str, Any]] = None,
     redirect: Optional[Dict[str, Any]] = None,
+    subject_override: Optional[str] = None,
 ) -> str:
     nouns = _nouns(concern, language)
     act = nouns["act"]
@@ -599,6 +633,27 @@ def _compose_move(
     # [WS1 timeframe-honesty] tense labels — the_move
     tense_en = _TENSE_LABELS_EN.get(tf, "today") or "today"
     tense_es = _TENSE_LABELS_ES.get(tf, "hoy") or "hoy"
+
+    # [profession-naming 2026-08-05] name the user's field in the move too.
+    if subject_override:
+        so = subject_override
+        if band == VERDICT_FLAT:
+            if is_es:
+                return f"Mantén tu ritmo; no fuerces {so} {tense_es}."
+            return f"Hold your pace; don't force {so} {tense_en}."
+        if band == VERDICT_WEAK:
+            if is_es:
+                return f"Frena con {so}; revisa de nuevo en 24-48 horas."
+            return f"Ease off {so}; re-check in 24-48 hours."
+        if band == VERDICT_MIXED:
+            if is_es:
+                return f"Avanza en lo pequeño; guarda el empuje grande a {so} para una ventana más fuerte."
+            return f"Move the small piece; save the big push on {so} for a stronger window."
+        # FAVORABLE
+        if is_es:
+            return f"Impulsa {so} dentro de la ventana indicada."
+        return f"Push {so} within the window shown."
+
     if band == VERDICT_FLAT:
         if redirect:
             ga = (redirect.get("guessed_area") or "the live area").lower()
@@ -730,6 +785,7 @@ def resolve_domain_verdict(
     natal_promise: Optional[Dict[str, Any]] = None,  # [natal-promise] resolver arg
     language: str = "en",
     chart_type: Optional[str] = None,  # [compat-exclude] signature
+    subject_override: Optional[str] = None,  # [profession-naming] "your music"/"tu música"
 ) -> Dict[str, Any]:
     """The deterministic resolver. Returns the verdict dict described
     at the top of the module. Never raises — every failure path
@@ -836,8 +892,8 @@ def resolve_domain_verdict(
     intraday_window = _intraday_present(precision_windows or [])
     window_dict = _format_window(horizon_window, intraday_window, tf, band=band)
 
-    verdict_line = _compose_verdict_line(band, tf, concern, language, anchor, redirect)
-    the_move    = _compose_move(band, tf, concern, language, anchor, redirect)
+    verdict_line = _compose_verdict_line(band, tf, concern, language, anchor, redirect, subject_override=subject_override)
+    the_move    = _compose_move(band, tf, concern, language, anchor, redirect, subject_override=subject_override)
     secondary   = _compose_secondary_note(band, tf, concern, language, horizon_window)
 
     # Resolved anchor: prefer the explicit anchor; fall back to matched
