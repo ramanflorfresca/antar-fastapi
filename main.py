@@ -2821,20 +2821,37 @@ def _guard_signal_subject(signal_line: Optional[str], concern: str, question: st
 # move"), the honest move is to ASK what it's about rather than guess a subject
 # (guessing is what produced the industry leak). Returns a clarification spec, or
 # None to answer normally.
-_CLARIFY_REFERENTS = (
+_CLARIFY_REFERENTS_EN = (
     "this conversation", "this talk", "this discussion", "this meeting",
     "this decision", "this move", "this thing", "this matter", "this call",
     "this step", "this situation", "this issue", "this chat",
 )
+# [clarify-es 2026-08-05] Spanish referents so a vague Spanish question triggers
+# the same "what's this about?" clarify path (before it only fired in English).
+_CLARIFY_REFERENTS_ES = (
+    "esta conversación", "esta charla", "esta plática", "esta reunión",
+    "esta decisión", "este movimiento", "esta cosa", "este asunto",
+    "esta llamada", "este paso", "esta situación", "este tema",
+    "de esto", "sobre esto", "con esto",
+)
 
 
-def _clarification_needed(question: str, concern: str) -> Optional[dict]:
+def _clarification_needed(question: str, concern: str, language: str = "en") -> Optional[dict]:
     if (concern or "").lower() != "general":
         return None
     ql = (question or "").lower()
-    _hit = next((r for r in _CLARIFY_REFERENTS if r in ql), None)
+    _es = (language or "en").lower().startswith("es")
+    _refs = _CLARIFY_REFERENTS_ES if _es else _CLARIFY_REFERENTS_EN
+    _hit = next((r for r in _refs if r in ql), None)
     if not _hit:
         return None
+    if _es:
+        return {
+            "headline": "¿Sobre qué es esto?",
+            "prompt": ("El momento depende mucho del tema — una relación, el trabajo, "
+                       "la familia o el dinero. Dime cuál y te doy la ventana."),
+            "chips": ["Relación", "Trabajo / carrera", "Familia", "Dinero", "Salud"],
+        }
     _noun = _hit.replace("this ", "")
     return {
         "headline": f"What's this {_noun} about?",
@@ -5104,7 +5121,7 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
     # ask what it's about instead of guessing (and skip the whole engine + the
     # LLM call — clarification is instant). Runs BEFORE the founder override so a
     # vague question isn't force-cast to "business" for entrepreneurs.
-    _clar = _clarification_needed(request.question, concern)
+    _clar = _clarification_needed(request.question, concern, getattr(request, "language", "en") or "en")
     if _clar:
         print(f"[predict] clarification needed for vague question: {request.question[:60]!r}")
         return PredictResponse(
