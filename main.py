@@ -1413,6 +1413,7 @@ class PredictResponse(BaseModel):
     needs_clarification:    bool           = False
     clarification_chips:    List[str]      = Field(default_factory=list)
     signal_confidence:      Optional[str]  = None
+    lang_debug:             Optional[str]  = None   # [LANGDBG temp] remove after Spanish fix
     why_this:               Optional[str]  = None
     bridge_practice_note:   Optional[str]  = None
     contradiction_detected: Optional[bool] = False
@@ -7916,6 +7917,12 @@ State a specific year. Never predict past events as future windows.
         oracle_context=_oracle_context if '_oracle_context' in dir() else None,
         archetype_name=_arch_name if _arch_name else (_char_archetype.get("name") if _char_archetype else None),
         rating_prompt=_rating_prompt,
+        lang_debug=(
+            f"req={getattr(request,'language',None)!r} "
+            f"resolved={(_lang if '_lang' in dir() else '?')!r} "
+            f"chartstored={chart_record.get('language')!r} "
+            f"rawhead={((prediction_text or '')[:45])!r}"
+        ),
     )
 
 # ── Conversations ─────────────────────────────────────────────────────────────
