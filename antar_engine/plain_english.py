@@ -467,9 +467,13 @@ async def generate_plain_english(
     _lang = (chart_context or {}).get("language", "en")
     if _lang and _lang.lower() in ("es", "spanish", "español"):
         user_message = (
-            "CRITICAL: Respond in Spanish (español). All fields in the JSON output "
+            "CRITICAL — IDIOMA / LANGUAGE: Write EVERY field of the JSON output "
             "(plain_summary, action_item, signal_line, timing_window, why_this) "
-            "MUST be written in Spanish. Do not translate to English.\n\n"
+            "in natural Latin American Spanish. The source notes below may be in "
+            "English — that is only reference material; you MUST compose your answer "
+            "in Spanish, translating any English content. NEVER leave an English "
+            "sentence, phrase, or date-range label in the output. If you catch "
+            "yourself writing English, rewrite it in Spanish before returning.\n\n"
             + user_message
         )
     elif _lang and _lang.lower() in ("pt", "portuguese", "português"):

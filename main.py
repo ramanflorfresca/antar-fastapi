@@ -7367,8 +7367,20 @@ State a specific year. Never predict past events as future windows.
         except Exception as _gap2_b_e:
             print(f"[predict] noun-contract injection failed (non-fatal): {_gap2_b_e}")
 
+        # [i18n 2026-08-05] Reinforce language on the USER turn. A single
+        # language line at the top of the (large, English) system prompt was
+        # intermittently ignored on es requests — the whole body came back in
+        # English. A directive on the user turn is followed far more reliably.
+        _master_prompt = prompt
+        _lang_now = (_lang if '_lang' in dir() else getattr(request, 'language', 'en')) or 'en'
+        if _lang_now.lower().startswith('es'):
+            _master_prompt = (
+                "[IMPORTANTE: Responde ENTERAMENTE en español latino — cada "
+                "oración, incluida cualquier ventana de fechas. No dejes nada "
+                "en inglés.]\n\n" + prompt
+            )
         prediction_text, tokens_used = await call_llm_claude(
-            prompt,
+            _master_prompt,
             history=request.conversation_history or [],
             system_override=_master_system,
             max_tokens_override=_max_tok,
