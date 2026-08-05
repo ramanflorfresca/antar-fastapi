@@ -373,9 +373,60 @@ _CONCERN_NOUNS: Dict[str, Dict[str, str]] = {
     "general":      {"subject": "the main move you're weighing", "act": "act on the main move", "watch": "the read"},
 }
 
+# [i18n-nouns 2026-08-05] Spanish mirror of _CONCERN_NOUNS. Before this, the
+# Spanish verdict templates ("… está bien apoyado", "{act} dentro de la ventana
+# indicada") pasted the ENGLISH subject/act into an otherwise-Spanish sentence,
+# producing leaks like "Make The Growth Move dentro de la ventana indicada."
+# `obj` is the noun form used in FLAT/WEAK/MIXED positions ("no fuerces {obj}").
+# Compose NATIVELY in Spanish — these are not word-for-word translations.
+_CONCERN_NOUNS_ES: Dict[str, Dict[str, str]] = {
+    "business": {"subject": "tu negocio", "act": "haz el movimiento de crecimiento",
+                 "obj": "el movimiento de crecimiento", "watch": "la lectura del mercado"},
+    "startup":  {"subject": "tu emprendimiento", "act": "haz el movimiento de crecimiento",
+                 "obj": "el movimiento de crecimiento", "watch": "la lectura del mercado"},
+    "sales":    {"subject": "el empujón de ventas", "act": "impulsa la venta",
+                 "obj": "el empujón de ventas", "watch": "la lectura del pipeline"},
+    "funding":  {"subject": "la ronda que estás evaluando", "act": "acércate a los inversores",
+                 "obj": "la ronda", "watch": "la lectura de financiación"},
+    "loan":     {"subject": "el préstamo que estás evaluando", "act": "solicita el crédito",
+                 "obj": "la solicitud", "watch": "la lectura crediticia"},
+    "speculation":  {"subject": "la apuesta especulativa que estás evaluando", "act": "despliega capital", "obj": "la apuesta especulativa", "watch": "la lectura especulativa"},
+    "property":     {"subject": "la decisión inmobiliaria que tienes en pausa", "act": "avanza con la compra", "obj": "la compra", "watch": "la lectura inmobiliaria"},
+    "career":       {"subject": "el paso profesional que estás considerando", "act": "da el paso profesional", "obj": "el paso profesional", "watch": "la lectura profesional"},
+    "finance":      {"subject": "la decisión de dinero frente a ti", "act": "actúa sobre la decisión de dinero", "obj": "la decisión de dinero", "watch": "la lectura del dinero"},
+    "wealth":       {"subject": "el movimiento patrimonial que estás evaluando", "act": "actúa sobre el movimiento patrimonial", "obj": "el movimiento patrimonial", "watch": "la lectura patrimonial"},
+    "loss":         {"subject": "la fuga que intentas tapar", "act": "detén la pérdida", "obj": "la fuga", "watch": "el patrón de fuga"},
+    "marriage":     {"subject": "la conversación de pareja frente a ti", "act": "ten la conversación de pareja", "obj": "la conversación de pareja", "watch": "la lectura de la relación"},
+    "love":         {"subject": "la decisión de relación que estás evaluando", "act": "ten la conversación de relación", "obj": "la conversación de relación", "watch": "la lectura de la relación"},
+    "reconciliation":{"subject": "la reconexión que estás considerando", "act": "da el paso para reconectar", "obj": "el paso para reconectar", "watch": "la lectura de la reconexión"},
+    "divorce":      {"subject": "la decisión de separación frente a ti", "act": "toma la decisión de separación", "obj": "la decisión de separación", "watch": "la lectura de la separación"},
+    "health":       {"subject": "la decisión de salud frente a ti", "act": "actúa sobre la decisión de salud", "obj": "la decisión de salud", "watch": "la lectura de salud"},
+    "foreign":      {"subject": "la mudanza que estás evaluando", "act": "haz la mudanza", "obj": "la mudanza", "watch": "la lectura de la reubicación"},
+    "spiritual":    {"subject": "el movimiento de propósito que estás considerando", "act": "actúa sobre tu propósito", "obj": "el movimiento de propósito", "watch": "la lectura de propósito"},
+    "family":       {"subject": "la decisión familiar frente a ti", "act": "actúa sobre la decisión familiar", "obj": "la decisión familiar", "watch": "la lectura familiar"},
+    "children":     {"subject": "la pregunta de crecimiento familiar que estás evaluando", "act": "actúa sobre el paso familiar", "obj": "el paso familiar", "watch": "la lectura familiar"},
+    "general":      {"subject": "el movimiento principal que estás evaluando", "act": "actúa sobre el movimiento principal", "obj": "el movimiento principal", "watch": "la lectura"},
+}
 
-def _nouns(concern: str) -> Dict[str, str]:
-    return _CONCERN_NOUNS.get((concern or "general").lower(), _CONCERN_NOUNS["general"])
+
+def _nouns(concern: str, language: Optional[str] = None) -> Dict[str, str]:
+    table = _CONCERN_NOUNS_ES if _is_es(language) else _CONCERN_NOUNS
+    return table.get((concern or "general").lower(), table["general"])
+
+
+# [i18n-nouns 2026-08-05] Spanish adjective gender agreement. The verdict
+# templates carry adjectives (apoyado/mixto/flojo) that must agree with the
+# gender of the concern's subject head-noun, else e.g. "la decisión … está
+# bien apoyado" reads as broken Spanish to any native speaker.
+_ES_FEM_CONCERNS = {
+    "funding", "speculation", "property", "finance", "loss", "marriage",
+    "love", "reconciliation", "divorce", "health", "foreign", "family",
+    "children",
+}
+
+
+def _es_adj(concern: str, masc: str, fem: str) -> str:
+    return fem if (concern or "general").lower() in _ES_FEM_CONCERNS else masc
 
 
 def _is_es(language: Optional[str]) -> bool:
@@ -428,7 +479,7 @@ def _compose_verdict_line(
     # [b-life-nouns] V2.2 gap (b): when `anchor` carries a concrete date_range
     # (precision_window source), weave it into FAVORABLE / MIXED non-tactical
     # lines so the read names a real window instead of waving at "soon".
-    nouns = _nouns(concern)
+    nouns = _nouns(concern, language)
     subj = nouns["subject"]
     # [b-life-nouns] subjects are now full phrases ("the property move you're
     # sitting on"); .title() mangles apostrophes ("You'Re"). Cap only the
@@ -470,36 +521,38 @@ def _compose_verdict_line(
                 return f"{tense_es.capitalize()} es una ventana floja para {subj} — frena las apuestas grandes."
             return f"{tense_en.capitalize()} is a soft window for {subj} — hold off on big moves."
         if is_es:
-            return f"{subj_cap} está flojo para ti en {tense_es or 'este período'} — ventana floja."
+            return f"{subj_cap} está {_es_adj(concern,'flojo','floja')} para ti en {tense_es or 'este período'} — ventana floja."
         return f"{subj_cap} is soft for you {tense_en or 'right now'} — not a strong window."
 
     if band == VERDICT_MIXED:
+        _mix = _es_adj(concern, 'mixto', 'mixta')
         if tactical:
             if is_es:
-                return f"{tense_es.capitalize()} {subj} está mixto — sigue con lo pequeño, no fuerces lo grande."
+                return f"{tense_es.capitalize()} {subj} está {_mix} — sigue con lo pequeño, no fuerces lo grande."
             return f"{subj_cap} is mixed {tense_en} — keep moving the small pieces, do not force the big one."
         if anchor_phrase:
             if is_es:
-                return f"{subj_cap} está mixto — apoyo estructural, ventana estrecha en {anchor_phrase}."
+                return f"{subj_cap} está {_mix} — apoyo estructural, ventana estrecha en {anchor_phrase}."
             return f"{subj_cap} is mixed — structurally supportive, with a narrow window around {anchor_phrase}."
         if is_es:
-            return f"{subj_cap} está mixto — apoyo estructural, ventana estrecha."
+            return f"{subj_cap} está {_mix} — apoyo estructural, ventana estrecha."
         return f"{subj_cap} is mixed — structurally supportive, narrow timing."
 
     # FAVORABLE
+    _apo = _es_adj(concern, 'apoyado', 'apoyada')
     if tactical:
         if is_es:
             # [WS1 timeframe-honesty] tomorrow → 'mañana', etc.
             _act_es = "actúa ahora" if tf in (TIMEFRAME_TODAY, TIMEFRAME_NOW) else "prepárate para actuar dentro de esa ventana"
-            return f"{tense_es.capitalize()} {subj} está bien apoyado — {_act_es}."
+            return f"{tense_es.capitalize()} {subj} está bien {_apo} — {_act_es}."
         _act_en = "act now" if tf in (TIMEFRAME_TODAY, TIMEFRAME_NOW) else "set up to act inside that window"
         return f"{subj_cap} is well-supported for you {tense_en} — {_act_en}."
     if anchor_phrase:
         if is_es:
-            return f"{subj_cap} está bien apoyado por tu carta — especialmente {anchor_phrase}."
+            return f"{subj_cap} está bien {_apo} por tu carta — especialmente {anchor_phrase}."
         return f"{subj_cap} is well-supported by your chart — especially {anchor_phrase}."
     if is_es:
-        return f"{subj_cap} está bien apoyado por tu carta."
+        return f"{subj_cap} está bien {_apo} por tu carta."
     return f"{subj_cap} is well-supported by your chart."
 
 
@@ -514,9 +567,9 @@ _ACT_VERB_PREFIXES = ("make ", "approach ", "push ", "apply for ", "act on ",
                       "take ", "start ", "close ", "sign ")
 
 
-def _obj(concern: str) -> str:
+def _obj(concern: str, language: Optional[str] = None) -> str:
     """Noun form of the move — for "do not force X" / "save X" positions."""
-    n = _nouns(concern)
+    n = _nouns(concern, language)
     explicit = n.get("obj")
     if explicit:
         return explicit
@@ -538,7 +591,7 @@ def _compose_move(
     anchor: Optional[Dict[str, Any]] = None,
     redirect: Optional[Dict[str, Any]] = None,
 ) -> str:
-    nouns = _nouns(concern)
+    nouns = _nouns(concern, language)
     act = nouns["act"]
     watch = nouns["watch"]
     is_es = _is_es(language)
@@ -553,22 +606,25 @@ def _compose_move(
                 return f"Aprovecha la ventana abierta en {ga} en lugar de forzar {nouns['subject']}."
             return f"Pivot to {ga} where the window is open instead of forcing {nouns['subject']}."
         if is_es:
-            return f"Quédate con tu rutina base; no fuerces {act} {tense_es}."
+            return f"Quédate con tu rutina base; no fuerces {_obj(concern, language)} {tense_es}."
         return f"Hold your baseline routine; do not force {_obj(concern)} {tense_en}."
 
     if band == VERDICT_WEAK:
         if is_es:
-            return f"Frena {act}; revisa de nuevo {watch} en 24-48 horas."
+            return f"Frena {_obj(concern, language)}; revisa de nuevo {watch} en 24-48 horas."
         return f"Hold off on {_obj(concern)}; re-check {watch} in 24-48 hours."
 
     if band == VERDICT_MIXED:
         if is_es:
-            return f"Mueve la pieza pequeña hoy; reserva {act} para una ventana más fuerte."
+            return f"Mueve la pieza pequeña hoy; reserva {_obj(concern, language)} para una ventana más fuerte."
         return f"Move the small piece today; save {_obj(concern)} for a stronger window."
 
     # FAVORABLE
     if is_es:
-        return f"{act.title()} dentro de la ventana indicada."
+        # [i18n-nouns] Spanish acts are natural phrases — .title() would
+        # capitalise every word ("Haz El Movimiento"); cap first letter only.
+        _act_es = (act[:1].upper() + act[1:]) if act else act
+        return f"{_act_es} dentro de la ventana indicada."
     return f"{act.title()} within the window shown."
 
 
@@ -647,7 +703,7 @@ def _compose_secondary_note(
     if not date_range:
         return None
     is_es = _is_es(language)
-    subj = _nouns(concern)["subject"]
+    subj = _nouns(concern, language)["subject"]
     if is_es:
         return f"La ventana estructural más fuerte para {subj} llega {date_range}; eso es contexto, no la llamada de hoy."
     return f"The strongest structural window for {subj} is {date_range}; that's context, not today's call."
