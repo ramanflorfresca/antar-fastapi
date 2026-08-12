@@ -19004,6 +19004,82 @@ import contextvars as _cv_ask
 # able to ask freely without burning a user's quota. Admin-gated at the caller.
 _ASK_ADMIN_BYPASS = _cv_ask.ContextVar("ask_admin_bypass", default=False)
 
+# [narration 2026-08-12] When the Ask voice-gate fails closed (the model's read
+# tripped the jargon gate twice), the read used to collapse to the bare verdict
+# phrase — the same generic "Yes — window open now" on every question. This
+# builds ONE deterministic, jargon-free body sentence from facts the engine
+# already computed (how many of the 6 timing layers agree + the domain + tone),
+# so even a fallback read carries substance. Invents NO planets/houses/dates —
+# the verdict phrase already carries the window. Returns "" when nothing fits.
+_ASK_FC_DOMAIN_WORD = {
+    "wealth": "money", "finance": "money", "money": "money", "funding": "funding",
+    "career": "your work", "business": "your business", "startup": "your business",
+    "love": "the relationship", "relationship": "the relationship",
+    "marriage": "the marriage", "health": "your health",
+    "property": "the property", "legal": "the matter",
+}
+
+# [narration 2026-08-12] "how the money comes" — the chart's natal wealth
+# archetype (resolve_wealth_archetype) named in plain, jargon-free language. Lets
+# a money-question fallback say the MECHANISM ("through serving many customers")
+# instead of filler ("the support is real, not a maybe"). Deterministic; the
+# archetype is a chart signature, not an invented event.
+_ASK_WEALTH_HOW = {
+    "MASS_SERVER":   "through serving many people at once — volume, customers, reach",
+    "INSTITUTIONAL": "through funding, an institution, or a larger backer",
+    "SYSTEMATIC":    "through steady, structured earning — contracts and consistent delivery",
+    "DISRUPTOR":     "through an unconventional break — a move others aren't making yet",
+    "CHARISMA":      "through your own name and relationships — deals you personally close",
+}
+_ASK_MONEY_CONCERNS = {"wealth", "finance", "money", "funding"}
+
+
+def _ask_wealth_how_phrase(concern, chart_data) -> str:
+    """Plain-English 'how the money arrives' for money questions, from the
+    chart's wealth archetype. "" for non-money concerns or on any failure."""
+    if not chart_data:
+        return ""
+    if (concern or "").replace("_", " ").strip().lower() not in _ASK_MONEY_CONCERNS:
+        return ""
+    try:
+        from antar_engine.natal_promise import resolve_wealth_archetype
+        return _ASK_WEALTH_HOW.get(resolve_wealth_archetype(chart_data) or "", "")
+    except Exception:
+        return ""
+
+
+def _ask_failclosed_body(concern, layers, positive, how="") -> str:
+    dom_word = _ASK_FC_DOMAIN_WORD.get(
+        (concern or "").replace("_", " ").strip().lower(), "")
+    target = f"for {dom_word}" if dom_word else "for you"
+    try:
+        n = int(layers)
+    except Exception:
+        n = None
+    if n and n >= 1:
+        if positive:
+            if how:
+                return (f"The money most likely comes {how} — and {n} of 6 "
+                        "timing signals back that right now.")
+            return (f"{n} of 6 timing signals line up {target} right now — "
+                    "the support is real and active, not a maybe.")
+        if how:
+            return (f"When it lands, the money most likely comes {how} — but only "
+                    f"{n} of 6 timing signals are in place yet; the trigger is "
+                    "still forming.")
+        return (f"Only {n} of 6 timing signals are in place {target} yet — "
+                "the promise is there, the trigger is still forming.")
+    if how:
+        return (f"The money most likely comes {how}." if positive else
+                f"The money most likely comes {how}, but the timing is still building.")
+    if dom_word:
+        if positive:
+            return (f"This window genuinely favors {dom_word} — use it "
+                    "deliberately, not anxiously.")
+        return (f"The ground for {dom_word} is still being laid — build now, "
+                "act when it firms up.")
+    return ""
+
 
 @app.post("/api/v1/ask")
 async def ask_endpoint(request: AskRequest):
@@ -20158,6 +20234,23 @@ async def ask_endpoint(request: AskRequest):
                             _vp = (_ask_conv.get("verdict_phrase") or "").strip()
                             if _vp:
                                 _fc.append(_vp if _vp.endswith((".", "!", "?")) else _vp + ".")
+                            # [narration 2026-08-12] a fail-closed read used to be
+                            # JUST the verdict phrase ("Yes — opening is open now,
+                            # through …") — generic across every question, the exact
+                            # collapse QA flagged. Add ONE deterministic, jargon-free
+                            # body sentence from facts already computed (how many of
+                            # the 6 timing layers agree + the domain + honest tone).
+                            # No planets/houses/dates invented; the verdict phrase
+                            # already carries the window. _ev may be unbound here —
+                            # locals().get avoids a NameError.
+                            _fc_body = _ask_failclosed_body(
+                                _ask_concern,
+                                (locals().get("_ev") or {}).get("layers_agreeing"),
+                                (_vp.strip().lower().startswith(("yes", "likely")) if _vp else True),
+                                how=_ask_wealth_how_phrase(_ask_concern, locals().get("chart_data")),
+                            )
+                            if _fc_body:
+                                _fc.append(_fc_body)
                             # [ask-window-source 2026-07-12] the window MUST come
                             # from the same engine as the verdict phrase. In event-
                             # engine PRIMARY mode the convergence verdict/window are
@@ -20309,6 +20402,19 @@ async def ask_endpoint(request: AskRequest):
                         _vp2 = (_ask_conv.get("verdict_phrase") or "").strip()
                         if _vp2:
                             _fc2.append(_vp2 if _vp2.endswith((".", "!", "?")) else _vp2 + ".")
+                    # [narration 2026-08-12] same deterministic body as the first
+                    # fail-closed — this post-readability fallback is the OTHER path
+                    # that used to strip the read down to a generic one-liner.
+                    _fc2_body = _ask_failclosed_body(
+                        locals().get("_ask_concern"),
+                        (locals().get("_ev") or {}).get("layers_agreeing"),
+                        (_vp2.strip().lower().startswith(("yes", "likely")) if _vp2
+                         else str(payload.get("verdict") or "").upper() in ("YES", "LIKELY", "")),
+                        how=_ask_wealth_how_phrase(locals().get("_ask_concern"),
+                                                   locals().get("chart_data")),
+                    )
+                    if _fc2_body:
+                        _fc2.append(_fc2_body)
                     _tm2 = str(payload.get("timing") or "").strip()
                     # [ask-voice-gate dedupe] skip the window if the verdict already names it.
                     if _tm2 and _tm2.lower() not in _vp2.lower():
