@@ -19502,6 +19502,22 @@ async def ask_endpoint(request: AskRequest):
                 _ask_life_block = life_context_to_prompt_block(
                     get_life_context(chart_record=chart_row.data)
                 )
+                # [bug3 2026-08-11] the framing block above sets domain tone,
+                # but the HARD noun-gate ("the reader is self-employed — NEVER
+                # write 'your boss' / 'promotion'") lives in life_constraint_
+                # block. Recompute it from post-harvest facts and merge, so a
+                # founder never gets employee advice. This replaces the earlier
+                # (pre-harvest) constraint block that this branch used to drop.
+                from antar_engine.life_context import (
+                    resolve_life_facts as _rlf_ask2,
+                    life_constraint_block as _lcb_ask2,
+                )
+                _cb2 = _lcb_ask2(_rlf_ask2(chart_row.data))
+                if _cb2:
+                    _ask_life_block = (
+                        (_ask_life_block + "\n\n" + _cb2).strip()
+                        if _ask_life_block else _cb2
+                    )
             except Exception as _lce:
                 logger.warning(f"[ask] life context failed (non-fatal): {_lce}")
 
@@ -20217,7 +20233,21 @@ async def ask_endpoint(request: AskRequest):
                         _det_verdict = _pv
                 except Exception as _pae:
                     print(f"[ask][slice-3] verdict reconcile skipped: {_pae}")
-                payload["verdict"]  = _det_verdict
+                # [bug2 2026-08-11] a pure "when does X END / clear / pass"
+                # question asks for a DATE, not a YES/NO — stamping "YES" on
+                # "when is my rough patch ending" is a category error. Suppress
+                # the verdict chip for cessation-style when-questions; keep the
+                # timing window (the real answer). "When will <good thing> come"
+                # still keeps its NOT_YET/LIKELY chip — that one is meaningful.
+                _q_low = (question or "").strip().lower()
+                _is_cessation_when = (
+                    _q_low.startswith(("when", "cuándo", "cuando"))
+                    and any(t in _q_low for t in (
+                        " end", " ends", " ending", " over", " stop",
+                        " clear", " finish", " pass", " lift", " subside",
+                        " termina", " acaba", " acabar"))
+                )
+                payload["verdict"]  = None if _is_cessation_when else _det_verdict
                 payload["timing"]   = _det_timing
                 payload["actions"]  = _ask_actions
                 # [ask-slice5] final jargon net — read/next are owned by the
@@ -20231,7 +20261,18 @@ async def ask_endpoint(request: AskRequest):
                 except Exception:
                     pass
                 payload["practices"] = _ask_practices
-                payload["convergence"] = _ask_conv.get("public_summary")
+                # [bug1 2026-08-11] when the event engine drove `timing`, the
+                # separate convergence line (from build_convergence_timing) can
+                # name a DIFFERENT window — e.g. timing "Aug–Oct 2026" while
+                # convergence says "…point to Jun 2027". Two windows in one
+                # answer reads as self-contradiction. Only show convergence when
+                # it agrees with the timing we're presenting.
+                _conv_summary = _ask_conv.get("public_summary")
+                if _ee_primary and _ee_timing:
+                    _cwl = (_ask_conv.get("window_label") or "").strip().lower()
+                    if _cwl and _cwl != (_ee_timing or "").strip().lower():
+                        _conv_summary = None
+                payload["convergence"] = _conv_summary
             # [ask-scrub] explore
             try:
                 # [ask-voice-gate 2026-06-16] read/next no longer go through the

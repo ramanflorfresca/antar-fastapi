@@ -71,6 +71,14 @@ _CAREER_FROM_PATRA = {
     "mid_career":    "job",          # only reached when NOT the default sentinel
     "senior_career": "job",
     "entrepreneur":  "running_business",
+    # [bug3 2026-08-11] the canonical career_stage value is literally
+    # "running_business" — it MUST map to itself. Without these keys the
+    # .get(real, "job") default below silently framed founders as employees
+    # ("frame around promotion/advancement"), leaking "ask your boss" advice.
+    "running_business": "running_business",
+    "business_owner":   "running_business",
+    "founder":          "running_business",
+    "self_employed":    "running_business",
     "creative":      "job",
     "transition":    "in_transition",
     "retired":       None,            # out of canonical scope → neutral
@@ -171,10 +179,23 @@ def real_patra_value(row: dict, col: str) -> Optional[str]:
 def _norm_career(row: dict) -> Optional[str]:
     real = _patra_real(row, "career_stage")
     if real is not None:
-        return _CAREER_FROM_PATRA.get(real, "job")
+        mapped = _CAREER_FROM_PATRA.get(real, "job")
+        if mapped:
+            return mapped
     lw = _clean(row.get("life_work"))
     if lw is not None:
-        return _CAREER_FROM_LIFE_WORK.get(lw)
+        m = _CAREER_FROM_LIFE_WORK.get(lw)
+        if m:
+            return m
+    # [bug3 2026-08-11] profession is a signal the patra map ignores. When
+    # career_stage is unset (default sentinel → real is None) but the reader
+    # told us they run a business, honour that rather than falling through to
+    # employee framing. A deliberately-set career_stage still wins above.
+    prof = _clean(row.get("profession"))
+    if prof in ("founder", "business", "entrepreneur", "self-employed",
+                "self_employed", "business owner", "business_owner",
+                "ceo", "owner"):
+        return "running_business"
     return None
 
 

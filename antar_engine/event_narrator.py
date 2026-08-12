@@ -85,6 +85,19 @@ def _d(s) -> Optional[date]:
         return None
 
 
+def _clamp_start_today(s):
+    """[bug1 2026-08-11] An ACTIVE connecting sub-period legitimately began in
+    the past, but a "when does X …" answer must never present a window that
+    starts months ago (reads as stale / wrong). Present already-running windows
+    forward from today; leave future starts untouched. Returns a value _d() /
+    _fmt_window() accept."""
+    sd = _d(s)
+    if sd is None:
+        return s
+    today = date.today()
+    return today if sd < today else sd
+
+
 def _fmt_window(s, e) -> Optional[str]:
     """Month-level window string (never day-level — window-discipline rule)."""
     sd, ed = _d(s), _d(e)
@@ -260,13 +273,13 @@ def _select_window(verdict: str, board: dict) -> Optional[dict]:
         # tightest current connecting period: PD if present, else AD
         pd = vim.get("pd")
         if pd and pd.get("start") and pd.get("end"):
-            lbl = _fmt_window(pd["start"], pd["end"])
+            lbl = _fmt_window(_clamp_start_today(pd["start"]), pd["end"])
             if lbl:
                 return {"kind": "active_sub_period", "label": lbl,
                         "start": pd["start"], "end": pd["end"]}
         ad = vim.get("ad")
         if ad and ad.get("start") and ad.get("end"):
-            lbl = _fmt_window(ad["start"], ad["end"])
+            lbl = _fmt_window(_clamp_start_today(ad["start"]), ad["end"])
             if lbl:
                 return {"kind": "active_period", "label": lbl,
                         "start": ad["start"], "end": ad["end"]}
