@@ -28,6 +28,13 @@ _RULES = [
     ("planet_name", re.compile(
         r"\b(?:Sun|Moon|Mars|Mercury|Jupiter|Venus|Saturn|Rahu|Ketu|"
         r"Sol|Luna|Marte|Mercurio|J[uú]piter|Saturno)\b", re.IGNORECASE)),
+    # [voice-gate 2026-08-13] "planetary <noun>" ("planetary movements/motion/
+    # positions/influence") and the bare word "planet(s)" ("planets align",
+    # "the planet is moving") both slipped past — planet_name lists only the
+    # specific bodies, and cosmic_timing_filler needed a leading "the". Ban the
+    # planet-mechanism vocabulary outright, the same way bare "chart" is banned.
+    ("planet_mechanism", re.compile(
+        r"\bplanetary\b|\bplanets?\b|\bplaneta\w*\b", re.IGNORECASE)),
     ("sign_name", re.compile(
         r"\b(?:Aries|Taurus|Gemini|Cancer|Leo|Virgo|Libra|Scorpio|"
         r"Sagittarius|Capricorn|Aquarius|Pisces)\b")),
