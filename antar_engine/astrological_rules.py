@@ -874,6 +874,27 @@ def detect_concern(question: str) -> str:
     if any(w in q for w in funding_words):
         return "finance"
 
+    # ── Money arriving / getting paid (2026-08-13) ─────────────
+    # "when does the big check come into my bank account", "when do I get
+    # paid", "when does the deposit hit my account" all fell through to
+    # general — the wealth/finance lists key on "money"/"income"/"salary" and
+    # never on the everyday words for money LANDING. Regex + word boundaries so
+    # "check" does not fire inside "checkup" and "account" not in "accountant".
+    _money_arrival = (
+        r"\bpay ?check\b", r"\bpay ?cheque\b", r"\bcheque\b", r"\bbig check\b",
+        r"\bbank account\b", r"\baccount balance\b",
+        r"\bhits? my account\b", r"\binto my account\b", r"\binto the bank\b",
+        r"\bget(?:ting)? paid\b", r"\bwhen (?:do|will) i (?:get )?paid\b",
+        r"\bpaid to me\b",
+        r"\bdeposit\b", r"\bwire transfer\b", r"\bmoney transfer\b",
+        r"\binvoices?\b", r"\bpayout\b",
+        r"\b(?:a|the|my|that|big) check (?:comes?|clears?|hits?|lands?|arrives?)\b",
+        r"\b(?:cut|write|send|sends|receive|get|got) (?:me )?(?:a |the )?check\b",
+        r"\bcash (?:in|comes?|lands?)\b",
+    )
+    if any(_fre.search(_m, q) for _m in _money_arrival):
+        return "wealth"
+
     # ── Wealth / Money accumulation ────────────────────────────
     wealth_words = ["wealth","rich","wealthy","make money","earn money","income",
                     "salary","savings","property","real estate","assets","net worth",
