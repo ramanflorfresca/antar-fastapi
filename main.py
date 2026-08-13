@@ -19073,6 +19073,43 @@ def _ask_failclosed_body(concern, layers, positive, how="") -> str:
     return "The ground is still being laid — build now, act when the timing firms up."
 
 
+# [two-window 2026-08-13] Month-level labels ("Aug 2026 – Oct 2026", "Jun 2027")
+# → (year, month) tokens, so we can tell whether a convergence window is a
+# genuinely LATER stretch than the active one (and thus worth naming as a second
+# window) versus the same period expressed differently.
+import re as _twre
+_ASK_MONTH_NUM = {}
+for _i, _abbr in enumerate(["", "jan", "feb", "mar", "apr", "may", "jun",
+                            "jul", "aug", "sep", "oct", "nov", "dec"]):
+    if _abbr:
+        _ASK_MONTH_NUM[_abbr] = _i
+for _i, _full in enumerate(["", "january", "february", "march", "april", "may",
+                            "june", "july", "august", "september", "october",
+                            "november", "december"]):
+    if _full:
+        _ASK_MONTH_NUM[_full] = _i
+
+
+def _ask_ym_tokens(label):
+    out = []
+    for _mo, _yr in _twre.findall(r"([A-Za-z]+)\s+(\d{4})", label or ""):
+        _n = _ASK_MONTH_NUM.get(_mo.lower())
+        if _n:
+            out.append((int(_yr), _n))
+    return out
+
+
+def _ask_later_window(active_label, other_label) -> str:
+    """Return other_label when it starts strictly AFTER active_label ends — a
+    genuinely later, distinct window worth naming as the second stretch. "" when
+    it overlaps/precedes (same period) or either label can't be parsed."""
+    a = _ask_ym_tokens(active_label)
+    o = _ask_ym_tokens(other_label)
+    if not a or not o:
+        return ""
+    return other_label if o[0] > a[-1] else ""
+
+
 @app.post("/api/v1/ask")
 async def ask_endpoint(request: AskRequest):
     """
@@ -19787,6 +19824,27 @@ async def ask_endpoint(request: AskRequest):
                                                    f"is {_label}.")
                                     _ask_conv["partial_window_label"] = _conv_win
                                     _ask_conv["window_label"] = _label
+                                # [two-window 2026-08-13] YES with a genuinely
+                                # LATER convergence: name BOTH — the active window
+                                # (act now / groundwork) and the sharper stretch
+                                # later — instead of hiding the later one. Only
+                                # when the convergence starts strictly after the
+                                # active window ends; otherwise it's the same
+                                # period and the single window + suppression below
+                                # stands.
+                                if (_client in ("SUPPORTED", "YES") and _label
+                                        and _conv_win
+                                        and _conv_win.lower() != _label.lower()):
+                                    _later = _ask_later_window(_label, _conv_win)
+                                    if _later:
+                                        _phrase = (f"Yes — {_noun} is open now, "
+                                                   f"through {_label}; the strongest "
+                                                   f"stretch converges later, around "
+                                                   f"{_later} — treat now as the "
+                                                   "runway into it.")
+                                        _ask_conv["window_label"] = _label
+                                        _ask_conv["later_window_label"] = _later
+                                        _ask_conv["two_window"] = True
                                 if _phrase:
                                     _ask_conv["verdict"] = _client
                                     _ask_conv["verdict_phrase"] = _phrase
@@ -20353,7 +20411,11 @@ async def ask_endpoint(request: AskRequest):
                 # answer reads as self-contradiction. Only show convergence when
                 # it agrees with the timing we're presenting.
                 _conv_summary = _ask_conv.get("public_summary")
-                if _ee_primary and _ee_timing:
+                if _ee_primary and _ee_timing and not _ask_conv.get("two_window"):
+                    # [two-window] when we deliberately name a later convergence
+                    # window in the read, KEEP its chip — it complements the
+                    # timing chip rather than contradicting it. Otherwise suppress
+                    # a convergence line that names a different (bug1) window.
                     _cwl = (_ask_conv.get("window_label") or "").strip().lower()
                     if _cwl and _cwl != (_ee_timing or "").strip().lower():
                         _conv_summary = None
