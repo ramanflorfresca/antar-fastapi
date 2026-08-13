@@ -19049,36 +19049,28 @@ def _ask_wealth_how_phrase(concern, chart_data) -> str:
 
 
 def _ask_failclosed_body(concern, layers, positive, how="") -> str:
+    # `layers` (the 6 KN Rao verification layers that agreed) is retained in the
+    # signature but deliberately NOT surfaced: the raw "N of 6" is an internal
+    # scoring detail — it reads as jargon, it reads as hedging under a confident
+    # verdict ("4 of 6" implies a third disagree), and the convergence chip
+    # already carries the trust signal in its own "N of 4" form. The body names
+    # substance in plain language only: for money questions, HOW it arrives.
     dom_word = _ASK_FC_DOMAIN_WORD.get(
         (concern or "").replace("_", " ").strip().lower(), "")
-    target = f"for {dom_word}" if dom_word else "for you"
-    try:
-        n = int(layers)
-    except Exception:
-        n = None
-    if n and n >= 1:
-        if positive:
-            if how:
-                return (f"The money most likely comes {how} — and {n} of 6 "
-                        "timing signals back that right now.")
-            return (f"{n} of 6 timing signals line up {target} right now — "
-                    "the support is real and active, not a maybe.")
-        if how:
-            return (f"When it lands, the money most likely comes {how} — but only "
-                    f"{n} of 6 timing signals are in place yet; the trigger is "
-                    "still forming.")
-        return (f"Only {n} of 6 timing signals are in place {target} yet — "
-                "the promise is there, the trigger is still forming.")
     if how:
-        return (f"The money most likely comes {how}." if positive else
-                f"The money most likely comes {how}, but the timing is still building.")
+        if positive:
+            return f"The money most likely comes {how}. The timing supports it now."
+        return (f"When it lands, the money most likely comes {how}. The timing is "
+                "still forming, though — the trigger hasn't fully lined up yet.")
     if dom_word:
         if positive:
-            return (f"This window genuinely favors {dom_word} — use it "
-                    "deliberately, not anxiously.")
+            return (f"The timing genuinely supports {dom_word} right now — "
+                    "it's active, not just a maybe.")
         return (f"The ground for {dom_word} is still being laid — build now, "
-                "act when it firms up.")
-    return ""
+                "act when the timing firms up.")
+    if positive:
+        return "The timing genuinely supports this right now — it's active, not just a maybe."
+    return "The ground is still being laid — build now, act when the timing firms up."
 
 
 @app.post("/api/v1/ask")
