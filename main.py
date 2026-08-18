@@ -19055,8 +19055,14 @@ def _ask_failclosed_body(concern, layers, positive, how="") -> str:
     # verdict ("4 of 6" implies a third disagree), and the convergence chip
     # already carries the trust signal in its own "N of 4" form. The body names
     # substance in plain language only: for money questions, HOW it arrives.
-    dom_word = _ASK_FC_DOMAIN_WORD.get(
-        (concern or "").replace("_", " ").strip().lower(), "")
+    _c = (concern or "").replace("_", " ").strip().lower()
+    # [speculation polish 2026-08-13] speculation/loss reads carry their own
+    # cautious, risk-framed verdict phrase — do NOT staple a "the timing
+    # genuinely supports this" body onto them (it reads as cheerleading a
+    # high-variance bet). Let the phrase stand alone.
+    if _c in ("speculation", "loss"):
+        return ""
+    dom_word = _ASK_FC_DOMAIN_WORD.get(_c, "")
     if how:
         if positive:
             return f"The money most likely comes {how}. The timing supports it now."
@@ -19845,6 +19851,58 @@ async def ask_endpoint(request: AskRequest):
                                         _ask_conv["window_label"] = _label
                                         _ask_conv["later_window_label"] = _later
                                         _ask_conv["two_window"] = True
+                                # [speculation/loss safety 2026-08-13] Speculation
+                                # is high-variance; a read must never cheerlead it,
+                                # and a LOSS-framed question ("am I going to lose
+                                # money") must never be answered "Yes — window open"
+                                # (a dangerous polarity inversion — YES means the
+                                # window is supportive, the reader hears "yes, you
+                                # lose"). Reframe honestly and cap the risk.
+                                _q_low_sp = (question or "").lower()
+                                _is_loss_q = any(t in _q_low_sp for t in (
+                                    "lose money", "will i lose", "going to lose",
+                                    "gonna lose", "lose it all", "lose everything",
+                                    "wipe out", "wiped out", "go broke",
+                                    "going broke", "bankrupt", "blow up", " lose "))
+                                if _ask_concern == "speculation":
+                                    _ask_conv["two_window"] = False
+                                    if _is_loss_q:
+                                        _phrase = (
+                                            "The period is broadly supportive, so a "
+                                            f"serious loss is less likely through {_label} "
+                                            "— but speculation is high-variance; only "
+                                            "risk what you can walk away from."
+                                            if _label else
+                                            "The period is broadly supportive, so a "
+                                            "serious loss is less likely right now — but "
+                                            "speculation is high-variance; only risk what "
+                                            "you can walk away from.")
+                                        _ask_conv["suppress_verdict"] = True
+                                    elif _client in ("SUPPORTED", "YES"):
+                                        _phrase = (
+                                            f"A speculative window is open through {_label} "
+                                            "— but keep any bet small and capped; "
+                                            "speculation is high-variance, never a sure "
+                                            "thing." if _label else
+                                            "A speculative window is open — but keep any "
+                                            "bet small and capped; speculation is high-"
+                                            "variance, never a sure thing.")
+                                    elif _client == "LIKELY":
+                                        _phrase = (
+                                            f"A speculative window is forming around "
+                                            f"{_label} — treat it as a small, capped bet at "
+                                            "most." if _label else
+                                            "A speculative window is forming — treat it as "
+                                            "a small, capped bet at most.")
+                                    # NOT_YET / NO keep their cautious phrasing.
+                                elif _is_loss_q and _client in ("SUPPORTED", "YES", "LIKELY"):
+                                    _phrase = (
+                                        f"The period is broadly supportive through {_label}, "
+                                        "so a serious loss is less likely — stay disciplined "
+                                        "and it holds." if _label else
+                                        "The period is broadly supportive, so a serious loss "
+                                        "is less likely — stay disciplined and it holds.")
+                                    _ask_conv["suppress_verdict"] = True
                                 if _phrase:
                                     _ask_conv["verdict"] = _client
                                     _ask_conv["verdict_phrase"] = _phrase
@@ -20390,7 +20448,9 @@ async def ask_endpoint(request: AskRequest):
                         " clear", " finish", " pass", " lift", " subside",
                         " termina", " acaba", " acabar"))
                 )
-                payload["verdict"]  = None if _is_cessation_when else _det_verdict
+                payload["verdict"]  = (None if (_is_cessation_when
+                                        or _ask_conv.get("suppress_verdict"))
+                                        else _det_verdict)
                 payload["timing"]   = _det_timing
                 payload["actions"]  = _ask_actions
                 # [ask-slice5] final jargon net — read/next are owned by the
@@ -20419,6 +20479,11 @@ async def ask_endpoint(request: AskRequest):
                     _cwl = (_ask_conv.get("window_label") or "").strip().lower()
                     if _cwl and _cwl != (_ee_timing or "").strip().lower():
                         _conv_summary = None
+                # [speculation polish 2026-08-13] a "systems converge on <later>"
+                # chip on a speculation read implies a bigger future bet window —
+                # exactly the "wait and go big" nudge the cautious phrase avoids.
+                if _ask_concern == "speculation":
+                    _conv_summary = None
                 payload["convergence"] = _conv_summary
             # [ask-scrub] explore
             try:
