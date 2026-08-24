@@ -290,7 +290,10 @@ def _wear_reason(planet: str, lagna_sign: Optional[str] = None,
     """
     act = activation_for(planet, lagna_sign, chart_data) if lagna_sign else {}
     if act:
-        return f"activates {act['areas']} &mdash; {act['outcome']}".replace("&mdash;", "\u2014")
+        # [4.3b light-touch 2026-08-24] Drop the overt "activates <money>" causal
+        # claim (reads as fortune-telling / a magic cause). Keep the feature and
+        # the life-area, framed as tradition, not a mechanism that acts on money.
+        return f"traditionally associated with {act['areas']} &mdash; {act['outcome']}".replace("&mdash;", "\u2014")
     e = graha_effect(effective_graha(planet, chart_data))
     return f"supports {e['enhances']}" if e.get("enhances") else ""
 

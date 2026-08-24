@@ -594,31 +594,28 @@ def food_for_day(nakshatra, weekday_index, tara_quality=None,
     # long implies a one-day fix, which is not how any of this works and is the
     # kind of claim that makes the whole thing feel arbitrary.
     #
-    # Duration scales with WHY this graha matters today, which is the honest
-    # distinction:
-    #
-    #   balance mode   -> today. The tara is adverse NOW; this is acute
-    #                     settling, not a programme.
-    #   strengthen     -> one mandala (40 days), the classical unit for
-    #                     remedial dietary practice. Long enough for a real
-    #                     shift, short enough to actually attempt.
-    #   dasha lord     -> the graha is running the user's CURRENT period, so
-    #                     this is not a passing transit. Worth sustaining for
-    #                     as long as the period lasts.
+    # [daily-card-duration 2026-08-24] This is the DAILY card — the colour and
+    # food change every day with the Moon. So the duration must NEVER tell the
+    # user to "hold this for 40 days": tomorrow's card shows something different,
+    # which makes a 40-day continuous hold impossible to follow, and it read as
+    # self-contradictory (40 days on one day, "just today" the next — a live bug).
+    # Frame it honestly for a daily surface: today-scoped, or "repeat when this
+    # day comes around". Sustained (40-day mandala) practices belong on the
+    # Practice tab, not on a card that resets every morning.
     _md = (dasha_md or "").strip().title()
     _ad = (dasha_ad or "").strip().title()
     if planet in (_md, _ad) and planet:
         _which = "mahadasha" if planet == _md else "antardasha"
         duration_days = None
-        duration = (f"{planet} is running your current {_which}, so this is not a "
-                    f"one-day fix &mdash; sustaining it through the period is what shifts things")
+        duration = (f"{planet} runs your current {_which}, so this colour and food "
+                    f"help every time its day comes around &mdash; worth making a habit on those days")
     elif g.get("mode") == "balance":
         duration_days = 1
-        duration = "Just for today &mdash; this is settling, not a programme"
+        duration = "Just for today &mdash; this settles today's swing"
     else:
-        duration_days = 40
-        duration = ("Hold this for about 40 days &mdash; one mandala &mdash; and the "
-                    "effect compounds; a single day changes little")
+        duration_days = None
+        duration = ("Best repeated whenever this day comes around &mdash; the benefit "
+                    "builds over the weeks, not from a single day")
 
     return {
         "planet":      planet,
