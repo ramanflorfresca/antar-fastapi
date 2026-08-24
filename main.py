@@ -24099,6 +24099,43 @@ async def _get_dashboard_inner(chart_id: str, language: str = "en"):
     except Exception as _pe:
         print(f'[dashboard] panchang: {_pe}')
 
+    # [today-card-fix 2026-08-20] The dashboard's Today card was blank for
+    # EVERY chart: `signal_data` read the `daily_signals` table (dead — nothing
+    # writes it) and `_pc` came from calculate_panchang() (calendar only, no
+    # signal/move). Meanwhile the daily engine writes the real content to
+    # `daily_signals_cache.signal_json`. Read that (cheap, no LLM, fully
+    # guarded) and map today's signal + action into the card so the home
+    # surface isn't empty. Language-matched so an EN dashboard never shows ES.
+    try:
+        _tc = supabase.table("daily_signals_cache").select("signal_json") \
+            .eq("chart_id", chart_id).eq("signal_date", today) \
+            .eq("language", language).limit(1).execute()
+        _tcj = (_tc.data[0].get("signal_json") if _tc.data else None) or {}
+        if isinstance(_tcj, str):
+            try:
+                _tcj = json.loads(_tcj)
+            except Exception:
+                _tcj = {}
+        if isinstance(_tcj, dict) and _tcj:
+            _t_signal = str(_tcj.get("senal_de_hoy") or "").strip()
+            _t_haz = _tcj.get("haz_hoy")
+            _t_move = ""
+            if isinstance(_t_haz, list) and _t_haz:
+                _t_move = str(_t_haz[0]).strip()
+            elif isinstance(_t_haz, str):
+                _t_move = _t_haz.strip()
+            if _t_signal:
+                _pc["signal"] = _t_signal
+                _pc["energy_desc"] = _pc.get("energy_desc") or _t_signal
+                if _t_move:
+                    _pc["move"] = _t_move
+                # feed has_signal / signal_preview (they read `signal_data`)
+                if not isinstance(signal_data, dict) or not signal_data:
+                    signal_data = {}
+                signal_data.setdefault("signal_text", _t_signal)
+    except Exception as _tfe:
+        print(f'[dashboard] today-card cache read non-fatal: {_tfe}')
+
     # Life Arc (chapter_arc) — same data shown on Patterns page
     _life_arc_data = None
     try:
