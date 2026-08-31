@@ -28,6 +28,26 @@ from antar_engine.output_strips import apply_user_facing_strips
 
 logger = logging.getLogger(__name__)
 
+# [async-parallel 2026-08-31] The weekly generation now fans its 7 days out
+# concurrently (see generate_weekly_signals). Within one request that is 7
+# Claude calls; across a cold login burst it is 7 per simultaneous user, which
+# without a ceiling could multiply peak LLM concurrency enough to trip a 429.
+# This module-wide semaphore bounds the number of daily-signal Claude calls in
+# flight AT ONCE across every request in this process. A single user's 7 days
+# still run fully in parallel (default 10 > 7); a burst queues instead of
+# storming the rate limit. Lazily created so it binds to the running loop.
+_DAILY_LLM_MAX = int(os.getenv("DAILY_LLM_MAX_CONCURRENCY", "10"))
+_daily_llm_sem = None
+
+
+def _get_daily_llm_sem():
+    global _daily_llm_sem
+    if _daily_llm_sem is None:
+        import asyncio as _a
+        _daily_llm_sem = _a.Semaphore(_DAILY_LLM_MAX)
+    return _daily_llm_sem
+
+
 # ──────────────────────────────────────────────
 # Constants (KEPT from v1)
 # ──────────────────────────────────────────────
@@ -2185,7 +2205,18 @@ async def generate_weekly_signals(
 
     # [es-latency] caller may request fewer than 7 days (daily-signal needs
     # only TODAY; the remaining days are warmed off the request path).
-    for i in range(max(1, min(7, days_to_generate))):
+    #
+    # [async-parallel 2026-08-31] The days are independent — each derives
+    # entirely from its own target_date and reads only the shared, already-built
+    # daily_context. Generating them one after another made a cold week roughly
+    # 7x slower than necessary: a measured cold compute spent 95% of 283s in
+    # SERIAL Claude calls plus per-day validation retries. They now fan out with
+    # asyncio.gather. The per-(chart,date,lang) singleflight lock inside the body
+    # still prevents duplicate generation across concurrent user requests, and
+    # concurrent days never share a lock because each has a different date.
+    _n_days = max(1, min(7, days_to_generate))
+
+    async def _one_day(i):
         target_date = start_date + timedelta(days=i)
         weekday = target_date.strftime("%A")
         date_str = target_date.strftime("%Y-%m-%d")
@@ -2491,13 +2522,14 @@ async def generate_weekly_signals(
                     logger.warning(f"[daily-week] LK daily diagnostic failed for {date_str}: {lk_err}")
                     day_prompt_data["lk_daily_block"] = ""
 
-                llm_signal = await _call_claude_daily_signal(
-                    context=daily_context,
-                    day_data=day_prompt_data,
-                    language=language,
-                    day_frame=day_frame,
-                    provider_override=provider_override,
-                )
+                async with _get_daily_llm_sem():
+                    llm_signal = await _call_claude_daily_signal(
+                        context=daily_context,
+                        day_data=day_prompt_data,
+                        language=language,
+                        day_frame=day_frame,
+                        provider_override=provider_override,
+                    )
 
                 # ── FIX D: Validate + corrective retry ──
                 if llm_signal:
@@ -2523,17 +2555,18 @@ async def generate_weekly_signals(
                                        f"mechanics={mechanics}")
 
                         # Build corrective retry prompt with specific violations
-                        retry_signal = await _call_claude_daily_signal_retry(
-                            context=daily_context,
-                            day_data=day_prompt_data,
-                            language=language,
-                            violations={'day_names': day_violations, 'eng_leaks': eng_leaks,
-                                        'abstract_headline': abstract,
-                                        'invented_specifics': invented,
-                                        'broken_sentences': broken,
-                                        'mechanics_jargon': mechanics},
-                            failed_signal=llm_signal,
-                        )
+                        async with _get_daily_llm_sem():
+                            retry_signal = await _call_claude_daily_signal_retry(
+                                context=daily_context,
+                                day_data=day_prompt_data,
+                                language=language,
+                                violations={'day_names': day_violations, 'eng_leaks': eng_leaks,
+                                            'abstract_headline': abstract,
+                                            'invented_specifics': invented,
+                                            'broken_sentences': broken,
+                                            'mechanics_jargon': mechanics},
+                                failed_signal=llm_signal,
+                            )
                         if retry_signal:
                             retry_day = _validate_no_day_names(retry_signal, language)
                             retry_eng = _detect_english_leak(retry_signal, language)
@@ -2678,8 +2711,20 @@ async def generate_weekly_signals(
                 day_result.update(precision_fields(_precision))
             except Exception:
                 pass
-        results.append(day_result)
         logger.info(f"[daily-week] {date_str} {weekday}: {nakshatra} in {moon_sign} | score={score} | llm={'yes' if llm_signal else 'no'}")
+        return day_result
+
+    # Fan the days out concurrently and reassemble in date order. gather
+    # preserves input order, so results[i] is still day i. A single day that
+    # raises is logged and dropped rather than sinking the whole week.
+    import asyncio as _aio_dw
+    _gathered = await _aio_dw.gather(
+        *[_one_day(i) for i in range(_n_days)], return_exceptions=True)
+    for _i, _r in enumerate(_gathered):
+        if isinstance(_r, BaseException):
+            logger.warning(f"[daily-week] day {_i} generation failed (non-fatal): {_r}")
+        elif _r is not None:
+            results.append(_r)
 
     return results
 
