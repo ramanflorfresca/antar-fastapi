@@ -12525,10 +12525,47 @@ async def settings_me_patch(request: Request, authorization: Optional[str] = Hea
         import logging as _l
         _l.getLogger("antar.settings").warning(f"[settings] ensure-profile-row failed (non-fatal): {_gpe}")
     updates["updated_at"] = datetime.utcnow().isoformat()
+    # [patch-me-500 2026-09-04] This DB has schema drift (observed:
+    # user_correlations.user_id missing). If profiles lacks a column in
+    # `updates` (e.g. updated_at / primary_chart_id), the update raised
+    # Postgres 42703 uncaught → 500 on EVERY PATCH /me — and the login
+    # bootstrap (ensureChartBound) awaits this call, so a 500 leaves the
+    # client spinning. Make it resilient: retry dropping the offending /
+    # optional columns, and never turn a settings save into a hard 500.
+    def _do_profile_update(cols: dict) -> None:
+        supabase.table("profiles").update(cols).eq("user_id", user_id).execute()
+
     try:
-        supabase.table("profiles").update(updates).eq("user_id", user_id).execute()
+        _do_profile_update(updates)
     except Exception as e:
-        return JSONResponse(status_code=500, content={"error": "update failed", "detail": str(e)})
+        _emsg = str(e)
+        import logging as _l
+        _log = _l.getLogger("antar.settings")
+        _log.warning(f"[settings] profiles.update failed, attempting resilient retry: {_emsg}")
+        # Drop the column named in a Postgres 42703 ("column ... does not
+        # exist") error, if we can parse it; always try again without the
+        # non-essential updated_at.
+        _reduced = dict(updates)
+        import re as _re
+        _m = _re.search(r"column [\"']?(?:\w+\.)?(\w+)[\"']? does not exist", _emsg)
+        if _m:
+            _reduced.pop(_m.group(1), None)
+        _reduced.pop("updated_at", None)
+        _ok2 = False
+        if _reduced and _reduced != updates:
+            try:
+                _do_profile_update(_reduced)
+                _ok2 = True
+                _log.warning(f"[settings] resilient retry succeeded with cols={list(_reduced.keys())}")
+            except Exception as _e2:
+                _log.warning(f"[settings] resilient retry also failed: {_e2}")
+        if not _ok2:
+            # Never block the client (which awaits this during login bootstrap)
+            # on a schema/DB error. Ack so the app proceeds; surface for ops.
+            _log.error(f"[settings] profiles.update giving up — acking to unblock client: {_emsg}")
+            _st_cache_bust(user_id)
+            return {"ok": True, "user_id": user_id,
+                    "updated": [], "warning": "profile update skipped (server-side schema issue)"}
     _st_cache_bust(user_id)
     # [patch-me-500 2026-07-27] The update succeeded; never let the echo-back read
     # turn a successful PATCH into a 500. Fall back to a minimal ack on failure.

@@ -28,6 +28,30 @@ from antar_engine.output_strips import apply_user_facing_strips
 
 logger = logging.getLogger(__name__)
 
+
+async def _safe_messages_create(client, **kwargs):
+    """[daily-llm-temp-fix 2026-09-04] On this path client.messages.create was
+    raising 'AsyncMessages.create() got an unexpected keyword argument
+    temperature' on every call (~175/1000 log lines), so the daily LLM read
+    silently fell back to non-LLM output for everyone. The kwarg is valid on the
+    identical call in main.py, so rather than guess the instance-level cause we
+    make the call resilient: on that specific TypeError, retry once without the
+    offending kwarg (SDK default temperature) so the read still comes from the
+    model. Any other error propagates to the existing handler."""
+    try:
+        return await client.messages.create(**kwargs)
+    except TypeError as _te:
+        msg = str(_te)
+        if "unexpected keyword argument" in msg:
+            import re as _re_kw
+            m = _re_kw.search(r"unexpected keyword argument '([^']+)'", msg)
+            dropped = m.group(1) if m else "temperature"
+            if dropped in kwargs:
+                kwargs.pop(dropped, None)
+                logger.warning(f"[daily-llm] '{dropped}' kwarg rejected — retrying without it")
+                return await client.messages.create(**kwargs)
+        raise
+
 # [async-parallel 2026-08-31] The weekly generation now fans its 7 days out
 # concurrently (see generate_weekly_signals). Within one request that is 7
 # Claude calls; across a cold login burst it is 7 per simultaneous user, which
@@ -1821,7 +1845,8 @@ async def _call_claude_daily_signal_retry(
             from antar_engine.english_glossary import build_english_glossary_block
             _daily_system_retry = _daily_system_retry + "\n\n" + build_english_glossary_block("coach")
         # --- end Sprint EN-GLOSS-1 ---
-        response = await client.messages.create(
+        response = await _safe_messages_create(
+            client,
             model="claude-sonnet-4-6",
             max_tokens=1500,
             temperature=0.2,  # Lower temp for correction
@@ -1945,7 +1970,8 @@ async def _call_claude_daily_signal(
         if _raw_via_adapter is not None:
             raw_text = _raw_via_adapter
         else:
-            response = await client.messages.create(
+            response = await _safe_messages_create(
+                client,
                 model="claude-sonnet-4-6",
                 max_tokens=1500,
                 temperature=0.3,
