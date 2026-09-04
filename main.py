@@ -536,6 +536,11 @@ except ImportError as e:
 # Claude client for high-quality predictions
 try:
     import anthropic as _anthropic
+    # [sdk-compat 2026-09-04] Log the deployed SDK version — requirements pins
+    # anthropic>=0.40.0 (unpinned), and a redeploy silently pulling a newer SDK
+    # that rejects the `temperature` kwarg sent every Claude call to the DeepSeek
+    # fallback. This line tells us exactly what version is live so we can pin it.
+    print(f"[startup] anthropic SDK version: {getattr(_anthropic, '__version__', '?')}")
     _anthropic_key = os.getenv("ANTHROPIC_API_KEY")
     claude_client = _anthropic.AsyncAnthropic(api_key=_anthropic_key)
     # [admin-llm-log] every call through this client is logged to

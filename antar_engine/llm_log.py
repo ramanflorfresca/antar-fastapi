@@ -71,8 +71,39 @@ def wrap_claude_client(client, sb_getter=None):
         except Exception:
             pass
         model = str(kwargs.get("model") or "")
+        # [sdk-compat 2026-09-04] The pinned anthropic SDK is unpinned
+        # (>=0.40.0), so a redeploy can pull a version that rejects a kwarg
+        # the code passes (observed globally: "AsyncMessages.create() got an
+        # unexpected keyword argument 'temperature'"), which silently sent
+        # EVERY Claude call to the DeepSeek fallback. Retry once without the
+        # rejected kwarg so Claude keeps working until the SDK is pinned.
+        async def _call():
+            return await orig(*args, **kwargs)
         try:
-            resp = await orig(*args, **kwargs)
+            resp = await _call()
+        except TypeError as _te:
+            _m = str(_te)
+            import re as _re_kw
+            _mm = _re_kw.search(r"unexpected keyword argument '([^']+)'", _m)
+            if _mm and _mm.group(1) in kwargs:
+                _dropped = _mm.group(1)
+                kwargs.pop(_dropped, None)
+                try:
+                    print(f"[llm-log] SDK rejected '{_dropped}' — retrying without it (model={model})")
+                except Exception:
+                    pass
+                try:
+                    resp = await orig(*args, **kwargs)
+                except Exception as e:
+                    log_llm_call(_sb(sb_getter), endpoint=endpoint, model=model,
+                                 success=False, error=e,
+                                 duration_ms=int((time.monotonic() - t0) * 1000))
+                    raise
+            else:
+                log_llm_call(_sb(sb_getter), endpoint=endpoint, model=model,
+                             success=False, error=_te,
+                             duration_ms=int((time.monotonic() - t0) * 1000))
+                raise
         except Exception as e:
             log_llm_call(_sb(sb_getter), endpoint=endpoint, model=model,
                          success=False, error=e,
