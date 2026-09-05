@@ -1110,6 +1110,46 @@ def _detect_english_leak(signal_json: dict, language: str) -> list:
     return leaks
 
 
+# [P1 grounding 2026-09-05] Band-consistency guard. The day carries a
+# DETERMINISTIC energy score (`_score_day` → is_friction when score < 4).
+# Nothing previously stopped the LLM from writing bullish "launch it / go
+# all-in / bet big" prose on a deterministically CAUTIOUS (friction) day — a
+# direct contradiction of the computed chart, and exactly the confabulation the
+# audit flagged. This catches the clearest inversion only (bold-expansion
+# language on a friction day); it is intentionally CONSERVATIVE (high precision,
+# unambiguous phrases only) so normal prose is never punished, and it never
+# fires on a favorable day.
+_BOLD_PUSH_RE = re.compile(
+    r"\b(push (?:hard|through|big)|go all[- ]?in|go big|double down|full speed|"
+    r"no hesitation|take the leap|big bet|bet big|expand aggressively|"
+    r"seize the day|act boldly|make the big move|launch (?:it|now|today)|"
+    r"go for it|swing big|"
+    r"arri[eé]sgate|apuesta fuerte|l[aá]nzate|ve con todo|sin dudar|"
+    r"da el gran paso|avanza con fuerza|atr[eé]vete|apuesta en grande)\b",
+    re.I,
+)
+_BAND_FIELDS = ("senal_de_hoy", "el_movimiento", "verdict_subline")
+
+
+def _validate_band_consistency(signal_json: dict, is_friction: bool,
+                               score: int, language: str) -> list:
+    """Fields whose prose contradicts the deterministic day band. Only the
+    clearest inversion is flagged: bold, high-risk 'go big' language on a
+    friction (cautious) day. Returns [] on any non-friction day."""
+    if not is_friction:
+        return []
+    bad = []
+    for f in _BAND_FIELDS:
+        v = signal_json.get(f)
+        if isinstance(v, str) and v.strip() and _BOLD_PUSH_RE.search(v):
+            bad.append(f)
+    for item in (signal_json.get("haz_hoy") or []):
+        if isinstance(item, str) and _BOLD_PUSH_RE.search(item):
+            bad.append("haz_hoy")
+            break
+    return bad
+
+
 _DANGLING_FIXES = (
     # A stripped weekday leaves its possessive behind: "Tuesday's stronger
     # window" -> "'s stronger window". Seen live on a real card.
@@ -1809,6 +1849,16 @@ async def _call_claude_daily_signal_retry(
                 "your growth-and-wisdom transit is blocked'. "
                 "GOOD: 'money you're already owed can move today, but don't count on "
                 "a windfall out of nowhere — chase what's pending.'"
+            )
+
+        for _f in violations.get('band_inconsistency', []) or []:
+            corrective_parts.append(
+                f"- The field '{_f}' pushed BOLD, high-risk action — but today is a "
+                f"deterministically CAUTIOUS (friction) day for this chart. Do NOT "
+                f"tell the reader to launch, go all-in, bet big, or push hard today. "
+                f"Match the day's real energy: advise holding the big move, "
+                f"protecting what already exists, and doing the small, safe pieces. "
+                f"You may still name a concrete action — but a careful one."
             )
 
         corrective_parts.append("")
@@ -2570,15 +2620,18 @@ async def generate_weekly_signals(
                     # [mechanics-jargon 2026-07-27] astro mechanics verbalized as
                     # prose ("energy transit is blocked", "aspect from a planet").
                     mechanics = _mechanics_fields(llm_signal)
+                    # [P1 grounding 2026-09-05] prose must not contradict the
+                    # deterministic day band (bullish push on a friction day).
+                    band_incons = _validate_band_consistency(llm_signal, is_friction, score, language)
 
                     # [cold-fix] eng-leak is non-load-bearing: it no longer
                     # triggers the corrective retry (a 2nd es Sonnet). The
                     # jargon strip below still cleans any leak.
-                    if day_violations or abstract or invented or broken or mechanics:
+                    if day_violations or abstract or invented or broken or mechanics or band_incons:
                         logger.warning(f"[daily-week] Validation failed for {date_str}: "
                                        f"day_names={day_violations} eng_leaks={eng_leaks} "
                                        f"abstract_headline={abstract} broken={broken} "
-                                       f"mechanics={mechanics}")
+                                       f"mechanics={mechanics} band_inconsistency={band_incons}")
 
                         # Build corrective retry prompt with specific violations
                         async with _get_daily_llm_sem():
@@ -2590,13 +2643,15 @@ async def generate_weekly_signals(
                                             'abstract_headline': abstract,
                                             'invented_specifics': invented,
                                             'broken_sentences': broken,
-                                            'mechanics_jargon': mechanics},
+                                            'mechanics_jargon': mechanics,
+                                            'band_inconsistency': band_incons},
                                 failed_signal=llm_signal,
                             )
                         if retry_signal:
                             retry_day = _validate_no_day_names(retry_signal, language)
                             retry_eng = _detect_english_leak(retry_signal, language)
-                            if not retry_day and not retry_eng:
+                            retry_band = _validate_band_consistency(retry_signal, is_friction, score, language)
+                            if not retry_day and not retry_eng and not retry_band:
                                 # [3.7c] strip even on retry-success — the day-name/eng
                                 # validators only check two leak classes; Vedic jargon,
                                 # Spanish planet names, and X/56 scores still need scrubbing.
@@ -2609,17 +2664,40 @@ async def generate_weekly_signals(
                                 retry_signal = _strip_day_names_from_signal(retry_signal, language)
                                 retry_signal = _tidy_signal(_strip_all_jargon_from_signal(retry_signal, language), language)
                                 retry_signal['_validation_warnings'] = {
-                                    'day_names': retry_day, 'english_leaks': retry_eng
+                                    'day_names': retry_day, 'english_leaks': retry_eng,
+                                    'band_inconsistency': retry_band,
                                 }
                                 llm_signal = retry_signal
                                 logger.warning(f"[daily-week] Retry still has issues for {date_str}, accepting with warnings")
+                                # [P1 grounding 2026-09-05] Do not accept silently.
+                                # A shipped-with-warnings daily is a quality event
+                                # ops should see — especially a band inversion, which
+                                # means the reader is being told the opposite of what
+                                # the chart computed.
+                                try:
+                                    from antar_engine.alerting import alert
+                                    alert("daily_shipped_with_warnings",
+                                          f"Daily signal for {date_str} shipped after failed retry",
+                                          level=("error" if retry_band else "warn"),
+                                          detail=f"band_inconsistency={retry_band} day_names={retry_day} eng_leaks={retry_eng}")
+                                except Exception:
+                                    pass
                         else:
                             # Retry failed entirely — strip first attempt
                             llm_signal = _strip_day_names_from_signal(llm_signal, language)
                             llm_signal = _tidy_signal(_strip_all_jargon_from_signal(llm_signal, language), language)
                             llm_signal['_validation_warnings'] = {
-                                'day_names': day_violations, 'english_leaks': eng_leaks
+                                'day_names': day_violations, 'english_leaks': eng_leaks,
+                                'band_inconsistency': band_incons,
                             }
+                            try:
+                                from antar_engine.alerting import alert
+                                alert("daily_retry_failed",
+                                      f"Daily signal retry failed entirely for {date_str}; shipping first attempt",
+                                      level=("error" if band_incons else "warn"),
+                                      detail=f"band_inconsistency={band_incons} day_names={day_violations}")
+                            except Exception:
+                                pass
                     else:
                         # First pass clean — still strip as safety net
                         llm_signal = _strip_day_names_from_signal(llm_signal, language)
