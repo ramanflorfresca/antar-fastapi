@@ -556,6 +556,15 @@ except Exception as _ce:
     print(f"[startup] Claude client FAILED: {type(_ce).__name__}: {_ce}")
     claude_client = None
     _CLAUDE_AVAILABLE = False
+    # [P0 observability 2026-09-05] Claude unavailable => EVERY call silently
+    # runs on DeepSeek. That must never be silent.
+    try:
+        from antar_engine.alerting import alert
+        alert("claude_client_init_failed",
+              "Claude client failed to initialize — ALL LLM calls will fall back to DeepSeek",
+              level="critical", detail=f"{type(_ce).__name__}: {_ce}")
+    except Exception:
+        pass
 
 deepseek_client = AsyncOpenAI(
     api_key=os.getenv("DEEPSEEK_API_KEY"),
@@ -2148,6 +2157,16 @@ async def call_llm_claude(
         return text, tokens
     except Exception as e:
         print(f"[claude] error, falling back to DeepSeek: {e}")
+        # [P0 observability 2026-09-05] Make this fallback VISIBLE. This is the
+        # exact path that ran the whole app on DeepSeek during the SDK outage
+        # with zero signal. Log it to llm_call_log + fire an alert.
+        try:
+            from antar_engine.llm_log import record_fallback
+            record_fallback(globals().get("supabase"), endpoint="call_llm_claude",
+                            from_model=(model_override or _active_claude_model()),
+                            to_provider="deepseek", reason=str(e))
+        except Exception:
+            pass
         return await call_llm(prompt, history, system_override)
 
 # ── Conversation persistence ──────────────────────────────────────────────────
@@ -3094,7 +3113,64 @@ _PROCESS_STARTED_AT = datetime.utcnow().isoformat()
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "timestamp": datetime.utcnow().isoformat()}
+    # [P0 observability 2026-09-05] Surface the LLM posture so a monitor can see
+    # when we're NOT on Claude (config override) or the Claude client is down —
+    # the two states that silently route users to DeepSeek. Config-only (no live
+    # LLM call); use /health/llm for an active Claude probe.
+    warnings = []
+    try:
+        from antar_engine import app_config as _ac
+        _provider = _ac.get(supabase, "llm_provider", "anthropic")
+    except Exception:
+        _provider = "anthropic"
+    _claude_ok = (claude_client is not None) and bool(_CLAUDE_AVAILABLE)
+    try:
+        import anthropic as _a
+        _sdk = getattr(_a, "__version__", "?")
+    except Exception:
+        _sdk = "?"
+    if _provider != "anthropic":
+        warnings.append(f"llm_provider='{_provider}' (not anthropic) — running on a non-Claude model")
+    if not _claude_ok:
+        warnings.append("Claude client unavailable — all calls fall back to DeepSeek")
+    return {
+        "status": "degraded" if warnings else "ok",
+        "timestamp": datetime.utcnow().isoformat(),
+        "llm": {
+            "provider": _provider,
+            "claude_model": (_active_claude_model() if _claude_ok else None),
+            "claude_client_available": _claude_ok,
+            "anthropic_sdk": _sdk,
+        },
+        "warnings": warnings,
+    }
+
+
+@app.get("/health/llm")
+async def health_llm():
+    """[P0 observability 2026-09-05] ACTIVE probe — actually calls Claude with a
+    1-token request so an uptime monitor pages when Claude (not just the service)
+    is down or degraded to DeepSeek. Returns 503 on failure and alerts."""
+    from fastapi.responses import JSONResponse
+    import time as _t
+    _t0 = _t.monotonic()
+    if claude_client is None:
+        return JSONResponse(status_code=503, content={"ok": False, "error": "claude client not initialized"})
+    try:
+        _resp = await claude_client.messages.create(
+            model=_active_claude_model(),
+            max_tokens=1,
+            messages=[{"role": "user", "content": "ping"}],
+        )
+        return {"ok": True, "model": _active_claude_model(),
+                "latency_ms": int((_t.monotonic() - _t0) * 1000)}
+    except Exception as _e:
+        try:
+            from antar_engine.alerting import alert
+            alert("llm_probe_failed", f"/health/llm probe failed: {_e}", level="critical")
+        except Exception:
+            pass
+        return JSONResponse(status_code=503, content={"ok": False, "error": str(_e)[:200]})
 
 
 # [deploy-verify 2026-07-22] Which commit is actually serving traffic?

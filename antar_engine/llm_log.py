@@ -46,6 +46,25 @@ def log_llm_call(sb, *, endpoint, model="", success=True, error=None,
         print(f"[llm-log] insert skipped (table missing?): {e}")
 
 
+def record_fallback(sb, *, endpoint, from_model="", to_provider="", reason=""):
+    """[P0 observability 2026-09-05] Record a silent LLM fallback (e.g.
+    Claude->DeepSeek) so it is VISIBLE in llm_call_log AND fires an alert.
+    Without this a fallback shows only as a *drop* in Claude volume — never as
+    an error — which is exactly how the temperature outage stayed invisible."""
+    try:
+        log_llm_call(sb, endpoint=f"FALLBACK:{endpoint}", model=from_model,
+                     success=False, error=f"fell back to {to_provider}: {reason}")
+    except Exception:
+        pass
+    try:
+        from antar_engine.alerting import alert
+        alert(f"llm_fallback:{to_provider}",
+              f"LLM fell back to {to_provider} at {endpoint} (from {from_model or 'claude'})",
+              level="error", detail=reason)
+    except Exception:
+        pass
+
+
 def wrap_claude_client(client, sb_getter=None):
     """Wrap client.messages.create with logging. Idempotent; fail-open."""
     if client is None:
@@ -90,6 +109,17 @@ def wrap_claude_client(client, sb_getter=None):
                 kwargs.pop(_dropped, None)
                 try:
                     print(f"[llm-log] SDK rejected '{_dropped}' — retrying without it (model={model})")
+                except Exception:
+                    pass
+                # The retry below succeeds and would otherwise log as success,
+                # masking the exact failure mode that caused the outage. Alert
+                # so an SDK/kwarg regression is never silent again.
+                try:
+                    from antar_engine.alerting import alert
+                    alert("llm_sdk_kwarg_rejected",
+                          f"Anthropic SDK rejected '{_dropped}' (model={model}) — retried without it. "
+                          f"Likely an unpinned/upgraded SDK; verify requirements pin.",
+                          level="error")
                 except Exception:
                     pass
                 try:
