@@ -17,7 +17,32 @@ which is how the D-2 wealth chain was proven dead (p=0.962).
    career field / funding event / marriage / separation / health event is a
    matter of record. No self-reported vibes, no fabricated charts.
 
-## How to run
+## Fastest path to a cohort (recommended)
+You don't hand-build charts — you label real ones and let the builder pull the
+exact engine inputs:
+
+1. **Get chart_ids for known-outcome people.** Create each chart through
+   onboarding (public figures with a reliable birth time, or consenting
+   contacts whose outcome you know); note its `chart_id`. Never use a chart you
+   eyeballed while building the significator tables.
+2. **Write a labels file** (`labels.json`, list of `{chart_id, id, type, ...}` —
+   see `labels.example.json`).
+3. **Build the fixtures** (pulls `chart_data`+`dashas` from the live system):
+   ```bash
+   python3 tests/validation/build_fixtures.py labels.json \
+       --base https://antar-fastapi-production.up.railway.app \
+       --out tests/validation/fixtures.cohort.json
+   ```
+   (uses `GET /api/v1/debug/engine-inputs/{chart_id}` — read-only.)
+4. **Pre-register** your hypothesis in `significator_rules_prespecified.md`
+   (commit it BEFORE step 5).
+5. **Score:**
+   ```bash
+   python3 tests/validation/run_significator_validation.py \
+       tests/validation/fixtures.cohort.json --out tests/validation/results_<date>.md
+   ```
+
+## How to run (if you already have fixtures)
 ```bash
 python3 tests/validation/run_significator_validation.py path/to/fixtures.json --out tests/validation/results_<date>.md
 ```

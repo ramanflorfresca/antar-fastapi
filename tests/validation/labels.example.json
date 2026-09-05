@@ -1,0 +1,18 @@
+[
+  {
+    "chart_id": "PUT-A-REAL-CHART-ID-HERE",
+    "id": "example-founder",
+    "type": "career",
+    "true_fields": ["technology", "business"],
+    "_note": "career: true_fields = what they ACTUALLY do. Create the chart via onboarding, paste its chart_id here. Never use a chart you eyeballed while building the significator tables."
+  },
+  {
+    "chart_id": "PUT-A-REAL-CHART-ID-HERE",
+    "id": "example-funding",
+    "type": "concern",
+    "concern": "funding",
+    "polarity_kind": "gain",
+    "outcome_positive": true,
+    "_note": "concern: outcome_positive = did the good thing actually happen? gain=funding/relationship, risk=separation/health (see README)."
+  }
+]

@@ -22377,6 +22377,40 @@ async def debug_predict_context(
         import traceback
         return {"error": str(e), "trace": traceback.format_exc()[:500]}
 
+# [validation-harness 2026-09-05] Dump the EXACT engine inputs for a chart so the
+# significator validation cohort (tests/validation/) can be assembled from real
+# charts. Returns chart_data + dashas in the same shapes /ask feeds to
+# analyze_career / analyze_concern (main.py:19405,19420,19718) — no reshaping, so
+# a fixture built from this scores what the live engine actually sees.
+@app.get("/api/v1/debug/engine-inputs/{chart_id}")
+async def debug_engine_inputs(chart_id: str):
+    try:
+        row = supabase.table("charts").select(
+            "chart_data, birth_date, first_name, current_country"
+        ).eq("id", chart_id).single().execute()
+        if not row.data:
+            from fastapi.responses import JSONResponse
+            return JSONResponse(status_code=404, content={"error": "chart not found"})
+        cd = _safe_jsonb(row.data.get("chart_data"))
+        _divs = (cd or {}).get("divisional_charts") or {}
+        return {
+            "chart_id": chart_id,
+            "first_name": row.data.get("first_name"),
+            "birth_date": str(row.data.get("birth_date") or "")[:10],
+            # quick sanity flags — if these are false the engines return unavailable
+            "has_planets": bool((cd or {}).get("planets")),
+            "has_lagna": bool((cd or {}).get("lagna")),
+            "has_d10": bool(_divs.get("d10")),
+            "has_d9": bool(_divs.get("d9")),
+            "chart_data": cd,
+            "dashas": get_dashas_for_chart(chart_id),
+        }
+    except Exception as e:
+        import traceback
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=500, content={"error": str(e), "trace": traceback.format_exc()[:400]})
+
+
 # --- JAIMINI BACKFILL ENDPOINT ---
 @app.get("/api/v1/backfill-jaimini/{chart_id}")
 async def backfill_jaimini(chart_id: str):
