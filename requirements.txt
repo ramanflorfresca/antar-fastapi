@@ -23,7 +23,14 @@ stripe
 razorpay
 timezonefinder==8.2.2
 weasyprint
-anthropic>=0.40.0
+# [sdk-compat 2026-09-05] PINNED. Was `>=0.40.0` (unpinned) — a redeploy pulled a
+# newer SDK that rejected the `temperature` kwarg, so EVERY Claude call failed and
+# silently fell back to DeepSeek (225 failures in one log window). Pin to the
+# declared floor this code was written+tested against so a redeploy can't silently
+# upgrade the SDK again. The llm_log retry stays as a belt-and-suspenders net.
+# To move up: bump deliberately, verify `[startup] anthropic SDK version` + no
+# "SDK rejected 'temperature'" logs, then commit the new pin.
+anthropic==0.40.0
 uvloop>=0.19.0
 httptools>=0.6.0
 cachetools>=5.3.0
