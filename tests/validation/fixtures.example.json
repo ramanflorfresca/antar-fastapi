@@ -1,0 +1,37 @@
+[
+  {
+    "id": "EXAMPLE-career-1",
+    "type": "career",
+    "note": "Replace chart_data with a REAL dump from the live system for a person whose field is a matter of record. true_fields = what they actually do, in the engine's field vocabulary where possible.",
+    "true_fields": ["engineering", "technology"],
+    "chart_data": {
+      "lagna": {"sign": "Aries"},
+      "planets": {},
+      "divisional_charts": {"d10": {"planets": {}}}
+    }
+  },
+  {
+    "id": "EXAMPLE-career-2",
+    "type": "career",
+    "true_fields": ["music", "arts"],
+    "chart_data": {
+      "lagna": {"sign": "Taurus"},
+      "planets": {},
+      "divisional_charts": {"d10": {"planets": {}}}
+    }
+  },
+  {
+    "id": "EXAMPLE-concern-funding-1",
+    "type": "concern",
+    "concern": "funding",
+    "polarity_kind": "gain",
+    "note": "outcome_positive = did the good thing actually happen (got the funding). For 'risk' concerns (separation/health) set polarity_kind='risk' and outcome_positive = did the person STAY WELL / together.",
+    "outcome_positive": true,
+    "chart_data": {
+      "lagna": {"sign": "Gemini"},
+      "planets": {},
+      "divisional_charts": {"d9": {"planets": {}}}
+    },
+    "dashas": {}
+  }
+]
