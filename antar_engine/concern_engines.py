@@ -23,6 +23,14 @@ Each concern encodes the classical significator set (per the owner's method):
 
 A significator that is (a) dignified, (b) confirmed in D-9, and (c) active in the
 current dasha is the real signal — that convergence is what each verdict weighs.
+
+STATUS — v1, UNTUNED (2026-09-05): the METHOD (significator convergence,
+dignity, D-9 confirmation, dasha activation) is sound and the computation is
+deterministic, but the significator SETS above are v1 — classical defaults built
+on d10_career's tables (which carry the same "starting point, not a final word"
+caveat). They have NOT yet been validated against real dated outcomes. Treat the
+output as a grounded first pass, not a proven mapping; refine the sets against
+real charts before presenting any single concern verdict as authoritative.
 """
 from __future__ import annotations
 
