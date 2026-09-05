@@ -22411,6 +22411,53 @@ async def debug_engine_inputs(chart_id: str):
         return JSONResponse(status_code=500, content={"error": str(e), "trace": traceback.format_exc()[:400]})
 
 
+# [validation-cohort 2026-09-05] What ground-truth labels does the DB actually
+# hold? Validation needs real outcomes to score against. This reports coverage
+# and returns the labelled career cohort (chart_id + profession) so the harness
+# can be run server-side on real data.
+@app.get("/api/v1/debug/label-coverage")
+async def debug_label_coverage(limit: int = 300):
+    try:
+        cols = "id, first_name, profession, ventures, career_stage, marital_status, children"
+        try:
+            rows = supabase.table("charts").select(cols).limit(5000).execute().data or []
+        except Exception:
+            # some columns may not exist on this DB — fall back to the safe subset
+            rows = supabase.table("charts").select("id, first_name, profession").limit(5000).execute().data or []
+
+        def _nonempty(v):
+            if v is None:
+                return False
+            if isinstance(v, str):
+                return bool(v.strip())
+            if isinstance(v, (list, dict)):
+                return len(v) > 0
+            return True
+
+        total = len(rows)
+        cov = {}
+        for k in ("profession", "ventures", "career_stage", "marital_status", "children"):
+            cov[k] = sum(1 for r in rows if _nonempty(r.get(k)))
+
+        career_cohort = [
+            {"chart_id": r.get("id"), "first_name": r.get("first_name"),
+             "profession": r.get("profession"),
+             "career_stage": r.get("career_stage")}
+            for r in rows if _nonempty(r.get("profession"))
+        ][:limit]
+
+        return {
+            "total_charts": total,
+            "labelled_coverage": cov,
+            "career_cohort_size": len(career_cohort),
+            "career_cohort": career_cohort,
+        }
+    except Exception as e:
+        import traceback
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=500, content={"error": str(e), "trace": traceback.format_exc()[:400]})
+
+
 # --- JAIMINI BACKFILL ENDPOINT ---
 @app.get("/api/v1/backfill-jaimini/{chart_id}")
 async def backfill_jaimini(chart_id: str):
