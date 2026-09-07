@@ -49,7 +49,7 @@ DOMAIN_SWEEP: List[Dict[str, Any]] = [
      "karaka": ["Venus", "Jupiter"]},
     {"key": "family",       "label": "Family",            "houses": [4, 9],
      "karaka": ["Moon", "Jupiter"]},
-    {"key": "health",       "label": "Health",            "houses": [1, 6, 8],
+    {"key": "health",       "label": "Health",            "houses": [6, 8],
      "karaka": ["Sun", "Moon", "Mars", "Saturn"]},
     {"key": "authority",    "label": "Authority & legal", "houses": [6, 10],
      "karaka": ["Sun", "Saturn", "Mars"]},
@@ -202,8 +202,13 @@ def score_domains(chart_data: dict, dashas: dict, transit_events: list,
                 tone -= w
         # structural lean: dusthana houses + a malefic mahadasha tilt toward risk
         dusthana_share = sum(1 for h in houses if h in _DUSTHANAS) / max(1, len(houses))
-        if dusthana_share >= 0.5:
-            tone -= 0.5
+        # [health-fix 2026-09-07] The structural dusthana lean now applies ONLY
+        # when a malefic mahādaśā is active. Previously any dusthana-heavy domain
+        # (Health 6/8, speculation 5/8) took a flat -0.5 → tone < -0.4 → forced
+        # "risk" on every chart regardless of real transit activity, which made
+        # Health dominate readings. House membership alone must not sign risk.
+        if dusthana_share >= 0.5 and md_is_malefic:
+            tone -= 0.4
         if md_is_malefic:
             tone -= 0.3
 
@@ -222,8 +227,17 @@ def score_domains(chart_data: dict, dashas: dict, transit_events: list,
 
         polarity = "neutral"
         if score >= 2.0:
-            polarity = "risk" if tone < -0.4 else ("opportunity" if tone > 0.4 else
-                       ("risk" if dusthana_share >= 0.5 else "opportunity"))
+            if tone < -0.4:
+                polarity = "risk"
+            elif tone > 0.4:
+                polarity = "opportunity"
+            else:
+                # [health-fix 2026-09-07] Neutral transit tone: only a strongly
+                # dusthana domain UNDER A MALEFIC MAHĀDAŚĀ leans risk. Was `any
+                # dusthana_share>=0.5 → risk`, which made Health(6,8)/8th read
+                # 'risk' on every chart regardless of real activity — dominating
+                # the sweep. Now house membership alone never forces risk.
+                polarity = "risk" if (dusthana_share >= 0.66 and md_is_malefic) else "opportunity"
 
         # [polarity-nuance 2026-09-07] A speculation / dusthana (8,12) theme lit
         # under a malefic mahādaśā (esp. Rahu) is high-reward AND high-risk. Keep
@@ -277,18 +291,17 @@ def rank_and_tier(domain_scores: List[dict], max_active: int = 3,
     middle. Returns {active:[...], quiet:[...], headline_domains:[labels]}.
     `active` = top opportunities + top risks (each above min_score), ranked by
     score; `quiet` = everything else (one-liner material for the frontend)."""
-    scored = [d for d in domain_scores if d["score"] >= min_score]
-    quiet = [d for d in domain_scores if d["score"] < min_score]
-
-    opps = sorted([d for d in scored if d["polarity"] == "opportunity"],
-                  key=lambda d: (-d["score"], -d["confidence"]))
-    risks = sorted([d for d in scored if d["polarity"] == "risk"],
-                   key=lambda d: (-d["score"], -d["confidence"]))
+    # [rank-fix 2026-09-07] SCORE-FIRST selection: walk all scored domains in
+    # descending score and take the first non-overlapping one per house-cluster,
+    # so the HIGHEST-scored domain wins its cluster. (Was risks-first, which let
+    # a low-scored risk like Health dedup out a higher, convergent Work/Authority.)
+    scored = sorted([d for d in domain_scores if d["score"] >= min_score],
+                    key=lambda d: (-d["score"], -d["confidence"]))
 
     def _dup(cand: dict, chosen: List[dict]) -> bool:
         """True if cand's houses overlap an already-chosen domain by >=50% — so
         two near-twins (work/authority = {6,10}, travel/inner-life = {9,12})
-        can't both surface. The higher-scored one wins (chosen first)."""
+        can't both surface. Score-first order means the higher one is chosen first."""
         ch = set(cand.get("houses") or [])
         if not ch:
             return False
@@ -299,25 +312,27 @@ def rank_and_tier(domain_scores: List[dict], max_active: int = 3,
         return False
 
     active: List[dict] = []
-    # always surface the single biggest risk if any exists
-    if risks and not _dup(risks[0], active):
-        active.append(risks[0])
-    # fill with strongest non-overlapping opportunities
-    for d in opps:
-        if len(active) >= max_active:
-            break
-        if d not in active and not _dup(d, active):
-            active.append(d)
-    # a second, distinct risk if room and strong
-    for d in risks[1:]:
+    for d in scored:
         if len(active) >= max_active + 1:
             break
-        if d not in active and not _dup(d, active):
+        if not _dup(d, active):
             active.append(d)
-    # de-dupe by key, keep ranked by score
-    seen = set()
-    active = [d for d in sorted(active, key=lambda d: -d["score"])
-              if not (d["key"] in seen or seen.add(d["key"]))]
+
+    # Ensure the "AND at-risk" half of the principle: if nothing at-risk made the
+    # score-first cut but a genuinely strong risk exists, swap it in for the
+    # weakest opportunity (without creating a house-overlap).
+    if active and not any(a["polarity"] == "risk" for a in active):
+        _strong_risk = next((d for d in scored
+                             if d["polarity"] == "risk" and d["score"] >= max(3.0, min_score)),
+                            None)
+        if _strong_risk and _strong_risk["key"] not in {a["key"] for a in active}:
+            for i in range(len(active) - 1, -1, -1):
+                if active[i]["polarity"] == "opportunity":
+                    _rest = active[:i] + active[i + 1:]
+                    if not _dup(_strong_risk, _rest):
+                        active[i] = _strong_risk
+                    break
+    active = sorted(active, key=lambda d: -d["score"])
 
     # Quiet = everything NOT surfaced as active (the neutral middle), ranked so
     # the frontend one-liner names them ("home, health, relationships hold
