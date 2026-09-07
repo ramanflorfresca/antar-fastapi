@@ -21824,34 +21824,84 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             # ("authority is watching you" + "nothing is pulling today"). When the
             # chart shows a live domain, lead the highlight with it; only keep
             # "nothing pulling" when the ranker truly finds nothing. Fail-open.
+            # [daily-coherence 2026-09-07 #3] LLM CONSTRAINT / polarity guard: the
+            # sweep is the authority for what's live today AND its tone. When the
+            # sweep's lead points 'risk' but the narration engine (_th) would tell a
+            # positive story (or vice-versa), we must not ship a green-light
+            # narration over a red-light chart. In that contradiction we skip the
+            # LLM narration and let the honest deterministic template (set to the
+            # sweep's lead) stand. False by default so any failure below leaves the
+            # normal narration path untouched.
+            _skip_narration = False
             try:
                 from antar_engine.house_activation import (
                     score_domains as _hd_score, rank_and_tier as _hd_tier,
                 )
-                from datetime import datetime as _hd_dt
+                from datetime import datetime as _hd_dt, timedelta as _hd_td
                 _hd_today = _hd_dt.utcnow().date()
                 try:
                     _hd_today = _hd_dt.fromisoformat(str(result.get("date"))[:10]).date()
                 except Exception:
                     pass
+                # [daily-coherence 2026-09-07 #2] DAY-TRANSIT FEED. Previously []
+                # was passed → the sweep ran on Vimśottarī+Jaimini daśā only, which
+                # barely move day-to-day, so the daily card was effectively static
+                # (same lead/polarity for weeks) and had no real gochar tone. Feed a
+                # tight forward-leaning window (yesterday → +2d) with fast planets on
+                # so the Moon's sign/nakshatra shift + fast-planet aspect entries land
+                # as events hitting natal houses → the ranking and polarity actually
+                # move with the day. Fail-open to [] (dasha-only) if swisseph is down.
+                _hd_events = []
+                try:
+                    from antar_engine.transit_events import (
+                        compute_transit_events_in_range as _hd_tev,
+                    )
+                    if isinstance(cd, dict) and cd:
+                        _hd_events = _hd_tev(
+                            cd, _hd_today - _hd_td(days=1),
+                            _hd_today + _hd_td(days=2), include_fast=True,
+                        ) or []
+                except Exception as _hd_tev_err:
+                    print(f"[daily-coherence] transit feed skipped (dasha-only): {_hd_tev_err}")
                 _hd_ranked = _hd_tier(_hd_score(
                     cd if isinstance(cd, dict) else {},
-                    get_dashas_for_chart(cid) or {}, [], _hd_today))
+                    get_dashas_for_chart(cid) or {}, _hd_events, _hd_today))
                 _hd_active = _hd_ranked.get("active") or []
                 result["active_domains"]   = _hd_active
                 result["quiet_domains"]    = _hd_ranked.get("quiet") or []
                 result["headline_domains"] = [a.get("label") for a in _hd_active]
-                if _hd_active and (result.get("direction") == "quiet"
-                        or "nothing is pulling" in str(result.get("highlight") or "").lower()):
-                    _lead = _hd_active[0]
-                    _risk = _lead.get("polarity") == "risk"
+                # sweep's own read of the day's direction, from the lead domain
+                _lead = _hd_active[0] if _hd_active else None
+                _sweep_risk = bool(_lead) and _lead.get("polarity") == "risk"
+                _sweep_dir = ("adverse" if _sweep_risk else "positive") if _lead else "quiet"
+                _cur_dir = result.get("direction")
+                # (a) the ranker found a live domain but the card went quiet →
+                # lead the highlight with it (the original self-contradiction fix).
+                _quiet_card = (_cur_dir == "quiet"
+                        or "nothing is pulling" in str(result.get("highlight") or "").lower())
+                # (b) polarity contradiction: card says positive, sweep says risk
+                # (or vice-versa). Trust the sweep; drop the LLM narration so a
+                # green-light story can't ride over a red-light chart.
+                _contradiction = bool(_lead) and (
+                    (_sweep_dir == "adverse" and _cur_dir == "positive")
+                    or (_sweep_dir == "positive" and _cur_dir == "adverse"))
+                if _lead and (_quiet_card or _contradiction):
                     result["highlight"] = (
                         f"{_lead.get('label')} "
                         + ("needs careful handling today — protect more than push."
-                           if _risk else
+                           if _sweep_risk else
                            "is where today's momentum actually is — put your focus here.")
                     )
-                    result["direction"] = "adverse" if _risk else "positive"
+                    result["direction"] = _sweep_dir
+                    if _contradiction:
+                        # keep every downstream consumer (narration gate,
+                        # today-signal commit) on the sweep's direction, and force
+                        # the honest template instead of the contradicting LLM prose.
+                        _skip_narration = True
+                        try:
+                            _th["direction"] = _sweep_dir
+                        except Exception:
+                            pass
             except Exception as _hd_err:
                 print(f"[daily-coherence] house-activation sweep skipped (non-fatal): {_hd_err}")
 
@@ -21886,7 +21936,10 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             # fingerprint; EN-source only — @translate_response localizes.
             # ANY failure leaves the engine template text in place.
             try:
-                if _th["direction"] in ("positive", "adverse"):
+                # [daily-coherence 2026-09-07 #3] _skip_narration is set when the
+                # sweep's tone contradicts _th's — we keep the honest template that
+                # already leads with the sweep's domain rather than narrating _th.
+                if not _skip_narration and _th["direction"] in ("positive", "adverse"):
                     from antar_engine.today_narration import (
                         build_narration_system, parse_and_validate,
                         narration_cache_read, narration_cache_write,
@@ -21894,6 +21947,16 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     _nar_date = (start_date.date() if hasattr(start_date, "date")
                                  else start_date).isoformat()
                     _nar = None if _inspect_active() else narration_cache_read(supabase, cid, _nar_date, _th)
+                    # [daily-coherence 2026-09-07 #3] broken-sentence guard: never
+                    # let a truncated/dangling cached narration reach the card —
+                    # keep the deterministic template already in `result` instead.
+                    try:
+                        from antar_engine.daily_prediction_engine import _looks_broken as _hd_broken
+                        if _nar and (_hd_broken(_nar.get("highlight"))
+                                     or _hd_broken(_nar.get("headline"))):
+                            _nar = None
+                    except Exception:
+                        pass
                     if _nar:
                         result["headline"]  = _nar["headline"]
                         result["highlight"] = _nar["highlight"]
