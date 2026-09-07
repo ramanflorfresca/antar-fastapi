@@ -21816,6 +21816,45 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             # [Fix A] first-class, stable evidence trail (admin/dev-
             # visible; not rendered). Always present on a daily read.
             result["evidence"] = _th.get("evidence") or {}
+
+            # [daily-coherence 2026-09-07 #1] house_activation is the chart-
+            # computed authority for "what's live today". The prior highlight ran
+            # on scorers that could go 'quiet' (LK often empty in prod) while the
+            # signal claimed a strong theme — the self-contradiction users hit
+            # ("authority is watching you" + "nothing is pulling today"). When the
+            # chart shows a live domain, lead the highlight with it; only keep
+            # "nothing pulling" when the ranker truly finds nothing. Fail-open.
+            try:
+                from antar_engine.house_activation import (
+                    score_domains as _hd_score, rank_and_tier as _hd_tier,
+                )
+                from datetime import datetime as _hd_dt
+                _hd_today = _hd_dt.utcnow().date()
+                try:
+                    _hd_today = _hd_dt.fromisoformat(str(result.get("date"))[:10]).date()
+                except Exception:
+                    pass
+                _hd_ranked = _hd_tier(_hd_score(
+                    cd if isinstance(cd, dict) else {},
+                    get_dashas_for_chart(cid) or {}, [], _hd_today))
+                _hd_active = _hd_ranked.get("active") or []
+                result["active_domains"]   = _hd_active
+                result["quiet_domains"]    = _hd_ranked.get("quiet") or []
+                result["headline_domains"] = [a.get("label") for a in _hd_active]
+                if _hd_active and (result.get("direction") == "quiet"
+                        or "nothing is pulling" in str(result.get("highlight") or "").lower()):
+                    _lead = _hd_active[0]
+                    _risk = _lead.get("polarity") == "risk"
+                    result["highlight"] = (
+                        f"{_lead.get('label')} "
+                        + ("needs careful handling today — protect more than push."
+                           if _risk else
+                           "is where today's momentum actually is — put your focus here.")
+                    )
+                    result["direction"] = "adverse" if _risk else "positive"
+            except Exception as _hd_err:
+                print(f"[daily-coherence] house-activation sweep skipped (non-fatal): {_hd_err}")
+
             # [beats] structured per-area cards for the warm multi-beat
             # render — deterministic, from the same drivers the narrator
             # uses (plain nouns, no jargon). Empty on quiet days.
@@ -22480,6 +22519,45 @@ async def debug_label_coverage(limit: int = 300):
         import traceback
         from fastapi.responses import JSONResponse
         return JSONResponse(status_code=500, content={"error": str(e), "trace": traceback.format_exc()[:400]})
+
+
+# [validation 2026-09-07] find a chart by first name or account email (debug).
+@app.get("/api/v1/debug/find-chart")
+async def debug_find_chart(name: str = "", email: str = ""):
+    out = []
+    try:
+        if name:
+            try:
+                r = supabase.table("charts").select(
+                    "id, first_name, birth_date, current_country"
+                ).ilike("first_name", f"%{name}%").limit(25).execute()
+                out += (r.data or [])
+            except Exception as _ne:
+                out.append({"name_lookup_error": str(_ne)[:200]})
+        if email and not out:
+            try:
+                _res = supabase.auth.admin.list_users()
+                _users = _res if isinstance(_res, list) else (getattr(_res, "users", None) or [])
+                _uid = None
+                for _u in _users:
+                    _em = (getattr(_u, "email", None)
+                           or (_u.get("email") if isinstance(_u, dict) else "")) or ""
+                    if _em.lower() == email.strip().lower():
+                        _uid = getattr(_u, "id", None) or (_u.get("id") if isinstance(_u, dict) else None)
+                        break
+                if _uid:
+                    r = supabase.table("charts").select(
+                        "id, first_name, birth_date, current_country"
+                    ).eq("user_id", _uid).execute()
+                    out += (r.data or [])
+                else:
+                    out.append({"email_note": "no auth user matched (may be beyond first page)"})
+            except Exception as _ee:
+                out.append({"email_lookup_error": str(_ee)[:200]})
+        return {"matches": out}
+    except Exception as e:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=500, content={"error": str(e)})
 
 
 # --- JAIMINI BACKFILL ENDPOINT ---
