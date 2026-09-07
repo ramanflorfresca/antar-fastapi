@@ -28,19 +28,33 @@ from typing import Dict, List, Optional, Any
 from antar_engine.d10_career import SIGNS, SIGN_LORD, _sign_n_from
 from antar_engine.life_area_map import LIFE_AREA_MAP
 
-# The life-domains we sweep, in a stable display order. Each maps to a
-# LIFE_AREA_MAP key (houses + karakas) and a user-facing label.
-DOMAIN_SWEEP: List[Dict[str, str]] = [
-    {"key": "career",      "label": "Work & reputation"},
-    {"key": "finance",     "label": "Money"},
-    {"key": "wealth",      "label": "Wealth & gains"},
-    {"key": "property",    "label": "Home"},
-    {"key": "foreign",     "label": "Travel & foreign"},
-    {"key": "marriage",    "label": "Relationship"},
-    {"key": "family",      "label": "Family"},
-    {"key": "health",      "label": "Health"},
-    {"key": "speculation", "label": "Risk & speculation"},
-    {"key": "spiritual",   "label": "Inner life"},
+# [domain-consolidation 2026-09-07] Distinct life-domains with their OWN house +
+# karaka sets (decoupled from LIFE_AREA_MAP, whose finance/wealth/speculation keys
+# triple-counted the money houses and made "Money" fall to quiet while the reading
+# led with it). `primary` (first house) is distinct per domain; rank_and_tier also
+# dedups by house-overlap so two near-twins (work/authority, travel/inner-life)
+# can't both surface.
+DOMAIN_SWEEP: List[Dict[str, Any]] = [
+    {"key": "work",         "label": "Work & reputation", "houses": [10, 6, 1],
+     "karaka": ["Sun", "Saturn", "Mercury"]},
+    {"key": "money",        "label": "Money & wealth",    "houses": [2, 11],
+     "karaka": ["Jupiter", "Venus"]},
+    {"key": "speculation",  "label": "Risk & speculation", "houses": [5, 8],
+     "karaka": ["Mercury", "Rahu", "Jupiter"]},
+    {"key": "home",         "label": "Home & property",   "houses": [4],
+     "karaka": ["Moon", "Mars", "Venus"]},
+    {"key": "travel",       "label": "Travel & foreign",  "houses": [9, 12],
+     "karaka": ["Rahu", "Jupiter"]},
+    {"key": "relationship", "label": "Relationship",      "houses": [7, 5],
+     "karaka": ["Venus", "Jupiter"]},
+    {"key": "family",       "label": "Family",            "houses": [4, 9],
+     "karaka": ["Moon", "Jupiter"]},
+    {"key": "health",       "label": "Health",            "houses": [1, 6, 8],
+     "karaka": ["Sun", "Moon", "Mars", "Saturn"]},
+    {"key": "authority",    "label": "Authority & legal", "houses": [6, 10],
+     "karaka": ["Sun", "Saturn", "Mars"]},
+    {"key": "spiritual",    "label": "Inner life",        "houses": [12, 9],
+     "karaka": ["Jupiter", "Ketu", "Saturn"]},
 ]
 
 _BENEFICS = {"Jupiter", "Venus", "Mercury", "Moon"}
@@ -149,11 +163,8 @@ def score_domains(chart_data: dict, dashas: dict, transit_events: list,
 
     results = []
     for dom in DOMAIN_SWEEP:
-        spec = LIFE_AREA_MAP.get(dom["key"]) or {}
-        primary = spec.get("primary")
-        houses = [primary] + list(spec.get("secondary") or []) if primary else list(spec.get("secondary") or [])
-        houses = [h for h in houses if isinstance(h, int)]
-        karakas = {str(k).title() for k in (spec.get("karaka") or [])}
+        houses = [h for h in (dom.get("houses") or []) if isinstance(h, int)]
+        karakas = {str(k).title() for k in (dom.get("karaka") or [])}
 
         # significators of this domain: house lords + occupants + karakas
         lords = {_house_lord(lagna_sign, h) for h in houses if lagna_sign}
@@ -274,23 +285,36 @@ def rank_and_tier(domain_scores: List[dict], max_active: int = 3,
     risks = sorted([d for d in scored if d["polarity"] == "risk"],
                    key=lambda d: (-d["score"], -d["confidence"]))
 
+    def _dup(cand: dict, chosen: List[dict]) -> bool:
+        """True if cand's houses overlap an already-chosen domain by >=50% — so
+        two near-twins (work/authority = {6,10}, travel/inner-life = {9,12})
+        can't both surface. The higher-scored one wins (chosen first)."""
+        ch = set(cand.get("houses") or [])
+        if not ch:
+            return False
+        for c in chosen:
+            sh = set(c.get("houses") or [])
+            if sh and len(ch & sh) / len(ch) >= 0.5:
+                return True
+        return False
+
     active: List[dict] = []
-    # always surface at least the single biggest risk if any exists
-    if risks:
+    # always surface the single biggest risk if any exists
+    if risks and not _dup(risks[0], active):
         active.append(risks[0])
-    # fill with strongest opportunities
+    # fill with strongest non-overlapping opportunities
     for d in opps:
         if len(active) >= max_active:
             break
-        if d not in active:
+        if d not in active and not _dup(d, active):
             active.append(d)
-    # a second risk if room and strong
+    # a second, distinct risk if room and strong
     for d in risks[1:]:
         if len(active) >= max_active + 1:
             break
-        if d not in active:
+        if d not in active and not _dup(d, active):
             active.append(d)
-    # de-dupe, keep ranked by score
+    # de-dupe by key, keep ranked by score
     seen = set()
     active = [d for d in sorted(active, key=lambda d: -d["score"])
               if not (d["key"] in seen or seen.add(d["key"]))]
