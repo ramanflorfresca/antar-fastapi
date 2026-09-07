@@ -25659,7 +25659,10 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
         _md_kwargs = dict(
             chart_id=chart_id,
             chart_data=chart_data,
-            dashas={},
+            # [convergence-sweep 2026-09-07 #1] was {} — monthly never had daśā
+            # data. The house-activation ranker needs the full Vimśottarī +
+            # Jaimini periods to score daśā activation + convergence.
+            dashas=(get_dashas_for_chart(chart_id) or {}),
             first_name=chart_record.get("first_name", ""),
             lagna=chart_record.get("lagna_sign", "") or chart_data.get("lagna", {}).get("sign", ""),
             moon_sign=chart_record.get("moon_sign", "") or chart_data.get("planets", {}).get("Moon", {}).get("sign", ""),

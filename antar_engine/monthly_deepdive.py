@@ -622,6 +622,13 @@ async def generate_monthly_deepdive(
     # computed signals (masik / LK condition / transit houses) drove the read.
     if _dbg:
         result["_debug_reasoning"] = _dbg
+        # [convergence-sweep 2026-09-07 #1] tiered surface for the frontend:
+        # lead with `active_domains` (ranked, strong+at-risk, with windows),
+        # collapse `quiet_domains` behind a tap.
+        if _dbg.get("convergence_active"):
+            result["active_domains"] = _dbg["convergence_active"]
+            result["quiet_domains"] = _dbg.get("convergence_quiet") or []
+            result["headline_domains"] = [a.get("label") for a in _dbg["convergence_active"]]
 
     # Inject first_name into overview
     if first_name and result.get("overview"):
@@ -1106,6 +1113,60 @@ def _build_deepdive_context(
                 for _hd in _hot_domains:
                     for _hh in (_tally.get(_hd, {}).get("houses") or []):
                         _tv.append(f"transit:{_hd}:house{_hh}")
+            # [convergence-sweep 2026-09-07 #1] Re-rank domains by Parāśari daśā
+            # + gochar + Jaimini CONVERGENCE (house_activation) and surface the
+            # strong + at-risk, suppress the neutral middle. This supersedes the
+            # transit-only hot-domain list as the narration spine (dashas were {}
+            # before, so daśā never entered the monthly at all).
+            try:
+                from antar_engine.house_activation import (
+                    score_domains as _cv_score, rank_and_tier as _cv_tier,
+                )
+                from antar_engine.house_significations import select_nouns as _cv_nouns
+                _cv_scores = _cv_score(chart_data, dashas or {}, _events, now.date())
+                _cv_t = _cv_tier(_cv_scores)
+                _cv_active = _cv_t.get("active") or []
+                _cv_quiet = _cv_t.get("quiet") or []
+                if _cv_active:
+                    lines.append('')
+                    lines.append('═══ CONVERGENCE-RANKED LIFE-AREAS — THE SPINE OF THIS READING ═══')
+                    lines.append('Rank source: Vimśottarī daśā + gochar transits + Jaimini chara '
+                                 'convergence. Narrate ONLY these active areas — one grounded '
+                                 'paragraph each — and LEAD the overview with them. Do NOT give '
+                                 'every life-area equal weight; this ranking IS the intelligence.')
+                    for _a in _cv_active:
+                        _pol = ('AT-RISK — write it as protect / hold / avoid'
+                                if _a.get('polarity') == 'risk' else 'STRONG — lean in')
+                        _conv = (' [BOTH daśā systems agree — HIGH conviction]'
+                                 if _a.get('convergence') else '')
+                        _win = f" | window: {_a['window']}" if _a.get('window') else ''
+                        _nn = []
+                        try:
+                            for _h in (_a.get('houses') or []):
+                                for _n in _cv_nouns(_h, None, _a.get('key'), limit=2, life=life):
+                                    if _n not in _nn:
+                                        _nn.append(_n)
+                        except Exception:
+                            pass
+                        _things = f" | concrete: {', '.join(_nn[:4])}" if _nn else ''
+                        lines.append(f"  • {_a['label']} — {_pol}{_conv}{_win}{_things}")
+                    if _cv_quiet:
+                        _qnames = ', '.join(q['label'] for q in _cv_quiet)
+                        lines.append('QUIET this cycle (mention in ONE short line, do not expand): '
+                                     f'{_qnames} — steady, no strong signal.')
+                    # priority_actions now cover the convergence-active areas
+                    _hot_domains = [_a['label'] for _a in _cv_active]
+                    if debug_out is not None:
+                        debug_out['convergence_active'] = [
+                            {k: _a.get(k) for k in
+                             ('key', 'label', 'polarity', 'confidence',
+                              'convergence', 'window', 'score', 'houses')}
+                            for _a in _cv_active
+                        ]
+                        debug_out['convergence_quiet'] = [q['label'] for q in _cv_quiet]
+            except Exception as _cv_err:
+                logger.warning(f'[convergence-sweep] skipped (non-fatal): {_cv_err}')
+
             lines.append('')
             lines.append('')
             lines.append('DO / DO-NOT BALANCE — a domain marked "AVOID / hold back" above is a '
@@ -1162,9 +1223,10 @@ def _build_deepdive_context(
         "reference a week_start date from the available_weeks list above — "
         "do not invent weeks that are not in the WEEKLY TRANSIT SCHEDULE. "
         "[cp-day4a] final instruction domains — priority_actions MUST contain "
-        "exactly 3 entries whose domain fields equal priority_action_domains "
-        "in that exact order.  Write one verb-first, chart-specific action "
-        "per domain citing the transit events in that domain's houses."
+        "one entry per priority_action_domains entry (same count, same order), "
+        "whose domain fields equal priority_action_domains.  Write one verb-first, "
+        "chart-specific action per domain citing the transit events in that "
+        "domain's houses."
     )
 
     return "\n".join(lines)
