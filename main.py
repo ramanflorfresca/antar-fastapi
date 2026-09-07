@@ -21865,7 +21865,8 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     print(f"[daily-coherence] transit feed skipped (dasha-only): {_hd_tev_err}")
                 _hd_ranked = _hd_tier(_hd_score(
                     cd if isinstance(cd, dict) else {},
-                    get_dashas_for_chart(cid) or {}, _hd_events, _hd_today))
+                    get_dashas_for_chart(cid) or {}, _hd_events, _hd_today,
+                    daily=True))
                 _hd_active = _hd_ranked.get("active") or []
                 result["active_domains"]   = _hd_active
                 result["quiet_domains"]    = _hd_ranked.get("quiet") or []
@@ -21893,19 +21894,23 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     # push"). Honor the caution flag: a high-reward/high-risk theme
                     # (speculation / dusthana under a malefic mahādaśā) is lean-in-
                     # WITH-a-stop, never a pure green light.
-                    _lbl = _lead.get("label") or "Today"
+                    # user-facing life-language, never the raw chip label — "Risk &
+                    # speculation" as a green light reads as "go gamble" (see
+                    # house_activation DOMAIN_SWEEP `say`).
+                    _say = (_lead.get("say") or _lead.get("label") or "today").strip()
+                    _Say = _say[:1].upper() + _say[1:]
                     _caution = bool(_lead.get("caution"))
                     if _sweep_risk:
-                        result["headline"]  = f"A day to protect around {_lbl.lower()}."
-                        result["highlight"] = (f"{_lbl} needs careful handling today — "
+                        result["headline"]  = f"A day to protect around {_say}."
+                        result["highlight"] = (f"{_Say} needs careful handling today — "
                                                "protect more than push.")
                     elif _caution:
-                        result["headline"]  = f"{_lbl} is lit today — move, but keep a stop."
-                        result["highlight"] = (f"{_lbl} is where today's momentum is — lean in, "
+                        result["headline"]  = f"{_Say} is lit today — move, but keep a stop."
+                        result["highlight"] = (f"{_Say} is where today's momentum is — lean in, "
                                                "but cap your risk and don't force the big bet.")
                     else:
-                        result["headline"]  = f"A strong day for {_lbl.lower()}."
-                        result["highlight"] = (f"{_lbl} is where today's momentum actually is — "
+                        result["headline"]  = f"A strong day for {_say}."
+                        result["highlight"] = (f"{_Say} is where today's momentum actually is — "
                                                "put your focus here.")
                     result["direction"] = _sweep_dir
                     if _contradiction:
@@ -21920,16 +21925,18 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 else:
                     # (c) AGREE case — the card and the sweep point the same way, so
                     # the warm LLM narration will run on _th. Bias its emphasis to
-                    # the sweep's CONVERGENT lead (the moat: Vim + Jaimini agree) so
-                    # the headline leads with it instead of whichever area _th's own
-                    # vote happened to top. We only REORDER _th's already-voted areas
-                    # (never add one — the no-invention gate still holds) and hand the
-                    # narrator a sweep-led draft headline to warm up. Reordering
-                    # highlight_domains busts the narration-cache fingerprint once, so
-                    # the re-narration picks up the corrected lead. Convergent-lead
-                    # only, and only when its polarity matches the card's direction.
+                    # the sweep's RANKED lead so the headline leads with it instead of
+                    # whichever area _th's own vote happened to top. The daily ranker
+                    # already balances convergence (the moat) against today's live
+                    # gochar, so we follow its #1 — for Shashi that's the convergent
+                    # Authority, for Harleen it's transit-active Work. We only REORDER
+                    # _th's already-voted areas (never add one — the no-invention gate
+                    # holds) and hand the narrator a sweep-led draft headline to warm
+                    # up. Reordering highlight_domains busts the narration-cache
+                    # fingerprint once, so the re-narration picks up the corrected
+                    # lead. Only when the lead's polarity matches the card direction.
                     try:
-                        _conv_lead = next((a for a in _hd_active if a.get("convergence")), None)
+                        _conv_lead = _lead   # the ranked #1 active domain
                         _cl_dir = ("adverse" if (_conv_lead and _conv_lead.get("polarity") == "risk")
                                    else "positive") if _conv_lead else None
                         if _conv_lead and _cl_dir == _cur_dir:
@@ -21957,8 +21964,12 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                                 if _lead_coarse in _hd_dom:
                                     _th["highlight_domains"] = (
                                         [_lead_coarse] + [d for d in _hd_dom if d != _lead_coarse])
-                                _clbl = (_LA2.AREA_LABEL.get(_pref[0])
-                                         or (_conv_lead.get("label") or "today")).lower()
+                                # user-facing life-language for the domain (not the
+                                # raw chip label, not the fine-area word which can
+                                # imply e.g. children for a 5th-house venture).
+                                _clbl = (_conv_lead.get("say")
+                                         or _LA2.AREA_LABEL.get(_pref[0])
+                                         or _conv_lead.get("label") or "today").strip()
                                 _sweep_led_headline = (
                                     f"A day to protect around {_clbl}."
                                     if _cl_dir == "adverse" else

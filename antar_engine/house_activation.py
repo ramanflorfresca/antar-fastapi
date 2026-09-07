@@ -34,27 +34,32 @@ from antar_engine.life_area_map import LIFE_AREA_MAP
 # led with it). `primary` (first house) is distinct per domain; rank_and_tier also
 # dedups by house-overlap so two near-twins (work/authority, travel/inner-life)
 # can't both surface.
+# `label` is the internal chip label (also shown in the domains list); `say` is
+# the user-facing life-language for headline/highlight prose — never surface the
+# raw key words in a green-light line. "Risk & speculation" (5th/8th) as a
+# headline reads as "go gamble"; its real benefic meaning is a venture / creative
+# project / money owed or shared — so `say` carries that, `label` stays the chip.
 DOMAIN_SWEEP: List[Dict[str, Any]] = [
     {"key": "work",         "label": "Work & reputation", "houses": [10, 6, 1],
-     "karaka": ["Sun", "Saturn", "Mercury"]},
+     "karaka": ["Sun", "Saturn", "Mercury"], "say": "your work and reputation"},
     {"key": "money",        "label": "Money & wealth",    "houses": [2, 11],
-     "karaka": ["Jupiter", "Venus"]},
+     "karaka": ["Jupiter", "Venus"], "say": "money and income"},
     {"key": "speculation",  "label": "Risk & speculation", "houses": [5, 8],
-     "karaka": ["Mercury", "Rahu", "Jupiter"]},
+     "karaka": ["Mercury", "Rahu", "Jupiter"], "say": "a venture or creative project"},
     {"key": "home",         "label": "Home & property",   "houses": [4],
-     "karaka": ["Moon", "Mars", "Venus"]},
+     "karaka": ["Moon", "Mars", "Venus"], "say": "home and property"},
     {"key": "travel",       "label": "Travel & foreign",  "houses": [9, 12],
-     "karaka": ["Rahu", "Jupiter"]},
+     "karaka": ["Rahu", "Jupiter"], "say": "a journey or something far from home"},
     {"key": "relationship", "label": "Relationship",      "houses": [7, 5],
-     "karaka": ["Venus", "Jupiter"]},
+     "karaka": ["Venus", "Jupiter"], "say": "a close relationship"},
     {"key": "family",       "label": "Family",            "houses": [4, 9],
-     "karaka": ["Moon", "Jupiter"]},
+     "karaka": ["Moon", "Jupiter"], "say": "family"},
     {"key": "health",       "label": "Health",            "houses": [6, 8],
-     "karaka": ["Sun", "Moon", "Mars", "Saturn"]},
+     "karaka": ["Sun", "Moon", "Mars", "Saturn"], "say": "your health and energy"},
     {"key": "authority",    "label": "Authority & legal", "houses": [6, 10],
-     "karaka": ["Sun", "Saturn", "Mars"]},
+     "karaka": ["Sun", "Saturn", "Mars"], "say": "your work and standing"},
     {"key": "spiritual",    "label": "Inner life",        "houses": [12, 9],
-     "karaka": ["Jupiter", "Ketu", "Saturn"]},
+     "karaka": ["Jupiter", "Ketu", "Saturn"], "say": "your inner life"},
 ]
 
 _BENEFICS = {"Jupiter", "Venus", "Mercury", "Moon"}
@@ -137,12 +142,19 @@ def _jaimini_active_houses(dashas: dict, lagna_idx: int, today_iso: str) -> set:
 
 # ── main scorer ──────────────────────────────────────────────────────────────
 def score_domains(chart_data: dict, dashas: dict, transit_events: list,
-                  today: Optional[date] = None) -> List[dict]:
+                  today: Optional[date] = None, daily: bool = False) -> List[dict]:
     """Score every DOMAIN_SWEEP domain for activation. Returns a list of dicts:
-      {key, label, houses, score, polarity ('opportunity'|'risk'|'neutral'),
+      {key, label, say, houses, score, polarity ('opportunity'|'risk'|'neutral'),
        confidence (0-1), convergence (bool), vim, jaimini, transit_count,
        window (ISO date-range str or ''), drivers[]}.
-    Ordered by DOMAIN_SWEEP; caller ranks/tiers with rank_and_tier."""
+    Ordered by DOMAIN_SWEEP; caller ranks/tiers with rank_and_tier.
+
+    `daily=True` weights the day's gochar (transit_count) more heavily so a
+    domain with real movement TODAY can lead over a zero-transit daśā/chara
+    convergence. "Today" is defined by the sky moving; a standing convergence
+    with nothing firing is a PERIOD truth, not a today truth. Convergence still
+    boosts the score (the moat) — it just no longer auto-outranks live gochar.
+    Monthly / yearly keep `daily=False` (convergence-first is correct there)."""
     today = today or datetime.utcnow().date()
     today_iso = today.isoformat()
     lg = (chart_data or {}).get("lagna") or {}
@@ -218,7 +230,17 @@ def score_domains(chart_data: dict, dashas: dict, transit_events: list,
             score += 3.0
         if jaimini_active:
             score += 1.5
-        score += min(3.0, transit_count * 0.75)
+        if daily:
+            # [daily-transit-weight 2026-09-07] the day is defined by gochar —
+            # weight it enough that a transit-active domain can lead over a
+            # zero-transit convergence, plus a small "something is firing today"
+            # bump. Convergence's +2.0 still applies below, so a domain that is
+            # BOTH convergent and transit-active stays on top.
+            score += min(4.0, transit_count * 1.0)
+            if transit_count:
+                score += 0.5
+        else:
+            score += min(3.0, transit_count * 0.75)
         if karakas & vim_planets:
             score += 0.75
         convergence = vim_active and jaimini_active
@@ -275,7 +297,8 @@ def score_domains(chart_data: dict, dashas: dict, transit_events: list,
             drivers.append(f"{transit_count} transit event(s) hitting houses {houses}")
 
         results.append({
-            "key": dom["key"], "label": dom["label"], "houses": houses,
+            "key": dom["key"], "label": dom["label"],
+            "say": dom.get("say") or dom["label"], "houses": houses,
             "score": round(score, 2), "polarity": polarity, "caution": caution,
             "confidence": confidence, "convergence": convergence,
             "vim": vim_active, "jaimini": jaimini_active,
