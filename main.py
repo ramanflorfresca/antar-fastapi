@@ -18947,6 +18947,100 @@ _ASK_SUPPORT_PRESENT_RE = _re_crisis.compile(
 )
 
 
+# [clarify-vague 2026-09-07] A bare, subjectless prompt ("what should I do?",
+# "no sé qué hacer") has no domain to time — guessing casts it to business (the
+# founder override) and leaks an off-topic industry read. Detect it and ask what
+# it's about, with the same domain chips as _clarification_needed. High-precision:
+# must be SHORT and carry NO domain noun, so "what should I do about my job?" (has
+# a subject) still answers normally.
+_ASK_VAGUE_STEMS = _re_crisis.compile(
+    r"^(what should i (do|be doing)|what do i do|what now|what'?s next for me|"
+    r"i don'?t know what to do|help me|guide me|what do you suggest|"
+    r"tell me what to do|what should my next (step|move) be|"
+    r"qué (debería )?hacer|qué hago|no sé qué hacer|ay[uú]dame|"
+    r"qué me recomiendas|qué sigue para mí|qué debo hacer)\b",
+    _re_crisis.I,
+)
+_ASK_HAS_SUBJECT = _re_crisis.compile(
+    r"\b(job|work|career|money|financ|business|startup|invest|market|sale|"
+    r"marriage|marry|relationship|partner|wife|husband|boyfriend|girlfriend|"
+    r"love|dating|health|sick|disease|ill|family|father|mother|child|kid|son|"
+    r"daughter|home|house|property|move|relocat|travel|abroad|visa|study|exam|"
+    r"court|legal|case|trabajo|carrera|dinero|negocio|relaci[oó]n|pareja|salud|"
+    r"familia|casa|mudar|viaj|amor|matrimonio)\b",
+    _re_crisis.I,
+)
+
+
+def _ask_is_vague(question: str, language: str = "en") -> bool:
+    q = (question or "").strip()
+    if not q or _ASK_HAS_SUBJECT.search(q):
+        return False
+    if len(_re_crisis.findall(r"\w+", q)) > 8:
+        return False
+    return bool(_ASK_VAGUE_STEMS.search(q))
+
+
+def _ask_clarify_payload(language: str = "en") -> dict:
+    _es = (language or "en").lower().startswith("es")
+    if _es:
+        read = ("Con gusto — pero el momento depende mucho del tema. ¿Sobre qué es? "
+                "¿Una relación, el trabajo, la familia, el dinero o la salud? "
+                "Dime cuál y te doy la ventana concreta.")
+        nxt = "Elige un área y pregúntame de nuevo — te daré el momento exacto."
+        chips = ["Relación", "Trabajo / carrera", "Familia", "Dinero", "Salud"]
+    else:
+        read = ("Happy to help — but the timing really depends on the subject. "
+                "What's this about? A relationship, work, family, money, or your "
+                "health? Tell me which and I'll give you the concrete window.")
+        nxt = "Pick one area and ask me again — I'll give you the exact timing."
+        chips = ["Relationship", "Work / career", "Family", "Money", "Health"]
+    return {
+        "mode": "explore", "read": read, "next": nxt, "locked": False,
+        "needs_clarification": True, "clarification_chips": chips,
+    }
+
+
+def _ask_repair_next(next_txt):
+    """Guard the Ask `next` line against truncation/dangling tails (a token
+    cutoff or the readability pass occasionally leaves e.g. 'Call one person you
+    trust right now — not, now.'). Try to salvage the clause before a dangling
+    em-dash; if the result still reads broken, return None so no garbled step
+    ships. Extends the daily's _looks_broken with a stricter em-dash short-tail
+    threshold (<3 words) — the daily uses <2, which misses 'not, now.'."""
+    if not isinstance(next_txt, str) or not next_txt.strip():
+        return next_txt if isinstance(next_txt, str) else None
+    t = next_txt.strip()
+    try:
+        from antar_engine.daily_prediction_engine import _looks_broken as _lb
+    except Exception:
+        _lb = lambda _s: False
+
+    def _words(s):
+        return len(_re_crisis.findall(r"\w+", s or ""))
+
+    def _broken(s):
+        if _lb(s):
+            return True
+        # dangling / stub tail after an em-dash (stricter than the daily's <2)
+        segs = _re_crisis.split(r"\s*—\s*", s)
+        if len(segs) > 1:
+            tail = segs[-1].strip().rstrip(".!?").strip()
+            if _words(tail) < 3:
+                return True
+        return False
+
+    if not _broken(t):
+        return t
+    # salvage: keep the head clause before the first em-dash if it stands alone.
+    head = _re_crisis.split(r"\s*—\s*", t, maxsplit=1)[0].strip()
+    if head and not _broken(head) and _words(head) >= 3:
+        if head[-1] not in ".!?":
+            head += "."
+        return head
+    return None
+
+
 def _ask_life_scrub(text, life):
     """Deterministic backstop that removes life-fact contradictions from the
     FINAL Ask text, whatever narrator produced it (the prompt block covers the
@@ -19362,6 +19456,15 @@ async def ask_endpoint(request: AskRequest):
     if not question:
         return JSONResponse(status_code=400, content={"error": "Question is required"})
 
+    # [crisis-safety 2026-09-07] A question carrying genuine distress must NEVER be
+    # answered with a binary horary verdict ("no — the timing is against you") — that
+    # is exactly the wrong reply to "is there any point?". Force such questions into
+    # the care-first explore path, which acknowledges the pain, withholds an upbeat
+    # verdict, and guarantees a support line. This makes crisis handling mode-proof
+    # (previously only the explore path was gated; a yes/no crisis fell through).
+    if mode != "explore" and _ask_detect_crisis(question):
+        mode = "explore"
+
     # [life-gate] resolve the reader's known facts once — appended to the
     # narrator's system prompt below so Ask never tells a business owner about
     # "your boss" or the childless about "your child". Same contract as the
@@ -19460,6 +19563,18 @@ async def ask_endpoint(request: AskRequest):
     # ───────────────────────── EXPLORATION ─────────────────────────
     if mode == "explore":
         try:
+            # [clarify-vague 2026-09-07] A bare subjectless prompt ("what should I
+            # do?") has no domain to time — ask what it's about (chips) instead of
+            # guessing a subject. Crisis wins over clarify. Runs before the chart
+            # load / engines: no LLM, instant, and can't leak an off-topic read.
+            if not _ask_detect_crisis(question) and _ask_is_vague(question, language):
+                _clar_payload = _ask_clarify_payload(language)
+                try:
+                    await _ask_persist(supabase, chart_id, question, _clar_payload,
+                                       language, "explore", None)
+                except Exception as _clar_pe:
+                    print(f"[ask][clarify] persist non-fatal: {_clar_pe}")
+                return _clar_payload
             try:
                 # [ask-life-context 2026-07-20] The life columns are pulled here
                 # so /ask can be situation-aware. Both families are needed:
@@ -20836,6 +20951,11 @@ async def ask_endpoint(request: AskRequest):
                 _cr_read = payload.get("read")
                 if isinstance(_cr_read, str) and not _ASK_SUPPORT_PRESENT_RE.search(_cr_read):
                     payload["read"] = (_cr_read.rstrip() + " " + _ask_crisis_safety_line(language)).strip()
+            # [broken-guard 2026-09-07] the `next` line intermittently came back
+            # truncated/dangling (e.g. "Call one person you trust — not, now.") from
+            # a token cutoff or the readability pass. Repair a dangling em-dash tail;
+            # if still broken, drop `next` rather than ship a garbled instruction.
+            payload["next"] = _ask_repair_next(payload.get("next"))
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "explore", locals().get("_ask_concern"))
             return payload
