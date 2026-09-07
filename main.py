@@ -21959,10 +21959,22 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                                         [_lead_coarse] + [d for d in _hd_dom if d != _lead_coarse])
                                 _clbl = (_LA2.AREA_LABEL.get(_pref[0])
                                          or (_conv_lead.get("label") or "today")).lower()
-                                _th["headline"] = (
+                                _sweep_led_headline = (
                                     f"A day to protect around {_clbl}."
                                     if _cl_dir == "adverse" else
                                     f"A strong day for {_clbl}.")
+                                _th["headline"] = _sweep_led_headline
+                                # Also lead the COLD/template headline with the
+                                # convergent domain. result["headline"] was set from
+                                # _th's own vote earlier (e.g. "strong day for
+                                # relationships" when relationship is the weakest
+                                # active domain) and would otherwise contradict the
+                                # domain list until the warm narration lands. The
+                                # narration-cache read below still overrides this with
+                                # the warm LLM line on a cache hit. Highlight is left
+                                # as the engine's multi-domain template (it already
+                                # covers the active areas).
+                                result["headline"] = _sweep_led_headline
                     except Exception as _bias_err:
                         print(f"[daily-coherence] convergent-lead bias skipped: {_bias_err}")
             except Exception as _hd_err:
