@@ -21886,12 +21886,27 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     (_sweep_dir == "adverse" and _cur_dir == "positive")
                     or (_sweep_dir == "positive" and _cur_dir == "adverse"))
                 if _lead and (_quiet_card or _contradiction):
-                    result["highlight"] = (
-                        f"{_lead.get('label')} "
-                        + ("needs careful handling today — protect more than push."
-                           if _sweep_risk else
-                           "is where today's momentum actually is — put your focus here.")
-                    )
+                    # Reconcile HEADLINE + HIGHLIGHT + DIRECTION to the sweep's lead
+                    # in one voice. Overriding only the highlight (as before) left a
+                    # stale headline that could still contradict it (e.g. headline
+                    # "a strong day for work" over highlight "protect more than
+                    # push"). Honor the caution flag: a high-reward/high-risk theme
+                    # (speculation / dusthana under a malefic mahādaśā) is lean-in-
+                    # WITH-a-stop, never a pure green light.
+                    _lbl = _lead.get("label") or "Today"
+                    _caution = bool(_lead.get("caution"))
+                    if _sweep_risk:
+                        result["headline"]  = f"A day to protect around {_lbl.lower()}."
+                        result["highlight"] = (f"{_lbl} needs careful handling today — "
+                                               "protect more than push.")
+                    elif _caution:
+                        result["headline"]  = f"{_lbl} is lit today — move, but keep a stop."
+                        result["highlight"] = (f"{_lbl} is where today's momentum is — lean in, "
+                                               "but cap your risk and don't force the big bet.")
+                    else:
+                        result["headline"]  = f"A strong day for {_lbl.lower()}."
+                        result["highlight"] = (f"{_lbl} is where today's momentum actually is — "
+                                               "put your focus here.")
                     result["direction"] = _sweep_dir
                     if _contradiction:
                         # keep every downstream consumer (narration gate,
