@@ -19415,6 +19415,13 @@ async def ask_endpoint(request: AskRequest):
             if not chart_row.data:
                 return JSONResponse(status_code=404, content={"error": "Chart not found"})
 
+            # [name-fix 2026-09-07] The reader's own first name for the warm
+            # opener. Was never injected into the explore-path system prompt, so
+            # the narrator copied the literal example name ("Raman") from the
+            # OPENING instruction — every user got greeted as "Raman". Inject it
+            # explicitly and de-literalize the example below.
+            _ask_first_name = (chart_row.data.get("first_name") or "").strip().split(" ")[0][:24]
+
             chart_data = _safe_jsonb(chart_row.data.get("chart_data"))
             _ask_jd    = _safe_jsonb(chart_row.data.get("jaimini_data"))
             _ask_lk    = _safe_jsonb(chart_row.data.get("lal_kitab_data"))
@@ -20247,10 +20254,20 @@ async def ask_endpoint(request: AskRequest):
                         "carry.\n"
                     )
                 else:
+                    _name_rule = (
+                        f"The reader's first name is \"{_ask_first_name}\". When you open with "
+                        f"their name, use EXACTLY \"{_ask_first_name}\" — never any other name.\n"
+                        if _ask_first_name else
+                        "The reader's first name is not on file — do NOT invent one or use any "
+                        "name; open with the feeling itself, no salutation.\n"
+                    )
+                    _name_eg = f"{_ask_first_name}, I hear that." if _ask_first_name \
+                        else "I hear that."
                     _opening_block = (
+                        _name_rule +
                         "OPENING: For a question carrying feeling (a fear, a frustration, a hard "
-                        "call), OPEN with ONE short, genuine line using their FIRST NAME and what "
-                        "they're feeling ('Raman, I hear that frustration.'), then ANSWER THE "
+                        "call), OPEN with ONE short, genuine line using their FIRST NAME (exactly "
+                        f"as given above) and what they're feeling ('{_name_eg}'), then ANSWER THE "
                         "QUESTION ASKED directly in the very next sentence. For a flat factual "
                         "question, skip the opener and answer directly in sentence 1. Either way "
                         "the ANSWER must land by sentence 2 — never buried. "
