@@ -19122,6 +19122,13 @@ import contextvars as _cv_ask
 # able to ask freely without burning a user's quota. Admin-gated at the caller.
 _ASK_ADMIN_BYPASS = _cv_ask.ContextVar("ask_admin_bypass", default=False)
 
+# [ask-free-launch 2026-09-07] GROWTH PHASE: Ask is free + uncapped to acquire
+# users (same posture as /predict's disabled limits). The daily soft-cap is a
+# MONETIZATION lever for LATER — owner's call: "the cap should be the last thing,
+# after we are live, have users, and monetization needs to come." To re-enable
+# the paywall/soft-cap when monetization turns on, flip this to False.
+_ASK_FREE_LAUNCH = True
+
 # [narration 2026-08-12] When the Ask voice-gate fails closed (the model's read
 # tripped the jargon gate twice), the read used to collapse to the bare verdict
 # phrase — the same generic "Yes — window open now" on every question. This
@@ -19330,11 +19337,13 @@ async def ask_endpoint(request: AskRequest):
     try:
         _ask_bypass_raw = (os.environ.get("ASK_DEBUG_BYPASS_CHART_IDS") or "").strip()
         _ask_bypass_set = {x.strip() for x in _ask_bypass_raw.split(",") if x.strip()}
-        _ask_bypass_cap = (chart_id in _ask_bypass_set) or bool(_ASK_ADMIN_BYPASS.get())
+        _ask_bypass_cap = (_ASK_FREE_LAUNCH or (chart_id in _ask_bypass_set)
+                           or bool(_ASK_ADMIN_BYPASS.get()))
         if _ask_bypass_cap:
-            print(f"[ask-debug-bypass] chart_id={chart_id[:8]} — cap + increment skipped")
+            print(f"[ask-debug-bypass] chart_id={chart_id[:8]} — cap + increment skipped"
+                  + (" (free-launch)" if _ASK_FREE_LAUNCH else ""))
     except Exception:
-        _ask_bypass_cap = bool(_ASK_ADMIN_BYPASS.get())
+        _ask_bypass_cap = _ASK_FREE_LAUNCH or bool(_ASK_ADMIN_BYPASS.get())
     # [final-launch] any active Ask subscription => unlimited (SKU-rename-proof)
     # [ask-debug-bypass 2026-06-07] _ask_bypass_cap allowlists dev/test charts
     if _ask_tier not in _PAID_TIERS and not _ent_unlim(chart_id, supabase) and not _ask_bypass_cap:
