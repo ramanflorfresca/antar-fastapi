@@ -5202,7 +5202,19 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
     # ask what it's about instead of guessing (and skip the whole engine + the
     # LLM call — clarification is instant). Runs BEFORE the founder override so a
     # vague question isn't force-cast to "business" for entrepreneurs.
-    _clar = _clarification_needed(request.question, concern, getattr(request, "language", "en") or "en")
+    _clar_lang = getattr(request, "language", "en") or "en"
+    _clar = _clarification_needed(request.question, concern, _clar_lang)
+    # [clarify-vague 2026-09-07] fold in the bare-subjectless detector /ask uses so
+    # both surfaces clarify consistently — the referent path above only fires on
+    # "this decision / this move" etc., not a bare "what should I do?".
+    if not _clar and _ask_is_vague(request.question, _clar_lang):
+        _cp = _ask_clarify_payload(_clar_lang)
+        _es_clar = _clar_lang.lower().startswith("es")
+        _clar = {
+            "headline": ("¿Sobre qué es esto?" if _es_clar else "What's this about?"),
+            "prompt": _cp["read"],
+            "chips": _cp["clarification_chips"],
+        }
     if _clar:
         print(f"[predict] clarification needed for vague question: {request.question[:60]!r}")
         return PredictResponse(
