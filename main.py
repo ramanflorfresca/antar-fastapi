@@ -21917,6 +21917,54 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                             _th["direction"] = _sweep_dir
                         except Exception:
                             pass
+                else:
+                    # (c) AGREE case — the card and the sweep point the same way, so
+                    # the warm LLM narration will run on _th. Bias its emphasis to
+                    # the sweep's CONVERGENT lead (the moat: Vim + Jaimini agree) so
+                    # the headline leads with it instead of whichever area _th's own
+                    # vote happened to top. We only REORDER _th's already-voted areas
+                    # (never add one — the no-invention gate still holds) and hand the
+                    # narrator a sweep-led draft headline to warm up. Reordering
+                    # highlight_domains busts the narration-cache fingerprint once, so
+                    # the re-narration picks up the corrected lead. Convergent-lead
+                    # only, and only when its polarity matches the card's direction.
+                    try:
+                        _conv_lead = next((a for a in _hd_active if a.get("convergence")), None)
+                        _cl_dir = ("adverse" if (_conv_lead and _conv_lead.get("polarity") == "risk")
+                                   else "positive") if _conv_lead else None
+                        if _conv_lead and _cl_dir == _cur_dir:
+                            import antar_engine.life_areas as _LA2
+                            # sweep domain key -> narrator fine-area keys, lead first
+                            _SWEEP_TO_AREAS = {
+                                "work":         ["work", "siblings"],
+                                "authority":    ["work", "father"],
+                                "money":        ["money", "network"],
+                                "speculation":  ["children", "depth"],
+                                "home":         ["home"],
+                                "travel":       ["father", "expense"],
+                                "relationship": ["partner", "children"],
+                                "family":       ["home", "father"],
+                                "health":       ["health", "body"],
+                                "spiritual":    ["expense", "depth"],
+                            }
+                            _th_areas = list(_th.get("highlight_areas") or [])
+                            _pref = [a for a in _SWEEP_TO_AREAS.get(_conv_lead.get("key"), [])
+                                     if a in _th_areas]
+                            if _pref:
+                                _th["highlight_areas"] = _pref + [a for a in _th_areas if a not in _pref]
+                                _lead_coarse = _LA2.coarse_of(_pref[0])
+                                _hd_dom = list(_th.get("highlight_domains") or [])
+                                if _lead_coarse in _hd_dom:
+                                    _th["highlight_domains"] = (
+                                        [_lead_coarse] + [d for d in _hd_dom if d != _lead_coarse])
+                                _clbl = (_LA2.AREA_LABEL.get(_pref[0])
+                                         or (_conv_lead.get("label") or "today")).lower()
+                                _th["headline"] = (
+                                    f"A day to protect around {_clbl}."
+                                    if _cl_dir == "adverse" else
+                                    f"A strong day for {_clbl}.")
+                    except Exception as _bias_err:
+                        print(f"[daily-coherence] convergent-lead bias skipped: {_bias_err}")
             except Exception as _hd_err:
                 print(f"[daily-coherence] house-activation sweep skipped (non-fatal): {_hd_err}")
 
