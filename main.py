@@ -20239,7 +20239,12 @@ async def ask_endpoint(request: AskRequest):
                     )
                 else:
                     _opening_block = (
-                        "OPENING SENTENCE: ANSWER THE QUESTION ASKED, directly, in sentence 1. "
+                        "OPENING: For a question carrying feeling (a fear, a frustration, a hard "
+                        "call), OPEN with ONE short, genuine line using their FIRST NAME and what "
+                        "they're feeling ('Raman, I hear that frustration.'), then ANSWER THE "
+                        "QUESTION ASKED directly in the very next sentence. For a flat factual "
+                        "question, skip the opener and answer directly in sentence 1. Either way "
+                        "the ANSWER must land by sentence 2 — never buried. "
                         "If it is an either/or, say which side the chart favors; if it asks about "
                         "the nature or quality of something, name it. Do NOT frame it as a 'today' "
                         "verdict and do NOT use the word 'today' — the user did not ask about today. "
@@ -20291,7 +20296,9 @@ async def ask_endpoint(request: AskRequest):
                     "  - \"The energy around X is\"\n"
                     "  - \"There's no specific window\"\n"
                     "  - a DESCRIPTION sentence (\"Your X holds steady\", \"Your X sits in friction\") "
-                    "instead of a VERDICT. The user asked a question — answer it in sentence 1.\n"
+                    "instead of an answer. (A warm personal opener — their name + what they're "
+                    "feeling — is allowed and encouraged for weighted questions; the answer then "
+                    "lands in sentence 2. That personal line is NOT a forbidden generic opener.)\n"
                     "  - any sentence whose first concrete noun is an abstraction "
                     "(energy, dynamic, alignment, momentum, flow, support, framework, "
                     "infrastructure, foundation, systems, capacity, runway, potential).\n"
@@ -20300,6 +20307,10 @@ async def ask_endpoint(request: AskRequest):
                     "resisting, why. Each sentence must contain at least ONE concrete life-noun "
                     "(from the required list, or a closely-related life-noun like \"document\", "
                     "\"deal\", \"meeting\", \"phone call\", \"your boss\", \"your mother\").\n"
+                    "\n"
+                    "CLOSE: end `read` with ONE short, inviting follow-up offer — a natural next "
+                    "thing you could look at for them (\"Want me to look at the coming months to "
+                    "see where the pace shifts?\"). One warm line, genuinely useful, never salesy.\n"
                     "\n"
                     + _window_block +
                     "\n"
