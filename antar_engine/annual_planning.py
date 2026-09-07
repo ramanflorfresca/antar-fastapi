@@ -590,11 +590,12 @@ async def generate_annual_plan(
             return cached
 
     # Build context
+    _sweep: dict = {}   # [#1] convergence tiers, filled in-place by the builder
     context = _build_annual_context(
         chart_data, dashas, first_name, lagna,
         moon_sign, current_dasha, birth_date,
         age, country_code, dkp_context, lk_context, now,
-        dasha_levels=dasha_levels,
+        dasha_levels=dasha_levels, sweep_out=_sweep,
     )
 
     # [life-gate] Fetch the reader's KNOWN facts and forbid contradicting them
@@ -638,6 +639,12 @@ async def generate_annual_plan(
     # generation still falls back to last-good rather than 500-ing.)
     result["chart_id"] = chart_id
     result["year_key"] = year_key
+    # [convergence-sweep 2026-09-07 #1] tiered surface for the frontend:
+    # lead with active_domains (ranked, build/protect + windows), collapse quiet.
+    if _sweep.get("active"):
+        result["active_domains"] = _sweep["active"]
+        result["quiet_domains"] = _sweep.get("quiet") or []
+        result["headline_domains"] = [a.get("label") for a in _sweep["active"]]
 
     # [theme-guard] never ship a clumsy year_theme. The theme must be plain —
     # if the model leaked "energy" (its jargon tell) or a phrase-hyphen-phrase
@@ -820,6 +827,7 @@ def _build_annual_context(
     lk_context:    Optional[str],
     now:           datetime,
     dasha_levels:  Optional[dict] = None,
+    sweep_out:     Optional[dict] = None,   # [#1] convergence tiers, filled in-place
 ) -> str:
     year = now.year
     planets = chart_data.get("planets", {})
@@ -977,6 +985,63 @@ def _build_annual_context(
             'verbatim. Each critical_dates[i].date MUST equal critical_dates_dates[i] '
             'verbatim. Narrative signal/event fields can be your own phrasing.)'
         )
+
+        # [convergence-sweep 2026-09-07 #1] Rank the year's life-areas by
+        # Parāśari daśā + gochar + Jaimini CONVERGENCE (house_activation), lead
+        # with strong + at-risk, suppress the neutral middle. Maps to the year's
+        # build_this_year (opportunities) / protect_this_year (at-risk) fields.
+        try:
+            from antar_engine.house_activation import (
+                score_domains as _cvy_score, rank_and_tier as _cvy_tier,
+            )
+            from antar_engine.house_significations import select_nouns as _cvy_nouns
+            _cvy_scores = _cvy_score(chart_data, dashas or {}, _year_events, now.date())
+            _cvy_t = _cvy_tier(_cvy_scores, max_active=4)
+            _cvy_active = _cvy_t.get("active") or []
+            _cvy_quiet = _cvy_t.get("quiet") or []
+            if _cvy_active:
+                lines.append('')
+                lines.append('═══ CONVERGENCE-RANKED LIFE-AREAS FOR THE YEAR — THE SPINE ═══')
+                lines.append('Rank source: Vimśottarī daśā + gochar transits + Jaimini chara '
+                             'convergence. LEAD year_summary with these; do NOT weight every '
+                             'life-area equally — this ranking IS the intelligence.')
+                for _a in _cvy_active:
+                    if _a.get('polarity') == 'risk':
+                        _tag = 'PROTECT — at-risk: frame as guard / hold / avoid'
+                    elif _a.get('caution'):
+                        _tag = ('BUILD but RISKY (malefic-lit) — lean in WITH a stop-loss; '
+                                'name the upside AND the downside')
+                    else:
+                        _tag = 'BUILD — strong: lean in'
+                    _conv = (' [BOTH daśā systems agree — HIGH conviction]'
+                             if _a.get('convergence') else '')
+                    _win = f" | window: {_a['window']}" if _a.get('window') else ''
+                    _nn = []
+                    try:
+                        for _h in (_a.get('houses') or []):
+                            for _n in _cvy_nouns(_h, None, _a.get('key'), limit=2):
+                                if _n not in _nn:
+                                    _nn.append(_n)
+                    except Exception:
+                        pass
+                    _things = f" | concrete: {', '.join(_nn[:4])}" if _nn else ''
+                    lines.append(f"  • {_a['label']} — {_tag}{_conv}{_win}{_things}")
+                if _cvy_quiet:
+                    lines.append('QUIET this year (mention in ONE short line, do not expand): '
+                                 + ', '.join(q['label'] for q in _cvy_quiet) + ' — steady.')
+                lines.append('MAPPING: build_this_year = the BUILD areas above; '
+                             'protect_this_year = the PROTECT / RISKY areas above; '
+                             'release_this_year = what to let go to protect them.')
+                if sweep_out is not None:
+                    sweep_out['active'] = [
+                        {k: _a.get(k) for k in
+                         ('key', 'label', 'polarity', 'caution', 'confidence',
+                          'convergence', 'window', 'score', 'houses')}
+                        for _a in _cvy_active
+                    ]
+                    sweep_out['quiet'] = [q['label'] for q in _cvy_quiet]
+        except Exception as _cvy_err:
+            logger.warning(f'[convergence-sweep annual] skipped (non-fatal): {_cvy_err}')
 
         # [cp-day5] annual yearly_remedies injection
         _remedy_planets = _pick_yearly_remedy_planets(current_dasha)
