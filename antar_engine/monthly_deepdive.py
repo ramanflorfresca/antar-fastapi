@@ -1135,8 +1135,13 @@ def _build_deepdive_context(
                                  'paragraph each — and LEAD the overview with them. Do NOT give '
                                  'every life-area equal weight; this ranking IS the intelligence.')
                     for _a in _cv_active:
-                        _pol = ('AT-RISK — write it as protect / hold / avoid'
-                                if _a.get('polarity') == 'risk' else 'STRONG — lean in')
+                        if _a.get('polarity') == 'risk':
+                            _pol = 'AT-RISK — write it as protect / hold / avoid'
+                        elif _a.get('caution'):
+                            _pol = ('STRONG but RISKY (malefic-lit) — lean in WITH a stop-loss; '
+                                    'name the upside AND the downside, never a pure green light')
+                        else:
+                            _pol = 'STRONG — lean in'
                         _conv = (' [BOTH daśā systems agree — HIGH conviction]'
                                  if _a.get('convergence') else '')
                         _win = f" | window: {_a['window']}" if _a.get('window') else ''
@@ -1159,7 +1164,7 @@ def _build_deepdive_context(
                     if debug_out is not None:
                         debug_out['convergence_active'] = [
                             {k: _a.get(k) for k in
-                             ('key', 'label', 'polarity', 'confidence',
+                             ('key', 'label', 'polarity', 'caution', 'confidence',
                               'convergence', 'window', 'score', 'houses')}
                             for _a in _cv_active
                         ]

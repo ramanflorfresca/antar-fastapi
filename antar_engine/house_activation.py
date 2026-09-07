@@ -214,6 +214,14 @@ def score_domains(chart_data: dict, dashas: dict, transit_events: list,
             polarity = "risk" if tone < -0.4 else ("opportunity" if tone > 0.4 else
                        ("risk" if dusthana_share >= 0.5 else "opportunity"))
 
+        # [polarity-nuance 2026-09-07] A speculation / dusthana (8,12) theme lit
+        # under a malefic mahādaśā (esp. Rahu) is high-reward AND high-risk. Keep
+        # it surfaced as opportunity, but flag caution so the narration frames it
+        # as lean-in-WITH-a-stop, never a pure green light.
+        caution = (polarity == "opportunity" and md_is_malefic
+                   and (dom["key"] == "speculation"
+                        or any(h in _DUSTHANAS for h in houses)))
+
         # confidence rises with convergence + transit corroboration
         confidence = 0.35
         if vim_active:
@@ -243,7 +251,7 @@ def score_domains(chart_data: dict, dashas: dict, transit_events: list,
 
         results.append({
             "key": dom["key"], "label": dom["label"], "houses": houses,
-            "score": round(score, 2), "polarity": polarity,
+            "score": round(score, 2), "polarity": polarity, "caution": caution,
             "confidence": confidence, "convergence": convergence,
             "vim": vim_active, "jaimini": jaimini_active,
             "transit_count": transit_count, "window": window, "drivers": drivers,
@@ -287,8 +295,13 @@ def rank_and_tier(domain_scores: List[dict], max_active: int = 3,
     active = [d for d in sorted(active, key=lambda d: -d["score"])
               if not (d["key"] in seen or seen.add(d["key"]))]
 
+    # Quiet = everything NOT surfaced as active (the neutral middle), ranked so
+    # the frontend one-liner names them ("home, health, relationships hold
+    # steady"). Was `score < min_score`, which silently dropped mid-tier domains
+    # that didn't make the active cut — leaving the quiet line empty.
     active_keys = {d["key"] for d in active}
-    quiet = [d for d in domain_scores if d["key"] not in active_keys and d["score"] < min_score]
+    quiet = sorted([d for d in domain_scores if d["key"] not in active_keys],
+                   key=lambda d: -d["score"])
 
     return {
         "active": active,
