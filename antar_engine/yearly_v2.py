@@ -810,9 +810,14 @@ def compose_yearly_contract(chart_record: Dict[str, Any],
     if language not in ("en", "es", "pt"):
         language = "en"
 
-    # ── 1. Active-year-ahead period boundaries (closed-anchor display) ──
+    # ── 1. Active-year period boundaries (closed-anchor display) ──
+    # [year-window 2026-09-07 #3] tail_fraction=1.0 => show the CURRENT solar
+    # year (birthday→birthday containing today), NOT a jump to next year at 75%
+    # elapsed. The 75% jump hid the imminent windows still ahead in the current
+    # year and mismatched the forward-only scan + the competitor (who shows the
+    # current solar year). Keeps header and content on the same window.
     birth_date = chart_record.get("birth_date") or ""
-    ps, pe = _active_year_anchor(birth_date)
+    ps, pe = _active_year_anchor(birth_date, tail_fraction=1.0)
     months = _months_list(ps)
     now_idx = _now_month_index(ps)
 
