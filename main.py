@@ -18890,6 +18890,63 @@ def _is_career_timing_q(q):
     return any(p in ql for p in _timing)
 
 
+# [crisis-safety 2026-09-07] High-precision detector for genuine distress /
+# self-harm language in an Ask question. Antar is a life-coach product, not a
+# crisis service — when someone reaches for it in real pain, the answer must lead
+# with care, never a chirpy "strong day" verdict or a productivity task. Phrases
+# are deliberately specific to avoid firing on "give up smoking" / "quit my job".
+import re as _re_crisis
+_ASK_CRISIS_RE = _re_crisis.compile(
+    r"(giving up on everything|give up on everything|"
+    r"want to (die|disappear|end it)|don'?t want to (be here|live|go on|wake up)|"
+    r"end it all|kill myself|killing myself|take my (own )?life|suicid|"
+    r"no reason to (live|go on|be here|keep going)|"
+    r"no point (in|to)? ?(living|life|anything|going on)|"
+    r"is there (even |really )?any point( (in|to) (living|life|going on|it all|any of this|trying anymore))?(?=[\s.?!]*$)|"
+    r"can'?t (go on|do this anymore|take (it|this) anymore|keep going)|"
+    r"better off (without me|dead|if i (was|were) gone)|"
+    r"hurt myself|harm myself|self[- ]harm|nothing (matters|left)|"
+    r"i'?m done with (life|everything)|hopeless and|so hopeless)",
+    _re_crisis.I,
+)
+
+
+def _ask_detect_crisis(question: str) -> bool:
+    return bool(question and _ASK_CRISIS_RE.search(question))
+
+
+def _ask_crisis_care_block() -> str:
+    return (
+        "\n\nSAFETY — CARE FIRST. This question carries real distress. Before anything else:\n"
+        "1) Open by acknowledging the pain directly and gently, using their first name. "
+        "Never clinical, never alarmist, never a lecture.\n"
+        "2) Do NOT give an upbeat verdict, a 'strong day', a business or productivity task, "
+        "or a chirpy silver lining — that dismisses what they just said.\n"
+        "3) Gently encourage them to reach out to someone they trust, or a local crisis line "
+        "or a mental-health professional — they should not carry this alone.\n"
+        "4) You MAY offer one quiet, honest note that a hard phase is real AND temporary, but "
+        "care comes first and the tone stays soft and human throughout.\n"
+        "5) `next` must be a gentle human step (reach out to a person, rest, be kind to "
+        "yourself) — NEVER a task, a hustle, or a deadline.\n"
+    )
+
+
+def _ask_crisis_safety_line(language: str = "en") -> str:
+    if (language or "en").startswith("es"):
+        return ("Y por favor — si esto alguna vez se siente demasiado para cargarlo solo, "
+                "habla con alguien de confianza o una línea de apoyo local. No tienes que "
+                "sostener esto tú solo.")
+    return ("And please — if this ever feels like too much to carry alone, reach out to "
+            "someone you trust or a local crisis line. You don't have to hold it by yourself.")
+
+
+_ASK_SUPPORT_PRESENT_RE = _re_crisis.compile(
+    r"reach out|someone you trust|crisis line|not alone|talk to someone|"
+    r"lean on|help ?line|hotline|professional|confianza|línea de apoyo|no est",
+    _re_crisis.I,
+)
+
+
 def _ask_life_scrub(text, life):
     """Deterministic backstop that removes life-fact contradictions from the
     FINAL Ask text, whatever narrator produced it (the prompt block covers the
@@ -18913,10 +18970,17 @@ def _ask_life_scrub(text, life):
                    r"(key |decision-maker |authority figure)+", "a key authority figure ", t, flags=_r.I)
         t = _r.sub(r"authority figure\s+or\s+(any |a |an )?authority figure", "authority figure", t, flags=_r.I)
         t = _r.sub(r"\bfigure figure\b", "figure", t, flags=_r.I)
-    if life.get("partnered") is False:     # single/divorced → no present spouse
+    if life.get("partnered") is not True:  # single/divorced/UNKNOWN → no present spouse
+        # [life-fix 2026-09-07] assert a specific relationship only when it is
+        # POSITIVELY known (matches the boss rule above). Was `is False`, which
+        # left the UNKNOWN case unprotected — the narrator asserted "your spouse"
+        # / "your children" for users whose status we simply don't have on file
+        # (Harleen: children_status None → a "purpose" read invented "your
+        # children"). Unknown must soften, never assert. "Don't infer — people
+        # tell us."
         t = _r.sub(r"\byour spouse\b", "a partner", t, flags=_r.I)
         t = _r.sub(r"\byour (husband|wife)\b", "a partner", t, flags=_r.I)
-    if life.get("has_children") is False:  # childless → no "your child"
+    if life.get("has_children") is not True:  # childless/UNKNOWN → no "your child"
         t = _r.sub(r"\byour children\b", "people close to you", t, flags=_r.I)
         t = _r.sub(r"\byour child\b", "someone close to you", t, flags=_r.I)
     return _r.sub(r"\s{2,}", " ", t).strip()
@@ -19421,6 +19485,8 @@ async def ask_endpoint(request: AskRequest):
             # OPENING instruction — every user got greeted as "Raman". Inject it
             # explicitly and de-literalize the example below.
             _ask_first_name = (chart_row.data.get("first_name") or "").strip().split(" ")[0][:24]
+            # [crisis-safety 2026-09-07] does the question carry genuine distress?
+            _ask_crisis = _ask_detect_crisis(question)
 
             chart_data = _safe_jsonb(chart_row.data.get("chart_data"))
             _ask_jd    = _safe_jsonb(chart_row.data.get("jaimini_data"))
@@ -20384,6 +20450,10 @@ async def ask_endpoint(request: AskRequest):
                 _sys = request.scratch_prompt
                 print(f"[ask-scratch] explore: scratch_prompt override active "
                       f"({len(_sys)} chars) — not persisted")
+            # [crisis-safety 2026-09-07] care-first instruction wins over the
+            # normal answer shape AND any scratch override — appended last.
+            if _ask_crisis and isinstance(_sys, str):
+                _sys = _sys + _ask_crisis_care_block()
             raw = ""
             try:
                 if _ask_life_block and isinstance(_sys, str):
@@ -20760,6 +20830,12 @@ async def ask_endpoint(request: AskRequest):
                 for _lf in ("read", "next", "why"):
                     if isinstance(payload.get(_lf), str):
                         payload[_lf] = _ask_life_scrub(payload[_lf], _ask_life)
+            # [crisis-safety 2026-09-07] guarantee a support line even if the model
+            # didn't include one — never let a distress question go out without it.
+            if _ask_crisis:
+                _cr_read = payload.get("read")
+                if isinstance(_cr_read, str) and not _ASK_SUPPORT_PRESENT_RE.search(_cr_read):
+                    payload["read"] = (_cr_read.rstrip() + " " + _ask_crisis_safety_line(language)).strip()
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "explore", locals().get("_ask_concern"))
             return payload
