@@ -574,7 +574,14 @@ async def generate_annual_plan(
     if language not in ("en", "es", "pt"):
         language = "en"
     now      = datetime.now(timezone.utc)
-    year_key = str(now.year)
+    # [year-window 2026-09-07 #3] Cache by SOLAR-RETURN year (flips on birthday),
+    # not calendar year (which flipped Jan 1 and mismatched the Vedic year).
+    try:
+        from antar_engine.jyotish_periods import year_period as _yp_key
+        _yk_s, _yk_e, _ = _yp_key(birth_date, now.date())
+        year_key = f"{_yk_s[:4]}-{_yk_e[:4]}"
+    except Exception:
+        year_key = str(now.year)
 
     # Check cache
     if not force_refresh:
@@ -906,8 +913,21 @@ def _build_annual_context(
     # natal-house-based domain → months, and surface top critical dates.
     try:
         from datetime import date as _date
-        _y_start = _date(year, 1, 1)
-        _y_end   = _date(year, 12, 31)
+        # [year-window 2026-09-07 #3] Solar-return (birthday→birthday) window,
+        # forward-only. Was calendar Jan1–Dec31 — which is (a) not the Vedic year
+        # and (b) the root of the past-months bug: Jan/Mar/Apr events surfaced as
+        # "upcoming" in September because the scan started at Jan 1. Now scan only
+        # from TODAY through the end of the current solar-return year.
+        try:
+            from antar_engine.jyotish_periods import year_period as _year_period
+            _sr_s, _sr_e, _ = _year_period(birth_date, now.date())
+            _sr_start = _date.fromisoformat(_sr_s)
+            _sr_end   = _date.fromisoformat(_sr_e)
+        except Exception:
+            _sr_start = _date(year, 1, 1)
+            _sr_end   = _date(year, 12, 31)
+        _y_start = max(_sr_start, now.date())   # forward-only: never scan past
+        _y_end   = _sr_end
         _year_events = compute_transit_events_in_range(
             chart_data, _y_start, _y_end, include_fast=False,
         )
