@@ -1527,6 +1527,34 @@ def _looks_broken(text) -> bool:
     return False
 
 
+def _merge_action_fragments(items):
+    """Repair action lists (haz_hoy / evita_hoy) where the LLM split one
+    instruction across two array items, leaving a dangling continuation that
+    renders as its own weird bullet — e.g. [..., '…in your career or a deal',
+    'close it today.']. A fragment (starts lowercase, or a <4-word stub that
+    doesn't begin a new capitalized sentence) is merged into the previous item.
+    Leaves well-formed lists untouched."""
+    if not isinstance(items, list):
+        return items
+    out = []
+    for it in items:
+        s = it.strip() if isinstance(it, str) else it
+        if not isinstance(s, str) or not s:
+            continue
+        is_frag = out and (
+            s[0].islower()
+            or (len(re.findall(r"\w+", s)) < 4 and not s[0].isupper())
+        )
+        if is_frag:
+            prev = out[-1].rstrip()
+            if prev and prev[-1] in ".!?;,":
+                prev = prev[:-1]
+            out[-1] = (prev + ", " + s).strip()
+        else:
+            out.append(s)
+    return out
+
+
 def _broken_fields(signal_json: dict) -> list:
     """User-facing fields carrying a truncated/broken sentence."""
     bad = []
@@ -2741,8 +2769,12 @@ async def generate_weekly_signals(
                 "verdict_emoji": llm_signal.get("verdict_emoji", "●"),
                 "verdict_label": llm_signal.get("verdict_label", ""),
                 "verdict_subline": llm_signal.get("verdict_subline", ""),
-                "haz_hoy": llm_signal.get("haz_hoy", []),
-                "evita_hoy": llm_signal.get("evita_hoy", []),
+                # [fragment-repair 2026-09-07] merge dangling continuation items
+                # ("…career or a deal", "close it today.") into one action so the
+                # card never shows a lone lowercase fragment bullet. aligned_for /
+                # friction_for below read the same repaired lists.
+                "haz_hoy": _merge_action_fragments(llm_signal.get("haz_hoy", [])),
+                "evita_hoy": _merge_action_fragments(llm_signal.get("evita_hoy", [])),
                 "el_movimiento": llm_signal.get("el_movimiento", ""),
                 "observa_hoy_domain": llm_signal.get("observa_hoy_domain", "general"),
                 "observa_hoy_text": llm_signal.get("observa_hoy_text", ""),
@@ -2750,8 +2782,8 @@ async def generate_weekly_signals(
                 "windows": llm_signal.get("windows", []),
                 # Backward compat — map to old fields
                 "energy": llm_signal.get("senal_de_hoy", ""),
-                "aligned_for": llm_signal.get("haz_hoy", []),
-                "friction_for": llm_signal.get("evita_hoy", []),
+                "aligned_for": _merge_action_fragments(llm_signal.get("haz_hoy", [])),
+                "friction_for": _merge_action_fragments(llm_signal.get("evita_hoy", [])),
                 "signal": llm_signal.get("senal_de_hoy", ""),
                 "move": llm_signal.get("el_movimiento", ""),
                 "wow": llm_signal.get("observa_hoy_text"),
