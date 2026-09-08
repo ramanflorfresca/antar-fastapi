@@ -22246,6 +22246,42 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                             result["is_friction_day"] = (_band == "friction")
                     except Exception as _band_err:
                         print(f"[daily-coherence] day-band reconcile skipped: {_band_err}")
+
+                    # [daily-coherence 2026-09-08 #5] NUDGE RECONCILE. The
+                    # TODAY'S NUDGE / move / el_movimiento line was derived from
+                    # _th["direction"] (the pre-sweep engine) BEFORE this block,
+                    # so on a day the sweep flipped it read the opposite tone —
+                    # e.g. 9/08 shipped the ADVERSE nudge "go easy… let frictions
+                    # pass" under a positive "a venture is lit — move" card.
+                    # Re-derive it from the sweep's own direction + lead domain so
+                    # the nudge speaks the same voice. A caution lead uses the
+                    # measured hold-the-line ("keep a stop") bank; clean positive
+                    # keeps the give-back bank; adverse stays hold-the-line.
+                    try:
+                        from antar_engine.today_nudge import derive_todays_nudge as _dtn
+                        _SWEEP_TO_COARSE = {
+                            "work": "work", "authority": "work", "money": "money",
+                            "speculation": "money", "home": "relationships",
+                            "relationship": "relationships", "family": "relationships",
+                            "health": "body", "travel": "mind", "spiritual": "mind",
+                        }
+                        _n_coarse = _SWEEP_TO_COARSE.get(_lead.get("key"))
+                        _n_dir = ("adverse" if (_sweep_dir == "adverse"
+                                  or bool(_lead.get("caution"))) else "positive")
+                        if _n_coarse:
+                            _n_new = _dtn(direction=_n_dir, domains=[_n_coarse],
+                                          current_country=current_country, lk_daily=_th_lk)
+                            if _n_new:
+                                try:
+                                    from antar_engine.daily_prediction_engine import _faith_neutralize as _fn
+                                    _n_new = _fn(_n_new)
+                                except Exception:
+                                    pass
+                                result["todays_nudge"] = _n_new
+                                result["move"] = _n_new
+                                result["el_movimiento"] = _n_new
+                    except Exception as _nudge_err:
+                        print(f"[daily-coherence] nudge reconcile skipped: {_nudge_err}")
             except Exception as _hd_err:
                 print(f"[daily-coherence] house-activation sweep skipped (non-fatal): {_hd_err}")
 
