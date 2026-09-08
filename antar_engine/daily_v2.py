@@ -196,6 +196,27 @@ _DAY_ENERGY_LABELS = {
 _DAY_ENERGY_TONE = {"steady": "positive", "light": "neutral", "friction": "caution"}
 
 
+def day_energy_from_key(key: str, language: str = "en",
+                        score: Optional[int] = None) -> Dict[str, Any]:
+    """Build the {key,label,tone,score} band dict for an explicitly chosen key
+    (steady|light|friction). Used to reconcile the Today card's band to the
+    house_activation sweep — the authority for the day's direction — so the
+    FRICTION/STEADY label can never contradict the headline/direction. `score`
+    is carried through for display when known, else a band-representative value."""
+    lang = (language or "en").split("-")[0].lower()
+    if lang not in ("en", "es", "pt"):
+        lang = "en"
+    key = key if key in _DAY_ENERGY_LABELS else "light"
+    if score is None:
+        score = {"steady": 8, "light": 5, "friction": 3}[key]
+    return {
+        "key":   key,
+        "label": _DAY_ENERGY_LABELS[key].get(lang) or _DAY_ENERGY_LABELS[key]["en"],
+        "tone":  _DAY_ENERGY_TONE[key],
+        "score": score,
+    }
+
+
 def day_energy(day: Dict[str, Any], language: str = "en") -> Dict[str, Any]:
     """{key, label, tone, score} — the single source of truth for day energy.
 

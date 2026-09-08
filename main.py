@@ -22213,6 +22213,39 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                                 result["headline"] = _sweep_led_headline
                     except Exception as _bias_err:
                         print(f"[daily-coherence] convergent-lead bias skipped: {_bias_err}")
+
+                # [daily-coherence 2026-09-07 #4] DAY-BAND RECONCILE. day_energy
+                # (daily_v2: panchanga/score) and the sweep direction measure
+                # different things and could disagree on one card — e.g. a
+                # "FRICTION DAY" label sitting over a positive "a venture is lit —
+                # move" headline (9/08). The sweep is the authority for the day's
+                # direction, so snap the band to it: adverse→friction; positive with
+                # a caution lead (or a panchanga-friction day that still has a live
+                # opportunity)→light (the honest "mixed / move-but-keep-a-stop"
+                # middle); clean positive keeps its steady/light band. This makes
+                # the label, headline and direction one voice. NOTE: the /daily-week
+                # strip does NOT run the sweep, so its per-day band stays daily_v2 —
+                # the app should render TODAY's strip dot from this card's
+                # day_energy (see the friction-label brief) to stay in sync.
+                if _lead:
+                    try:
+                        from antar_engine.daily_v2 import day_energy_from_key as _de_key
+                        _cur_band = (result.get("day_energy") or {}).get("key")
+                        _lead_caut = bool((_lead or {}).get("caution"))
+                        if _sweep_dir == "adverse":
+                            _band = "friction"
+                        elif _sweep_dir == "positive" and (_lead_caut or _cur_band == "friction"):
+                            _band = "light"
+                        elif _sweep_dir == "positive":
+                            _band = _cur_band if _cur_band in ("steady", "light") else "steady"
+                        else:  # quiet
+                            _band = "light"
+                        if _band and _band != _cur_band:
+                            result["day_energy"] = _de_key(_band, language,
+                                                           (result.get("day_energy") or {}).get("score"))
+                            result["is_friction_day"] = (_band == "friction")
+                    except Exception as _band_err:
+                        print(f"[daily-coherence] day-band reconcile skipped: {_band_err}")
             except Exception as _hd_err:
                 print(f"[daily-coherence] house-activation sweep skipped (non-fatal): {_hd_err}")
 
