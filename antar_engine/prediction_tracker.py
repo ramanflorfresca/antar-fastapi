@@ -228,17 +228,36 @@ def record_feedback(
 
 
 def get_accuracy_score(chart_id: str, sb) -> dict:
-    """Return accuracy summary for this chart."""
+    """Return accuracy summary for this chart.
+
+    [accuracy-denominator 2026-09-08] accuracy_pct must be scored over what the
+    user actually ANSWERED, not over everything ever tracked. The stored
+    prediction_accuracy.accuracy_pct is confirmed / total_tracked, which drops
+    toward zero as unanswered claims accumulate (a chart with 1 correct of 8
+    answered but 23 tracked showed 4.3%, reading as "the app is 4% accurate").
+    Recompute over confirmed+denied+partial and expose `answered` so the UI can
+    say "1 of 8 verified" instead of implying a 23-deep backlog."""
     try:
         res = sb.table("prediction_accuracy").select("*").eq("chart_id", chart_id).execute()
         if res.data:
-            return res.data[0]
+            row = dict(res.data[0])
+            _c = int(row.get("confirmed") or 0)
+            _d = int(row.get("denied") or 0)
+            _p = int(row.get("partial") or 0)
+            answered = _c + _d + _p
+            row["answered"] = answered
+            row["accuracy_pct"] = (round(100.0 * (_c + 0.5 * _p) / answered, 1)
+                                   if answered else None)
+            if answered == 0:
+                row["message"] = "Verify a few predictions to see your accuracy score"
+            return row
     except Exception:
         pass
     return {
         "total_tracked": 0,
         "confirmed":     0,
         "denied":        0,
+        "answered":      0,
         "accuracy_pct":  None,
         "message":       "Verify a few predictions to see your accuracy score",
     }
