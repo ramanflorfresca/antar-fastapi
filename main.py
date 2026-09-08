@@ -2998,7 +2998,10 @@ async def save_chat_message(
         "question": question,
         "plain_summary": response_data.get("plain_summary", ""),
         "signal_line": response_data.get("signal_line", ""),
-        "action_item": response_data.get("action_item", ""),
+        # [ask-history 2026-09-08] /ask explore returns the step as `next`, /predict
+        # as `action_item` — capture whichever into the existing action_item column
+        # so the Ask history thread can show the step, no new column needed.
+        "action_item": response_data.get("action_item") or response_data.get("next") or "",
         "timing_window": timing_window,
         "domain": domain,
         "question_type": question_type,
@@ -21344,6 +21347,60 @@ async def ask_endpoint(request: AskRequest):
             return JSONResponse(status_code=500, content={"error": "ask yesno failed", "detail": str(e)})
 
     return JSONResponse(status_code=400, content={"error": f"unknown mode: {mode}"})
+
+
+@app.get("/api/v1/ask/history/{chart_id}")
+async def ask_history(chart_id: str, limit: int = 30, before: str = None):
+    """[ask-history 2026-09-08] The full Ask thread for a chart, so the Ask
+    screen can render like a messaging app — scroll up = your whole history.
+    Reads chat_messages (where /ask persists every exchange via
+    save_chat_message). Chart-keyed and read-only, same access model as
+    /daily-signal + /ask. Fail-open to an empty thread; never 500s the screen.
+
+    Paging: newest-first internally, returned ASCENDING (oldest→newest) so the
+    client appends to the bottom. Pass `before` (an ISO created_at from a prior
+    page's `next_before`) to load the OLDER page when the user scrolls up.
+    """
+    from fastapi.responses import JSONResponse
+    from uuid import UUID as _UUID_H
+    chart_id = (chart_id or "").strip()
+    try:
+        _UUID_H(chart_id)
+    except (ValueError, AttributeError, TypeError):
+        return JSONResponse(status_code=404, content={"error": "Chart not found"})
+    limit = max(1, min(int(limit or 30), 100))
+    try:
+        q = supabase.table("chat_messages").select(
+            "id, question, prediction_text, plain_summary, action_item, "
+            "domain, language, created_at"
+        ).eq("chart_id", chart_id)
+        if before:
+            q = q.lt("created_at", str(before))
+        # fetch one extra to detect more-older-exist
+        rows = (q.order("created_at", desc=True).limit(limit + 1).execute().data) or []
+    except Exception as _he:
+        print(f"[ask/history] lookup failed (non-fatal): {_he}")
+        return {"messages": [], "has_more": False, "next_before": None}
+
+    has_more = len(rows) > limit
+    rows = rows[:limit]
+    # oldest created_at in this page → cursor for the next (older) page
+    next_before = rows[-1].get("created_at") if (has_more and rows) else None
+    # shape each row as one chat exchange (user question + assistant answer);
+    # the answer is the read (prediction_text); fall back to the summary.
+    msgs = []
+    for r in reversed(rows):   # DESC → ASCENDING for bottom-append rendering
+        _answer = (r.get("prediction_text") or r.get("plain_summary") or "").strip()
+        msgs.append({
+            "id":         r.get("id"),
+            "question":   r.get("question") or "",
+            "answer":     _answer,
+            "next":       (r.get("action_item") or "").strip(),
+            "domain":     r.get("domain") or "general",
+            "language":   r.get("language") or "en",
+            "created_at": r.get("created_at"),
+        })
+    return {"messages": msgs, "has_more": has_more, "next_before": next_before}
 
 
 @app.get("/api/v1/ask/state")
