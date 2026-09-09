@@ -400,7 +400,11 @@ def state(sb, chart_id: str, tz_offset: int = 0) -> dict:
         "at_risk_today": at_risk,          # "open the app to keep your streak"
         "freeze_available": bool(row.get("freeze_available", True)),
         "next_milestone": next_milestone(streak),
-        "ask_credits": min(ask_bal, MAX_ASK_BALANCE),
+        # [india-packs 2026-09-09] total = earned (capped, anti-hoarding) + PAID
+        # pack credits (uncapped). paid surfaced separately so the UI can show
+        # "N asks left" and, for India, whether they're on packs.
+        "ask_credits": min(ask_bal, MAX_ASK_BALANCE) + balance(sb, chart_id, "ask_paid"),
+        "ask_credits_paid": balance(sb, chart_id, "ask_paid"),
         "compat_credits": balance(sb, chart_id, "compat"),
     }
 

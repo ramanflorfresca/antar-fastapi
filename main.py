@@ -24086,6 +24086,58 @@ async def verify_razorpay_payment_endpoint(request: dict):
     return {"success": True, "plan": result["plan"], "subscription": sub}
 
 
+@app.post("/api/v1/payments/razorpay/create-pack-order")
+async def create_razorpay_pack_order_endpoint(request: dict):
+    """[india-packs] Create a Razorpay one-time order for an ask credit pack.
+    Body: { chart_id, pack_key }  (pack_key: pack_10 | pack_40 | pack_100)."""
+    from antar_engine.payment_engine import create_razorpay_pack_order
+    chart_id = request.get("chart_id", "")
+    pack_key = request.get("pack_key", "")
+    if not chart_id or not pack_key:
+        raise HTTPException(400, "chart_id and pack_key required")
+    result = create_razorpay_pack_order(chart_id, pack_key)
+    if result.get("error"):
+        raise HTTPException(500, f"Razorpay error: {result['error']}")
+    return result
+
+
+@app.post("/api/v1/payments/razorpay/verify-pack")
+async def verify_razorpay_pack_endpoint(request: dict):
+    """[india-packs] Verify a pack payment and top up PAID ask credits.
+    Body: { payment_id, order_id, signature, chart_id, pack_key }.
+    Credits are granted to the uncapped ledger kind 'ask_paid', idempotent on the
+    Razorpay payment_id (so a retried verify + the webhook can't double-credit)."""
+    from antar_engine.payment_engine import verify_razorpay_pack
+    from antar_engine import gamification as _gam
+    result = verify_razorpay_pack(
+        payment_id = request.get("payment_id", ""),
+        order_id   = request.get("order_id", ""),
+        signature  = request.get("signature", ""),
+        chart_id   = request.get("chart_id", ""),
+        pack_key   = request.get("pack_key", ""),
+    )
+    if result.get("error"):
+        raise HTTPException(500, result["error"])
+    if not result.get("verified"):
+        raise HTTPException(402, f"Payment verification failed: {result.get('reason')}")
+    chart_id = result["chart_id"]
+    credits  = int(result["credits"])
+    try:
+        _uid = _gam._uid(supabase, chart_id)
+        granted = _gam._grant(
+            supabase, _uid, "ask_paid", credits,
+            reason=f"razorpay_pack:{result['pack_key']}",
+            award_key=f"razorpay:{result['payment_id']}",  # idempotent per payment
+            ttl_days=None, chart_id=chart_id,
+        )
+        balance = _gam.balance(supabase, chart_id, "ask_paid")
+    except Exception as _ge:
+        print(f"[india-packs] credit grant failed: {_ge}")
+        raise HTTPException(500, "credit grant failed after payment — contact support")
+    return {"success": True, "credits_added": credits if granted else 0,
+            "already_applied": not granted, "ask_paid_balance": balance}
+
+
 @app.post("/api/v1/payments/razorpay/webhook")
 async def handle_razorpay_webhook(request: Request):
     """Razorpay webhook — handle subscription renewals."""

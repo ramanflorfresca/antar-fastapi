@@ -274,7 +274,7 @@ def pricing_summary(country_code: str) -> dict:
     }
     if excluded:
         out["model"] = "packs"
-        out["packs"] = None  # filled by the India credit-pack build
+        out["packs"] = india_packs_display()
         return out
     out["model"] = "subscription"
     for key, prod in (("monthly", "ask_unlimited_monthly"),
@@ -582,5 +582,92 @@ def verify_razorpay_payment(
                 "period_end": period_end,
             }
         return {"verified": False, "reason": "signature_mismatch"}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+# ── [india-packs 2026-09-09] AstroTalk-style pay-per-use ─────────────────────
+# India is subscription-averse but pays per question. Instead of a monthly sub we
+# sell one-time credit packs via Razorpay one-time ORDERS (not subscriptions) that
+# top up PAID ask credits. Paid credits use the ledger kind "ask_paid" — SEPARATE
+# from earned "ask" credits, which are capped at 30 (MAX_ASK_BALANCE) for anti-
+# hoarding; paid credits must not be capped or a 100-pack would be truncated.
+# Amounts are in paise (INR minor unit): ₹99 = 9900.
+RAZORPAY_PACKS = {
+    "pack_10":  {"credits": 10,  "amount": 9900,  "inr": 99,  "label": "10 asks"},
+    "pack_40":  {"credits": 40,  "amount": 29900, "inr": 299, "label": "40 asks"},
+    "pack_100": {"credits": 100, "amount": 59900, "inr": 599, "label": "100 asks"},
+}
+
+
+def india_packs_display() -> list:
+    """Pack options for the pricing endpoint (India). Cheapest first."""
+    out = []
+    for key, p in RAZORPAY_PACKS.items():
+        out.append({
+            "pack_key": key,
+            "credits":  p["credits"],
+            "amount_minor": p["amount"],
+            "currency": "INR",
+            "display":  f"₹{p['inr']:,}",
+            "per_ask":  f"₹{round(p['inr'] / p['credits'], 1)}",
+            "label":    p["label"],
+        })
+    return out
+
+
+def create_razorpay_pack_order(chart_id: str, pack_key: str) -> dict:
+    """Create a Razorpay ONE-TIME order for an ask credit pack (India)."""
+    pack = RAZORPAY_PACKS.get(pack_key)
+    if not pack:
+        return {"error": "unknown_pack", "pack_key": pack_key}
+    try:
+        import razorpay
+        client = razorpay.Client(auth=(
+            os.getenv("RAZORPAY_KEY_ID", ""),
+            os.getenv("RAZORPAY_KEY_SECRET", ""),
+        ))
+        order = client.order.create({
+            "amount":   pack["amount"],
+            "currency": "INR",
+            "notes":    {"chart_id": chart_id, "pack_key": pack_key,
+                         "credits": pack["credits"]},
+        })
+        return {
+            "provider":  "razorpay",
+            "order_id":  order["id"],
+            "key_id":    os.getenv("RAZORPAY_KEY_ID", ""),
+            "amount":    pack["amount"],
+            "currency":  "INR",
+            "credits":   pack["credits"],
+            "pack_key":  pack_key,
+            "chart_id":  chart_id,
+            "name":      f"Antar — {pack['label']}",
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+
+def verify_razorpay_pack(payment_id: str, order_id: str, signature: str,
+                         chart_id: str, pack_key: str) -> dict:
+    """Verify a pack payment's signature. On success returns the credits to grant;
+    the caller grants them idempotently keyed on payment_id."""
+    pack = RAZORPAY_PACKS.get(pack_key)
+    if not pack:
+        return {"verified": False, "reason": "unknown_pack"}
+    try:
+        import hmac, hashlib
+        secret  = os.getenv("RAZORPAY_KEY_SECRET", "").encode()
+        message = f"{order_id}|{payment_id}".encode()
+        digest  = hmac.new(secret, message, hashlib.sha256).hexdigest()
+        if digest != signature:
+            return {"verified": False, "reason": "signature_mismatch"}
+        return {
+            "verified":   True,
+            "chart_id":   chart_id,
+            "pack_key":   pack_key,
+            "credits":    pack["credits"],
+            "payment_id": payment_id,
+        }
     except Exception as e:
         return {"error": str(e)}
