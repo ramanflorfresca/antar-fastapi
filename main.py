@@ -19538,9 +19538,18 @@ async def ask_endpoint(request: AskRequest):
         if int(_tr.get("used_today") or 0) >= _limit:
             try:
                 from antar_engine import gamification as _gam
+                # Spend order: free daily allowance → earned 'ask' → purchased
+                # 'ask_paid' (India Razorpay packs). Earned is spent before paid so
+                # a user never burns a credit they paid real money for while a free
+                # earned credit is still sitting unused.
                 _gam_spent = _gam.spend(supabase, chart_id, "ask", 1, "ask_question")
                 if _gam_spent:
                     print(f"[gamification] chart={chart_id[:8]} spent 1 earned ask credit")
+                else:
+                    _gam_spent = _gam.spend(supabase, chart_id, "ask_paid", 1,
+                                            "ask_question_paid")
+                    if _gam_spent:
+                        print(f"[gamification] chart={chart_id[:8]} spent 1 PAID ask credit")
             except Exception as _ge:
                 print(f"[gamification] credit spend skipped (non-blocking): {_ge}")
         if int(_tr.get("used_today") or 0) >= _limit and not _gam_spent:
@@ -24156,8 +24165,48 @@ async def handle_razorpay_webhook(request: Request):
         if event.get("event") in ("payment.captured", "subscription.charged"):
             payload  = event.get("payload", {})
             payment  = payload.get("payment", {}).get("entity", {})
-            notes    = payment.get("notes", {})
+            notes    = payment.get("notes", {}) or {}
+            # [india-packs] Order notes (chart_id/pack_key/credits) may not ride
+            # along on the payment entity — fetch the order and read its notes
+            # when the payment alone doesn't identify a pack.
+            if not notes.get("pack_key") and payment.get("order_id"):
+                try:
+                    import razorpay as _rzp
+                    _cli = _rzp.Client(auth=(
+                        os.getenv("RAZORPAY_KEY_ID", ""),
+                        os.getenv("RAZORPAY_KEY_SECRET", ""),
+                    ))
+                    _order = _cli.order.fetch(payment["order_id"])
+                    notes = {**(_order.get("notes") or {}), **notes}
+                except Exception as _oe:
+                    print(f"[india-packs] webhook order fetch skipped: {_oe}")
             chart_id = notes.get("chart_id", "")
+            pack_key = notes.get("pack_key", "")
+
+            # ── India credit pack (one-time) ──────────────────────────────
+            if pack_key:
+                from antar_engine.payment_engine import RAZORPAY_PACKS
+                from antar_engine import gamification as _gam
+                pack = RAZORPAY_PACKS.get(pack_key)
+                pay_id = payment.get("id", "")
+                if pack and chart_id and pay_id:
+                    try:
+                        _uid = _gam._uid(supabase, chart_id)
+                        # idempotent on payment id — same award_key the client
+                        # /verify-pack uses, so webhook + verify can't double-credit
+                        _gam._grant(
+                            supabase, _uid, "ask_paid", int(pack["credits"]),
+                            reason=f"razorpay_pack:{pack_key}",
+                            award_key=f"razorpay:{pay_id}",
+                            ttl_days=None, chart_id=chart_id,
+                        )
+                        print(f"[india-packs] webhook granted {pack['credits']} "
+                              f"ask_paid to {chart_id[:8]} (pay {pay_id})")
+                    except Exception as _pe:
+                        print(f"[india-packs] webhook grant failed: {_pe}")
+                return {"received": True}
+
+            # ── Subscription (recurring) ──────────────────────────────────
             plan_key = notes.get("plan", "ask_unlimited_monthly")
             plan     = plan_key.split("_")[0]
             if chart_id:
