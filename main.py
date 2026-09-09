@@ -23628,6 +23628,27 @@ async def stripe_webhook(request: Request):
 
 # ── Payment Checkout Endpoints ────────────────────────────────────
 
+@app.get("/api/v1/payments/pricing")
+async def payments_pricing(request: Request, country: Optional[str] = None):
+    """[payments] The one paid tier's price for the caller's country + which
+    provider handles it — powers the single 'Upgrade' button (show THEIR price,
+    no plan matrix, no currency picker). Read-only. Auto-detects country from IP
+    when not passed (same path as /geo/country); falls back to US/USD on failure."""
+    from antar_engine.payment_engine import pricing_summary
+    cc = (country or "").strip().upper()
+    if not cc:
+        try:
+            from antar_engine.geo_lookup import extract_client_ip, lookup_country
+            cc = (lookup_country(extract_client_ip(request)) or "US").upper()
+        except Exception:
+            cc = "US"
+    try:
+        return pricing_summary(cc)
+    except Exception as _pe:
+        print(f"[payments/pricing] failed for {cc!r} (non-fatal): {_pe}")
+        return pricing_summary("US")
+
+
 @app.post("/api/v1/payments/stripe/create-checkout")
 async def create_stripe_checkout_session(request: dict, authorization: Optional[str] = Header(None)):
     """

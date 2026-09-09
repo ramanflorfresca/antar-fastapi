@@ -204,6 +204,10 @@ PRICING_AMOUNTS = {
 PRICING_LOCAL_CURRENCY = {
     "BR": {"currency": "brl", "ask_unlimited_monthly": 1290, "ask_unlimited_annual": 9900},  # compat_chart billed $0.99 USD globally
     "MX": {"currency": "mxn", "ask_unlimited_monthly": 4900, "ask_unlimited_annual": 39900},  # compat_chart billed $0.99 USD globally
+    # [pricing-2026-09] Colombia = the live market → bill in local COP, not USD.
+    # ~$2.49/$19.99 (latam tier) at ≈COP 9,900 / 79,900. Minor units ×100 (COP is
+    # a 2-decimal Stripe currency), matching the CO seeker convention above.
+    "CO": {"currency": "cop", "ask_unlimited_monthly": 990000, "ask_unlimited_annual": 7990000},
 }
 # Countries with a pre-created Stripe Price catalog (lookup_key currency).
 # Everyone else uses on-the-fly price_data at the bucket amount in USD.
@@ -234,6 +238,54 @@ def stripe_lookup_key(country_code: str, product_key: str):
     country bills on the fly (LatAm-other / Argentina / rest-of-world)."""
     cur = CATALOG_CURRENCY_BY_COUNTRY.get((country_code or "").upper())
     return f"{product_key}_{cur}" if cur else None
+
+
+# Stripe zero-decimal currencies (amount is already the major unit, no ×100).
+# COP/BRL/MXN/USD are all 2-decimal, so our locally-billed prices divide by 100.
+_ZERO_DECIMAL = {"bif", "clp", "djf", "gnf", "jpy", "kmf", "krw", "mga",
+                 "pyg", "rwf", "ugx", "vnd", "vuv", "xaf", "xof", "xpf"}
+_CUR_SYMBOL = {"usd": "$", "cop": "COP ", "brl": "R$", "mxn": "MX$",
+               "cad": "C$", "inr": "₹", "gbp": "£", "pen": "S/ ",
+               "ars": "AR$", "clp": "CLP "}
+
+
+def _fmt_amount(minor: int, currency: str) -> str:
+    """Human display for a minor-unit amount, e.g. 499/usd -> '$4.99',
+    990000/cop -> 'COP 9,900'."""
+    cur = (currency or "usd").lower()
+    major = minor if cur in _ZERO_DECIMAL else minor / 100.0
+    s = f"{int(major):,}" if float(major).is_integer() else f"{major:,.2f}"
+    return f"{_CUR_SYMBOL.get(cur, cur.upper() + ' ')}{s}"
+
+
+def pricing_summary(country_code: str) -> dict:
+    """The ONE paid tier's price for a country + which provider handles it.
+    Powers the app's single 'Upgrade' button (show their price, pick provider).
+    Non-excluded countries -> Stripe subscription (monthly/annual in local
+    currency where we have it, else USD). Excluded (India) -> Razorpay, packs
+    (filled once the India credit-pack build lands)."""
+    cc = (country_code or "US").upper()
+    excluded = is_excluded_country(cc)
+    out = {
+        "country": cc,
+        "provider": "razorpay" if excluded else "stripe",
+        "tier": "ask_unlimited",
+        "excluded_from_stripe": excluded,
+    }
+    if excluded:
+        out["model"] = "packs"
+        out["packs"] = None  # filled by the India credit-pack build
+        return out
+    out["model"] = "subscription"
+    for key, prod in (("monthly", "ask_unlimited_monthly"),
+                      ("annual", "ask_unlimited_annual")):
+        amt, cur = resolve_price(cc, prod)
+        out[key] = None if amt is None else {
+            "amount_minor": amt,
+            "currency": (cur or "usd").upper(),
+            "display": _fmt_amount(amt, cur),
+        }
+    return out
 
 
 _PRICE_ID_CACHE = {}
