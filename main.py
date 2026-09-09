@@ -23366,6 +23366,28 @@ async def get_pending_feedback_endpoint(chart_id: str):
     return {"pending": items, "count": len(items)}
 
 
+@app.get("/api/v1/debug/test-alert")
+async def debug_test_alert(admin_email: str = Depends(_require_debug)):
+    """[alerting] Fire a test alert so you can confirm ALERT_WEBHOOK_URL delivers.
+    Admin-gated. Returns whether a webhook URL is configured; if it is, a test
+    message is POSTed to it (subject to the normal 5-min per-key throttle)."""
+    import os as _os
+    from antar_engine.alerting import alert as _alert
+    _has_url = bool((_os.environ.get("ALERT_WEBHOOK_URL") or "").strip())
+    _alert("test_alert",
+           "Test alert from /api/v1/debug/test-alert — if you see this in your "
+           "channel, ALERT_WEBHOOK_URL is wired correctly.",
+           level="info")
+    return {
+        "webhook_configured": _has_url,
+        "sent": _has_url,
+        "note": ("Check your alert channel for the test message."
+                 if _has_url else
+                 "ALERT_WEBHOOK_URL is not set — the alert was logged to Railway "
+                 "logs only. Set the env var, then call this again."),
+    }
+
+
 @app.get("/api/v1/predictions/accuracy/{chart_id}")
 async def get_prediction_accuracy_endpoint(chart_id: str):
     """Return accuracy score — powers the trust badge."""
