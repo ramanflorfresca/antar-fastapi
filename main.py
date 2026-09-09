@@ -30766,6 +30766,22 @@ async def predict_year_attention(request: dict, language: str = None):
         "attention":    attention,
     }
 
+    # ── [yearly-windows 2026-09-09] per-domain DATED windows across the solar
+    # year — the competition-style "Work: strong Jul–Aug, under pressure Dec"
+    # specificity. Built from the SAME convergence sweep, scanned month-by-month.
+    # Owner decision 2026-09-09: SHIP the dated year forecasts (lifts the [D7]
+    # no-dated-year quarantine for THIS block) — the product bets on the engine;
+    # framed as engine-projected windows, accuracy tracked via the VERIFY loop.
+    # Fail-open to no block. (The [D7] highlight scrub below is separate and does
+    # not touch domain_windows.)
+    try:
+        from antar_engine.yearly_domain_windows import build_yearly_domain_windows as _bydw
+        payload["domain_windows"] = _bydw(
+            chart_data, get_dashas_for_chart(chart_id) or {}, birth_date, _date.today())
+    except Exception as _dw_err:
+        print(f"[year-attention] domain_windows skipped (non-fatal): {_dw_err}")
+        payload["domain_windows"] = []
+
     # ── Layer-2 concrete signals (highlights) — Year ───────────────────
     try:
         from antar_engine.highlight_composer import build_highlights as _bh_year
@@ -30964,6 +30980,10 @@ async def predict_year_attention(request: dict, language: str = None):
                     # text (rendered directly; status_color drives the colour),
                     # so it is safe to translate.
                     "status_label",
+                    # [yearly-windows] the per-domain dated-window line + its label.
+                    # Dates live in up_windows/down_windows (not allowlisted) so
+                    # they pass through untranslated.
+                    "line", "label",
                 ],
                 fields_to_skip=[
                     "planet", "name", "key", "human", "color", "range", "tab",
