@@ -21668,7 +21668,11 @@ async def save_onboarding_reason(request: OnboardingReasonRequest):
 @app.post("/api/v1/daily-signal")
 @app.get("/api/v1/daily-signal/{chart_id}")
 @translate_response(
-    fields_to_translate=["vibe", "do_today", "dont_today", "text", "headline", "highlight", "todays_nudge", "move", "el_movimiento"],
+    fields_to_translate=["vibe", "do_today", "dont_today", "text", "headline", "highlight", "todays_nudge", "move", "el_movimiento",
+                         # [daily-life-map] the "area by area" map — translate its
+                         # per-area line + friendly label (also localizes domain
+                         # chip labels for es/pt users, which we want).
+                         "day_map", "line", "label"],
     endpoint_name="daily-signal",
 )
 async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, language: str = "en", date: str = None):
@@ -22360,6 +22364,22 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             except Exception as _bts_e:
                 print(f"[daily-signal] beats build skipped: {_bts_e}")
                 result["beats"] = []
+
+            # [daily-life-map 2026-09-09] "Your day, area by area" — the whole-life
+            # plain-language map (competition's felt-specificity) built from OUR
+            # ranked sweep, so it leads with what's actually activated. Surfaces
+            # only real signals; empty on a truly flat day. Fail-open.
+            try:
+                from antar_engine.daily_life_areas import build_day_map as _bdm
+                result["day_map"] = _bdm(
+                    result.get("active_domains"),
+                    result.get("quiet_domains"),
+                    {"children_status": row.get("children_status"),
+                     "marital_status": row.get("marital_status")},
+                )
+            except Exception as _dm_e:
+                print(f"[daily-signal] day_map build skipped: {_dm_e}")
+                result.setdefault("day_map", [])
             # [admin-inspect] capture the deterministic engine pick (raw bundle)
             _ai_c = _inspect_active()
             if _ai_c is not None:
