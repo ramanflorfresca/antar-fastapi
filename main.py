@@ -12814,7 +12814,7 @@ async def settings_charts_create(request: Request, authorization: Optional[str] 
 
     p = _st_get_profile(user_id)
     row = supabase.table("charts").select(
-        "id, first_name, name, birth_date, birth_time, birth_city, birth_place, relationship"
+        "id, first_name, name, birth_date, birth_time, birth_city"
     ).eq("id", new_id).single().execute().data
     return {"chart": _st_chart_shape(row, p.get("primary_chart_id"))}
 
@@ -12888,7 +12888,7 @@ async def settings_charts_update(chart_id: str, request: Request, authorization:
 
     p = _st_get_profile(user_id)
     row = supabase.table("charts").select(
-        "id, first_name, name, birth_date, birth_time, birth_city, birth_place, relationship"
+        "id, first_name, name, birth_date, birth_time, birth_city"
     ).eq("id", chart_id).single().execute().data
     return {"chart": _st_chart_shape(row, p.get("primary_chart_id"))}
 
