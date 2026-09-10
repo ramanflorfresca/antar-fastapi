@@ -12893,6 +12893,24 @@ async def settings_charts_update(chart_id: str, request: Request, authorization:
     return {"chart": _st_chart_shape(row, p.get("primary_chart_id"))}
 
 
+# [tombstone-cols 2026-09-10] The natal / PII columns nulled when a chart is
+# soft-deleted (tombstoned). REAL columns only — every name here is verified to
+# exist on `charts`; an unknown key makes PostgREST reject the whole UPDATE
+# (PGRST204), which is exactly what silently broke chart deletion before. Nulling
+# chart_data also removes derived natal positions (panchanga, etc.) that live
+# inside it. Reused by the delete endpoint and the residual-PII backfill.
+_CHART_PII_COLS = [
+    "user_id", "first_name", "name",
+    "birth_date", "birth_time", "birth_city", "birth_country",
+    "latitude", "longitude", "timezone_offset",
+    "chart_data", "jaimini_data", "lal_kitab_data",
+    "life_work", "life_relationship", "life_kids",
+    "geocode_source", "needs_reconfirm",
+    "language_preference", "language",
+    "lagna_sign", "moon_sign", "sun_sign",
+]
+
+
 @app.delete("/api/v1/me/charts/{chart_id}")
 async def settings_charts_delete(chart_id: str, authorization: Optional[str] = Header(None)):
     """
@@ -12934,35 +12952,14 @@ async def settings_charts_delete(chart_id: str, authorization: Optional[str] = H
     # ── 1. Tombstone the chart row itself ────────────────────────────────
     # Null every PII / natal-position column. user_id stays NULL so the row
     # stops appearing in /me/charts. deleted_at gates GET /api/v1/chart/{cid}.
-    _tombstone = {
-        "user_id":          None,
-        "first_name":       None,
-        "name":             None,
-        "birth_date":       None,
-        "birth_time":       None,
-        "birth_city":       None,
-        "birth_place":      None,
-        "birth_country":    None,
-        "latitude":         None,
-        "longitude":        None,
-        "timezone_offset":  None,
-        "chart_data":       None,
-        "jaimini_data":     None,
-        "lal_kitab_data":   None,
-        "panchanga":        None,
-        "relationship":     None,
-        "life_work":        None,
-        "life_relationship": None,
-        "life_kids":        None,
-        "geocode_source":   None,
-        "needs_reconfirm":  None,
-        "language_preference": None,
-        "language":         None,
-        "lagna_sign":       None,
-        "moon_sign":        None,
-        "sun_sign":         None,
-        "deleted_at":       datetime.utcnow().isoformat() + "Z",
-    }
+    # [tombstone-cols 2026-09-10] Only REAL columns may appear here: PostgREST
+    # rejects the ENTIRE update (PGRST204) if any key is not a column, which
+    # silently 500'd every settings-delete and left the row un-tombstoned with
+    # full PII intact. `birth_place`, `panchanga` and `relationship` are NOT
+    # columns on charts (panchanga lives inside chart_data, which we null anyway)
+    # — do not reintroduce them. Keep this set in sync with _CHART_PII_COLS.
+    _tombstone = {c: None for c in _CHART_PII_COLS}
+    _tombstone["deleted_at"] = datetime.utcnow().isoformat() + "Z"
     try:
         supabase.table("charts").update(_tombstone).eq("id", chart_id).execute()
     except Exception as _te:
