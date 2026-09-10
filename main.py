@@ -21841,6 +21841,23 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     localize_remedial_es(_d)
             except Exception as _res_e:
                 print(f"[today] remedial-es localize failed (non-fatal): {_res_e}")
+        # [es-loc 2026-09-09] color.why / color.wear can't route through the
+        # response allowlist because "color" is a GLOBAL_SKIP key (it protects
+        # hex/swatch strings elsewhere). Translate the color subdict DIRECTLY —
+        # its inner keys (why/wear) are not skipped — for every non-en language.
+        _cw_lang = (language or "en").split("-")[0].lower()
+        if _cw_lang in ("es", "pt", "fr") and signals:
+            try:
+                from antar_engine.translation_middleware import translate_dict as _cw_td
+                for _i in range(len(signals)):
+                    _col = signals[_i].get("color")
+                    if isinstance(_col, dict):
+                        signals[_i]["color"] = await _cw_td(
+                            _col, language=_cw_lang,
+                            fields_to_translate=["why", "wear"],
+                            endpoint_name="daily-color", chart_id=cid)
+            except Exception as _cwe:
+                print(f"[daily-signal] color why/wear translate non-fatal: {_cwe}")
         result = dict(signals[0]) if signals else {"chart_id": cid, "signal": "", "fallback": True}
         result.setdefault("chart_id", cid)
 
@@ -30461,9 +30478,18 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
                 for _i in range(len(signals)):
                     signals[_i] = await _dw_es_td(
                         signals[_i], language="es",
-                        fields_to_translate=["why", "herb", "tara_advice", "wear", "quality"],
+                        fields_to_translate=["why", "herb", "tara_advice", "quality"],
                         endpoint_name="daily-week", chart_id=chart_id,
                     )
+                    # color.why/color.wear sit under the GLOBAL_SKIP "color" key,
+                    # so translate the color subdict directly (why/wear not skipped).
+                    _col = signals[_i].get("color")
+                    if isinstance(_col, dict):
+                        signals[_i]["color"] = await _dw_es_td(
+                            _col, language="es",
+                            fields_to_translate=["why", "wear"],
+                            endpoint_name="daily-color", chart_id=chart_id,
+                        )
             except Exception as _dwes_e:
                 print(f"[daily-week] es why-layer translate failed (non-fatal): {_dwes_e}")
         elif language in ("pt", "fr"):
