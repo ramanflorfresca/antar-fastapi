@@ -34,71 +34,75 @@ FRIENDLY_LABEL: Dict[str, str] = {
     "spiritual":    "Inner life",
 }
 
-# One plain line per (domain, band). Bands:
-#   rise    — strong, clean opportunity (lean in)
-#   caution — opportunity but flagged risky (move, but keep a stop)
-#   protect — genuine risk / adverse (protect more than push)
-#   quiet   — neutral / nothing pulling (steady, no big moves)
+# One plain line per (domain, band). [predictive-voice 2026-09-10] These DESCRIBE
+# what the day holds in each area (a forecast the user reads), NOT instructions —
+# "the money strain presses in, spending rises" rather than "hold money still".
+# The moves/watch layer on the card carries the advice; day_map is the prediction.
+# Bands:
+#   rise    — strong, clean opportunity (area is favored/opening)
+#   caution — opportunity but flagged risky (mixed: upside with friction under it)
+#   protect — genuine risk / adverse (area is strained / under pressure)
+#   quiet   — neutral / nothing pulling (steady, even)
 _LINES: Dict[str, Dict[str, str]] = {
     "work": {
-        "rise":    "Your effort is seen today — push the visible work and let it land.",
-        "caution": "Momentum at work is real, but don't overcommit — move one clear step.",
-        "protect": "Go steady at work today — protect your standing, avoid new commitments.",
-        "quiet":   "Work is even today — routine effort carries you further than any big push.",
+        "rise":    "Your work is moving today — the effort you've put in is landing and being noticed.",
+        "caution": "There's real momentum at work today, though it comes with a pull to take on too much.",
+        "protect": "Work carries some drag today — support is slow and progress asks for patience.",
+        "quiet":   "Work runs even today — steady and ordinary, nothing pulling hard either way.",
     },
     "authority": {
-        "rise":    "A senior or decision-maker is receptive — make the ask, take the meeting.",
-        "caution": "Standing is on the rise, but tread carefully with those above you.",
-        "protect": "Handle authority and paperwork gently today — don't force a decision.",
-        "quiet":   "No pressure from above today — a calm day for your reputation.",
+        "rise":    "Your standing is favored today — the people above you are receptive and doors are open.",
+        "caution": "Your standing is rising today, but official matters carry a little friction alongside it.",
+        "protect": "Official matters and paperwork press in today — support is slow and the weight is real.",
+        "quiet":   "No pressure from above today — your reputation sits calm and steady.",
     },
     "money": {
-        "rise":    "Money flows your way today — chase what you're owed and lock in a gain.",
-        "caution": "Income looks good, but keep a stop on any big spend or bet.",
-        "protect": "Hold money still today — postpone big purchases and transfers.",
-        "quiet":   "A quiet money day — tend the cushion, no dramatic moves needed.",
+        "rise":    "Money moves your way today — income and what you're owed flow in, and the strength is real.",
+        "caution": "Money is active today — the income is strong, but spending rises right alongside it.",
+        "protect": "The money strain presses in from more than one side today — spending is up and the flow feels tight.",
+        "quiet":   "Your wallet is quiet today — nothing dramatic, the cushion holds steady.",
     },
     "speculation": {
-        "rise":    "A venture or creative project is lit — back it, within limits.",
-        "caution": "A venture tempts you today — real upside, real downside; cap your risk.",
-        "protect": "Skip the gamble today — a creative or joint-money bet can unravel.",
-        "quiet":   "No strong pull toward risk today — steady beats speculative.",
+        "rise":    "A venture or creative bet is lit today — the upside is genuinely live.",
+        "caution": "A venture tempts today — the upside is real, but so is the downside sitting under it.",
+        "protect": "Risk runs against you today — a creative or joint-money bet is prone to unravel.",
+        "quiet":   "No strong pull toward risk today — the speculative side sits flat.",
     },
     "home": {
-        "rise":    "Home feels warm today — a good evening to settle and reset.",
-        "caution": "Home needs a light touch today — small comforts over big changes.",
-        "protect": "Guard your rest and home base today — settle for less, and that's okay.",
-        "quiet":   "Home is steady today — ordinary care keeps it running smoothly.",
+        "rise":    "Home feels warm today — comfort and a quieter ease settle in.",
+        "caution": "Home brings small comforts today, though it asks for a lighter touch than usual.",
+        "protect": "Your home base feels the strain today — rest runs short and the ground feels thin.",
+        "quiet":   "Home is steady today — ordinary and running smoothly.",
     },
     "travel": {
         "rise":    "The road opens today — a trip or far-off matter moves in your favor.",
-        "caution": "A journey or foreign matter has upside and snags — build in a buffer.",
-        "protect": "Keep trips short and simple today — small journeys can bring small snags.",
-        "quiet":   "No big movement today — stay close, keep it local.",
+        "caution": "Short trips bring both ease and small snags today — the flow is mixed.",
+        "protect": "Getting around is bumpy today — small journeys tend to carry small setbacks.",
+        "quiet":   "Little movement today — things stay close and local.",
     },
     "relationship": {
-        "rise":    "Connection comes easy today — reach out, mend, or make the ask.",
-        "caution": "A close relationship is warm but tender — listen more than you push.",
-        "protect": "Go easy in close conversations today — let small frictions pass.",
-        "quiet":   "A calm day for connection — a warm word from someone close is likely.",
+        "rise":    "Warmth and good feeling are yours today — closeness comes easily.",
+        "caution": "A close relationship is warm but tender today — feelings sit near the surface.",
+        "protect": "Closeness feels friction today — small tensions catch more easily than usual.",
+        "quiet":   "Connection is calm today — a warm word from someone close is likely.",
     },
     "family": {
-        "rise":    "Family is a source of strength today — lean on it, give a little back.",
-        "caution": "Family ground is a bit soft today — step carefully, don't force decisions.",
-        "protect": "Hold off on hard family talks today — the timing isn't with you.",
+        "rise":    "Family is a source of strength today — the ties hold and give back.",
+        "caution": "Family ground is a little soft today — matters there ask for extra care.",
+        "protect": "Family carries extra weight today — the timing on the harder matters is off.",
         "quiet":   "Family life is even today — small, ordinary care holds it together.",
     },
     "health": {
-        "rise":    "Energy is on your side today — put it to good use.",
-        "caution": "Your body's running warm today — keep it simple, don't overdo it.",
-        "protect": "Your body feels the strain — slow down, breathe, guard your peace.",
-        "quiet":   "Health is steady today — keep the habit, no heroics needed.",
+        "rise":    "Energy is on your side today — the body feels willing and strong.",
+        "caution": "The body runs warm today — the vitality is there but it can tip into overdoing it.",
+        "protect": "The body feels the strain today — energy runs low and rest feels thin.",
+        "quiet":   "Wellbeing is steady today — the usual rhythm holds.",
     },
     "spiritual": {
-        "rise":    "Your head is clear today — a good day to plan, reflect, or decide.",
-        "caution": "Turn inward a little today — fewer inputs, clearer head.",
-        "protect": "Protect your quiet today — noise and overthinking cost more than usual.",
-        "quiet":   "A settled inner day — a little stillness goes a long way.",
+        "rise":    "Your mind is clear today — thinking is sharp and settled.",
+        "caution": "The inner weather is busy today — a little more noise in the head than usual.",
+        "protect": "The mind feels crowded today — overthinking and noise press in.",
+        "quiet":   "A settled inner day — quiet and even underneath.",
     },
 }
 
