@@ -146,15 +146,26 @@ def _runs(series: List[tuple], want: str) -> List[str]:
 
 def build_yearly_domain_windows(chart_data: dict, dashas: dict,
                                 birth_date: str, today: Optional[date] = None,
-                                max_domains: int = 4) -> List[dict]:
+                                max_domains: int = 4, year_offset: int = 0) -> List[dict]:
     """Per-domain dated up/down windows across the solar year.
 
     Returns [{key, label, line, up_windows[], down_windows[], score}], ranked by
-    real activation, most-active first. Empty list if transits unavailable."""
+    real activation, most-active first. Empty list if transits unavailable.
+
+    year_offset shifts the solar-return window forward by N years so the SAME
+    engine (dasha + FUTURE gochar, computed per-month via ephemeris) can project
+    the NEXT varshphal year (birthday+N → birthday+N+1)."""
     if not _HAS_TEV or not isinstance(chart_data, dict) or not chart_data:
         return []
     today = today or date.today()
     start, end = _solar_year(birth_date, today)
+    if year_offset:
+        def _shift(d: date, n: int) -> date:
+            try:
+                return d.replace(year=d.year + n)
+            except ValueError:      # Feb 29 → Feb 28
+                return d.replace(year=d.year + n, day=28)
+        start, end = _shift(start, year_offset), _shift(end, year_offset)
     months = _month_starts(start, end)
     if not months:
         return []

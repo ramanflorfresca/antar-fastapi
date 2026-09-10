@@ -30899,6 +30899,69 @@ async def _modernize_upaay(planet: str, variant: str, curated: str) -> str:
         return curated
 
 
+async def _compose_next_year_payload(chart_id, chart_data, birth_date, language, tz_offset):
+    """[next-year 2026-09-10] Focused NEXT varshphal-year payload for the This
+    Year 'Next year' toggle. Uses the SAME per-domain window engine as This Year
+    but shifted one solar year forward (dasha + FUTURE gochar via year_offset=1),
+    so it's a real forecast, not a replay. Headline/gist are derived from the same
+    ranked domain scores — no dependency on the current-year narration stack."""
+    from datetime import date as _ny_date, timedelta as _ny_td
+    from antar_engine.yearly_domain_windows import build_yearly_domain_windows as _ny_bydw
+
+    # next solar-return range: birthday+1 .. birthday+2 (display only)
+    def _ny_range(bd):
+        try:
+            b = _ny_date.fromisoformat(str(bd)[:10])
+            t = _ny_date.today()
+            try:    bday = b.replace(year=t.year)
+            except ValueError: bday = b.replace(year=t.year, day=28)
+            this_start = bday if bday <= t else b.replace(year=t.year - 1)
+            nxt_start = this_start.replace(year=this_start.year + 1)
+            nxt_end = nxt_start.replace(year=nxt_start.year + 1) - _ny_td(days=1)
+            _f = lambda d: d.strftime("%b %d '%y").upper()
+            return f"{_f(nxt_start)} – {_f(nxt_end)}"
+        except Exception:
+            return ""
+
+    dws = []
+    try:
+        dws = _ny_bydw(chart_data, get_dashas_for_chart(chart_id) or {},
+                       birth_date, _ny_date.today(), year_offset=1) or []
+    except Exception as _nydw_e:
+        print(f"[next-year] domain_windows failed (non-fatal): {_nydw_e}")
+
+    ups = [d for d in dws if d.get("up_windows")]
+    downs = [d for d in dws if d.get("down_windows")]
+    _bits = []
+    if ups:   _bits.append(f"{ups[0].get('label')} opens up")
+    if downs: _bits.append(f"{downs[0].get('label')} needs care")
+    headline = " · ".join(_bits) or (
+        f"{dws[0].get('label')} leads your next year" if dws else
+        "Your next year, area by area")
+    gist = " ".join((d.get("line") or "") for d in dws[:3]).strip()
+
+    payload = {
+        "chart_id": chart_id,
+        "language": language,
+        "is_next_year": True,
+        "generated_at": datetime.utcnow().isoformat() + "Z",
+        "year": {"range": _ny_range(birth_date), "headline": headline,
+                 "gist": gist, "polarity": (dws[0].get("polarity") if dws else "neutral")},
+        "domain_windows": dws,
+        "highlights": [],
+    }
+    if language in ("es", "pt", "fr"):
+        try:
+            payload = await _translate_dict(
+                payload, language=language,
+                fields_to_translate=["headline", "gist", "line", "label", "status_label"],
+                fields_to_skip=["planet", "name", "key", "human", "color", "range", "tab"],
+                endpoint_name="year-attention-next", chart_id=chart_id)
+        except Exception as _nyt_e:
+            print(f"[next-year] translate non-fatal: {_nyt_e}")
+    return _ent_year_view(payload, chart_id)
+
+
 @app.post("/api/v1/predict/year-attention")
 async def predict_year_attention(request: dict, language: str = None):
     """
@@ -30946,6 +31009,16 @@ async def predict_year_attention(request: dict, language: str = None):
     jaimini_data = _hc._safe_json(row.get("jaimini_data"))
     lk_data      = _hc._safe_json(row.get("lal_kitab_data"))
     birth_date   = str(row.get("birth_date") or "")[:10]
+
+    # [next-year 2026-09-10] isolated forward-year branch — the This Year "Next
+    # year" toggle sends next_year:true. Projects the NEXT varshphal year via the
+    # same domain-windows engine (dasha + FUTURE gochar, year_offset=1), kept OUT
+    # of the heavy current-year composition below so it can't destabilize the
+    # live This Year payload.
+    if bool((request or {}).get("next_year")):
+        _ny_tz = int((request or {}).get("tz_offset") or 0)
+        return await _compose_next_year_payload(
+            chart_id, chart_data, birth_date, language, _ny_tz)
 
     # ── current/next dasha rows (Vimsottari) ──
     current_md_row = current_ad_row = next_md_row = None
