@@ -30899,63 +30899,111 @@ async def _modernize_upaay(planet: str, variant: str, curated: str) -> str:
         return curated
 
 
-async def _compose_next_year_payload(chart_id, chart_data, birth_date, language, tz_offset):
-    """[next-year 2026-09-10] Focused NEXT varshphal-year payload for the This
-    Year 'Next year' toggle. Uses the SAME per-domain window engine as This Year
-    but shifted one solar year forward (dasha + FUTURE gochar via year_offset=1),
-    so it's a real forecast, not a replay. Headline/gist are derived from the same
-    ranked domain scores — no dependency on the current-year narration stack."""
+async def _compose_next_year_payload(chart_id, chart_data, birth_date, language, tz_offset, gender=""):
+    """[next-year, varshphal-narrated 2026-09-10] NEXT varshphal-year payload for
+    the This Year 'Next year' toggle. Combines two engines:
+      • dated per-domain windows — SAME engine as This Year, shifted one solar
+        year forward (dasha + FUTURE gochar, year_offset=1);
+      • the annual VARSHPHAL reading for the next solar return — read_year with a
+        next-year anchor + use_transit → verdict, what-will-happen narrative,
+        what-to-avoid, life-events, and the muntha (Tajika year marker).
+    Kept OUT of the current-year composition so it can't destabilize This Year."""
     from datetime import date as _ny_date, timedelta as _ny_td
     from antar_engine.yearly_domain_windows import build_yearly_domain_windows as _ny_bydw
 
-    # next solar-return range: birthday+1 .. birthday+2 (display only)
-    def _ny_range(bd):
-        try:
-            b = _ny_date.fromisoformat(str(bd)[:10])
-            t = _ny_date.today()
-            try:    bday = b.replace(year=t.year)
-            except ValueError: bday = b.replace(year=t.year, day=28)
-            this_start = bday if bday <= t else b.replace(year=t.year - 1)
-            nxt_start = this_start.replace(year=this_start.year + 1)
-            nxt_end = nxt_start.replace(year=nxt_start.year + 1) - _ny_td(days=1)
-            _f = lambda d: d.strftime("%b %d '%y").upper()
-            return f"{_f(nxt_start)} – {_f(nxt_end)}"
-        except Exception:
-            return ""
+    # next solar-return bounds + anchor (a date INSIDE the next year → age+1)
+    _nx_start = _nx_end = None
+    _rng = ""
+    _anchor = _ny_date.today()
+    try:
+        b = _ny_date.fromisoformat(str(birth_date)[:10]); t = _ny_date.today()
+        try:    bday = b.replace(year=t.year)
+        except ValueError: bday = b.replace(year=t.year, day=28)
+        this_start = bday if bday <= t else b.replace(year=t.year - 1)
+        try:    _nx_start = this_start.replace(year=this_start.year + 1)
+        except ValueError: _nx_start = this_start.replace(year=this_start.year + 1, day=28)
+        try:    _nx_end = _nx_start.replace(year=_nx_start.year + 1) - _ny_td(days=1)
+        except ValueError: _nx_end = _nx_start.replace(year=_nx_start.year + 1, day=28) - _ny_td(days=1)
+        _rng = "%s – %s" % (_nx_start.strftime("%b %d '%y").upper(),
+                            _nx_end.strftime("%b %d '%y").upper())
+        _anchor = _nx_start + _ny_td(days=1)
+    except Exception as _nyb_e:
+        print(f"[next-year] bounds non-fatal: {_nyb_e}")
 
+    # dated per-domain windows for the next solar year (future gochar)
     dws = []
     try:
         dws = _ny_bydw(chart_data, get_dashas_for_chart(chart_id) or {},
                        birth_date, _ny_date.today(), year_offset=1) or []
     except Exception as _nydw_e:
         print(f"[next-year] domain_windows failed (non-fatal): {_nydw_e}")
-
     ups = [d for d in dws if d.get("up_windows")]
-    downs = [d for d in dws if d.get("down_windows")]
-    _bits = []
-    if ups:   _bits.append(f"{ups[0].get('label')} opens up")
-    if downs: _bits.append(f"{downs[0].get('label')} needs care")
-    headline = " · ".join(_bits) or (
-        f"{dws[0].get('label')} leads your next year" if dws else
-        "Your next year, area by area")
-    gist = " ".join((d.get("line") or "") for d in dws[:3]).strip()
+    _lead = (f"{ups[0].get('label')} opens up" if ups else
+             (f"{dws[0].get('label')} leads your next year" if dws else "your next year"))
+
+    # annual VARSHPHAL reading for the next solar return (+ future transits)
+    verdict = ""; happen = []; avoid = []; events = []
+    try:
+        from antar_engine.lk_varshphal_year import read_year as _ny_ry
+        vy = _ny_ry(chart_data, birth_date, gender or "", today=_anchor, use_transit=True) or {}
+        if vy.get("available"):
+            verdict = str(vy.get("verdict") or "")
+            happen = [str(x) for x in (vy.get("what_will_happen") or []) if x]
+            avoid = [str(x) for x in (vy.get("what_to_avoid") or []) if x]
+            events = [str(x) for x in (vy.get("life_events") or []) if x]
+    except Exception as _nyv_e:
+        print(f"[next-year] varshphal read_year non-fatal: {_nyv_e}")
+
+    # muntha (Tajika year marker) for the next solar return
+    muntha = ""
+    try:
+        from antar_engine.jyotish_periods import muntha_sign as _ny_mu
+        _lag = ""; _cd = chart_data if isinstance(chart_data, dict) else {}
+        for _k in ("lagna", "ascendant", "asc", "rising_sign"):
+            _v = _cd.get(_k)
+            if isinstance(_v, dict) and (_v.get("sign") or _v.get("rashi")):
+                _lag = _v.get("sign") or _v.get("rashi"); break
+            if isinstance(_v, str) and _v:
+                _lag = _v; break
+        if _lag:
+            muntha = _ny_mu(_lag, birth_date, _anchor) or ""
+    except Exception as _nymu_e:
+        print(f"[next-year] muntha non-fatal: {_nymu_e}")
+
+    # compose: varshphal tone + domain lead; body from the what-will-happen read
+    _tone = {"supportive": "A supportive year", "challenging": "A demanding year",
+             "mixed": "A mixed year"}.get(verdict, "Your year ahead")
+    headline = f"{_tone} — {_lead}." if _lead else f"{_tone}."
+    if happen:
+        gist = " ".join(happen[:4]).strip()
+        if events:
+            gist = (gist + " " + events[0]).strip()
+    else:
+        gist = " ".join((d.get("line") or "") for d in dws[:3]).strip()
+
+    year_block = {"range": _rng, "headline": headline, "gist": gist,
+                  "polarity": (dws[0].get("polarity") if dws else "neutral"),
+                  "verdict": verdict, "watch": avoid[:3]}
+    if muntha:
+        year_block["muntha"] = muntha
 
     payload = {
-        "chart_id": chart_id,
-        "language": language,
-        "is_next_year": True,
+        "chart_id": chart_id, "language": language, "is_next_year": True,
         "generated_at": datetime.utcnow().isoformat() + "Z",
-        "year": {"range": _ny_range(birth_date), "headline": headline,
-                 "gist": gist, "polarity": (dws[0].get("polarity") if dws else "neutral")},
+        "year": year_block,
         "domain_windows": dws,
         "highlights": [],
     }
+    if _nx_start:
+        payload["period_start"] = _nx_start.isoformat()
+        payload["period_end"] = _nx_end.isoformat()
     if language in ("es", "pt", "fr"):
         try:
             payload = await _translate_dict(
                 payload, language=language,
-                fields_to_translate=["headline", "gist", "line", "label", "status_label"],
-                fields_to_skip=["planet", "name", "key", "human", "color", "range", "tab"],
+                fields_to_translate=["headline", "gist", "watch", "line", "label", "status_label"],
+                fields_to_skip=["planet", "name", "key", "human", "color", "range",
+                                "tab", "verdict", "muntha"],
                 endpoint_name="year-attention-next", chart_id=chart_id)
         except Exception as _nyt_e:
             print(f"[next-year] translate non-fatal: {_nyt_e}")
@@ -31018,7 +31066,8 @@ async def predict_year_attention(request: dict, language: str = None):
     if bool((request or {}).get("next_year")):
         _ny_tz = int((request or {}).get("tz_offset") or 0)
         return await _compose_next_year_payload(
-            chart_id, chart_data, birth_date, language, _ny_tz)
+            chart_id, chart_data, birth_date, language, _ny_tz,
+            gender=row.get("gender") or "")
 
     # ── current/next dasha rows (Vimsottari) ──
     current_md_row = current_ad_row = next_md_row = None
