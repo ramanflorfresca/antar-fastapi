@@ -8645,6 +8645,7 @@ async def push_test(request: PushTestRequest, authorization: str = Header(...)):
 @app.post("/api/v1/predict/monthly-briefing", response_model=MonthlyBriefingResponse)
 async def monthly_briefing(
     request: MonthlyBriefingRequest,
+    http_request: Request,
     authorization: Optional[str] = Header(None)
 ):
     user_id = None
@@ -8768,6 +8769,33 @@ async def monthly_briefing(
     except Exception as _rb_err:
         print(f"[monthly-briefing] readability non-fatal: {_rb_err}")
 
+    # [es-loc] Resolve the SERVED language from the query param / geo-resolved
+    # middleware value — the FE injects ?language= on the URL, NOT in the POST
+    # body, so reading request.language alone always saw "en" and skipped
+    # translation (the whole briefing shipped English on es). Fall back to body.
+    _ml_lang = (
+        (http_request.query_params.get("language") or "")
+        or getattr(getattr(http_request, "state", None), "resolved_language", "")
+        or getattr(request, "language", None) or "en"
+    ).split("-")[0].lower()
+    if _ml_lang in ("es", "pt"):
+        try:
+            from antar_engine.translation_middleware import translate_dict as _ml_td
+            _ml_payload = await _ml_td(
+                {"briefing": briefing_text},
+                language=_ml_lang,
+                fields_to_translate=["briefing"],
+                endpoint_name="monthly-briefing",
+                chart_id=request.chart_id,
+            )
+            briefing_text = _ml_payload.get("briefing", briefing_text)
+        except Exception as _ml_te:
+            print(f"[es-loc] monthly-briefing translate non-fatal: {_ml_te}")
+
+    # Store the SERVED (already-translated) briefing so the overlay's direct
+    # table read (useMonthlyBriefing reads monthly_briefings) matches what the
+    # endpoint returns — previously it stored English then translated only the
+    # response, so the overlay showed English on es.
     if user_id:
         try:
             supabase.table("monthly_briefings").insert({
@@ -8781,23 +8809,6 @@ async def monthly_briefing(
         except Exception as e:
             print(f"Briefing store error: {e}")
 
-    # [es-loc 2026-06-09] language layer: when request.language != en, run the
-    # briefing through Loc-4 Haiku translator. Content-hash cached.
-    _ml_lang = (getattr(request, "language", None) or "en").split("-")[0].lower()
-    if _ml_lang in ("es", "pt"):
-        try:
-            from antar_engine.translation_middleware import translate_dict as _ml_td
-            _ml_payload = {"briefing": briefing_text}
-            _ml_payload = await _ml_td(
-                _ml_payload,
-                language=_ml_lang,
-                fields_to_translate=["briefing"],
-                endpoint_name="monthly-briefing",
-                chart_id=request.chart_id,
-            )
-            briefing_text = _ml_payload.get("briefing", briefing_text)
-        except Exception as _ml_te:
-            print(f"[es-loc] monthly-briefing translate non-fatal: {_ml_te}")
     return MonthlyBriefingResponse(
         briefing=briefing_text,
         month_year=month_year,
@@ -21681,7 +21692,14 @@ async def save_onboarding_reason(request: OnboardingReasonRequest):
                          # [daily-life-map] the "area by area" map — translate its
                          # per-area line + friendly label (also localizes domain
                          # chip labels for es/pt users, which we want).
-                         "day_map", "line", "label"],
+                         "day_map", "line", "label",
+                         # [es-loc 2026-09-09] the "why" explainer layer leaked
+                         # English (color.why, food.why/herb, tara_advice, the
+                         # colour "wear" line, and the moon_shift split quality
+                         # label). These are display prose, safe to translate;
+                         # structural enums (status, direction, at, score) are
+                         # not listed so they stay stable.
+                         "why", "herb", "tara_advice", "wear", "quality"],
     endpoint_name="daily-signal",
 )
 async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, language: str = "en", date: str = None):
@@ -23329,19 +23347,28 @@ async def get_executive_summary(chart_id: str, language: str = "en"):
                 else:
                     inst["name_es"] = inst.get("name", k)
         result["plain_signal"] = _build_plain_dashboard_signal(instruments, language)
-        # [loc-3 2026-07-04] the hand-rolled translator above is ES-only —
-        # pt/fr route prose through the gated middleware instead.
-        if language in ("pt", "fr"):
+        # [es-loc 2026-09-09] Translate the remaining user-facing DISPLAY text
+        # for EVERY non-English language. The ES hand-rolled block above only
+        # covered symptom_plain + name_es, so the raw instrument symptom / name /
+        # label and the whole diagnostic card (THE PROMISE / GROWTH BLUEPRINT:
+        # ACTIVE / THE WINDOW / THE MOVE, plus life_event names like "Health
+        # Alert" / "RELOCATION WINDOW") shipped English on es. Allowlist =
+        # DISPLAY keys only (label/value/detail/name/symptom/…); structural
+        # enums the FE switches on (key, id, signal_status, phase, verdict,
+        # domain, status_color, score) are deliberately NOT listed so they stay
+        # byte-stable and can't break FE logic.
+        if language in ("es", "pt", "fr"):
             try:
                 from antar_engine.translation_middleware import translate_dict as _ex_td
                 result = await _ex_td(
                     result, language=language,
                     fields_to_translate=["symptom_plain", "symptom",
-                                         "plain_signal", "headline", "note"],
+                                         "plain_signal", "headline", "note",
+                                         "name", "label", "value", "detail"],
                     endpoint_name="executive-summary", chart_id=chart_id,
                 )
             except Exception as _ex_te:
-                print(f"[exec-summary] pt/fr translate non-fatal: {_ex_te}")
+                print(f"[exec-summary] translate non-fatal: {_ex_te}")
         return result
     except Exception as e:
         import traceback
@@ -24951,7 +24978,13 @@ async def get_dashboard(chart_id: str, language: str = 'en'):
                     fields_to_translate=["headline", "summary", "text",
                                          "label", "note", "description",
                                          "body", "title", "message",
-                                         "insight", "gist"],
+                                         "insight", "gist",
+                                         # [es-loc 2026-09-09] life_arc prose +
+                                         # the today-card fields leaked English.
+                                         "past_narrative", "present_narrative",
+                                         "future_narrative",
+                                         "signal_today", "move_today",
+                                         "energy_desc_today", "signal_preview"],
                     fields_to_skip=["jaimini", "lal_kitab", "key",
                                     "state", "tone", "planet"],
                     endpoint_name="dashboard", chart_id=chart_id,
@@ -25107,6 +25140,14 @@ async def _get_dashboard_inner(chart_id: str, language: str = "en"):
         _tc = supabase.table("daily_signals_cache").select("signal_json") \
             .eq("chart_id", chart_id).eq("signal_date", today) \
             .eq("language", language).limit(1).execute()
+        # [es-loc 2026-09-09] Fall back to the EN cache row when the language-
+        # matched row isn't warmed yet, so an es/pt dashboard's today-card fields
+        # (signal_today / move_today / energy_desc_today / signal_preview) aren't
+        # EMPTY. The response translate pass above renders them in-language.
+        if (not _tc.data) and language != "en":
+            _tc = supabase.table("daily_signals_cache").select("signal_json") \
+                .eq("chart_id", chart_id).eq("signal_date", today) \
+                .eq("language", "en").limit(1).execute()
         _tcj = (_tc.data[0].get("signal_json") if _tc.data else None) or {}
         if isinstance(_tcj, str):
             try:
@@ -30410,6 +30451,21 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
                     localize_remedial_es(_d)
             except Exception as _res_e:
                 print(f"[daily-week] remedial-es localize failed (non-fatal): {_res_e}")
+            # [es-loc 2026-09-09] remedial_es rebuilds the structured colour/food/
+            # timing block but NOT the "why" explainer prose (color.why, food.why/
+            # herb, tara_advice, moon_shift split quality) — those leaked English
+            # on es. Route just those display keys through the cached translator
+            # (content-hash cached, so repeated per-day values are cheap).
+            try:
+                from antar_engine.translation_middleware import translate_dict as _dw_es_td
+                for _i in range(len(signals)):
+                    signals[_i] = await _dw_es_td(
+                        signals[_i], language="es",
+                        fields_to_translate=["why", "herb", "tara_advice", "wear", "quality"],
+                        endpoint_name="daily-week", chart_id=chart_id,
+                    )
+            except Exception as _dwes_e:
+                print(f"[daily-week] es why-layer translate failed (non-fatal): {_dwes_e}")
         elif language in ("pt", "fr"):
             # [loc-3 2026-07-04] no hand-rolled dict for pt/fr — route
             # the signal prose through the gated translation middleware
