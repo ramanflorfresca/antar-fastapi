@@ -30899,7 +30899,7 @@ async def _modernize_upaay(planet: str, variant: str, curated: str) -> str:
         return curated
 
 
-async def _compose_next_year_payload(chart_id, chart_data, birth_date, language, tz_offset, gender=""):
+async def _compose_next_year_payload(chart_id, chart_data, birth_date, language, tz_offset, gender="", first_name=""):
     """[next-year, varshphal-narrated 2026-09-10] NEXT varshphal-year payload for
     the This Year 'Next year' toggle. Combines two engines:
       • dated per-domain windows — SAME engine as This Year, shifted one solar
@@ -30987,6 +30987,50 @@ async def _compose_next_year_payload(chart_id, chart_data, birth_date, language,
     if muntha:
         year_block["muntha"] = muntha
 
+    # [next-year-narration 2026-09-10] polish the RAW varshphal into the same
+    # plain GPS-coach voice as the current year: feed the varshphal + windows
+    # STATE through year_narration (Claude narrates jargon-free; the validator
+    # rejects any planet/sign/varshphal/house term). Cached per chart+period+
+    # state; on any miss the raw varshphal headline/gist above are kept.
+    try:
+        from antar_engine.year_narration import (
+            build_year_narration_system, parse_and_validate_year,
+            year_narration_cache_read, year_narration_cache_write,
+        )
+        _nn_state = {
+            "year_range": _rng,
+            "polarity": verdict,
+            "horizon": "next_year",
+            "areas": [{"name": d.get("label"), "note": d.get("line"),
+                       "under_pressure": bool(d.get("down_windows"))}
+                      for d in dws[:5] if isinstance(d, dict)],
+            "engine_highlights": happen[:6],
+            "season_watch": (avoid[0] if avoid else ""),
+            "muntha_sign": muntha,
+            "life_events": events[:3],
+        }
+        _nn_ps = _nx_start.isoformat() if _nx_start else _rng
+        _nn = year_narration_cache_read(supabase, chart_id, _nn_ps, _nn_state)
+        if not _nn:
+            _nn_sys = build_year_narration_system(_nn_state, first_name=first_name or "")
+            _nn_raw, _ = await call_llm_claude(
+                prompt=("Write the Year narration JSON now. This is the year AHEAD "
+                        "(the NEXT birthday-to-birthday period), not the current year."),
+                system_override=_nn_sys,
+                max_tokens_override=600,
+                temperature_override=0.0,
+            )
+            _nn = parse_and_validate_year(_nn_raw, language="en")
+            if _nn:
+                year_narration_cache_write(supabase, chart_id, _nn_ps, _nn_state, _nn)
+        if _nn:
+            year_block["headline"] = _nn["headline"]
+            year_block["gist"] = _nn["body"]
+            if _nn.get("watch"):
+                year_block["watch"] = [_nn["watch"]]
+    except Exception as _nn_e:
+        print(f"[next-year] narration skipped (raw varshphal kept): {_nn_e}")
+
     payload = {
         "chart_id": chart_id, "language": language, "is_next_year": True,
         "generated_at": datetime.utcnow().isoformat() + "Z",
@@ -31067,7 +31111,7 @@ async def predict_year_attention(request: dict, language: str = None):
         _ny_tz = int((request or {}).get("tz_offset") or 0)
         return await _compose_next_year_payload(
             chart_id, chart_data, birth_date, language, _ny_tz,
-            gender=row.get("gender") or "")
+            gender=row.get("gender") or "", first_name=row.get("first_name") or "")
 
     # ── current/next dasha rows (Vimsottari) ──
     current_md_row = current_ad_row = next_md_row = None
