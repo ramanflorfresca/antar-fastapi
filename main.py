@@ -25729,12 +25729,22 @@ async def restore_chart(
     # google_id populated — querying both keeps them visible.
     charts_res = supabase.table("charts").select(
         "id,user_id,chart_type,first_name,display_name,avatar_url,email,"
-        "lagna_sign,moon_sign,moon_nakshatra,sun_sign,created_at,onboarding_completed_at"
+        "lagna_sign,moon_sign,moon_nakshatra,sun_sign,created_at,onboarding_completed_at,"
+        "deleted_at"
     ).or_(
         f"user_id.eq.{user_id},google_id.eq.{user_id}"
     ).order("created_at", desc=True).execute()
 
-    charts = charts_res.data or []
+    # [tombstone-restore 2026-09-10] Exclude DELETED (tombstoned) charts from the
+    # restore. A soft-deleted chart row survives for referential integrity but
+    # its name/PII are purged, so it would otherwise appear in `charts` as a
+    # nameless, selectable profile in the switcher — and picking it (or holding
+    # its id cached) makes the client fetch GET /chart/{id}, which correctly 404s
+    # a tombstone, leaving Today blank. get_chart already refuses deleted charts;
+    # auth/restore must not offer them in the first place, nor ever choose one as
+    # `active`. (Merged charts' data lives under their live parent, which stays in
+    # the list under its own id, so filtering deleted here loses nothing.)
+    charts = [c for c in (charts_res.data or []) if c.get("deleted_at") is None]
 
     # 3. No charts → distinguish Case A (abandoned onboarding) from
     #    Case C (user truly gone) by consulting Supabase auth.users.
