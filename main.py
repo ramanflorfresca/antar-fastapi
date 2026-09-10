@@ -9367,22 +9367,6 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
                 )
             except Exception as _fe:
                 print(f"[food i18n] {_fe}")
-    # [es-loc 2026-09-09] audit tail: the mantra DESCRIPTOR label ("Your
-    # visibility and self-direction mantra") leaked English. Translate only the
-    # label — the mantra text itself stays canonical (Sanskrit/bija).
-    if _gem_lang in ("es", "pt"):
-        _tpm = resp.get("today_priority") or {}
-        _mant = _tpm.get("mantra")
-        if isinstance(_mant, dict) and _mant.get("label"):
-            try:
-                from antar_engine.translation_middleware import translate_dict
-                _tpm["mantra"] = await translate_dict(
-                    _mant, language=_gem_lang,
-                    fields_to_translate=["label"],
-                    endpoint_name="daily-practice-mantra", chart_id=request.chart_id,
-                )
-            except Exception as _me:
-                print(f"[mantra i18n] {_me}")
     # [remedy3] prose: translate yantra/daan/vrat blocks for es/pt. Proper
     # nouns (yantra/sigil/medallion names) stay in their original form.
     if _gem_lang in ("es", "pt"):
@@ -9428,6 +9412,20 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
     # inline romanized Sanskrit title.
     if not request.include_sanskrit_keys:
         resp = _prac_plain_keys(resp)
+    # [es-loc 2026-09-09] _prac_plain_keys sets the mantra DESCRIPTOR label
+    # ("Your <energy> mantra") in English AFTER the earlier translate passes ran,
+    # so translate it HERE (post-compose, pre-cache). Mantra text stays canonical.
+    if _gem_lang in ("es", "pt"):
+        _tpm2 = resp.get("today_priority") or {}
+        _mant2 = _tpm2.get("mantra")
+        if isinstance(_mant2, dict) and _mant2.get("label"):
+            try:
+                from antar_engine.translation_middleware import translate_dict as _mtd
+                _tpm2["mantra"] = await _mtd(
+                    _mant2, language=_gem_lang, fields_to_translate=["label"],
+                    endpoint_name="daily-practice-mantra", chart_id=request.chart_id)
+            except Exception as _me2:
+                print(f"[mantra i18n] {_me2}")
     _PRACTICE_CACHE[ckey] = (_prac_time.time() + _PRACTICE_TTL, resp)
     # [daily-db-cache 2026-06-16] write-through to the shared DB cache
     _daily_surface_put(request.chart_id, "practice", request.language,
