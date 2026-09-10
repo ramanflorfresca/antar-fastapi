@@ -5760,6 +5760,31 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
     except Exception as e:
         print(f"Chapter arc error: {e}")
 
+    # [es-loc 2026-09-09] The /ask MAIN answer is already localized, but the rich
+    # side-panels leaked English on es. Translate the two big prose dicts (life-
+    # arc narrative + chakra reading) IN PLACE so both return paths serve es/pt/fr.
+    _pred_panel_lang = (getattr(request, "language", "en") or "en").split("-")[0].lower()
+    if _pred_panel_lang in ("es", "pt", "fr"):
+        try:
+            from antar_engine.translation_middleware import translate_dict as _pp_td
+            if isinstance(chapter_arc_data, dict):
+                chapter_arc_data = await _pp_td(
+                    chapter_arc_data, language=_pred_panel_lang,
+                    fields_to_translate=["past_narrative", "present_narrative",
+                                         "future_narrative", "chapter_theme",
+                                         "summary", "text", "note", "insight"],
+                    endpoint_name="predict-chapter-arc",
+                    chart_id=getattr(request, "chart_id", None))
+            if isinstance(chakra_reading_data, dict):
+                chakra_reading_data = await _pp_td(
+                    chakra_reading_data, language=_pred_panel_lang,
+                    fields_to_translate=["reading", "summary", "text", "note",
+                                         "insight", "description", "why", "guidance"],
+                    endpoint_name="predict-chakra",
+                    chart_id=getattr(request, "chart_id", None))
+        except Exception as _pp_e:
+            print(f"[predict] side-panel translate non-fatal: {_pp_e}")
+
     # ── FORWARD WEALTH-IGNITION (Sri Lagna × K.N. Rao Chara × Vimśottari) ──
     # The forward projection chapter_arc/rarity describe only in the present:
     # dated wealth-ignition windows where the Jaimini prosperity reference and a
@@ -23462,10 +23487,20 @@ async def debug_test_alert(admin_email: str = Depends(_require_debug)):
 
 
 @app.get("/api/v1/predictions/accuracy/{chart_id}")
-async def get_prediction_accuracy_endpoint(chart_id: str):
+async def get_prediction_accuracy_endpoint(chart_id: str, language: str = "en"):
     """Return accuracy score — powers the trust badge."""
     from antar_engine.prediction_tracker import get_accuracy_score
-    return get_accuracy_score(chart_id, supabase)
+    _acc = get_accuracy_score(chart_id, supabase)
+    # [es-loc 2026-09-09] the only prose field is the empty-state message; it was
+    # English on es. Curated (fixed string) — no LLM needed.
+    _al = (language or "en").split("-")[0].lower()
+    if _al in ("es", "pt") and isinstance(_acc, dict) \
+            and str(_acc.get("message", "")).startswith("Verify a few predictions"):
+        _acc["message"] = {
+            "es": "Verifica algunas predicciones para ver tu puntaje de precisión",
+            "pt": "Verifique algumas previsões para ver sua pontuação de precisão",
+        }[_al]
+    return _acc
 
 
 # ── Alert System Endpoints ────────────────────────────────────────
@@ -24702,6 +24737,28 @@ async def get_personal_remedies(
     except Exception as _lv_e:
         print(f"[leak-validator] /remedies non-fatal: {_lv_e}")
 
+    # [es-loc 2026-09-09] `color` is in GLOBAL_SKIP_FIELDS (it guards hex/swatch
+    # strings), so the @translate_response allowlist above can't reach the remedy
+    # colour list ("White, pink, cream, pastels"). Translate it via a RENAMED key
+    # (not "color") so the skip doesn't apply — for every non-en language.
+    _rem_lang = (language or "en").split("-")[0].lower()
+    if _rem_lang in ("es", "pt", "fr") and remedies:
+        try:
+            from antar_engine.translation_middleware import translate_dict as _rc_td
+            _colors = {f"c{_i}": (r.get("color") or "")
+                       for _i, r in enumerate(remedies) if r.get("color")}
+            if _colors:
+                _colors = await _rc_td(
+                    _colors, language=_rem_lang,
+                    fields_to_translate=list(_colors.keys()),
+                    endpoint_name="remedy-color", chart_id=chart_id)
+                for _i, r in enumerate(remedies):
+                    _k = f"c{_i}"
+                    if _k in _colors and r.get("color"):
+                        r["color"] = _colors[_k]
+        except Exception as _rc_e:
+            print(f"[remedies] color translate non-fatal: {_rc_e}")
+
     return {
         "chart_id":      chart_id,
         "first_name":    first_name,
@@ -25885,7 +25942,7 @@ async def generate_life_report(chart_id: str):
 
 # ── C1: Prediction history endpoint ──────────────────────────────────────────
 @app.get("/api/v1/predictions/{chart_id}")
-async def get_prediction_history(chart_id: str, limit: int = 20):
+async def get_prediction_history(chart_id: str, limit: int = 20, language: str = "en"):
     """Last N predictions for a chart with plain English output. Sprint C1-03."""
     _ent_deny = _ent_feature_gate(chart_id, "history")
     if _ent_deny is not None:
@@ -25902,6 +25959,23 @@ async def get_prediction_history(chart_id: str, limit: int = 20):
             .limit(min(limit, 50)) \
             .execute()
         predictions = result.data or []
+        # [es-loc 2026-09-09] Stored prediction rows are English (language:null)
+        # and were returned raw — the whole Ask-history / Verify feed showed
+        # English to es users. Translate the generated prose on read (NOT `query`,
+        # which is the user's own words; NOT concern/all_domains/confidence enums).
+        _lang = (language or "en").split("-")[0].lower()
+        if _lang in ("es", "pt", "fr") and predictions:
+            try:
+                from antar_engine.translation_middleware import translate_dict as _ph_td
+                _wrapped = await _ph_td(
+                    {"predictions": predictions}, language=_lang,
+                    fields_to_translate=["plain_summary", "action_item",
+                                         "signal_line", "timing_window"],
+                    endpoint_name="prediction-history", chart_id=chart_id,
+                )
+                predictions = _wrapped.get("predictions", predictions)
+            except Exception as _ph_e:
+                print(f"[predictions] es translate non-fatal: {_ph_e}")
         return {"predictions": predictions, "total": len(predictions)}
     except Exception as e:
         print(f"[predictions] error: {e}")
@@ -25910,7 +25984,7 @@ async def get_prediction_history(chart_id: str, limit: int = 20):
 
 # ── C1: Domain signals endpoint ───────────────────────────────────────────────
 @app.get("/api/v1/domain-signals/{chart_id}")
-async def get_domain_signals(chart_id: str):
+async def get_domain_signals(chart_id: str, language: str = "en"):
     """One signal_line per life domain from most recent prediction. Sprint C1-04."""
     domains = [
         "career", "wealth", "love", "children", "health", "foreign",
@@ -25940,6 +26014,20 @@ async def get_domain_signals(chart_id: str):
                         "created_at":    pred.get("created_at"),
                     }
                     break
+        # [es-loc 2026-09-09] signal_line/timing_window come from English stored
+        # rows — translate on read for non-en (per-domain signals leaked English).
+        _lang = (language or "en").split("-")[0].lower()
+        if _lang in ("es", "pt", "fr") and signals:
+            try:
+                from antar_engine.translation_middleware import translate_dict as _ds_td
+                _wrapped = await _ds_td(
+                    {"signals": signals}, language=_lang,
+                    fields_to_translate=["signal_line", "timing_window"],
+                    endpoint_name="domain-signals", chart_id=chart_id,
+                )
+                signals = _wrapped.get("signals", signals)
+            except Exception as _ds_e:
+                print(f"[domain-signals] es translate non-fatal: {_ds_e}")
         return {
             "signals":      signals,
             "life_context": get_life_context(chart_id, supabase=supabase),  # [life-context]
@@ -31868,12 +31956,18 @@ async def get_predict_week(
         except Exception as _se:
             print(f"[predict_week] strip warning for {d}: {_se}")
 
+        # [es-loc 2026-09-09] localize the day label ("Today"/"Tomorrow"/weekday)
+        _wk_l = (language or "en").split("-")[0].lower()
+        _WD_ES = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+        _WD_PT = ["Segunda", "Terça", "Quarta", "Quinta", "Sexta", "Sábado", "Domingo"]
         if i == 0:
-            day_label = "Today"
+            day_label = {"es": "Hoy", "pt": "Hoje"}.get(_wk_l, "Today")
         elif i == 1:
-            day_label = "Tomorrow"
+            day_label = {"es": "Mañana", "pt": "Amanhã"}.get(_wk_l, "Tomorrow")
         else:
-            day_label = _WD[d.weekday()]
+            day_label = (_WD_ES[d.weekday()] if _wk_l == "es"
+                         else _WD_PT[d.weekday()] if _wk_l == "pt"
+                         else _WD[d.weekday()])
 
         days.append({
             "date":         str(d),
