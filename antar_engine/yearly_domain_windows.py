@@ -144,6 +144,37 @@ def _runs(series: List[tuple], want: str) -> List[str]:
     return out
 
 
+def _runs_dated(series: List[tuple], want: str) -> List[tuple]:
+    """Like _runs but keeps the month anchors: (label, first_anchor, last_anchor)
+    so the caller can flag each window past/current/upcoming."""
+    out, run_start, prev = [], None, None
+    for dt, tone in series + [(None, None)]:
+        if tone == want:
+            if run_start is None:
+                run_start = dt
+            prev = dt
+        else:
+            if run_start is not None:
+                out.append((_fmt_window(run_start, prev), run_start, prev))
+                run_start = None
+    return out
+
+
+def _win_status(first_anchor: date, last_anchor: date, today: date) -> str:
+    """past | current | upcoming for a window spanning [first_anchor month ..
+    last_anchor month] relative to today. Lets This Year show the varshphal
+    retrospective (past marked as past) while highlighting the runway ahead."""
+    start_first = date(first_anchor.year, first_anchor.month, 1)
+    y, m = last_anchor.year, last_anchor.month
+    ny, nm = (y + (m // 12), (m % 12) + 1)
+    last_end = date(ny, nm, 1) - timedelta(days=1)
+    if last_end < today:
+        return "past"
+    if start_first > today:
+        return "upcoming"
+    return "current"
+
+
 def build_yearly_domain_windows(chart_data: dict, dashas: dict,
                                 birth_date: str, today: Optional[date] = None,
                                 max_domains: int = 4, year_offset: int = 0) -> List[dict]:
@@ -212,9 +243,20 @@ def build_yearly_domain_windows(chart_data: dict, dashas: dict,
         if downs:
             parts.append("under pressure around " + ", ".join(downs))
         line = f"{say[key].capitalize()} is active this year — " + "; ".join(parts) + "."
+        # [past/upcoming 2026-09-10] structured windows carrying past|current|
+        # upcoming so the frontend can grey elapsed windows and highlight the
+        # runway. up_windows/down_windows (strings) kept for backward compat.
+        windows = []
+        for _lbl, _a, _b in _runs_dated(series, "up"):
+            windows.append({"window": _lbl, "direction": "up",
+                            "status": _win_status(_a, _b, today)})
+        for _lbl, _a, _b in _runs_dated(series, "down"):
+            windows.append({"window": _lbl, "direction": "down",
+                            "status": _win_status(_a, _b, today)})
         out.append({
             "key": key, "label": label, "line": line,
             "up_windows": ups, "down_windows": downs,
+            "windows": windows,
             "score": round(activation_score, 1),
         })
 
