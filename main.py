@@ -5921,6 +5921,36 @@ Do not use any planet names or astrological jargon — translate everything into
         focus_planet=_focus_planet,
     )
     remedies_out = _build_remedies(remedy_objects)
+    # [es-loc 2026-09-09] audit tail: the nation one-liner (desh.one_liner) and
+    # each remedy's `purpose` leaked English on es. Translate IN PLACE so both
+    # /predict return paths serve es/pt/fr (the main answer was already localized).
+    _pt_tail_lang = (getattr(request, "language", "en") or "en").split("-")[0].lower()
+    if _pt_tail_lang in ("es", "pt", "fr"):
+        try:
+            from antar_engine.translation_middleware import translate_dict as _tl_td
+            _to_tx = {}
+            if desh is not None and getattr(desh, "one_liner", None):
+                _to_tx["nation"] = desh.one_liner
+            for _ri, _r in enumerate(remedies_out or []):
+                _pv = getattr(_r, "purpose", None)
+                if _pv:
+                    _to_tx[f"purpose{_ri}"] = _pv
+            if _to_tx:
+                _to_tx = await _tl_td(
+                    _to_tx, language=_pt_tail_lang,
+                    fields_to_translate=list(_to_tx.keys()),
+                    endpoint_name="predict-tail",
+                    chart_id=getattr(request, "chart_id", None))
+                if "nation" in _to_tx and desh is not None:
+                    try: desh.one_liner = _to_tx["nation"]
+                    except Exception: pass
+                for _ri, _r in enumerate(remedies_out or []):
+                    _k = f"purpose{_ri}"
+                    if _k in _to_tx:
+                        try: _r.purpose = _to_tx[_k]
+                        except Exception: pass
+        except Exception as _tl_e:
+            print(f"[predict] tail translate non-fatal: {_tl_e}")
 
     # ── PROMPT ────────────────────────────────────────────────────
     rarity_context  = rarity_signals_to_context_block(rarity_signals)
@@ -9337,6 +9367,22 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
                 )
             except Exception as _fe:
                 print(f"[food i18n] {_fe}")
+    # [es-loc 2026-09-09] audit tail: the mantra DESCRIPTOR label ("Your
+    # visibility and self-direction mantra") leaked English. Translate only the
+    # label — the mantra text itself stays canonical (Sanskrit/bija).
+    if _gem_lang in ("es", "pt"):
+        _tpm = resp.get("today_priority") or {}
+        _mant = _tpm.get("mantra")
+        if isinstance(_mant, dict) and _mant.get("label"):
+            try:
+                from antar_engine.translation_middleware import translate_dict
+                _tpm["mantra"] = await translate_dict(
+                    _mant, language=_gem_lang,
+                    fields_to_translate=["label"],
+                    endpoint_name="daily-practice-mantra", chart_id=request.chart_id,
+                )
+            except Exception as _me:
+                print(f"[mantra i18n] {_me}")
     # [remedy3] prose: translate yantra/daan/vrat blocks for es/pt. Proper
     # nouns (yantra/sigil/medallion names) stay in their original form.
     if _gem_lang in ("es", "pt"):
@@ -27557,6 +27603,10 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
                                 # what Pass-2 ES sweep flagged.
                                 "chakra_map", "focus", "governs", "domain",
                                 "name", "status", "label",
+                                # [es-loc 2026-09-09] audit tail: gemstone
+                                # track_label / finger_reason + the Lal Kitab
+                                # remedy line list all leaked English.
+                                "track_label", "finger_reason", "remedies",
                             ],
                             endpoint_name="practices-schedule",
                             chart_id=chart_id,
