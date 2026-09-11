@@ -24568,12 +24568,30 @@ async def get_focus(chart_id: str, language: str = "en"):
             _msg += f" Runway toward {be_ready.get('kind')}."
         _anush["message"] = _msg
 
-    return {
+    payload = {
         "available": True,
         "focus": {"whats_in_play": focus_energy, "one_action": focus_action},
         "be_ready": be_ready,
         "anushthana": _anush,
     }
+    # [focus-i18n 2026-09-11] The focus block is plain-language English built from
+    # practice_engine labels ("Emotional Clarity") + a hardcoded anushthana
+    # message. It powers Today's "what's in play for you now" card, which was
+    # leaking English on a Spanish UI. Translate the user-visible prose for
+    # es/pt/fr (cached via translation_middleware); leave structural keys alone.
+    _lang = (language or "en").split("-")[0].lower()
+    if _lang in ("es", "pt", "fr"):
+        try:
+            from antar_engine.translation_middleware import translate_dict as _focus_td
+            payload = await _focus_td(
+                payload, language=_lang,
+                fields_to_translate=["whats_in_play", "one_action", "message",
+                                     "current", "next_label", "prep"],
+                endpoint_name="focus", chart_id=chart_id,
+            )
+        except Exception as _fte:
+            logger.warning(f"[focus] translation non-fatal: {_fte}")
+    return payload
 
 
 @app.get("/api/v1/remedies/{chart_id}")
