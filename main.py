@@ -1322,13 +1322,25 @@ async def _unhandled_exception_handler(request: Request, exc: Exception):
             "Access-Control-Allow-Credentials": "true",
             "Vary": "Origin",
         }
+    _content = {
+        "error": "internal_server_error",
+        "detail": "An unexpected error occurred. The team has been notified.",
+        "path": request.url.path,
+    }
+    # [debug-trace 2026-09-11 TEMP — REMOVE] narrowly gated: only when the caller
+    # explicitly asks with ?__trace=1, surface the exception to diagnose a
+    # deploy-only 500 that does not reproduce locally. Revert immediately after.
+    try:
+        if request.query_params.get("__trace") == "1":
+            _content["exc"] = f"{type(exc).__name__}: {exc}"
+            _content["tb"] = "".join(
+                _etb.format_exception(type(exc), exc, exc.__traceback__)
+            )[-2000:]
+    except Exception:
+        pass
     return _ValidationJSONResponse(
         status_code=500,
-        content={
-            "error": "internal_server_error",
-            "detail": "An unexpected error occurred. The team has been notified.",
-            "path": request.url.path,
-        },
+        content=_content,
         headers=cors_headers,
     )
 
