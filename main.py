@@ -1322,25 +1322,13 @@ async def _unhandled_exception_handler(request: Request, exc: Exception):
             "Access-Control-Allow-Credentials": "true",
             "Vary": "Origin",
         }
-    _content = {
-        "error": "internal_server_error",
-        "detail": "An unexpected error occurred. The team has been notified.",
-        "path": request.url.path,
-    }
-    # [debug-trace 2026-09-11 TEMP — REMOVE] narrowly gated: only when the caller
-    # explicitly asks with ?__trace=1, surface the exception to diagnose a
-    # deploy-only 500 that does not reproduce locally. Revert immediately after.
-    try:
-        if request.query_params.get("__trace") == "1":
-            _content["exc"] = f"{type(exc).__name__}: {exc}"
-            _content["tb"] = "".join(
-                _etb.format_exception(type(exc), exc, exc.__traceback__)
-            )[-2000:]
-    except Exception:
-        pass
     return _ValidationJSONResponse(
         status_code=500,
-        content=_content,
+        content={
+            "error": "internal_server_error",
+            "detail": "An unexpected error occurred. The team has been notified.",
+            "path": request.url.path,
+        },
         headers=cors_headers,
     )
 
@@ -25806,24 +25794,34 @@ async def restore_chart(
         _pool = _primaries or charts
         active = min(_pool, key=lambda c: str(c.get("created_at") or ""))
 
-    # 5. Current Vimsottari MD / AD for the active chart
+    # 5. Current Vimsottari MD / AD for the active chart.
+    # [restore-resilience 2026-09-11] This is a DISPLAY-ONLY nicety (the current
+    # Mahadasha–Antardasha string). It must NEVER 500 the whole restore — a
+    # failure here was taking down login for every user: fetching all dasha_periods
+    # rows (~800/chart) returned a large HTTP/2 body that Supabase terminated
+    # mid-stream (httpcore.RemoteProtocolError / ConnectionTerminated), and the
+    # unhandled throw 500'd the entire session restore. Fix: only pull the two
+    # levels we actually need (MD+AD → ~90 rows, not ~800) AND wrap the whole
+    # thing so any failure degrades to an empty dasha string instead of a 500.
     now = datetime.now(timezone.utc)
-    dasha_res = supabase.table("dasha_periods").select(
-        "level,planet_or_sign,system,start_date,end_date"
-    ).eq("chart_id", active["id"]).eq("system", "vimsottari").execute()
-
     current_md = current_ad = ""
-    for d in (dasha_res.data or []):
-        try:
-            sd = datetime.fromisoformat(str(d.get("start_date", ""))[:10].replace("Z", ""))
-            ed = datetime.fromisoformat(str(d.get("end_date",   ""))[:10].replace("Z", ""))
-            if sd.date() <= now.date() <= ed.date():
-                level = d.get("level", 0)
-                lord  = d.get("planet_or_sign", "")
-                if   level == 1: current_md = lord
-                elif level == 2: current_ad = lord
-        except Exception:
-            pass
+    try:
+        dasha_res = supabase.table("dasha_periods").select(
+            "level,planet_or_sign,start_date,end_date"
+        ).eq("chart_id", active["id"]).eq("system", "vimsottari").in_("level", [1, 2]).execute()
+        for d in (dasha_res.data or []):
+            try:
+                sd = datetime.fromisoformat(str(d.get("start_date", ""))[:10].replace("Z", ""))
+                ed = datetime.fromisoformat(str(d.get("end_date",   ""))[:10].replace("Z", ""))
+                if sd.date() <= now.date() <= ed.date():
+                    level = d.get("level", 0)
+                    lord  = d.get("planet_or_sign", "")
+                    if   level == 1: current_md = lord
+                    elif level == 2: current_ad = lord
+            except Exception:
+                pass
+    except Exception as _de:
+        _log.warning(f"[auth/restore] dasha lookup failed (non-fatal) chart={active.get('id')}: {_de}")
     dasha = f"{current_md}-{current_ad}" if current_ad else current_md
 
     def _first_name(row: dict) -> str:
