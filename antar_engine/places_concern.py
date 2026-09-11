@@ -505,8 +505,11 @@ def rank_cities_for_concern(
     pool = [c for c in cities if c.get("rankable", True)]
     if region_filter:
         rf = region_filter.strip().lower()
+        # [places-region-fix 2026-09-11] Filter from `pool` (already rankable),
+        # NOT from the full `cities` list — otherwise a region filter reintroduces
+        # rankable=False baseline-only cities that must never be recommended.
         pool = [
-            c for c in cities
+            c for c in pool
             if rf in (
                 str(c.get("region_group", "")).lower(),
                 str(c.get("region", "")).lower(),

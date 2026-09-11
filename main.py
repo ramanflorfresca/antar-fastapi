@@ -29183,6 +29183,42 @@ def _get_wow_cache(chart_id: str, instrument_name: str, local_date_str: str = No
     return {}
 
 
+def _recent_wow_instruments(chart_id: str, today_str: str, days: int = 3) -> set:
+    """[wow-variety 2026-09-11] Instrument names that led the WOW hint on the
+    days BEFORE today (from the language-agnostic `_history` in daily_wow_cache).
+
+    The daily instrument comes from the executive summary, which is dasha-STABLE
+    — so the same top instrument (e.g. "ALLIANCE SYNC") would otherwise lead the
+    card every single day for a whole period. We use this recent set to rotate to
+    the next-strongest active instrument, giving the daily card real variety.
+    Only PRIOR days count (never today), so every language on the same day sees
+    the same recent set and rotates to the same instrument."""
+    try:
+        from datetime import date as _wv_date
+        r = supabase.table("charts").select("daily_wow_cache").eq("id", chart_id).single().execute()
+        cache = (r.data or {}).get("daily_wow_cache") if r and r.data else None
+        if not isinstance(cache, dict):
+            return set()
+        hist = cache.get("_history") or []
+        def _d(s):
+            try: return _wv_date.fromisoformat(str(s)[:10])
+            except Exception: return None
+        td = _d(today_str)
+        if td is None or not isinstance(hist, list):
+            return set()
+        out = set()
+        for h in hist:
+            if not isinstance(h, dict): continue
+            hd = _d(h.get("date")); inst = h.get("instrument")
+            if hd is None or not inst: continue
+            delta = (td - hd).days
+            if 0 < delta <= days:
+                out.add(str(inst).upper())
+        return out
+    except Exception:
+        return set()
+
+
 def _save_wow_cache(chart_id: str, instrument_name: str, wow_data: dict, local_date_str: str = None, language: str = "en"):
     """Save WOW hint to Supabase cache under the requested language only.
 
@@ -29218,6 +29254,19 @@ def _save_wow_cache(chart_id: str, instrument_name: str, wow_data: dict, local_d
             "instrument": instrument_name,
             **wow_data,
         }
+        # [wow-variety 2026-09-11] language-agnostic recency log so the daily
+        # theme can rotate (see _recent_wow_instruments). One entry per
+        # (date, instrument); keep the last 7.
+        hist = existing.get("_history")
+        if not isinstance(hist, list):
+            hist = []
+        if instrument_name and local_date_str and not any(
+            isinstance(h, dict) and h.get("date") == local_date_str
+            and str(h.get("instrument", "")).upper() == str(instrument_name).upper()
+            for h in hist
+        ):
+            hist.append({"date": local_date_str, "instrument": instrument_name})
+        existing["_history"] = hist[-7:]
         supabase.table("charts").update(
             {"daily_wow_cache": existing}
         ).eq("id", chart_id).execute()
@@ -29709,20 +29758,32 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
         if not instruments:
             return None
 
-        # Find highest-status instrument (PEAK first, then ACTIVE)
-        best = None
-        best_priority = 0
+        # Find qualifying instruments (PEAK first, then ACTIVE), best-first.
+        candidates = []
         for inst in instruments:
-            status = inst.get("signal_status", "")
-            priority = _STATUS_THRESHOLD.get(status, 0)
-            sig_score = inst.get("signal_score", 0)
-            if priority > best_priority or (priority == best_priority and sig_score > (best.get("signal_score", 0) if best else 0)):
-                if priority > 0:
-                    best = inst
-                    best_priority = priority
-
-        if not best:
+            if not isinstance(inst, dict):
+                continue
+            priority = _STATUS_THRESHOLD.get(inst.get("signal_status", ""), 0)
+            if priority > 0:
+                candidates.append((priority, inst.get("signal_score", 0), inst))
+        candidates.sort(key=lambda t: (t[0], t[1]), reverse=True)
+        if not candidates:
             return None
+
+        best = candidates[0][2]
+        # [wow-variety 2026-09-11] The exec-summary instrument is dasha-stable, so
+        # the top one would lead the card every day for the whole period (users
+        # reported "someone from your past" repeating for days). If it led on a
+        # recent prior day AND another instrument also qualifies, rotate to the
+        # best one not shown recently — genuine variety, still a real active
+        # signal. Falls back to the top instrument if all were shown recently.
+        if len(candidates) > 1:
+            _recent = _recent_wow_instruments(chart_id, local_date_str, days=3)
+            if _recent:
+                for _p, _s, _inst in candidates:
+                    if (_inst.get("label", _inst.get("name", "")) or "").upper() not in _recent:
+                        best = _inst
+                        break
 
         inst_name = best.get("label", best.get("name", "")).upper()
         status = best.get("signal_status", "ACTIVE")
