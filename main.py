@@ -577,6 +577,63 @@ supabase: Client = create_client(
 )
 
 
+def _install_pg_transient_retry(client) -> None:
+    """[http2-resilience 2026-09-11] Wrap the PostgREST httpx session's send() so
+    EVERY read query retries the transient HTTP/2 disconnects Supabase throws
+    intermittently ('Server disconnected', RemoteProtocolError / Connection
+    Terminated / GOAWAY). These were 500ing not just auth/restore but daily-week
+    / daily-signal generation (dozens of SELECTs each) — a single dropped
+    connection blanked a user's whole Today. A per-query wrap can't cover the
+    deep call paths, so we harden the client once, here.
+
+    GET/HEAD/OPTIONS only: those are idempotent and safe to replay. Writes
+    (insert/update/delete) are NEVER retried here — a replay after a dropped
+    response could double-write — they keep their existing behaviour."""
+    try:
+        sess = client.postgrest.session
+        if getattr(sess, "_antar_retry_wrapped", False):
+            return
+        _orig_send = sess.send
+        import time as _t
+
+        def _send_with_retry(request, **kwargs):
+            if getattr(request, "method", "GET").upper() not in ("GET", "HEAD", "OPTIONS"):
+                return _orig_send(request, **kwargs)
+            last = None
+            for i in range(3):
+                try:
+                    return _orig_send(request, **kwargs)
+                except Exception as e:
+                    name = type(e).__name__
+                    msg = str(e)
+                    transient = (
+                        "RemoteProtocolError" in name
+                        or "ConnectionTerminated" in msg
+                        or "Server disconnected" in msg
+                        or "ConnectError" in name
+                        or "ReadError" in name
+                        or "WriteError" in name
+                        or "PoolTimeout" in name
+                        or "ConnectTimeout" in name
+                    )
+                    last = e
+                    if not transient or i == 2:
+                        raise
+                    print(f"[sb-http-retry] transient {name} on {request.method} {request.url.path} — retry {i+1}/2")
+                    _t.sleep(0.2 * (i + 1))
+            if last:
+                raise last
+
+        sess.send = _send_with_retry
+        sess._antar_retry_wrapped = True
+        print("[startup] PostgREST session wrapped with transient-retry (GET/HEAD/OPTIONS)")
+    except Exception as _e:
+        print(f"[startup] could not wrap PostgREST session (non-fatal): {_e}")
+
+
+_install_pg_transient_retry(supabase)
+
+
 def _sb_retry(fn, *, attempts: int = 3, label: str = ""):
     """[http2-resilience 2026-09-11] Run a Supabase query with a retry on the
     transient HTTP/2 connection terminations the deployed PostgREST path throws
