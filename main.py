@@ -576,6 +576,41 @@ supabase: Client = create_client(
     os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_ANON_KEY")
 )
 
+
+def _sb_retry(fn, *, attempts: int = 3, label: str = ""):
+    """[http2-resilience 2026-09-11] Run a Supabase query with a retry on the
+    transient HTTP/2 connection terminations the deployed PostgREST path throws
+    intermittently (httpx/httpcore RemoteProtocolError / ConnectionTerminated /
+    GOAWAY). These killed a stale multiplexed connection mid-request and 500'd
+    whatever endpoint hit it — most visibly auth/restore, the login gate. A
+    retry gets a fresh connection and succeeds. Non-transient errors re-raise
+    immediately (unchanged behaviour)."""
+    import time as _t
+    last = None
+    for i in range(max(1, attempts)):
+        try:
+            return fn()
+        except Exception as e:
+            name = type(e).__name__
+            msg = str(e)
+            transient = (
+                "RemoteProtocolError" in name
+                or "ConnectionTerminated" in msg
+                or "Server disconnected" in msg
+                or "ConnectError" in name
+                or "ReadError" in name
+                or "WriteError" in name
+                or "PoolTimeout" in name
+                or "ConnectTimeout" in name
+            )
+            last = e
+            if not transient or i == attempts - 1:
+                raise
+            print(f"[sb-retry] transient {name} on {label or 'query'} — retry {i+1}/{attempts-1}")
+            _t.sleep(0.2 * (i + 1))
+    if last:
+        raise last
+
 # Lal Kitab chart generator (shared across requests; thread-safe read-only state)
 lal_kitab_gen = LalKitabChartGenerator(supabase)
 
@@ -25724,13 +25759,13 @@ async def restore_chart(
     #     other historical signup flows
     # Existing rows linked before this patch have user_id = NULL but
     # google_id populated — querying both keeps them visible.
-    charts_res = supabase.table("charts").select(
+    charts_res = _sb_retry(lambda: supabase.table("charts").select(
         "id,user_id,chart_type,first_name,display_name,avatar_url,email,"
         "lagna_sign,moon_sign,moon_nakshatra,sun_sign,created_at,onboarding_completed_at,"
         "deleted_at"
     ).or_(
         f"user_id.eq.{user_id},google_id.eq.{user_id}"
-    ).order("created_at", desc=True).execute()
+    ).order("created_at", desc=True).execute(), label="auth/restore charts")
 
     # [tombstone-restore 2026-09-10] Exclude DELETED (tombstoned) charts from the
     # restore. A soft-deleted chart row survives for referential integrity but
@@ -25806,9 +25841,10 @@ async def restore_chart(
     now = datetime.now(timezone.utc)
     current_md = current_ad = ""
     try:
-        dasha_res = supabase.table("dasha_periods").select(
+        dasha_res = _sb_retry(lambda: supabase.table("dasha_periods").select(
             "level,planet_or_sign,start_date,end_date"
-        ).eq("chart_id", active["id"]).eq("system", "vimsottari").in_("level", [1, 2]).execute()
+        ).eq("chart_id", active["id"]).eq("system", "vimsottari").in_("level", [1, 2]).execute(),
+            label="auth/restore dasha")
         for d in (dasha_res.data or []):
             try:
                 sd = datetime.fromisoformat(str(d.get("start_date", ""))[:10].replace("Z", ""))
