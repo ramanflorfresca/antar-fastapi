@@ -25594,6 +25594,20 @@ async def _prewarm_daily_week_cache(chart_id: str, tz_offset: Optional[float] = 
     except Exception as _e:
         print(f"[prewarm] daily-week FAILED (non-fatal) chart={chart_id}: {_e}")
 
+    # [es-prewarm 2026-09-12] Also warm the daily-SIGNAL (the Today card itself:
+    # headline + day_map + do/avoid) in the SAME language. The daily-week warm
+    # above only warms the week strip + shared WOW/exec-summary caches; the card
+    # is served by daily-signal, which was COLD for es/pt users → the Today card
+    # sat on a skeleton for ~4-12s (occasionally longer) on first open while it
+    # generated AND translated. Warming it here (via the translate_response-
+    # decorated endpoint, which caches the translated payload) means es/pt users
+    # land on a ready card. Separate guard so a signal miss never masks the week.
+    try:
+        await get_daily_signal_endpoint(chart_id=chart_id, language=language)
+        print(f"[prewarm] daily-signal complete chart={chart_id} lang={language}")
+    except Exception as _dse:
+        print(f"[prewarm] daily-signal FAILED (non-fatal) chart={chart_id}: {_dse}")
+
 
 # ── Google Auth Endpoints ─────────────────────────────────────────
 
@@ -25620,6 +25634,10 @@ async def link_chart_to_google(
     email        = request.get("email","")
     display_name = request.get("display_name","")
     avatar_url   = request.get("avatar_url","")
+    # [es-prewarm 2026-09-12] warm the user's language, not hardcoded en
+    _lc_lang = (request.get("language_preference") or request.get("language") or "en").split("-")[0].lower()
+    if _lc_lang not in ("en", "es", "pt", "fr"):
+        _lc_lang = "en"
 
     if not chart_id or not google_id:
         raise HTTPException(400, "chart_id and google_id required")
@@ -25648,7 +25666,7 @@ async def link_chart_to_google(
         # FIX 15-lite — pre-warm daily-week cache so /today is fast on next mount
         try:
             if background_tasks is not None:
-                background_tasks.add_task(_prewarm_daily_week_cache, existing_chart_id, tz_offset)
+                background_tasks.add_task(_prewarm_daily_week_cache, existing_chart_id, tz_offset, _lc_lang)
         except Exception as _pe:
             print(f"[prewarm] schedule failed (non-fatal) chart={existing_chart_id}: {_pe}")
         return {
@@ -25673,7 +25691,7 @@ async def link_chart_to_google(
     # FIX 15-lite — pre-warm daily-week cache so /today is fast on next mount
     try:
         if background_tasks is not None:
-            background_tasks.add_task(_prewarm_daily_week_cache, chart_id, tz_offset)
+            background_tasks.add_task(_prewarm_daily_week_cache, chart_id, tz_offset, _lc_lang)
     except Exception as _pe:
         print(f"[prewarm] schedule failed (non-fatal) chart={chart_id}: {_pe}")
     return {
@@ -25960,10 +25978,15 @@ async def restore_chart(
         f"result=OK"
     )
 
-    # FIX 15-lite — pre-warm daily-week cache so /today is fast on next mount
+    # FIX 15-lite — pre-warm daily-week + daily-signal cache so /today is fast on
+    # next mount. [es-prewarm 2026-09-12] Warm the USER'S language (not hardcoded
+    # en) so es/pt users don't land on a cold, skeleton daily card.
     try:
         if background_tasks is not None:
-            background_tasks.add_task(_prewarm_daily_week_cache, active["id"], tz_offset)
+            _pw_lang = (language or "en").split("-")[0].lower()
+            if _pw_lang not in ("en", "es", "pt", "fr"):
+                _pw_lang = "en"
+            background_tasks.add_task(_prewarm_daily_week_cache, active["id"], tz_offset, _pw_lang)
     except Exception as _pe:
         print(f"[prewarm] schedule failed (non-fatal) chart={active.get('id')}: {_pe}")
 
