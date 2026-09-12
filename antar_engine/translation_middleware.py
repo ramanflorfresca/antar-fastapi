@@ -255,6 +255,11 @@ def translate_response(fields_to_translate=None, fields_to_skip=None, endpoint_n
                         return response
             if not response or not isinstance(response, (dict, list)):
                 return response
+            # [full-payload-cache 2026-09-12] An endpoint that already serves a
+            # fully-composed + localized payload (e.g. from its own L2 cache)
+            # marks it so we don't re-translate already-translated text.
+            if isinstance(response, dict) and response.pop("_already_localized", False):
+                return response
             try:
                 return await translate_dict(
                     response,

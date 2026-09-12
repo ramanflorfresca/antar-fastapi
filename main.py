@@ -21949,6 +21949,22 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         else:
             start_date = _get_local_start_date(tz_offset=effective_offset)
 
+        # [full-payload-cache 2026-09-12] Serve the whole composed+localized card
+        # from L2 when warm, skipping ALL of the below (generation, panchanga,
+        # domain strip, highlights, day_map, AND the translation passes). This is
+        # what makes a warm es/pt card fast (was 4-10s: generation + repeated
+        # translate round-trips even on a warm base). Keyed by chart+date+language
+        # so es and en are distinct. `_already_localized` tells the translate
+        # decorator the payload is final. Kill-switch: DAILY_DB_CACHE=off.
+        _ds_cache_date = start_date.strftime("%Y-%m-%d") if hasattr(start_date, "strftime") else str(start_date)[:10]
+        try:
+            _ds_full_cached = _daily_surface_get(cid, "daily-signal", language, _ds_cache_date)
+        except Exception:
+            _ds_full_cached = None
+        if _ds_full_cached:
+            print(f"[daily-signal] L2 full-payload HIT chart={cid[:8]} lang={language} date={_ds_cache_date}")
+            return {**_ds_full_cached, "_already_localized": True}
+
         # [es-latency] Block only on TODAY (signals[0]). Generating all 7
         # days inline was the cold-cache cost behind 20-45s es latency —
         # each day is a serial Sonnet call and the user's TODAY card needs
@@ -22722,7 +22738,34 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         except Exception as _p0b_e:
             print(f"[daily-signal] P0b scrub non-fatal: {_p0b_e}")
 
-        return result
+        # [full-payload-cache 2026-09-12] Finish localization IN-BODY (the same
+        # allowlist the @translate_response decorator uses), then store the whole
+        # final payload to L2 and hand it back marked `_already_localized` so the
+        # decorator doesn't re-run. Warm requests short-circuit at the top read.
+        # Any failure here falls back to returning `result` for the decorator to
+        # translate as before (never blocks the card).
+        try:
+            if (language or "en").split("-")[0].lower() != "en":
+                from antar_engine.translation_middleware import translate_dict as _ds_td
+                result = await _ds_td(
+                    result, language=language,
+                    fields_to_translate=["vibe", "do_today", "dont_today", "text",
+                                         "headline", "highlight", "todays_nudge",
+                                         "move", "el_movimiento", "day_map", "line",
+                                         "label", "why", "herb", "tara_advice",
+                                         "wear", "quality"],
+                    endpoint_name="daily-signal", chart_id=cid,
+                )
+            try:
+                _daily_surface_put(cid, "daily-signal", language, _ds_cache_date, result)
+            except Exception as _ds_pe:
+                print(f"[daily-signal] full-payload cache write skipped: {_ds_pe}")
+            return {**result, "_already_localized": True}
+        except Exception as _ds_fe:
+            # Localization failed — return the composed result and let the
+            # decorator translate it the normal way (no cache write).
+            print(f"[daily-signal] in-body localize skipped (decorator will translate): {_ds_fe}")
+            return result
     except HTTPException: raise
     except Exception as e:
         print(f"[daily-signal] Error for chart {cid}: {e}")
