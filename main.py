@@ -35051,14 +35051,19 @@ def _strip_debug_reasoning(result, request_body):
     return result
 
 @app.post("/api/v1/predict/monthly")
-async def _alias_predict_monthly(request: dict):
+async def _alias_predict_monthly(request: dict, language: str = "en"):
+    # [monthly-lang 2026-09-12] Resolve language from the BODY or the query
+    # string — the FE sends `?language=es` on some calls and it was being
+    # ignored (this alias only read request["language"]), so es/pt users got an
+    # English This Month.
+    _req_lang = (request.get("language") or language or "en")
     # [es-house-parity 2026-06-08] forward force_refresh so the cache
     # can be busted from /predict/monthly (the frontend-facing alias).
     # Previously the per-language cache was only bustable via the GET
     # /api/v1/monthly-deepdive/{id}?force_refresh=true endpoint.
     _r_monthly = await get_monthly_deepdive(
         chart_id=request.get("chart_id"),
-        language=(request.get("language") or "en"),
+        language=_req_lang,
         force_refresh=bool(request.get("force_refresh") or False),
     )
     # [monthly_v2-wire 2026-06-08] Layer the brief's new contract
@@ -35079,12 +35084,38 @@ async def _alias_predict_monthly(request: dict):
             _mv2 = compose_monthly_contract(
                 chart_record=_chart_rec,
                 legacy_response=_r_monthly,
-                language=(request.get("language") or "en"),
+                language=_req_lang,
             )
             for _vk, _vv in _mv2.items():
                 _r_monthly[_vk] = _vv
     except Exception as _mv2err:
         print(f"[monthly] v2 wire failed (non-fatal): {_mv2err}")
+
+    # [monthly-i18n 2026-09-12] This Month leaked English on es/pt/fr. The rich
+    # monthly_v2 contract (month_theme, overview, active_domains, priority_actions,
+    # best/caution_week objects) is composed AFTER get_monthly_deepdive's
+    # @translate_response decorator has already run, and this alias adds no
+    # translation of its own — so those fields shipped English. Translate the
+    # user-visible prose here for es/pt/fr (cached via translation_middleware;
+    # structural enums stay via GLOBAL_SKIP). Fail-open to whatever we have.
+    _m_lang = (_req_lang or "en").split("-")[0].lower()
+    if _m_lang in ("es", "pt", "fr") and isinstance(_r_monthly, dict):
+        try:
+            from antar_engine.translation_middleware import translate_dict as _m_td
+            _r_monthly = await _m_td(
+                _r_monthly, language=_m_lang,
+                fields_to_translate=[
+                    "month_theme", "overview", "theme", "summary", "headline",
+                    "gist", "watch", "label", "line", "text", "deeper", "detail",
+                    "title", "action", "best_for", "avoid_what", "why",
+                    "energy_label", "name", "best_week_legacy", "caution_week_legacy",
+                ],
+                endpoint_name="predict-monthly",
+                chart_id=request.get("chart_id"),
+            )
+        except Exception as _m_te:
+            print(f"[monthly] i18n pass skipped (non-fatal): {_m_te}")
+
     # [gate-debug 2026-06-08] hide internal evidence trail from client
     return _strip_debug_reasoning(_r_monthly, request)
 
