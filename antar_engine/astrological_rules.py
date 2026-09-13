@@ -850,10 +850,14 @@ def detect_concern(question: str) -> str:
         return "marriage"
 
     # ── Foreign / Travel ───────────────────────────────────────
+    # [concern-traps 2026-09-13] Removed "go to"/"going to"/"international" — these
+    # are temporal/business phrases ("is it going to happen", "international deal")
+    # that stole outcome questions into `foreign` (wrong houses 12/9/3) before they
+    # could reach wealth/property/finance. Everything else kept as-is.
     foreign_words = ["foreign","abroad","overseas","travel","immigrat","visa",
                      "move to","relocat","settle in","work in","study in",
-                     "move abroad","move overseas","international","other country",
-                     "another country","go to","going to","leave india","leave country"]
+                     "move abroad","move overseas","other country",
+                     "another country","leave india","leave country"]
     if any(w in q for w in foreign_words):
         return "foreign"
 
@@ -897,11 +901,16 @@ def detect_concern(question: str) -> str:
 
     # ── Wealth / Money accumulation ────────────────────────────
     wealth_words = ["wealth","rich","wealthy","make money","earn money","income",
-                    "salary","savings","property","real estate","assets","net worth",
+                    "salary","savings","property","real estate","real state","assets","net worth",
                     "financial freedom","passive income","when will i be rich",
                     "money problem","money situation","financial situation",
                     "profit","billionaire","millionaire","fortune","abundance",
-                    "prosperity","crore","lakh","net worth","affluent","opulent"]
+                    "prosperity","crore","lakh","net worth","affluent","opulent",
+                    # [deal-routing 2026-09-13] business-deal / acquisition questions
+                    # (commission, equity, gold-mine/real-estate deals) were falling
+                    # through to `general`/`foreign`; route them to the money houses.
+                    "acquisition","gold mine","equity","commission","the deal",
+                    "this deal","close the deal","close a deal","real estate deal"]
     if any(w in q for w in wealth_words):
         return "wealth"
 

@@ -115,6 +115,15 @@ _DECISION_TRIGGERS = [
     "fix things with", "work things out", "fix it with",
     # English — career / business specific timing intent
     "do i land", "will i land", "what are the chances of landing",
+    # [outcome-intent 2026-09-13] "will X happen" / deal-closing / "is it coming"
+    # phrasings were scoring as reflective (no verdict, no window) and getting the
+    # generic "the timing favors you" fallback. Route these to the dated verdict.
+    "going to happen", "gonna happen", "is going to happen", "is this going to",
+    "is it going to", "will it happen", "will this happen", "is it happening",
+    "happen?", "is not happening", "not happening", "is coming", "coming soon",
+    "come through", "will it close", "will i close", "does it close",
+    "get closed", "close before", "will it go through", "go through",
+    "does it happen", "make it happen",
     # Spanish — direct timing
     "cuándo", "cuando ", "conseguiré", "lograré", "obtendré", "recibiré",
     "tendré", "podré",
@@ -130,6 +139,11 @@ _DECISION_TRIGGERS = [
     # Spanish — reconciliation
     "volveremos", "reconciliarnos", "reconciliar", "volver con",
     "volver juntos", "rehacer la relación", "una segunda oportunidad",
+    # Spanish — outcome / will-it-happen [outcome-intent 2026-09-13]
+    "va a pasar", "va a suceder", "va a ocurrir", "sucederá", "pasará",
+    "ocurrirá", "se va a dar", "se dará", "se concretará", "se concreta",
+    "está por venir", "va a cerrar", "se cerrará", "se cierra",
+    "va a salir", "saldrá", "no está pasando", "no va a pasar", "se hará realidad",
 ]
 
 
