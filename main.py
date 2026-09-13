@@ -19458,6 +19458,33 @@ async def _ask_persist(supabase, chart_id, question, payload, language, mode, do
         print(f"[ask-history] persist skipped (non-blocking): {_ape}")
 
 
+def _ask_recent_thread(chart_id: str, limit: int = 4, within_minutes: int = 240) -> list:
+    """[ask-thread 2026-09-13] Recent Ask exchanges for this chart so /ask can
+    follow a CONVERSATION instead of treating each question standalone: resolve
+    references ('the one I have in hand', 'so it's not happening?') and inherit
+    the prior turn's concern for a bare follow-up. Returns oldest->newest
+    [{q, a, domain}] within a recent window. Read-only, chart-keyed, fail-open.
+    The current question is NOT here (it's persisted only AFTER the answer)."""
+    try:
+        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+        cutoff = (_dt.now(_tz.utc) - _td(minutes=within_minutes)).isoformat()
+        rows = (supabase.table("chat_messages")
+                .select("question, prediction_text, plain_summary, domain, created_at")
+                .eq("chart_id", chart_id).gte("created_at", cutoff)
+                .order("created_at", desc=True).limit(limit).execute().data) or []
+        out = []
+        for r in reversed(rows):  # oldest -> newest
+            q = (r.get("question") or "").strip()
+            if not q:
+                continue
+            a = (r.get("prediction_text") or r.get("plain_summary") or "").strip()
+            out.append({"q": q, "a": a[:400], "domain": (r.get("domain") or "").strip()})
+        return out
+    except Exception as _te:
+        print(f"[ask-thread] recent fetch failed (non-fatal): {_te}")
+        return []
+
+
 import contextvars as _cv_ask
 # [admin-ask] when set (by the admin panel's /api/v1/admin/ask), /ask skips the
 # daily cap AND the usage increment for THIS call only — the debugger must be
@@ -20214,6 +20241,28 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _ice:
                 logger.warning(f"[ask] intent classify failed (non-fatal): {_ice}")
 
+            # ── [ask-thread 2026-09-13] Conversation follow-through ──────────
+            # Load the recent thread and, when the current question is a bare
+            # follow-up with no concern of its own (falls to 'general'), inherit
+            # the prior turn's concern so the reading stays on the same subject
+            # ('so the real estate is not happening?' after a real-estate deal Q).
+            _ask_thread = _ask_recent_thread(chart_id)
+            try:
+                if _ask_concern in ("", "general") and _ask_thread:
+                    _prev_dom = (_ask_thread[-1].get("domain") or "").strip().lower()
+                    _ql = (question or "").strip().lower()
+                    _is_followup = (
+                        len(_ql.split()) <= 9
+                        or _ql.startswith(("so ", "and ", "but ", "then ", "what about",
+                                           "entonces", "pero ", "y ", "y si", "entonces,"))
+                    )
+                    if _prev_dom and _prev_dom != "general" and _is_followup:
+                        print(f"[ask-thread] concern inherited from prior turn: "
+                              f"{_ask_concern} -> {_prev_dom}")
+                        _ask_concern = _prev_dom
+            except Exception as _fie:
+                logger.warning(f"[ask] thread concern-inherit skipped (non-fatal): {_fie}")
+
             _ask_dashas = {}
             _ask_dasha_str = ""
             try:
@@ -20766,6 +20815,17 @@ async def ask_endpoint(request: AskRequest):
             try:
                 if _ask_life_block and isinstance(_sys, str):
                     _sys = _sys + _ask_life_block
+                # [ask-thread 2026-09-13] Hand the model the recent turns so it can
+                # resolve references ('the one I have in hand', 'so it's not
+                # happening?') and stay coherent with the conversation. Instruct it
+                # to answer the CURRENT question, not restate the thread.
+                if _ask_thread and isinstance(_sys, str):
+                    _conv = ("\n\n## RECENT CONVERSATION (oldest→newest) — use it only to "
+                             "resolve what the current question refers to; answer the "
+                             "current question, do not repeat these:\n")
+                    for _tt in _ask_thread[-3:]:
+                        _conv += f"- User asked: {_tt['q']}\n  You answered: {_tt['a'][:200]}\n"
+                    _sys = _sys + _conv
                 _t = await call_llm_claude(prompt=question, system_override=_sys)
                 raw = _t[0] if isinstance(_t, tuple) else _t
             except Exception as _ce:
