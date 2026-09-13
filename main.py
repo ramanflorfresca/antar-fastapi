@@ -20429,6 +20429,25 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _ice:
                 logger.warning(f"[ask] intent classify failed (non-fatal): {_ice}")
 
+            # [funding-route 2026-09-13] "when will I get funding / raise capital /
+            # will investors fund my startup" is a FUNDING question (8th = other-
+            # people's-money, D-10, Amatyakaraka), but detect_concern buckets it as
+            # generic 'business' (10/11/2) because of the startup words — so the
+            # verdict + timing were reading the wrong houses while only the facts
+            # block knew it was funding. _ask_concern_route is precise for
+            # funding/loan/investment/capital, so let it OVERRIDE business/finance/
+            # general here → the whole pipeline (event engine, convergence timing,
+            # verdict, practices) reads the funding houses and answers with the
+            # proper multi-system dive-down (Vimshottari + Chara + varshphal + D-10
+            # + D-9), plus funding-relevant remedies.
+            try:
+                if _ask_concern_route(question) == "funding" and _ask_concern in (
+                        "business", "finance", "general", "wealth", ""):
+                    print(f"[ask][funding-route] concern {_ask_concern} -> funding")
+                    _ask_concern = "funding"
+            except Exception as _fre:
+                logger.warning(f"[ask] funding-route skipped (non-fatal): {_fre}")
+
             # ── [ask-thread 2026-09-13] Conversation follow-through ──────────
             # Reuse the thread already loaded above (role-clarify gate) — don't
             # re-fetch. When the current question is a bare follow-up with no
