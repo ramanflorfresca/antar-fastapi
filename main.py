@@ -21528,7 +21528,7 @@ async def ask_endpoint(request: AskRequest):
 
 
 @app.get("/api/v1/ask/history/{chart_id}")
-async def ask_history(chart_id: str, limit: int = 30, before: str = None):
+async def ask_history(chart_id: str, limit: int = 30, before: str = None, language: str = "en"):
     """[ask-history 2026-09-08] The full Ask thread for a chart, so the Ask
     screen can render like a messaging app — scroll up = your whole history.
     Reads chat_messages (where /ask persists every exchange via
@@ -21578,6 +21578,41 @@ async def ask_history(chart_id: str, limit: int = 30, before: str = None):
             "language":   r.get("language") or "en",
             "created_at": r.get("created_at"),
         })
+
+    # [ask-history-i18n 2026-09-12] Historical answers are stored in the language
+    # they were generated in. When the app language differs (the whole-app toggle
+    # now switches Ask too), translate the assistant answer + next step so the
+    # thread matches the UI. The user's OWN question text is left as they typed
+    # it. Only rows whose stored language differs are translated (skip same-lang),
+    # done concurrently to bound latency, cached via translation_middleware, and
+    # fail-open to the original text so history never fails to load.
+    _hist_lang = (language or "en").split("-")[0].lower()
+    if _hist_lang in ("es", "pt", "fr") and msgs:
+        try:
+            import asyncio as _hist_aio
+            from antar_engine.translation_middleware import translate_dict as _hist_td
+
+            async def _tr_one(_m):
+                if (_m.get("language") or "en").split("-")[0].lower() == _hist_lang:
+                    return
+                if not (_m.get("answer") or _m.get("next")):
+                    return
+                try:
+                    _t = await _hist_td(
+                        {"answer": _m.get("answer", ""), "next": _m.get("next", "")},
+                        language=_hist_lang,
+                        fields_to_translate=["answer", "next"],
+                        endpoint_name="ask-history", chart_id=chart_id,
+                    )
+                    _m["answer"] = _t.get("answer", _m["answer"])
+                    _m["next"] = _t.get("next", _m["next"])
+                except Exception:
+                    pass  # keep original on any per-message failure
+
+            await _hist_aio.gather(*[_tr_one(_m) for _m in msgs])
+        except Exception as _hte:
+            print(f"[ask/history] translate skipped (non-fatal): {_hte}")
+
     return {"messages": msgs, "has_more": has_more, "next_before": next_before}
 
 
