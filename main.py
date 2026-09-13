@@ -16157,6 +16157,140 @@ def _deprecation_watch(path: str, http_request=None, **fields):
         pass
 
 
+# [forward-dasha 2026-09-13] Compatibility must verify the two people's FUTURE
+# dashas SUPPORT the specific relationship — not just that both are in a good-
+# feeling dasha right now. The legacy _dasha_timing_alignment only matched CURRENT
+# dasha *types* (both "expansion" → 90) and was relationship-blind, so a divorced
+# couple in matching present dashas scored FLOW. This reads the NEXT ~horizon
+# years of BOTH charts' mahadashas THROUGH the relationship's houses (romance =
+# 7th/Venus/5th; business = 7th/10th/11th; work = 10th/6th), scores the OVERLAP
+# of their supportive windows (shared runway), and for love/marriage SUBTRACTS an
+# upcoming separation/strain window (via relationships.separation_timing).
+# Fail-open to neutral 60 so it never breaks the endpoint.
+_FWD_REL_SPEC = {
+    "romantic":        {"pos": [7, 5, 11, 2],  "kar": ["Venus", "Jupiter"],           "neg": [6, 8, 12], "sep": True},
+    "marriage":        {"pos": [7, 2, 4, 11],  "kar": ["Venus", "Jupiter"],           "neg": [6, 8, 12], "sep": True},
+    "business":        {"pos": [7, 10, 11, 2], "kar": ["Mercury", "Jupiter"],         "neg": [6, 8, 12], "sep": False},
+    "cofounder":       {"pos": [7, 10, 11, 3], "kar": ["Mercury", "Mars"],            "neg": [6, 8, 12], "sep": False},
+    "friend":          {"pos": [11, 3, 7, 5],  "kar": ["Mercury", "Venus"],           "neg": [6, 12],    "sep": False},
+    "family":          {"pos": [4, 2, 9, 11],  "kar": ["Moon", "Jupiter"],            "neg": [6, 8, 12], "sep": False},
+    "employee":        {"pos": [10, 6, 3, 11], "kar": ["Saturn", "Sun", "Mercury"],   "neg": [8, 12],    "sep": False},
+    "boss-or-manager": {"pos": [10, 6, 9, 11], "kar": ["Saturn", "Sun"],              "neg": [8, 12],    "sep": False},
+}
+
+
+def _forward_dasha_support(chart_a, dashas_a, chart_b, dashas_b, reason,
+                           birth_a="", birth_b="", gender_a=None, gender_b=None,
+                           horizon=5):
+    try:
+        from datetime import date
+        from antar_engine.d10_career import _sign_n_from, SIGN_LORD
+        spec = _FWD_REL_SPEC.get((reason or "romantic").lower(), _FWD_REL_SPEC["romantic"])
+        today = date.today()
+        ty = today.year
+        try:
+            horizon_end = date(ty + horizon, today.month, today.day)
+        except ValueError:
+            horizon_end = date(ty + horizon, today.month, 28)
+        t_iso, h_iso = today.isoformat(), horizon_end.isoformat()
+
+        def person_support(cd, dashas):
+            d1 = (cd or {}).get("planets") or {}
+            lagna = ((cd or {}).get("lagna") or {}).get("sign")
+            if not d1 or not lagna:
+                return None
+            ruled = {}
+            for h in range(1, 13):
+                lord = SIGN_LORD.get(_sign_n_from(lagna, h))
+                if lord:
+                    ruled.setdefault(lord, set()).add(h)
+            occ = {}
+            for p, v in d1.items():
+                if isinstance(v, dict) and isinstance(v.get("house"), int):
+                    occ.setdefault(p, set()).add(v["house"])
+            mds = []
+            for row in (dashas.get("vimsottari") or dashas.get("vimshottari") or []):
+                if str(row.get("level") or row.get("type", "")).lower() not in ("mahadasha", "maha", "md", "1"):
+                    continue
+                s = str(row.get("start_date") or row.get("start") or "")[:10]
+                e = str(row.get("end_date") or row.get("end") or "")[:10]
+                if not s or not e or e < t_iso or s > h_iso:
+                    continue
+                mds.append((s, e, row.get("planet_or_sign") or row.get("lord_or_sign")))
+            mds.sort()
+            if not mds:
+                return None
+            total = 0.0
+            pos = 0.0
+            years = set()
+            for s, e, lord in mds:
+                if not lord:
+                    continue
+                total += 1
+                hs = ruled.get(lord, set()) | occ.get(lord, set())
+                val = 0
+                if hs & set(spec["pos"]):
+                    val += 1
+                if lord in spec["kar"]:
+                    val += 1
+                if hs & set(spec["neg"]):
+                    val -= 1
+                if val > 0:
+                    pos += 1
+                    for y in range(max(ty, int(s[:4])), min(ty + horizon, int(e[:4])) + 1):
+                        years.add(y)
+                elif val < 0:
+                    pos -= 0.5
+            if total == 0:
+                return None
+            frac = max(0.0, min(1.0, pos / total))
+            return {"score": int(round(40 + frac * 55)), "years": years}
+
+        A = person_support(chart_a, dashas_a)
+        B = person_support(chart_b, dashas_b)
+        if not A or not B:
+            return {"available": False, "score": 60, "catalysts": [], "watch_points": []}
+        overlap = sorted(A["years"] & B["years"])
+        overlap_frac = (len(overlap) / float(horizon)) if horizon else 0.0
+        score = int(round(0.32 * A["score"] + 0.32 * B["score"] + 0.36 * min(1.0, overlap_frac) * 100))
+        catalysts, watch = [], []
+        if overlap:
+            catalysts.append(
+                f"Your supportive periods overlap around {overlap[0]}"
+                + (f"–{overlap[-1]}" if overlap[-1] != overlap[0] else "")
+                + " — a shared runway for this.")
+        else:
+            watch.append("Your strong periods don't overlap in the next few years — the timing runs uneven.")
+        sep_flag = False
+        if spec["sep"]:
+            from antar_engine.relationships import separation_timing
+            for cd, dsh, bd, g in ((chart_a, dashas_a, birth_a, gender_a),
+                                   (chart_b, dashas_b, birth_b, gender_b)):
+                try:
+                    st = separation_timing(cd, dsh, bd, g)
+                    for w in (st.get("windows") or [])[:3]:
+                        ws = str(w.get("start", ""))[:10]
+                        if ws and t_iso <= ws <= h_iso and (w.get("score") or 0) >= 1.2:
+                            sep_flag = True
+                            watch.append(f"A strain window opens {ws[:7]} — the forward timing pressures this bond.")
+                            break
+                except Exception:
+                    pass
+            if sep_flag:
+                score = max(20, score - 22)
+        score = max(10, min(100, score))
+        narrative = (f"Over the next {horizon} years, your dasha runways "
+                     + ("line up" if overlap else "only partly line up")
+                     + (" but a strain window pressures the bond." if sep_flag else "."))
+        return {"available": True, "score": score, "person_a": A["score"],
+                "person_b": B["score"], "overlap_years": overlap,
+                "separation_flag": sep_flag, "narrative": narrative,
+                "catalysts": catalysts, "watch_points": watch}
+    except Exception as _fe:
+        print(f"[compat][forward-dasha] non-fatal: {_fe}")
+        return {"available": False, "score": 60, "catalysts": [], "watch_points": []}
+
+
 @app.post("/api/v1/compatibility")
 async def get_compatibility(request: dict, http_request: Request = None):
     """
@@ -16994,6 +17128,29 @@ async def compatibility_start(request: CompatibilityStartRequest,
         birth_date_a=birth_a, birth_date_b=(birth_b if request.chart_id_b else request.birth_date_b) or "",
         compatibility_type=_v2_reason, language=request.language or "en",
     )
+    # [forward-dasha 2026-09-13] Replace the current-only dasha_timing score with
+    # the forward, relationship-aware two-chart runway (+ separation penalty for
+    # love) so the lifepath layer reflects whether the FUTURE dashas support THIS
+    # relationship — not just that both feel good today.
+    try:
+        _fwd = _forward_dasha_support(
+            _ca, dashas_a, _cb, dashas_b, _v2_reason,
+            birth_a=birth_a,
+            birth_b=(birth_b if request.chart_id_b else request.birth_date_b) or "",
+        )
+        if _fwd.get("available"):
+            _dt = _compat_raw.get("dasha_timing") or {}
+            _dt["score"] = _fwd["score"]
+            if _fwd.get("narrative"):
+                _dt["narrative"] = _fwd["narrative"]
+            _dt["forward"] = _fwd
+            _compat_raw["dasha_timing"] = _dt
+            _compat_raw["_forward_dasha"] = _fwd  # for catalysts/watch surfacing
+            print(f"[compat][forward-dasha] reason={_v2_reason} score={_fwd['score']} "
+                  f"A={_fwd.get('person_a')} B={_fwd.get('person_b')} "
+                  f"overlap={_fwd.get('overlap_years')} sep={_fwd.get('separation_flag')}")
+    except Exception as _fwe:
+        print(f"[compat][forward-dasha] wire non-fatal: {_fwe}")
     _v2 = _CL.compose_compat_v2(_compat_raw, _ca, _cb, _v2_reason, _v2_role,
                                 a_name=name_a, b_name=_name_b, strip_fn=apply_user_facing_strips)
 
