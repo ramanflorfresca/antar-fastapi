@@ -20596,7 +20596,7 @@ async def ask_endpoint(request: AskRequest):
             except NameError:
                 _ask_thread = _ask_recent_thread(chart_id)
             try:
-                if _ask_concern in ("", "general") and _ask_thread:
+                if _ask_thread:
                     _prev_dom = (_ask_thread[-1].get("domain") or "").strip().lower()
                     _ql = (question or "").strip().lower()
                     _is_followup = (
@@ -20604,9 +20604,32 @@ async def ask_endpoint(request: AskRequest):
                         or _ql.startswith(("so ", "and ", "but ", "then ", "what about",
                                            "entonces", "pero ", "y ", "y si", "entonces,"))
                     )
-                    if _prev_dom and _prev_dom != "general" and _is_followup:
+                    # [ask-thread-referent 2026-09-13] A bare referent ('there',
+                    # 'it', 'that', 'them', 'the same') means the SUBJECT is the
+                    # prior turn's topic — the question carries no domain of its
+                    # own. The keyword scan returns 'general' for it, but the Haiku
+                    # classifier will GUESS a domain from nothing (live bug: 'when
+                    # will things improve there?' after a love-life turn got guessed
+                    # 'finance' and leaked a funding verdict). So when the raw
+                    # keyword concern is 'general', the thread's topic must WIN over
+                    # the classifier's guess — not just when _ask_concern is general.
+                    _referential = any(_w in f" {_ql} " for _w in (
+                        " there ", " it ", " that ", " this ", " them ", " those ",
+                        " the same ", " ahí ", " eso ", " eso?", " ello ", " ahí?"))
+                    _kw_general = False
+                    try:
+                        _kw_general = (_detect_concern(question) == "general")
+                    except Exception:
+                        _kw_general = (_ask_concern in ("", "general"))
+                    _inherit_ok = (
+                        _prev_dom and _prev_dom != "general" and _is_followup
+                        and (_ask_concern in ("", "general")
+                             or (_kw_general and _referential))
+                    )
+                    if _inherit_ok and _ask_concern != _prev_dom:
                         print(f"[ask-thread] concern inherited from prior turn: "
-                              f"{_ask_concern} -> {_prev_dom}")
+                              f"{_ask_concern} -> {_prev_dom} "
+                              f"(kw_general={_kw_general} referential={_referential})")
                         _ask_concern = _prev_dom
             except Exception as _fie:
                 logger.warning(f"[ask] thread concern-inherit skipped (non-fatal): {_fie}")
