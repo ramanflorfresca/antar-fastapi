@@ -19050,6 +19050,17 @@ def _is_career_type_q(q):
             and any(w in ql for w in ("best", "suit", "right for me", "for me",
                                       "should i", "which", "what kind"))):
         return True
+    # [potential/aptitude 2026-09-13] "where do I have the most potential",
+    # "what am I cut out for", "what work has the highest potential" — an
+    # aptitude question, same D-10 read. Loose 'work' only pairs with a strong
+    # aptitude qualifier so "will this work out" never trips it.
+    if (any(n in ql for n in ("profession", "career", "vocation", "line of work",
+                              "kind of work", "type of work", "for a living",
+                              "which job", "what job"))
+            and any(w in ql for w in ("potential", "cut out", "meant to",
+                                      "talent", "gift", "good at", "strength",
+                                      "suited", "aptitude", "best at"))):
+        return True
     return False
 
 
@@ -19146,7 +19157,7 @@ _ASK_VAGUE_STEMS = _re_crisis.compile(
     _re_crisis.I,
 )
 _ASK_HAS_SUBJECT = _re_crisis.compile(
-    r"\b(job|work|career|money|financ|business|startup|invest|market|sale|"
+    r"\b(job|work|career|profession|vocation|calling|money|financ|business|startup|invest|market|sale|"
     r"marriage|marry|relationship|partner|wife|husband|boyfriend|girlfriend|"
     r"love|dating|health|sick|disease|ill|family|father|mother|child|kid|son|"
     r"daughter|home|house|property|move|relocat|travel|abroad|visa|study|exam|"
@@ -19159,6 +19170,11 @@ _ASK_HAS_SUBJECT = _re_crisis.compile(
 def _ask_is_vague(question: str, language: str = "en") -> bool:
     q = (question or "").strip()
     if not q or _ASK_HAS_SUBJECT.search(q):
+        return False
+    # [2026-09-13] A real career-TYPE/aptitude question ("what should I do for a
+    # living", "what am I best suited for") reads as a vague stem but has a
+    # concrete answer from the D-10 — never divert it to domain chips.
+    if _is_career_type_q(q):
         return False
     if len(_re_crisis.findall(r"\w+", q)) > 8:
         return False
@@ -19183,6 +19199,85 @@ def _ask_clarify_payload(language: str = "en") -> dict:
         "mode": "explore", "read": read, "next": nxt, "locked": False,
         "needs_clarification": True, "clarification_chips": chips,
     }
+
+
+# [ask-role-clarify 2026-09-13] A deal/transaction question whose reading depends
+# on the user's ROLE (broker earning a commission vs equity stake vs buying it
+# themselves) must ask the role first — each maps to a different divisional read
+# (10th/D-10 profession, 11th/2nd gains, 4th/D-4 property). Guessing gives the
+# wrong houses. Deterministic, no LLM, fires before the engines.
+_ASK_DEAL_WORDS = (
+    "deal", "acquisition", "transaction", "commission", "equity", "stake",
+    "gold mine", "real estate", "real state", "property deal", "the offer",
+    "this offer", "venture", "buyout", "merger", "closing",
+    "negocio", "trato", "comisión", "adquisición", "participación", "transacción",
+)
+_ASK_ROLE_WORDS = (
+    "broker", "agent", "commission", "finder", "equity", "stake", "ownership",
+    "owner", "partner", "co-own", "shares", "buy", "buying", "purchase",
+    "purchasing", "investor", "my own money", "for myself",
+    "corredor", "agente", "comisión", "participación", "dueño", "socio",
+    "comprar", "compro", "inversionista",
+)
+
+
+def _ask_needs_role_clarify(question: str, thread: list) -> bool:
+    q = (question or "").lower()
+    thread_text = " ".join(
+        (t.get("q", "") + " " + t.get("a", "")) for t in (thread or [])
+    ).lower()
+    ctx = q + " " + thread_text
+    if not any(w in ctx for w in _ASK_DEAL_WORDS):
+        return False
+    if any(w in ctx for w in _ASK_ROLE_WORDS):  # role already known
+        return False
+    comparative = (" or " in f" {q} ") or any(p in q for p in (
+        "what role", "which one", "what will it be", "how will it",
+        "qué papel", "cuál será", "cual es mi papel", "o en", " o una", " o un",
+    ))
+    return comparative
+
+
+def _ask_role_clarify_payload(language: str = "en") -> dict:
+    _es = (language or "en").lower().startswith("es")
+    if _es:
+        read = ("Con gusto — pero para leerlo con precisión necesito tu papel en el "
+                "trato. ¿Eres el corredor/agente que gana una comisión, tomas una "
+                "participación (equity), o lo compras tú mismo? Dime cuál y te doy la "
+                "ventana concreta.")
+        nxt = "Elige tu papel y te doy el momento exacto."
+        chips = ["Corredor / comisión", "Participación / equity", "Lo compro yo mismo"]
+    else:
+        read = ("Happy to help — but to read this precisely I need your role in the "
+                "deal. Are you the broker/agent earning a commission, taking an equity "
+                "stake, or buying it yourself? Tell me which and I'll give you the "
+                "concrete window.")
+        nxt = "Pick your role and I'll give you the exact timing."
+        chips = ["Broker / commission", "Equity stake", "Buying it myself"]
+    return {
+        "mode": "explore", "read": read, "next": nxt, "locked": False,
+        "needs_clarification": True, "clarification_chips": chips,
+    }
+
+
+def _ask_role_concern(question: str, thread: list):
+    """Once a deal role is known (this turn or a prior one), map it to the concern
+    that reads the right divisional: commission/broker → career (10th/D-10),
+    equity/ownership → finance (11th/2nd gains), buying property → property (4th/D-4).
+    Returns a concern string to override with, or None."""
+    ctx = ((question or "") + " " + " ".join(
+        (t.get("q", "") + " " + t.get("a", "")) for t in (thread or [])
+    )).lower()
+    if any(w in ctx for w in ("commission", "broker", "agent", "finder",
+                              "corredor", "agente", "comisión")):
+        return "career"
+    if any(w in ctx for w in ("equity", "stake", "ownership", "owner", "partner",
+                              "shares", "co-own", "participación", "socio")):
+        return "finance"
+    if any(w in ctx for w in ("buy", "buying", "purchase", "purchasing",
+                              "for myself", "my own money", "comprar", "compro")):
+        return "property"
+    return None
 
 
 def _ask_repair_next(next_txt):
@@ -19795,6 +19890,22 @@ async def ask_endpoint(request: AskRequest):
                 except Exception as _clar_pe:
                     print(f"[ask][clarify] persist non-fatal: {_clar_pe}")
                 return _clar_payload
+
+            # [ask-role-clarify 2026-09-13] A role-dependent deal question
+            # ("will it be real estate or a gold mine deal?") reads differently by
+            # role, so ask the role (chips) before guessing houses. Skips when the
+            # role is already known in this turn or a recent one. Load the thread
+            # once here and reuse it below (concern inherit + LLM context).
+            _ask_thread = _ask_recent_thread(chart_id)
+            if not _ask_detect_crisis(question) and _ask_needs_role_clarify(question, _ask_thread):
+                _role_payload = _ask_role_clarify_payload(language)
+                print("[ask][role-clarify] deal role ambiguous — asking role")
+                try:
+                    await _ask_persist(supabase, chart_id, question, _role_payload,
+                                       language, "explore", None)
+                except Exception as _rc_pe:
+                    print(f"[ask][role-clarify] persist non-fatal: {_rc_pe}")
+                return _role_payload
             try:
                 # [ask-life-context 2026-07-20] The life columns are pulled here
                 # so /ask can be situation-aware. Both families are needed:
@@ -20242,11 +20353,15 @@ async def ask_endpoint(request: AskRequest):
                 logger.warning(f"[ask] intent classify failed (non-fatal): {_ice}")
 
             # ── [ask-thread 2026-09-13] Conversation follow-through ──────────
-            # Load the recent thread and, when the current question is a bare
-            # follow-up with no concern of its own (falls to 'general'), inherit
-            # the prior turn's concern so the reading stays on the same subject
-            # ('so the real estate is not happening?' after a real-estate deal Q).
-            _ask_thread = _ask_recent_thread(chart_id)
+            # Reuse the thread already loaded above (role-clarify gate) — don't
+            # re-fetch. When the current question is a bare follow-up with no
+            # concern of its own (falls to 'general'), inherit the prior turn's
+            # concern so the reading stays on the same subject ('so the real
+            # estate is not happening?' after a real-estate deal Q).
+            try:
+                _ask_thread
+            except NameError:
+                _ask_thread = _ask_recent_thread(chart_id)
             try:
                 if _ask_concern in ("", "general") and _ask_thread:
                     _prev_dom = (_ask_thread[-1].get("domain") or "").strip().lower()
@@ -20262,6 +20377,20 @@ async def ask_endpoint(request: AskRequest):
                         _ask_concern = _prev_dom
             except Exception as _fie:
                 logger.warning(f"[ask] thread concern-inherit skipped (non-fatal): {_fie}")
+
+            # [ask-role-concern 2026-09-13] Once the deal role is known (this turn
+            # or a recent one), route to the divisional that role actually reads:
+            # commission/broker → career (10th/D-10), equity/ownership → finance
+            # (11th/2nd gains), buying property → property (4th/D-4). This fires
+            # after the follow-up inherit so a role reply overrides an inherited
+            # 'general' with the precise domain.
+            try:
+                _role_c = _ask_role_concern(question, _ask_thread)
+                if _role_c and _role_c != _ask_concern:
+                    print(f"[ask-role] concern by role: {_ask_concern} -> {_role_c}")
+                    _ask_concern = _role_c
+            except Exception as _rce:
+                logger.warning(f"[ask] role-concern override skipped (non-fatal): {_rce}")
 
             _ask_dashas = {}
             _ask_dasha_str = ""
