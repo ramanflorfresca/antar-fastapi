@@ -19090,6 +19090,143 @@ def _is_career_type_q(q):
     return False
 
 
+# [life-chapter 2026-09-13] Most users don't know the word "dasha" — they ask
+# "what happens in my new chapter / next phase / the years ahead". This is a
+# first-class question: read the UPCOMING mahadasha (its character + the life
+# areas it activates + when it begins) in plain language. Deterministic block so
+# the answer is consistent regardless of phrasing (was drifting: same chapter
+# read as 'discipline/home' one time, 'gains/savings' another, by concern).
+_ASK_CHAPTER_MARKERS = (
+    "new chapter", "next chapter", "coming chapter", "upcoming chapter",
+    "this chapter", "life chapter", "new phase", "next phase", "coming phase",
+    "upcoming phase", "new stage", "next stage", "next period of my life",
+    "coming period", "years ahead", "next season", "new season of my life",
+    "what's next for me", "whats next for me", "what is next for me",
+    "what's coming for me", "whats coming for me", "what lies ahead",
+    "next era", "new era",
+    # Spanish
+    "nuevo capítulo", "nuevo capitulo", "próximo capítulo", "proximo capitulo",
+    "capítulo que viene", "capitulo que viene", "nueva etapa", "próxima etapa",
+    "proxima etapa", "etapa que viene", "nueva fase", "próxima fase",
+    "proxima fase", "los años que vienen", "los anos que vienen",
+    "qué viene para mí", "que viene para mi", "qué sigue en mi vida",
+    "que sigue en mi vida", "lo que viene",
+    # people who DO know the word
+    "dasha", "maha dasha", "mahadasha", "planetary period", "big period",
+)
+
+
+def _is_life_chapter_q(q):
+    """True for a 'what happens in my new/next chapter / phase / dasha' question —
+    the reader wants to know their next major life period, however they phrase it."""
+    ql = (q or "").lower()
+    return any(m in ql for m in _ASK_CHAPTER_MARKERS)
+
+
+_ASK_HOUSE_AREA = {
+    1:  "your health, vitality, and how you show up in the world",
+    2:  "money, family, and what you save",
+    3:  "courage, initiative, communication, and short travels",
+    4:  "home, family, property, and inner peace",
+    5:  "children, creativity, learning, and self-expression",
+    6:  "work routines, health, and overcoming obstacles or competition",
+    7:  "partnerships, marriage, and business deals",
+    8:  "deep change, shared or borrowed money, and transformation",
+    9:  "luck, higher learning, travel, teachers, and belief",
+    10: "career, reputation, and public standing",
+    11: "income, gains, big goals, and your network",
+    12: "letting go, foreign lands, rest, and the inner life",
+}
+
+
+def _ask_life_chapter_block(chart_data, dashas, question="", first_name=""):
+    """Deterministic, jargon-free reading of the reader's UPCOMING (or, if asked,
+    current) major life chapter — the next Vimśottarī mahadasha: when it begins,
+    its character, and the 1-3 life areas it activates (from the lord's occupied +
+    ruled houses). "" on any failure so the caller degrades to the normal path."""
+    try:
+        from antar_engine.d10_career import (
+            PLANET_CHAPTER, _sign_n_from, SIGN_LORD,
+        )
+        from datetime import date as _date
+        mds = [d for d in (dashas.get("vimsottari") or dashas.get("vimshottari") or [])
+               if str(d.get("level", "")).lower() in ("mahadasha", "maha", "md", "1")]
+        if not mds:
+            return ""
+        mds = sorted(mds, key=lambda d: (d.get("start_date") or d.get("start") or ""))
+        today = _date.today().isoformat()
+        ql = (question or "").lower()
+        wants_current = any(w in ql for w in (
+            "this chapter", "current", "right now", "these days", "this phase",
+            "este capítulo", "este capitulo", "actual", "esta etapa"))
+        cur = None
+        nxt = None
+        for d in mds:
+            s = (d.get("start_date") or d.get("start") or "")[:10]
+            e = (d.get("end_date") or d.get("end") or "")[:10]
+            if s and e and s <= today < e:
+                cur = d
+            if s and s > today and nxt is None:
+                nxt = d
+        target = (cur if wants_current else (nxt or cur))
+        if not target:
+            return ""
+        lord = target.get("planet_or_sign") or target.get("lord_or_sign") or ""
+        nature = PLANET_CHAPTER.get(lord, "")
+        if not nature:
+            return ""
+        start = (target.get("start_date") or target.get("start") or "")[:10]
+        # "mid-2027" style phrasing from the ISO start.
+        when = ""
+        try:
+            _y, _m = int(start[:4]), int(start[5:7])
+            _seg = ("early" if _m <= 4 else "mid" if _m <= 8 else "late")
+            when = f"{_seg}-{_y}"
+        except Exception:
+            when = start[:4] or "the years ahead"
+        # Life areas: the house the lord OCCUPIES + the houses it RULES (from lagna).
+        areas_h = []
+        planets = (chart_data or {}).get("planets") or {}
+        lagna = ((chart_data or {}).get("lagna") or {}).get("sign")
+        occ = (planets.get(lord) or {}).get("house")
+        if isinstance(occ, int):
+            areas_h.append(occ)
+        if lagna:
+            for h in range(1, 13):
+                if SIGN_LORD.get(_sign_n_from(lagna, h)) == lord:
+                    areas_h.append(h)
+        seen = set()
+        area_lines = []
+        for h in areas_h:
+            if h in seen:
+                continue
+            seen.add(h)
+            if h in _ASK_HOUSE_AREA:
+                area_lines.append(_ASK_HOUSE_AREA[h])
+            if len(area_lines) >= 3:
+                break
+        nm = (first_name or "").strip()
+        block = (
+            "LIFE-CHAPTER FACTS (authoritative — read THESE, do not invent a "
+            "different period or areas):\n"
+            f"- WHEN it begins: around {when}"
+            + (" (it is the chapter you are living now)" if target is cur and wants_current
+               else " — name this timing plainly in the answer") + ".\n"
+            f"- Its character: {nature}.\n"
+            + (f"- It most activates: {'; '.join(area_lines)}.\n" if area_lines else "")
+            + "HOW TO ANSWER: open by naming WHEN this chapter begins, describe its "
+            "character in warm plain-life language, name the 1-2 areas they'll feel it "
+            "most, be honest about both the gift and the demand of it, and close with "
+            "ONE thing to prepare now. Speak of 'this chapter' / 'the years ahead' — "
+            "NEVER name a planet, sign, house, or the word 'dasha'."
+        )
+        if nm:
+            block += f"\nOpen with their first name: {nm}."
+        return block
+    except Exception:
+        return ""
+
+
 def _is_career_timing_q(q):
     """True for the 'which profession AT WHAT TIME' family — the reader is asking
     about the timing/phase of their working life, not just the static field: when
@@ -20498,6 +20635,31 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _ade:
                 logger.warning(f"[ask] dasha resolution failed (non-fatal): {_ade}")
 
+            # [life-chapter 2026-09-13] "what happens in my new chapter / next
+            # phase / dasha" — read the UPCOMING mahadasha deterministically so the
+            # answer is consistent and grounded. Also fires as a follow-up when the
+            # PRIOR turn was a chapter question and this is a short follow-on
+            # ("what happens in it?", "tell me more"), inheriting the intent.
+            _ask_chapter_block = ""
+            try:
+                _chap_q = _is_life_chapter_q(question)
+                if not _chap_q and _ask_thread:
+                    _pq = (_ask_thread[-1].get("q") or "")
+                    _ql2 = (question or "").strip().lower()
+                    if _is_life_chapter_q(_pq) and (
+                        len(_ql2.split()) <= 8
+                        or _ql2.startswith(("what happens", "what about", "tell me",
+                                            "and ", "so ", "what else", "qué pasa",
+                                            "que pasa", "y ", "cuéntame", "cuentame"))):
+                        _chap_q = True
+                if _chap_q and isinstance(chart_data, dict) and chart_data:
+                    _ask_chapter_block = _ask_life_chapter_block(
+                        chart_data, _ask_dashas, question, _ask_first_name)
+                    if _ask_chapter_block:
+                        print("[ask][life-chapter] upcoming-dasha block injected")
+            except Exception as _lce:
+                logger.warning(f"[ask] life-chapter block skipped (non-fatal): {_lce}")
+
             diagnostic_block = ""
             try:
                 from antar_engine.symptom_library import build_diagnostic_prompt_block
@@ -20556,6 +20718,12 @@ async def ask_endpoint(request: AskRequest):
                 # should I switch') keeps the decision/convergence path.
                 if _ask_decision and _is_career_type_q(question) and not _is_career_timing_q(question):
                     print("[ask] career-aptitude — suppressing decision/timing path")
+                    _ask_decision = False
+                # [life-chapter 2026-09-13] "what happens in my new chapter" is a
+                # period-education question, not a yes/no — take the reflective path
+                # so the deterministic upcoming-dasha block leads (no forced verdict).
+                if _ask_decision and _ask_chapter_block:
+                    print("[ask] life-chapter — suppressing decision/timing path")
                     _ask_decision = False
                 if _ask_decision:
                     _ask_conv = build_convergence_timing(
@@ -20804,6 +20972,7 @@ async def ask_endpoint(request: AskRequest):
                     + f"\n\n{diagnostic_block}"
                     + (f"\n\n{_ask_life_block}" if _ask_life_block else "")
                     + (f"\n\n{_ask_career_block}" if _ask_career_block else "")
+                    + (f"\n\n{_ask_chapter_block}" if _ask_chapter_block else "")
                     + (f"\n\n{_ask_relationship_block}" if _ask_relationship_block else "")
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
@@ -21020,6 +21189,7 @@ async def ask_endpoint(request: AskRequest):
                     + f"\n\n{diagnostic_block}"
                     + (f"\n\n{_ask_life_block}" if _ask_life_block else "")
                     + (f"\n\n{_ask_career_block}" if _ask_career_block else "")
+                    + (f"\n\n{_ask_chapter_block}" if _ask_chapter_block else "")
                     + (f"\n\n{_ask_relationship_block}" if _ask_relationship_block else "")
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
