@@ -19061,6 +19061,32 @@ def _is_career_type_q(q):
                                       "talent", "gift", "good at", "strength",
                                       "suited", "aptitude", "best at"))):
         return True
+    # [es-aptitude 2026-09-13] Spanish career-TYPE / aptitude questions — the
+    # app's biggest user segment. "profesión"/"carrera" do NOT substring-match
+    # the English nouns above, so without this Andres's "¿qué profesión me
+    # conviene?" fell to the generic timing path. Same D-10 read, Spanish keys.
+    _es_phrases = (
+        "qué profesión", "que profesion", "cuál profesión", "cual profesion",
+        "qué carrera", "que carrera", "cuál carrera", "cual carrera",
+        "qué trabajo me", "que trabajo me", "para qué trabajo", "para que trabajo",
+        "mi vocación", "mi vocacion", "cuál es mi vocación", "cual es mi vocacion",
+        "para qué soy bueno", "para que soy bueno", "en qué soy bueno",
+        "en que soy bueno", "qué se me da bien", "que se me da bien",
+        "a qué me dedico", "a que me dedico", "a qué debería dedicar",
+        "a que deberia dedicar", "qué debería hacer de mi vida",
+        "que deberia hacer de mi vida", "qué me conviene", "que me conviene",
+        "a qué dedicarme", "a que dedicarme",
+    )
+    if any(p in ql for p in _es_phrases):
+        return True
+    if (any(n in ql for n in ("profesión", "profesion", "carrera", "vocación",
+                              "vocacion", "qué trabajo", "que trabajo"))
+            and any(w in ql for w in ("conviene", "potencial", "mejor", "buena",
+                                      "bueno", "me queda", "para mí", "para mi",
+                                      "debería", "deberia", "cuál", "cual",
+                                      "qué tipo", "que tipo", "mayor", "más alto",
+                                      "mas alto", "aptitud", "talento", "don"))):
+        return True
     return False
 
 
@@ -19072,7 +19098,9 @@ def _is_career_timing_q(q):
     D-10), on top of / instead of the static ranking."""
     ql = (q or "").lower()
     if not any(w in ql for w in ("career", "profession", "job", "work", "business",
-                                 "startup", "venture", "vocation", "living")):
+                                 "startup", "venture", "vocation", "living",
+                                 "carrera", "profesión", "profesion", "trabajo",
+                                 "negocio", "empleo", "vocación", "vocacion")):
         return False
     _timing = (
         "when", "right now", "at this time", "these days", "currently", "current",
@@ -19081,6 +19109,13 @@ def _is_career_timing_q(q):
         "switch career", "change my", "quit", "leave my", "new direction",
         "this year", "coming years", "future", "going forward", "at what time",
         "which time", "best time", "good time", "time to", "phase of",
+        # [es-timing 2026-09-13]
+        "cuándo", "cuando", "ahora mismo", "en este momento", "actualmente",
+        "esta etapa", "este período", "este periodo", "qué sigue", "que sigue",
+        "próximo paso", "proximo paso", "debería cambiar", "deberia cambiar",
+        "cambiar de carrera", "cambiar de trabajo", "renunciar", "dejar mi",
+        "este año", "este ano", "próximos años", "proximos anos", "futuro",
+        "buen momento", "mejor momento", "momento de", "etapa de",
     )
     return any(p in ql for p in _timing)
 
@@ -20453,6 +20488,14 @@ async def ask_endpoint(request: AskRequest):
                 _ask_decision = is_decision_question(question)
                 if _ask_intent and _ask_intent.get("active_source") == "haiku":
                     _ask_decision = bool(_ask_intent.get("is_decision"))
+                # [career-aptitude 2026-09-13] "which profession suits me / where
+                # is my potential" has NO event to time — force the reflective
+                # path so the D-10 ranked-fields block leads instead of an
+                # event-engine timing verdict. A career-TIMING question ('when
+                # should I switch') keeps the decision/convergence path.
+                if _ask_decision and _is_career_type_q(question) and not _is_career_timing_q(question):
+                    print("[ask] career-aptitude — suppressing decision/timing path")
+                    _ask_decision = False
                 if _ask_decision:
                     _ask_conv = build_convergence_timing(
                         _ask_concern, chart_data, _ask_dashas, _ask_bdate
