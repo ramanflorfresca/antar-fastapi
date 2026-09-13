@@ -17240,7 +17240,8 @@ async def compatibility_start(request: CompatibilityStartRequest,
         try:
             from antar_engine.translation_middleware import translate_dict
             _resp = await translate_dict(_resp, language=request.language,
-                fields_to_translate={"headline", "summary", "detail", "layer_label"},
+                fields_to_translate={"headline", "summary", "detail", "layer_label",
+                                     "catalysts", "watch_points"},
                 endpoint_name="compat_start", chart_id=request.chart_id_a)
         except Exception as _te2:
             print(f"[compat] V2 translate non-fatal: {_te2}")
@@ -17612,7 +17613,7 @@ async def compatibility_continue(request: CompatibilityContinueRequest):
 
 
 @app.get("/api/v1/compatibility/session/{session_id}")
-async def get_compatibility_session(session_id: str):
+async def get_compatibility_session(session_id: str, language: str = "en"):
     res = supabase.table("compatibility_sessions").select("*").eq("id", session_id).execute()
     if not res.data:
         raise HTTPException(404, "Session not found")
@@ -17689,6 +17690,18 @@ async def get_compatibility_session(session_id: str):
         # fallback: at least surface the stored score so the card/badge render.
         if s.get("score") is not None:
             out["score"] = s.get("score")
+    # [session-i18n 2026-09-13] localize the same fields as /compatibility/start
+    # (headline/summary/catalysts/watch_points/layer detail) so a Spanish user
+    # reopening a saved connection doesn't see an English result screen.
+    if (language or "en") in ("es", "pt", "fr"):
+        try:
+            from antar_engine.translation_middleware import translate_dict
+            out = await translate_dict(out, language=language,
+                fields_to_translate={"headline", "summary", "detail", "layer_label",
+                                     "catalysts", "watch_points", "layer1", "layer2", "layer3"},
+                endpoint_name="compat_session", chart_id=s.get("chart_id_a"))
+        except Exception as _tse:
+            print(f"[compat][session-i18n] non-fatal: {_tse}")
     return out
 
 
