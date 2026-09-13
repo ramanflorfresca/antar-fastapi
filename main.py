@@ -16168,14 +16168,18 @@ def _deprecation_watch(path: str, http_request=None, **fields):
 # upcoming separation/strain window (via relationships.separation_timing).
 # Fail-open to neutral 60 so it never breaks the endpoint.
 _FWD_REL_SPEC = {
-    "romantic":        {"pos": [7, 5, 11, 2],  "kar": ["Venus", "Jupiter"],           "neg": [6, 8, 12], "sep": True},
-    "marriage":        {"pos": [7, 2, 4, 11],  "kar": ["Venus", "Jupiter"],           "neg": [6, 8, 12], "sep": True},
-    "business":        {"pos": [7, 10, 11, 2], "kar": ["Mercury", "Jupiter"],         "neg": [6, 8, 12], "sep": False},
-    "cofounder":       {"pos": [7, 10, 11, 3], "kar": ["Mercury", "Mars"],            "neg": [6, 8, 12], "sep": False},
-    "friend":          {"pos": [11, 3, 7, 5],  "kar": ["Mercury", "Venus"],           "neg": [6, 12],    "sep": False},
-    "family":          {"pos": [4, 2, 9, 11],  "kar": ["Moon", "Jupiter"],            "neg": [6, 8, 12], "sep": False},
-    "employee":        {"pos": [10, 6, 3, 11], "kar": ["Saturn", "Sun", "Mercury"],   "neg": [8, 12],    "sep": False},
-    "boss-or-manager": {"pos": [10, 6, 9, 11], "kar": ["Saturn", "Sun"],              "neg": [8, 12],    "sep": False},
+    # good/bad = the dasha LORD's nature FOR THIS RELATIONSHIP (independent of
+    # houses): e.g. a Rahu period is NOT romance-supportive even if Rahu touches
+    # a relationship house (nodes destabilize a bond), but Rahu CAN support a
+    # venture. This stops a lone node mahadasha from maxing out a love runway.
+    "romantic":        {"pos": [7, 5, 11, 2],  "neg": [6, 8, 12], "good": ["Venus", "Jupiter", "Moon"], "bad": ["Rahu", "Ketu", "Saturn"], "sep": True},
+    "marriage":        {"pos": [7, 2, 4, 11],  "neg": [6, 8, 12], "good": ["Venus", "Jupiter", "Moon"], "bad": ["Rahu", "Ketu", "Saturn"], "sep": True},
+    "business":        {"pos": [7, 10, 11, 2], "neg": [6, 8, 12], "good": ["Mercury", "Jupiter", "Sun", "Venus"], "bad": ["Ketu"], "sep": False},
+    "cofounder":       {"pos": [7, 10, 11, 3], "neg": [6, 8, 12], "good": ["Mercury", "Mars", "Jupiter", "Sun"], "bad": ["Ketu"], "sep": False},
+    "friend":          {"pos": [11, 3, 7, 5],  "neg": [6, 12],    "good": ["Mercury", "Venus", "Moon", "Jupiter"], "bad": ["Ketu"], "sep": False},
+    "family":          {"pos": [4, 2, 9, 11],  "neg": [6, 8, 12], "good": ["Moon", "Jupiter", "Venus"], "bad": ["Rahu", "Ketu"], "sep": False},
+    "employee":        {"pos": [10, 6, 3, 11], "neg": [8, 12],    "good": ["Saturn", "Sun", "Mercury", "Mars"], "bad": ["Ketu"], "sep": False},
+    "boss-or-manager": {"pos": [10, 6, 9, 11], "neg": [8, 12],    "good": ["Saturn", "Sun", "Mercury"], "bad": ["Ketu"], "sep": False},
 }
 
 
@@ -16231,9 +16235,14 @@ def _forward_dasha_support(chart_a, dashas_a, chart_b, dashas_b, reason,
                 val = 0
                 if hs & set(spec["pos"]):
                     val += 1
-                if lord in spec["kar"]:
-                    val += 1
                 if hs & set(spec["neg"]):
+                    val -= 1
+                # the lord's NATURE for this relationship (a node is not romance-
+                # supportive even if it touches a love house; Saturn on the 7th of
+                # a love read is friction, not flow).
+                if lord in spec.get("good", ()):
+                    val += 1
+                if lord in spec.get("bad", ()):
                     val -= 1
                 if val > 0:
                     pos += 1
@@ -16262,10 +16271,12 @@ def _forward_dasha_support(chart_a, dashas_a, chart_b, dashas_b, reason,
         else:
             watch.append("Your strong periods don't overlap in the next few years — the timing runs uneven.")
         sep_flag = False
+        durability_flag = False
         if spec["sep"]:
-            from antar_engine.relationships import separation_timing
+            from antar_engine.relationships import separation_timing, analyze_relationship
             for cd, dsh, bd, g in ((chart_a, dashas_a, birth_a, gender_a),
                                    (chart_b, dashas_b, birth_b, gender_b)):
+                # (a) upcoming forward strain window
                 try:
                     st = separation_timing(cd, dsh, bd, g)
                     for w in (st.get("windows") or [])[:3]:
@@ -16276,8 +16287,20 @@ def _forward_dasha_support(chart_a, dashas_a, chart_b, dashas_b, reason,
                             break
                 except Exception:
                     pass
+                # (b) natal durability — an 'elevated' rupture signature caps the
+                # forward score (why a genuinely divorced pair can't read as FLOW
+                # even when the forward periods happen to line up).
+                try:
+                    rel = analyze_relationship(cd, g)
+                    if (rel.get("durability") or {}).get("level") == "elevated":
+                        durability_flag = True
+                except Exception:
+                    pass
             if sep_flag:
                 score = max(20, score - 22)
+            if durability_flag:
+                score = max(15, score - 20)
+                watch.append("The bond carries a real rupture signature — durability, not attraction, is the work.")
         score = max(10, min(100, score))
         narrative = (f"Over the next {horizon} years, your dasha runways "
                      + ("line up" if overlap else "only partly line up")
