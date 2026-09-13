@@ -19523,6 +19523,19 @@ def _ask_repair_next(next_txt):
     def _words(s):
         return len(_re_crisis.findall(r"\w+", s or ""))
 
+    # [dangling-tail 2026-09-13] A token cutoff often leaves the sentence ending
+    # on a preposition/conjunction whose object never arrived — "reach out to your
+    # backer by.", "send the deck to." Trimming that trailing word usually yields
+    # a complete, sensible instruction ("reach out to your backer.").
+    _DANGLE = {"by", "to", "with", "for", "before", "on", "at", "in", "of",
+               "from", "until", "than", "and", "or", "about", "into", "onto",
+               "toward", "towards", "per", "via", "vs", "que", "de", "con",
+               "para", "por", "a", "en", "y", "o"}
+
+    def _last_word(s):
+        m = _re_crisis.findall(r"[A-Za-zÀ-ÿ']+", s or "")
+        return (m[-1].lower() if m else "")
+
     def _broken(s):
         if _lb(s):
             return True
@@ -19532,11 +19545,20 @@ def _ask_repair_next(next_txt):
             tail = segs[-1].strip().rstrip(".!?").strip()
             if _words(tail) < 3:
                 return True
+        # ends on a dangling preposition/conjunction (object was truncated)
+        if _last_word(s.rstrip(".!?,;: ")) in _DANGLE:
+            return True
         return False
 
     if not _broken(t):
         return t
-    # salvage: keep the head clause before the first em-dash if it stands alone.
+    # salvage 1: drop a trailing dangling word and keep the rest if it stands.
+    _core = t.rstrip().rstrip(".!?,;:").rstrip()
+    if _last_word(_core) in _DANGLE:
+        _trimmed = _re_crisis.sub(r"[\s,;:]*[A-Za-zÀ-ÿ']+$", "", _core).rstrip(" ,;:")
+        if _trimmed and _words(_trimmed) >= 3 and not _broken(_trimmed):
+            return _trimmed + "."
+    # salvage 2: keep the head clause before the first em-dash if it stands alone.
     head = _re_crisis.split(r"\s*—\s*", t, maxsplit=1)[0].strip()
     if head and not _broken(head) and _words(head) >= 3:
         if head[-1] not in ".!?":

@@ -804,7 +804,11 @@ def build_convergence_timing(concern, chart_data, dashas, birth_date,
 # "partnership window", "career opening"). Keep nouns SHORT and concrete — the
 # whole point is to drop vague energy-talk and lead with a real-noun + date.
 _DOMAIN_NOUN = {
-    "finance":     "funding window",
+    # [2026-09-13] 'finance' is general money/financial-freedom — say 'money
+    # window', not 'funding window' (funding = raising outside capital, reserved
+    # for the funding concern). Fixes 'will I be financially free?' reading as
+    # if the person were raising capital.
+    "finance":     "money window",
     "funding":     "funding window",
     "wealth":      "money window",
     "loss":        "financial window",
