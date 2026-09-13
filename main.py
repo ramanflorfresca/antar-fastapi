@@ -19087,7 +19087,45 @@ def _is_career_type_q(q):
                                       "qué tipo", "que tipo", "mayor", "más alto",
                                       "mas alto", "aptitud", "talento", "don"))):
         return True
+    # [career-compare 2026-09-13] "between finance and law, which has more
+    # potential for me?" — a comparison of two directions, asking which fits/
+    # has more potential. Route to the D-10 read so it ranks them. Excludes
+    # non-career comparatives (move/marry/deal/property) so only the vocational
+    # 'which path' family lands here.
+    _comp = (("between " in ql and " and " in ql) or "which one" in ql
+             or "which of" in ql or "which path" in ql or "which direction" in ql)
+    if (_comp
+            and any(w in ql for w in ("potential", "suits me", "suited",
+                                      "for my career", "career", "profession",
+                                      "better path", "which path", "which direction",
+                                      "more money", "more success"))
+            and not any(x in ql for x in ("move", "relocat", "city", "marry",
+                                          "marriage", "partner", "deal", "buy",
+                                          "property", "house", "invest in",
+                                          "should i sell"))):
+        return True
     return False
+
+
+# [advice-q 2026-09-13] An advice / how-to question ("what should I do to make
+# that happen faster?", "how do I improve this?") wants GUIDANCE, not a yes/no
+# verdict — and as a follow-up it must not re-emit the prior turn's verdict
+# verbatim (live bug: an action follow-up on a funding turn repeated the exact
+# funding window). Route it to the reflective path so it leads with what-to-do.
+# 'when...' stays a timing question.
+def _ask_is_advice_q(q):
+    ql = (q or "").lower().strip()
+    if ql.startswith(("when", "cuándo", "cuando")):
+        return False
+    return any(p in ql for p in (
+        "what should i do", "what can i do", "what do i do", "what else can i",
+        "how do i", "how can i", "how should i", "how to ", "what steps",
+        "what actions", "make it happen", "make that happen", "make this happen",
+        "happen faster", "speed it up", "speed this up", "what's my next step",
+        "whats my next step", "what is my next step", "how do i make",
+        "qué debo hacer", "que debo hacer", "qué hago para", "que hago para",
+        "cómo hago", "como hago", "cómo puedo", "como puedo", "qué puedo hacer",
+        "que puedo hacer"))
 
 
 # [life-chapter 2026-09-13] Most users don't know the word "dasha" — they ask
@@ -19395,13 +19433,21 @@ _ASK_ROLE_WORDS = (
 
 def _ask_needs_role_clarify(question: str, thread: list) -> bool:
     q = (question or "").lower()
+    # [role-clarify-scope 2026-09-13] The DEAL context must come from the CURRENT
+    # question, not the thread — otherwise 'deals'/'deal' left in an earlier
+    # answer (e.g. a relationship turn's "the deals you make together") makes a
+    # later comparative like "between finance and law, which has more potential?"
+    # look like a transaction and wrongly ask "what's your role in the deal?".
+    # A career-field comparison is NOT a deal, so never role-clarify it.
+    if _is_career_type_q(question):
+        return False
+    if not any(w in q for w in _ASK_DEAL_WORDS):
+        return False
+    # Role can be known from the current question OR a recent turn.
     thread_text = " ".join(
         (t.get("q", "") + " " + t.get("a", "")) for t in (thread or [])
     ).lower()
-    ctx = q + " " + thread_text
-    if not any(w in ctx for w in _ASK_DEAL_WORDS):
-        return False
-    if any(w in ctx for w in _ASK_ROLE_WORDS):  # role already known
+    if any(w in (q + " " + thread_text) for w in _ASK_ROLE_WORDS):  # role already known
         return False
     comparative = (" or " in f" {q} ") or any(p in q for p in (
         "what role", "which one", "what will it be", "how will it",
@@ -20749,6 +20795,11 @@ async def ask_endpoint(request: AskRequest):
                 # so the deterministic upcoming-dasha block leads (no forced verdict).
                 if _ask_decision and _ask_chapter_block:
                     print("[ask] life-chapter — suppressing decision/timing path")
+                    _ask_decision = False
+                # [advice-q 2026-09-13] An advice / how-to follow-up wants guidance,
+                # not a repeated yes/no verdict — reflective path leads with actions.
+                if _ask_decision and _ask_is_advice_q(question):
+                    print("[ask] advice/how-to — suppressing decision/timing path")
                     _ask_decision = False
                 if _ask_decision:
                     _ask_conv = build_convergence_timing(
