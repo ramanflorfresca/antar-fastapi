@@ -12119,6 +12119,174 @@ async def places_concern_endpoint(req: PlacesConcernReq):
     return _ent_places_concern_view(out, req.chart_id)
 
 
+# [places-overall 2026-09-13] Concern-AGNOSTIC relocation reading — "the best
+# places for my chart, overall" (not tied to one life area). Scores every city
+# across ALL concerns via the same relocation-chart engine, then aggregates:
+# overall = 50% mean of all domains + 50% mean of the top-3, so a city that
+# lifts SEVERAL areas ranks above a one-trick line. Same delta-vs-current-city
+# framing + rich WHY-THIS (dominant domain's reasons + LK relocation findings)
+# as /places/concern, plus a per-domain breakdown + best_for the FE can render.
+_OVERALL_CONCERNS = ["career", "money", "love", "health", "peace", "family", "business"]
+_OVERALL_CONCERN_PLAIN = {
+    "career": "career", "money": "money", "love": "love & relationships",
+    "health": "health", "peace": "peace", "family": "family", "business": "business",
+}
+
+
+def _overall_tier(sc: float) -> str:
+    return ("FLOW" if sc >= _pcn._TIER_FLOW
+            else "MIXED" if sc >= _pcn._TIER_STRAIN else "STRAIN")
+
+
+def _overall_score_for(chart, city, all_lines, conditions):
+    """Score one city across all concerns; return (overall, {concern: scored})."""
+    dscores = {}
+    for cn in _OVERALL_CONCERNS:
+        try:
+            dscores[cn] = _pcn.score_city_for_concern(
+                chart, city, cn, all_lines=all_lines, conditions=conditions)
+        except Exception:
+            dscores[cn] = {"score": 0, "tier": "STRAIN", "_relocation": {},
+                           "city": {"name": city.get("name")}}
+    vals = sorted((d.get("score", 0) for d in dscores.values()), reverse=True)
+    if not vals:
+        return 0, dscores
+    top3 = vals[:3]
+    overall = int(round(0.5 * (sum(vals) / len(vals)) + 0.5 * (sum(top3) / len(top3))))
+    return max(0, min(100, overall)), dscores
+
+
+@app.post("/api/v1/places/overall")
+async def places_overall_endpoint(req: PlacesConcernReq):
+    ckey = ("places_overall", req.chart_id, req.language, req.region_filter or "")
+    cached = _places_cache_get(ckey)
+    if cached is not None:
+        return cached
+
+    rec, chart = _places_load_chart(req.chart_id)
+    if not chart.get("birth_jd"):
+        raise HTTPException(422, "chart missing birth_jd; cannot compute astrocartography")
+
+    all_lines = _pl.compute_all_lines(chart.get("birth_jd"), chart)
+    conditions = _pc.compute_all_conditions(chart)
+    cities = _places_cities()
+
+    pool = [c for c in cities if c.get("rankable", True)]
+    if req.region_filter:
+        rf = req.region_filter.strip().lower()
+        pool = [c for c in pool if rf in (
+            str(c.get("region_group", "")).lower(), str(c.get("region", "")).lower(),
+            str(c.get("country_code", "")).lower(), str(c.get("country", "")).lower())]
+    pool, _, _ = _pcn._apply_population_floor(pool, _pcn.POPULATION_FLOOR, 8)
+    # bound the cost of scoring 7 concerns per city: rank the largest metros only.
+    pool = sorted(pool, key=lambda c: -(c.get("population") or 0))[:180]
+
+    scored_pool = []
+    for c in pool:
+        ov, dsc = _overall_score_for(chart, c, all_lines, conditions)
+        scored_pool.append({"city": c, "overall": ov, "dscores": dsc})
+    scored_pool.sort(key=lambda x: -x["overall"])
+
+    # Baseline: the user's CURRENT city, scored the same way (delta framing).
+    import unicodedata as _ud
+
+    def _norm(_s):
+        _s = _ud.normalize("NFKD", str(_s or "")).encode("ascii", "ignore").decode("ascii")
+        return " ".join(_s.strip().lower().split())
+    _baseline = None
+    _cur = _norm(rec.get("current_city") or "")
+    if _cur:
+        _cands = [c for c in cities if _norm(c.get("name")) == _cur]
+        if not _cands and len(_cur) >= 4:
+            _cands = [c for c in cities if _norm(c.get("name")).startswith(_cur)
+                      or _cur.startswith(_norm(c.get("name")))]
+        if _cands:
+            _bov, _ = _overall_score_for(chart, _cands[0], all_lines, conditions)
+            _baseline = {"city": _cands[0].get("name"), "country": _cands[0].get("country"),
+                         "score": _bov, "tier": _overall_tier(_bov)}
+
+    # De-cluster: at most 2 cities per country, take 8.
+    _MEANINGFUL_GAIN = 3
+    top, _per_cc = [], {}
+    for pcx in scored_pool:
+        cc = pcx["city"].get("country_code") or pcx["city"].get("country")
+        if _per_cc.get(cc, 0) >= 2:
+            continue
+        _per_cc[cc] = _per_cc.get(cc, 0) + 1
+        top.append(pcx)
+        if len(top) >= 8:
+            break
+
+    _p3_age = _pintel.compute_age(rec.get("birth_date"))
+    try:
+        _p3_dctx = _pintel.get_dasha_context(get_dashas_for_chart(req.chart_id), req.language)
+    except Exception:
+        _p3_dctx = None
+
+    ranked = []
+    for _i, pcx in enumerate(top):
+        dom = max(_OVERALL_CONCERNS, key=lambda cn: pcx["dscores"][cn].get("score", 0))
+        s = pcx["dscores"][dom]
+        c = _pcomp.enrich_ranked_city(dom, s, req.language)  # rich fields for the dominant domain
+        c["rank"] = _i + 1
+        c["score"] = pcx["overall"]            # overall score is the headline
+        c["overall_score"] = pcx["overall"]
+        c["tier"] = _overall_tier(pcx["overall"])
+        c["dominant_concern"] = dom
+        if _baseline is not None:
+            c["delta"] = int(round(pcx["overall"] - _baseline["score"]))
+        # per-domain breakdown (sorted best-first) + a plain best_for headline
+        _doms = sorted(_OVERALL_CONCERNS, key=lambda cn: -pcx["dscores"][cn].get("score", 0))
+        c["domains"] = [{
+            "concern": cn, "label": _OVERALL_CONCERN_PLAIN[cn],
+            "score": pcx["dscores"][cn].get("score", 0),
+            "tier": _overall_tier(pcx["dscores"][cn].get("score", 0)),
+        } for cn in _doms]
+        c["best_for"] = [_OVERALL_CONCERN_PLAIN[cn] for cn in _doms
+                         if pcx["dscores"][cn].get("score", 0) >= _pcn._TIER_STRAIN][:3]
+        # WHY THIS — dominant domain's reasons + LK relocation findings (same shape as /concern)
+        try:
+            _reasons = _pcn.compose_city_reasons(
+                chart, s.get("city", {}), dom, _p3_dctx, _p3_age,
+                scored=s, relocation=s.get("_relocation", {}),
+                conditions=conditions, language=req.language)
+            for _r in _reasons:
+                _r["text"] = _places_strip(_r["text"], req.language)
+            c["reasons"] = _reasons
+        except Exception:
+            c["reasons"] = []
+        try:
+            _lk = _plkr.lk_relocation_findings(s.get("_relocation", {}), req.language)
+            for _f in _lk:
+                _f["text"] = _places_strip(_f["text"], req.language)
+            c["lk_relocation_findings"] = _lk
+        except Exception:
+            c["lk_relocation_findings"] = []
+        c["primary_reason"] = _places_strip(c.get("primary_reason"), req.language)
+        ranked.append(c)
+
+    out = {
+        "chart_id": req.chart_id,
+        "concern": "overall",
+        "language": req.language,
+        "user_name": rec.get("first_name") or rec.get("name") or None,
+        "user_age": _p3_age,
+        "generated_at": _places_iso_now(),
+        "baseline": _baseline,
+        "already_well_placed": bool(_baseline) and not any(
+            isinstance(c.get("delta"), int) and c["delta"] >= _MEANINGFUL_GAIN for c in ranked),
+        "better_count": sum(1 for c in ranked
+                            if isinstance(c.get("delta"), int) and c["delta"] >= _MEANINGFUL_GAIN),
+        "meaningful_gain": _MEANINGFUL_GAIN,
+        "headline": ("Your overall relocation reading — where your whole chart, "
+                     "across every area of life, gathers the most support."),
+        "ranked_cities": ranked,
+    }
+    out = _places_scrub_concern_payload(out, req.language)
+    _places_cache_set(ckey, out)
+    return out
+
+
 @app.get("/api/v1/places/lines/{chart_id}")
 async def places_lines_endpoint(chart_id: str, language: str = "en",
                                 concern: Optional[str] = None):
