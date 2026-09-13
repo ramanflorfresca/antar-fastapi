@@ -17617,7 +17617,7 @@ async def get_compatibility_session(session_id: str):
     if not res.data:
         raise HTTPException(404, "Session not found")
     s = res.data[0]
-    return {
+    out = {
         "session_id":    session_id,
         "current_layer": s.get("current_layer", 1),
         "layer1":        s.get("layer1_analysis"),
@@ -17629,6 +17629,67 @@ async def get_compatibility_session(session_id: str):
         "name_a":        s.get("name_a"),
         "name_b":        s.get("name_b"),
     }
+    # [session-rich 2026-09-13] The result screen renders the SAME rich shape as
+    # /compatibility/start (score, badge, headline, summary, layers, catalysts,
+    # watch_points). This GET used to return only the layer text + names, so
+    # reopening a saved connection crashed the People result screen. Recompose the
+    # rich payload from the stored chart_ids (no LLM — layer text is already
+    # stored), including the forward-dasha upgrade. Fail-open to the thin shape so
+    # it can never 500.
+    try:
+        _ca_id, _cb_id = s.get("chart_id_a"), s.get("chart_id_b")
+        if _ca_id and _cb_id:
+            from antar_engine.Compatibility import calculate_compatibility as _calc_compat
+            from antar_engine import compatibility_layers as _CL
+            from antar_engine import compatibility_reasons as _R
+            _reason = _R.normalize_reason(s.get("compat_type"), None,
+                                          default=s.get("compat_type") or "romantic")
+            _ra = supabase.table("charts").select("chart_data,birth_date").eq("id", _ca_id).execute()
+            _rb = supabase.table("charts").select("chart_data,birth_date").eq("id", _cb_id).execute()
+            if _ra.data and _rb.data:
+                _ca = _safe_jsonb(_ra.data[0]["chart_data"])
+                _cb = _safe_jsonb(_rb.data[0]["chart_data"])
+                _da = get_dashas_for_chart(_ca_id)
+                _db = get_dashas_for_chart(_cb_id)
+                _ca["current_dasha"] = _current_dasha_str(_da)
+                _cb["current_dasha"] = _current_dasha_str(_db)
+                _raw = _calc_compat(
+                    chart_a=_ca, chart_b=_cb, name_a=s.get("name_a") or "You",
+                    name_b=s.get("name_b") or "Partner",
+                    birth_date_a=_ra.data[0].get("birth_date", ""),
+                    birth_date_b=_rb.data[0].get("birth_date", ""),
+                    compatibility_type=_reason, language="en",
+                )
+                try:
+                    _fwd = _forward_dasha_support(_ca, _da, _cb, _db, _reason,
+                                                  birth_a=_ra.data[0].get("birth_date", ""),
+                                                  birth_b=_rb.data[0].get("birth_date", ""))
+                    if _fwd.get("available"):
+                        _dt = _raw.get("dasha_timing") or {}
+                        _dt["score"] = _fwd["score"]
+                        _raw["dasha_timing"] = _dt
+                except Exception:
+                    pass
+                _v2 = _CL.compose_compat_v2(_raw, _ca, _cb, _reason, None,
+                                            a_name=s.get("name_a") or "You",
+                                            b_name=s.get("name_b") or "Partner",
+                                            strip_fn=apply_user_facing_strips)
+                out.update({
+                    "score": _v2.get("score"), "badge": _v2.get("badge"),
+                    "headline": _v2.get("headline"), "summary": _v2.get("summary"),
+                    "catalysts": _v2.get("catalysts"), "watch_points": _v2.get("watch_points"),
+                    "layers": _v2.get("layers"),
+                    "score_breakdown": {"overall": _v2.get("score"), "badge": _v2.get("badge"),
+                                        "compat_type": _reason,
+                                        "v2_layers": {l["layer_key"]: l["score"] for l in _v2.get("layers", [])},
+                                        "v2": True},
+                })
+    except Exception as _sre:
+        print(f"[compat][session-rich] recompose non-fatal: {_sre}")
+        # fallback: at least surface the stored score so the card/badge render.
+        if s.get("score") is not None:
+            out["score"] = s.get("score")
+    return out
 
 
 
