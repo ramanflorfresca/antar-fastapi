@@ -12156,8 +12156,15 @@ def _overall_score_for(chart, city, all_lines, conditions):
     return max(0, min(100, overall)), dscores
 
 
+class PlacesOverallReq(BaseModel):
+    chart_id: str
+    language: str = "en"
+    region_filter: Optional[str] = None
+    tz_offset: Optional[int] = None
+
+
 @app.post("/api/v1/places/overall")
-async def places_overall_endpoint(req: PlacesConcernReq):
+async def places_overall_endpoint(req: PlacesOverallReq):
     ckey = ("places_overall", req.chart_id, req.language, req.region_filter or "")
     cached = _places_cache_get(ckey)
     if cached is not None:
