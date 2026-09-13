@@ -19436,17 +19436,24 @@ def _ask_role_concern(question: str, thread: list):
     """Once a deal role is known (this turn or a prior one), map it to the concern
     that reads the right divisional: commission/broker → career (10th/D-10),
     equity/ownership → finance (11th/2nd gains), buying property → property (4th/D-4).
-    Returns a concern string to override with, or None."""
+    Returns a concern string to override with, or None.
+
+    GATED on actual deal context: this only applies inside a transaction/deal
+    thread — otherwise ordinary words leak the wrong concern (live bug: a
+    relationship answer says 'your partner' and 'the deals you make together',
+    which matched the equity 'partner' → forced a love follow-up to finance)."""
     ctx = ((question or "") + " " + " ".join(
         (t.get("q", "") + " " + t.get("a", "")) for t in (thread or [])
     )).lower()
-    if any(w in ctx for w in ("commission", "broker", "agent", "finder",
+    if not any(w in ctx for w in _ASK_DEAL_WORDS):
+        return None
+    if any(w in ctx for w in ("commission", "broker", "finder",
                               "corredor", "agente", "comisión")):
         return "career"
-    if any(w in ctx for w in ("equity", "stake", "ownership", "owner", "partner",
-                              "shares", "co-own", "participación", "socio")):
+    if any(w in ctx for w in ("equity", "stake", "shares", "co-own",
+                              "participación", "socio")):
         return "finance"
-    if any(w in ctx for w in ("buy", "buying", "purchase", "purchasing",
+    if any(w in ctx for w in ("buy it myself", "buying it myself", "purchase it",
                               "for myself", "my own money", "comprar", "compro")):
         return "property"
     return None
