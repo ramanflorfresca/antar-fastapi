@@ -19703,6 +19703,48 @@ def _ask_failclosed_body(concern, layers, positive, how="") -> str:
     return "The ground is still being laid — build now, act when the timing firms up."
 
 
+def _ask_career_fields_body(chart_data, first_name="", language="en") -> str:
+    """[career-fallback 2026-09-13] Deterministic, jargon-free career-TYPE answer
+    built straight from the D-10 ranked fields. This is the fail-closed body for
+    an aptitude question ('what work suits me / where's my potential') so a
+    validator rejection NEVER collapses it to the contentless generic 'the timing
+    supports your work' line — the FIELDS are the answer, and they're plain
+    English already. "" on any failure (caller then keeps its generic body)."""
+    try:
+        from antar_engine.d10_career import analyze_career
+        car = analyze_career(chart_data or {})
+        if not car.get("available") or not car.get("careers"):
+            return ""
+        fields = [c["field"] for c in car["careers"][:3] if c.get("field")]
+        if not fields:
+            return ""
+        _es = (language or "en").lower().startswith("es")
+        nm = (first_name or "").strip()
+        lead = (car.get("leadership_level") or "")
+        if len(fields) >= 3:
+            flist = f"{fields[0]}, {fields[1]}, and {fields[2]}" if not _es \
+                    else f"{fields[0]}, {fields[1]} y {fields[2]}"
+        elif len(fields) == 2:
+            flist = f"{fields[0]} and {fields[1]}" if not _es else f"{fields[0]} y {fields[1]}"
+        else:
+            flist = fields[0]
+        if _es:
+            body = (f"{(nm + ', ') if nm else ''}tus áreas más fuertes son {flist} — "
+                    "es donde tu forma de pensar y tu reputación construyen algo real.")
+            body += (" Estás hecho para liderar, no solo ejecutar — busca el rol donde seas la autoridad visible."
+                     if "executive" in lead or "leader" in lead else
+                     " Tu ventaja está en la profundidad y el dominio del oficio — sé el experto al que acuden.")
+        else:
+            body = (f"{(nm + ', ') if nm else ''}your strongest fields are {flist} — "
+                    "this is where your mind and your reputation build something real.")
+            body += (" You're built to lead, not just execute — aim for the role where you're the visible authority."
+                     if "executive" in lead or "leader" in lead else
+                     " Your edge is depth and craft — be the expert people come to.")
+        return body
+    except Exception:
+        return ""
+
+
 # [two-window 2026-08-13] Month-level labels ("Aug 2026 – Oct 2026", "Jun 2027")
 # → (year, month) tokens, so we can tell whether a convergence window is a
 # genuinely LATER stretch than the active one (and thus worth naming as a second
@@ -21139,7 +21181,16 @@ async def ask_endpoint(request: AskRequest):
                         # FAIL CLOSED: verdict + window + a clean action only.
                         print("[ask][voice-gate] fail-closed (verdict+window+move)")
                         _fc = []
-                        if _ask_decision and _ask_conv:
+                        # [career-fallback 2026-09-13] For a career-TYPE / aptitude
+                        # question, the FIELDS are the answer — fall closed to the
+                        # deterministic D-10 fields line, never the contentless
+                        # generic 'timing supports your work'.
+                        _cf_body = (_ask_career_fields_body(
+                            locals().get("chart_data"), _ask_first_name, "en")
+                            if _is_career_type_q(question) else "")
+                        if _cf_body:
+                            _fc.append(_cf_body)
+                        if not _cf_body and _ask_decision and _ask_conv:
                             _vp = (_ask_conv.get("verdict_phrase") or "").strip()
                             if _vp:
                                 _fc.append(_vp if _vp.endswith((".", "!", "?")) else _vp + ".")
@@ -21322,17 +21373,29 @@ async def ask_endpoint(request: AskRequest):
                         _vp2 = (_ask_conv.get("verdict_phrase") or "").strip()
                         if _vp2:
                             _fc2.append(_vp2 if _vp2.endswith((".", "!", "?")) else _vp2 + ".")
-                    # [narration 2026-08-12] same deterministic body as the first
-                    # fail-closed — this post-readability fallback is the OTHER path
-                    # that used to strip the read down to a generic one-liner.
-                    _fc2_body = _ask_failclosed_body(
-                        locals().get("_ask_concern"),
-                        (locals().get("_ev") or {}).get("layers_agreeing"),
-                        (_vp2.strip().lower().startswith(("yes", "likely")) if _vp2
-                         else str(payload.get("verdict") or "").upper() in ("YES", "LIKELY", "")),
-                        how=_ask_wealth_how_phrase(locals().get("_ask_concern"),
-                                                   locals().get("chart_data")),
-                    )
+                    # [career-fallback 2026-09-13] Career-TYPE / aptitude question:
+                    # fall closed to the deterministic D-10 FIELDS line, not the
+                    # contentless generic body. This is THE path that was nuking a
+                    # rejected reflective fields answer down to "the timing supports
+                    # your work" — the exact "generic instead of specific" bug.
+                    _cf2_body = (_ask_career_fields_body(
+                        locals().get("chart_data"),
+                        locals().get("_ask_first_name", ""), "en")
+                        if _is_career_type_q(question) else "")
+                    if _cf2_body:
+                        _fc2_body = _cf2_body
+                    else:
+                        # [narration 2026-08-12] same deterministic body as the first
+                        # fail-closed — this post-readability fallback is the OTHER path
+                        # that used to strip the read down to a generic one-liner.
+                        _fc2_body = _ask_failclosed_body(
+                            locals().get("_ask_concern"),
+                            (locals().get("_ev") or {}).get("layers_agreeing"),
+                            (_vp2.strip().lower().startswith(("yes", "likely")) if _vp2
+                             else str(payload.get("verdict") or "").upper() in ("YES", "LIKELY", "")),
+                            how=_ask_wealth_how_phrase(locals().get("_ask_concern"),
+                                                       locals().get("chart_data")),
+                        )
                     if _fc2_body:
                         _fc2.append(_fc2_body)
                     _tm2 = str(payload.get("timing") or "").strip()
