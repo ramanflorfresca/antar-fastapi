@@ -12756,8 +12756,14 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
             (_POT_DASHA_STRONG[lang] if _strong else _POT_DASHA_WEAK[lang]).format(lord=_md))
     if concern != "overall":
         try:
-            reading["promise"] = _places_strip(
-                _pintel.build_chart_intelligence(chart, concern, conditions, lang), lang)
+            _ci = _pintel.build_chart_intelligence(chart, concern, conditions, lang)
+            _pnote = None
+            if isinstance(_ci, dict):
+                _pnote = ((_ci.get("strongest_for_concern") or {}).get("note"))
+                _wnote = ((_ci.get("weakest_for_concern") or {}).get("note"))
+                if _wnote:
+                    _pnote = (f"{_pnote} {_wnote}" if _pnote else _wnote)
+            reading["promise"] = _places_strip(_pnote, lang) if _pnote else None
         except Exception:
             reading["promise"] = None
 
