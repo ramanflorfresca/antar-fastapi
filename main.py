@@ -12825,6 +12825,12 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
         else:
             region_picks = [(concern, s, None, None) for s in _curate(global_scored, _cc, limit)]
 
+    # The city you already live in is the home anchor, not a "move" — drop it from
+    # the recommendations so it never appears twice.
+    if _hc:
+        _hn = _norm(_hc.get("name"))
+        region_picks = [t for t in region_picks
+                        if _norm((t[1].get("city") or {}).get("name")) != _hn]
     # Home-country first (New Jersey → West Coast beats a "perfect" Colombo you'll
     # never move to): a realistic, nearby move leads. Stable — keeps score order
     # within each group.
