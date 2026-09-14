@@ -12470,26 +12470,33 @@ def _pot_fit(score) -> str:
     return "weak"
 
 
-def _pot_why_notes(city_card: dict):
-    """ONE plain WHY sentence + up to 3 supporting notes, drawn from the
-    relocation findings first (supportive ones lead), then the composed reasons.
-    Only ever returns strings — never the finding objects (guards React #31)."""
+def _pot_why_notes(city_card: dict, used: set):
+    """ONE plain WHY sentence + up to 3 supporting notes explaining why the place
+    HELPS. We only ever surface SUPPORTIVE signals: the concern's positive
+    house/karaka driver (primary_reason) leads, then supportive relocation
+    findings, then the composed positive reasons. Cautionary / non-supportive
+    relocation findings are NEVER shown here (they'd contradict a recommendation).
+    `used` carries WHY sentences already shown on earlier cities so the list
+    reads distinctly instead of repeating the same line. Returns strings only."""
     texts = []
-    findings = city_card.get("lk_relocation_findings") or []
-    supportive = [f for f in findings if isinstance(f, dict) and f.get("polarity") == "supportive"]
-    rest = [f for f in findings if f not in supportive]
-    for f in supportive + rest:
-        t = ((f.get("text") if isinstance(f, dict) else str(f)) or "").strip()
-        if t and t not in texts:
-            texts.append(t)
     pr = city_card.get("primary_reason")
-    if isinstance(pr, str) and pr.strip() and pr.strip() not in texts:
+    if isinstance(pr, str) and pr.strip():
         texts.append(pr.strip())
+    for f in (city_card.get("lk_relocation_findings") or []):
+        if isinstance(f, dict) and f.get("polarity") == "supportive":
+            t = (f.get("text") or "").strip()
+            if t and t not in texts:
+                texts.append(t)
     for r in (city_card.get("reasons") or []):
         t = ((r.get("text") if isinstance(r, dict) else str(r)) or "").strip()
         if t and t not in texts:
             texts.append(t)
-    return (texts[0] if texts else ""), texts[1:4]
+    if not texts:
+        return "", []
+    # Prefer a WHY not already used on an earlier card, for cross-city variety.
+    why = next((t for t in texts if t not in used), texts[0])
+    notes = [t for t in texts if t != why][:3]
+    return why, notes
 
 
 class PlacesPotentialReq(BaseModel):
@@ -12610,6 +12617,7 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
             picks.append((concern, s, None, None))
 
     places = []
+    _used_why = set()
     for dom, s, ov, best_for in picks:
         card = _pcomp.enrich_ranked_city(dom, s, lang)
         try:
@@ -12628,9 +12636,10 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
         except Exception:
             card["reasons"] = []
         card["primary_reason"] = _places_strip(card.get("primary_reason"), lang)
-        why, notes = _pot_why_notes(card)
+        why, notes = _pot_why_notes(card, _used_why)
         if not why:
             why = _POT_WHY_FALLBACK[lang].format(label=label)
+        _used_why.add(why)
         cy = s.get("city") or {}
         entry = {
             "city": cy.get("name"),
