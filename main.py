@@ -12474,21 +12474,59 @@ _POT_FRAMING = {
     "pt": "Uma mudança altera quais áreas da vida ganham ênfase — não substitui os "
           "temas do seu capítulo atual. Você leva seu dasha com você.",
 }
-_POT_DASHA_STRONG = {
-    "en": "You're in a {lord} chapter, and {lord} sits strong in your chart — this "
-          "period can deliver what it promises, and the right place amplifies it.",
-    "es": "Estás en un capítulo de {lord}, y {lord} está fuerte en tu carta — este "
-          "periodo puede cumplir lo que promete, y el lugar correcto lo amplifica.",
-    "pt": "Você está num capítulo de {lord}, e {lord} está forte no seu mapa — este "
-          "período pode cumprir o que promete, e o lugar certo o amplifica.",
+# [places-reading] Each dasha chapter carries the NATURE of its lord, not a
+# generic good/bad axis. Rahu especially = worldly/material ambition, the
+# unconventional and technological, and FOREIGN LANDS / relocation — a Rahu
+# chapter is the most move-activated period there is. Nature line + a condition
+# modifier (strong amplifies / strained: aim it deliberately).
+_POT_DASHA_NATURE = {
+    "en": {
+        "Sun": "You're in a Sun chapter — a time that rewards stepping into authority, visibility and leadership.",
+        "Moon": "You're in a Moon chapter — a time that turns on your emotional life, home, and how the public receives you.",
+        "Mars": "You're in a Mars chapter — a time of drive, courage and decisive action, well-suited to competing and building.",
+        "Mercury": "You're in a Mercury chapter — a time that rewards intellect, communication, commerce and skill.",
+        "Jupiter": "You're in a Jupiter chapter — a time of growth, opportunity and widening horizons, favourable for learning and expansion.",
+        "Venus": "You're in a Venus chapter — a time that turns on love, relationships, beauty and the good things of life.",
+        "Saturn": "You're in a Saturn chapter — a time that rewards discipline and patience, building lasting structure through steady effort.",
+        "Rahu": "You're in a Rahu chapter — a time of bold, worldly ambition and unconventional rise; foreign lands, new frontiers and reinvention far from where you started are strongly lit.",
+        "Ketu": "You're in a Ketu chapter — a time that pulls inward, toward depth, detachment and letting go of what you've outgrown.",
+    },
+    "es": {
+        "Sun": "Estás en un capítulo de Sun — un tiempo que premia asumir autoridad, visibilidad y liderazgo.",
+        "Moon": "Estás en un capítulo de Moon — un tiempo que activa tu vida emocional, tu hogar y cómo te recibe el público.",
+        "Mars": "Estás en un capítulo de Mars — un tiempo de empuje, coraje y acción decidida, ideal para competir y construir.",
+        "Mercury": "Estás en un capítulo de Mercury — un tiempo que premia el intelecto, la comunicación, el comercio y la destreza.",
+        "Jupiter": "Estás en un capítulo de Jupiter — un tiempo de crecimiento, oportunidad y horizontes más amplios, favorable para aprender y expandirte.",
+        "Venus": "Estás en un capítulo de Venus — un tiempo que activa el amor, las relaciones, la belleza y los placeres de la vida.",
+        "Saturn": "Estás en un capítulo de Saturn — un tiempo que premia la disciplina y la paciencia, construyendo estructuras duraderas con esfuerzo constante.",
+        "Rahu": "Estás en un capítulo de Rahu — un tiempo de ambición mundana y ascenso poco convencional; las tierras extranjeras, las nuevas fronteras y la reinvención lejos de tu origen están muy activadas.",
+        "Ketu": "Estás en un capítulo de Ketu — un tiempo que lleva hacia adentro, hacia la profundidad, el desapego y soltar lo que ya superaste.",
+    },
+    "pt": {
+        "Sun": "Você está num capítulo de Sun — um tempo que recompensa assumir autoridade, visibilidade e liderança.",
+        "Moon": "Você está num capítulo de Moon — um tempo que ativa sua vida emocional, seu lar e como o público o recebe.",
+        "Mars": "Você está num capítulo de Mars — um tempo de impulso, coragem e ação decidida, ideal para competir e construir.",
+        "Mercury": "Você está num capítulo de Mercury — um tempo que recompensa o intelecto, a comunicação, o comércio e a habilidade.",
+        "Jupiter": "Você está num capítulo de Jupiter — um tempo de crescimento, oportunidade e horizontes mais amplos, favorável para aprender e expandir.",
+        "Venus": "Você está num capítulo de Venus — um tempo que ativa o amor, os relacionamentos, a beleza e os prazeres da vida.",
+        "Saturn": "Você está num capítulo de Saturn — um tempo que recompensa a disciplina e a paciência, construindo estruturas duradouras com esforço constante.",
+        "Rahu": "Você está num capítulo de Rahu — um tempo de ambição mundana e ascensão não convencional; terras estrangeiras, novas fronteiras e reinvenção longe da sua origem estão muito ativadas.",
+        "Ketu": "Você está num capítulo de Ketu — um tempo que puxa para dentro, para a profundidade, o desapego e soltar o que você já superou.",
+    },
 }
-_POT_DASHA_WEAK = {
-    "en": "You're in a {lord} chapter, but {lord} is under some strain in your chart "
-          "— this period asks more patience, and a place that steadies {lord} helps most.",
-    "es": "Estás en un capítulo de {lord}, pero {lord} está algo tensionado en tu carta "
-          "— este periodo pide más paciencia, y un lugar que asiente a {lord} es el que más ayuda.",
-    "pt": "Você está num capítulo de {lord}, mas {lord} está sob alguma tensão no seu mapa "
-          "— este período pede mais paciência, e um lugar que estabiliza {lord} ajuda mais.",
+_POT_DASHA_COND = {
+    "en": {
+        "strong": " {lord} sits strong in your chart, so this lands with real force — a place that amplifies it multiplies the chapter.",
+        "strained": " {lord} carries some tension in your chart, so aim it deliberately — a place that steadies it lets it build rather than scatter.",
+    },
+    "es": {
+        "strong": " {lord} está fuerte en tu carta, así que esto llega con fuerza real — un lugar que lo amplifica multiplica el capítulo.",
+        "strained": " {lord} lleva algo de tensión en tu carta, así que dirígelo con intención — un lugar que lo asienta permite que se construya en vez de dispersarse.",
+    },
+    "pt": {
+        "strong": " {lord} está forte no seu mapa, então isso chega com força real — um lugar que o amplifica multiplica o capítulo.",
+        "strained": " {lord} carrega alguma tensão no seu mapa, então direcione-o com intenção — um lugar que o estabiliza permite que ele se construa em vez de se dispersar.",
+    },
 }
 
 
@@ -12752,8 +12790,9 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
         _mc = conditions.get(_md) or {}
         _strong = (_mc.get("weight", 0.9) >= 1.0) and _mc.get("polarity") != "friction"
         reading["dasha_lord"] = _md
-        reading["dasha_note"] = (
-            (_POT_DASHA_STRONG[lang] if _strong else _POT_DASHA_WEAK[lang]).format(lord=_md))
+        _nat = _POT_DASHA_NATURE[lang].get(_md, "")
+        _cond = _POT_DASHA_COND[lang]["strong" if _strong else "strained"].format(lord=_md)
+        reading["dasha_note"] = (f"{_nat}{_cond}" if _nat else _cond.strip())
     if concern != "overall":
         try:
             _ci = _pintel.build_chart_intelligence(chart, concern, conditions, lang)
