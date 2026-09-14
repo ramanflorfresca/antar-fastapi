@@ -26292,27 +26292,40 @@ async def get_focus(chart_id: str, language: str = "en"):
     _vmd, _vad, _vnext = _vim_md_ad_next(dashas)
     _vpd = _vim_pd(dashas)   # short current cycle → gives the focus a real cadence
     focus_energy, focus_action = "", ""
-    try:
-        from antar_engine.practice_engine import generate_practice_schedule
-        _sched = generate_practice_schedule(
-            chart_data=cd, jaimini_data=row.get("jaimini_data") or {},
-            lal_kitab_data=row.get("lal_kitab_data") or {},
-            current_country=row.get("current_country") or "US",
-            birth_date=str(row.get("birth_date") or ""),
-            vimsottari_md=_vmd, vimsottari_ad=_vad, next_md=_vnext, vimsottari_pd=_vpd)
-        _pp = (_sched or {}).get("primary_practice") or {}
-        focus_energy = _pp.get("energy_label") or ""
-        focus_action = _pp.get("what") or ""
-        # [focus-vary 2026-09-14] Rotate the one small act so a stable focus doesn't
-        # read verbatim-identical every visit. Keyed to the focus planet + ISO week
-        # → evergreen (no false "this week"), changes weekly, deterministic.
-        _fp = str(_pp.get("practice_id") or "").split("_")[0].capitalize()
-        _acts = _FOCUS_ACTS.get(_fp)
+    # [focus-in-play 2026-09-14] "What's in play now" is the energy of the RUNNING
+    # chapter — the vimsottari mahadasha (refined by the current sub-period) — NOT
+    # the remedial priority. The old code reused the practice engine's remedial
+    # pick, which surfaces the WEAKEST / sleeping planet to fix (a different
+    # question), so a user newly in a Rahu mahadasha saw "Harmony & Connection"
+    # (a sleeping Venus + Jaimini chara lord) as "what's in play." Lead with the
+    # actual chapter (Rahu → "Amplification & Ambition"), and give it a fitting,
+    # weekly-rotating small act. The remedial practice lives on the Practice tab.
+    from datetime import date as _fw
+    _inplay = (_vmd or {}).get("planet_or_sign") or (_vad or {}).get("planet_or_sign")
+    from antar_engine.practice_engine import PLANET_ENERGY as _PE
+    if _inplay in _PE:
+        focus_energy = _PE[_inplay]["label"]
+        _acts = _FOCUS_ACTS.get(_inplay) or []
         if _acts:
-            from datetime import date as _fw
             focus_action = _acts[_fw.today().isocalendar()[1] % len(_acts)]
-    except Exception as _fe:
-        logger.warning(f"[focus] schedule skipped (non-fatal): {_fe}")
+    if not focus_energy:
+        # Fallback (no running-dasha data): the remedial schedule pick.
+        try:
+            from antar_engine.practice_engine import generate_practice_schedule
+            _sched = generate_practice_schedule(
+                chart_data=cd, jaimini_data=row.get("jaimini_data") or {},
+                lal_kitab_data=row.get("lal_kitab_data") or {},
+                current_country=row.get("current_country") or "US",
+                birth_date=str(row.get("birth_date") or ""),
+                vimsottari_md=_vmd, vimsottari_ad=_vad, next_md=_vnext, vimsottari_pd=_vpd)
+            _pp = (_sched or {}).get("primary_practice") or {}
+            focus_energy = _pp.get("energy_label") or ""
+            _fp = str(_pp.get("practice_id") or "").split("_")[0].capitalize()
+            _acts = _FOCUS_ACTS.get(_fp)
+            focus_action = (_acts[_fw.today().isocalendar()[1] % len(_acts)]
+                            if _acts else _pp.get("what") or "")
+        except Exception as _fe:
+            logger.warning(f"[focus] schedule fallback skipped (non-fatal): {_fe}")
     be_ready = _nearest_life_window(cd, dashas, row.get("birth_date"), row.get("gender"))
 
     # [honest gamification 2026-07-31] Anushthana: the practice streak reframed as
