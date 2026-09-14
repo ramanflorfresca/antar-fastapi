@@ -3490,12 +3490,13 @@ def _chart_identity_for(chart_id: str, language: str = "en") -> dict:
         print(f"[chart-identity] dasha load failed (non-fatal): {_de}")
         _vim = []
     from antar_engine.chart_identity import build_chart_identity
-    out = build_chart_identity(cd, _vim, name=_name)
+    out = build_chart_identity(cd, _vim, name=_name, language=language)
     out["chart_id"] = chart_id
     return out
 
 
 @app.get("/api/v1/me/chart-identity")
+@translate_response(fields_to_translate=["effect"], endpoint_name="chart-identity")
 async def get_my_chart_identity(authorization: Optional[str] = Header(None),
                                 language: str = "en"):
     """The signed-in user's primary chart identity — powers the profile card."""
@@ -3519,6 +3520,7 @@ async def get_my_chart_identity(authorization: Optional[str] = Header(None),
 
 
 @app.get("/api/v1/chart/{chart_id}/identity")
+@translate_response(fields_to_translate=["effect"], endpoint_name="chart-identity")
 async def get_chart_identity(chart_id: str, language: str = "en"):
     """Chart identity by id — same payload, for any chart the caller can name."""
     try:
