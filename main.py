@@ -3359,6 +3359,108 @@ async def get_chart_signature(chart_id: str, language: str = "en", authorization
         return {"error": str(e)}
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# CHART OVERVIEW — the "full chart page": overall strengths + areas to mind.
+# [chart-overview 2026-09-13] The FE chart page wants a jargon-free LIST of
+# strengths and areas to mind, not just the single archetype strength/blind_spot.
+# Aggregate the natal yogas (detect_all_yogas) into plain-language lines via a
+# curated map (no house/Sanskrit jargon leaks to the user), led by the archetype.
+# ─────────────────────────────────────────────────────────────────────────────
+_OVERVIEW_YOGA_PLAIN = {
+    # strengths
+    "Ruchaka": "A warrior's drive is built in — courage, discipline, and the will to lead from the front.",
+    "Bhadra": "A sharp, versatile mind — you learn fast, communicate clearly, and turn ideas into deals.",
+    "Hamsa": "Natural wisdom and sound judgment — people trust your counsel and your sense of what's right.",
+    "Malavya": "A gift for beauty, comfort, and relationships — charm and taste open doors for you.",
+    "Sasa": "Deep endurance and authority — you build slowly, but what you build lasts and earns respect.",
+    "Raj Yoga": "A natural authority combination — leadership and recognition are wired into your chart.",
+    "Dhana Yoga": "A wealth combination — money tends to build through your own judgment and effort.",
+    "Lakshmi": "A fortune combination — grace, prosperity, and support tend to find you.",
+    "Gajakesari": "Wisdom paired with emotional steadiness — you stay clear-headed when it counts.",
+    "Budhaditya": "Intelligence and visibility together — your thinking gets noticed.",
+    "Amala": "A clean reputation — your good name and standing are a lasting asset.",
+    "Chandra-Mangala": "Drive plus instinct for money — you act on financial opportunity decisively.",
+    # areas to mind
+    "Kemadruma": "Emotional support can feel thin at times — build a steady inner base and a close circle you lean on.",
+    "Grahan": "Intense inner themes around identity and control — watch for ego-driven decisions made under pressure.",
+    "Guru-Chandala": "Question inherited beliefs — your growth comes from thinking for yourself, not from blind trust.",
+}
+_OVERVIEW_NEG = {"Kemadruma", "Grahan", "Guru-Chandala"}
+
+
+@app.get("/api/v1/chart/{chart_id}/overview")
+@translate_response(
+    fields_to_translate=["tagline", "description", "strength", "blind_spot",
+                         "strengths", "areas_to_mind", "headline"],
+    endpoint_name="chart-overview",
+)
+async def get_chart_overview(chart_id: str, language: str = "en"):
+    """Full chart page: character archetype + a plain-language list of overall
+    strengths and areas to mind. Jargon-free; localized es/pt/fr via decorator."""
+    try:
+        row = supabase.table("charts").select(
+            "planet_signatures,character_archetype,chart_data,first_name,name"
+        ).eq("id", chart_id).single().execute()
+        if not row.data:
+            raise HTTPException(404, "Chart not found")
+        chart_data = row.data.get("chart_data") or {}
+        if isinstance(chart_data, str):
+            try:
+                chart_data = json.loads(chart_data)
+            except Exception:
+                chart_data = {}
+        arch = row.data.get("character_archetype")
+        if not arch:
+            try:
+                arch = derive_archetype(compute_natal_signatures(chart_data))
+            except Exception:
+                arch = {}
+        arch = arch or {}
+
+        strengths, areas = [], []
+        # Lead each list with the archetype's own read.
+        if arch.get("strength"):
+            strengths.append(arch["strength"])
+        if arch.get("blind_spot"):
+            areas.append(arch["blind_spot"])
+
+        try:
+            from antar_engine.yogas import detect_all_yogas
+            _yogas = detect_all_yogas(
+                chart_data.get("planets") or {},
+                (chart_data.get("lagna") or {}).get("sign"))
+        except Exception as _ye:
+            print(f"[chart-overview] yogas non-fatal: {_ye}")
+            _yogas = []
+        _seen = set()
+        for y in _yogas:
+            nm = (y.get("name") or "")
+            base = next((k for k in _OVERVIEW_YOGA_PLAIN if nm.startswith(k)), None)
+            if not base or base in _seen:
+                continue
+            _seen.add(base)
+            line = _OVERVIEW_YOGA_PLAIN[base]
+            (areas if base in _OVERVIEW_NEG else strengths).append(line)
+
+        return {
+            "chart_id": chart_id,
+            "first_name": row.data.get("first_name") or row.data.get("name", ""),
+            "headline": "Your chart at a glance — what it gives you, and what to mind.",
+            "archetype": {
+                "name": arch.get("name"),
+                "tagline": arch.get("tagline"),
+                "description": arch.get("description"),
+                "strength": arch.get("strength"),
+                "blind_spot": arch.get("blind_spot"),
+            },
+            "strengths": strengths[:6],
+            "areas_to_mind": areas[:4],
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[chart-overview] Error for {chart_id}: {e}")
+        return {"error": str(e)}
 
 
 # ─────────────────────────────────────────────────────────────────────────────
