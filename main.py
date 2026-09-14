@@ -12465,6 +12465,31 @@ _POT_BIGGER_LABEL = {
     "pt": "Seu lugar mais forte em qualquer lugar — uma mudança maior",
 }
 _POT_BIGGER_GAIN = 5   # a global standout must beat the best regional pick by this much
+# [places-reading] the honest bottom line — a move shifts emphasis, not your dasha.
+_POT_FRAMING = {
+    "en": "A move shifts which areas of life feel emphasized — it doesn't replace "
+          "the themes of your current chapter. You carry your dasha with you.",
+    "es": "Una mudanza cambia qué áreas de la vida se sienten con más fuerza — no "
+          "reemplaza los temas de tu capítulo actual. Tu dasha te acompaña.",
+    "pt": "Uma mudança altera quais áreas da vida ganham ênfase — não substitui os "
+          "temas do seu capítulo atual. Você leva seu dasha com você.",
+}
+_POT_DASHA_STRONG = {
+    "en": "You're in a {lord} chapter, and {lord} sits strong in your chart — this "
+          "period can deliver what it promises, and the right place amplifies it.",
+    "es": "Estás en un capítulo de {lord}, y {lord} está fuerte en tu carta — este "
+          "periodo puede cumplir lo que promete, y el lugar correcto lo amplifica.",
+    "pt": "Você está num capítulo de {lord}, e {lord} está forte no seu mapa — este "
+          "período pode cumprir o que promete, e o lugar certo o amplifica.",
+}
+_POT_DASHA_WEAK = {
+    "en": "You're in a {lord} chapter, but {lord} is under some strain in your chart "
+          "— this period asks more patience, and a place that steadies {lord} helps most.",
+    "es": "Estás en un capítulo de {lord}, pero {lord} está algo tensionado en tu carta "
+          "— este periodo pide más paciencia, y un lugar que asiente a {lord} es el que más ayuda.",
+    "pt": "Você está num capítulo de {lord}, mas {lord} está sob alguma tensão no seu mapa "
+          "— este período pede mais paciência, e um lugar que estabiliza {lord} ajuda mais.",
+}
 
 
 def _pot_lang(language: str) -> str:
@@ -12598,13 +12623,14 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
             card["reasons"] = []
         card["primary_reason"] = _places_strip(card.get("primary_reason"), lang)
         why, notes = _pot_why_notes(card, _used_why)
+        thin = not why                     # no genuinely supportive signal for this place
         if not why:
             why = _POT_WHY_FALLBACK[lang].format(label=label)
         _used_why.add(why)
         cy = s.get("city") or {}
         entry = {"city": cy.get("name"), "country": cy.get("country"),
                  "fit": _pot_fit(ov if ov is not None else s.get("score")),
-                 "why": why, "notes": notes}
+                 "why": why, "notes": notes, "_thin": thin}
         if best_for:
             entry["best_for"] = best_for
         return entry
@@ -12701,8 +12727,39 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
         else:
             region_picks = [(concern, s, None, None) for s in _curate(global_scored, _cc, limit)]
 
-    places = [_shape_entry(*t) for t in region_picks]
+    _shaped = [_shape_entry(*t) for t in region_picks]
+    # Don't pad the list with "neutral ground" places: drop picks that found no
+    # genuinely supportive signal, but only while ≥2 real ones remain (when the
+    # whole region is thin, showing the honest best-of-a-quiet-region beats empty).
+    _real = [p for p in _shaped if not p.get("_thin")]
+    _kept = _real if len(_real) >= 2 else _shaped
+    places = []
+    for p in _kept:
+        p.pop("_thin", None)
+        places.append(p)
     bigger_move = _shape_entry(*bigger) if bigger else None
+    if bigger_move:
+        bigger_move.pop("_thin", None)
+
+    # ── Reading header: promise → dasha condition → honest framing ────────────
+    # [places-reading 2026-09-14] Owner's Vedic method: before WHERE, say whether
+    # the chart PROMISES this, whether the running DASHA supports acting now, and
+    # the bottom line — you can't outrun your dasha by moving; a place only shifts
+    # which areas feel emphasized.
+    _md = _dctx.get("md_lord") if _dctx else None
+    reading = {"framing": _POT_FRAMING[lang]}
+    if _md:
+        _mc = conditions.get(_md) or {}
+        _strong = (_mc.get("weight", 0.9) >= 1.0) and _mc.get("polarity") != "friction"
+        reading["dasha_lord"] = _md
+        reading["dasha_note"] = (
+            (_POT_DASHA_STRONG[lang] if _strong else _POT_DASHA_WEAK[lang]).format(lord=_md))
+    if concern != "overall":
+        try:
+            reading["promise"] = _places_strip(
+                _pintel.build_chart_intelligence(chart, concern, conditions, lang), lang)
+        except Exception:
+            reading["promise"] = None
 
     _clabel = _POT_LABEL[lang][concern]
     out = {
@@ -12713,6 +12770,7 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
         "user_name": rec.get("first_name") or rec.get("name") or None,
         "intro": (_POT_INTRO_OVERALL[lang] if concern == "overall"
                   else _POT_INTRO[lang].format(label=label)),
+        "reading": reading,
         "current_city": home,
         "home_region": home_region,
         "within_label": _POT_WITHIN_LABEL[lang],
