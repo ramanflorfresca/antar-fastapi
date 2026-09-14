@@ -26149,8 +26149,16 @@ def _vim_md_ad_next(dashas):
     vim = (dashas or {}).get("vimsottari") if isinstance(dashas, dict) else (dashas or [])
     vim = vim or []
     def _lvl(r, n):
-        return str(r.get("level")) == str(n) or str(r.get("type", "")).lower() in (
-            ("mahadasha", "maha", "md") if n == 1 else ("antardasha", "ad", "bhukti"))
+        # [focus-dasha-fix 2026-09-14] get_dashas_for_chart folds the DB `type`
+        # ("mahadasha") into the `level` key, so a row's level can be the STRING
+        # "mahadasha" rather than the int 1. The old check only compared level to
+        # the number, so it matched nothing → MD/AD came back empty → the Today
+        # "what's in play" focus ignored the actual dasha and froze on a natal
+        # karaka. Match the number OR the level-name (in either `level` or `type`).
+        lv = str(r.get("level", "")).lower()
+        ty = str(r.get("type", "")).lower()
+        names = ("mahadasha", "maha", "md") if n == 1 else ("antardasha", "ad", "bhukti")
+        return lv == str(n) or lv in names or ty in names
     def _pl(r):
         return r.get("planet_or_sign") or r.get("lord_or_sign") or r.get("lord") or ""
     def _mk(r):
@@ -26166,6 +26174,26 @@ def _vim_md_ad_next(dashas):
     md, ad = _cur(mds), _cur(ads)
     nxt = next(({**_mk(r)} for r in mds if str(r.get("start_date", ""))[:10] > today), {})
     return md, ad, nxt
+
+
+def _vim_pd(dashas):
+    """Current pratyantardasha ({planet_or_sign,start_date,end_date}) — the short
+    sub-sub-cycle that turns over every few weeks/months, giving the Today focus a
+    real, human-scale cadence instead of freezing for the whole mahadasha."""
+    from datetime import date as _d
+    today = _d.today().isoformat()
+    vim = (dashas or {}).get("vimsottari") if isinstance(dashas, dict) else (dashas or [])
+    def _is_pd(r):
+        lv = str(r.get("level", "")).lower()
+        ty = str(r.get("type", "")).lower()
+        return lv == "3" or "pratyantar" in lv or "pratyantar" in ty
+    def _pl(r):
+        return r.get("planet_or_sign") or r.get("lord_or_sign") or r.get("lord") or ""
+    for r in (vim or []):
+        if _is_pd(r) and str(r.get("start_date", ""))[:10] <= today <= str(r.get("end_date", ""))[:10]:
+            return {"planet_or_sign": _pl(r), "start_date": str(r.get("start_date", ""))[:10],
+                    "end_date": str(r.get("end_date", ""))[:10]}
+    return {}
 
 
 def _nearest_life_window(chart_data, dashas, birth_date, gender=None):
@@ -26211,6 +26239,40 @@ def _nearest_life_window(chart_data, dashas, birth_date, gender=None):
     return cands[0] if cands else None
 
 
+# [focus-vary 2026-09-14] Evergreen, planet-appropriate one-small-act variants,
+# rotated by ISO week so a stable focus reads fresh without a false "this week"
+# claim. Jargon-free; translated to es/pt via the endpoint's translate pass.
+_FOCUS_ACTS = {
+    "Sun": ["Take the lead on one thing today — speak first, decide first.",
+            "Do one visible act of real quality that others will notice.",
+            "Step into a room or role you usually hang back from."],
+    "Moon": ["Check in honestly with how you feel before you act.",
+             "Do one small, genuine kindness for someone you care about.",
+             "Give yourself ten unhurried minutes of quiet."],
+    "Mars": ["Tackle the one task you've been avoiding — first thing.",
+             "Move your body hard for twenty minutes.",
+             "Have the direct conversation you've been putting off."],
+    "Mercury": ["Send the message or make the call you've delayed.",
+                "Write your plan down in three clear lines.",
+                "Learn one new thing and teach it to someone."],
+    "Jupiter": ["Thank a mentor, or teach someone one thing you know.",
+                "Read fifteen pages toward who you want to become.",
+                "Say yes to one real opportunity to grow."],
+    "Venus": ["Make one thing around you more beautiful.",
+              "Reach out warmly to someone you value.",
+              "Do one thing purely for the pleasure of it."],
+    "Saturn": ["Do the boring, important task before anything else.",
+               "Set up one small system that saves future-you time.",
+               "Show up for the commitment even when you don't feel like it."],
+    "Rahu": ["Pause before your next impulsive move — name the real need under the want.",
+             "Aim higher on one goal than feels comfortable.",
+             "Channel the restlessness into one bold, deliberate step."],
+    "Ketu": ["Let go of one thing — delete, donate, or forgive.",
+             "Spend ten minutes in real silence.",
+             "Notice what you're clinging to, and loosen your grip."],
+}
+
+
 @app.get("/api/v1/focus/{chart_id}")
 async def get_focus(chart_id: str, language: str = "en"):
     """[P3/P4 one-guide 2026-07-31] The single FOCUS of this chapter (what's in play
@@ -26228,6 +26290,7 @@ async def get_focus(chart_id: str, language: str = "en"):
         return {"available": False}
     dashas = get_dashas_for_chart(chart_id)
     _vmd, _vad, _vnext = _vim_md_ad_next(dashas)
+    _vpd = _vim_pd(dashas)   # short current cycle → gives the focus a real cadence
     focus_energy, focus_action = "", ""
     try:
         from antar_engine.practice_engine import generate_practice_schedule
@@ -26236,10 +26299,18 @@ async def get_focus(chart_id: str, language: str = "en"):
             lal_kitab_data=row.get("lal_kitab_data") or {},
             current_country=row.get("current_country") or "US",
             birth_date=str(row.get("birth_date") or ""),
-            vimsottari_md=_vmd, vimsottari_ad=_vad, next_md=_vnext)
+            vimsottari_md=_vmd, vimsottari_ad=_vad, next_md=_vnext, vimsottari_pd=_vpd)
         _pp = (_sched or {}).get("primary_practice") or {}
         focus_energy = _pp.get("energy_label") or ""
         focus_action = _pp.get("what") or ""
+        # [focus-vary 2026-09-14] Rotate the one small act so a stable focus doesn't
+        # read verbatim-identical every visit. Keyed to the focus planet + ISO week
+        # → evergreen (no false "this week"), changes weekly, deterministic.
+        _fp = str(_pp.get("practice_id") or "").split("_")[0].capitalize()
+        _acts = _FOCUS_ACTS.get(_fp)
+        if _acts:
+            from datetime import date as _fw
+            focus_action = _acts[_fw.today().isocalendar()[1] % len(_acts)]
     except Exception as _fe:
         logger.warning(f"[focus] schedule skipped (non-fatal): {_fe}")
     be_ready = _nearest_life_window(cd, dashas, row.get("birth_date"), row.get("gender"))

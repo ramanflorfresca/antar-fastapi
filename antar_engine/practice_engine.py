@@ -579,6 +579,7 @@ def generate_practice_schedule(
     vimsottari_ad: dict = None,
     next_md: dict = None,
     practice_counts: dict = None,
+    vimsottari_pd: dict = None,
 ) -> dict:
     """
     Main entry point. Reads stored data, returns full PracticeSchedule as dict.
@@ -619,6 +620,7 @@ def generate_practice_schedule(
     convergence = _score_planet_convergence(
         planets, karakas, current_dasha, varshphal, sleeping, masik_phal, age,
         vimsottari_md=vimsottari_md, vimsottari_ad=vimsottari_ad, next_md=next_md,
+        vimsottari_pd=vimsottari_pd,
     )
 
     # ── 2. Determine primary planet (highest convergence) ──
@@ -954,7 +956,7 @@ def select_chart_gemstone(planets, lagna):
     }
 
 
-def _score_planet_convergence(planets, karakas, current_dasha, varshphal, sleeping, masik_phal, age, vimsottari_md=None, vimsottari_ad=None, next_md=None):
+def _score_planet_convergence(planets, karakas, current_dasha, varshphal, sleeping, masik_phal, age, vimsottari_md=None, vimsottari_ad=None, next_md=None, vimsottari_pd=None):
     """
     Score each planet 0.0–1.0 based on how many systems point to it.
     Higher score = this planet's energy needs the most attention RIGHT NOW.
@@ -982,6 +984,15 @@ def _score_planet_convergence(planets, karakas, current_dasha, varshphal, sleepi
         if vim_ad.get("planet_or_sign") == planet:
             score += 0.20
             reasons.append("active in your current sub-chapter")
+
+        # Vimsottari Pratyantardasha lord — short current cycle (weeks–months).
+        # [focus-cadence 2026-09-14] Gives the focus a human-scale rhythm so it
+        # rotates as the short sub-period turns over, instead of holding one
+        # planet for the whole multi-year mahadasha.
+        vim_pd = vimsottari_pd or {}
+        if vim_pd.get("planet_or_sign") == planet:
+            score += 0.18
+            reasons.append("active in your current short cycle")
 
         # Chapter transition bonus — MD ending within 6 months
         if vim_md.get("planet_or_sign") == planet:
