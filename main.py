@@ -12396,6 +12396,270 @@ async def places_overall_endpoint(req: PlacesOverallReq):
     return out
 
 
+# [places-potential 2026-09-14] Conclusive, concern-first relocation answer.
+# Owner feedback: the 0-100 scores + FLOW/MIXED/STRAIN tiers + "+45 vs" deltas +
+# a 15-city leaderboard are confusing and "not how astrocartography works." This
+# endpoint gives ONE clear read per life area — WHERE your <concern> has the most
+# POTENTIAL (a curated few, not fifteen), each with a plain WHY and a minimal
+# 3-level fit indicator (strong/moderate/weak). No raw numbers, no tiers, no
+# deltas leave the server. Reuses the same relocation-chart engine
+# (rank_cities_for_concern / _overall_score_for + lk_relocation_findings); this
+# is purely a lean presentation layer.
+_POT_LABEL = {
+    "en": {"money": "money", "business": "business", "career": "career",
+           "love": "love & relationships", "peace": "peace", "health": "health",
+           "family": "family", "overall": "life overall"},
+    "es": {"money": "dinero", "business": "negocios", "career": "carrera",
+           "love": "amor y relaciones", "peace": "paz", "health": "salud",
+           "family": "familia", "overall": "vida en general"},
+    "pt": {"money": "dinheiro", "business": "negócios", "career": "carreira",
+           "love": "amor e relacionamentos", "peace": "paz", "health": "saúde",
+           "family": "família", "overall": "vida em geral"},
+}
+_POT_INTRO = {
+    "en": "Where your {label} has the most potential.",
+    "es": "Dónde tu {label} tiene el mayor potencial.",
+    "pt": "Onde seu {label} tem o maior potencial.",
+}
+_POT_INTRO_OVERALL = {
+    "en": "Where your chart gathers the most potential across every area of life.",
+    "es": "Dónde tu carta reúne el mayor potencial en todas las áreas de la vida.",
+    "pt": "Onde seu mapa reúne o maior potencial em todas as áreas da vida.",
+}
+_POT_HOME = {
+    "strong": {"en": "Where you live now already gives your {label} strong support.",
+               "es": "Donde vives ahora ya le da a tu {label} un fuerte apoyo.",
+               "pt": "Onde você vive agora já dá ao seu {label} um forte apoio."},
+    "moderate": {"en": "Where you live now gives your {label} steady, if unremarkable, support.",
+                 "es": "Donde vives ahora le da a tu {label} un apoyo estable, aunque no destacado.",
+                 "pt": "Onde você vive agora dá ao seu {label} um apoio estável, embora discreto."},
+    "weak": {"en": "Where you live now gives your {label} little support — elsewhere opens more.",
+             "es": "Donde vives ahora le da poco apoyo a tu {label}: en otro lugar se abre más.",
+             "pt": "Onde você vive agora dá pouco apoio ao seu {label} — em outro lugar abre mais."},
+}
+_POT_HOME_OVERALL = {
+    "strong": {"en": "Where you live now already supports most of your chart.",
+               "es": "Donde vives ahora ya apoya gran parte de tu carta.",
+               "pt": "Onde você vive agora já apoia grande parte do seu mapa."},
+    "moderate": {"en": "Where you live now supports your chart moderately.",
+                 "es": "Donde vives ahora apoya tu carta de forma moderada.",
+                 "pt": "Onde você vive agora apoia seu mapa de forma moderada."},
+    "weak": {"en": "Where you live now supports little of your chart — elsewhere opens more.",
+             "es": "Donde vives ahora apoya poco de tu carta: en otro lugar se abre más.",
+             "pt": "Onde você vive agora apoia pouco do seu mapa — em outro lugar abre mais."},
+}
+_POT_WHY_FALLBACK = {
+    "en": "Your chart finds real support for {label} here.",
+    "es": "Tu carta encuentra un apoyo real para {label} aquí.",
+    "pt": "Seu mapa encontra apoio real para {label} aqui.",
+}
+
+
+def _pot_lang(language: str) -> str:
+    l = (language or "en").split("-")[0].lower()
+    return l if l in _POT_LABEL else "en"
+
+
+def _pot_fit(score) -> str:
+    if not isinstance(score, (int, float)):
+        return "moderate"
+    if score >= _pcn._TIER_FLOW:
+        return "strong"
+    if score >= _pcn._TIER_STRAIN:
+        return "moderate"
+    return "weak"
+
+
+def _pot_why_notes(city_card: dict):
+    """ONE plain WHY sentence + up to 3 supporting notes, drawn from the
+    relocation findings first (supportive ones lead), then the composed reasons.
+    Only ever returns strings — never the finding objects (guards React #31)."""
+    texts = []
+    findings = city_card.get("lk_relocation_findings") or []
+    supportive = [f for f in findings if isinstance(f, dict) and f.get("polarity") == "supportive"]
+    rest = [f for f in findings if f not in supportive]
+    for f in supportive + rest:
+        t = ((f.get("text") if isinstance(f, dict) else str(f)) or "").strip()
+        if t and t not in texts:
+            texts.append(t)
+    pr = city_card.get("primary_reason")
+    if isinstance(pr, str) and pr.strip() and pr.strip() not in texts:
+        texts.append(pr.strip())
+    for r in (city_card.get("reasons") or []):
+        t = ((r.get("text") if isinstance(r, dict) else str(r)) or "").strip()
+        if t and t not in texts:
+            texts.append(t)
+    return (texts[0] if texts else ""), texts[1:4]
+
+
+class PlacesPotentialReq(BaseModel):
+    chart_id: str
+    concern: str = "overall"          # money/business/career/love/peace/health/family/overall
+    language: str = "en"
+    region_filter: Optional[str] = None
+    limit: int = 5
+
+
+@app.post("/api/v1/places/potential")
+async def places_potential_endpoint(req: PlacesPotentialReq):
+    """Where your <concern> has the most potential — a curated few places, each
+    with a plain WHY and a minimal strong/moderate/weak fit. No scores/tiers."""
+    lang = _pot_lang(req.language)
+    concern = (req.concern or "overall").strip().lower()
+    if concern != "overall":
+        concern = _pcn.resolve_concern(concern)
+        if concern not in _pcn.VALID_CONCERNS:
+            raise HTTPException(422, f"concern must be 'overall' or one of {_pcn.VALID_CONCERNS}")
+    limit = max(1, min(int(req.limit or 5), 8))
+    ckey = ("places_potential", req.chart_id, concern, lang, req.region_filter or "", limit)
+    cached = _places_cache_get(ckey)
+    if cached is not None:
+        return cached
+
+    rec, chart = _places_load_chart(req.chart_id)
+    if not chart.get("birth_jd"):
+        raise HTTPException(422, "chart missing birth_jd; cannot compute astrocartography")
+
+    all_lines = _pl.compute_all_lines(chart.get("birth_jd"), chart)
+    conditions = _pc.compute_all_conditions(chart)
+    _age = _pintel.compute_age(rec.get("birth_date"))
+    try:
+        _dctx = _pintel.get_dasha_context(get_dashas_for_chart(req.chart_id), lang)
+    except Exception:
+        _dctx = None
+    label = _POT_LABEL[lang][concern]
+
+    import unicodedata as _ud
+
+    def _norm(_s):
+        _s = _ud.normalize("NFKD", str(_s or "")).encode("ascii", "ignore").decode("ascii")
+        return " ".join(_s.strip().lower().split())
+
+    def _find_home(tbl):
+        _cur = _norm(rec.get("current_city") or "")
+        if not _cur:
+            return None
+        cands = [c for c in tbl if _norm(c.get("name")) == _cur]
+        if not cands and len(_cur) >= 4:
+            cands = [c for c in tbl if _norm(c.get("name")).startswith(_cur)
+                     or _cur.startswith(_norm(c.get("name")))]
+        return cands[0] if cands else None
+
+    home = None
+    picks = []   # (domain_for_shaping, scored_city, overall_score_or_None, best_for_or_None)
+
+    if concern == "overall":
+        cities = _places_cities()
+        pool = [c for c in cities if c.get("rankable", True)]
+        if req.region_filter:
+            rf = req.region_filter.strip().lower()
+            pool = [c for c in pool if rf in (
+                str(c.get("region_group", "")).lower(), str(c.get("region", "")).lower(),
+                str(c.get("country_code", "")).lower(), str(c.get("country", "")).lower())]
+        pool, _, _ = _pcn._apply_population_floor(pool, _pcn.POPULATION_FLOOR, 8)
+        pool = sorted(pool, key=lambda c: -(c.get("population") or 0))[:180]
+        scored_pool = []
+        for c in pool:
+            ov, dsc = _overall_score_for(chart, c, all_lines, conditions)
+            scored_pool.append({"city": c, "overall": ov, "dscores": dsc})
+        scored_pool.sort(key=lambda x: -x["overall"])
+        _hc = _find_home(cities)
+        if _hc:
+            _bov, _ = _overall_score_for(chart, _hc, all_lines, conditions)
+            _hf = _pot_fit(_bov)
+            home = {"name": _hc.get("name"), "fit": _hf, "line": _POT_HOME_OVERALL[_hf][lang]}
+        _per, top = {}, []
+        for pcx in scored_pool:
+            cc = pcx["city"].get("country_code") or pcx["city"].get("country")
+            if _per.get(cc, 0) >= 1:               # overall: one city per country, for variety
+                continue
+            _per[cc] = _per.get(cc, 0) + 1
+            top.append(pcx)
+            if len(top) >= limit:
+                break
+        for pcx in top:
+            dom = max(_OVERALL_CONCERNS, key=lambda cn: pcx["dscores"][cn].get("score", 0))
+            _doms = sorted(_OVERALL_CONCERNS, key=lambda cn: -pcx["dscores"][cn].get("score", 0))
+            best_for = [_OVERALL_CONCERN_PLAIN[cn] for cn in _doms
+                        if pcx["dscores"][cn].get("score", 0) >= _pcn._TIER_STRAIN][:3]
+            picks.append((dom, pcx["dscores"][dom], pcx["overall"], best_for))
+    else:
+        scored = _pcn.rank_cities_for_concern(
+            chart, concern, _places_cities(), region_filter=req.region_filter, trace={})
+        _hc = _find_home(_places_cities())
+        if _hc:
+            try:
+                _b = _pcn.score_city_for_concern(
+                    chart, _hc, concern, all_lines=all_lines, conditions=conditions)
+                _hf = _pot_fit(_b.get("score"))
+                home = {"name": _hc.get("name"), "fit": _hf,
+                        "line": _POT_HOME[_hf][lang].format(label=label)}
+            except Exception as _he:
+                print(f"[places/potential] home scoring failed: {_he}")
+        _per, top = {}, []
+        for s in scored:
+            cy = s.get("city") or {}
+            cc = cy.get("country_code") or cy.get("country")
+            if _per.get(cc, 0) >= 1:
+                continue
+            _per[cc] = _per.get(cc, 0) + 1
+            top.append(s)
+            if len(top) >= limit:
+                break
+        for s in top:
+            picks.append((concern, s, None, None))
+
+    places = []
+    for dom, s, ov, best_for in picks:
+        card = _pcomp.enrich_ranked_city(dom, s, lang)
+        try:
+            _lk = _plkr.lk_relocation_findings(s.get("_relocation", {}), lang)
+            for _f in _lk:
+                _f["text"] = _places_strip(_f["text"], lang)
+            card["lk_relocation_findings"] = _lk
+        except Exception:
+            card["lk_relocation_findings"] = []
+        try:
+            _reasons = _pcn.compose_city_reasons(
+                chart, s.get("city", {}), dom, _dctx, _age,
+                scored=s, relocation=s.get("_relocation", {}),
+                conditions=conditions, language=lang)
+            card["reasons"] = [{"text": _places_strip(r.get("text", ""), lang)} for r in _reasons]
+        except Exception:
+            card["reasons"] = []
+        card["primary_reason"] = _places_strip(card.get("primary_reason"), lang)
+        why, notes = _pot_why_notes(card)
+        if not why:
+            why = _POT_WHY_FALLBACK[lang].format(label=label)
+        cy = s.get("city") or {}
+        entry = {
+            "city": cy.get("name"),
+            "country": cy.get("country"),
+            "fit": _pot_fit(ov if ov is not None else s.get("score")),
+            "why": why,
+            "notes": notes,
+        }
+        if best_for:
+            entry["best_for"] = best_for
+        places.append(entry)
+
+    _clabel = _POT_LABEL[lang][concern]
+    out = {
+        "chart_id": req.chart_id,
+        "concern": concern,
+        "concern_label": _clabel[:1].upper() + _clabel[1:],
+        "language": lang,
+        "user_name": rec.get("first_name") or rec.get("name") or None,
+        "intro": (_POT_INTRO_OVERALL[lang] if concern == "overall"
+                  else _POT_INTRO[lang].format(label=label)),
+        "current_city": home,
+        "places": places,
+        "generated_at": _places_iso_now(),
+    }
+    _places_cache_set(ckey, out)
+    return out
+
+
 @app.get("/api/v1/places/lines/{chart_id}")
 async def places_lines_endpoint(chart_id: str, language: str = "en",
                                 concern: Optional[str] = None):
