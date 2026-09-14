@@ -12240,13 +12240,14 @@ def _overall_tier(sc: float) -> str:
             else "MIXED" if sc >= _pcn._TIER_STRAIN else "STRAIN")
 
 
-def _overall_score_for(chart, city, all_lines, conditions):
+def _overall_score_for(chart, city, all_lines, conditions, dasha_lords=None):
     """Score one city across all concerns; return (overall, {concern: scored})."""
     dscores = {}
     for cn in _OVERALL_CONCERNS:
         try:
             dscores[cn] = _pcn.score_city_for_concern(
-                chart, city, cn, all_lines=all_lines, conditions=conditions)
+                chart, city, cn, all_lines=all_lines, conditions=conditions,
+                dasha_lords=dasha_lords)
         except Exception:
             dscores[cn] = {"score": 0, "tier": "STRAIN", "_relocation": {},
                            "city": {"name": city.get("name")}}
@@ -12534,6 +12535,17 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
         _dctx = _pintel.get_dasha_context(get_dashas_for_chart(req.chart_id), lang)
     except Exception:
         _dctx = None
+    # [places-dasha] the active dasha lords drive the ranking — mahadasha carries
+    # full weight, antardasha half. This is what ties "where helps you" to the
+    # planet actually running your life now (owner's Rahu-dasha correction).
+    _dasha_lords = None
+    if _dctx:
+        _dl = []
+        if _dctx.get("md_lord"):
+            _dl.append((_dctx["md_lord"], 1.0))
+        if _dctx.get("ad_lord") and _dctx.get("ad_lord") != _dctx.get("md_lord"):
+            _dl.append((_dctx["ad_lord"], 0.5))
+        _dasha_lords = _dl or None
     label = _POT_LABEL[lang][concern]
 
     import unicodedata as _ud
@@ -12567,12 +12579,12 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
         pool = sorted(pool, key=lambda c: -(c.get("population") or 0))[:180]
         scored_pool = []
         for c in pool:
-            ov, dsc = _overall_score_for(chart, c, all_lines, conditions)
+            ov, dsc = _overall_score_for(chart, c, all_lines, conditions, _dasha_lords)
             scored_pool.append({"city": c, "overall": ov, "dscores": dsc})
         scored_pool.sort(key=lambda x: -x["overall"])
         _hc = _find_home(cities)
         if _hc:
-            _bov, _ = _overall_score_for(chart, _hc, all_lines, conditions)
+            _bov, _ = _overall_score_for(chart, _hc, all_lines, conditions, _dasha_lords)
             _hf = _pot_fit(_bov)
             home = {"name": _hc.get("name"), "fit": _hf, "line": _POT_HOME_OVERALL[_hf][lang]}
         _per, top = {}, []
@@ -12592,12 +12604,14 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
             picks.append((dom, pcx["dscores"][dom], pcx["overall"], best_for))
     else:
         scored = _pcn.rank_cities_for_concern(
-            chart, concern, _places_cities(), region_filter=req.region_filter, trace={})
+            chart, concern, _places_cities(), region_filter=req.region_filter,
+            trace={}, dasha_lords=_dasha_lords)
         _hc = _find_home(_places_cities())
         if _hc:
             try:
                 _b = _pcn.score_city_for_concern(
-                    chart, _hc, concern, all_lines=all_lines, conditions=conditions)
+                    chart, _hc, concern, all_lines=all_lines, conditions=conditions,
+                    dasha_lords=_dasha_lords)
                 _hf = _pot_fit(_b.get("score"))
                 home = {"name": _hc.get("name"), "fit": _hf,
                         "line": _POT_HOME[_hf][lang].format(label=label)}

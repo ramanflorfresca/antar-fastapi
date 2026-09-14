@@ -99,6 +99,58 @@ _TIER_STRAIN = 35
 # from the combined 0-1 score before scaling to 0-100.
 _NEG_SCREEN_W = 0.35
 
+# [places-dasha 2026-09-14] Dasha-aware relocation. Owner's correction: the
+# static house/karaka/angle score is dasha-BLIND — it praised a city for
+# strengthening a planet the user isn't currently living out. In Vedic practice
+# the place that helps NOW is the one that gives a good stage to the planet
+# running the current dasha (mahadasha + antardasha). So when the caller passes
+# the active dasha lords, we score how well each relocates (by house quality
+# from the relocated ascendant, extra credit when it lands in the concern's own
+# houses, scaled by that planet's natal condition) and blend it in with real
+# weight — a city that ignores the running dasha can no longer top the list.
+# Opt-in: callers that don't pass dasha_lords get the exact previous score.
+_DASHA_HOUSE_Q = {   # relocated-house quality for the dasha lord's stage
+    1: 0.9, 2: 0.6, 3: 0.4, 4: 0.8, 5: 1.0, 6: -0.5,
+    7: 0.7, 8: -0.9, 9: 1.0, 10: 1.0, 11: 0.9, 12: -0.5,
+}
+_DASHA_BLEND_W = 0.30   # share of the final score the running dasha carries
+
+
+def _dasha_relocation_score(chart: dict, relocation: dict, conditions: dict,
+                            concern_houses: set, dasha_lords) -> tuple:
+    """How well the active dasha lord(s) relocate. dasha_lords = [(planet, w), …]
+    (mahadasha weight 1.0, antardasha ~0.5). Returns (score01, hits) where
+    score01 in [0,1]; ~0.5 is neutral. None-safe / empty-safe."""
+    reloc_idx = relocation.get("relocated_lagna_index")
+    if reloc_idx is None or not dasha_lords:
+        return None, []
+    num = den = 0.0
+    hits = []
+    for lord, w in dasha_lords:
+        rec = (chart.get("planets") or {}).get(lord)
+        if not rec:
+            continue
+        psi = rec.get("sign_index")
+        if psi is None and rec.get("longitude") is not None:
+            psi = int((float(rec["longitude"]) % 360.0) // 30.0)
+        if psi is None:
+            continue
+        reloc_house = ((int(psi) - int(reloc_idx)) % 12) + 1
+        q = _DASHA_HOUSE_Q.get(reloc_house, 0.0)
+        if reloc_house in concern_houses:       # the running planet directly serves the goal
+            q += 0.3
+        cond_w = (conditions.get(lord, {}) or {}).get("weight", 0.9)
+        cond_scale = 0.5 + min(1.5, cond_w) / 1.5 * 0.5   # 0.5..1.0 by natal condition
+        num += w * q * cond_scale
+        den += w
+        hits.append({"planet": lord, "house": reloc_house,
+                     "quality": round(q, 2), "weight": w})
+    if den <= 0:
+        return None, []
+    raw = num / den                              # ~[-0.9, 1.3]
+    score01 = max(0.0, min(1.0, (raw + 0.9) / 2.0))
+    return score01, hits
+
 # Result de-clustering (Fix B). Astrocartography lines are meridians/curves, so
 # a naive top-N concentrates on whichever line threads the densest city region.
 # Cap how many returned cities may share the same dominant line (planet+angle)
@@ -208,6 +260,7 @@ def score_city_for_concern(
     all_lines: Optional[list[dict]] = None,
     conditions: Optional[dict] = None,
     relocation: Optional[dict] = None,
+    dasha_lords: Optional[list] = None,
 ) -> dict:
     """
     Score one city for one concern.
@@ -350,13 +403,28 @@ def score_city_for_concern(
     neg_score = (neg_num / neg_den) if neg_den else 0.0
     screened = bool(neg_score >= 0.20 and neg_score > house_score)
 
+    # ── 4c. Dasha-lord relocation (opt-in) ──────────────────────────────────
+    # [places-dasha 2026-09-14] When the caller passes the active dasha lords,
+    # blend in how well the planet RUNNING THE USER'S LIFE NOW relocates. This is
+    # what makes the read Vedically correct: a city is only "for you now" if it
+    # gives a good stage to your current mahadasha/antardasha lord.
+    dasha_score, dasha_hits = _dasha_relocation_score(
+        chart, relocation, conditions, concern_houses, dasha_lords)
+
     # ── 5. Weight-combine ───────────────────────────────────────────────────
-    combined = (
+    base_combined = (
         w["karakas"] * karaka_score
         + w["angles"] * angle_score
         + w["houses"] * house_score
-        - _NEG_SCREEN_W * neg_score  # [places-domain-screen]
     )
+    if dasha_score is not None:
+        # Carve out _DASHA_BLEND_W for the running dasha; the static concern score
+        # (karaka/angle/house, which already sums to 1.0) keeps the remainder.
+        combined = ((1.0 - _DASHA_BLEND_W) * base_combined
+                    + _DASHA_BLEND_W * dasha_score
+                    - _NEG_SCREEN_W * neg_score)
+    else:
+        combined = base_combined - _NEG_SCREEN_W * neg_score  # [places-domain-screen]
     # Health favours slow-pace places (recovery / rest): LOW velocity lifts the
     # score, HIGH dampens it, MEDIUM is neutral. Concern-specific; others unchanged.
     if concern == "health":
@@ -418,7 +486,9 @@ def score_city_for_concern(
             "angle": round(angle_score, 3),
             "house": round(house_score, 3),
             "neg": round(neg_score, 3),
+            "dasha": round(dasha_score, 3) if dasha_score is not None else None,
         },
+        "_dasha_hits": dasha_hits,
         "screened": screened,
         "_neg_hits": neg_hits,
     }
@@ -486,6 +556,7 @@ def rank_cities_for_concern(
     region_filter: Optional[str] = None,
     top_n: int = 8,
     trace: Optional[dict] = None,
+    dasha_lords: Optional[list] = None,
 ) -> list[dict]:
     """
     Score every city for a concern and return the top N (default 8, contract
@@ -534,6 +605,7 @@ def rank_cities_for_concern(
         score_city_for_concern(
             chart, c, concern,
             all_lines=all_lines, conditions=conditions,
+            dasha_lords=dasha_lords,
         )
         for c in pool
     ]
