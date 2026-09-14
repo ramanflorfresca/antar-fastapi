@@ -12454,6 +12454,17 @@ _POT_WHY_FALLBACK = {
     "es": "Tu carta encuentra un apoyo real para {label} aquí.",
     "pt": "Seu mapa encontra apoio real para {label} aqui.",
 }
+# [places-feasibility 2026-09-14] Owner: "I'm never moving to Nagpur" — a ranked
+# list of far-flung cities isn't practical. Default to WITHIN-REACH places (the
+# user's own region), and surface at most ONE global standout separately as a
+# deliberate "bigger move", only when it clearly beats the best regional option.
+_POT_WITHIN_LABEL = {"en": "Within reach", "es": "A tu alcance", "pt": "Ao seu alcance"}
+_POT_BIGGER_LABEL = {
+    "en": "Your strongest anywhere — a bigger move",
+    "es": "Tu lugar más fuerte en cualquier parte — una mudanza mayor",
+    "pt": "Seu lugar mais forte em qualquer lugar — uma mudança maior",
+}
+_POT_BIGGER_GAIN = 5   # a global standout must beat the best regional pick by this much
 
 
 def _pot_lang(language: str) -> str:
@@ -12565,74 +12576,10 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
         return cands[0] if cands else None
 
     home = None
-    picks = []   # (domain_for_shaping, scored_city, overall_score_or_None, best_for_or_None)
-
-    if concern == "overall":
-        cities = _places_cities()
-        pool = [c for c in cities if c.get("rankable", True)]
-        if req.region_filter:
-            rf = req.region_filter.strip().lower()
-            pool = [c for c in pool if rf in (
-                str(c.get("region_group", "")).lower(), str(c.get("region", "")).lower(),
-                str(c.get("country_code", "")).lower(), str(c.get("country", "")).lower())]
-        pool, _, _ = _pcn._apply_population_floor(pool, _pcn.POPULATION_FLOOR, 8)
-        pool = sorted(pool, key=lambda c: -(c.get("population") or 0))[:180]
-        scored_pool = []
-        for c in pool:
-            ov, dsc = _overall_score_for(chart, c, all_lines, conditions, _dasha_lords)
-            scored_pool.append({"city": c, "overall": ov, "dscores": dsc})
-        scored_pool.sort(key=lambda x: -x["overall"])
-        _hc = _find_home(cities)
-        if _hc:
-            _bov, _ = _overall_score_for(chart, _hc, all_lines, conditions, _dasha_lords)
-            _hf = _pot_fit(_bov)
-            home = {"name": _hc.get("name"), "fit": _hf, "line": _POT_HOME_OVERALL[_hf][lang]}
-        _per, top = {}, []
-        for pcx in scored_pool:
-            cc = pcx["city"].get("country_code") or pcx["city"].get("country")
-            if _per.get(cc, 0) >= 1:               # overall: one city per country, for variety
-                continue
-            _per[cc] = _per.get(cc, 0) + 1
-            top.append(pcx)
-            if len(top) >= limit:
-                break
-        for pcx in top:
-            dom = max(_OVERALL_CONCERNS, key=lambda cn: pcx["dscores"][cn].get("score", 0))
-            _doms = sorted(_OVERALL_CONCERNS, key=lambda cn: -pcx["dscores"][cn].get("score", 0))
-            best_for = [_OVERALL_CONCERN_PLAIN[cn] for cn in _doms
-                        if pcx["dscores"][cn].get("score", 0) >= _pcn._TIER_STRAIN][:3]
-            picks.append((dom, pcx["dscores"][dom], pcx["overall"], best_for))
-    else:
-        scored = _pcn.rank_cities_for_concern(
-            chart, concern, _places_cities(), region_filter=req.region_filter,
-            trace={}, dasha_lords=_dasha_lords)
-        _hc = _find_home(_places_cities())
-        if _hc:
-            try:
-                _b = _pcn.score_city_for_concern(
-                    chart, _hc, concern, all_lines=all_lines, conditions=conditions,
-                    dasha_lords=_dasha_lords)
-                _hf = _pot_fit(_b.get("score"))
-                home = {"name": _hc.get("name"), "fit": _hf,
-                        "line": _POT_HOME[_hf][lang].format(label=label)}
-            except Exception as _he:
-                print(f"[places/potential] home scoring failed: {_he}")
-        _per, top = {}, []
-        for s in scored:
-            cy = s.get("city") or {}
-            cc = cy.get("country_code") or cy.get("country")
-            if _per.get(cc, 0) >= 1:
-                continue
-            _per[cc] = _per.get(cc, 0) + 1
-            top.append(s)
-            if len(top) >= limit:
-                break
-        for s in top:
-            picks.append((concern, s, None, None))
-
-    places = []
+    home_region = None
     _used_why = set()
-    for dom, s, ov, best_for in picks:
+
+    def _shape_entry(dom, s, ov, best_for):
         card = _pcomp.enrich_ranked_city(dom, s, lang)
         try:
             _lk = _plkr.lk_relocation_findings(s.get("_relocation", {}), lang)
@@ -12655,16 +12602,107 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
             why = _POT_WHY_FALLBACK[lang].format(label=label)
         _used_why.add(why)
         cy = s.get("city") or {}
-        entry = {
-            "city": cy.get("name"),
-            "country": cy.get("country"),
-            "fit": _pot_fit(ov if ov is not None else s.get("score")),
-            "why": why,
-            "notes": notes,
-        }
+        entry = {"city": cy.get("name"), "country": cy.get("country"),
+                 "fit": _pot_fit(ov if ov is not None else s.get("score")),
+                 "why": why, "notes": notes}
         if best_for:
             entry["best_for"] = best_for
-        places.append(entry)
+        return entry
+
+    def _curate(cands, ccfn, n):
+        """One city per country, top n (cands already best-first)."""
+        seen, out = {}, []
+        for x in cands:
+            cc = ccfn(x)
+            if seen.get(cc, 0) >= 1:
+                continue
+            seen[cc] = seen.get(cc, 0) + 1
+            out.append(x)
+            if len(out) >= n:
+                break
+        return out
+
+    region_picks = []   # within-reach (home region, or global when no home region)
+    bigger = None       # a single out-of-region standout
+
+    if concern == "overall":
+        cities = _places_cities()
+        pool = [c for c in cities if c.get("rankable", True)]
+        if req.region_filter:
+            rf = req.region_filter.strip().lower()
+            pool = [c for c in pool if rf in (
+                str(c.get("region_group", "")).lower(), str(c.get("region", "")).lower(),
+                str(c.get("country_code", "")).lower(), str(c.get("country", "")).lower())]
+        pool, _, _ = _pcn._apply_population_floor(pool, _pcn.POPULATION_FLOOR, 8)
+        pool = sorted(pool, key=lambda c: -(c.get("population") or 0))[:180]
+        scored_pool = []
+        for c in pool:
+            ov, dsc = _overall_score_for(chart, c, all_lines, conditions, _dasha_lords)
+            scored_pool.append({"city": c, "overall": ov, "dscores": dsc})
+        scored_pool.sort(key=lambda x: -x["overall"])
+        _hc = _find_home(cities)
+        if _hc:
+            home_region = _hc.get("region_group")
+            _bov, _ = _overall_score_for(chart, _hc, all_lines, conditions, _dasha_lords)
+            _hf = _pot_fit(_bov)
+            home = {"name": _hc.get("name"), "fit": _hf, "line": _POT_HOME_OVERALL[_hf][lang]}
+
+        def _mk_overall(pcx):
+            dom = max(_OVERALL_CONCERNS, key=lambda cn: pcx["dscores"][cn].get("score", 0))
+            _doms = sorted(_OVERALL_CONCERNS, key=lambda cn: -pcx["dscores"][cn].get("score", 0))
+            best_for = [_OVERALL_CONCERN_PLAIN[cn] for cn in _doms
+                        if pcx["dscores"][cn].get("score", 0) >= _pcn._TIER_STRAIN][:3]
+            return (dom, pcx["dscores"][dom], pcx["overall"], best_for)
+
+        _cc = lambda x: x["city"].get("country_code") or x["city"].get("country")
+        if home_region and not req.region_filter:
+            in_reg = [x for x in scored_pool if x["city"].get("region_group") == home_region]
+            out_reg = [x for x in scored_pool if x["city"].get("region_group") != home_region]
+            reg = _curate(in_reg, _cc, limit)
+            region_picks = [_mk_overall(x) for x in reg]
+            if out_reg:
+                best_reg = reg[0]["overall"] if reg else -1
+                if not reg or out_reg[0]["overall"] >= best_reg + _POT_BIGGER_GAIN:
+                    bigger = _mk_overall(out_reg[0])
+        else:
+            region_picks = [_mk_overall(x) for x in _curate(scored_pool, _cc, limit)]
+    else:
+        cities = _places_cities()
+        _hc = _find_home(cities)
+        if _hc:
+            home_region = _hc.get("region_group")
+            try:
+                _b = _pcn.score_city_for_concern(
+                    chart, _hc, concern, all_lines=all_lines, conditions=conditions,
+                    dasha_lords=_dasha_lords)
+                _hf = _pot_fit(_b.get("score"))
+                home = {"name": _hc.get("name"), "fit": _hf,
+                        "line": _POT_HOME[_hf][lang].format(label=label)}
+            except Exception as _he:
+                print(f"[places/potential] home scoring failed: {_he}")
+        _cc = lambda s: (s.get("city") or {}).get("country_code") or (s.get("city") or {}).get("country")
+        global_scored = _pcn.rank_cities_for_concern(
+            chart, concern, cities, region_filter=req.region_filter,
+            trace={}, dasha_lords=_dasha_lords)
+        if home_region and not req.region_filter:
+            regional_scored = _pcn.rank_cities_for_concern(
+                chart, concern, cities, region_filter=home_region,
+                trace={}, dasha_lords=_dasha_lords)
+            reg = _curate(regional_scored, _cc, limit)
+            region_picks = [(concern, s, None, None) for s in reg]
+            region_ccs = {c.get("country_code") for c in cities
+                          if c.get("region_group") == home_region}
+            best_reg = reg[0].get("score") if reg else -1
+            for s in global_scored:
+                if (s.get("city") or {}).get("country_code") not in region_ccs:
+                    if not reg or s.get("score", 0) >= (best_reg or 0) + _POT_BIGGER_GAIN:
+                        bigger = (concern, s, None, None)
+                    break
+        else:
+            region_picks = [(concern, s, None, None) for s in _curate(global_scored, _cc, limit)]
+
+    places = [_shape_entry(*t) for t in region_picks]
+    bigger_move = _shape_entry(*bigger) if bigger else None
 
     _clabel = _POT_LABEL[lang][concern]
     out = {
@@ -12676,7 +12714,11 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
         "intro": (_POT_INTRO_OVERALL[lang] if concern == "overall"
                   else _POT_INTRO[lang].format(label=label)),
         "current_city": home,
+        "home_region": home_region,
+        "within_label": _POT_WITHIN_LABEL[lang],
         "places": places,
+        "bigger_move": bigger_move,
+        "bigger_move_label": _POT_BIGGER_LABEL[lang] if bigger_move else None,
         "generated_at": _places_iso_now(),
     }
     _places_cache_set(ckey, out)
