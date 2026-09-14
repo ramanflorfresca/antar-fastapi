@@ -12465,6 +12465,63 @@ _POT_BIGGER_LABEL = {
     "pt": "Seu lugar mais forte em qualquer lugar — uma mudança maior",
 }
 _POT_BIGGER_GAIN = 5   # a global standout must beat the best regional pick by this much
+# [places-activation 2026-09-14] Owner: "I'm not moving to Colombo — how does a
+# user actually TAKE ADVANTAGE of a place's energy?" Activation is a ladder, not
+# a binary: a place switches on in proportion to how much of your life you put
+# there. Visiting tests it; a business/office/investment roots an ongoing tie
+# without moving; a seasonal base keeps it alive; relocating is full activation.
+_POT_ACT_VERB = {
+    "en": {"career": "Open an office, take on work or clients, or register a company there",
+           "business": "Register or run a company, or base operations there",
+           "money": "Invest, hold assets, or incorporate there",
+           "love": "Spend unhurried, real time there",
+           "peace": "Take recurring retreats or keep a quiet base there",
+           "health": "Go there for recovery seasons or regular stays",
+           "family": "Put down family roots or a second base there",
+           "overall": "Open a venture, invest, or spend real seasons there"},
+    "es": {"career": "Abre una oficina, toma trabajo o clientes, o registra una empresa allí",
+           "business": "Registra o dirige una empresa, o basa operaciones allí",
+           "money": "Invierte, mantén activos o constituye una empresa allí",
+           "love": "Pasa tiempo real y sin prisa allí",
+           "peace": "Haz retiros recurrentes o mantén una base tranquila allí",
+           "health": "Ve allí para temporadas de recuperación o estancias regulares",
+           "family": "Echa raíces familiares o una segunda base allí",
+           "overall": "Abre un proyecto, invierte o pasa temporadas reales allí"},
+    "pt": {"career": "Abra um escritório, assuma trabalho ou clientes, ou registre uma empresa lá",
+           "business": "Registre ou dirija uma empresa, ou baseie operações lá",
+           "money": "Invista, mantenha ativos ou constitua uma empresa lá",
+           "love": "Passe tempo real e sem pressa lá",
+           "peace": "Faça retiros recorrentes ou mantenha uma base tranquila lá",
+           "health": "Vá para lá em temporadas de recuperação ou estadias regulares",
+           "family": "Crie raízes familiares ou uma segunda base lá",
+           "overall": "Abra um empreendimento, invista ou passe temporadas reais lá"},
+}
+_POT_ACT_STEPS = {
+    "en": [("Visit first", "A few weeks under those skies switches the energy on for a while — the low-cost way to test a place before you commit."),
+           ("Put something there", "{verb} — it roots an ongoing tie to the place's strengths without you living there."),
+           ("Base part of the year", "A recurring season there keeps that emphasis alive across the year."),
+           ("Relocate", "Living there is full activation — the relocated chart operates every day. Strongest, least easy.")],
+    "es": [("Visita primero", "Unas semanas bajo esos cielos encienden la energía por un tiempo — la forma de bajo costo de probar un lugar antes de comprometerte."),
+           ("Pon algo allí", "{verb} — arraiga un vínculo continuo con las fortalezas del lugar sin que vivas allí."),
+           ("Basa parte del año", "Una temporada recurrente allí mantiene viva esa énfasis durante el año."),
+           ("Múdate", "Vivir allí es la activación completa — la carta relocalizada opera cada día. La más fuerte, la menos fácil.")],
+    "pt": [("Visite primeiro", "Algumas semanas sob aqueles céus ligam a energia por um tempo — o jeito de baixo custo de testar um lugar antes de se comprometer."),
+           ("Coloque algo lá", "{verb} — cria um vínculo contínuo com as forças do lugar sem que você more lá."),
+           ("Base parte do ano", "Uma temporada recorrente lá mantém essa ênfase viva ao longo do ano."),
+           ("Mude-se", "Morar lá é a ativação completa — o mapa relocado opera todos os dias. O mais forte, o menos fácil.")],
+}
+_POT_ACT_PRINCIPLE = {
+    "en": "A place switches on through real engagement — time, work, presence, capital — not from a distance. The more of your life you put there, the more it operates. You carry your dasha with you wherever you go.",
+    "es": "Un lugar se enciende con compromiso real — tiempo, trabajo, presencia, capital — no a la distancia. Cuanto más de tu vida pongas allí, más opera. Tu dasha te acompaña donde vayas.",
+    "pt": "Um lugar se liga com engajamento real — tempo, trabalho, presença, capital — não à distância. Quanto mais da sua vida você coloca lá, mais ele opera. Você leva seu dasha com você para onde for.",
+}
+
+
+def _pot_activation(concern: str, lang: str) -> dict:
+    verb = _POT_ACT_VERB[lang].get(concern, _POT_ACT_VERB[lang]["overall"])
+    steps = [{"level": i + 1, "title": t, "note": n.format(verb=verb)}
+             for i, (t, n) in enumerate(_POT_ACT_STEPS[lang])]
+    return {"principle": _POT_ACT_PRINCIPLE[lang], "steps": steps}
 # [places-reading] the honest bottom line — a move shifts emphasis, not your dasha.
 _POT_FRAMING = {
     "en": "A move shifts which areas of life feel emphasized — it doesn't replace "
@@ -12640,6 +12697,7 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
 
     home = None
     home_region = None
+    home_cc = None
     _used_why = set()
 
     def _shape_entry(dom, s, ov, best_for):
@@ -12707,6 +12765,7 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
         _hc = _find_home(cities)
         if _hc:
             home_region = _hc.get("region_group")
+            home_cc = _hc.get("country_code")
             _bov, _ = _overall_score_for(chart, _hc, all_lines, conditions, _dasha_lords)
             _hf = _pot_fit(_bov)
             home = {"name": _hc.get("name"), "fit": _hf, "line": _POT_HOME_OVERALL[_hf][lang]}
@@ -12735,6 +12794,7 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
         _hc = _find_home(cities)
         if _hc:
             home_region = _hc.get("region_group")
+            home_cc = _hc.get("country_code")
             try:
                 _b = _pcn.score_city_for_concern(
                     chart, _hc, concern, all_lines=all_lines, conditions=conditions,
@@ -12764,6 +12824,12 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
                     break
         else:
             region_picks = [(concern, s, None, None) for s in _curate(global_scored, _cc, limit)]
+
+    # Home-country first (New Jersey → West Coast beats a "perfect" Colombo you'll
+    # never move to): a realistic, nearby move leads. Stable — keeps score order
+    # within each group.
+    if home_cc:
+        region_picks.sort(key=lambda t: 0 if (t[1].get("city") or {}).get("country_code") == home_cc else 1)
 
     _shaped = [_shape_entry(*t) for t in region_picks]
     # Don't pad the list with "neutral ground" places: drop picks that found no
@@ -12816,6 +12882,7 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
         "intro": (_POT_INTRO_OVERALL[lang] if concern == "overall"
                   else _POT_INTRO[lang].format(label=label)),
         "reading": reading,
+        "activation": _pot_activation(concern, lang),
         "current_city": home,
         "home_region": home_region,
         "within_label": _POT_WITHIN_LABEL[lang],
