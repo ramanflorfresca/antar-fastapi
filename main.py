@@ -3390,7 +3390,7 @@ _OVERVIEW_NEG = {"Kemadruma", "Grahan", "Guru-Chandala"}
 
 @app.get("/api/v1/chart/{chart_id}/overview")
 @translate_response(
-    fields_to_translate=["tagline", "description", "strength", "blind_spot",
+    fields_to_translate=["name", "tagline", "description", "strength", "blind_spot",
                          "strengths", "areas_to_mind", "headline"],
     endpoint_name="chart-overview",
 )
