@@ -21945,6 +21945,72 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _tfe:
                 logger.warning(f"[ask] timeframe day-scope non-fatal: {_tfe}")
 
+            # [ask-timeframe 2026-09-15] WINDOW-SCAN: "which day / when in the next
+            # N days" must scan THAT bounded window for the best day(s), not return
+            # far-future event windows. Bounded, deterministic, honest when quiet.
+            _ask_tf_windowscan = False
+            _ask_tf_timing = None
+            try:
+                from antar_engine.ask_timeframe import (
+                    detect_horizon as _tfw_detect, scan_window as _tfw_scan)
+                _tfw = _tfw_detect(question)
+                if (_tfw and _tfw.get("kind") == "window" and _tfw.get("scan")
+                        and isinstance(chart_data, dict)):
+                    import datetime as _tfwdt
+                    _TFW_SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+                                  "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
+                    _w_lag = (chart_data.get("lagna", {}) or {}).get("sign")
+                    _w_lidx = _TFW_SIGNS.index(_w_lag) if _w_lag in _TFW_SIGNS else None
+                    _w_moon = ((chart_data.get("planets", {}) or {}).get("Moon", {}) or {}).get("sign")
+                    _w_lat, _w_lng, _ = _resolve_moment_coords(chart_row.data)
+                    _w_tz = float(chart_row.data.get("tz_offset") or 0.0)
+                    if _w_lidx is not None:
+                        _w_span = (_tfw["end"] - _tfw["start"]).days
+                        _w_step = 1 if _w_span <= 45 else (2 if _w_span <= 100 else 3)
+                        _scan = _tfw_scan(_w_lidx, _w_moon, _ask_concern, _tfw["start"],
+                                          _tfw["end"], float(_w_lat), float(_w_lng), _w_tz,
+                                          step=_w_step, cap=70)
+                        _wdays = _scan.get("days") or []
+                        if _wdays:
+                            def _wfmt(dt):
+                                return dt.strftime("%a %-d %b")
+                            _wfav = sorted([d for d in _wdays if d["band"] == "favorable"],
+                                           key=lambda x: -x["score"])
+                            _wpick = []
+                            for d in _wfav:
+                                if all(abs((d["date"] - p["date"]).days) >= 3 for p in _wpick):
+                                    _wpick.append(d)
+                                if len(_wpick) >= 3:
+                                    break
+                            _wpick.sort(key=lambda x: x["date"])
+                            _wworst = _scan.get("worst")
+                            _wlines = []
+                            if _wpick:
+                                for d in _wpick:
+                                    _wlines.append(f"- {_wfmt(d['date'])}: a cleaner, favorable day for this")
+                            else:
+                                _wlc = max(_wdays, key=lambda x: x["score"])
+                                _wlines.append(f"- {_wfmt(_wlc['date'])}: the least-strained day — but be honest "
+                                               "that no day in this window is strongly clear")
+                            if _wworst and (not _wpick or _wworst["date"] != _wpick[0]["date"]):
+                                _wlines.append(f"- Avoid {_wfmt(_wworst['date'])}: the most strained day")
+                            _ask_layers_block += (
+                                f"\n\nWINDOW-SCAN FACTS — the user asked WHICH DAY / WHEN within "
+                                f"{_tfw['label']} ({_wfmt(_tfw['start'])} to {_wfmt(_tfw['end'])}). Name the "
+                                f"specific favorable date(s) listed below and the day to avoid — every date "
+                                f"falls INSIDE that window. NEVER name a date, month, or year OUTSIDE this "
+                                f"window, and never jump to far-future years. If no day is strongly clear, "
+                                f"say so honestly and offer to widen the search. End with a short scoped "
+                                f"follow-up. Keep it plain — no house numbers, no Sanskrit.\n"
+                                + "\n".join(_wlines)
+                            )
+                            _ask_tf_windowscan = True
+                            _ask_tf_timing = (_wfmt(_wpick[0]["date"]) if _wpick else None)
+                            print(f"[ask][timeframe] window-scan {_tfw['label']} "
+                                  f"picked={[_wfmt(d['date']) for d in _wpick]}")
+            except Exception as _tfwe:
+                logger.warning(f"[ask] timeframe window-scan non-fatal: {_tfwe}")
+
             print(f"[ask] concern={_ask_concern} dasha={_ask_dasha_str or 'unknown'} "
                   f"layers={len(_ask_layers_block)}ch prescan={len(diagnostic_block)}ch")
 
@@ -21991,6 +22057,12 @@ async def ask_endpoint(request: AskRequest):
                 # not a repeated yes/no verdict — reflective path leads with actions.
                 if _ask_decision and _ask_is_advice_q(question):
                     print("[ask] advice/how-to — suppressing decision/timing path")
+                    _ask_decision = False
+                # [ask-timeframe] a bounded window-scan ("which day in the next N")
+                # answers from the scanned days INSIDE the window — never the
+                # far-future event verdict. Route it reflective.
+                if _ask_decision and _ask_tf_windowscan:
+                    print("[ask] window-scan — suppressing far-future decision/timing path")
                     _ask_decision = False
                 if _ask_decision:
                     _ask_conv = build_convergence_timing(
@@ -22283,9 +22355,10 @@ async def ask_endpoint(request: AskRequest):
                     _ask_tactical = bool(_refl_is_tac(question))
                 except Exception:
                     _ask_tactical = False
-                # [ask-timeframe] a multi-day question ("today or tomorrow") gets a
-                # day-by-day read, not a single "act before 21:11 tonight" clock.
-                if _ask_tf_dayscope:
+                # [ask-timeframe] a multi-day question ("today or tomorrow") or a
+                # bounded window-scan gets a day-by-day / date read, not a single
+                # "act before 21:11 tonight" clock.
+                if _ask_tf_dayscope or _ask_tf_windowscan:
                     _ask_tactical = False
                 if _ask_tactical:
                     try:
@@ -22719,7 +22792,42 @@ async def ask_endpoint(request: AskRequest):
                             print(f"[ask][evmap] NOT_YET timing carried from next_window: {_next_lbl}")
                         except Exception:
                             _parsed_timing_override = None
+            # [ask-graceful 2026-09-15] Graceful degradation (competitor pattern):
+            # when we genuinely can't produce a read, don't return an empty/blank
+            # answer — say so warmly, invite a check-back, and pivot to a related
+            # area we CAN speak to. Only fires when the read is truly empty.
+            if not (read_txt or "").strip():
+                _GRACE_PLAIN = {
+                    "money": "money", "funding": "funding", "speculation": "speculation",
+                    "business": "business", "career": "career", "love": "love and relationships",
+                    "family": "family life", "health": "health", "peace": "inner peace",
+                    "general": "this",
+                }
+                _GRACE_ALT = {
+                    "money": ("career", "career and work"), "funding": ("career", "career and work"),
+                    "speculation": ("money", "your wider money picture"),
+                    "business": ("career", "career and work"), "career": ("money", "money and resources"),
+                    "love": ("family", "family life"), "family": ("love", "love and relationships"),
+                    "health": ("peace", "inner peace"), "peace": ("health", "health and vitality"),
+                    "general": ("career", "career and work"),
+                }
+                _gc = (_ask_concern or "general").lower()
+                _gp = _GRACE_PLAIN.get(_gc, "this")
+                _alt_c, _alt_p = _GRACE_ALT.get(_gc, ("career", "career and work"))
+                _gname = (chart_row.data.get("first_name") or "").strip()
+                read_txt = (
+                    (f"{_gname}, " if _gname else "")
+                    + f"I don't have a clear read on {_gp} for you just yet — we're still deepening "
+                    f"this area of the chart, so do check back in a few days. Meanwhile I can look "
+                    f"into your {_alt_p}, which may hold something useful right now. Want me to?"
+                )
+                next_txt = None
+                print(f"[ask][graceful] empty read for concern={_gc} -> pivot {_alt_c}")
+
             payload = {"mode": "explore", "read": read_txt, "next": next_txt, "locked": False}
+            # [ask-timeframe] a window-scan surfaces the best scanned day as timing.
+            if _ask_tf_windowscan and _ask_tf_timing:
+                payload["timing"] = _ask_tf_timing
             if _ask_decision:
                 # [narrator-hardbind 2026-06-05] Verdict is Python-authoritative:
                 # the convergence result drives; the model's verdict is logged
