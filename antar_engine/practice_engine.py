@@ -1295,6 +1295,11 @@ def _enrich_enemy_alerts(enemy_houses, locale, year_lord=None):
         else:
             _timing = "Keep these as a steady, ongoing background practice."
         alerts.append({
+            # [lk-journal 2026-09-15] Stable id in the practice_id format the
+            # completion endpoint parses ({planet}_{type}_…), so an enemy remedy
+            # can be marked done + counted toward the streak through the EXISTING
+            # /practices/{id}/complete flow — no separate journal needed.
+            "practice_id":  f"{planet.lower()}_enemy_remedy",
             "planet":       planet,
             "energy_label": _lbl,
             "why":          e.get("problem", ""),
