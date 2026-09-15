@@ -1253,26 +1253,53 @@ def _build_mantra_card(planet, locale):
     )
 
 
-def _build_enemy_alerts(enemy_houses, locale):
-    """[lk-wire 2026-09-15] Cards for planets sitting in an enemy's sign — natural
-    tension during that planet's dasha. enemy_houses was extracted but never
-    surfaced; this renders it alongside sleeping_alerts / rin_cards."""
+def _enrich_enemy_alerts(enemy_houses, locale):
+    """[lk-wire 2026-09-15] Turn raw enemy-house warnings into cards — energy
+    label + the afflicted planet's own LK remedies (what neutralizes the tension)
+    + a plain remedy_why. Shared by the Practice schedule, the Full Chart page,
+    and the People compatibility reading."""
     alerts = []
     for e in (enemy_houses or []):
         if not isinstance(e, dict):
             continue
         planet = e.get("planet", "")
         info = PLANET_ENERGY.get(planet, {})
+        rem = (REMEDIES.get(planet, {}) or {}).get(locale) or (REMEDIES.get(planet, {}) or {}).get("GLOBAL") or {}
+        remedies = []
+        if rem.get("action"):
+            remedies.append(rem["action"])
+        if rem.get("item"):
+            _it = rem["item"]
+            remedies.append(_it[:1].upper() + _it[1:])
+        _lbl = info.get("label", "")
         alerts.append({
             "planet":       planet,
-            "energy_label": info.get("label", ""),
+            "energy_label": _lbl,
             "why":          e.get("problem", ""),
             "active_when":  e.get("active_when", ""),
             "severity":     e.get("severity", "moderate"),
             "domain":       info.get("domain", ""),
             "color":        info.get("color", ""),
+            "remedies":     remedies,
+            "remedy_why":   (f"Steadily tending your {_lbl.lower()} eases this tension — "
+                             f"consistency matters more than intensity." if _lbl else ""),
         })
     return alerts
+
+
+def _build_enemy_alerts(enemy_houses, locale):
+    """Enrich a pre-computed enemy-house list (Practice schedule path)."""
+    return _enrich_enemy_alerts(enemy_houses, locale)
+
+
+def build_enemy_alerts(planets, locale="GLOBAL"):
+    """Public: detect enemy houses from a chart's planets and return enriched
+    alert cards (with remedies). Used by /chart/{id}/overview and compatibility."""
+    try:
+        from antar_engine.lal_kitab_advanced import detect_enemy_houses
+        return _enrich_enemy_alerts(detect_enemy_houses(planets or {}), locale)
+    except Exception:
+        return []
 
 
 def _build_sleeping_alerts(sleeping, locale):

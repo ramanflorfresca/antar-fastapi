@@ -3411,7 +3411,8 @@ _OVERVIEW_NEG = {"Kemadruma", "Grahan", "Guru-Chandala"}
 @app.get("/api/v1/chart/{chart_id}/overview")
 @translate_response(
     fields_to_translate=["name", "tagline", "description", "strength", "blind_spot",
-                         "strengths", "areas_to_mind", "headline"],
+                         "strengths", "areas_to_mind", "headline",
+                         "why", "remedies", "remedy_why", "active_when"],
     endpoint_name="chart-overview",
 )
 async def get_chart_overview(chart_id: str, language: str = "en"):
@@ -3462,6 +3463,15 @@ async def get_chart_overview(chart_id: str, language: str = "en"):
             line = _OVERVIEW_YOGA_PLAIN[base]
             (areas if base in _OVERVIEW_NEG else strengths).append(line)
 
+        # [lk-wire 2026-09-15] Enemy-house alerts (with remedies) so the Full Chart
+        # page can list them alongside identity/strengths.
+        try:
+            from antar_engine.practice_engine import build_enemy_alerts
+            _enemy = build_enemy_alerts(chart_data.get("planets", {}), "GLOBAL")
+        except Exception as _ee:
+            print(f"[chart-overview] enemy_alerts non-fatal: {_ee}")
+            _enemy = []
+
         return {
             "chart_id": chart_id,
             "first_name": row.data.get("first_name") or row.data.get("name", ""),
@@ -3475,6 +3485,7 @@ async def get_chart_overview(chart_id: str, language: str = "en"):
             },
             "strengths": strengths[:6],
             "areas_to_mind": areas[:4],
+            "enemy_alerts": _enemy,
         }
     except HTTPException:
         raise
@@ -18043,6 +18054,16 @@ async def compatibility_start(request: CompatibilityStartRequest,
     except Exception as _ce3:
         print(f"[compat] V2 connection save non-fatal: {_ce3}")
 
+    # [lk-wire 2026-09-15] The connection person's enemy-house alerts, so a saved
+    # People reading can show which enemy houses THEIR chart is active in.
+    try:
+        from antar_engine.practice_engine import build_enemy_alerts as _bea
+        _ceb = _safe_jsonb(chart_b) if isinstance(chart_b, str) else (chart_b or {})
+        _person_enemy = _bea((_ceb or {}).get("planets", {}), "GLOBAL")
+    except Exception as _pee:
+        print(f"[compat] person enemy_alerts non-fatal: {_pee}")
+        _person_enemy = []
+
     _resp = {
         "session_id": _sid, "chart_id_a": request.chart_id_a, "chart_id_b": chart_id_b,
         "name_a": name_a, "name_b": _name_b,
@@ -18051,6 +18072,7 @@ async def compatibility_start(request: CompatibilityStartRequest,
         "headline": _v2["headline"], "summary": _v2["summary"],
         "layers": _v2["layers"], "watch_points": _v2["watch_points"], "catalysts": _v2["catalysts"],
         "field_mode_layer": _fml or None, "score_breakdown": _v2_breakdown,
+        "person_enemy_alerts": _person_enemy,
         "language": request.language or "en",
     }
     if (request.language or "en") in ("es", "pt"):
@@ -18058,7 +18080,8 @@ async def compatibility_start(request: CompatibilityStartRequest,
             from antar_engine.translation_middleware import translate_dict
             _resp = await translate_dict(_resp, language=request.language,
                 fields_to_translate={"headline", "summary", "detail", "layer_label",
-                                     "catalysts", "watch_points"},
+                                     "catalysts", "watch_points",
+                                     "why", "remedies", "remedy_why", "active_when"},
                 endpoint_name="compat_start", chart_id=request.chart_id_a)
         except Exception as _te2:
             print(f"[compat] V2 translate non-fatal: {_te2}")
@@ -18492,11 +18515,17 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                                             a_name=s.get("name_a") or "You",
                                             b_name=s.get("name_b") or "Partner",
                                             strip_fn=apply_user_facing_strips)
+                try:
+                    from antar_engine.practice_engine import build_enemy_alerts as _bea_s
+                    _person_enemy_s = _bea_s((_cb or {}).get("planets", {}), "GLOBAL")
+                except Exception:
+                    _person_enemy_s = []
                 out.update({
                     "score": _v2.get("score"), "badge": _v2.get("badge"),
                     "headline": _v2.get("headline"), "summary": _v2.get("summary"),
                     "catalysts": _v2.get("catalysts"), "watch_points": _v2.get("watch_points"),
                     "layers": _v2.get("layers"),
+                    "person_enemy_alerts": _person_enemy_s,
                     "score_breakdown": {"overall": _v2.get("score"), "badge": _v2.get("badge"),
                                         "compat_type": _reason,
                                         "v2_layers": {l["layer_key"]: l["score"] for l in _v2.get("layers", [])},
@@ -18515,7 +18544,8 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
             from antar_engine.translation_middleware import translate_dict
             out = await translate_dict(out, language=language,
                 fields_to_translate={"headline", "summary", "detail", "layer_label",
-                                     "catalysts", "watch_points", "layer1", "layer2", "layer3"},
+                                     "catalysts", "watch_points", "layer1", "layer2", "layer3",
+                                     "why", "remedies", "remedy_why", "active_when"},
                 endpoint_name="compat_session", chart_id=s.get("chart_id_a"))
         except Exception as _tse:
             print(f"[compat][session-i18n] non-fatal: {_tse}")
