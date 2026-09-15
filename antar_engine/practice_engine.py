@@ -663,7 +663,10 @@ def generate_practice_schedule(
     # this function and dropped). Injected into the dict so the dataclass shape is
     # untouched; empty list on any failure.
     try:
-        _sched_out["enemy_alerts"] = _build_enemy_alerts(enemy_houses, locale)
+        # [lk-enemy-fix 2026-09-15] Compute LIVE from planets (not the stored
+        # enemy_houses, which was backfilled with the old table) so the corrected
+        # LK enmity + nodal rules apply immediately.
+        _sched_out["enemy_alerts"] = build_enemy_alerts(planets, locale)
     except Exception as _eae:
         print(f"[practice] enemy_alerts build failed (non-fatal): {_eae}")
         _sched_out["enemy_alerts"] = []

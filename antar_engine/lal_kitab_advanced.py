@@ -58,16 +58,30 @@ PLANET_FRIENDS = {
     "Ketu":    ["Mars","Venus","Saturn"],
 }
 
+# [lk-enemy-fix 2026-09-15] Permanent-enemy table for enemy-HOUSE detection
+# (a planet in a sign whose lord is its enemy). Aligned to the canonical Lal
+# Kitab friendship scheme (mirrors jaimini_lk_bridge.LK_ENEMIES) — NOT the
+# Parashari "Naisargika Maitri" set that was here before. That old set wrongly
+# made SATURN an enemy of Jupiter (their bond is the auspicious dharma-karma
+# pairing — Jupiter=dharma/wisdom, Saturn=karma/discipline — not enmity), and
+# made the shadow planets enemies of Mars/Jupiter/Mercury.
+#
+# NODAL OVERRIDE (expert call): Mars is DROPPED from Rahu's enemies. Angarak
+# (Mars+Rahu volatility) is a CONJUNCTION/aspect phenomenon, not a sign-placement
+# one; Rahu sits comfortably — often considered strong — in Mars's sign Scorpio,
+# where Mars gives its restless ambition a firm, disciplined channel. A node's
+# true adversary is the luminary it eclipses, so the nodes' enemies are just
+# Sun & Moon (Rahu-in-Leo / Rahu-in-Cancer are the real nodal enemy houses).
 PLANET_ENEMIES = {
-    "Sun":     ["Saturn","Venus","Rahu"],
-    "Moon":    ["Rahu","Ketu"],
-    "Mars":    ["Mercury","Rahu"],
-    "Mercury": ["Moon","Rahu"],
-    "Jupiter": ["Mercury","Venus","Saturn","Rahu"],
-    "Venus":   ["Sun","Moon","Rahu"],
-    "Saturn":  ["Sun","Moon","Mars"],
-    "Rahu":    ["Sun","Moon","Mars","Jupiter"],
-    "Ketu":    ["Sun","Moon","Mercury","Jupiter"],
+    "Sun":     ["Saturn", "Rahu", "Ketu"],
+    "Moon":    ["Rahu", "Ketu"],
+    "Mars":    ["Mercury", "Rahu"],
+    "Mercury": ["Moon", "Ketu"],
+    "Jupiter": ["Mercury", "Venus", "Rahu"],
+    "Venus":   ["Sun", "Moon"],
+    "Saturn":  ["Sun", "Moon", "Mars"],
+    "Rahu":    ["Sun", "Moon"],
+    "Ketu":    ["Moon", "Venus"],
 }
 
 PLANET_NEUTRAL = {
