@@ -10,6 +10,30 @@ Three missing Lal Kitab features:
 
 from datetime import datetime, date
 
+# [lk-year-lord 2026-09-15] Tajika/Varshphal year lord = the planetary ruler of
+# the weekday of the most recent solar-return birthday. Deterministic (no
+# ephemeris), changes only on the birthday. Single source of truth so the stored
+# value, the /varshphal/annual endpoint, and every reader agree.
+_YEAR_DAY_LORDS = ["Moon", "Mars", "Mercury", "Jupiter", "Venus", "Saturn", "Sun"]
+
+
+def year_lord_for(birth_date, today=None) -> str:
+    """Return the current Varshphal year lord for a birth_date (str or date), or
+    '' if it can't be computed. `today` overridable for testing."""
+    try:
+        born = date.fromisoformat(str(birth_date)[:10]) if not isinstance(birth_date, date) else birth_date
+        today = today or date.today()
+        try:
+            last_bday = born.replace(year=today.year)
+            if last_bday > today:
+                last_bday = born.replace(year=today.year - 1)
+        except ValueError:               # Feb 29 birthday in a non-leap year
+            last_bday = date(today.year, born.month, min(born.day, 28))
+        return _YEAR_DAY_LORDS[last_bday.weekday()]
+    except Exception:
+        return ""
+
+
 SIGNS = [
     "Aries","Taurus","Gemini","Cancer","Leo","Virgo",
     "Libra","Scorpio","Sagittarius","Capricorn","Aquarius","Pisces"

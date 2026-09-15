@@ -735,6 +735,26 @@ async def _birthday_recompute_job():
                     "remedies_summary":   [],
                 }
 
+                # [lk-wire 2026-09-15] This fresh rebuild would otherwise clobber
+                # advanced/enemy_houses/year_lord on the user's birthday — which is
+                # exactly when year_lord turns over. Recompute and carry them.
+                try:
+                    from antar_engine.lal_kitab_advanced import (
+                        detect_sleeping_planets, calculate_comprehensive_rin,
+                        detect_enemy_houses, year_lord_for)
+                    _bp = chart_data.get("planets", {})
+                    lk_data["advanced"] = {
+                        "sleeping_planets": detect_sleeping_planets(_bp),
+                        "rin_debts":        calculate_comprehensive_rin(_bp),
+                    }
+                    lk_data["enemy_houses"] = detect_enemy_houses(_bp)
+                    _byl = year_lord_for(birth_date, today)
+                    if _byl:
+                        lk_data["year_lord"] = _byl
+                        lk_data["year_lord_house"] = (_bp.get(_byl, {}) or {}).get("house", 0)
+                except Exception as _bce:
+                    print(f"[birthday_cron]   ⚠ advanced/year_lord recompute failed (non-fatal): {_bce}")
+
                 supabase.table("charts").update({
                     "lal_kitab_data": lk_data,
                     "lk_age":         age,
@@ -6705,7 +6725,11 @@ Do not use any planet names or astrological jargon — translate everything into
                     _full_context += "\n" + _jaimini_conv + "\n"
                 # Bridge only fires with Jaimini
                 try:
-                    _bridge_block = format_bridge_from_stored(chart_data)
+                    # [lk-wire 2026-09-15] format_bridge_from_stored expects the
+                    # FULL chart row (jaimini_data + lal_kitab_data columns) — it
+                    # was being passed the inner chart_data JSON, which has neither,
+                    # so the whole bridge (incl. the LK year-lord line) was dead.
+                    _bridge_block = format_bridge_from_stored(chart_record)
                     if _bridge_block:
                         _full_context += _bridge_block
                 except Exception as _be:
@@ -11222,12 +11246,22 @@ async def create_chart(
         # carries everything.
         try:
             from antar_engine.lal_kitab_advanced import (
-                detect_sleeping_planets, calculate_comprehensive_rin)
+                detect_sleeping_planets, calculate_comprehensive_rin,
+                detect_enemy_houses, year_lord_for)
             _lk_planets = chart_data.get("planets", {})
             lk_data["advanced"] = {
                 "sleeping_planets": detect_sleeping_planets(_lk_planets),
                 "rin_debts":        calculate_comprehensive_rin(_lk_planets),
             }
+            # [lk-wire 2026-09-15] enemy_houses (natal, static) — the practice
+            # engine reads it top-level; was never written, so always []. And the
+            # Varshphal year lord (changes only on the birthday; refreshed by the
+            # birthday cron) — powers the Jaimini LK-cycle line + welcome signal.
+            lk_data["enemy_houses"] = detect_enemy_houses(_lk_planets)
+            _yl = year_lord_for(request.birth_date)
+            if _yl:
+                lk_data["year_lord"] = _yl
+                lk_data["year_lord_house"] = (_lk_planets.get(_yl, {}) or {}).get("house", 0)
         except Exception as _adve:
             print(f"[lk] advanced compute failed (non-fatal): {_adve}")
 
