@@ -659,6 +659,14 @@ def generate_practice_schedule(
     )
 
     _sched_out = _schedule_to_dict(schedule)
+    # [lk-wire 2026-09-15] Surface enemy-house alerts (was extracted at the top of
+    # this function and dropped). Injected into the dict so the dataclass shape is
+    # untouched; empty list on any failure.
+    try:
+        _sched_out["enemy_alerts"] = _build_enemy_alerts(enemy_houses, locale)
+    except Exception as _eae:
+        print(f"[practice] enemy_alerts build failed (non-fatal): {_eae}")
+        _sched_out["enemy_alerts"] = []
     # [gemstone-engine] chart-level primary stone from the ENGINE planet.
     # Additive + guarded: any failure leaves chart_gemstone=None and the
     # schedule payload otherwise byte-identical to before.
@@ -1243,6 +1251,28 @@ def _build_mantra_card(planet, locale):
         mantra_completion_milestone=PLANET_PRACTICE_META.get(planet, {}).get("completion_milestone", ""),
         mantra_streak_type=PLANET_PRACTICE_META.get(planet, {}).get("streak_type", "daily"),
     )
+
+
+def _build_enemy_alerts(enemy_houses, locale):
+    """[lk-wire 2026-09-15] Cards for planets sitting in an enemy's sign — natural
+    tension during that planet's dasha. enemy_houses was extracted but never
+    surfaced; this renders it alongside sleeping_alerts / rin_cards."""
+    alerts = []
+    for e in (enemy_houses or []):
+        if not isinstance(e, dict):
+            continue
+        planet = e.get("planet", "")
+        info = PLANET_ENERGY.get(planet, {})
+        alerts.append({
+            "planet":       planet,
+            "energy_label": info.get("label", ""),
+            "why":          e.get("problem", ""),
+            "active_when":  e.get("active_when", ""),
+            "severity":     e.get("severity", "moderate"),
+            "domain":       info.get("domain", ""),
+            "color":        info.get("color", ""),
+        })
+    return alerts
 
 
 def _build_sleeping_alerts(sleeping, locale):
