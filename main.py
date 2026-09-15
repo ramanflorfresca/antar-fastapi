@@ -21930,12 +21930,14 @@ async def ask_endpoint(request: AskRequest):
                                         else _best[0].strftime("%A"))
                         _ask_layers_block += (
                             "\n\nPER-DAY TIMEFRAME FACTS — the user asked about specific days. "
-                            "You MUST give a day-by-day read: name each day and its lean, then ONE "
-                            "synthesis line contrasting them, then a short scoped follow-up offer "
-                            "(e.g. the coming days or the wider month). Do NOT collapse to a single "
-                            "day. Keep it plain — no house numbers or Sanskrit.\n"
+                            "Write ONE complete sentence per day, each STARTING with the day's "
+                            "name exactly as given below ('Today, ...' then 'Tomorrow, ...'); never "
+                            "drop or merge a day name. Then ONE synthesis line contrasting the days, "
+                            "then a short scoped follow-up offer (the coming days, or the wider "
+                            "month). Do NOT collapse to a single day; do NOT invent an intraday "
+                            "'act before HH:MM' clock. Keep it plain — no house numbers, no Sanskrit.\n"
                             + "\n".join(_tf_lines)
-                            + (f"\n(Stronger of the two: {_tf_stronger}.)" if len(_tf_rows) > 1 else "")
+                            + (f"\nStronger of the two: {_tf_stronger}." if len(_tf_rows) > 1 else "")
                         )
                         _ask_tf_dayscope = True
                         print(f"[ask][timeframe] day-scope {_tf['label']} — "
@@ -22182,7 +22184,7 @@ async def ask_endpoint(request: AskRequest):
                     # they answer with a multi-week/month window, not "before 23:11
                     # tonight".
                     _is_period_q = bool(_ask_concern_block or _ask_career_block)
-                    if _dec_is_tactical(question) and not _is_period_q:
+                    if _dec_is_tactical(question) and not _is_period_q and not _ask_tf_dayscope:
                         _ask_lat, _ask_lng, _ask_loc_src = _resolve_moment_coords(chart_row.data)
                         _ask_tz_off = float(chart_row.data.get('tz_offset') or 0.0)
                         _ask_intraday = _ds_build_intraday_window(
@@ -22280,6 +22282,10 @@ async def ask_endpoint(request: AskRequest):
                     from antar_engine.hora_karana import is_tactical_question as _refl_is_tac
                     _ask_tactical = bool(_refl_is_tac(question))
                 except Exception:
+                    _ask_tactical = False
+                # [ask-timeframe] a multi-day question ("today or tomorrow") gets a
+                # day-by-day read, not a single "act before 21:11 tonight" clock.
+                if _ask_tf_dayscope:
                     _ask_tactical = False
                 if _ask_tactical:
                     try:
