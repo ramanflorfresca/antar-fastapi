@@ -11066,29 +11066,10 @@ async def create_chart(
             except Exception as _je:
                 print(f"[jaimini] v2 store failed (non-blocking): {_je}")
 
-        # Backfill advanced LK data (sleeping planets + Rin)
-        try:
-            from antar_engine.lal_kitab_advanced import detect_sleeping_planets, calculate_comprehensive_rin
-            _lk_stored = supabase.table("charts").select("lal_kitab_data").eq("id", chart_id).single().execute()
-            _lk_data = _lk_stored.data.get("lal_kitab_data") or {}
-            if isinstance(_lk_data, str):
-                import json as _lkjson
-                _lk_data = _lkjson.loads(_lk_data)
-
-            # Compute advanced fields
-            _planets_for_lk = chart_data.get("planets", {})
-            _sleeping = detect_sleeping_planets(_planets_for_lk)
-            _rin = calculate_comprehensive_rin(_planets_for_lk)
-
-            # Store under 'advanced' key
-            _lk_data["advanced"] = {
-                "sleeping_planets": _sleeping,
-                "rin_debts": _rin,
-            }
-            supabase.table("charts").update({"lal_kitab_data": _lk_data}).eq("id", chart_id).execute()
-            print(f"[chart/create] LK advanced stored — {len(_sleeping)} sleeping, {len(_rin)} rin")
-        except Exception as _lke:
-            print(f"[chart/create] LK advanced store failed (non-blocking): {_lke}")
+        # [lk-advanced-fix 2026-09-15] The advanced LK write that used to live here
+        # was clobbered by the later lal_kitab_data hot-path write (which omitted
+        # `advanced`). It's now computed and written as part of that single write
+        # below, so this redundant, always-overwritten block was removed.
 
         # Save yogas to separate table for queryability
         detected_yogas = chart_data.get("yogas", [])
@@ -11233,12 +11214,30 @@ async def create_chart(
             "cycle_significance": None,
         }
 
+        # [lk-advanced-fix 2026-09-15] Compute sleeping planets + Rin HERE and
+        # include them in the single hot-path write. Previously an earlier block
+        # wrote `advanced` and THIS write (running later) clobbered it, so every
+        # chart lost its sleeping/rin data — silently degrading the Today card,
+        # /predict context, the yearly LK gate, and Ask practices. One write now
+        # carries everything.
+        try:
+            from antar_engine.lal_kitab_advanced import (
+                detect_sleeping_planets, calculate_comprehensive_rin)
+            _lk_planets = chart_data.get("planets", {})
+            lk_data["advanced"] = {
+                "sleeping_planets": detect_sleeping_planets(_lk_planets),
+                "rin_debts":        calculate_comprehensive_rin(_lk_planets),
+            }
+        except Exception as _adve:
+            print(f"[lk] advanced compute failed (non-fatal): {_adve}")
+
         # Save to charts table for hot path reads
         supabase.table("charts").update({
             "lal_kitab_data": lk_data,
         }).eq("id", chart_id).execute()
 
-        print(f"[lk] Saved lal_kitab_data for chart {chart_id}")
+        print(f"[lk] Saved lal_kitab_data for chart {chart_id} "
+              f"(advanced: {len((lk_data.get('advanced') or {}).get('sleeping_planets') or [])} sleeping)")
     except Exception as e:
         print(f"[lk] lal_kitab_data error (non-fatal): {e}")
 

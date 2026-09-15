@@ -267,8 +267,21 @@ def _lk_planet_state(planet: str, lk_data: Dict[str, Any]) -> Dict[str, Any]:
         state["pakka_ghar"] = True
         state["polarity"] = max(state["polarity"], +1)
     # 3. rinn (debt)
-    rinn = advanced.get("rin") or advanced.get("rinn") or {}
-    if isinstance(rinn, dict) and rinn.get(planet.strip().title()):
+    # [lk-rin-fix 2026-09-15] Producers write `rin_debts` as a LIST of dicts
+    # (calculate_comprehensive_rin), not a planet-keyed dict — so the old
+    # dict-only check never fired. Handle both shapes (and the legacy keys).
+    rinn = advanced.get("rin_debts") or advanced.get("rin") or advanced.get("rinn") or []
+    _pt = planet.strip().title()
+    if isinstance(rinn, dict):
+        _has_rin = bool(rinn.get(_pt))
+    elif isinstance(rinn, list):
+        _has_rin = any(
+            (isinstance(r, str) and r.strip().title() == _pt)
+            or (isinstance(r, dict) and (r.get("planet") or "").strip().title() == _pt)
+            for r in rinn)
+    else:
+        _has_rin = False
+    if _has_rin:
         state["rinn"] = True
         state["polarity"] = -1
     return state

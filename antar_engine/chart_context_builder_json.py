@@ -234,7 +234,7 @@ def _extract_lk_static(lk_data: Any) -> Dict[str, Any]:
             if key in advanced:
                 out["sleeping_planets"] = advanced[key]
                 break
-        for key in ("rin", "rin_planets", "debt_planets"):
+        for key in ("rin_debts", "rin", "rin_planets", "debt_planets"):
             if key in advanced:
                 out["rin"] = advanced[key]
                 break
