@@ -21884,6 +21884,65 @@ async def ask_endpoint(request: AskRequest):
                     )
             except Exception as _ale:
                 logger.warning(f"[ask] layer context failed (non-fatal): {_ale}")
+
+            # [ask-timeframe 2026-09-15] Day-scope questions ("today or tomorrow",
+            # "tomorrow") must get a DAY-BY-DAY read, not a single collapsed
+            # verdict. Compute a per-day directional band for each named day and
+            # feed it to the narrator (both reflective + decision paths read
+            # _ask_layers_block). Fail-open — absence leaves behavior unchanged.
+            _ask_tf_dayscope = False
+            try:
+                from antar_engine.ask_timeframe import (
+                    detect_horizon as _tf_detect, score_day_for_concern as _tf_score)
+                _tf = _tf_detect(question)
+                if _tf and _tf.get("kind") == "days" and isinstance(chart_data, dict):
+                    import datetime as _tfdt
+                    _TF_SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+                                 "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
+                    _tf_lag = (chart_data.get("lagna", {}) or {}).get("sign")
+                    _tf_lidx = _TF_SIGNS.index(_tf_lag) if _tf_lag in _TF_SIGNS else None
+                    _tf_moon = ((chart_data.get("planets", {}) or {}).get("Moon", {}) or {}).get("sign")
+                    _tf_lat, _tf_lng, _ = _resolve_moment_coords(chart_row.data)
+                    _tf_tz = float(chart_row.data.get("tz_offset") or 0.0)
+                    _TF_PHRASE = {
+                        "favorable": "a FAVORABLE day — the stronger window; a considered move is supported",
+                        "mixed": "a MIXED day — genuine pulls both ways, gains and drains together",
+                        "cautious": "a CAUTIOUS day — protect and hold rather than push",
+                    }
+                    _tf_rows = []
+                    if _tf_lidx is not None:
+                        for _dd in _tf["days"]:
+                            _sd = _tf_score(_tf_lidx, _tf_moon, _ask_concern, _dd,
+                                            float(_tf_lat), float(_tf_lng), _tf_tz)
+                            if _sd:
+                                _tf_rows.append((_dd, _sd))
+                    if _tf_rows:
+                        _tf_today = _tfdt.date.today()
+                        _tf_lines = []
+                        for _dd, _sd in _tf_rows:
+                            _dn = ("Today" if _dd == _tf_today
+                                   else "Tomorrow" if _dd == _tf_today + _tfdt.timedelta(days=1)
+                                   else _dd.strftime("%A"))
+                            _tf_lines.append(f"- {_dn}: {_TF_PHRASE.get(_sd['band'], 'a mixed day')}.")
+                        _best = max(_tf_rows, key=lambda r: r[1]["score"])
+                        _tf_stronger = ("Today" if _best[0] == _tf_today
+                                        else "Tomorrow" if _best[0] == _tf_today + _tfdt.timedelta(days=1)
+                                        else _best[0].strftime("%A"))
+                        _ask_layers_block += (
+                            "\n\nPER-DAY TIMEFRAME FACTS — the user asked about specific days. "
+                            "You MUST give a day-by-day read: name each day and its lean, then ONE "
+                            "synthesis line contrasting them, then a short scoped follow-up offer "
+                            "(e.g. the coming days or the wider month). Do NOT collapse to a single "
+                            "day. Keep it plain — no house numbers or Sanskrit.\n"
+                            + "\n".join(_tf_lines)
+                            + (f"\n(Stronger of the two: {_tf_stronger}.)" if len(_tf_rows) > 1 else "")
+                        )
+                        _ask_tf_dayscope = True
+                        print(f"[ask][timeframe] day-scope {_tf['label']} — "
+                              f"{[(str(d), s['band']) for d, s in _tf_rows]}")
+            except Exception as _tfe:
+                logger.warning(f"[ask] timeframe day-scope non-fatal: {_tfe}")
+
             print(f"[ask] concern={_ask_concern} dasha={_ask_dasha_str or 'unknown'} "
                   f"layers={len(_ask_layers_block)}ch prescan={len(diagnostic_block)}ch")
 
