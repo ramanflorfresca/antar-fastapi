@@ -665,8 +665,14 @@ def generate_practice_schedule(
     try:
         # [lk-enemy-fix 2026-09-15] Compute LIVE from planets (not the stored
         # enemy_houses, which was backfilled with the old table) so the corrected
-        # LK enmity + nodal rules apply immediately.
-        _sched_out["enemy_alerts"] = build_enemy_alerts(planets, locale)
+        # LK enmity + nodal rules apply immediately. Pass the Varshphal year lord
+        # so the enemy planet ruling THIS year gets remedy-priority.
+        try:
+            from antar_engine.lal_kitab_advanced import year_lord_for as _ylf
+            _yl_e = _ylf(birth_date) if birth_date else None
+        except Exception:
+            _yl_e = None
+        _sched_out["enemy_alerts"] = build_enemy_alerts(planets, locale, year_lord=_yl_e)
     except Exception as _eae:
         print(f"[practice] enemy_alerts build failed (non-fatal): {_eae}")
         _sched_out["enemy_alerts"] = []
@@ -1256,11 +1262,16 @@ def _build_mantra_card(planet, locale):
     )
 
 
-def _enrich_enemy_alerts(enemy_houses, locale):
+def _enrich_enemy_alerts(enemy_houses, locale, year_lord=None):
     """[lk-wire 2026-09-15] Turn raw enemy-house warnings into cards — energy
     label + the afflicted planet's own LK remedies (what neutralizes the tension)
     + a plain remedy_why. Shared by the Practice schedule, the Full Chart page,
-    and the People compatibility reading."""
+    and the People compatibility reading.
+
+    [lk-varshphal-timing 2026-09-15] An enemy-house remedy bites hardest in the
+    YEAR that planet rules the Varshphal (annual chart) — that's when to do it
+    intensively; otherwise it's a steady background practice. When `year_lord` is
+    given, each alert is tagged active_this_year + a priority + a timing note."""
     alerts = []
     for e in (enemy_houses or []):
         if not isinstance(e, dict):
@@ -1275,6 +1286,14 @@ def _enrich_enemy_alerts(enemy_houses, locale):
             _it = rem["item"]
             remedies.append(_it[:1].upper() + _it[1:])
         _lbl = info.get("label", "")
+        _active = bool(year_lord) and planet == year_lord
+        if year_lord is None:
+            _timing = ""
+        elif _active:
+            _timing = ("This is its year — this planet rules your current annual chart, "
+                       "so do these remedies intensively now; they land hardest this year.")
+        else:
+            _timing = "Keep these as a steady, ongoing background practice."
         alerts.append({
             "planet":       planet,
             "energy_label": _lbl,
@@ -1286,21 +1305,27 @@ def _enrich_enemy_alerts(enemy_houses, locale):
             "remedies":     remedies,
             "remedy_why":   (f"Steadily tending your {_lbl.lower()} eases this tension — "
                              f"consistency matters more than intensity." if _lbl else ""),
+            "active_this_year": _active,
+            "priority":     ("year" if _active else "ongoing") if year_lord is not None else None,
+            "timing":       _timing,
         })
+    # Year-active alerts first (do these now), then ongoing.
+    alerts.sort(key=lambda a: 0 if a.get("active_this_year") else 1)
     return alerts
 
 
-def _build_enemy_alerts(enemy_houses, locale):
+def _build_enemy_alerts(enemy_houses, locale, year_lord=None):
     """Enrich a pre-computed enemy-house list (Practice schedule path)."""
-    return _enrich_enemy_alerts(enemy_houses, locale)
+    return _enrich_enemy_alerts(enemy_houses, locale, year_lord=year_lord)
 
 
-def build_enemy_alerts(planets, locale="GLOBAL"):
+def build_enemy_alerts(planets, locale="GLOBAL", year_lord=None):
     """Public: detect enemy houses from a chart's planets and return enriched
-    alert cards (with remedies). Used by /chart/{id}/overview and compatibility."""
+    alert cards (with remedies). Used by /chart/{id}/overview and compatibility.
+    Pass `year_lord` (the Varshphal year lord) to tag year-priority vs ongoing."""
     try:
         from antar_engine.lal_kitab_advanced import detect_enemy_houses
-        return _enrich_enemy_alerts(detect_enemy_houses(planets or {}), locale)
+        return _enrich_enemy_alerts(detect_enemy_houses(planets or {}), locale, year_lord=year_lord)
     except Exception:
         return []
 
