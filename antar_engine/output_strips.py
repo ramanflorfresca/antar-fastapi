@@ -494,13 +494,18 @@ _BANNED_SANSKRIT_TERMS: tuple[str, ...] = (
     "sub-chapter", "micro-chapter", "chapter-nesting", "major/sub/micro",
 )
 
+# [ask-timeframe 2026-09-15] Only fabricated WEEKDAY names are stripped (to kill
+# invented "act on Wednesday" timing). The relative near-terms today / tomorrow /
+# yesterday are legitimate — the daily + /ask engines now compute genuine
+# today/tomorrow reads — so they are NO LONGER stripped (they were silently
+# eating "Tomorrow" from multi-day answers).
 _DAY_NAMES_ES: tuple[str, ...] = (
     "lunes", "martes", "miércoles", "miercoles", "jueves", "viernes",
-    "sábado", "sabado", "domingo", "ayer", "mañana", "manana",
+    "sábado", "sabado", "domingo",
 )
 _DAY_NAMES_EN: tuple[str, ...] = (
     "monday", "tuesday", "wednesday", "thursday", "friday",
-    "saturday", "sunday", "yesterday", "tomorrow",
+    "saturday", "sunday",
 )
 
 # [non-canonical-scores] two-pass strip — parens first, bare second.
