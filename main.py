@@ -29608,6 +29608,8 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
                                 # track_label / finger_reason + the Lal Kitab
                                 # remedy line list all leaked English.
                                 "track_label", "finger_reason", "remedies",
+                                # [lk-enemy-i18n 2026-09-15] enemy_alerts fields
+                                "timing", "active_when",
                             ],
                             endpoint_name="practices-schedule",
                             chart_id=chart_id,
@@ -29726,6 +29728,8 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
                         "mantra_duration_reason", "completion_milestone",
                         "primary_action", "energy_label",
                         "streak_warning", "remedy_why",
+                        # [lk-enemy-i18n 2026-09-15] enemy_alerts fields
+                        "remedies", "timing", "active_when",
                         # [pass2 2026-06-10] chakra_map + status/label/governs
                         "chakra_map", "focus", "governs", "domain",
                         "name", "status", "label",
