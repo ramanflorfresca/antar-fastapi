@@ -20317,6 +20317,33 @@ def _is_career_type_q(q):
                                           "property", "house", "invest in",
                                           "should i sell"))):
         return True
+    # [venture-aptitude 2026-09-16] "what KIND of startup/business/venture gives
+    # me the most potential / suits me / fits" — an aptitude question about the
+    # TYPE of venture (owner: 'my tech-food startup failed, flowers failed — what
+    # actually fits my chart?'). Same D-10 ranked-fields read. Keyed on a venture
+    # noun + an aptitude qualifier, with timing/decision framings excluded so
+    # 'when will my business grow' / 'should I start a business now' stay on their
+    # own paths. en + es.
+    _venture_nouns = ("startup", "start-up", "startups", "business", "venture",
+                      "ventures", "company", "enterprise", "line of business",
+                      "negocio", "negocios", "emprendimiento", "emprender",
+                      "empresa")
+    _venture_apt = ("what kind", "what type", "which kind", "which type",
+                    "most potential", "highest potential", "best suited",
+                    "suits me", "suited to me", "best fit", "fits me",
+                    "right for me", "cut out for", "should i build",
+                    "should i pursue", "what to build", "what should i build",
+                    "qué tipo", "que tipo", "qué clase", "que clase",
+                    "me conviene", "mayor potencial", "más potencial",
+                    "mas potencial", "para mí", "para mi")
+    _venture_excl = ("when ", "cuándo", "cuando", "grow", "crecer", "take off",
+                     "this year", "next year", "este año", "este ano",
+                     "should i start", "start now", "empezar ahora", "is it time",
+                     "good time", "buen momento")
+    if (any(n in ql for n in _venture_nouns)
+            and any(w in ql for w in _venture_apt)
+            and not any(t in ql for t in _venture_excl)):
+        return True
     return False
 
 
