@@ -509,6 +509,15 @@ def _thaw_dates(text, mapping):
     return text
 
 
+def localize_date_str(text, lang):
+    """Deterministically localize English date tokens in `text` (es/pt/fr) with
+    NO LLM involved — e.g. 'Sun 15 Nov' -> 'dom 15 nov'. Use for short structured
+    date fields (a `timing` chip) that must never be paraphrased by the translator.
+    Returns `text` unchanged for en / unknown languages."""
+    frozen, mapping = _freeze_dates(text, lang, [0])
+    return _thaw_dates(frozen, mapping)
+
+
 async def _call_translator(strings, target_language):
     """Translate a flat {path: english} dict via Claude Haiku. Returns {path: translated}."""
     language_name = {

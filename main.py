@@ -23094,6 +23094,12 @@ async def ask_endpoint(request: AskRequest):
                 "read", "next", "timing", "actions", "practices",
                 "convergence", "what", "why",
             ], chart_id)
+            # [ask-timeframe] the window-scan timing chip is a deterministic date —
+            # localize it directly (no LLM) so the translator can't paraphrase a
+            # lone value into prose ("sua energia de identidade… 15 nov").
+            if _ask_tf_windowscan and _ask_tf_timing:
+                from antar_engine.translation_middleware import localize_date_str as _lds
+                payload["timing"] = _lds(_ask_tf_timing, language)
             # [life-gate] deterministic backstop AFTER localization — no boss for
             # a business owner, no spouse for the single, whatever narrator wrote it.
             if _ask_life:
@@ -23171,6 +23177,9 @@ async def ask_endpoint(request: AskRequest):
                 except Exception as _rb_e:
                     print(f"[ask] readability non-fatal: {_rb_e}")
                 payload = await _ask_localize(payload, language, ["why", "timing"], chart_id)
+                if locals().get("_ask_tf_windowscan") and locals().get("_ask_tf_timing"):
+                    from antar_engine.translation_middleware import localize_date_str as _lds
+                    payload["timing"] = _lds(_ask_tf_timing, language)
                 if _ask_life:
                     for _lf in ("why", "read", "verdict"):
                         if isinstance(payload.get(_lf), str):
@@ -23478,6 +23487,9 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _rb_e:
                 print(f"[ask] readability non-fatal: {_rb_e}")
             payload = await _ask_localize(payload, language, ["why", "timing"], chart_id)
+            if locals().get("_ask_tf_windowscan") and locals().get("_ask_tf_timing"):
+                from antar_engine.translation_middleware import localize_date_str as _lds
+                payload["timing"] = _lds(_ask_tf_timing, language)
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "yesno", locals().get("_ask_concern"))
             return payload
