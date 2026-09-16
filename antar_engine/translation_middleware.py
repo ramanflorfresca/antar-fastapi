@@ -433,6 +433,82 @@ async def _translator_round(strings, language_name, system_prompt, extra_rule=""
     return translated
 
 
+# [date-freeze 2026-09-15] Haiku mis-translates English month abbreviations
+# ("Thu 1 Oct" -> "jue 1 ene") — a correctness bug for a timing app. Dates are
+# deterministic, so we freeze every date token to an opaque placeholder BEFORE
+# translation and thaw it back to the correctly-localized date AFTER, so the
+# month/weekday never passes through the LLM. Applies to every translated field.
+_DF_MON_EN = {"jan": 0, "feb": 1, "mar": 2, "apr": 3, "may": 4, "jun": 5,
+              "jul": 6, "aug": 7, "sep": 8, "sept": 8, "oct": 9, "nov": 10, "dec": 11}
+_DF_WD_EN = {"mon": 0, "tue": 1, "wed": 2, "thu": 3, "fri": 4, "sat": 5, "sun": 6}
+_DF_MON_LOC = {
+    "es": ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"],
+    "pt": ["jan", "fev", "mar", "abr", "mai", "jun", "jul", "ago", "set", "out", "nov", "dez"],
+    "fr": ["janv", "févr", "mars", "avr", "mai", "juin", "juil", "août", "sept", "oct", "nov", "déc"],
+}
+_DF_WD_LOC = {
+    "es": ["lun", "mar", "mié", "jue", "vie", "sáb", "dom"],
+    "pt": ["seg", "ter", "qua", "qui", "sex", "sáb", "dom"],
+    "fr": ["lun", "mar", "mer", "jeu", "ven", "sam", "dim"],
+}
+_MON_ALT = "Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec"
+_DF_FULL = re.compile(
+    rf"\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s+(\d{{1,2}})\s+({_MON_ALT})\b(?:\s+(\d{{4}}))?",
+    re.IGNORECASE)
+_DF_DAYMON = re.compile(
+    rf"\b(\d{{1,2}})\s+({_MON_ALT})\b(?:\s+(\d{{4}}))?", re.IGNORECASE)
+_DF_MONYEAR = re.compile(rf"\b({_MON_ALT})\s+(\d{{4}})\b", re.IGNORECASE)
+
+
+def _freeze_dates(text, lang, counter):
+    """Replace English date tokens in `text` with opaque ⟦DATEn⟧ placeholders.
+    Returns (frozen_text, {placeholder: localized_date}). `counter` is a 1-item
+    list used as a batch-wide unique index."""
+    if not isinstance(text, str) or lang not in _DF_MON_LOC:
+        return text, {}
+    mapping = {}
+    mon = _DF_MON_LOC[lang]
+    wd = _DF_WD_LOC[lang]
+
+    def _tok(loc):
+        i = counter[0]
+        counter[0] += 1
+        key = f"⟦DATE{i}⟧"
+        mapping[key] = loc
+        return key
+
+    def _full(m):
+        w = _DF_WD_EN[m.group(1).lower()]
+        day = m.group(2)
+        mo = _DF_MON_EN[m.group(3).lower()]
+        yr = f" {m.group(4)}" if m.group(4) else ""
+        return _tok(f"{wd[w]} {day} {mon[mo]}{yr}")
+
+    def _daymon(m):
+        day = m.group(1)
+        mo = _DF_MON_EN[m.group(2).lower()]
+        yr = f" {m.group(3)}" if m.group(3) else ""
+        return _tok(f"{day} {mon[mo]}{yr}")
+
+    def _monyear(m):
+        mo = _DF_MON_EN[m.group(1).lower()]
+        return _tok(f"{mon[mo]} {m.group(2)}")
+
+    text = _DF_FULL.sub(_full, text)
+    text = _DF_DAYMON.sub(_daymon, text)
+    text = _DF_MONYEAR.sub(_monyear, text)
+    return text, mapping
+
+
+def _thaw_dates(text, mapping):
+    """Restore localized dates for the placeholders in `text`."""
+    if not isinstance(text, str) or not mapping:
+        return text
+    for key, loc in mapping.items():
+        text = text.replace(key, loc)
+    return text
+
+
 async def _call_translator(strings, target_language):
     """Translate a flat {path: english} dict via Claude Haiku. Returns {path: translated}."""
     language_name = {
@@ -444,7 +520,21 @@ async def _call_translator(strings, target_language):
     # 2-arg signature per the Loc-4 Sanskrit-handling addendum.
     system_prompt = build_translation_system_prompt(language_name, target_language)
 
-    translated = await _translator_round(strings, language_name, system_prompt)
+    # [date-freeze] pull dates out of the LLM's reach; localize deterministically.
+    _df_counter = [0]
+    _df_maps = {}
+    _frozen = {}
+    for _k, _v in strings.items():
+        _fv, _m = _freeze_dates(_v, target_language, _df_counter)
+        _frozen[_k] = _fv
+        _df_maps.update(_m)
+    _df_rule = ("Some values contain placeholder tokens like ⟦DATE0⟧. "
+                "Keep every such token EXACTLY as written, unchanged and in place.\n"
+                if _df_maps else "")
+    strings = _frozen
+
+    translated = await _translator_round(strings, language_name, system_prompt,
+                                         extra_rule=_df_rule)
 
     # [translator-gate 2026-07-04] retry ONCE for values that came back
     # still-English; keep the ORIGINAL authored string (never a paraphrase)
@@ -459,7 +549,7 @@ async def _call_translator(strings, target_language):
             retry = await _translator_round(
                 _still_en, language_name, system_prompt,
                 extra_rule=("REMINDER: your previous attempt returned English. "
-                            f"Write every value in {language_name} only.\n"))
+                            f"Write every value in {language_name} only.\n" + _df_rule))
             for k, v in retry.items():
                 if k in translated and isinstance(v, str) and not _looks_english(v):
                     translated[k] = v
@@ -475,4 +565,10 @@ async def _call_translator(strings, target_language):
         if key not in translated or not isinstance(translated[key], str):
             logger.warning(f"[translation] key not returned cleanly, keeping English: {key}")
             translated[key] = english
+
+    # [date-freeze] thaw placeholders back to correctly-localized dates. Any that
+    # survive into a fallback-English value are still valid tokens and resolve here.
+    if _df_maps:
+        for key in list(translated.keys()):
+            translated[key] = _thaw_dates(translated[key], _df_maps)
     return translated

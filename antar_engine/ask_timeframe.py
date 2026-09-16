@@ -18,25 +18,59 @@ feeds the facts to the narrator so the voice stays consistent.
 from __future__ import annotations
 
 import re
+import unicodedata
 from datetime import date, timedelta
 from typing import Optional
 
 SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra",
          "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
 
-# question vocabulary → a CONCERN_MAP key (places_concern)
+# question vocabulary → a CONCERN_MAP key (places_concern). EN + es/pt so a
+# localized question routes to the same concern houses as its English twin.
 _CONCERN_ALIAS = {
     "speculation": "money", "speculate": "money", "investment": "money",
     "invest": "money", "investing": "money", "trading": "money", "trade": "money",
     "stocks": "money", "stock": "money", "gambling": "money", "bet": "money",
     "lottery": "money", "wealth": "money", "finance": "money", "financial": "money",
     "funding": "money", "income": "money", "money": "money",
+    # es/pt money
+    "especulacion": "money", "especular": "money", "especulacao": "money",
+    "inversion": "money", "invertir": "money", "investimento": "money",
+    "investir": "money", "dinero": "money", "dinheiro": "money",
+    "finanzas": "money", "financas": "money", "renta": "money", "renda": "money",
     "business": "business", "startup": "business", "venture": "business",
+    "negocio": "business", "empresa": "business", "emprendimiento": "business",
     "job": "career", "work": "career", "career": "career", "promotion": "career",
+    "trabajo": "career", "empleo": "career", "carrera": "career",
+    "trabalho": "career", "emprego": "career", "carreira": "career",
     "relationship": "love", "romance": "love", "marriage": "love",
     "partner": "love", "love": "love", "dating": "love",
+    "relacion": "love", "pareja": "love", "amor": "love", "matrimonio": "love",
+    "relacionamento": "love", "parceiro": "love", "casamento": "love",
     "health": "health", "peace": "peace", "family": "family",
+    "salud": "health", "saude": "health", "paz": "peace",
+    "familia": "family",
 }
+
+
+def _norm(s: str) -> str:
+    """Lowercase + strip accents so es/pt phrasing matches ASCII patterns
+    ('próximos'->'proximos', 'mañana'->'manana', 'qué'->'que')."""
+    s = (s or "").lower()
+    return "".join(c for c in unicodedata.normalize("NFKD", s)
+                   if not unicodedata.combining(c))
+
+
+# unit token (accent-stripped, en/es/pt) → (days multiplier, canonical kind)
+_UNIT_MULT = {
+    "day": (1, "day"), "days": (1, "day"), "dia": (1, "day"), "dias": (1, "day"),
+    "week": (7, "week"), "weeks": (7, "week"),
+    "semana": (7, "week"), "semanas": (7, "week"),
+    "month": (30, "month"), "months": (30, "month"),
+    "mes": (30, "month"), "meses": (30, "month"),
+}
+_UNIT_RE = r"(days?|weeks?|months?|dias?|semanas?|mes|meses)"
+_NEXT_RE = r"(?:next|proxim[oa]s?|dentro de)"
 
 
 def _concern_houses(concern: str):
@@ -60,13 +94,18 @@ def detect_horizon(question: str, today: Optional[date] = None) -> Optional[dict
        "month":bool}
     `scan`=True means "find the best day(s) in the window" (which-day / when).
     """
-    q = (question or "").lower()
+    q = _norm(question)
     today = today or date.today()
 
-    has_today = bool(re.search(r"\btoday\b|\bright now\b|\btonight\b", q))
-    has_tom = bool(re.search(r"\btomorrow\b", q))
-    wants_day = bool(re.search(r"\b(which|what)\s+day\b|\bbest\s+day\b|\bwhen\b|"
-                               r"\bwhat\s+time\b|\bwhich\s+time\b", q))
+    has_today = bool(re.search(
+        r"\btoday\b|\bright now\b|\btonight\b|\bhoy\b|\bahora\b|"
+        r"\besta noche\b|\bhoje\b|\bagora\b|\besta noite\b", q))
+    has_tom = bool(re.search(r"\btomorrow\b|\bmanana\b|\bamanha\b", q))
+    wants_day = bool(re.search(
+        r"\b(which|what)\s+day\b|\bbest\s+day\b|\bwhen\b|\bwhat\s+time\b|"
+        r"\bwhich\s+time\b|"                                    # en
+        r"\b(que|cual)\s+dia\b|\bmejor\s+dia\b|\bcuando\b|\ba\s+que\s+hora\b|"  # es
+        r"\bqual\s+dia\b|\bmelhor\s+dia\b|\bquando\b|\bque\s+horas?\b", q))     # pt
 
     # ── enumerable days ─────────────────────────────────────────────────────
     if has_today and has_tom:
@@ -77,35 +116,39 @@ def detect_horizon(question: str, today: Optional[date] = None) -> Optional[dict
     if has_today:
         return {"kind": "days", "days": [today], "label": "today"}
 
-    # ── explicit bounded windows ("next 45 to 90 days", "next 30 days") ──────
-    m_rng = re.search(r"next\s+(\d+)\s*(?:to|-|–|and)\s*(\d+)\s*(day|week|month)", q)
+    # ── explicit bounded windows ("next 45 to 90 days", "próximos 45 a 90 días") ──
+    m_rng = re.search(
+        _NEXT_RE + r"\s+(\d+)\s*(?:to|-|–|and|a|e|y)\s*(\d+)\s*" + _UNIT_RE, q)
     if m_rng:
-        a, b, unit = int(m_rng.group(1)), int(m_rng.group(2)), m_rng.group(3)
-        mult = {"day": 1, "week": 7, "month": 30}[unit]
+        a, b = int(m_rng.group(1)), int(m_rng.group(2))
+        mult, kind = _UNIT_MULT[m_rng.group(3)]
         return {"kind": "window", "start": today + timedelta(days=a * mult),
                 "end": today + timedelta(days=b * mult), "scan": True,
-                "label": f"the next {a}–{b} {unit}s"}
-    m_n = re.search(r"next\s+(\d+)\s*(day|week|month)", q)
+                "label": f"the next {a}–{b} {kind}s"}
+    m_n = re.search(_NEXT_RE + r"\s+(\d+)\s*" + _UNIT_RE, q)
     if m_n:
-        n, unit = int(m_n.group(1)), m_n.group(2)
-        mult = {"day": 1, "week": 7, "month": 30}[unit]
+        n = int(m_n.group(1))
+        mult, kind = _UNIT_MULT[m_n.group(2)]
         return {"kind": "window", "start": today, "end": today + timedelta(days=n * mult),
-                "scan": wants_day, "label": f"the next {n} {unit}s",
-                "month": unit == "month"}
+                "scan": wants_day, "label": f"the next {n} {kind}s",
+                "month": kind == "month"}
 
-    # ── named windows ───────────────────────────────────────────────────────
-    if "next week" in q:
+    # ── named windows (en / es / pt) ─────────────────────────────────────────
+    if re.search(r"next week|proxima semana|semana que viene|semana entrante", q):
         start = today + timedelta(days=(7 - today.weekday()) % 7 or 7)
         return {"kind": "window", "start": start, "end": start + timedelta(days=6),
                 "scan": wants_day, "label": "next week"}
-    if "this week" in q or "coming days" in q or "next few days" in q or "coming week" in q:
+    if re.search(r"this week|coming days|next few days|coming week|"
+                 r"esta semana|proximos dias|proxima semana|"
+                 r"proximos dias", q):
         return {"kind": "window", "start": today, "end": today + timedelta(days=6),
                 "scan": wants_day, "label": "the week ahead"}
-    if "next month" in q:
+    if re.search(r"next month|proximo mes|mes que viene|proximo mes", q):
         return {"kind": "window", "start": today + timedelta(days=1),
                 "end": today + timedelta(days=45), "scan": wants_day,
                 "label": "the month ahead", "month": True}
-    if "this month" in q or "wider month" in q or "the month" in q or "coming month" in q:
+    if re.search(r"this month|wider month|the month|coming month|"
+                 r"este mes|este mes|proximo mes", q):
         return {"kind": "window", "start": today, "end": today + timedelta(days=30),
                 "scan": wants_day, "label": "this month", "month": True}
 
