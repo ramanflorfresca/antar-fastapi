@@ -27836,6 +27836,27 @@ def _network_today_glance(connection_chart_id, language="en"):
         return {"available": False}
 
 
+# [network-prewarm] fire-and-forget warming of COLD connection cards so a
+# glance is ready on the NEXT /network open. Runs DETACHED from the client
+# request (an asyncio task), so the daily cold-compute's gateway timeout can't
+# affect /network, and /network itself still only ever READS cache. Capped per
+# request + in-flight-deduped to avoid a thundering herd of heavy computes.
+_NETWORK_PREWARM_INFLIGHT: set = set()
+_NETWORK_PREWARM_MAX = 5
+
+
+async def _network_prewarm(connection_chart_id):
+    """Warm one cold connection's daily card (en only — the glance reads the
+    language-independent band/direction). Detached; never raises; always clears
+    its in-flight marker."""
+    try:
+        await get_daily_signal_endpoint(chart_id=connection_chart_id, language="en")
+    except Exception as _e:
+        print(f"[network] prewarm failed cid={str(connection_chart_id)[:8]}: {_e}")
+    finally:
+        _NETWORK_PREWARM_INFLIGHT.discard(connection_chart_id)
+
+
 @app.get("/api/v1/network/{chart_id}")
 async def get_network(chart_id: str, language: str = "en"):
     """People-network digest: the user's saved people (deduped by person) + each
@@ -27885,6 +27906,19 @@ async def get_network(chart_id: str, language: str = "en"):
         p = by_cid[cid_b]
         p["today"] = _network_today_glance(cid_b, lang)
         people.append(p)
+
+    # fire-and-forget: warm the first few COLD connections for next time (see
+    # _network_prewarm). /network's own response stays a pure cache read.
+    try:
+        import asyncio as _aio
+        _cold = [cid for cid in order
+                 if not ((by_cid[cid].get("today") or {}).get("available"))
+                 and cid not in _NETWORK_PREWARM_INFLIGHT]
+        for cid_b in _cold[:_NETWORK_PREWARM_MAX]:
+            _NETWORK_PREWARM_INFLIGHT.add(cid_b)
+            _aio.create_task(_network_prewarm(cid_b))
+    except Exception as _e:
+        print(f"[network] prewarm scheduling skipped: {_e}")
 
     return {"available": True, "people": people, "count": len(people)}
 
