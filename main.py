@@ -20627,6 +20627,31 @@ def _is_wealth_q(q):
         "libertad financiera", "fortuna"))
 
 
+def _ask_event_intent(q):
+    """[event-risk 2026-09-16] Detect the 'sudden money-event' cluster —
+    sudden-gain / sudden-loss / bankruptcy. DESCRIPTIVE propensity, not magnitude.
+    (divorce/breakups are handled by _is_relationship_q → separation_timing.)
+    en + es."""
+    ql = (q or "").lower()
+    _fin = any(m in ql for m in ("money", "financ", "business", "wealth", "cash",
+                                 "dinero", "financ", "negocio", "plata"))
+    if (any(w in ql for w in ("bankrupt", "go broke", "going broke", "financial ruin",
+                              "financial collapse", "collapse", "lose everything",
+                              "lose it all", "wiped out", "quiebra", "arruinar",
+                              "en la ruina", "la ruina")) and (_fin or "bankrupt" in ql
+                                                or "quiebra" in ql or "broke" in ql)):
+        return "bankruptcy"
+    if any(w in ql for w in ("windfall", "sudden gain", "sudden money", "unexpected money",
+                             "jackpot", "sudden wealth", "out of nowhere", "lottery win",
+                             "ganancia inesperada", "dinero inesperado", "golpe de suerte")):
+        return "sudden-gain"
+    if any(w in ql for w in ("sudden loss", "sudden losses", "lose money suddenly",
+                             "sudden money loss", "sudden setback", "blow up",
+                             "perdida repentina", "pérdida repentina", "perder de golpe")):
+        return "sudden-loss"
+    return None
+
+
 def _ask_money_intent(q):
     """[money-flow 2026-09-16] Detect a money-PATTERN question (descriptive) and
     which facet: income-flow / expenditure-loss / earned-unearned / gains-losses.
@@ -21711,6 +21736,49 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _wpse:
                 print(f"[ask][wealth-sig] non-fatal: {_wpse}")
 
+            # [event-risk 2026-09-16] sudden gain/loss + bankruptcy propensity —
+            # DESCRIPTIVE (8th-house / reserves-vs-debt), never magnitude. Text is
+            # deferred and appended after _ask_layers_block exists.
+            _ask_event_facet = None
+            _ask_event_text = ""
+            try:
+                _ask_event_facet = _ask_event_intent(question)
+                if _ask_event_facet and isinstance(chart_data, dict):
+                    if _ask_event_facet in ("sudden-gain", "sudden-loss"):
+                        from antar_engine.event_risk import sudden_events
+                        _se = sudden_events(chart_data)
+                        if _se.get("available"):
+                            _lead = ("Lead with the propensity for SUDDEN GAINS (windfall/backing/OPM)."
+                                     if _ask_event_facet == "sudden-gain"
+                                     else "Lead with the exposure to SUDDEN LOSSES/setbacks.")
+                            _ask_event_text = (
+                                "\n\nSUDDEN-EVENT PATTERN — the reader asks about abrupt money "
+                                "events. DESCRIPTIVE propensity from their chart, NOT a magnitude or a "
+                                "promise it will happen. " + _lead + "\n"
+                                f"VOLATILITY: {_se['volatility']} | LEAN: {_se['lean']}\n"
+                                f"SIGNALS: {'; '.join(_se['reasons'])}\n"
+                                "Say it as a tendency (how prone the chart is to swings, and which way), "
+                                "honestly. Plain language; no house numbers, no Sanskrit. Offer to check "
+                                "the near-term window if they want timing.")
+                    elif _ask_event_facet == "bankruptcy":
+                        from antar_engine.event_risk import bankruptcy_risk
+                        _bk = bankruptcy_risk(chart_data)
+                        if _bk.get("available"):
+                            _ask_event_text = (
+                                "\n\nRUIN-PROPENSITY READ — the reader asks about bankruptcy/financial "
+                                "ruin. This is a DESCRIPTIVE propensity + what PROTECTS, NOT a prediction "
+                                "that it will happen and NOT a magnitude. Be steady and non-alarmist — "
+                                "name the risk level plainly, then lead the reader to what protects them.\n"
+                                f"RISK LEVEL: {_bk['risk']}\n"
+                                f"RISK SIGNALS: {'; '.join(_bk['reasons'])}\n"
+                                f"PROTECTIVE: {'; '.join(_bk.get('protective') or ['—'])}\n"
+                                "Plain language; no house numbers, no Sanskrit. End with the single most "
+                                "useful protective step and an offer to look at the risk window if useful.")
+                    if _ask_event_text:
+                        print(f"[ask][event-risk] facet={_ask_event_facet}")
+            except Exception as _ere:
+                print(f"[ask][event-risk] non-fatal: {_ere}")
+
             # [d10-career] "which profession/career suits me" is a TYPE question,
             # not a timing one — compute the ranked career fields from the D-10
             # (KN Rao synthesis) and force the narrator to present THEM, instead
@@ -22289,6 +22357,8 @@ async def ask_endpoint(request: AskRequest):
                 _ask_layers_block += _ask_money_text
             if locals().get("_ask_wealth_text"):
                 _ask_layers_block += _ask_wealth_text
+            if locals().get("_ask_event_text"):
+                _ask_layers_block += _ask_event_text
 
             # [ask-timeframe 2026-09-15] Day-scope questions ("today or tomorrow",
             # "tomorrow") must get a DAY-BY-DAY read, not a single collapsed
@@ -22467,6 +22537,13 @@ async def ask_endpoint(request: AskRequest):
                 if (_ask_decision and locals().get("_ask_wealth_sig")
                         and not question.lower().strip().startswith(("when", "cuándo", "cuando"))):
                     print("[ask] wealth-potential — suppressing decision path so signature leads")
+                    _ask_decision = False
+                # [event-risk 2026-09-16] sudden gain/loss + bankruptcy are
+                # PROPENSITY reads (descriptive), not dated verdicts — reflective
+                # path so the propensity read leads (a 'when' keeps timing).
+                if (_ask_decision and locals().get("_ask_event_facet")
+                        and not question.lower().strip().startswith(("when", "cuándo", "cuando"))):
+                    print(f"[ask] event-risk {locals().get('_ask_event_facet')} — suppressing decision path")
                     _ask_decision = False
                 # [life-chapter 2026-09-13] "what happens in my new chapter" is a
                 # period-education question, not a yes/no — take the reflective path
