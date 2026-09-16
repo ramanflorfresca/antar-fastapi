@@ -24759,25 +24759,18 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             # in a demanding stretch, not "a strong day"); a SUPPORTED season is left
             # to run full. This is the convergence gate, applied to the engine's
             # committed direction/strength/headline BEFORE narration + caching.
+            # [season-convergence 2026-09-16] Compute the dasha SEASON now; the CAP
+            # is applied later (after the domain-sweep commits the headline), see
+            # the "[season cap — final]" block before narration. Computing it here
+            # keeps one season read per request.
+            _season_reg = None
             try:
                 from antar_engine.business_timing import season_register as _seas
                 _srg = _seas(cd if isinstance(cd, dict) else {}, get_dashas_for_chart(cid) or {})
-                _reg = _srg.get("register") if _srg.get("available") else None
-                _th["season"] = _reg
-                result["_season_dbg"] = {"available": _srg.get("available"),
-                                         "register": _reg, "md_lord": _srg.get("md_lord"),
-                                         "md_fortune": _srg.get("md_fortune"),
-                                         "dir": _th.get("direction"),
-                                         "cd_ok": isinstance(cd, dict) and bool(cd)}
-                if _reg == "hard" and _th.get("direction") == "positive":
-                    if _th.get("strength") == "strong":
-                        _th["strength"] = "moderate"
-                    _th["headline"] = ("A steadier day within a demanding stretch — "
-                                       "a small opening to use carefully.")
-                    _th["_season_capped"] = True
+                _season_reg = _srg.get("register") if _srg.get("available") else None
+                _th["season"] = _season_reg
             except Exception as _sce:
-                result["_season_dbg"] = {"error": str(_sce)[:200]}
-                print(f"[daily] season-convergence skipped (non-fatal): {_sce}")
+                print(f"[daily] season read skipped (non-fatal): {_sce}")
             _th_dbg = _th.pop("_debug_reasoning", {})
             _th_dbg["_prev_el_movimiento"] = result.get("el_movimiento", "")
             result["headline"]          = _th["headline"]
@@ -25116,6 +25109,40 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             except Exception as _dm_e:
                 print(f"[daily-signal] day_map build skipped: {_dm_e}")
                 result.setdefault("day_map", [])
+
+            # [season cap — final 2026-09-16] The dasha SEASON is the slow, dominant
+            # convergence layer — it gates the fast transit/tara/sweep signals. In a
+            # HARD multi-year season (a weak/debilitated running mahadasha), a
+            # committed "strong day" green light is capped to a grounded "small
+            # opening" read — keeping the day's real lead domain, but refusing the
+            # rosy tone that misreads someone in a genuinely difficult chapter. The
+            # upbeat LLM narration is skipped so no green-light story rides over it.
+            # Supported/steady seasons are left untouched. Applied AFTER the sweep so
+            # it caps the final committed headline, not just _th's base pick.
+            try:
+                result["_season"] = _season_reg
+                _hl_now = str(result.get("headline") or "")
+                # both templates: "A strong day for X." (sweep/two-domain) and
+                # "Today is a strong day for X." (single-domain _th).
+                if _season_reg == "hard" and "strong day for" in _hl_now.lower():
+                    import re as _re_cap
+                    _m = _re_cap.search(r"strong day for (.+?)\.?\s*$", _hl_now)
+                    _dom = _m.group(1) if _m else ""
+                    result["headline"] = (
+                        f"A steadier day for {_dom} — a small opening in a demanding stretch."
+                        if _dom else
+                        "A steadier day within a demanding stretch — a small opening to use carefully.")
+                    result["highlight"] = (
+                        "There's a real opening today — but you're in a hard season, so use "
+                        "it to steady things and protect what matters, not to over-extend.")
+                    result["strength"] = "medium"
+                    result["_season_capped"] = True
+                    _th["season"] = "hard"
+                    _th["_season_capped"] = True
+                    _skip_narration = True   # keep the grounded template; no rosy override
+            except Exception as _scap_e:
+                print(f"[daily-signal] season cap skipped (non-fatal): {_scap_e}")
+
             # [admin-inspect] capture the deterministic engine pick (raw bundle)
             _ai_c = _inspect_active()
             if _ai_c is not None:
