@@ -22551,6 +22551,15 @@ async def ask_endpoint(request: AskRequest):
                         and not question.lower().strip().startswith(("when", "cuándo", "cuando"))):
                     print(f"[ask] event-risk {locals().get('_ask_event_facet')} — suppressing decision path")
                     _ask_decision = False
+                # [rel-durability 2026-09-16] 'will I divorce / will my marriage last'
+                # is a DURABILITY question — the reflective durability + separation-
+                # strain read (_ask_relationship_block) must lead, not a generic
+                # entry-window verdict. A 'WHEN' relationship Q (intent=timing) keeps
+                # the dated convergence path.
+                if (_ask_decision and _is_relationship_q(question)
+                        and _relationship_intent(question) == "durability"):
+                    print("[ask] relationship-durability — suppressing decision path so strain read leads")
+                    _ask_decision = False
                 # [life-chapter 2026-09-13] "what happens in my new chapter" is a
                 # period-education question, not a yes/no — take the reflective path
                 # so the deterministic upcoming-dasha block leads (no forced verdict).
