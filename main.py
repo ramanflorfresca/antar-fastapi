@@ -24753,6 +24753,25 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 patra_tilt=_th_tilt,
                 dasha=_th_dasha,
             )
+            # [season-convergence 2026-09-16] The dasha SEASON is the slow, dominant
+            # layer — it must SCALE the day's fast transit/tara/panchanga signals.
+            # A locally-strong day in a HARD dasha decade is capped (a small opening
+            # in a demanding stretch, not "a strong day"); a SUPPORTED season is left
+            # to run full. This is the convergence gate, applied to the engine's
+            # committed direction/strength/headline BEFORE narration + caching.
+            try:
+                from antar_engine.business_timing import season_register as _seas
+                _srg = _seas(cd if isinstance(cd, dict) else {}, get_dashas_for_chart(cid) or {})
+                _reg = _srg.get("register") if _srg.get("available") else None
+                _th["season"] = _reg
+                if _reg == "hard" and _th.get("direction") == "positive":
+                    if _th.get("strength") == "strong":
+                        _th["strength"] = "moderate"
+                    _th["headline"] = ("A steadier day within a demanding stretch — "
+                                       "a small opening to use carefully.")
+                    _th["_season_capped"] = True
+            except Exception as _sce:
+                print(f"[daily] season-convergence skipped (non-fatal): {_sce}")
             _th_dbg = _th.pop("_debug_reasoning", {})
             _th_dbg["_prev_el_movimiento"] = result.get("el_movimiento", "")
             result["headline"]          = _th["headline"]

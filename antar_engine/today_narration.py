@@ -436,6 +436,10 @@ def _fingerprint(engine: dict) -> dict:
     return {
         "domains": list(engine.get("highlight_domains") or []),
         "direction": engine.get("direction"),
+        # dasha SEASON is part of the pick: a hard-season-capped day must not
+        # serve a pre-season (rosy) cached narration, and vice-versa.
+        "season": engine.get("season"),
+        "capped": bool(engine.get("_season_capped")),
     }
 
 
