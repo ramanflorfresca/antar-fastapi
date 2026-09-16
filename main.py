@@ -18573,6 +18573,12 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
         "compat_type":   s.get("compat_type"),
         "name_a":        s.get("name_a"),
         "name_b":        s.get("name_b"),
+        # [lk-enemy-markdone 2026-09-15] the FE marks a People-reading enemy remedy
+        # done via POST /practices/{chart_id_a}/complete { practice_id } — logging
+        # it under the USER'S chart (chart_id_a) so it counts toward THEIR streak.
+        # Both ids exposed so the FE can address either chart if needed.
+        "chart_id_a":    s.get("chart_id_a"),
+        "chart_id_b":    s.get("chart_id_b"),
     }
     # [session-rich 2026-09-13] The result screen renders the SAME rich shape as
     # /compatibility/start (score, badge, headline, summary, layers, catalysts,
