@@ -22542,6 +22542,53 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _tfwe:
                 logger.warning(f"[ask] timeframe window-scan non-fatal: {_tfwe}")
 
+            # [ask-timeframe #3 2026-09-16] A named-window question that is NOT a
+            # "which day" scan (e.g. "how does travel look next week") was dropping
+            # the horizon entirely — neither the day-scope nor the window-SCAN block
+            # fires (scan=False), so the read defaulted to the CURRENT week. Feed the
+            # correct window dates so the narrator frames the right period.
+            try:
+                from antar_engine.ask_timeframe import detect_horizon as _wf_detect
+                _wf = _wf_detect(question)
+                if (_wf and _wf.get("kind") == "window" and not _wf.get("scan")
+                        and _wf.get("start") and _wf.get("end")):
+                    _wf_s, _wf_e = _wf["start"], _wf["end"]
+                    _ask_layers_block += (
+                        f"\n\nTIMEFRAME — the user asked about {_wf['label']} "
+                        f"({_wf_s.day} {_wf_s.strftime('%b')}–{_wf_e.day} {_wf_e.strftime('%b %Y')}). "
+                        f"Frame the read for THAT window; if you state dates use exactly "
+                        f"these — do NOT default to the current week or today."
+                    )
+            except Exception as _wfe:
+                logger.warning(f"[ask] window-facts non-fatal: {_wfe}")
+
+            # [ask-travel #4 2026-09-16] Travel/foreign had no domain engine, so the
+            # read came back empty and fell to the "we're still enhancing our
+            # knowledge, check back" deflection. Feed a deterministic travel-house
+            # read so the narrator has real, chart-grounded material instead.
+            if (locals().get("_ask_concern") or "") in ("travel", "foreign", "relocation"):
+                try:
+                    from antar_engine.money_flow import _house_strength as _tv_hs
+                    _tv_d1 = (chart_data.get("planets") or {}) if isinstance(chart_data, dict) else {}
+                    _tv_lag = ((chart_data.get("lagna") or {}) if isinstance(chart_data, dict) else {}).get("sign")
+                    if _tv_d1 and _tv_lag:
+                        def _tv_word(v):
+                            return "supported" if v >= 1.0 else ("under strain" if v <= -1.0 else "mixed")
+                        _tv3, _tv9, _tv12 = (_tv_hs(3, _tv_d1, _tv_lag),
+                                             _tv_hs(9, _tv_d1, _tv_lag),
+                                             _tv_hs(12, _tv_d1, _tv_lag))
+                        _ask_layers_block += (
+                            "\n\nTRAVEL DOMAIN FACTS — read travel from these houses; give an "
+                            "honest directional read from them, do NOT say you have no read. "
+                            f"Short trips & local movement: {_tv_word(_tv3)}. "
+                            f"Long journeys, foreign study & fortune: {_tv_word(_tv9)}. "
+                            f"Living or working abroad / distant places: {_tv_word(_tv12)}. "
+                            "Lead with whichever fits the kind of travel implied; plain language, "
+                            "no house numbers, no Sanskrit."
+                        )
+                except Exception as _tve:
+                    logger.warning(f"[ask] travel-facts non-fatal: {_tve}")
+
             print(f"[ask] concern={_ask_concern} dasha={_ask_dasha_str or 'unknown'} "
                   f"layers={len(_ask_layers_block)}ch prescan={len(diagnostic_block)}ch")
 
