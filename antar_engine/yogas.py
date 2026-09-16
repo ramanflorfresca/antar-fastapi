@@ -332,4 +332,136 @@ def yogas_to_prompt_block(yogas: list) -> str:
         for y in challenge:
             lines.append(f"    • {y['name']}: {y['effect']}")
 
+
+# ═══════════════════════════════════════════════════════════════════════════
+# PLAIN-LANGUAGE PRESENTATION LAYER  [de-jargon 2026-09-16]
+# ---------------------------------------------------------------------------
+# Antar's non-negotiable no-Sanskrit rule: a raw yoga name ("Raj Yoga",
+# "Grahan Yoga (Sun-Rahu)") must NEVER reach a user surface — it reads as a
+# horoscope app and is exactly what Apple's Guideline 4.3 (Design: Spam)
+# flags. This map is the ONE place that turns a detected yoga into a plain,
+# decision-relevant strength/area line.
+#
+# CRITICAL: the detection `name` (e.g. "Raj Yoga") is an INTERNAL KEY that
+# downstream engines pattern-match on ('"Raj Yoga" in y["name"]' — see
+# d10_career.py, domain_engines_tier234.py). Do NOT change the stored name.
+# This layer runs at RENDER time so existing charts (whose yogas were stored
+# at creation with the old names) are de-jargoned too.
+#
+# `title` is localized deterministically (short label, no LLM). `effect` stays
+# English here and is translated by @translate_response on the endpoint (it is
+# already in the `effect` allowlist), so es/pt/fr callers get a localized
+# sentence without a per-language effect table to maintain.
+# ═══════════════════════════════════════════════════════════════════════════
+
+def _yoga_stem(name: str) -> str:
+    """Normalize a detected yoga name to its lookup stem: drop the planet/house
+    parenthetical and a trailing ' Yoga'. 'Raj Yoga (Mars-Mercury conjunction)'
+    -> 'Raj'; 'Grahan Yoga (Sun-Rahu)' -> 'Grahan'; 'Viparita Raj Yoga (6-8)'
+    -> 'Viparita Raj'."""
+    base = (name or "").split("(")[0].strip()
+    if base.endswith(" Yoga"):
+        base = base[:-5].strip()
+    return base
+
+
+# kind: "strength" (an asset the chart gives) | "mind" (an area to work with)
+YOGA_PLAIN = {
+    # ── strengths ────────────────────────────────────────────────────────
+    "Ruchaka": {"kind": "strength",
+        "title": {"en": "Built to lead from the front", "es": "Hecho para liderar al frente",
+                  "pt": "Feito para liderar na frente", "fr": "Fait pour mener en première ligne"},
+        "effect": "Courage and decisiveness come naturally — you tend to move first and hold your nerve under pressure."},
+    "Bhadra": {"kind": "strength",
+        "title": {"en": "A fast, versatile mind", "es": "Una mente rápida y versátil",
+                  "pt": "Uma mente rápida e versátil", "fr": "Un esprit rapide et polyvalent"},
+        "effect": "You learn quickly, read situations well, and turn ideas into workable plans and deals."},
+    "Hamsa": {"kind": "strength",
+        "title": {"en": "Judgment people trust", "es": "Un criterio en que confían",
+                  "pt": "Um julgamento em que confiam", "fr": "Un jugement de confiance"},
+        "effect": "People come to you for counsel — your read on what's right and fair tends to be sound."},
+    "Malavya": {"kind": "strength",
+        "title": {"en": "Charm and taste open doors", "es": "El encanto y el gusto abren puertas",
+                  "pt": "Charme e bom gosto abrem portas", "fr": "Le charme et le goût ouvrent des portes"},
+        "effect": "A natural feel for people, beauty, and comfort makes relationships and negotiations easier."},
+    "Sasa": {"kind": "strength",
+        "title": {"en": "Endurance that compounds", "es": "Una constancia que se acumula",
+                  "pt": "Uma perseverança que se acumula", "fr": "Une endurance qui s'accumule"},
+        "effect": "You build slowly and it lasts — authority and respect accrue over time through steady effort."},
+    "Raj": {"kind": "strength",
+        "title": {"en": "Authority and recognition are wired in", "es": "Autoridad y reconocimiento de nacimiento",
+                  "pt": "Autoridade e reconhecimento de nascença", "fr": "L'autorité et la reconnaissance sont innées"},
+        "effect": "Leadership and visible results are a natural channel for you — this rewards directed effort, not waiting."},
+    "Dhana": {"kind": "strength",
+        "title": {"en": "Wealth builds through your own effort", "es": "La riqueza crece con tu propio esfuerzo",
+                  "pt": "A riqueza cresce com o seu próprio esforço", "fr": "La richesse se bâtit par votre effort"},
+        "effect": "Money tends to grow through your own judgment and work rather than luck or windfalls."},
+    "Lakshmi": {"kind": "strength",
+        "title": {"en": "Fortune tends to find you", "es": "La fortuna tiende a encontrarte",
+                  "pt": "A sorte tende a encontrá-lo", "fr": "La chance a tendance à vous trouver"},
+        "effect": "Grace, prosperity, and timely support show up when you act in line with your strengths."},
+    "Gajakesari": {"kind": "strength",
+        "title": {"en": "Clear-headed when it counts", "es": "Con la cabeza clara cuando importa",
+                  "pt": "Cabeça fria quando importa", "fr": "Lucide au moment décisif"},
+        "effect": "Sound judgment paired with emotional steadiness — you stay composed under pressure and earn trust."},
+    "Budhaditya": {"kind": "strength",
+        "title": {"en": "Your thinking gets noticed", "es": "Tu forma de pensar destaca",
+                  "pt": "O seu raciocínio se destaca", "fr": "Votre réflexion se remarque"},
+        "effect": "Sharp intelligence and visibility together — analysis, writing, and speaking carry real weight."},
+    "Amala": {"kind": "strength",
+        "title": {"en": "A clean reputation is your asset", "es": "Tu buena reputación es un activo",
+                  "pt": "A sua boa reputação é um trunfo", "fr": "Une réputation nette est votre atout"},
+        "effect": "Your good name and standing hold up over time and quietly open doors."},
+    "Chandra-Mangala": {"kind": "strength",
+        "title": {"en": "Decisive instinct for opportunity", "es": "Instinto decidido para la oportunidad",
+                  "pt": "Instinto decisivo para a oportunidade", "fr": "Un instinct décidé pour l'opportunité"},
+        "effect": "Drive plus a gut feel for money — you act on opportunity fast (just watch for restlessness)."},
+    "Viparita Raj": {"kind": "strength",
+        "title": {"en": "You rise through setbacks", "es": "Creces a través de los reveses",
+                  "pt": "Você cresce através dos reveses", "fr": "Vous progressez par les revers"},
+        "effect": "Obstacles have a pattern of reversing into unexpected wins — pressure tends to break your way."},
+    "Neechabhanga Raj": {"kind": "strength",
+        "title": {"en": "A weakness that flips to strength", "es": "Una debilidad que se vuelve fuerza",
+                  "pt": "Uma fraqueza que vira força", "fr": "Une faiblesse qui devient une force"},
+        "effect": "What looks like a limitation early on tends to become a distinctive edge over time."},
+    # ── areas to mind ────────────────────────────────────────────────────
+    "Kemadruma": {"kind": "mind",
+        "title": {"en": "Build a steady inner base", "es": "Construye una base interior firme",
+                  "pt": "Construa uma base interior firme", "fr": "Bâtissez une base intérieure solide"},
+        "effect": "Emotional support can feel thin at times — lean on a close circle and steady routines before big calls."},
+    "Grahan": {"kind": "mind",
+        "title": {"en": "Watch pressured, ego-driven calls", "es": "Cuidado con decisiones bajo presión y ego",
+                  "pt": "Cuidado com decisões sob pressão e ego", "fr": "Attention aux décisions sous pression et ego"},
+        "effect": "Intense inner themes around identity and control — pause before big moves made in the heat of the moment."},
+    "Guru-Chandala": {"kind": "mind",
+        "title": {"en": "Think it through for yourself", "es": "Piénsalo por ti mismo",
+                  "pt": "Pense por si mesmo", "fr": "Réfléchissez par vous-même"},
+        "effect": "Question inherited beliefs — your best decisions come from your own reasoning, not borrowed certainty."},
+}
+
+# Fallback title when a detected yoga has no explicit plain entry: a neutral,
+# jargon-free label so a raw Sanskrit name can never leak.
+_YOGA_FALLBACK_TITLE = {"en": "A distinctive strength in your chart",
+                        "es": "Una fortaleza distintiva en tu carta",
+                        "pt": "Uma força distintiva no seu mapa",
+                        "fr": "Une force distinctive dans votre thème"}
+
+
+def plain_yoga(name: str, lang: str = "en") -> dict:
+    """Turn a detected yoga name into a plain, decision-relevant line.
+
+    Returns {title, kind, raw_name} and, when the map carries one, effect_en
+    (English; the endpoint's @translate_response localizes the `effect` field).
+    Never returns a Sanskrit name. Unknown yogas fall back to a neutral label.
+    """
+    lang = (lang or "en").split("-")[0].lower()
+    stem = _yoga_stem(name)
+    entry = YOGA_PLAIN.get(stem)
+    if not entry:
+        return {"title": _YOGA_FALLBACK_TITLE.get(lang, _YOGA_FALLBACK_TITLE["en"]),
+                "kind": "strength", "raw_name": name, "effect_en": ""}
+    title_map = entry["title"]
+    return {"title": title_map.get(lang, title_map["en"]),
+            "kind": entry["kind"], "raw_name": name, "effect_en": entry["effect"]}
+
     return "\n".join(lines)
