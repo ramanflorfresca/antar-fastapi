@@ -26151,13 +26151,65 @@ async def get_prediction_accuracy_endpoint(chart_id: str, language: str = "en"):
 
 # ── Alert System Endpoints ────────────────────────────────────────
 
+_LIFE_ALERT_TYPES = ("wealth_window", "lean_stretch", "risk_window",
+                     "strain_window", "dasha_turn")
+
+
+async def _sync_life_alerts(chart_id: str):
+    """[life-alerts 2026-09-16] Compute the CALM proactive life/financial alerts
+    and upsert new ones into user_alerts (idempotent by alert_type+window month;
+    throttled to once/day per chart). Fail-open — never breaks the alerts feed."""
+    try:
+        from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+        recent = (supabase.table("user_alerts").select("created_at")
+                  .eq("chart_id", chart_id).in_("alert_type", list(_LIFE_ALERT_TYPES))
+                  .order("created_at", desc=True).limit(1).execute().data)
+        if recent:
+            try:
+                _ca = _dt.fromisoformat(str(recent[0]["created_at"]).replace("Z", "+00:00"))
+                if _dt.now(_tz.utc) - _ca < _td(hours=24):
+                    return
+            except Exception:
+                pass
+        row = (supabase.table("charts").select("chart_data,birth_date")
+               .eq("id", chart_id).single().execute().data)
+        if not row:
+            return
+        cd = row.get("chart_data")
+        if isinstance(cd, str):
+            cd = _safe_jsonb(cd)
+        dashas = get_dashas_for_chart(chart_id)
+        from antar_engine.life_alerts import build_life_alerts
+        new_alerts = build_life_alerts(cd, dashas, row.get("birth_date"), None)
+        existing = (supabase.table("user_alerts").select("alert_type,window_start")
+                    .eq("chart_id", chart_id).is_("dismissed_at", "null")
+                    .in_("alert_type", list(_LIFE_ALERT_TYPES)).execute().data) or []
+        existing_keys = {(e.get("alert_type"), str(e.get("window_start") or "")[:7])
+                         for e in existing}
+        for a in new_alerts:
+            key = (a["alert_type"], str(a.get("window_start") or "")[:7])
+            if key in existing_keys:
+                continue
+            a.pop("_alert_key", None)
+            a.update({"chart_id": chart_id, "email_sent": False,
+                      "trigger_planet": "", "natal_planet": "", "natal_house": 0})
+            try:
+                supabase.table("user_alerts").insert(a).execute()
+            except Exception as _ie:
+                print(f"[life-alerts] insert non-fatal: {_ie}")
+    except Exception as e:
+        print(f"[life-alerts] sync non-fatal: {e}")
+
+
 @app.get("/api/v1/alerts/{chart_id}")
 @translate_response(
-    fields_to_translate=["title", "message", "body", "action_text"],
+    fields_to_translate=["title", "message", "body", "action_text",
+                         "headline", "action_advice", "remedy"],
     endpoint_name="alerts",
 )
 async def get_alerts(chart_id: str, unread_only: bool = False, language: str = "en"):
     """Get personal alerts for a chart — powers in-app badge."""
+    await _sync_life_alerts(chart_id)
     query = supabase.table("user_alerts").select("*").eq(
         "chart_id", chart_id
     ).is_("dismissed_at", "null").order("created_at", desc=True).limit(20)
@@ -27143,6 +27195,27 @@ async def get_focus(chart_id: str, language: str = "en"):
             logger.warning(f"[focus] schedule fallback skipped (non-fatal): {_fe}")
     be_ready = _nearest_life_window(cd, dashas, row.get("birth_date"), row.get("gender"))
 
+    # [life-alerts 2026-09-16] the single top proactive signal for the Today
+    # "heads-up" strip — the soonest major turn (opportunity or caution) with its
+    # one-line mitigation. Same signals as the alerts feed; here just the lead one.
+    heads_up = None
+    try:
+        from antar_engine.life_alerts import build_life_alerts
+        _la = build_life_alerts(cd, dashas, row.get("birth_date"), row.get("gender"))
+        if _la:
+            _top = _la[0]
+            heads_up = {
+                "kind": _top.get("alert_type"),
+                "tone": _top.get("urgency"),           # opportunity | caution
+                "headline": _top.get("headline"),
+                "body": _top.get("body"),
+                "window_start": _top.get("window_start"),
+                "window_end": _top.get("window_end"),
+                "action": _top.get("action_advice"),
+            }
+    except Exception as _hue:
+        logger.warning(f"[focus] heads-up skipped (non-fatal): {_hue}")
+
     # [honest gamification 2026-07-31] Anushthana: the practice streak reframed as
     # a real remedial commitment cycle, tied to the focus and the be-ready runway.
     # Meaning, not loss-aversion — celebrates consistency, never guilts a break.
@@ -27169,6 +27242,7 @@ async def get_focus(chart_id: str, language: str = "en"):
         "available": True,
         "focus": {"whats_in_play": focus_energy, "one_action": focus_action},
         "be_ready": be_ready,
+        "heads_up": heads_up,
         "anushthana": _anush,
     }
     # [focus-i18n 2026-09-11] The focus block is plain-language English built from
@@ -27183,7 +27257,8 @@ async def get_focus(chart_id: str, language: str = "en"):
             payload = await _focus_td(
                 payload, language=_lang,
                 fields_to_translate=["whats_in_play", "one_action", "message",
-                                     "current", "next_label", "prep"],
+                                     "current", "next_label", "prep",
+                                     "headline", "body", "action"],
                 endpoint_name="focus", chart_id=chart_id,
             )
         except Exception as _fte:
