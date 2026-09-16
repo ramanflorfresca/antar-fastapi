@@ -819,6 +819,18 @@ async def build_daily_context(chart_id: str, supabase_client) -> dict:
         except Exception as de:
             logger.warning(f"[daily-context] chara dasha fetch failed: {de}")
 
+        # [season-tone 2026-09-16] the multi-year tone of the reader's current
+        # season (running mahadasha strength) — calibrates the daily voice so a
+        # hard dasha gets a grounded, empathetic register, not cheerleading.
+        _season_tone = ""
+        try:
+            from antar_engine.business_timing import season_register, _SEASON_TONE
+            _sr = season_register(chart_data, {"vimsottari": dashas_dict.get("vimsottari", [])})
+            if _sr.get("available"):
+                _season_tone = _SEASON_TONE.get(_sr.get("register"), "")
+        except Exception as _ste:
+            logger.warning(f"[daily-context] season tone skipped (non-fatal): {_ste}")
+
         chara_md = _extract_chara_dasha(dashas_dict)
         natal_moon = _extract_natal_moon_info(chart_data)
         lagna_sign = _extract_lagna(chart_data)
@@ -872,6 +884,7 @@ async def build_daily_context(chart_id: str, supabase_client) -> dict:
                            "current_country", "first_name", "name")},
             "chart_data": chart_data,  # raw natal data for transit analyzer
             "lk_data": lk_data,  # raw LK data for daily diagnostic
+            "season_tone": _season_tone,  # season-aware voice calibration
             "tz_offset": 0,  # placeholder — actual tz_offset passed separately at call site
         }
 
@@ -1794,6 +1807,9 @@ async def _call_claude_daily_signal_retry(
 
         prompt_vars = {**context, **day_data, "language": language}
         user_prompt = DAILY_USER_PROMPT_TEMPLATE.format(**prompt_vars)
+        _st = context.get("season_tone") or ""
+        if _st:
+            user_prompt = user_prompt + "\n\n" + _st
 
         # Extract the actual offending words from the failed output
         caught_day_words = []
@@ -1975,6 +1991,10 @@ async def _call_claude_daily_signal(
         # Merge context + day data for prompt
         prompt_vars = {**context, **day_data, "language": language}
         user_prompt = DAILY_USER_PROMPT_TEMPLATE.format(**prompt_vars)
+        # [season-tone 2026-09-16] calibrate the voice to the multi-year season
+        _st = context.get("season_tone") or ""
+        if _st:
+            user_prompt = user_prompt + "\n\n" + _st
 
         client = anthropic.AsyncAnthropic(api_key=os.environ.get("ANTHROPIC_API_KEY"))
         try:

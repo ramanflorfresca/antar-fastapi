@@ -741,6 +741,16 @@ def build_monthly_briefing_prompt(
     lagna    = chart_data["lagna"]["sign"]
     moon_nak = chart_data["planets"]["Moon"]["nakshatra"]
     tone     = MARKET_TONES.get((country_code or "US").upper(), DEFAULT_TONE)
+    # [season-tone 2026-09-16] calibrate the month's voice to the multi-year
+    # season (running mahadasha strength) — grounded in a hard dasha, not rosy.
+    _season_tone = ""
+    try:
+        from antar_engine.business_timing import season_register, _SEASON_TONE
+        _sr = season_register(chart_data, dashas)
+        if _sr.get("available"):
+            _season_tone = _SEASON_TONE.get(_sr.get("register"), "")
+    except Exception:
+        _season_tone = ""
 
     return f"""{tone['style']}
 
@@ -758,6 +768,8 @@ Life data: {lagna} rising, Moon in {moon_nak}.
 
 RUNNING PERIODS — this month is lived inside these:
 {_monthly_period_block(dashas)}
+
+{_season_tone}
 
 {predictions_context}
 

@@ -136,6 +136,50 @@ def planet_fortune(planet: str, chart_data: dict) -> dict:
     return {"score": round(score, 2), "band": band, "reasons": reasons}
 
 
+def season_register(chart_data: dict, dashas: dict, today=None) -> dict:
+    """[season-tone 2026-09-16] The multi-year TONE of the person's current life
+    season, from the running mahadasha lord's strength (the decade dominates; the
+    sub-period only lightly colours it). Used to calibrate daily/monthly NARRATION
+    TONE — grounded & empathetic in a hard season, confident in a supported one —
+    NOT to predict outcomes. Returns {available, register, md_lord, md_fortune}.
+      register: 'hard' (weak/debilitated MD) | 'supported' (strong MD) | 'steady'.
+    """
+    try:
+        from datetime import date as _d
+        today = today or _d.today()
+        md = None
+        for m in _rows(dashas, ("mahadasha",)):
+            if m["start"] <= today <= m["end"]:
+                md = m["lord"]
+                break
+        if not md:
+            return {"available": False}
+        f = planet_fortune(md, chart_data)
+        s = f.get("score", 0.0)
+        reg = "hard" if s <= -1.0 else ("supported" if s >= 2.0 else "steady")
+        return {"available": True, "register": reg, "md_lord": md,
+                "md_fortune": s}
+    except Exception:
+        return {"available": False}
+
+
+_SEASON_TONE = {
+    "hard": ("SEASON TONE — the reader is in a DEMANDING multi-year season "
+             "(a hard mahadasha). Be grounded, warm and honest: acknowledge the "
+             "pressure of this stretch, and frame any daily/monthly positives as "
+             "SMALL, REAL openings WITHIN a hard season — 'a bit more room than "
+             "most days, use it carefully' — never cheerlead. Do NOT say things "
+             "like 'the upside is live', 'money moves your way', or 'a rare window "
+             "to secure money'. Point them to where the day/month is genuinely "
+             "workable, gently."),
+    "supported": ("SEASON TONE — the reader is in a SUPPORTED multi-year season "
+                  "(a strong mahadasha). You can be confident and encouraging; "
+                  "positives are real — help them press the advantage."),
+    "steady": ("SEASON TONE — a mixed/steady multi-year season. Keep an even, "
+               "honest register — neither cheerleading nor gloom."),
+}
+
+
 def _parse_d(s):
     try:
         return datetime.strptime(str(s)[:10], "%Y-%m-%d").date()
