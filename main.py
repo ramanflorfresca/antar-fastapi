@@ -21627,7 +21627,11 @@ async def ask_endpoint(request: AskRequest):
             # read of the chart's money dynamics. NOT a future-amount prediction
             # (that class was falsified). Reflective path; offers a near-term
             # gain/drain follow-up (the validated daily engine).
+            # [money-flow/wealth 2026-09-16] compute the flags + prompt text HERE
+            # (they gate the decision-suppress below), but DEFER appending to
+            # _ask_layers_block until AFTER it is initialized (further down).
             _ask_money_facet = None
+            _ask_money_text = ""
             try:
                 _ask_money_facet = _ask_money_intent(question)
                 if _ask_money_facet and isinstance(chart_data, dict):
@@ -21640,7 +21644,7 @@ async def ask_endpoint(request: AskRequest):
                             "earned-unearned": "Lead with whether their money is EARNED (their own work) vs UNEARNED (backing, windfalls, returns).",
                             "gains-losses": "Lead with the balance of GAINS vs LOSSES (inflow vs leak).",
                         }.get(_ask_money_facet, "")
-                        _ask_layers_block += (
+                        _ask_money_text = (
                             "\n\nMONEY-FLOW PATTERN — the reader asks about their money DYNAMICS. "
                             "This is a DESCRIPTIVE read of their chart's money pattern, NOT a "
                             "prediction of a future amount or whether a period will be net-gain/loss "
@@ -21656,12 +21660,8 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _mfe:
                 print(f"[ask][money-flow] non-fatal: {_mfe}")
 
-            # [era-aware wealth 2026-09-16] Credit the MODERN Rahu wealth/power
-            # signature (Rahu+Venus wealth, Sun+Rahu power, Rahu in gains) on wealth
-            # or money questions — a 7000-year-old 'Rahu=malefic' lens dismisses it,
-            # but in this era Rahu is the primary force. Strong POTENTIAL read, honest
-            # dial (never a guaranteed tier).
             _ask_wealth_sig = None
+            _ask_wealth_text = ""
             try:
                 if (_is_wealth_q(question) or _ask_money_facet) and isinstance(chart_data, dict):
                     from antar_engine.money_flow import wealth_power_signature
@@ -21669,15 +21669,17 @@ async def ask_endpoint(request: AskRequest):
                     if _wps.get("available") and _wps.get("strength") in ("high", "moderate"):
                         _ask_wealth_sig = _wps
                         _sig_lines = "; ".join(_wps.get("signatures") or [])
-                        _ask_layers_block += (
+                        _ask_wealth_text = (
                             "\n\nMODERN WEALTH-POWER SIGNATURE — read this chart with a "
                             "CURRENT-ERA lens, not a 7000-year-old one: Rahu is now a primary "
                             "force of wealth and power, NOT a plain malefic. This chart carries a "
-                            f"{_wps['strength'].upper()} such signature: {_sig_lines}. Credit it as "
-                            "GENUINE large wealth/power POTENTIAL — do not dismiss it as affliction. "
-                            "Be honest with the dial: the ceiling is high and real, and reaching the "
-                            "very top depends on scale, timing and execution — strong potential, not "
-                            "a guaranteed amount or tier. Plain language; no planet/house/Sanskrit names."
+                            f"{_wps['strength'].upper()} such signature: {_sig_lines}. LEAD the answer "
+                            "with this — credit it as GENUINE large wealth/power POTENTIAL, do not "
+                            "dismiss it as affliction, and distinguish this STRUCTURAL potential from "
+                            "any current tight-cashflow phase (the potential is big even if right now "
+                            "is lean). Be honest with the dial: the ceiling is high and real; reaching "
+                            "the very top depends on scale, timing and execution — strong potential, "
+                            "not a guaranteed amount or tier. Plain language; no planet/house/Sanskrit."
                         )
                         print(f"[ask][wealth-sig] strength={_wps['strength']} kinds={_wps.get('kinds')}")
             except Exception as _wpse:
@@ -22254,6 +22256,13 @@ async def ask_endpoint(request: AskRequest):
                     )
             except Exception as _ale:
                 logger.warning(f"[ask] layer context failed (non-fatal): {_ale}")
+
+            # [money-flow/wealth 2026-09-16] now that _ask_layers_block exists, fold
+            # in the deferred money-flow + modern wealth-power-signature context.
+            if locals().get("_ask_money_text"):
+                _ask_layers_block += _ask_money_text
+            if locals().get("_ask_wealth_text"):
+                _ask_layers_block += _ask_wealth_text
 
             # [ask-timeframe 2026-09-15] Day-scope questions ("today or tomorrow",
             # "tomorrow") must get a DAY-BY-DAY read, not a single collapsed
