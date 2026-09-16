@@ -21309,6 +21309,29 @@ def _ask_failclosed_body(concern, layers, positive, how="") -> str:
     return "The ground is still being laid — build now, act when the timing firms up."
 
 
+def _ask_wealth_body(wps, first_name="") -> str:
+    """[era-aware wealth 2026-09-16] Signature-crediting fail-closed body for a
+    wealth question — used when the LLM read is rejected, so the collapse credits
+    the MODERN wealth-power potential instead of a generic 'money comes through X'
+    line. Jargon-free (won't trip validate_narration). Honest dial."""
+    try:
+        if not (wps and wps.get("available") and wps.get("strength") in ("high", "moderate")):
+            return ""
+        nm = (first_name or "").strip()
+        hi = wps.get("strength") == "high"
+        lead = (f"{nm + ', ' if nm else ''}your chart carries a genuinely "
+                f"{'high' if hi else 'real'} wealth ceiling — this is structural, not flattery. ")
+        body = ("Your strongest levers are gains through scale and reach — many customers, "
+                "a wide network, volume — not a single windfall. "
+                "The day-to-day may feel tighter than that ceiling suggests right now, but the "
+                "potential itself is large and real; reaching the top of it is about scale, "
+                "timing and execution, not a guaranteed number. "
+                "Want me to look at when your strongest wealth window opens?")
+        return lead + body
+    except Exception:
+        return ""
+
+
 def _ask_career_fields_body(chart_data, first_name="", language="en") -> str:
     """[career-fallback 2026-09-13] Deterministic, jargon-free career-TYPE answer
     built straight from the D-10 ranked fields. This is the fail-closed body for
@@ -23134,12 +23157,18 @@ async def ask_endpoint(request: AskRequest):
                             # No planets/houses/dates invented; the verdict phrase
                             # already carries the window. _ev may be unbound here —
                             # locals().get avoids a NameError.
-                            _fc_body = _ask_failclosed_body(
-                                _ask_concern,
-                                (locals().get("_ev") or {}).get("layers_agreeing"),
-                                (_vp.strip().lower().startswith(("yes", "likely")) if _vp else True),
-                                how=_ask_wealth_how_phrase(_ask_concern, locals().get("chart_data")),
-                            )
+                            # [era-aware wealth] credit the modern wealth-power
+                            # signature on the collapse instead of a generic line.
+                            _fc_body = (_ask_wealth_body(locals().get("_ask_wealth_sig"),
+                                                         locals().get("_ask_first_name", ""))
+                                        if locals().get("_ask_wealth_sig") else "")
+                            if not _fc_body:
+                                _fc_body = _ask_failclosed_body(
+                                    _ask_concern,
+                                    (locals().get("_ev") or {}).get("layers_agreeing"),
+                                    (_vp.strip().lower().startswith(("yes", "likely")) if _vp else True),
+                                    how=_ask_wealth_how_phrase(_ask_concern, locals().get("chart_data")),
+                                )
                             if _fc_body:
                                 _fc.append(_fc_body)
                             # [ask-window-source 2026-07-12] the window MUST come
@@ -23348,8 +23377,13 @@ async def ask_endpoint(request: AskRequest):
                         locals().get("chart_data"),
                         locals().get("_ask_first_name", ""), "en")
                         if _is_career_type_q(question) else "")
+                    _wf2_body = (_ask_wealth_body(locals().get("_ask_wealth_sig"),
+                                                  locals().get("_ask_first_name", ""))
+                                 if locals().get("_ask_wealth_sig") else "")
                     if _cf2_body:
                         _fc2_body = _cf2_body
+                    elif _wf2_body:
+                        _fc2_body = _wf2_body
                     else:
                         # [narration 2026-08-12] same deterministic body as the first
                         # fail-closed — this post-readability fallback is the OTHER path
