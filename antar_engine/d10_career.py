@@ -607,3 +607,89 @@ def career_timeline(chart_data: dict, dashas: dict, today: Optional[str] = None)
                 "current": current, "next_chapter": nxt, "summary": summary}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}
+
+
+def business_vs_job(chart_data: dict) -> dict:
+    """[aptitude 2026-09-16] Business (self-employment) vs job (employment)
+    APTITUDE — a descriptive temperament read, NOT a success/outcome prediction
+    (predicting which venture SUCCEEDS was empirically falsified; see
+    BUSINESS_TIMING_STUDY.md). Read from the classical significators of
+    independence vs service:
+      business  ← 7th (trade/market), 3rd (initiative/self-effort), Mars/Rahu
+                  drive & unconventional streak, lagna-lord self-direction, 11th gains
+      job/service ← 6th (service/employment), Saturn's discipline/structure, the
+                  10th lord tied to the 6th or Saturn
+    Returns {available, lean: business|job|mixed, business_score, job_score,
+    business_reasons[], job_reasons[]}. Never raises."""
+    try:
+        cd = chart_data if isinstance(chart_data, dict) else {}
+        d1 = cd.get("planets") or {}
+        lag = (cd.get("lagna") or {}).get("sign")
+        if not d1 or not lag:
+            return {"available": False}
+
+        def house_of(p):
+            return (d1.get(p) or {}).get("house")
+
+        def sign_of(p):
+            return (d1.get(p) or {}).get("sign")
+
+        def lord(h):
+            return SIGN_LORD.get(_sign_n_from(lag, h))
+
+        def occupied(h):
+            return [p for p, v in d1.items()
+                    if isinstance(v, dict) and v.get("house") == h and p != "Lagna"]
+
+        def strong(p):
+            return bool(p) and (_dignity(p, sign_of(p)) is not None
+                                or house_of(p) in (1, 4, 5, 7, 9, 10, 11))
+
+        biz, job = 0.0, 0.0
+        br, jr = [], []
+
+        # ── business / independence ──────────────────────────────────────────
+        l7 = lord(7)
+        if strong(l7):
+            biz += 2.0; br.append("a strong 7th house — the drive to trade and deal")
+        if occupied(7):
+            biz += 1.0
+        l3 = lord(3)
+        if occupied(3) or strong(l3):
+            biz += 1.5; br.append("initiative and self-effort (3rd house)")
+        for nd in ("Mars", "Rahu"):
+            if house_of(nd) in (1, 3, 7, 10, 11):
+                biz += 1.2
+                br.append("a self-made, independent streak")
+                break
+        ll = lord(1)
+        if house_of(ll) in (1, 10, 11):
+            biz += 1.5; br.append("you naturally steer your own direction")
+        if strong(lord(11)):
+            biz += 1.0; br.append("gains that come through your own ventures (11th)")
+
+        # ── job / service / structure ────────────────────────────────────────
+        l6 = lord(6)
+        if occupied(6) or strong(l6):
+            job += 2.0; jr.append("a strong 6th house — you excel in service and delivery")
+        sat_h, sat_s = house_of("Saturn"), sign_of("Saturn")
+        if sat_h in (1, 4, 7, 10) or _dignity("Saturn", sat_s) is not None:
+            job += 2.0; jr.append("Saturn's discipline — you thrive within structure")
+        l10 = lord(10)
+        if house_of(l10) == 6 or house_of(l10) == house_of("Saturn"):
+            job += 1.5; jr.append("your work drive is tied to steady, structured effort")
+        if house_of("Sun") == 10 and biz < 2.5:
+            job += 0.5
+
+        diff = biz - job
+        lean = ("business" if diff >= 1.5 else "job" if diff <= -1.5 else "mixed")
+        return {
+            "available": True,
+            "lean": lean,
+            "business_score": round(biz, 1),
+            "job_score": round(job, 1),
+            "business_reasons": br,
+            "job_reasons": jr,
+        }
+    except Exception as e:
+        return {"available": False, "error": str(e)[:160]}

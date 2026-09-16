@@ -20592,6 +20592,29 @@ def _ask_life_chapter_block(chart_data, dashas, question="", first_name=""):
         return ""
 
 
+def _is_biz_vs_job_q(q):
+    """[aptitude 2026-09-16] 'should I do business or a job / am I suited to run
+    my own thing' — a business-vs-employment APTITUDE question (read from the
+    D-1 significators of independence vs service; descriptive, not a success
+    prediction). en + es."""
+    ql = (q or "").lower()
+    _biz = any(w in ql for w in ("business", "entrepreneur", "own thing", "startup",
+                                 "my own", "for myself", "be my own boss",
+                                 "negocio", "emprender", "emprendimiento", "por mi cuenta"))
+    _job = any(w in ql for w in (" job", "employment", "employee", "9 to 5",
+                                 "9-to-5", "work for someone", "salaried", "corporate",
+                                 "empleo", "trabajo", "asalariado", "empleado"))
+    if _biz and _job:
+        return True
+    if any(p in ql for p in ("suited for business", "meant for business",
+                             "should i do business", "cut out for business",
+                             "start my own", "be my own boss", "do my own thing",
+                             "run my own", "soy para negocio", "para tener un negocio",
+                             "deberia emprender", "debería emprender")):
+        return True
+    return False
+
+
 def _is_career_timing_q(q):
     """True for the 'which profession AT WHAT TIME' family — the reader is asking
     about the timing/phase of their working life, not just the static field: when
@@ -21563,10 +21586,33 @@ async def ask_endpoint(request: AskRequest):
             try:
                 _is_ctype = _is_career_type_q(question)
                 _is_ctiming = _is_career_timing_q(question)
-                if _is_ctype or _is_ctiming:
+                _is_bvj = _is_biz_vs_job_q(question)
+                if _is_ctype or _is_ctiming or _is_bvj:
                     from antar_engine.d10_career import analyze_career, career_timeline
                     _car = analyze_career(chart_data)
                     _parts = []
+                    # [aptitude 2026-09-16] business-vs-job temperament read — a
+                    # DESCRIPTIVE fit ("your nature leans X"), never a success/
+                    # outcome claim (that class was falsified; see the study).
+                    if _is_bvj:
+                        try:
+                            from antar_engine.d10_career import business_vs_job as _bvj_fn
+                            _bvj = _bvj_fn(chart_data)
+                            if _bvj.get("available"):
+                                _br = "; ".join(_bvj.get("business_reasons") or []) or "—"
+                                _jr = "; ".join(_bvj.get("job_reasons") or []) or "—"
+                                _parts.append(
+                                    "BUSINESS-vs-JOB APTITUDE — the reader asks whether they're "
+                                    "suited to run their own thing or to thrive in a job. This is a "
+                                    "TEMPERAMENT read from the chart, NOT a prediction that either "
+                                    "will succeed or make money — say so plainly (fit, not a "
+                                    f"guarantee).\nCHART LEAN: {_bvj.get('lean')} "
+                                    f"(independence signals: {_br} | structure/service signals: {_jr}).\n"
+                                    "Lead with the lean in plain language, name 1-2 reasons from the "
+                                    "signals above, and be honest that BOTH can work — this is about "
+                                    "which fits their nature. No planet/house/Sanskrit names.")
+                        except Exception as _bvje:
+                            print(f"[ask][biz-vs-job] non-fatal: {_bvje}")
                     if _car.get("available") and _car.get("careers"):
                         _fields = "; ".join(
                             f"{i+1}) {c['field']}" for i, c in enumerate(_car["careers"][:5]))
@@ -22263,7 +22309,7 @@ async def ask_endpoint(request: AskRequest):
                 # path so the D-10 ranked-fields block leads instead of an
                 # event-engine timing verdict. A career-TIMING question ('when
                 # should I switch') keeps the decision/convergence path.
-                if _ask_decision and _is_career_type_q(question) and not _is_career_timing_q(question):
+                if _ask_decision and (_is_career_type_q(question) or _is_biz_vs_job_q(question)) and not _is_career_timing_q(question):
                     print("[ask] career-aptitude — suppressing decision/timing path")
                     _ask_decision = False
                 # [life-chapter 2026-09-13] "what happens in my new chapter" is a
