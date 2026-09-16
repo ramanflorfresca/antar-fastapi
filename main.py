@@ -21875,6 +21875,8 @@ async def ask_endpoint(request: AskRequest):
             # relationship/separation family. Framed by the reader's intent AND
             # their partnered life-fact (existing relationship vs a partner entering).
             _ask_relationship_block = ""
+            _ask_durability_body = ""
+            _ask_durability_strain = ""
             _rel_fired = False
             try:
                 if _is_relationship_q(question):
@@ -21974,6 +21976,7 @@ async def ask_endpoint(request: AskRequest):
                                     "concrete way to protect it. Never name a system, planet, or house.")
                             elif _rt.get("available") and _rt.get("strain_window"):
                                 _sw = _rt["strain_window"]
+                                _ask_durability_strain = str(_sw.get("years") or "")
                                 _rp.append(
                                     f"TIMING OF STRAIN: the most testing stretch for the "
                                     f"partnership is around {_sw['years']} "
@@ -21981,6 +21984,27 @@ async def ask_endpoint(request: AskRequest):
                                     f"tend the relationship with extra care, not a doom date.")
                         elif _rt.get("available") and _rt.get("current"):
                             _rp.append(f"TIMING: {_rt['summary']}")
+                        # [rel-durability 2026-09-16] deterministic, jargon-free
+                        # durability body for the fail-closed path, so a rejected
+                        # LLM read collapses to a proper strain read (not the
+                        # generic 'timing supports the marriage' positive line).
+                        if _ri == "durability":
+                            _lvl = (_du or {}).get("level", "")
+                            _lvl_word = {"low": "a low", "none": "a low", "some": "a mild",
+                                         "mild": "a mild", "moderate": "a real",
+                                         "elevated": "a strong"}.get(str(_lvl).lower(), "a real")
+                            _nmd = (locals().get("_ask_first_name", "") or "").strip()
+                            _dbody = (f"{_nmd + ', ' if _nmd else ''}your relationship carries "
+                                      f"{_lvl_word} strain signature — real enough to tend "
+                                      f"deliberately, but not a verdict that it ends. ")
+                            if locals().get("_ask_durability_strain"):
+                                _dbody += (f"The most testing stretch looks like "
+                                           f"{_ask_durability_strain} — go in with extra care and "
+                                           f"honesty then. ")
+                            _dbody += ("Durability is the work here: steady attention and honest "
+                                       "communication protect the bond more than chemistry does. "
+                                       "Want me to look at that window more closely?")
+                            _ask_durability_body = _dbody
                         # mangal — mention only if present & not cancelled, as a gentle note
                         if _mg.get("present") and not _mg.get("cancelled"):
                             _rp.append("There is a friction signature around partnership "
@@ -23249,11 +23273,18 @@ async def ask_endpoint(request: AskRequest):
                             # No planets/houses/dates invented; the verdict phrase
                             # already carries the window. _ev may be unbound here —
                             # locals().get avoids a NameError.
+                            # [rel-durability] a rejected durability read must
+                            # collapse to a proper strain read, not the generic
+                            # 'timing supports the marriage' positive line.
+                            _fc_body = (locals().get("_ask_durability_body") or "") if (
+                                _is_relationship_q(question)
+                                and _relationship_intent(question) == "durability") else ""
                             # [era-aware wealth] credit the modern wealth-power
                             # signature on the collapse instead of a generic line.
-                            _fc_body = (_ask_wealth_body(locals().get("_ask_wealth_sig"),
-                                                         locals().get("_ask_first_name", ""))
-                                        if locals().get("_ask_wealth_sig") else "")
+                            if not _fc_body:
+                                _fc_body = (_ask_wealth_body(locals().get("_ask_wealth_sig"),
+                                                             locals().get("_ask_first_name", ""))
+                                            if locals().get("_ask_wealth_sig") else "")
                             if not _fc_body:
                                 _fc_body = _ask_failclosed_body(
                                     _ask_concern,
@@ -23472,7 +23503,12 @@ async def ask_endpoint(request: AskRequest):
                     _wf2_body = (_ask_wealth_body(locals().get("_ask_wealth_sig"),
                                                   locals().get("_ask_first_name", ""))
                                  if locals().get("_ask_wealth_sig") else "")
-                    if _cf2_body:
+                    _db2_body = ((locals().get("_ask_durability_body") or "")
+                                 if (_is_relationship_q(question)
+                                     and _relationship_intent(question) == "durability") else "")
+                    if _db2_body:
+                        _fc2_body = _db2_body
+                    elif _cf2_body:
                         _fc2_body = _cf2_body
                     elif _wf2_body:
                         _fc2_body = _wf2_body
