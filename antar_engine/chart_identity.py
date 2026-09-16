@@ -279,12 +279,23 @@ def build_chart_identity(chart_data: Any, vim_rows: Any = None,
     chapter = _running_chapter(vim_rows, today)
     asc_lord = _SIGN_LORD.get(asc_sign or "")
 
-    # Top yogas, prose-safe: name + effect only, strongest first.
+    # Top yogas, strongest first. De-jargoned at render time: the user-facing
+    # `name` is a plain decision-relevant label (never a Sanskrit yoga name),
+    # `effect` a plain line. `kind` = strength|mind lets the FE group them.
+    # See antar_engine/yogas.plain_yoga. The detection `name` (a Sanskrit
+    # internal key downstream engines pattern-match on) is deliberately NOT
+    # emitted — the payload itself is a user-reachable surface.
+    from antar_engine.yogas import plain_yoga as _plain_yoga
     yogas = []
     for y in (cd.get("yogas") or []):
         if isinstance(y, dict) and y.get("name"):
-            yogas.append({"name": y.get("name"), "effect": y.get("effect", ""),
-                          "strength": y.get("strength", "")})
+            _pl = _plain_yoga(y.get("name"), lang)
+            yogas.append({
+                "name":     _pl["title"],
+                "effect":   _pl["effect_en"] or y.get("effect", ""),
+                "strength": y.get("strength", ""),
+                "kind":     _pl["kind"],
+            })
     _rank = {"strong": 0, "moderate": 1, "weak": 2}
     yogas.sort(key=lambda y: _rank.get((y.get("strength") or "").lower(), 3))
 

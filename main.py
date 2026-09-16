@@ -19650,15 +19650,18 @@ def _ask_build_layer_context(chart_data, dashas, birth_date, concern, question="
     except Exception:
         pass
 
-    # 4. Yogas (stored combinations)
+    # 4. Yogas (stored combinations) — de-jargoned before entering the prompt so
+    # the model never has a Sanskrit yoga name to echo back (no-Sanskrit rule).
     try:
+        from antar_engine.yogas import plain_yoga as _plain_yoga
         yogas = chart_data.get("yogas") or []
         ynames = []
         for y in yogas:
             if isinstance(y, dict) and y.get("name"):
-                ynames.append(y.get("name", "") + " (" + y.get("strength", "") + ")")
+                _t = _plain_yoga(y.get("name", ""))["title"]
+                ynames.append(_t + " (" + y.get("strength", "") + ")")
         if ynames:
-            lines.append("4. BIRTH COMBINATIONS (Yogas): " + "; ".join(ynames[:5]))
+            lines.append("4. BIRTH COMBINATIONS (strengths): " + "; ".join(ynames[:5]))
     except Exception:
         pass
 
