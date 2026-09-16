@@ -10608,7 +10608,7 @@ async def debug_vertical_fit(chart_id: str):
     enterprise-potential band. Used to blind-validate against known charts before
     wiring into /ask. Never a wealth magnitude/tier claim."""
     try:
-        row = supabase.table("charts").select("chart_data").eq("id", chart_id).single().execute()
+        row = supabase.table("charts").select("chart_data,birth_date").eq("id", chart_id).single().execute()
         if not row.data:
             raise HTTPException(404, "chart not found")
         cd = row.data.get("chart_data")
@@ -10620,10 +10620,33 @@ async def debug_vertical_fit(chart_id: str):
         out = analyze_vertical_fit(cd, dasha_lords=lords)
         # [dasha-fortune 2026-09-16] the validated business-timing read
         try:
-            from antar_engine.business_timing import dasha_fortune
+            from antar_engine.business_timing import dasha_fortune, season_register
             out["business_timing"] = dasha_fortune(cd, dashas)
+            out["season"] = season_register(cd, dashas)
         except Exception as _bte:
             out["business_timing"] = {"available": False, "error": str(_bte)}
+        # [financial-difficulty audit 2026-09-16] money-flow + ruin risk + annual lord
+        try:
+            from antar_engine.money_flow import analyze_money_flow
+            from antar_engine.event_risk import bankruptcy_risk, sudden_events
+            _mf = analyze_money_flow(cd)
+            out["money_flow"] = {k: _mf.get(k) for k in
+                                 ("net_lean", "earned_lean", "inflow", "outflow", "houses")}
+            out["bankruptcy_risk"] = bankruptcy_risk(cd)
+            out["sudden_events"] = sudden_events(cd)
+        except Exception as _fe:
+            out["financial_audit_error"] = str(_fe)
+        try:
+            from antar_engine.lal_kitab_advanced import year_lord_for
+            _bd = (cd.get("birth_date") or (row.data.get("lal_kitab_data") or {}) or {})
+            _bd2 = row.data.get("birth_date") if hasattr(row, "data") else None
+            _yl = year_lord_for(_bd2) if _bd2 else None
+            _pl = (cd.get("planets") or {})
+            out["varshphal_year_lord"] = {"lord": _yl,
+                "house": (_pl.get(_yl, {}) or {}).get("house") if _yl else None,
+                "sign": (_pl.get(_yl, {}) or {}).get("sign") if _yl else None}
+        except Exception as _yle:
+            out["varshphal_error"] = str(_yle)
         # [vertical-fit calibration] attach the mahadasha chronology so the
         # sector-planet windows can be lined up against venture win/fail years.
         try:
