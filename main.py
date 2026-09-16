@@ -25143,10 +25143,59 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             except Exception as _scap_e:
                 print(f"[daily-signal] season cap skipped (non-fatal): {_scap_e}")
 
+            # [convergence-confidence 2026-09-16] How much the INDEPENDENT validated
+            # layers (Tara Bala + Moon-placement + running dasha + Lal-Kitab + the
+            # dasha SEASON) agree with the committed direction. This is the classical
+            # "a day is only as strong as the convergence" principle — it never
+            # changes the verdict, only reports conviction. Jargon-free. Fail-open.
+            _kp_shadow = None
+            try:
+                from antar_engine.daily_convergence import daily_convergence
+                _conv = daily_convergence(
+                    day_signals=result.get("signals") or [],
+                    season_register=_season_reg,
+                    committed_direction=result.get("direction"),
+                )
+                if _conv.get("available"):
+                    result["confidence"] = {
+                        "level": _conv["level"],          # high | moderate | low
+                        "line":  _conv["line"],           # one plain sentence
+                        "aligned": _conv.get("aligned", []),
+                        "tension": _conv.get("tension", []),
+                        "layers_read": _conv.get("layers_read", 0),
+                    }
+            except Exception as _cv_e:
+                print(f"[daily-signal] convergence skipped (non-fatal): {_cv_e}")
+
+            # [KP shadow 2026-09-16] KP's gate is CLOSED (quarantined, birth-time-
+            # critical) so it must NEVER be user-facing. We compute its daily
+            # fingerprint here for SHADOW logging only — to accumulate agreement
+            # data toward validating KP for daily use. Logged + captured in the
+            # admin bundle; deliberately NOT written into `result`.
+            try:
+                from antar_engine.kp.kp_daily import kp_daily_shadow
+                _kp_lord = (_th_dasha or {}).get("ad_lord") or (_th_dasha or {}).get("md_lord") or ""
+                _kp_shadow = kp_daily_shadow(
+                    chart_record=row, dasha_lord=_kp_lord,
+                    committed_direction=result.get("direction"),
+                )
+                if _kp_shadow.get("available"):
+                    print(f"[kp-shadow] chart={cid[:8]} lord={_kp_shadow.get('dasha_lord')} "
+                          f"lean={_kp_shadow.get('kp_lean')} "
+                          f"agrees={_kp_shadow.get('agrees_with_committed')} "
+                          f"signifies={_kp_shadow.get('signifies')} "
+                          f"bt_ok={_kp_shadow.get('birth_time_ok')}")
+                else:
+                    print(f"[kp-shadow] chart={cid[:8]} unavailable: {_kp_shadow.get('reason')}")
+            except Exception as _kp_e:
+                print(f"[daily-signal] kp shadow skipped (non-fatal): {_kp_e}")
+
             # [admin-inspect] capture the deterministic engine pick (raw bundle)
             _ai_c = _inspect_active()
             if _ai_c is not None:
                 _ai_c["raw"]["today_engine"] = {"engine": _th, "debug": _th_dbg}
+                _ai_c["raw"]["convergence"] = result.get("confidence")
+                _ai_c["raw"]["kp_shadow"] = _kp_shadow
 
             # [today-v2 Part 6] Claude narration of the ENGINE-chosen
             # highlight. The engine picks domains + direction; Claude only
