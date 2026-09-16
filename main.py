@@ -3379,6 +3379,55 @@ async def get_chart_signature(chart_id: str, language: str = "en", authorization
         return {"error": str(e)}
 
 
+def _enemy_progress(chart_id, practice_ids):
+    """[lk-enemy-progress 2026-09-15] Per-alert remedy progress for the Full Chart
+    page: for each enemy-remedy practice_id, how many distinct days it's been
+    marked done, whether it was done today, the last day, and the current
+    consecutive-day streak. Reads the SAME practice_log the /complete flow writes,
+    so an enemy remedy tracks through the existing MARK DONE. Fail-open to zeros."""
+    default = {"completed_count": 0, "done_today": False,
+               "last_completed_at": None, "streak": 0}
+    out = {pid: dict(default) for pid in (practice_ids or [])}
+    if not practice_ids:
+        return out
+    try:
+        rows = (supabase.table("practice_log")
+                .select("practice_id, completed_at")
+                .eq("chart_id", chart_id)
+                .in_("practice_id", list(practice_ids))
+                .not_.is_("completed_at", "null")
+                .execute().data) or []
+    except Exception as _pe:
+        print(f"[enemy-progress] read non-fatal: {_pe}")
+        return out
+    from datetime import date as _d, datetime as _dt, timedelta as _td
+    _today = _d.today()
+    by_pid = {}
+    for r in rows:
+        pid = r.get("practice_id")
+        ca = r.get("completed_at")
+        if pid not in out or not ca:
+            continue
+        try:
+            dd = _dt.fromisoformat(str(ca).replace("Z", "")).date()
+        except Exception:
+            continue
+        by_pid.setdefault(pid, set()).add(dd)
+    for pid, days in by_pid.items():
+        out[pid]["completed_count"] = len(days)
+        out[pid]["done_today"] = _today in days
+        out[pid]["last_completed_at"] = max(days).isoformat()
+        probe = (_today if _today in days
+                 else (_today - _td(days=1)) if (_today - _td(days=1)) in days
+                 else None)
+        streak = 0
+        while probe is not None and probe in days:
+            streak += 1
+            probe = probe - _td(days=1)
+        out[pid]["streak"] = streak
+    return out
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # CHART OVERVIEW — the "full chart page": overall strengths + areas to mind.
 # [chart-overview 2026-09-13] The FE chart page wants a jargon-free LIST of
@@ -3470,6 +3519,17 @@ async def get_chart_overview(chart_id: str, language: str = "en"):
             from antar_engine.lal_kitab_advanced import year_lord_for as _ylf_o
             _yl_o = _ylf_o(row.data.get("birth_date")) if row.data.get("birth_date") else None
             _enemy = build_enemy_alerts(chart_data.get("planets", {}), "GLOBAL", year_lord=_yl_o)
+            # [lk-enemy-progress 2026-09-15] attach per-alert remedy progress so the
+            # Full Chart page can show "3-day streak / done today" per enemy card.
+            try:
+                _eprog = _enemy_progress(chart_id,
+                                         [a["practice_id"] for a in _enemy if a.get("practice_id")])
+                for _a in _enemy:
+                    _a["progress"] = _eprog.get(_a.get("practice_id"),
+                                                {"completed_count": 0, "done_today": False,
+                                                 "last_completed_at": None, "streak": 0})
+            except Exception as _epe:
+                print(f"[chart-overview] enemy progress non-fatal: {_epe}")
         except Exception as _ee:
             print(f"[chart-overview] enemy_alerts non-fatal: {_ee}")
             _enemy = []
@@ -13693,7 +13753,46 @@ async def settings_charts(authorization: Optional[str] = Header(None)):
             _st_cache_bust(user_id)
         except Exception:
             pass
-    return {"charts": [_st_chart_shape(c, primary) for c in charts], "count": len(charts)}
+    _shapes = [_st_chart_shape(c, primary) for c in charts]
+    # [lk-enemy-badge 2026-09-15] Attach a per-chart enemy-house count so the
+    # Settings -> Charts card can show a "N to address" badge. Only a COUNT is
+    # exposed (never a planet/sign name), keeping the plain-language promise of
+    # this surface. Computed live via build_enemy_alerts (same source as the Full
+    # Chart page), so the corrected enmity table applies without a re-backfill.
+    try:
+        _ids = [c["id"] for c in charts if c.get("id")]
+        if _ids:
+            from antar_engine.practice_engine import build_enemy_alerts as _bea_m
+            from antar_engine.lal_kitab_advanced import year_lord_for as _ylf_m
+            _rows = (supabase.table("charts")
+                     .select("id, chart_data, lal_kitab_data")
+                     .in_("id", _ids).execute().data) or []
+            _cnt = {}
+            for _r in _rows:
+                _cd = _r.get("chart_data") or {}
+                if isinstance(_cd, str):
+                    try:
+                        _cd = json.loads(_cd)
+                    except Exception:
+                        _cd = {}
+                _lk = _r.get("lal_kitab_data") or {}
+                if isinstance(_lk, str):
+                    try:
+                        _lk = json.loads(_lk)
+                    except Exception:
+                        _lk = {}
+                _bd = _lk.get("birth_date")
+                _yl = _lk.get("year_lord") or (_ylf_m(_bd) if _bd else None)
+                _al = _bea_m((_cd.get("planets") or {}), "GLOBAL", year_lord=_yl)
+                _cnt[_r.get("id")] = (len(_al),
+                                      sum(1 for _a in _al if _a.get("active_this_year")))
+            for _s in _shapes:
+                _c0 = _cnt.get(_s["id"])
+                _s["enemy_count"] = _c0[0] if _c0 else 0
+                _s["enemy_priority_count"] = _c0[1] if _c0 else 0
+    except Exception as _ece:
+        print(f"[settings] enemy count non-fatal: {_ece}")
+    return {"charts": _shapes, "count": len(charts)}
 
 
 @app.post("/api/v1/me/charts")
