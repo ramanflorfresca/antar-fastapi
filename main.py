@@ -20645,9 +20645,11 @@ def _ask_event_intent(q):
                              "jackpot", "sudden wealth", "out of nowhere", "lottery win",
                              "ganancia inesperada", "dinero inesperado", "golpe de suerte")):
         return "sudden-gain"
-    if any(w in ql for w in ("sudden loss", "sudden losses", "lose money suddenly",
-                             "sudden money loss", "sudden setback", "blow up",
-                             "perdida repentina", "pérdida repentina", "perder de golpe")):
+    if (any(w in ql for w in ("sudden loss", "sudden losses", "lose money suddenly",
+                              "sudden money loss", "sudden setback", "blow up",
+                              "perdida repentina", "pérdida repentina", "perder de golpe"))
+            or ("sudden" in ql and any(x in ql for x in ("loss", "lose", "setback",
+                                                         "reversal", "crash")))):
         return "sudden-loss"
     return None
 
@@ -21682,7 +21684,10 @@ async def ask_endpoint(request: AskRequest):
             _ask_money_text = ""
             try:
                 _ask_money_facet = _ask_money_intent(question)
-                if _ask_money_facet and isinstance(chart_data, dict):
+                # event-risk (sudden/bankruptcy) takes precedence over the money/
+                # wealth pattern blocks so a 'windfall'/'sudden loss' question leads
+                # with the event read, not the earned-unearned or wealth-ceiling one.
+                if _ask_money_facet and isinstance(chart_data, dict) and not _ask_event_intent(question):
                     from antar_engine.money_flow import analyze_money_flow
                     _mf = analyze_money_flow(chart_data)
                     if _mf.get("available"):
@@ -21711,7 +21716,8 @@ async def ask_endpoint(request: AskRequest):
             _ask_wealth_sig = None
             _ask_wealth_text = ""
             try:
-                if (_is_wealth_q(question) or _ask_money_facet) and isinstance(chart_data, dict):
+                if ((_is_wealth_q(question) or _ask_money_facet) and isinstance(chart_data, dict)
+                        and not _ask_event_intent(question)):
                     from antar_engine.money_flow import wealth_power_signature
                     _wps = wealth_power_signature(chart_data)
                     if _wps.get("available") and _wps.get("strength") in ("high", "moderate"):
