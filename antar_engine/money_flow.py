@@ -50,9 +50,13 @@ def _house_strength(h, d1, lag):
                 s += 1.0
             elif p in _MALEFIC:
                 s -= 0.3
-            # nodes: upachaya (3/6/11) they add; elsewhere mild drag
-            elif p in ("Rahu", "Ketu"):
-                s += 0.4 if h in (3, 6, 11) else -0.3
+            # [era-aware 2026-09-16] Rahu is a modern amplifier, not a plain drag:
+            # in wealth/gain/trine houses it MAGNIFIES that house's money theme
+            # (Rahu in the 2nd/11th = amplified wealth/gains). Ketu withdraws.
+            elif p == "Rahu":
+                s += 1.0 if h in (2, 5, 9, 10, 11) else (0.6 if h in (3, 6) else -0.2)
+            elif p == "Ketu":
+                s += 0.3 if h in (3, 6, 11) else -0.4
     return round(s, 2)
 
 
@@ -117,6 +121,62 @@ def analyze_money_flow(chart_data: dict) -> dict:
             "net_lean": net_lean, "earned_lean": earned_lean,
             "labels": {"net": net_label, "earned": earned_label},
             "houses": h,
+        }
+    except Exception as e:
+        return {"available": False, "error": str(e)[:160]}
+
+
+def wealth_power_signature(chart_data: dict) -> dict:
+    """[era-aware 2026-09-16] Detect MODERN wealth/power signatures — the Rahu-led
+    combinations that a 7000-year-old 'Rahu = malefic' lens misses but which, in
+    the current era, mark large wealth & power potential:
+      Rahu + Venus   → enormous material wealth / luxury
+      Rahu + Sun     → power, status, authority
+      Rahu + Mercury → tech / media / trade scale
+      Rahu in 2/11   → amplified wealth / gains
+      Rahu + Jupiter → unconventional, outsized (guru-chandala) growth
+    DESCRIPTIVE strong-POTENTIAL read — never a guaranteed net-worth tier. Returns
+    {available, signatures[], strength: high|moderate|none, in_gains(bool),
+    rahu_house}. Never raises."""
+    try:
+        cd = chart_data if isinstance(chart_data, dict) else {}
+        d1 = cd.get("planets") or {}
+        rahu = d1.get("Rahu") or {}
+        rh = rahu.get("house")
+        if rh is None:
+            return {"available": False}
+
+        def same_house(p):
+            return (d1.get(p) or {}).get("house") == rh
+
+        sigs = []
+        if same_house("Venus"):
+            sigs.append(("wealth", "Rahu with Venus — a modern signature of large "
+                                   "material wealth and luxury"))
+        if same_house("Sun"):
+            sigs.append(("power", "Rahu with the Sun — a signature of power, status "
+                                  "and reach"))
+        if same_house("Mercury"):
+            sigs.append(("scale", "Rahu with Mercury — scale through tech, media, or "
+                                  "trade"))
+        if same_house("Jupiter"):
+            sigs.append(("outsized", "Rahu with Jupiter — unconventional, outsized "
+                                     "growth (guru-chandala)"))
+        in_gains = rh in (2, 11)
+        if in_gains:
+            sigs.append(("gains", "Rahu in your house of wealth/gains — it amplifies "
+                                  "what flows in"))
+
+        strength = ("high" if (len(sigs) >= 2 or
+                    (any(s[0] == "wealth" for s in sigs) and in_gains))
+                    else "moderate" if sigs else "none")
+        return {
+            "available": True,
+            "signatures": [s[1] for s in sigs],
+            "kinds": [s[0] for s in sigs],
+            "strength": strength,
+            "in_gains": in_gains,
+            "rahu_house": rh,
         }
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}

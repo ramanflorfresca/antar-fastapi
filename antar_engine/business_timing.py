@@ -107,14 +107,30 @@ def planet_fortune(planet: str, chart_data: dict) -> dict:
         score -= 1.0
         reasons.append("loses strength in the D-9")
 
-    # node shadow (a malefic conjunct a node) — but NOT when the planet is itself
-    # a node, and NOT double-counting a node sitting well in its own upachaya house
-    if planet not in ("Rahu", "Ketu"):
-        for node in ("Rahu", "Ketu"):
-            if (d1.get(node) or {}).get("house") == house and house is not None:
-                score -= 1.0
-                reasons.append(f"shadowed by {node}")
-                break
+    # [era-aware 2026-09-16] Rahu is a PRIMARY force of the modern era (Kali Yuga),
+    # not a plain malefic. Conjunct Rahu AMPLIFIES a planet's worldly power —
+    # Sun→authority/power, Venus→wealth/luxury, Mercury→tech/media/trade, Mars→drive
+    # — most of all in wealth/gain/trine houses (Rahu+Venus = enormous wealth,
+    # Sun+Rahu = power). It is NOT a flat affliction. Ketu still withdraws; Rahu on
+    # the Moon can unsettle the mind (mild caution only).
+    if planet not in ("Rahu", "Ketu") and house is not None:
+        if (d1.get("Rahu") or {}).get("house") == house:
+            if planet == "Moon":
+                score -= 0.4; reasons.append("Rahu unsettles the emotional mind")
+            elif planet == "Jupiter":
+                score += 0.3; reasons.append("Rahu turns the wisdom unconventional (guru-chandala)")
+            else:
+                amp = 1.2 if house in (2, 5, 9, 10, 11) else 0.8
+                score += amp
+                reasons.append(f"Rahu amplifies your {planet.lower()} — modern-era power/wealth")
+        if (d1.get("Ketu") or {}).get("house") == house and planet != "Sun":
+            score -= 0.6; reasons.append("Ketu pulls this toward detachment")
+
+    # [era-aware] Rahu itself is a wealth/gain amplifier where it sits in a
+    # wealth/gain/trine/career house — the engine of modern self-made fortune.
+    if planet == "Rahu" and house in (2, 5, 9, 10, 11):
+        score += 0.8
+        reasons.append("Rahu drives gains here (modern-era amplifier)")
 
     band = "strong" if score >= 2.0 else ("lean" if score <= -1.0 else "mixed")
     return {"score": round(score, 2), "band": band, "reasons": reasons}

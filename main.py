@@ -20615,6 +20615,18 @@ def _is_biz_vs_job_q(q):
     return False
 
 
+def _is_wealth_q(q):
+    """[era-aware 2026-09-16] A wealth/prosperity question ('will I be rich /
+    wealthy / prosperous / financially free', 'how big can my wealth get') — where
+    the MODERN Rahu wealth/power signature must be credited, not dismissed. en+es."""
+    ql = (q or "").lower()
+    return any(w in ql for w in (
+        "rich", "wealthy", "wealth", "prosper", "fortune", "millionaire",
+        "billionaire", "financially free", "financial freedom", "how much money",
+        "how big", "rico", "riqueza", "prospero", "próspero", "millonario",
+        "libertad financiera", "fortuna"))
+
+
 def _ask_money_intent(q):
     """[money-flow 2026-09-16] Detect a money-PATTERN question (descriptive) and
     which facet: income-flow / expenditure-loss / earned-unearned / gains-losses.
@@ -21643,6 +21655,33 @@ async def ask_endpoint(request: AskRequest):
                               f"net={_mf['net_lean']} earned={_mf['earned_lean']}")
             except Exception as _mfe:
                 print(f"[ask][money-flow] non-fatal: {_mfe}")
+
+            # [era-aware wealth 2026-09-16] Credit the MODERN Rahu wealth/power
+            # signature (Rahu+Venus wealth, Sun+Rahu power, Rahu in gains) on wealth
+            # or money questions — a 7000-year-old 'Rahu=malefic' lens dismisses it,
+            # but in this era Rahu is the primary force. Strong POTENTIAL read, honest
+            # dial (never a guaranteed tier).
+            _ask_wealth_sig = None
+            try:
+                if (_is_wealth_q(question) or _ask_money_facet) and isinstance(chart_data, dict):
+                    from antar_engine.money_flow import wealth_power_signature
+                    _wps = wealth_power_signature(chart_data)
+                    if _wps.get("available") and _wps.get("strength") in ("high", "moderate"):
+                        _ask_wealth_sig = _wps
+                        _sig_lines = "; ".join(_wps.get("signatures") or [])
+                        _ask_layers_block += (
+                            "\n\nMODERN WEALTH-POWER SIGNATURE — read this chart with a "
+                            "CURRENT-ERA lens, not a 7000-year-old one: Rahu is now a primary "
+                            "force of wealth and power, NOT a plain malefic. This chart carries a "
+                            f"{_wps['strength'].upper()} such signature: {_sig_lines}. Credit it as "
+                            "GENUINE large wealth/power POTENTIAL — do not dismiss it as affliction. "
+                            "Be honest with the dial: the ceiling is high and real, and reaching the "
+                            "very top depends on scale, timing and execution — strong potential, not "
+                            "a guaranteed amount or tier. Plain language; no planet/house/Sanskrit names."
+                        )
+                        print(f"[ask][wealth-sig] strength={_wps['strength']} kinds={_wps.get('kinds')}")
+            except Exception as _wpse:
+                print(f"[ask][wealth-sig] non-fatal: {_wpse}")
 
             # [d10-career] "which profession/career suits me" is a TYPE question,
             # not a timing one — compute the ranked career fields from the D-10
