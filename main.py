@@ -10558,6 +10558,43 @@ def _current_dasha_str(dashas: dict) -> str:
     return "Unknown"
 
 
+@app.get("/api/v1/debug/btiming-raw")
+async def debug_btiming_raw(birth_date: str, birth_time: str, lat: float,
+                            lng: float, tz: float, name: str = ""):
+    """[vertical-fit calibration] Compute business-timing from RAW birth data (no
+    DB write) so a validation cohort of public charts can be scored without
+    polluting the account. Uses the same ephemeris + vimsottari as production."""
+    try:
+        from antar_engine.antar_ephemeris import build_chart, divisional_chart, julian_day
+        from antar_engine.vimsottari import calculate_vimsottari_from_chart
+        from antar_engine.business_timing import dasha_fortune
+        from datetime import datetime as _dt2
+        cd = build_chart(birth_date, birth_time, float(lat), float(lng), float(tz))
+        lag_idx = cd["lagna"]["sign_index"]
+        for _p, _v in cd["planets"].items():
+            _v["house"] = ((_v["sign_index"] - lag_idx) % 12) + 1
+        d9raw = divisional_chart(cd, 9)
+        cd.setdefault("divisional_charts", {})["d9"] = {
+            "planets": {p: {"sign": d9raw[p]["sign"]} for p in d9raw if p != "Lagna"},
+            "lagna": d9raw["Lagna"]["sign"],
+        }
+        _d = _dt2.strptime(f"{birth_date} {birth_time}", "%Y-%m-%d %H:%M")
+        bjd = julian_day(_d.year, _d.month, _d.day, _d.hour + _d.minute / 60.0 - float(tz))
+        vim = calculate_vimsottari_from_chart(cd, bjd)
+        rows = []
+        for md in vim.get("mahadashas", []):
+            rows.append({"level": "mahadasha", "lord_or_sign": md["lord"],
+                         "start_date": md["start_date"], "end_date": md["end_date"]})
+        for ad in vim.get("antardashas", []):
+            rows.append({"level": "antardasha", "lord_or_sign": ad["lord"],
+                         "start_date": ad["start_date"], "end_date": ad["end_date"]})
+        bt = dasha_fortune(cd, {"vimsottari": rows})
+        return {"name": name, "lagna": cd["lagna"]["sign"], "business_timing": bt}
+    except Exception as e:
+        import traceback
+        return {"available": False, "error": str(e), "tb": traceback.format_exc()[-500:]}
+
+
 @app.get("/api/v1/debug/vertical-fit/{chart_id}")
 async def debug_vertical_fit(chart_id: str):
     """[vertical-fit 2026-09-16] Read-only validation surface for the Vertical-Fit
