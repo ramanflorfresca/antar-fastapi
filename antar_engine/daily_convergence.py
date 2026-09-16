@@ -148,8 +148,9 @@ def daily_convergence(day_signals: list, season_register: str,
                     f"all point {_side_word}, so this reads with real conviction.")
         elif level == "moderate":
             if tension:
+                _pull = "pull" if len(tension) > 1 else "pulls"
                 line = (f"Most of the day lines up {_side_word} ({_join(aligned)}), "
-                        f"though {_join(tension)} pulls the other way — a fairly "
+                        f"though {_join(tension)} {_pull} the other way — a fairly "
                         f"confident read, not a certainty.")
             else:
                 line = (f"The day leans {_side_word} ({_join(aligned)}) — a fairly "
