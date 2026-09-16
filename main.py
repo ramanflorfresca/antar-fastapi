@@ -10574,7 +10574,22 @@ async def debug_vertical_fit(chart_id: str):
         dashas = get_dashas_for_chart(chart_id)
         lords = [x for x in (_current_dasha_str(dashas) or "").split("-") if x and x != "Unknown"]
         from antar_engine.vertical_fit import analyze_vertical_fit
-        return analyze_vertical_fit(cd, dasha_lords=lords)
+        out = analyze_vertical_fit(cd, dasha_lords=lords)
+        # [vertical-fit calibration] attach the mahadasha chronology so the
+        # sector-planet windows can be lined up against venture win/fail years.
+        try:
+            _maha = []
+            for r in (dashas.get("vimsottari") or []):
+                if (r.get("level") or r.get("type")) == "mahadasha":
+                    _maha.append({
+                        "planet": r.get("lord_or_sign") or r.get("planet_or_sign"),
+                        "start": str(r.get("start_date") or r.get("start") or "")[:10],
+                        "end": str(r.get("end_date") or r.get("end") or "")[:10],
+                    })
+            out["dasha"] = {"current": _current_dasha_str(dashas), "maha": _maha}
+        except Exception as _de:
+            out["dasha"] = {"error": str(_de)}
+        return out
     except HTTPException:
         raise
     except Exception as e:
