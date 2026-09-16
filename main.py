@@ -25141,15 +25141,26 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                                                       _tilt=_th_tilt, _lk=_th_lk,
                                                       _pan=panchanga,
                                                       _nudge=result.get("todays_nudge"),
-                                                      _date=_nar_date, _fname=_nar_fname):
+                                                      _date=_nar_date, _fname=_nar_fname,
+                                                      _cd=cd):
                             try:
                                 from antar_engine.today_narration import summarize_drivers
                                 _drv = summarize_drivers(_dbg, _engine.get("highlight_areas") or _engine.get("highlight_domains"))
+                                # [season-tone] the multi-year season calibrates the voice
+                                _season_tone = ""
+                                try:
+                                    from antar_engine.business_timing import season_register, _SEASON_TONE
+                                    _sr = season_register(_cd if isinstance(_cd, dict) else {},
+                                                          get_dashas_for_chart(cid) or {})
+                                    if _sr.get("available"):
+                                        _season_tone = _SEASON_TONE.get(_sr.get("register"), "")
+                                except Exception:
+                                    _season_tone = ""
                                 _sys = build_narration_system(
                                     engine=_engine, nudge=_nudge, first_name=_fname,
                                     patra_domains=(sorted(_tilt.keys()) if isinstance(_tilt, dict) else []),
                                     lk_daily=_lk, date_str=_date, drivers=_drv, panchanga=_pan,
-                                    day_frame=_frame,
+                                    day_frame=_frame, season_tone=_season_tone,
                                 )
                                 _raw, _ = await call_llm_claude(
                                     prompt="Write the Today narration JSON now.",

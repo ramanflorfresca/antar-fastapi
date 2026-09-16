@@ -93,6 +93,7 @@ def build_narration_system(
     drivers: Optional[list] = None,
     panchanga: Optional[dict] = None,
     day_frame: Optional[dict] = None,
+    season_tone: str = "",
 ) -> str:
     """Static block + per-day JSON tail (below the KV split)."""
     hora = engine.get("todays_move") or engine.get("hora") or {}
@@ -146,6 +147,11 @@ def build_narration_system(
             _sys = _sys + "\n\n" + _fb
     except Exception:
         pass
+    # [season-tone 2026-09-16] calibrate the day's voice to the multi-year season
+    # (running mahadasha strength) — grounded in a hard dasha, confident in a
+    # supported one — so the Today card never cheerleads a person in a hard stretch.
+    if season_tone:
+        _sys = _sys + "\n\n" + season_tone
     return _sys
 
 
