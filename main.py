@@ -21679,7 +21679,10 @@ async def ask_endpoint(request: AskRequest):
                             "any current tight-cashflow phase (the potential is big even if right now "
                             "is lean). Be honest with the dial: the ceiling is high and real; reaching "
                             "the very top depends on scale, timing and execution — strong potential, "
-                            "not a guaranteed amount or tier. Plain language; no planet/house/Sanskrit."
+                            "not a guaranteed amount or tier. Write a COMPLETE read (3-4 sentences): "
+                            "open with the structural ceiling, name their real levers, note the current "
+                            "phase honestly, and end with a scoped follow-up — never a single terse line. "
+                            "Plain language; no planet/house/Sanskrit."
                         )
                         print(f"[ask][wealth-sig] strength={_wps['strength']} kinds={_wps.get('kinds')}")
             except Exception as _wpse:
