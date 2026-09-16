@@ -1262,6 +1262,33 @@ def _build_mantra_card(planet, locale):
     )
 
 
+# [lk-enemy-plain 2026-09-15] The raw detector text ("Ketu in Venus's house …
+# during its dasha period", "During {planet} Mahadasha or Antardasha") leaks
+# planet names + Sanskrit + house jargon to the user, breaking the app's
+# plain-language rule. These jargon-free lines replace it on every enemy card
+# (Full Chart, Practice, compat). Keyed by the afflicted planet.
+_ENEMY_PLAIN = {
+    "Sun": {"why": "Your drive to lead and be recognized can meet friction — clashes with authority, or feeling unseen — until you channel it steadily.",
+            "active_when": "Flares most around work, recognition, and dealings with people in charge."},
+    "Moon": {"why": "Your inner world can run heavy here — worry, low moods, or strained closeness — when this energy goes untended.",
+             "active_when": "Flares most when you're emotionally stretched or your rest and routine slip."},
+    "Mars": {"why": "Your drive can spill into friction — rushed moves, conflict, or disputes — unless it has a disciplined outlet.",
+             "active_when": "Flares most under pressure, in competition, and around property or disputes."},
+    "Mercury": {"why": "Your thinking can overwork itself — overthinking, mixed signals, or restless decisions — until it's grounded.",
+                "active_when": "Flares most around communication, deals, and fast decisions."},
+    "Jupiter": {"why": "Your growth can feel delayed or conflicted — good judgment arrives the hard way — until you tend it steadily.",
+                "active_when": "Flares most around big decisions, mentors, and questions of meaning."},
+    "Venus": {"why": "Your capacity for love, ease and connection meets friction — relationships or comfort feel strained — until you nurture it.",
+              "active_when": "Flares most in close relationships and matters of comfort and pleasure."},
+    "Saturn": {"why": "Your discipline can harden into heaviness — pressure, delay, or self-denial — unless you keep it steady and kind.",
+               "active_when": "Flares most under long pressure, deadlines, and slow-moving obligations."},
+    "Rahu": {"why": "Your ambition can pull you into overreach or restlessness — chasing more before the ground is set — until you steady it.",
+             "active_when": "Flares most when you're reaching fast for growth, status, or the new."},
+    "Ketu": {"why": "Your instinct to let go can tip into losing interest or focus in things that still need you — until you tend it gently.",
+             "active_when": "Flares most when you disengage too early or feel pulled to withdraw."},
+}
+
+
 def _enrich_enemy_alerts(enemy_houses, locale, year_lord=None):
     """[lk-wire 2026-09-15] Turn raw enemy-house warnings into cards — energy
     label + the afflicted planet's own LK remedies (what neutralizes the tension)
@@ -1286,6 +1313,11 @@ def _enrich_enemy_alerts(enemy_houses, locale, year_lord=None):
             _it = rem["item"]
             remedies.append(_it[:1].upper() + _it[1:])
         _lbl = info.get("label", "")
+        _plain = _ENEMY_PLAIN.get(planet, {})
+        _why = _plain.get("why") or (
+            f"Your {_lbl.lower()} energy carries a built-in friction here — it can "
+            f"work against you until you tend it steadily." if _lbl else "")
+        _active_when = _plain.get("active_when") or "Flares most when this part of life is under pressure."
         _active = bool(year_lord) and planet == year_lord
         if year_lord is None:
             _timing = ""
@@ -1302,8 +1334,8 @@ def _enrich_enemy_alerts(enemy_houses, locale, year_lord=None):
             "practice_id":  f"{planet.lower()}_enemy_remedy",
             "planet":       planet,
             "energy_label": _lbl,
-            "why":          e.get("problem", ""),
-            "active_when":  e.get("active_when", ""),
+            "why":          _why,
+            "active_when":  _active_when,
             "severity":     e.get("severity", "moderate"),
             "domain":       info.get("domain", ""),
             "color":        info.get("color", ""),
