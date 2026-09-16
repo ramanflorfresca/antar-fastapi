@@ -20615,6 +20615,38 @@ def _is_biz_vs_job_q(q):
     return False
 
 
+def _ask_money_intent(q):
+    """[money-flow 2026-09-16] Detect a money-PATTERN question (descriptive) and
+    which facet: income-flow / expenditure-loss / earned-unearned / gains-losses.
+    Returns the facet or None. A 'when will money…' TIMING question is left to the
+    concern/timing path (returns None here). en + es."""
+    ql = (q or "").lower()
+    # a 'when' timing question is not a pattern question — let timing handle it
+    if ql.strip().startswith(("when", "cuándo", "cuando")) or "next month" in ql or "next week" in ql:
+        return None
+    if any(w in ql for w in ("earned or unearned", "unearned", "windfall",
+                             "inheritance", "passive income", "money from work",
+                             "from my work or", "heredar", "herencia", "dinero pasivo",
+                             "ingreso pasivo", "no ganado")):
+        return "earned-unearned"
+    if any(w in ql for w in ("gains or losses", "gain or loss", "profit or loss",
+                             "am i gaining", "am i losing", "gaining or losing",
+                             "gains vs", "ganancias o pérdidas",
+                             "ganancias o perdidas", "gano o pierdo")):
+        return "gains-losses"
+    if any(w in ql for w in ("expenditure", "expenses", "spending", "money leak",
+                             "leaking", "losing money", "money going", "outflow",
+                             "outgo", "where does my money go", "drain", "gastos",
+                             "gasto", "fugas de dinero", "perdiendo dinero", "se va el dinero")):
+        return "expenditure-loss"
+    if any(w in ql for w in ("income flow", "cash flow", "cashflow", "my income",
+                             "money coming in", "inflow", "how is my money",
+                             "flujo de caja", "flujo de dinero", "mis ingresos",
+                             "entra dinero", "como esta mi dinero")):
+        return "income-flow"
+    return None
+
+
 def _is_career_timing_q(q):
     """True for the 'which profession AT WHAT TIME' family — the reader is asking
     about the timing/phase of their working life, not just the static field: when
@@ -21578,6 +21610,40 @@ async def ask_endpoint(request: AskRequest):
             _ask_lk    = _safe_jsonb(chart_row.data.get("lal_kitab_data"))
             _ask_bdate = str(chart_row.data.get("birth_date") or "")[:10]
 
+            # [money-flow 2026-09-16] money-PATTERN questions (income vs outgo,
+            # gains vs losses, earned vs unearned) → a DESCRIPTIVE house-anchored
+            # read of the chart's money dynamics. NOT a future-amount prediction
+            # (that class was falsified). Reflective path; offers a near-term
+            # gain/drain follow-up (the validated daily engine).
+            _ask_money_facet = None
+            try:
+                _ask_money_facet = _ask_money_intent(question)
+                if _ask_money_facet and isinstance(chart_data, dict):
+                    from antar_engine.money_flow import analyze_money_flow
+                    _mf = analyze_money_flow(chart_data)
+                    if _mf.get("available"):
+                        _facet_focus = {
+                            "income-flow": "Lead with their INCOME/INFLOW pattern (does money come in strongly, and steadily?).",
+                            "expenditure-loss": "Lead with their OUTFLOW/LEAK pattern (where money drains — spending, debts, obligations).",
+                            "earned-unearned": "Lead with whether their money is EARNED (their own work) vs UNEARNED (backing, windfalls, returns).",
+                            "gains-losses": "Lead with the balance of GAINS vs LOSSES (inflow vs leak).",
+                        }.get(_ask_money_facet, "")
+                        _ask_layers_block += (
+                            "\n\nMONEY-FLOW PATTERN — the reader asks about their money DYNAMICS. "
+                            "This is a DESCRIPTIVE read of their chart's money pattern, NOT a "
+                            "prediction of a future amount or whether a period will be net-gain/loss "
+                            "— say it as their pattern/tendency, honestly (a pattern, not a promise). "
+                            + _facet_focus + "\n"
+                            f"NET PATTERN: {_mf['labels']['net']}\n"
+                            f"EARNED vs UNEARNED: {_mf['labels']['earned']}\n"
+                            "Speak plainly — no house numbers, no Sanskrit, no planet names. Close by "
+                            "offering to check the near-term gain/drain lean (the coming days/weeks)."
+                        )
+                        print(f"[ask][money-flow] facet={_ask_money_facet} "
+                              f"net={_mf['net_lean']} earned={_mf['earned_lean']}")
+            except Exception as _mfe:
+                print(f"[ask][money-flow] non-fatal: {_mfe}")
+
             # [d10-career] "which profession/career suits me" is a TYPE question,
             # not a timing one — compute the ranked career fields from the D-10
             # (KN Rao synthesis) and force the narrator to present THEM, instead
@@ -22311,6 +22377,13 @@ async def ask_endpoint(request: AskRequest):
                 # should I switch') keeps the decision/convergence path.
                 if _ask_decision and (_is_career_type_q(question) or _is_biz_vs_job_q(question)) and not _is_career_timing_q(question):
                     print("[ask] career-aptitude — suppressing decision/timing path")
+                    _ask_decision = False
+                # [money-flow 2026-09-16] a money-PATTERN question is descriptive,
+                # not a dated verdict — take the reflective path so the money-flow
+                # read leads (a 'when will money…' question returns None from the
+                # facet detector and keeps the concern/timing path).
+                if _ask_decision and locals().get("_ask_money_facet"):
+                    print("[ask] money-flow pattern — suppressing decision/timing path")
                     _ask_decision = False
                 # [life-chapter 2026-09-13] "what happens in my new chapter" is a
                 # period-education question, not a yes/no — take the reflective path
