@@ -1,7 +1,32 @@
 # Business-Timing / Dasha-Fortune study — pre-registered spec
 
-Status: **OPEN research** (started 2026-09-16). Do NOT ship any business
-timing/vertical predictor to /ask until H1 clears significance on the full cohort.
+Status: **CLOSED — NEGATIVE RESULT (2026-09-16).** H1 not supported. Do NOT ship
+any business timing/vertical predictor to /ask. See "Final result" below.
+
+## Final result (n=29; AA-only n=18)
+Ran the pre-registered test (win-period fortune > loss-period fortune, MD+AD at
+event dates) on the expanded cohort:
+- **Full n=29:** win>loss 15/26 non-tie (58%), mean diff +0.23, one-sided p=0.279.
+- **AA-only n=18 (birth-certificate times — best data):** 9/16 non-tie (56%),
+  **mean diff +0.00**, p=0.402.
+- **Null (labels swapped):** 11/26, symmetric (p=0.84) — as expected.
+
+**The effect shrank to zero as data quality/quantity improved** (+0.59 at n=11 →
++0.23 at n=29 → +0.00 AA-only). That is the regression-to-the-mean signature of a
+spurious small-sample signal. **Business venture success does not track the
+running dasha lord's dignity in this data.** Same class of result as the D-2
+wealth study — a plausible hypothesis, tested, falsified.
+
+Caveats (why the door isn't 100% shut, but we still don't ship): the raw fortune
+model is crude (D-9 dropped in the raw pipeline, coarse dignity weights,
+approximate historical timezones, event-year granularity). A far more
+sophisticated model *might* find something — but there is **no evidence** for it,
+and the cleanest data sits dead on chance, so shipping would be a prediction
+built on hope. If ever revisited: fix D-9/AD parity, confirm every time on
+astro.com in a browser, pre-register a richer model, and require p<0.05 on AA-only.
+
+---
+## (Original pre-registration below — kept for the record)
 
 ## Background
 - "Which vertical suits a chart" (naive sector→planet strength) was **falsified**
