@@ -24350,7 +24350,17 @@ async def save_onboarding_reason(request: OnboardingReasonRequest):
                          # label). These are display prose, safe to translate;
                          # structural enums (status, direction, at, score) are
                          # not listed so they stay stable.
-                         "why", "herb", "tara_advice", "wear", "quality"],
+                         "why", "herb", "tara_advice", "wear", "quality",
+                         # [confidence-i18n 2026-09-16] the convergence-confidence
+                         # block: `line` (already covered above) is the sentence,
+                         # and `aligned`/`tension` are the jargon-free layer-name
+                         # arrays ("the day's star", "your longer season"). They
+                         # are humanized display phrases (mapped off stable keys
+                         # before return — nothing switches on their values), so
+                         # allowlisting these two container keys makes their
+                         # bare list-string children translatable, riding the
+                         # same cached batch as `line` so they stay consistent.
+                         "aligned", "tension"],
     endpoint_name="daily-signal",
 )
 async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, language: str = "en", date: str = None):
@@ -25358,7 +25368,10 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                                          "headline", "highlight", "todays_nudge",
                                          "move", "el_movimiento", "day_map", "line",
                                          "label", "why", "herb", "tara_advice",
-                                         "wear", "quality"],
+                                         # [confidence-i18n 2026-09-16] localize the
+                                         # convergence-confidence layer-name arrays
+                                         # too (see the decorator allowlist above).
+                                         "wear", "quality", "aligned", "tension"],
                     endpoint_name="daily-signal", chart_id=cid,
                 )
             try:
