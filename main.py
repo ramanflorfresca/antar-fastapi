@@ -10558,6 +10558,29 @@ def _current_dasha_str(dashas: dict) -> str:
     return "Unknown"
 
 
+@app.get("/api/v1/debug/vertical-fit/{chart_id}")
+async def debug_vertical_fit(chart_id: str):
+    """[vertical-fit 2026-09-16] Read-only validation surface for the Vertical-Fit
+    engine — ranks business verticals by potential (D-1 × D-9 × D-10) + overall
+    enterprise-potential band. Used to blind-validate against known charts before
+    wiring into /ask. Never a wealth magnitude/tier claim."""
+    try:
+        row = supabase.table("charts").select("chart_data").eq("id", chart_id).single().execute()
+        if not row.data:
+            raise HTTPException(404, "chart not found")
+        cd = row.data.get("chart_data")
+        if isinstance(cd, str):
+            cd = _safe_jsonb(cd)
+        dashas = get_dashas_for_chart(chart_id)
+        lords = [x for x in (_current_dasha_str(dashas) or "").split("-") if x and x != "Unknown"]
+        from antar_engine.vertical_fit import analyze_vertical_fit
+        return analyze_vertical_fit(cd, dasha_lords=lords)
+    except HTTPException:
+        raise
+    except Exception as e:
+        return {"available": False, "error": str(e)}
+
+
 def _get_utc_offset_from_coords(lat: float, lng: float, birth_date: str, birth_time: str) -> float:
     """Derive correct UTC offset from birth lat/lng + birth datetime (DST-aware)."""
     try:
