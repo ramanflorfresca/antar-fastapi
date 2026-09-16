@@ -23601,6 +23601,16 @@ async def ask_endpoint(request: AskRequest):
             # a token cutoff or the readability pass. Repair a dangling em-dash tail;
             # if still broken, drop `next` rather than ship a garbled instruction.
             payload["next"] = _ask_repair_next(payload.get("next"))
+            # [markdown-strip 2026-09-16] the app renders answers as plain text —
+            # remove any **bold** / `code` the LLM added (was showing raw asterisks).
+            try:
+                from antar_engine.output_strips import _strip_markdown_emphasis as _ask_md
+                if isinstance(payload.get("read"), str):
+                    payload["read"] = _ask_md(payload["read"])
+                if isinstance(payload.get("next"), str):
+                    payload["next"] = _ask_md(payload["next"])
+            except Exception:
+                pass
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "explore", locals().get("_ask_concern"))
             return payload
@@ -23668,6 +23678,14 @@ async def ask_endpoint(request: AskRequest):
                     for _lf in ("why", "read", "verdict"):
                         if isinstance(payload.get(_lf), str):
                             payload[_lf] = _ask_life_scrub(payload[_lf], _ask_life)
+                # [markdown-strip 2026-09-16] plain-text render — drop **bold** / `code`
+                try:
+                    from antar_engine.output_strips import _strip_markdown_emphasis as _ask_md
+                    for _mf in ("read", "why", "verdict", "next", "timing"):
+                        if isinstance(payload.get(_mf), str):
+                            payload[_mf] = _ask_md(payload[_mf])
+                except Exception:
+                    pass
                 return payload
 
             # 2. NOT LOCKED — cast a fresh chart at the moment of asking.

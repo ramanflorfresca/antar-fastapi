@@ -787,6 +787,25 @@ _VALID_FIELD_TYPES = ('plain', 'headline', 'evidence', 'window', 'timing')
 _VALID_DEPTHS = ('user', 'power_user')
 
 
+def _strip_markdown_emphasis(text: str) -> str:
+    """[markdown-strip 2026-09-16] Antar renders answers as PLAIN text, so any
+    markdown the LLM adds ("**bold**", `code`, "# header") shows as raw symbols in
+    the app. Remove it. Conservative: only paired **bold** / __bold__ / `code` and
+    line-start ATX headers — leaves lone * / _ / bullet lines untouched."""
+    if not isinstance(text, str) or not text:
+        return text
+    if "*" not in text and "`" not in text and "#" not in text and "__" not in text:
+        return text
+    import re as _re_md
+    t = text
+    t = _re_md.sub(r"\*\*(.+?)\*\*", r"\1", t)          # **bold**
+    t = _re_md.sub(r"__(.+?)__", r"\1", t)               # __bold__
+    t = _re_md.sub(r"`([^`]+?)`", r"\1", t)              # `code`
+    t = t.replace("**", "")                               # any stray unpaired **
+    t = _re_md.sub(r"(?m)^\s{0,3}#{1,6}\s+", "", t)       # # ATX headers at line start
+    return t
+
+
 def apply_user_facing_strips(
     content: Any,
     language: str = 'es',
@@ -882,11 +901,15 @@ def apply_user_facing_strips(
         except Exception:
             pass
 
+    # Strip markdown emphasis last — the app renders plain text.
+    result = _strip_markdown_emphasis(result)
+
     return result
 
 
 __all__ = [
     "apply_user_facing_strips",
+    "_strip_markdown_emphasis",
     "_translate_instrument_name",
     # Private but re-exported for the Phase 5 legacy wrappers:
     "_strip_instrument_names",
