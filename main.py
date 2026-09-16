@@ -10591,9 +10591,11 @@ async def debug_btiming_raw(birth_date: str, birth_time: str, lat: float,
         bt = dasha_fortune(cd, {"vimsottari": rows})
         maha_tl = [{"planet": r["lord_or_sign"], "start": r["start_date"][:10],
                     "end": r["end_date"][:10]} for r in rows if r["level"] == "mahadasha"]
+        antar_tl = [{"planet": r["lord_or_sign"], "start": r["start_date"][:10],
+                     "end": r["end_date"][:10]} for r in rows if r["level"] == "antardasha"]
         return {"name": name, "lagna": cd["lagna"]["sign"],
                 "planet_fortune": bt.get("planet_fortune", {}),
-                "maha": maha_tl, "business_timing": bt}
+                "maha": maha_tl, "antar": antar_tl, "business_timing": bt}
     except Exception as e:
         import traceback
         return {"available": False, "error": str(e), "tb": traceback.format_exc()[-500:]}
