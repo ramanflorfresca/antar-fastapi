@@ -24764,6 +24764,11 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 _srg = _seas(cd if isinstance(cd, dict) else {}, get_dashas_for_chart(cid) or {})
                 _reg = _srg.get("register") if _srg.get("available") else None
                 _th["season"] = _reg
+                result["_season_dbg"] = {"available": _srg.get("available"),
+                                         "register": _reg, "md_lord": _srg.get("md_lord"),
+                                         "md_fortune": _srg.get("md_fortune"),
+                                         "dir": _th.get("direction"),
+                                         "cd_ok": isinstance(cd, dict) and bool(cd)}
                 if _reg == "hard" and _th.get("direction") == "positive":
                     if _th.get("strength") == "strong":
                         _th["strength"] = "moderate"
@@ -24771,6 +24776,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                                        "a small opening to use carefully.")
                     _th["_season_capped"] = True
             except Exception as _sce:
+                result["_season_dbg"] = {"error": str(_sce)[:200]}
                 print(f"[daily] season-convergence skipped (non-fatal): {_sce}")
             _th_dbg = _th.pop("_debug_reasoning", {})
             _th_dbg["_prev_el_movimiento"] = result.get("el_movimiento", "")
