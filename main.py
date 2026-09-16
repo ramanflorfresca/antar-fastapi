@@ -27766,6 +27766,129 @@ async def list_compatibility_sessions(chart_id: str):
     return {"sessions": sessions, "count": len(sessions)}
 
 
+# ── People Network digest ─────────────────────────────────────────
+# Living-network glance for the People tab: the user's saved people + each
+# person's TODAY read. Read-through cache ONLY (never forces a full daily
+# compute — N people x a multi-sec build would be a slow endpoint); privacy-safe
+# (a generic one_line from band+direction, never the connection's private
+# narration or birth data); fail-open per connection. band/direction are stable,
+# language-independent enums (day_energy.key in {steady,light,friction}), so a
+# connection's card cached in ANY language still yields the glance. Spec + brief:
+# Antar.world/LOVABLE_BRIEF_people_network.md
+_NETWORK_GLANCE_LINE = {
+    "steady":   {"en": "A steady day for them.",
+                 "es": "Un día estable para esta persona.",
+                 "pt": "Um dia estável para essa pessoa."},
+    "light":    {"en": "A lighter day for them — nothing forcing a move.",
+                 "es": "Un día más ligero para esta persona — nada que empuje.",
+                 "pt": "Um dia mais leve para essa pessoa — nada forçando."},
+    "friction": {"en": "A tender day for them — worth being gentle.",
+                 "es": "Un día sensible para esta persona — conviene ir con calma.",
+                 "pt": "Um dia sensível para essa pessoa — vale a pena ter cuidado."},
+}
+
+
+def _network_today_glance(connection_chart_id, language="en"):
+    """Warm-cache-only day glance for one connection. Returns a privacy-safe
+    {available, band, direction, one_line}: band+direction are stable enums,
+    one_line a generic localized phrase. NEVER computes, NEVER returns the
+    connection's private reading or birth data. Fail-open to {available:False}."""
+    lang = (language or "en").split("-")[0].lower()
+    if lang not in ("en", "es", "pt"):
+        lang = "en"
+    try:
+        r = (supabase.table("daily_surface_cache")
+             .select("payload,local_date")
+             .eq("chart_id", connection_chart_id)
+             .eq("surface", "daily-signal")
+             .order("local_date", desc=True).limit(1).execute())
+        if not r.data:
+            return {"available": False}
+        row = r.data[0]
+        # freshness: a card older than yesterday is not "today" (future-dated in a
+        # far tz is fine — the diff goes negative and passes)
+        from datetime import datetime as _dtm, date as _date
+        ld = str(row.get("local_date") or "")[:10]
+        try:
+            if (_dtm.utcnow().date() - _date.fromisoformat(ld)).days > 1:
+                return {"available": False}
+        except Exception:
+            pass
+        payload = row.get("payload") or {}
+        if isinstance(payload, str):
+            import json as _json
+            payload = _json.loads(payload)
+        de = payload.get("day_energy") if isinstance(payload, dict) else None
+        band = de.get("key") if isinstance(de, dict) else None
+        if band not in ("steady", "light", "friction"):
+            band = "light"
+        direction = payload.get("direction") if isinstance(payload, dict) else None
+        if direction not in ("positive", "adverse", "quiet"):
+            direction = None
+        return {
+            "available": True,
+            "band": band,
+            "direction": direction,
+            "one_line": _NETWORK_GLANCE_LINE[band][lang],
+        }
+    except Exception as _e:
+        print(f"[network] glance failed cid={str(connection_chart_id)[:8]}: {_e}")
+        return {"available": False}
+
+
+@app.get("/api/v1/network/{chart_id}")
+async def get_network(chart_id: str, language: str = "en"):
+    """People-network digest: the user's saved people (deduped by person) + each
+    person's TODAY glance, in one cached call for the Network tab. Additive;
+    changes nothing else. Fail-open. Brief:
+    Antar.world/LOVABLE_BRIEF_people_network.md."""
+    lang = (language or "en").split("-")[0].lower()
+    try:
+        from antar_engine import compatibility_reasons as _R
+    except Exception:
+        _R = None
+    try:
+        res = (supabase.table("compatibility_sessions")
+               .select("id,chart_id_b,name_b,compat_type,score,created_at")
+               .eq("chart_id_a", chart_id)
+               .order("created_at", desc=True).limit(50).execute())
+        rows = res.data or []
+    except Exception as _e:
+        print(f"[network] sessions read failed cid={str(chart_id)[:8]}: {_e}")
+        return {"available": False, "people": [], "count": 0}
+
+    by_cid, order = {}, []
+    for s in rows:
+        cid_b = s.get("chart_id_b")
+        if not cid_b:
+            continue
+        _score = s.get("score")
+        rel = {
+            "session_id":  s.get("id"),
+            "compat_type": s.get("compat_type") or "relationship",
+            "score":       _score,
+            "badge":       (_R.badge(int(_score)) if (_R and isinstance(_score, (int, float))) else None),
+        }
+        if cid_b not in by_cid:
+            by_cid[cid_b] = {
+                "connection_chart_id": cid_b,
+                "name":          s.get("name_b") or "",
+                "relationships": [rel],
+                "primary":       rel,
+            }
+            order.append(cid_b)
+        else:
+            by_cid[cid_b]["relationships"].append(rel)
+
+    people = []
+    for cid_b in order:
+        p = by_cid[cid_b]
+        p["today"] = _network_today_glance(cid_b, lang)
+        people.append(p)
+
+    return {"available": True, "people": people, "count": len(people)}
+
+
 # ── Master Dashboard Endpoint ─────────────────────────────────────
 
 
