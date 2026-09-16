@@ -22,6 +22,26 @@ _BENEFIC = {"Jupiter", "Venus", "Mercury", "Moon"}
 _HARD_MALEFIC = {"Mars", "Saturn", "Sun"}
 
 
+def debt_transits(chart_data: dict) -> dict:
+    """[B: transit layer 2026-09-16] Which malefics are currently transiting the
+    debt/loss houses (6 = debts/loans, 8 = others' money/upheaval/legal, 12 =
+    loss/outflow) — the live pressure a natal-only read misses. Returns
+    {available, hits:[{planet,house}], count}. Never raises."""
+    try:
+        from antar_engine.transits_engine import calculate_current_transits
+        tr = calculate_current_transits(chart_data)
+        rows = tr.get("transits") or []
+        hits = []
+        for t in rows:
+            p = t.get("planet")
+            h = t.get("current_house") or t.get("house")
+            if p in ("Saturn", "Mars", "Rahu", "Ketu", "Sun") and h in (6, 8, 12):
+                hits.append({"planet": p, "house": h})
+        return {"available": True, "hits": hits, "count": len(hits)}
+    except Exception as e:
+        return {"available": False, "error": str(e)[:160]}
+
+
 def _occupants(h, d1):
     return [p for p, v in d1.items()
             if isinstance(v, dict) and v.get("house") == h and p != "Lagna"]
@@ -75,10 +95,13 @@ def sudden_events(chart_data: dict) -> dict:
         return {"available": False, "error": str(e)[:160]}
 
 
-def bankruptcy_risk(chart_data: dict) -> dict:
+def bankruptcy_risk(chart_data: dict, dashas: dict = None) -> dict:
     """Financial-ruin PROPENSITY (not a prediction it will happen): weak reserves
-    (2nd) + income (11th) against heavy debt (6th) + loss (12th) + 8th affliction.
-    Returns {available, risk: elevated|moderate|low, reasons[], protective[]}."""
+    (2nd) + income (11th) against heavy debt (6th) + loss (12th), ESCALATED by a
+    hard dasha SEASON (A) and current malefic transits over the debt/loss houses
+    (B) — so a genuinely pressured stretch (e.g. a debilitated-Moon decade with
+    negative inflow) reads 'elevated', not just 'moderate'. Returns
+    {available, risk: elevated|moderate|low, reasons[], protective[]}."""
     try:
         cd = chart_data if isinstance(chart_data, dict) else {}
         d1 = cd.get("planets") or {}
@@ -112,10 +135,34 @@ def bankruptcy_risk(chart_data: dict) -> dict:
         if h2 >= 1.5 or h11 >= 1.5:
             risk_score -= 1.0
 
+        # [A: dasha-season-aware 2026-09-16] a hard running mahadasha is when a
+        # weak money base actually bites — escalate. Debilitated Saturn/Moon
+        # (debt/discipline + livelihood) add a little too.
+        if dashas:
+            try:
+                from antar_engine.business_timing import season_register
+                sr = season_register(cd, dashas)
+                if sr.get("available") and sr.get("register") == "hard":
+                    risk_score += 1.5
+                    reasons.append("a hard multi-year dasha season — pressure is live now")
+            except Exception:
+                pass
+        for _p in ("Saturn", "Moon"):
+            if _DEBIL.get(_p) == (d1.get(_p) or {}).get("sign"):
+                risk_score += 0.5
+                reasons.append(f"a weakened {_p.lower()} in the money pattern")
+
+        # [B: transit layer] malefics currently pressing the debt/loss houses
+        dt = debt_transits(cd)
+        if dt.get("available") and dt.get("count"):
+            risk_score += 0.5 * min(dt["count"], 2)
+            reasons.append("current pressure transiting your debt/loss houses")
+
         risk = ("elevated" if risk_score >= 3.0 else
                 "moderate" if risk_score >= 1.5 else "low")
         return {"available": True, "risk": risk,
                 "reasons": reasons or ["no strong ruin markers — the money base holds"],
-                "protective": protective}
+                "protective": protective,
+                "debt_transits": (dt.get("hits") if dt.get("available") else [])}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}

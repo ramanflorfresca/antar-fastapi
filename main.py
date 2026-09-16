@@ -10632,7 +10632,7 @@ async def debug_vertical_fit(chart_id: str):
             _mf = analyze_money_flow(cd)
             out["money_flow"] = {k: _mf.get(k) for k in
                                  ("net_lean", "earned_lean", "inflow", "outflow", "houses")}
-            out["bankruptcy_risk"] = bankruptcy_risk(cd)
+            out["bankruptcy_risk"] = bankruptcy_risk(cd, dashas)
             out["sudden_events"] = sudden_events(cd)
         except Exception as _fe:
             out["financial_audit_error"] = str(_fe)
@@ -21791,7 +21791,7 @@ async def ask_endpoint(request: AskRequest):
                                 "the near-term window if they want timing.")
                     elif _ask_event_facet == "bankruptcy":
                         from antar_engine.event_risk import bankruptcy_risk
-                        _bk = bankruptcy_risk(chart_data)
+                        _bk = bankruptcy_risk(chart_data, locals().get("_ask_dashas") or get_dashas_for_chart(chart_id))
                         if _bk.get("available"):
                             _ask_event_text = (
                                 "\n\nRUIN-PROPENSITY READ — the reader asks about bankruptcy/financial "

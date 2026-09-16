@@ -108,7 +108,7 @@ def build_life_alerts(chart_data: dict, dashas: dict, birth_date: Optional[str] 
     # 3) ELEVATED FINANCIAL-RISK signature (caution) — propensity, not a date
     try:
         from antar_engine.event_risk import bankruptcy_risk
-        bk = bankruptcy_risk(chart_data)
+        bk = bankruptcy_risk(chart_data, dashas)
         if bk.get("available") and bk.get("risk") == "elevated":
             alerts.append({
                 "alert_type": "risk_window",
