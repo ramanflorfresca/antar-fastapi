@@ -22424,6 +22424,15 @@ async def ask_endpoint(request: AskRequest):
                 if _ask_decision and locals().get("_ask_money_facet"):
                     print("[ask] money-flow pattern — suppressing decision/timing path")
                     _ask_decision = False
+                # [era-aware wealth 2026-09-16] 'will I be rich / a billionaire' is a
+                # POTENTIAL/dial question, not a dated yes/no — take the reflective
+                # path so the modern wealth-power signature (Rahu+Venus/Sun) LEADS
+                # and is credited, instead of a verdict template dismissing it. A
+                # 'WHEN will I be rich' keeps the timing/convergence path.
+                if (_ask_decision and locals().get("_ask_wealth_sig")
+                        and not question.lower().strip().startswith(("when", "cuándo", "cuando"))):
+                    print("[ask] wealth-potential — suppressing decision path so signature leads")
+                    _ask_decision = False
                 # [life-chapter 2026-09-13] "what happens in my new chapter" is a
                 # period-education question, not a yes/no — take the reflective path
                 # so the deterministic upcoming-dasha block leads (no forced verdict).
