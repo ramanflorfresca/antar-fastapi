@@ -10575,6 +10575,12 @@ async def debug_vertical_fit(chart_id: str):
         lords = [x for x in (_current_dasha_str(dashas) or "").split("-") if x and x != "Unknown"]
         from antar_engine.vertical_fit import analyze_vertical_fit
         out = analyze_vertical_fit(cd, dasha_lords=lords)
+        # [dasha-fortune 2026-09-16] the validated business-timing read
+        try:
+            from antar_engine.business_timing import dasha_fortune
+            out["business_timing"] = dasha_fortune(cd, dashas)
+        except Exception as _bte:
+            out["business_timing"] = {"available": False, "error": str(_bte)}
         # [vertical-fit calibration] attach the mahadasha chronology so the
         # sector-planet windows can be lined up against venture win/fail years.
         try:
