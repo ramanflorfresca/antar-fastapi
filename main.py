@@ -13129,6 +13129,39 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
         "bigger_move_label": _POT_BIGGER_LABEL[lang] if bigger_move else None,
         "generated_at": _places_iso_now(),
     }
+
+    # ── Desh-Kal-Patra move convergence ──────────────────────────────────────
+    # One honest "is now a real window to move" read: Desh (a place that beats
+    # home) x Kal (the running dasha's move-activation) x Patra (promise +
+    # feasibility). Astrocartography answers only the Desh leg; this puts it in
+    # the fuller Vedic frame ("you can't outrun your dasha"). Descriptive; the
+    # legs/line are localized in-engine. Fail-open.
+    try:
+        from antar_engine.move_convergence import move_convergence
+        _rank = {"strong": 2, "moderate": 1, "weak": 0}
+        _best_fit, _bestr = None, -1
+        for _p in places:
+            _r = _rank.get((_p.get("fit") or "").lower(), -1)
+            if _r > _bestr:
+                _bestr, _best_fit = _r, _p.get("fit")
+        _mv = move_convergence(
+            dasha_lord=reading.get("dasha_lord"),
+            home_fit=(home or {}).get("fit"),
+            best_fit=_best_fit,
+            bigger_fit=(bigger_move or {}).get("fit"),
+            has_promise=bool(reading.get("promise")),
+            language=lang,
+        )
+        if _mv.get("available"):
+            out["move"] = {
+                "level": _mv["level"],
+                "line": _places_strip(_mv["line"], lang),
+                "legs": {k: (_places_strip(v, lang) if v else None)
+                         for k, v in (_mv.get("legs") or {}).items()},
+            }
+    except Exception as _mve:
+        print(f"[places-move] convergence skipped: {_mve}")
+
     _places_cache_set(ckey, out)
     return out
 
