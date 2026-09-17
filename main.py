@@ -12927,6 +12927,17 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
             card["lk_relocation_findings"] = _lk
         except Exception:
             card["lk_relocation_findings"] = []
+        # [places-what-changes] the classical relocation read: which planet lands
+        # in which significant relocated house here, and what it does (honest
+        # gift+cost). Descriptive; localized in-engine; fail-open.
+        try:
+            from antar_engine.places_what_changes import relocation_what_changes
+            _wc = relocation_what_changes(s.get("_relocation", {}), lang)
+            for _w in _wc:
+                _w["text"] = _places_strip(_w["text"], lang)
+            card["what_changes"] = _wc
+        except Exception:
+            card["what_changes"] = []
         try:
             _reasons = _pcn.compose_city_reasons(
                 chart, s.get("city", {}), dom, _dctx, _age,
