@@ -27490,6 +27490,7 @@ def _nearest_life_window(chart_data, dashas, birth_date, gender=None):
         from antar_engine.legal import legal_timing
         from antar_engine.health import health_timing
         from antar_engine.residence import residence_timing
+        from antar_engine.career_change import career_change_timing
         specs = [
             ("a new relationship / partnership", lambda: marriage_timing(
                 chart_data, dashas, birth_date=birth_date, gender=gender),
@@ -27503,6 +27504,9 @@ def _nearest_life_window(chart_data, dashas, birth_date, gender=None):
             ("a change of home", lambda: residence_timing(
                 chart_data, dashas, birth_date=birth_date),
              "start scouting options and finances ahead of time"),
+            ("a career or business change", lambda: career_change_timing(
+                chart_data, dashas, birth_date=birth_date),
+             "line up skills, network and a runway before you leap"),
         ]
         for kind, fn, prep in specs:
             try:
