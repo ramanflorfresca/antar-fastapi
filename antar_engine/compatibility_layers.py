@@ -333,6 +333,62 @@ def build_layers(engine_result: dict, reason: str, role: str | None,
     return layers, scores
 
 
+# ── Convergence-confidence [compat-confidence 2026-09-16] ────────────────────
+# A confidence signal for a compatibility read, computed from REAL per-layer
+# data: how consistently the six relational layers point the same way. This is
+# distinct from the overall band (the band is the weighted average; convergence
+# is whether the areas AGREE or contradict) — Antar's "several instruments
+# playing the same note" idea applied to compatibility. Deterministic, no LLM,
+# no invention. Localized here (en/es/pt/fr) with a `sentence` key that is NOT
+# in the endpoint's translate set, so it is never re-translated.
+_CONV_CONF_SENTENCE = {
+    "strong": {
+        "en": "{agree} of {n} areas point the same way — a clear, convergent read.",
+        "es": "{agree} de {n} áreas apuntan en la misma dirección — una lectura clara y convergente.",
+        "pt": "{agree} de {n} áreas apontam na mesma direção — uma leitura clara e convergente.",
+        "fr": "{agree} domaines sur {n} vont dans le même sens — une lecture claire et convergente.",
+    },
+    "moderate": {
+        "en": "Most areas lean the same way, with some variation — a fair read.",
+        "es": "La mayoría de las áreas se inclinan igual, con algo de variación — una lectura razonable.",
+        "pt": "A maioria das áreas segue a mesma direção, com alguma variação — uma leitura razoável.",
+        "fr": "La plupart des domaines vont dans le même sens, avec des variations — une lecture correcte.",
+    },
+    "mixed": {
+        "en": "The areas disagree — read this as mixed, not settled.",
+        "es": "Las áreas no coinciden — tómalo como mixto, no como algo definido.",
+        "pt": "As áreas não concordam — veja isto como misto, não definitivo.",
+        "fr": "Les domaines divergent — à lire comme mitigé, non tranché.",
+    },
+}
+
+
+def build_convergence_confidence(scores: dict, overall_score: int,
+                                 language: str = "en") -> dict | None:
+    """How much the six core layers agree. Returns {level, dots, sentence,
+    agree, of} or None if there are no core-layer scores. Uses only the six
+    LAYER_ORDER layers (the capability layer reads chart_b alone and is not an
+    agreement signal)."""
+    lang = (language or "en").split("-")[0].lower()
+    bands = [_badge(scores[k]) for k in LAYER_ORDER if k in scores]
+    n = len(bands)
+    if n == 0:
+        return None
+    overall_band = _badge(overall_score)
+    agree = bands.count(overall_band)
+    # Genuine contradiction: layers span both ends (≥2 Flow AND ≥2 Friction).
+    if bands.count("FLOW") >= 2 and bands.count("STRAIN") >= 2:
+        level, dots = "mixed", 1
+    elif agree >= n - 1:            # 5 or 6 of 6 share the overall band
+        level, dots = "strong", 3
+    else:
+        level, dots = "moderate", 2
+    tmpl = _CONV_CONF_SENTENCE[level].get(lang, _CONV_CONF_SENTENCE[level]["en"])
+    return {"level": level, "dots": dots,
+            "sentence": tmpl.format(agree=agree, n=n),
+            "agree": agree, "of": n}
+
+
 def build_compat_response(
     engine_result: dict,
     reason: str,
@@ -390,6 +446,10 @@ def build_compat_response(
         "headline": TPL.get_headline(reason, tier, a_name, b_name),
         "detail": TPL.get_detail(reason, tier, a_name, b_name),
         "layers": layers,
+        # Convergence-confidence: how consistently the six layers agree. Real,
+        # deterministic, localized; `sentence` is intentionally outside the
+        # endpoint's translate set. None (omitted) when no core scores exist.
+        **({"confidence": _cc} if (_cc := build_convergence_confidence(scores, score, language)) else {}),
     }
 
     # Strip user-facing strings (curated_static keeps planet actors). Single
