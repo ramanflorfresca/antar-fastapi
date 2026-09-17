@@ -6541,6 +6541,25 @@ Do not use any planet names or astrological jargon — translate everything into
                     _resolver_verdict["timeframe"] = "chapter"
                     _resolver_verdict["_chapter_window_override"] = "health"
                     print(f"[predict] health chapter-window override -> {_hdr!r}")
+            elif _is_career_change_q(request.question):
+                # A career/business PIVOT is a life-CHAPTER question. Give the WHEN
+                # (converging window) + the NATURE (chosen vs forced, business vs
+                # job) — a timing verdict, NOT a success/magnitude claim. When no
+                # window converges, surface the honest "path reads steady" answer.
+                from antar_engine.career_change import (career_change_timing as _cc_fn,
+                                                        career_change_verdict as _ccv_fn)
+                _cc = _cc_fn(chart_data, dashas_response, birth_date=_cbd)
+                _ccv = _ccv_fn(_cc, _cl2)
+                if _ccv.get("available"):
+                    _resolver_verdict["verdict_line"] = _ccv["line"]
+                    _resolver_verdict["the_move"] = _ccv["the_move"]
+                    if _ccv.get("has_window") and _ccv.get("window_range"):
+                        _resolver_verdict["window"] = {"date_range": _ccv["window_range"],
+                                                       "intraday_boundary": None}
+                        _resolver_verdict["timeframe"] = "chapter"
+                    _resolver_verdict["_chapter_window_override"] = "career_change"
+                    print(f"[predict] career-change verdict override: "
+                          f"window={_ccv.get('window_range')!r} has={_ccv.get('has_window')}")
     except Exception as _cwe:
         print(f"[predict] chapter-verdict override skipped (non-fatal): {_cwe}")
 
@@ -20498,6 +20517,26 @@ def _is_legal_q(question):
         "being sued", "suing", "sue them", "take them to court", "in court",
         "trial", "hearing", "settlement", "judge", "verdict", "dispute with",
         "legal fight", "arbitration", "custody", "restraining order",
+    ))
+
+
+def _is_career_change_q(question):
+    """True for career/business CHANGE / pivot / transformation questions — a
+    switch, not growth. 'When will my career take off' (magnitude) and 'which
+    profession suits me' (D-10 type) are deliberately excluded — this is the
+    WHEN + NATURE of a change of direction (Ketu / 10th / 7th / 3rd / 6th / 8th)."""
+    ql = (question or "").lower()
+    return any(w in ql for w in (
+        "change my career", "career change", "change careers", "change of career",
+        "switch career", "switch my career", "switch jobs", "switch my job",
+        "change jobs", "change my job", "change of job", "quit my job",
+        "leave my job", "resign", "career pivot", "pivot my career", "career transition",
+        "change direction", "change my direction", "new direction", "different career",
+        "different field", "change field", "change my field", "switch field",
+        "change profession", "change my profession", "start a business", "start my own",
+        "go out on my own", "self-employed", "become an entrepreneur", "business pivot",
+        "pivot my business", "change my business", "change of business", "transform my business",
+        "change in business", "new venture", "start over", "reinvent",
     ))
 
 
