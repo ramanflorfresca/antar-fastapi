@@ -28278,9 +28278,37 @@ async def get_network(chart_id: str, language: str = "en"):
         else:
             by_cid[cid_b]["relationships"].append(rel)
 
+    # [placeholder-gate 2026-09-17] Don't render a "person" that was never really
+    # added — a nameless placeholder/sample secondary chart (e.g. an unlabeled
+    # compat session whose name_b is the hardcoded default "Person B" and whose
+    # connected chart carries no name). Resolve a REAL name: the session's name_b
+    # if it isn't a default stand-in, else the connected chart's own name. A
+    # person with no real name anywhere is a phantom → skip it (and upgrade real
+    # people to show their chart name when the session had only the default).
+    _DEFAULT_NAMES = {"", "person a", "person b", "partner", "the other person"}
+    _chart_names = {}
+    try:
+        _cr = (supabase.table("charts").select("id,name,first_name")
+               .in_("id", order).execute().data) if order else []
+        for _c in (_cr or []):
+            _chart_names[_c["id"]] = (_c.get("name") or _c.get("first_name") or "").strip()
+    except Exception as _ne:
+        print(f"[network] chart-name lookup failed: {_ne}")
+
+    def _real_name(cid_b, session_name):
+        n = (session_name or "").strip()
+        if n.lower() not in _DEFAULT_NAMES:
+            return n
+        return _chart_names.get(cid_b, "")
+
     people = []
     for cid_b in order:
         p = by_cid[cid_b]
+        _rn = _real_name(cid_b, p.get("name"))
+        if not _rn:
+            print(f"[network] skip phantom person cid_b={str(cid_b)[:8]} (no real name)")
+            continue
+        p["name"] = _rn
         p["today"] = _network_today_glance(cid_b, lang)
         people.append(p)
 
@@ -28288,9 +28316,9 @@ async def get_network(chart_id: str, language: str = "en"):
     # _network_prewarm). /network's own response stays a pure cache read.
     try:
         import asyncio as _aio
-        _cold = [cid for cid in order
-                 if not ((by_cid[cid].get("today") or {}).get("available"))
-                 and cid not in _NETWORK_PREWARM_INFLIGHT]
+        _cold = [p["connection_chart_id"] for p in people
+                 if not ((p.get("today") or {}).get("available"))
+                 and p["connection_chart_id"] not in _NETWORK_PREWARM_INFLIGHT]
         for cid_b in _cold[:_NETWORK_PREWARM_MAX]:
             _NETWORK_PREWARM_INFLIGHT.add(cid_b)
             _aio.create_task(_network_prewarm(cid_b))
