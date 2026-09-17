@@ -23575,6 +23575,17 @@ async def ask_endpoint(request: AskRequest):
                             # window when primary so it dedupes against _vp cleanly.
                             _win = ((_ee_timing if _ee_primary else None)
                                     or _ask_conv.get("window_label") or _ee_timing or "").strip()
+                            # [rel-chapter-grain 2026-09-17] A relationship "when will
+                            # it improve / get better" question is a SEASON, not a
+                            # calendar day. On the fail-closed path the event engine
+                            # can hand back a pinpoint transit date ("Wed 28 Oct")
+                            # which both over-specifies and CONTRADICTS a "supports it
+                            # right now" body. For a relationship read, drop a
+                            # year-less pinpoint window and let the chapter framing
+                            # stand; a real chapter window (any "…2027") is kept.
+                            if (_win and _is_relationship_q(question)
+                                    and not re.search(r"\b(19|20)\d{2}\b", _win)):
+                                _win = ""
                             # [ask-voice-gate dedupe] don't restate the window if the
                             # verdict phrase already names it.
                             if _win and _win.lower() not in _vp.lower():
