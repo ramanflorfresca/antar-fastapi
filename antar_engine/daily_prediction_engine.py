@@ -1470,6 +1470,142 @@ def _mechanics_fields(signal_json: dict) -> list:
     return bad
 
 
+# [ungrounded-time scrub 2026-09-17] The LLM narration can invent a PRECISE
+# clock time ("respond before 12:26 PM") that matches NO computed window — the
+# same over-specification family as the pinpoint-date Ask leak. The no-invention
+# gate only catches proper nouns, so invented times slip through. Day-level clock
+# precision belongs to the computed windows (Abhijit / Hora / Rahu Kalam / lucky
+# hours); prose must reference one of THOSE or speak in coarse phrases. This is a
+# deterministic net: any HH:MM in a prose field that isn't a computed window time
+# is coarsened ("before midday", "in the afternoon"). EN only for now (clean,
+# grammar-safe); es/pt lean on the prompt guard (grammar of "antes de las …" +
+# a coarse noun is too irregular to rewrite mechanically). Never raises.
+_DT_TIME_RE = re.compile(r'\b(\d{1,2}):(\d{2})\s*([AaPp][Mm])?\b')
+_DT_BEFORE_RE = re.compile(
+    r'\b(before|by|after|until|till|from|no later than)\s+'
+    r'(\d{1,2}:\d{2}\s*(?:[AaPp][Mm])?)\b', re.I)
+_DT_AT_RE = re.compile(
+    r'\b(?:at|around|about|near)\s+(\d{1,2}:\d{2}\s*(?:[AaPp][Mm])?)\b', re.I)
+_DT_PROSE_FIELDS = ('wow', 'signal', 'energy', 'senal_de_hoy', 'verdict_subline',
+                    'el_movimiento', 'observa_hoy_text', 'move', 'todays_nudge',
+                    'highlight', 'headline')
+
+
+def _dt_to_min(h, m, ap):
+    h, m = int(h), int(m)
+    if ap:
+        ap = ap.lower()
+        if ap == 'pm' and h != 12:
+            h += 12
+        elif ap == 'am' and h == 12:
+            h = 0
+    return h * 60 + m
+
+
+def _dt_coarse_en(mins):
+    """(phrase, is_midday). Article-bearing phrases fit 'before/by/in the …'."""
+    if mins < 11 * 60:
+        return ("the morning", False)
+    if mins <= 13 * 60:
+        return ("midday", True)
+    if mins <= 17 * 60:
+        return ("the afternoon", False)
+    if mins <= 20 * 60:
+        return ("the evening", False)
+    return ("later today", False)
+
+
+def _collect_grounded_times(sj):
+    """Minute-of-day ints for every clock time the day legitimately COMPUTED."""
+    out = set()
+
+    def add(v):
+        if isinstance(v, str):
+            for mm in _DT_TIME_RE.finditer(v):
+                out.add(_dt_to_min(mm.group(1), mm.group(2), mm.group(3)))
+    add(sj.get('abhijit')); add(sj.get('rahu_kalam'))
+    for k in ('hora', 'todays_move'):
+        d = sj.get(k)
+        if isinstance(d, dict):
+            add(d.get('best_window')); add(d.get('avoid_window'))
+    ms = sj.get('moon_shift')
+    if isinstance(ms, dict):
+        add(ms.get('at'))
+        sp = ms.get('split')
+        if isinstance(sp, dict):
+            add(sp.get('at'))
+    lh = sj.get('lucky_hours')
+    if isinstance(lh, dict):
+        for v in lh.values():
+            if isinstance(v, list):
+                for x in v:
+                    add(x)
+    for w in (sj.get('windows') or []):
+        if isinstance(w, dict):
+            add(w.get('start')); add(w.get('end'))
+    return out
+
+
+def _scrub_ungrounded_times(signal_json, language='en'):
+    """Coarsen any invented clock time in prose fields to a time-of-day phrase,
+    keeping times that match a computed window. EN deterministic; other langs
+    returned unchanged (prompt-guarded). Never raises."""
+    try:
+        if not isinstance(signal_json, dict):
+            return signal_json
+        if (language or 'en').split('-')[0].lower() != 'en':
+            return signal_json
+        grounded = _collect_grounded_times(signal_json)
+
+        def _ungrounded(tok):
+            mm = _DT_TIME_RE.search(tok)
+            if not mm:
+                return None
+            mins = _dt_to_min(mm.group(1), mm.group(2), mm.group(3))
+            return None if mins in grounded else mins
+
+        def _scrub(s):
+            if not isinstance(s, str) or ':' not in s:
+                return s
+
+            def _rb(mm):
+                mins = _ungrounded(mm.group(2))
+                if mins is None:
+                    return mm.group(0)
+                ph, _ = _dt_coarse_en(mins)
+                return f"{mm.group(1)} {ph}"
+
+            def _ra(mm):
+                mins = _ungrounded(mm.group(1))
+                if mins is None:
+                    return mm.group(0)
+                ph, mid = _dt_coarse_en(mins)
+                return f"around {ph}" if mid else f"in {ph}"
+
+            def _rs(mm):
+                mins = _dt_to_min(mm.group(1), mm.group(2), mm.group(3))
+                if mins in grounded:
+                    return mm.group(0)
+                ph, _ = _dt_coarse_en(mins)
+                return ph
+            s = _DT_BEFORE_RE.sub(_rb, s)
+            s = _DT_AT_RE.sub(_ra, s)
+            s = _DT_TIME_RE.sub(_rs, s)
+            return re.sub(r'\s{2,}', ' ', s).strip()
+
+        for f in _DT_PROSE_FIELDS:
+            v = signal_json.get(f)
+            if isinstance(v, str):
+                signal_json[f] = _scrub(v)
+        for f in ('haz_hoy', 'evita_hoy'):
+            arr = signal_json.get(f)
+            if isinstance(arr, list):
+                signal_json[f] = [_scrub(x) if isinstance(x, str) else x for x in arr]
+        return signal_json
+    except Exception:
+        return signal_json
+
+
 def _scrub_cosmic_leak(text):
     """Drop whole sentences that name astronomy / cycle-rarity / the day frame /
     astrological mechanics. Removing the sentence (not the word) avoids mangled
@@ -1660,6 +1796,10 @@ def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
                     w['text'] = apply_user_facing_strips(
                         t, language=language, field_type='plain'
                     )
+
+    # [ungrounded-time scrub] last pass — coarsen any invented clock time in
+    # prose fields (keeps computed-window times). Runs on every daily path.
+    signal_json = _scrub_ungrounded_times(signal_json, language)
 
     return signal_json
 

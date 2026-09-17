@@ -107,6 +107,11 @@ that generates one structured daily signal for a SPECIFIC user on a SPECIFIC day
   If you would write "morning", the window's start must actually be in the morning. When in
   doubt, describe what the window is FOR (deep work, conversation, rest), not when it is —
   the start/end already say when.
+- **NEVER invent a precise clock time in prose** (senal_de_hoy, verdict_subline, wow, any
+  narrative field). Do NOT write "respond before 12:26 PM" or "act at 3:30". A specific
+  minute is only ever valid inside the `windows`/Abhijit/Hora/Rahu-Kalam data. In prose,
+  speak in coarse phrases — "before midday", "in the afternoon", "early", "later today" —
+  or point to the day's window. A fabricated minute reads as false precision.
 
 ## DOMAIN SELECTION LOGIC (for observa_hoy_domain)
 
