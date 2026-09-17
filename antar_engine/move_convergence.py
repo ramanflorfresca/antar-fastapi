@@ -110,6 +110,58 @@ _READINESS = {
 }
 
 
+# concise verdict fields for the /predict residence-question override (so a move
+# question gets a CHAPTER verdict, not the daily transit). band ∈ FAVORABLE|MIXED|WEAK.
+_RV_LINE = {
+    "high": {"en": "This is a move-activated chapter — the timing genuinely supports a move.",
+             "es": "Es un capítulo activado para mudarte — el momento apoya de verdad una mudanza.",
+             "pt": "É um capítulo ativado para mudança — o momento apoia de verdade uma mudança."},
+    "mod":  {"en": "The chapter is open to a move without forcing one.",
+             "es": "El capítulo admite una mudanza sin forzarla.",
+             "pt": "O capítulo admite uma mudança sem forçá-la."},
+    "low":  {"en": "This chapter roots you — building where you are pays off more than moving now.",
+             "es": "Este capítulo te enraíza — construir donde estás rinde más que mudarte ahora.",
+             "pt": "Este capítulo te enraíza — construir onde você está rende mais que mudar agora."},
+}
+_RV_MOVE = {
+    "high": {"en": "Line up the move deliberately — use the runway to prepare; the chapter is with you.",
+             "es": "Prepara la mudanza con intención — aprovecha el margen para alistarte; el capítulo te acompaña.",
+             "pt": "Organize a mudança com intenção — use o tempo para se preparar; o capítulo está com você."},
+    "mod":  {"en": "Explore a move without rushing — a visit or a trial base is the honest first step.",
+             "es": "Explora una mudanza sin prisa — una visita o una base de prueba es el primer paso honesto.",
+             "pt": "Explore uma mudança sem pressa — uma visita ou uma base de teste é o primeiro passo honesto."},
+    "low":  {"en": "Hold the relocation — strengthen your current base; you can't outrun your dasha by moving.",
+             "es": "Aplaza la mudanza — fortalece tu base actual; no puedes escapar de tu dasha mudándote.",
+             "pt": "Adie a mudança — fortaleça sua base atual; você não escapa da sua dasha se mudando."},
+}
+
+
+def residence_verdict(dasha_lord: str | None, best_year=None, language: str = "en") -> dict:
+    """A CHAPTER-level verdict package for an Ask move/relocation question — to
+    override the generic daily verdict. Returns (never raises):
+      {available, band: FAVORABLE|MIXED|WEAK, activation, line, the_move,
+       secondary_note, window_range}."""
+    try:
+        L = _lang(language)
+        lord = (dasha_lord or "").strip().title()
+        if not lord:
+            return {"available": False}
+        act = _ACTIVATION.get(lord, "mod")
+        band = {"high": "FAVORABLE", "mod": "MIXED", "low": "WEAK"}[act]
+        yr = str(best_year).strip() if best_year else ""
+        if yr:
+            dr = {"en": f"around {yr}", "es": f"alrededor de {yr}", "pt": f"por volta de {yr}"}[L]
+        else:
+            dr = {"en": "over the next few years", "es": "en los próximos años",
+                  "pt": "nos próximos anos"}[L]
+        return {"available": True, "band": band, "activation": act,
+                "line": _RV_LINE[act][L], "the_move": _RV_MOVE[act][L],
+                "secondary_note": move_readiness(lord, language).get("note"),
+                "window_range": dr}
+    except Exception as e:
+        return {"available": False, "error": str(e)[:160]}
+
+
 def move_readiness(dasha_lord: str | None, language: str = "en") -> dict:
     """Kal-only move read (no city ranking): is this a move-activated chapter?
     For Ask 'should I move?'. Returns (never raises):

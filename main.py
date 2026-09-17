@@ -6454,6 +6454,39 @@ Do not use any planet names or astrological jargon — translate everything into
             )
     except Exception as _vr2_e:
         print(f"[predict] resolver re-run failed (non-fatal): {_vr2_e}")
+
+    # [residence-verdict 2026-09-16] A move/relocation question is a life-CHAPTER
+    # question — the running dasha + home disposition + residence-timing own the
+    # verdict, NOT the daily transit. Without this /predict returned a daily
+    # window ("reassess in 24-48h") that ignored/contradicted the move-activated
+    # chapter. For residence questions, override the (post-re-run) resolver verdict's
+    # window (chapter, months-years), line, move and band from the residence read +
+    # the dasha gate ("you can't outrun your dasha"). WHERE stays a Places question.
+    try:
+        if _resolver_verdict and _is_residence_q(request.question):
+            from antar_engine.residence import residence_timing as _rv_rt_fn
+            from antar_engine.move_convergence import residence_verdict as _rv_verdict
+            _rv_bd = chart_record.get("birth_date") if isinstance(chart_record, dict) else None
+            _rv_rt = _rv_rt_fn(chart_data, dashas_response, birth_date=_rv_bd)
+            _rv_best = (_rv_rt or {}).get("best") if isinstance(_rv_rt, dict) else None
+            _rv_year = (_rv_best or {}).get("year") or ((_rv_best or {}).get("start") or "")[:4]
+            _rvd = _rv_verdict((_current_dasha_str(dashas_response) or "").split("-")[0],
+                               _rv_year, getattr(request, 'language', 'en') or 'en')
+            if _rvd.get("available"):
+                _resolver_verdict["verdict"] = _rvd["band"]
+                _resolver_verdict["verdict_line"] = _rvd["line"]
+                _resolver_verdict["the_move"] = _rvd["the_move"]
+                _resolver_verdict["window"] = {"date_range": _rvd["window_range"],
+                                               "intraday_boundary": None}
+                _resolver_verdict["timeframe"] = "chapter"
+                if _rvd.get("secondary_note"):
+                    _resolver_verdict["secondary_note"] = _rvd["secondary_note"]
+                _resolver_verdict["_residence_override"] = True
+                print(f"[predict] residence-verdict override: band={_rvd['band']} "
+                      f"act={_rvd['activation']} win={_rvd['window_range']!r}")
+    except Exception as _rvo_e:
+        print(f"[predict] residence-verdict override skipped: {_rvo_e}")
+
     chakra_context  = chakra_reading_to_context_block(chakra_reading_data) if chakra_reading_data else ""
     arc_context     = chapter_arc_to_context_block(chapter_arc_data) if chapter_arc_data else ""
 
