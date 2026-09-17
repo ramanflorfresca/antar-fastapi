@@ -28328,6 +28328,33 @@ async def get_network(chart_id: str, language: str = "en"):
     return {"available": True, "people": people, "count": len(people)}
 
 
+@app.delete("/api/v1/network/{chart_id}/person/{connection_chart_id}")
+async def remove_network_person(chart_id: str, connection_chart_id: str):
+    """Remove a saved person from the user's People network.
+
+    Deletes every compatibility session between the user's chart (Person A) and
+    this connection (Person B). Scoped to chart_id_a = the caller's chart, so a
+    user can only ever remove a person from THEIR OWN network — never touch a
+    session where they are Person B, or anyone else's connections. The other
+    person's chart is left intact (it may be a real chart used elsewhere); this
+    only removes the relationship link. Idempotent — removing an already-gone
+    person returns removed:0, never an error. Fail-safe."""
+    if not chart_id or not connection_chart_id:
+        raise HTTPException(status_code=400, detail="chart_id and connection_chart_id required")
+    try:
+        res = (supabase.table("compatibility_sessions").delete()
+               .eq("chart_id_a", chart_id)
+               .eq("chart_id_b", connection_chart_id)
+               .execute())
+        removed = len(res.data or [])
+        print(f"[network] remove person cid_a={str(chart_id)[:8]} "
+              f"cid_b={str(connection_chart_id)[:8]} sessions_removed={removed}")
+        return {"success": True, "removed_sessions": removed}
+    except Exception as e:
+        print(f"[network] remove person failed cid_a={str(chart_id)[:8]}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ── Master Dashboard Endpoint ─────────────────────────────────────
 
 
