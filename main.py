@@ -21470,6 +21470,16 @@ _ASK_ADMIN_BYPASS = _cv_ask.ContextVar("ask_admin_bypass", default=False)
 # the paywall/soft-cap when monetization turns on, flip this to False.
 _ASK_FREE_LAUNCH = True
 
+# [ask-timing-grain 2026-09-17] A PINPOINT calendar date ("1 Oct", "Thu 5 Oct",
+# "October 28") is the wrong grain for an Ask life/chapter answer — Ask speaks in
+# months/seasons/years; day-level precision belongs on the daily card. Matches a
+# day-number adjacent to a month or weekday; deliberately does NOT match a bare
+# year ("2027"), a month-season ("late October"), or a soft window ("next month").
+_ASK_PINPOINT_DAY_RE = re.compile(
+    r"\b\d{1,2}(?:st|nd|rd|th)?\s+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)"
+    r"|(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\s+\d{1,2}\b"
+    r"|(?:mon|tue|wed|thu|fri|sat|sun)[a-z]*\s+\d{1,2}\b", re.I)
+
 # [narration 2026-08-12] When the Ask voice-gate fails closed (the model's read
 # tripped the jargon gate twice), the read used to collapse to the bare verdict
 # phrase — the same generic "Yes — window open now" on every question. This
@@ -22827,6 +22837,35 @@ async def ask_endpoint(request: AskRequest):
                 except Exception as _tve:
                     logger.warning(f"[ask] travel-facts non-fatal: {_tve}")
 
+            # [ask-timing-grain 2026-09-17] For a life/chapter question (NOT a day-
+            # or near-term-window-scoped one, and not a tactical "act today" one),
+            # steer the narrator to months/seasons/years, never a specific calendar
+            # day — day-level precision belongs on the daily card. Closes the happy-
+            # path leak where a vague "when will things get better" got pinpoint
+            # days ("1 Oct and 5 Oct"). Additive + fail-open.
+            try:
+                _tg_near = bool(_ask_tf_dayscope or _ask_tf_windowscan)
+                if not _tg_near:
+                    from antar_engine.ask_timeframe import detect_horizon as _tg_detect
+                    _tgh = _tg_detect(question)
+                    _tg_near = bool(_tgh and _tgh.get("kind") in ("days", "window"))
+                if not _tg_near:
+                    try:
+                        from antar_engine.hora_karana import is_tactical_question as _tg_tac
+                        _tg_near = bool(_tg_tac(question))
+                    except Exception:
+                        pass
+                if not _tg_near:
+                    _ask_layers_block += (
+                        "\n\nTIMING GRAIN — the user did NOT ask about a specific day or a "
+                        "near-term window. Give any timing as months, seasons or years (e.g. "
+                        "'around late 2026', 'through spring 2027') — NEVER a specific calendar "
+                        "date like '1 Oct' or 'Thu 5 Oct'. Day-level precision belongs on the "
+                        "daily card, not here."
+                    )
+            except Exception as _tge:
+                logger.warning(f"[ask] timing-grain steer non-fatal: {_tge}")
+
             print(f"[ask] concern={_ask_concern} dasha={_ask_dasha_str or 'unknown'} "
                   f"layers={len(_ask_layers_block)}ch prescan={len(diagnostic_block)}ch")
 
@@ -23617,16 +23656,16 @@ async def ask_endpoint(request: AskRequest):
                             # window when primary so it dedupes against _vp cleanly.
                             _win = ((_ee_timing if _ee_primary else None)
                                     or _ask_conv.get("window_label") or _ee_timing or "").strip()
-                            # [rel-chapter-grain 2026-09-17] A relationship "when will
-                            # it improve / get better" question is a SEASON, not a
-                            # calendar day. On the fail-closed path the event engine
-                            # can hand back a pinpoint transit date ("Wed 28 Oct")
-                            # which both over-specifies and CONTRADICTS a "supports it
-                            # right now" body. For a relationship read, drop a
-                            # year-less pinpoint window and let the chapter framing
-                            # stand; a real chapter window (any "…2027") is kept.
-                            if (_win and _is_relationship_q(question)
-                                    and not re.search(r"\b(19|20)\d{2}\b", _win)):
+                            # [ask-timing-grain 2026-09-17] An Ask life/chapter answer
+                            # is a SEASON, not a calendar day. On the fail-closed path
+                            # the event engine can hand back a pinpoint transit date
+                            # ("Wed 28 Oct") which over-specifies (and can contradict a
+                            # "supports it right now" body). Unless the user explicitly
+                            # asked about specific days, drop a pinpoint window; coarse
+                            # windows ("late 2026", "next month") and any real chapter
+                            # window are kept. (Generalized from relationship-only.)
+                            if (_win and not _ask_tf_dayscope
+                                    and _ASK_PINPOINT_DAY_RE.search(_win)):
                                 _win = ""
                             # [ask-voice-gate dedupe] don't restate the window if the
                             # verdict phrase already names it.
@@ -23851,13 +23890,12 @@ async def ask_endpoint(request: AskRequest):
                     if _fc2_body:
                         _fc2.append(_fc2_body)
                     _tm2 = str(payload.get("timing") or "").strip()
-                    # [rel-chapter-grain 2026-09-17] see the first fail-closed pass:
-                    # a relationship "when will it improve" answer must not carry a
-                    # pinpoint transit day ("Thu 1 Oct") — it's a season, and a date
-                    # contradicts a "supports it right now" body. Drop a year-less
-                    # window for relationship reads; keep any real chapter window.
-                    if (_tm2 and _is_relationship_q(question)
-                            and not re.search(r"\b(19|20)\d{2}\b", _tm2)):
+                    # [ask-timing-grain 2026-09-17] see the first fail-closed pass:
+                    # an Ask chapter answer must not carry a pinpoint transit day
+                    # ("Thu 1 Oct"). Unless the user asked about specific days, drop
+                    # a pinpoint window; coarse/real chapter windows are kept.
+                    if (_tm2 and not _ask_tf_dayscope
+                            and _ASK_PINPOINT_DAY_RE.search(_tm2)):
                         _tm2 = ""
                     # [ask-voice-gate dedupe] skip the window if the verdict already names it.
                     if _tm2 and _tm2.lower() not in _vp2.lower():
