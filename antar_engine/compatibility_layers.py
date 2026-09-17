@@ -496,6 +496,48 @@ def compose_six_layers(compat_raw: dict, chart_a: dict, chart_b: dict,
     return layers
 
 
+def _timing_from_forward(fwd: dict) -> dict | None:
+    """Relationship timing windows from the forward-dasha overlap (the years both
+    charts' running mahadashas support THIS relationship). Collapses the overlap
+    years into contiguous YEAR-ranges — mahadashas are multi-year, so year
+    granularity is the honest resolution (no fake month precision). Returns
+    {best_window:{start_year,end_year,label}|None, caution:bool, line} or None.
+    Descriptive timing only — never a verdict on whether the bond lasts."""
+    if not isinstance(fwd, dict) or not fwd.get("available"):
+        return None
+    try:
+        years = sorted({int(y) for y in (fwd.get("overlap_years") or [])
+                        if isinstance(y, int) or str(y).isdigit()})
+    except Exception:
+        years = []
+    caution = bool(fwd.get("separation_flag"))
+    best = None
+    if years:
+        ranges, start, prev = [], years[0], years[0]
+        for y in years[1:]:
+            if y == prev + 1:
+                prev = y
+            else:
+                ranges.append((start, prev)); start = prev = y
+        ranges.append((start, prev))
+        ranges.sort(key=lambda r: (-(r[1] - r[0] + 1), r[0]))  # longest, then earliest
+        s, e = ranges[0]
+        best = {"start_year": s, "end_year": e,
+                "label": str(s) if s == e else f"{s}–{e}"}
+    if best and caution:
+        line = (f"Your timelines line up most strongly around {best['label']} — a natural "
+                f"window to invest in this; there's also a stretch to tend carefully.")
+    elif best:
+        line = (f"Your timelines line up most strongly around {best['label']} — a natural "
+                f"window to lean into this together.")
+    elif caution:
+        line = ("The next few years don't strongly converge, and there's a stretch to tend "
+                "carefully — go steady rather than forcing milestones.")
+    else:
+        line = "No standout window in the next few years — this reads as steady, not time-sensitive."
+    return {"best_window": best, "caution": caution, "line": line}
+
+
 def compose_compat_v2(compat_raw: dict, chart_a: dict, chart_b: dict,
                       reason: str, role=None,
                       a_name: str = "You", b_name: str = "they",
@@ -564,6 +606,22 @@ def compose_compat_v2(compat_raw: dict, chart_a: dict, chart_b: dict,
             }
     except Exception as _ce:
         print(f"[compat-convergence] skipped: {_ce}")
+
+    # [compat-timing] Relationship timing windows from the forward-dasha overlap
+    # (years both charts' dashas support THIS bond) → a dated best-window /
+    # caution read. Descriptive timing only; fail-open. See _timing_from_forward.
+    try:
+        _tw = _timing_from_forward(compat_raw.get("_forward_dasha"))
+        if _tw:
+            if strip_fn is not None:
+                try:
+                    _tw["line"] = strip_fn(_tw["line"], "en",
+                                           field_type="plain", source="curated_static")
+                except Exception:
+                    pass
+            payload["timing"] = _tw
+    except Exception as _te:
+        print(f"[compat-timing] skipped: {_te}")
 
     return payload
 
