@@ -22187,13 +22187,28 @@ async def ask_endpoint(request: AskRequest):
                     from antar_engine.residence import analyze_residence, residence_timing
                     _rra = analyze_residence(chart_data)
                     if _rra.get("available"):
-                        _rrt = residence_timing(chart_data, get_dashas_for_chart(chart_id),
+                        _rd = get_dashas_for_chart(chart_id)
+                        _rrt = residence_timing(chart_data, _rd,
                                                 birth_date=_ask_birth_date)
                         _rp2 = ["RESIDENCE / RELOCATION QUESTION (about WHETHER/WHEN a move "
                                 "happens — NOT where to live). Answer from THIS deterministic "
                                 "reading of the home houses + timing. Never name a planet, house, "
                                 "or system — plain life-language only.",
                                 f"HOME DISPOSITION: {_rra['disposition']['level']}."]
+                        # [move-readiness] Desh-Kal-Patra Kal gate: is this a
+                        # move-activated CHAPTER (dasha)? — the honest gate that a
+                        # place amplifies the dasha, it doesn't replace it ("you
+                        # can't outrun your dasha"). WHERE stays a Places question.
+                        try:
+                            from antar_engine.move_convergence import move_readiness
+                            _mr = move_readiness((_current_dasha_str(_rd) or "").split("-")[0])
+                            if _mr.get("available"):
+                                _rp2.append("MOVE-READINESS (the dasha gate — Desh-Kal-Patra): "
+                                            + _mr["note"] + " If they ask WHERE to go or name a "
+                                            "specific place, point them to their Places reading for "
+                                            "the ranked locations — do NOT name cities here.")
+                        except Exception:
+                            pass
                         if _rrt.get("best"):
                             _rp2.append("TIMING: " + _rrt["summary"] + " Give the window in plain "
                                         "months-years and name the kind of move (a new home nearby, "

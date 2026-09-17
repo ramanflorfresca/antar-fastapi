@@ -88,6 +88,46 @@ _SYNTH = {
 }
 
 
+# Kal-only "is this a move-activated chapter" read — for surfaces without a city
+# ranking (e.g. Ask "should I move?"). The dasha gate + the honest framing +
+# "where is a separate Places question". Localized.
+_READINESS = {
+    "high": {
+        "en": "This is a strongly move-activated chapter — {lord} lights up foreign lands and new ground, so the timing genuinely supports a move. Where exactly is a separate question: a place amplifies what the dasha is already doing, it doesn't replace it.",
+        "es": "Es un capítulo fuertemente activado para mudarte — {lord} enciende las tierras lejanas y el terreno nuevo, así que el momento apoya de verdad una mudanza. Dónde exactamente es otra pregunta: un lugar amplifica lo que la dasha ya hace, no lo reemplaza.",
+        "pt": "É um capítulo fortemente ativado para mudança — {lord} acende as terras distantes e o terreno novo, então o momento apoia de verdade uma mudança. Onde exatamente é outra pergunta: um lugar amplifica o que a dasha já faz, não o substitui.",
+    },
+    "mod": {
+        "en": "This chapter is open to a move without forcing one — {lord} is fairly neutral about place, so relocating can help but isn't fated right now.",
+        "es": "Este capítulo admite una mudanza sin forzarla — {lord} es bastante neutral respecto al lugar, así que mudarte puede ayudar pero no es algo fijado ahora.",
+        "pt": "Este capítulo admite uma mudança sem forçá-la — {lord} é bastante neutro quanto ao lugar, então mudar pode ajudar mas não é algo selado agora.",
+    },
+    "low": {
+        "en": "This chapter roots you rather than moving you — {lord} asks you to build where you are. A move now won't do the heavy lifting; you can't outrun your dasha by relocating.",
+        "es": "Este capítulo te enraíza en vez de moverte — {lord} te pide construir donde estás. Una mudanza ahora no hará el trabajo pesado; no puedes escapar de tu dasha mudándote.",
+        "pt": "Este capítulo te enraíza em vez de te mover — {lord} pede que você construa onde está. Uma mudança agora não fará o trabalho pesado; você não escapa da sua dasha se mudando.",
+    },
+}
+
+
+def move_readiness(dasha_lord: str | None, language: str = "en") -> dict:
+    """Kal-only move read (no city ranking): is this a move-activated chapter?
+    For Ask 'should I move?'. Returns (never raises):
+      {available, level: high|moderate|low, activation, lord, note}."""
+    try:
+        L = _lang(language)
+        lord = (dasha_lord or "").strip().title()
+        if not lord:
+            return {"available": False}
+        act = _ACTIVATION.get(lord, "mod")
+        return {"available": True,
+                "level": {"high": "high", "mod": "moderate", "low": "low"}[act],
+                "activation": act, "lord": lord,
+                "note": _READINESS[act][L].format(lord=lord)}
+    except Exception as e:
+        return {"available": False, "error": str(e)[:160]}
+
+
 def move_convergence(dasha_lord: str | None, home_fit: str | None,
                      best_fit: str | None, bigger_fit: str | None,
                      has_promise: bool, language: str = "en") -> dict:
