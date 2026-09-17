@@ -22351,6 +22351,46 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _ree2:
                 logger.warning(f"[ask] residence-engine skipped (non-fatal): {_ree2}")
 
+            # [career-change engine] career/business PIVOT timing — the WHEN + the
+            # NATURE (chosen vs forced), from Ketu + the 10/7/3/6/11/8 houses +
+            # varshphal. A SWITCH question, distinct from "which profession" (type)
+            # and "will my career grow" (magnitude). Timing/nature only — never an
+            # outcome claim (business-success prediction is a falsified study).
+            _ask_career_change_block = ""
+            try:
+                if _is_career_change_q(question):
+                    from antar_engine.career_change import career_change_timing
+                    _cct = career_change_timing(chart_data, get_dashas_for_chart(chart_id),
+                                                birth_date=_ask_birth_date)
+                    if _cct.get("available"):
+                        _ccp = ["CAREER / BUSINESS-CHANGE QUESTION (about a PIVOT — a job "
+                                "switch, quitting to start something, a change of business "
+                                "direction — NOT which profession suits them, and NOT whether "
+                                "their current work will simply grow). Answer from THIS "
+                                "deterministic reading of the work/change houses + timing. "
+                                "Never name a planet, house, or system — plain life-language only.",
+                                "This is a TIMING + NATURE read: say WHEN a change is most "
+                                "supported and WHAT KIND — never claim the change will succeed "
+                                "(we time the change, we don't predict the outcome)."]
+                        if _cct.get("best"):
+                            _ccp.append("TIMING: " + _cct["summary"] + " Give the window in "
+                                        "plain months-years as when a change is most supported.")
+                            _ccnat = _cct.get("nature") or []
+                            if _ccnat:
+                                _ccp.append("NATURE OF THE CHANGE: " + "; ".join(_ccnat[:2])
+                                            + ". Name this so they recognize whether it reads "
+                                            "as a chosen move they initiate or a forced/sudden "
+                                            "one.")
+                        else:
+                            _ccp.append("No sharp change-window stands out ahead — their "
+                                        "current path reads steady for now; if they are set on "
+                                        "changing, frame it as effort-led rather than fated.")
+                        _ccp.append("Close with one concrete, practical next step (line up "
+                                    "skills, network, a runway) — never a blunt 'quit now'.")
+                        _ask_career_change_block = "\n".join(_ccp)
+            except Exception as _ccee:
+                logger.warning(f"[ask] career-change-engine skipped (non-fatal): {_ccee}")
+
             # [concern-engines] funding/loan, income, health — route to the
             # deterministic concern engine (right houses + D-9 + dasha, per the
             # owner's method). Relationship/separation are handled above by the
@@ -23124,6 +23164,7 @@ async def ask_endpoint(request: AskRequest):
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
                     + (f"\n\n{_ask_residence_block}" if _ask_residence_block else "")
+                    + (f"\n\n{_ask_career_change_block}" if _ask_career_change_block else "")
                     + (f"\n\n{_ask_concern_block}" if _ask_concern_block else "")
                     + (f"\n\n{_ask_btc_block}" if _ask_btc_block else "")
                 )
@@ -23346,6 +23387,7 @@ async def ask_endpoint(request: AskRequest):
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
                     + (f"\n\n{_ask_residence_block}" if _ask_residence_block else "")
+                    + (f"\n\n{_ask_career_change_block}" if _ask_career_change_block else "")
                     + (f"\n\n{_ask_concern_block}" if _ask_concern_block else "")
                     + (f"\n\n{_ask_btc_block}" if _ask_btc_block else "")
                 )
