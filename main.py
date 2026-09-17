@@ -12955,7 +12955,10 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
         cy = s.get("city") or {}
         entry = {"city": cy.get("name"), "country": cy.get("country"),
                  "fit": _pot_fit(ov if ov is not None else s.get("score")),
-                 "why": why, "notes": notes, "_thin": thin}
+                 "why": why, "notes": notes,
+                 # the classical relocation "what changes here" read (WHAT)
+                 "what_changes": card.get("what_changes") or [],
+                 "_thin": thin}
         if best_for:
             entry["best_for"] = best_for
         return entry
