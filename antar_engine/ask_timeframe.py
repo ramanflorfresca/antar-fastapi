@@ -152,8 +152,17 @@ def detect_horizon(question: str, today: Optional[date] = None) -> Optional[dict
         return {"kind": "window", "start": today, "end": today + timedelta(days=30),
                 "scan": wants_day, "label": "this month", "month": True}
 
-    # ── "when / which day is good for X" with no explicit window → 60-day scan ─
-    if wants_day:
+    # ── "which day / what time is good for X" (a genuine day-PICKER) with no
+    #    explicit window → 60-day scan. A BARE "when" ("when will my career take
+    #    off", "when will things get better") is a life-TIMING question, NOT a
+    #    best-day-in-60-days pick — returning a scan there forced pinpoint days
+    #    ("1 Oct and 5 Oct") onto chapter questions. Let those fall through to
+    #    None so the chapter/domain engines answer at season grain. ──
+    wants_specific_day = bool(re.search(
+        r"\b(which|what)\s+day\b|\bbest\s+day\b|\bwhat\s+time\b|\bwhich\s+time\b|"   # en
+        r"\b(que|cual)\s+dia\b|\bmejor\s+dia\b|\ba\s+que\s+hora\b|"                  # es
+        r"\bqual\s+dia\b|\bmelhor\s+dia\b|\bque\s+horas?\b", q))                     # pt
+    if wants_specific_day:
         return {"kind": "window", "start": today, "end": today + timedelta(days=60),
                 "scan": True, "label": "the next couple of months"}
 
