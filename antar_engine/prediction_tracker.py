@@ -292,48 +292,39 @@ def _peak_window(day: dict) -> dict:
 
 
 def build_daily_claim(day: dict) -> dict:
-    """The single most checkable thing said about this day.
+    """The single most checkable thing said about this day — the day's CHARACTER
+    (its verdict/tenor), never a fabricated specific event.
 
-    Prefers the peak window's own text — it is the most specific and carries a
-    clock time, which is what makes it falsifiable at all. Falls back to the
-    day's verdict subline. Returns {} when nothing checkable exists; an
-    unfalsifiable claim must never enter the accuracy pool, because it would
-    inflate the score without meaning anything.
+    [validate-first 2026-09-17] We deliberately DO NOT enrol `event_signal.hint`
+    anymore. That hint is an LLM concretisation of a real transit/instrument
+    THEME into a specific, dated human event ("someone from your past steps back
+    into your world today", "a client reaches out — respond before 12:26"). The
+    astrology supports the theme; the specific event-on-this-day is a GUESS, and
+    it is the one field the no-invention gate doesn't cover. Those guesses are
+    low-base-rate, so they mostly fail verification — the accuracy loop was
+    honestly documenting that our guesses were wrong, and users saw "it keeps
+    asking and it's never true." Owner's call: if we're guessing, don't ask.
+
+    We verify the day's CHARACTER instead — the deterministic verdict tenor
+    ("a favorable day for direct conversation"), which the reader can fairly
+    answer ("did the day feel like that?"). Prefer `verdict_subline` (the tenor
+    line); fall back to `senal_de_hoy` (the day's core signal — gated by the
+    no-invention validators) only when there is no subline. Returns {} when
+    nothing checkable exists, so an empty/unfalsifiable day never enters the
+    accuracy pool and never inflates the score.
     """
     if not isinstance(day, dict):
         return {}
 
-    # [claim-specificity 2026-07-20] The claim MUST be a day-specific, falsifiable
-    # PREDICTION. The old version used the peak window's text, which is identical
-    # boilerplate every day ("the one universally auspicious window of the day —
-    # use it for planning...") AND an instruction, not a prediction. You cannot
-    # honestly mark "use it for planning, do not let it pass unused" right or
-    # wrong, and asking the same sentence daily makes the accuracy score
-    # meaningless.
-    #
-    # Priority, most-checkable first:
-    #   1. A specific EVENT that fired today ("someone with real authority is
-    #      taking notice of your capabilities today") — a concrete claim about
-    #      what happens, the ideal thing to verify.
-    #   2. The day's character (verdict / signal) — checkable as "did the day
-    #      feel like this".
-    ev = day.get("event_signal") or {}
-    kind = "day"
-    claim = ""
-    if ev.get("fires") and (ev.get("hint") or "").strip():
-        claim = ev["hint"].strip()
-        kind = "event"
-    if not claim:
-        claim = (day.get("verdict_subline") or day.get("senal_de_hoy") or "").strip()
+    claim = (day.get("verdict_subline") or day.get("senal_de_hoy") or "").strip()
     if not claim or len(claim) < 20:
         return {}
     return {
         "claim":  re.sub(r"\s+", " ", claim)[:280],
-        "kind":   kind,
+        "kind":   "day",   # always day-character now — never "event"
         # Day-level, not a single window — the verify header adapts on `kind`.
         "window_label": "",
-        "domain": (ev.get("category") or day.get("lit_domain")
-                   or day.get("observa_hoy_domain") or "general"),
+        "domain": (day.get("lit_domain") or day.get("observa_hoy_domain") or "general"),
         "date":   day.get("date") or "",
     }
 
