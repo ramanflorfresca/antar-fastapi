@@ -6487,6 +6487,42 @@ Do not use any planet names or astrological jargon — translate everything into
     except Exception as _rvo_e:
         print(f"[predict] residence-verdict override skipped: {_rvo_e}")
 
+    # [chapter-window 2026-09-16] Health & legal are also life-CHAPTER questions;
+    # the generic resolver can hand them a DAILY or STALE window ("Next 3 weeks…
+    # April 2025" — a past date). If the domain timing engine has a real FUTURE
+    # chapter window, swap it in — WINDOW ONLY, keeping each domain's careful
+    # non-alarmist framing/band/line untouched. Future-year guard so a past/absent
+    # window is never propagated. (Residence already owns its verdict above.)
+    try:
+        if _resolver_verdict and not _resolver_verdict.get("_residence_override"):
+            _cdom = ("health" if _is_health_q(request.question)
+                     else "legal" if _is_legal_q(request.question) else None)
+            if _cdom:
+                _cbd = chart_record.get("birth_date") if isinstance(chart_record, dict) else None
+                if _cdom == "health":
+                    from antar_engine.health import health_timing as _ctf
+                else:
+                    from antar_engine.legal import legal_timing as _ctf
+                _ct = _ctf(chart_data, dashas_response, birth_date=_cbd)
+                _cbest = (_ct or {}).get("best") if isinstance(_ct, dict) else None
+                _cyr = None
+                if _cbest:
+                    try:
+                        _cyr = int((_cbest.get("year") or (_cbest.get("start") or "")[:4]))
+                    except (TypeError, ValueError):
+                        _cyr = None
+                from datetime import date as _cdt
+                if _cyr and _cyr >= _cdt.today().year:
+                    _cl2 = (getattr(request, 'language', 'en') or 'en').split('-')[0]
+                    _cdr = {"en": f"around {_cyr}", "es": f"alrededor de {_cyr}",
+                            "pt": f"por volta de {_cyr}"}.get(_cl2, f"around {_cyr}")
+                    _resolver_verdict["window"] = {"date_range": _cdr, "intraday_boundary": None}
+                    _resolver_verdict["timeframe"] = "chapter"
+                    _resolver_verdict["_chapter_window_override"] = _cdom
+                    print(f"[predict] {_cdom} chapter-window override -> {_cdr!r}")
+    except Exception as _cwe:
+        print(f"[predict] chapter-window override skipped (non-fatal): {_cwe}")
+
     chakra_context  = chakra_reading_to_context_block(chakra_reading_data) if chakra_reading_data else ""
     arc_context     = chapter_arc_to_context_block(chapter_arc_data) if chapter_arc_data else ""
 
