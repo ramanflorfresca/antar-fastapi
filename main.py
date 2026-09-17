@@ -20195,6 +20195,31 @@ def _ask_norm_lang(language):
     return lang if lang in ("en", "es", "pt") else "en"
 
 
+# [ask-lang-rescue 2026-09-17] Text-language rescue. A question asked in Spanish
+# or Portuguese must never come back in English. The client SHOULD send the right
+# `language`, but when it defaults to "en" and the question is clearly es/pt, we
+# answer in the question's language. Conservative: requires a discriminative
+# marker (accents / ¿ / ñ or a word that differs between es and pt, e.g. dinero
+# vs dinheiro, trabajo vs trabalho, cuándo vs quando). English/ambiguous text
+# returns None, and an explicit es/pt from the client is always honoured — this
+# only ever rescues a request that arrived as "en".
+_ASK_ES_UNIQUE = ("¿", "¡", "ñ", " cuándo", " cuando ", " qué", " cómo", " dónde",
+                  " dinero", " trabajo", " negocio", " debería", " mis ",
+                  " serán ", " resolverán")
+_ASK_PT_UNIQUE = ("ç", "ã", "õ", " você", " não", " quando", " dinheiro",
+                  " negócio", " trabalho", " vou ", " minha ", " devo ")
+def _ask_detect_text_lang(text):
+    """Return 'es'/'pt' when the question is strongly that language, else None."""
+    t = " " + (text or "").lower() + " "
+    pt = sum(1 for m in _ASK_PT_UNIQUE if m in t)
+    es = sum(1 for m in _ASK_ES_UNIQUE if m in t)
+    if pt and pt >= es:
+        return "pt"
+    if es:
+        return "es"
+    return None
+
+
 async def _ask_localize(payload, language, fields, chart_id=None):
     """
     Translate at response time from the English source.
@@ -21713,6 +21738,17 @@ async def ask_endpoint(request: AskRequest):
         return JSONResponse(status_code=400, content={"error": "chart_id is required"})
     if not question:
         return JSONResponse(status_code=400, content={"error": "Question is required"})
+
+    # [ask-lang-rescue 2026-09-17] If the client didn't ask for a non-English
+    # language but the QUESTION is clearly Spanish/Portuguese, answer in the
+    # question's language — never reply in English to an es/pt question. Only
+    # rescues the "en" default; an explicit es/pt is left untouched above.
+    if language == "en":
+        _q_lang = _ask_detect_text_lang(question)
+        if _q_lang:
+            language = _q_lang
+            logger.info(f"[ask][lang-rescue] question detected as {_q_lang}; "
+                        f"answering in {_q_lang} (client sent en)")
 
     # [crisis-safety 2026-09-07] A question carrying genuine distress must NEVER be
     # answered with a binary horary verdict ("no — the timing is against you") — that
