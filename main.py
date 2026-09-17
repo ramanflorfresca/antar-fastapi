@@ -10081,6 +10081,11 @@ async def get_user_profile(request: Request):
             return {"language": "en", "career_stage": None, "relationship_stage": None}
         result = supabase.table("charts").select(
             "id, first_name, name, display_name, email, birth_date, "
+            # [birth-time-prefill 2026-09-17] birth_time was never selected/returned,
+            # so the Birth Data edit form could not prefill TOB and the "add your
+            # birth time" banner mis-fired on charts that DO have a time (houses
+            # computed). Select + return it (HH:MM) like every other birth field.
+            "birth_time, "
             "birth_city, birth_country, current_city, current_country, "
             "lagna_sign, moon_sign, sun_sign, language, gender, "
             # [phantom-col 2026-07-27] `lagna` does NOT exist on charts (it is
@@ -10101,6 +10106,7 @@ async def get_user_profile(request: Request):
             "display_name": chart.get("display_name", ""),
             "email": chart.get("email", ""),
             "birth_date": str(chart.get("birth_date", "") or "")[:10],
+            "birth_time": str(chart.get("birth_time", "") or "")[:5],
             "birth_city": chart.get("birth_city", ""),
             "birth_country": chart.get("birth_country", ""),
             "current_city": chart.get("current_city", ""),
