@@ -23028,26 +23028,70 @@ async def ask_endpoint(request: AskRequest):
                                     _phrase = ""
                                 # [Finding-2 bridge] EE is authoritative for the
                                 # verdict + strong window, but the thin-convergence
-                                # window_label may name a DIFFERENT (usually earlier)
-                                # supportive opening. Stapling both read as a
-                                # contradiction ("next window Jun 2027. Best window:
-                                # Jul 2026."). For NOT_YET/NO, reconcile into ONE
-                                # two-tier phrase and re-point window_label at the
-                                # strong (EE) window; keep the earlier opening as
-                                # partial_window_label.
+                                # window_label may name a DIFFERENT supportive
+                                # opening. Stapling both reads as a contradiction.
+                                # For NOT_YET/NO, reconcile into ONE two-tier phrase
+                                # and re-point window_label at the strong (EE)
+                                # window.
+                                # [order-fix 2026-09-17] the convergence window is
+                                # NOT always earlier than the EE strong window
+                                # (seen live: groundwork "Oct 2027–Jan 2028" printed
+                                # as "earlier" than strong "Jun–Oct 2027"). Order
+                                # the two chronologically so the groundwork->strong
+                                # story never prints backwards, and rewrite the
+                                # convergence caption so it names its ROLE (earlier
+                                # groundwork vs later stretch) instead of competing
+                                # with the timing chip as a second bare "when".
                                 _conv_win = (_ask_conv.get("window_label") or "").strip()
                                 if (_client in ("NOT_YET", "NO") and _label and _conv_win
                                         and _conv_win.lower() != _label.lower()):
-                                    if _client == "NOT_YET":
-                                        _phrase = (f"Not yet — an earlier opening {_conv_win} "
-                                                   f"to lay groundwork; the strong {_noun} is "
-                                                   f"{_label}.")
+                                    _conv_later   = bool(_ask_later_window(_label, _conv_win))
+                                    _conv_earlier = bool(_ask_later_window(_conv_win, _label))
+                                    def _recap_conv(_role_phrase):
+                                        # keep the "N of M timing systems point to …"
+                                        # head, replace only the bare window with a
+                                        # role-tagged phrase so it complements the
+                                        # chip instead of contradicting it.
+                                        _ps = (_ask_conv.get("public_summary") or "")
+                                        if " point to " in _ps:
+                                            _ask_conv["public_summary"] = (
+                                                _ps.split(" point to ")[0]
+                                                + " point to " + _role_phrase)
+                                    if _conv_earlier:
+                                        if _client == "NOT_YET":
+                                            _phrase = (f"Not yet — an earlier opening {_conv_win} "
+                                                       f"to lay groundwork; the strong {_noun} is "
+                                                       f"{_label}.")
+                                        else:
+                                            _phrase = (f"No strong {_noun} yet — an earlier opening "
+                                                       f"{_conv_win} to prepare; the next real window "
+                                                       f"is {_label}.")
+                                        _ask_conv["partial_window_label"] = _conv_win
+                                        _ask_conv["window_label"] = _label
+                                        _recap_conv(f"the earlier groundwork window ({_conv_win})")
+                                    elif _conv_later:
+                                        if _client == "NOT_YET":
+                                            _phrase = (f"Not yet — the strong {_noun} is {_label}, "
+                                                       f"with a further supportive window later, "
+                                                       f"around {_conv_win}.")
+                                        else:
+                                            _phrase = (f"No strong {_noun} yet — the next real "
+                                                       f"window is {_label}, with a further "
+                                                       f"supportive stretch later, around {_conv_win}.")
+                                        _ask_conv["partial_window_label"] = _conv_win
+                                        _ask_conv["window_label"] = _label
+                                        _recap_conv(f"a later window, around {_conv_win}")
                                     else:
-                                        _phrase = (f"No strong {_noun} yet — an earlier opening "
-                                                   f"{_conv_win} to prepare; the next real window "
-                                                   f"is {_label}.")
-                                    _ask_conv["partial_window_label"] = _conv_win
-                                    _ask_conv["window_label"] = _label
+                                        # overlap / unparseable: name only the
+                                        # strong window and leave window_label as
+                                        # the convergence window so the downstream
+                                        # mismatch guard suppresses the stale,
+                                        # competing caption entirely.
+                                        if _client == "NOT_YET":
+                                            _phrase = f"Not yet — next {_noun} {_label}."
+                                        else:
+                                            _phrase = (f"No strong {_noun} yet — the next real "
+                                                       f"window is {_label}.")
                                 # [two-window 2026-08-13] YES with a genuinely
                                 # LATER convergence: name BOTH — the active window
                                 # (act now / groundwork) and the sharper stretch
@@ -23495,6 +23539,7 @@ async def ask_endpoint(request: AskRequest):
                     from antar_engine.timing_fidelity import scrub_freelance_dates
                     _tf_allowed = [_ask_conv.get("window_label"),
                                    _ask_conv.get("next_window_label"),
+                                   _ask_conv.get("partial_window_label"),
                                    _ee_timing]
                     read_txt, _tf_rm = scrub_freelance_dates(read_txt, _tf_allowed)
                     if next_txt:
@@ -23551,7 +23596,7 @@ async def ask_endpoint(request: AskRequest):
                     if _ask_decision:
                         try:
                             from antar_engine.timing_fidelity import scrub_freelance_dates as _sfd2
-                            _allow = [_ask_conv.get("window_label"), _ask_conv.get("next_window_label"), _ee_timing]
+                            _allow = [_ask_conv.get("window_label"), _ask_conv.get("next_window_label"), _ask_conv.get("partial_window_label"), _ee_timing]
                             _r, _ = _sfd2(_r or "", _allow)
                             if _n:
                                 _n, _ = _sfd2(_n, _allow)
