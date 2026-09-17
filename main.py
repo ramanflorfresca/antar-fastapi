@@ -18733,6 +18733,7 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                         _dt = _raw.get("dasha_timing") or {}
                         _dt["score"] = _fwd["score"]
                         _raw["dasha_timing"] = _dt
+                        _raw["_forward_dasha"] = _fwd   # so compose_compat_v2 can build `timing`
                 except Exception:
                     pass
                 _v2 = _CL.compose_compat_v2(_raw, _ca, _cb, _reason, None,
