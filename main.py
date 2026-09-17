@@ -23809,6 +23809,14 @@ async def ask_endpoint(request: AskRequest):
                     if _fc2_body:
                         _fc2.append(_fc2_body)
                     _tm2 = str(payload.get("timing") or "").strip()
+                    # [rel-chapter-grain 2026-09-17] see the first fail-closed pass:
+                    # a relationship "when will it improve" answer must not carry a
+                    # pinpoint transit day ("Thu 1 Oct") — it's a season, and a date
+                    # contradicts a "supports it right now" body. Drop a year-less
+                    # window for relationship reads; keep any real chapter window.
+                    if (_tm2 and _is_relationship_q(question)
+                            and not re.search(r"\b(19|20)\d{2}\b", _tm2)):
+                        _tm2 = ""
                     # [ask-voice-gate dedupe] skip the window if the verdict already names it.
                     if _tm2 and _tm2.lower() not in _vp2.lower():
                         _fc2.append("Best window: " + _tm2 + ".")
