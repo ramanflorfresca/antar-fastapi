@@ -6487,41 +6487,62 @@ Do not use any planet names or astrological jargon — translate everything into
     except Exception as _rvo_e:
         print(f"[predict] residence-verdict override skipped: {_rvo_e}")
 
-    # [chapter-window 2026-09-16] Health & legal are also life-CHAPTER questions;
-    # the generic resolver can hand them a DAILY or STALE window ("Next 3 weeks…
-    # April 2025" — a past date). If the domain timing engine has a real FUTURE
-    # chapter window, swap it in — WINDOW ONLY, keeping each domain's careful
-    # non-alarmist framing/band/line untouched. Future-year guard so a past/absent
-    # window is never propagated. (Residence already owns its verdict above.)
+    # [chapter-verdict 2026-09-16] Health & legal are also life-CHAPTER questions
+    # the generic resolver can misframe (a DAILY/stale window like "Next 3 weeks…
+    # April 2025", or a generic "flat/speculation" line for a legal Q). LEGAL gets
+    # a full honest chapter verdict (a LEAN, never a promised win, + disclaimer);
+    # HEALTH gets a window-only swap (keep its careful non-alarmist band/line).
+    # Future-year guard; residence already owns its verdict above; fail-open.
     try:
         if _resolver_verdict and not _resolver_verdict.get("_residence_override"):
-            _cdom = ("health" if _is_health_q(request.question)
-                     else "legal" if _is_legal_q(request.question) else None)
-            if _cdom:
-                _cbd = chart_record.get("birth_date") if isinstance(chart_record, dict) else None
-                if _cdom == "health":
-                    from antar_engine.health import health_timing as _ctf
-                else:
-                    from antar_engine.legal import legal_timing as _ctf
-                _ct = _ctf(chart_data, dashas_response, birth_date=_cbd)
-                _cbest = (_ct or {}).get("best") if isinstance(_ct, dict) else None
-                _cyr = None
-                if _cbest:
-                    try:
-                        _cyr = int((_cbest.get("year") or (_cbest.get("start") or "")[:4]))
-                    except (TypeError, ValueError):
-                        _cyr = None
-                from datetime import date as _cdt
-                if _cyr and _cyr >= _cdt.today().year:
-                    _cl2 = (getattr(request, 'language', 'en') or 'en').split('-')[0]
-                    _cdr = {"en": f"around {_cyr}", "es": f"alrededor de {_cyr}",
-                            "pt": f"por volta de {_cyr}"}.get(_cl2, f"around {_cyr}")
-                    _resolver_verdict["window"] = {"date_range": _cdr, "intraday_boundary": None}
+            _cbd = chart_record.get("birth_date") if isinstance(chart_record, dict) else None
+            _cl2 = (getattr(request, 'language', 'en') or 'en').split('-')[0]
+            from datetime import date as _cdt
+
+            def _chap_year(_best):
+                if not _best:
+                    return None
+                try:
+                    _y = int((_best.get("year") or (_best.get("start") or "")[:4]))
+                except (TypeError, ValueError):
+                    return None
+                return _y if _y >= _cdt.today().year else None
+
+            if _is_legal_q(request.question):
+                from antar_engine.legal import (analyze_legal as _la_fn,
+                                                legal_timing as _lt_fn,
+                                                legal_verdict as _lv_fn)
+                _la = _la_fn(chart_data)
+                _lt = _lt_fn(chart_data, dashas_response, birth_date=_cbd)
+                _lyr = _chap_year((_lt or {}).get("best") if isinstance(_lt, dict) else None)
+                _outc = (_la.get("outcome") or {}) if _la.get("available") else {}
+                _lv = _lv_fn(_outc.get("lean") or "contested",
+                             bool(_outc.get("jupiter_protection")), _lyr, _cl2)
+                if _lv.get("available"):
+                    _resolver_verdict["verdict"] = _lv["band"]
+                    _resolver_verdict["verdict_line"] = _lv["line"]
+                    _resolver_verdict["the_move"] = _lv["the_move"]
+                    if _lyr:
+                        _resolver_verdict["window"] = {"date_range": _lv["window_range"],
+                                                       "intraday_boundary": None}
+                        _resolver_verdict["timeframe"] = "chapter"
+                    _resolver_verdict["secondary_note"] = _lv["secondary_note"]
+                    _resolver_verdict["_chapter_window_override"] = "legal"
+                    print(f"[predict] legal-verdict override: band={_lv['band']} "
+                          f"lean={_outc.get('lean')}")
+            elif _is_health_q(request.question):
+                from antar_engine.health import health_timing as _ht_fn
+                _ht = _ht_fn(chart_data, dashas_response, birth_date=_cbd)
+                _hyr = _chap_year((_ht or {}).get("best") if isinstance(_ht, dict) else None)
+                if _hyr:
+                    _hdr = {"en": f"around {_hyr}", "es": f"alrededor de {_hyr}",
+                            "pt": f"por volta de {_hyr}"}.get(_cl2, f"around {_hyr}")
+                    _resolver_verdict["window"] = {"date_range": _hdr, "intraday_boundary": None}
                     _resolver_verdict["timeframe"] = "chapter"
-                    _resolver_verdict["_chapter_window_override"] = _cdom
-                    print(f"[predict] {_cdom} chapter-window override -> {_cdr!r}")
+                    _resolver_verdict["_chapter_window_override"] = "health"
+                    print(f"[predict] health chapter-window override -> {_hdr!r}")
     except Exception as _cwe:
-        print(f"[predict] chapter-window override skipped (non-fatal): {_cwe}")
+        print(f"[predict] chapter-verdict override skipped (non-fatal): {_cwe}")
 
     chakra_context  = chakra_reading_to_context_block(chakra_reading_data) if chakra_reading_data else ""
     arc_context     = chapter_arc_to_context_block(chapter_arc_data) if chapter_arc_data else ""

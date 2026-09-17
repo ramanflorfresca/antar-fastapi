@@ -201,3 +201,66 @@ def legal_timing(chart_data: dict, dashas: dict, birth_date: Optional[str] = Non
         res["summary"] = "No sharply-converging legal window ahead — no structural flare flagged."
         res["cause"] = []
     return res
+
+
+# ── chapter-verdict package for the Ask /predict legal override ──────────────
+# Honest by design: NEVER claims a guaranteed win. The chart shows a LEAN and
+# the charged window; preparation + counsel convert a lean into a result. band ∈
+# MIXED|WEAK (never FAVORABLE — "you'll win" is not ours to promise).
+def _leg_lang(language: str) -> str:
+    b = str(language or "en").split("_")[0].split("-")[0].lower()
+    return b if b in ("en", "es", "pt") else "en"
+
+
+_LEG_LINE = {
+    "favourable": {
+        "en": "The chart leans in your favour on this matter — but the outcome isn't fated; strong preparation is what turns a lean into a result.",
+        "es": "La carta se inclina a tu favor en este asunto — pero el resultado no está sellado; la buena preparación es lo que convierte una inclinación en un resultado.",
+        "pt": "O mapa pende a seu favor neste assunto — mas o resultado não está selado; boa preparação é o que transforma uma inclinação em resultado.",
+    },
+    "contested": {
+        "en": "This reads as genuinely contested — the chart doesn't decide it; how well you prepare and who you retain does.",
+        "es": "Esto se lee como genuinamente disputado — la carta no lo decide; lo decide qué tan bien te prepares y a quién contrates.",
+        "pt": "Isto se lê como genuinamente disputado — o mapa não decide; quem decide é o quanto você se prepara e quem você contrata.",
+    },
+    "unfavourable": {
+        "en": "The chart leans against you here — treat a fair settlement or airtight preparation as the smart play, not a gamble on winning.",
+        "es": "La carta se inclina en tu contra aquí — trata un acuerdo justo o una preparación impecable como la jugada inteligente, no una apuesta por ganar.",
+        "pt": "O mapa pende contra você aqui — trate um acordo justo ou uma preparação impecável como a jogada inteligente, não uma aposta em vencer.",
+    },
+}
+_LEG_MOVE = {
+    "en": "Get thorough documentation and a qualified lawyer now — the matter is most charged {win}.",
+    "es": "Consigue documentación exhaustiva y un abogado calificado ahora — el asunto está más candente {win}.",
+    "pt": "Reúna documentação completa e um advogado qualificado agora — o assunto está mais aceso {win}.",
+}
+_LEG_JUP = {
+    "en": " Jupiter's protection is a genuine asset here.",
+    "es": " La protección de Júpiter es un activo real aquí.",
+    "pt": " A proteção de Júpiter é um trunfo real aqui.",
+}
+_LEG_DISCLAIM = {
+    "en": "This is not legal advice — a qualified lawyer should handle the actual case.",
+    "es": "Esto no es asesoría legal — un abogado calificado debe manejar el caso real.",
+    "pt": "Isto não é aconselhamento jurídico — um advogado qualificado deve conduzir o caso real.",
+}
+
+
+def legal_verdict(lean: str, jupiter_protection: bool, best_year, language: str = "en") -> dict:
+    """CHAPTER-level legal verdict for the Ask /predict override. Returns
+    (never raises): {available, band, line, the_move, secondary_note, window_range}."""
+    try:
+        L = _leg_lang(language)
+        lean = lean if lean in _LEG_LINE else "contested"
+        band = "WEAK" if lean == "unfavourable" else "MIXED"
+        yr = str(best_year).strip() if best_year else ""
+        if yr:
+            win = {"en": f"around {yr}", "es": f"alrededor de {yr}", "pt": f"por volta de {yr}"}[L]
+        else:
+            win = {"en": "in the period ahead", "es": "en el periodo que viene", "pt": "no período à frente"}[L]
+        line = _LEG_LINE[lean][L] + (_LEG_JUP[L] if jupiter_protection else "")
+        return {"available": True, "band": band, "line": line,
+                "the_move": _LEG_MOVE[L].format(win=win),
+                "secondary_note": _LEG_DISCLAIM[L], "window_range": win}
+    except Exception as e:
+        return {"available": False, "error": str(e)[:160]}
