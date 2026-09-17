@@ -18285,6 +18285,7 @@ async def compatibility_start(request: CompatibilityStartRequest,
         "score": _v2["score"], "badge": _v2["badge"], "passed": _v2["passed"],
         "headline": _v2["headline"], "summary": _v2["summary"],
         "layers": _v2["layers"], "watch_points": _v2["watch_points"], "catalysts": _v2["catalysts"],
+        "confidence": _v2.get("confidence"),
         "field_mode_layer": _fml or None, "score_breakdown": _v2_breakdown,
         "person_enemy_alerts": _person_enemy,
         "language": request.language or "en",
@@ -18295,6 +18296,9 @@ async def compatibility_start(request: CompatibilityStartRequest,
             _resp = await translate_dict(_resp, language=request.language,
                 fields_to_translate={"headline", "summary", "detail", "layer_label",
                                      "catalysts", "watch_points",
+                                     # [compat-convergence] the "how sure" line + its
+                                     # layer-label arrays (level stays an enum).
+                                     "line", "aligned", "tension",
                                      "why", "remedies", "remedy_why", "active_when", "timing"},
                 endpoint_name="compat_start", chart_id=request.chart_id_a)
         except Exception as _te2:
@@ -18747,6 +18751,7 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                     "headline": _v2.get("headline"), "summary": _v2.get("summary"),
                     "catalysts": _v2.get("catalysts"), "watch_points": _v2.get("watch_points"),
                     "layers": _v2.get("layers"),
+                    "confidence": _v2.get("confidence"),
                     "person_enemy_alerts": _person_enemy_s,
                     "score_breakdown": {"overall": _v2.get("score"), "badge": _v2.get("badge"),
                                         "compat_type": _reason,
@@ -18767,6 +18772,7 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
             out = await translate_dict(out, language=language,
                 fields_to_translate={"headline", "summary", "detail", "layer_label",
                                      "catalysts", "watch_points", "layer1", "layer2", "layer3",
+                                     "line", "aligned", "tension",
                                      "why", "remedies", "remedy_why", "active_when", "timing"},
                 endpoint_name="compat_session", chart_id=s.get("chart_id_a"))
         except Exception as _tse:

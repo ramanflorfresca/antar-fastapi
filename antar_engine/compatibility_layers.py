@@ -540,6 +540,31 @@ def compose_compat_v2(compat_raw: dict, chart_a: dict, chart_b: dict,
         for l in payload["layers"]:
             l["headline"] = _s(l["headline"])
             l["detail"] = _s(l["detail"])
+
+    # [compat-convergence] How much the independent synastry layers AGREE with
+    # the committed badge — a "how sure is this pairing read" signal (weighted by
+    # each layer's per-reason importance). NEVER changes score/badge; reports
+    # conviction only. Jargon-free, fail-open. See compat_convergence.py.
+    try:
+        from antar_engine.compat_convergence import compat_convergence
+        _conf = compat_convergence(layers, ov_badge)
+        if _conf.get("available"):
+            if strip_fn is not None:
+                try:
+                    _conf["line"] = strip_fn(_conf["line"], "en",
+                                             field_type="plain", source="curated_static")
+                except Exception:
+                    pass
+            payload["confidence"] = {
+                "level": _conf["level"],
+                "line": _conf["line"],
+                "aligned": _conf.get("aligned", []),
+                "tension": _conf.get("tension", []),
+                "layers_read": _conf.get("layers_read", 0),
+            }
+    except Exception as _ce:
+        print(f"[compat-convergence] skipped: {_ce}")
+
     return payload
 
 
