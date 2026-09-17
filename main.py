@@ -27513,8 +27513,16 @@ def _nearest_life_window(chart_data, dashas, birth_date, gender=None):
                 r = fn() or {}
                 b = r.get("best") or {}
                 start = str(b.get("start") or "")[:10]
-                if start and start >= today and len(b.get("systems", [])) >= 2:
+                end = str(b.get("end") or "")[:10]
+                # Surface a window that is UPCOMING **or CURRENTLY ACTIVE** (its end
+                # hasn't passed). A chapter you're already inside is the most
+                # proactive "be ready" signal — suppressing it until next year (the
+                # old `start >= today` gate) meant a mid-year user saw nothing even
+                # with a live, converged chapter. The FE renders an already-started
+                # window's `when` as "soon" (friendlyWhen), so this reads honestly.
+                if end and end >= today and len(b.get("systems", [])) >= 2:
                     cands.append({"kind": kind, "when": start[:7], "start": start,
+                                  "active": bool(start and start <= today),
                                   "systems": len(b.get("systems", [])), "prep": prep})
             except Exception:
                 pass
