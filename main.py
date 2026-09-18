@@ -14130,6 +14130,16 @@ async def settings_charts_update(chart_id: str, request: Request, authorization:
     if "relationship" in body:
         updates["relationship"] = body["relationship"]
 
+    # [current-residence 2026-09-18] "Where you live now" is editable on its own
+    # (Settings), separate from the immutable natal data. current_city/current_country
+    # drive the current-transit / relocation layer, NOT the natal chart — persist
+    # them here WITHOUT a recompute (they are not in `birth_changed`, so the natal
+    # chart_data is untouched). The next transit/relocation read picks up the new value.
+    if "current_city" in body:
+        updates["current_city"] = (body.get("current_city") or "").strip() or None
+    if "current_country" in body:
+        updates["current_country"] = (body.get("current_country") or "").strip() or None
+
     birth_changed = any(k in body for k in ("birth_date", "birth_time", "birth_place", "birth_city"))
     if birth_changed:
         try:
