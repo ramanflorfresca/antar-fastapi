@@ -22373,7 +22373,11 @@ async def ask_endpoint(request: AskRequest):
                         _hp = ["HEALTH QUESTION — answer from THIS deterministic reading of the "
                                "body/illness houses and the timing of life-periods. Be caring and "
                                "NON-alarmist; never diagnose. Never name a planet, house, or "
-                               "system — plain life-language only.",
+                               "system — plain life-language. IMPORTANT EXCEPTION: you MAY and "
+                               "SHOULD name Ayurvedic herbs and practices in the preventive step "
+                               "(e.g. ashwagandha, triphala, brahmi, gotu kola, neem, sesame-oil "
+                               "self-massage/abhyanga) — those are welcome and expected; only "
+                               "planet/house/system names are banned.",
                                f"CONSTITUTION: {_c['level']}. TENDENCY: {_ch['kind']}."]
                         if _ha.get("nature"):
                             _hp.append("LIKELY AREA (a tendency to be aware of, NOT a diagnosis): "
@@ -22396,9 +22400,12 @@ async def ask_endpoint(request: AskRequest):
                                 "AND the Ayurvedic remedy — the herb/practice names are welcome, but "
                                 "still never name a planet/house/system): "
                                 + " | ".join(_ha["care"][:2]) + ".")
-                        _hp.append("Close with that ONE concrete, preventive step (lifestyle + the "
-                                   "Ayurvedic remedy), and note this is not medical advice — a "
-                                   "qualified doctor should assess any real symptom.")
+                        _hp.append("Your closing step MUST contain BOTH: (a) one concrete lifestyle "
+                                   "action, AND (b) one specific Ayurvedic remedy named from the "
+                                   "PREVENTIVE CARE line above (a herb or practice, e.g. ashwagandha "
+                                   "or sesame-oil self-massage). Do not drop the Ayurvedic remedy. "
+                                   "Then note this is not medical advice — a qualified doctor should "
+                                   "assess any real symptom.")
                         _ask_health_block = "\n".join(_hp)
             except Exception as _hee:
                 logger.warning(f"[ask] health-engine skipped (non-fatal): {_hee}")
