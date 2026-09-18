@@ -20548,6 +20548,28 @@ def _is_health_q(question):
     ))
 
 
+def _is_material_q(question):
+    """True for colour / gemstone / metal purchase-or-wear questions
+    ('what colour watch/car should I buy', 'which gemstone suits me', 'is a blue
+    dial good for me', 'what colour to avoid'). Needs a material noun + an
+    intent (buy/wear/suit/avoid/lucky/choose)."""
+    ql = (question or "").lower()
+    _material_noun = any(w in ql for w in (
+        "colour", "color", "colours", "colors", "gemstone", "gem ", "gems",
+        "stone", "crystal", "ratna", "metal", "sapphire", "ruby", "emerald",
+        "coral", "pearl", "diamond", "watch", "dial", "car ", "vehicle",
+        "ring ", "bracelet", "pendant", "clothes", "shirt", "outfit", "phone case",
+    ))
+    _intent = any(w in ql for w in (
+        "should i buy", "should i wear", "should i get", "which to", "what to",
+        "suit", "suits", "lucky", "avoid", "good for me", "best for me",
+        "which colour", "which color", "what colour", "what color", "which gem",
+        "which stone", "which metal", "should i choose", "is a ", "is my ",
+        "which one", "recommend",
+    ))
+    return _material_noun and _intent
+
+
 def _is_legal_q(question):
     """True for legal / disputes / litigation questions."""
     ql = (question or "").lower()
@@ -22410,6 +22432,66 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _hee:
                 logger.warning(f"[ask] health-engine skipped (non-fatal): {_hee}")
 
+            # [material engine 2026-09-18] COLOUR / GEMSTONE / METAL guidance (LK):
+            # which colours/gems/metals support this chart vs. amplify an
+            # affliction (the blue-dial / Saturn-in-8th case). Remedial, not a
+            # prediction. Never names a planet/house — only the plain material.
+            _ask_material_block = ""
+            _material_fired = False
+            _ma = None
+            try:
+                if _is_material_q(question):
+                    _material_fired = True
+                    from antar_engine.material_advice import (
+                        material_guidance as _mg, assess_color as _mac)
+                    _lk_for_mat = None
+                    try:
+                        _lk_for_mat = (supabase.table("charts")
+                                       .select("lal_kitab_data").eq("id", chart_id)
+                                       .single().execute().data or {}).get("lal_kitab_data")
+                        if isinstance(_lk_for_mat, str):
+                            _lk_for_mat = json.loads(_lk_for_mat)
+                    except Exception:
+                        _lk_for_mat = None
+                    _ma = _mg(chart_data, _lk_for_mat)
+                    if _ma.get("available"):
+                        _mp = ["COLOUR / GEMSTONE / METAL QUESTION — answer ONLY from this "
+                               "deterministic reading. This is REMEDIAL guidance (what supports "
+                               "vs. strains the chart), NOT a prediction — make no accuracy or "
+                               "event claim. Name only the plain colour / gemstone / metal and a "
+                               "plain reason; NEVER name a planet, house, or system."]
+                        # if they named a specific colour, lead with the verdict on it
+                        _named = _mac(question, chart_data, _lk_for_mat)
+                        if _named.get("available") and _named.get("verdict") in ("favor", "avoid"):
+                            _verb = ("a good choice for you" if _named["verdict"] == "favor"
+                                     else "one to avoid on something you wear or keep daily")
+                            _mp.append(f"THE COLOUR THEY NAMED ({_named.get('color')}): {_verb} — "
+                                       f"{_named.get('why')}. Lead with this verdict, plainly.")
+                        elif _named.get("available") and _named.get("verdict") == "neutral":
+                            _mp.append(f"THE COLOUR THEY NAMED ({_named.get('color')}): {_named.get('why')}.")
+                        if _ma.get("favorable"):
+                            _mp.append("COLOURS/METALS THAT SUPPORT THEM (favour — safe everyday "
+                                       "choices): " + "; ".join(
+                                           f"{e['color']} (metal: {e['metal']}) — {e['why']}"
+                                           for e in _ma["favorable"][:3]) + ".")
+                        if _ma.get("avoid"):
+                            _mp.append("COLOURS/METALS TO AVOID on something worn or kept daily: "
+                                       + "; ".join(f"{e['color']} (metal: {e['metal']}) — {e['why']}"
+                                                   for e in _ma["avoid"][:3]) + ".")
+                        _gem_fav = [e["gem"] for e in _ma.get("favorable", []) if e.get("gem")]
+                        _gem_avo = [e["gem"] for e in _ma.get("avoid", []) if e.get("gem")]
+                        if _gem_fav or _gem_avo:
+                            _mp.append("GEMSTONES — supportive: " + (", ".join(_gem_fav) or "none stand out")
+                                       + "; avoid: " + (", ".join(_gem_avo) or "none")
+                                       + ". You MUST add the caution: a gemstone is potent — get the "
+                                       "stone, weight, metal and timing right with a qualified "
+                                       "jeweller-astrologer before wearing one, and never wear a "
+                                       "stone you were told to avoid.")
+                        _mp.append("Close with a clear, concrete recommendation they can act on today.")
+                        _ask_material_block = "\n".join(_mp)
+            except Exception as _mae:
+                logger.warning(f"[ask] material-engine skipped (non-fatal): {_mae}")
+
             # [residence engine] change-of-home TIMING (the WHEN) — disposition +
             # varshphal-weighted convergence window + nature (local vs distant/foreign).
             _ask_residence_block = ""
@@ -23338,6 +23420,7 @@ async def ask_endpoint(request: AskRequest):
                     + (f"\n\n{_ask_relationship_block}" if _ask_relationship_block else "")
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
+                    + (f"\n\n{_ask_material_block}" if locals().get("_ask_material_block") else "")
                     + (f"\n\n{_ask_residence_block}" if _ask_residence_block else "")
                     + (f"\n\n{_ask_career_change_block}" if _ask_career_change_block else "")
                     + (f"\n\n{_ask_concern_block}" if _ask_concern_block else "")
@@ -23561,6 +23644,7 @@ async def ask_endpoint(request: AskRequest):
                     + (f"\n\n{_ask_relationship_block}" if _ask_relationship_block else "")
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
+                    + (f"\n\n{_ask_material_block}" if locals().get("_ask_material_block") else "")
                     + (f"\n\n{_ask_residence_block}" if _ask_residence_block else "")
                     + (f"\n\n{_ask_career_change_block}" if _ask_career_change_block else "")
                     + (f"\n\n{_ask_concern_block}" if _ask_concern_block else "")
@@ -24092,6 +24176,35 @@ async def ask_endpoint(request: AskRequest):
                             print("[ask][health-remedy] appended deterministic Ayurvedic remedy")
             except Exception as _hrge:
                 print(f"[ask] health-remedy guarantee non-fatal: {_hrge}")
+            # [material-guarantee 2026-09-18] A colour/gem/metal question must
+            # always land a concrete favour + avoid. If the narrated read+next
+            # name neither, append the top favourable and top avoid colour from
+            # the deterministic engine. Runs PRE-localize so es/pt translate it.
+            try:
+                _mm = locals().get("_ma") if locals().get("_material_fired") else None
+                if _mm and _mm.get("available"):
+                    _mblob = " ".join(str(payload.get(_k) or "")
+                                      for _k in ("read", "next")).lower()
+                    _fav0 = (_mm.get("favorable") or [{}])[0].get("color") if _mm.get("favorable") else None
+                    _avo0 = (_mm.get("avoid") or [{}])[0].get("color") if _mm.get("avoid") else None
+                    def _named_already(c):
+                        if not c:
+                            return True
+                        return any(tok in _mblob for tok in c.lower().replace("/", " ").split())
+                    _bits = []
+                    if _fav0 and not _named_already(_fav0):
+                        _bits.append(f"colours that support you: {_fav0}")
+                    if _avo0 and not _named_already(_avo0):
+                        _bits.append(f"one to avoid on something worn daily: {_avo0}")
+                    if _bits:
+                        _add = "For your chart, " + "; ".join(_bits) + "."
+                        _nx0 = (payload.get("next") or "").strip()
+                        if _nx0 and _nx0[-1] not in ".!?":
+                            _nx0 += "."
+                        payload["next"] = (f"{_nx0} {_add}".strip()) if _nx0 else _add
+                        print("[ask][material] appended deterministic colour favour/avoid")
+            except Exception as _mge:
+                print(f"[ask] material guarantee non-fatal: {_mge}")
             # [es-loc 2026-06-09] expanded fields: actions[]/practices[]/convergence
             # are container keys — translate_dict recurses into their subtrees.
             payload = await _ask_localize(payload, language, [
