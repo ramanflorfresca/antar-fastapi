@@ -24087,7 +24087,7 @@ async def ask_endpoint(request: AskRequest):
                             _nx0 = (payload.get("next") or "").strip()
                             if _nx0 and _nx0[-1] not in ".!?":
                                 _nx0 += "."
-                            _add = f"To support that, in Ayurveda: {_rem}."
+                            _add = f"For your health, in Ayurveda: {_rem}."
                             payload["next"] = (f"{_nx0} {_add}".strip()) if _nx0 else _add
                             print("[ask][health-remedy] appended deterministic Ayurvedic remedy")
             except Exception as _hrge:
