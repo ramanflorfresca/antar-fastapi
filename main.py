@@ -24058,6 +24058,40 @@ async def ask_endpoint(request: AskRequest):
                     payload['kp_shadow'] = _kp
             except Exception as _kp_e:
                 print(f'[ask] kp non-fatal: {_kp_e}')
+            # [health-remedy-guarantee 2026-09-18] The Ayurvedic remedy must land on
+            # EVERY health question. Reassurance phrasings ("will I be okay?")
+            # sometimes close on a checkup and drop it despite the prompt. If the
+            # final read+next carry no herb/practice term, append the deterministic
+            # remedy from analyze_health — herbs only (cut the dosha-action tail so
+            # no raw "Vata/Kapha" leaks). Runs PRE-localize so es/pt translate it.
+            try:
+                _hc = ((locals().get("_ha") or {}).get("care")
+                       if locals().get("_health_fired") else None)
+                if _hc:
+                    _blob = " ".join(str(payload.get(_k) or "")
+                                     for _k in ("read", "next")).lower()
+                    _HERBS = ("ashwagandha", "triphala", "brahmi", "gotu", "abhyanga",
+                              "sesame", "guduchi", "shatavari", "neem", "turmeric",
+                              "amla", "dinacharya")
+                    if not any(_h in _blob for _h in _HERBS):
+                        _rem = _hc[0] or ""
+                        if "in Ayurveda," in _rem:
+                            _rem = _rem.split("in Ayurveda,", 1)[1]
+                        for _cut in (" to pacify", " to lighten", " to cool",
+                                     " to calm", " to clear", " to reset"):
+                            _ci = _rem.lower().find(_cut)
+                            if _ci != -1:
+                                _rem = _rem[:_ci]
+                        _rem = _rem.strip().rstrip(".,; ")
+                        if _rem:
+                            _nx0 = (payload.get("next") or "").strip()
+                            if _nx0 and _nx0[-1] not in ".!?":
+                                _nx0 += "."
+                            _add = f"In Ayurveda, {_rem}."
+                            payload["next"] = (f"{_nx0} {_add}".strip()) if _nx0 else _add
+                            print("[ask][health-remedy] appended deterministic Ayurvedic remedy")
+            except Exception as _hrge:
+                print(f"[ask] health-remedy guarantee non-fatal: {_hrge}")
             # [es-loc 2026-06-09] expanded fields: actions[]/practices[]/convergence
             # are container keys — translate_dict recurses into their subtrees.
             payload = await _ask_localize(payload, language, [
