@@ -21565,7 +21565,7 @@ def _ask_wealth_how_phrase(concern, chart_data) -> str:
         return ""
 
 
-def _ask_failclosed_body(concern, layers, positive, how="") -> str:
+def _ask_failclosed_body(concern, layers, positive, how="", marital=None) -> str:
     # `layers` (the 6 KN Rao verification layers that agreed) is retained in the
     # signature but deliberately NOT surfaced: the raw "N of 6" is an internal
     # scoring detail — it reads as jargon, it reads as hedging under a confident
@@ -21579,6 +21579,32 @@ def _ask_failclosed_body(concern, layers, positive, how="") -> str:
     # high-variance bet). Let the phrase stand alone.
     if _c in ("speculation", "loss"):
         return ""
+    # [rel-marital-aware 2026-09-18] The relationship fail-closed body MUST respect
+    # marital status — it was telling a divorced/single user "your relationship is
+    # active, not just a maybe", which is plainly wrong. For the unpartnered, frame a
+    # NEW partnership (entry + timing); for the partnered, the existing bond; for
+    # unknown, stay neutral and never assert an active relationship.
+    _rel = _c in ("relationship entry", "relationship_entry", "love",
+                  "marriage", "relationship", "partner")
+    if _rel:
+        _m = (marital or "").strip().lower()
+        if _m in ("relationship", "married", "partnered"):
+            if positive:
+                return ("The timing genuinely supports your relationship right now — "
+                        "it's a live, workable window.")
+            return ("Your relationship is in a quieter, rebuilding stretch — tend it "
+                    "now; the stronger window follows.")
+        if _m in ("divorced", "single", "widowed", "separated"):
+            if positive:
+                return ("A new partnership is genuinely supported — the ground is "
+                        "ready; keep opening the door to meeting someone.")
+            return ("A new partnership is still forming — widen your circle now, "
+                    "and act when the timing firms up.")
+        # unknown marital status — neutral, never assert an active relationship
+        if positive:
+            return "The timing around partnership is genuinely supportive right now."
+        return ("The ground for partnership is still being laid — build now, "
+                "act when the timing firms up.")
     dom_word = _ASK_FC_DOMAIN_WORD.get(_c, "")
     if how:
         if positive:
@@ -23740,6 +23766,7 @@ async def ask_endpoint(request: AskRequest):
                                     (locals().get("_ev") or {}).get("layers_agreeing"),
                                     (_vp.strip().lower().startswith(("yes", "likely")) if _vp else True),
                                     how=_ask_wealth_how_phrase(_ask_concern, locals().get("chart_data")),
+                                    marital=(_ask_life or {}).get("marital_status"),
                                 )
                             if _fc_body:
                                 _fc.append(_fc_body)
@@ -23983,6 +24010,7 @@ async def ask_endpoint(request: AskRequest):
                              else str(payload.get("verdict") or "").upper() in ("YES", "LIKELY", "")),
                             how=_ask_wealth_how_phrase(locals().get("_ask_concern"),
                                                        locals().get("chart_data")),
+                            marital=(locals().get("_ask_life") or {}).get("marital_status"),
                         )
                     if _fc2_body:
                         _fc2.append(_fc2_body)
