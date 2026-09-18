@@ -22443,7 +22443,8 @@ async def ask_endpoint(request: AskRequest):
                 if _is_material_q(question):
                     _material_fired = True
                     from antar_engine.material_advice import (
-                        material_guidance as _mg, assess_color as _mac)
+                        material_guidance as _mg, assess_color as _mac,
+                        varshphal_material_overlay as _mvo)
                     _lk_for_mat = None
                     try:
                         _lk_for_mat = (supabase.table("charts")
@@ -22487,6 +22488,28 @@ async def ask_endpoint(request: AskRequest):
                                        "stone, weight, metal and timing right with a qualified "
                                        "jeweller-astrologer before wearing one, and never wear a "
                                        "stone you were told to avoid.")
+                        # [varshphal overlay 2026-09-18] a THIS-YEAR steer from the
+                        # year lord, layered on the lifelong natal read. Clearly
+                        # time-bound so it never reads as permanent.
+                        try:
+                            _mvov = _mvo(chart_data, _ask_birth_date, _lk_for_mat)
+                            if _mvov.get("available") and (_mvov.get("favor") or _mvov.get("avoid")):
+                                _vu = str(_mvov.get("valid_until") or "")[:7]
+                                _yr_bits = []
+                                if _mvov.get("favor"):
+                                    _yr_bits.append("favour " + ", ".join(
+                                        e["color"] for e in _mvov["favor"]))
+                                if _mvov.get("avoid"):
+                                    _yr_bits.append("go easy on " + ", ".join(
+                                        e["color"] for e in _mvov["avoid"]))
+                                _mp.append(
+                                    "THIS YEAR ONLY (a time-bound layer on top of the lifelong "
+                                    f"guidance above, valid until about {_vu}): {'; '.join(_yr_bits)}. "
+                                    "Say 'this year specifically' so the reader knows it is temporary "
+                                    "and separate from their for-life colours — and NEVER contradict a "
+                                    "lifelong 'avoid' above.")
+                        except Exception as _mvoe:
+                            logger.warning(f"[ask] varshphal overlay skipped (non-fatal): {_mvoe}")
                         _mp.append("Close with a clear, concrete recommendation they can act on today.")
                         _ask_material_block = "\n".join(_mp)
             except Exception as _mae:

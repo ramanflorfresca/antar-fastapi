@@ -229,3 +229,70 @@ def assess_color(color_word: str, chart_data: dict, lk_data: Optional[dict] = No
                 "why": "neither a strong help nor a real risk for you — fine to choose on taste"}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}
+
+
+# ── Varshphal (annual) overlay — THIS-YEAR colour/gem/metal, on top of natal ──
+def _next_birthday_iso(birth_date) -> str:
+    """ISO date of the next solar-return birthday (the year-window's end)."""
+    try:
+        from datetime import date as _d
+        born = birth_date if isinstance(birth_date, _d) else _d.fromisoformat(str(birth_date)[:10])
+        today = _d.today()
+        try:
+            nb = born.replace(year=today.year)
+        except ValueError:
+            nb = _d(today.year, born.month, min(born.day, 28))
+        if nb <= today:
+            try:
+                nb = born.replace(year=today.year + 1)
+            except ValueError:
+                nb = _d(today.year + 1, born.month, min(born.day, 28))
+        return nb.isoformat()
+    except Exception:
+        return ""
+
+
+def varshphal_material_overlay(chart_data: dict, birth_date, lk_data: Optional[dict] = None) -> dict:
+    """
+    THIS-YEAR material steer from the Varshphal year lord, layered on the natal
+    read. Returns {available, valid_until, favor[], avoid[]} where favor/avoid
+    entries are {color, gem, metal, why} tagged as *this year*.
+
+    Rule: the year lord is the graha ruling this solar-return year. If it is
+    SUPPORTIVE in the chart, align with it — favour its colour/gem/metal this
+    year. If it is AFFLICTED, do NOT amplify it on what you wear — avoid its
+    colour this year and lean on a natal-supportive one instead. CONFLICT RULE:
+    never turn a natal AVOID colour into a this-year favour.
+    """
+    try:
+        cd = chart_data if isinstance(chart_data, dict) else {}
+        lagna = ((cd.get("lagna") or {}).get("sign"))
+        if not (cd.get("planets") and lagna and birth_date):
+            return {"available": False}
+        try:
+            from antar_engine.lal_kitab_advanced import year_lord_for
+        except Exception:
+            return {"available": False}
+        year_lord = year_lord_for(birth_date)
+        if not year_lord:
+            return {"available": False}
+        house_lords = _house_lords_from_lagna(lagna)
+        fav, avo, fr, av = _affliction_and_support(year_lord, cd, lk_data, house_lords)
+        mat = _material(year_lord)
+        if not mat.get("color"):
+            return {"available": False}
+        valid_until = _next_birthday_iso(birth_date)
+        out = {"available": True, "valid_until": valid_until, "favor": [], "avoid": []}
+        _natal_avoid = avo >= 2.0 and avo >= fav and not (year_lord == house_lords.get(1) and avo < 3.0)
+        if _natal_avoid:
+            # the year's ruler runs hard AND its colour is a real strain — avoid on worn items
+            out["avoid"].append({**mat,
+                "why": "the ruler of your year runs hard for you — don't amplify it on what you "
+                       "wear; support it with a donation/remedy instead"})
+        elif fav >= 1.5 and fav >= avo:
+            out["favor"].append({**mat,
+                "why": "aligns you with the energy ruling your year"})
+        # nothing decisive → empty lists (no this-year steer)
+        return out
+    except Exception as e:
+        return {"available": False, "error": str(e)[:160]}
