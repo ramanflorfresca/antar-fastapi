@@ -23119,6 +23119,13 @@ async def ask_endpoint(request: AskRequest):
                 if _ask_decision and _ask_is_advice_q(question):
                     print("[ask] advice/how-to — suppressing decision/timing path")
                     _ask_decision = False
+                # [material-q 2026-09-18] A colour/gemstone/metal question is
+                # REMEDIAL, not a yes/no decision — suppress the verdict/timing
+                # path so no stray "Not yet — speculative window" prefixes the
+                # colour read.
+                if _ask_decision and _is_material_q(question):
+                    print("[ask] material/colour — suppressing decision/timing path")
+                    _ask_decision = False
                 # [ask-timeframe] a bounded window-scan ("which day in the next N")
                 # answers from the scanned days INSIDE the window — never the
                 # far-future event verdict. Route it reflective.
