@@ -51,6 +51,45 @@ _PLANET_AILMENT = {
     "Ketu": "neurological, immune, viral, or mysterious/latent conditions",
 }
 
+# [health-pointers 2026-09-18] Per-planet CARE: a plain preventive step + the
+# Ayurvedic remedy that balances that graha (dosha + herb + practice). Keyed to
+# the AFFLICTED significator, so the advice targets the actual watch-area. Phrased
+# in plain, consumer-friendly language — herb/practice names are fine (the audience
+# uses them); planet/house names are NOT surfaced (the narrator keeps that rule).
+# Not medical advice; a doctor assesses real symptoms.
+_PLANET_HEALTH_CARE = {
+    "Sun": ("keep the heart, eyes and blood pressure steady — regular cardio, moderate salt, "
+            "morning sun in moderation; in Ayurveda, amla and cooling Pitta-friendly foods"),
+    "Moon": ("protect sleep and emotional rest — steady routine and good hydration; in Ayurveda, "
+             "brahmi or ashwagandha and warm milk at night to calm the mind"),
+    "Mars": ("guard against inflammation and injury — warm up before exertion, slow down when "
+             "tired, less spicy/fried food; in Ayurveda, guduchi or coriander water and cooling "
+             "breath (sheetali) to cool the blood"),
+    "Mercury": ("steady the nervous system and skin — regular sleep, less caffeine and screen "
+                "time; in Ayurveda, brahmi or gotu kola, neem for the skin, and warm sesame-oil "
+                "self-massage (abhyanga)"),
+    "Jupiter": ("watch weight, liver and blood sugar — a lighter, earlier dinner and daily "
+                "movement; in Ayurveda, triphala and turmeric to lighten Kapha"),
+    "Venus": ("support the reproductive/urinary system and hormones — hydrate well, ease off "
+              "excess sugar and dairy; in Ayurveda, shatavari and plenty of water"),
+    "Saturn": ("protect joints, bones and nerves — gentle daily movement, warmth, calcium and "
+               "vitamin D; in Ayurveda, ashwagandha and warm sesame-oil massage (abhyanga) to "
+               "pacify Vata"),
+    "Rahu": ("reduce toxic load and check anything unclear early — a clean, simple diet and "
+             "lighter eating; in Ayurveda, triphala and neem to clear ama (toxins)"),
+    "Ketu": ("rebuild immunity and don't dismiss lingering symptoms — real rest and gut care; "
+             "in Ayurveda, guduchi and ashwagandha, with triphala for the gut"),
+}
+_CONSTITUTION_CARE = {
+    "robust": ("your baseline is strong — keep it that way with steady sleep, movement and "
+               "hydration; in Ayurveda, a seasonal routine (dinacharya) is enough"),
+    "moderate": ("a solid baseline with a few watch-areas — steady prevention pays off; in "
+                 "Ayurveda, a regular daily rhythm and triphala keep things balanced"),
+    "delicate": ("treat rest and routine as non-negotiable — small consistent care compounds; "
+                 "in Ayurveda, warm cooked food, sesame-oil self-massage and early nights rebuild "
+                 "reserves"),
+}
+
 HEALTH_SPEC = {
     "noun": "health",
     "houses": [1, 6, 8, 12],
@@ -178,17 +217,24 @@ def analyze_health(chart_data: dict) -> dict:
         }
 
         # ── NATURE / body area — from the actually-afflicted significators ────
-        nature, seen = [], set()
+        nature, care, seen = [], [], set()
         for p in list(d1_affl) + _in_house(d1, 6) + _in_house(d1, 8):
             if not p or p in seen or p not in _PLANET_AILMENT:
                 continue
             seen.add(p)
             body = _SIGN_BODY.get((d1.get(p) or {}).get("sign"))
             nature.append(_PLANET_AILMENT[p] + (f" — {body}" if body else ""))
+            # [health-pointers] per-affliction preventive step + Ayurvedic remedy
+            if p in _PLANET_HEALTH_CARE:
+                care.append(_PLANET_HEALTH_CARE[p])
         sixth = _sign_n_from(lagna, 6)
         if not nature and sixth in _SIGN_BODY:
             nature.append("the seat of illness points to " + _SIGN_BODY[sixth])
         nature = nature[:3]
+        # fall back to a constitution-level care line when no specific affliction fired
+        if not care:
+            care = [_CONSTITUTION_CARE.get(constitution["level"], _CONSTITUTION_CARE["moderate"])]
+        care = care[:3]
 
         factors = {"lagna_lord": lagna_lord, "malefics_on_1st": _malefics_on(d1, 1),
                    "sixth_sign": sixth, "planets_in_6": _in_house(d1, 6),
@@ -199,7 +245,7 @@ def analyze_health(chart_data: dict) -> dict:
                    + (f", tending to involve {nature[0]}." if nature else "."))
 
         return {"available": True, "constitution": constitution, "chronic": chronic,
-                "nature": nature, "factors": factors, "summary": summary}
+                "nature": nature, "care": care, "factors": factors, "summary": summary}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}
 

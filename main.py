@@ -22389,9 +22389,16 @@ async def ask_endpoint(request: AskRequest):
                             _hp.append("TIMING: " + _ht["summary"] + " Give this as a window to be "
                                        "extra attentive to health (checkups, rest), in plain months-"
                                        "years — a caution to act on, not a scare.")
-                        _hp.append("Close with ONE concrete, preventive lifestyle step, and note "
-                                   "this is not medical advice — a qualified doctor should assess "
-                                   "any real symptom.")
+                        if _ha.get("care"):
+                            _hp.append(
+                                "PREVENTIVE CARE (grounded in the reading — use the MOST relevant "
+                                "ONE as your concrete closing step; keep the plain lifestyle part "
+                                "AND the Ayurvedic remedy — the herb/practice names are welcome, but "
+                                "still never name a planet/house/system): "
+                                + " | ".join(_ha["care"][:2]) + ".")
+                        _hp.append("Close with that ONE concrete, preventive step (lifestyle + the "
+                                   "Ayurvedic remedy), and note this is not medical advice — a "
+                                   "qualified doctor should assess any real symptom.")
                         _ask_health_block = "\n".join(_hp)
             except Exception as _hee:
                 logger.warning(f"[ask] health-engine skipped (non-fatal): {_hee}")
