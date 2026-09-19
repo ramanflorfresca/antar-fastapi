@@ -23424,6 +23424,30 @@ async def ask_endpoint(request: AskRequest):
                             _ee_primary = True
                             _ee_verdict = _ee["client_verdict"]
                             _ee_timing = _ee["timing_label"]
+                            # [dasha-differentiation 2026-09-19] In the
+                            # `promised_building` state the EE pins the SHARED
+                            # double-transit forming window (same sky for
+                            # everyone), so every chart in this common state got
+                            # an identical near-term window ("Nov 2026–Jan 2027"
+                            # for ~2/3 of charts). The per-chart, Vimshottari-
+                            # weighted convergence window is ALREADY computed
+                            # (build_convergence_timing → _ask_conv) but was being
+                            # discarded here. Prefer it so timing differentiates
+                            # by the reader's OWN dasha; the transit stays the
+                            # trigger. Only override when a real convergence
+                            # window exists — else keep the EE (transit) window.
+                            try:
+                                if str((_ev or {}).get("verdict") or "") == "promised_building":
+                                    _conv_win = ((_ask_conv.get("window_label")
+                                                  if _ask_conv.get("convergence_met") else None)
+                                                 or _ask_conv.get("next_window_label")
+                                                 or _ask_conv.get("window_label") or "").strip()
+                                    if _conv_win and _conv_win.lower() != (_ee_timing or "").strip().lower():
+                                        print(f"[ask][dasha-diff] promised_building: "
+                                              f"EE window {_ee_timing!r} -> convergence {_conv_win!r}")
+                                        _ee_timing = _conv_win
+                            except Exception as _dde:
+                                print(f"[ask][dasha-diff] skipped: {_dde}")
                             _ask_conv_block = _ee["narrator_prompt"]
                             # [evprimary-2026-06-07] Replace the convergence
                             # path's verdict + verdict_phrase with the
