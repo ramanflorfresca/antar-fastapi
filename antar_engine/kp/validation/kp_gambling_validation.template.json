@@ -1,0 +1,27 @@
+{
+  "_README": "Gambling/speculation validation roster. One row per KNOWN dated outcome. Copy to kp_gambling_validation.json and replace with REAL cases. The gate needs >= 20 real cases at >= 70% (pre-registered config). Placeholder rows (id contains 'example'/'template', or known_outcome not yes/no) are ignored.",
+  "cases": [
+    {
+      "id": "example-1-REPLACE",
+      "birth_date": "1988-04-12",
+      "birth_time": "14:30",
+      "lat": 28.6139,
+      "lon": 77.2090,
+      "tz_offset": 5.5,
+      "outcome_date": "2023-09-14",
+      "known_outcome": "REPLACE_WITH_yes_or_no",
+      "notes": "example row — yes = the bet/session WON (+), no = it LOST (-)"
+    },
+    {
+      "id": "example-2-REPLACE",
+      "birth_date": "1979-11-03",
+      "birth_time": "08:05",
+      "lat": 19.0760,
+      "lon": 72.8777,
+      "tz_offset": 5.5,
+      "outcome_date": "2024-02-02",
+      "known_outcome": "REPLACE_WITH_yes_or_no",
+      "notes": "example row"
+    }
+  ]
+}

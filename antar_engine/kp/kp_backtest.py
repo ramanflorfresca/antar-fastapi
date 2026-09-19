@@ -393,3 +393,114 @@ if __name__ == "__main__":
         sc = run_backtest(path)
         print(json.dumps(sc, indent=2))
         print("\nGATE OPEN" if sc["passed"] else "\nGATE CLOSED (KP quarantined)")
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# GAMBLING / SPECULATION backtest — a SEPARATE gate from the general KP gate.
+# Scores the dated speculation rule (kp_speculation.kp_speculation_on_date)
+# against a roster of real dated win/loss outcomes. Gambling is only ever
+# exposed when THIS gate passes (>=70% on >= MIN_GAMBLING_CASES). The general
+# is_gate_open() does NOT open gambling and vice-versa.
+# ═══════════════════════════════════════════════════════════════════════════
+DEFAULT_GAMBLING_ROSTER = os.path.join(VALIDATION_DIR, "kp_gambling_validation.json")
+GAMBLING_GATE_PATH = os.path.join(VALIDATION_DIR, "kp_gambling_gate_status.json")
+MIN_GAMBLING_CASES = 20  # gambling is high-variance — need a real sample
+
+# Pre-REGISTERED gate config (chosen before seeing the data, to avoid overfitting):
+# KP doctrine says the dasha names the period but the TRANSIT trigger makes the
+# window crisp (kp_timing: Jupiter/Saturn + Sun over a running significator's
+# star). The no-transit rule is too permissive (fires 'yes' on most dates), so
+# the a-priori-correct predictor is dasha-significators + transit trigger.
+_GAMBLING_GATE_CONFIG = {"strictness": "ad_pd", "require_transit": True, "strong": True}
+# Exploratory configs — reported for insight, NEVER used to open the gate.
+_GAMBLING_EXPLORE_CONFIGS = [
+    {"strictness": "ad_pd", "require_transit": False, "strong": True},
+    {"strictness": "pd", "require_transit": True, "strong": True},
+    {"strictness": "md_ad_pd", "require_transit": True, "strong": True},
+]
+
+
+def _score_gambling(cases, cfg):
+    """Return (n, hits, hit_rate) for the real (non-placeholder) cases at cfg."""
+    from .kp_chart import compute_kp_chart
+    from .kp_speculation import kp_speculation_on_date
+    n = hits = 0
+    for c in cases:
+        if _is_placeholder_case(c):
+            continue
+        try:
+            chart = compute_kp_chart(
+                c["birth_date"], c["birth_time"], c["lat"], c["lon"],
+                tz_offset=c.get("tz_offset"), timezone=c.get("timezone"))
+            r = kp_speculation_on_date(chart, c["outcome_date"], **cfg)
+            pred = r.get("pred")
+            if pred not in ("yes", "no"):
+                continue
+            n += 1
+            if pred == str(c.get("known_outcome", "")).strip().lower():
+                hits += 1
+        except Exception:
+            continue
+    return n, hits, (round(hits / n, 3) if n else None)
+
+
+def _write_gambling_gate(scorecard):
+    os.makedirs(VALIDATION_DIR, exist_ok=True)
+    flag = {k: scorecard.get(k) for k in
+            ("passed", "reason", "n_cases", "hit_rate", "threshold",
+             "config", "timestamp")}
+    with open(GAMBLING_GATE_PATH, "w") as f:
+        json.dump(flag, f, indent=2)
+
+
+def is_gambling_gate_open():
+    """Source of truth for exposing KP gambling. False until a gambling backtest
+    records passed=True. Independent of the general KP gate."""
+    try:
+        with open(GAMBLING_GATE_PATH) as f:
+            return bool(json.load(f).get("passed") is True)
+    except Exception:
+        return False
+
+
+def run_gambling_backtest(roster_path=DEFAULT_GAMBLING_ROSTER, write=True):
+    """Score the dated speculation rule on real win/loss cases. Gate opens only on
+    the PRE-REGISTERED config at >=70% and >= MIN_GAMBLING_CASES. Exploratory
+    configs are reported but never open the gate."""
+    if not os.path.exists(roster_path):
+        sc = {"passed": False, "reason": "no gambling validation set provided",
+              "roster_path": roster_path, "n_cases": 0, "hit_rate": None,
+              "threshold": PASS_THRESHOLD, "config": _GAMBLING_GATE_CONFIG,
+              "timestamp": datetime.utcnow().isoformat() + "Z"}
+        if write:
+            _write_gambling_gate(sc)
+        return sc
+    with open(roster_path) as f:
+        cases = json.load(f)
+    if isinstance(cases, dict):
+        cases = cases.get("cases", [])
+
+    n, hits, rate = _score_gambling(cases, _GAMBLING_GATE_CONFIG)
+    explore = []
+    for cfg in _GAMBLING_EXPLORE_CONFIGS:
+        en, eh, er = _score_gambling(cases, cfg)
+        explore.append({"config": cfg, "n_cases": en, "hits": eh, "hit_rate": er})
+
+    passed = bool(n >= MIN_GAMBLING_CASES and rate is not None and rate >= PASS_THRESHOLD)
+    reason = ("passed" if passed else
+              (f"only {n} scored cases (< {MIN_GAMBLING_CASES})" if n < MIN_GAMBLING_CASES
+               else f"hit_rate {rate} < {PASS_THRESHOLD}"))
+    sc = {"passed": passed, "reason": reason, "n_cases": n, "hits": hits,
+          "hit_rate": rate, "threshold": PASS_THRESHOLD,
+          "config": _GAMBLING_GATE_CONFIG, "explore": explore,
+          "timestamp": datetime.utcnow().isoformat() + "Z"}
+    if write:
+        _write_gambling_gate(sc)
+    return sc
+
+
+if __name__ == "__main__":  # pragma: no cover
+    import pprint
+    which = sys.argv[1] if len(sys.argv) > 1 else "gambling"
+    if which == "gambling":
+        pprint.pprint(run_gambling_backtest())
