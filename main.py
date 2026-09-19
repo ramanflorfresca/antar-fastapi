@@ -10133,6 +10133,73 @@ async def get_user_profile(request: Request):
         print(f"[user/profile] {e}")
         return {"language": "en", "career_stage": None, "relationship_stage": None}
 
+@app.get("/api/v1/material/year/{chart_id}")
+@translate_response(
+    fields_to_translate=["shade", "stone", "metal", "why", "headline", "note"],
+    endpoint_name="material-year",
+)
+async def material_year(chart_id: str, language: str = "en"):
+    """[material-year 2026-09-18] Proactive 'your colours this year' card data:
+    lifelong (natal) + this-year (varshphal) colour / gemstone / metal, support vs
+    avoid. Remedial — no event/accuracy claim, no planet/house names. Powers the
+    yearly FE card; featured once per solar-return year via `year_key`. Keys are
+    shade/stone/metal (NOT 'color'/'gem') so the colour words translate for es/pt
+    (the global i18n skip protects the key 'color')."""
+    from fastapi.responses import JSONResponse
+    try:
+        row = (supabase.table("charts")
+               .select("chart_data,birth_date,lal_kitab_data")
+               .eq("id", chart_id).single().execute().data) or {}
+    except Exception:
+        return JSONResponse(status_code=404,
+                            content={"available": False, "error": "chart not found"})
+    cd = row.get("chart_data")
+    if isinstance(cd, str):
+        cd = _safe_jsonb(cd)
+    bd = row.get("birth_date")
+    lk = row.get("lal_kitab_data")
+    if isinstance(lk, str):
+        try:
+            lk = json.loads(lk)
+        except Exception:
+            lk = None
+    if not cd or not bd:
+        return {"available": False}
+    try:
+        from antar_engine.material_advice import (
+            material_guidance as _mg, varshphal_material_overlay as _mvo)
+        natal = _mg(cd, lk)
+        year = _mvo(cd, bd, lk)
+    except Exception as _mye:
+        return {"available": False, "error": str(_mye)[:160]}
+    if not natal.get("available"):
+        return {"available": False}
+
+    def _shape(entries):
+        return [{"shade": e.get("color"), "stone": e.get("gem"),
+                 "metal": e.get("metal"), "why": e.get("why")}
+                for e in (entries or [])]
+
+    valid_until = (year.get("valid_until") if year.get("available") else "") or ""
+    year_key = ""
+    try:
+        if valid_until:
+            _end = int(str(valid_until)[:4]); year_key = f"{_end - 1}-{_end}"
+    except Exception:
+        pass
+    return {
+        "available": True,
+        "headline": "Your colours this year",
+        "valid_until": valid_until,
+        "year_key": year_key,
+        "for_life": {"favor": _shape(natal.get("favorable")),
+                     "avoid": _shape(natal.get("avoid"))},
+        "this_year": {"favor": _shape(year.get("favor") if year.get("available") else []),
+                      "avoid": _shape(year.get("avoid") if year.get("available") else [])},
+        "note": natal.get("note", ""),
+    }
+
+
 @app.post("/api/v1/user/life-events", response_model=LifeEventOut, status_code=201)
 async def create_life_event(event: LifeEventCreate, authorization: str = Header(...)):
     user_id = verify_token(authorization)
