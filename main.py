@@ -20683,6 +20683,33 @@ def _is_legal_q(question):
     ))
 
 
+def _ask_legal_lead_phrase(lean, jup, lang="en"):
+    """Honest leading phrase for a legal question — a LEAN, never a promised win.
+    Owner rule: a legal outcome is never ours to claim (liability + falsification),
+    so never band it FAVORABLE / say 'yes, you will win'. en/es/pt."""
+    lang = (lang or "en").split("-")[0].lower()
+    if lang == "es":
+        base = {"favourable": "La lectura se inclina a tu favor — pero el resultado no está sellado; la preparación sólida es lo que convierte una inclinación en un resultado.",
+                "unfavourable": "Es una posición cuesta arriba — prepárate a fondo, con buena asesoría, y mantente abierto a un acuerdo."}.get(
+            lean, "Es un asunto genuinamente disputado — el resultado depende del esfuerzo, la evidencia y el momento.")
+        if lean == "favourable" and jup:
+            base += " La protección de Júpiter es una ventaja real aquí."
+        return base
+    if lang == "pt":
+        base = {"favourable": "A leitura pende a seu favor — mas o resultado não está selado; a preparação sólida é o que transforma uma tendência em resultado.",
+                "unfavourable": "É uma posição difícil — prepare-se bem, com boa assessoria, e fique aberto a um acordo."}.get(
+            lean, "É uma questão genuinamente contestada — o resultado depende de esforço, provas e do momento.")
+        if lean == "favourable" and jup:
+            base += " A proteção de Júpiter é uma vantagem real aqui."
+        return base
+    base = {"favourable": "The chart leans in your favour — but the outcome isn't fated; strong preparation is what turns a lean into a result.",
+            "unfavourable": "This is an uphill position — prepare thoroughly, get good counsel, and stay open to settlement."}.get(
+        lean, "This is genuinely contested — the outcome turns on effort, evidence and timing.")
+    if lean == "favourable" and jup:
+        base += " Jupiter's protection is a genuine asset here."
+    return base
+
+
 def _is_career_change_q(question):
     """True for career/business CHANGE / pivot / transformation questions — a
     switch, not growth. 'When will my career take off' (magnitude) and 'which
@@ -22440,6 +22467,8 @@ async def ask_endpoint(request: AskRequest):
             # [legal engine] disputes/litigation — deterministic reading of the
             # houses of conflict (6/7/8/12) + win-vs-lose lean + convergence timing.
             _ask_legal_block = ""
+            _ask_legal_lean = None
+            _ask_legal_jup = False
             try:
                 if _is_legal_q(question):
                     from antar_engine.legal import analyze_legal, legal_timing
@@ -22448,21 +22477,31 @@ async def ask_endpoint(request: AskRequest):
                         _lt = legal_timing(chart_data, get_dashas_for_chart(chart_id),
                                            birth_date=_ask_birth_date)
                         _o, _pp = _la["outcome"], _la["propensity"]
+                        _ask_legal_lean = _o.get("lean")
+                        _ask_legal_jup = bool(_o.get("jupiter_protection"))
                         _lp = ["LEGAL QUESTION — answer from THIS deterministic reading of the "
                                "houses of disputes and the timing of life-periods. Never name a "
                                "planet, house, or system — plain life-language only.",
-                               f"OUTCOME LEAN: {_o['lean']}. PROPENSITY for disputes: {_pp['level']}."]
+                               f"OUTCOME LEAN: {_o['lean']}. PROPENSITY for disputes: {_pp['level']}.",
+                               # [legal-framing 2026-09-19] a legal outcome is NEVER ours to
+                               # promise (liability + falsification). NEVER say 'yes, you will
+                               # win', never state a definitive win/lose — frame as a LEAN only.
+                               "HARD RULE: do NOT promise a win or say 'yes'. Never claim they "
+                               "will win or lose. Frame the outcome only as a LEAN that "
+                               "preparation and counsel turn into a result."]
                         _lcause = (_lt.get("cause") or _la.get("likely_causes") or [])
                         if _lcause:
                             _lp.append("LIKELY CAUSE / SUBJECT: " + "; ".join(_lcause[:2])
                                        + ". Name the most likely subject plainly so the reader "
                                        "recognizes what kind of matter it is.")
                         if _o["lean"] == "favourable":
-                            _lp.append("Lead with measured confidence that the position is "
-                                       "defensible"
-                                       + (" — a protective, fortunate hand is with you"
+                            _lp.append("Frame the position as one that LEANS in their favour and "
+                                       "is defensible"
+                                       + (" — with a protective, fortunate hand (a genuine asset)"
                                           if _o["jupiter_protection"] else "")
-                                       + "; still counsel diligence and good counsel.")
+                                       + ". NEVER say 'yes' or promise a win — say plainly the "
+                                       "outcome is not fated, and strong preparation and good "
+                                       "counsel are what turn a favourable lean into a result.")
                         elif _o["lean"] == "unfavourable":
                             _lp.append("Be honest it is an uphill position — advise strong "
                                        "preparation, good counsel, and openness to settlement; "
@@ -24018,6 +24057,17 @@ async def ask_endpoint(request: AskRequest):
             # word/date phrase the model emitted in case it ignored the prompt,
             # then prepend the deterministic phrase. The user always sees the
             # crisp answer first; the LLM provides the supporting WHY.
+            # [legal-framing 2026-09-19] Never let a legal question LEAD with a
+            # promised win ("Yes — … you have leverage"). Owner rule: a legal
+            # outcome is never ours to claim. Override the leading verdict phrase
+            # with an honest LEAN (never a binary Yes / you-win); the "not legal
+            # advice, consult a lawyer" close still stands from the steering block.
+            if _is_legal_q(question) and _ask_conv and _ask_legal_lean:
+                _ask_conv["verdict_phrase"] = _ask_legal_lead_phrase(
+                    _ask_legal_lean, _ask_legal_jup, language)
+                _ask_conv["suppress_verdict"] = False
+                print(f"[ask][legal-framing] verdict lean-override: {_ask_legal_lean}")
+
             if _ask_decision and _ask_conv:
                 _verdict_phrase = (_ask_conv.get("verdict_phrase") or "").strip()
                 if _verdict_phrase:
