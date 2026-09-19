@@ -27959,11 +27959,24 @@ def _vim_pd(dashas):
     return {}
 
 
+def _life_window_phrase(ym: str) -> str:
+    """'2027-05' -> 'mid 2027'. Thirds of the year, matching how the app has
+    always rendered these windows. Fail-open: returns the raw value on bad input."""
+    try:
+        y, m = str(ym).split("-")[:2]
+        mi = int(m)
+        band = "early" if mi <= 4 else ("mid" if mi <= 8 else "late")
+        return f"{band} {y}"
+    except Exception:
+        return str(ym or "")
+
+
 def _nearest_life_window(chart_data, dashas, birth_date, gender=None):
     """[P4 proactive 2026-07-31] The single nearest UPCOMING converged life-window
     across the domain engines (marriage / legal / health / residence), so Antar can
     say 'this is coming — here's how to be ready' instead of only answering when
-    asked. Returns {kind, when, systems, prep} or None. Fail-open."""
+    asked. Returns {kind, when, when_phrase, headline, start, systems, prep}
+    or None. Fail-open. `headline` is the user-facing sentence — render it as-is."""
     from datetime import date as _d
     today = _d.today().isoformat()
     cands = []
@@ -28000,12 +28013,25 @@ def _nearest_life_window(chart_data, dashas, birth_date, gender=None):
                 # hasn't passed). A chapter you're already inside is the most
                 # proactive "be ready" signal — suppressing it until next year (the
                 # old `start >= today` gate) meant a mid-year user saw nothing even
-                # with a live, converged chapter. The FE renders an already-started
-                # window's `when` as "soon" (friendlyWhen), so this reads honestly.
+                # with a live, converged chapter.
                 if end and end >= today and len(b.get("systems", [])) >= 2:
-                    cands.append({"kind": kind, "when": start[:7], "start": start,
-                                  "active": bool(start and start <= today),
-                                  "systems": len(b.get("systems", [])), "prep": prep})
+                    # [guardrail 2026-09-18] Ship the finished sentence from here, not
+                    # just the parts. The UI composed "Coming: {kind} — {when}", which
+                    # names a life event and binds it to a date — a claim we never make
+                    # in our own voice (content system S3). A window is a season, not an
+                    # event. Wording lives next to the rule it has to obey, so the FE
+                    # renders `headline` verbatim instead of inventing its own sentence
+                    # (this supersedes the FE's friendlyWhen formatting).
+                    _active = bool(start and start <= today)
+                    _ym = start[:7]
+                    _phrase = "now" if _active else _life_window_phrase(_ym)
+                    _headline = (f"A window for {kind} is open now" if _active
+                                 else f"A window for {kind} — around {_phrase}")
+                    cands.append({"kind": kind, "when": _ym, "start": start,
+                                  "active": _active,
+                                  "systems": len(b.get("systems", [])), "prep": prep,
+                                  "when_phrase": _phrase,
+                                  "headline": _headline})
             except Exception:
                 pass
     except Exception:
