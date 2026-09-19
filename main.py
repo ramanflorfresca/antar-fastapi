@@ -20693,20 +20693,20 @@ def _ask_legal_lead_phrase(lean, jup, lang="en"):
                 "unfavourable": "Es una posición cuesta arriba — prepárate a fondo, con buena asesoría, y mantente abierto a un acuerdo."}.get(
             lean, "Es un asunto genuinamente disputado — el resultado depende del esfuerzo, la evidencia y el momento.")
         if lean == "favourable" and jup:
-            base += " La protección de Júpiter es una ventaja real aquí."
+            base += " Y hay una influencia protectora y afortunada genuinamente de tu lado."
         return base
     if lang == "pt":
         base = {"favourable": "A leitura pende a seu favor — mas o resultado não está selado; a preparação sólida é o que transforma uma tendência em resultado.",
                 "unfavourable": "É uma posição difícil — prepare-se bem, com boa assessoria, e fique aberto a um acordo."}.get(
             lean, "É uma questão genuinamente contestada — o resultado depende de esforço, provas e do momento.")
         if lean == "favourable" and jup:
-            base += " A proteção de Júpiter é uma vantagem real aqui."
+            base += " E há uma influência protetora e afortunada genuinamente do seu lado."
         return base
     base = {"favourable": "The chart leans in your favour — but the outcome isn't fated; strong preparation is what turns a lean into a result.",
             "unfavourable": "This is an uphill position — prepare thoroughly, get good counsel, and stay open to settlement."}.get(
         lean, "This is genuinely contested — the outcome turns on effort, evidence and timing.")
     if lean == "favourable" and jup:
-        base += " Jupiter's protection is a genuine asset here."
+        base += " And a genuinely protective, fortunate influence is on your side here."
     return base
 
 
