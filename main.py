@@ -20647,9 +20647,20 @@ def _is_gambling_q(question):
     outcome). Mirrors the kp_service gambling keyword set."""
     ql = (question or "").lower()
     return any(k in ql for k in (
+        # core gambling / casino
         "gambl", "casino", "poker", "lottery", "lotto", " bet ", " bet?",
-        " bet.", "betting", "wager", "blackjack", "roulette", "jackpot",
-        "slot machine", "apuesta", "loter", "juego de azar",
+        " bet.", " bet,", "betting", "wager", "blackjack", "roulette",
+        "jackpot", "slot machine", "baccarat", "craps",
+        # speculation / short-term punts (the word the owner uses)
+        "speculat", "day trade", "day-trad", "day trading", "scalp",
+        # card / table / dice games (incl. common Indian ones)
+        "play cards", "playing cards", "card game", "teen patti", "teenpatti",
+        "rummy", "andar bahar", "andar-bahar", "satta", "dice", "flush ",
+        "call break", "callbreak",
+        # racing / sports book
+        "horse rac", "horse bet", "sports bet", "sportsbook", "sports book",
+        # spanish / portuguese
+        "apuesta", "apostar", "loter", "juego de azar", "aposta", "jogo de azar",
     ))
 
 
