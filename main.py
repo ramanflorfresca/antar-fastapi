@@ -20338,6 +20338,12 @@ class AskRequest(BaseModel):
     mode:      Optional[str] = "explore"
     language:  Optional[str] = "en"
     tz_offset: Optional[int] = 0
+    # [kp-number-horary 2026-09-19] OPTIONAL traditional KP horary number
+    # (1-249). When present on a speculation/gambling question, the number fixes
+    # the ascendant (classic KP number horary) instead of the moment ascendant.
+    # Absence = the moment-based reading (unchanged). FE may also let the user
+    # type "number 74" in the question itself (parsed server-side).
+    horary_number: Optional[int] = None
     # [ask-scratch] OPTIONAL admin/dev knob — when set, REPLACES the
     # narration system prompt for THIS call only. Never persisted,
     # never cached, never affects any other user or chart. Absence
@@ -22666,11 +22672,34 @@ async def ask_endpoint(request: AskRequest):
                             _kp_days = 2
                     except Exception:
                         _kp_days = 7
+                    # OPTIONAL traditional KP number horary (1-249): from the
+                    # request field, or an explicit "number/num/pick/# N" typed in
+                    # the question. When present the NUMBER fixes the ascendant and
+                    # it's a single-question read (no range scan).
+                    _kp_num = None
+                    try:
+                        _rn = getattr(request, "horary_number", None)
+                        if _rn is not None and 1 <= int(_rn) <= 249:
+                            _kp_num = int(_rn)
+                        else:
+                            _mn = _re_kp.search(
+                                r"(?:number|num|pick|#)\D{0,8}(\d{1,3})", _ql)
+                            if _mn and 1 <= int(_mn.group(1)) <= 249:
+                                _kp_num = int(_mn.group(1))
+                    except Exception:
+                        _kp_num = None
                     if _kp_lat is not None and _kp_lon is not None:
-                        _kp_horary = kp_horary_speculation(_kp_lat, _kp_lon)
-                        if _kp_is_range:
-                            _kp_week = kp_horary_week(
-                                _kp_lat, _kp_lon, tz_offset=_kp_tz, days=_kp_days)
+                        if _kp_num is not None:
+                            from antar_engine.kp.kp_speculation import (
+                                kp_horary_speculation_number)
+                            _kp_horary = kp_horary_speculation_number(
+                                _kp_num, _kp_lat, _kp_lon)
+                            _kp_is_range = False  # a number horary is one question
+                        else:
+                            _kp_horary = kp_horary_speculation(_kp_lat, _kp_lon)
+                            if _kp_is_range:
+                                _kp_week = kp_horary_week(
+                                    _kp_lat, _kp_lon, tz_offset=_kp_tz, days=_kp_days)
                     if _kp_horary and _kp_horary.get("available"):
                         _kpp = [
                             "SPECULATION / GAMBLING QUESTION — answer as a KP (Krishnamurti) "
@@ -24443,24 +24472,27 @@ async def ask_endpoint(request: AskRequest):
                     _v = _kh.get("verdict")
                     _score = _kh.get("score")
                     _band = _kh.get("band") or "mixed"
+                    # number horary -> "for your number N"; else "for this moment"
+                    _msrc = (f"for your number {_kh.get('number')}"
+                             if _kh.get("method") == "number" else "for this moment")
                     _sig_label = ("That's a signal reading, not your odds of winning, and "
                                   "we're still testing whether it holds.")
                     # score-graded moment read (0-100 KP signal), never a flat yes/no
                     if _band == "supportive":
-                        _kline = (f"The KP signal for this moment is about {_score} out of 100 "
+                        _kline = (f"The KP signal {_msrc} is about {_score} out of 100 "
                                   f"— moderately supportive. {_sig_label} Speculation is high-"
                                   "variance, so only stake what you can walk away from, and keep "
                                   "it small and capped.")
                         _knext = ("If you play, set a hard cap you can lose without a second "
                                   "thought, and stop when you hit it — win or lose.")
                     elif _band == "mixed":
-                        _kline = (f"The KP signal for this moment is about {_score} out of 100 "
+                        _kline = (f"The KP signal {_msrc} is about {_score} out of 100 "
                                   f"— mixed, no clear edge. {_sig_label} If you play at all keep "
                                   "it tiny, and sitting this one out is just as good a call.")
                         _knext = ("If you do play, treat it as entertainment money only — a "
                                   "small fixed amount you've already written off.")
                     else:
-                        _kline = (f"The KP signal for this moment is about {_score} out of 100 "
+                        _kline = (f"The KP signal {_msrc} is about {_score} out of 100 "
                                   f"— on the low side. {_sig_label} The kinder call is to sit "
                                   "this one out; there will be clearer moments.")
                         _knext = ("Sit this one out for now; there will be stronger signals, "
@@ -24512,6 +24544,8 @@ async def ask_endpoint(request: AskRequest):
                             f"KP signal was {_kh.get('score')}/100 ({_lean_plain}) for a "
                             f"small, capped bet — tell us how it went. [KP_LEAN={_v};"
                             f"score={_kh.get('score')};conf={_kh.get('confidence')};"
+                            f"method={_kh.get('method','moment')};"
+                            f"number={_kh.get('number','')};"
                             f"moment={_kh.get('moment_utc','')}]")
                         save_trackable_claim(
                             chart_id=chart_id,
