@@ -47,6 +47,14 @@ _KEYWORDS = [
      None, "business_start"),
     (("move", "relocat", "shift abroad", "mudar", "reubic", "mudanza"),
      None, "relocation"),
+    # [kp-gambling-shadow 2026-09-19] Gambling/speculation → the speculation
+    # verdict. Groundwork only: KP stays gated OFF (is_gate_open() false), so this
+    # routes to the SHADOW compute, never user-facing, until a gambling-outcome
+    # backtest clears ≥70%. Placed BEFORE 'money/gain' so a bet routes to
+    # speculation, not a generic gain.
+    (("gambl", "casino", "poker", "lottery", "lotto", " bet ", "betting",
+      "wager", "blackjack", "roulette", "jackpot", "apuesta", "loter"),
+     "speculation", None),
     (("money", "gain", "profit", "deal", "close the", "dinero", "ganan", "trato"),
      "gain", None),
     (("win", "lawsuit", "litig", "court", "pleito", "demanda"),
