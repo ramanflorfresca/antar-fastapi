@@ -27302,6 +27302,22 @@ async def get_prediction_accuracy_endpoint(chart_id: str, language: str = "en"):
     return _acc
 
 
+@app.get("/api/v1/kp/calibration")
+async def get_kp_calibration_endpoint(chart_id: Optional[str] = None):
+    """KP speculation (gambling) calibration scorecard — read-only observability.
+
+    Scores the logged KP moment/number reads against the real reported win/loss
+    (the tester Yes/No). The key field is `by_score_bucket`: a real signal should
+    win more often in the high bucket (62-100) than the low (5-44). CALIBRATION
+    ONLY — this opens no gate and is not a validated win-predictor. Pass
+    `?chart_id=` to scope to one chart; omit for the aggregate across testers."""
+    try:
+        from antar_engine.kp.kp_speculation import score_kp_horary_calibration
+        return score_kp_horary_calibration(supabase, chart_id=chart_id)
+    except Exception as e:
+        return {"available": False, "error": str(e)[:200]}
+
+
 # ── Alert System Endpoints ────────────────────────────────────────
 
 _LIFE_ALERT_TYPES = ("wealth_window", "lean_stretch", "risk_window",
