@@ -24385,24 +24385,42 @@ async def ask_endpoint(request: AskRequest):
                                   "supportive — but speculation is high-variance and this "
                                   "is a judgement, not a guarantee, so only stake what you "
                                   "can walk away from, and keep it small and capped.")
+                        _knext = ("If you play, set a hard cap you can lose without a second "
+                                  "thought, and stop when you hit it — win or lose.")
                     elif _v == "conditional":
                         _kline = ("Reading this moment the KP way, it looks mixed — no clear "
                                   "edge either way. If you play at all keep it tiny, and it "
                                   "is just as good a call to sit this one out.")
+                        _knext = ("If you do play, treat it as entertainment money only — a "
+                                  "small fixed amount you've already written off.")
                     else:
                         _kline = ("Reading this moment the KP way, it doesn't look "
                                   "supportive — the kinder call is to sit this one out; "
                                   "there will be other days.")
-                    _kblob = " ".join(str(payload.get(_k) or "")
-                                      for _k in ("read", "next")).lower()
-                    if not any(_m in _kblob for _m in (
-                            "walk away", "high-variance", "high variance",
-                            "sit this one out", "capped")):
-                        _nx0 = (payload.get("next") or "").strip()
-                        if _nx0 and _nx0[-1] not in ".!?":
-                            _nx0 += "."
-                        payload["next"] = (f"{_nx0} {_kline}".strip()) if _nx0 else _kline
-                        print("[ask][kp-horary] appended deterministic KP moment-read + caveat")
+                        _knext = ("Sit this one out tonight; there will be clearer moments, "
+                                  "and nothing is lost by waiting.")
+                    # A gambling question is a MOMENT question. The natal date-binary
+                    # (verdict chip) and the far-future "next speculative window"
+                    # (timing/convergence) are the date/dasha framing we proved can't
+                    # resolve a single night — and read as absurd against "tonight".
+                    # Suppress them and let the KP moment-read be the answer.
+                    if _is_gambling_q(question):
+                        payload["verdict"] = None
+                        payload["timing"] = None
+                        payload["convergence"] = None
+                        payload["read"] = _kline
+                        payload["next"] = _knext
+                        print("[ask][kp-horary] KP moment-read is the lead; "
+                              "date-window/verdict suppressed for gambling Q")
+                    else:
+                        _kblob = " ".join(str(payload.get(_k) or "")
+                                          for _k in ("read", "next")).lower()
+                        if "the kp way" not in _kblob:
+                            _nx0 = (payload.get("next") or "").strip()
+                            if _nx0 and _nx0[-1] not in ".!?":
+                                _nx0 += "."
+                            payload["next"] = (f"{_nx0} {_kline}".strip()) if _nx0 else _kline
+                            print("[ask][kp-horary] appended deterministic KP moment-read + caveat")
                     # calibration log — reuse user_correlations via save_trackable_claim.
                     try:
                         from antar_engine.prediction_tracker import save_trackable_claim
