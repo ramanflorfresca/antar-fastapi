@@ -24426,14 +24426,17 @@ async def ask_endpoint(request: AskRequest):
                         from antar_engine.prediction_tracker import save_trackable_claim
                         _lean_plain = {"yes": "supportive", "conditional": "mixed"}.get(
                             _v, "not supportive")
+                        # prediction_id is a uuid column (no FK) — a synthetic string
+                        # is rejected (22P02) and the log silently drops. Use a real
+                        # uuid4; the traceable moment lives in the claim text/marker.
                         _kp_pred_text = (
                             "**Speculation moment-read**\n"
                             f"KP read this moment as {_lean_plain} for a small, capped bet "
                             f"— tell us how it went. [KP_LEAN={_v};conf="
-                            f"{_kh.get('confidence')}]")
+                            f"{_kh.get('confidence')};moment={_kh.get('moment_utc','')}]")
                         save_trackable_claim(
                             chart_id=chart_id,
-                            prediction_id=f"kp-horary-{_kh.get('moment_utc','')}",
+                            prediction_id=str(uuid.uuid4()),
                             prediction_text=_kp_pred_text,
                             concern="speculation",
                             sb=supabase,
