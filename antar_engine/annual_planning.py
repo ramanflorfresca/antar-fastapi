@@ -242,16 +242,16 @@ Generate a full annual planning session. This is the most important reading Anta
 It covers the full year ahead — what it's about, when to act in each domain, what remedies to follow.
 
 RULES:
-- ALWAYS start year_summary with the user's first name if provided e.g. "Ramandeep, this year..."
+- ALWAYS start year_summary with the user's first name if provided e.g. "[first name], this year..."
 - year_summary SHAPE (Narration Contract): the FIRST sentence must be a
   verdict — "[Name], this year is [favorable / under pressure / mixed /
   consolidating / expansive] for [the year's strong axis] — [terse
   imperative]." Examples of the SHAPE (do not copy the words):
-    * "Ramandeep, this year is favorable for your career and your savings
+    * "[first name], this year is favorable for your career and your savings
       — ship the visible work, then protect the gains."
-    * "Ramandeep, this year is under pressure around your daily routine
+    * "[first name], this year is under pressure around your daily routine
       and your partnerships — protect health first, postpone big bets."
-    * "Ramandeep, this year is mixed — your career is the strong axis,
+    * "[first name], this year is mixed — your career is the strong axis,
       your home and family ask for care."
   FORBIDDEN year_summary openings (these are abstract frames, not
   answers — the contract bans them):
@@ -302,7 +302,7 @@ RULES:
   field in your response MUST equal that string verbatim.
 - Peak windows per domain: at least 4 domains covered
 - Be specific to the chart data — actual planetary periods and positions
-- ALWAYS address the user by first name in year_summary e.g. 'Ramandeep, this year...'
+- ALWAYS address the user by first name in year_summary e.g. '[first name], this year...'
 - The year summary should feel like a wise advisor's view of the year ahead
 - Remedies: practical, tied to specific chart placements, maintainable year-round
 
@@ -342,7 +342,7 @@ Genera una sesión de planificación anual completa. Esta es la lectura más imp
 Cubre todo el año que viene — de qué trata, cuándo actuar en cada dominio, qué remedios seguir.
 
 REGLAS:
-- SIEMPRE comienza year_summary con el nombre del usuario si está disponible, p. ej. "Ramandeep, este año..."
+- SIEMPRE comienza year_summary con el nombre del usuario si está disponible, p. ej. "[first name], este año..."
 - Español claro en todo momento. Cero jerga.
 - Ventanas de tiempo concretas: nombra meses, no periodos vagos
 - [cp-day4b] regla peak_windows + critical_dates — si el contexto del usuario
@@ -368,7 +368,7 @@ REGLAS:
   DEBE ser igual a esa cadena de forma literal.
 - Ventanas pico por dominio: al menos 4 dominios cubiertos
 - Sé específico con los datos de la carta — periodos y posiciones planetarias reales
-- SIEMPRE dirígete al usuario por su nombre en year_summary, p. ej. 'Ramandeep, este año...'
+- SIEMPRE dirígete al usuario por su nombre en year_summary, p. ej. '[first name], este año...'
 - El resumen del año debe sentirse como la visión de un asesor sabio sobre el año que viene
 - Remedios: prácticos, ligados a posiciones concretas de la carta, mantenibles todo el año
 
@@ -413,7 +413,7 @@ Gere uma sessão completa de planejamento anual. Esta é a leitura mais importan
 Ela cobre todo o ano que vem — do que se trata, quando agir em cada domínio, quais remédios seguir.
 
 REGRAS:
-- SEMPRE comece year_summary com o primeiro nome do usuário, se disponível, ex.: "Ramandeep, este ano..."
+- SEMPRE comece year_summary com o primeiro nome do usuário, se disponível, ex.: "[first name], este ano..."
 - Português claro o tempo todo. Zero jargão.
 - Janelas de tempo concretas: indique meses, não períodos vagos
 - [cp-day4b] regra peak_windows + critical_dates — se o contexto do usuário
@@ -439,7 +439,7 @@ REGRAS:
   DEVE ser igual a essa string de forma literal.
 - Janelas de pico por domínio: ao menos 4 domínios cobertos
 - Seja específico com os dados do mapa — períodos e posições planetárias reais
-- SEMPRE trate o usuário pelo primeiro nome em year_summary, ex.: 'Ramandeep, este ano...'
+- SEMPRE trate o usuário pelo primeiro nome em year_summary, ex.: '[first name], este ano...'
 - O resumo do ano deve soar como a visão de um conselheiro sábio sobre o ano que vem
 - Remédios: práticos, ligados a posições concretas do mapa, sustentáveis o ano todo
 
