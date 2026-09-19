@@ -20,6 +20,10 @@ FEEDBACK_DELAY_DAYS = {
     "foreign":      45,
     "spiritual":    14,
     "daily":         1,
+    # [kp-horary-calib 2026-09-19] a speculation/gambling outcome is known that
+    # same night or the next — reconcile fast so the KP moment-read can be scored
+    # against the real win/loss (calibration log).
+    "speculation":   1,
     "general":      21,
 }
 

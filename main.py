@@ -20637,6 +20637,22 @@ def _is_material_q(question):
     return _material_noun and _intent
 
 
+def _is_gambling_q(question):
+    """True for a speculation/gambling timing question ('should I play poker
+    tonight', 'is now a good time for the casino', 'lucky day to bet'). KP
+    (Krishnamurti) is the tradition built for this. We answer it as a KP
+    astrologer would — casting the horary for THIS moment — transparently and
+    with real caveats; never a promise, never a go-signal for someone who can't
+    afford the loss. Logged for calibration (the moment-read vs. the real
+    outcome). Mirrors the kp_service gambling keyword set."""
+    ql = (question or "").lower()
+    return any(k in ql for k in (
+        "gambl", "casino", "poker", "lottery", "lotto", " bet ", " bet?",
+        " bet.", "betting", "wager", "blackjack", "roulette", "jackpot",
+        "slot machine", "apuesta", "loter", "juego de azar",
+    ))
+
+
 def _is_legal_q(question):
     """True for legal / disputes / litigation questions."""
     ql = (question or "").lower()
@@ -22582,6 +22598,55 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _mae:
                 logger.warning(f"[ask] material-engine skipped (non-fatal): {_mae}")
 
+            # [kp-horary-gambling 2026-09-19] SPECULATION / GAMBLING questions.
+            # KP (Krishnamurti Paddhati) is the tradition built for this, and a KP
+            # astrologer reads it by casting the horary for the MOMENT of the
+            # question — which (unlike the natal dasha, proven unable to resolve a
+            # single night on real data) genuinely shifts hour to hour. We answer
+            # it the way a human KP astrologer would: a transparent reading of THIS
+            # moment ("KP reads this moment as supportive / mixed / not"), with
+            # honest uncertainty and a real protective caveat — NEVER a promise,
+            # a "lucky window", or a go-signal for money someone can't lose. The
+            # verdict is logged (calibration) and reconciled against the real
+            # outcome; this stays a candid reading, NOT the validated go/no-go
+            # binary (that gate — is_gambling_gate_open — stays CLOSED).
+            _ask_kp_horary_block = ""
+            _kp_horary = None
+            try:
+                if _is_gambling_q(question):
+                    from antar_engine.kp.kp_speculation import kp_horary_speculation
+                    _kp_lat, _kp_lon = None, None
+                    try:
+                        _kp_lat, _kp_lon, _ = _resolve_moment_coords(chart_row.data)
+                    except Exception:
+                        _kp_lat = chart_row.data.get("latitude")
+                        _kp_lon = chart_row.data.get("longitude")
+                    if _kp_lat is not None and _kp_lon is not None:
+                        _kp_horary = kp_horary_speculation(_kp_lat, _kp_lon)
+                    if _kp_horary and _kp_horary.get("available"):
+                        _kpp = [
+                            "SPECULATION / GAMBLING QUESTION — answer as a KP (Krishnamurti) "
+                            "astrologer casting the HORARY for this moment. This is a candid "
+                            "READING, not a validated predictor and NOT a guarantee. Rules you "
+                            "MUST follow:",
+                            f"KP MOMENT-READ: {_kp_horary.get('lean')} "
+                            f"(confidence {_kp_horary.get('confidence')}/3).",
+                            "1) State the reading transparently and plainly — 'reading this "
+                            "moment in the KP way, it looks (supportive / mixed / not "
+                            "supportive)'. Never name a planet, house, or Sanskrit term.",
+                            "2) ALWAYS carry the honest caveat: this is high-variance, the "
+                            "reading can be wrong, and it is a judgement, not a certainty.",
+                            "3) PROTECT the person: only ever risk what they can walk away from "
+                            "losing; never tell anyone to chase a loss or bet money they need. "
+                            "Even on a supportive read, keep it small and capped.",
+                            "4) NEVER promise a win, never say 'lucky', never cheerlead, and "
+                            "never imply a bigger bet later. If the read is not supportive, say "
+                            "so kindly and suggest sitting this one out.",
+                        ]
+                        _ask_kp_horary_block = "\n".join(_kpp)
+            except Exception as _kpe:
+                logger.warning(f"[ask] kp-horary skipped (non-fatal): {_kpe}")
+
             # [residence engine] change-of-home TIMING (the WHEN) — disposition +
             # varshphal-weighted convergence window + nature (local vs distant/foreign).
             _ask_residence_block = ""
@@ -23518,6 +23583,7 @@ async def ask_endpoint(request: AskRequest):
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
                     + (f"\n\n{_ask_material_block}" if locals().get("_ask_material_block") else "")
+                    + (f"\n\n{_ask_kp_horary_block}" if locals().get("_ask_kp_horary_block") else "")
                     + (f"\n\n{_ask_residence_block}" if _ask_residence_block else "")
                     + (f"\n\n{_ask_career_change_block}" if _ask_career_change_block else "")
                     + (f"\n\n{_ask_concern_block}" if _ask_concern_block else "")
@@ -23742,6 +23808,7 @@ async def ask_endpoint(request: AskRequest):
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
                     + (f"\n\n{_ask_material_block}" if locals().get("_ask_material_block") else "")
+                    + (f"\n\n{_ask_kp_horary_block}" if locals().get("_ask_kp_horary_block") else "")
                     + (f"\n\n{_ask_residence_block}" if _ask_residence_block else "")
                     + (f"\n\n{_ask_career_change_block}" if _ask_career_change_block else "")
                     + (f"\n\n{_ask_concern_block}" if _ask_concern_block else "")
@@ -24302,6 +24369,62 @@ async def ask_endpoint(request: AskRequest):
                         print("[ask][material] appended deterministic colour favour/avoid")
             except Exception as _mge:
                 print(f"[ask] material guarantee non-fatal: {_mge}")
+            # [kp-horary-guarantee 2026-09-19] A gambling/speculation question must
+            # ALWAYS close on a transparent KP moment-read AND a protective caveat,
+            # in wording we control (the narrator must never turn this into a
+            # go-signal). If the read+next carry no such caveat, append the
+            # deterministic line. Runs PRE-localize so es/pt translate it. Also
+            # LOGS the verdict to the verify loop for calibration (moment-read vs.
+            # the real outcome), reconciled in ~1 day.
+            try:
+                _kh = locals().get("_kp_horary")
+                if _kh and _kh.get("available"):
+                    _v = _kh.get("verdict")
+                    if _v == "yes":
+                        _kline = ("Reading this moment the KP way, it looks mildly "
+                                  "supportive — but speculation is high-variance and this "
+                                  "is a judgement, not a guarantee, so only stake what you "
+                                  "can walk away from, and keep it small and capped.")
+                    elif _v == "conditional":
+                        _kline = ("Reading this moment the KP way, it looks mixed — no clear "
+                                  "edge either way. If you play at all keep it tiny, and it "
+                                  "is just as good a call to sit this one out.")
+                    else:
+                        _kline = ("Reading this moment the KP way, it doesn't look "
+                                  "supportive — the kinder call is to sit this one out; "
+                                  "there will be other days.")
+                    _kblob = " ".join(str(payload.get(_k) or "")
+                                      for _k in ("read", "next")).lower()
+                    if not any(_m in _kblob for _m in (
+                            "walk away", "high-variance", "high variance",
+                            "sit this one out", "capped")):
+                        _nx0 = (payload.get("next") or "").strip()
+                        if _nx0 and _nx0[-1] not in ".!?":
+                            _nx0 += "."
+                        payload["next"] = (f"{_nx0} {_kline}".strip()) if _nx0 else _kline
+                        print("[ask][kp-horary] appended deterministic KP moment-read + caveat")
+                    # calibration log — reuse user_correlations via save_trackable_claim.
+                    try:
+                        from antar_engine.prediction_tracker import save_trackable_claim
+                        _lean_plain = {"yes": "supportive", "conditional": "mixed"}.get(
+                            _v, "not supportive")
+                        _kp_pred_text = (
+                            "**Speculation moment-read**\n"
+                            f"KP read this moment as {_lean_plain} for a small, capped bet "
+                            f"— tell us how it went. [KP_LEAN={_v};conf="
+                            f"{_kh.get('confidence')}]")
+                        save_trackable_claim(
+                            chart_id=chart_id,
+                            prediction_id=f"kp-horary-{_kh.get('moment_utc','')}",
+                            prediction_text=_kp_pred_text,
+                            concern="speculation",
+                            sb=supabase,
+                        )
+                        print("[ask][kp-horary] logged verdict for calibration")
+                    except Exception as _kle:
+                        print(f"[ask] kp-horary calibration log non-fatal: {_kle}")
+            except Exception as _khe:
+                print(f"[ask] kp-horary guarantee non-fatal: {_khe}")
             # [es-loc 2026-06-09] expanded fields: actions[]/practices[]/convergence
             # are container keys — translate_dict recurses into their subtrees.
             payload = await _ask_localize(payload, language, [
