@@ -227,3 +227,30 @@ def kp_horary_week(lat, lon, start_utc=None, days=7, local_hour=20,
                 "local_hour": int(local_hour)}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}
+
+
+def kp_horary_speculation_number(number, lat, lon, when_utc=None) -> dict:
+    """Traditional KP number horary (1-249): the number fixes the ascendant, the
+    planets/cusps are for the moment. Returns the same shape as
+    kp_horary_speculation plus method='number'. Never raises."""
+    try:
+        from datetime import datetime
+        from .kp_horary import cast_horary
+        from .kp_significators import verdict
+        n = int(number)
+        if not (1 <= n <= 249):
+            return {"available": False, "error": "number must be 1..249"}
+        now = when_utc or datetime.utcnow()
+        chart = cast_horary(n, now, float(lat), float(lon), tz_offset=0.0)
+        v = verdict(chart, "speculation")
+        sc = kp_horary_score(chart)
+        _lean = {"yes": "the number reads as mildly supportive",
+                 "conditional": "the number reads as mixed / borderline",
+                 "no": "the number does not read as supportive"}.get(
+                     v.get("verdict"), "the number reads as unclear")
+        return {"available": True, "method": "number", "number": n,
+                "verdict": v.get("verdict"), "confidence": v.get("confidence"),
+                "lean": _lean, "score": sc.get("score"), "band": sc.get("band"),
+                "drivers": v.get("drivers"), "moment_utc": now.isoformat() + "Z"}
+    except Exception as e:
+        return {"available": False, "error": str(e)[:160]}
