@@ -22639,19 +22639,38 @@ async def ask_endpoint(request: AskRequest):
                         _kp_tz = float(chart_row.data.get("tz_offset") or 0.0)
                     except Exception:
                         _kp_tz = 0.0
-                    # "this week / which day / what day" -> a day-by-day scan;
-                    # otherwise a single moment read.
+                    # A "which day / when / today-or-tomorrow / next N days" question
+                    # -> a day-by-day scan; a bare "today / now" -> single moment.
                     _ql = (question or "").lower()
                     _kp_is_range = any(t in _ql for t in (
-                        "this week", "which day", "what day", "best day",
-                        "which days", "coming days", "next few days", "this month",
-                        "esta semana", "qué día", "que dia", "mejor día"))
+                        "this week", "next week", "which day", "what day",
+                        "best day", "which days", "coming days", "next few days",
+                        "few days", "this month", "next month", "coming month",
+                        "or tomorrow", "tomorrow", "when should", "when can",
+                        "when is", "when to", "good time", "which date", "what date",
+                        "days", "esta semana", "qué día", "que dia", "mejor día",
+                        "cuándo", "cuando", "próximos", "proximos"))
+                    # parse an explicit horizon ("next 30 days", "in 15 days");
+                    # "today or tomorrow" -> 2 days; a month word -> 30; else 7.
+                    _kp_days = 7
+                    try:
+                        import re as _re_kp
+                        _mnum = _re_kp.search(r"(\d{1,3})\s*(?:day|días|dias)", _ql)
+                        if _mnum:
+                            _kp_days = max(2, min(31, int(_mnum.group(1))))
+                        elif "month" in _ql or "mes" in _ql:
+                            _kp_days = 30
+                        elif "today or tomorrow" in _ql or "or tomorrow" in _ql:
+                            _kp_days = 2
+                        elif "tomorrow" in _ql:
+                            _kp_days = 2
+                    except Exception:
+                        _kp_days = 7
                     if _kp_lat is not None and _kp_lon is not None:
                         _kp_horary = kp_horary_speculation(_kp_lat, _kp_lon)
                         if _kp_is_range:
                             _kp_week = kp_horary_week(
-                                _kp_lat, _kp_lon, tz_offset=_kp_tz,
-                                days=(30 if "month" in _ql else 7))
+                                _kp_lat, _kp_lon, tz_offset=_kp_tz, days=_kp_days)
                     if _kp_horary and _kp_horary.get("available"):
                         _kpp = [
                             "SPECULATION / GAMBLING QUESTION — answer as a KP (Krishnamurti) "
