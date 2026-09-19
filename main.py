@@ -22612,37 +22612,68 @@ async def ask_endpoint(request: AskRequest):
             # binary (that gate — is_gambling_gate_open — stays CLOSED).
             _ask_kp_horary_block = ""
             _kp_horary = None
+            _kp_week = None
+            _kp_is_range = False
             try:
                 if _is_gambling_q(question):
-                    from antar_engine.kp.kp_speculation import kp_horary_speculation
+                    from antar_engine.kp.kp_speculation import (
+                        kp_horary_speculation, kp_horary_week)
                     _kp_lat, _kp_lon = None, None
                     try:
                         _kp_lat, _kp_lon, _ = _resolve_moment_coords(chart_row.data)
                     except Exception:
                         _kp_lat = chart_row.data.get("latitude")
                         _kp_lon = chart_row.data.get("longitude")
+                    try:
+                        _kp_tz = float(chart_row.data.get("tz_offset") or 0.0)
+                    except Exception:
+                        _kp_tz = 0.0
+                    # "this week / which day / what day" -> a day-by-day scan;
+                    # otherwise a single moment read.
+                    _ql = (question or "").lower()
+                    _kp_is_range = any(t in _ql for t in (
+                        "this week", "which day", "what day", "best day",
+                        "which days", "coming days", "next few days", "this month",
+                        "esta semana", "qué día", "que dia", "mejor día"))
                     if _kp_lat is not None and _kp_lon is not None:
                         _kp_horary = kp_horary_speculation(_kp_lat, _kp_lon)
+                        if _kp_is_range:
+                            _kp_week = kp_horary_week(
+                                _kp_lat, _kp_lon, tz_offset=_kp_tz,
+                                days=(30 if "month" in _ql else 7))
                     if _kp_horary and _kp_horary.get("available"):
                         _kpp = [
                             "SPECULATION / GAMBLING QUESTION — answer as a KP (Krishnamurti) "
                             "astrologer casting the HORARY for this moment. This is a candid "
-                            "READING, not a validated predictor and NOT a guarantee. Rules you "
+                            "READING, not a validated predictor and NOT a guarantee. Give a "
+                            "GRADED KP SIGNAL (a 0-100 number), never a flat yes/no. Rules you "
                             "MUST follow:",
-                            f"KP MOMENT-READ: {_kp_horary.get('lean')} "
-                            f"(confidence {_kp_horary.get('confidence')}/3).",
-                            "1) State the reading transparently and plainly — 'reading this "
-                            "moment in the KP way, it looks (supportive / mixed / not "
-                            "supportive)'. Never name a planet, house, or Sanskrit term.",
-                            "2) ALWAYS carry the honest caveat: this is high-variance, the "
-                            "reading can be wrong, and it is a judgement, not a certainty.",
+                            f"KP SIGNAL NOW: {_kp_horary.get('score')}/100 "
+                            f"({_kp_horary.get('band')}).",
+                            "1) State it plainly as a SIGNAL STRENGTH, e.g. 'the KP signal for "
+                            "this moment is about {N} out of 100 ({band})'. You MUST add that "
+                            "this is a signal reading, NOT your odds of winning, and that we're "
+                            "still testing whether it holds. Never name a planet/house/Sanskrit.",
+                            "2) ALWAYS carry the honest caveat: speculation is high-variance, "
+                            "the reading can be wrong, it is a judgement not a certainty.",
                             "3) PROTECT the person: only ever risk what they can walk away from "
                             "losing; never tell anyone to chase a loss or bet money they need. "
-                            "Even on a supportive read, keep it small and capped.",
-                            "4) NEVER promise a win, never say 'lucky', never cheerlead, and "
-                            "never imply a bigger bet later. If the read is not supportive, say "
-                            "so kindly and suggest sitting this one out.",
+                            "Even on a high signal, keep it small and capped.",
+                            "4) NEVER promise a win, never say 'lucky', never cheerlead. On a "
+                            "low signal, kindly suggest sitting this one out.",
                         ]
+                        if _kp_week and _kp_week.get("available"):
+                            _wk = "; ".join(
+                                f"{d['date']} {d['score']}/100" for d in _kp_week["days"]
+                                if isinstance(d.get("score"), int))
+                            _bst = _kp_week.get("best") or {}
+                            _kpp.append(
+                                "DAY-BY-DAY KP SIGNAL (approximate — a true reading is a single "
+                                f"moment, so treat as a ranking, evening cast): {_wk}. "
+                                f"Highest signal: {_bst.get('date')} "
+                                f"({_bst.get('score')}/100). Present the strongest one or two "
+                                "days plainly, still as signal strength, not odds, with the "
+                                "same protective caveats.")
                         _ask_kp_horary_block = "\n".join(_kpp)
             except Exception as _kpe:
                 logger.warning(f"[ask] kp-horary skipped (non-fatal): {_kpe}")
@@ -24380,25 +24411,42 @@ async def ask_endpoint(request: AskRequest):
                 _kh = locals().get("_kp_horary")
                 if _kh and _kh.get("available"):
                     _v = _kh.get("verdict")
-                    if _v == "yes":
-                        _kline = ("Reading this moment the KP way, it looks mildly "
-                                  "supportive — but speculation is high-variance and this "
-                                  "is a judgement, not a guarantee, so only stake what you "
-                                  "can walk away from, and keep it small and capped.")
+                    _score = _kh.get("score")
+                    _band = _kh.get("band") or "mixed"
+                    _sig_label = ("That's a signal reading, not your odds of winning, and "
+                                  "we're still testing whether it holds.")
+                    # score-graded moment read (0-100 KP signal), never a flat yes/no
+                    if _band == "supportive":
+                        _kline = (f"The KP signal for this moment is about {_score} out of 100 "
+                                  f"— moderately supportive. {_sig_label} Speculation is high-"
+                                  "variance, so only stake what you can walk away from, and keep "
+                                  "it small and capped.")
                         _knext = ("If you play, set a hard cap you can lose without a second "
                                   "thought, and stop when you hit it — win or lose.")
-                    elif _v == "conditional":
-                        _kline = ("Reading this moment the KP way, it looks mixed — no clear "
-                                  "edge either way. If you play at all keep it tiny, and it "
-                                  "is just as good a call to sit this one out.")
+                    elif _band == "mixed":
+                        _kline = (f"The KP signal for this moment is about {_score} out of 100 "
+                                  f"— mixed, no clear edge. {_sig_label} If you play at all keep "
+                                  "it tiny, and sitting this one out is just as good a call.")
                         _knext = ("If you do play, treat it as entertainment money only — a "
                                   "small fixed amount you've already written off.")
                     else:
-                        _kline = ("Reading this moment the KP way, it doesn't look "
-                                  "supportive — the kinder call is to sit this one out; "
-                                  "there will be other days.")
-                        _knext = ("Sit this one out tonight; there will be clearer moments, "
+                        _kline = (f"The KP signal for this moment is about {_score} out of 100 "
+                                  f"— on the low side. {_sig_label} The kinder call is to sit "
+                                  "this one out; there will be clearer moments.")
+                        _knext = ("Sit this one out for now; there will be stronger signals, "
                                   "and nothing is lost by waiting.")
+                    # range question ('this week / which day') -> lead with the ranked days
+                    _kw = locals().get("_kp_week")
+                    if _kw and _kw.get("available"):
+                        _days = [d for d in _kw["days"] if isinstance(d.get("score"), int)]
+                        _top = sorted(_days, key=lambda d: d["score"], reverse=True)[:2]
+                        _top_txt = "; ".join(f"{d['date']} (~{d['score']}/100)" for d in _top)
+                        _kline = (f"Across the days ahead, the KP signal is strongest on {_top_txt}. "
+                                  f"{_sig_label} These are approximate — treat them as a ranking, "
+                                  "not odds. Whatever day you pick, keep any bet small and capped, "
+                                  "and only stake what you can walk away from.")
+                        _knext = ("If you play at all, favour the higher-signal day, set a hard "
+                                  "loss cap in advance, and stop when you hit it.")
                     # A gambling question is a MOMENT question. The natal date-binary
                     # (verdict chip) and the far-future "next speculative window"
                     # (timing/convergence) are the date/dasha framing we proved can't
@@ -24431,9 +24479,10 @@ async def ask_endpoint(request: AskRequest):
                         # uuid4; the traceable moment lives in the claim text/marker.
                         _kp_pred_text = (
                             "**Speculation moment-read**\n"
-                            f"KP read this moment as {_lean_plain} for a small, capped bet "
-                            f"— tell us how it went. [KP_LEAN={_v};conf="
-                            f"{_kh.get('confidence')};moment={_kh.get('moment_utc','')}]")
+                            f"KP signal was {_kh.get('score')}/100 ({_lean_plain}) for a "
+                            f"small, capped bet — tell us how it went. [KP_LEAN={_v};"
+                            f"score={_kh.get('score')};conf={_kh.get('confidence')};"
+                            f"moment={_kh.get('moment_utc','')}]")
                         save_trackable_claim(
                             chart_id=chart_id,
                             prediction_id=str(uuid.uuid4()),

@@ -60,6 +60,7 @@ def kp_horary_speculation(lat, lon, when_utc=None) -> dict:
         chart = compute_kp_chart(now.strftime("%Y-%m-%d"), now.strftime("%H:%M"),
                                  float(lat), float(lon), tz_offset=0.0)
         v = verdict(chart, "speculation")
+        sc = kp_horary_score(chart)
         # plain lean for the narrator (never a planet/house name, never "you'll win")
         _lean = {"yes": "the moment reads as mildly supportive",
                  "conditional": "the moment reads as mixed / borderline",
@@ -67,6 +68,7 @@ def kp_horary_speculation(lat, lon, when_utc=None) -> dict:
                      v.get("verdict"), "the moment reads as unclear")
         return {"available": True, "verdict": v.get("verdict"),
                 "confidence": v.get("confidence"), "lean": _lean,
+                "score": sc.get("score"), "band": sc.get("band"),
                 "drivers": v.get("drivers"), "moment_utc": now.isoformat() + "Z"}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}
@@ -89,6 +91,17 @@ def _parse_kp_lean(trackable_claim):
     return m.group(1) if m else None
 
 
+def _parse_kp_score(trackable_claim):
+    m = _re.search(r"score=(\d+)", str(trackable_claim or ""))
+    return int(m.group(1)) if m else None
+
+
+def _score_bucket(s):
+    if s is None:
+        return "unknown"
+    return "high (62-100)" if s >= 62 else "mid (45-61)" if s >= 45 else "low (5-44)"
+
+
 def score_kp_horary_calibration(sb, chart_id=None) -> dict:
     """{available, n_answered, n_directional, hits, hit_rate, by_lean:{...},
     n_mixed, note}. Never raises."""
@@ -106,11 +119,16 @@ def score_kp_horary_calibration(sb, chart_id=None) -> dict:
                 in ("yes", "no")]
     directional, hits, mixed = 0, 0, 0
     by_lean = {}  # lean -> {win, loss}
+    by_bucket = {}  # score bucket -> {win, loss} (the real calibration question)
     for r in answered:
+        won = str(r.get("feedback_status")).lower() == "yes"
+        # score-bucket calibration: does a higher KP signal win more often?
+        b = _score_bucket(_parse_kp_score(r.get("trackable_claim")))
+        bd = by_bucket.setdefault(b, {"win": 0, "loss": 0})
+        bd["win" if won else "loss"] += 1
         lean = _parse_kp_lean(r.get("trackable_claim"))
         if lean is None:
             continue
-        won = str(r.get("feedback_status")).lower() == "yes"
         d = by_lean.setdefault(lean, {"win": 0, "loss": 0})
         d["win" if won else "loss"] += 1
         if lean == "conditional":
@@ -119,6 +137,10 @@ def score_kp_horary_calibration(sb, chart_id=None) -> dict:
         directional += 1
         if (lean == "yes" and won) or (lean == "no" and not won):
             hits += 1
+    # win-rate per score bucket — the honest signal-quality check
+    for b, bd in by_bucket.items():
+        n = bd["win"] + bd["loss"]
+        bd["win_rate"] = round(bd["win"] / n, 3) if n else None
     return {
         "available": True,
         "n_answered": len(answered),
@@ -127,7 +149,81 @@ def score_kp_horary_calibration(sb, chart_id=None) -> dict:
         "hit_rate": round(hits / directional, 3) if directional else None,
         "n_mixed": mixed,
         "by_lean": by_lean,
+        "by_score_bucket": by_bucket,
         "note": ("CALIBRATION ONLY — not a validated predictor; does not open any "
-                 "gate. Directional = supportive/not-supportive reads with a known "
-                 "win/loss; mixed reads excluded."),
+                 "gate. by_score_bucket win-rate is the key check: a real signal "
+                 "should win more often in the high bucket than the low. Directional "
+                 "hit_rate treats yes/no leans; mixed excluded."),
     }
+
+
+# ── HORARY FAVORABILITY SCORE (0-100) ─────────────────────────────────────────
+# A graded KP SIGNAL for the moment, instead of a bare yes/no. It is the
+# smoothed proportion of KP "votes" that back speculation right now: the sub-lord
+# of each speculation-favour cusp (2 money, 5 speculation, 6 winning, 11 gain)
+# votes SUPPORTIVE if it signifies any favour house {2,5,6,11}, and a DRAG if it
+# signifies a spoiler {8,12}; the 11th cuspal sub-lord signifying the 11th
+# (materialisation) adds one supportive vote. Laplace-smoothed so it never reads
+# a false 0 or 100. THIS IS SIGNAL STRENGTH, NOT A PROBABILITY OF WINNING — it is
+# uncalibrated and under test (the calibration log will tell us if it means
+# anything). Deterministic; the arithmetic a KP astrologer does by hand.
+_FAVOUR_CUSPS = (2, 5, 6, 11)
+
+
+def kp_horary_score(chart) -> dict:
+    """{score 0-100, band, supportive, drag, gate}. Never raises."""
+    try:
+        from .kp_significators import build_significators
+        _house_sig, planet_sig = build_significators(chart)
+        supportive, drag = 0, 0
+        for c in _FAVOUR_CUSPS:
+            csl = chart["cusps"][c]["sub_lord"]
+            houses = set(planet_sig.get(csl, []))
+            if houses & SPEC_FAVOUR:
+                supportive += 1
+            if houses & SPEC_AGAINST:
+                drag += 1
+        # materialisation: 11th CSL signifies the 11th
+        gate = 11 in set(planet_sig.get(chart["cusps"][11]["sub_lord"], []))
+        if gate:
+            supportive += 1
+        # Laplace-smoothed supportive share -> 0..100
+        score = round(100.0 * (supportive + 0.5) / (supportive + drag + 1.0))
+        score = max(5, min(95, score))
+        band = ("supportive" if score >= 62 else
+                "mixed" if score >= 45 else "not supportive")
+        return {"score": score, "band": band, "supportive": supportive,
+                "drag": drag, "gate": bool(gate)}
+    except Exception as e:
+        return {"score": None, "band": "unclear", "error": str(e)[:160]}
+
+
+def kp_horary_week(lat, lon, start_utc=None, days=7, local_hour=20,
+                   tz_offset=0.0) -> dict:
+    """Scan the next `days` days and score each at a representative local hour
+    (default 20:00). Returns {available, days:[{date, score, band}], best:{...}}.
+    A proxy for 'which day this week' — clearly approximate (a true horary is a
+    single moment), useful for ranking days. Never raises."""
+    try:
+        from datetime import datetime, timedelta
+        from .kp_chart import compute_kp_chart
+        base = start_utc or datetime.utcnow()
+        out = []
+        for i in range(int(days)):
+            d = (base + timedelta(days=i))
+            # cast at local_hour local time -> convert to the chart's tz input
+            when_local = d.replace(hour=int(local_hour), minute=0, second=0,
+                                   microsecond=0)
+            chart = compute_kp_chart(when_local.strftime("%Y-%m-%d"),
+                                     when_local.strftime("%H:%M"),
+                                     float(lat), float(lon),
+                                     tz_offset=float(tz_offset))
+            sc = kp_horary_score(chart)
+            out.append({"date": when_local.strftime("%Y-%m-%d"),
+                        "score": sc.get("score"), "band": sc.get("band")})
+        ranked = [x for x in out if isinstance(x.get("score"), int)]
+        best = max(ranked, key=lambda x: x["score"]) if ranked else None
+        return {"available": bool(ranked), "days": out, "best": best,
+                "local_hour": int(local_hour)}
+    except Exception as e:
+        return {"available": False, "error": str(e)[:160]}
