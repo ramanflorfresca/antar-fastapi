@@ -38852,6 +38852,14 @@ async def get_life_arc(
                     print(f"[life_arc] Cache HIT for {chart_id} (lib={_lib_version})")
                     if not include_readings and isinstance(life_arc, dict):
                         life_arc.pop("system_readings", None)
+                        # [paddhati-leak 2026-09-20] The raw `paddhati` bundle is an
+                        # INTERNAL data block (kept unstripped on purpose — planet
+                        # names, house numbers, chara/AmK), consumed only to write
+                        # `paddhati_prose`. The FE renders paddhati_prose, never the
+                        # raw facts — so never ship the raw block to the client (a
+                        # latent jargon leak if any surface rendered it). Kept for
+                        # admin/debug via include_readings=1.
+                        life_arc.pop("paddhati", None)
                     # [cycle-andres-fix 2026-06-09] Cache may pre-date the
                     # narration-contract strip layer — recursively apply
                     # output_strips (planet names + Sanskrit + houses) +
