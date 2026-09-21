@@ -12450,6 +12450,42 @@ def _ent_home_view(payload, chart_id: str):
     return out
 
 
+# [places-pt 2026-09-21] places_composer._lang() collapses anything that is not
+# en/es to "en" (its template dicts only carry those two), so pt/fr users got a
+# Places read that was 44/64 user-facing strings in English. Rather than
+# hand-author a third and fourth set of templates, translate the composed
+# payload — the same approach daily-week already uses for pt/fr.
+#
+# LEAF keys only, and only ones verified to hold prose. The raw enums live under
+# underscore twins (_planet, _md_lord, _ad_lord, _dominant_karaka,
+# _next_md_lord) plus "angle", none of which are listed, so they stay stable.
+# City and country names are deliberately NOT listed — proper nouns the UI
+# matches on.
+_PLACES_I18N_FIELDS = [
+    "texture_line", "one_line", "line", "text", "primary_reason",
+    "secondary_reasons", "note", "paragraph", "global_pattern", "best_for",
+    "headline",  # /places/overall composes one in English regardless of language
+    "planet", "axis", "energy", "natal_condition", "condition",
+    "dominant_karaka", "dominant_condition",
+]
+
+
+async def _places_localize(out, language, chart_id, endpoint_name):
+    """Translate a composed Places payload for languages the composer has no
+    templates for. en/es are composed in-language already — leave them alone."""
+    lang = (language or "en").lower().split("-")[0]
+    if lang in ("en", "es"):
+        return out
+    try:
+        from antar_engine.translation_middleware import translate_dict as _pl_td
+        return await _pl_td(out, language=lang,
+                            fields_to_translate=_PLACES_I18N_FIELDS,
+                            endpoint_name=endpoint_name, chart_id=chart_id)
+    except Exception as _pl_e:
+        print(f"[{endpoint_name}] pt/fr localize skipped (non-fatal): {_pl_e}")
+        return out
+
+
 @app.post("/api/v1/places/concern")
 async def places_concern_endpoint(req: PlacesConcernReq):
     req.concern = _pcn.resolve_concern(req.concern)  # legacy wealth/rest -> money/peace
@@ -12616,6 +12652,7 @@ async def places_concern_endpoint(req: PlacesConcernReq):
     # point: planet-remove all prose + remap bare planet/condition/layer
     # tokens to plain language (raw kept under "_<key>") before cache + return.
     out = _places_scrub_concern_payload(out, req.language)
+    out = await _places_localize(out, req.language, req.chart_id, "places-concern")
     out["_relevance_trace"] = _rank_trace  # [unit2] tunable floor + relax decision (internal)
     _places_cache_set(ckey, out)
     return _ent_places_concern_view(out, req.chart_id)
@@ -12793,6 +12830,7 @@ async def places_overall_endpoint(req: PlacesOverallReq):
         "ranked_cities": ranked,
     }
     out = _places_scrub_concern_payload(out, req.language)
+    out = await _places_localize(out, req.language, req.chart_id, "places-overall")
     _places_cache_set(ckey, out)
     return out
 
