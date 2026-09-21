@@ -991,8 +991,30 @@ def _build_deepdive_context(
                 _next_first = now.replace(month=now.month + 1, day=1)
             _m_end = (_next_first - _td(days=1)).date()
 
-        _events = compute_transit_events_in_range(chart_data, _m_start, _m_end)
+        # [forward-only 2026-09-21] Clamp the event scan to start no earlier than
+        # today — so the LLM's overview/priority actions can't reference dates
+        # that already passed ("before August 30" on the 21st).
+        try:
+            _mt_today_d = now.date() if hasattr(now, "date") else _date.today()
+            _ev_start = max(_m_start, _mt_today_d) if _mt_today_d <= _m_end else _m_start
+        except Exception:
+            _ev_start = _m_start
+        _events = compute_transit_events_in_range(chart_data, _ev_start, _m_end)
         _weeks  = bucket_events_by_week(_events, _m_start)
+        # [forward-only 2026-09-21] The month period is birth-anchored, so mid-
+        # month it still contains ALREADY-PAST weeks — a user on the 21st was
+        # shown "best week: Week of the 7th" (two weeks ago). Drop weeks that
+        # have fully ended so best_week / caution_week / available_weeks cover
+        # only the remaining (current + forward) weeks. Keep all if somehow none
+        # remain (period fully past — shouldn't happen for the live month).
+        try:
+            _mt_today = (now.date() if hasattr(now, "date") else _date.today()).isoformat()
+            _fwd = [w for w in _weeks
+                    if str(w.get("week_end") or w.get("week_start") or "")[:10] >= _mt_today]
+            if _fwd:
+                _weeks = _fwd
+        except Exception:
+            pass
         logger.info(
             f'[monthly-day3] weekly schedule: {len(_weeks)} weeks, '
             f'{len(_events)} events total, range {_m_start}..{_m_end}'
