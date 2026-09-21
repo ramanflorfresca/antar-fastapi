@@ -55,15 +55,18 @@ _QUALITY = {
     "Ketu":    {"en": "detachment and depth",           "es": "desapego y profundidad",         "pt": "desapego e profundidade"},
 }
 
+# [de-jargon 2026-09-21] Lead with the plain QUALITY the planet stands for, not
+# the planet NAME — "here structure and slow-built authority moves into career",
+# not "here your Saturn moves into career". Same meaning, no jargon.
 _LIFT = {
-    "en": "Here your {p} moves into {area} — this ground lifts {q} in that part of your life.",
-    "es": "Aquí tu {p} entra en {area} — este lugar realza {q} en esa parte de tu vida.",
-    "pt": "Aqui o seu {p} entra em {area} — este lugar realça {q} nessa parte da sua vida.",
+    "en": "Here {q} moves into {area} — this ground lifts it in that part of your life.",
+    "es": "Aquí {q} entra en {area} — este lugar lo realza en esa parte de tu vida.",
+    "pt": "Aqui {q} entra em {area} — este lugar o realça nessa parte da sua vida.",
 }
 _TEST = {
-    "en": "Here your {p} moves into {area} — this ground asks more of that area, and can stir {q} into strain.",
-    "es": "Aquí tu {p} entra en {area} — este lugar exige más de esa área y puede tensar {q}.",
-    "pt": "Aqui o seu {p} entra em {area} — este lugar exige mais dessa área e pode tensionar {q}.",
+    "en": "Here {q} moves into {area} — this ground asks more of that area, and can stir it into strain.",
+    "es": "Aquí {q} entra en {area} — este lugar exige más de esa área y puede tensarlo.",
+    "pt": "Aqui {q} entra em {area} — este lugar exige mais dessa área e pode tensioná-lo.",
 }
 
 # render order: the angles astrocartography lights up first, then trines, gains,

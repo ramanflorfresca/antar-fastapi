@@ -86,6 +86,21 @@ _FRAMES = {
     }),
 }
 
+# [de-jargon 2026-09-21] The actor {p} used to be the planet NAME ("Here Rahu
+# settles onto its own ground"). Lead with the plain quality it stands for
+# instead, so Places reads like the rest of the app — no planet names.
+_ACTOR = {
+    "Sun":     {"en": "your drive for standing and recognition", "es": "tu necesidad de presencia y reconocimiento", "pt": "sua busca por presença e reconhecimento"},
+    "Moon":    {"en": "your emotional life",           "es": "tu vida emocional",             "pt": "sua vida emocional"},
+    "Mars":    {"en": "your drive and courage",        "es": "tu empuje y coraje",            "pt": "seu impulso e coragem"},
+    "Mercury": {"en": "your mind and dealmaking",      "es": "tu mente y negociación",        "pt": "sua mente e negociação"},
+    "Jupiter": {"en": "your growth and good fortune",  "es": "tu crecimiento y buena fortuna","pt": "seu crescimento e boa sorte"},
+    "Venus":   {"en": "your ease and relationships",   "es": "tu soltura y tus relaciones",   "pt": "sua leveza e seus relacionamentos"},
+    "Saturn":  {"en": "your discipline and structure", "es": "tu disciplina y estructura",    "pt": "sua disciplina e estrutura"},
+    "Rahu":    {"en": "your ambition and hunger for the new", "es": "tu ambición y tu hambre de lo nuevo", "pt": "sua ambição e sua fome pelo novo"},
+    "Ketu":    {"en": "your pull toward depth and detachment", "es": "tu inclinación a la profundidad y el desapego", "pt": "sua inclinação à profundidade e ao desapego"},
+}
+
 # Supportive shifts surface first; debt outranks home within each polarity.
 _PRIORITY = {"debt_lifted": 0, "came_home": 1, "debt_taken": 2, "left_home": 3}
 
@@ -144,7 +159,7 @@ def lk_relocation_findings(relocation: dict, language: str = "en",
             "planet": planet,
             "shift": shift,
             "polarity": polarity,
-            "text": frames[L].format(p=planet),
+            "text": frames[L].format(p=_ACTOR.get(planet, {}).get(L, planet)),
         })
 
     findings.sort(key=lambda f: (_PRIORITY.get(f["shift"], 9), f["planet"]))

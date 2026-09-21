@@ -37,15 +37,15 @@ def _lang(language) -> str:
 
 # leg templates ({lord} filled). Kept short — the synthesis line carries the read.
 _KAL = {
-    "high": {"en": "This is a move-activated chapter — {lord} pulls you toward new ground.",
-             "es": "Es un capítulo activado para mudarte — {lord} te empuja hacia terreno nuevo.",
-             "pt": "É um capítulo ativado para mudança — {lord} te puxa para um terreno novo."},
-    "mod":  {"en": "The chapter is open to a move without forcing one — {lord} is neutral on place.",
-             "es": "El capítulo admite una mudanza sin forzarla — {lord} es neutral respecto al lugar.",
-             "pt": "O capítulo admite uma mudança sem forçá-la — {lord} é neutro quanto ao lugar."},
-    "low":  {"en": "This chapter roots you rather than moving you — {lord} asks you to build where you are.",
-             "es": "Este capítulo te enraíza en vez de moverte — {lord} te pide construir donde estás.",
-             "pt": "Este capítulo te enraíza em vez de te mover — {lord} pede que construa onde está."},
+    "high": {"en": "This is a move-activated chapter — it pulls you toward new ground.",
+             "es": "Es un capítulo activado para mudarte — te empuja hacia terreno nuevo.",
+             "pt": "É um capítulo ativado para mudança — te puxa para um terreno novo."},
+    "mod":  {"en": "The chapter is open to a move without forcing one — it is neutral on place.",
+             "es": "El capítulo admite una mudanza sin forzarla — es neutral respecto al lugar.",
+             "pt": "O capítulo admite uma mudança sem forçá-la — é neutro quanto ao lugar."},
+    "low":  {"en": "This chapter roots you rather than moving you — it asks you to build where you are.",
+             "es": "Este capítulo te enraíza en vez de moverte — te pide construir donde estás.",
+             "pt": "Este capítulo te enraíza em vez de te mover — pede que construa onde está."},
 }
 _DESH = {
     "better": {"en": "There is ground that genuinely serves you more than where you live.",
@@ -76,9 +76,9 @@ _SYNTH = {
         "pt": "Parte do quadro está acesa — vale explorar uma mudança, sem pressa; uma visita ou uma base em outro lugar pode ser o primeiro passo honesto.",
     },
     "low_dasha": {
-        "en": "A place can support you, but with this dasha the move won't do the heavy lifting — you can't outrun your dasha by moving. Tend where you are; carry the timing with you.",
-        "es": "Un lugar puede apoyarte, pero con esta dasha la mudanza no hará el trabajo pesado — no puedes escapar de tu dasha mudándote. Cultiva donde estás; lleva el momento contigo.",
-        "pt": "Um lugar pode te apoiar, mas com esta dasha a mudança não fará o trabalho pesado — você não escapa da sua dasha se mudando. Cuide de onde está; leve o tempo com você.",
+        "en": "A place can support you, but with this chapter the move won't do the heavy lifting — you can't outrun your current chapter by moving. Tend where you are; carry the timing with you.",
+        "es": "Un lugar puede apoyarte, pero con este capítulo la mudanza no hará el trabajo pesado — no puedes escapar de tu capítulo actual mudándote. Cultiva donde estás; lleva el momento contigo.",
+        "pt": "Um lugar pode te apoiar, mas com este capítulo a mudança não fará o trabalho pesado — você não escapa do seu capítulo atual se mudando. Cuide de onde está; leve o tempo com você.",
     },
     "low_home": {
         "en": "The frame doesn't point away — where you are serves you and the chapter roots you. Stay and build; a move isn't the lever right now.",
@@ -93,19 +93,19 @@ _SYNTH = {
 # "where is a separate Places question". Localized.
 _READINESS = {
     "high": {
-        "en": "This is a strongly move-activated chapter — {lord} lights up foreign lands and new ground, so the timing genuinely supports a move. Where exactly is a separate question: a place amplifies what the dasha is already doing, it doesn't replace it.",
-        "es": "Es un capítulo fuertemente activado para mudarte — {lord} enciende las tierras lejanas y el terreno nuevo, así que el momento apoya de verdad una mudanza. Dónde exactamente es otra pregunta: un lugar amplifica lo que la dasha ya hace, no lo reemplaza.",
-        "pt": "É um capítulo fortemente ativado para mudança — {lord} acende as terras distantes e o terreno novo, então o momento apoia de verdade uma mudança. Onde exatamente é outra pergunta: um lugar amplifica o que a dasha já faz, não o substitui.",
+        "en": "This is a strongly move-activated chapter — it lights up foreign lands and new ground, so the timing genuinely supports a move. Where exactly is a separate question: a place amplifies what this chapter is already doing, it doesn't replace it.",
+        "es": "Es un capítulo fuertemente activado para mudarte — enciende las tierras lejanas y el terreno nuevo, así que el momento apoya de verdad una mudanza. Dónde exactamente es otra pregunta: un lugar amplifica lo que este capítulo ya hace, no lo reemplaza.",
+        "pt": "É um capítulo fortemente ativado para mudança — acende as terras distantes e o terreno novo, então o momento apoia de verdade uma mudança. Onde exatamente é outra pergunta: um lugar amplifica o que este capítulo já faz, não o substitui.",
     },
     "mod": {
-        "en": "This chapter is open to a move without forcing one — {lord} is fairly neutral about place, so relocating can help but isn't fated right now.",
-        "es": "Este capítulo admite una mudanza sin forzarla — {lord} es bastante neutral respecto al lugar, así que mudarte puede ayudar pero no es algo fijado ahora.",
-        "pt": "Este capítulo admite uma mudança sem forçá-la — {lord} é bastante neutro quanto ao lugar, então mudar pode ajudar mas não é algo selado agora.",
+        "en": "This chapter is open to a move without forcing one — it is fairly neutral about place, so relocating can help but isn't fated right now.",
+        "es": "Este capítulo admite una mudanza sin forzarla — es bastante neutral respecto al lugar, así que mudarte puede ayudar pero no es algo fijado ahora.",
+        "pt": "Este capítulo admite uma mudança sem forçá-la — é bastante neutro quanto ao lugar, então mudar pode ajudar mas não é algo selado agora.",
     },
     "low": {
-        "en": "This chapter roots you rather than moving you — {lord} asks you to build where you are. A move now won't do the heavy lifting; you can't outrun your dasha by relocating.",
-        "es": "Este capítulo te enraíza en vez de moverte — {lord} te pide construir donde estás. Una mudanza ahora no hará el trabajo pesado; no puedes escapar de tu dasha mudándote.",
-        "pt": "Este capítulo te enraíza em vez de te mover — {lord} pede que você construa onde está. Uma mudança agora não fará o trabalho pesado; você não escapa da sua dasha se mudando.",
+        "en": "This chapter roots you rather than moving you — it asks you to build where you are. A move now won't do the heavy lifting; you can't outrun your current chapter by relocating.",
+        "es": "Este capítulo te enraíza en vez de moverte — te pide construir donde estás. Una mudanza ahora no hará el trabajo pesado; no puedes escapar de tu capítulo actual mudándote.",
+        "pt": "Este capítulo te enraíza em vez de te mover — pede que você construa onde está. Uma mudança agora não fará o trabalho pesado; você não escapa do seu capítulo atual se mudando.",
     },
 }
 
@@ -130,9 +130,9 @@ _RV_MOVE = {
     "mod":  {"en": "Explore a move without rushing — a visit or a trial base is the honest first step.",
              "es": "Explora una mudanza sin prisa — una visita o una base de prueba es el primer paso honesto.",
              "pt": "Explore uma mudança sem pressa — uma visita ou uma base de teste é o primeiro passo honesto."},
-    "low":  {"en": "Hold the relocation — strengthen your current base; you can't outrun your dasha by moving.",
-             "es": "Aplaza la mudanza — fortalece tu base actual; no puedes escapar de tu dasha mudándote.",
-             "pt": "Adie a mudança — fortaleça sua base atual; você não escapa da sua dasha se mudando."},
+    "low":  {"en": "Hold the relocation — strengthen your current base; you can't outrun your current chapter by moving.",
+             "es": "Aplaza la mudanza — fortalece tu base actual; no puedes escapar de tu capítulo actual mudándote.",
+             "pt": "Adie a mudança — fortaleça sua base atual; você não escapa do seu capítulo atual se mudando."},
 }
 
 

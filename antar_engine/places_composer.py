@@ -98,11 +98,12 @@ def _band_reconcile(signal, tier, lang, concern):
 def compose_primary_reason(concern: str, signal: Optional[dict], lang: str, tier: Optional[str] = None) -> str:
     lang = _lang(lang)
     if not signal:
-        # No karaka line near — lead with a gentle, true neutral statement.
+        # No supporting line near — lead with a gentle, true neutral statement.
+        # [de-jargon 2026-09-21] "karaka line" -> plain "supporting line".
         if lang == "es":
-            return (f"Ninguna línea karaka fuerte para {_domain(concern, lang)} "
+            return (f"Ninguna línea de apoyo fuerte para {_domain(concern, lang)} "
                     f"cruza cerca; este lugar es de fondo neutro para ese tema.")
-        return (f"No strong karaka line for {_domain(concern, lang)} crosses "
+        return (f"No strong supporting line for {_domain(concern, lang)} crosses "
                 f"close by; this place reads as neutral ground for that thread.")
     _override = _band_reconcile(signal, tier, lang, concern)
     if _override is not None:
