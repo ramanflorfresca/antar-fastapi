@@ -4045,8 +4045,8 @@ def _build_upcoming_themes_prompt(chart_data, profile, future_windows, rahu_md_a
 
     # Layer 2: DKP
     first_name = profile.get("first_name") or profile.get("name") or "this person"
-    birth_country = profile.get("birth_country") or "unknown"
-    current_country = profile.get("current_country") or "unknown"
+    birth_country = _country_name(profile.get("birth_country")) or "unknown"
+    current_country = _country_name(profile.get("current_country")) or "unknown"
     current_city = profile.get("current_city") or ""
     career_stage = profile.get("career_stage") or "unknown"
     marital = profile.get("marital_status") or "unknown"
@@ -33729,6 +33729,36 @@ Rewrite the base template as ONE sentence that feels personally relevant to this
         return base_template  # fallback to hardcoded template
 
 
+# [country-name 2026-09-21] A bare ISO 2-letter code fed to an LLM prompt gets
+# mis-expanded — "IN" (India) narrated as "Indiana", "US state". Resolve the code
+# to a readable country NAME before it reaches any narration; unknown codes fall
+# back to the code so nothing breaks. Covers the app's markets + majors.
+_ISO2_COUNTRY = {
+    "IN": "India", "PK": "Pakistan", "BD": "Bangladesh", "LK": "Sri Lanka", "NP": "Nepal",
+    "US": "the United States", "CA": "Canada", "MX": "Mexico", "GB": "the United Kingdom",
+    "IE": "Ireland", "AU": "Australia", "NZ": "New Zealand", "ZA": "South Africa",
+    "CO": "Colombia", "AR": "Argentina", "BR": "Brazil", "CL": "Chile", "PE": "Peru",
+    "VE": "Venezuela", "EC": "Ecuador", "BO": "Bolivia", "PY": "Paraguay", "UY": "Uruguay",
+    "GT": "Guatemala", "CR": "Costa Rica", "PA": "Panama", "DO": "the Dominican Republic",
+    "ES": "Spain", "PT": "Portugal", "FR": "France", "DE": "Germany", "IT": "Italy",
+    "NL": "the Netherlands", "BE": "Belgium", "CH": "Switzerland", "AT": "Austria",
+    "SE": "Sweden", "NO": "Norway", "DK": "Denmark", "FI": "Finland", "PL": "Poland",
+    "AE": "the United Arab Emirates", "SA": "Saudi Arabia", "QA": "Qatar", "KW": "Kuwait",
+    "IL": "Israel", "TR": "Turkey", "EG": "Egypt", "NG": "Nigeria", "KE": "Kenya",
+    "GH": "Ghana", "MA": "Morocco", "SG": "Singapore", "MY": "Malaysia", "ID": "Indonesia",
+    "TH": "Thailand", "PH": "the Philippines", "VN": "Vietnam", "JP": "Japan",
+    "KR": "South Korea", "CN": "China", "HK": "Hong Kong", "TW": "Taiwan", "RU": "Russia",
+}
+
+
+def _country_name(code):
+    """ISO 2-letter code -> readable country name for narration. Passes through
+    anything already longer than 2 chars (already a name) or unknown codes."""
+    c = str(code or "").strip()
+    if len(c) != 2:
+        return c
+    return _ISO2_COUNTRY.get(c.upper(), c)
+
 
 async def _call_claude_wow_hint_v2(
     action_signature: dict,
@@ -33956,7 +33986,7 @@ async def _get_wow_signal_for_chart_v2(
         user_first_name = chart_data.get("first_name") or chart_data.get("name") or "you"
         birth_date = chart_data.get("birth_date") or chart_data.get("dob") or ""
         user_age = _compute_user_age(birth_date) if birth_date else 0
-        current_country = chart_data.get("current_country") or chart_data.get("birth_country") or ""
+        current_country = _country_name(chart_data.get("current_country") or chart_data.get("birth_country") or "")
         birth_city = chart_data.get("birth_city") or ""
         gender = chart_data.get("gender") or ""
 
@@ -34149,7 +34179,7 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
         user_first_name = chart_data.get("first_name") or chart_data.get("name") or "you"
         birth_date = chart_data.get("birth_date") or chart_data.get("dob") or ""
         user_age = _compute_user_age(birth_date) if birth_date else 0
-        current_country = chart_data.get("current_country") or chart_data.get("birth_country") or ""
+        current_country = _country_name(chart_data.get("current_country") or chart_data.get("birth_country") or "")
         birth_city = chart_data.get("birth_city") or ""
         gender = chart_data.get("gender") or ""
 
@@ -34943,7 +34973,7 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
             natal_moon_sign = "Aries"
 
         # 3. Compute local start date
-        current_country = chart_data.get("current_country") or chart_data.get("birth_country") or ""
+        current_country = _country_name(chart_data.get("current_country") or chart_data.get("birth_country") or "")
         start_date = _get_local_start_date(
             tz_offset=float(tz_offset) if tz_offset is not None else None,
             current_country=current_country

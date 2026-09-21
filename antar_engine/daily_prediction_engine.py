@@ -1591,6 +1591,17 @@ def _scrub_ungrounded_times(signal_json, language='en'):
             s = _DT_BEFORE_RE.sub(_rb, s)
             s = _DT_AT_RE.sub(_ra, s)
             s = _DT_TIME_RE.sub(_rs, s)
+            # [range-collapse 2026-09-21] a coarsened RANGE can land both ends in
+            # the same bucket → "between the morning and the morning". Collapse a
+            # same-phrase range to one natural phrase.
+            _PH = r'(the morning|midday|the afternoon|the evening|later today)'
+
+            def _one(m):
+                ph = m.group(1)
+                return "around midday" if ph == "midday" else f"in {ph}"
+            s = re.sub(rf'\bbetween {_PH} and \1\b', _one, s, flags=re.I)
+            s = re.sub(rf'\bfrom {_PH} (?:to|until|through) \1\b', _one, s, flags=re.I)
+            s = re.sub(rf'\b{_PH} (?:and|to|until|through) \1\b', r'\1', s, flags=re.I)
             return re.sub(r'\s{2,}', ' ', s).strip()
 
         for f in _DT_PROSE_FIELDS:
