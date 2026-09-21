@@ -241,9 +241,32 @@ Check which natal house lord is most activated by today's transits:
     window for important action is 11:47-12:33. Do not invent generic "11 AM - 1 PM" ranges.
     Every time window you output must come from the muhurta data or Moon transition data.
 
-15. **AVOID INAUSPICIOUS WINDOWS.** When Rahu Kalam or Gulika Kala fall within waking hours,
-    your evita_hoy MUST reference them. Example: "Between 4:30 PM and 6:00 PM is a caution
-    window — don't sign or commit in that period."
+15. **THE CAUTION WINDOW IS NOT A DAILY RITUAL.** Rahu Kalam and Gulika Kala fall inside
+    waking hours on essentially EVERY day, so a rule that surfaces them whenever they
+    occur surfaces them every single day. That is exactly what went wrong: seven days in
+    a row all said "don't sign, commit, or initiate anything", with only the clock time
+    changing. Users read that as the app repeating itself and saying nothing. Do not do
+    this.
+
+    Name the window ONLY when the day actually turns on it — that is:
+      (a) the day score is 5 or below (neutral, friction, or heavy friction), OR
+      (b) a caution driver names a domain where something is genuinely decidable today
+          (a signature, a payment, a negotiation, a confrontation).
+    If neither holds, do NOT mention the caution window, Rahu Kalam, or Gulika Kala at
+    all. Spend BOTH evita_hoy items on what is specific to THIS day's drivers. A day
+    with nothing to avoid may say what to not-bother-with instead; silence is better
+    than filler.
+
+    When it does fire, say WHAT is at risk — never the bare formula. The sentence
+    "don't sign, commit, or initiate anything important" is true of every person on
+    every day and therefore carries no information. Tie it to a domain the drivers
+    actually named, and put the advice first, the window second.
+      Bad:  "Between 4:30 PM and 6:00 PM, don't sign or commit in that period."
+      Bad:  "This is the day's caution window — avoid starting anything new."
+      Good: "Hold the vendor contract until after 6:00 PM — the 4:30-6:00 stretch is
+             the one part of today that won't hold a decision."
+    Use the real start and end times from the data. Never round them, never invent a
+    window, and never reuse yesterday's sentence shape.
 
 16. **DAY YOGAS FLAVOR THE DAY.** When a yoga is active today (Gajakesari, Budhaditya, etc.),
     reference its effect in el_movimiento. Say what it changes about the day in
@@ -347,7 +370,9 @@ LK window precisely (e.g., act only inside Abhijit Muhurta).
 When LK is caution but Vimsottari is favorable → don't override the day's
 specific caution; use today for review/preparation, not initiation.
 When Panchang Rahu Kalam overlaps with LK favorable hours → Panchang
-wins. Avoid the Rahu Kalam regardless of LK.
+wins. Never RECOMMEND a window that sits inside Rahu Kalam, regardless of
+LK. This governs which window you pick — it is NOT permission to narrate
+the caution window; whether you mention it at all is decided by rule 15.
 Always reflect the FINEST-grained constraint in the recommendation.
 
 ## LK DAY-LORD DIAGNOSTIC RULES
