@@ -31098,10 +31098,11 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
                     # at an ALREADY-ELAPSED week. The birth-anchored month can be
                     # 80%+ over when the user opens the card mid-month, so scanning
                     # the whole period had it saying "best week: 2 weeks ago". Pick
-                    # the extremes from today forward. If <10 days of runway remain
+                    # the extremes from today forward. If <14 days of runway remain
                     # in the period, extend the scan ~4 weeks past today so best vs
                     # caution still have a real spread and don't collapse onto the
-                    # same 3-day stub.
+                    # same Monday-anchored week (a 7-day rolling window needs two
+                    # distinct weeks to separate the high from the low).
                     try:
                         _sd_today = _sd_date.today()
                     except Exception:
@@ -31112,7 +31113,7 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
                         # today already past this period's end (stale anchor) —
                         # look a month ahead rather than at nothing.
                         _sd_scan_end = _sd_scan_start + _sd_td(days=27)
-                    elif (_sd_scan_end - _sd_scan_start).days < 10:
+                    elif (_sd_scan_end - _sd_scan_start).days < 14:
                         _sd_scan_end = _sd_scan_start + _sd_td(days=27)
                     # Panchanga is a LOCAL-SUNRISE calculation, so it must run
                     # where the user IS, not where they were born. Reading a
