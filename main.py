@@ -3319,7 +3319,12 @@ async def version():
 
 @app.get("/api/v1/chart/{chart_id}/signature")
 @translate_response(
-    fields_to_translate=["tagline", "description", "strength", "blind_spot"],
+    # [chart-i18n 2026-09-21] "name" was missing here but present on
+    # /chart/overview, so the SAME archetype rendered "EL DESCUBRIDOR" on one
+    # page and "THE DISCOVERER" on the other in the same language. The payload
+    # has exactly one `name` (character_archetype.name) — verified — so this
+    # cannot reach a structural field.
+    fields_to_translate=["name", "tagline", "description", "strength", "blind_spot"],
     endpoint_name="chart-signature",
 )
 async def get_chart_signature(chart_id: str, language: str = "en", authorization: Optional[str] = Header(None)):
@@ -3461,7 +3466,11 @@ _OVERVIEW_NEG = {"Kemadruma", "Grahan", "Guru-Chandala"}
 @translate_response(
     fields_to_translate=["name", "tagline", "description", "strength", "blind_spot",
                          "strengths", "areas_to_mind", "headline",
-                         "why", "remedies", "remedy_why", "active_when", "timing"],
+                         "why", "remedies", "remedy_why", "active_when", "timing",
+                         # [chart-i18n 2026-09-21] the only enemy_alerts field
+                         # still shipping English while why/active_when/
+                         # remedy_why/timing beside it were all translated.
+                         "energy_label"],
     endpoint_name="chart-overview",
 )
 async def get_chart_overview(chart_id: str, language: str = "en"):
