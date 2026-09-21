@@ -586,7 +586,14 @@ def format_muhurtas_for_prompt(muhurtas: dict) -> str:
     if not muhurtas:
         return ""
 
-    lines = ["MUHURTA WINDOWS (timing data):"]
+    lines = [
+        "MUHURTA WINDOWS (timing reference — DATA, not copy):",
+        "  The caution windows below occur EVERY day. Their presence here is not a",
+        "  reason to mention them. System rule 15 decides whether today warrants",
+        "  naming one; on most days it does not. Never reuse the wording of these",
+        "  labels or notes in your output — they are internal shorthand, and copying",
+        "  them is what made seven days in a row read identically.",
+    ]
     lines.append(f"  Sunrise: {muhurtas.get('sunrise_local', '?')}")
     lines.append(f"  Sunset: {muhurtas.get('sunset_local', '?')}")
 
@@ -599,26 +606,22 @@ def format_muhurtas_for_prompt(muhurtas: dict) -> str:
     # Rahu Kalam
     rk = muhurtas.get("rahu_kalam", {})
     if rk:
-        lines.append(f"  Rahu Kalam (AVOID): {rk.get('start_local', '?')} – {rk.get('end_local', '?')}")
-        lines.append(f"    {rk.get('note', '')}")
+        lines.append(f"  Rahu Kalam (caution window): {rk.get('start_local', '?')} – {rk.get('end_local', '?')}")
 
     # Gulika Kala
     gk = muhurtas.get("gulika_kala", {})
     if gk:
-        lines.append(f"  Gulika Kala (AVOID): {gk.get('start_local', '?')} – {gk.get('end_local', '?')}")
-        lines.append(f"    {gk.get('note', '')}")
+        lines.append(f"  Gulika Kala (caution window): {gk.get('start_local', '?')} – {gk.get('end_local', '?')}")
 
     # Yamagandam
     yg = muhurtas.get("yamagandam", {})
     if yg:
-        lines.append(f"  Yamagandam (AVOID): {yg.get('start_local', '?')} – {yg.get('end_local', '?')}")
-        lines.append(f"    {yg.get('note', '')}")
+        lines.append(f"  Yamagandam (caution window): {yg.get('start_local', '?')} – {yg.get('end_local', '?')}")
 
     # Varjyam
     vj = muhurtas.get("varjyam")
     if vj:
-        lines.append(f"  Varjyam (AVOID): {vj.get('start_local', '?')} – {vj.get('end_local', '?')}")
-        lines.append(f"    {vj.get('note', '')}")
+        lines.append(f"  Varjyam (caution window): {vj.get('start_local', '?')} – {vj.get('end_local', '?')}")
 
     # Moon transitions
     transitions = muhurtas.get("moon_nakshatra_transitions", [])
