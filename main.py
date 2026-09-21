@@ -26018,17 +26018,20 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     _say = (_lead.get("say") or _lead.get("label") or "today").strip()
                     _Say = _say[:1].upper() + _say[1:]
                     _caution = bool(_lead.get("caution"))
+                    # Templates lead with "Today" as the grammatical subject so a
+                    # plural or article-led domain phrase ("your work and
+                    # reputation", "a journey…") never breaks agreement ("is lit").
                     if _sweep_risk:
                         result["headline"]  = f"A day to protect around {_say}."
-                        result["highlight"] = (f"{_Say} needs careful handling today — "
-                                               "protect more than push.")
+                        result["highlight"] = (f"Today asks for care around {_say} — "
+                                               "protect more than you push.")
                     elif _caution:
-                        result["headline"]  = f"{_Say} is lit today — move, but keep a stop."
-                        result["highlight"] = (f"{_Say} is where today's momentum is — lean in, "
-                                               "but cap your risk and don't force the big bet.")
+                        result["headline"]  = f"Today lights up {_say} — take it, but keep a stop."
+                        result["highlight"] = (f"Today's momentum is in {_say} — lean in, "
+                                               "but cap the downside and keep one clear exit.")
                     else:
                         result["headline"]  = f"A strong day for {_say}."
-                        result["highlight"] = (f"{_Say} is where today's momentum actually is — "
+                        result["highlight"] = (f"Today's momentum is in {_say} — "
                                                "put your focus here.")
                     result["direction"] = _sweep_dir
                     if _contradiction:
@@ -26159,8 +26162,16 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                             "health": "body", "travel": "mind", "spiritual": "mind",
                         }
                         _n_coarse = _SWEEP_TO_COARSE.get(_lead.get("key"))
-                        _n_dir = ("adverse" if (_sweep_dir == "adverse"
-                                  or bool(_lead.get("caution"))) else "positive")
+                        # A caution lead is lit-but-risky: the headline says
+                        # "take it, but keep a stop", so the nudge must use the
+                        # lean-in-with-a-cap bank, NOT the pure "avoid it" adverse
+                        # line (which made the card contradict its own headline).
+                        if _sweep_dir == "adverse":
+                            _n_dir = "adverse"
+                        elif bool(_lead.get("caution")):
+                            _n_dir = "caution"
+                        else:
+                            _n_dir = "positive"
                         if _n_coarse:
                             _n_new = _dtn(direction=_n_dir, domains=[_n_coarse],
                                           current_country=current_country, lk_daily=_th_lk)

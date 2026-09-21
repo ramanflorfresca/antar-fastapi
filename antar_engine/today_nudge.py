@@ -77,6 +77,19 @@ _ADVERSE_NUDGE = {
     "mind":          "Go easy on travel and noise today — fewer inputs, clearer head.",
 }
 
+# Caution lead: the day LIGHTS UP this domain but under real risk (a high-
+# reward / high-risk theme — a venture, a journey, a speculative or joint-money
+# bet under a demanding chapter). The headline says "take it, but keep a stop",
+# so the nudge must speak the SAME lean-in-with-a-cap voice — not the pure
+# "avoid it" adverse line, which reads as the card contradicting itself.
+_CAUTION_NUDGE = {
+    "money":         "Take the money move today if you want it — but keep it small and reversible, and set a hard stop before you commit.",
+    "work":          "Push the work forward today, but don't over-promise — take on less than you're tempted to and keep an exit.",
+    "relationships": "Lean into the connection today, but don't force the hard conversation — leave yourself room to step back.",
+    "body":          "Use the energy today, but don't redline it — keep something in reserve for tomorrow.",
+    "mind":          "Take the trip or the risk today if it calls you — but cap the downside and keep one clear exit.",
+}
+
 # Positive / benefic day: a small act of giving, anchored to the real place.
 _POSITIVE_NUDGE = {
     "money":         "Some of today's flow isn't yours to keep — drop a small donation at the {place}.",
@@ -104,11 +117,17 @@ def derive_todays_nudge(
     Returns None on a quiet day (omit the field — no manufactured advice)
     or when no domain was chosen. Never returns a remedy.
     """
-    if direction not in ("positive", "adverse") or not domains:
+    if direction not in ("positive", "adverse", "caution") or not domains:
         return None
     lead = domains[0]
     if direction == "adverse":
         return _ADVERSE_NUDGE.get(lead)
+    if direction == "caution":
+        # lean-in-with-a-cap; fall back to the giving nudge if the domain
+        # has no caution line so the field is never left contradicting.
+        return _CAUTION_NUDGE.get(lead) or (
+            _POSITIVE_NUDGE.get(lead, "").format(place=_giving_place(current_country))
+            or None)
     tmpl = _POSITIVE_NUDGE.get(lead)
     if not tmpl:
         return None
