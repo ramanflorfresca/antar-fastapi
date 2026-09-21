@@ -25464,6 +25464,30 @@ async def save_onboarding_reason(request: OnboardingReasonRequest):
         return JSONResponse(status_code=500, content={"error": "store_failed", "detail": str(e)[:200]})
 
 
+# [do-dont personalize 2026-09-21] The panchanga do_today/dont_today come from
+# a Moon-NAKSHATRA day-quality table, so EVERY chart with today's transiting
+# Moon nakshatra gets the identical list (two different people saw the same
+# "listening / learning / sacred study / music"). This map turns the chart's
+# OWN ranked daily domains into chart-specific do/dont actions, keyed by the
+# house_activation sweep domain key. Opportunity domains → a "do"; risk domains
+# → a "don't". Unmapped domains fall through; a fully-empty result keeps the
+# nakshatra list. Phrases are plain, jargon-free, and coherent with the
+# headline (the lead domain drives both).
+_DAILY_DO_DONT_BY_DOMAIN = {
+    "work":         {"do": "push a stuck work task to done",              "dont": "don't over-commit or take on more than you can finish"},
+    "authority":    {"do": "make the ask to someone senior",             "dont": "don't clash with someone in charge"},
+    "money":        {"do": "handle a money task you've been putting off", "dont": "don't make a big purchase or transfer"},
+    "speculation":  {"do": "take a small, capped bet only if you must",   "dont": "don't stake what you can't afford to lose"},
+    "home":         {"do": "put real time into home or a household fix",  "dont": "don't force a big home decision"},
+    "relationship": {"do": "reach out to someone close",                  "dont": "don't force a hard conversation"},
+    "family":       {"do": "give family some real attention",            "dont": "don't reopen an old family tension"},
+    "health":       {"do": "move your body and keep meals light",         "dont": "don't skip rest or push through pain"},
+    "travel":       {"do": "take the short trip or make the far-off call","dont": "don't over-pack the day with travel"},
+    "spiritual":    {"do": "take quiet time to think or reset",           "dont": "don't let mental noise make the call"},
+    "learning":     {"do": "study or learn something new",               "dont": "don't scatter your focus"},
+    "children":     {"do": "spend time with your kids or a creative project", "dont": "don't force a creative bet"},
+}
+
 # [i18n-drift 2026-09-21] ONE list, used by BOTH the @translate_response
 # decorator below AND the in-handler translate_dict call that short-circuits it
 # via `_already_localized`. They were two hand-maintained copies that silently
@@ -26262,6 +26286,37 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             except Exception as _dm_e:
                 print(f"[daily-signal] day_map build skipped: {_dm_e}")
                 result.setdefault("day_map", [])
+
+            # [do-dont personalize 2026-09-21] Replace the nakshatra-generic
+            # do_today/dont_today (identical for every chart on this day) with
+            # this chart's OWN ranked domains: opportunity domains → do, risk
+            # domains → don't, lead-first. Guarantees at least one guardrail from
+            # a caution-flagged lead when no pure-risk domain exists. Falls back
+            # to the nakshatra list when the sweep produced nothing usable.
+            try:
+                _dd_active = result.get("active_domains") or []
+                _dd_do, _dd_dont = [], []
+                for _a in _dd_active:
+                    _m = _DAILY_DO_DONT_BY_DOMAIN.get((_a.get("key") or "").lower())
+                    if not _m:
+                        continue
+                    if _a.get("polarity") == "opportunity" and _m["do"] not in _dd_do:
+                        _dd_do.append(_m["do"])
+                    elif _a.get("polarity") == "risk" and _m["dont"] not in _dd_dont:
+                        _dd_dont.append(_m["dont"])
+                if not _dd_dont:
+                    for _a in _dd_active:
+                        if _a.get("caution"):
+                            _m = _DAILY_DO_DONT_BY_DOMAIN.get((_a.get("key") or "").lower())
+                            if _m and _m["dont"] not in _dd_dont:
+                                _dd_dont.append(_m["dont"])
+                                break
+                if _dd_do:
+                    result["do_today"] = _dd_do[:3]
+                if _dd_dont:
+                    result["dont_today"] = _dd_dont[:2]
+            except Exception as _dd_e:
+                print(f"[daily-signal] do/dont personalize skipped (non-fatal): {_dd_e}")
 
             # [season cap — final 2026-09-16] The dasha SEASON is the slow, dominant
             # convergence layer — it gates the fast transit/tara/sweep signals. In a
