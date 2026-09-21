@@ -357,6 +357,21 @@ def _es_why_wear(text: str) -> Optional[str]:
                     return f"activa {a} — {o}"
                 return None
         return None
+    # [es-why-wear-template 2026-09-21] The colour template changed (2026-08-24)
+    # from "activates {area} — {outcome}" to "traditionally associated with
+    # {areas} — {outcome}", but this translator was never updated, so the es card
+    # showed English. Same _AREA/_OUTCOME vocab — just the lead-in changed.
+    if t.startswith("traditionally associated with "):
+        body = t[len("traditionally associated with "):].strip()
+        for sep in (" — ", " - "):
+            if sep in body:
+                area, outcome = body.split(sep, 1)
+                a, o = _AREA.get(area.strip()), _OUTCOME.get(outcome.strip())
+                if a and o:
+                    return f"tradicionalmente asociado con {a} — {o}"
+                return None
+        a = _AREA.get(body.strip())      # areas-only variant (no outcome clause)
+        return f"tradicionalmente asociado con {a}" if a else None
     if t.startswith("supports "):
         e = _ENHANCES.get(t[len("supports "):].strip())
         return f"favorece {e}" if e else None
@@ -411,6 +426,34 @@ def _localize_moon_shift_es(ms: Dict[str, Any]) -> None:
         split["headline"] = f"Se pone más difícil después de las {at}"
     elif direction == "neutral":
         split["headline"] = f"El tono del día cambia a las {at}"
+
+    # [es-nested 2026-09-21] The before/after halves carry their OWN remedial
+    # fields (colour names, why_wear, why_eat, food lists) — they were left in
+    # English on the es card. Localize them like the top-level colour/food.
+    for _half in ("before", "after"):
+        h = split.get(_half)
+        if not isinstance(h, dict):
+            continue
+        for _k in ("color", "wear", "soften"):
+            _v = h.get(_k)
+            if isinstance(_v, str) and _v in _COLOR:
+                h[_k] = _COLOR[_v]
+        _ww = _es_why_wear(h.get("why_wear"))
+        if _ww:
+            h["why_wear"] = _ww
+        _ws = h.get("why_soften")
+        if isinstance(_ws, str) and _ws in _RISK:
+            h["why_soften"] = _RISK[_ws]
+        h["eat"] = _es_food_list(h.get("eat"))
+        h["avoid"] = _es_food_list(h.get("avoid"))
+        # why_eat has no planet/mode here — derive mode from the English string
+        # (strengthen template says "carries the day … feed your …") + food_graha.
+        _wetext = h.get("why_eat")
+        if isinstance(_wetext, str) and _wetext.strip():
+            _mode = "strengthen" if ("carries the day" in _wetext or "feed your" in _wetext) else "balance"
+            _we = _es_why_eat(h.get("food_graha"), _mode)
+            if _we:
+                h["why_eat"] = _we
 
 
 def localize_remedial_es(day: Dict[str, Any]) -> Dict[str, Any]:
