@@ -25440,6 +25440,19 @@ async def save_onboarding_reason(request: OnboardingReasonRequest):
                          # structural enums (status, direction, at, score) are
                          # not listed so they stay stable.
                          "why", "herb", "tara_advice", "wear", "quality",
+                         # [pt-loc 2026-09-21] the colour/food EXPLAINER fields
+                         # were never allowlisted, so pt/fr saw them in English
+                         # ("These foods feed your vitality…", "Best repeated
+                         # whenever this day comes around"). es was covered only
+                         # because remedial_es rebuilds those lines by hand; pt
+                         # has no such module, so it fell through untranslated.
+                         # why_avoid leaked English on es too, for the same
+                         # reason — remedial_es never rebuilt that one.
+                         # All five are prose (or None); verified no structural
+                         # key of these names exists in the payload. They also
+                         # cover moon_shift.split.before/after, which carry the
+                         # same fields and leaked identically.
+                         "why_eat", "why_wear", "why_avoid", "why_soften", "duration",
                          # [confidence-i18n 2026-09-16] the convergence-confidence
                          # block: `line` (already covered above) is the sentence,
                          # and `aligned`/`tension` are the jargon-free layer-name
@@ -25620,7 +25633,10 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     if isinstance(_col, dict):
                         signals[_i]["color"] = await _cw_td(
                             _col, language=_cw_lang,
-                            fields_to_translate=["why", "wear"],
+                            # [pt-loc 2026-09-21] why_wear/why_soften were missing
+                            # here, so the colour EXPLAINER stayed English on every
+                            # non-en language while color.why was translated.
+                            fields_to_translate=["why", "wear", "why_wear", "why_soften"],
                             endpoint_name="daily-color", chart_id=cid)
             except Exception as _cwe:
                 print(f"[daily-signal] color why/wear translate non-fatal: {_cwe}")
@@ -35059,7 +35075,12 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
                 for _i in range(len(signals)):
                     signals[_i] = await _dw_es_td(
                         signals[_i], language="es",
-                        fields_to_translate=["why", "herb", "tara_advice", "quality"],
+                        fields_to_translate=["why", "herb", "tara_advice", "quality",
+                                             # [pt-loc 2026-09-21] explainer prose
+                                             # that leaked English — see the
+                                             # daily-signal allowlist note.
+                                             "why_eat", "why_wear", "why_avoid",
+                                             "why_soften", "duration"],
                         endpoint_name="daily-week", chart_id=chart_id,
                     )
                     # color.why/color.wear sit under the GLOBAL_SKIP "color" key,
@@ -35068,7 +35089,7 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
                     if isinstance(_col, dict):
                         signals[_i]["color"] = await _dw_es_td(
                             _col, language="es",
-                            fields_to_translate=["why", "wear"],
+                            fields_to_translate=["why", "wear", "why_wear", "why_soften"],
                             endpoint_name="daily-color", chart_id=chart_id,
                         )
             except Exception as _dwes_e:
@@ -35085,9 +35106,27 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
                         "energy", "signal", "move", "aligned_for",
                         "friction_for", "quality_label", "event_signal",
                         "trigger", "wow",
+                        # [pt-loc 2026-09-21] pt/fr never got the colour/food
+                        # layer at all — es was covered by remedial_es, pt/fr
+                        # had nothing, so these shipped in English.
+                        "why", "herb", "tara_advice", "quality", "wear",
+                        "why_eat", "why_wear", "why_avoid", "why_soften",
+                        "duration",
                     ],
                     endpoint_name="daily-week", chart_id=chart_id,
                 )
+                # [pt-loc 2026-09-21] "color" is a GLOBAL_SKIP key, so the pass
+                # above can never reach color.why/wear/why_wear. es already had a
+                # direct subdict call here; pt/fr had none, so the whole colour
+                # explainer shipped in English. Same treatment now.
+                for _i in range(len(signals)):
+                    _col = signals[_i].get("color")
+                    if isinstance(_col, dict):
+                        signals[_i]["color"] = await _dw_td(
+                            _col, language=language,
+                            fields_to_translate=["why", "wear", "why_wear", "why_soften"],
+                            endpoint_name="daily-color", chart_id=chart_id,
+                        )
             except Exception as _dw_te:
                 print(f"[daily-week] pt/fr translate non-fatal: {_dw_te}")
 
