@@ -25425,44 +25425,32 @@ async def save_onboarding_reason(request: OnboardingReasonRequest):
         return JSONResponse(status_code=500, content={"error": "store_failed", "detail": str(e)[:200]})
 
 
+# [i18n-drift 2026-09-21] ONE list, used by BOTH the @translate_response
+# decorator below AND the in-handler translate_dict call that short-circuits it
+# via `_already_localized`. They were two hand-maintained copies that silently
+# drifted: adding the colour/food explainer fields to the decorator alone did
+# nothing, because the handler localizes first and the decorator never runs.
+# Edit THIS list — never inline either copy again.
+DAILY_SIGNAL_I18N_FIELDS = [
+    "vibe", "do_today", "dont_today", "text", "headline", "highlight",
+    "todays_nudge", "move", "el_movimiento",
+    # the "area by area" map — per-area line + friendly label
+    "day_map", "line", "label",
+    # the "why" explainer layer (color.why, food.why/herb, tara_advice, the
+    # colour "wear" line, the moon_shift split quality label)
+    "why", "herb", "tara_advice", "wear", "quality",
+    # colour/food EXPLAINER prose — prose or None everywhere it appears in the
+    # payload (verified); also covers moon_shift.split.before/after
+    "why_eat", "why_wear", "why_avoid", "why_soften", "duration",
+    # convergence-confidence layer-name arrays
+    "aligned", "tension",
+]
+
+
 @app.post("/api/v1/daily-signal")
 @app.get("/api/v1/daily-signal/{chart_id}")
 @translate_response(
-    fields_to_translate=["vibe", "do_today", "dont_today", "text", "headline", "highlight", "todays_nudge", "move", "el_movimiento",
-                         # [daily-life-map] the "area by area" map — translate its
-                         # per-area line + friendly label (also localizes domain
-                         # chip labels for es/pt users, which we want).
-                         "day_map", "line", "label",
-                         # [es-loc 2026-09-09] the "why" explainer layer leaked
-                         # English (color.why, food.why/herb, tara_advice, the
-                         # colour "wear" line, and the moon_shift split quality
-                         # label). These are display prose, safe to translate;
-                         # structural enums (status, direction, at, score) are
-                         # not listed so they stay stable.
-                         "why", "herb", "tara_advice", "wear", "quality",
-                         # [pt-loc 2026-09-21] the colour/food EXPLAINER fields
-                         # were never allowlisted, so pt/fr saw them in English
-                         # ("These foods feed your vitality…", "Best repeated
-                         # whenever this day comes around"). es was covered only
-                         # because remedial_es rebuilds those lines by hand; pt
-                         # has no such module, so it fell through untranslated.
-                         # why_avoid leaked English on es too, for the same
-                         # reason — remedial_es never rebuilt that one.
-                         # All five are prose (or None); verified no structural
-                         # key of these names exists in the payload. They also
-                         # cover moon_shift.split.before/after, which carry the
-                         # same fields and leaked identically.
-                         "why_eat", "why_wear", "why_avoid", "why_soften", "duration",
-                         # [confidence-i18n 2026-09-16] the convergence-confidence
-                         # block: `line` (already covered above) is the sentence,
-                         # and `aligned`/`tension` are the jargon-free layer-name
-                         # arrays ("the day's star", "your longer season"). They
-                         # are humanized display phrases (mapped off stable keys
-                         # before return — nothing switches on their values), so
-                         # allowlisting these two container keys makes their
-                         # bare list-string children translatable, riding the
-                         # same cached batch as `line` so they stay consistent.
-                         "aligned", "tension"],
+    fields_to_translate=DAILY_SIGNAL_I18N_FIELDS,
     endpoint_name="daily-signal",
 )
 async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, language: str = "en", date: str = None):
@@ -26469,14 +26457,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 from antar_engine.translation_middleware import translate_dict as _ds_td
                 result = await _ds_td(
                     result, language=language,
-                    fields_to_translate=["vibe", "do_today", "dont_today", "text",
-                                         "headline", "highlight", "todays_nudge",
-                                         "move", "el_movimiento", "day_map", "line",
-                                         "label", "why", "herb", "tara_advice",
-                                         # [confidence-i18n 2026-09-16] localize the
-                                         # convergence-confidence layer-name arrays
-                                         # too (see the decorator allowlist above).
-                                         "wear", "quality", "aligned", "tension"],
+                    fields_to_translate=DAILY_SIGNAL_I18N_FIELDS,
                     endpoint_name="daily-signal", chart_id=cid,
                 )
             try:
