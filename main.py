@@ -9730,7 +9730,14 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
             resp = await translate_dict(
                 resp, language="pt",
                 fields_to_translate=["why", "affirmation", "why_this_works",
-                                     "one_line", "reason", "daily_action", "cue"],
+                                     "one_line", "reason", "daily_action", "cue",
+                                     # [pt-loc 2026-09-21] leaked on pt: es gets
+                                     # these from authored es content, pt has
+                                     # none. NOT adding a bare "name" here —
+                                     # that would sweep in the Sanskrit mantra
+                                     # (today_priority.mantra.advanced.name);
+                                     # practice names are scoped separately below.
+                                     "timeframe_label"],
                 endpoint_name="daily-practice", chart_id=request.chart_id,
             )
         except Exception:
@@ -9824,10 +9831,38 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
             try:
                 from antar_engine.translation_middleware import translate_dict as _mtd
                 _tpm2["mantra"] = await _mtd(
-                    _mant2, language=_gem_lang, fields_to_translate=["label"],
+                    _mant2, language=_gem_lang,
+                    # "when" is prose ("At sunrise, facing east") and leaked on
+                    # es AND pt. `advanced` is a container and is NOT listed, so
+                    # advanced.name — the Sanskrit mantra — is still never
+                    # collected and stays canonical.
+                    fields_to_translate=["label", "when"],
                     endpoint_name="daily-practice-mantra", chart_id=request.chart_id)
             except Exception as _me2:
                 print(f"[mantra i18n] {_me2}")
+    # [pt-loc 2026-09-21] Practice NAMES ("Sun Salutation", "Bright Breath",
+    # "Wheat Halwa with Jaggery") are authored in en + es; pt showed them in
+    # English. Translated per-block so the allowlist never sees the mantra
+    # subtree — a bare "name" would have hit advanced.name, the Sanskrit.
+    # es is included for the dish name, which leaked there too; es values that
+    # are already Spanish round-trip unchanged.
+    if _gem_lang in ("es", "pt"):
+        _tpn = resp.get("today_priority") or {}
+        try:
+            from antar_engine.translation_middleware import translate_dict as _ntd
+            for _blk_key in ("body", "breath"):
+                _blk_v = _tpn.get(_blk_key)
+                if isinstance(_blk_v, dict) and _blk_v.get("name"):
+                    _tpn[_blk_key] = await _ntd(
+                        _blk_v, language=_gem_lang, fields_to_translate=["name"],
+                        endpoint_name="daily-practice-names", chart_id=request.chart_id)
+            _dish = (_tpn.get("food") or {}).get("todays_dish")
+            if isinstance(_dish, dict) and _dish.get("name"):
+                _tpn["food"]["todays_dish"] = await _ntd(
+                    _dish, language=_gem_lang, fields_to_translate=["name"],
+                    endpoint_name="daily-practice-names", chart_id=request.chart_id)
+        except Exception as _ne:
+            print(f"[practice names i18n] {_ne}")
     _PRACTICE_CACHE[ckey] = (_prac_time.time() + _PRACTICE_TTL, resp)
     # [daily-db-cache 2026-06-16] write-through to the shared DB cache
     _daily_surface_put(request.chart_id, "practice", request.language,
