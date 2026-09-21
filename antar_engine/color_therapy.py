@@ -382,8 +382,8 @@ def color_for_day(nakshatra: Optional[str],
             "support":       None,
             "support_from":  None,
             "gem":           _gem_of(nak_lord),
-            "why": (f"Both the day and the Moon's nakshatra answer to "
-                    f"{nak_lord} today — a single, undiluted colour."),
+            "why": (f"Today runs on {_plain_quality(nak_lord)} from two "
+                    f"directions at once — a single, undiluted colour."),
             "why_wear": _wear_reason(nak_lord, lagna_sign, chart_data),
             "soften": None,
             "why_soften": None,
@@ -399,8 +399,9 @@ def color_for_day(nakshatra: Optional[str],
             "support":       None,
             "support_from":  None,
             "gem":           _gem_of(vara),
-            "why": (f"The Moon sits in a nakshatra that runs against you today, "
-                    f"so lean on {vara}'s steadier frame rather than amplifying it."),
+            "why": (f"Today's mood runs against you, so lean on "
+                    f"{_plain_quality(vara)} for a steadier frame rather than "
+                    f"amplifying it."),
             "why_wear": _wear_reason(vara, lagna_sign, chart_data),
             # Bare colour only. Shipping "Go easy on X" made the card read
             # "Go easy on Go easy on Red/Coral" once the UI added its own
@@ -436,7 +437,7 @@ def color_for_day(nakshatra: Optional[str],
         "support":       None,
         "support_from":  None,
         "gem":           _gem_of(vara),
-        "why":           f"{vara} rules today.",
+        "why":           f"Today runs on {_plain_quality(vara)}.",
         "why_wear":      _wear_reason(vara, lagna_sign, chart_data),
         "soften":        None,
         "why_soften":    None,
