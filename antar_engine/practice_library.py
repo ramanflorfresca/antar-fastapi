@@ -1233,8 +1233,10 @@ _DAAN_REGIONS = [
 ]
 
 _DAAN_FREQUENCY = (
-    "Weekly during a dasha; monthly for a natal weakness. Seven consecutive givings "
-    "is the traditional minimum."
+    # Wording matches the scope chips the user sees ("Current chapter" /
+    # "Core pattern") — see i18n.SCOPE_LABELS. Keep the three in step.
+    "Weekly while this is your current chapter; monthly if it is a core pattern. "
+    "Seven consecutive givings is the traditional minimum."
 )
 
 
