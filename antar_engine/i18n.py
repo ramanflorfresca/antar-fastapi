@@ -865,12 +865,18 @@ def i18n_error(code, language, **fmt):
 
 
 # ── Vectors 3 & 4: scope labels + constructed duration strings ──────────────
+# These are user-facing chips on the Practice page — they answer "what timeframe
+# does this practice belong to", so they must read as plain timeframes. The
+# de-jargoned wording already existed in practice_scopes.SCOPES, but that table
+# is only the FALLBACK in practice_composer._scope_label_i18n, so these shadowed
+# it and the app shipped "Varshphal (yearly LK)" and "Dasha period" to users.
+# Keep the two tables in step: en here must match SCOPES[scope]["label"].
 SCOPE_LABELS = {
-    "natal_weakness": {"en": "Natal weakness",        "es": "Debilidad natal",      "pt": "Fraqueza natal"},
-    "dasha_period":   {"en": "Dasha period",          "es": "Período de Dasha",     "pt": "Período Dasha"},
-    "varshphal_year": {"en": "Varshphal (yearly LK)", "es": "Varshphal (LK anual)", "pt": "Varshphal (LK anual)"},
-    "monthly_lk":     {"en": "Monthly chart (LK)",    "es": "Carta mensual (LK)",   "pt": "Carta mensal (LK)"},
-    "daily_transit":  {"en": "Today's transit",       "es": "Tránsito de hoy",      "pt": "Trânsito de hoje"},
+    "natal_weakness": {"en": "Core pattern",         "es": "Patrón de fondo",     "pt": "Padrão de fundo"},
+    "dasha_period":   {"en": "Current chapter",      "es": "Capítulo actual",     "pt": "Capítulo atual"},
+    "varshphal_year": {"en": "This year's focus",    "es": "El foco de este año", "pt": "O foco deste ano"},
+    "monthly_lk":     {"en": "This month's focus",   "es": "El foco de este mes", "pt": "O foco deste mês"},
+    "daily_transit":  {"en": "Today",                "es": "Hoy",                 "pt": "Hoje"},
 }
 
 
