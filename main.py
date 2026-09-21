@@ -31094,6 +31094,26 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
                     # so the per-day scan runs through anchor - 1.
                     _sd_pe_disp = _sd_date.fromisoformat(_p1_pe_disp)
                     _sd_pe_inclusive = _sd_pe_disp - _sd_td(days=1)
+                    # [fwd-only 2026-09-21] Never point best_week / caution_week
+                    # at an ALREADY-ELAPSED week. The birth-anchored month can be
+                    # 80%+ over when the user opens the card mid-month, so scanning
+                    # the whole period had it saying "best week: 2 weeks ago". Pick
+                    # the extremes from today forward. If <10 days of runway remain
+                    # in the period, extend the scan ~4 weeks past today so best vs
+                    # caution still have a real spread and don't collapse onto the
+                    # same 3-day stub.
+                    try:
+                        _sd_today = _sd_date.today()
+                    except Exception:
+                        _sd_today = _sd_ps
+                    _sd_scan_start = max(_sd_ps, _sd_today)
+                    _sd_scan_end = _sd_pe_inclusive
+                    if _sd_scan_end < _sd_scan_start:
+                        # today already past this period's end (stale anchor) —
+                        # look a month ahead rather than at nothing.
+                        _sd_scan_end = _sd_scan_start + _sd_td(days=27)
+                    elif (_sd_scan_end - _sd_scan_start).days < 10:
+                        _sd_scan_end = _sd_scan_start + _sd_td(days=27)
                     # Panchanga is a LOCAL-SUNRISE calculation, so it must run
                     # where the user IS, not where they were born. Reading a
                     # Delhi-born, Bogota-resident user from Delhi coordinates
@@ -31108,7 +31128,7 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
                             chart_record.get("current_timezone")),
                     }
                     _sd_series = _sd_range(
-                        chart_data, _sd_ps, _sd_pe_inclusive, _sd_loc,
+                        chart_data, _sd_scan_start, _sd_scan_end, _sd_loc,
                     )
                     _sd_best_iso, _sd_caution_iso = _sd_extr(_sd_series, 7)
                     def _sd_relabel(field_text, new_iso):
@@ -31117,8 +31137,11 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
                         _nd = _sd_date.fromisoformat(new_iso)
                         # Anchor on the Monday of the picked window.
                         _mon0 = _nd - _sd_td(days=_nd.weekday())
-                        if _mon0 < _sd_ps:
-                            _mon0 = _sd_ps
+                        # [fwd-only 2026-09-21] floor at the forward scan start,
+                        # not the (possibly elapsed) period start — otherwise a
+                        # window picked for this week snaps back to weeks ago.
+                        if _mon0 < _sd_scan_start:
+                            _mon0 = _sd_scan_start
                         _new_label = _mon0.strftime("Week of %B %-d")
                         if isinstance(field_text, str) and field_text \
                                 and _sd_re.search(r"Week of [A-Za-z]+ \d{1,2}", field_text):
