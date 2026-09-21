@@ -340,6 +340,18 @@ def _dominant_strong_planet(strong: list, current_md: str = "") -> Optional[str]
 
 # ── Common chain (positive vs negative) ─────────────────────────────────────
 
+# [de-generic 2026-09-21] Plain life-area per house — used to make the cause
+# CHART-SPECIFIC (name where the weak planet actually bites for THIS chart), so
+# two people with the same weak planet don't get identical cause text.
+_YR_HOUSE_AREA = {
+    1: "your health and how you carry yourself", 2: "your money and family",
+    3: "your communication and initiative", 4: "your home and peace of mind",
+    5: "your creativity, romance and children", 6: "your daily work and routines",
+    7: "your partnerships and closest ties", 8: "shared money and a big change",
+    9: "your beliefs, luck and longer journeys", 10: "your career and public standing",
+    11: "your income, gains and network", 12: "your rest, costs and letting go",
+}
+
 CAUSE_TEXT = {
     "Sun":     "Your self-direction feels uncertain — outside noise is louder than your own signal.",
     "Moon":    "Your emotional steadiness is unsettled — small things land harder than usual.",
@@ -1394,7 +1406,17 @@ def _compose_for_horizon(horizon: str,
     lk_cause = None
     if today_signal is not None and wp:
         lk_cause = (today_signal.get("conditions") or {}).get(wp)
-    chain = (_build_chain_negative(wp, _planet_charge(chart_data, wp), lk_cause) if polarity == "negative" and wp
+    # [de-generic 2026-09-21] Make the cause CHART-SPECIFIC for year/month/cycle
+    # by naming the life-area the weak planet governs for THIS chart (its house),
+    # so two charts with the same weak planet aren't handed identical cause text.
+    _cause_override = lk_cause
+    if _cause_override is None and wp and polarity == "negative" and horizon != "today":
+        _wp_area = _YR_HOUSE_AREA.get(natal.get(wp, 0))
+        _wp_base = CAUSE_TEXT.get(wp, "")
+        if _wp_base and _wp_area:
+            _hz_word = {"year": "year", "month": "month", "cycle": "chapter"}.get(horizon, "stretch")
+            _cause_override = f"{_wp_base} This {_hz_word} it centres on {_wp_area}."
+    chain = (_build_chain_negative(wp, _planet_charge(chart_data, wp), _cause_override) if polarity == "negative" and wp
              else _build_chain_positive(sp, horizon))
 
     now = _now_local(tz_offset_min if horizon == "today" else 0)
