@@ -12912,8 +12912,8 @@ _POT_ACT_STEPS = {
 }
 _POT_ACT_PRINCIPLE = {
     "en": "A place switches on through real engagement — time, work, presence, capital — not from a distance. The more of your life you put there, the more it operates. You carry your current chapter with you wherever you go.",
-    "es": "Un lugar se enciende con compromiso real — tiempo, trabajo, presencia, capital — no a la distancia. Cuanto más de tu vida pongas allí, más opera. Tu dasha te acompaña donde vayas.",
-    "pt": "Um lugar se liga com engajamento real — tempo, trabalho, presença, capital — não à distância. Quanto mais da sua vida você coloca lá, mais ele opera. Você leva seu dasha com você para onde for.",
+    "es": "Un lugar se enciende con compromiso real — tiempo, trabajo, presencia, capital — no a la distancia. Cuanto más de tu vida pongas allí, más opera. Tu capítulo actual te acompaña donde vayas.",
+    "pt": "Um lugar se liga com engajamento real — tempo, trabalho, presença, capital — não à distância. Quanto mais da sua vida você coloca lá, mais ele opera. Você leva seu capítulo atual com você para onde for.",
 }
 
 
@@ -12927,9 +12927,9 @@ _POT_FRAMING = {
     "en": "A move shifts which areas of life feel emphasized — it doesn't replace "
           "the themes of your current chapter. You carry your current chapter with you.",
     "es": "Una mudanza cambia qué áreas de la vida se sienten con más fuerza — no "
-          "reemplaza los temas de tu capítulo actual. Tu dasha te acompaña.",
+          "reemplaza los temas de tu capítulo actual. Tu capítulo actual te acompaña.",
     "pt": "Uma mudança altera quais áreas da vida ganham ênfase — não substitui os "
-          "temas do seu capítulo atual. Você leva seu dasha com você.",
+          "temas do seu capítulo atual. Você leva seu capítulo atual com você.",
 }
 # [places-reading] Each dasha chapter carries the NATURE of its lord, not a
 # generic good/bad axis. Rahu especially = worldly/material ambition, the
