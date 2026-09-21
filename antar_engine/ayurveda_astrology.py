@@ -653,6 +653,6 @@ def food_for_day(nakshatra, weekday_index, tara_quality=None,
         # explicit garnish adjective so the card's "eat {texture} food" line
         # never has to parse it back out of why_eat (which breaks on strengthen)
         "texture":     _food_texture(planet, g.get("mode")),
-        "why_avoid":   (f"these push {planet} further in the direction it is "
-                        f"already leaning") if avoid else "",
+        "why_avoid":   ("these push the day further in the direction it is "
+                        "already leaning") if avoid else "",
     }

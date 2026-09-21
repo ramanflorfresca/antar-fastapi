@@ -308,12 +308,13 @@ def _es_why_eat(planet: str, mode: str) -> Optional[str]:
         return None
     if mode == "strengthen":
         feeds = _GRAHA_FEEDS.get(p)
-        return f"{subj} lleva el día, así que estos alimentos nutren tu {feeds}" if feeds else None
+        # No planet name — mirrors the en wording ("These foods feed your …").
+        return f"Estos alimentos nutren tu {feeds} — es lo que el día pide" if feeds else None
     dosha = _PLANET_DOSHA.get(p, "")
     tc = _DOSHA_MECHANISM.get(dosha)
     if not tc:
         return None
-    return f"{subj} {tc[0]}, {tc[1]}"
+    return f"El día {tc[0]}, {tc[1]}"
 
 
 def _es_texture(planet: str, mode: str) -> Optional[str]:
@@ -331,8 +332,9 @@ def _es_duration(planet: str, duration_days) -> Optional[str]:
     if duration_days is None:
         if not subj:
             return None
-        return (f"{subj} rige tu período actual, así que esto no es un arreglo de un "
-                f"día — sostenerlo durante todo el período es lo que genera el cambio")
+        return ("Esta es la energía que rige tu capítulo actual, así que esto no es "
+                "un arreglo de un día — sostenerlo durante todo el capítulo es lo que "
+                "genera el cambio")
     if duration_days == 1:
         return "Solo por hoy — esto es para asentar, no es un programa"
     if duration_days == 40:
