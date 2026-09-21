@@ -17,25 +17,26 @@ ALLOWED_WITH_GLOSS = {
 }
 
 FORBIDDEN = {
-    # Sanskrit -> mandatory English replacement.
-    # These have clean translations and recur enough that glossing
-    # every time would pollute the output.
-    "Mahadasha":       "your current major planetary cycle",
-    "Antardasha":      "your current sub-cycle",
-    "Pratyantardasha": "your current micro-cycle",
-    "Vimshottari":     "the 120-year cycle system",
-    "Ashtottari":      "the 108-year cycle system",
-    "Sade Sati":       "the 7.5-year Saturn transit through and around your Moon sign",
-    "Kendra":          "angular house",
-    "Trikona":         "trine house",
-    "Dushthana":       "challenge house",
-    "Lagna":           "your rising sign",
-    "Viparita Raja Yoga": "your reversal-into-strength pattern",
-    "Mahapurusha":     "great-person pattern",
-    "Vargottama":      "doubly strong placement",
-    "Atmakaraka":      "your soul-significator planet",
-    "Karakamsa":       "your soul-significator's sign in the divisional chart",
-    "Upapada":         "your relationship anchor point",
+    # [de-jargon 2026-09-21] Sanskrit -> PLAIN life language. The old
+    # replacements were still jargon ("planetary cycle", "sub-cycle", "angular
+    # house") — a user saw "your current major planetary cycle lord is transiting
+    # a zone of hidden assets". Replace with everyday life-chapter language.
+    "Mahadasha":       "the chapter of life you're in",
+    "Antardasha":      "the phase inside your current chapter",
+    "Pratyantardasha": "this shorter stretch of weeks",
+    "Vimshottari":     "your life-timing pattern",
+    "Ashtottari":      "your life-timing pattern",
+    "Sade Sati":       "a roughly seven-year stretch of pressure and consolidation",
+    "Kendra":          "a strong, action-ready area of life",
+    "Trikona":         "a fortunate, easy-flowing area of life",
+    "Dushthana":       "a demanding, testing area of life",
+    "Lagna":           "your core self and how you meet the world",
+    "Viparita Raja Yoga": "a pattern that turns setbacks into strength",
+    "Mahapurusha":     "a standout strength in your character",
+    "Vargottama":      "an especially strong part of you",
+    "Atmakaraka":      "your soul's driving theme",
+    "Karakamsa":       "your soul's core theme",
+    "Upapada":         "your relationship anchor",
 }
 
 
@@ -91,8 +92,17 @@ FORBIDDEN SANSKRIT TERMS (must be replaced - never appear in output, even with g
 
 {allowed_section}
 
+NEVER USE THESE MECHANICS WORDS (they read as astrology jargon):
+- "lord", "ruler of", "cycle lord", "period lord"
+- "transiting", "transit", "moving through", "passing through a zone/house"
+- "zone", "house", "placement", "aspect", "aspecting", "conjunct"
+Instead, name the LIFE AREA and what is happening in it, plainly. Do NOT write
+"your cycle lord is transiting a zone of hidden assets and inheritance" — write
+"this is a stretch that stirs shared money, debts and inheritance, and the gain
+is slow to arrive." Describe the life, never the machinery.
+
 GENERAL PRINCIPLE:
-- Default: translate the concept, do not name it. Example: instead of "Mahadasha" write "your current 18-year planetary cycle."
+- Default: translate the concept, do not name it. Example: instead of "Mahadasha" write "the chapter of life you're in."
 - Only Rahu and Ketu have first-mention bracket-gloss treatment, and only in Mentor voice.
 - All other Sanskrit/Vedic technical terms must be fully translated into plain English.
 - Glosses, when used, are 6 words or fewer and contain no Sanskrit.
