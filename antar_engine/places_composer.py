@@ -35,8 +35,22 @@ def _axis(angle: str, lang: str) -> str:
     return AXIS[lang].get(angle, angle)
 
 
+# [de-jargon 2026-09-21] Return the plain QUALITY a planet stands for, not its
+# name — Places reads like the rest of the app. No "your" prefix (templates add
+# it); fall back to the localized name for anything unmapped.
+_PLANET_QUALITY = {
+    "en": {"Sun":"sense of standing and recognition","Moon":"emotional life","Mars":"drive and courage",
+           "Mercury":"mind and communication","Jupiter":"growth and good fortune","Venus":"ease and relationships",
+           "Saturn":"discipline and structure","Rahu":"ambition and drive for the new","Ketu":"pull toward depth and detachment"},
+    "es": {"Sun":"sentido de presencia y reconocimiento","Moon":"vida emocional","Mars":"empuje y coraje",
+           "Mercury":"mente y comunicación","Jupiter":"crecimiento y buena fortuna","Venus":"soltura y relaciones",
+           "Saturn":"disciplina y estructura","Rahu":"ambición y afán de lo nuevo","Ketu":"inclinación a la profundidad y el desapego"},
+}
+
+
 def _planet(planet: str, lang: str) -> str:
-    return PLANET_NAME[lang].get(planet, planet)
+    q = _PLANET_QUALITY.get(lang, _PLANET_QUALITY["en"]).get(planet)
+    return q or PLANET_NAME.get(lang, PLANET_NAME["en"]).get(planet, planet)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -52,22 +66,22 @@ def _planet(planet: str, lang: str) -> str:
 # opening so the /concern planet-removal scrub strips them identically.
 _BAND_POL_RANK = {"supportive": 2, "mixed": 1, "friction": 0}
 _BAND_TIER_CAP = {"FLOW": 2, "MIXED": 1, "STRAIN": 0}
+# [de-jargon 2026-09-21] Dropped the "{angle} line crosses within {distance}km"
+# astrocartography jargon + possessive planet name; lead with the plain quality.
 _BAND_OVERRIDE_FRAMES = {
     "en": {
-        "MIXED": ("{planet}'s {angle} line crosses within {distance}km, and it touches "
-                  "{axis} here \u2014 but it reads as a mixed current for {domain}, the lift "
-                  "coming with some drag."),
-        "STRAIN": ("{planet}'s {angle} line crosses within {distance}km, and it touches "
-                   "{axis} here \u2014 but the wider ground runs strained for {domain}, so the "
-                   "support is real yet uneven, with friction more than ease."),
+        "MIXED": ("Your {planet} reaches into {axis} here \u2014 but it reads as a mixed "
+                  "current for {domain}, the lift coming with some drag."),
+        "STRAIN": ("Your {planet} reaches into {axis} here \u2014 but the wider ground runs "
+                   "strained for {domain}, so the support is real yet uneven, with friction "
+                   "more than ease."),
     },
     "es": {
-        "MIXED": ("La l\u00ednea {angle} de {planet} cruza a menos de {distance}km y toca {axis} "
-                  "aqu\u00ed \u2014 pero se lee como una corriente mixta para {domain}, el impulso "
-                  "viene con algo de arrastre."),
-        "STRAIN": ("La l\u00ednea {angle} de {planet} cruza a menos de {distance}km y toca {axis} "
-                   "aqu\u00ed \u2014 pero el terreno general est\u00e1 tensionado para {domain}, as\u00ed "
-                   "que el apoyo es real pero desigual, con m\u00e1s fricci\u00f3n que facilidad."),
+        "MIXED": ("Tu {planet} alcanza {axis} aqu\u00ed \u2014 pero se lee como una corriente "
+                  "mixta para {domain}, el impulso viene con algo de arrastre."),
+        "STRAIN": ("Tu {planet} alcanza {axis} aqu\u00ed \u2014 pero el terreno general est\u00e1 "
+                   "tensionado para {domain}, as\u00ed que el apoyo es real pero desigual, con "
+                   "m\u00e1s fricci\u00f3n que facilidad."),
     },
 }
 

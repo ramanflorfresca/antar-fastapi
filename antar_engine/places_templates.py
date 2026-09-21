@@ -123,14 +123,14 @@ AXIS = {
 # ── Sentence frames per polarity (filled with planet / axis / domain / dist) ─
 _PRIMARY_FRAMES = {
     "en": {
-        "supportive": "{planet}'s pull is strong in this place, pouring steady strength into {axis} — {domain} finds an easier current here.",
-        "mixed":      "{planet}'s pull reaches this place and touches {axis}, but the support is uneven — {domain} moves in fits and starts here.",
-        "friction":   "{planet}'s pull reaches this place, yet {planet} is under strain for you — showing up on {axis} here comes with visible friction in {domain}.",
+        "supportive": "Your {planet} runs strong in this place, pouring steady strength into {axis} — {domain} finds an easier current here.",
+        "mixed":      "Your {planet} reaches this place and touches {axis}, but the support is uneven — {domain} moves in fits and starts here.",
+        "friction":   "Your {planet} reaches this place, yet it is under strain for you — showing up on {axis} here comes with visible friction in {domain}.",
     },
     "es": {
-        "supportive": "La fuerza de {planet} llega con claridad a este lugar y vierte apoyo constante en {axis} — {domain} encuentra una corriente más fácil aquí.",
-        "mixed":      "La fuerza de {planet} llega a este lugar y toca {axis}, pero el apoyo es desigual — {domain} avanza a tramos aquí.",
-        "friction":   "La fuerza de {planet} llega a este lugar, pero {planet} está bajo tensión para ti — su presencia en {axis} trae fricción visible en {domain}.",
+        "supportive": "Tu {planet} llega con claridad a este lugar y vierte apoyo constante en {axis} — {domain} encuentra una corriente más fácil aquí.",
+        "mixed":      "Tu {planet} llega a este lugar y toca {axis}, pero el apoyo es desigual — {domain} avanza a tramos aquí.",
+        "friction":   "Tu {planet} llega a este lugar, pero está bajo tensión para ti — su presencia en {axis} trae fricción visible en {domain}.",
     },
 }
 
@@ -323,15 +323,15 @@ _PLACED_CLAUSE = {
 # DASHA — kind ∈ current | upcoming | building | neutral; {planet} interpolated.
 _DASHA_FRAMES = {
     "en": {
-        "current":  "Your {planet} period is live, and this place puts it front and centre — the chapter you're in takes visible form here.",
-        "upcoming": "{planet} opens the long chapter you're about to enter, and this place gives that next chapter its visible form — you'd be arriving early to your own future.",
-        "building": "{planet} is on your horizon, and this place is tuned to the chapter building toward you rather than the one you're leaving.",
+        "current":  "Your current chapter is live, and this place puts it front and centre — the chapter you're in takes visible form here.",
+        "upcoming": "The long chapter you're about to enter opens, and this place gives that next chapter its visible form — you'd be arriving early to your own future.",
+        "building": "A new chapter is on your horizon, and this place is tuned to the chapter building toward you rather than the one you're leaving.",
         "neutral":  "The timing here is quiet — nothing about this place amplifies your current chapter, so it works on your baseline strengths alone.",
     },
     "es": {
-        "current":  "Tu periodo de {planet} está activo, y este lugar lo pone en primer plano — el capítulo en el que estás toma aquí forma visible.",
-        "upcoming": "{planet} abre el largo capítulo en el que estás a punto de entrar, y este lugar le da forma visible a ese próximo capítulo — llegarías temprano a tu propio futuro.",
-        "building": "{planet} está en tu horizonte, y este lugar está afinado al capítulo que se acerca, no al que dejas.",
+        "current":  "Tu capítulo actual está activo, y este lugar lo pone en primer plano — el capítulo en el que estás toma aquí forma visible.",
+        "upcoming": "El largo capítulo en el que estás a punto de entrar se abre, y este lugar le da forma visible a ese próximo capítulo — llegarías temprano a tu propio futuro.",
+        "building": "Un nuevo capítulo está en tu horizonte, y este lugar está afinado al capítulo que se acerca, no al que dejas.",
         "neutral":  "El momento aquí es tranquilo — nada de este lugar amplifica tu capítulo actual, así que funciona por tus fuerzas de base.",
     },
 }
