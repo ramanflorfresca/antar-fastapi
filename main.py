@@ -26305,12 +26305,20 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     elif _a.get("polarity") == "risk" and _m["dont"] not in _dd_dont:
                         _dd_dont.append(_m["dont"])
                 if not _dd_dont:
+                    # No pure-risk domain: take a guardrail from a caution-flagged
+                    # lead; failing that, from the top domain itself — so the don't
+                    # stays chart-tied and never falls back to the nakshatra-generic
+                    # list ("avoid excessive talking") when the chart has a real lead.
                     for _a in _dd_active:
                         if _a.get("caution"):
                             _m = _DAILY_DO_DONT_BY_DOMAIN.get((_a.get("key") or "").lower())
                             if _m and _m["dont"] not in _dd_dont:
                                 _dd_dont.append(_m["dont"])
                                 break
+                    if not _dd_dont and _dd_active:
+                        _m = _DAILY_DO_DONT_BY_DOMAIN.get((_dd_active[0].get("key") or "").lower())
+                        if _m:
+                            _dd_dont.append(_m["dont"])
                 if _dd_do:
                     result["do_today"] = _dd_do[:3]
                 if _dd_dont:
