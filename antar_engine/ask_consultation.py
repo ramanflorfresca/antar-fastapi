@@ -144,6 +144,34 @@ _DECISION_TRIGGERS = [
     "ocurrirá", "se va a dar", "se dará", "se concretará", "se concreta",
     "está por venir", "va a cerrar", "se cerrará", "se cierra",
     "va a salir", "saldrá", "no está pasando", "no va a pasar", "se hará realidad",
+    # ── Portuguese [pt-decision 2026-09-21] ──────────────────────────────
+    # This list had full en + es coverage and NO pt, so every Portuguese
+    # question failed the gate and lost verdict / convergence / actions /
+    # practices — a functional gap, not a wording one. Note es "debo " and
+    # pt "devo " differ by one letter, which is why it read as covered.
+    # pt — direct timing
+    "quando", "conseguirei", "vou conseguir", "obterei", "receberei",
+    "terei", "poderei", "vou receber",
+    "devo ", "deveria",
+    "é um bom momento", "bom momento para", "é bom momento",
+    "em que mês", "em que mes", "que mês", "que mes", "qual mês", "qual mes",
+    "que ano", "qual ano",
+    # pt — chance / odds / possibility
+    "há uma possibilidade", "ha uma possibilidade", "alguma possibilidade",
+    "há alguma chance", "ha alguma chance", "qual a probabilidade",
+    "que probabilidade", "qual chance", "que chance",
+    "terei outra oportunidade", "haverá oportunidade", "havera oportunidade",
+    "é possível", "e possivel", "é possível que",
+    # pt — reconciliation
+    "voltaremos", "reconciliar", "voltar com", "voltar juntos",
+    "refazer a relação", "refazer a relacao", "uma segunda chance",
+    # pt — outcome / will-it-happen
+    "vai acontecer", "vai ocorrer", "acontecerá", "acontecera",
+    "ocorrerá", "ocorrera", "vai dar certo", "se concretizará",
+    "se concretizara", "está por vir", "esta por vir",
+    "vai fechar", "fechará", "fechara", "vai sair", "sairá", "saira",
+    "não está acontecendo", "nao esta acontecendo",
+    "não vai acontecer", "nao vai acontecer",
 ]
 
 
@@ -170,7 +198,7 @@ def prescan_domain(concern: str) -> str:
 def is_decision_question(question: str) -> bool:
     """True if the question wants a verdict and/or a timing window."""
     q = " " + (question or "").lower().strip() + " "
-    if q.strip().startswith(("when", "cuándo", "cuando")):
+    if q.strip().startswith(("when", "cuándo", "cuando", "quando")):
         return True
     return any(t in q for t in _DECISION_TRIGGERS)
 
