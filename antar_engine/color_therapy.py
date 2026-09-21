@@ -115,6 +115,16 @@ _GRAHA_EFFECT = {
 }
 
 
+def _plain_quality(planet):
+    """Plain phrase for a planet ("Sun" -> "identity and purpose"), reusing the
+    shared map in chart_identity so there is one vocabulary, not two."""
+    try:
+        from antar_engine.chart_identity import _PLANET_PLAIN
+        return _PLANET_PLAIN.get(planet) or "the energy of the day"
+    except Exception:
+        return "the energy of the day"
+
+
 def graha_effect(planet: str) -> Dict[str, str]:
     """What this graha actually does, in behavioural terms. {} when unknown."""
     return _GRAHA_EFFECT.get((planet or "").strip().title(), {})
@@ -408,8 +418,11 @@ def color_for_day(nakshatra: Optional[str],
             "support":       vara_color,
             "support_from":  vara,
             "gem":           _gem_of(nak_lord),
-            "why": (f"The Moon is in {nakshatra}, ruled by {nak_lord} — that is "
-                    f"the energy actually live today."),
+            # Was "The Moon is in Uttara Ashadha, ruled by Sun" — a nakshatra
+            # name and a planet name in the one line users actually read. Same
+            # fact, plain words, via the shared chart_identity map.
+            "why": (f"Today runs on {_plain_quality(nak_lord)} — that is "
+                    f"the energy actually live right now."),
             "why_wear": _wear_reason(nak_lord, lagna_sign, chart_data),
             "soften": None,
             "why_soften": None,

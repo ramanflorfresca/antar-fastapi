@@ -472,12 +472,14 @@ def _food_reason(planet: str, mode: str) -> str:
     """
     if mode == "strengthen":
         feeds = _GRAHA_FEEDS.get(planet)
-        return f"{planet} carries the day, so these foods feed your {feeds}" if feeds else ""
+        # No planet name: remedial_es keys off the literal "feed your", so that
+        # substring must survive any rewording here.
+        return f"These foods feed your {feeds} — that is what today is running on" if feeds else ""
     dosha = (PLANET_DOSHA.get(planet) or {}).get("dosha", "")
     tendency, correction = _DOSHA_MECHANISM.get(dosha, ("", ""))
     if not tendency:
         return ""
-    return f"{planet} {tendency}, {correction}"
+    return f"The day {tendency}, {correction}"
 
 
 
@@ -511,6 +513,17 @@ def _plain_food(items, limit=3):
         if len(out) >= limit:
             break
     return out
+
+
+def _plain_herb(raw):
+    """Herb names are fine; the tails are not — they carried Sanskrit asides
+    ("(ojas)") and planet possessives ("Jupiter's herbs", "Rahu's shadow
+    energies"). Keep the name, drop the explanation, same rule _plain_food
+    applies to the eat/avoid lists."""
+    s = str(raw or "")
+    s = re.split(r"\s+[-\u2013\u2014]\s+", s)[0]
+    s = re.sub(r"\s*\([^)]*\)", "", s)
+    return re.sub(r"\s{2,}", " ", s).strip(" ,;")
 
 
 def food_for_day(nakshatra, weekday_index, tara_quality=None,
@@ -573,11 +586,11 @@ def food_for_day(nakshatra, weekday_index, tara_quality=None,
 
     if g.get("mode") == "balance":
         eat = (balance or strengthen)[:3]
-        why = (f"{planet} runs against you today — eat to settle it, not to "
-               f"stoke it.")
+        why = ("The day runs against that energy — eat to settle it, not to "
+               "stoke it.")
     else:
         eat = strengthen[:3]
-        why = f"{planet} carries the day — these foods feed that energy."
+        why = "These foods feed the energy today is running on."
 
     # The remedy dish is day-bound ("Wheat halwa ... on Sunday morning"). Showing
     # it on a Friday tells the user to do something on a different day, which is
@@ -605,10 +618,10 @@ def food_for_day(nakshatra, weekday_index, tara_quality=None,
     _md = (dasha_md or "").strip().title()
     _ad = (dasha_ad or "").strip().title()
     if planet in (_md, _ad) and planet:
-        _which = "mahadasha" if planet == _md else "antardasha"
         duration_days = None
-        duration = (f"{planet} runs your current {_which}, so this colour and food "
-                    f"help every time its day comes around &mdash; worth making a habit on those days")
+        duration = ("This is the energy running your current chapter, so this colour and "
+                    "food help every time its day comes around &mdash; worth making a habit "
+                    "on those days")
     elif g.get("mode") == "balance":
         duration_days = 1
         duration = "Just for today &mdash; this settles today's swing"
@@ -624,7 +637,7 @@ def food_for_day(nakshatra, weekday_index, tara_quality=None,
         "duration_days": duration_days,
         "eat":         _plain_food(eat, 3),
         "avoid":       _plain_food(avoid, 2),
-        "herb":        entry.get("herb", ""),
+        "herb":        _plain_herb(entry.get("herb", "")),
         # [food-plain] The remedy dish is a RITUAL ("offer rice pudding to the
         # Moon on full Moon night"), not dietary advice. On a card that is
         # meant to answer "what do I eat today" it read as nonsense. Kept in
