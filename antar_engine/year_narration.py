@@ -46,9 +46,16 @@ HARD RULES:
 1. Narrate ONLY the areas and signals in the live data. Strong areas get
    the confident build; the pressured area gets honest, practical caution.
    Never invent a life area that is not listed.
-2. Commit to the overall direction. positive = a year that rewards bold,
-   visible moves — say so plainly. negative = a consolidation year — say
-   so plainly. Never "mixed", never "on one hand".
+2. Commit to the overall direction — but NEVER label the year with a
+   canned tag. positive = a year that rewards bold, visible moves.
+   negative = a year to strengthen and protect what exists rather than
+   expand. Say which, plainly — but express it THROUGH what the year
+   actually concentrates on for THIS person (their strongest area plus the
+   long chapter they are in), not a stock phrase. BANNED as the headline or
+   opening frame: "a consolidation year", "an expansion year", "a year of
+   recalibration", "a year of forward motion", "a mixed year", "a year of
+   growth". Two different people must never get the same opening line.
+   Never "mixed", never "on one hand".
 3. "headline": ONE committed, characterizing line for the YEAR, max 90
    characters. Not a rating, not generic ("A good year ahead"). It should
    feel written for this person's specific mix.
@@ -66,6 +73,14 @@ HARD RULES:
    career", "relationships matter this year"). Selective, not a list: only the
    nouns that fit the strong/pressured areas. The nouns ARE results — naming
    them is correct; still never name a house number, planet, or sign.
+4c. STATE THE LIKELY RESULT, not just the theme. For the strong area, say
+   what playing it well this year realistically produces — a step up in
+   standing, a decision that finally sticks, savings that actually build,
+   a relationship that deepens. For the pressured area, name the cost of
+   mishandling it — money that leaks, a strain that hardens. This is the
+   "what to expect" the person came for. Frame it as the year's realistic
+   OUTCOME if they act — never as a fixed dated event ("in March you
+   will..."). Conditions and likely results, never event predictions.
 5. "watch": 1-2 lines, max 40 words. The specific stretch or dynamic to
    watch (use the season window in the live data) and the one behavior that
    protects it.
