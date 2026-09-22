@@ -3315,6 +3315,26 @@ async def version():
     }
 
 
+# Env presence diagnostic — reports whether specific vars EXIST in the running
+# process, by name only. No secret VALUES are returned (SPECULATION_LOGGER's own
+# value is a non-secret on/off flag, so it's shown to speed debugging). Used to
+# tell "var not set on this service" from "code problem" without Railway access.
+@app.get("/api/v1/admin/envcheck")
+async def envcheck():
+    names = ["SPECULATION_LOGGER", "ADMIN_EXPORT_KEY", "SUPABASE_URL",
+             "SUPABASE_SERVICE_ROLE_KEY", "ANTHROPIC_API_KEY", "DATABASE_URL"]
+    present = {n: (os.getenv(n) is not None and os.getenv(n) != "") for n in names}
+    return {
+        "present": present,                       # booleans only, no values
+        "SPECULATION_LOGGER_value": os.getenv("SPECULATION_LOGGER"),  # non-secret flag
+        "service": os.getenv("RAILWAY_SERVICE_NAME") or "unknown",
+        "env_name": os.getenv("RAILWAY_ENVIRONMENT_NAME")
+                    or os.getenv("RAILWAY_ENVIRONMENT") or "unknown",
+        "total_env_vars": len(os.environ),
+        "started_at": _PROCESS_STARTED_AT,
+    }
+
+
 # ── Chart ─────────────────────────────────────────────────────────────────────
 
 @app.get("/api/v1/chart/{chart_id}/signature")
