@@ -24498,6 +24498,17 @@ async def ask_endpoint(request: AskRequest):
                     else:
                         next_txt = _lp_v2
             payload = {"mode": "explore", "read": read_txt, "next": next_txt, "locked": False}
+            # [TEMP-DEBUG 2026-09-22] day-scope trace — REMOVE.
+            try:
+                from antar_engine.ask_timeframe import detect_horizon as _dbg_th
+                payload["_dbg_tf"] = {
+                    "dayscope": bool(locals().get("_ask_tf_dayscope")),
+                    "decision": bool(_ask_decision),
+                    "horizon": _dbg_th(question),
+                    "concern": _ask_concern,
+                }
+            except Exception as _de:
+                payload["_dbg_tf"] = {"err": str(_de)[:120]}
             # [ask-timeframe] a window-scan surfaces the best scanned day as timing.
             if _ask_tf_windowscan and _ask_tf_timing:
                 payload["timing"] = _ask_tf_timing
