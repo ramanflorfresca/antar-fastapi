@@ -20,6 +20,14 @@ jobs:
 
     env:
       IAP_TEST_MODE: "1"
+      # main.py builds its LLM and Supabase clients at IMPORT time, and both
+      # constructors raise on a missing key — so importing main.py at all needs
+      # these present. They are deliberate placeholders, never real credentials:
+      # the tests swap in a fake Supabase and stub the store APIs, so no client
+      # built from these is ever called and nothing leaves the runner.
+      DEEPSEEK_API_KEY: ci-placeholder-not-a-real-key
+      SUPABASE_URL: https://ci.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-not-a-real-key
 
     steps:
       - uses: actions/checkout@v4
