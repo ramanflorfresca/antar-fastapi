@@ -239,9 +239,15 @@ def verify_google(product_id: str, purchase_token: str, kind: str = "") -> dict:
                 return _result(error=f"subscription not active ({state})")
             line = (body.get("lineItems") or [{}])[0]
             period_end = line.get("expiryTime") or _period_end(spec["period_days"])
+            # [iap-renewals 2026-09-22] The STABLE identifier for a Google
+            # subscription is the purchase token: it survives every renewal.
+            # latestOrderId does not — Play appends ..0, ..1, ..2 per renewal,
+            # so storing it would orphan the subscriptions row the first time
+            # an RTDN renewal arrived and we tried to look the buyer up.
             return _result(valid=True, kind="subscription", product_id=product_id,
                            plan=spec["plan"], period_end_iso=period_end,
-                           transaction_id=body.get("latestOrderId") or purchase_token,
+                           transaction_id=purchase_token,
+                           order_id=body.get("latestOrderId") or "",
                            environment="production")
         else:
             url = f"{GOOGLE_API_ROOT}/applications/{package}/purchases/products/{product_id}/tokens/{purchase_token}"
