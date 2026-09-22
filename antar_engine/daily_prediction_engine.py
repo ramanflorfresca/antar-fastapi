@@ -1766,8 +1766,8 @@ def _strip_all_jargon_from_signal(signal_json: dict, language: str) -> dict:
         _arr = signal_json.get(_f)
         if isinstance(_arr, list):
             _scrubbed = [
-                _scrub_cosmic_leak(_fix_reversed_range(
-                    _faith_neutralize(apply_user_facing_strips(_x, language=language, field_type='plain'))))
+                _scrub_cosmic_leak(_fix_word_range(_fix_reversed_range(
+                    _faith_neutralize(apply_user_facing_strips(_x, language=language, field_type='plain')))))
                 if isinstance(_x, str) and _x else _x
                 for _x in _arr
             ]
@@ -1877,6 +1877,44 @@ def _fix_reversed_range(text):
     if not both_same_half:
         return text
     return text[:m.start(1)] + m.group(2) + text[m.end(1):m.start(2)] + m.group(1) + text[m.end(2):]
+
+
+def _fix_word_range(text):
+    """Fix 'between <clock> and the <period-word>' — a malformed range whose end
+    is a time-of-day WORD that overlaps or is redundant with the clock start.
+    e.g. "Between 3:02 PM and the afternoon" reads as nonsense because 3:02 PM
+    IS the afternoon. Rewrite to a clean start-anchored window:
+      clock inside the period  -> "from <clock> through the rest of the <word>"
+      clock before the period  -> "from <clock> through the <word>"
+      clock after the period   -> "from <clock> onward"
+    """
+    if not isinstance(text, str) or not text.strip():
+        return text
+    import re as _r
+    _words = "|".join(_TOD_WORDS.keys())
+    m = _r.search(
+        r'\b(between|from)\s+'
+        r'(?:approximately|approx\.?|around|about|roughly|~)?\s*'
+        r'(\d{1,2}(?::\d{2})?\s*[AaPp][Mm])\s+'
+        r'(?:and|to|through|until|[-–—])\s+'
+        r'(?:the\s+)?(?:early\s+|mid[-\s]?|late\s+)?(' + _words + r')\b',
+        text, _r.IGNORECASE)
+    if not m:
+        return text
+    clock, word = m.group(2), m.group(3).lower()
+    th = _hour24(clock)
+    lo, hi = _TOD_WORDS.get(word, (None, None))
+    if th is None or lo is None:
+        return text
+    if lo <= th < hi:
+        repl = f"from {clock} through the rest of the {word}"
+    elif th < lo:
+        repl = f"from {clock} through the {word}"
+    else:
+        repl = f"from {clock} onward"
+    if m.group(1)[:1].isupper():
+        repl = repl[:1].upper() + repl[1:]
+    return text[:m.start()] + repl + text[m.end():]
 
 
 def _reconcile_window_text(text, start, end):
