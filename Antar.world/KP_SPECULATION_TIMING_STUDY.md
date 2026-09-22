@@ -5,6 +5,32 @@ clears the bar. Prior: LOW (Rahu-illusion mechanism + two adjacent negatives:
 [[business-vertical-timing-study]] and [[d2-wealth-tested-dead]] both closed
 null). We are trying to FALSIFY, not confirm.
 
+## −1. Relationship to what already exists (READ FIRST)
+
+A lot of KP-gambling validation scaffolding is ALREADY built and live (see
+[[material-remedy-and-kp-gambling]]): the **moment-of-question horary reading**
+(`kp_speculation.kp_horary_speculation`) leads gambling answers with the natal
+verdict suppressed; a **calibration log** (`score_kp_horary_calibration`,
+`save_trackable_claim(concern="speculation")`) collects moment+outcome pairs; a
+**gate** `is_gambling_gate_open()` opens only at ≥70% on ≥20 real cases;
+`kp_backtest.run_gambling_backtest(roster)` scores a dated roster; and
+`Antar.world/KP_GAMBLING_TESTER_INSTRUCTIONS.md` + `SCOPE_kp_gambling_validation.md`
+already define the tester flow.
+
+**This study does NOT replace that — it adds the two things that layer is missing:**
+1. **Intra-session, sub-window resolution.** The horary is one verdict per
+   *question*; the calibration log is one outcome per *session/day*. Neither
+   captures "won till 2am, lost 2–5:30" — the WITHIN-night sub-lord/hora shift.
+   That is the "best-time / worst-time" granularity the owner is asking for, and
+   it needs the sub-window unit (§2) + the logger in Appendix A.
+2. **Confound control.** The existing calibration measures hit-rate but does not
+   log alcohol / fatigue / time-of-night / chasing — so it cannot tell an astro
+   edge from human tilt (§4). This study makes those mandatory.
+
+So: reuse `kp_speculation`, `kp_backtest`, the gate, and the tester roster;
+EXTEND the collection to sub-windows + confounds; keep everything under the
+existing CLOSED gate.
+
 ## 0. The one-line question
 
 *Does the Moon's KP sub-lord (and the planetary hora) at the moment of play
