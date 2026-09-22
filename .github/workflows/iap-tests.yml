@@ -1,0 +1,70 @@
+name: IAP renewal webhooks
+
+# These tests guard money: a regression here silently cuts off paying
+# subscribers at their first renewal, or keeps serving refunded ones.
+#
+# They need NO secrets and NO network. main.py loads .env with
+# override=False, and .env is gitignored, so the checkout runs on defaults;
+# Supabase is replaced with a fake and the store APIs are stubbed.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      IAP_TEST_MODE: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # Matches runtime.txt (Railway builds on 3.11).
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Guard — no .env leaked into the checkout
+        run: |
+          if [ -f .env ]; then
+            echo "::error::.env is present in CI. It is gitignored and must never be committed."
+            exit 1
+          fi
+
+      - name: Guard — renewal routes are wired into main.py
+        run: |
+          missing=0
+          for route in \
+            "@app.post(\"/api/v1/payments/apple/notifications\")" \
+            "@app.post(\"/api/v1/payments/google/rtdn\")"; do
+            if ! grep -qF "$route" main.py; then
+              echo "::error::missing route in main.py: $route"
+              missing=1
+            fi
+          done
+          exit $missing
+
+      - name: JWS forgery rejection (9 tests)
+        # Runs first and alone: if certificate-chain validation regresses,
+        # a forged Apple notification buys a free subscription forever.
+        run: python tools/test_iap_jws_security.py
+
+      - name: Parsing and action mapping
+        run: python antar_engine/iap_renewals.py
+
+      - name: Webhook endpoints end-to-end (26 tests)
+        run: python tools/test_iap_renewals.py
+
+      - name: Purchase-time verification self-test
+        run: python antar_engine/iap_engine.py
