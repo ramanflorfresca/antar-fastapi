@@ -21293,6 +21293,66 @@ def _ask_is_vague(question: str, language: str = "en") -> bool:
     return bool(_ASK_VAGUE_STEMS.search(q))
 
 
+def _is_chakra_q(question) -> bool:
+    """A chakra / energy-centre question. This Year already computes the chart's
+    chakra state, so Ask must ANSWER these — it used to refuse ('chakra diagnosis
+    isn't something I can give you'), which contradicted the This Year card."""
+    ql = (question or "").lower()
+    return any(w in ql for w in (
+        "chakra", "chakras", "energy centre", "energy center",
+        "energy centres", "energy centers", "energy balance",
+        "balance my energy", "which of my energ",
+        "centro de energía", "centros de energía",  # es/pt; 'chakra' itself is the same word
+    ))
+
+
+def _ask_chakra_payload(chart_data, dashas, first_name="", language="en") -> dict:
+    """Deterministic chakra read for a chakra question — from the same chakra
+    engine /predict uses. Never refuses; on an empty reading it gives an honest
+    'broadly steady' answer, not a decline."""
+    name = governs = reason = practice_line = ""
+    try:
+        from antar_engine.chakra_engine import get_chakra_reading
+        _tr = []
+        try:
+            from antar_engine.transits_engine import calculate_current_transits
+            _tr = (calculate_current_transits(chart_data) or {}).get("current_transits", []) or []
+        except Exception:
+            _tr = []
+        cr = get_chakra_reading(chart_data, dashas or {}, _tr, None) or {}
+        stressed = cr.get("stressed_chakras") or []
+        if stressed:
+            c0 = stressed[0]
+            name = c0.get("english") or c0.get("name") or ""
+            governs = c0.get("governs") or c0.get("theme") or ""
+            reason = c0.get("context_reason") or ""
+        prim = cr.get("primary_practice") or {}
+        practice_line = (prim.get("instruction") or prim.get("how")
+                         or prim.get("name") or "")
+    except Exception as _e:
+        print(f"[ask][chakra] reading failed (non-fatal): {_e}")
+    nm = (first_name or "").strip()
+    if name:
+        read = (f"{nm + ', ' if nm else ''}the energy centre most out of balance for you "
+                f"right now is your {name}"
+                + (f" — it governs {governs}. " if governs else ". "))
+        if reason:
+            read += f"{reason} "
+        read += ("The steady way back is a short daily breath-and-focus practice for it"
+                 + (f": {practice_line}." if practice_line else ".")
+                 + " A few minutes each morning and it settles within a few weeks.")
+        nxt = (f"Spend five minutes each morning on your {name} — slow breathing with your "
+               "attention resting there — and notice what eases over the next two weeks.")
+    else:
+        read = (f"{nm + ', ' if nm else ''}your energy centres are broadly steady right now — "
+                "none is sharply out of balance. The one worth tending is wherever your daily "
+                "stress collects; a few minutes of slow breathing with your attention there each "
+                "morning keeps the whole system even.")
+        nxt = ("Pick the spot where stress lands most — chest, gut, or head — and breathe "
+               "into it five minutes a day.")
+    return {"mode": "explore", "read": read, "next": nxt, "locked": False}
+
+
 def _ask_clarify_payload(language: str = "en") -> dict:
     _es = (language or "en").lower().startswith("es")
     if _es:
@@ -21390,6 +21450,20 @@ def _ask_role_concern(question: str, thread: list):
     thread — otherwise ordinary words leak the wrong concern (live bug: a
     relationship answer says 'your partner' and 'the deals you make together',
     which matched the equity 'partner' → forced a love follow-up to finance)."""
+    # [thread-contamination fix 2026-09-21] The override must be driven by the
+    # CURRENT question — either it carries a deal word itself, or it's a short
+    # role-reply follow-up ("it's a broker commission"). Otherwise a stale thread
+    # that merely mentioned a deal/equity forced EVERY later standalone question
+    # (a job question, a love question) to 'finance' — the cross-domain leak
+    # where "when will I find a new job" and "how is my love life" both came back
+    # as a money forecast. Role WORDS may still resolve from the thread (a short
+    # reply supplies the role, the prior turn supplied the deal); the GATE keys
+    # off the current question only.
+    _q_low = (question or "").lower()
+    _deal_here = any(w in _q_low for w in _ASK_DEAL_WORDS)
+    _short_followup = len(_q_low.split()) <= 9
+    if not (_deal_here or _short_followup):
+        return None
     ctx = ((question or "") + " " + " ".join(
         (t.get("q", "") + " " + t.get("a", "")) for t in (thread or [])
     )).lower()
@@ -23157,6 +23231,27 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _ade:
                 logger.warning(f"[ask] dasha resolution failed (non-fatal): {_ade}")
 
+            # [chakra 2026-09-21] A chakra / energy-centre question is answered
+            # deterministically from the chakra engine (the same one This Year
+            # uses) and short-circuits here — Ask used to REFUSE it ("chakra
+            # diagnosis isn't something I can give you") while This Year shipped a
+            # chakra + practice, a direct contradiction. Crisis still wins.
+            if _is_chakra_q(question) and not _ask_crisis:
+                _chk_payload = _ask_chakra_payload(
+                    chart_data, _ask_dashas, _ask_first_name, "en")
+                try:
+                    _chk_payload = await _ask_localize(
+                        _chk_payload, language, ["read", "next"], chart_id)
+                except Exception as _cle:
+                    print(f"[ask][chakra] localize non-fatal: {_cle}")
+                try:
+                    await _ask_persist(supabase, chart_id, question, _chk_payload,
+                                       language, "explore", "chakra")
+                except Exception as _cpe:
+                    print(f"[ask][chakra] persist non-fatal: {_cpe}")
+                print("[ask][chakra] short-circuit chakra read")
+                return _chk_payload
+
             # [life-chapter 2026-09-13] "what happens in my new chapter / next
             # phase / dasha" — read the UPCOMING mahadasha deterministically so the
             # answer is consistent and grounded. Also fires as a follow-up when the
@@ -24381,26 +24476,6 @@ async def ask_endpoint(request: AskRequest):
                 print(f"[ask][graceful] empty read for concern={_gc} -> pivot {_alt_c}")
 
             payload = {"mode": "explore", "read": read_txt, "next": next_txt, "locked": False}
-            # [TEMP-DEBUG 2026-09-21] trace concern contamination — REMOVE.
-            try:
-                _dbg_dc_mod = getattr(detect_concern, "__module__", "?")
-                try:
-                    _dbg_dc_raw = _detect_concern(question)
-                except Exception as _e:
-                    _dbg_dc_raw = f"ERR:{_e}"
-                payload["_dbg_concern"] = {
-                    "ask_concern": _ask_concern,
-                    "detect_concern_raw": _dbg_dc_raw,
-                    "detect_concern_module": _dbg_dc_mod,
-                    "wealth_sig": bool(locals().get("_ask_wealth_sig")),
-                    "decision": bool(_ask_decision),
-                    "ee_primary": bool(locals().get("_ee_primary")),
-                    "intent_src": (_ask_intent or {}).get("active_source"),
-                    "intent_domain": (_ask_intent or {}).get("domain"),
-                    "fc_fired": bool(locals().get("_fc")) or bool(locals().get("_fc2")),
-                }
-            except Exception:
-                pass
             # [ask-timeframe] a window-scan surfaces the best scanned day as timing.
             if _ask_tf_windowscan and _ask_tf_timing:
                 payload["timing"] = _ask_tf_timing
