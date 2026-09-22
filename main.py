@@ -27763,6 +27763,7 @@ async def log_speculation_session(request: dict):
     """Shadow logger — record a speculation session + balance checkpoints, slice
     into KP sub-lord windows, allocate P&L. Returns {logged, windows} ONLY (no
     reading). Enabled only when SPECULATION_LOGGER=on."""
+    from fastapi.responses import JSONResponse
     if (os.getenv("SPECULATION_LOGGER", "off").lower() != "on"):
         return JSONResponse(status_code=404, content={"error": "not_enabled"})
     try:
@@ -27833,6 +27834,7 @@ async def export_speculation_windows(http_request: Request, chart_id: Optional[s
                                      limit: int = 5000):
     """Admin-gated dump of speculation_windows for the study's regression. Requires
     header X-Admin-Key == env ADMIN_EXPORT_KEY (deny if unset)."""
+    from fastapi.responses import JSONResponse
     _admin = os.getenv("ADMIN_EXPORT_KEY")
     if not _admin or http_request.headers.get("X-Admin-Key") != _admin:
         return JSONResponse(status_code=403, content={"error": "forbidden"})
