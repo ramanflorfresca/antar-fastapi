@@ -27834,7 +27834,6 @@ async def export_speculation_windows(http_request: Request, chart_id: Optional[s
                                      limit: int = 5000):
     """Admin-gated dump of speculation_windows for the study's regression. Requires
     header X-Admin-Key == env ADMIN_EXPORT_KEY (deny if unset)."""
-    return {"__diag": "reached-export-body"}  # TEMP
     from fastapi.responses import JSONResponse
     _admin = os.getenv("ADMIN_EXPORT_KEY")
     if not _admin or http_request.headers.get("X-Admin-Key") != _admin:
