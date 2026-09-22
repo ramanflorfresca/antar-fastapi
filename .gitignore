@@ -33,7 +33,11 @@ yarn-debug.log*
 yarn-error.log*
 package-lock.json
 yarn.lock
-tools/
+tools/*
+# [iap-renewals 2026-09-22] keep the IAP webhook tests + cert helper tracked
+!tools/test_iap_renewals.py
+!tools/test_iap_jws_security.py
+!tools/fetch_apple_root_ca.sh
 .env
 llm_comarison.py
 /tmp/llm_comparison_*
@@ -45,6 +49,7 @@ antar_engine/chart_context_builder.py.bak_*
 **/*.bak.*
 main.py.bak
 patch_*.py
+!patch_iap_renewals.py
 b_*_v3.json
 billionaire_*.json
 extract.py
