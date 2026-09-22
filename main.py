@@ -27764,8 +27764,10 @@ async def log_speculation_session(request: dict):
     into KP sub-lord windows, allocate P&L. Returns {logged, windows} ONLY (no
     reading). Enabled only when SPECULATION_LOGGER=on."""
     from fastapi.responses import JSONResponse
-    if (os.getenv("SPECULATION_LOGGER", "off").lower() != "on"):
-        return JSONResponse(status_code=404, content={"error": "not_enabled"})
+    _flag = (os.getenv("SPECULATION_LOGGER", "") or "").strip().lower()
+    if _flag not in ("on", "true", "1", "yes", "enabled"):
+        return JSONResponse(status_code=404,
+                            content={"error": "not_enabled", "flag_seen": _flag or None})
     try:
         chart_id = (request or {}).get("chart_id")
         started = _spec_parse_ts((request or {}).get("started_at"))
