@@ -27712,6 +27712,139 @@ async def get_kp_calibration_endpoint(chart_id: Optional[str] = None):
         return {"available": False, "error": str(e)[:200]}
 
 
+# ── KP speculation SHADOW LOGGER ──────────────────────────────────────────────
+# Research data collection for KP_SPECULATION_TIMING_STUDY.md. SHADOW-ONLY: the
+# logger never returns a reading/verdict — it records a session, slices it into
+# Moon KP sub-lord windows, and allocates the reported P&L across them. Gated by
+# SPECULATION_LOGGER=on so nothing is exposed until deliberately enabled.
+def _spec_parse_ts(v):
+    from datetime import datetime as _dt
+    if not v:
+        return None
+    s = str(v).strip().replace("Z", "+00:00")
+    try:
+        d = _dt.fromisoformat(s)
+    except Exception:
+        return None
+    from datetime import timezone as _tz
+    return d if d.tzinfo else d.replace(tzinfo=_tz.utc)
+
+
+def _spec_current_md_ad(chart_id: str):
+    """(md_lord, ad_lord) of the running Vimshottari periods, or (None, None)."""
+    try:
+        from datetime import datetime as _dt
+        ds = get_dashas_for_chart(chart_id) or {}
+        vim = ds.get("vimsottari", []) if isinstance(ds, dict) else (ds or [])
+        now = _dt.utcnow()
+        md = ad = None
+        for r in vim:
+            if not isinstance(r, dict):
+                continue
+            lvl = str(r.get("level") or "").lower()
+            try:
+                sd = _dt.strptime(str(r.get("start_date"))[:10], "%Y-%m-%d")
+                ed = _dt.strptime(str(r.get("end_date"))[:10], "%Y-%m-%d")
+            except Exception:
+                continue
+            if sd <= now <= ed:
+                lord = r.get("planet_or_sign") or r.get("lord_or_sign")
+                if lvl in ("1", "mahadasha") and not md:
+                    md = lord
+                elif lvl in ("2", "antardasha", "bhukti") and not ad:
+                    ad = lord
+        return md, ad
+    except Exception:
+        return None, None
+
+
+@app.post("/api/v1/speculation/session")
+async def log_speculation_session(request: dict):
+    """Shadow logger — record a speculation session + balance checkpoints, slice
+    into KP sub-lord windows, allocate P&L. Returns {logged, windows} ONLY (no
+    reading). Enabled only when SPECULATION_LOGGER=on."""
+    if (os.getenv("SPECULATION_LOGGER", "off").lower() != "on"):
+        return JSONResponse(status_code=404, content={"error": "not_enabled"})
+    try:
+        chart_id = (request or {}).get("chart_id")
+        started = _spec_parse_ts((request or {}).get("started_at"))
+        ended = _spec_parse_ts((request or {}).get("ended_at"))
+        if not chart_id or not started or not ended or ended <= started:
+            return JSONResponse(status_code=400, content={"error": "chart_id, started_at, ended_at (ended>started) required"})
+        row = supabase.table("charts").select(
+            "current_latitude,current_longitude,latitude,longitude,current_timezone,timezone_offset"
+        ).eq("id", chart_id).limit(1).execute()
+        if not row.data:
+            return JSONResponse(status_code=404, content={"error": "chart not found"})
+        crow = row.data[0]
+        lat = (request or {}).get("lat") or crow.get("current_latitude") or crow.get("latitude")
+        lng = (request or {}).get("lng") or crow.get("current_longitude") or crow.get("longitude")
+        if lat is None or lng is None:
+            return JSONResponse(status_code=400, content={"error": "lat/lng required (chart has none)"})
+        tz_off = (request or {}).get("tz_offset")
+        if tz_off is None:
+            tz_off = _iana_offset_hours(crow.get("current_timezone")) or float(crow.get("timezone_offset") or 0)
+        md_lord, ad_lord = _spec_current_md_ad(chart_id)
+        cps = []
+        for c in ((request or {}).get("checkpoints") or []):
+            _at = _spec_parse_ts(c.get("at") or c.get("at_ts"))
+            if _at is not None and c.get("chip_balance") is not None:
+                cps.append({"at": _at, "balance": float(c.get("chip_balance")),
+                            "alcohol": c.get("alcohol_units_cumulative"), "note": c.get("note")})
+        # write session
+        _sess = supabase.table("speculation_sessions").insert({
+            "chart_id": chart_id,
+            "started_at": started.isoformat(), "ended_at": ended.isoformat(),
+            "lat": float(lat), "lng": float(lng), "tz_offset": float(tz_off),
+            "game_type": (request or {}).get("game_type"),
+            "net_units": (request or {}).get("net_units"),
+            "unit_currency": (request or {}).get("unit_currency") or "unit",
+            "stake_baseline": (request or {}).get("stake_baseline"),
+            "alcohol_units_total": (request or {}).get("alcohol_units_total") or 0,
+            "chasing_flag": bool((request or {}).get("chasing_flag") or False),
+            "sleep_debt_hrs": (request or {}).get("sleep_debt_hrs"),
+            "valid": bool((request or {}).get("valid", True)),
+            "notes": (request or {}).get("notes"),
+        }).execute()
+        session_id = _sess.data[0]["id"]
+        if cps:
+            supabase.table("speculation_checkpoints").insert([
+                {"session_id": session_id, "at_ts": c["at"].isoformat(),
+                 "chip_balance": c["balance"], "alcohol_units_cumulative": c["alcohol"],
+                 "note": c["note"]} for c in cps
+            ]).execute()
+        # slice + allocate
+        from antar_engine.kp.kp_moment import allocate_windows
+        wins = allocate_windows(started, ended, cps, float(lat), float(lng),
+                                float(tz_off), md_lord, ad_lord)
+        if wins:
+            supabase.table("speculation_windows").insert(
+                [{**w, "session_id": session_id, "chart_id": chart_id} for w in wins]
+            ).execute()
+        return {"logged": True, "session_id": session_id, "windows": len(wins)}
+    except Exception as e:
+        print(f"[speculation-logger] error: {e}")
+        import traceback; traceback.print_exc()
+        return JSONResponse(status_code=500, content={"error": "log_failed", "detail": str(e)[:200]})
+
+
+@app.get("/api/v1/admin/speculation/export")
+async def export_speculation_windows(http_request: Request, chart_id: Optional[str] = None,
+                                     limit: int = 5000):
+    """Admin-gated dump of speculation_windows for the study's regression. Requires
+    header X-Admin-Key == env ADMIN_EXPORT_KEY (deny if unset)."""
+    _admin = os.getenv("ADMIN_EXPORT_KEY")
+    if not _admin or http_request.headers.get("X-Admin-Key") != _admin:
+        return JSONResponse(status_code=403, content={"error": "forbidden"})
+    try:
+        q = supabase.table("speculation_windows").select("*").order("window_start").limit(int(limit))
+        if chart_id:
+            q = q.eq("chart_id", chart_id)
+        return {"windows": q.execute().data or []}
+    except Exception as e:
+        return {"available": False, "error": str(e)[:200]}
+
+
 # ── Alert System Endpoints ────────────────────────────────────────
 
 _LIFE_ALERT_TYPES = ("wealth_window", "lean_stretch", "risk_window",
