@@ -23598,6 +23598,14 @@ async def ask_endpoint(request: AskRequest):
                 if _ask_decision and _is_material_q(question):
                     print("[ask] material/colour — suppressing decision/timing path")
                     _ask_decision = False
+                # [today-scope 2026-09-22] "how will I do today / this afternoon /
+                # tonight" is about the DAY itself, not a dated life event — the
+                # per-day timeframe facts are already injected, so suppress the
+                # long-range convergence verdict (it was answering "how will I do
+                # today" with "Not yet — the strong window is Nov 2026–Jan 2027").
+                if _ask_decision and _ask_tf_dayscope:
+                    print("[ask] today/day-scope — suppressing decision/timing path")
+                    _ask_decision = False
                 # [ask-timeframe] a bounded window-scan ("which day in the next N")
                 # answers from the scanned days INSIDE the window — never the
                 # far-future event verdict. Route it reflective.
@@ -24475,6 +24483,20 @@ async def ask_endpoint(request: AskRequest):
                 next_txt = None
                 print(f"[ask][graceful] empty read for concern={_gc} -> pivot {_alt_c}")
 
+            # [lead-punct 2026-09-22] Never let read/next start with a dangling
+            # comma. When the model opens with the reader's name ("Raman, take
+            # one...") and a downstream scrub removes the name, it leaves ", take
+            # one..." — strip any leading comma/semicolon/whitespace and recapitalize.
+            for _lp_k in ("read_txt", "next_txt"):
+                _lp_v = locals().get(_lp_k)
+                if isinstance(_lp_v, str) and _lp_v:
+                    _lp_v2 = re.sub(r"^[\s,;:]+", "", _lp_v).strip()
+                    if _lp_v2 and _lp_v2[0].islower():
+                        _lp_v2 = _lp_v2[0].upper() + _lp_v2[1:]
+                    if _lp_k == "read_txt":
+                        read_txt = _lp_v2
+                    else:
+                        next_txt = _lp_v2
             payload = {"mode": "explore", "read": read_txt, "next": next_txt, "locked": False}
             # [ask-timeframe] a window-scan surfaces the best scanned day as timing.
             if _ask_tf_windowscan and _ask_tf_timing:
