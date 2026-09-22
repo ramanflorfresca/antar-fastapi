@@ -26698,6 +26698,40 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         except Exception as _p0b_e:
             print(f"[daily-signal] P0b scrub non-fatal: {_p0b_e}")
 
+        # [new-chapter banner 2026-09-21] Surface on Today when a new multi-year
+        # life chapter (Vimshottari mahadasha) began recently — the single biggest
+        # thing happening to someone, which otherwise lives only in the Life
+        # Chapter tab that naive users never open. is_new = started within ~6
+        # months. Structured only (FE composes + localizes the banner copy).
+        try:
+            from datetime import date as _nc_date
+            _nc_today = _nc_date.today()
+            _nc_md = None
+            for _r in (dasha_rows or []):
+                if str(_r.get("level") or "").lower() not in ("1", "mahadasha"):
+                    continue
+                try:
+                    _sdd = _nc_date.fromisoformat(str(_r.get("start_date") or "")[:10])
+                    _edd = _nc_date.fromisoformat(str(_r.get("end_date") or "")[:10])
+                except Exception:
+                    continue
+                if _sdd <= _nc_today <= _edd:
+                    _nc_md = (_sdd, _edd); break
+            if _nc_md:
+                _sdd, _edd = _nc_md
+                _days_in = (_nc_today - _sdd).days
+                if 0 <= _days_in <= 190:
+                    result["new_chapter"] = {
+                        "is_new": True,
+                        "began": _sdd.isoformat(),
+                        "began_label": _sdd.strftime("%B %Y"),
+                        "ends_year": _edd.year,
+                        "span_years": max(1, round((_edd - _sdd).days / 365.25)),
+                        "months_in": max(1, round(_days_in / 30)),
+                    }
+        except Exception as _nce:
+            print(f"[daily-signal] new_chapter compute skipped: {_nce}")
+
         # [full-payload-cache 2026-09-12] Finish localization IN-BODY (the same
         # allowlist the @translate_response decorator uses), then store the whole
         # final payload to L2 and hand it back marked `_already_localized` so the
