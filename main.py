@@ -24381,6 +24381,19 @@ async def ask_endpoint(request: AskRequest):
                 print(f"[ask][graceful] empty read for concern={_gc} -> pivot {_alt_c}")
 
             payload = {"mode": "explore", "read": read_txt, "next": next_txt, "locked": False}
+            # [TEMP-DEBUG 2026-09-21] trace concern contamination — REMOVE.
+            try:
+                payload["_dbg_concern"] = {
+                    "ask_concern": _ask_concern,
+                    "wealth_sig": bool(locals().get("_ask_wealth_sig")),
+                    "decision": bool(_ask_decision),
+                    "ee_primary": bool(locals().get("_ee_primary")),
+                    "intent_src": (_ask_intent or {}).get("active_source"),
+                    "intent_domain": (_ask_intent or {}).get("domain"),
+                    "fc_fired": bool(locals().get("_fc")) or bool(locals().get("_fc2")),
+                }
+            except Exception:
+                pass
             # [ask-timeframe] a window-scan surfaces the best scanned day as timing.
             if _ask_tf_windowscan and _ask_tf_timing:
                 payload["timing"] = _ask_tf_timing
