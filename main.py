@@ -36090,6 +36090,7 @@ async def predict_year_attention(request: dict, language: str = None):
             birth_date=birth_date,
             current_md_row=current_md_row,
             next_md_row=next_md_row,
+            chart_record=row,
         )
         _ai_c = _inspect_active()
         if _ai_c is not None:

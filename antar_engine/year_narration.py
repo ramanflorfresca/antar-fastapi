@@ -81,6 +81,26 @@ HARD RULES:
    "what to expect" the person came for. Frame it as the year's realistic
    OUTCOME if they act — never as a fixed dated event ("in March you
    will..."). Conditions and likely results, never event predictions.
+4d. RESPECT WHO THEY ARE (from the live data; never name these labels in the output).
+   work_role: if it is "founder" (or entrepreneur / self-employed / consultant /
+   freelancer), NEVER frame career as "your boss", "a promotion", "your manager",
+   or any employee / workplace-ladder dynamic — frame it as their own venture,
+   business, clients, and the moves they make. marital_status: if "divorced",
+   "single", "widowed", or "separated", never assume a current spouse or partner —
+   speak of a new or potential relationship, or leave partnership out.
+   children_status: if "adult_children", never say "a young child" or "protect a
+   child"; a family or creative signal reads as grown children or a creative
+   project, not parenting a minor.
+4e. THE YEAR SITS INSIDE THE LONG CHAPTER — never contradict it. The live data
+   carries chapter_theme: the plain character of the multi-year chapter this
+   person is in (the SAME arc the app's "Life Chapter" view shows). Frame the
+   year as a PHASE within that arc, aligned with its basic direction. If the
+   chapter is ambitious / expansive / venture-driven but this particular year is
+   a consolidation or groundwork phase, say exactly that — "this is the
+   groundwork year inside a bigger push", "a positioning year within an
+   ambitious chapter" — NEVER "a steady year, don't be bold" as if the whole
+   chapter were cautious. The year's tempo may be slower than the chapter; its
+   DIRECTION must match. Never name the chapter's planet or say "chapter_theme".
 5. "watch": 1-2 lines, max 40 words. The specific stretch or dynamic to
    watch (use the season window in the live data) and the one behavior that
    protects it.
@@ -125,6 +145,7 @@ def build_year_engine_state(
     birth_date: str,
     current_md_row: Optional[dict],
     next_md_row: Optional[dict],
+    chart_record: Optional[dict] = None,
 ) -> dict:
     """Assemble the deterministic annual state from what the engines already
     compute. Internal names (planets/signs) are allowed HERE — they are
@@ -146,12 +167,45 @@ def build_year_engine_state(
             if isinstance(h, dict) and h.get("text")
         ][:5],
     }
+    # [life-facts 2026-09-21] Feed the reader's work role, marital status, and
+    # children status so the narrator stops defaulting to employee framing
+    # ("your boss / a promotion") for a founder, assuming a spouse for the
+    # divorced/single, or "protect a child" for someone with adult children.
+    _rec = chart_record or {}
+    _prof = (str(_rec.get("profession") or _rec.get("life_work") or "")
+             + " " + str(_rec.get("career_stage") or "")).strip().lower()
+    if _prof:
+        _founder = any(w in _prof for w in (
+            "founder", "entrepreneur", "self-employed", "self employed",
+            "business owner", "owner", "freelance", "freelancer", "ceo",
+            "startup", "solopreneur", "consultant", "independent",
+        ))
+        state["work_role"] = "founder" if _founder else _prof
+    _mar = (str(_rec.get("marital_status") or "").strip().lower()) or None
+    if _mar:
+        state["marital_status"] = _mar
+    _kids = (str(_rec.get("children_status") or "").strip().lower()) or None
+    if _kids:
+        state["children_status"] = _kids
     # Long chapter (Vimsottari MD) + the handover, if known
     if isinstance(current_md_row, dict) and current_md_row.get("planet_or_sign"):
+        _md_lord = current_md_row.get("planet_or_sign")
         state["long_chapter"] = {
-            "lord": current_md_row.get("planet_or_sign"),
+            "lord": _md_lord,
             "ends": str(current_md_row.get("end_date") or "")[:10],
         }
+        # [spine 2026-09-21] The PLAIN character of the multi-year chapter this
+        # year sits inside — the SAME source the Life-Chapter surface reads from —
+        # so This Year aligns with it instead of contradicting it (Chapter said
+        # "press unfamiliar ground / push hard", This Year said "steady, don't
+        # leap"). The narrator must frame the year as a PHASE within this arc.
+        try:
+            from antar_engine.d10_career import PLANET_CHAPTER as _PC
+            _theme = _PC.get(_md_lord, "")
+            if _theme:
+                state["chapter_theme"] = _theme
+        except Exception:
+            pass
     if isinstance(next_md_row, dict) and next_md_row.get("planet_or_sign"):
         state["next_chapter"] = {
             "lord": next_md_row.get("planet_or_sign"),
@@ -331,6 +385,9 @@ def _fingerprint(state: dict) -> dict:
         "areas": [(a.get("name"), a.get("bars")) for a in (state.get("areas") or [])],
         "md": (state.get("long_chapter") or {}).get("lord"),
         "muntha": state.get("muntha_sign"),
+        "work_role": state.get("work_role"),
+        "marital_status": state.get("marital_status"),
+        "children_status": state.get("children_status"),
     }
 
 
