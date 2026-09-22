@@ -26706,9 +26706,14 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         try:
             from datetime import date as _nc_date
             _nc_today = _nc_date.today()
+            _nc_ds = get_dashas_for_chart(cid) or {}
+            _nc_vim = _nc_ds.get("vimsottari", []) if isinstance(_nc_ds, dict) else (_nc_ds or [])
             _nc_md = None
-            for _r in (dasha_rows or []):
-                if str(_r.get("level") or "").lower() not in ("1", "mahadasha"):
+            for _r in (_nc_vim or []):
+                if not isinstance(_r, dict):
+                    continue
+                _lvl = str(_r.get("level") or "").lower()
+                if _lvl not in ("1", "mahadasha"):
                     continue
                 try:
                     _sdd = _nc_date.fromisoformat(str(_r.get("start_date") or "")[:10])
