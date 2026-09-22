@@ -24383,8 +24383,15 @@ async def ask_endpoint(request: AskRequest):
             payload = {"mode": "explore", "read": read_txt, "next": next_txt, "locked": False}
             # [TEMP-DEBUG 2026-09-21] trace concern contamination — REMOVE.
             try:
+                _dbg_dc_mod = getattr(detect_concern, "__module__", "?")
+                try:
+                    _dbg_dc_raw = _detect_concern(question)
+                except Exception as _e:
+                    _dbg_dc_raw = f"ERR:{_e}"
                 payload["_dbg_concern"] = {
                     "ask_concern": _ask_concern,
+                    "detect_concern_raw": _dbg_dc_raw,
+                    "detect_concern_module": _dbg_dc_mod,
                     "wealth_sig": bool(locals().get("_ask_wealth_sig")),
                     "decision": bool(_ask_decision),
                     "ee_primary": bool(locals().get("_ee_primary")),
