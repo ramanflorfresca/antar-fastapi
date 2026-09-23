@@ -342,13 +342,44 @@ def _facts_block(concern, spec, verdict, drivers, d9, dasha_active, lords, in_ho
               else " The navamsa is lukewarm on it, so treat it as partial.")
     frame = ("whether " + spec["subject"] + " is supported"
              if pol == "gain" else "whether " + spec["subject"] + " is a live risk")
+
+    # [funding-timing 2026-09-23] A "when funding / when money" question was
+    # answering vaguely because the significator block carries no dated WHEN — the
+    # timing lives in a SEPARATE convergence/transit block in the same context,
+    # and nothing told the model to fuse them. For a money-GAIN concern asked as a
+    # timing question, demand the explicit three-layer structure a KP/Jyotish
+    # reader gives: GATE (running period) + TRIGGER (the dated transit window) +
+    # CHANNEL (which money house it flows through). This is what makes the answer
+    # land as direct as a human astrologer's, instead of "money is supported".
+    timing_structure = ""
+    if concern in ("funding", "income") and intent == "timing":
+        _gate = ("OPEN NOW — a running life-period is already active on this theme, "
+                 "so lead by saying the door is open and the work is to be in-market "
+                 "in the trigger window"
+                 if dasha_active else
+                 "not fully open yet — say the earliest it opens (from the window "
+                 "provided) rather than implying it is live today")
+        timing_structure = (
+            "\nTIMING — ANSWER IN THIS ORDER (plain language, be direct and dated):\n"
+            f"1) THE GATE: {_gate}.\n"
+            "2) THE TRIGGER: the specific months it actually lands — cite the dated "
+            "window given elsewhere in this context (a slow, supportive influence "
+            "crossing the money houses is the trigger on top of the open period). "
+            "Give a real quarter / months horizon (e.g. 'strongest from <month> "
+            "through <month>'), never 'sometime' and never 'not indicated'.\n"
+            "3) THE CHANNEL: HOW it arrives — through gains and your network, through "
+            "outside capital (an investor / a loan), or from your own reserves — read "
+            "from the significators above.\n"
+            "IMPORTANT: the chart times the MONEY, not which company/venture — do "
+            "NOT name or pick a specific business. If the door is open, say so "
+            "plainly and give the window; do not hedge it into a non-answer.")
     return (
         f"CONCERN ANALYSIS — the reader is asking about {frame}. This is computed "
         f"DETERMINISTICALLY from the houses that own this theme "
         f"({', '.join(spec['house_meaning'].values())}), their lords, the natural "
         f"significators, the navamsa, and the running dasha. You MUST answer from "
         f"THIS analysis — do not invent.\n"
-        f"VERDICT: {verdict}{lit}.{d9line}{node_line}\n"
+        f"VERDICT: {verdict}{lit}.{d9line}{node_line}{timing_structure}\n"
         f"KEY SIGNIFICATORS: {top}.\n"
         f"STAY STRICTLY ON ONE TOPIC: {spec['subject']}. Do NOT bring in any other "
         "life area — a health answer must NEVER mention money, loans, or funding; a "
