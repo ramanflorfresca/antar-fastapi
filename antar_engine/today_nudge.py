@@ -99,6 +99,18 @@ _POSITIVE_NUDGE = {
     "mind":          "Put the clarity to generous use — a small donation at the {place} keeps the day flowing your way.",
 }
 
+# [no-income 2026-09-23] When money is strained or income is absent, a
+# "drop a small donation" nudge is tone-deaf — it assumes surplus the person
+# doesn't have (owner flagged: a user with money strain / NO income was told to
+# donate). Non-monetary generosity: give TIME and help, never money.
+_POSITIVE_NUDGE_NONMONEY = {
+    "money":         "Money's tight today, so don't give it away — but a little of your time for someone who needs it still pays you back.",
+    "work":          "Share the credit on what lands today, and lift someone with your time — no money needed.",
+    "relationships": "Give a little without being asked today — your attention and a helping hand, not your wallet.",
+    "body":          "Spend an hour of today's energy on someone who needs it.",
+    "mind":          "Put the clarity to generous use — offer someone your time or a hand today.",
+}
+
 
 def _giving_place(current_country: str) -> str:
     up = (current_country or "").strip().upper()
@@ -111,24 +123,30 @@ def derive_todays_nudge(
     domains: list,
     current_country: str = "",
     lk_daily: Optional[dict] = None,
+    can_give_money: bool = True,
 ) -> Optional[str]:
     """One-line, day-scale behavioral nudge tied to the chosen highlight.
 
     Returns None on a quiet day (omit the field — no manufactured advice)
     or when no domain was chosen. Never returns a remedy.
+
+    can_give_money=False (money strained / no income) → the positive "giving"
+    nudge switches to NON-MONETARY generosity (time/help), never "donate money".
     """
     if direction not in ("positive", "adverse", "caution") or not domains:
         return None
     lead = domains[0]
+    _pos = _POSITIVE_NUDGE if can_give_money else _POSITIVE_NUDGE_NONMONEY
     if direction == "adverse":
         return _ADVERSE_NUDGE.get(lead)
     if direction == "caution":
         # lean-in-with-a-cap; fall back to the giving nudge if the domain
         # has no caution line so the field is never left contradicting.
+        _fb = _pos.get(lead, "")
         return _CAUTION_NUDGE.get(lead) or (
-            _POSITIVE_NUDGE.get(lead, "").format(place=_giving_place(current_country))
+            (_fb.format(place=_giving_place(current_country)) if "{place}" in _fb else _fb)
             or None)
-    tmpl = _POSITIVE_NUDGE.get(lead)
+    tmpl = _pos.get(lead)
     if not tmpl:
         return None
-    return tmpl.format(place=_giving_place(current_country))
+    return tmpl.format(place=_giving_place(current_country)) if "{place}" in tmpl else tmpl

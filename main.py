@@ -25669,6 +25669,22 @@ _DAILY_DO_DONT_BY_DOMAIN = {
     "children":     {"do": "spend time with your kids or a creative project", "dont": "don't force a creative bet"},
 }
 
+# [no-income 2026-09-23] Whether a "give money / donate" nudge is appropriate.
+# False when financial_status signals hardship, so the day's "YOUR MOVE" never
+# tells a user with no income to drop a donation (owner-flagged). Unknown status
+# keeps the default giving behaviour.
+_FIN_HARDSHIP_MARKERS = (
+    "no income", "without income", "unemploy", "jobless", "no job", "between jobs",
+    "laid off", "struggl", "hardship", "in debt", "debt trap", "broke",
+    "low income", "very tight", "no money", "financially tight", "poor",
+)
+def _can_give_money_now(financial_status) -> bool:
+    f = (str(financial_status or "")).strip().lower()
+    if not f:
+        return True
+    return not any(k in f for k in _FIN_HARDSHIP_MARKERS)
+
+
 # [i18n-drift 2026-09-21] ONE list, used by BOTH the @translate_response
 # decorator below AND the in-handler translate_dict call that short-circuits it
 # via `_already_localized`. They were two hand-maintained copies that silently
@@ -25731,7 +25747,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         from antar_engine.daily_panchanga import calculate_panchanga, format_daily_for_user
         res = supabase.table("charts").select(
             "chart_data,birth_date,name,gender,latitude,longitude,current_country,birth_country,current_city,"
-            "children_status,marital_status,lal_kitab_data,language_preference"
+            "children_status,marital_status,lal_kitab_data,language_preference,financial_status"
         ).eq("id", cid).execute()
         if not res.data: raise HTTPException(404, "Chart not found")
         row = res.data[0]
@@ -26140,6 +26156,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     domains=_th["highlight_domains"],
                     current_country=current_country,
                     lk_daily=_th_lk,
+                    can_give_money=_can_give_money_now(row.get("financial_status")),
                 )
             except Exception as _ng_err:
                 print(f"[daily-signal] nudge derivation failed: {_ng_err}")
@@ -26418,7 +26435,8 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                             _n_dir = "positive"
                         if _n_coarse:
                             _n_new = _dtn(direction=_n_dir, domains=[_n_coarse],
-                                          current_country=current_country, lk_daily=_th_lk)
+                                          current_country=current_country, lk_daily=_th_lk,
+                                          can_give_money=_can_give_money_now(row.get("financial_status")))
                             if _n_new:
                                 try:
                                     from antar_engine.daily_prediction_engine import _faith_neutralize as _fn
