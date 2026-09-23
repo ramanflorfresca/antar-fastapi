@@ -38851,6 +38851,19 @@ async def _life_arc_compute(chart_id, horizon_months, language,
     except Exception as _eve:
         print(f"[life_arc] event life-stage gate skipped (non-fatal): {_eve}")
 
+    # [dateless-drop 2026-09-23] A forward card with no window can't be dated or
+    # placed on the timeline (e.g. a wealth_jump signature that resolved no
+    # window → "Significant income increase" with window_start=None). Drop it —
+    # an undated "what's ahead" item is noise. Covers both the merged path and
+    # the no-chips path, since both read this same list.
+    try:
+        predicted_events = [
+            _e for _e in (predicted_events or [])
+            if str((_e or {}).get("window_start") or "").strip()
+        ]
+    except Exception as _dle:
+        print(f"[life_arc] dateless-event drop skipped (non-fatal): {_dle}")
+
     # ── 3. Diagnostic ────────────────────────────────────────────────────
     try:
         diagnostic = await generate_diagnostic(
