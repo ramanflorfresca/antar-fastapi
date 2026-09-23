@@ -754,6 +754,24 @@ def _verdict_line(current_md_lord, chart_data, current_ad_lord=None,
         current_md_lord = current_ad_lord
     if not current_md_lord:
         return ""
+    # [coherence 2026-09-23] The per-planet phrase (e.g. Venus -> "A harmonising
+    # chapter") is the lord's GENERIC nature. But when the chapter lord sits in a
+    # HARD house for THIS chart (6/8/12) or is debilitated, the chapter is
+    # demanding, not easy — and the body (which reads the actual placement) will
+    # describe pressure while a "harmonising" headline sits on top of it. Align
+    # the headline's tone with the real placement so the two stop contradicting.
+    try:
+        _mdp = (chart_data.get("planets") or {}).get(current_md_lord) or {}
+        _mh = _mdp.get("house")
+        _hard = (_mh in (6, 8, 12)) or (_condition(current_md_lord, chart_data) == "debilitated")
+        if _hard:
+            _area = _period_lord_nouns(current_md_lord, chart_data, n=1)
+            _theme = _area[0] if _area else "hidden, shared and testing ground"
+            return _scrub_leaks(
+                f"A demanding, deepening chapter — it centres on {_theme}; "
+                "hold steady and don't rush the big calls.")
+    except Exception:
+        pass
     phrase = ARCHETYPE_PHRASE_SHORT.get(current_md_lord, "A distinctive chapter")
     nuance = NUANCE_BY_PLANET.get(current_md_lord, "stay specific about what you commit to")
     return _scrub_leaks(f"{phrase} — {nuance}.")
