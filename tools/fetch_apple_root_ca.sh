@@ -13,7 +13,7 @@ set -euo pipefail
 OUT_DIR="certs"
 DER="${OUT_DIR}/AppleRootCA-G3.cer"
 PEM="${OUT_DIR}/AppleRootCA-G3.pem"
-URL="https://www.apple.com/appleca/AppleRootCA-G3.cer"
+URL="https://www.apple.com/certificateauthority/AppleRootCA-G3.cer"
 
 mkdir -p "$OUT_DIR"
 echo "→ downloading ${URL}"
