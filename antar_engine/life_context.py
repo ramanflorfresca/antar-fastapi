@@ -133,10 +133,17 @@ _MARITAL_FROM_LIFE_RELATIONSHIP = {
     "widowed":    "divorced",
 }
 
-# children_status canonical: yes | no
+# children_status canonical: yes | adult | no
+# [adult-5th 2026-09-23] "adult" is a distinct tier: the reader HAS children but
+# they are grown, so a 5th-house read is a creative venture / mentee / speculation,
+# NOT a new baby or day-to-day parenting. Kept OUT of _CHILDREN_YES so the two map
+# to different framings; both still count as has_children=True.
+_CHILDREN_ADULT = {
+    "adult_children", "grown_children", "grown", "adult", "empty_nest",
+}
 _CHILDREN_YES = {
     "yes", "has_children", "have_children", "young_children", "older_children",
-    "adult_children", "expecting", "kids", "parent",
+    "expecting", "kids", "parent",
 }
 _CHILDREN_NO = {
     "no", "none", "no_children", "no_children_wants", "no_children_by_choice",
@@ -212,6 +219,8 @@ def _norm_marital(row: dict) -> Optional[str]:
 def _norm_children(row: dict) -> Optional[str]:
     real = _patra_real(row, "children_status")
     if real is not None:
+        if real in _CHILDREN_ADULT:
+            return "adult"
         if real in _CHILDREN_YES:
             return "yes"
         if real in _CHILDREN_NO:
@@ -219,6 +228,8 @@ def _norm_children(row: dict) -> Optional[str]:
         return None
     lk = _clean(row.get("life_kids"))
     if lk is not None:
+        if lk in _CHILDREN_ADULT:
+            return "adult"
         if lk in _CHILDREN_YES:
             return "yes"
         if lk in _CHILDREN_NO:
@@ -325,6 +336,10 @@ _MARITAL_FRAMING = {
 _CHILDREN_FRAMING = {
     "yes": "They have (or are expecting) children. 5th-house reads relate to "
            "existing children and parenting, not the prospect of having them.",
+    "adult": "Their children are GROWN ADULTS. A 5th-house read is a CREATIVE "
+             "project, a venture, a student or mentee, or a speculative matter — "
+             "NEVER a new baby or day-to-day parenting. Do not write 'a child', "
+             "'a new child', or 'protect anything tied to a child'.",
     "no":  "They have no children. 5th-house reads are about creativity and "
            "open future — do not assume children are imminent.",
 }
@@ -405,7 +420,7 @@ def resolve_life_facts(row: Optional[dict]) -> Optional[dict]:
         partnered = None
 
     has_children: Optional[bool]
-    if children == "yes":
+    if children in ("yes", "adult"):
         has_children = True
     elif children == "no":
         has_children = False

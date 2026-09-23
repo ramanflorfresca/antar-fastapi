@@ -567,6 +567,13 @@ def _life_constraint_block(life: Optional[dict]) -> str:
     if life.get("has_children") is False:
         lines.append('- The reader has NO children — NEVER reference "your child", '
                      '"your children", or any child-related event as a present fact.')
+    elif life.get("children") == "adult":
+        lines.append('- The reader\'s children are GROWN ADULTS — a 5th-house / '
+                     '"children" theme is NOT a new baby or day-to-day parenting. '
+                     'Read the 5th house as a CREATIVE project, a venture, a '
+                     'student/mentee, or a speculative matter. NEVER write "a child", '
+                     '"a new child", "a child\'s need", or "protect anything tied to '
+                     'a child".')
     if life.get("partnered") is False:
         lines.append('- The reader is NOT currently partnered — NEVER reference "your '
                      'spouse", "your partner", or "your marriage" as a present '

@@ -614,6 +614,41 @@ async def generate_monthly_deepdive(
         lk_data=lk_data, debug_out=_dbg, life=_life,
     )
 
+    # [life-gate 2026-09-23] Forbid claims the reader's KNOWN facts contradict —
+    # the noun layer steers wording, but the overview/month_theme are free LLM
+    # prose that still wrote "protect anything tied to a child" for a founder with
+    # GROWN children. Append the same hard constraint the annual surface uses so
+    # the monthly narrative can't contradict the reader (adult kids → 5th house is
+    # creative/venture/speculation, never "a child"; self-employed → no "boss").
+    try:
+        _mlc = []
+        if _life:
+            if _life.get("employed") is False:
+                _mlc.append('- The reader is SELF-EMPLOYED / a business owner — NEVER '
+                            'write "your boss" or "your manager"; use "your reputation", '
+                            '"your work standing", "an authority figure", or "your business".')
+            if _life.get("has_children") is False:
+                _mlc.append('- The reader has NO children — NEVER reference "your child" '
+                            'or any child-related event as a present fact.')
+            elif _life.get("children") == "adult":
+                _mlc.append('- The reader\'s children are GROWN ADULTS — a 5th-house / '
+                            '"children" theme is NOT a new baby or day-to-day parenting. '
+                            'Read the 5th as a CREATIVE project, a venture, a '
+                            'student/mentee, or a speculative matter. NEVER write '
+                            '"a child", "a child\'s need", or "protect anything tied to a child".')
+            if _life.get("partnered") is False:
+                _mlc.append('- The reader is NOT currently partnered — NEVER reference '
+                            '"your spouse", "your partner", or "your marriage" as a '
+                            'present relationship; use "a partnership" or a future-framed '
+                            'possibility.')
+        if _mlc:
+            context = context + (
+                "\n\nKNOWN LIFE FACTS — confirmed about this reader; NEVER write "
+                "anything that contradicts them (this is what makes the reading feel "
+                "truly known):\n" + "\n".join(_mlc))
+    except Exception as _mlce:
+        logger.debug("[monthly] life-gate skipped (non-fatal): %s", _mlce)
+
     # Call Claude
     result = await _call_claude(context, claude_client, language)
     result["chart_id"]  = chart_id
