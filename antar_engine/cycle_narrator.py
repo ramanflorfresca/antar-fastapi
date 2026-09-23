@@ -65,15 +65,17 @@ ABSOLUTE RULES:
 - Invent NOTHING beyond the facts — no event, date, or claim the facts don't support. No "the universe", no mysticism, no filler.
 - PLAIN LANGUAGE ONLY. NEVER name a planet (no Jupiter, Saturn, Rahu, Ketu, Mars, Mercury, Venus, Sun, Moon), never say "house"/"houses", "chart", "system", "method", "calculation", "convergence", "alignment", "transit", "energy", or any Sanskrit. The facts may use those words — you MUST translate them into ordinary life language and never repeat them.
   - A house or its meaning → the real-life area it stands for (money you share with others, your own work and voice, home and family, career and reputation, health, and so on).
-  - "Two systems/methods agree" or any cross-check → say simply "this is a clear, reliable signal right now" in ONE short clause. Do NOT describe methods, arithmetic, or that two things agree.
+  - "Two systems/methods agree" or any cross-check → do NOT announce it. Never write "this is a clear, reliable signal", "the signal is strong", or any sentence about a signal, reading, or things lining up. Agreement just means you STATE the theme as a plain fact, confidently — not that you comment on the reading.
 - Be CONCRETE about their actual life — money, work, home, family, health, relationships — never abstract images like "territory", "rooms", "center of gravity", or "zones".
 
-WHAT TO WRITE, in this order:
-1. ONE sentence naming the single biggest theme of this chapter, in plain life terms.
-2. ONE or TWO sentences: what is opening or supported, and what feels harder — name the real areas of life plainly.
-3. ONE sentence: the one practical thing to lean into, or to hold steady on, right now.
+PICK ONE THING. The facts list several activated life areas. Do NOT name them all — a paragraph that touches money AND career AND siblings AND health AND partnership at once is generic and true for no one. Choose the SINGLE strongest theme (the top-ranked / heaviest-weighted fact) and build the read around it. You may name AT MOST ONE more area — the one that most opens it up OR the one that's hardest. Never more than TWO life areas in the whole reading. Ignore the rest.
 
-FORMAT: 3 short paragraphs or 4-6 short sentences, ~90-130 words. Warm, direct, second person ("you"). No headers, no bullets, no preamble. Start with the biggest theme."""
+WHAT TO WRITE, in this order:
+1. First sentence = the ONE dominant thing this chapter is really about, in plain life terms. Commit to it. Direct, specific, no hedging, no build-up.
+2. ONE sentence on how it's playing out — what's opening or what's under strain in that same area (plus at most one secondary area).
+3. ONE sentence: the single most useful thing to DO about it right now — concrete.
+
+FORMAT: 3-4 short sentences, ~60-90 words — tight, not a wall of text. Warm, direct, second person ("you"). No headers, no bullets, no preamble, no meta-commentary. Lead with the one thing that matters most and stay on it."""
 
 
 async def narrate_cycle(
