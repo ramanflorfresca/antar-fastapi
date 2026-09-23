@@ -38626,6 +38626,18 @@ _life_arc_inflight = {}
 _life_arc_prewarm_tasks = set()
 
 
+# [conviction-plainword 2026-09-23] Plain-word label per conviction tier for the
+# Cycle "WHAT'S AHEAD" event cards. Conviction is hard-capped at medium until the
+# D9/D10 layer ships, so "high" never occurs in practice — the FE should show two
+# honest tiers as WORDS (not a 3-colour traffic light that promises a High the
+# user never sees, and reads amber-as-warning on neutral/good events).
+_CONVICTION_LABEL = {
+    "high":   "Strong signal",   # reserved — cannot occur until D9/D10 ships
+    "medium": "Likely",
+    "low":    "Early signal",
+}
+
+
 def _cycle_karakas(chart_data: dict) -> dict:
     """The 7 Chara karakas as {name: sign_index} for the moving-lagna reading.
 
@@ -39067,9 +39079,17 @@ async def _life_arc_compute(chart_id, horizon_months, language,
             _fe_public = [{k: v for k, v in c.items() if not k.startswith("_")}
                           for c in _fe_chips]
             # Hard conviction guard — never let "high" leak pre-D9/D10.
+            # [conviction-plainword 2026-09-23] Conviction is hard-capped at
+            # medium (D9/D10 hasn't shipped), so "high" can NEVER occur — a
+            # three-colour High/Medium/Low legend advertises a tier the user
+            # will never see, and an amber dot reads as a warning on neutral/
+            # good events. Ship a PLAIN WORD per event so the FE can show text
+            # (two honest tiers) instead of asking the user to decode a colour.
             for _fe_c in _fe_public:
                 if _fe_c.get("conviction") == "high":
                     _fe_c["conviction"] = "medium"
+                _fe_c["conviction_label"] = _CONVICTION_LABEL.get(
+                    _fe_c.get("conviction"), "Early signal")
             response["predicted_events"] = _fe_public + (predicted_events or [])
 
             # Attach chips to cycle_timeline nodes by window overlap.
@@ -39119,6 +39139,8 @@ async def _life_arc_compute(chart_id, horizon_months, language,
                             "category":     _fe_c["category"],
                             "window_label": _fe_lbl,
                             "conviction":   _fe_c["conviction"],
+                            "conviction_label": _fe_c.get("conviction_label")
+                                or _CONVICTION_LABEL.get(_fe_c.get("conviction"), "Early signal"),
                         })
                         _fe_titles.add(_fe_c["title"])
                         _fe_used.add(_fe_key)
