@@ -240,7 +240,12 @@ def _life_allows(noun: str, life: Optional[dict]) -> bool:
         if life.get("partnered") is False:
             return False
     elif req == "has_children":
-        if life.get("has_children") is False:
+        # Drop the "a child" noun for the childless (no children at all) AND for
+        # readers whose children are GROWN ADULTS — for them a lit 5th house is a
+        # creative project / venture / speculation, not a new baby. select_nouns
+        # then falls back to the other 5th-house nouns ("a creative project",
+        # "an investment or bet").
+        if life.get("has_children") is False or life.get("children") == "adult":
             return False
     elif req == "not_partnered_ok":
         # "romance" is not wrong for a married reader, just less apt — allow.

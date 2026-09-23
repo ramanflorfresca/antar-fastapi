@@ -142,6 +142,31 @@ def compute_month_inputs(
         if dom and dom not in seeds and pa.get("action"):
             seeds[dom] = str(pa["action"])
 
+    # [coherence 2026-09-23] The overview + the whole reading are driven by the
+    # RANKED convergence sweep (active_domains lead, quiet_domains collapsed).
+    # Ground each domain card's polarity in THAT same ranking so the cards agree
+    # with the overview. Before, polarity came only from priority_actions text,
+    # so a lead opportunity with no action seed (money for Raman) read "steady"
+    # while the overview led "money surging" — the card contradicted the headline.
+    # active_domains are pre-ranked, so the FIRST one mapping to a bucket wins it.
+    _conv_pol: Dict[str, str] = {}
+    _conv_seed: Dict[str, str] = {}
+    for a in (deepdive.get("active_domains") or []):
+        fk = route_domain(a.get("key") or a.get("label"))
+        if not fk:
+            continue
+        _pol = "caution" if str(a.get("polarity") or "").lower() in (
+            "risk", "negative", "adverse", "protect") else "positive"
+        if fk not in _conv_pol:
+            _conv_pol[fk] = _pol
+            _conv_seed[fk] = str(a.get("summary") or a.get("line")
+                                 or a.get("signal") or "")
+    _conv_quiet = set()
+    for q in (deepdive.get("quiet_domains") or []):
+        fk = route_domain(q.get("key") or q.get("label"))
+        if fk and fk not in _conv_pol:
+            _conv_quiet.add(fk)
+
     # everything date-bearing is "sourced" — shared across domains.
     # [blocker2-harden] include EVERY priority_actions action string (all
     # domains), not just each domain's own seed, so a real computed date
@@ -156,26 +181,46 @@ def compute_month_inputs(
 
     inputs: List[Dict[str, Any]] = []
     for dom in FIVE:
-        seed = seeds.get(dom, "")
-        has_action = bool(seed)
         is_hot = dom in hot
-        if has_action:
+        in_active = dom in _conv_pol
+        in_quiet = dom in _conv_quiet
+        # Prefer a real priority-action seed; else the convergence domain's own
+        # summary so a ranked-but-actionless domain still gets grounded copy.
+        seed = seeds.get(dom) or (_conv_seed.get(dom, "") if in_active else "")
+        has_action = bool(seeds.get(dom))
+
+        # Polarity: convergence ranking WINS (keeps the cards coherent with the
+        # overview); fall back to the action-text read only when the sweep is
+        # silent on this domain.
+        if in_active:
+            polarity = _conv_pol[dom]
+        elif in_quiet:
+            polarity = "steady"
+        elif has_action:
             polarity = _seed_polarity(seed)
         else:
             polarity = "steady"
-        conv = CONV_LOW + (1 if has_action else 0) + (1 if is_hot else 0)
-        conv = min(conv, CONV_HIGH)
+
         if polarity == "caution":
             window = caution_week or caution_loose
-        elif polarity == "positive" and has_action:
+        elif polarity == "positive":
             window = best_week or best_loose
         else:
             polarity = "steady"
             window = None
-            conv = min(conv, CONV_LOW)  # quiet domain reads directional
+
+        # Conviction: a ranked (active) domain carries real weight; a quiet /
+        # unsignalled domain reads directional (LOW).
+        if in_active:
+            conv = min(CONV_HIGH, CONV_MED + (1 if (has_action or is_hot) else 0))
+        elif polarity == "steady":
+            conv = CONV_LOW
+        else:
+            conv = min(CONV_HIGH, CONV_LOW + (1 if has_action else 0) + (1 if is_hot else 0))
+
         sourced = list(base_sourced)
         if seed:
-            sourced.append(seed)  # the action text's own dates are sourced
+            sourced.append(seed)  # the seed text's own dates are sourced
         if window:
             sourced.append(window)
         inputs.append({
