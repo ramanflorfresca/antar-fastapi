@@ -1,7 +1,8 @@
-name: IAP renewal webhooks
+name: Payments tests
 
 # These tests guard money: a regression here silently cuts off paying
-# subscribers at their first renewal, or keeps serving refunded ones.
+# subscribers at their first renewal, keeps serving refunded ones, or
+# charges a price the product never advertised.
 #
 # They need NO secrets and NO network. main.py loads .env with
 # override=False, and .env is gitignored, so the checkout runs on defaults;
@@ -76,3 +77,9 @@ jobs:
 
       - name: Purchase-time verification self-test
         run: python antar_engine/iap_engine.py
+
+      - name: Pricing table consistency (49 tests)
+        # Guards against the two pricing tables drifting apart again — a live
+        # product must never appear in the deprecated-tier fallback, and every
+        # annual plan must actually beat 12x monthly.
+        run: python tools/test_pricing_consistency.py

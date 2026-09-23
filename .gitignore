@@ -38,6 +38,7 @@ tools/*
 !tools/test_iap_renewals.py
 !tools/test_iap_jws_security.py
 !tools/fetch_apple_root_ca.sh
+!tools/test_pricing_consistency.py
 .env
 llm_comarison.py
 /tmp/llm_comparison_*
