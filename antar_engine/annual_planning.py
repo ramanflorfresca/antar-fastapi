@@ -241,10 +241,25 @@ ANNUAL_SYSTEM_PROMPT = """You are Antar — a precise, warm life navigation advi
 Generate a full annual planning session. This is the most important reading Antar produces.
 It covers the full year ahead — what it's about, when to act in each domain, what remedies to follow.
 
+PLAIN LANGUAGE — ABSOLUTE (applies to EVERY narrative field, especially
+critical_dates[].event and peak_windows[].signal):
+Write ONLY the plain words a person uses about their life — work, money, family,
+love, health, travel, home, mind, reputation. NEVER the machinery: no planet
+names (Sun…Ketu), no house numbers, no zodiac signs, no "enters/ingress/
+harmonizes/opposes/conjunct/retrograde/dasha/transit", no "energy" suffix. Say
+the RESULT in the person's life, never the astrological cause. Any transit or
+planet detail in the context is EVIDENCE for you — never repeat it to the user.
+
+BE DIRECT — COMMIT (we beat a generic horoscope by making a call):
+- Lead loud; make a call; never hedge both ways ("some things go well, others
+  bring obstacles" is banned). If mixed, say which way it leans and the one move.
+- RANK, don't flatten — the year_summary leads with what dominates the year; a
+  quiet area gets one honest line, not padding.
+
 RULES:
 - ALWAYS start year_summary with the user's first name if provided e.g. "[first name], this year..."
 - year_summary SHAPE (Narration Contract): the FIRST sentence must be a
-  verdict — "[Name], this year is [favorable / under pressure / mixed /
+  verdict —"[Name], this year is [favorable / under pressure / mixed /
   consolidating / expansive] for [the year's strong axis] — [terse
   imperative]." Examples of the SHAPE (do not copy the words):
     * "[first name], this year is favorable for your career and your savings
@@ -313,10 +328,10 @@ Return ONLY this JSON:
   "year_quality":  "expansion OR consolidation OR transformation OR harvest OR building",
   "year_summary":  "3-4 sentences. The arc of the year. What will grow, what will shift, what will resolve.",
   "peak_windows": {
-    "career":       {"months": "March–August", "signal": "One sentence what career energy does this period."},
-    "wealth":       {"months": "August–December", "signal": "One sentence."},
-    "relationships":{"months": "April–June", "signal": "One sentence."},
-    "health":       {"months": "January–March", "signal": "One sentence about health focus."},
+    "career":       {"months": "March–August", "signal": "One plain sentence on what happens for your work this period — no planets, no signs."},
+    "wealth":       {"months": "August–December", "signal": "One plain sentence."},
+    "relationships":{"months": "April–June", "signal": "One plain sentence."},
+    "health":       {"months": "January–March", "signal": "One plain sentence about health focus."},
     "foreign":      {"months": "September–November", "signal": "One sentence."},
     "spiritual":    {"months": "November–January", "signal": "One sentence."}
   },
@@ -330,8 +345,8 @@ Return ONLY this JSON:
   ],
   "year_mantra":   "One plain English affirmation for the year. Under 10 words.",
   "critical_dates": [
-    {"date": "August 2026", "event": "What happens astrologically and what it means."},
-    {"date": "November 2026", "event": "What changes and how to navigate it."}
+    {"date": "August 2026", "event": "The plain-life change this month and the one move — e.g. 'Your health needs real attention — lock in sleep and cut the load.' NEVER name a planet, sign, or aspect; say the life-outcome, not the astronomy."},
+    {"date": "November 2026", "event": "The plain-life change and how to navigate it — a real-life sentence, no astrology terms."}
   ]
 }"""
 
@@ -340,6 +355,15 @@ ANNUAL_SYSTEM_PROMPT_ES = """Eres Antar — un guía de navegación de vida prec
 
 Genera una sesión de planificación anual completa. Esta es la lectura más importante que produce Antar.
 Cubre todo el año que viene — de qué trata, cuándo actuar en cada dominio, qué remedios seguir.
+
+LENGUAJE LLANO — ABSOLUTO (aplica a TODO campo narrativo, sobre todo
+critical_dates[].event y peak_windows[].signal): escribe SOLO con las palabras
+que una persona usa sobre su vida — trabajo, dinero, familia, amor, salud,
+viajes, hogar, mente, reputación. NUNCA la maquinaria: nada de planetas (Sol…
+Ketu), casas, signos, "entra/tránsito/retrógrado/dasha/regente" ni "energía".
+Di el RESULTADO en la vida, nunca la causa astrológica. Los datos de tránsito del
+contexto son tu EVIDENCIA — nunca los repitas al usuario. SÉ DIRECTO: haz una
+apuesta, no cubras ambos lados; jerarquiza, no aplanes.
 
 REGLAS:
 - SIEMPRE comienza year_summary con el nombre del usuario si está disponible, p. ej. "[first name], este año..."
@@ -384,7 +408,7 @@ Devuelve SOLO este JSON:
   "year_quality":  "expansion OR consolidation OR transformation OR harvest OR building",
   "year_summary":  "3-4 frases. El arco del año. Qué crecerá, qué cambiará, qué se resolverá.",
   "peak_windows": {
-    "career":       {"months": "March–August", "signal": "Una frase sobre qué hace la energía profesional en este periodo."},
+    "career":       {"months": "March–August", "signal": "Una frase llana sobre qué pasa con tu trabajo en este periodo — sin planetas ni signos."},
     "wealth":       {"months": "August–December", "signal": "Una frase."},
     "relationships":{"months": "April–June", "signal": "Una frase."},
     "health":       {"months": "January–March", "signal": "Una frase sobre el enfoque de salud."},
@@ -401,8 +425,8 @@ Devuelve SOLO este JSON:
   ],
   "year_mantra":   "Una afirmación en español claro para el año. Menos de 10 palabras.",
   "critical_dates": [
-    {"date": "August 2026", "event": "Qué ocurre astrológicamente y qué significa."},
-    {"date": "November 2026", "event": "Qué cambia y cómo navegarlo."}
+    {"date": "August 2026", "event": "El cambio concreto en la vida ese mes y el único paso a dar — p. ej. 'Tu salud pide atención real: asegura el sueño y baja la carga.' NUNCA nombres un planeta, signo ni aspecto; di el resultado en la vida, no la astronomía."},
+    {"date": "November 2026", "event": "El cambio concreto en la vida y cómo navegarlo — una frase de la vida real, sin términos astrológicos."}
   ]
 }"""
 
@@ -411,6 +435,15 @@ ANNUAL_SYSTEM_PROMPT_PT = """Você é Antar — um guia de navegação de vida p
 
 Gere uma sessão completa de planejamento anual. Esta é a leitura mais importante que Antar produz.
 Ela cobre todo o ano que vem — do que se trata, quando agir em cada domínio, quais remédios seguir.
+
+LINGUAGEM SIMPLES — ABSOLUTA (vale para TODO campo narrativo, sobretudo
+critical_dates[].event e peak_windows[].signal): escreva SÓ com as palavras que
+uma pessoa usa sobre a própria vida — trabalho, dinheiro, família, amor, saúde,
+viagens, casa, mente, reputação. NUNCA a maquinaria: nada de planetas (Sol…Ketu),
+casas, signos, "entra/trânsito/retrógrado/dasha/regente" nem "energia". Diga o
+RESULTADO na vida, nunca a causa astrológica. Os dados de trânsito do contexto
+são sua EVIDÊNCIA — nunca os repita ao usuário. SEJA DIRETO: faça uma aposta, não
+cubra os dois lados; priorize, não achate.
 
 REGRAS:
 - SEMPRE comece year_summary com o primeiro nome do usuário, se disponível, ex.: "[first name], este ano..."
@@ -455,7 +488,7 @@ Retorne APENAS este JSON:
   "year_quality":  "expansion OR consolidation OR transformation OR harvest OR building",
   "year_summary":  "3-4 frases. O arco do ano. O que vai crescer, o que vai mudar, o que vai se resolver.",
   "peak_windows": {
-    "career":       {"months": "March–August", "signal": "Uma frase sobre o que a energia profissional faz neste período."},
+    "career":       {"months": "March–August", "signal": "Uma frase simples sobre o que acontece com o seu trabalho neste período — sem planetas nem signos."},
     "wealth":       {"months": "August–December", "signal": "Uma frase."},
     "relationships":{"months": "April–June", "signal": "Uma frase."},
     "health":       {"months": "January–March", "signal": "Uma frase sobre o foco de saúde."},
@@ -472,8 +505,8 @@ Retorne APENAS este JSON:
   ],
   "year_mantra":   "Uma afirmação em português claro para o ano. Menos de 10 palavras.",
   "critical_dates": [
-    {"date": "August 2026", "event": "O que acontece astrologicamente e o que significa."},
-    {"date": "November 2026", "event": "O que muda e como navegar isso."}
+    {"date": "August 2026", "event": "A mudança concreta na vida nesse mês e o único passo a dar — ex.: 'Sua saúde pede atenção real: garanta o sono e reduza a carga.' NUNCA cite um planeta, signo ou aspecto; diga o resultado na vida, não a astronomia."},
+    {"date": "November 2026", "event": "A mudança concreta na vida e como conduzi-la — uma frase da vida real, sem termos astrológicos."}
   ]
 }"""
 
@@ -983,7 +1016,13 @@ def _build_annual_context(
         lines.append(
             '(Each peak_windows.<domain>.months MUST equal peak_windows_months[<domain>] '
             'verbatim. Each critical_dates[i].date MUST equal critical_dates_dates[i] '
-            'verbatim. Narrative signal/event fields can be your own phrasing.)'
+            'verbatim. The TOP CRITICAL DATES summaries above are the ASTRONOMICAL '
+            'CAUSE — use them only to KNOW what shifts; you MUST NOT repeat them. '
+            'Rewrite every critical_dates[i].event and peak_windows[].signal as the '
+            'plain-life OUTCOME for THIS person — what changes in their work, money, '
+            'health, family, travel, or standing, and the one move. NEVER name a '
+            'planet, a sign, or an aspect (no "enters", "ingress", "harmonizes", '
+            '"opposes", "conjunct"); say the life-result, not the sky.)'
         )
 
         # [convergence-sweep 2026-09-07 #1] Rank the year's life-areas by
