@@ -26476,11 +26476,31 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             # only real signals; empty on a truly flat day. Fail-open.
             try:
                 from antar_engine.daily_life_areas import build_day_map as _bdm
+                # [spec-guard 2026-09-23] For a user who actually gambles, always
+                # surface the Ventures & risk line — even when it reads flat — so
+                # the protective read is there on a day they might bet, not
+                # suppressed as a quiet area. Signal: a past speculation Ask
+                # (predictions.concern='speculation') or a logged session. Both
+                # best-effort; a non-speculating user is never forced into it.
+                _force_areas = None
+                try:
+                    _sp = supabase.table("predictions").select("id").eq(
+                        "chart_id", cid).eq("concern", "speculation").limit(1).execute()
+                    _speculates = bool(_sp.data)
+                    if not _speculates:
+                        _ss = supabase.table("speculation_sessions").select("id").eq(
+                            "chart_id", cid).limit(1).execute()
+                        _speculates = bool(_ss.data)
+                    if _speculates:
+                        _force_areas = {"speculation"}
+                except Exception:
+                    _force_areas = None  # tables absent / query failed → no force
                 result["day_map"] = _bdm(
                     result.get("active_domains"),
                     result.get("quiet_domains"),
                     {"children_status": row.get("children_status"),
                      "marital_status": row.get("marital_status")},
+                    always_include=_force_areas,
                 )
             except Exception as _dm_e:
                 print(f"[daily-signal] day_map build skipped: {_dm_e}")

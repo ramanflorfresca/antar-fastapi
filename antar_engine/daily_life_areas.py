@@ -140,11 +140,22 @@ def _compose(cell: dict, with_move: bool) -> str:
     return line
 
 
+def _row(dom: dict, key: str, with_move: bool) -> dict:
+    cell = _LINES[key].get(_band(dom)) or _LINES[key].get("quiet")
+    return {
+        "key":   key,
+        "label": FRIENDLY_LABEL.get(key, (dom.get("label") or key).title()),
+        "line":  _compose(cell, with_move=with_move),
+        "tone":  dom.get("polarity") or "neutral",
+    }
+
+
 def build_day_map(active_domains: Optional[list],
                   quiet_domains: Optional[list],
                   life_ctx: Optional[dict] = None,
                   max_areas: int = 6,
-                  move_lead: int = 2) -> List[dict]:
+                  move_lead: int = 2,
+                  always_include: Optional[set] = None) -> List[dict]:
     """Return an ordered, plain-language 'your day, area by area' list:
       [{key, label, line, tone}] — lead (active/ranked) areas first, then the
     most-activated quiet ones, capped at max_areas.
@@ -155,9 +166,18 @@ def build_day_map(active_domains: Optional[list],
 
     Only surfaces areas with a real signal: every active domain, plus quiet
     domains that have transit activity or a non-flat tone — so a truly dead area
-    isn't padded in with filler."""
+    isn't padded in with filler.
+
+    `always_include` is a set of domain keys that MUST appear even when they read
+    flat/quiet. [spec-guard 2026-09-23] Passed {'speculation'} for a user who
+    actually gambles (has logged sessions or asked speculation questions): a
+    person about to bet should always see the Ventures line — even a quiet
+    "no strong pull today, the speculative side sits flat" is protective (it
+    denies the chart as a green light). Never force it on a non-speculating user.
+    Forced areas are guaranteed a slot even past max_areas (appended last)."""
     active = list(active_domains or [])
     quiet = list(quiet_domains or [])
+    force = {(k or "").lower() for k in (always_include or set())}
 
     # quiet areas worth showing: some transit activity or a leaning tone
     def _notable(q):
@@ -179,14 +199,23 @@ def build_day_map(active_domains: Optional[list],
         if not key or key in seen or key not in _LINES:
             continue
         seen.add(key)
-        cell = _LINES[key].get(_band(dom)) or _LINES[key].get("quiet")
-        line = _compose(cell, with_move=len(out) < move_lead)
-        out.append({
-            "key":   key,
-            "label": FRIENDLY_LABEL.get(key, (dom.get("label") or key).title()),
-            "line":  line,
-            "tone":  dom.get("polarity") or "neutral",
-        })
+        out.append(_row(dom, key, with_move=len(out) < move_lead))
         if len(out) >= max_areas:
             break
+
+    # Guarantee the forced areas (e.g. speculation for a gambler) — even if they
+    # read quiet and were filtered out, and even if the cap is already full.
+    if force:
+        by_key = {}
+        for dom in active + quiet:
+            k = (dom.get("key") or "").lower()
+            if k and k not in by_key:
+                by_key[k] = dom
+        for key in force:
+            if key in seen or key not in _LINES:
+                continue
+            dom = by_key.get(key) or {"key": key, "polarity": "neutral"}
+            seen.add(key)
+            out.append(_row(dom, key, with_move=len(out) < move_lead))
+
     return out
