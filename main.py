@@ -39015,6 +39015,55 @@ async def _life_arc_compute(chart_id, horizon_months, language,
             )
 
         if _fe_chips:
+            # [event-realism 2026-09-23] Age/gender + de-dup gate for
+            # family-expansion (5th-house) chips. THIS is the real Cycle-timeline
+            # producer — the match_signatures gate above never sees these chips
+            # (match_signatures returns [] for most charts). A childbirth card is
+            # implausible for a woman past ~47 (biology) / a man past ~65; the
+            # 5th house then means the OTHER 5th-house things — a creative
+            # venture you birth, a student/protégé you take on — NEVER a
+            # grandchild (that's the 9th house). Also collapse duplicate
+            # first/second family cards landing in the same month ("Family grows"
+            # + "Family grows again" reads as a bug). Overwrites the VISIBLE
+            # title too, so the current FE shows the fix without waiting on the
+            # label/detail render brief.
+            try:
+                _fe_gender = str((chart_record or {}).get("gender") or "").strip().lower()
+                _FE_CHILD_MAX = {"female": 47, "woman": 47, "f": 47,
+                                 "male": 65, "man": 65, "m": 65}.get(_fe_gender, 55)
+                _fe_seen_fam, _fe_kept = set(), []
+                for _c in _fe_chips:
+                    _cet = str(_c.get("_event_type") or "")
+                    if _cet.startswith("family_expansion"):
+                        _mon = str(_c.get("window_start") or "")[:7]
+                        if _mon in _fe_seen_fam:
+                            continue                       # drop duplicate family card
+                        _fe_seen_fam.add(_mon)
+                        try:
+                            _age_w = int(str(_c.get("window_start") or "")[:4]) - _fe_birth_year
+                        except Exception:
+                            _age_w = None
+                        if (_age_w is None) or (_age_w <= _FE_CHILD_MAX):
+                            _c["event_type"] = "family_expansion_first"
+                            _c["title"] = _c["event_label"] = "A child may join the family"
+                            _c["label"] = "A child may join the family"
+                            _c["detail"] = ("A likely addition to your immediate family — "
+                                            "a birth, an adoption, or a child you take in.")
+                        else:
+                            _c["_event_type"] = _c["event_type"] = "creative_venture"
+                            _c["reframed_from"] = _cet
+                            _c["title"] = _c["event_label"] = "Something you create or lead"
+                            _c["label"] = "Something you create or lead"
+                            _c["detail"] = ("A 5th-house opening — a creative project or "
+                                            "venture you bring to life, or a student / "
+                                            "protégé you take on. Not a child at this stage.")
+                            _c["domain"] = "work"
+                            _c["category"] = "CREATIVE"
+                    _fe_kept.append(_c)
+                _fe_chips = _fe_kept
+            except Exception as _fe_fam_e:
+                print(f"[forward_events] family-expansion gate skipped (non-fatal): {_fe_fam_e}")
+
             _fe_public = [{k: v for k, v in c.items() if not k.startswith("_")}
                           for c in _fe_chips]
             # Hard conviction guard — never let "high" leak pre-D9/D10.
