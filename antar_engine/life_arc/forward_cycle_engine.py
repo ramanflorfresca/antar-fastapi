@@ -795,12 +795,12 @@ def _node_body(kind, *, period_lord=None, next_lord=None,
         else:
             arch_phrase = "This stretch carries its own texture"
         if event_count == 0:
-            leadin = "Stay with the texture — no sharp windows in view this stretch."
+            leadin = "No sharp windows stand out in this stretch."
         elif event_count == 1:
-            leadin = "One window the engine sees here:"
+            leadin = "One window to watch here:"
         else:
             count_word = {2: "Two", 3: "Three", 4: "Four"}.get(event_count, str(event_count))
-            leadin = f"{count_word} windows the engine is confident about:"
+            leadin = f"{count_word} clear windows to watch:"
         return _scrub_leaks(f"{arch_phrase}. {leadin}".strip())
 
     # TURN — narrative bridge: "The {from_archetype} gives way to {to_nouns}".
