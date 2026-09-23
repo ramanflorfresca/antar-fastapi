@@ -48,6 +48,17 @@ _MAX_WINDOWS_PER_EVENT = 2   # keep top-2 scored windows per event type
 _MAX_CHIPS = 8
 
 
+def _drop_elapsed(chips: List[dict], from_date: str) -> List[dict]:
+    """[past-window guard 2026-09-23] A forward chip whose window has already
+    ENDED is not 'what's ahead' — drop it (belt-and-braces: the candidate
+    builders clamp window_start to from_date, but a stale/edge window_end can
+    still slip a past card onto the Cycle timeline)."""
+    cut = str(from_date or "")[:10]
+    if not cut:
+        return chips
+    return [c for c in chips if str(c.get("window_end") or "")[:10] >= cut]
+
+
 def _domain(event_type: str) -> str:
     return (event_category(event_type) or "WORK").lower()
 
@@ -176,6 +187,7 @@ def build_forward_event_chips(chart_data: dict, birth_jd: float,
                     except Exception:
                         _ch["window_label"] = "a directional window"
                 _cv_chips.append(_ch)
+            _cv_chips = _drop_elapsed(_cv_chips, from_date)
             _cv_chips.sort(key=lambda c: c["window_start"])
             print(f"[forward_events] convergence forward: "
                   f"{len(_cv_chips)} chips (skipped={list(_cv.get('skipped', {}))[:4]})")
@@ -279,5 +291,6 @@ def build_forward_event_chips(chart_data: dict, birth_jd: float,
             except Exception:
                 continue
 
+    chips = _drop_elapsed(chips, from_date)
     chips.sort(key=lambda c: c["window_start"])
     return chips[:_MAX_CHIPS]

@@ -527,17 +527,25 @@ def _window_label(start: datetime, end: datetime, now: datetime = None) -> str:
     # NEVER stamp a month on a window whose midpoint is > 36 months out.
     if not start or not end:
         return ""
-    mid = start + (end - start) / 2
     if now is None:
         now = datetime.now(timezone.utc)
     # normalise tz so the subtraction never raises on naive/aware mismatch
     try:
-        if getattr(mid, "tzinfo", None) is None and now.tzinfo is not None:
+        if getattr(start, "tzinfo", None) is None and now.tzinfo is not None:
             now = now.replace(tzinfo=None)
-        elif getattr(mid, "tzinfo", None) is not None and now.tzinfo is None:
+        elif getattr(start, "tzinfo", None) is not None and now.tzinfo is None:
             now = now.replace(tzinfo=timezone.utc)
     except Exception:
         pass
+    # [past-window guard 2026-09-23] A forward card must never label as a past
+    # month. If the window already ended it isn't upcoming (caller filters it);
+    # if it's ONGOING (started but not ended) the honest label is the remaining
+    # stretch — "through <end>" — not "around <the past month it began>".
+    if end < now:
+        return ""
+    if start < now:
+        return f"through {_month_phrase(end)}"
+    mid = start + (end - start) / 2
     months_out = (mid.year - now.year) * 12 + (mid.month - now.month)
     if months_out <= 12:
         return f"around {_month_phrase(mid)}"        # near: month precision ok
