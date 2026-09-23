@@ -38759,6 +38759,48 @@ async def _life_arc_compute(chart_id, horizon_months, language,
         print(f"[life_arc] Signature matching error: {e}")
         predicted_events = []
 
+    # ── 2b. Life-stage gate + de-dup for family-expansion (5th-house) events ──
+    # [event-realism 2026-09-23] The 5th house = one's OWN children AND creativity
+    # / ventures / students. A "family_expansion" (childbirth) prediction is
+    # implausible for a woman past ~47 (biology) — but stays plausible far later
+    # for a man. When it's implausible, the 5th-house signal is NOT a grandchild
+    # (that's the 9th house) — it reframes to the OTHER 5th-house significations:
+    # a creative venture/project you birth, or a student/mentee you take on. Also
+    # collapse duplicate first/second family-expansion cards landing in the same
+    # window (two births at once reads as a bug).
+    try:
+        _ev_gender = (str(chart_record.get("gender") or "").strip().lower())
+        _CHILD_MAX = {"female": 47, "woman": 47, "f": 47,
+                      "male": 65, "man": 65, "m": 65}.get(_ev_gender, 55)
+        _seen_fam = None
+        _ev_out = []
+        for _ev in (predicted_events or []):
+            _et = str(_ev.get("event_type") or "")
+            if _et.startswith("family_expansion"):
+                _age_w = _ev.get("age_at_window")
+                # de-dup: first+second (or repeats) in the same/overlapping window
+                _ws = str(_ev.get("window_start") or "")[:7]
+                if _seen_fam == _ws:
+                    continue                      # drop the duplicate card
+                _seen_fam = _ws
+                _plausible_child = (_age_w is None) or (_age_w <= _CHILD_MAX)
+                if _plausible_child:
+                    _ev["label"] = "A child may join the family"
+                    _ev["detail"] = ("A likely addition to your immediate family — a "
+                                     "birth, an adoption, or a child you take in.")
+                else:
+                    # reframe to the OTHER 5th-house meanings (never 'grandchild')
+                    _ev["event_type"] = "creative_venture"
+                    _ev["label"] = "Something you create or take charge of"
+                    _ev["detail"] = ("A 5th-house opening — a creative project or "
+                                     "venture you bring to life, or a student / "
+                                     "protégé you take on. Not a child at this stage.")
+                    _ev["reframed_from"] = _et
+            _ev_out.append(_ev)
+        predicted_events = _ev_out
+    except Exception as _eve:
+        print(f"[life_arc] event life-stage gate skipped (non-fatal): {_eve}")
+
     # ── 3. Diagnostic ────────────────────────────────────────────────────
     try:
         diagnostic = await generate_diagnostic(
