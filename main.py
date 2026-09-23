@@ -39043,14 +39043,10 @@ async def _life_arc_compute(chart_id, horizon_months, language,
                 _fe_gender = str((chart_record or {}).get("gender") or "").strip().lower()
                 _FE_CHILD_MAX = {"female": 47, "woman": 47, "f": 47,
                                  "male": 65, "man": 65, "m": 65}.get(_fe_gender, 55)
-                _fe_seen_fam, _fe_kept = set(), []
+                _fe_seen_ftitle, _fe_kept = set(), []
                 for _c in _fe_chips:
                     _cet = str(_c.get("_event_type") or "")
                     if _cet.startswith("family_expansion"):
-                        _mon = str(_c.get("window_start") or "")[:7]
-                        if _mon in _fe_seen_fam:
-                            continue                       # drop duplicate family card
-                        _fe_seen_fam.add(_mon)
                         try:
                             _age_w = int(str(_c.get("window_start") or "")[:4]) - _fe_birth_year
                         except Exception:
@@ -39071,6 +39067,14 @@ async def _life_arc_compute(chart_id, horizon_months, language,
                                             "protégé you take on. Not a child at this stage.")
                             _c["domain"] = "work"
                             _c["category"] = "CREATIVE"
+                        # Collapse family-derived cards that reduce to the SAME
+                        # title (first+second both reframe to the same line, or
+                        # two "A child may join" windows) — showing the identical
+                        # card twice reads as a bug. Chips arrive sorted by
+                        # window_start, so this keeps the earliest.
+                        if _c["title"] in _fe_seen_ftitle:
+                            continue
+                        _fe_seen_ftitle.add(_c["title"])
                     _fe_kept.append(_c)
                 _fe_chips = _fe_kept
             except Exception as _fe_fam_e:
