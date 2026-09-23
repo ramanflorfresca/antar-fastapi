@@ -34,75 +34,79 @@ FRIENDLY_LABEL: Dict[str, str] = {
     "spiritual":    "Inner life",
 }
 
-# One plain line per (domain, band). [predictive-voice 2026-09-10] These DESCRIBE
-# what the day holds in each area (a forecast the user reads), NOT instructions —
-# "the money strain presses in, spending rises" rather than "hold money still".
-# The moves/watch layer on the card carries the advice; day_map is the prediction.
+# One entry per (domain, band): a two-sided DESCRIPTION ("line") + a short,
+# concrete MICRO-MOVE ("move"). [yoga-parity 2026-09-23] Benchmarked against a
+# competitor whose daily reads more actionable because every area is a
+# self-contained state -> honest tension -> "do X". So each line now carries the
+# tension in-line (the honest "but"), and build_day_map appends the move to the
+# TOP-RANKED areas only (see move_lead) — the lead areas read as actionable as
+# theirs, without turning all six areas into a wall of instructions (the failure
+# mode this map was built to avoid). Quiet areas carry no move (nothing to act on).
 # Bands:
 #   rise    — strong, clean opportunity (area is favored/opening)
 #   caution — opportunity but flagged risky (mixed: upside with friction under it)
 #   protect — genuine risk / adverse (area is strained / under pressure)
 #   quiet   — neutral / nothing pulling (steady, even)
-_LINES: Dict[str, Dict[str, str]] = {
+_LINES: Dict[str, Dict[str, Dict[str, str]]] = {
     "work": {
-        "rise":    "Your work is moving today — the effort you've put in is landing and being noticed.",
-        "caution": "There's real momentum at work today, though it comes with a pull to take on too much.",
-        "protect": "Work carries some drag today — support is slow and progress asks for patience.",
-        "quiet":   "Work runs even today — steady and ordinary, nothing pulling hard either way.",
+        "rise":    {"line": "Your work is moving today — the effort you've put in is landing and being noticed; the only real risk is taking on more than fits.", "move": "ride the momentum, but keep one thing you can drop."},
+        "caution": {"line": "There's real momentum at work today, though it comes with a pull to take on too much.", "move": "push it forward, and promise less than you're tempted to."},
+        "protect": {"line": "Work carries some drag today — support is slow and progress asks for patience; forcing it tends to backfire.", "move": "hold new commitments, and keep what you agree to reversible."},
+        "quiet":   {"line": "Work runs even today — steady and ordinary, nothing pulling hard either way.", "move": ""},
     },
     "authority": {
-        "rise":    "Your standing is favored today — the people above you are receptive and doors are open.",
-        "caution": "Your standing is rising today, but official matters carry a little friction alongside it.",
-        "protect": "Official matters and paperwork press in today — support is slow and the weight is real.",
-        "quiet":   "No pressure from above today — your reputation sits calm and steady.",
+        "rise":    {"line": "Your standing is favored today — the people above you are receptive and doors are open, so don't sit on the opening.", "move": "make the ask while the door's open."},
+        "caution": {"line": "Your standing is rising today, but official matters carry a little friction alongside it.", "move": "advance the relationships today, not the paperwork."},
+        "protect": {"line": "Official matters and paperwork press in today — support is slow and the weight is real.", "move": "don't sign or file anything final; let it wait."},
+        "quiet":   {"line": "No pressure from above today — your reputation sits calm and steady.", "move": ""},
     },
     "money": {
-        "rise":    "Money moves your way today — income and what you're owed flow in, and the strength is real.",
-        "caution": "Money is active today — the income is strong, but spending rises right alongside it.",
-        "protect": "The money strain presses in from more than one side today — spending is up and the flow feels tight.",
-        "quiet":   "Your wallet is quiet today — nothing dramatic, the cushion holds steady.",
+        "rise":    {"line": "Money moves your way today — income and what you're owed flow in, and the strength is real; spending just tends to creep up right alongside it.", "move": "take the inflow, but keep a light eye on the outflow."},
+        "caution": {"line": "Money is active today — the income is strong, but spending rises right alongside it.", "move": "let any big purchase wait a day."},
+        "protect": {"line": "The money strain presses in from more than one side today — spending is up and the flow feels tight.", "move": "hold any big purchase or transfer; let money sit still."},
+        "quiet":   {"line": "Your wallet is quiet today — nothing dramatic, the cushion holds steady.", "move": ""},
     },
     "speculation": {
-        "rise":    "A venture or creative bet is lit today — the upside is genuinely live.",
-        "caution": "A venture tempts today — the upside is real, but so is the downside sitting under it.",
-        "protect": "Risk runs against you today — a creative or joint-money bet is prone to unravel.",
-        "quiet":   "No strong pull toward risk today — the speculative side sits flat.",
+        "rise":    {"line": "A venture or creative bet is lit today — the upside is genuinely live, but the downside doesn't go away with it.", "move": "take the bet small, with a hard stop set first."},
+        "caution": {"line": "A venture tempts today — the upside is real, but so is the downside sitting under it.", "move": "cap the stake before you start, and walk at the line."},
+        "protect": {"line": "Risk runs against you today — a creative or joint-money bet is prone to unravel.", "move": "sit this one out; it isn't your window."},
+        "quiet":   {"line": "No strong pull toward risk today — the speculative side sits flat.", "move": ""},
     },
     "home": {
-        "rise":    "Home feels warm today — comfort and a quieter ease settle in.",
-        "caution": "Home brings small comforts today, though it asks for a lighter touch than usual.",
-        "protect": "Your home base feels the strain today — rest runs short and the ground feels thin.",
-        "quiet":   "Home is steady today — ordinary and running smoothly.",
+        "rise":    {"line": "Home feels warm today — comfort and a quieter ease settle in.", "move": "let yourself actually rest in it."},
+        "caution": {"line": "Home brings small comforts today, though it asks for a lighter touch than usual.", "move": "go gentle on the household friction."},
+        "protect": {"line": "Your home base feels the strain today — rest runs short and the ground feels thin.", "move": "protect your sleep, and lighten the load at home."},
+        "quiet":   {"line": "Home is steady today — ordinary and running smoothly.", "move": ""},
     },
     "travel": {
-        "rise":    "The road opens today — a trip or far-off matter moves in your favor.",
-        "caution": "Short trips bring both ease and small snags today — the flow is mixed.",
-        "protect": "Getting around is bumpy today — small journeys tend to carry small setbacks.",
-        "quiet":   "Little movement today — things stay close and local.",
+        "rise":    {"line": "The road opens today — a trip or far-off matter moves in your favor.", "move": "make the move; the timing is with you."},
+        "caution": {"line": "Short trips bring both ease and small snags today — the flow is mixed.", "move": "leave a little early, and keep the plan loose."},
+        "protect": {"line": "Getting around is bumpy today — small journeys tend to carry small setbacks.", "move": "leave early and pad the schedule."},
+        "quiet":   {"line": "Little movement today — things stay close and local.", "move": ""},
     },
     "relationship": {
-        "rise":    "Warmth and good feeling are yours today — closeness comes easily.",
-        "caution": "A close relationship is warm but tender today — feelings sit near the surface.",
-        "protect": "Closeness feels friction today — small tensions catch more easily than usual.",
-        "quiet":   "Connection is calm today — a warm word from someone close is likely.",
+        "rise":    {"line": "Warmth and good feeling are yours today — closeness comes easily.", "move": "say the warm thing; don't let it pass."},
+        "caution": {"line": "A close relationship is warm but tender today — feelings sit near the surface.", "move": "lead with warmth, and skip the hard conversation."},
+        "protect": {"line": "Closeness feels friction today — small tensions catch more easily than usual.", "move": "let the small stuff pass without comment."},
+        "quiet":   {"line": "Connection is calm today — a warm word from someone close is likely.", "move": ""},
     },
     "family": {
-        "rise":    "Family is a source of strength today — the ties hold and give back.",
-        "caution": "Family ground is a little soft today — matters there ask for extra care.",
-        "protect": "Family carries extra weight today — the timing on the harder matters is off.",
-        "quiet":   "Family life is even today — small, ordinary care holds it together.",
+        "rise":    {"line": "Family is a source of strength today — the ties hold and give back.", "move": "lean on them; let them show up for you."},
+        "caution": {"line": "Family ground is a little soft today — matters there ask for extra care.", "move": "handle the family matter gently, not head-on."},
+        "protect": {"line": "Family carries extra weight today — the timing on the harder matters is off.", "move": "postpone the hard family decision."},
+        "quiet":   {"line": "Family life is even today — small, ordinary care holds it together.", "move": ""},
     },
     "health": {
-        "rise":    "Energy is on your side today — the body feels willing and strong.",
-        "caution": "The body runs warm today — the vitality is there but it can tip into overdoing it.",
-        "protect": "The body feels the strain today — energy runs low and rest feels thin.",
-        "quiet":   "Wellbeing is steady today — the usual rhythm holds.",
+        "rise":    {"line": "Energy is on your side today — the body feels willing and strong; the trap is spending all of it.", "move": "use it, but bank a little for tomorrow."},
+        "caution": {"line": "The body runs warm today — the vitality is there but it can tip into overdoing it.", "move": "use the energy, but don't redline it."},
+        "protect": {"line": "The body feels the strain today — energy runs low and rest feels thin.", "move": "keep meals simple, and rest before you're empty."},
+        "quiet":   {"line": "Wellbeing is steady today — the usual rhythm holds.", "move": ""},
     },
     "spiritual": {
-        "rise":    "Your mind is clear today — thinking is sharp and settled.",
-        "caution": "The inner weather is busy today — a little more noise in the head than usual.",
-        "protect": "The mind feels crowded today — overthinking and noise press in.",
-        "quiet":   "A settled inner day — quiet and even underneath.",
+        "rise":    {"line": "Your mind is clear today — thinking is sharp and settled.", "move": "make the call that needs a clear head."},
+        "caution": {"line": "The inner weather is busy today — a little more noise in the head than usual.", "move": "cut the inputs; take one thing at a time."},
+        "protect": {"line": "The mind feels crowded today — overthinking and noise press in.", "move": "fewer inputs today; step away from the noise."},
+        "quiet":   {"line": "A settled inner day — quiet and even underneath.", "move": ""},
     },
 }
 
@@ -125,13 +129,29 @@ def _band(dom: dict) -> str:
     return "quiet"
 
 
+def _compose(cell: dict, with_move: bool) -> str:
+    """A day-map line: the two-sided description, plus the concrete micro-move as
+    a trailing sentence when this is a lead (top-ranked) area and a move exists."""
+    line = (cell or {}).get("line") or ""
+    move = (cell or {}).get("move") or ""
+    if with_move and move:
+        move = move[0].upper() + move[1:]
+        return f"{line} {move}"
+    return line
+
+
 def build_day_map(active_domains: Optional[list],
                   quiet_domains: Optional[list],
                   life_ctx: Optional[dict] = None,
-                  max_areas: int = 6) -> List[dict]:
+                  max_areas: int = 6,
+                  move_lead: int = 2) -> List[dict]:
     """Return an ordered, plain-language 'your day, area by area' list:
       [{key, label, line, tone}] — lead (active/ranked) areas first, then the
     most-activated quiet ones, capped at max_areas.
+
+    The top `move_lead` areas carry a concrete micro-move appended to the line
+    (so the lead reads as actionable as the competition); the rest stay pure
+    description, so the card doesn't become a wall of instructions.
 
     Only surfaces areas with a real signal: every active domain, plus quiet
     domains that have transit activity or a non-flat tone — so a truly dead area
@@ -159,7 +179,8 @@ def build_day_map(active_domains: Optional[list],
         if not key or key in seen or key not in _LINES:
             continue
         seen.add(key)
-        line = _LINES[key].get(_band(dom)) or _LINES[key].get("quiet")
+        cell = _LINES[key].get(_band(dom)) or _LINES[key].get("quiet")
+        line = _compose(cell, with_move=len(out) < move_lead)
         out.append({
             "key":   key,
             "label": FRIENDLY_LABEL.get(key, (dom.get("label") or key).title()),
