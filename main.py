@@ -20889,6 +20889,29 @@ def _is_career_type_q(q):
                                       "talent", "gift", "good at", "strength",
                                       "suited", "aptitude", "best at"))):
         return True
+    # [fit-phrasing 2026-09-23] "which field fits who I am / where can I achieve
+    # the highest level of success / highest potential" — a FIT question that the
+    # 'field/profession' nouns above may miss when phrased around identity+success.
+    if any(p in ql for p in (
+            "fits who i am", "highest level of success", "highest level potential",
+            "highest potential", "level of success", "where can i achieve",
+            "good field for me", "right field for me", "which line fits",
+            "where do i excel", "where will i excel", "where i excel")):
+        return True
+    # [named-line fit 2026-09-23] "I want to build a technology platform, does this
+    # work for me?" / "should I go into <X>?" — a specific line-of-work fit question.
+    # Require a build/venture/field context so a relationship/health "does this work
+    # for me" never trips it. The career-fit block judges the named line by grain.
+    if (any(b in ql for b in ("build a", "building a", "go into", "get into",
+                              "start a", "starting a", "pursue", "career in",
+                              "platform", "startup", "business", "venture",
+                              "profession", "field of work"))
+            and any(w in ql for w in ("does this work for me", "does it work for me",
+                                      "will this work for me", "work for me",
+                                      "right for me", "good fit", "suited for me",
+                                      "does this suit me", "is this right",
+                                      "should i"))):
+        return True
     # [es-aptitude 2026-09-13] Spanish career-TYPE / aptitude questions — the
     # app's biggest user segment. "profesión"/"carrera" do NOT substring-match
     # the English nouns above, so without this Andres's "¿qué profesión me
@@ -22487,20 +22510,38 @@ async def ask_endpoint(request: AskRequest):
                         except Exception as _bvje:
                             print(f"[ask][biz-vs-job] non-fatal: {_bvje}")
                     if _car.get("available") and _car.get("careers"):
+                        _ranked = _car["careers"][:6]
                         _fields = "; ".join(
-                            f"{i+1}) {c['field']}" for i, c in enumerate(_car["careers"][:5]))
+                            f"{i+1}) {c['field']}" for i, c in enumerate(_ranked))
+                        _top = "; ".join(c["field"] for c in _ranked[:3])
+                        _mid = "; ".join(c["field"] for c in _ranked[3:6]) or "—"
                         _parts.append(
-                            "CAREER-TYPE QUESTION — the reader is asking WHICH profession/career "
-                            "suits them. This is computed DETERMINISTICALLY from their D-10 (career "
-                            "chart), D-1 10th house, and Amatyakaraka. You MUST answer by naming "
-                            "THESE ranked career fields, in THIS order — do NOT invent other fields, "
-                            "do NOT answer with only vague 'authority/leadership' advice.\n"
+                            "CAREER-FIT QUESTION — the reader is asking WHICH line of work fits "
+                            "them / where they'll do best. Computed DETERMINISTICALLY from their "
+                            "D-10 (career chart), D-1 10th house, and Amatyakaraka. This is a FIT "
+                            "read — LEAD WITH IT. Do NOT open with a 'not yet / the window is …' "
+                            "timing verdict; timing is secondary here, the FIT is the answer.\n"
                             f"RANKED CAREER FIELDS: {_fields}\n"
                             + (f"LEADERSHIP LEVEL: {_car.get('leadership_level')}.\n"
                                if _car.get("leadership_level") else "")
-                            + "Lead with the top 2-3 as the strongest fit, say these come from the "
-                            "pattern of their chart, and close with one concrete next step. Plain "
-                            "language only — never name a planet, house, or 'D-10'.")
+                            + "ANSWER AS THREE HONEST TIERS (the reader explicitly wants to know "
+                            "where they THRIVE vs STRUGGLE):\n"
+                            f"1) STRONG FIT — the chart's grain runs WITH these, this is where "
+                            f"they can genuinely excel: {_top}.\n"
+                            f"2) WORKABLE — fine but not standout: {_mid}.\n"
+                            "3) AGAINST THE GRAIN — a line of work far from the fields above (very "
+                            "different in nature — e.g. hands-on operations/hospitality for an "
+                            "advisory-analytical chart) is a LOW-FIT, uphill path where repeated "
+                            "effort tends to under-return; name this honestly IF they've asked "
+                            "about or mentioned such a line, or if they ask what to avoid.\n"
+                            "If the reader NAMED a specific line of work, judge it by which tier its "
+                            "NATURE matches (advisory/analytical, creative, leadership, operations, "
+                            "hands-on, service) — say plainly whether it runs with or against their "
+                            "grain. HARD HONESTY: this grades FIT (does the chart support this line), "
+                            "NOT a guarantee of success or failure — a strong-fit line still needs "
+                            "execution, and a low-fit line CAN work with enough will; but a low-fit "
+                            "line fought again and again is real signal, not bad luck. Close with one "
+                            "concrete next step. Plain language only — never name a planet, house, or 'D-10'.")
                     # [dasha-timed timeline] the 'at what time' axis — chapters by
                     # mahadasha, read through the dasha lord's D-10 placement. This
                     # is the answer to "which profession at what time / what NOW /
