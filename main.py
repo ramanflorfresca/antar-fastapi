@@ -21768,6 +21768,46 @@ def _ask_followups(concern: str, question: str, language: str = "en") -> list:
     return out or cands[:2]
 
 
+# [lang-learn 2026-09-24] Learn the reader's language from how they actually talk
+# to Antar (their Ask questions) and offer — ONCE — to switch the whole app to it.
+# Ask already answers in the question's language; the OTHER surfaces (Today, Year,
+# Month, Cycle, daily) all read `charts.language` via resolve_language(), so once
+# the reader accepts, everything inherits it. We do NOT flip silently (jarring for
+# someone who asked one question in another tongue) — we set `needs_lang_prompt` so
+# the FE shows a one-time confirm; POST /api/v1/language/confirm persists the choice.
+_LANG_LABEL = {"es": "Español", "pt": "Português", "hi": "हिन्दी",
+               "hinglish": "Hinglish", "en": "English"}
+
+
+def _ask_language_offer(supabase, chart_id: str, learned_lang: str,
+                        chart_record: dict) -> dict:
+    """If we detected a non-English language from the question and it's neither the
+    reader's stored preference nor one they've already been offered/declined, flag
+    it for a one-time FE confirm and return an offer dict. Else return {}.
+
+    State store: `needs_lang_prompt` (bool) is the pending flag; `locale_variant`
+    (a string column, otherwise unused) holds the offer-state — 'offered_xx' while
+    a prompt is pending, 'declined_xx' once the reader said keep-current — so we
+    never re-nag on the same language. (No dedicated column needed; POST
+    /api/v1/language/confirm clears/updates both.)"""
+    ll = (learned_lang or "").lower()
+    if ll not in ("es", "pt", "hi", "hinglish"):
+        return {}
+    stored = (chart_record.get("language") or "").lower()
+    if stored == ll:
+        return {}  # already their app language — nothing to offer
+    state = (chart_record.get("locale_variant") or "").lower()
+    if state in (f"offered_{ll}", f"declined_{ll}"):
+        return {}  # a prompt for this language is pending, or they declined it
+    try:
+        supabase.table("charts").update(
+            {"needs_lang_prompt": True,
+             "locale_variant": f"offered_{ll}"}).eq("id", chart_id).execute()
+    except Exception as _lpe:
+        print(f"[ask][lang-offer] persist non-fatal: {_lpe}")
+    return {"language": ll, "label": _LANG_LABEL.get(ll, ll.upper())}
+
+
 def _ask_role_concern(question: str, thread: list):
     """Once a deal role is known (this turn or a prior one), map it to the concern
     that reads the right divisional: commission/broker → career (10th/D-10),
@@ -22428,10 +22468,16 @@ async def ask_endpoint(request: AskRequest):
     # language but the QUESTION is clearly Spanish/Portuguese, answer in the
     # question's language — never reply in English to an es/pt question. Only
     # rescues the "en" default; an explicit es/pt is left untouched above.
+    # [lang-learn 2026-09-24] `_ask_lang_learned` holds a language we DETECTED from
+    # the question text (not one the client explicitly asked for). It's the "smart"
+    # signal for offering to switch the WHOLE app to that language — see the
+    # language_offer at the explore finalization + POST /api/v1/language/confirm.
+    _ask_lang_learned = ""
     if language == "en":
         _q_lang = _ask_detect_text_lang(question)
         if _q_lang:
             language = _q_lang
+            _ask_lang_learned = _q_lang
             logger.info(f"[ask][lang-rescue] question detected as {_q_lang}; "
                         f"answering in {_q_lang} (client sent en)")
 
@@ -22589,6 +22635,7 @@ async def ask_endpoint(request: AskRequest):
                     .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, latitude, longitude, "
                             "marital_status, children_status, career_stage, health_status, financial_status, "
                             "profession, life_work, life_relationship, life_kids, "
+                            "language, needs_lang_prompt, locale_variant, "
                             "birth_time, timezone_offset") \
                     .eq("id", chart_id).single().execute()
             except Exception as _nfe:
@@ -25401,6 +25448,18 @@ async def ask_endpoint(request: AskRequest):
                     payload["suggested_questions"] = _fu
             except Exception as _fue:
                 print(f"[ask][followups] non-fatal: {_fue}")
+            # [lang-learn 2026-09-24] Offer to switch the whole app to the language
+            # we just detected from the question (one-time, FE confirms). Only when
+            # the language was LEARNED from the text, not explicitly sent by the FE.
+            try:
+                if locals().get("_ask_lang_learned"):
+                    _offer = _ask_language_offer(
+                        supabase, chart_id, _ask_lang_learned, chart_row.data)
+                    if _offer:
+                        payload["language_offer"] = _offer
+                        print(f"[ask][lang-offer] offering {_offer['language']}")
+            except Exception as _loe:
+                print(f"[ask][lang-offer] non-fatal: {_loe}")
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "explore", locals().get("_ask_concern"))
             return payload
@@ -25938,6 +25997,49 @@ async def ask_state(chart_id: str, language: str = "en"):
         }
     return {"yesno_locked": False, "locked_until": None, "previous": None,
                 "suggested_prompts": _sugg}
+
+
+class LanguageConfirmRequest(BaseModel):
+    chart_id: str
+    language: str                       # the offered language, e.g. "es"
+    accept:   bool                      # True = switch app; False = keep current
+
+
+@app.post("/api/v1/language/confirm")
+async def language_confirm(request: LanguageConfirmRequest):
+    """[lang-learn 2026-09-24] Resolve the one-time 'switch Antar to <language>?'
+    offer that /ask raised (via `language_offer` + charts.needs_lang_prompt).
+
+    accept=True  → persist charts.language so EVERY surface (Today, Year, Month,
+                   Cycle, daily — all read it through resolve_language) renders in
+                   that language, and clear the prompt flag.
+    accept=False → keep the current language and remember the decline for THIS
+                   language so we don't nag again (needs_lang_prompt='declined_xx').
+
+    NOTE for the FE: once accepted, stop sending a hardcoded language=en on the
+    prediction calls, or request-priority will override the stored preference."""
+    from fastapi.responses import JSONResponse
+    chart_id = (request.chart_id or "").strip()
+    lang = _ask_norm_lang(request.language)
+    if not chart_id:
+        return JSONResponse(status_code=400, content={"error": "chart_id is required"})
+    try:
+        if request.accept:
+            supabase.table("charts").update(
+                {"language": lang, "language_preference": lang,
+                 "needs_lang_prompt": False, "locale_variant": None}
+            ).eq("id", chart_id).execute()
+            print(f"[lang-confirm] chart {chart_id[:8]} switched to {lang}")
+            return {"ok": True, "language": lang, "switched": True}
+        else:
+            supabase.table("charts").update(
+                {"needs_lang_prompt": False,
+                 "locale_variant": f"declined_{lang}"}).eq("id", chart_id).execute()
+            print(f"[lang-confirm] chart {chart_id[:8]} declined {lang}")
+            return {"ok": True, "language": None, "switched": False}
+    except Exception as e:
+        return JSONResponse(status_code=500,
+                            content={"error": "language confirm failed", "detail": str(e)})
 
 
 class PrashnaFollowupRequest(BaseModel):
