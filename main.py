@@ -31510,6 +31510,37 @@ async def get_weekly_briefing(chart_id: str, refresh: bool = False, language: st
         raise HTTPException(status_code=500, detail="Failed to generate weekly briefing")
 
 
+@app.get("/api/v1/wealth-profile/{chart_id}")
+@translate_response(
+    fields_to_translate=["headline", "summary", "sizing_advice", "guard"],
+    endpoint_name="wealth-profile",
+)
+async def get_wealth_profile(chart_id: str, language: str = "en"):
+    """[wealth-engine 2026-09-23] Native wealth read: MAGNITUDE (how big the
+    wealth engine can go) + STABILITY (does it hold — the sizing discipline the
+    chart calls for). Deterministic. NEVER predicts a vertical or a specific
+    company — the "which business wins" idea was tested and falsified; this grades
+    the person's capacity and how to size bets."""
+    try:
+        _wp_row = supabase.table("charts").select(
+            "chart_data,lagna_sign").eq("id", chart_id).single().execute()
+        if not _wp_row.data:
+            raise HTTPException(status_code=404, detail="Chart not found")
+        _wp_cd = _wp_row.data.get("chart_data") or {}
+        if isinstance(_wp_cd, str):
+            _wp_cd = json.loads(_wp_cd)
+        from antar_engine.wealth_magnitude import wealth_profile as _wp
+        prof = _wp(_wp_cd, get_dashas_for_chart(chart_id) or {},
+                   {"lagna_sign": _wp_row.data.get("lagna_sign")})
+        prof["chart_id"] = chart_id
+        return prof
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[wealth-profile] error: {e}")
+        raise HTTPException(status_code=500, detail="Failed to build wealth profile")
+
+
 # ── Layered-fidelity Option-A cache (background phrasing) ────────────────────
 # [layered-fields v2 2026-06-25] Phrasing is OFF the request path: cold serves the
 # deterministic field, the LLM-phrased version is computed in the background and
