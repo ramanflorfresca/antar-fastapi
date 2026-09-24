@@ -144,7 +144,23 @@ def protect_this_season(chart_data: dict, birth_date, dashas: dict,
         house_lords = _house_lords_from_lagna(lagna)
 
         cards = []
-        seen = set()
+        seen = set()          # graha names already carded
+        seen_areas = set()    # life areas already carded — no heading twice
+
+        def _add(card):
+            """Append a card unless its life area is already covered — two grahas
+            can afflict the same area (e.g. both the 8th), and showing the same
+            heading twice reads as a glitch. First (strongest-priority) wins; a
+            card with no area is always kept."""
+            if not card:
+                return False
+            area = (card.get("under_pressure") or "").strip().lower()
+            if area and area in seen_areas:
+                return False
+            if area:
+                seen_areas.add(area)
+            cards.append(card)
+            return True
 
         # ── VARSHPHAL layer: the ruler of the current solar-return year ──
         year_lord = None
@@ -161,8 +177,7 @@ def protect_this_season(chart_data: dict, birth_date, dashas: dict,
         if year_lord:
             c = _affliction_card(year_lord, "This year", _yr_window,
                                  cd, lk_data, house_lords)
-            if c:
-                cards.append(c)
+            if _add(c):
                 seen.add(str(year_lord).title())
 
         # ── DASHA layer: any currently-active period lord that runs hard ──
@@ -176,9 +191,8 @@ def protect_this_season(chart_data: dict, birth_date, dashas: dict,
             if p in seen or p not in _STEADY:  # skip year-lord dup + chara signs
                 continue
             c = _affliction_card(p, "This chapter", "", cd, lk_data, house_lords)
-            if c:
-                cards.append(c)
-                seen.add(p)
+            _add(c)          # dedupes by area; keeps first per area
+            seen.add(p)      # graha handled either way
 
         if not cards:
             # A genuinely clear season — say so honestly, offer no busy-work remedy.
