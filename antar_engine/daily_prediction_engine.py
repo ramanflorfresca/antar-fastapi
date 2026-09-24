@@ -492,8 +492,8 @@ def _build_signal_text(
         signal = (
             f"The energy today creates internal friction — best used for inner work, "
             f"review, and preparation rather than launching or confronting. "
-            f"{weekday}'s overlay favors {day_overlay.get('boost', 'steady progress')} "
-            f"but the Moon's position slows outer momentum."
+            f"{weekday} favors {day_overlay.get('boost', 'steady progress')} "
+            f"but the day's undercurrent slows outer momentum."
         )
         move = (
             f"Use today to audit, review, or strengthen one thing already in motion. "
@@ -510,13 +510,17 @@ def _build_signal_text(
             f"Avoid: {', '.join(friction[:1])}."
         )
 
+    # [de-jargon 2026-09-24] Plain-language only — never name a planet or a
+    # nakshatra in user-facing text (owner rule; this fallback used to leak
+    # "Moon returns…", "Pushya is one of the most auspicious nakshatras…",
+    # "Mula energy cuts to the root…").
     wow = None
     if moon_sign == natal_moon_sign:
-        wow = "Moon returns to your natal sign today — emotional clarity peaks. Trust your instincts."
+        wow = "The day's emotional tone lines up with your own — clarity peaks. Trust your instincts."
     elif nakshatra in {"Pushya", "Rohini", "Uttara Phalguni"}:
-        wow = f"{nakshatra} is one of the most auspicious nakshatras. Major decisions made today carry positive momentum."
+        wow = "Today is one of the most auspicious days of the month. Major decisions made now carry positive momentum."
     elif nakshatra == "Mula":
-        wow = "Mula energy cuts to the root. Any investigation or deep audit today will reveal what's been hidden."
+        wow = "Today's undercurrent cuts to the root. Any investigation or deep audit today will reveal what's been hidden."
     elif mercury_note:
         wow = mercury_note
 
