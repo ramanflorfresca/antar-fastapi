@@ -790,19 +790,29 @@ def _verdict_line(current_md_lord, chart_data, current_ad_lord=None,
             5:  "a recognition-and-creativity chapter — what you originate gets seen and rewarded",
             1:  "a chapter that puts YOU forward — identity, drive and standing rise now",
         }
+        _caveat = {
+            "Rahu": "ride the expansion hard, just spread it across several ventures and don't over-reach",
+            "Ketu": "the gains are real even if they can feel hollow — tie them to something that matters",
+            "Saturn": "it builds slowly and rewards patience — compound, don't force the pace",
+            "Mars": "move boldly, just don't burn the goodwill you build",
+        }.get(current_md_lord, "lean in and build on it — this is a window to press, not wait")
         # A NODE in a strong house is era-aware STRONG even if some texts call its
         # sign "debilitated" (Rahu in Scorpio/11th is a gains asset, not a weakness),
         # so a node ignores the debilitation veto here; a non-node must not be
         # debilitated to claim the strong-house lead.
         if _mh in _STRONG_HOUSE_LEAD and (_is_node or not _debil):
-            _caveat = {
-                "Rahu": "ride the expansion hard, just spread it across several ventures and don't over-reach",
-                "Ketu": "the gains are real even if they can feel hollow — tie them to something that matters",
-                "Saturn": "it builds slowly and rewards patience — compound, don't force the pace",
-                "Mars": "move boldly, just don't burn the goodwill you build",
-            }.get(current_md_lord, "lean in and build on it — this is a window to press, not wait")
-            return _scrub_leaks(
-                f"This is {_STRONG_HOUSE_LEAD[_mh]}; {_caveat}.")
+            return _scrub_leaks(f"This is {_STRONG_HOUSE_LEAD[_mh]}; {_caveat}.")
+        # [upachaya-node 2026-09-23] The UPACHAYA houses (3/6/11) are where a NODE
+        # (and malefics) GROW STRONGER over the chapter — Rahu in the 6th is Harsha,
+        # a rival-and-obstacle-crushing strength, NOT a dusthana weakness. 11 is
+        # already covered above; credit 3 and 6 for a node so a genuinely strong
+        # placement stops falling to the generic "restless, verify first" archetype.
+        _NODE_UPACHAYA_LEAD = {
+            3:  "a chapter of bold, self-driven push — your own courage, initiative and hustle are the engine, and the harder you press the more it returns",
+            6:  "a chapter of outgrowing your rivals and obstacles — competition, sheer effort, and clearing debts or problems all turn in your favor the more you take them on",
+        }
+        if _is_node and _mh in _NODE_UPACHAYA_LEAD:
+            return _scrub_leaks(f"This is {_NODE_UPACHAYA_LEAD[_mh]}; {_caveat}.")
         # Demanding chapter: a dusthana PLACEMENT (8/12 for anyone; 6 only for a
         # non-node — a node in the 6th is upachaya-strong/Harsha, not demanding), or
         # a genuine debilitation for a non-node. Nodes are never "demanding" by
