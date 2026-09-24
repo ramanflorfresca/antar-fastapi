@@ -22567,6 +22567,27 @@ async def ask_endpoint(request: AskRequest):
                             "execution, and a low-fit line CAN work with enough will; but a low-fit "
                             "line fought again and again is real signal, not bad luck. Close with one "
                             "concrete next step. Plain language only — never name a planet, house, or 'D-10'.")
+                        # [mode-not-sector 2026-09-23] Judge a NAMED venture by its MODE,
+                        # never its sector label — the sector→outcome oracle was tested
+                        # and inverted, but MODE-fit is defensible. Owner's lesson: his
+                        # tech ventures failed specifically when the product was food /
+                        # flowers — i.e. perishable, operations-heavy, thin-margin plays.
+                        _parts.append(
+                            "MODE OVER SECTOR (use this to judge a NAMED venture) — weigh the "
+                            "venture's OPERATING MODE, not its industry label, and NEVER claim a "
+                            "sector is chart-forbidden (that prediction was tested and failed):\n"
+                            "- If the reader's ranked fields above are asset-light — scale, network, "
+                            "reach, advisory, analytical, creative, information/software — then a "
+                            "venture whose success hinges on PERISHABLE / OPERATIONS-HEAVY / "
+                            "THIN-MARGIN / daily-logistics work (food, flowers, restaurants, retail, "
+                            "hospitality, physical inventory) runs AGAINST their grain — EVEN when "
+                            "it's wrapped in 'tech'; the software layer does NOT remove the "
+                            "perishable-operations drag. Flag such a line as uphill/low-fit.\n"
+                            "- An asset-light SCALE/NETWORK/SOFTWARE play (a marketplace, a fintech "
+                            "or SaaS tool, a network product) runs WITH a scale grain — supported.\n"
+                            "- If instead their ranked fields ARE operations/management/hands-on, "
+                            "the reverse holds. Frame as fit (grain), never a success guarantee; the "
+                            "point is the MODE the venture demands vs the mode the chart supports.")
                     # [dasha-timed timeline] the 'at what time' axis — chapters by
                     # mahadasha, read through the dasha lord's D-10 placement. This
                     # is the answer to "which profession at what time / what NOW /
