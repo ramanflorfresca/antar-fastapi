@@ -39428,6 +39428,43 @@ async def _life_arc_compute(chart_id, horizon_months, language,
     except Exception as _fe_err:
         print(f"[life_arc] forward-events chips failed (non-blocking): {_fe_err}")
 
+    # [childbirth-scrub 2026-09-23] The VERDICT noun and the cycle_timeline node
+    # titles have their OWN family-expansion producers (the verdict via
+    # _period_lord_nouns; the node titles via the static event_title map) — NEITHER
+    # goes through the age/gender event reframe. So a reader past child-plausible
+    # age (e.g. a 51-yo woman) still saw "it centres on a child" in the headline
+    # and "Family grows" on the timeline. Scrub BOTH here, age/gender-gated, and
+    # de-dup the reframed timeline titles.
+    try:
+        import re as _cb_re
+        _cb_gender = str((chart_record or {}).get("gender") or "").strip().lower()
+        _cb_cutoff = {"female": 47, "woman": 47, "f": 47,
+                      "male": 65, "man": 65, "m": 65}.get(_cb_gender, 55)
+        _cb_byear = int(str(birth_date_str)[:4]) if str(birth_date_str)[:4].isdigit() else None
+        _cb_age = (_la_dt.utcnow().year - _cb_byear) if _cb_byear else None
+        if _cb_age is not None and _cb_age > _cb_cutoff:
+            _v = response.get("verdict") or ""
+            _v = _cb_re.sub(r"\ba child\b", "a creative project", _v, flags=_cb_re.I)
+            _v = _cb_re.sub(r"\b(your |a )?children\b", "a creative project", _v, flags=_cb_re.I)
+            response["verdict"] = _v
+            _cb_seen = set()
+            for _n in (response.get("cycle_timeline") or []):
+                _kept = []
+                for _ev in (_n.get("events") or []):
+                    _t = str(_ev.get("title") or "")
+                    if _cb_re.search(r"family grows", _t, _cb_re.I):
+                        _ev["title"] = "Something you create or lead"
+                        _ev["category"] = "CREATIVE"
+                    # de-dup the reframed creative titles within a node
+                    if _ev.get("title") == "Something you create or lead":
+                        if "Something you create or lead" in _cb_seen:
+                            continue
+                        _cb_seen.add("Something you create or lead")
+                    _kept.append(_ev)
+                _n["events"] = _kept
+    except Exception as _cb_e:
+        print(f"[life_arc] childbirth scrub skipped (non-fatal): {_cb_e}")
+
     # ── Cycle gist (Cowork addendum 2026-06-10) ──────────────────────────
     # `gist` = current_phase.life_phase_summary trimmed to ~first 2
     # sentences so the Cycle tab card has a short surface even when the
