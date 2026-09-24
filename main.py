@@ -26393,7 +26393,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         from antar_engine.daily_prediction_engine import generate_weekly_signals
         from antar_engine.daily_panchanga import calculate_panchanga, format_daily_for_user
         res = supabase.table("charts").select(
-            "chart_data,birth_date,name,gender,latitude,longitude,current_country,birth_country,current_city,"
+            "chart_data,jaimini_data,birth_date,name,gender,latitude,longitude,current_country,birth_country,current_city,"
             "children_status,marital_status,lal_kitab_data,language_preference,financial_status"
         ).eq("id", cid).execute()
         if not res.data: raise HTTPException(404, "Chart not found")
@@ -26404,6 +26404,14 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 cd = json.loads(cd)
             except Exception:
                 cd = {}
+        # [chara-daśā 2026-09-24] jaimini_data (chara karakas) → graded Jaimini
+        # activation in the domain sweep. Parsed once; passed to score_domains.
+        _daily_jd = row.get("jaimini_data")
+        if isinstance(_daily_jd, str):
+            try:
+                _daily_jd = json.loads(_daily_jd)
+            except Exception:
+                _daily_jd = None
 
         # [lang-safety 2026-07-24] see _resolve_surface_language. This route had no
         # stored-preference rescue at all, so a Spanish user whose client sends the
@@ -26892,7 +26900,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 _hd_ranked = _hd_tier(_hd_score(
                     cd if isinstance(cd, dict) else {},
                     get_dashas_for_chart(cid) or {}, _hd_events, _hd_today,
-                    daily=True))
+                    daily=True, jaimini_data=locals().get("_daily_jd")))
                 _hd_active = _hd_ranked.get("active") or []
                 result["active_domains"]   = _hd_active
                 result["quiet_domains"]    = _hd_ranked.get("quiet") or []

@@ -142,7 +142,8 @@ def _jaimini_active_houses(dashas: dict, lagna_idx: int, today_iso: str) -> set:
 
 # ── main scorer ──────────────────────────────────────────────────────────────
 def score_domains(chart_data: dict, dashas: dict, transit_events: list,
-                  today: Optional[date] = None, daily: bool = False) -> List[dict]:
+                  today: Optional[date] = None, daily: bool = False,
+                  jaimini_data: Optional[dict] = None) -> List[dict]:
     """Score every DOMAIN_SWEEP domain for activation. Returns a list of dicts:
       {key, label, say, houses, score, polarity ('opportunity'|'risk'|'neutral'),
        confidence (0-1), convergence (bool), vim, jaimini, transit_count,
@@ -163,8 +164,29 @@ def score_domains(chart_data: dict, dashas: dict, transit_events: list,
 
     occ = _occupants(chart_data)
     vim_planets = _vim_active_planets(dashas, today_iso)
-    jaimini_houses = _jaimini_active_houses(dashas, lagna_idx, today_iso)
     md_is_malefic = bool(vim_planets & _MALEFICS) and not (vim_planets & _BENEFICS)
+
+    # [chara-daśā 2026-09-24] Proper Jaimini activation: read the running chara
+    # sign as the period-lagna and grade it by AK/AmK placement + aspects (see
+    # chara_dasha.chara_activation). `chara_houses` is a GRADED {house: weight}
+    # map. When jaimini_data isn't supplied (or the engine can't run) we fall
+    # back to the legacy sign-in-house set at full weight, so behaviour is
+    # unchanged for un-upgraded callers.
+    chara_available = False
+    chara_houses: dict = {}
+    chara_strength = 0.0
+    if jaimini_data:
+        try:
+            from antar_engine.chara_dasha import chara_activation
+            _ch = chara_activation(chart_data, jaimini_data, dashas, lagna_idx, today_iso)
+            if _ch.get("available"):
+                chara_available = True
+                chara_houses = _ch.get("houses") or {}
+                chara_strength = _ch.get("strength") or 0.0
+        except Exception:
+            chara_available = False
+    if not chara_available:
+        chara_houses = {h: 1.0 for h in _jaimini_active_houses(dashas, lagna_idx, today_iso)}
 
     # index transit events by natal house
     ev_by_house: Dict[int, List[dict]] = {}
@@ -194,8 +216,9 @@ def score_domains(chart_data: dict, dashas: dict, transit_events: list,
         vim_house_hit = any(any(pl in vim_planets for pl in occ.get(h, [])) for h in houses)
         vim_active = vim_hit or vim_house_hit
 
-        # --- Jaimini chara confirmation ---
-        jaimini_active = bool(set(houses) & jaimini_houses)
+        # --- Jaimini chara confirmation (graded when chara engine ran) ---
+        jaimini_weight = max([chara_houses.get(h, 0.0) for h in houses], default=0.0)
+        jaimini_active = jaimini_weight >= (0.35 if chara_available else 0.5)
 
         # --- gochar transits over the domain's houses ---
         dom_events = [e for h in houses for e in ev_by_house.get(h, [])]
@@ -229,7 +252,10 @@ def score_domains(chart_data: dict, dashas: dict, transit_events: list,
         if vim_active:
             score += 3.0
         if jaimini_active:
-            score += 1.5
+            # graded when the chara engine ran (weight 0..1 → up to +1.8, so a
+            # strong AK/AmK-backed period outweighs a weak sign-only touch); the
+            # legacy fallback keeps the flat +1.5.
+            score += min(1.8, jaimini_weight * 1.8) if chara_available else 1.5
         if daily:
             # [daily-transit-weight 2026-09-07] the day is defined by gochar —
             # weight it enough that a transit-active domain can lead over a
@@ -292,7 +318,13 @@ def score_domains(chart_data: dict, dashas: dict, transit_events: list,
         if vim_active:
             drivers.append(f"Vimśottarī {'/'.join(sorted(vim_planets))} activates it")
         if jaimini_active:
-            drivers.append("Jaimini chara agrees")
+            if chara_available:
+                _tenor = ("strongly" if jaimini_weight >= 0.6
+                          else "moderately" if jaimini_weight >= 0.4 else "mildly")
+                drivers.append(f"Jaimini chara period activates it {_tenor} "
+                               f"(via the Ātma/Amātya kāraka)")
+            else:
+                drivers.append("Jaimini chara agrees")
         if transit_count:
             drivers.append(f"{transit_count} transit event(s) hitting houses {houses}")
 
