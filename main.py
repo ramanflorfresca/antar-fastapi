@@ -20745,6 +20745,33 @@ def _is_material_q(question):
     return _material_noun and _intent
 
 
+def _is_wealth_magnitude_q(question):
+    """True for NATIVE wealth-CAPACITY questions — how big, how wealthy, will it
+    last, concentrate vs diversify, and the 'which of my ventures/startups will
+    grow / succeed' question (which we answer as capacity + bet-sizing, since the
+    chart CANNOT pick the vertical — that was tested and falsified). Distinct from
+    the funding-TIMING 'when' question (that routes to the funding concern)."""
+    ql = (question or "").lower()
+    _magnitude = any(w in ql for w in (
+        "how big", "how wealthy", "how rich", "will i be rich", "will i be wealthy",
+        "how much wealth", "how much money will i", "how successful", "how far can i",
+        "how much can i make", "scale of my", "level of success", "become rich",
+        "make it big", "be a millionaire", "be a billionaire", "financial ceiling",
+    ))
+    _stability = any(w in ql for w in (
+        "will it last", "will my wealth last", "will the money last", "hold on to",
+        "hold onto", "keep the money", "concentrate or diversify", "diversify",
+        "spread my bets", "spread the bets", "put everything", "put all my",
+        "all my eggs", "go all in", "all-in", "bet the house", "how should i size",
+    ))
+    _which_venture = any(w in ql for w in (
+        "which venture", "which business", "which startup", "which company",
+        "which of my", "which one will grow", "which will grow", "which will succeed",
+        "which will do well", "which vertical", "what should i focus", "focus on which",
+    ))
+    return _magnitude or _stability or _which_venture
+
+
 def _is_gambling_q(question):
     """True for a speculation/gambling timing question ('should I play poker
     tonight', 'is now a good time for the casino', 'lucky day to bet'). KP
@@ -22841,6 +22868,43 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _mae:
                 logger.warning(f"[ask] material-engine skipped (non-fatal): {_mae}")
 
+            # [wealth-engine 2026-09-23] NATIVE WEALTH-CAPACITY questions — how big
+            # can my wealth get, will it last, concentrate vs diversify, and the
+            # "which of my ventures will grow" question. Answered from the
+            # deterministic wealth_profile (MAGNITUDE + STABILITY/sizing), with a
+            # HARD guard that the chart grades capacity + bet-sizing and can NEVER
+            # pick a vertical or predict a specific company (tested + falsified).
+            _ask_wealth_block = ""
+            _wealth_fired = False
+            try:
+                if _is_wealth_magnitude_q(question):
+                    _wealth_fired = True
+                    from antar_engine.wealth_magnitude import wealth_profile as _wpf
+                    _wp = _wpf(chart_data, get_dashas_for_chart(chart_id) or {},
+                               {"lagna_sign": chart_row.data.get("lagna_sign")})
+                    if _wp.get("available"):
+                        _m, _s = _wp["magnitude"], _wp["stability"]
+                        _act = ("It is ACTIVE now — a running life-period is one of its "
+                                "own drivers, so this is a build-and-raise window."
+                                if _m.get("activated_now") else
+                                "It is more LATENT now — it switches on when the right "
+                                "life-period runs; build the groundwork for then.")
+                        _ask_wealth_block = (
+                            "WEALTH-CAPACITY QUESTION — answer ONLY from this deterministic "
+                            "read. Two layers, answer BOTH in plain language:\n"
+                            f"1) MAGNITUDE (how big the wealth engine can go): {_m['label']}. {_act}\n"
+                            f"2) STABILITY (does it hold → how to SIZE bets): {_s['grade']} — "
+                            f"{_s['sizing_advice']}\n"
+                            "HARD RULE: the chart grades the PERSON'S wealth capacity and how to "
+                            "size bets. It CANNOT tell them which venture/business/startup wins, "
+                            "and you must NOT name, rank, or pick one — if they ask 'which of my "
+                            "ventures', say plainly that the chart times the money and sets the "
+                            "sizing, but execution and market decide which vehicle catches it. "
+                            "Be direct and encouraging; give the magnitude, then the sizing "
+                            "discipline, then that boundary. NEVER name a planet, house, or sign.")
+            except Exception as _wpe:
+                logger.warning(f"[ask] wealth-engine skipped (non-fatal): {_wpe}")
+
             # [kp-horary-gambling 2026-09-19] SPECULATION / GAMBLING questions.
             # KP (Krishnamurti Paddhati) is the tradition built for this, and a KP
             # astrologer reads it by casting the horary for the MOMENT of the
@@ -23618,6 +23682,13 @@ async def ask_endpoint(request: AskRequest):
                 if _ask_decision and _is_material_q(question):
                     print("[ask] material/colour — suppressing decision/timing path")
                     _ask_decision = False
+                # [wealth-magnitude 2026-09-23] "how big / will it last / concentrate
+                # or diversify / which venture grows" is a CAPACITY + sizing question,
+                # not a yes/no — suppress the verdict so the wealth magnitude+stability
+                # read leads (and no stray "Not yet — window" prefixes it).
+                if _ask_decision and locals().get("_wealth_fired"):
+                    print("[ask] wealth-magnitude — suppressing decision/timing path")
+                    _ask_decision = False
                 # [today-scope 2026-09-22] "how will I do today / this afternoon /
                 # tonight" is about the DAY itself, not a dated life event — the
                 # per-day timeframe facts are already injected, so suppress the
@@ -23952,6 +24023,7 @@ async def ask_endpoint(request: AskRequest):
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
                     + (f"\n\n{_ask_material_block}" if locals().get("_ask_material_block") else "")
+                    + (f"\n\n{_ask_wealth_block}" if locals().get("_ask_wealth_block") else "")
                     + (f"\n\n{_ask_kp_horary_block}" if locals().get("_ask_kp_horary_block") else "")
                     + (f"\n\n{_ask_residence_block}" if _ask_residence_block else "")
                     + (f"\n\n{_ask_career_change_block}" if _ask_career_change_block else "")
@@ -24177,6 +24249,7 @@ async def ask_endpoint(request: AskRequest):
                     + (f"\n\n{_ask_legal_block}" if _ask_legal_block else "")
                     + (f"\n\n{_ask_health_block}" if _ask_health_block else "")
                     + (f"\n\n{_ask_material_block}" if locals().get("_ask_material_block") else "")
+                    + (f"\n\n{_ask_wealth_block}" if locals().get("_ask_wealth_block") else "")
                     + (f"\n\n{_ask_kp_horary_block}" if locals().get("_ask_kp_horary_block") else "")
                     + (f"\n\n{_ask_residence_block}" if _ask_residence_block else "")
                     + (f"\n\n{_ask_career_change_block}" if _ask_career_change_block else "")
