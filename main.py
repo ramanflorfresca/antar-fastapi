@@ -22613,6 +22613,16 @@ async def ask_endpoint(request: AskRequest):
                                "indicators and the timing of life-periods. Never name a planet, "
                                "house, sign, 'navamsa/D-9', Darakaraka, or Upapada — speak in "
                                "plain life-language."]
+                        # [forward-only 2026-09-23] Never surface a PAST year/window as if it
+                        # were upcoming (a stale "meeting someone between late 2024–2025" when it
+                        # is already 2026 destroys trust). Only cite a window explicitly provided
+                        # in a TIMING line below; if none is given, do NOT invent a date — speak to
+                        # the promise + agency, and any timing you mention must be TODAY or later.
+                        _rp.append(
+                            f"TODAY IS {date.today().isoformat()}. Any timing you state MUST be "
+                            "today or in the future — NEVER a past month or year. If no specific "
+                            "window is provided below, do NOT invent one; lead with the promise "
+                            "and one concrete step instead.")
                         # confidence dial (promise band → tone), per the philosophy
                         _rp.append(
                             f"MARRIAGE PROMISE: {_pr['band']} "
