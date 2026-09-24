@@ -130,6 +130,26 @@ def _current_dasha_lords(dashas: dict) -> set:
     return out
 
 
+def _vim_active_lords(dashas: dict) -> set:
+    """Vimśottarī MD+AD+PD lords active today — the PRIMARY 'period running now'
+    set. [precision 2026-09-24] Kept SEPARATE from _current_dasha_lords (which
+    also folds in Yoginī/chara), so a secondary-system lord can never claim the
+    primary Vimśottarī 'its period is running now' credit — the bug where Yoginī-
+    Mars was credited as the running period while the real MD (Rahu) was not."""
+    out = set()
+    today = date.today().isoformat()
+    for sysname in ("vimsottari", "vimshottari"):
+        for p in (dashas or {}).get(sysname) or []:
+            if not isinstance(p, dict):
+                continue
+            lord = p.get("lord_or_sign") or p.get("planet_or_sign") or p.get("lord")
+            s = str(p.get("start_date") or p.get("start") or "")[:10]
+            e = str(p.get("end_date") or p.get("end") or "")[:10]
+            if lord and s and e and s <= today <= e:
+                out.add(str(lord).title())
+    return out
+
+
 def _planet_in_varga(chart_data: dict, varga: str, planet: str) -> Optional[str]:
     v = ((chart_data.get("divisional_charts") or {}).get(varga) or {})
     pv = (v.get("planets") or {}).get(planet)
@@ -167,6 +187,12 @@ def analyze_concern(concern: str, chart_data: dict, dashas: dict,
             d["why"].append(why)
 
         cur = _current_dasha_lords(dashas)
+        # [precision 2026-09-24] the "period running now" credit is VIMŚOTTARĪ-only
+        # (see _vim_active_lords): a Yoginī/chara lord must not be credited as the
+        # running period, and the actual MD must be — even when it only OCCUPIES a
+        # concern house (e.g. Rahu-in-11th, the current MD, is the primary income
+        # activator but is a house-occupant, not a house-lord).
+        vim_cur = _vim_active_lords(dashas)
         dasha_active = []
 
         # score each house's lord + occupants. GAIN = strength raises the score;
@@ -187,7 +213,7 @@ def analyze_concern(concern: str, chart_data: dict, dashas: dict,
                     add(lord, 0.4, note)
             else:
                 add(lord, 1.0 + dig, note)
-            if lord in cur and lord not in dasha_active:
+            if lord in vim_cur and lord not in dasha_active:
                 # a running period lights the theme; for RISK only a malefic/weak
                 # lord elevates it, a benefic/strong lord is protective.
                 if not is_risk or dig < 0 or lord in _MALEFICS:
@@ -205,6 +231,14 @@ def analyze_concern(concern: str, chart_data: dict, dashas: dict,
                         relief += 0.7      # a benefic here softens it
                 else:
                     add(p, 0.8 + max(0, pdig), f"sits in your {_ord(h)} house" + (f", {pword}" if pword else ""))
+                # [precision 2026-09-24] the running Vimśottarī MD/AD occupying a
+                # concern house is a PRIMARY activator (Rahu-in-11th = the whole
+                # gains chapter) — credit its running period here too, not only when
+                # it happens to lord the house.
+                if p in vim_cur and p not in dasha_active:
+                    if not is_risk or pdig < 0 or p in _MALEFICS:
+                        add(p, 1.5, "and its period is running now")
+                        dasha_active.append(p)
 
         # karakas
         for k in spec["karakas"]:
@@ -215,7 +249,7 @@ def analyze_concern(concern: str, chart_data: dict, dashas: dict,
                     add(k, 0.8 - kdig, f"the natural significator is weak here" + (f", {kword}" if kword else ""))
             else:
                 add(k, 0.6 + kdig, "is a natural significator here" + (f", {kword}" if kword else ""))
-            if k in cur and k not in dasha_active and (not is_risk or kdig < 0 or k in _MALEFICS):
+            if k in vim_cur and k not in dasha_active and (not is_risk or kdig < 0 or k in _MALEFICS):
                 add(k, 1.0, "and its period is running now")
                 dasha_active.append(k)
 
@@ -246,14 +280,14 @@ def analyze_concern(concern: str, chart_data: dict, dashas: dict,
             for h in [x for x in houses if x in (2, 11, 8)]:
                 occ = in_house.get(h, [])
                 if "Ketu" in occ:
-                    node_warn = {"node": "Ketu", "house": h, "lit": "Ketu" in cur,
+                    node_warn = {"node": "Ketu", "house": h, "lit": "Ketu" in vim_cur,
                         "text": (f"Ketu sits in your {_ord(h)} house of "
                                  f"{spec['house_meaning'].get(h,'gains')} — gains can arrive "
                                  "suddenly but DON'T HOLD; there is a real risk of loss or "
                                  "reversal here, sharpest when its long period runs")}
                     break
                 if "Rahu" in occ and h in (2, 8):
-                    node_warn = {"node": "Rahu", "house": h, "lit": "Rahu" in cur,
+                    node_warn = {"node": "Rahu", "house": h, "lit": "Rahu" in vim_cur,
                         "text": (f"Rahu sits in your {_ord(h)} house of "
                                  f"{spec['house_meaning'].get(h,'wealth')} — gains here are "
                                  "volatile (inflation then reversal, easy over-reach); protect "
