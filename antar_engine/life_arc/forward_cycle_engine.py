@@ -772,13 +772,7 @@ def _verdict_line(current_md_lord, chart_data, current_ad_lord=None,
         _mdp = (chart_data.get("planets") or {}).get(current_md_lord) or {}
         _mh = _mdp.get("house")
         _debil = _condition(current_md_lord, chart_data) == "debilitated"
-        _hard = (_mh in (6, 8, 12)) or _debil
-        if _hard:
-            _area = _period_lord_nouns(current_md_lord, chart_data, n=1)
-            _theme = _area[0] if _area else "hidden, shared and testing ground"
-            return _scrub_leaks(
-                f"A demanding, deepening chapter — it centres on {_theme}; "
-                "hold steady and don't rush the big calls.")
+        _is_node = current_md_lord in ("Rahu", "Ketu")
         # [dasha-house-credit 2026-09-23] The generic per-planet archetype (Rahu ->
         # "restless, verify first") UNDERSELLS a chapter whose lord sits in a
         # STRONG-OUTCOME house. Classically the make-or-peak dashas are the ones
@@ -796,7 +790,11 @@ def _verdict_line(current_md_lord, chart_data, current_ad_lord=None,
             5:  "a recognition-and-creativity chapter — what you originate gets seen and rewarded",
             1:  "a chapter that puts YOU forward — identity, drive and standing rise now",
         }
-        if _mh in _STRONG_HOUSE_LEAD:
+        # A NODE in a strong house is era-aware STRONG even if some texts call its
+        # sign "debilitated" (Rahu in Scorpio/11th is a gains asset, not a weakness),
+        # so a node ignores the debilitation veto here; a non-node must not be
+        # debilitated to claim the strong-house lead.
+        if _mh in _STRONG_HOUSE_LEAD and (_is_node or not _debil):
             _caveat = {
                 "Rahu": "ride the expansion hard, just spread your bets and don't over-reach",
                 "Ketu": "the gains are real even if they can feel hollow — tie them to something that matters",
@@ -805,6 +803,17 @@ def _verdict_line(current_md_lord, chart_data, current_ad_lord=None,
             }.get(current_md_lord, "lean in and build on it — this is a window to press, not wait")
             return _scrub_leaks(
                 f"This is {_STRONG_HOUSE_LEAD[_mh]}; {_caveat}.")
+        # Demanding chapter: a dusthana PLACEMENT (8/12 for anyone; 6 only for a
+        # non-node — a node in the 6th is upachaya-strong/Harsha, not demanding), or
+        # a genuine debilitation for a non-node. Nodes are never "demanding" by
+        # debilitation alone (era-aware).
+        _in_dusthana = _mh in (8, 12) or (_mh == 6 and not _is_node)
+        if _in_dusthana or (_debil and not _is_node):
+            _area = _period_lord_nouns(current_md_lord, chart_data, n=1)
+            _theme = _area[0] if _area else "hidden, shared and testing ground"
+            return _scrub_leaks(
+                f"A demanding, deepening chapter — it centres on {_theme}; "
+                "hold steady and don't rush the big calls.")
     except Exception:
         pass
     phrase = ARCHETYPE_PHRASE_SHORT.get(current_md_lord, "A distinctive chapter")
