@@ -10264,6 +10264,52 @@ async def material_year(chart_id: str, language: str = "en"):
     }
 
 
+@app.get("/api/v1/protect-season/{chart_id}")
+@translate_response(
+    fields_to_translate=["headline", "intro", "note", "scope", "under_pressure",
+                         "what_runs_hard", "steady", "observance", "why", "shade"],
+    endpoint_name="protect-season",
+)
+async def protect_season(chart_id: str, language: str = "en"):
+    """[protect-season 2026-09-24] The dedicated 'Protect this season' section —
+    gathers the CURRENT malefic pressure (the varshphal year-lord + any active
+    dasha lord that runs hard) into one place, each with a plain steadying step
+    and an optional classical observance. Framed as SOFTEN, never AVERT — no
+    event/accuracy claim, no planet/house/Sanskrit reaches the user. Read-only
+    and NON-enrolling (writes nothing; never touches predictions / VERIFY). See
+    antar_engine/season_protection.py. Powers the FE 'Protect this season' card;
+    a small 'soften this' link on each malefic marker can deep-link here."""
+    from fastapi.responses import JSONResponse
+    try:
+        row = (supabase.table("charts")
+               .select("chart_data,birth_date,lal_kitab_data")
+               .eq("id", chart_id).single().execute().data) or {}
+    except Exception:
+        return JSONResponse(status_code=404,
+                            content={"available": False, "error": "chart not found"})
+    if not row:
+        return JSONResponse(status_code=404,
+                            content={"available": False, "error": "chart not found"})
+    cd = row.get("chart_data")
+    if isinstance(cd, str):
+        cd = _safe_jsonb(cd)
+    bd = row.get("birth_date")
+    lk = row.get("lal_kitab_data")
+    if isinstance(lk, str):
+        lk = _safe_jsonb(lk)
+    try:
+        dashas = get_dashas_for_chart(chart_id)
+    except Exception as _de:
+        print(f"[protect-season] dasha load failed (non-fatal): {_de}")
+        dashas = {}
+    try:
+        from antar_engine.season_protection import protect_this_season
+        return protect_this_season(cd, bd, dashas, lk)
+    except Exception as e:
+        print(f"[protect-season] {e}")
+        return {"available": False, "error": str(e)[:160]}
+
+
 @app.post("/api/v1/user/life-events", response_model=LifeEventOut, status_code=201)
 async def create_life_event(event: LifeEventCreate, authorization: str = Header(...)):
     user_id = verify_token(authorization)
