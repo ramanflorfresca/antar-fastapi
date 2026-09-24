@@ -771,13 +771,40 @@ def _verdict_line(current_md_lord, chart_data, current_ad_lord=None,
     try:
         _mdp = (chart_data.get("planets") or {}).get(current_md_lord) or {}
         _mh = _mdp.get("house")
-        _hard = (_mh in (6, 8, 12)) or (_condition(current_md_lord, chart_data) == "debilitated")
+        _debil = _condition(current_md_lord, chart_data) == "debilitated"
+        _hard = (_mh in (6, 8, 12)) or _debil
         if _hard:
             _area = _period_lord_nouns(current_md_lord, chart_data, n=1)
             _theme = _area[0] if _area else "hidden, shared and testing ground"
             return _scrub_leaks(
                 f"A demanding, deepening chapter — it centres on {_theme}; "
                 "hold steady and don't rush the big calls.")
+        # [dasha-house-credit 2026-09-23] The generic per-planet archetype (Rahu ->
+        # "restless, verify first") UNDERSELLS a chapter whose lord sits in a
+        # STRONG-OUTCOME house. Classically the make-or-peak dashas are the ones
+        # whose lord holds the gains/career/wealth/fortune/recognition houses — so
+        # lead with WHAT THE CHAPTER OPENS, credit it, and keep only the honest
+        # per-planet caveat (for Rahu: ride it but spread / don't over-reach — the
+        # real volatility, not timidity). This is the era-aware read: a strong Rahu
+        # in the 11th during its own long period is a genuine wealth/name peak, not
+        # a vague "two directions" caution.
+        _STRONG_HOUSE_LEAD = {
+            11: "the wealth, network, and name-and-fame chapter you've been building toward — the gains house is lit and opens widest now",
+            10: "a career-and-standing chapter — your public work, authority and reputation climb now",
+            2:  "a wealth-building chapter — your earnings, savings and resources grow now",
+            9:  "a fortune-and-expansion chapter — luck, higher learning and long-range moves are with you",
+            5:  "a recognition-and-creativity chapter — what you originate gets seen and rewarded",
+            1:  "a chapter that puts YOU forward — identity, drive and standing rise now",
+        }
+        if _mh in _STRONG_HOUSE_LEAD:
+            _caveat = {
+                "Rahu": "ride the expansion hard, just spread your bets and don't over-reach",
+                "Ketu": "the gains are real even if they can feel hollow — tie them to something that matters",
+                "Saturn": "it builds slowly and rewards patience — compound, don't force the pace",
+                "Mars": "move boldly, just don't burn the goodwill you build",
+            }.get(current_md_lord, "lean in and build on it — this is a window to press, not wait")
+            return _scrub_leaks(
+                f"This is {_STRONG_HOUSE_LEAD[_mh]}; {_caveat}.")
     except Exception:
         pass
     phrase = ARCHETYPE_PHRASE_SHORT.get(current_md_lord, "A distinctive chapter")
