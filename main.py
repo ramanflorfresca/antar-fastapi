@@ -22619,10 +22619,13 @@ async def ask_endpoint(request: AskRequest):
                         # in a TIMING line below; if none is given, do NOT invent a date — speak to
                         # the promise + agency, and any timing you mention must be TODAY or later.
                         _rp.append(
-                            f"TODAY IS {date.today().isoformat()}. Any timing you state MUST be "
-                            "today or in the future — NEVER a past month or year. If no specific "
-                            "window is provided below, do NOT invent one; lead with the promise "
-                            "and one concrete step instead.")
+                            f"TODAY IS {date.today().isoformat()} (year {date.today().year}). "
+                            "Any timing you state MUST be today or in the future — NEVER cite a "
+                            f"start month or year earlier than {date.today().year}. If a provided "
+                            "window BEGAN in the past but is still open, describe it as 'now "
+                            f"through <end>' (e.g. 'now through 2026') — do NOT name its past start "
+                            "date. If no specific window is provided below, do NOT invent one; lead "
+                            "with the promise and one concrete step instead.")
                         # confidence dial (promise band → tone), per the philosophy
                         _rp.append(
                             f"MARRIAGE PROMISE: {_pr['band']} "
