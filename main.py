@@ -22427,6 +22427,27 @@ async def ask_endpoint(request: AskRequest):
                             "phase honestly, and end with a scoped follow-up — never a single terse line. "
                             "Plain language; no planet/house/Sanskrit."
                         )
+                        # [wealth-unify 2026-09-23] Fold the STABILITY / bet-SIZING layer
+                        # (from wealth_profile) into the SAME wealth read so ceiling and
+                        # sizing speak in one voice — a "how big / should I diversify"
+                        # question gets both, not two competing blocks. (The separate
+                        # _ask_wealth_block below then stands down when this fired.)
+                        try:
+                            from antar_engine.wealth_magnitude import wealth_profile as _wpf2
+                            _wp2 = _wpf2(chart_data, get_dashas_for_chart(chart_id) or {},
+                                         {"lagna_sign": chart_row.data.get("lagna_sign")})
+                            if _wp2.get("available"):
+                                _s2 = _wp2["stability"]
+                                _ask_wealth_text += (
+                                    "\nBET-SIZING (say this as the second half of the same answer): "
+                                    f"the engine is {_s2['grade']} — {_s2['sizing_advice']} "
+                                    "AND the hard boundary: this grades wealth CAPACITY and how to "
+                                    "SIZE bets — it does NOT pick which venture/company wins; if they "
+                                    "ask 'which one', say the chart times the money and sets the "
+                                    "sizing, but execution and market decide the vehicle. Never name "
+                                    "a specific business.")
+                        except Exception as _wp2e:
+                            print(f"[ask][wealth-unify] non-fatal: {_wp2e}")
                         print(f"[ask][wealth-sig] strength={_wps['strength']} kinds={_wps.get('kinds')}")
             except Exception as _wpse:
                 print(f"[ask][wealth-sig] non-fatal: {_wpse}")
@@ -22937,7 +22958,12 @@ async def ask_endpoint(request: AskRequest):
             _ask_wealth_block = ""
             _wealth_fired = False
             try:
-                if _is_wealth_magnitude_q(question):
+                # [wealth-unify 2026-09-23] Stand down when the wealth-power block
+                # already fired — it now carries the magnitude+stability+sizing in one
+                # voice, so a second block here would just duplicate it. This block
+                # still leads for pure sizing/which-venture questions that _is_wealth_q
+                # (rich/wealthy/how-big) did NOT catch (e.g. "spread or go all in?").
+                if _is_wealth_magnitude_q(question) and not locals().get("_ask_wealth_text"):
                     _wealth_fired = True
                     from antar_engine.wealth_magnitude import wealth_profile as _wpf
                     _wp = _wpf(chart_data, get_dashas_for_chart(chart_id) or {},
