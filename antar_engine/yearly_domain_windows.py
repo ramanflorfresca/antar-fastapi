@@ -237,12 +237,6 @@ def build_yearly_domain_windows(chart_data: dict, dashas: dict,
         if not ups and not downs:
             continue
         label = YEAR_LABEL.get(key, key.title())
-        parts = []
-        if ups:
-            parts.append("strongest around " + ", ".join(ups))
-        if downs:
-            parts.append("under pressure around " + ", ".join(downs))
-        line = f"{say[key].capitalize()} is active this year — " + "; ".join(parts) + "."
         # [past/upcoming 2026-09-10] structured windows carrying past|current|
         # upcoming so the frontend can grey elapsed windows and highlight the
         # runway. up_windows/down_windows (strings) kept for backward compat.
@@ -253,12 +247,35 @@ def build_yearly_domain_windows(chart_data: dict, dashas: dict,
         for _lbl, _a, _b in _runs_dated(series, "down"):
             windows.append({"window": _lbl, "direction": "down",
                             "status": _win_status(_a, _b, today)})
+        # [forward-filter 2026-09-24] Owner's call: "This Year" keeps the solar-year
+        # frame + theme, but the user-facing line/up_windows/down_windows show ONLY
+        # windows from today onward (current/upcoming) — a past window is context,
+        # never an action prompt ("position early" for a month that's gone reads as
+        # broken). The full `windows` list (with status) is kept so the FE can still
+        # show elapsed ones greyed. When every window has passed, say so plainly.
+        _fwd = [w for w in windows if w.get("status") in ("current", "upcoming")]
+        fwd_ups = [w["window"] for w in _fwd if w["direction"] == "up"]
+        fwd_downs = [w["window"] for w in _fwd if w["direction"] == "down"]
+        has_fwd = bool(fwd_ups or fwd_downs)
+        if has_fwd:
+            parts = []
+            if fwd_ups:
+                parts.append("strongest around " + ", ".join(fwd_ups))
+            if fwd_downs:
+                parts.append("under pressure around " + ", ".join(fwd_downs))
+            line = f"{say[key].capitalize()} is active this year — " + "; ".join(parts) + "."
+        else:
+            line = (f"{say[key].capitalize()} was active earlier this year — "
+                    "its strong windows have largely passed.")
         out.append({
             "key": key, "label": label, "line": line,
-            "up_windows": ups, "down_windows": downs,
+            "up_windows": fwd_ups, "down_windows": fwd_downs,
             "windows": windows,
+            "has_forward": has_fwd,
             "score": round(activation_score, 1),
         })
 
-    out.sort(key=lambda x: x["score"], reverse=True)
+    # forward-having domains rank first (an all-elapsed domain shouldn't lead the
+    # year view), then by activation score.
+    out.sort(key=lambda x: (x.get("has_forward", False), x["score"]), reverse=True)
     return out[:max_domains]
