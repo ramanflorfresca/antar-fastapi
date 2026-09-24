@@ -751,12 +751,21 @@ def _condition(planet: str, chart_data: dict) -> str:
 
 
 def _verdict_line(current_md_lord, chart_data, current_ad_lord=None,
-                  top_event_type=None):
+                  top_event_type=None, near_area=None, aligned=True):
     """Verdict = '{archetype_phrase_short} — {nuance}.' pulled from the MD lord
     (chapter referent). The MD frames the long chapter; the AD frames the
     sub-chapter. The verdict is about the CHAPTER, so MD wins.
     current_ad_lord + top_event_type retained for backward-compat call sites
-    but ignored when current_md_lord is present."""
+    but ignored when current_md_lord is present.
+
+    [tempo-reconcile 2026-09-23] `aligned`/`near_area` reconcile the CHAPTER
+    promise (MD-lord's house) with the NEAR-TERM reality (the current sub-period's
+    activation). When the MD lord sits in a strong house BUT the current period is
+    activating a different area / running steady, aligned=False: the verdict keeps
+    the chapter's theme but drops the 'opens widest now / ride hard' tempo (which
+    the near-term doesn't support) and says it builds steadily, with the current
+    groundwork running through `near_area` — so the headline stops over-claiming
+    and the body (which reads the steady near-term) no longer contradicts it."""
     if not current_md_lord:
         # Soft fall-through to AD lord if MD wasn't provided (legacy path).
         current_md_lord = current_ad_lord
@@ -782,37 +791,56 @@ def _verdict_line(current_md_lord, chart_data, current_ad_lord=None,
         # real volatility, not timidity). This is the era-aware read: a strong Rahu
         # in the 11th during its own long period is a genuine wealth/name peak, not
         # a vague "two directions" caution.
+        # LEAD texts are TEMPO-NEUTRAL (name the arena, not the timing). The
+        # tempo ("opens widest now" vs "builds steadily") is decided by `aligned`
+        # below, so a strong-house chapter whose near-term is quiet doesn't
+        # over-claim immediacy.
         _STRONG_HOUSE_LEAD = {
-            11: "the wealth, network, and name-and-fame chapter you've been building toward — the gains house is lit and opens widest now",
-            10: "a career-and-standing chapter — your public work, authority and reputation climb now",
-            2:  "a wealth-building chapter — your earnings, savings and resources grow now",
-            9:  "a fortune-and-expansion chapter — luck, higher learning and long-range moves are with you",
-            5:  "a recognition-and-creativity chapter — what you originate gets seen and rewarded",
-            1:  "a chapter that puts YOU forward — identity, drive and standing rise now",
+            11: "the wealth, network, and name-and-fame chapter you've been building toward — the gains house is lit",
+            10: "a career-and-standing chapter — your public work, authority and reputation are the arena",
+            2:  "a wealth-building chapter — your earnings, savings and resources are the arena",
+            9:  "a fortune-and-expansion chapter — luck, higher learning and long-range moves are the arena",
+            5:  "a recognition-and-creativity chapter — what you originate is the arena",
+            1:  "a chapter that puts YOU forward — identity, drive and standing are the arena",
         }
+        _NODE_UPACHAYA_LEAD = {
+            3:  "a chapter of bold, self-driven push — your own courage, initiative and hustle are the engine",
+            6:  "a chapter of outgrowing your rivals and obstacles — competition, effort, and clearing debts or problems are the arena",
+        }
+        # ALIGNED caveat (near-term is delivering the chapter's theme now):
         _caveat = {
-            "Rahu": "ride the expansion hard, just spread it across several ventures and don't over-reach",
-            "Ketu": "the gains are real even if they can feel hollow — tie them to something that matters",
+            "Rahu": "it opens widest now — ride the expansion hard, just spread it across several ventures and don't over-reach",
+            "Ketu": "it's live now — the gains are real even if they can feel hollow, so tie them to something that matters",
             "Saturn": "it builds slowly and rewards patience — compound, don't force the pace",
-            "Mars": "move boldly, just don't burn the goodwill you build",
-        }.get(current_md_lord, "lean in and build on it — this is a window to press, not wait")
+            "Mars": "it's live now — move boldly, just don't burn the goodwill you build",
+        }.get(current_md_lord, "it's live now — lean in and build on it, this is a window to press")
+
+        def _diverged():
+            # Chapter theme holds, but the near-term is quieter / elsewhere.
+            if near_area:
+                return (f"but it builds steadily, not all at once — right now the "
+                        f"groundwork runs through {near_area}, so lay it well and let "
+                        f"the gains compound")
+            return ("but it builds steadily, not all at once — lay the groundwork now "
+                    "and let it compound")
+
         # A NODE in a strong house is era-aware STRONG even if some texts call its
         # sign "debilitated" (Rahu in Scorpio/11th is a gains asset, not a weakness),
         # so a node ignores the debilitation veto here; a non-node must not be
         # debilitated to claim the strong-house lead.
         if _mh in _STRONG_HOUSE_LEAD and (_is_node or not _debil):
-            return _scrub_leaks(f"This is {_STRONG_HOUSE_LEAD[_mh]}; {_caveat}.")
+            _tail = _caveat if aligned else _diverged()
+            _join = "; " if aligned else " — "
+            return _scrub_leaks(f"This is {_STRONG_HOUSE_LEAD[_mh]}{_join}{_tail}.")
         # [upachaya-node 2026-09-23] The UPACHAYA houses (3/6/11) are where a NODE
         # (and malefics) GROW STRONGER over the chapter — Rahu in the 6th is Harsha,
         # a rival-and-obstacle-crushing strength, NOT a dusthana weakness. 11 is
         # already covered above; credit 3 and 6 for a node so a genuinely strong
         # placement stops falling to the generic "restless, verify first" archetype.
-        _NODE_UPACHAYA_LEAD = {
-            3:  "a chapter of bold, self-driven push — your own courage, initiative and hustle are the engine, and the harder you press the more it returns",
-            6:  "a chapter of outgrowing your rivals and obstacles — competition, sheer effort, and clearing debts or problems all turn in your favor the more you take them on",
-        }
         if _is_node and _mh in _NODE_UPACHAYA_LEAD:
-            return _scrub_leaks(f"This is {_NODE_UPACHAYA_LEAD[_mh]}; {_caveat}.")
+            _tail = _caveat if aligned else _diverged()
+            _join = "; " if aligned else " — "
+            return _scrub_leaks(f"This is {_NODE_UPACHAYA_LEAD[_mh]}{_join}{_tail}.")
         # Demanding chapter: a dusthana PLACEMENT (8/12 for anyone; 6 only for a
         # non-node — a node in the 6th is upachaya-strong/Harsha, not demanding), or
         # a genuine debilitation for a non-node. Nodes are never "demanding" by
@@ -1197,11 +1225,29 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
                 top_sc_event_type = et
                 break
     try:
+        # [tempo-reconcile 2026-09-23] Does the NEAR-TERM (current sub-period)
+        # deliver the CHAPTER lord's house theme, or is it running elsewhere/quiet?
+        # aligned = the current AD (fallback PD) lord sits in the SAME house as the
+        # MD lord (the chapter's arena is live now). Diverged → the verdict keeps
+        # the chapter theme but drops the "opens widest now" tempo and names where
+        # the current groundwork actually runs (from the AD/PD lord's house nouns).
+        _vl_md = current_md.get("lord")
+        _vl_ad = (current_ad or {}).get("lord") or (current_pd or {}).get("lord")
+        _pl = (chart_data.get("planets") or {})
+        _vl_md_h = (_pl.get(_vl_md) or {}).get("house")
+        _vl_ad_h = (_pl.get(_vl_ad) or {}).get("house")
+        _vl_aligned = (_vl_ad_h is None) or (_vl_md_h is not None and _vl_ad_h == _vl_md_h)
+        _vl_near = ""
+        if not _vl_aligned:
+            _nn = _period_lord_nouns(_vl_ad, chart_data, n=1)
+            _vl_near = _nn[0] if _nn else ""
         verdict = _verdict_line(
-            current_md.get("lord"),
+            _vl_md,
             chart_data,
             current_ad_lord=(current_ad or {}).get("lord"),
             top_event_type=top_sc_event_type,
+            near_area=_vl_near,
+            aligned=_vl_aligned,
         )
         arc = _arc_block(current_md, next_md, now)
     except Exception as _fwd_ve:
