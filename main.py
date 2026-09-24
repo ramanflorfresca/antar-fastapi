@@ -21520,6 +21520,121 @@ def _ask_role_clarify_payload(language: str = "en") -> dict:
     }
 
 
+# [career-clarify 2026-09-24] A generic career-FIT question ("what profession
+# suits me / which field fits who I am") is answered far more precisely once we
+# know what the reader actually DOES today — a chart's asset-light advisory grain
+# reads one way for someone already in software and another for someone grinding
+# in food operations. Owner's direction: we ASK, we never infer (see
+# life-facts-capture memory). So when the current work is unknown, ask ONE
+# contextual question first; when it's known (profile, the question itself, or a
+# reply to this very clarify), feed it straight into the fit read. This stable
+# phrase in the clarify `read` lets the NEXT turn recognise itself as the reply.
+_CAREER_CLARIFY_MARK = "what you're doing right now"
+_CAREER_STAGE_KNOWN = {
+    "running_business": "running your own business",
+    "self_employed": "self-employed / running your own thing",
+    "entrepreneur": "running your own venture",
+    "student": "studying",
+}
+_ROLE_JUNK = {"", "unknown", "none", "n/a", "na", "other", "prefer not to say",
+              "not sure", "undecided", "exploring", "between things"}
+
+
+def _is_named_line_career_q(question: str) -> bool:
+    """The reader NAMED a specific line of work ('I want to build a platform, does
+    this work for me?') — we already have a concrete thing to judge by grain, so
+    do NOT ask them what they do; go straight to the fit read."""
+    ql = (question or "").lower()
+    return (any(b in ql for b in ("build a", "building a", "go into", "get into",
+                "start a", "starting a", "open a", "launch a", "career in",
+                "platform", "startup", "pursue a", "become a", "become an"))
+            and any(w in ql for w in ("does this work", "does it work", "work for me",
+                "right for me", "good fit", "should i", "suited for me",
+                "does this suit", "is this right", "for me")))
+
+
+def _ask_known_current_role(chart_record: dict, question: str, thread: list) -> str:
+    """The reader's CURRENT work/study in plain words if we KNOW it, else ''.
+    Sources, in order: (1) a reply to our own career clarify — the prior assistant
+    turn asked and THIS turn answers; (2) the profile (profession / life_work /
+    a describing career_stage); (3) the question naming it ('I'm a teacher and…').
+    We never guess a field the reader hasn't given us."""
+    cr = chart_record or {}
+    # (1) reply to our clarify — the whole current text is the answer they typed.
+    if thread:
+        _last_a = ((thread[-1] or {}).get("a") or "").lower()
+        if _CAREER_CLARIFY_MARK in _last_a:
+            _reply = (question or "").strip()
+            if _reply and _reply.lower() not in _ROLE_JUNK:
+                return _reply[:120]
+    # (2) profile fields
+    for k in ("profession", "life_work"):
+        v = (cr.get(k) or "").strip()
+        if v and v.lower() not in _ROLE_JUNK:
+            return v
+    cs = (cr.get("career_stage") or "").strip().lower()
+    if cs in _CAREER_STAGE_KNOWN:  # only stages that say WHAT they do, not seniority
+        return _CAREER_STAGE_KNOWN[cs]
+    # (3) named in the question ("I'm a nurse", "I work in food delivery")
+    ql = (question or "").lower()
+    m = _re_crisis.search(
+        r"\bi(?:'m| am)\s+(?:a|an)\s+([a-z][a-z /&+-]{2,38})", ql) or \
+        _re_crisis.search(
+        r"\bi\s+(?:work|working|study|studying)\s+(?:in|as|at|on)\s+([a-z][a-z /&+-]{2,38})", ql)
+    if m:
+        _cap = m.group(1).strip(" .,-")
+        if _cap and _cap not in _ROLE_JUNK:
+            return _cap[:120]
+    return ""
+
+
+def _ask_needs_career_clarify(question: str, chart_record: dict, thread: list) -> bool:
+    """Ask 'what do you do today?' before a GENERIC career-fit read when we don't
+    yet know. Never for a named-line question (we have the thing to judge), never
+    for a timing question, and never once the role is known."""
+    if not _is_career_type_q(question):
+        return False
+    if _is_named_line_career_q(question):
+        return False
+    if _is_career_timing_q(question):
+        return False
+    # already a reply to our clarify → the role is arriving now, don't re-ask
+    if thread and _CAREER_CLARIFY_MARK in ((thread[-1] or {}).get("a") or "").lower():
+        return False
+    return not _ask_known_current_role(chart_record, question, thread)
+
+
+def _ask_career_clarify_payload(language: str = "en") -> dict:
+    _lang = (language or "en").lower()
+    if _lang.startswith("es"):
+        read = ("Con gusto — y para decirte qué líneas encajan de verdad contigo, "
+                "necesito saber qué estás haciendo ahora mismo. ¿En qué trabajas, "
+                "qué estudias o qué estás construyendo? Dímelo y lo leo contra la "
+                "veta de tu carta.")
+        nxt = "Cuéntame qué haces hoy y te digo dónde rindes más."
+        chips = ["Trabajo en…", "Estudio / considero…",
+                 "Tengo mi propio negocio", "Entre cosas / explorando"]
+    elif _lang.startswith("pt"):
+        read = ("Com prazer — e para dizer quais caminhos combinam de verdade com "
+                "você, preciso saber o que você faz agora. Em que você trabalha, "
+                "estuda ou está construindo? Me conte e leio isso contra a sua carta.")
+        nxt = "Me diga o que você faz hoje e digo onde você rende mais."
+        chips = ["Trabalho em…", "Estudo / considerando…",
+                 "Tenho meu próprio negócio", "Entre coisas / explorando"]
+    else:
+        read = ("Happy to — and to tell you which lines genuinely fit you, I need to "
+                "know what you're doing right now. What do you work in, study, or are "
+                "you building something? Tell me and I'll read it against your chart's "
+                "grain.")
+        nxt = "Tell me what you do today and I'll show you where you'd do best."
+        chips = ["I work in…", "Studying / considering…",
+                 "Running my own thing", "Between things / exploring"]
+    return {
+        "mode": "explore", "read": read, "next": nxt, "locked": False,
+        "needs_clarification": True, "clarification_chips": chips,
+    }
+
+
 def _ask_role_concern(question: str, thread: list):
     """Once a deal role is known (this turn or a prior one), map it to the concern
     that reads the right divisional: commission/broker → career (10th/D-10),
@@ -22340,7 +22455,7 @@ async def ask_endpoint(request: AskRequest):
                 chart_row = supabase.table("charts") \
                     .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, latitude, longitude, "
                             "marital_status, children_status, career_stage, health_status, financial_status, "
-                            "life_work, life_relationship, life_kids, "
+                            "profession, life_work, life_relationship, life_kids, "
                             "birth_time, timezone_offset") \
                     .eq("id", chart_id).single().execute()
             except Exception as _nfe:
@@ -22363,6 +22478,24 @@ async def ask_endpoint(request: AskRequest):
             _ask_jd    = _safe_jsonb(chart_row.data.get("jaimini_data"))
             _ask_lk    = _safe_jsonb(chart_row.data.get("lal_kitab_data"))
             _ask_bdate = str(chart_row.data.get("birth_date") or "")[:10]
+
+            # [career-clarify 2026-09-24] Before a GENERIC career-fit read, ask what
+            # the reader does today if we don't already know — the same chart reads
+            # very differently for someone in software vs someone in food operations,
+            # and owner's rule is we ASK, never infer. Skips a named-line or timing
+            # question, and skips once the role is known (profile / question / a
+            # reply to this clarify). Compute the known role once and reuse below.
+            _known_role = _ask_known_current_role(chart_row.data, question, _ask_thread)
+            if (not _ask_crisis
+                    and _ask_needs_career_clarify(question, chart_row.data, _ask_thread)):
+                _cc_payload = _ask_career_clarify_payload(language)
+                print("[ask][career-clarify] current work unknown — asking first")
+                try:
+                    await _ask_persist(supabase, chart_id, question, _cc_payload,
+                                       language, "explore", None)
+                except Exception as _cc_pe:
+                    print(f"[ask][career-clarify] persist non-fatal: {_cc_pe}")
+                return _cc_payload
 
             # [money-flow 2026-09-16] money-PATTERN questions (income vs outgo,
             # gains vs losses, earned vs unearned) → a DESCRIPTIVE house-anchored
@@ -22509,6 +22642,14 @@ async def ask_endpoint(request: AskRequest):
                 _is_ctype = _is_career_type_q(question)
                 _is_ctiming = _is_career_timing_q(question)
                 _is_bvj = _is_biz_vs_job_q(question)
+                # [career-clarify 2026-09-24] If the prior turn was our career
+                # clarify, THIS turn is the reader telling us their current work —
+                # run the fit read (it won't match _is_career_type_q on its own).
+                _is_clarify_reply = bool(
+                    _ask_thread and _CAREER_CLARIFY_MARK
+                    in ((_ask_thread[-1] or {}).get("a") or "").lower())
+                if _is_clarify_reply:
+                    _is_ctype = True
                 if _is_ctype or _is_ctiming or _is_bvj:
                     from antar_engine.d10_career import analyze_career, career_timeline
                     _car = analyze_career(chart_data)
@@ -22541,6 +22682,20 @@ async def ask_endpoint(request: AskRequest):
                             f"{i+1}) {c['field']}" for i, c in enumerate(_ranked))
                         _top = "; ".join(c["field"] for c in _ranked[:3])
                         _mid = "; ".join(c["field"] for c in _ranked[3:6]) or "—"
+                        # [career-clarify 2026-09-24] Anchor the read to what the
+                        # reader actually does today, when we know it — the whole
+                        # point of asking. Judge THEIR current line by grain first.
+                        if _known_role:
+                            _parts.append(
+                                f"CURRENT WORK — the reader told us what they do now: "
+                                f"\"{_known_role}\". ANCHOR the answer to this: say plainly "
+                                "whether the line they're already in runs WITH or AGAINST "
+                                "their chart's grain (judge it by its MODE — advisory/"
+                                "analytical/creative/scale/network vs hands-on/operations/"
+                                "perishable/thin-margin — not its label), THEN point them to "
+                                "where they'd do best. Speak to their real situation, not a "
+                                "blank-slate list. Never claim their current line is doomed — "
+                                "fit, not fate.")
                         _parts.append(
                             "CAREER-FIT QUESTION — the reader is asking WHICH line of work fits "
                             "them / where they'll do best. Computed DETERMINISTICALLY from their "
