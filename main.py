@@ -37380,7 +37380,20 @@ async def predict_year_attention(request: dict, language: str = None):
             )
             _lf_ylang = language or "en"
             _lf_ypkey = str((payload.get("year") or {}).get("range") or "year")
-            _lf_yinputs = _lf_yin(payload["year"])
+            # [late-year 2026-09-24] pass how far into the solar year we are so the
+            # domain hooks stop saying "position early" once the year is >2/3 done
+            # (which would contradict the forward-filtered windows).
+            _lf_late = False
+            try:
+                from datetime import date as _lf_d
+                _lf_ps = _lf_d.fromisoformat(str(payload.get("period_start"))[:10])
+                _lf_pe = _lf_d.fromisoformat(str(payload.get("period_end"))[:10])
+                _lf_tot = (_lf_pe - _lf_ps).days or 1
+                _lf_frac = (_lf_d.today() - _lf_ps).days / _lf_tot
+                _lf_late = _lf_frac >= 0.66
+            except Exception:
+                _lf_late = False
+            _lf_yinputs = _lf_yin(payload["year"], late_year=_lf_late)
             _lf_ycached = _layered_cache_get(chart_id, "year", _lf_ypkey, _lf_ylang)
             if _lf_ycached is not None:
                 payload["year"]["domains"] = _lf_ycached

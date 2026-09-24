@@ -235,12 +235,18 @@ def compute_month_inputs(
     return inputs
 
 
-def compute_year_inputs(year_view: Dict[str, Any]) -> List[Dict[str, Any]]:
+def compute_year_inputs(year_view: Dict[str, Any],
+                        late_year: bool = False) -> List[Dict[str, Any]]:
     """Build YEAR-altitude inputs from year.areas[] (arc-level, NO week dates).
 
     Conviction falls back to the area's strength bars (founder Decision 1: bars are
     the fallback when no precision spine is present on this surface). Polarity from
     bars + the care flag. Seed = area note.
+
+    [late-year 2026-09-24] When the solar year is >~2/3 elapsed, the "position
+    early" framing is stale (the positioning window is gone) and it contradicts the
+    forward-filtered domain windows. `late_year` flips high-conviction hooks to a
+    consolidation framing so the narrative and the windows agree.
     """
     areas = year_view.get("areas") or []
     by_dom: Dict[str, Dict[str, Any]] = {}
@@ -279,6 +285,7 @@ def compute_year_inputs(year_view: Dict[str, Any]) -> List[Dict[str, Any]]:
             "seed": note,
             "sourced": [],             # arc-level: no dates to source
             "altitude": ALT_YEAR,
+            "late_year": bool(late_year),
         })
     return inputs
 
@@ -419,12 +426,20 @@ def _fallback_copy(inp: Dict[str, Any], language: str = "en") -> Dict[str, str]:
         else:
             hook = f"{Label} stays steady this month."
     else:  # YEAR — never a week date
+        _late = bool(inp.get("late_year"))
         if polarity == "caution":
             hook = f"{Label} asks for care across the year — pace yourself."
         elif inp.get("conviction", 0) >= CONV_HIGH:
-            hook = f"{Label} is where the year concentrates — position early."
+            # [late-year 2026-09-24] past the year's two-thirds mark the positioning
+            # window has closed — frame it as consolidation, not "position early".
+            hook = (f"{Label} has been the year's main arena — carry it to the close "
+                    f"and consolidate what you've built."
+                    if _late else
+                    f"{Label} is where the year concentrates — position early.")
         elif inp.get("conviction", 0) >= CONV_MED:
-            hook = f"{Label} tends to build across the year."
+            hook = (f"{Label} built across the year — hold what it gained."
+                    if _late else
+                    f"{Label} tends to build across the year.")
         else:
             hook = f"{Label} stays steady through the year."
     substance = seed or hook
