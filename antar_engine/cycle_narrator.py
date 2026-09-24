@@ -70,9 +70,11 @@ ABSOLUTE RULES:
 
 PICK ONE THING. The facts list several activated life areas. Do NOT name them all — a paragraph that touches money AND career AND siblings AND health AND partnership at once is generic and true for no one. Choose the SINGLE strongest theme (the top-ranked / heaviest-weighted fact) and build the read around it. You may name AT MOST ONE more area — the one that most opens it up OR the one that's hardest. Never more than TWO life areas in the whole reading. Ignore the rest.
 
+ANCHOR ON THE VERDICT. The "WHETHER IT DELIVERS" fact is the chapter's headline judgment — it names the chapter's real direction (e.g. a wealth / career / name-and-standing chapter opening, or a demanding chapter to hold steady through). That direction IS your dominant theme: lead with it and commit. If it names a clear direction, do NOT dilute it into "pulled in two directions", "two currents side by side", or "no single clean theme" — a split framing on top of a clear verdict reads as hedging and buries the point. State the direction plainly; you may note ONE real tension within it, but the verdict leads.
+
 WHAT TO WRITE, in this order:
-1. First sentence = the ONE dominant thing this chapter is really about, in plain life terms. Commit to it. Direct, specific, no hedging, no build-up.
-2. ONE sentence on how it's playing out — what's opening or what's under strain in that same area (plus at most one secondary area).
+1. First sentence = the chapter's direction from the VERDICT, in plain life terms — what this chapter opens or asks of them. Commit to it. Direct, specific, no hedging, no build-up.
+2. ONE sentence on how it's playing out — what's opening (or the one real tension within it) in that same area (plus at most one secondary area).
 3. ONE sentence: the single most useful thing to DO about it right now — concrete.
 
 FORMAT: 3-4 short sentences, ~60-90 words — tight, not a wall of text. Warm, direct, second person ("you"). No headers, no bullets, no preamble, no meta-commentary. Lead with the one thing that matters most and stay on it."""
