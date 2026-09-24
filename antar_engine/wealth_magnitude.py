@@ -37,8 +37,11 @@ def _cur_lords(dashas: Optional[dict]) -> set:
     if not isinstance(dashas, dict):
         return set()
     try:
-        from antar_engine.concern_engines import _current_dasha_lords
-        return _current_dasha_lords(dashas) or set()
+        # [precision 2026-09-24] Vimśottarī-ONLY (matches the docstring). The mixed
+        # _current_dasha_lords folds in Yoginī/chara, which would falsely mark a
+        # secondary-system lord's period as "running" for the wealth read.
+        from antar_engine.concern_engines import _vim_active_lords
+        return _vim_active_lords(dashas) or set()
     except Exception:
         return set()
 
