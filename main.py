@@ -21450,6 +21450,12 @@ def _ask_needs_role_clarify(question: str, thread: list) -> bool:
     # A career-field comparison is NOT a deal, so never role-clarify it.
     if _is_career_type_q(question):
         return False
+    # [wealth-magnitude 2026-09-23] "concentrate on one venture or diversify" is a
+    # bet-SIZING question about the person's own wealth engine, not a specific
+    # transaction needing a broker/equity/buyer role — 'venture' + ' or ' must not
+    # hijack it into "what's your role in the deal?".
+    if _is_wealth_magnitude_q(question):
+        return False
     if not any(w in q for w in _ASK_DEAL_WORDS):
         return False
     # Role can be known from the current question OR a recent turn.
