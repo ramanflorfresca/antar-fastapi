@@ -167,9 +167,23 @@ PLAN_AMOUNTS_INR = {
     "navigator_annual":    299000,   # ₹2,990 in paise (deprecated)
 }
 
+# DEPRECATED tier keys ONLY. Its one reader (create_stripe_checkout) sits in the
+# branch that handles legacy tiers, so a LIVE product must never appear here:
+# the entry would be unreachable, yet read as authoritative and contradict the
+# price we actually charge.
+#
+# [pricing-fix 2026-09-23] Removed ask_unlimited_monthly (799 = $7.99) and
+# ask_unlimited_annual (5999 = $59.99). Stale [model-c] values that disagreed
+# with the live $4.99/$39.99 in PRICING_AMOUNTS. They were unreachable, so
+# nobody was ever charged them — but they were a loaded gun: widening that
+# fallback by one line would have made them real, and any human reading this
+# file would reasonably have believed them.
+#
+# Canonical live prices: PRICING_AMOUNTS / PRICING_LOCAL_CURRENCY below — and
+# for US/CA/BR/MX the amount actually charged lives in the STRIPE CATALOG, on
+# the Price that stripe_lookup_key() resolves to. Not in this file at all.
+# tools/test_pricing_consistency.py enforces the separation.
 PLAN_AMOUNTS_USD = {
-    "ask_unlimited_monthly": 799,     # $7.99 in cents   [model-c]
-    "ask_unlimited_annual":  5999,    # $59.99 in cents  [model-c]
     "seeker_monthly":      799,      # $7.99 in cents  (deprecated)
     "navigator_monthly":   1299,     # $12.99 in cents (deprecated)
     "navigator_annual":    10999,    # $109.99 in cents (deprecated)
