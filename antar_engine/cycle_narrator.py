@@ -33,18 +33,26 @@ def _facts_from_bundle(bundle: dict) -> List[str]:
     deterministic reading.
     """
     facts: List[str] = []
-    if bundle.get("handover"):
-        facts.append("HEADLINE — " + bundle["handover"])
+    # [verdict-leads 2026-09-23] The VERDICT is the chapter's headline and MUST lead
+    # the reading. It is listed FIRST and flagged as the lead; the handover and the
+    # activated-area fact are explicitly SECONDARY so the narrator can't open on a
+    # life-area the verdict didn't name (a "wealth-building chapter" whose body
+    # opened entirely on home/mother read as two unrelated chapters).
     if bundle.get("verdict"):
-        facts.append("WHETHER IT DELIVERS — " + bundle["verdict"])
+        facts.append("THE CHAPTER — LEAD THE READING WITH THIS, it is the headline: "
+                     + bundle["verdict"])
+    if bundle.get("handover"):
+        facts.append("(context) transition — " + bundle["handover"])
     if bundle.get("timing"):
         facts.append("RIGHT NOW — " + bundle["timing"])
 
     houses = bundle.get("primary_houses") or []
     meaning = bundle.get("primary_house_meaning") or ""
     if houses and meaning:
-        facts.append(f"WHERE THE WEIGHT SITS — the period concentrates on "
-                     f"{meaning} (house{'s' if len(houses) > 1 else ''} "
+        facts.append(f"NEAR-TERM FOCUS (SECONDARY — where life is loud right now; weave "
+                     f"in AFTER the headline and connect it to the chapter, NEVER open "
+                     f"the reading with this): {meaning} (house"
+                     f"{'s' if len(houses) > 1 else ''} "
                      f"{', '.join(str(h) for h in houses)}).")
 
     for f in (bundle.get("chara_rotation") or [])[:4]:
