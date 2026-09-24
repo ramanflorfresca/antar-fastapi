@@ -106,14 +106,20 @@ def score_kp_horary_calibration(sb, chart_id=None) -> dict:
     """{available, n_answered, n_directional, hits, hit_rate, by_lean:{...},
     n_mixed, note}. Never raises."""
     try:
+        # [marker-off-display 2026-09-23] the KP marker now lives in correlation_key
+        # (kept off the user-visible trackable_claim); read BOTH so new rows (marker
+        # in correlation_key) and legacy rows (marker still in trackable_claim) score.
         q = (sb.table("user_correlations")
-             .select("trackable_claim,feedback_status,chart_id")
+             .select("trackable_claim,correlation_key,feedback_status,chart_id")
              .eq("concern", "speculation"))
         if chart_id:
             q = q.eq("chart_id", chart_id)
         rows = (q.execute().data) or []
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}
+
+    def _marker(r):
+        return f"{r.get('correlation_key') or ''} {r.get('trackable_claim') or ''}"
 
     answered = [r for r in rows if str(r.get("feedback_status") or "").lower()
                 in ("yes", "no")]
@@ -123,10 +129,10 @@ def score_kp_horary_calibration(sb, chart_id=None) -> dict:
     for r in answered:
         won = str(r.get("feedback_status")).lower() == "yes"
         # score-bucket calibration: does a higher KP signal win more often?
-        b = _score_bucket(_parse_kp_score(r.get("trackable_claim")))
+        b = _score_bucket(_parse_kp_score(_marker(r)))
         bd = by_bucket.setdefault(b, {"win": 0, "loss": 0})
         bd["win" if won else "loss"] += 1
-        lean = _parse_kp_lean(r.get("trackable_claim"))
+        lean = _parse_kp_lean(_marker(r))
         if lean is None:
             continue
         d = by_lean.setdefault(lean, {"win": 0, "loss": 0})

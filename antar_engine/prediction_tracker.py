@@ -78,12 +78,18 @@ def save_trackable_claim(
     prediction_text: str,
     concern: str,
     sb,
+    correlation_key: str = None,
 ) -> dict:
-    """Extract claim and persist to user_correlations."""
+    """Extract claim and persist to user_correlations.
+
+    [marker-off-display 2026-09-23] `correlation_key` holds MACHINE metadata that
+    a calibration scorer parses but the user must NEVER see (e.g. the KP
+    speculation "[KP_LEAN=…;score=…]" marker). Keep it OUT of prediction_text /
+    trackable_claim — that field is shown verbatim in the VERIFY card."""
     if concern == "daily":
         return {}
     tracking = extract_trackable_claim(prediction_text, concern)
-    res = sb.table("user_correlations").insert({
+    _row = {
         "chart_id":        chart_id,
         "prediction_id":   prediction_id,
         "trackable_claim": tracking["trackable_claim"],
@@ -91,7 +97,10 @@ def save_trackable_claim(
         "concern":         concern,
         "show_after":      tracking["show_feedback_after"],
         "feedback_status": "pending",
-    }).execute()
+    }
+    if correlation_key:
+        _row["correlation_key"] = correlation_key
+    res = sb.table("user_correlations").insert(_row).execute()
     return res.data[0] if res.data else {}
 
 

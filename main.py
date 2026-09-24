@@ -25027,10 +25027,16 @@ async def ask_endpoint(request: AskRequest):
                         # prediction_id is a uuid column (no FK) — a synthetic string
                         # is rejected (22P02) and the log silently drops. Use a real
                         # uuid4; the traceable moment lives in the claim text/marker.
+                        # [marker-off-display 2026-09-23] The human sentence goes in
+                        # prediction_text (→ trackable_claim, shown in the VERIFY card);
+                        # the machine marker the calibration scorer parses goes in
+                        # correlation_key so the raw "[KP_LEAN=…]" never leaks to the user.
                         _kp_pred_text = (
                             "**Speculation moment-read**\n"
                             f"KP signal was {_kh.get('score')}/100 ({_lean_plain}) for a "
-                            f"small, capped bet — tell us how it went. [KP_LEAN={_v};"
+                            f"small, capped bet — tell us how it went.")
+                        _kp_marker = (
+                            f"[KP_LEAN={_v};"
                             f"score={_kh.get('score')};conf={_kh.get('confidence')};"
                             f"method={_kh.get('method','moment')};"
                             f"number={_kh.get('number','')};"
@@ -25041,6 +25047,7 @@ async def ask_endpoint(request: AskRequest):
                             prediction_text=_kp_pred_text,
                             concern="speculation",
                             sb=supabase,
+                            correlation_key=_kp_marker,
                         )
                         print("[ask][kp-horary] logged verdict for calibration")
                     except Exception as _kle:
