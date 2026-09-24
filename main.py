@@ -20902,7 +20902,11 @@ def _is_career_type_q(q):
     # work for me?" / "should I go into <X>?" — a specific line-of-work fit question.
     # Require a build/venture/field context so a relationship/health "does this work
     # for me" never trips it. The career-fit block judges the named line by grain.
-    if (any(b in ql for b in ("build a", "building a", "go into", "get into",
+    # GUARD: a wealth CAPACITY/sizing question ("how big / concentrate or diversify /
+    # will my wealth last") is NOT a career-fit question — it must route to the
+    # wealth read, so let _is_wealth_magnitude_q win here.
+    if (not _is_wealth_magnitude_q(q)
+            and any(b in ql for b in ("build a", "building a", "go into", "get into",
                               "start a", "starting a", "pursue", "career in",
                               "platform", "startup", "business", "venture",
                               "profession", "field of work"))
