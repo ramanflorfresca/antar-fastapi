@@ -180,10 +180,13 @@ def protect_this_season(chart_data: dict, birth_date, dashas: dict,
             if _add(c):
                 seen.add(str(year_lord).title())
 
-        # ── DASHA layer: any currently-active period lord that runs hard ──
+        # ── DASHA layer: the current VIMŚOTTARĪ period lords that run hard ──
+        # [precision 2026-09-24] Vimśottarī-only — the "this chapter" card must
+        # reflect the actual mahā/antar/pratyantar chapter, not a secondary
+        # Yoginī/chara lord that the mixed _current_dasha_lords would fold in.
         try:
-            from antar_engine.concern_engines import _current_dasha_lords
-            active = _current_dasha_lords(dashas or {})
+            from antar_engine.concern_engines import _vim_active_lords
+            active = _vim_active_lords(dashas or {})
         except Exception:
             active = set()
         for lord in sorted(active):
