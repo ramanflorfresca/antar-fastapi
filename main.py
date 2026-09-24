@@ -32470,7 +32470,10 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
             import re as _p1_re
             _m_bd = chart_record.get("birth_date", "")
             if isinstance(result, dict) and _m_bd:
-                _m_ps, _m_pe = _mp(_m_bd)
+                # [month-roll-forward 2026-09-24] match the engine: near the
+                # birth-day boundary, stamp the UPCOMING personal month so the
+                # displayed window matches the rolled reading + its weeks.
+                _m_ps, _m_pe = _mp(_m_bd, roll_ahead_days=7)
                 result["period_start"] = _m_ps
                 # [p1-anchor-display 2026-06-08] display closed on the
                 # anchor day (10 -> 10), not on anchor-1. month_period

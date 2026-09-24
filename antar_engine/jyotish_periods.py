@@ -68,8 +68,15 @@ def age_on(birth_date, today=None) -> int:
     return (t.year - b.year) - (1 if (t.month, t.day) < (b.month, b.day) else 0)
 
 
-def month_period(birth_date, today=None):
-    """Birth-day-of-month -> next birth-day-of-month (ISO strings)."""
+def month_period(birth_date, today=None, roll_ahead_days=0):
+    """Birth-day-of-month -> next birth-day-of-month (ISO strings).
+
+    [roll-forward 2026-09-24] When `roll_ahead_days` > 0 and today is within that
+    many days of the current personal month's END, return the UPCOMING personal
+    month instead. Owner's call: a birth-day-anchored month that's ~a week from
+    closing is stale for "This Month" — and its weekly advice necessarily spills
+    into the next window — so near the boundary we read the month you can act on.
+    Callers that want the raw containing-month leave roll_ahead_days=0."""
     b = _parse(birth_date)
     t = today or date.today()
     bd = b.day
@@ -82,6 +89,9 @@ def month_period(birth_date, today=None):
         pm_month = t.month - 1 if t.month > 1 else 12
         start = _clamp_day(pm_year, pm_month, bd)
         end = anchor_this - timedelta(days=1)
+    if roll_ahead_days and (end - t).days <= roll_ahead_days:
+        start = end + timedelta(days=1)                       # next anchor day
+        end = _clamp_day(start.year, start.month + 1, bd) - timedelta(days=1)
     return start.isoformat(), end.isoformat()
 
 

@@ -579,6 +579,21 @@ async def generate_monthly_deepdive(
     if language not in ("en", "es", "pt"):
         language = "en"
     now        = datetime.now(timezone.utc)
+    # [month-roll-forward 2026-09-24] When the personal (birth-day) month is within
+    # ~a week of closing, advance the engine's reference date to the NEXT month's
+    # start so the ENTIRE reading — period key, weekly transit schedule,
+    # available_weeks, the domain spine, and the stamped window — is generated for
+    # the month the reader can actually act on, instead of a nearly-elapsed one
+    # whose weekly advice spills into the next window. (Owner's call.)
+    if birth_date:
+        try:
+            from antar_engine.jyotish_periods import month_period as _mp_roll
+            _rps, _ = _mp_roll(birth_date, now.date(), roll_ahead_days=7)
+            _rps_d = datetime.fromisoformat(_rps).date()
+            if _rps_d > now.date():
+                now = datetime(_rps_d.year, _rps_d.month, _rps_d.day, tzinfo=timezone.utc)
+        except Exception:
+            pass
     # [period-key 2026-07-20] anchored to the reading's own period, not the
     # calendar month — see period_cache_key(). Read and write must use the same
     # derivation or every request becomes a permanent miss.
@@ -793,7 +808,9 @@ def period_cache_key(birth_date, now=None) -> str:
         if birth_date:
             # local import: jyotish_periods is not a module-level dependency here
             from antar_engine.jyotish_periods import month_period as _pk_mp
-            ps, _ = _pk_mp(birth_date, now.date()) if now is not None else _pk_mp(birth_date)
+            # roll-forward (7d) so the cache key matches the rolled reading window
+            ps, _ = (_pk_mp(birth_date, now.date(), roll_ahead_days=7)
+                     if now is not None else _pk_mp(birth_date, roll_ahead_days=7))
             if ps:
                 return str(ps)
     except Exception:
@@ -1180,7 +1197,17 @@ def _build_deepdive_context(
                     score_domains as _cv_score, rank_and_tier as _cv_tier,
                 )
                 from antar_engine.house_significations import select_nouns as _cv_nouns
-                _cv_scores = _cv_score(chart_data, dashas or {}, _events, now.date())
+                # [chara-daśā 2026-09-24] graded Jaimini via AK/AmK — parse the
+                # chart's jaimini_data (may be a JSONB string) and feed it in.
+                _cv_jd = (chart_record or {}).get("jaimini_data")
+                if isinstance(_cv_jd, str):
+                    try:
+                        import json as _cv_json
+                        _cv_jd = _cv_json.loads(_cv_jd)
+                    except Exception:
+                        _cv_jd = None
+                _cv_scores = _cv_score(chart_data, dashas or {}, _events, now.date(),
+                                       jaimini_data=_cv_jd)
                 _cv_t = _cv_tier(_cv_scores)
                 _cv_active = _cv_t.get("active") or []
                 _cv_quiet = _cv_t.get("quiet") or []
