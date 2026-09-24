@@ -11,7 +11,7 @@ chart CAN grade about the PERSON:
                2/8/11) → the SIZING DISCIPLINE that fits the chart.
 
 It NEVER names a vertical or predicts a specific company. It grades capacity and
-tells the founder how to SIZE bets — then execution + market decide which vehicle
+tells the founder how to spread money across ventures — then execution + market decide which vehicle
 catches the money. Deterministic, zero-LLM, plain-language summary.
 
 Design: reuse yogas.detect_all_yogas (the yoga source of truth) for magnitude, and
@@ -131,10 +131,10 @@ def _stability(planets: dict, lagna_sign: str) -> Dict[str, Any]:
     if ketu_h in _MONEY_HOUSES:
         return {
             "grade": "fragile", "node": f"Ketu-{ketu_h}",
-            "sizing_advice": ("Gains here arrive but tend to DISSOLVE — a "
-                "concentrated bet is the trap. Cap your exposure on any single "
-                "venture, take profits off the table as they come, and never bet "
-                "the house on one thing."),
+            "sizing_advice": ("Gains here arrive but tend to DISSOLVE — putting "
+                "everything into one venture is the trap. Cap how much you commit to "
+                "any single venture, take profits out as they come, and never let "
+                "one thing hold everything you've built."),
             "drivers": [f"the node of loss sits in a money area ({ketu_h}th) — "
                         "gains don't hold on their own"],
         }
@@ -142,8 +142,8 @@ def _stability(planets: dict, lagna_sign: str) -> Dict[str, Any]:
         return {
             "grade": "volatile", "node": "Rahu-11",
             "sizing_advice": ("A large but SWINGY engine — big upside with a pull "
-                "to over-reach. Spread across several bets and cap the downside on "
-                "each; running more than one vehicle is the chart-fit move, not a "
+                "to over-reach. Spread across several ventures and cap how much "
+                "rides on each; running more than one is the chart-fit move, not a "
                 "distraction. Bank gains rather than rolling them all forward."),
             "drivers": ["the node of amplification sits in the gains area (11th) — "
                         "large but volatile"],
@@ -199,8 +199,8 @@ def wealth_profile(chart_data: dict, dashas: Optional[dict] = None,
                      "solid": "a solid wealth engine",
                      "modest": "a modest, work-it wealth engine"}[mag["label"]]
         _sta_tail = {
-            "fragile": "but a fragile one, so cap every bet — gains dissolve if you concentrate",
-            "volatile": "but a volatile one, so spread your bets and cap the downside",
+            "fragile": "but a fragile one, so cap what you put into any one venture — gains dissolve if you concentrate",
+            "volatile": "but a volatile one, so spread across several ventures and cap the downside",
             "moderate": "steady with some drag, so compound what works and don't force it",
             "stable": "and a stable one, so you can concentrate on what works and let it compound",
         }[sta["grade"]]
@@ -215,9 +215,9 @@ def wealth_profile(chart_data: dict, dashas: Optional[dict] = None,
             f"Your chart carries {_mag_word} — this is about how BIG your money "
             f"capacity can go, not which business it comes through.{_when} "
             f"The important part is HOW it behaves: {sta['sizing_advice']} "
-            "The chart can grade your capacity and how to size your bets — it "
-            "cannot tell you which venture becomes the big one; that's execution "
-            "and market, and it's yours to decide."
+            "The chart can grade your capacity and how to spread your money across "
+            "ventures — it cannot tell you which venture becomes the big one; that's "
+            "execution and market, and it's yours to decide."
         )
 
         return {
@@ -226,8 +226,8 @@ def wealth_profile(chart_data: dict, dashas: Optional[dict] = None,
             "stability": sta,
             "headline": headline,
             "summary": summary,
-            "guard": ("Grades wealth CAPACITY + bet-sizing for the person — never "
-                      "picks a vertical or predicts a specific company."),
+            "guard": ("Grades wealth CAPACITY + how to spread money across ventures "
+                      "— never picks a vertical or predicts a specific company."),
         }
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}

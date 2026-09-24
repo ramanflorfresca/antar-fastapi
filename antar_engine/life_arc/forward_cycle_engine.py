@@ -796,7 +796,7 @@ def _verdict_line(current_md_lord, chart_data, current_ad_lord=None,
         # debilitated to claim the strong-house lead.
         if _mh in _STRONG_HOUSE_LEAD and (_is_node or not _debil):
             _caveat = {
-                "Rahu": "ride the expansion hard, just spread your bets and don't over-reach",
+                "Rahu": "ride the expansion hard, just spread it across several ventures and don't over-reach",
                 "Ketu": "the gains are real even if they can feel hollow — tie them to something that matters",
                 "Saturn": "it builds slowly and rewards patience — compound, don't force the pace",
                 "Mars": "move boldly, just don't burn the goodwill you build",

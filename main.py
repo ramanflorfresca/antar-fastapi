@@ -22443,13 +22443,14 @@ async def ask_endpoint(request: AskRequest):
                             if _wp2.get("available"):
                                 _s2 = _wp2["stability"]
                                 _ask_wealth_text += (
-                                    "\nBET-SIZING (say this as the second half of the same answer): "
+                                    "\nHOW TO SPREAD IT (say this as the second half of the same answer): "
                                     f"the engine is {_s2['grade']} — {_s2['sizing_advice']} "
                                     "AND the hard boundary: this grades wealth CAPACITY and how to "
-                                    "SIZE bets — it does NOT pick which venture/company wins; if they "
-                                    "ask 'which one', say the chart times the money and sets the "
-                                    "sizing, but execution and market decide the vehicle. Never name "
-                                    "a specific business.")
+                                    "spread money across ventures — it does NOT pick which venture/company "
+                                    "wins; if they ask 'which one', say the chart times the money and sets "
+                                    "how to spread it, but execution and market decide the vehicle. Never "
+                                    "name a specific business. Use plain business words ('ventures', 'don't "
+                                    "put everything in one place') — NEVER 'bet'/'bets' (not gambling).")
                         except Exception as _wp2e:
                             print(f"[ask][wealth-unify] non-fatal: {_wp2e}")
                         print(f"[ask][wealth-sig] strength={_wps['strength']} kinds={_wps.get('kinds')}")
@@ -23004,10 +23005,13 @@ async def ask_endpoint(request: AskRequest):
                             "WEALTH-CAPACITY QUESTION — answer ONLY from this deterministic "
                             "read. Two layers, answer BOTH in plain language:\n"
                             f"1) MAGNITUDE (how big the wealth engine can go): {_m['label']}. {_act}\n"
-                            f"2) STABILITY (does it hold → how to SIZE bets): {_s['grade']} — "
+                            f"2) STABILITY (does it hold → how to spread money across ventures): {_s['grade']} — "
                             f"{_s['sizing_advice']}\n"
+                            "Speak in plain business language — 'ventures', 'where you put your "
+                            "money', 'don't put everything in one place' — NEVER 'bet' or 'bets' "
+                            "(this is a founder building ventures, not gambling).\n"
                             "HARD RULE: the chart grades the PERSON'S wealth capacity and how to "
-                            "size bets. It CANNOT tell them which venture/business/startup wins, "
+                            "spread money across ventures. It CANNOT tell them which venture/business/startup wins, "
                             "and you must NOT name, rank, or pick one — if they ask 'which of my "
                             "ventures', say plainly that the chart times the money and sets the "
                             "sizing, but execution and market decide which vehicle catches it. "
