@@ -45,7 +45,7 @@ _SEASON_POL = {"supported": 1, "steady": 0, "hard": -1}
 # jargon-free names for each layer, for the plain "why" line
 _LAYER_NAME = {
     "nakshatra": "the day's star",
-    "moon_house": "where the Moon is today",
+    "moon_house": "the day's mood",   # [de-jargon] was "where the Moon is today" — planet name leaked to the user
     "dasha": "your current chapter",
     "lal_kitab": "your chart's own pattern",
     "season": "your longer season",
