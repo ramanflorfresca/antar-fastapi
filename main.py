@@ -21635,6 +21635,139 @@ def _ask_career_clarify_payload(language: str = "en") -> dict:
     }
 
 
+# [ask-followups 2026-09-24] Every real Ask answer should LEAD the reader to a
+# natural next question rather than dead-end — the FE renders these as tappable
+# chips below YOUR MOVE, and a tap re-asks that question. Deterministic (no LLM
+# cost/drift), concern-scoped, phrased first-person. Owner's call: don't leave the
+# reader wondering what to ask next; suggest the deeper cuts.
+_ASK_FOLLOWUP_BUCKET = {
+    "finance": "money", "wealth": "money", "loan": "money", "loss": "money",
+    "funding": "funding",
+    "career": "career", "business": "career", "startup": "career", "sales": "career",
+    "love": "love", "marriage": "love", "divorce": "love", "reconciliation": "love",
+    "family": "family", "children": "family",
+    "health": "health",
+    "property": "place", "foreign": "place",
+    "speculation": "speculation",
+    "spiritual": "spiritual",
+    "general": "general",
+}
+_ASK_FOLLOWUPS = {
+    "en": {
+        "money": ["When does my strongest money window open?",
+                  "Should I concentrate or diversify?",
+                  "How is my cash flow this month?"],
+        "funding": ["When will funding most likely come through?",
+                    "Where is my money most likely to come from?",
+                    "How is my cash flow while I wait?"],
+        "career": ["Which profession fits me best?",
+                   "When will my career take off?",
+                   "Is business or a job a better fit for me?"],
+        "love": ["When is my best window for love?",
+                 "What should I watch for with my partner?",
+                 "How compatible are we?"],
+        "family": ["How is my family life looking this year?",
+                   "When does the pressure at home ease?",
+                   "Is this a good time to plan a child?"],
+        "health": ["When does my energy pick up?",
+                   "What should I focus on for my health this year?",
+                   "Which daily practice fits me now?"],
+        "place": ["When is a good time to buy or move?",
+                  "Does real estate fit my chart?",
+                  "Where does my chart support me best?"],
+        "speculation": ["Which day this week is best for me?",
+                        "How is speculation for me today?",
+                        "What is my safest way to play this?"],
+        "spiritual": ["Which practice fits me best right now?",
+                      "When is my strongest spiritual window?",
+                      "How do I steady my mind this month?"],
+        "general": ["How is my money looking right now?",
+                    "When does my next strong window open?",
+                    "What should I focus on this month?"],
+    },
+    "es": {
+        "money": ["¿Cuándo se abre mi mejor ventana de dinero?",
+                  "¿Debo concentrarme o diversificar?",
+                  "¿Cómo está mi flujo de caja este mes?"],
+        "funding": ["¿Cuándo llegará la financiación con más probabilidad?",
+                    "¿De dónde es más probable que venga mi dinero?",
+                    "¿Cómo está mi flujo de caja mientras espero?"],
+        "career": ["¿Qué profesión encaja mejor conmigo?",
+                   "¿Cuándo despegará mi carrera?",
+                   "¿Me conviene más un negocio o un empleo?"],
+        "love": ["¿Cuándo es mi mejor ventana para el amor?",
+                 "¿Qué debo cuidar con mi pareja?",
+                 "¿Qué tan compatibles somos?"],
+        "family": ["¿Cómo se ve mi vida familiar este año?",
+                   "¿Cuándo baja la presión en casa?",
+                   "¿Es buen momento para planear un hijo?"],
+        "health": ["¿Cuándo sube mi energía?",
+                   "¿En qué debo enfocarme para mi salud este año?",
+                   "¿Qué práctica diaria me conviene ahora?"],
+        "place": ["¿Cuándo es buen momento para comprar o mudarme?",
+                  "¿Encaja el sector inmobiliario con mi carta?",
+                  "¿Dónde me apoya mejor mi carta?"],
+        "speculation": ["¿Qué día de esta semana es mejor para mí?",
+                        "¿Cómo está la especulación para mí hoy?",
+                        "¿Cuál es mi forma más segura de jugar esto?"],
+        "spiritual": ["¿Qué práctica me conviene más ahora?",
+                      "¿Cuándo es mi ventana espiritual más fuerte?",
+                      "¿Cómo calmo mi mente este mes?"],
+        "general": ["¿Cómo está mi dinero ahora mismo?",
+                    "¿Cuándo se abre mi próxima ventana fuerte?",
+                    "¿En qué debo enfocarme este mes?"],
+    },
+    "pt": {
+        "money": ["Quando abre minha melhor janela de dinheiro?",
+                  "Devo concentrar ou diversificar?",
+                  "Como está meu fluxo de caixa este mês?"],
+        "funding": ["Quando o financiamento deve chegar?",
+                    "De onde meu dinheiro tem mais chance de vir?",
+                    "Como está meu fluxo de caixa enquanto espero?"],
+        "career": ["Qual profissão combina mais comigo?",
+                   "Quando minha carreira vai decolar?",
+                   "Um negócio ou um emprego combina mais comigo?"],
+        "love": ["Quando é minha melhor janela para o amor?",
+                 "O que devo cuidar com meu parceiro?",
+                 "Quão compatíveis somos?"],
+        "family": ["Como está minha vida familiar este ano?",
+                   "Quando a pressão em casa alivia?",
+                   "É um bom momento para planejar um filho?"],
+        "health": ["Quando minha energia melhora?",
+                   "No que devo focar para minha saúde este ano?",
+                   "Qual prática diária combina comigo agora?"],
+        "place": ["Quando é um bom momento para comprar ou mudar?",
+                  "O mercado imobiliário combina com meu mapa?",
+                  "Onde meu mapa me apoia melhor?"],
+        "speculation": ["Qual dia desta semana é melhor para mim?",
+                        "Como está a especulação para mim hoje?",
+                        "Qual é minha forma mais segura de jogar isso?"],
+        "spiritual": ["Qual prática combina mais comigo agora?",
+                      "Quando é minha janela espiritual mais forte?",
+                      "Como acalmo minha mente este mês?"],
+        "general": ["Como está meu dinheiro agora?",
+                    "Quando abre minha próxima janela forte?",
+                    "No que devo focar este mês?"],
+    },
+}
+
+
+def _ask_norm(_s):
+    return _re_crisis.sub(r"[^a-z0-9]+", " ", (_s or "").lower()).strip()
+
+
+def _ask_followups(concern: str, question: str, language: str = "en") -> list:
+    """2-3 forward next-questions to LEAD the reader on, scoped to the answer's
+    concern. Drops any suggestion that just repeats what they already asked."""
+    _lang = (language or "en").lower()[:2]
+    table = _ASK_FOLLOWUPS.get(_lang) or _ASK_FOLLOWUPS["en"]
+    bucket = _ASK_FOLLOWUP_BUCKET.get((concern or "general").lower(), "general")
+    cands = list(table.get(bucket) or table["general"])
+    _qn = _ask_norm(question)
+    out = [c for c in cands if _ask_norm(c) != _qn][:3]
+    return out or cands[:2]
+
+
 def _ask_role_concern(question: str, thread: list):
     """Once a deal role is known (this turn or a prior one), map it to the concern
     that reads the right divisional: commission/broker → career (10th/D-10),
@@ -25252,6 +25385,22 @@ async def ask_endpoint(request: AskRequest):
                     payload["next"] = _ask_md(payload["next"])
             except Exception:
                 pass
+            # [ask-followups 2026-09-24] Lead the reader on with tappable next
+            # questions (FE renders them below YOUR MOVE). Refine the concern with
+            # the strongest question-type signals so the chips match the read the
+            # reader actually got (a wealth-capacity read → money chips, a career-
+            # fit read → career chips), then fall back to the resolved concern.
+            try:
+                _fu_concern = locals().get("_ask_concern") or "general"
+                if _is_wealth_magnitude_q(question):
+                    _fu_concern = "wealth"
+                elif locals().get("_is_ctype") or locals().get("_is_clarify_reply"):
+                    _fu_concern = "career"
+                _fu = _ask_followups(_fu_concern, question, language)
+                if _fu and not payload.get("needs_clarification"):
+                    payload["suggested_questions"] = _fu
+            except Exception as _fue:
+                print(f"[ask][followups] non-fatal: {_fue}")
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "explore", locals().get("_ask_concern"))
             return payload
