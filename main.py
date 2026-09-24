@@ -39137,15 +39137,11 @@ async def _life_arc_compute(chart_id, horizon_months, language,
     # rephrase the given facts, never add a planet, house, or date). Compute the
     # block once here so the prose and the raw data come from the same object.
     _paddhati = _cycle_paddhati_block(chart_id, chart_data)
+    # [deterministic-lead 2026-09-24] The body narration now runs AFTER the forward
+    # block so it can open from that block's deterministic verdict_lead (the LLM
+    # kept defaulting to a 'holding chapter' opener that contradicted a strong
+    # verdict). Initialised empty here; set below once verdict_lead is known.
     _paddhati_prose = ""
-    try:
-        from antar_engine.cycle_narrator import narrate_cycle
-        _who = str(chart_record.get("first_name")
-                   or chart_record.get("name") or "").strip()
-        _paddhati_prose = await narrate_cycle(_paddhati, _who,
-                                              call_llm_claude, language)
-    except Exception as _npe:
-        print(f"[cycle] prose narration failed (non-fatal): {_npe}")
 
     response = {
         "chart_id": chart_id,
@@ -39192,6 +39188,7 @@ async def _life_arc_compute(chart_id, horizon_months, language,
     # exception. ECS is gated by D_gate; Tier-1 displayed conviction is
     # capped at "medium" (Varga_mult stubbed at 1.0 — see
     # antar_engine/life_arc/forward_cycle_engine.py header).
+    _fwd_lead = ""
     try:
         from antar_engine.life_arc.forward_cycle_engine import build_forward_cycle as _fwd_build
         try:
@@ -39211,6 +39208,7 @@ async def _life_arc_compute(chart_id, horizon_months, language,
         response["arc"]             = _fwd.get("arc", {})
         response["cycle_timeline"]  = _fwd.get("cycle_timeline", [])
         response["wealth_ignition"] = _fwd.get("wealth_ignition", {})
+        _fwd_lead = _fwd.get("verdict_lead") or ""
     except Exception as _fwd_err:
         print(f"[life_arc] forward_cycle engine failed (non-blocking): {_fwd_err}")
         response.setdefault("verdict", "")
@@ -39464,6 +39462,20 @@ async def _life_arc_compute(chart_id, horizon_months, language,
                 _n["events"] = _kept
     except Exception as _cb_e:
         print(f"[life_arc] childbirth scrub skipped (non-fatal): {_cb_e}")
+
+    # [deterministic-lead 2026-09-24] Narrate the body NOW — after the forward
+    # block — so it opens from the deterministic verdict_lead (matched to the
+    # verdict's tempo) and can no longer default to a 'holding chapter' opener
+    # that contradicts a strong headline. Fail-open: body stays "" on any error.
+    try:
+        from antar_engine.cycle_narrator import narrate_cycle
+        _who = str(chart_record.get("first_name")
+                   or chart_record.get("name") or "").strip()
+        response["paddhati_prose"] = await narrate_cycle(
+            _paddhati, _who, call_llm_claude, language,
+            lead=(_fwd_lead or ""))
+    except Exception as _npe:
+        print(f"[cycle] prose narration failed (non-fatal): {_npe}")
 
     # ── Cycle gist (Cowork addendum 2026-06-10) ──────────────────────────
     # `gist` = current_phase.life_phase_summary trimmed to ~first 2

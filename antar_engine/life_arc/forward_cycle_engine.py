@@ -859,6 +859,62 @@ def _verdict_line(current_md_lord, chart_data, current_ad_lord=None,
     return _scrub_leaks(f"{phrase} — {nuance}.")
 
 
+def _body_lead(current_md_lord, chart_data, near_area=None, aligned=True):
+    """[deterministic-lead 2026-09-24] The FIRST sentence of the 'WHAT'S HAPPENING
+    NOW' body, computed from the SAME branch logic as _verdict_line so the body
+    can't open on a tempo that contradicts the verdict. The narrator prepends this
+    verbatim and only ELABORATES after it (repeated prompt-tuning couldn't stop
+    the LLM defaulting to a 'holding chapter / stay steady' opener). Returns "" for
+    the generic case (let the model open naturally). Plain, planet-free."""
+    if not current_md_lord:
+        return ""
+    try:
+        _p = (chart_data.get("planets") or {}).get(current_md_lord) or {}
+        _h = _p.get("house")
+        _debil = _condition(current_md_lord, chart_data) == "debilitated"
+        _node = current_md_lord in ("Rahu", "Ketu")
+        _ARENA_NOW = {
+            11: "your income, your network, and your name",
+            10: "your work, your standing and your reputation",
+            2:  "your income, savings and resources",
+            9:  "your fortune, learning and long-range moves",
+            5:  "your creative work and recognition",
+            1:  "your drive, identity and standing",
+        }
+        _THEME = {11: "a wealth-and-name", 10: "a career-and-standing",
+                  2: "a wealth-building", 9: "a fortune-and-expansion",
+                  5: "a creative-and-recognition", 1: "a self-forward"}
+        # strong house
+        if _h in _ARENA_NOW and (_node or not _debil):
+            if aligned:
+                return _scrub_leaks(
+                    f"Right now, {_ARENA_NOW[_h]} are genuinely on the rise — "
+                    "this is a chapter to press, not hold back.")
+            _n = (f" the current groundwork running through {near_area}"
+                  if near_area else " with the base still being laid")
+            return _scrub_leaks(
+                f"This is {_THEME[_h]} chapter, but it's in its build-up phase "
+                f"right now — steady rather than a surge,{_n}.")
+        # upachaya node (3/6); 11 handled above
+        if _node and _h in (3, 6):
+            if aligned:
+                return _scrub_leaks(
+                    "Right now you grow by pushing through — sustained effort and "
+                    "outlasting the obstacles in front of you is what moves things.")
+            return _scrub_leaks(
+                "This is an effort-and-competition chapter, and right now it's the "
+                "steady groundwork phase — outwork the friction rather than force a leap.")
+        # demanding
+        _in_dusthana = _h in (8, 12) or (_h == 6 and not _node)
+        if _in_dusthana or (_debil and not _node):
+            return _scrub_leaks(
+                "This is a demanding, deepening stretch right now — the work is to "
+                "hold steady and not rush the big calls.")
+    except Exception:
+        pass
+    return ""  # generic — no forced lead; let the narrator open naturally
+
+
 def _node_body(kind, *, period_lord=None, next_lord=None,
                chart_data=None, event_count=0):
     """House-noun + archetype-grounded body per node kind. Each node body
@@ -1249,6 +1305,8 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
             near_area=_vl_near,
             aligned=_vl_aligned,
         )
+        verdict_lead = _body_lead(_vl_md, chart_data,
+                                  near_area=_vl_near, aligned=_vl_aligned)
         arc = _arc_block(current_md, next_md, now)
     except Exception as _fwd_ve:
         import traceback as _fwd_tb
@@ -1281,6 +1339,7 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
 
     return {
         "verdict":         _scrub_leaks(verdict),
+        "verdict_lead":    _scrub_leaks(verdict_lead or ""),
         "arc":             arc,
         "cycle_timeline":  nodes,
         "wealth_ignition": wealth_ignition,

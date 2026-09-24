@@ -97,12 +97,20 @@ async def narrate_cycle(
     name: str,
     claude_caller: Callable[..., Awaitable[tuple]],
     language: str = "en",
+    lead: str = "",
 ) -> str:
     """Compose the cycle bundle into user-facing prose via the LLM.
 
     claude_caller is injected (the same call_llm_claude the life-arc uses) so this
     stays free of a circular import on main. Returns the prose, or a plain
     deterministic fallback if the bundle is empty or the model is unavailable.
+
+    [deterministic-lead 2026-09-24] When `lead` is given (a deterministic opening
+    sentence matched to the verdict's tempo), the LLM writes ONLY the elaboration
+    (2 sentences that continue it) and we PREPEND the lead verbatim. This is the
+    reliable fix for the model defaulting to a 'holding chapter / stay steady'
+    opener that contradicted a strong verdict — the opening is no longer the LLM's
+    to choose.
     """
     if not bundle or not bundle.get("available"):
         return ""
@@ -114,13 +122,33 @@ async def narrate_cycle(
     first = (name or "").split()[0] if name else ""
     lang_line = ("" if language == "en"
                  else f"\nWrite the reading in this language code: {language}.")
-    prompt = (f"FACTS about {first or 'this person'}'s current period:\n{numbered}\n"
-              f"{lang_line}\n"
-              f"Write their current-cycle reading now, following every rule. "
-              f"Address them as \"you\". Use only the facts above.")
+    _lead = (lead or "").strip()
+    if _lead:
+        prompt = (
+            f"FACTS about {first or 'this person'}'s current period:\n{numbered}\n"
+            f"{lang_line}\n"
+            f"The reading's OPENING sentence is already written for you (do NOT "
+            f"repeat it, do NOT contradict its direction or tempo):\n\"{_lead}\"\n"
+            f"Write ONLY the 2 sentences that CONTINUE from it: (a) how it's "
+            f"playing out — the one real tension or what's opening, in the same "
+            f"direction as the opening; (b) the single most useful thing to DO now, "
+            f"concrete. ~40-60 words total. Address them as \"you\". Plain language, "
+            f"no headers/preamble/meta. Use only the facts above.")
+    else:
+        prompt = (f"FACTS about {first or 'this person'}'s current period:\n{numbered}\n"
+                  f"{lang_line}\n"
+                  f"Write their current-cycle reading now, following every rule. "
+                  f"Address them as \"you\". Use only the facts above.")
     try:
         text, _ = await claude_caller(prompt, None, _CYCLE_SYSTEM)
-        return (text or "").strip()
+        body = (text or "").strip()
+        if _lead:
+            # Guarantee the deterministic opening; drop an accidental echo.
+            if body.lower().startswith(_lead.lower()[:24]):
+                return body  # model already opened with (a paraphrase of) the lead
+            return f"{_lead} {body}".strip() if body else _lead
+        return body
     except Exception:
         # Deterministic fallback — still grounded, just unpolished.
-        return " ".join(f.split("— ", 1)[-1] for f in facts[:4])
+        _elab = " ".join(f.split("— ", 1)[-1] for f in facts[:3])
+        return (f"{_lead} {_elab}".strip() if _lead else _elab)
