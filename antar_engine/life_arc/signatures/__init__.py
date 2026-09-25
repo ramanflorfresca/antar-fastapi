@@ -44,7 +44,9 @@ def get_library_version() -> str:
     # gains or loses a field.
     # [stance-coherence 2026-09-24] hl 5 -> 6: cycle payload gained a `stance`
     # field and the current_phase headline is now stance-reconciled (can no longer
-    # say "lean in hard" against a "hold steady" chapter). Bump so every cached
-    # reading regenerates with the coherent narration instead of waiting for its
-    # pratyantardasha to expire.
-    return ("|".join(parts) if parts else "empty") + "|hl=6"
+    # say "lean in hard" against a "hold steady" chapter).
+    # [transit-tempo 2026-09-24] hl 6 -> 7: the chapter tempo is now transit-aware —
+    # a hard slow transit (Sade Sati peak/entering) downgrades a dasha-aligned
+    # 'press' to 'build/groundwork' so the cycle stops over-claiming near-term
+    # immediacy while Month/Year read hold. Bump so cached readings regenerate.
+    return ("|".join(parts) if parts else "empty") + "|hl=7"

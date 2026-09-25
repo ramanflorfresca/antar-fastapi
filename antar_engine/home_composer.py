@@ -1398,8 +1398,13 @@ def _compose_for_horizon(horizon: str,
     # says "ride the expansion hard" — press / build / hold get distinct copy.
     if horizon == "cycle" and md_planet:
         try:
-            from antar_engine.life_arc.forward_cycle_engine import _chapter_stance
+            from antar_engine.life_arc.forward_cycle_engine import _chapter_stance, _near_term_hard
             _aligned = (ad_house == 0) or (bool(natal_house) and ad_house == natal_house)
+            # [transit-tempo 2026-09-24] mirror the deep read: a hard slow transit
+            # (Sade Sati peak/entering) downgrades a dasha-aligned 'press' to 'build'
+            # so the card can't say "press now" while Month/Year read hold.
+            if _aligned and _near_term_hard(chart_data, now_today):
+                _aligned = False
             _dir = (_chapter_stance(md_planet, chart_data, aligned=_aligned) or {}).get("direction")
             _CYCLE_STANCE_COPY = {
                 "press": ("A chapter to press and build on.",

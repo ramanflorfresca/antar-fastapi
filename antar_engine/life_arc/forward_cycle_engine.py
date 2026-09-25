@@ -960,12 +960,26 @@ def _chapter_stance(current_md_lord, chart_data, aligned=True):
     return out
 
 
+def _near_term_hard(chart_data, now=None):
+    """[transit-tempo 2026-09-24] Is the near-term a hard slow-transit HOLD that
+    should override a dasha-aligned 'press' tempo into 'build/groundwork'? True in
+    Sade Sati peak/entering — the classic multi-year consolidate-don't-over-expand
+    transit that the Month / Year / now-node surfaces already read. Folding it into
+    `aligned` keeps the chapter's press DIRECTION but stops it over-claiming
+    near-term immediacy while the other surfaces say hold. Never raises."""
+    try:
+        from antar_engine.life_arc.phase_analyzer import detect_sade_sati as _dss
+        return (_dss(chart_data, now) or {}).get("status") in ("peak phase", "entering phase")
+    except Exception:
+        return False
+
+
 def compute_chapter_stance(chart_data, birth_jd, now=None):
     """Public: the chapter's directional stance (see `_chapter_stance`) computed
     from the live Vimśottarī periods — for callers that need the stance BEFORE the
     full `build_forward_cycle` runs (e.g. the phase_analyzer wiring, which runs
-    first). Mirrors build_forward_cycle's `aligned` computation exactly so the two
-    can never diverge."""
+    first). Mirrors build_forward_cycle's `aligned` computation exactly (dasha
+    alignment AND the Sade-Sati transit downgrade) so the two can never diverge."""
     default = {"direction": "neutral", "tempo": "steady", "guidance": ""}
     try:
         periods = get_cycle_periods(chart_data, birth_jd, now=now)
@@ -978,6 +992,7 @@ def compute_chapter_stance(chart_data, birth_jd, now=None):
         _md_h = (_pl.get(md_lord) or {}).get("house")
         _ad_h = (_pl.get(ad_lord) or {}).get("house")
         aligned = (_ad_h is None) or (_md_h is not None and _ad_h == _md_h)
+        aligned = aligned and not _near_term_hard(chart_data, now)
         return _chapter_stance(md_lord, chart_data, aligned=aligned)
     except Exception:
         return default
@@ -1361,6 +1376,13 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
         _vl_md_h = (_pl.get(_vl_md) or {}).get("house")
         _vl_ad_h = (_pl.get(_vl_ad) or {}).get("house")
         _vl_aligned = (_vl_ad_h is None) or (_vl_md_h is not None and _vl_ad_h == _vl_md_h)
+        # [transit-tempo 2026-09-24] A hard slow transit (Sade Sati peak/entering)
+        # makes the near-term a careful HOLD even when the dasha is aligned — so the
+        # chapter keeps its press DIRECTION but drops the "opens widest now" tempo,
+        # matching what Month/Year/now-node already read. Flows through the verdict,
+        # body lead, and stance (all key off `_vl_aligned`).
+        if _vl_aligned and _near_term_hard(chart_data, now):
+            _vl_aligned = False
         _vl_near = ""
         if not _vl_aligned:
             _nn = _period_lord_nouns(_vl_ad, chart_data, n=1)
