@@ -706,16 +706,43 @@ def rolling_window_extremes(daily_scores: List[Dict[str, Any]],
         # Whole range as a single window.
         return (daily_scores[0]["date"], daily_scores[0]["date"])
 
+    # All rolling-window sums (one per start index).
+    sums: List[float] = []
     cur = sum(d.get("raw_score", 0.0) for d in daily_scores[:window_days])
-    best_sum, best_idx = cur, 0
-    worst_sum, worst_idx = cur, 0
+    sums.append(cur)
     for i in range(1, n - window_days + 1):
         cur += daily_scores[i + window_days - 1].get("raw_score", 0.0) \
              - daily_scores[i - 1].get("raw_score", 0.0)
-        if cur > best_sum:
-            best_sum, best_idx = cur, i
-        if cur < worst_sum:
-            worst_sum, worst_idx = cur, i
+        sums.append(cur)
+    m = len(sums)
+    best_idx = max(range(m), key=lambda i: sums[i])
+    worst_idx = min(range(m), key=lambda i: sums[i])
+
+    # [non-overlap 2026-09-25] best & caution windows must not share any day —
+    # otherwise the Month bar colors the same day both green (best) and orange
+    # (caution). The global max/min windows can overlap (common near a personal
+    # month's end, when only ~2 weeks of forward runway remain). If they do, keep
+    # the extreme with the larger deviation from the mean as the anchor and
+    # re-pick the other from windows that don't overlap it (start indices ≥
+    # window_days apart). If the range genuinely can't fit two disjoint windows,
+    # return the anchor alone (the caller renders a single week rather than two
+    # contradictory ones).
+    if abs(best_idx - worst_idx) < window_days:
+        mean = sum(sums) / m
+        best_dev = sums[best_idx] - mean
+        worst_dev = mean - sums[worst_idx]
+        if best_dev >= worst_dev:
+            disjoint = [i for i in range(m) if abs(i - best_idx) >= window_days]
+            if disjoint:
+                worst_idx = min(disjoint, key=lambda i: sums[i])
+            else:
+                return (daily_scores[best_idx]["date"], None)
+        else:
+            disjoint = [i for i in range(m) if abs(i - worst_idx) >= window_days]
+            if disjoint:
+                best_idx = max(disjoint, key=lambda i: sums[i])
+            else:
+                return (None, daily_scores[worst_idx]["date"])
     return (daily_scores[best_idx]["date"], daily_scores[worst_idx]["date"])
 
 
