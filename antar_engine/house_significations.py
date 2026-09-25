@@ -225,6 +225,13 @@ _NOUN_REQUIRES = {
     "the boss":     "employed",
     "your manager": "employed",
     "your employer": "employed",
+    # [life-gate 2026-09-25] promotion/raise are employee events too — a business
+    # owner doesn't get "a promotion"; drop them the same way "your boss" is dropped
+    # so a founder's 10th-house read stays neutral (career/reputation) not employee.
+    "a promotion":  "employed",
+    "a raise":      "employed",
+    "a pay rise":   "employed",
+    "a pay raise":  "employed",
 }
 
 

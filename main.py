@@ -26461,7 +26461,13 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         from antar_engine.daily_panchanga import calculate_panchanga, format_daily_for_user
         res = supabase.table("charts").select(
             "chart_data,jaimini_data,birth_date,name,gender,latitude,longitude,current_country,birth_country,current_city,"
-            "children_status,marital_status,lal_kitab_data,language_preference,financial_status"
+            "children_status,marital_status,lal_kitab_data,language_preference,financial_status,"
+            # [life-gate 2026-09-25] career_stage/profession drive the `employed`
+            # gate (no "your boss"/"a promotion" for a business owner) and the
+            # life_* columns are the onboarding fallbacks — all needed by
+            # resolve_life_facts below. Were absent, so the daily card ran with NO
+            # life context at all (unlike life-arc).
+            "career_stage,profession,life_work,life_relationship,life_kids"
         ).eq("id", cid).execute()
         if not res.data: raise HTTPException(404, "Chart not found")
         row = res.data[0]
@@ -26471,6 +26477,20 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 cd = json.loads(cd)
             except Exception:
                 cd = {}
+        # [life-gate 2026-09-25] Set the reader's resolved life facts for THIS
+        # request so the noun layer honors them on the daily card — exactly as the
+        # life-arc path does. Without this the daily reading ran with an empty
+        # active_life(): a business owner heard about "your boss", an adult-kids
+        # parent about "a baby", etc. `select_nouns` falls back to active_life(),
+        # so one set() gates every noun the day's narration + area lines resolve.
+        # Fail-open: any error just leaves the (empty) prior context.
+        try:
+            from antar_engine.life_context import (
+                resolve_life_facts as _rlf_ds, set_active_life as _sal_ds,
+            )
+            _sal_ds(_rlf_ds(row))
+        except Exception as _lg_ds_e:
+            print(f"[daily-signal] life-gate set skipped (non-fatal): {_lg_ds_e}")
         # [chara-daśā 2026-09-24] jaimini_data (chara karakas) → graded Jaimini
         # activation in the domain sweep. Parsed once; passed to score_domains.
         _daily_jd = row.get("jaimini_data")
