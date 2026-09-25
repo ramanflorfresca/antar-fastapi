@@ -341,8 +341,44 @@ def analyze_concern(concern: str, chart_data: dict, dashas: dict,
             else:
                 verdict = "not indicated right now — steady"
 
+        # [risk-twin differentiator 2026-09-24] separation [7,6,8,12] and health
+        # [1,6,8,12] SHARE the 6/8/12 strain axis (disease+discord, chronic+rupture,
+        # depletion+separate-beds) and legitimately co-elevate when it's lit. To keep
+        # the two reads DISTINCT, tell the model whether THIS domain's own core is
+        # independently hit — its unique anchor house (7th=partnership / 1st=body)
+        # OR a significator unique to it (Venus for partnership; Sun/Mars/Saturn for
+        # the body — Moon is shared, so it can't distinguish them) — vs. the pressure
+        # being only the shared axis. Only when the domain is actually active.
+        anchor_note = ""
+        if is_risk and (dasha_active or total >= 5):
+            anchor_h = houses[0]
+            anchor_label = spec["house_meaning"][anchor_h]
+            own_hit = any(p in _MALEFICS for p in in_house.get(anchor_h, []))
+            _al = house_lords.get(anchor_h)
+            if not own_hit and _dignity(_al, (planets.get(_al) or {}).get("sign"))[0] < 0:
+                own_hit = True
+            if not own_hit:
+                for _k in spec["karakas"]:
+                    if _k == "Moon":          # shared by both risk domains — can't distinguish
+                        continue
+                    if _dignity(_k, (planets.get(_k) or {}).get("sign"))[0] < 0:
+                        own_hit = True
+                        break
+            if own_hit:
+                anchor_note = (f"\nWHAT'S SPECIFIC TO THIS AREA: {anchor_label} is itself "
+                               "directly involved — this is not merely a shared life-strain "
+                               "season; say the core of THIS area is under real pressure.")
+            else:
+                anchor_note = (f"\nWHAT'S SPECIFIC TO THIS AREA: {anchor_label} is NOT "
+                               "independently flagged — the pressure is coming from the shared "
+                               "strain axis (daily friction, upheaval, depletion) that brushes "
+                               "several life-areas at once. Frame this as a hard general season "
+                               "touching this area, NOT this area's own core being singled out, "
+                               "so the read stays distinct from a neighbouring one.")
+
         facts = _facts_block(concern, spec, verdict, drivers, d9_confirms,
-                             dasha_active, house_lords, in_house, intent, node_warn)
+                             dasha_active, house_lords, in_house, intent, node_warn,
+                             anchor_note)
         return {"available": True, "concern": concern, "verdict": verdict,
                 "score": round(total, 2), "polarity": spec["polarity"],
                 "drivers": drivers[:5], "d9_confirms": d9_confirms,
@@ -378,7 +414,7 @@ _INTENT_LEAD = {
 
 
 def _facts_block(concern, spec, verdict, drivers, d9, dasha_active, lords, in_house,
-                 intent="state", node_warn=None):
+                 intent="state", node_warn=None, anchor_note=""):
     top = "; ".join(f"{d['planet']} ({', '.join(d['why'][:2])})" for d in drivers[:3])
     pol = spec["polarity"]
     intent_lead = _INTENT_LEAD.get(intent, _INTENT_LEAD["state"]).format(subj=spec["subject"])
@@ -428,7 +464,7 @@ def _facts_block(concern, spec, verdict, drivers, d9, dasha_active, lords, in_ho
         f"({', '.join(spec['house_meaning'].values())}), their lords, the natural "
         f"significators, the navamsa, and the running dasha. You MUST answer from "
         f"THIS analysis — do not invent.\n"
-        f"VERDICT: {verdict}{lit}.{d9line}{node_line}{timing_structure}\n"
+        f"VERDICT: {verdict}{lit}.{d9line}{node_line}{anchor_note}{timing_structure}\n"
         f"KEY SIGNIFICATORS: {top}.\n"
         f"STAY STRICTLY ON ONE TOPIC: {spec['subject']}. Do NOT bring in any other "
         "life area — a health answer must NEVER mention money, loans, or funding; a "
