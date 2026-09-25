@@ -27202,9 +27202,30 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 # name a child/spouse they don't have (Kulbir: no children).
                 _life_ctx = {"children_status": row.get("children_status"),
                              "marital_status": row.get("marital_status")}
+                # [life-gate 2026-09-25] the life_area THEME string carries "your boss"
+                # for the 10th house — the noun layer already drops the boss NOUN, but
+                # this descriptive label isn't gated, so a business owner (Shashi:
+                # employed=False) still saw "career, your boss and reputation". Strip
+                # it for any non-employed reader (owner / unknown), matching the noun gate.
+                try:
+                    from antar_engine.life_context import active_life as _al_beats
+                    _emp_beats = (_al_beats() or {}).get("employed")
+                except Exception:
+                    _emp_beats = None
+                def _degate_boss_theme(_t):
+                    if _emp_beats is not True and _t and "boss" in _t.lower():
+                        import re as _bre
+                        # remove "your boss" with a connector on EITHER side, then
+                        # clean any dangling/duplicated connector so we never leave
+                        # "career and" or "career, reputation".
+                        _t = _bre.sub(r"\s*(?:,|\band\b)\s*your boss\b", "", _t, flags=_bre.I)
+                        _t = _bre.sub(r"\byour boss\b\s*(?:,|\band\b)\s*", "", _t, flags=_bre.I)
+                        _t = _bre.sub(r"\s{2,}", " ", _t)
+                        _t = _bre.sub(r"\s+(?:,|and)$", "", _t).strip(" ,")
+                    return _t
                 result["beats"] = [{
                     "area":      _b.get("domain"),
-                    "life_area": _b.get("life_area") or "",
+                    "life_area": _degate_boss_theme(_b.get("life_area") or ""),
                     "signal":    _b.get("signal"),
                     "nouns":     _b.get("concrete_nouns") or [],
                 } for _b in (_sd_beats(_th_dbg, _th.get("highlight_areas"), _life_ctx) or [])]
