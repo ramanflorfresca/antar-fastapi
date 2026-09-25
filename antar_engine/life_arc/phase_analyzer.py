@@ -328,6 +328,7 @@ async def generate_phase_summary(
     archetype_name: str,
     language: str = "en",
     claude_caller=None,
+    chapter_stance: dict = None,
 ) -> str:
     """
     Generate the Current Cycle narration: {"headline": str, "body": str}.
@@ -381,6 +382,15 @@ async def generate_phase_summary(
     _ad_end = vimsottari_phase.get("ad_end_date") or ""
     _pd_end = vimsottari_phase.get("pd_end_date") or ""
     _sade_on = bool((sade_sati or {}).get("active"))
+    # [stance-coherence 2026-09-24] The authoritative chapter directive — the SAME
+    # one the verdict is built on. The "what to do about it" in the headline/body
+    # MUST agree with it, so this narration can't tell them to "lean in hard" while
+    # the chapter verdict says "hold steady".
+    _stance_guidance = (chapter_stance or {}).get("guidance") or ""
+    _stance_block = (f"\n\nCHAPTER DIRECTIVE (HIGHEST PRIORITY — the 'what to do' MUST "
+                     f"obey this; if the near-term stretch pulls the other way, frame it "
+                     f"as timing WITHIN this stance, never against it):\n{_stance_guidance}"
+                     if _stance_guidance else "")
 
     prompt = f"""You are writing the Current Cycle read for Antar (a life-navigation app).
 
@@ -388,10 +398,10 @@ PERIOD FACTS — already translated into life-language. Use ONLY these nouns. Ne
 - Long phase: centered on {_md_phrase} ({_md_cond} footing); life-areas: {_md_nouns}; runs until {_md_end}.
 - Current stretch inside it: centered on {_ad_phrase}; life-areas: {_ad_nouns}; runs until {_ad_end}.
 - The immediate weeks: colored by {_pd_phrase}; until {_pd_end}.
-- Consolidation pressure (slow, testing stretch): {"active — slower outside, deeper inside" if _sade_on else "not active"}.{_noun_hint}
+- Consolidation pressure (slow, testing stretch): {"active — slower outside, deeper inside" if _sade_on else "not active"}.{_noun_hint}{_stance_block}
 
 WRITE TWO FIELDS, exactly in this format:
-HEADLINE: one sentence, max 18 words, verdict-first — the dominant life-area, what to do about it, and the nearest date.
+HEADLINE: one sentence, max 18 words, verdict-first — the dominant life-area, what to do about it (consistent with the CHAPTER DIRECTIVE above), and the nearest date.
 BODY: 3-5 short sentences. Do NOT repeat or rephrase the headline as the first sentence — start somewhere new. Name 2-3 concrete life-areas from the lists above. Say what shifts around {_ad_end or "the next turn"} and what changes after. End with ONE specific action.
 
 RULES (NON-NEGOTIABLE):
@@ -517,10 +527,16 @@ async def analyze_current_phase(
     language: str = "en",
     claude_caller=None,
     now: datetime = None,
+    chapter_stance: dict = None,
 ) -> dict:
     """
     Full current phase analysis. Returns the current_phase block
     for the life-arc response.
+
+    [stance-coherence 2026-09-24] `chapter_stance` (from
+    forward_cycle_engine.compute_chapter_stance) is the ONE authoritative
+    hold/build/press directive for the chapter — passed into the narration prompt
+    so this 'current phase' headline can never contradict the chapter verdict.
     """
     now = now or _now_utc()
 
@@ -537,7 +553,8 @@ async def analyze_current_phase(
     # 4. Life phase summary
     _pair = await generate_phase_summary(
         vim, jaim, overlay, sade_sati,
-        archetype_name, language, claude_caller
+        archetype_name, language, claude_caller,
+        chapter_stance=chapter_stance,
     )
     if isinstance(_pair, dict):
         _headline = (_pair.get("headline") or "").strip()

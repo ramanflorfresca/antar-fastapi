@@ -42,4 +42,9 @@ def get_library_version() -> str:
     # happens to expire. That is exactly how a week of pre-fix daily cards
     # reached users earlier today. Bump this salt whenever the cycle response
     # gains or loses a field.
-    return ("|".join(parts) if parts else "empty") + "|hl=5"
+    # [stance-coherence 2026-09-24] hl 5 -> 6: cycle payload gained a `stance`
+    # field and the current_phase headline is now stance-reconciled (can no longer
+    # say "lean in hard" against a "hold steady" chapter). Bump so every cached
+    # reading regenerates with the coherent narration instead of waiting for its
+    # pratyantardasha to expire.
+    return ("|".join(parts) if parts else "empty") + "|hl=6"

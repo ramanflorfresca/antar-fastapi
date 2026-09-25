@@ -1392,6 +1392,27 @@ def _compose_for_horizon(horizon: str,
     sp = _dominant_strong_planet(strong, md_planet) or (md_planet if horizon == "cycle" else "Mercury")
 
     headline, gist = _build_headline_gist(horizon, polarity)
+    # [stance-coherence 2026-09-24] Align the cycle card's TEMPO with the chapter's
+    # ONE authoritative stance (the same forward-cycle logic that writes the deep
+    # read's verdict) so the card can't say "steady progress" while the deep read
+    # says "ride the expansion hard" — press / build / hold get distinct copy.
+    if horizon == "cycle" and md_planet:
+        try:
+            from antar_engine.life_arc.forward_cycle_engine import _chapter_stance
+            _aligned = (ad_house == 0) or (bool(natal_house) and ad_house == natal_house)
+            _dir = (_chapter_stance(md_planet, chart_data, aligned=_aligned) or {}).get("direction")
+            _CYCLE_STANCE_COPY = {
+                "press": ("A chapter to press and build on.",
+                          "The momentum is real — lean in and move on it now."),
+                "build": ("A strong chapter still in its build-up.",
+                          "Lay the groundwork now; it compounds rather than surges."),
+                "hold":  ("A demanding chapter — steady does it.",
+                          "Hold your ground and don't rush the big calls."),
+            }
+            if _dir in _CYCLE_STANCE_COPY:
+                headline, gist = _CYCLE_STANCE_COPY[_dir]
+        except Exception:
+            pass
     # MD->AD sub-chapter: only when there is a distinct AD planet.
     if horizon == "cycle" and ad_planet and ad_planet != md_planet:
         _theme = AD_PLANET_THEMES.get(ad_planet, "a new phase")

@@ -915,6 +915,74 @@ def _body_lead(current_md_lord, chart_data, near_area=None, aligned=True):
     return ""  # generic — no forced lead; let the narrator open naturally
 
 
+def _chapter_stance(current_md_lord, chart_data, aligned=True):
+    """[stance-coherence 2026-09-24] The chapter's ONE authoritative directional
+    stance, derived from the SAME branch logic as `_verdict_line`/`_body_lead`, so
+    every downstream narrator (the phase_analyzer 'current phase' headline, the
+    /home cycle card) can be handed it and NEVER emit a directive that contradicts
+    the verdict — the bug where a 'hold steady' chapter also said 'lean in hard'.
+    Returns {direction, tempo, guidance}; direction ∈ press|build|hold|neutral.
+    `guidance` is a plain, planet-free instruction for an LLM narrator."""
+    out = {"direction": "neutral", "tempo": "steady", "guidance": ""}
+    if not current_md_lord:
+        return out
+    try:
+        _p = (chart_data.get("planets") or {}).get(current_md_lord) or {}
+        _h = _p.get("house")
+        _debil = _condition(current_md_lord, chart_data) == "debilitated"
+        _node = current_md_lord in ("Rahu", "Ketu")
+        _strong = _h in (11, 10, 2, 9, 5, 1) and (_node or not _debil)
+        _upachaya_node = _node and _h in (3, 6)
+        _in_dusthana = _h in (8, 12) or (_h == 6 and not _node)
+        _demanding = _in_dusthana or (_debil and not _node)
+        if _strong or _upachaya_node:
+            if aligned:
+                out.update(direction="press", tempo="open-now",
+                    guidance=("CHAPTER STANCE = PRESS: this is a build-and-expand "
+                              "chapter and the near-term supports moving now. Any "
+                              "'what to do' must lean toward acting / leaning in — "
+                              "never 'hold back' or 'wait'."))
+            else:
+                out.update(direction="build", tempo="groundwork",
+                    guidance=("CHAPTER STANCE = BUILD (groundwork): this is a strong "
+                              "chapter but the near-term is a base-laying phase. The "
+                              "stance is build steadily and set things up now — do NOT "
+                              "say 'lean in hard' or urge a leap yet; frame it as "
+                              "groundwork that compounds."))
+        elif _demanding:
+            out.update(direction="hold", tempo="hold",
+                guidance=("CHAPTER STANCE = HOLD: this is a demanding, deepening "
+                          "chapter. The stance is hold steady, protect, and don't "
+                          "rush the big calls. Do NOT tell them to 'lean in hard', "
+                          "'push', or 'go all in' — that contradicts the chapter."))
+    except Exception:
+        pass
+    return out
+
+
+def compute_chapter_stance(chart_data, birth_jd, now=None):
+    """Public: the chapter's directional stance (see `_chapter_stance`) computed
+    from the live Vimśottarī periods — for callers that need the stance BEFORE the
+    full `build_forward_cycle` runs (e.g. the phase_analyzer wiring, which runs
+    first). Mirrors build_forward_cycle's `aligned` computation exactly so the two
+    can never diverge."""
+    default = {"direction": "neutral", "tempo": "steady", "guidance": ""}
+    try:
+        periods = get_cycle_periods(chart_data, birth_jd, now=now)
+        if not periods:
+            return default
+        md_lord = (periods.get("current_md") or {}).get("lord")
+        ad_lord = ((periods.get("current_ad") or {}).get("lord")
+                   or (periods.get("current_pd") or {}).get("lord"))
+        _pl = chart_data.get("planets") or {}
+        _md_h = (_pl.get(md_lord) or {}).get("house")
+        _ad_h = (_pl.get(ad_lord) or {}).get("house")
+        aligned = (_ad_h is None) or (_md_h is not None and _ad_h == _md_h)
+        return _chapter_stance(md_lord, chart_data, aligned=aligned)
+    except Exception:
+        return default
+
+
 def _node_body(kind, *, period_lord=None, next_lord=None,
                chart_data=None, event_count=0):
     """House-noun + archetype-grounded body per node kind. Each node body
@@ -1307,6 +1375,7 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
         )
         verdict_lead = _body_lead(_vl_md, chart_data,
                                   near_area=_vl_near, aligned=_vl_aligned)
+        stance = _chapter_stance(_vl_md, chart_data, aligned=_vl_aligned)
         arc = _arc_block(current_md, next_md, now)
     except Exception as _fwd_ve:
         import traceback as _fwd_tb
@@ -1340,6 +1409,7 @@ def build_forward_cycle(chart_data: dict, birth_jd: float,
     return {
         "verdict":         _scrub_leaks(verdict),
         "verdict_lead":    _scrub_leaks(verdict_lead or ""),
+        "stance":          stance,
         "arc":             arc,
         "cycle_timeline":  nodes,
         "wealth_ignition": wealth_ignition,

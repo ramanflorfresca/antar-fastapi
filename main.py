@@ -39553,6 +39553,18 @@ async def _life_arc_compute(chart_id, horizon_months, language,
 
     birth_date_str = str(chart_record.get("birth_date", chart_data.get("birth_date", "")))[:10]
 
+    # [stance-coherence 2026-09-24] Compute the chapter's ONE authoritative
+    # directional stance FIRST, from the same forward-cycle logic that writes the
+    # verdict, and hand it to the phase narrator so its 'current phase' headline
+    # can never contradict the chapter verdict (the 'hold steady' chapter that also
+    # said 'lean in hard' bug). Non-blocking.
+    try:
+        from antar_engine.life_arc.forward_cycle_engine import compute_chapter_stance as _ccs
+        _chapter_stance = _ccs(chart_data, birth_jd)
+    except Exception as _cse:
+        print(f"[life_arc] chapter-stance skipped: {_cse}")
+        _chapter_stance = {"direction": "neutral", "tempo": "steady", "guidance": ""}
+
     # ── 1. Phase Analysis ────────────────────────────────────────────────
     try:
         current_phase = await analyze_current_phase(
@@ -39562,6 +39574,7 @@ async def _life_arc_compute(chart_id, horizon_months, language,
             archetype_name=archetype_name,
             language=language,
             claude_caller=call_llm_claude,
+            chapter_stance=_chapter_stance,
         )
     except Exception as e:
         print(f"[life_arc] Phase analysis error: {e}")
