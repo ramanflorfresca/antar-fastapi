@@ -207,8 +207,8 @@ MONTH_FULL = ["January","February","March","April","May","June",
               "July","August","September","October","November","December"]
 
 CYCLE_INFO = (
-    "A phase of life where a planet's influence shapes your path. "
-    "Each cycle lasts years, then changes."
+    "A multi-year chapter of life with its own tone and focus. "
+    "Each one runs for years, then gives way to the next."
 )
 
 
