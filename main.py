@@ -40046,13 +40046,33 @@ async def _life_arc_compute(chart_id, horizon_months, language,
                       "male": 65, "man": 65, "m": 65}.get(_cb_gender, 55)
         _cb_byear = int(str(birth_date_str)[:4]) if str(birth_date_str)[:4].isdigit() else None
         _cb_age = (_la_dt.utcnow().year - _cb_byear) if _cb_byear else None
-        if _cb_age is not None and _cb_age > _cb_cutoff:
-            _v = response.get("verdict") or ""
-            _v = _cb_re.sub(r"\ba child\b", "a creative project", _v, flags=_cb_re.I)
-            _v = _cb_re.sub(r"\b(your |a )?children\b", "a creative project", _v, flags=_cb_re.I)
-            response["verdict"] = _v
+        # [adult-kids 2026-09-25] The age/gender cutoff MISSED readers with a known
+        # ADULT-children status who fall just under the (unknown-gender) 55 cutoff —
+        # e.g. Gayatri, 54, gender null, children_status='adult_children' still got
+        # "Family grows" on the timeline. Someone whose children are already adults
+        # is not having a NEW baby regardless of exact age, so also fire on adult
+        # kids. And scrub node BODIES too (the "centres on a child" now-node text),
+        # not just the verdict + event titles.
+        _cb_children = None
+        try:
+            from antar_engine.life_context import _norm_children as _cb_nc
+            _cb_children = _cb_nc(chart_record)   # 'yes' | 'adult' | 'no' | None
+        except Exception:
+            pass
+        _cb_adult = (_cb_children == "adult")
+        _cb_past_age = (_cb_age is not None and _cb_age > _cb_cutoff)
+        if _cb_past_age or _cb_adult:
+            def _cb_scrub(_s):
+                _s = _cb_re.sub(r"\ba child\b", "a creative project", _s, flags=_cb_re.I)
+                # only rewrite bare "children" for the past-age CHILDLESS case —
+                # an adult-kids reader really does have children, so keep that word.
+                if _cb_past_age and not _cb_adult:
+                    _s = _cb_re.sub(r"\b(your |a )?children\b", "a creative project", _s, flags=_cb_re.I)
+                return _s
+            response["verdict"] = _cb_scrub(response.get("verdict") or "")
             _cb_seen = set()
             for _n in (response.get("cycle_timeline") or []):
+                _n["body"] = _cb_scrub(str(_n.get("body") or ""))
                 _kept = []
                 for _ev in (_n.get("events") or []):
                     _t = str(_ev.get("title") or "")

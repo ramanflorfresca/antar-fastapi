@@ -49,4 +49,7 @@ def get_library_version() -> str:
     # a hard slow transit (Sade Sati peak/entering) downgrades a dasha-aligned
     # 'press' to 'build/groundwork' so the cycle stops over-claiming near-term
     # immediacy while Month/Year read hold. Bump so cached readings regenerate.
-    return ("|".join(parts) if parts else "empty") + "|hl=7"
+    # [adult-kids 2026-09-25] hl 7 -> 8: the childbirth scrub now also fires on a
+    # known adult-children status (not just age/gender) and scrubs node bodies, so
+    # "Family grows" / "centres on a child" no longer reach readers with grown kids.
+    return ("|".join(parts) if parts else "empty") + "|hl=8"
