@@ -12,16 +12,22 @@ This module does NOT decide the day's direction — the validated vote engine
 that. It only reports HOW MUCH the independent, already-shipped/validated layers
 agree with that committed read, as an honest confidence signal.
 
-Layers polled (each independent, each already live):
-  1. Tara Bala      — the day's nakshatra vs the birth star   (daily_precision)
-  2. Moon placement — the Moon's house transit (gochara)       (daily_precision)
-  3. Running dasha  — the antardasha lord's natural tilt        (daily_precision)
-  4. Lal Kitab      — a sleeping planet dragging today          (daily_precision)
-  5. Dasha season   — the multi-year mahadasha register (slow gate, business_timing)
+Layers polled — INDEPENDENT AXES only (correlated readings collapse to one vote,
+so "several independent readings agree" is literally true):
+  1. Moon axis      — Tara Bala (nakshatra vs birth star) AND the Moon's house
+                      transit (gochara) MERGED — both are the same transiting Moon
+                      on the same day, so they count as ONE vote, not two
+                      [correlation 2026-09-24]                     (daily_precision)
+  2. Running dasha  — the antardasha lord's natural tilt          (daily_precision)
+  3. Dasha season   — the multi-year mahadasha register (slow gate, business_timing)
+  4. Lal Kitab      — a sleeping planet, counted ONLY when today activates it
+                      (it's a running dasha lord); a dormant sleeper is a static
+                      natal constant, not a today-reading, so it doesn't vote
+                      [activation-gate 2026-09-24]                 (daily_precision)
 
 'transit' from build_day_signals is intentionally skipped — it is the Moon's
-placement re-expressed, already counted at #2 (double-counting would inflate
-agreement).
+placement re-expressed, already counted in the Moon axis (double-counting would
+inflate agreement).
 
 KP is deliberately NOT a layer here: its validation gate is closed (quarantined,
 birth-time-critical). It rides in SHADOW only (see kp_daily_shadow), never in
@@ -44,7 +50,8 @@ _SEASON_POL = {"supported": 1, "steady": 0, "hard": -1}
 
 # jargon-free names for each layer, for the plain "why" line
 _LAYER_NAME = {
-    "nakshatra": "the day's star",
+    "moon": "the day's rhythm",       # [correlation] nakshatra + moon_house merged — both the transiting Moon
+    "nakshatra": "the day's star",    # (kept for safety; no longer emitted as its own vote)
     "moon_house": "the day's mood",   # [de-jargon] was "where the Moon is today" — planet name leaked to the user
     "dasha": "your current chapter",
     "lal_kitab": "your chart's own pattern",
@@ -86,18 +93,33 @@ def daily_convergence(day_signals: list, season_register: str,
         target = (1 if committed_direction == "positive"
                   else -1 if committed_direction == "adverse" else 0)
 
-        layers = []  # (key, polarity)
+        layers = []       # (key, polarity)
+        _moon_pols = []   # nakshatra + moon_house — the SAME transiting Moon, one axis
         for row in (day_signals or []):
             if not isinstance(row, dict):
                 continue
-            if row.get("key") == "transit":       # counted once at moon_house
+            k = row.get("key")
+            if k == "transit":       # counted once via the Moon axis
                 continue
             if not row.get("available"):
                 continue
             pol = _POL.get(row.get("direction"))
             if pol is None:
                 continue
-            layers.append((row.get("key"), pol))
+            if k in ("nakshatra", "moon_house"):
+                _moon_pols.append(pol)   # collect, don't vote twice
+                continue
+            layers.append((k, pol))
+
+        # [correlation 2026-09-24] nakshatra (the day's star) and moon_house (the
+        # day's mood) are BOTH the transiting Moon on the same day — count them as
+        # ONE axis so a "several INDEPENDENT readings agree" verdict can never be
+        # built from two correlated Moon votes. Both point the same way → one vote
+        # that way; they split → they cancel to neutral. The Moon still counts as a
+        # layer read (so layers_read stays honest) even when it nets neutral.
+        if _moon_pols:
+            _ms = sum(_moon_pols)
+            layers.append(("moon", 1 if _ms > 0 else -1 if _ms < 0 else 0))
 
         sp = _SEASON_POL.get(season_register)
         if sp is not None:

@@ -235,11 +235,25 @@ def build_day_signals(precision: dict,
     _raw = (lk_sleeping or "").strip()
     _none = (not _raw) or _raw.lower() in ("none detected", "none", "n/a", "unknown")
     sleeping = "" if _none else _raw
+    # [activation-gate 2026-09-24] A sleeping planet is a STATIC natal flag — it
+    # reads the SAME every day, so as a DAILY signal it should only count as a live
+    # drag when today actually activates it: when a sleeping planet is one of the
+    # running dasha lords (md/ad/pd). An un-activated sleeper is dormant today, not
+    # a live drag — otherwise this one constant permanently caps the day's
+    # convergence confidence (it can only ever oppose a good day, never support).
+    _run_lords = " ".join(str(x) for x in (dasha_md, dasha_ad, dasha_pd) if x).lower()
+    _sleep_active = bool(sleeping) and any(
+        _pl.lower() in _run_lords
+        for _pl in ("sun", "moon", "mars", "mercury", "jupiter", "venus",
+                    "saturn", "rahu", "ketu")
+        if _pl.lower() in sleeping.lower())
     rows.append({
         "key": "lal_kitab", "label": "Lal Kitab",
-        "value": f"{sleeping} asleep" if sleeping else "nothing asleep",
-        "direction": "friction" if sleeping else "neutral",
-        "weight": -1 if sleeping else 0,
+        "value": (f"{sleeping} asleep and stirred by the current period" if _sleep_active
+                  else f"{sleeping} asleep but dormant today" if sleeping
+                  else "nothing asleep"),
+        "direction": "friction" if _sleep_active else "neutral",
+        "weight": -1 if _sleep_active else 0,
         "available": True,
     })
 
