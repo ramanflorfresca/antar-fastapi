@@ -39764,6 +39764,7 @@ async def _life_arc_compute(chart_id, horizon_months, language,
         response["arc"]             = _fwd.get("arc", {})
         response["cycle_timeline"]  = _fwd.get("cycle_timeline", [])
         response["wealth_ignition"] = _fwd.get("wealth_ignition", {})
+        response["stance"]          = _fwd.get("stance", {})
         _fwd_lead = _fwd.get("verdict_lead") or ""
     except Exception as _fwd_err:
         print(f"[life_arc] forward_cycle engine failed (non-blocking): {_fwd_err}")
