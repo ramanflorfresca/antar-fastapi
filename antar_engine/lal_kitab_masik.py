@@ -59,19 +59,37 @@ POWERFUL_HOUSES = {9, 10, 11}   # planet here = strong positive month
 DIFFICULT_HOUSES = {6, 8, 12}   # planet here = challenging month
 
 
-def _months_since_birthday(birth_date: str) -> int:
+def _months_since_birthday(birth_date: str, ref: date | None = None) -> int:
+    """Personal-month offset (0..11) since the most recent birthday.
+
+    [masik-drift-fix 2026-09-25] Counts TRUE birthday-anchored calendar months,
+    not (days // 30). A personal month is ~30.44 days, so the old //30 drifted
+    ~0.44 days/month and, late in the solar year, jumped a whole month ahead —
+    e.g. a reader 303 days in (10 calendar months + 3 days, i.e. still their 10th
+    personal month = offset 9) was reported as offset 10. That desynced the Month
+    tab, the home Year note, and the year month-bar. Now offset i means "in the
+    (i+1)-th birthday-anchored month window", which every calendar-month surface
+    agrees with. `ref` overrides 'today' (for the year bar's per-segment lookup
+    and tests)."""
     try:
         born  = date.fromisoformat(birth_date[:10])
-        today = date.today()
-        # Birthday this year
+        today = ref or date.today()
+        # most recent birthday on/before today (Feb-29 births clamp to the 28th)
         try:
-            birthday_this_year = born.replace(year=today.year)
+            bday = born.replace(year=today.year)
         except ValueError:
-            birthday_this_year = born.replace(year=today.year, day=28)
-        if birthday_this_year > today:
-            birthday_this_year = born.replace(year=today.year - 1)
-        delta = (today - birthday_this_year).days
-        return (delta // 30) % 12
+            bday = born.replace(year=today.year, day=28)
+        if bday > today:
+            try:
+                bday = born.replace(year=today.year - 1)
+            except ValueError:
+                bday = born.replace(year=today.year - 1, day=28)
+        # whole calendar months elapsed, minus one if we haven't reached the
+        # birthday day-of-month yet this month
+        months = (today.year - bday.year) * 12 + (today.month - bday.month)
+        if today.day < bday.day:
+            months -= 1
+        return max(0, min(11, months))
     except Exception:
         return 0
 
