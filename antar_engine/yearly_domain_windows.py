@@ -303,11 +303,20 @@ def _add_months(d: date, n: int) -> date:
     return date(y, m, min(d.day, _cal.monthrange(y, m)[1]))
 
 
-# Masik energy → year-band color. Mirrors _compute_energy_level's enum exactly:
-#   high → good (green), moderate/mixed → okay (amber), low → caution (orange).
-# 'mixed' (strong AND weak both ≥2) is genuinely two-sided, so amber is honest.
-_ENERGY_TO_BAND = {"high": "good", "moderate": "okay",
-                   "mixed": "okay", "low": "caution"}
+# Masik energy → year-band color. Mirrors _compute_energy_level's enum:
+#   high → good (green), moderate → okay (amber), low → caution (orange).
+# 'mixed' (strong AND weak both ≥2) is two-sided; owner's call (2026-09-25) is to
+# TIP a mixed-but-net-positive month (more strong than weak) to green, and keep an
+# even/net-negative mixed month amber. The `energy` field still reports "mixed" so
+# the verdict word stays honest — only the color leans on the net differential.
+def _band_for(energy: str, net: int) -> str:
+    if energy == "high":
+        return "good"
+    if energy == "low":
+        return "caution"
+    if energy == "mixed" and net > 0:
+        return "good"
+    return "okay"
 
 
 def build_year_month_bands(chart_data: dict, birth_date: str,
@@ -379,7 +388,7 @@ def build_year_month_bands(chart_data: dict, birth_date: str,
             elif mh in DIFFICULT_HOUSES:
                 weak += 1
         energy = _compute_energy_level(strong, weak)
-        band = _ENERGY_TO_BAND.get(energy, "okay")
+        band = _band_for(energy, strong - weak)
         # label by the segment MIDPOINT's calendar month — segments are birthday-
         # anchored (e.g. the 26th→25th), so the midpoint names the month the user
         # actually thinks of (Nov 26–Dec 25 reads as "Dec", not "Nov").
