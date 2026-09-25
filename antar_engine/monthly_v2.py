@@ -252,12 +252,31 @@ def _week_object(series: List[Dict[str, Any]], window_start_iso: str,
         s = _date.fromisoformat(window_start_iso)
     except Exception:
         return {}
+    # [week-anchor-unify 2026-09-25] Snap the window START to the MONDAY of the
+    # picked score_day week, matching the legacy caption's "Week of <Monday>"
+    # anchor (main.py _sd_relabel). Both surfaces derive from the SAME score_day
+    # extreme, but this object used to start at the raw extreme date (e.g. a
+    # Saturday) while the caption snapped to that week's Monday — so the colored
+    # bar segment and its caption could name weeks 5 days apart (Oct 24–30 vs
+    # "Week of October 19"). Anchoring both to the Monday keeps bar and caption on
+    # the same week. The Monday-anchored window still contains the extreme day.
+    s = s - _td(days=s.weekday())
+    # Floor at max(period_start, today) — the score_day scan is today-forward, so
+    # this mirrors the legacy relabel's scan_start floor and never points at an
+    # elapsed week.
+    floor = period_start
+    try:
+        _today = _date.today()
+        if _today > floor:
+            floor = _today
+    except Exception:
+        pass
+    if s < floor:
+        s = floor
     # 7-day window, clamped to the period end.
     e = s + _td(days=6)
     if e >= period_end_exclusive:
         e = period_end_exclusive - _td(days=1)
-    if s < period_start:
-        s = period_start
     label = _format_week_label(s, e)
     if polarity == "best":
         line = ("The week's strongest stretch — schedule what matters most then.")
