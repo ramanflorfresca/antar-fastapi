@@ -27449,6 +27449,35 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             except Exception as _nar_err:
                 print(f"[daily-signal] narration skipped (template fallback): {_nar_err}")
 
+            # [confidence-headline reconcile 2026-09-25] The vote engine can commit a
+            # "strong day" headline while the INDEPENDENT convergence layers land LOW
+            # (e.g. a split Moon axis + a frictional dasha) — so the card shows "A
+            # strong day for X" next to a "take it as a light lean, not a strong
+            # signal" badge, which undercuts itself and reads as generic/hedged. When
+            # convergence is LOW on a positive day, temper the headline's INTENSITY to
+            # match the conviction — keep the lead domain and ALL the specific prose
+            # (signal/move/areas), only soften the "strong" claim. Runs AFTER narration
+            # (which sets the headline from cache) and BEFORE the today-signal commit so
+            # the Deep Read opens from the same tempered snapshot. Positive-only:
+            # adverse/quiet headlines are already cautious, so low there is coherent.
+            try:
+                _conf_lvl = (result.get("confidence") or {}).get("level")
+                _hl_cf = str(result.get("headline") or "")
+                if (_conf_lvl == "low" and result.get("direction") == "positive"
+                        and not result.get("_season_capped")
+                        and "strong day for" in _hl_cf.lower()):
+                    import re as _re_cf
+                    _mcf = _re_cf.search(r"strong day for (.+?)\.?\s*$", _hl_cf)
+                    _domcf = _mcf.group(1) if _mcf else ""
+                    result["headline"] = (
+                        f"A lighter day for {_domcf}." if _domcf
+                        else "A lighter, low-conviction day — nothing strong converging.")
+                    if str(result.get("strength") or "").lower() in ("high", "strong"):
+                        result["strength"] = "medium"
+                    result["_confidence_capped"] = True
+            except Exception as _cf_e:
+                print(f"[daily-signal] confidence-headline reconcile skipped (non-fatal): {_cf_e}")
+
             # [one-signal] Commit the day's selection (domains + direction +
             # the DISPLAYED headline/highlight + BODY state) so the Deep Read
             # opens from the SAME snapshot instead of re-deriving its own.
