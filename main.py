@@ -11616,19 +11616,39 @@ async def create_chart(
                 "parent_id":      None,
                 "metadata":       {"parent_lord": p.get("parent_lord", ""), "type": level_name},
             })
+    # [new-user latency 2026-09-25] Compute is instant; the cost is inserting ~900
+    # dasha_periods rows in ~10 sequential Supabase round-trips, which blocks the
+    # new-user's first Today. But Today reads only Vimśottarī MD+AD (source D) +
+    # jaimini_data (written above). The Vimśottarī PD level (level 3, ~729 rows) and
+    # the whole Ashtottari system are used only by Ask/concern engines, not the
+    # first Today load. So insert the Today-critical rows SYNCHRONOUSLY (~2 batches)
+    # and DEFER the rest to a background thread (~8 batches) — the create returns as
+    # soon as Today has what it needs; Ask-tier rows land a moment later.
+    def _insert_dasha_batches(_rows, _tag):
+        for i in range(0, len(_rows), 100):
+            try:
+                supabase.table("dasha_periods").insert(_rows[i:i+100]).execute()
+            except Exception as e:
+                print(f"[dasha_insert:{_tag}] batch {i//100+1} FAILED: {e}")
     if dasha_rows:
-        try:
-            print(f"[dasha_insert] Attempting to insert {len(dasha_rows)} rows for chart {chart_id}")
-            # Log first row so we can see what's being sent
-            if dasha_rows:
-                print(f"[dasha_insert] Sample row: {dasha_rows[0]}")
-            for i in range(0, len(dasha_rows), 100):
-                batch = dasha_rows[i:i+100]
-                result = supabase.table("dasha_periods").insert(batch).execute()
-                print(f"[dasha_insert] Batch {i//100+1}: inserted {len(result.data)} rows")
-        except Exception as e:
-            print(f"[dasha_insert] FAILED: {e}")
-            print(f"[dasha_insert] First row was: {dasha_rows[0] if dasha_rows else 'empty'}")
+        _sync_rows = [r for r in dasha_rows
+                      if (r["system"] == "vimsottari" and r["level"] in (1, 2))
+                      or r["system"] == "jaimini"]
+        _bg_rows = [r for r in dasha_rows
+                    if not ((r["system"] == "vimsottari" and r["level"] in (1, 2))
+                            or r["system"] == "jaimini")]
+        print(f"[dasha_insert] {len(_sync_rows)} sync (Today) + {len(_bg_rows)} deferred (Ask) rows for {chart_id}")
+        _insert_dasha_batches(_sync_rows, "sync")
+        if _bg_rows:
+            try:
+                import asyncio as _da_aio
+                _da_task = _da_aio.create_task(_da_aio.to_thread(_insert_dasha_batches, _bg_rows, "bg"))
+                # keep a reference so the fire-and-forget task isn't GC'd mid-flight
+                globals().setdefault("_pending_dasha_tasks", set()).add(_da_task)
+                _da_task.add_done_callback(lambda t: globals()["_pending_dasha_tasks"].discard(t))
+            except Exception as _bg_e:
+                print(f"[dasha_insert] defer failed, inserting inline: {_bg_e}")
+                _insert_dasha_batches(_bg_rows, "bg-fallback")
 
     # ── Sprint E: Generate welcome signal in background ─────────
     try:
