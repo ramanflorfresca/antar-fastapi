@@ -1072,11 +1072,32 @@ def _build_today_verdict_gist(polarity: str,
 
 
 
+# [house-aware areas 2026-09-24] An active area is named by the LIFE-AREA of the
+# planet's CURRENT house, not the planet's generic nature — so different placements
+# of the same planet name different areas (Mars in the 7th → Partnership vs Mars in
+# the 11th → Gains) instead of collapsing to one planet-theme chip. Plain,
+# de-jargoned labels (no house numbers / planet names reach the user).
+HOUSE_AREAS = {
+    1: "Self", 2: "Finances", 3: "Initiative", 4: "Home", 5: "Creativity",
+    6: "Health", 7: "Partnership", 8: "Change", 9: "Fortune", 10: "Career",
+    11: "Gains", 12: "Inner Life",
+}
+HOUSE_AREA_THEME = {
+    1: "yourself and how you show up", 2: "money and resources",
+    3: "initiative and effort", 4: "home and family",
+    5: "creativity and self-expression", 6: "health and clearing obstacles",
+    7: "partnership and close ties", 8: "change and shared resources",
+    9: "fortune and long-range moves", 10: "career and standing",
+    11: "gains and your network", 12: "rest and inner life",
+}
+
+
 def _build_areas(strong: list, weak: list,
                  dignity: dict = None, flagged: set = None) -> list:
-    """When `dignity` is provided (Today branch), bars reflect real LK dignity
-    and `care` reflects the flagged set. Otherwise behaviour is unchanged
-    (Month/Year/Cycle keep their constant bars)."""
+    """Each area is named by the life-area of the planet's CURRENT house (from the
+    (planet, house) tuples), so distinct placements no longer collapse to the same
+    chip. When `dignity` is provided (Today branch), bars reflect real LK dignity
+    and `care` reflects the flagged set; Month/Year/Cycle keep their constant bars."""
     flagged = flagged or set()
     areas: list = []
     seen: set = set()
@@ -1086,30 +1107,27 @@ def _build_areas(strong: list, weak: list,
             return _bars_from_dignity(dignity[p])
         return default
 
-    for p, _ in strong[:2]:
-        nm = (PLANET_AREAS.get(p) or [p])[0]
-        if nm in seen:
+    # up to 2 distinct strong AREAS (two planets sharing a house dedupe to one)
+    for p, h in strong[:3]:
+        nm = HOUSE_AREAS.get(h)
+        if not nm or nm in seen:
             continue
         seen.add(nm)
-        # [strip-3surfaces 2026-06-09] source fix: prefer plain words.
-        try:
-            from antar_engine.lal_kitab_masik import PLANET_NATURE_PLAIN as _PNP
-        except Exception:
-            _PNP = {}
-        _nat_src = _PNP.get(p) or PLANET_NATURE.get(p, "") or ""
-        first_theme = (_nat_src.split(",")[0] if _nat_src else "").strip() or "this area"
+        theme = HOUSE_AREA_THEME.get(h, "this area")
         areas.append({
             "name": nm, "bars": _bars(p, 3), "care": p in flagged,
-            "note": f"Strong — favourable for {first_theme}.",
+            "note": f"Strong — favourable for {theme}.",
         })
+        if len(areas) >= 2:
+            break
     if weak:
-        wp, _ = weak[0]
-        nm = (PLANET_AREAS.get(wp) or [wp])[0]
-        if nm not in seen:
+        wp, wh = weak[0]
+        nm = HOUSE_AREAS.get(wh)
+        if nm and nm not in seen:
             areas.append({
                 "name": nm, "bars": _bars(wp, 0),
                 "care": (wp in flagged) if flagged else True,
-                "note": "Under pressure — postpone decisions in this area.",
+                "note": "Under pressure — postpone decisions here.",
             })
             seen.add(nm)
     while len(areas) < 2:
