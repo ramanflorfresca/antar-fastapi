@@ -1116,6 +1116,10 @@ def _build_areas(strong: list, weak: list,
         theme = HOUSE_AREA_THEME.get(h, "this area")
         areas.append({
             "name": nm, "bars": _bars(p, 3), "care": p in flagged,
+            # [area-polarity 2026-09-25] explicit dot color for the FE (green/
+            # amber/grey), so surfaces rendering these as an "area by area" list
+            # (e.g. This Year) don't have to re-derive it from bars/care.
+            "polarity": "positive",
             "note": f"Strong — favourable for {theme}.",
         })
         if len(areas) >= 2:
@@ -1127,12 +1131,14 @@ def _build_areas(strong: list, weak: list,
             areas.append({
                 "name": nm, "bars": _bars(wp, 0),
                 "care": (wp in flagged) if flagged else True,
+                "polarity": "caution",
                 "note": "Under pressure — postpone decisions here.",
             })
             seen.add(nm)
     while len(areas) < 2:
         areas.append({
             "name": "Wellbeing", "bars": 2, "care": False,
+            "polarity": "steady",
             "note": "Steady — keep your usual routine.",
         })
     return areas[:3]
