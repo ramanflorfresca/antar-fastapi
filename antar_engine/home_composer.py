@@ -1447,6 +1447,23 @@ def _compose_for_horizon(horizon: str,
     gist, _gate_b_noun_debug = _append_chart_nouns(
         gist, horizon, strong, weak, polarity,
     )
+    # [year-chapter reconcile 2026-09-25] A forward/positive YEAR sitting inside a
+    # DEMANDING (hold) chapter should carry the chapter's guardrail — otherwise the
+    # Year card reads "set the direction now" while the Cycle card reads "hold
+    # steady, don't rush the big calls". Keep the year's forward tempo, add the
+    # chapter-level caution so the two nest instead of clashing. (A press/build
+    # chapter already agrees with a forward year, so no caveat there.)
+    if horizon == "year" and polarity == "positive" and md_planet:
+        try:
+            from antar_engine.life_arc.forward_cycle_engine import _chapter_stance
+            if (_chapter_stance(md_planet, chart_data, aligned=True) or {}).get("direction") == "hold":
+                gist = gist.rstrip()
+                if gist and not gist.endswith("."):
+                    gist += "."
+                gist += (" Move on the gains, but the wider chapter is demanding — "
+                         "hold the big, irreversible calls.")
+        except Exception:
+            pass
     lk_cause = None
     if today_signal is not None and wp:
         lk_cause = (today_signal.get("conditions") or {}).get(wp)
