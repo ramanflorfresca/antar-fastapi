@@ -20434,20 +20434,87 @@ def _ask_norm_lang(language):
 # vs dinheiro, trabajo vs trabalho, cuándo vs quando). English/ambiguous text
 # returns None, and an explicit es/pt from the client is always honoured — this
 # only ever rescues a request that arrived as "en".
-_ASK_ES_UNIQUE = ("¿", "¡", "ñ", " cuándo", " cuando ", " qué", " cómo", " dónde",
-                  " dinero", " trabajo", " negocio", " debería", " mis ",
-                  " serán ", " resolverán")
-_ASK_PT_UNIQUE = ("ç", "ã", "õ", " você", " não", " quando", " dinheiro",
-                  " negócio", " trabalho", " vou ", " minha ", " devo ")
+# [ask-lang-detect 2026-09-24] Robust question-language detection. The old
+# 15-word allowlist missed obvious Spanish that lacked one of those exact words
+# (e.g. "Voy a cerrar la representación comercial de una empresa..." → answered
+# in English). Replaced with token-overlap against stopword sets + language-
+# unique diacritics, so a normal es/pt sentence is caught by its function words,
+# not by a keyword lottery.
+_ASK_ES_WORDS = frozenset("""
+el la los las un una uno unos unas y en de del al a que cual por para con sin
+sobre mi mis tu su sus se es está están ser estar soy voy va vas van vamos
+más muy año años mes meses dia dias día días proximo proximos próximo próximos
+proxima próxima cerrar empresa empresas dinero plata trabajo empleo negocio
+debería deberia tengo tener hacer haré hare será serán seran esto esta este
+estos estas eso esa ese aquí aqui ahora cuando como pero porque tambien también
+hay quiero necesito puedo debo mio mia me te nos les lo casarme casar divorciar
+divorcio matrimonio pareja esposa esposo marido salud comprar vender mudarme
+mudanza pais país ciudad
+""".split())
+_ASK_PT_WORDS = frozenset("""
+o a os as um uma uns umas e em de do da dos das no na nos nas que qual por para
+com sem sobre meu minha teu tua seu sua se é está estão ser estar sou vou vai
+vais vao vão vamos mais muito ano anos mes meses mês dia dias proximo proximos
+próximo próximos proxima próxima fechar empresa empresas dinheiro trabalho
+emprego negocio negócio devo tenho ter fazer farei será esse essa este esta
+isso isto aqui agora quando como mas porque tambem também há quero preciso posso
+meu me te nos lhe casar divorcio divórcio casamento parceiro esposa marido saude
+saúde comprar vender mudar mudança pais país cidade voce você nao não
+""".split())
+# language-UNIQUE diacritics (decisive); romance accents (áéíóúü) are shared with
+# Portuguese so they only nudge, they don't decide.
+_ASK_ES_DIA = ("ñ", "¿", "¡")
+_ASK_PT_DIA = ("ã", "õ", "ç")
+_ASK_ROM_DIA = ("á", "é", "í", "ó", "ú", "ü")
+# a single strong word is decisive on its own (short questions like "¿Cuándo?").
+# ONLY language-DISCRIMINATING words here — no words shared by es & pt (divorciar,
+# esposa, marido, negocio…), which would break the tie-break the wrong way.
+_ASK_ES_STRONG = frozenset("cuándo cómo dónde qué cuál quién dinero voy "
+                           "mudarme casarme".split())
+_ASK_PT_STRONG = frozenset("quando você voce não nao dinheiro vou casamento".split())
 def _ask_detect_text_lang(text):
-    """Return 'es'/'pt' when the question is strongly that language, else None."""
-    t = " " + (text or "").lower() + " "
-    pt = sum(1 for m in _ASK_PT_UNIQUE if m in t)
-    es = sum(1 for m in _ASK_ES_UNIQUE if m in t)
-    if pt and pt >= es:
-        return "pt"
-    if es:
+    """Return 'es'/'pt' when the question is confidently that language, else None.
+
+    Token-overlap against stopword sets + language-unique diacritics + a few
+    decisive interrogatives. Robust to sentences that don't happen to contain one
+    of a handful of keywords (the old allowlist answered obvious Spanish like
+    "Voy a cerrar la representación comercial de una empresa..." in English).
+    English questions score ~0 and correctly return None. Threshold 2 keeps a
+    lone shared token (e.g. Portuguese/English "a") from misfiring."""
+    import re as _re
+    t = (text or "").lower()
+    toks = _re.findall(r"[a-záéíóúüñãõç]+", t)
+    if not toks:
+        return None
+    es = sum(1 for w in toks if w in _ASK_ES_WORDS)
+    pt = sum(1 for w in toks if w in _ASK_PT_WORDS)
+    es += 2 * sum(1 for w in toks if w in _ASK_ES_STRONG)
+    pt += 2 * sum(1 for w in toks if w in _ASK_PT_STRONG)
+    es_uni = any(d in t for d in _ASK_ES_DIA)
+    pt_uni = any(d in t for d in _ASK_PT_DIA)
+    if es_uni:
+        es += 2
+    if pt_uni:
+        pt += 2
+    # a romance accent that isn't language-unique nudges the leading side (it
+    # still separates es/pt from English, which has none)
+    if any(d in t for d in _ASK_ROM_DIA) and not (es_uni or pt_uni):
+        if es >= pt:
+            es += 1
+        else:
+            pt += 1
+    if max(es, pt) >= 2:
+        if pt > es:
+            return "pt"
+        if es > pt:
+            return "es"
+        # tie with real evidence: unique diacritic decides, else es (LATAM-leaning)
+        return "pt" if (pt_uni and not es_uni) else "es"
+    # last resort: a lone unmistakable diacritic
+    if es_uni and not pt_uni:
         return "es"
+    if pt_uni and not es_uni:
+        return "pt"
     return None
 
 
