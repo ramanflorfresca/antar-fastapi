@@ -37364,6 +37364,16 @@ async def predict_year_attention(request: dict, language: str = None):
         print(f"[year-attention] domain_windows skipped (non-fatal): {_dw_err}")
         payload["domain_windows"] = []
 
+    # [year month-bar 2026-09-25] 12-segment strength bar for the solar-return year —
+    # the year-scale analogue of the Month tab's week bar (green/amber/orange per
+    # personal month). Same transit-tone scoring. Fail-open to no bar.
+    try:
+        from antar_engine.yearly_domain_windows import build_year_month_bands as _bymb
+        payload["month_bands"] = _bymb(chart_data, birth_date, _date.today())
+    except Exception as _mb_err:
+        print(f"[year-attention] month_bands skipped (non-fatal): {_mb_err}")
+        payload["month_bands"] = []
+
     # ── Layer-2 concrete signals (highlights) — Year ───────────────────
     try:
         from antar_engine.highlight_composer import build_highlights as _bh_year
