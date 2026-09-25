@@ -39916,9 +39916,11 @@ async def _life_arc_compute(chart_id, horizon_months, language,
                             _c["reframed_from"] = _cet
                             _c["title"] = _c["event_label"] = "Something you create or lead"
                             _c["label"] = "Something you create or lead"
-                            _c["detail"] = ("A 5th-house opening — a creative project or "
-                                            "venture you bring to life, or a student / "
-                                            "protégé you take on. Not a child at this stage.")
+                            # plain, positive, de-jargoned — was leaking "5th-house"
+                            # and the awkward "Not a child at this stage."
+                            _c["detail"] = ("A creative or entrepreneurial opening — a "
+                                            "project or venture you bring to life, or "
+                                            "someone you mentor or take under your wing.")
                             _c["domain"] = "work"
                             _c["category"] = "CREATIVE"
                         # Collapse family-derived cards that reduce to the SAME

@@ -56,4 +56,6 @@ def get_library_version() -> str:
     # events + landmarks) now also reframes on adult-children status, not just the
     # biological age cutoff — so a 62-yo man with grown kids stops getting "A child
     # may join the family".
-    return ("|".join(parts) if parts else "empty") + "|hl=9"
+    # [de-jargon 2026-09-25] hl 9 -> 10: the family->creative reframe detail no
+    # longer leaks "5th-house" or the awkward "Not a child at this stage".
+    return ("|".join(parts) if parts else "empty") + "|hl=10"
