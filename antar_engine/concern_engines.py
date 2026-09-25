@@ -170,6 +170,13 @@ def analyze_concern(concern: str, chart_data: dict, dashas: dict,
             return {"available": False}
 
         houses = spec["houses"]
+        # [precision 2026-09-24] The spec's `houses` are ordered by importance, so
+        # the first two are this domain's PRIMARY significator houses; the rest are
+        # supporting/shared. This matters because the 11th (labha) sits in the
+        # income, funding AND relationship_entry sets — a running planet merely
+        # OCCUPYING that shared house must not light every gain-domain to
+        # "well supported" off the same activator (the money-read bleed).
+        primary_houses = set(houses[:2])
         # significators = lords of the concern houses + karakas + planets sitting in them
         house_signs = {h: _sign_n_from(lagna, h) for h in houses}
         house_lords = {h: SIGN_LORD.get(house_signs[h]) for h in houses}
@@ -237,8 +244,16 @@ def analyze_concern(concern: str, chart_data: dict, dashas: dict,
                 # it happens to lord the house.
                 if p in vim_cur and p not in dasha_active:
                     if not is_risk or pdig < 0 or p in _MALEFICS:
-                        add(p, 1.5, "and its period is running now")
-                        dasha_active.append(p)
+                        if h in primary_houses:
+                            add(p, 1.5, "and its period is running now")
+                            dasha_active.append(p)
+                        else:
+                            # [precision 2026-09-24] a running planet merely
+                            # OCCUPYING a SHARED/tertiary house (the 11th, which
+                            # every gain-domain contains) gives minor support only
+                            # — it must NOT flip a domain to lit/"well supported" on
+                            # a house that isn't this domain's primary significator.
+                            add(p, 0.6, "and its period is running now (a supporting influence)")
 
         # karakas
         for k in spec["karakas"]:
