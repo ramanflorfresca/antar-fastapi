@@ -39886,6 +39886,17 @@ async def _life_arc_compute(chart_id, horizon_months, language,
                 _fe_gender = str((chart_record or {}).get("gender") or "").strip().lower()
                 _FE_CHILD_MAX = {"female": 47, "woman": 47, "f": 47,
                                  "male": 65, "man": 65, "m": 65}.get(_fe_gender, 55)
+                # [adult-kids 2026-09-25] Someone whose children are already ADULTS is
+                # not having a FIRST child regardless of biological age — a 62-yo man
+                # with grown kids still got "A child may join the family" because the
+                # male cutoff is 65. Force the creative reframe on a known adult-kids
+                # status, independent of the age window.
+                _fe_adult_kids = False
+                try:
+                    from antar_engine.life_context import _norm_children as _fe_nc
+                    _fe_adult_kids = (_fe_nc(chart_record) == "adult")
+                except Exception:
+                    _fe_adult_kids = False
                 _fe_seen_ftitle, _fe_kept = set(), []
                 for _c in _fe_chips:
                     _cet = str(_c.get("_event_type") or "")
@@ -39894,7 +39905,7 @@ async def _life_arc_compute(chart_id, horizon_months, language,
                             _age_w = int(str(_c.get("window_start") or "")[:4]) - _fe_birth_year
                         except Exception:
                             _age_w = None
-                        if (_age_w is None) or (_age_w <= _FE_CHILD_MAX):
+                        if (not _fe_adult_kids) and ((_age_w is None) or (_age_w <= _FE_CHILD_MAX)):
                             _c["event_type"] = "family_expansion_first"
                             _c["title"] = _c["event_label"] = "A child may join the family"
                             _c["label"] = "A child may join the family"

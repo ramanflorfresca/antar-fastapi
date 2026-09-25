@@ -52,4 +52,8 @@ def get_library_version() -> str:
     # [adult-kids 2026-09-25] hl 7 -> 8: the childbirth scrub now also fires on a
     # known adult-children status (not just age/gender) and scrubs node bodies, so
     # "Family grows" / "centres on a child" no longer reach readers with grown kids.
-    return ("|".join(parts) if parts else "empty") + "|hl=8"
+    # [adult-kids 2026-09-25] hl 8 -> 9: the family-expansion CHIP gate (predicted_
+    # events + landmarks) now also reframes on adult-children status, not just the
+    # biological age cutoff — so a 62-yo man with grown kids stops getting "A child
+    # may join the family".
+    return ("|".join(parts) if parts else "empty") + "|hl=9"
