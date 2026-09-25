@@ -283,10 +283,17 @@ def build_yearly_domain_windows(chart_data: dict, dashas: dict,
 
 # ─────────────────────────────────────────────────────────────────────────────
 # [year month-bar 2026-09-25] A 12-segment strength bar for the solar-return year —
-# the year-scale analogue of the Month tab's week bar. Each personal month gets a
-# green/amber/orange band scored by summed transit-event tone (the SAME
-# `_score_event_tone` the month's best/caution-week picker uses), so Month-weeks and
-# Year-months read on one consistent scale.
+# the year-scale analogue of the Month tab's week bar.
+#
+# [masik-parity 2026-09-25] The band for each month is NOT a separate transit
+# tone-sum (that had no reason to agree with the month's actual reading). It is
+# the SAME Masik Phal verdict the Month tab shows: natal houses → varshphal
+# rotation (by age) → +1 house per month, then count planets in the strong houses
+# {9,10,11} vs the difficult houses {6,8,12}, and classify with the same
+# `_compute_energy_level` the monthly production uses. So a month that reads
+# "average" in its monthly deepdive shows "okay" (amber) on the year bar, a strong
+# month shows "good", a heavy month shows "caution" — the two surfaces can't
+# contradict each other, because it's literally one engine.
 def _add_months(d: date, n: int) -> date:
     """Add n calendar months to a date, clamping the day to the month's length."""
     m = d.month - 1 + n
@@ -296,15 +303,26 @@ def _add_months(d: date, n: int) -> date:
     return date(y, m, min(d.day, _cal.monthrange(y, m)[1]))
 
 
+# Masik energy → year-band color. Mirrors _compute_energy_level's enum exactly:
+#   high → good (green), moderate/mixed → okay (amber), low → caution (orange).
+# 'mixed' (strong AND weak both ≥2) is genuinely two-sided, so amber is honest.
+_ENERGY_TO_BAND = {"high": "good", "moderate": "okay",
+                   "mixed": "okay", "low": "caution"}
+
+
 def build_year_month_bands(chart_data: dict, birth_date: str,
                            today: Optional[date] = None) -> List[Dict[str, Any]]:
     """12 month-bands across the current solar-return (varshphal) year.
 
     Returns [] on any failure (never raises). Each entry:
-      {index, label, full_label, start, end, band, score, is_current}
+      {index, label, full_label, start, end, band, energy, score, is_current}
       band ∈ "good" | "okay" | "caution"  (green / amber / orange)
-    Scored by summed slow-transit event tone per month; ±1.0 dead-zone keeps a
-    genuinely quiet month honestly "okay" rather than forcing a distribution.
+
+    Each band is the month's Masik Phal verdict — the SAME house-rotation + strong/
+    weak count that drives the Month tab's monthly reading — so the year bar and the
+    monthly production always agree ("average month → amber band"). `energy` carries
+    the underlying enum (high/moderate/mixed/low); `score` is the signed
+    strong-minus-weak count (internal only, never shown).
     """
     try:
         today = today or date.today()
@@ -312,6 +330,31 @@ def build_year_month_bands(chart_data: dict, birth_date: str,
         ps, pe, _method = _yp(birth_date, today)
         start = date.fromisoformat(str(ps)[:10])
         end = date.fromisoformat(str(pe)[:10])
+    except Exception:
+        return []
+
+    # Natal house of each planet (the Masik Phal seed).
+    planets = (chart_data or {}).get("planets") or {}
+    natal_houses = {p: d.get("house", 1) for p, d in planets.items()
+                    if isinstance(d, dict) and 1 <= int(d.get("house", 0) or 0) <= 12}
+    if not natal_houses:
+        return []
+
+    # Varshphal base rotation — same rule as calculate_masik_phal: age → running_year,
+    # every planet advances (running_year - 1) houses for the annual chart. Age is
+    # taken at the START of this solar year (the birthday), stable across all 12 months.
+    try:
+        born = date.fromisoformat(str(birth_date)[:10])
+        age = max(0, (start - born).days // 365)
+    except Exception:
+        age = 35
+    running_year = max(1, min(120, age + 1))
+    varshphal = {p: ((h - 1 + (running_year - 1)) % 12) + 1
+                 for p, h in natal_houses.items()}
+
+    try:
+        from antar_engine.lal_kitab_masik import POWERFUL_HOUSES, DIFFICULT_HOUSES
+        from antar_engine.monthly_deepdive import _compute_energy_level
     except Exception:
         return []
 
@@ -324,35 +367,19 @@ def build_year_month_bands(chart_data: dict, birth_date: str,
             e = end
         segs.append((s, e))
 
-    # slow-transit events across the whole year (year-shaping, matches _year_stretch)
-    try:
-        from antar_engine.transit_events import compute_transit_events_in_range
-        from antar_engine.monthly_deepdive import _score_event_tone
-        events = compute_transit_events_in_range(chart_data, start, end, include_fast=False) or []
-    except Exception:
-        events, _score_event_tone = [], None
-
-    def _seg_score(s: date, e: date) -> float:
-        if not (events and _score_event_tone):
-            return 0.0
-        tot = 0.0
-        for ev in events:
-            try:
-                d = date.fromisoformat(str(ev.get("date"))[:10])
-            except Exception:
-                continue
-            if s <= d <= e:
-                try:
-                    tot += float(_score_event_tone(ev))
-                except Exception:
-                    pass
-        return tot
-
-    HI, LO = 1.0, -1.0
     out: List[Dict[str, Any]] = []
     for i, (s, e) in enumerate(segs):
-        sc = round(_seg_score(s, e), 2)
-        band = "good" if sc >= HI else ("caution" if sc <= LO else "okay")
+        # Masik Phal for month-offset i: advance every planet i houses from varshphal
+        # (Month 0 = birthday month = varshphal; the exact rule calculate_masik_phal uses).
+        strong = weak = 0
+        for h in varshphal.values():
+            mh = ((h - 1 + i) % 12) + 1
+            if mh in POWERFUL_HOUSES:
+                strong += 1
+            elif mh in DIFFICULT_HOUSES:
+                weak += 1
+        energy = _compute_energy_level(strong, weak)
+        band = _ENERGY_TO_BAND.get(energy, "okay")
         # label by the segment MIDPOINT's calendar month — segments are birthday-
         # anchored (e.g. the 26th→25th), so the midpoint names the month the user
         # actually thinks of (Nov 26–Dec 25 reads as "Dec", not "Nov").
@@ -364,7 +391,8 @@ def build_year_month_bands(chart_data: dict, birth_date: str,
             "start": s.isoformat(),
             "end": e.isoformat(),
             "band": band,
-            "score": sc,
+            "energy": energy,
+            "score": strong - weak,
             "is_current": s <= today <= e,
         })
     return out
