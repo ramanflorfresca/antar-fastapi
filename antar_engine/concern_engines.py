@@ -54,6 +54,11 @@ CONCERN_SPEC = {
                           10: "your livelihood and work income",
                           6: "recurring costs and debt that drag on cash flow"},
         "karakas": ["Jupiter", "Mercury", "Venus"],
+        # [precision 2026-09-24] Jupiter is THE wealth significator (dhana karaka);
+        # Mercury/Venus are secondary. A running PRIMARY karaka can light the domain;
+        # a running secondary one only supports (see the karaka loop) — so income
+        # doesn't read actively "well supported" off a minor wealth karaka alone.
+        "primary_karakas": ["Jupiter"],
         "subject": "your income and cash flow",
     },
     "funding": {
@@ -63,6 +68,9 @@ CONCERN_SPEC = {
                           11: "gains and what comes in", 6: "loans and debt taken on",
                           2: "your own capital"},
         "karakas": ["Jupiter", "Venus", "Mercury", "Rahu"],
+        # Jupiter (benefactor/wealth) and Rahu (leverage, foreign/unconventional
+        # capital) are the funding-specific significators; Venus/Mercury secondary.
+        "primary_karakas": ["Jupiter", "Rahu"],
         "subject": "outside money — a loan, investment, or funding",
     },
     "relationship_entry": {
@@ -256,6 +264,14 @@ def analyze_concern(concern: str, chart_data: dict, dashas: dict,
                             add(p, 0.6, "and its period is running now (a supporting influence)")
 
         # karakas
+        # [precision 2026-09-24] `primary_karakas` (defaults to ALL karakas, so
+        # relationship/separation/health are unchanged — their primary karaka is
+        # gender-dependent, e.g. Venus vs Jupiter for a spouse, so both stay full).
+        # For the unambiguous wealth domains (income → Jupiter; funding → Jupiter/
+        # Rahu) a running SECONDARY karaka only supports and does NOT set `lit`, so
+        # the domain can't read actively "well supported" off a minor natural
+        # significator alone when its own houses/lords aren't timing-active.
+        primary_karakas = set(spec.get("primary_karakas", spec["karakas"]))
         for k in spec["karakas"]:
             kv = planets.get(k) or {}
             kdig, kword = _dignity(k, kv.get("sign"))
@@ -265,8 +281,11 @@ def analyze_concern(concern: str, chart_data: dict, dashas: dict,
             else:
                 add(k, 0.6 + kdig, "is a natural significator here" + (f", {kword}" if kword else ""))
             if k in vim_cur and k not in dasha_active and (not is_risk or kdig < 0 or k in _MALEFICS):
-                add(k, 1.0, "and its period is running now")
-                dasha_active.append(k)
+                if k in primary_karakas:
+                    add(k, 1.0, "and its period is running now")
+                    dasha_active.append(k)
+                else:
+                    add(k, 0.5, "and its period is running now (a supporting natural significator)")
 
         # D-9 confirmation — is the PRIMARY significator (first house's lord)
         # also dignified / not debilitated in the navamsa?
