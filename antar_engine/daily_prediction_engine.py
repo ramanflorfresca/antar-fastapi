@@ -2169,7 +2169,9 @@ async def _call_claude_daily_signal_retry(
         response = await _safe_messages_create(
             client,
             model="claude-sonnet-4-6",
-            max_tokens=1500,
+            # [es-truncation 2026-09-26] es/pt need headroom — a truncated retry
+            # just fails validation again (the exact loop we're trying to kill).
+            max_tokens=2000 if language in ("es", "pt") else 1500,
             temperature=0.2,  # Lower temp for correction
             system=_daily_system_retry,
             messages=[{"role": "user", "content": retry_prompt}],
@@ -2272,6 +2274,12 @@ async def _call_claude_daily_signal(
         # FIX 13: Bumped from 800 → 1500 to prevent JSON truncation
         # (daily signal JSON has 10+ fields including arrays — 800 tokens caused
         # "Unterminated string" parse errors in production logs)
+        # [es-truncation 2026-09-26] Spanish (and Portuguese) run ~20-30% more
+        # tokens than English for the same content, so 1500 clipped the last
+        # field(s) mid-sentence — the dominant source of the es daily-week
+        # "broken sentence" validation failures + corrective retries. Give es/pt
+        # headroom so the JSON completes in one pass.
+        _max_out = 2000 if language in ("es", "pt") else 1500
         # [llm-adapter 2026-07-27] Non-Anthropic providers (panel-selected) route
         # through the adapter; the Anthropic branch below is unchanged, so the
         # default provider generates exactly as before.
@@ -2286,7 +2294,7 @@ async def _call_claude_daily_signal(
                 _raw_via_adapter = (await _lad.complete(
                     system=system_blocks,
                     messages=[{"role": "user", "content": user_prompt}],
-                    max_tokens=1500, temperature=0.3, provider=_prov, model=_mdl) or "").strip()
+                    max_tokens=_max_out, temperature=0.3, provider=_prov, model=_mdl) or "").strip()
                 logger.info(f"[daily-llm] generated via {_prov}/{_mdl}")
         except Exception as _lae:
             logger.warning(f"[daily-llm] adapter route failed, using Claude: {_lae}")
@@ -2298,7 +2306,7 @@ async def _call_claude_daily_signal(
             response = await _safe_messages_create(
                 client,
                 model="claude-sonnet-4-6",
-                max_tokens=1500,
+                max_tokens=_max_out,
                 temperature=0.3,
                 system=system_blocks,
                 messages=[{"role": "user", "content": user_prompt}],

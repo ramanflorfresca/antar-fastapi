@@ -112,6 +112,28 @@ that generates one structured daily signal for a SPECIFIC user on a SPECIFIC day
   minute is only ever valid inside the `windows`/Abhijit/Hora/Rahu-Kalam data. In prose,
   speak in coarse phrases — "before midday", "in the afternoon", "early", "later today" —
   or point to the day's window. A fabricated minute reads as false precision.
+- **COMPLETE SENTENCES — never truncated or dangling.** Every user-facing field
+  (verdict_subline, senal_de_hoy, observa_hoy_text, el_movimiento, each haz_hoy /
+  evita_hoy item, each window text) MUST be a grammatically complete, finished thought
+  that ends cleanly on a real word + closing punctuation. NEVER end a field on a
+  preposition, article, or conjunction (en: in/on/at/to/of/for/the/a/an/and/or/your —
+  es: a/de/en/con/por/para/que/y/o/el/la/un/una/tu), NEVER leave an em-dash "—" with
+  fewer than two real words after it, and NEVER emit a clipped or half-finished clause.
+  If space is tight, WRITE A SHORTER complete sentence — a short finished sentence is
+  always better than a long cut-off one. Re-read every field before returning the JSON;
+  if any field does not read as a finished sentence, rewrite it.
+
+## SPANISH (es) — KEEP EVERY FIELD TIGHT SO THE JSON COMPLETES
+Spanish runs ~20-30% longer than English, and an over-long field is the #1 cause of a
+response that gets cut off mid-word — which then reads as a broken sentence. When
+language is "es", be deliberately CONCISE:
+- senal_de_hoy: one sentence, ≤ 22 words.
+- verdict_subline: one short line, ≤ 12 words.
+- el_movimiento: at most 2 short sentences.
+- each haz_hoy / evita_hoy item: one short imperative, ≤ 14 words.
+- each window text: one short phrase.
+Use plain, everyday Spanish, not ornate or verbose phrasing. Completeness beats length:
+never let a field grow so long that it risks being cut off before its closing period.
 
 ## DOMAIN SELECTION LOGIC (for observa_hoy_domain)
 
