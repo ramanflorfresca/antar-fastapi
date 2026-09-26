@@ -1091,13 +1091,47 @@ def _validate_headline_concrete(signal_json: dict, language: str) -> list:
     return bad
 
 
+# [manana-fp 2026-09-25] Weekday/ayer are always banned; 'mañana' is banned ONLY
+# in its 'tomorrow' sense. The old fixed-width lookbehind exempted only
+# la/esta/una/de, so legitimate MORNING phrases like "cada mañana" (every
+# morning) or "otra mañana" false-fired the daily validator and forced a needless
+# es corrective-retry (a 2nd Sonnet call). Python `re` has no variable-width
+# lookbehind, so decide by the PRECEDING WORD: 'mañana' is morning (allowed) iff
+# the word before it is a morning determiner; otherwise it's tomorrow (banned),
+# which correctly still catches "para/hasta mañana", sentence-initial "Mañana …",
+# and "vuelvo mañana".
+_ES_WEEKDAY_AYER = _re_val.compile(
+    r'\b(?:lunes|martes|mi[eé]rcoles|miercoles|jueves|viernes|s[aá]bado|sabado|domingo|ayer)\b',
+    _re_val.IGNORECASE)
+_MANANA_RE = _re_val.compile(r'\bma[nñ]ana\b', _re_val.IGNORECASE)
+_MANANA_MORNING_DET = {
+    "la", "esta", "una", "de", "cada", "toda", "otra", "esa", "buena",
+    "alguna", "cualquier", "misma", "aquella", "mala", "linda", "temprana",
+}
+
+
+def _es_temporal_violation(text: str) -> bool:
+    """True if Spanish text carries a banned weekday/ayer or a 'tomorrow'-sense mañana."""
+    if _ES_WEEKDAY_AYER.search(text):
+        return True
+    for m in _MANANA_RE.finditer(text):
+        pre = text[:m.start()].rstrip()
+        prev = pre.split()[-1].lower().strip(".,;:!¿?()«»\"'") if pre.split() else ""
+        if prev not in _MANANA_MORNING_DET:
+            return True  # tomorrow-sense (or bare/sentence-initial) → banned
+    return False
+
+
 def _validate_no_day_names(signal_json: dict, language: str) -> list:
     """FIX 14b: Check for forbidden day-of-week names in regulated fields."""
-    banned = _BANNED_TEMPORAL_ES if language == 'es' else _BANNED_TEMPORAL_EN
     violations = []
     for f in _VALIDATED_FIELDS:
         val = signal_json.get(f, '')
-        if isinstance(val, str) and banned.search(val):
+        if not isinstance(val, str) or not val:
+            continue
+        hit = (_es_temporal_violation(val) if language == 'es'
+               else bool(_BANNED_TEMPORAL_EN.search(val)))
+        if hit:
             violations.append(f)
     return violations
 
