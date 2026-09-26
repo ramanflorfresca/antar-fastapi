@@ -5005,7 +5005,7 @@ def _running_md_ad(chart_id: str) -> dict:
 
 
 @app.get("/api/v1/chart/{chart_id}", response_model=ChartResponse)
-async def get_chart(chart_id: str):
+def get_chart(chart_id: str):
     chart_id = _ensure_full_uuid(chart_id)
     result = supabase.table("charts").select("*").eq("id", chart_id).execute()
     if not result.data:
@@ -9010,7 +9010,7 @@ async def update_patra(
     }
 
 @app.get("/api/v1/user/profile-gaps/{chart_id}")
-async def get_profile_gaps(chart_id: str, limit: int = 2):
+def get_profile_gaps(chart_id: str, limit: int = 2):
     """What we still need to ask this user before we can read precisely.
 
     [profile-gaps 2026-07-20] Drives an in-app prompt: rather than collecting
@@ -10137,7 +10137,7 @@ async def fulfill_prediction(
 # ── Life Events ───────────────────────────────────────────────────────────────
 
 @app.get("/api/v1/user/profile")
-async def get_user_profile(request: Request):
+def get_user_profile(request: Request):
     """User profile — called by frontend Profile page. Returns language + chart basics."""
     try:
         chart_id = request.query_params.get("chart_id")
@@ -14078,7 +14078,7 @@ def _st_bust_prediction_cache(user_id, analysis_lang):
 
 # ════════════════════════════════ PROFILE ════════════════════════════════
 @app.get("/api/v1/me")
-async def settings_me(authorization: Optional[str] = Header(None), language: str = "en"):
+def settings_me(authorization: Optional[str] = Header(None), language: str = "en"):
     user_id, email = _st_identity(authorization)
     if not user_id:
         # [auth-guest 2026-07-25] Diagnostic for the "signed in with Google but
@@ -14250,7 +14250,7 @@ async def settings_me_patch(request: Request, authorization: Optional[str] = Hea
 
 # ════════════════════════════════ CHARTS ════════════════════════════════
 @app.get("/api/v1/me/charts")
-async def settings_charts(authorization: Optional[str] = Header(None)):
+def settings_charts(authorization: Optional[str] = Header(None)):
     user_id, _ = _st_identity(authorization)
     if not user_id:
         return _st_guest_401()
@@ -14772,7 +14772,7 @@ def _lang_pref_for_user(user_id):
 
 
 @app.get("/api/v1/me/language")
-async def settings_language(authorization: Optional[str] = Header(None), chart_id: Optional[str] = None):
+def settings_language(authorization: Optional[str] = Header(None), chart_id: Optional[str] = None):
     user_id, _ = _st_identity(authorization)
     if not user_id and chart_id:
         # [lang-401] Restore-based sessions can hold a stale/absent JWT while
@@ -14972,7 +14972,7 @@ async def settings_billing(authorization: Optional[str] = Header(None), language
 
 
 @app.get("/api/v1/me/entitlements")
-async def me_entitlements_endpoint(authorization: Optional[str] = Header(None)):
+def me_entitlements_endpoint(authorization: Optional[str] = Header(None)):
     """
     JWT-keyed twin of /entitlements/{chart_id}. Resolves the signed-in
     user's chart from profiles and returns the same entitlement_summary
@@ -14994,7 +14994,7 @@ async def me_entitlements_endpoint(authorization: Optional[str] = Header(None)):
 
 
 @app.get("/api/v1/entitlements/{chart_id}")
-async def get_entitlements_endpoint(chart_id: str):
+def get_entitlements_endpoint(chart_id: str):
     """
     Chart-keyed entitlement state for the frontend: tier, per-feature
     access map, and remaining lifetime Ask quota. Same shape as the
@@ -15005,7 +15005,7 @@ async def get_entitlements_endpoint(chart_id: str):
 
 
 @app.get("/api/v1/streak/{chart_id}")
-async def get_streak_endpoint(chart_id: str, tz_offset: int = 0):
+def get_streak_endpoint(chart_id: str, tz_offset: int = 0):
     """
     [gamification] Streak + earned-credit state for the UI.
 
@@ -15017,7 +15017,7 @@ async def get_streak_endpoint(chart_id: str, tz_offset: int = 0):
 
 
 @app.get("/api/v1/streak/{chart_id}/history")
-async def get_streak_history_endpoint(chart_id: str, limit: int = 30):
+def get_streak_history_endpoint(chart_id: str, limit: int = 30):
     """
     [gamification] "How did I earn this?" — recent grants and spends.
 
@@ -15030,7 +15030,7 @@ async def get_streak_history_endpoint(chart_id: str, limit: int = 30):
 
 
 @app.post("/api/v1/streak/{chart_id}/touch")
-async def post_streak_touch(chart_id: str, tz_offset: int = 0):
+def post_streak_touch(chart_id: str, tz_offset: int = 0):
     """
     [gamification] Explicitly register today's activity and settle rewards.
 
@@ -28526,7 +28526,7 @@ async def submit_prediction_feedback(request: dict):
 
 
 @app.get("/api/v1/predictions/pending-feedback/{chart_id}")
-async def get_pending_feedback_endpoint(chart_id: str):
+def get_pending_feedback_endpoint(chart_id: str):
     """Return predictions ready for user verification (max 3)."""
     from antar_engine.prediction_tracker import get_pending_feedback
     items = get_pending_feedback(chart_id, supabase)
@@ -28556,7 +28556,7 @@ async def debug_test_alert(admin_email: str = Depends(_require_debug)):
 
 
 @app.get("/api/v1/predictions/accuracy/{chart_id}")
-async def get_prediction_accuracy_endpoint(chart_id: str, language: str = "en"):
+def get_prediction_accuracy_endpoint(chart_id: str, language: str = "en"):
     """Return accuracy score — powers the trust badge."""
     from antar_engine.prediction_tracker import get_accuracy_score
     _acc = get_accuracy_score(chart_id, supabase)
@@ -28879,7 +28879,7 @@ async def start_alert_scheduler():
 # ── Subscription / Paywall Endpoints ─────────────────────────────
 
 @app.get("/api/v1/subscription/{chart_id}")
-async def get_subscription_status(chart_id: str):
+def get_subscription_status(chart_id: str):
     """Get subscription plan + this month\'s usage."""
     from antar_engine.subscription_engine import (
         get_subscription, get_usage, PLANS
@@ -28912,7 +28912,7 @@ async def get_subscription_status(chart_id: str):
 
 
 @app.get("/api/v1/subscription/what-youre-missing/{chart_id}")
-async def get_upgrade_hook(chart_id: str):
+def get_upgrade_hook(chart_id: str):
     """
     Personalized upgrade hook — what will this user miss
     if they don\'t upgrade? Powers the upgrade modal.
@@ -39378,7 +39378,7 @@ async def submit_prashna_followup(chart_id: str, prashna_id: str, body: dict):
 # ── Accuracy Dashboard ───────────────────────────────────────────────────────
 
 @app.get("/api/v1/accuracy/{chart_id}")
-async def get_accuracy_dashboard(chart_id: str):
+def get_accuracy_dashboard(chart_id: str):
     """
     Master accuracy endpoint combining daily signal, prashna, and predictions.
     Returns the 'Antar Precision Score' for the user's profile.
