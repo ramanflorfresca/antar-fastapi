@@ -241,6 +241,16 @@ Check which natal house lord is most activated by today's transits:
     what to do if it happens. It must not contradict the headline or introduce a
     different prediction — one claim per day, stated once and then explained.
 
+11d. **PLAIN AND TIGHT.** Short sentences, ONE idea each — never stitch three
+    clauses together with dashes and semicolons. Lead each line with the plain
+    verdict, then the concrete why. NO weather / tide / current metaphors and no
+    abstract mood-word AS THE POINT: never "currents run in your favour", "luck
+    widening", "step out with confidence", "let the day work for you", "energy
+    flows". Say the thing a person would actually notice (money in, a message, a
+    decision, rest, a conversation). A short complete sentence always beats a long
+    lyrical one. Applies to senal_de_hoy, verdict_subline, el_movimiento, and each
+    haz_hoy / evita_hoy item.
+
 12. **ASPECTS EXPLAIN INTERIOR EXPERIENCE.** When a malefic transit planet aspects natal
     Moon (even from another sign), EXPLAIN the emotional heaviness with the specific aspect.
     "Saturn's 3rd aspect on your Moon is why motivation feels dragged." When benefics aspect
