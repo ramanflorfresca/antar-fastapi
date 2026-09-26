@@ -175,6 +175,38 @@ def build_narration_system(
     # supported one — so the Today card never cheerleads a person in a hard stretch.
     if season_tone:
         _sys = _sys + "\n\n" + season_tone
+    # [life-gate 2026-09-26] The Today narration is a SEPARATE path from the daily
+    # card and leaked assumed-life nouns — notably "your boss" to a founder. The
+    # noun layer (select_nouns) already gates via active_life(), but the house
+    # THEME string ("career, your boss and reputation") and the model's own
+    # wording still slip through. Append a per-chart hard directive (below the
+    # '## LIVE DATA' split so it never poisons the shared KV prefix), reading the
+    # facts the orchestrator set via set_active_life(); no-ops when nothing known.
+    # Same guard the daily card / monthly already apply.
+    try:
+        from antar_engine.life_context import active_life as _al_nar
+        _life = _al_nar() or {}
+    except Exception:
+        _life = {}
+    _life_rules = []
+    if _life.get("employed") is not True:
+        _life_rules.append(
+            '- The reader is NOT known to be an employee — NEVER write "boss", '
+            '"manager", or "employer". For work / career / authority themes use '
+            '"your reputation", "your work standing", "an authority figure", or '
+            '"your business".')
+    if _life.get("partnered") is False:
+        _life_rules.append(
+            '- The reader is NOT partnered — NEVER write "spouse", "wife", or '
+            '"husband". Use "a partner or close collaborator" or "a deal".')
+    if _life.get("has_children") is False:
+        _life_rules.append(
+            '- The reader has NO children — NEVER write "child", "son", '
+            '"daughter", or "baby". Use "a project", "a venture", or '
+            '"something you\'re making".')
+    if _life_rules:
+        _sys = _sys + ("\n\nLIFE-CONTEXT CONSTRAINTS (HARD — override any noun or "
+                       "theme in the data that conflicts):\n" + "\n".join(_life_rules))
     return _sys
 
 
