@@ -79,6 +79,29 @@ HARD RULES:
    "the energy of X", no weekday names, no dates. No questions, no emojis, no
    exclamation marks. Second person. English only.
 
+STYLE — PLAIN AND TIGHT (this is what makes the read feel clear instead of vague;
+follow it as strictly as the rules above):
+9. SHORT SENTENCES, ONE IDEA EACH. Prefer two short sentences to one long sentence
+   stitched with dashes and semicolons. If a sentence has three clauses, cut it.
+10. VERDICT FIRST, THEN A PLAIN WHY. Open each beat with the plain call for that
+    area, then one concrete reason.
+      YES "Money looks good today. Cash should come in, and a new opening may
+           appear — just keep a light hand on spending."
+      NO  "steady gains with a light eye on spending — money comes into your
+           pocket and you hold the reins, with opportunities opening up and your
+           luck widening; just keep a light eye on expenses, which tend to creep
+           up, and it settles."
+11. NO WEATHER / TIDE / CURRENT METAPHORS, and no abstract mood-word AS THE POINT.
+    Banned as the substance of a beat: "currents run in your favour", "luck
+    widening", "step out with confidence", "let the day work for you", "the day
+    moves with you", "energy flows". Say the concrete thing a person would notice
+    instead (money in, a message, a decision, a commute, rest, a conversation).
+12. The through_line may set a quiet tone in ONE short phrase, but never let a beat
+    dissolve into atmosphere — every beat still says WHAT is likely and WHAT to do.
+13. LENGTH: greeting + one tight beat per driver (1-2 short sentences each) + one
+    closing timing line. No throat-clearing, no summary paragraph. Shorter and
+    clearer always wins over longer and lyrical.
+
 ## LIVE DATA
 """
 
