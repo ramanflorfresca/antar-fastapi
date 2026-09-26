@@ -14212,7 +14212,13 @@ async def settings_me_patch(request: Request, authorization: Optional[str] = Hea
         # non-essential updated_at.
         _reduced = dict(updates)
         import re as _re
-        _m = _re.search(r"column [\"']?(?:\w+\.)?(\w+)[\"']? does not exist", _emsg)
+        # Postgres 42703 phrasing ("column X does not exist") AND PostgREST
+        # PGRST204 phrasing ("Could not find the 'X' column of '...' in the schema
+        # cache") — the latter was uncaught, so a missing column (e.g. 'name' on
+        # profiles) never got stripped and BOTH attempts failed on every save,
+        # burning 3 DB round-trips per settings write.
+        _m = (_re.search(r"column [\"']?(?:\w+\.)?(\w+)[\"']? does not exist", _emsg)
+              or _re.search(r"Could not find the [\"'](\w+)[\"'] column", _emsg))
         if _m:
             _reduced.pop(_m.group(1), None)
         _reduced.pop("updated_at", None)
