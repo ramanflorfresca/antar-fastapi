@@ -627,6 +627,7 @@ async def generate_monthly_deepdive(
         moon_sign, current_dasha, age, country_code,
         lk_context, now, _bd,
         lk_data=lk_data, debug_out=_dbg, life=_life,
+        chart_record=chart_record,
     )
 
     # [life-gate 2026-09-23] Forbid claims the reader's KNOWN facts contradict —
@@ -855,6 +856,14 @@ def _build_deepdive_context(
     # [life-context 2026-07-19] {partnered, has_children} or None when unknown.
     # Gates the NOUN, never the house — see house_significations._life_allows.
     life:          Optional[dict] = None,
+    # [convergence-fix 2026-09-26] The chart record — sibling columns like
+    # jaimini_data live HERE, not inside chart_data. The convergence-ranked
+    # life-area spine (below) reads jaimini_data from it. It was referenced
+    # without being a parameter, so every monthly generation hit a NameError
+    # ('chart_record' is not defined') caught as non-fatal — silently dropping
+    # the entire Vimśottarī+gochar+Jaimini convergence ranking and falling back
+    # to the transit-only hot-domain list.
+    chart_record:  Optional[dict] = None,
 ) -> str:
     month_str = now.strftime("%B %Y")
     planets   = chart_data.get("planets", {})
