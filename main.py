@@ -32188,19 +32188,25 @@ def link_chart_to_google(
     tz_offset: Optional[float] = None,
 ):
     """
-    Links an anonymous chart to a Google-authenticated user.
-    Called after Google Sign-in succeeds on the frontend.
+    Links an anonymous (guest) chart to an authenticated account.
+    Called after ANY sign-in succeeds on the frontend — Google, Apple, or an
+    email magic link. Nothing here is provider-specific.
 
     Body: {
         chart_id: string,       -- the anonymous chart from localStorage
-        google_id: string,      -- user.id from Supabase Auth
+        auth_user_id: string,   -- user.id from Supabase Auth (ANY provider);
+                                --   legacy key `google_id` still accepted
         email: string,
         display_name: string,
         avatar_url: string
     }
     """
     chart_id     = request.get("chart_id","")
-    google_id    = request.get("google_id","")
+    # [auth_user_id 2026-09-28] The value is the Supabase auth user id for ANY
+    # provider — email magic link and Apple included, never only Google. Accept
+    # the new key first and fall back to the legacy one so an unpublished
+    # frontend keeps working during the rename.
+    auth_user_id = request.get("auth_user_id") or request.get("google_id") or ""
     email        = request.get("email","")
     display_name = request.get("display_name","")
     avatar_url   = request.get("avatar_url","")
@@ -32209,12 +32215,13 @@ def link_chart_to_google(
     if _lc_lang not in ("en", "es", "pt", "fr"):
         _lc_lang = "en"
 
-    if not chart_id or not google_id:
-        raise HTTPException(400, "chart_id and google_id required")
+    if not chart_id or not auth_user_id:
+        raise HTTPException(400, "chart_id and auth_user_id required")
 
-    # Check if this Google user already has a chart
-    existing = supabase.table("charts").select("id").eq(
-        "google_id", google_id
+    # Does this account already own a chart? Query BOTH columns for the length
+    # of the rename — a row written by older code has only google_id set.
+    existing = supabase.table("charts").select("id").or_(
+        f"auth_user_id.eq.{auth_user_id},google_id.eq.{auth_user_id}"
     ).execute()
 
     if existing.data:
@@ -32222,11 +32229,12 @@ def link_chart_to_google(
         # (don't create duplicate — just return the one they already have)
         existing_chart_id = existing.data[0]["id"]
 
-        # Update profile info in case it changed. Also writes user_id
-        # (same value as google_id — both are the OAuth subject UUID) so
-        # future /auth/restore lookups by user_id succeed.
+        # Update profile info in case it changed. Also writes user_id and
+        # auth_user_id (all three hold the same Supabase auth subject) so
+        # future /auth/restore lookups by any of them succeed.
         supabase.table("charts").update({
-            "user_id":      google_id,
+            "user_id":      auth_user_id,
+            "auth_user_id": auth_user_id,
             "email":        email,
             "display_name": display_name,
             "avatar_url":   avatar_url,
@@ -32246,12 +32254,13 @@ def link_chart_to_google(
             "message":  "Welcome back — your chart has been restored",
         }
 
-    # New user — link the anonymous chart to their Google account.
-    # Writes user_id and google_id to the SAME value (the OAuth subject UUID)
-    # so /auth/restore lookups by either column succeed.
+    # New account — link the guest chart to it. Writes the same Supabase auth
+    # subject to user_id, auth_user_id and (until phase 3) google_id, so
+    # /auth/restore succeeds whichever column it matches on.
     supabase.table("charts").update({
-        "user_id":      google_id,
-        "google_id":    google_id,
+        "user_id":      auth_user_id,
+        "auth_user_id": auth_user_id,
+        "google_id":    auth_user_id,   # dropped in phase 3 of the rename
         "email":        email,
         "display_name": display_name,
         "avatar_url":   avatar_url,
@@ -32268,7 +32277,7 @@ def link_chart_to_google(
         "success":  True,
         "chart_id": chart_id,
         "action":   "linked",
-        "message":  "Chart saved to your Google account",
+        "message":  "Chart saved to your account",
     }
 
 
@@ -32371,7 +32380,7 @@ def restore_chart(
 
     Called on app load when Supabase session exists but localStorage is empty.
     The path parameter is a Supabase auth.users UUID, which maps to
-    charts.user_id (NOT charts.google_id — previous bug).
+    charts.user_id (NOT charts.auth_user_id — previous bug).
 
     Response contract:
 
@@ -32416,18 +32425,18 @@ def restore_chart(
 
     # 2. Look up user's charts. The path param is the OAuth subject UUID
     # (Supabase auth.users.id). In the charts table this value can live in
-    # either `user_id` or `google_id`:
-    #   - `google_id` is set by /auth/link-chart on every Google sign-in
-    #   - `user_id` is set by /auth/link-chart (after this patch) and by
-    #     other historical signup flows
-    # Existing rows linked before this patch have user_id = NULL but
-    # google_id populated — querying both keeps them visible.
+    # any of `user_id`, `auth_user_id` or the legacy `google_id`:
+    #   - `auth_user_id` is set by /auth/link-chart (any provider)
+    #   - `google_id` is the legacy name for the same value, being dropped in
+    #     phase 3 of the rename — still matched so rows written by an
+    #     unpublished frontend stay visible
+    #   - `user_id` is set by /auth/link-chart and by historical signup flows
     charts_res = _sb_retry(lambda: supabase.table("charts").select(
         "id,user_id,chart_type,first_name,display_name,avatar_url,email,"
         "lagna_sign,moon_sign,moon_nakshatra,sun_sign,created_at,onboarding_completed_at,"
         "deleted_at"
     ).or_(
-        f"user_id.eq.{user_id},google_id.eq.{user_id}"
+        f"user_id.eq.{user_id},auth_user_id.eq.{user_id},google_id.eq.{user_id}"
     ).order("created_at", desc=True).execute(), label="auth/restore charts")
 
     # [tombstone-restore 2026-09-10] Exclude DELETED (tombstoned) charts from the
@@ -32605,12 +32614,18 @@ def restore_chart(
     }
 
 
-@app.get("/api/v1/auth/profile/{google_id}")
-def get_profile(google_id: str):
-    """Get user profile for display in header/settings."""
+@app.get("/api/v1/auth/profile/{auth_user_id}")
+def get_profile(auth_user_id: str):
+    """Get user profile for display in header/settings.
+
+    The path param is the Supabase auth user id for any provider. Matches both
+    column names until google_id is dropped in phase 3 of the rename.
+    """
     res = supabase.table("charts").select(
         "id,first_name,display_name,avatar_url,email,lagna_sign,moon_sign,created_at"
-    ).eq("google_id", google_id).limit(1).execute()
+    ).or_(
+        f"auth_user_id.eq.{auth_user_id},google_id.eq.{auth_user_id}"
+    ).limit(1).execute()
 
     if not res.data:
         raise HTTPException(404, "Profile not found")
