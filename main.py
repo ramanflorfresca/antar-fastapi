@@ -1947,78 +1947,21 @@ async def _validation_exception_handler(request: Request, exc: RequestValidation
 # ══════════════════════════════════════════════════════════════════════════════
 # DASHA ROW CACHE — the single biggest event-loop blocker on the daily surfaces
 # ══════════════════════════════════════════════════════════════════════════════
-# [loop-unblock 2026-09-28] Measured on one cold /daily-signal request:
-# 28 blocking Supabase round trips, TEN of them to dasha_periods. Each one pages
-# ~900 rows and costs ~190ms, and `supabase-py` is a SYNCHRONOUS client — so the
-# call blocks the whole event loop, not just the caller. Instrumenting a ticker
-# alongside a 2.02s request showed the loop tick TWICE instead of ~200, with a
-# single 2042ms stall: one user's Today request freezes every other request that
-# worker is serving.
-#
-# Ten of those fetches were the SAME rows for the same chart in the same request
-# (the daily engine asks per day, plus the day-frame and highlight passes). The
-# cheapest possible fix is to not make the request at all.
-#
-# Safe to cache because dasha_periods is effectively immutable: rows are written
-# once at chart creation and otherwise only by an explicit backfill/recompute.
-# Both writers call invalidate_dasha_cache() below, and the TTL bounds staleness
-# for anything that writes by a path we haven't found.
-#
-# We cache the RAW ROWS, not the assembled dict, and rebuild per call. Callers
-# mutate the structure they get back (the daily engine annotates levels), and a
-# shared mutable cache value would let one request corrupt another's. Rebuilding
-# is pure CPU on ~900 small dicts — microseconds against a 190ms round trip.
-_DASHA_ROWS_CACHE: dict = {}
-_DASHA_CACHE_LOCK = _threading.Lock()
-_DASHA_CACHE_TTL = float(os.getenv("DASHA_CACHE_TTL", "300"))
+# [loop-unblock 2026-09-28] The cache itself lives in antar_engine/dasha_cache so
+# that engine modules share ONE copy of it — they cannot import main without a
+# cycle, and a second private cache would mean a second set of round trips and a
+# second thing to invalidate. See that module for why this is safe to cache.
+from antar_engine import dasha_cache as _dasha_cache
 
 
 def invalidate_dasha_cache(chart_id: str = None) -> None:
-    """Drop cached dasha rows. Call after ANY write to dasha_periods.
-    With no chart_id, clears everything (used by bulk backfills)."""
-    with _DASHA_CACHE_LOCK:
-        if chart_id is None:
-            _DASHA_ROWS_CACHE.clear()
-        else:
-            _DASHA_ROWS_CACHE.pop(str(chart_id), None)
+    """Drop cached dasha rows. Call after ANY write to dasha_periods."""
+    _dasha_cache.invalidate(chart_id)
 
 
 def _fetch_dasha_rows(chart_id: str) -> list:
-    """Cached row fetch behind get_dashas_for_chart. See block comment."""
-    key = str(chart_id)
-    now = _time.time()
-    with _DASHA_CACHE_LOCK:
-        hit = _DASHA_ROWS_CACHE.get(key)
-        if hit and hit[0] > now:
-            return hit[1]
-
-    # [dasha-truncation 2026-07-21] This used .limit(500). Charts carry ~903
-    # dasha rows, so 45% of every timeline was silently discarded — and because
-    # `sequence` is NOT chronological, the dropped rows punched arbitrary HOLES
-    # rather than trimming the tail. One chart had a 59-day hole sitting exactly
-    # over today, so "no pratyantardasha is running" was reported for a date that
-    # obviously has one. Everything downstream (predictions, daily card,
-    # life-arc, Ask) read from this. Page through instead of capping.
-    _rows = []
-    _page, _size = 0, 1000
-    while True:
-        _res = (supabase.table("dasha_periods").select("*")
-                .eq("chart_id", chart_id).order("sequence")
-                .range(_page * _size, _page * _size + _size - 1).execute())
-        _batch = _res.data or []
-        _rows.extend(_batch)
-        if len(_batch) < _size or _page >= 20:   # 20-page backstop
-            break
-        _page += 1
-
-    # Never cache an empty result: a chart mid-creation (rows not inserted yet)
-    # or a transient PostgREST failure would otherwise pin "this chart has no
-    # dashas" for the whole TTL, which reads downstream as a chart with no
-    # timeline at all.
-    if _rows:
-        with _DASHA_CACHE_LOCK:
-            _DASHA_ROWS_CACHE[key] = (now + _DASHA_CACHE_TTL, _rows)
-    return _rows
+    """Cached row fetch behind get_dashas_for_chart. READ-ONLY — see module."""
+    return _dasha_cache.rows_for_chart(supabase, chart_id)
 
 
 def get_dashas_for_chart(chart_id: str) -> dict:
@@ -36076,7 +36019,11 @@ async def _get_wow_signal_for_chart_v2(
             from antar_engine.symptom_library import build_executive_summary
             from datetime import datetime as _exdt
             import json as _jjson
-            _cr = supabase.table("charts").select("chart_data, jaimini_data, lal_kitab_data").eq("id", chart_id).single().execute()
+            # [loop-unblock 2026-09-28] off the loop — see the run_in_threadpool import.
+            _cr = await run_in_threadpool(
+                lambda: supabase.table("charts")
+                .select("chart_data, jaimini_data, lal_kitab_data")
+                .eq("id", chart_id).single().execute())
             if not _cr.data:
                 return None
             _cd = _cr.data.get("chart_data", {})
@@ -36092,8 +36039,12 @@ async def _get_wow_signal_for_chart_v2(
                 try: _lk = _jjson.loads(_lk)
                 except: _lk = {}
             _now = _exdt.utcnow().isoformat()
-            _dr = supabase.table("dasha_periods").select("planet_or_sign, level, end_date").eq("chart_id", chart_id).eq("system", "vimsottari").lte("start_date", _now).gte("end_date", _now).order("level").execute()
-            _dasha_list = _dr.data if _dr.data else []
+            # [loop-unblock 2026-09-28] Served from the shared dasha cache rather
+            # than a second round trip. dasha_cache.active_vimsottari applies the
+            # same system / date-range / level-order filter in Python.
+            from antar_engine.dasha_cache import active_vimsottari as _dc_active
+            _dasha_list = await run_in_threadpool(
+                _dc_active, supabase, chart_id, _now)
             _current_dasha = ""
             for _d in _dasha_list:
                 if _d.get("level") == 1: _current_dasha = _d["planet_or_sign"].strip()
@@ -36147,7 +36098,9 @@ async def _get_wow_signal_for_chart_v2(
             confidence = sd.get("confidence", "MEDIUM")
 
         # Check 24hr cache
-        cached = _get_wow_cache(chart_id, inst_name, local_date_str=local_date_str, language=language)
+        # [loop-unblock 2026-09-28] sync helper (it queries Supabase) — off the loop.
+        cached = await run_in_threadpool(
+            _get_wow_cache, chart_id, inst_name, local_date_str, language)
         if cached.get("hint"):
             print(f"[daily-week] v2 WOW cache HIT")
             return {
@@ -36247,7 +36200,11 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
             from antar_engine.symptom_library import build_executive_summary
             from datetime import datetime as _exdt
             import json as _jjson
-            _cr = supabase.table("charts").select("chart_data, jaimini_data, lal_kitab_data").eq("id", chart_id).single().execute()
+            # [loop-unblock 2026-09-28] off the loop — see the run_in_threadpool import.
+            _cr = await run_in_threadpool(
+                lambda: supabase.table("charts")
+                .select("chart_data, jaimini_data, lal_kitab_data")
+                .eq("id", chart_id).single().execute())
             if not _cr.data:
                 return None
             _cd = _cr.data.get("chart_data", {})
@@ -36263,8 +36220,12 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
                 try: _lk = _jjson.loads(_lk)
                 except: _lk = {}
             _now = _exdt.utcnow().isoformat()
-            _dr = supabase.table("dasha_periods").select("planet_or_sign, level, end_date").eq("chart_id", chart_id).eq("system", "vimsottari").lte("start_date", _now).gte("end_date", _now).order("level").execute()
-            _dasha_list = _dr.data if _dr.data else []
+            # [loop-unblock 2026-09-28] Served from the shared dasha cache rather
+            # than a second round trip. dasha_cache.active_vimsottari applies the
+            # same system / date-range / level-order filter in Python.
+            from antar_engine.dasha_cache import active_vimsottari as _dc_active
+            _dasha_list = await run_in_threadpool(
+                _dc_active, supabase, chart_id, _now)
             _current_dasha = ""
             for _d in _dasha_list:
                 if _d.get("level") == 1: _current_dasha = _d["planet_or_sign"].strip()
@@ -36304,7 +36265,9 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
         # best one not shown recently — genuine variety, still a real active
         # signal. Falls back to the top instrument if all were shown recently.
         if len(candidates) > 1:
-            _recent = _recent_wow_instruments(chart_id, local_date_str, days=3)
+            # [loop-unblock 2026-09-28] sync helper (it queries Supabase) — off the loop.
+            _recent = await run_in_threadpool(
+                _recent_wow_instruments, chart_id, local_date_str, 3)
             if _recent:
                 for _p, _s, _inst in candidates:
                     if (_inst.get("label", _inst.get("name", "")) or "").upper() not in _recent:
@@ -36339,7 +36302,9 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
 
         # Check cache first (skipped when force_refresh)
         if not force_refresh:
-            cached = _get_wow_cache(chart_id, inst_name, local_date_str=local_date_str, language=language)
+            # [loop-unblock 2026-09-28] sync helper (it queries Supabase) — off the loop.
+            cached = await run_in_threadpool(
+                _get_wow_cache, chart_id, inst_name, local_date_str, language)
             if cached.get("hint"):
                 return {
                     "fires": True,
@@ -37450,7 +37415,10 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
                             .replace(tzinfo=timezone.utc).isoformat()
                 except Exception:
                     _show_after = None
-                _sdc(chart_id, _today_sig, supabase, _show_after)
+                # [loop-unblock 2026-09-28] sync upsert into user_correlations —
+                # off the loop. Enrolment is bookkeeping for the verify card; it
+                # must never hold up the day's payload.
+                await run_in_threadpool(_sdc, chart_id, _today_sig, supabase, _show_after)
         except Exception as _enr_e:
             print(f"[daily-verify] enrolment non-fatal: {_enr_e}")
 

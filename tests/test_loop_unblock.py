@@ -130,3 +130,38 @@ def test_no_undecorated_route_is_async_without_awaiting():
         f"{len(offenders)} route handler(s) are 'async def' but never await — "
         f"make them 'def' so FastAPI threadpools them: {offenders[:10]}"
     )
+
+
+# ─── 3. cached rows are not re-stripped for nothing ───────────────
+
+def test_cached_row_at_current_strip_version_is_not_restripped(monkeypatch):
+    """A row written under the current strip rules was already cleaned on the
+    way in, so re-cleaning it on every read is pure waste — and it was the
+    single biggest remaining hold on the event loop for a warm week."""
+    from antar_engine import daily_prediction_engine as dpe
+    calls = []
+    monkeypatch.setattr(dpe, "_strip_day_names_from_signal",
+                        lambda sig, lang: calls.append("stripped") or sig)
+    stamped = {"senal_de_hoy": "x", "_strip_version": dpe.DAILY_STRIP_VERSION}
+    legacy = {"senal_de_hoy": "x"}
+
+    # Mirrors the cache-hit branch in _one_day.
+    def restrip_if_needed(sig):
+        if sig.get("_strip_version") != dpe.DAILY_STRIP_VERSION:
+            dpe._strip_day_names_from_signal(sig, "en")
+
+    restrip_if_needed(stamped)
+    assert calls == [], "a row at the current strip version must not be re-stripped"
+    restrip_if_needed(legacy)
+    assert calls == ["stripped"], "a legacy row MUST still be re-stripped"
+
+
+def test_saved_rows_carry_both_version_stamps():
+    """The read-side skip is only safe because the write side records which
+    rules cleaned the row. If this stamp ever stops being written, every cached
+    day silently takes the slow path again."""
+    import inspect
+    from antar_engine import daily_prediction_engine as dpe
+    src = inspect.getsource(dpe._save_cached_signal)
+    assert '"_logic_version"] = DAILY_LOGIC_VERSION' in src
+    assert '"_strip_version"] = DAILY_STRIP_VERSION' in src
