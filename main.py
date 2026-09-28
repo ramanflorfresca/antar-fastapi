@@ -1974,9 +1974,15 @@ def _spawn_bg(coro, label: str = ""):
 
     def _done(t):
         _BG_TASKS.discard(t)
+        # A task cancelled at loop shutdown raises CancelledError out of
+        # .exception() — and CancelledError is a BaseException since 3.8, so an
+        # `except Exception` here let it escape as an "Exception in callback"
+        # traceback with no owner. Nothing to report for a cancellation.
+        if t.cancelled():
+            return
         try:
             exc = t.exception()
-        except Exception:
+        except BaseException:
             return
         if exc:
             print(f"[bg{':' + label if label else ''}] task failed (non-fatal): {exc!r}")
@@ -41968,3 +41974,131 @@ async def _alias_predict_dasha_cycle(request: dict):
     )
     # [gate-debug 2026-06-08] hide internal evidence trail from client
     return _strip_debug_reasoning(_r_dasha, request)
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# CUSTOMER SUPPORT AGENT — POST /api/v1/support
+#
+# Public, unauthenticated, no chart involved. It answers questions ABOUT the
+# product (how it works, pricing, privacy, accounts) from a fixed knowledge base
+# captured from antar.world/faq — see antar_engine/support_agent.py, which is
+# where the knowledge lives and where it should be edited.
+#
+# Deliberately NOT the Ask endpoint's shape: Ask reads a chart and is metered
+# per user; this reads nothing and is metered per IP.
+# ═══════════════════════════════════════════════════════════════════════════
+
+from antar_engine import support_agent as _support
+
+
+class SupportRequest(BaseModel):
+    question: str
+    language: Optional[str] = "en"
+    # OPTIONAL — the widget keeps its chat history in session memory and may
+    # replay the last few turns so follow-ups ("and how much is that?") resolve.
+    # Absent = a one-shot question, which is the documented contract.
+    history: Optional[List[Dict[str, str]]] = None
+
+
+def _support_client_key(http_request: Optional[Request]) -> str:
+    """Rate-limit key for a public endpoint sitting behind Railway's proxy.
+
+    request.client.host is the PROXY on Railway, so every visitor would share
+    one bucket and the tenth question of the day would 429 the whole world.
+    The first X-Forwarded-For hop is the real client.
+    """
+    if http_request is None:
+        return "unknown"
+    fwd = (http_request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+    if fwd:
+        return fwd
+    return getattr(getattr(http_request, "client", None), "host", "") or "unknown"
+
+
+def _support_ip_hash(key: str) -> str:
+    """Salted hash — enough to count abuse, not enough to hold an address."""
+    import hashlib as _h
+    salt = os.getenv("SUPPORT_LOG_SALT", "antar-support")
+    return _h.sha256(f"{salt}:{key}".encode("utf-8")).hexdigest()[:32]
+
+
+def _support_log_write(row: dict) -> None:
+    """Synchronous insert — always called through a thread, never inline.
+
+    Fails open in both directions: a missing table or a dead connection must
+    never turn a working support answer into a 500.
+    """
+    try:
+        supabase.table("support_logs").insert(row).execute()
+    except Exception as e:
+        print(f"[support] log write skipped (non-fatal): {e!r}")
+
+
+@app.post("/api/v1/support")
+async def support_agent_endpoint(request: SupportRequest, http_request: Request = None):
+    import asyncio as _sup_aio
+
+    question = (request.question or "").strip()
+    language = _support.normalize_language(request.language)
+
+    if not question:
+        raise HTTPException(422, "question is required")
+    if len(question) > _support.MAX_QUESTION_CHARS:
+        # Bound the cost of a public LLM endpoint. A real support question is
+        # never 1000 characters; a pasted document is.
+        question = question[:_support.MAX_QUESTION_CHARS]
+
+    client_key = _support_client_key(http_request)
+    if not _support.rate_limit_ok(client_key):
+        raise HTTPException(
+            status_code=429,
+            detail=(f"Too many questions in a short time. Wait a minute, or "
+                    f"email {_support.CONTACT_EMAIL}."),
+        )
+
+    _t0 = _time.monotonic()
+    source = "llm"
+    try:
+        raw, _tokens = await _sup_aio.wait_for(
+            call_llm_claude(
+                prompt=question,
+                history=_support.clean_history(request.history),
+                system_override=_support.build_system_prompt(language),
+                max_tokens_override=_support.LLM_MAX_TOKENS,
+                temperature_override=_support.LLM_TEMPERATURE,
+                model_override=SONNET_MODEL,
+            ),
+            timeout=_support.LLM_TIMEOUT_SECONDS,
+        )
+        route, text = _support.parse_model_reply(raw)
+        payload = _support.compose_response(route, text, language)
+    except _sup_aio.TimeoutError:
+        print(f"[support] LLM timeout after {_support.LLM_TIMEOUT_SECONDS}s — serving fallback")
+        source = "fallback"
+        payload = _support.fallback_response(language)
+    except Exception as e:
+        print(f"[support] LLM call failed ({e!r}) — serving fallback")
+        source = "fallback"
+        payload = _support.fallback_response(language)
+
+    latency_ms = int((_time.monotonic() - _t0) * 1000)
+
+    # Log off the request path. supabase-py is synchronous, so this goes through
+    # a thread — a bare .execute() inside an `async def` blocks the whole event
+    # loop, not just this request.
+    _spawn_bg(
+        _sup_aio.to_thread(_support_log_write, {
+            "question":   question,
+            "answer":     payload.get("answer"),
+            "language":   language,
+            "route":      payload.get("route"),
+            "confidence": payload.get("confidence"),
+            "latency_ms": latency_ms,
+            "source":     source,
+            "ip_hash":    _support_ip_hash(client_key),
+        }),
+        label="support-log",
+    )
+
+    payload["latency_ms"] = latency_ms
+    return payload
