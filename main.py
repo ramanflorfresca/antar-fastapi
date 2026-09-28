@@ -14862,13 +14862,23 @@ def settings_charts_delete(chart_id: str, authorization: Optional[str] = Header(
     from any compatibility_sessions / chart_connections that reference the
     chart, and clears stale chart pointers on profiles.
 
-    OUT-OF-SCOPE for this patch (intentional, per Raman's call):
-      - Engagement / analytics tables (practice_log, practice_completions,
-        practice_sessions, daily_feedback, life_arc_feedback,
-        user_correlations, prediction_accuracy, past_event_feedback,
-        user_actions). Non-natal; left for the post-launch cascade sweep.
-      - Billing tables (subscriptions, usage_tracking, compat_slot_purchases)
-        — retained for revenue / audit.
+    [cascade-gap 2026-09-28] The engagement / analytics tables this docstring
+    used to list as deferred ("left for the post-launch cascade sweep") are now
+    included — that sweep is this change. So are ~20 more that were never
+    listed at all and were found by enumerating every table in the schema
+    carrying a chart_id: conversations (title + preview hold message text),
+    device_tokens, signature_question_log and intent_classify_log (the user's
+    own questions), places_saved_cities, user_preferences and every per-chart
+    cache. All of it survived a delete until now.
+
+    The table list lives in _CHART_DERIVED_TABLES and is shared with
+    delete_account, because the two copies had drifted 26 tables apart.
+
+    STILL out of scope, deliberately:
+      - Billing tables (subscriptions, usage_tracking, compat_slot_purchases,
+        ask_usage) — retained for revenue / audit, and dropping the usage
+        counters here would let a free-tier quota be reset by deleting and
+        recreating a chart. A FULL account delete does take them.
       - Auth on GET /api/v1/chart/{cid}. Tracked as a separate security PR.
     """
     from fastapi.responses import JSONResponse
@@ -14910,38 +14920,9 @@ def settings_charts_delete(chart_id: str, authorization: Optional[str] = Header(
     # ── 2. Cascade-delete the PII-bearing derived / cache tables ─────────
     # Each delete is wrapped — a missing table or schema drift never blocks
     # the user-facing delete. Anything left over is logged for sweep.
-    _CASCADE_TABLES = (
-        # natal / dasha / yoga
-        "dasha_periods", "chart_yogas",
-        # prediction stores
-        "predictions", "user_predictions",
-        "daily_signals", "welcome_signals",
-        "weekly_briefings", "monthly_briefings", "monthly_deepdives",
-        "life_arc_cache",
-        # today / home / week caches
-        "today_narration_cache", "home_cache",
-        "deep_read_cache",
-        # [predict-week-cache 2026-06-16] real table created in PHASE2_CACHE.sql
-        "predict_week_cache",
-        "practice_schedule_cache",
-        # [cache-cleanup 2026-06-16] daily_signals_cache is the REAL daily-week
-        # cache (engine: _save_cached_signal); it was MISSING here so a deleted
-        # user's daily rows lingered (PII). Dropped phantom tables that do not
-        # exist: predict_week_cache / daily_week_cache / prediction_cache /
-        # prewarm_cache.
-        "daily_signals_cache",
-        # [daily-db-cache 2026-06-16] shared read-through cache for daily surfaces
-        "daily_surface_cache",
-        # Lal Kitab
-        "lal_kitab_remedies",
-        # user-content keyed by chart
-        "life_events", "user_alerts", "llm_call_log",
-        # Prashna oracle (contains user questions + natal-grounded verdicts)
-        "prashna_log", "prashna_readings", "prashna_followups",
-        # Ask Antar messages (chart-keyed; conversations/messages are
-        # user_id-keyed and left untouched here)
-        "chat_messages",
-    )
+    # [cascade-gap 2026-09-28] Derived from the one canonical list — this used
+    # to be a second hand-maintained copy and had fallen 26 tables behind it.
+    _CASCADE_TABLES = _CHART_DERIVED_TABLES
     _purge_errors = []
     for _tbl in _CASCADE_TABLES:
         try:
@@ -14949,6 +14930,11 @@ def settings_charts_delete(chart_id: str, authorization: Optional[str] = Header(
         except Exception as _ce:
             _purge_errors.append({"table": _tbl, "error": str(_ce)})
             _log.warning(f"[chart-delete] cascade {_tbl} failed cid={chart_id}: {_ce}")
+    # Keyed by request path rather than a chart_id column, so it is invisible to
+    # the loop above — and its rows can hold a whole personalised reading.
+    _pc = _purge_proxy_cache(chart_id)
+    if _pc:
+        _log.info(f"[chart-delete] purged {_pc} proxy_cache rows cid={chart_id}")
 
     # ── 3. Strip PII from compatibility_sessions / chart_connections ─────
     # Sessions stay so the OTHER party's history is intact, but the deleted
@@ -15018,7 +15004,24 @@ def settings_charts_delete(chart_id: str, authorization: Optional[str] = Header(
 # all derived / cache / billing rows, the profile, and the Supabase auth
 # identity (which unlinks any Google / Apple sign-in). chart_id in the path
 # identifies the account via charts.user_id; the caller must own it.
-_ACCOUNT_DELETE_TABLES = (
+# ══════════════════════════════════════════════════════════════════════════════
+# CHART-KEYED DERIVED DATA — the single source of truth for both delete paths
+# ══════════════════════════════════════════════════════════════════════════════
+# [cascade-gap 2026-09-28] There were TWO hand-maintained lists — one in
+# settings_charts_delete, one here — and they drifted, as duplicated lists do.
+# Enumerating every table in the schema that actually carries a chart_id found
+# 26 missing from the single-chart cascade, including user CONTENT and PII:
+# conversations (title + preview), device_tokens (push tokens),
+# signature_question_log and intent_classify_log (the user's own questions),
+# user_correlations, places_saved_cities, and every per-chart cache.
+#
+# Deleting a chart left all of it behind. Both paths now derive from this one
+# tuple, so a new chart-keyed table has one place to be registered.
+#
+# To check for drift after adding a table:
+#   for t in <tables>: supabase.table(t).select("chart_id").limit(1)
+# anything that succeeds and is not below is a leak.
+_CHART_DERIVED_TABLES = (
     # natal / dasha / yoga
     "dasha_periods", "chart_yogas",
     # prediction stores
@@ -15030,21 +15033,60 @@ _ACCOUNT_DELETE_TABLES = (
     "today_narration_cache", "home_cache", "deep_read_cache",
     "predict_week_cache", "practice_schedule_cache",
     "daily_signals_cache", "daily_surface_cache",
-    # Lal Kitab
-    "lal_kitab_remedies",
+    "chart_daily_headlines", "chart_transits", "layered_domains_cache",
+    "year_narration_cache", "translation_cache",
+    # Lal Kitab / varshphal
+    "lal_kitab_remedies", "lal_kitab_varshphal_charts", "user_varshphal_history",
     # user-content keyed by chart
-    "life_events", "user_alerts", "llm_call_log",
-    # Prashna oracle
+    "life_events", "user_alerts", "llm_call_log", "alert_log",
+    "places_saved_cities", "user_preferences",
+    # the user's own questions — PII, and previously left behind entirely
+    "signature_question_log", "intent_classify_log",
+    # Prashna oracle (user questions + natal-grounded verdicts)
     "prashna_log", "prashna_readings", "prashna_followups",
-    # Ask Antar
-    "chat_messages",
-    # engagement / analytics (a full account delete CAN take these)
+    # Ask Antar. chat_messages was purged but `conversations` was not, so the
+    # parent rows survived carrying `title` and `preview` — message text.
+    "chat_messages", "conversations",
+    # push targeting
+    "device_tokens",
+    # engagement / feedback / accuracy
     "practice_log", "practice_completions", "practice_sessions",
     "daily_feedback", "life_arc_feedback", "user_correlations",
-    "prediction_accuracy", "past_event_feedback", "user_actions",
-    # billing (account-level delete removes these; revenue audit lives in Stripe)
+    "prediction_accuracy", "prediction_accuracy_marks", "past_event_feedback",
+    "user_actions", "verification_ratings", "reward_ledger",
+)
+
+# Billing and quota. Deliberately NOT part of a single-chart delete: a
+# subscription belongs to the account, not to one of its charts, and dropping
+# usage counters there would let a user reset a free-tier quota by deleting and
+# recreating a chart. A full account delete does take them — revenue audit
+# lives in Stripe.
+_ACCOUNT_ONLY_TABLES = (
     "subscriptions", "usage_tracking", "compat_slot_purchases", "ask_usage",
 )
+
+
+def _purge_proxy_cache(chart_id: str) -> int:
+    """Drop the railway-proxy's cached responses for a chart.
+
+    Keyed by request path, so the chart id is embedded in the key rather than
+    held in a column — which is why it was missed. Rows can hold a full
+    personalised reading and live for hours, so a delete that leaves them is
+    not a delete.
+    """
+    try:
+        rows = (supabase.table("proxy_cache").select("key")
+                .ilike("key", f"%{chart_id}%").execute()).data or []
+        for _r in rows:
+            supabase.table("proxy_cache").delete().eq("key", _r["key"]).execute()
+        return len(rows)
+    except Exception as _pe:
+        print(f"[chart-delete] proxy_cache purge failed (non-fatal): {_pe}")
+        return 0
+
+
+_ACCOUNT_DELETE_TABLES = _CHART_DERIVED_TABLES + _ACCOUNT_ONLY_TABLES
+
 
 
 @app.delete("/api/v1/account/{chart_id}")
@@ -15092,6 +15134,8 @@ def delete_account(chart_id: str, authorization: Optional[str] = Header(None)):
                 supabase.table(_tbl).delete().eq("chart_id", _cid).execute()
             except Exception as _ce:
                 _purge_errors.append({"table": _tbl, "chart_id": _cid, "error": str(_ce)})
+        # Path-keyed, so no chart_id column for the loop to match on.
+        _purge_proxy_cache(_cid)
 
     # 2. Remove this user's side from shared compatibility tables.
     for _cid in chart_ids:
