@@ -93,6 +93,18 @@ _BARE_YEAR_RE = re.compile(rf"(?:\b{_PREP}\s+)?\b(20\d\d)\b", re.IGNORECASE)
 
 _NEUTRAL = "the months ahead"
 
+# Collapse a bare season/degree phrase left dangling directly in front of the
+# neutral phrase after a date was scrubbed — "late autumn in the months ahead"
+# -> "the months ahead". Anchored on the neutral phrase (lookahead), so it can
+# only touch text the scrub just produced, never ordinary prose.
+_SEASON_WORD = r"(?:early|mid|late|spring|summer|autumn|fall|winter)"
+_DANGLING_SEASON_RE = re.compile(
+    rf"\b{_SEASON_WORD}(?:[\s-]+{_SEASON_WORD})*"
+    rf"(?:\s+(?:in|through|by|around|until|till|to|and|of))?"
+    rf"\s+(?=" + re.escape(_NEUTRAL) + r"\b)",
+    re.IGNORECASE,
+)
+
 
 def _allowed_sets(allowed_labels):
     """(month, year) pairs + years permitted to appear in narration.
@@ -166,6 +178,7 @@ def scrub_freelance_dates(text, allowed_labels=None):
         out = _BARE_YEAR_RE.sub(_year_only_repl, out)
 
         if removed:
+            out = _DANGLING_SEASON_RE.sub("", out)
             out = re.sub(r"\s{2,}", " ", out)
             out = re.sub(r"\s+([,.;:!?])", r"\1", out)
             out = re.sub(r"\(\s*\)", "", out)
