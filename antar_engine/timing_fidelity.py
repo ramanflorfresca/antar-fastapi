@@ -77,9 +77,13 @@ _QUARTER_RE = re.compile(
     re.IGNORECASE,
 )
 
-# "early 2027", "mid-2026", "late 2026", "summer 2026"
+# "early 2027", "mid-2026", "late 2026", "summer 2026", and a degree word before a
+# season — "early summer 2028", "mid winter 2029". The optional leading degree group
+# stops "early summer 2028" from matching only "summer 2028" and stranding "early"
+# (which produced the broken "early the months ahead" after scrub).
 _SEASON_YEAR_RE = re.compile(
-    rf"(?:\b{_PREP}\s+)?\b(?:early|mid|late|spring|summer|autumn|fall|winter)"
+    rf"(?:\b{_PREP}\s+)?\b(?:(?:early|mid|late)[\s-]+)?"
+    rf"(?:early|mid|late|spring|summer|autumn|fall|winter)"
     rf"[\s-]*(20\d\d)\b",
     re.IGNORECASE,
 )
