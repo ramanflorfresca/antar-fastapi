@@ -9764,6 +9764,7 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
         ashtakavarga=_chakra_av,
         dashas=dashas,
         lk_data=_chakra_lk,
+        current_country=rec.get("current_country"),   # [country-fit] IN vs universal remedy
     )
     resp = _prac_strip_prose(resp, request.language)
     # [focus-energy] explicit top-level callout, PINNED to the practice's own

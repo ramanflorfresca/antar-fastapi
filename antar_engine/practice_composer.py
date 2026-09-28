@@ -324,10 +324,14 @@ def compose_practice_response(
     dashas: Optional[dict] = None,
     lk_data: Optional[dict] = None,
     transits: Optional[dict] = None,
+    current_country: Optional[str] = None,   # [country-fit] IN → traditional remedy; else universal
 ) -> dict:
     lang = _lang(language)
     streaks = streaks or {}
     completed_today = completed_today or {}
+    # [country-fit 2026-09-28] India keeps the traditional Lal-Kitab daily action;
+    # every other country (US, CO, …) gets the universal/secular form.
+    _locale = "IN" if str(current_country or "").upper() == "IN" else "GLOBAL"
 
     if _router_enabled():
         _set = select_practice_set(actives, sticky_key, completed_today)
@@ -346,7 +350,7 @@ def compose_practice_response(
     today_priority = None
     if priority:
         pl = priority["planet"]
-        content = get_planet_content(pl, language)
+        content = get_planet_content(pl, language, _locale)
         st = streaks.get(pl, {})
         scope = priority["scope"]
         dur = priority.get("duration_label", SCOPES.get(scope, {}).get("label", ""))

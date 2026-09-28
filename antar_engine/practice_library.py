@@ -363,8 +363,56 @@ _ES_PRACTICE = {
 }
 
 
-def get_planet_content(planet: str, language: str = "en") -> dict:
-    """Localised content block for one planet — every piece from the same entry."""
+# [country-fit 2026-09-28] Universal (secular) form of each planet's daily action,
+# for users OUTSIDE India. Same INTENT as the traditional Lal-Kitab remedy (giving,
+# care, service, honoring elders/teachers/women) but in plain, culturally-neutral
+# terms — Catholic-compatible (charity/almsgiving is native to Latin/Colombian
+# culture) and wellness-compatible for the US. India (locale "IN") keeps the
+# traditional temple/offering form in `daily_action`.
+DAILY_ACTION_GLOBAL = {
+    "Sun": {"title": {"en": "Morning light + honor an elder", "es": "Luz de la mañana + honra a un mayor"},
+            "detail": {"en": "Get sunlight within an hour of waking. On Sundays, do one visible thing that honors your own standing (claim your credit, take the lead) and one that honors a mentor, elder, or your father — thanks, time, or respect.",
+                       "es": "Recibe luz del sol dentro de la hora de despertar. Los domingos, haz algo visible que honre tu propio lugar (reclama tu crédito, toma la iniciativa) y algo que honre a un mentor, un mayor o tu padre — gratitud, tiempo o respeto."},
+            "frequency": "Daily light + every Sunday for 9 weeks"},
+    "Moon": {"title": {"en": "Nurture yourself + a mother-figure", "es": "Cuídate a ti + a una figura materna"},
+             "detail": {"en": "Each day, do one calming, nurturing thing for yourself — rest, water, quiet, time near water. On Mondays, reach out to your mother or a mother-figure with a real kindness.",
+                        "es": "Cada día, haz algo que te calme y te cuide — descanso, agua, silencio, tiempo cerca del agua. Los lunes, busca a tu madre o a una figura materna con un gesto de cariño real."},
+             "frequency": "Daily + every Monday for 9 weeks"},
+    "Mars": {"title": {"en": "Burn energy in work, not people", "es": "Quema la energía en el trabajo, no en las personas"},
+             "detail": {"en": "Channel restless or angry energy into hard physical work or exercise — not at people. Once a week, use your strength to help or protect someone who needs it.",
+                        "es": "Canaliza la energía inquieta o la ira en trabajo físico o ejercicio exigente — no en las personas. Una vez por semana, usa tu fuerza para ayudar o proteger a alguien que lo necesite."},
+             "frequency": "Daily outlet + weekly for 9 weeks"},
+    "Mercury": {"title": {"en": "Say it clearly + help someone learn", "es": "Dilo con claridad + ayuda a alguien a aprender"},
+                "detail": {"en": "Each day, express one thing clearly and finish it — a message, a decision, a task. Once a week, teach or mentor someone, or give to a learning or education cause.",
+                           "es": "Cada día, expresa una cosa con claridad y termínala — un mensaje, una decisión, una tarea. Una vez por semana, enseña o guía a alguien, o dona a una causa de educación o aprendizaje."},
+                "frequency": "Daily + weekly for 9 weeks"},
+    "Jupiter": {"title": {"en": "Thank a teacher + give to someone growing", "es": "Agradece a un maestro + apoya a quien crece"},
+                "detail": {"en": "Each Thursday, thank or support a teacher or mentor, and give something — money, time, or knowledge — to someone who is growing or in need. Generosity widens what you notice.",
+                           "es": "Cada jueves, agradece o apoya a un maestro o mentor, y da algo — dinero, tiempo o conocimiento — a alguien que está creciendo o lo necesita. La generosidad amplía lo que percibes."},
+                "frequency": "Every Thursday for 9 weeks"},
+    "Venus": {"title": {"en": "Care for the women in your life + add beauty", "es": "Cuida a las mujeres de tu vida + añade belleza"},
+              "detail": {"en": "Each Friday, do one act of care for the women in your life — a call, a gift, real attention — and one thing that adds beauty or pleasure to your day. Give generously to someone you value.",
+                         "es": "Cada viernes, haz un gesto de cuidado por las mujeres de tu vida — una llamada, un regalo, atención real — y algo que añada belleza o placer a tu día. Da con generosidad a alguien que valoras."},
+              "frequency": "Every Friday for 9 weeks"},
+    "Saturn": {"title": {"en": "Do the hard task + quietly help the overlooked", "es": "Haz la tarea difícil + ayuda en silencio a los olvidados"},
+               "detail": {"en": "Once a week, finish one hard, humble task completely — no shortcuts. And quietly help someone overlooked — an elderly person, a laborer, someone without shelter — without telling anyone.",
+                          "es": "Una vez por semana, termina por completo una tarea difícil y humilde — sin atajos. Y ayuda en silencio a alguien olvidado — un anciano, un trabajador, alguien sin hogar — sin contárselo a nadie."},
+               "frequency": "Every Saturday for 9 weeks"},
+    "Rahu": {"title": {"en": "Give to the overlooked + check your chasing", "es": "Da a los olvidados + revisa lo que persigues"},
+             "detail": {"en": "Regularly give to people on the margins — the unhoused, the ignored. And keep an honest check on your ambition: name what you're actually chasing, and whether it satisfies.",
+                        "es": "Da con regularidad a las personas en los márgenes — sin hogar, ignoradas. Y mantén una revisión honesta de tu ambición: nombra lo que realmente persigues y si de verdad te satisface."},
+             "frequency": "Weekly giving + ongoing"},
+    "Ketu": {"title": {"en": "A short daily quiet + give warmth", "es": "Un silencio diario breve + da abrigo"},
+             "detail": {"en": "Keep a small daily quiet practice — even five minutes of stillness. Care for an animal if you can, and donate warmth — blankets, clothing — to people without shelter.",
+                        "es": "Mantén una práctica de silencio breve cada día — aunque sean cinco minutos de quietud. Cuida de un animal si puedes, y dona abrigo — mantas, ropa — a personas sin hogar."},
+             "frequency": "Daily quiet + ongoing donations"},
+}
+
+
+def get_planet_content(planet: str, language: str = "en", locale: str = "GLOBAL") -> dict:
+    """Localised content block for one planet — every piece from the same entry.
+    `locale`: "IN" serves the traditional Lal-Kitab daily action; anything else
+    (default) serves the universal/secular form for users outside India."""
     entry = PRACTICE_LIBRARY.get(planet)
     if not entry:
         return {}
@@ -385,13 +433,32 @@ def get_planet_content(planet: str, language: str = "en") -> dict:
     if es.get("breath_pattern"):
         breath["pattern"] = es["breath_pattern"]
 
+    # [country-fit] IN → traditional Lal-Kitab action; else → universal/secular form.
+    if str(locale).upper() == "IN":
+        daily_action = {"title": es.get("da_title") or da["title"],
+                        "detail": _loc(da["detail"], language),
+                        "frequency": es.get("da_frequency") or da["frequency"],
+                        "minutes": None, "duration_minutes": None}
+    else:
+        g = DAILY_ACTION_GLOBAL.get(planet)
+        if g:
+            daily_action = {"title": _loc(g["title"], language),
+                            "detail": _loc(g["detail"], language),
+                            "frequency": g["frequency"],
+                            "minutes": None, "duration_minutes": None}
+        else:  # safety fallback to traditional
+            daily_action = {"title": es.get("da_title") or da["title"],
+                            "detail": _loc(da["detail"], language),
+                            "frequency": es.get("da_frequency") or da["frequency"],
+                            "minutes": None, "duration_minutes": None}
+
     return {
         "what_it_governs": _loc(entry["what_it_governs"], language),
         "when_weak_symptoms": _loc(entry["when_weak_symptoms"], language),
         "mantra": build_mantra_response(planet, language),
         "body": body,
         "breath": breath,
-        "daily_action": {"title": es.get("da_title") or da["title"], "detail": _loc(da["detail"], language), "frequency": es.get("da_frequency") or da["frequency"], "minutes": None, "duration_minutes": None},
+        "daily_action": daily_action,
         "affirmation": _loc(entry["affirmation"], language),
         "chakras_balanced": list(entry["chakras_balanced"]),
         "why_this_works": _loc(entry["why_this_works"], language),
