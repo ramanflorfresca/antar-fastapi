@@ -20873,6 +20873,11 @@ def _ask_detect_text_lang(text):
         return None
     es = sum(1 for w in toks if w in _ASK_ES_WORDS)
     pt = sum(1 for w in toks if w in _ASK_PT_WORDS)
+    # [ask-lang-fp 2026-09-28] English words veto shared-token false positives.
+    # "Is business or a job a better fit for me?" scored es=3 purely from "a","a",
+    # "me" (also Spanish function words) and was answered in Spanish. Count English
+    # function words too; a romance language must OUT-SCORE English to be declared.
+    en = sum(1 for w in toks if w in _ASK_EN_WORDS)
     es += 2 * sum(1 for w in toks if w in _ASK_ES_STRONG)
     pt += 2 * sum(1 for w in toks if w in _ASK_PT_STRONG)
     es_uni = any(d in t for d in _ASK_ES_DIA)
@@ -20888,7 +20893,10 @@ def _ask_detect_text_lang(text):
             es += 1
         else:
             pt += 1
-    if max(es, pt) >= 2:
+    # a romance language is declared only if it clears the threshold AND out-scores
+    # English (unless a language-unique diacritic ñ/¿/ã/ç is present, which is
+    # decisive on its own regardless of English tokens).
+    if max(es, pt) >= 2 and (max(es, pt) > en or es_uni or pt_uni):
         if pt > es:
             return "pt"
         if es > pt:
@@ -20901,6 +20909,37 @@ def _ask_detect_text_lang(text):
     if pt_uni and not es_uni:
         return "pt"
     return None
+
+
+# [ask-lang-en-rescue 2026-09-28] English-only function words (none appear in the
+# es/pt stopword sets above). Used to answer an ENGLISH question in English even
+# when the client/profile sent es/pt — a bilingual user whose interface is Spanish
+# but who types the question in English was getting Spanish answers.
+_ASK_EN_WORDS = frozenset("""
+the is are was were be been being am what when where why how which who whom whose
+does do did will would can could should shall may might must an of for and but or
+nor to this that these those it its my your you he she they we our their his her
+better best fit fits comes come under over about into on in with without work job
+business money career love health keep keeps happening take takes off out get gets
+make makes good bad right wrong now soon later thing things i
+""".split())
+
+
+def _ask_is_english(text):
+    """True when the question is confidently plain English: has ≥2 English function
+    words, no Romance diacritics, and English outweighs es/pt tokens. Conservative —
+    ambiguous/short text returns False so the profile language is respected."""
+    import re as _re
+    t = (text or "").lower()
+    if any(d in t for d in _ASK_ES_DIA + _ASK_PT_DIA + _ASK_ROM_DIA):
+        return False
+    toks = _re.findall(r"[a-z']+", t)
+    if not toks:
+        return False
+    en = sum(1 for w in toks if w in _ASK_EN_WORDS)
+    es = sum(1 for w in toks if w in _ASK_ES_WORDS)
+    pt = sum(1 for w in toks if w in _ASK_PT_WORDS)
+    return en >= 2 and en > es and en > pt
 
 
 async def _ask_localize(payload, language, fields, chart_id=None):
@@ -22970,14 +23009,24 @@ async def ask_endpoint(request: AskRequest):
     # the question text (not one the client explicitly asked for). It's the "smart"
     # signal for offering to switch the WHOLE app to that language — see the
     # language_offer at the explore finalization + POST /api/v1/language/confirm.
+    # [ask-lang 2026-09-28] The QUESTION language is authoritative in BOTH
+    # directions: an es/pt question is answered es/pt even if the client sent en,
+    # and a clearly-English question is answered in English even if the client sent
+    # es/pt (a bilingual user with a Spanish interface who types in English). Only
+    # overrides when confident; ambiguous text keeps the client/profile language.
+    _orig_lang = language
     _ask_lang_learned = ""
-    if language == "en":
-        _q_lang = _ask_detect_text_lang(question)
-        if _q_lang:
-            language = _q_lang
+    _q_lang = _ask_detect_text_lang(question)
+    if _q_lang and _q_lang != language:
+        language = _q_lang
+        if _orig_lang == "en":
             _ask_lang_learned = _q_lang
-            logger.info(f"[ask][lang-rescue] question detected as {_q_lang}; "
-                        f"answering in {_q_lang} (client sent en)")
+        logger.info(f"[ask][lang] question is {_q_lang}; answering {_q_lang} "
+                    f"(client sent {_orig_lang})")
+    elif _orig_lang != "en" and not _q_lang and _ask_is_english(question):
+        language = "en"
+        logger.info(f"[ask][lang] question is English; answering en "
+                    f"(client sent {_orig_lang})")
 
     # [crisis-safety 2026-09-07] A question carrying genuine distress must NEVER be
     # answered with a binary horary verdict ("no — the timing is against you") — that
