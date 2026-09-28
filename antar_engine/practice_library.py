@@ -57,8 +57,8 @@ PRACTICE_LIBRARY = {
         "affirmation": {"en": "I take up my space. My worth does not need permission. I shine without apology.",
                         "es": "Ocupo mi espacio. Mi valor no necesita permiso. Brillo sin disculparme."},
         "chakras_balanced": ["heart", "solar_plexus"],
-        "why_this_works": {"en": "This set targets confidence and steady energy. The chant is a fixed daily repetition that holds attention on self-worth; the morning movement raises physical energy and upright posture; the Sunday offering is a concrete weekly act tied to authority and elders. Done daily, the effect is cumulative — not instant.",
-                          "es": "Este conjunto trabaja la confianza y la energía estable. El canto es una repetición diaria fija que mantiene la atención en tu valor propio; el movimiento matinal eleva la energía física y la postura erguida; la ofrenda del domingo es un acto semanal concreto ligado a la autoridad y los mayores. Hecho a diario, el efecto es acumulativo — no inmediato."},
+        "why_this_works": {"en": "This set targets confidence and steady energy. The chant is a fixed daily repetition that holds attention on self-worth; the morning movement raises physical energy and upright posture; the Sunday act is a concrete weekly step tied to authority and elders. Done daily, the effect is cumulative — not instant.",
+                          "es": "Este conjunto trabaja la confianza y la energía estable. El canto es una repetición diaria fija que mantiene la atención en tu valor propio; el movimiento matinal eleva la energía física y la postura erguida; el acto del domingo es un paso semanal concreto ligado a la autoridad y los mayores. Hecho a diario, el efecto es acumulativo — no inmediato."},
         "frequency_hz": 126,
     },
     "Moon": {
@@ -79,8 +79,8 @@ PRACTICE_LIBRARY = {
         "affirmation": {"en": "I am safe to feel. My emotions are weather, not walls. I let comfort in.",
                         "es": "Es seguro sentir. Mis emociones son clima, no muros. Dejo entrar la calma."},
         "chakras_balanced": ["sacral", "third_eye"],
-        "why_this_works": {"en": "This set targets emotional steadiness and rest. The slow chant and the reclined posture down-regulate the nervous system — slower breathing lowers arousal; the Monday milk-offering and carrying silver are a fixed, repeatable routine that anchors the habit. It calms reactivity over weeks, not in one sitting.",
-                          "es": "Este conjunto trabaja la estabilidad emocional y el descanso. El canto lento y la postura reclinada calman el sistema nervioso — respirar más despacio baja la activación; la ofrenda de leche del lunes y llevar plata son una rutina fija y repetible que ancla el hábito. Reduce la reactividad a lo largo de semanas, no en una sola sesión."},
+        "why_this_works": {"en": "This set targets emotional steadiness and rest. The slow chant and the reclined posture down-regulate the nervous system — slower breathing lowers arousal; the fixed Monday routine anchors the habit. It calms reactivity over weeks, not in one sitting.",
+                          "es": "Este conjunto trabaja la estabilidad emocional y el descanso. El canto lento y la postura reclinada calman el sistema nervioso — respirar más despacio baja la activación; la rutina fija del lunes ancla el hábito. Reduce la reactividad a lo largo de semanas, no en una sola sesión."},
         "frequency_hz": 210,
     },
     "Mars": {
@@ -101,8 +101,8 @@ PRACTICE_LIBRARY = {
         "affirmation": {"en": "My energy is mine to direct. I act with aim, not heat. I hold my ground cleanly.",
                         "es": "Mi energía es mía para dirigir. Actúo con dirección, no con calor. Sostengo mi lugar con limpieza."},
         "chakras_balanced": ["root", "solar_plexus"],
-        "why_this_works": {"en": "This set targets directed energy and clean boundaries. The strong standing posture trains controlled exertion; the paced forceful breath discharges tension safely; the Tuesday offering pairs the effort with a fixed outlet, so anger goes into work instead of people.",
-                          "es": "Este conjunto trabaja la energía dirigida y los límites claros. La postura firme de pie entrena el esfuerzo controlado; la respiración enérgica y pausada descarga la tensión de forma segura; la ofrenda del martes vincula el esfuerzo con una salida fija, para que la ira vaya al trabajo y no a las personas."},
+        "why_this_works": {"en": "This set targets directed energy and clean boundaries. The strong standing posture trains controlled exertion; the paced forceful breath discharges tension safely; the weekly outlet pairs the effort with a fixed release, so anger goes into work instead of people.",
+                          "es": "Este conjunto trabaja la energía dirigida y los límites claros. La postura firme de pie entrena el esfuerzo controlado; la respiración enérgica y pausada descarga la tensión de forma segura; la salida semanal vincula el esfuerzo con una liberación fija, para que la ira vaya al trabajo y no a las personas."},
         "frequency_hz": 144,
     },
     "Mercury": {
@@ -211,8 +211,8 @@ PRACTICE_LIBRARY = {
         "affirmation": {"en": "I want clearly, not compulsively. I ground my ambition. Enough is a place I can stand.",
                         "es": "Deseo con claridad, no por compulsión. Aterrizo mi ambición. Lo suficiente es un lugar donde puedo estar."},
         "chakras_balanced": ["third_eye", "root"],
-        "why_this_works": {"en": "This set targets restlessness and scattered focus. The repetitive chant gives structure that contains anxious energy; the legs-up-the-wall posture and long exhale lower over-arousal in the nervous system; the regular feeding act channels the restless charge into a fixed routine.",
-                          "es": "Este conjunto trabaja la inquietud y el foco disperso. El canto repetitivo da una estructura que contiene la energía ansiosa; la postura de piernas en la pared y la exhalación larga bajan la sobreactivación del sistema nervioso; el acto regular de alimentar canaliza la carga inquieta en una rutina fija."},
+        "why_this_works": {"en": "This set targets restlessness and scattered focus. The repetitive chant gives structure that contains anxious energy; the legs-up-the-wall posture and long exhale lower over-arousal in the nervous system; the regular giving act channels the restless charge into a fixed routine.",
+                          "es": "Este conjunto trabaja la inquietud y el foco disperso. El canto repetitivo da una estructura que contiene la energía ansiosa; la postura de piernas en la pared y la exhalación larga bajan la sobreactivación del sistema nervioso; el acto regular de dar canaliza la carga inquieta en una rutina fija."},
         "frequency_hz": 268,
     },
     "Ketu": {
