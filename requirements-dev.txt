@@ -1,0 +1,15 @@
+# Test-only dependencies.
+#
+#   pip install -r requirements-dev.txt
+#
+# Railway auto-detects requirements.txt alone for the deploy build, so nothing
+# listed here ever ships to production — keep test tooling in this file rather
+# than adding it to requirements.txt.
+
+-r requirements.txt
+
+# Pinned, in the spirit of the anthropic pin in requirements.txt: a CI runner
+# should not silently pick up a new major pytest and change collection or
+# assertion behaviour under us. To move up, bump deliberately and confirm the
+# engine suite still reports the same test count.
+pytest==9.1.1
