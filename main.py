@@ -20839,7 +20839,52 @@ def _ask_get_practices(chart_id, chart_data, jaimini_data, lal_kitab_data,
 
 def _ask_norm_lang(language):
     lang = (language or "en").split("-")[0].lower()
-    return lang if lang in ("en", "es", "pt") else "en"
+    # [ask-hinglish 2026-09-28] hi/hinglish now pass through — Ask generates them
+    # directly (no es/pt translator involved). Previously collapsed to "en", so Ask
+    # could never answer in Hinglish even though Settings offers it.
+    return lang if lang in ("en", "es", "pt", "hi", "hinglish") else "en"
+
+
+# [ask-hinglish 2026-09-28] Romanized-Hindi markers to detect a Hinglish question
+# (Latin script, so es/pt/en detectors miss it). Words that are unambiguously Hindi
+# in roman form — none collide with the en/es/pt stopword sets.
+_ASK_HINGLISH_WORDS = frozenset("""
+kya kyun kyu kaise kaisa kaisi kab kahan kaun kitna kitni kitne hai hain ho hoga
+hogi honge tha thi the raha rahi rahe mera meri mere mujhe main hum humein tum
+tumhe aap aapka aapki aapko apna apni kar karna karni karne karo karu chahiye
+chahta chahti nahi nahin haan aur ya lekin kyunki magar par se ko ka ki ke mein
+paisa paise paisa rupaya shaadi shadi vivah naukri kaam dhandha ghar pyaar pyar
+mohabbat zindagi kismat bhagya kismet bata batao bataye dikhao dekho acha accha
+theek thik yaar jaan bhai dost bacche shaadi karlu karloon milega milegi kaunsa
+kaunsi kitne kabhi abhi aayega aayegi jayega jayegi hoga rahega rahegi
+""".split())
+
+
+def _ask_detect_hinglish(text):
+    """Return 'hinglish' when the question is confidently Romanized Hindi / Hinglish,
+    else None. Threshold 2 keeps a lone shared token from misfiring; English and
+    es/pt score ~0 on these markers."""
+    import re as _re
+    toks = _re.findall(r"[a-z']+", (text or "").lower())
+    if not toks:
+        return None
+    return "hinglish" if sum(1 for w in toks if w in _ASK_HINGLISH_WORDS) >= 2 else None
+
+
+def _ask_lang_directive(language):
+    """Generation directive appended to the Ask system prompt for languages the
+    model must WRITE directly (no post-hoc translator). Empty for en/es/pt."""
+    l = (language or "").lower()
+    if l == "hinglish":
+        return ("\n\nLANGUAGE: Respond ENTIRELY in natural Hinglish — Hindi written in "
+                "Roman/Latin script, code-mixed with English the way an urban Indian "
+                "actually speaks (e.g. \"abhi aapka money window strong nahi hai, lekin "
+                "2027 mein khulega\"). Warm and conversational. Do NOT use Devanagari. "
+                "Keep every month/year, name, and the YES/NO verdict exactly as given.")
+    if l == "hi":
+        return ("\n\nLANGUAGE: Respond ENTIRELY in Hindi (Devanagari script). Keep every "
+                "month/year, name, and the YES/NO verdict exactly as given.")
+    return ""
 
 
 # [ask-lang-rescue 2026-09-17] Text-language rescue. A question asked in Spanish
@@ -23047,7 +23092,8 @@ async def ask_endpoint(request: AskRequest):
     # overrides when confident; ambiguous text keeps the client/profile language.
     _orig_lang = language
     _ask_lang_learned = ""
-    _q_lang = _ask_detect_text_lang(question)
+    # es/pt first (diacritic-backed), then Hinglish (Romanized Hindi markers).
+    _q_lang = _ask_detect_text_lang(question) or _ask_detect_hinglish(question)
     if _q_lang and _q_lang != language:
         language = _q_lang
         if _orig_lang == "en":
@@ -25316,6 +25362,8 @@ async def ask_endpoint(request: AskRequest):
                     for _tt in _ask_thread[-3:]:
                         _conv += f"- User asked: {_tt['q']}\n  You answered: {_tt['a'][:200]}\n"
                     _sys = _sys + _conv
+                if isinstance(_sys, str):
+                    _sys = _sys + _ask_lang_directive(language)   # [ask-hinglish]
                 _t = await call_llm_claude(prompt=question, system_override=_sys)
                 raw = _t[0] if isinstance(_t, tuple) else _t
             except Exception as _ce:
@@ -26291,6 +26339,8 @@ async def ask_endpoint(request: AskRequest):
                       f"({len(_why_sys)} chars) — not persisted")
             why = ""
             _yn_actions = []
+            if isinstance(_why_sys, str):
+                _why_sys = _why_sys + _ask_lang_directive(language)   # [ask-hinglish]
             try:
                 _wt = await call_llm_claude(prompt=question, system_override=_why_sys)
                 _wraw = (_wt[0] if isinstance(_wt, tuple) else _wt) or ""
