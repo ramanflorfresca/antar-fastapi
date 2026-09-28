@@ -26736,7 +26736,8 @@ DAILY_SIGNAL_I18N_FIELDS = [
     fields_to_translate=DAILY_SIGNAL_I18N_FIELDS,
     endpoint_name="daily-signal",
 )
-async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, language: str = "en", date: str = None):
+async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, language: str = "en", date: str = None,
+                                    full_compute: bool = False):
     cid = chart_id or (request.get("chart_id") if request else None)
     if not cid:
         raise HTTPException(400, "chart_id required")
@@ -26894,6 +26895,15 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         except Exception as _dfe:
             print(f"[daily-signal] day frame skipped (non-fatal): {_dfe}")
 
+        # [today-fast-path 2026-09-28] Mirror /daily-week's two-phase contract.
+        # This route used to call Claude INLINE on a cache miss, so a brand-new
+        # chart's very first Today card blocked 4-45s (longer on es/pt, which
+        # also pay a translation pass) behind a grey skeleton. fast_mode returns
+        # the deterministic day — real panchanga, score, windows, colour, food,
+        # do/avoid — stamped `pending`, in milliseconds; the background full pass
+        # below writes the LLM prose into cache and the client polls for the
+        # upgrade. `full_compute=True` is how the prewarmer and that background
+        # pass ask for the slow, authoritative version.
         signals = await generate_weekly_signals(
             natal_moon_sign=natal_moon_sign,
             start_date=start_date,
@@ -26903,7 +26913,24 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             tz_offset=effective_offset,
             days_to_generate=1,
             day_frame=_day_frame,
+            fast_mode=not full_compute,
         )
+        _ds_pending = bool(signals and isinstance(signals[0], dict)
+                           and signals[0].get("pending"))
+        if _ds_pending and not full_compute:
+            async def _ds_full_pass(_cid=cid, _lang=language, _d=_ds_req_date_str):
+                try:
+                    await get_daily_signal_endpoint(chart_id=_cid, language=_lang,
+                                                    date=_d, full_compute=True)
+                    print(f"[daily-signal] background full pass complete chart={_cid[:8]}")
+                except Exception as _bg_e:
+                    print(f"[daily-signal] background full pass failed (non-fatal) chart={_cid[:8]}: {_bg_e}")
+            try:
+                import asyncio as _ds_aio_fp
+                _ds_aio_fp.create_task(_ds_full_pass())
+                print(f"[daily-signal] fast return chart={cid[:8]} lang={language} — full pass scheduled")
+            except Exception as _ds_sched_e:
+                print(f"[daily-signal] full pass schedule failed: {_ds_sched_e}")
         # [es-cold-fix] No background week-warm here: generation runs
         # synchronous swisseph on the single event loop, so warming the
         # other 6 days inline-async blocked the response (25-33s cold).
@@ -27933,15 +27960,20 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     endpoint_name="daily-signal", chart_id=cid,
                 )
             try:
-                _daily_surface_put(cid, "daily-signal", language, _ds_cache_date, result)
+                # [today-fast-path 2026-09-28] NEVER cache a pending (template)
+                # card. Caching it would pin the deterministic placeholder as
+                # today's answer for the rest of the day and the LLM card the
+                # background pass generates would never reach the reader.
+                if not _ds_pending:
+                    _daily_surface_put(cid, "daily-signal", language, _ds_cache_date, result)
             except Exception as _ds_pe:
                 print(f"[daily-signal] full-payload cache write skipped: {_ds_pe}")
-            return {**result, "_already_localized": True}
+            return {**result, "pending": _ds_pending, "_already_localized": True}
         except Exception as _ds_fe:
             # Localization failed — return the composed result and let the
             # decorator translate it the normal way (no cache write).
             print(f"[daily-signal] in-body localize skipped (decorator will translate): {_ds_fe}")
-            return result
+            return {**result, "pending": _ds_pending}
     except HTTPException: raise
     except Exception as e:
         print(f"[daily-signal] Error for chart {cid}: {e}")
@@ -30856,7 +30888,8 @@ async def _network_prewarm(connection_chart_id):
     language-independent band/direction). Detached; never raises; always clears
     its in-flight marker."""
     try:
-        await get_daily_signal_endpoint(chart_id=connection_chart_id, language="en")
+        await get_daily_signal_endpoint(chart_id=connection_chart_id, language="en",
+                                        full_compute=True)  # [today-fast-path] warmers do the slow work
     except Exception as _e:
         print(f"[network] prewarm failed cid={str(connection_chart_id)[:8]}: {_e}")
     finally:
@@ -31641,10 +31674,145 @@ async def _prewarm_daily_week_cache(chart_id: str, tz_offset: Optional[float] = 
     # decorated endpoint, which caches the translated payload) means es/pt users
     # land on a ready card. Separate guard so a signal miss never masks the week.
     try:
-        await get_daily_signal_endpoint(chart_id=chart_id, language=language)
+        await get_daily_signal_endpoint(chart_id=chart_id, language=language,
+                                        full_compute=True)  # [today-fast-path] warmers do the slow work
         print(f"[prewarm] daily-signal complete chart={chart_id} lang={language}")
     except Exception as _dse:
         print(f"[prewarm] daily-signal FAILED (non-fatal) chart={chart_id}: {_dse}")
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# WARM-UP STATUS — honest first-run progress for the Today surface
+# ══════════════════════════════════════════════════════════════════════════════
+# [warmup-status 2026-09-28] A brand-new chart's Today surface is assembled by a
+# background full pass that takes ~90-180s (7 serial Sonnet days + WOW + exec
+# summary). Until this endpoint existed the client had NO way to tell "still
+# being built" from "broken", so it sat on a grey skeleton — indistinguishable
+# from a blank screen — for minutes.
+#
+# This reports what is ACTUALLY in cache right now, so the client's progress UI
+# is truthful rather than a decorative countdown. It is deliberately cheap:
+# three indexed count queries, no generation, no LLM, safe to poll every ~3s.
+#
+# Contract (stable — the client renders off these keys):
+#   ready             bool   Today's card + the week strip are fully warm
+#   stage             str    casting|reading|composing|translating|ready
+#   progress          int    0-100, monotonic for a given chart+day
+#   days_ready        int    0-7  how many of the week's days are generated
+#   today_ready       bool   today's own LLM day exists (the card can be real)
+#   card_ready        bool   the composed+localized card payload is cached
+#   elapsed_seconds   int    since chart creation (None for older charts)
+#   eta_seconds       int    remaining estimate, from measured per-day cost
+_WARMUP_SECONDS_PER_DAY = 18          # measured cold cost of one Sonnet day
+_WARMUP_COMPOSE_SECONDS = 25          # WOW + exec summary + highlights + strip
+
+
+@app.get("/api/v1/warmup/status/{chart_id}")
+async def warmup_status(chart_id: str, language: str = "en"):
+    """Cheap, truthful readiness probe for the Today surface. See block comment."""
+    from uuid import UUID as _UUID_W
+    try:
+        _UUID_W(str(chart_id))
+    except (ValueError, AttributeError, TypeError):
+        raise HTTPException(404, "Chart not found")
+
+    try:
+        _r = supabase.table("charts").select(
+            "created_at,language_preference,current_country,birth_country"
+        ).eq("id", chart_id).single().execute()
+    except Exception:
+        _r = None
+    if not _r or not _r.data:
+        raise HTTPException(404, "Chart not found")
+    row = _r.data
+
+    # Same language resolution the daily surfaces use, so the probe reads the
+    # rows those surfaces will actually write (an es user's cache is not 'en').
+    language = _resolve_surface_language("warmup", language, row)
+
+    # Same local-date derivation as /daily-week, so we probe TODAY's rows.
+    _cc = _country_name(row.get("current_country") or row.get("birth_country") or "")
+    try:
+        start_date = _get_local_start_date(current_country=_cc)
+    except Exception:
+        start_date = datetime.utcnow()
+    _week = [(start_date + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
+    _today_str = _week[0]
+
+    # 1. Per-day LLM signals (powers the card + the week strip).
+    days_ready, today_ready = 0, False
+    try:
+        _dr = (supabase.table("daily_signals_cache")
+               .select("signal_date")
+               .eq("chart_id", chart_id).eq("language", language)
+               .in_("signal_date", _week).execute())
+        _have = {str(d.get("signal_date"))[:10] for d in (_dr.data or [])}
+        days_ready = len(_have)
+        today_ready = _today_str in _have
+    except Exception as _e:
+        print(f"[warmup] day-cache probe failed (non-fatal) chart={chart_id[:8]}: {_e}")
+
+    # 2. The composed + localized card payload (skips generation AND translation).
+    card_ready = False
+    try:
+        card_ready = bool(_daily_surface_get(chart_id, "daily-signal", language, _today_str))
+    except Exception as _e:
+        print(f"[warmup] card probe failed (non-fatal) chart={chart_id[:8]}: {_e}")
+
+    # Elapsed since the chart was created — the client uses this to decide
+    # between "first analysis" framing and an ordinary refresh.
+    elapsed_seconds = None
+    try:
+        _ca = str(row.get("created_at") or "")
+        if _ca:
+            _dt = datetime.fromisoformat(_ca.replace("Z", "+00:00"))
+            elapsed_seconds = max(0, int((datetime.now(timezone.utc) - _dt).total_seconds()))
+    except Exception:
+        elapsed_seconds = None
+
+    # Progress: today's day is what unblocks a real card, so it carries the most
+    # weight. The remaining six days and the composed payload fill the rest.
+    progress = 10                                     # chart itself is computed
+    if today_ready:
+        progress = 55
+    progress += int(min(6, max(0, days_ready - (1 if today_ready else 0))) * 5)
+    if card_ready:
+        progress = max(progress, 90)
+    ready = bool(today_ready and days_ready >= 7)
+    if ready:
+        progress = 100
+
+    if ready:
+        stage = "ready"
+    elif card_ready or days_ready >= 7:
+        stage = "translating" if (language or "en").split("-")[0].lower() != "en" else "composing"
+    elif today_ready:
+        stage = "composing"
+    elif days_ready:
+        stage = "reading"
+    else:
+        stage = "casting"
+
+    _remaining_days = max(0, 7 - days_ready)
+    eta_seconds = _remaining_days * _WARMUP_SECONDS_PER_DAY
+    if not card_ready:
+        eta_seconds += _WARMUP_COMPOSE_SECONDS
+    if ready:
+        eta_seconds = 0
+
+    return {
+        "chart_id":        chart_id,
+        "language":        language,
+        "local_date":      _today_str,
+        "ready":           ready,
+        "stage":           stage,
+        "progress":        progress,
+        "days_ready":      days_ready,
+        "today_ready":     today_ready,
+        "card_ready":      card_ready,
+        "elapsed_seconds": elapsed_seconds,
+        "eta_seconds":     eta_seconds,
+    }
 
 
 # ── Google Auth Endpoints ─────────────────────────────────────────
