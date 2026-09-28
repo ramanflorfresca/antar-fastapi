@@ -165,3 +165,29 @@ def test_saved_rows_carry_both_version_stamps():
     src = inspect.getsource(dpe._save_cached_signal)
     assert '"_logic_version"] = DAILY_LOGIC_VERSION' in src
     assert '"_strip_version"] = DAILY_STRIP_VERSION' in src
+
+
+# ─── 4. fire-and-forget background passes must not be GC'd ────────
+
+def test_background_passes_keep_a_strong_reference():
+    """asyncio holds only a WEAK reference to a task. A bare
+    `create_task(...)` whose handle goes out of scope can be collected
+    mid-flight, which silently stops the pass that upgrades a pending day to
+    its real reading — the first-run progress screen then never reaches ready.
+
+    Every fire-and-forget create_task in the daily path must stash its handle.
+    """
+    src = open(os.path.join(os.path.dirname(__file__), "..", "main.py")).read()
+    offenders = []
+    for i, line in enumerate(src.split("\n"), 1):
+        stripped = line.strip()
+        if "create_task(" not in stripped or stripped.startswith("#"):
+            continue
+        # A handle is kept when the result is bound to a name.
+        if "=" in stripped.split("create_task(")[0]:
+            continue
+        offenders.append(f"main.py:{i}: {stripped[:70]}")
+    assert offenders == [], (
+        "create_task() result discarded — the task may be garbage collected "
+        "before it finishes:\n  " + "\n  ".join(offenders)
+    )
