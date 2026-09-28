@@ -81,9 +81,24 @@ def test_every_language_gets_localized_furniture():
     for lang in sa.SUPPORTED_LANGUAGES:
         p = sa.compose_response("unknown", "", lang)
         assert p["language"] == lang
-        assert p["disclaimer"] == sa.DISCLAIMER_TEXT[lang]
-        assert p["followup"] == sa.FOLLOWUP_TEXT[lang]
+        assert p["disclaimer"] == sa.DISCLAIMER_TEXT[lang].replace("{email}", sa.CONTACT_EMAIL)
+        assert p["followup"] == sa.FOLLOWUP_TEXT[lang].replace("{email}", sa.CONTACT_EMAIL)
         assert "{sla}" not in p["answer"]
+        assert "{email}" not in p["disclaimer"] and "{email}" not in p["followup"]
+
+
+def test_footer_email_never_contradicts_the_route():
+    """The widget links `contact_email` and searches for it inside `followup`.
+    If the two disagree it renders BOTH addresses, and tells a user with a
+    payment problem to write to the general mailbox."""
+    for route in ("answer", "unknown", "billing", "offtopic"):
+        for lang in sa.SUPPORTED_LANGUAGES:
+            p = sa.compose_response(route, "body", lang)
+            assert p["contact_email"] in p["followup"], (route, lang)
+            assert p["contact_email"] in p["disclaimer"], (route, lang)
+    billing = sa.compose_response("billing", "body", "en")
+    assert sa.CONTACT_EMAIL_BILLING in billing["followup"]
+    assert sa.CONTACT_EMAIL not in billing["followup"]
 
 
 def test_unsupported_language_falls_back_to_english():
