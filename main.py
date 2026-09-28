@@ -12739,6 +12739,20 @@ async def places_concern_endpoint(req: PlacesConcernReq):
         for _f in _lk_find:
             _f["text"] = _places_strip(_f["text"], req.language)
         c["lk_relocation_findings"] = _lk_find
+        # [places-what-changes 2026-09-28] The classical relocation-chart read —
+        # which natal planet lands in a new significant house from THIS city's
+        # ascendant ("here Saturn moves into your house of career"), honest gift+
+        # cost. This is the concrete astrocartography reasoning the concern list
+        # was missing (it only scored the relocation; the narration lived on
+        # /places/potential). Same module + strip the /potential endpoint uses.
+        try:
+            from antar_engine.places_what_changes import relocation_what_changes as _rwc
+            _wc = _rwc(s.get("_relocation", {}), req.language)
+            for _w in _wc:
+                _w["text"] = _places_strip(_w["text"], req.language)
+            c["what_changes"] = _wc
+        except Exception as _wce:
+            c["what_changes"] = []
         ranked.append(c)
 
     concern_lines = _pcn.filter_concern_lines(all_lines, req.concern)
