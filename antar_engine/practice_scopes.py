@@ -369,17 +369,19 @@ def detect_varshphal_negatives(chart: dict, today_date: date, language: str = "e
                     _e = _energy(_planet, lang)
                     _E = (_e[:1].upper() + _e[1:]) if _e else _e
                     if _outcome == PRIORITY_AWAKEN:
-                        _wp = (f"Tu carta anual pone {_e} a dormir este año — esta es "
-                               f"la ventana para despertarla, y todo el año solar acompaña el trabajo."
+                        _wp = (f"La carta de este año favorece {_e} — normalmente un área "
+                               f"poco desarrollada en ti, ahora con un año entero de apoyo para "
+                               f"fortalecerla. Trabájala de forma constante mientras la ventana esté abierta."
                                if lang == "es" else
-                               f"Your annual chart puts {_e} to sleep this year — this is "
-                               f"the window to wake it, and the whole solar year supports the work.")
+                               f"This year's chart favors {_e} — usually an underdeveloped area for "
+                               f"you, now with a full year of support to build it up. Work on it "
+                               f"steadily while the window is open.")
                     else:
-                        _wp = (f"{_E} normalmente está despierta en ti, pero la carta de este "
-                               f"año la atenúa. Cuidarla durante el año solar evita que se apague."
+                        _wp = (f"La carta de este año debilita {_e} en ti — un área que suele "
+                               f"funcionar bien. La atención constante durante el año evita que decaiga."
                                if lang == "es" else
-                               f"{_E} normally runs awake for you, but this year's chart dims it. "
-                               f"Tending it across the solar year keeps it from going quiet.")
+                               f"This year's chart weakens {_e} for you — an area that usually works "
+                               f"well. Steady attention across the year keeps it from slipping.")
                     out.append({
                         "scope": "varshphal_year", "planet": _planet,
                         "supporting_planets": [], "severity": _SLEEP_SEV[_outcome],
