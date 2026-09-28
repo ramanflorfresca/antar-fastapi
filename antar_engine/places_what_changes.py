@@ -93,13 +93,18 @@ def _polarity(planet: str, house: int) -> str:
 
 
 def relocation_what_changes(relocation: dict, language: str = "en",
-                            limit: int = 3) -> list[dict]:
+                            limit: int = 3, prefer_houses=None) -> list[dict]:
     """The classical 'what your chart becomes here' read.
 
     Returns (never raises) a list of:
         {"planet": str, "house": int, "polarity": "gift"|"cost", "text": str}
     ordered angles-first, with at least one cost surfaced when one exists (so the
     read is honest, not only flattering). Empty when unavailable.
+
+    `prefer_houses` (optional) — when the caller is answering a SPECIFIC concern
+    (e.g. the diagnostic 'prescribe' flow asking about peace), the house-shifts
+    that serve that concern sort to the FRONT, so the read leads with the shift
+    that actually matters to the diagnosed area instead of the generic top angle.
     """
     try:
         if not relocation or not relocation.get("_available"):
@@ -127,7 +132,9 @@ def relocation_what_changes(relocation: dict, language: str = "en",
 
         if not items:
             return []
-        items.sort(key=lambda it: (_HOUSE_RANK.get(it["house"], 99), it["planet"]))
+        _pref = set(prefer_houses or [])
+        items.sort(key=lambda it: (0 if it["house"] in _pref else 1,
+                                   _HOUSE_RANK.get(it["house"], 99), it["planet"]))
 
         # keep it honest: if a cost exists but wouldn't make the top `limit`,
         # swap the weakest gift for the top-ranked cost.

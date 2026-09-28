@@ -13638,18 +13638,31 @@ async def places_prescribe_endpoint(req: PlacesPrescribeReq):
                 break
         return out
 
+    _pref_houses = {c: (_pcn.CONCERN_MAP.get(c, {}) or {}).get("houses") for c in _pdx.PROBLEM_CONCERNS}
+
     def _shape_fix(cn, s):
         try:
-            _wc = _rwc(s.get("_relocation", {}), lang)
+            # Lead the "what changes here" read with the shift that serves the
+            # diagnosed area (peace → 4th/12th), not the generic top angle.
+            _wc = _rwc(s.get("_relocation", {}), lang, prefer_houses=_pref_houses.get(cn))
             for _w in _wc:
                 _w["text"] = _places_strip(_w["text"], lang)
         except Exception:
             _wc = []
         cy = s.get("city") or {}
+        lift = int(round((s.get("score", 0) or 0) - home_by.get(cn, {}).get("score", 0)))
+        # For a diagnostic "what helps most" screen the useful signal is the
+        # IMPROVEMENT over home, not the absolute fit — otherwise every fix for a
+        # badly-afflicted area reads "weak". `fix_strength` tiers the lift; `fit`
+        # (absolute) stays as secondary context.
+        fix_strength = ("strong" if lift >= 20 else
+                        "moderate" if lift >= 12 else
+                        "mild" if lift >= _pdx.MEANINGFUL_LIFT else "slight")
         return {
             "city": cy.get("name"), "country": cy.get("country"),
             "fit": _pot_fit(s.get("score")),
-            "lift": int(round((s.get("score", 0) or 0) - home_by.get(cn, {}).get("score", 0))),
+            "fix_strength": fix_strength,
+            "lift": lift,
             "fix_line": _places_strip(_pdx.fix_line(cn, lang), lang),
             "what_changes": _wc,
         }
@@ -13657,7 +13670,11 @@ async def places_prescribe_endpoint(req: PlacesPrescribeReq):
     prescription = None
     if lead:
         cn = lead["concern"]
-        within_fix = [_shape_fix(cn, s) for s in _curate(ranked_by_concern.get(cn, []), limit)]
+        # The current city is the baseline, never a "move" — drop it from the fixes.
+        _cur_norm = _norm(rec.get("current_city") or "")
+        _within_pool = [s for s in ranked_by_concern.get(cn, [])
+                        if _norm((s.get("city") or {}).get("name")) != _cur_norm]
+        within_fix = [_shape_fix(cn, s) for s in _curate(_within_pool, limit)]
         # One optional far standout — ranked globally, taken only if it clearly
         # beats the best within-reach fix (kept clearly optional, never the lead).
         bigger = None
