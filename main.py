@@ -13530,6 +13530,206 @@ async def places_potential_endpoint(req: PlacesPotentialReq):
     return out
 
 
+class PlacesPrescribeReq(BaseModel):
+    chart_id: str
+    language: str = "en"
+    region_filter: Optional[str] = None
+    limit: int = 4
+
+
+@app.post("/api/v1/places/prescribe")
+async def places_prescribe_endpoint(req: PlacesPrescribeReq):
+    """DIAGNOSTIC-FIRST relocation. Reads the chart, scores the person's CURRENT
+    city across every life-area to find where they're most STUCK (the natal
+    problem, unrelieved if they still live in their birthplace), and prescribes
+    feasible places that lift exactly that area — auto-diagnosed, user picks
+    nothing. Owner's method: 'go check the chart first, then predict the move
+    that improves the problem area.'"""
+    lang = _pot_lang(req.language)
+    limit = max(1, min(int(req.limit or 4), 6))
+    ckey = ("places_prescribe", req.chart_id, lang, req.region_filter or "", limit)
+    cached = _places_cache_get(ckey)
+    if cached is not None:
+        return cached
+
+    rec, chart = _places_load_chart(req.chart_id)
+    if not chart.get("birth_jd"):
+        raise HTTPException(422, "chart missing birth_jd; cannot compute astrocartography")
+    all_lines = _pl.compute_all_lines(chart.get("birth_jd"), chart)
+    conditions = _pc.compute_all_conditions(chart)
+    age = _pintel.compute_age(rec.get("birth_date"))
+    try:
+        dctx = _pintel.get_dasha_context(get_dashas_for_chart(req.chart_id), lang)
+    except Exception:
+        dctx = None
+    dasha_lords = None
+    if dctx:
+        _dl = []
+        if dctx.get("md_lord"):
+            _dl.append((dctx["md_lord"], 1.0))
+        if dctx.get("ad_lord") and dctx.get("ad_lord") != dctx.get("md_lord"):
+            _dl.append((dctx["ad_lord"], 0.5))
+        dasha_lords = _dl or None
+
+    import unicodedata as _ud
+    from antar_engine import places_diagnose as _pdx
+    from antar_engine.places_what_changes import relocation_what_changes as _rwc
+
+    def _norm(_s):
+        _s = _ud.normalize("NFKD", str(_s or "")).encode("ascii", "ignore").decode("ascii")
+        return " ".join(_s.strip().lower().split())
+
+    cities = _places_cities()
+
+    def _find_home():
+        cur = _norm(rec.get("current_city") or "")
+        if not cur:
+            return None
+        cands = [c for c in cities if _norm(c.get("name")) == cur]
+        if not cands and len(cur) >= 4:
+            cands = [c for c in cities if _norm(c.get("name")).startswith(cur)
+                     or cur.startswith(_norm(c.get("name")))]
+        return cands[0] if cands else None
+
+    home = _find_home()
+    home_region = home.get("region_group") if home else None
+    home_name = (rec.get("current_city") or (home.get("name") if home else "")) or ""
+    is_birthplace = bool(rec.get("current_city")) and bool(rec.get("birth_city")) \
+        and _norm(rec.get("current_city")) == _norm(rec.get("birth_city"))
+
+    # 1) DIAGNOSE — score the home city across life-areas (worst-first).
+    home_scores = _pdx.diagnose_home_city(chart, home, dasha_lords, conditions, all_lines)
+    home_by = {r["concern"]: r for r in home_scores}
+
+    # 2) For each STUCK area, rank the WITHIN-REACH pool (home region) and measure
+    # the FEASIBLE lift. A problem is only "fixable by moving" if a place the
+    # person could realistically move to lifts it — measuring against global
+    # cities was the Bangladesh trap (a lift that isn't reachable). No home region
+    # (unknown city) → fall back to the user's region_filter or global.
+    _reach = home_region or (req.region_filter or None)
+    ranked_by_concern, best_lift = {}, {}
+    stuck = [r["concern"] for r in home_scores
+             if r["score"] <= _pdx.STUCK_MAX or r.get("tier") == "STRAIN"]
+    for cn in stuck:
+        try:
+            ranked = _pcn.rank_cities_for_concern(
+                chart, cn, cities, region_filter=_reach,
+                top_n=8, dasha_lords=dasha_lords)
+        except Exception:
+            ranked = []
+        ranked_by_concern[cn] = ranked
+        home_sc = home_by[cn]["score"]
+        best = max((r.get("score", 0) or 0 for r in ranked), default=home_sc)
+        best_lift[cn] = max(0.0, best - home_sc)
+
+    # 3) The problems worth acting on (stuck AND a real feasible lift), worst-first.
+    problems = _pdx.rank_problems(home_scores, best_lift)
+    lead = problems[0] if problems else None
+
+    def _curate(rows, n):
+        seen, out = set(), []
+        for r in rows:
+            cc = (r.get("city") or {}).get("country_code")
+            if cc in seen:
+                continue
+            seen.add(cc)
+            out.append(r)
+            if len(out) >= n:
+                break
+        return out
+
+    def _shape_fix(cn, s):
+        try:
+            _wc = _rwc(s.get("_relocation", {}), lang)
+            for _w in _wc:
+                _w["text"] = _places_strip(_w["text"], lang)
+        except Exception:
+            _wc = []
+        cy = s.get("city") or {}
+        return {
+            "city": cy.get("name"), "country": cy.get("country"),
+            "fit": _pot_fit(s.get("score")),
+            "lift": int(round((s.get("score", 0) or 0) - home_by.get(cn, {}).get("score", 0))),
+            "fix_line": _places_strip(_pdx.fix_line(cn, lang), lang),
+            "what_changes": _wc,
+        }
+
+    prescription = None
+    if lead:
+        cn = lead["concern"]
+        within_fix = [_shape_fix(cn, s) for s in _curate(ranked_by_concern.get(cn, []), limit)]
+        # One optional far standout — ranked globally, taken only if it clearly
+        # beats the best within-reach fix (kept clearly optional, never the lead).
+        bigger = None
+        try:
+            _glob = _pcn.rank_cities_for_concern(chart, cn, cities, top_n=6,
+                                                 dasha_lords=dasha_lords)
+        except Exception:
+            _glob = []
+        _out = [r for r in _glob if not home_region
+                or (r.get("city") or {}).get("region_group") != home_region]
+        if _out:
+            b = _out[0]
+            b_lift = int(round((b.get("score", 0) or 0) - home_by.get(cn, {}).get("score", 0)))
+            best_within = max((f["lift"] for f in within_fix), default=0)
+            if b_lift >= best_within + 5:
+                bigger = _shape_fix(cn, b)
+        prescription = {
+            "problem": _pdx.PROBLEM_LABEL[lang][cn],
+            "problem_concern": cn,
+            "within_reach": within_fix,
+            "bigger_move": bigger,
+        }
+
+    others = []
+    for p in problems[1:3]:
+        cn = p["concern"]
+        top = (ranked_by_concern.get(cn) or [None])[0]
+        others.append({
+            "problem": _pdx.PROBLEM_LABEL[lang][cn],
+            "problem_concern": cn,
+            "top_city": ((top.get("city") or {}).get("name") if top else None),
+            "top_country": ((top.get("city") or {}).get("country") if top else None),
+        })
+
+    if not rec.get("current_city"):
+        diag_line = {
+            "en": "Add your current city and I'll diagnose which life-area a move would help most.",
+            "es": "Añade tu ciudad actual y diagnosticaré qué área mejoraría más con una mudanza.",
+            "pt": "Adicione sua cidade atual e vou diagnosticar qual área uma mudança ajudaria mais.",
+        }[lang]
+    else:
+        diag_line = _places_strip(_pdx.diagnosis_line(lead, home_name, is_birthplace, lang), lang)
+
+    out = {
+        "chart_id": req.chart_id,
+        "language": lang,
+        "user_name": rec.get("first_name") or rec.get("name") or "",
+        "user_age": age,
+        "current_city": {"name": home_name or None, "is_birthplace": is_birthplace,
+                         "known": bool(rec.get("current_city"))},
+        "diagnosis": diag_line,
+        "no_problem": lead is None and bool(rec.get("current_city")),
+        "prescription": prescription,
+        "other_problems": others,
+        "home_region": home_region,
+        "activation": _pot_activation(lead["concern"] if lead else "overall", lang),
+        "framing": {
+            "en": "A move eases the area your chart struggles with most — it doesn't rewrite your current chapter. Try a place before committing: visit, then put something there, then base part of the year.",
+            "es": "Una mudanza alivia el área en la que tu carta más lucha — no reescribe tu capítulo actual. Prueba un lugar antes de comprometerte: visita, luego pon algo allí, luego pasa parte del año.",
+            "pt": "Uma mudança alivia a área em que seu mapa mais luta — não reescreve seu capítulo atual. Experimente um lugar antes de se comprometer: visite, depois coloque algo lá, depois passe parte do ano.",
+        }[lang],
+        "type_a_location_hint": {
+            "en": "Considering a specific city? Enter it to see what a move there would do for this area.",
+            "es": "¿Piensas en una ciudad concreta? Escríbela para ver qué haría una mudanza allí en esta área.",
+            "pt": "Pensando em uma cidade específica? Digite-a para ver o que uma mudança faria nesta área.",
+        }[lang],
+        "generated_at": _places_iso_now(),
+    }
+    _places_cache_set(ckey, out)
+    return out
+
+
 @app.get("/api/v1/places/lines/{chart_id}")
 async def places_lines_endpoint(chart_id: str, language: str = "en",
                                 concern: Optional[str] = None):
