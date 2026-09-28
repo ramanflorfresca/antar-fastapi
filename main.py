@@ -13658,6 +13658,19 @@ async def places_prescribe_endpoint(req: PlacesPrescribeReq):
         return out
 
     _pref_houses = {c: (_pcn.CONCERN_MAP.get(c, {}) or {}).get("houses") for c in _pdx.PROBLEM_CONCERNS}
+    _natal_lagna = (chart.get("lagna") or {}).get("sign")
+    from antar_engine.places_lines import haversine_km as _hav
+    _home_lat = (home or {}).get("lat")
+    _home_lon = (home or {}).get("lon")
+
+    def _dist_km(s):
+        cy = s.get("city") or {}
+        if _home_lat is None or cy.get("lat") is None:
+            return None
+        try:
+            return _hav(float(_home_lat), float(_home_lon), float(cy["lat"]), float(cy["lon"]))
+        except Exception:
+            return None
 
     def _shape_fix(cn, s):
         try:
@@ -13670,6 +13683,11 @@ async def places_prescribe_endpoint(req: PlacesPrescribeReq):
             _wc = []
         cy = s.get("city") or {}
         lift = int(round((s.get("score", 0) or 0) - home_by.get(cn, {}).get("score", 0)))
+        # Method-B headline: which natal house rises here (the relocated ascendant's
+        # natal-house theme) — the classical "what this place makes prominent".
+        _rl = _pdx.lagna_rises((s.get("_relocation") or {}).get("relocated_lagna_index"),
+                               _natal_lagna, lang)
+        _dkm = _dist_km(s)
         # For a diagnostic "what helps most" screen the useful signal is the
         # IMPROVEMENT over home, not the absolute fit — otherwise every fix for a
         # badly-afflicted area reads "weak". `fix_strength` tiers the lift; `fit`
@@ -13683,6 +13701,9 @@ async def places_prescribe_endpoint(req: PlacesPrescribeReq):
             "fix_strength": fix_strength,
             "lift": lift,
             "fix_line": _places_strip(_pdx.fix_line(cn, lang), lang),
+            "rises_here": _places_strip(_rl, lang) if _rl else None,   # Method-B lagna lens
+            "distance_km": int(round(_dkm)) if _dkm is not None else None,
+            "distance_mi": int(round(_dkm * 0.621371)) if _dkm is not None else None,
             "what_changes": _wc,
         }
 
@@ -13697,6 +13718,14 @@ async def places_prescribe_endpoint(req: PlacesPrescribeReq):
         _within_pool = [s for s in ranked_by_concern.get(cn, [])
                         if _norm((s.get("city") or {}).get("name")) != _cur_norm
                         and ((s.get("score", 0) or 0) - _home_sc) >= _pdx.MEANINGFUL_LIFT]
+        # Distance-based feasibility: among fixes of comparable strength, prefer the
+        # ones CLOSER to home (a Hyderabad person leads with nearer Asian cities, not
+        # Tokyo, when their lift is similar) — strongest lift still wins its tier.
+        def _lift_bucket(s):
+            _lf = (s.get("score", 0) or 0) - _home_sc
+            return 0 if _lf >= 20 else 1 if _lf >= 12 else 2
+        _within_pool.sort(key=lambda s: (_lift_bucket(s),
+                                         _dist_km(s) if _dist_km(s) is not None else 1e9))
         within_fix = [_shape_fix(cn, s) for s in _curate(_within_pool, limit)]
         # One optional far standout — ranked globally, taken only if it clearly
         # beats the best within-reach fix (kept clearly optional, never the lead).

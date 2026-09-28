@@ -144,6 +144,51 @@ def diagnosis_line(lead: Optional[dict], home_name: str, is_birthplace: bool,
     return stuck + fix
 
 
+# ── Method B: which natal house "rises" at a place ──────────────────────────
+# The classical relocation headline: when you relocate, the ascendant recomputes
+# to a new sign — and that sign IS one of your natal houses. So living there makes
+# that natal house's THEME your operating frame. (Owner's example: Bogotá's Virgo
+# ascendant = his natal 9th → fortune/foreign luck comes to the fore.) This is a
+# LENS on the relocation chart, not a rival method. Plain-language (no house #).
+_SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
+          "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
+_HOUSE_THEME = {
+    "en": {1: "self and vitality", 2: "money and family", 3: "drive and communication",
+           4: "home, roots and inner peace", 5: "creativity and romance",
+           6: "work, service and health", 7: "partnership and close bonds",
+           8: "change and shared matters", 9: "fortune, luck and a higher purpose",
+           10: "career, standing and public life", 11: "gains, income and network",
+           12: "retreat, foreign lands and the inner life"},
+    "es": {1: "el yo y la vitalidad", 2: "dinero y familia", 3: "impulso y comunicación",
+           4: "hogar, raíces y paz interior", 5: "creatividad y romance",
+           6: "trabajo, servicio y salud", 7: "pareja y vínculos cercanos",
+           8: "cambio y asuntos compartidos", 9: "fortuna, suerte y propósito superior",
+           10: "carrera, posición y vida pública", 11: "ganancias, ingresos y red",
+           12: "retiro, tierras lejanas y vida interior"},
+    "pt": {1: "o eu e a vitalidade", 2: "dinheiro e família", 3: "impulso e comunicação",
+           4: "lar, raízes e paz interior", 5: "criatividade e romance",
+           6: "trabalho, serviço e saúde", 7: "parceria e vínculos próximos",
+           8: "mudança e assuntos compartilhados", 9: "fortuna, sorte e um propósito maior",
+           10: "carreira, posição e vida pública", 11: "ganhos, renda e rede",
+           12: "retiro, terras distantes e vida interior"},
+}
+
+
+def lagna_rises(reloc_index, natal_sign: Optional[str], language: str) -> Optional[str]:
+    """'Here your operating frame shifts to <natal-house theme>' — the natal house
+    the relocated ascendant corresponds to. None when data is missing."""
+    lang = _lang(language)
+    if reloc_index is None or natal_sign not in _SIGNS:
+        return None
+    house = ((int(reloc_index) - _SIGNS.index(natal_sign)) % 12) + 1
+    theme = _HOUSE_THEME[lang][house]
+    return {
+        "en": f"Here your life's operating frame shifts to {theme} — that's the part of your chart that rises in this place.",
+        "es": f"Aquí el eje de tu vida cambia hacia {theme} — es la parte de tu carta que se eleva en este lugar.",
+        "pt": f"Aqui o eixo da sua vida muda para {theme} — é a parte do seu mapa que se eleva neste lugar.",
+    }[lang]
+
+
 def fix_line(concern: str, language: str) -> str:
     """One plain line stating WHAT a fix-city does for the diagnosed problem."""
     lang = _lang(language)
