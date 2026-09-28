@@ -492,8 +492,16 @@ def _build_signal_text(
         signal = (
             f"The energy today creates internal friction — best used for inner work, "
             f"review, and preparation rather than launching or confronting. "
-            f"{weekday} favors {day_overlay.get('boost', 'steady progress')} "
-            f"but the day's undercurrent slows outer momentum."
+            # [today-fast-path 2026-09-28] No weekday name in this prose. Day
+            # names are stripped from prediction surfaces by policy, and the
+            # strippers either delete the token — leaving "... favors X" with no
+            # subject — or rewrite it to "later this week", which is flatly wrong
+            # on a card about TODAY. The weekday already sits in the card header.
+            # This template is now user-visible: the cold Today card renders it
+            # while the real one generates, instead of hiding it behind a
+            # skeleton.
+            f"It still favors {day_overlay.get('boost', 'steady progress')}, "
+            f"but the undercurrent slows outer momentum."
         )
         move = (
             f"Use today to audit, review, or strengthen one thing already in motion. "
@@ -502,7 +510,8 @@ def _build_signal_text(
     else:
         signal = (
             f"The energy today is {profile['energy']} — lean into it. "
-            f"{weekday} amplifies {day_overlay.get('boost', 'focused effort')}, "
+            # [today-fast-path 2026-09-28] see the friction branch — no weekday.
+            f"The day amplifies {day_overlay.get('boost', 'focused effort')}, "
             f"making this a good window for {aligned[0] if aligned else 'action'}."
         )
         move = (

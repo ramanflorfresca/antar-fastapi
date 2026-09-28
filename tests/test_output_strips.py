@@ -519,3 +519,37 @@ def test_en_codenames_stripped_in_evidence_fields_too():
         'Structural Load returns in your 10th house', 'en',
         field_type='evidence')
     assert 'Structural Load' not in out
+
+
+# ─── [today-fast-path 2026-09-28] astro-voice swaps must leave valid prose ────
+# The cold Today card now RENDERS the deterministic template instead of hiding
+# it behind a skeleton, so these swaps are on a user-visible path for every new
+# signup. Two defects were live: a doubled article and a lowercased sentence.
+
+from antar_engine.output_strips import strip_prediction_astro_voice
+
+
+def test_energy_today_swap_absorbs_preceding_article():
+    """'The energy today creates ...' became 'The the day creates ...' — the verb
+    is not 'is', so the '...energy today is' rules never matched."""
+    out = strip_prediction_astro_voice(
+        "The energy today creates internal friction — best used for inner work.")
+    assert "the the" not in out.lower()
+    assert out.startswith("The day creates internal friction")
+
+
+def test_energy_today_is_swap_keeps_sentence_capitalised():
+    """'The energy today is swift' -> 'today is swift' dropped the capital."""
+    out = strip_prediction_astro_voice("The energy today is swift, initiating — lean into it.")
+    assert out.startswith("Today is swift")
+
+
+def test_astro_voice_swap_does_not_capitalise_mid_sentence_text():
+    """Only restore a capital the source actually had."""
+    out = strip_prediction_astro_voice("lowercase stays lowercase today.")
+    assert out.startswith("lowercase")
+
+
+def test_astro_voice_swaps_are_english_only():
+    es = "La energía de hoy crea fricción interna."
+    assert strip_prediction_astro_voice(es, "es") == es

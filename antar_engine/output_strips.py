@@ -928,6 +928,14 @@ __all__ = [
 _ASTRO_VOICE_SWAPS_EN = [
     (re.compile(r"\bthe energy today is\b", re.I), "today is"),
     (re.compile(r"\btoday's energy is\b", re.I), "today is"),
+    # [today-fast-path 2026-09-28] Absorb a preceding article before the generic
+    # swap below. "The energy today creates internal friction" was becoming
+    # "The the day creates internal friction" — the verb is not "is", so the
+    # "...energy today is" rules above never matched. Newly visible on every cold
+    # Today card, which now renders the deterministic template instead of hiding
+    # it behind a skeleton.
+    (re.compile(r"\bThe energy today\b"), "The day"),
+    (re.compile(r"\bthe energy today\b"), "the day"),
     (re.compile(r"\benergy today\b", re.I), "the day"),
     (re.compile(r"\bnatural ruling energy\b", re.I), "tone"),
     (re.compile(r"\bruling energy\b", re.I), "tone"),
@@ -962,4 +970,12 @@ def strip_prediction_astro_voice(text, language="en"):
         out = _rx.sub(_repl, out)
     out = re.sub(r"\s{2,}", " ", out)
     out = re.sub(r"\s+([,.;:])", r"\1", out)
-    return out.strip()
+    out = out.strip()
+    # [today-fast-path 2026-09-28] Several swaps drop the leading article
+    # ("The energy today is swift" -> "today is swift"), leaving the sentence
+    # starting lowercase. Restore the capital when the source had one. Newly
+    # visible: cold Today cards now render this deterministic prose instead of
+    # hiding it behind a skeleton.
+    if out and text[:1].isupper() and out[:1].islower():
+        out = out[:1].upper() + out[1:]
+    return out
