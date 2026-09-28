@@ -13,11 +13,24 @@
 ### Activate environment before any Python work
 source venv311/bin/activate
 
-### Deploy process
+### Deploy process — branch, PR, squash-merge
+Work goes to main through a pull request, never by pushing to main directly.
+
+git checkout -b fix/short-description origin/main
 git add <specific files>   # never git add -A
 git commit -m "description"
-git push origin main
-# Railway auto-deploys. Watch logs at railway.app dashboard.
+git push -u origin fix/short-description
+gh pr create --base main --title "..." --body "..."
+gh pr merge <n> --squash   # repo convention: every PR lands as ONE commit
+
+Railway auto-deploys from main, so the squash-merge IS the deploy. Watch logs at
+the railway.app dashboard afterwards.
+
+Check CI before merging (`gh pr checks <n>`), and know which red checks are
+pre-existing rather than yours — at time of writing the Cloudflare
+"Workers Builds" check fails on every commit on main (a Workers project is
+connected to this repo with nothing here to build; it needs disconnecting on the
+Cloudflare side). The gate that actually matters is `test`.
 
 ### Never commit
 - .bak files
@@ -44,22 +57,43 @@ https://antar-fastapi-production.up.railway.app
 ### Shell testing rule
 Run curl commands one at a time — never combine with # comments in zsh
 
-### Claude API call location
-Inside the /predict endpoint in main.py. The messages.create() call uses:
-- model=CLAUDE_MODEL
-- system=system_prompt (or system blocks for KV cache)
-- messages=conversation_messages
+### Claude model identifiers
+Centralized in antar_engine/constants.py — update there, never at a call site:
+- SONNET_MODEL = "claude-sonnet-4-6"   (the default working model)
+- HAIKU_MODEL  = "claude-haiku-4-5-20251001"
 
-### Current Claude model string
-claude-sonnet-4-20250514
+The central Ask/predict prose path can also be overridden at runtime via the
+app_config key `claude_model` (choices: claude-sonnet-4-6, claude-opus-4-8,
+claude-haiku-4-5-20251001), and the provider via `llm_provider`.
+
+(There is no CLAUDE_MODEL constant — this file used to name one, and to pin
+claude-sonnet-4-20250514. Both were stale.)
 
 ### Patching rule
-When modifying Python files, always search for a unique string landmark to locate
-the insertion point. Never use line numbers. Always create a .bak before editing.                     ### Git credentials
+When modifying Python files, search for a unique string landmark to locate the
+insertion point. Never use line numbers — main.py is ~40k lines and they move.
+
+Do NOT create .bak files. The branch is the backup: `git diff` shows your change
+and `git checkout -- <file>` reverts it. The old .bak habit left 262 of them in
+the repo root, which is what the "Never commit" rule above is defending against.
+
+### Git credentials
 Git is already configured with push access to origin.
-Always push to: main branch only.
-Never force push.                                 ### After any code change
-1. git add <only the file you changed>
-2. git commit -m "perf/fix/feat: short description"
-3. git push origin main
-4. Confirm Railway deploy started by checking the push was accepted
+Never push directly to main, and never force-push main.
+Force-pushing your OWN feature branch is fine and sometimes necessary — use
+`--force-with-lease`. You will need it after a PR ahead of yours is squash-
+merged: the squash gives those commits a new SHA, so your branch still carries
+the originals and GitHub reports a conflict. Rebase onto the new main
+(`git rebase --onto origin/main <old-base> <your-branch>`) and force-with-lease.
+
+Syncing local main: `git merge --ff-only origin/main`, NOT `git reset --hard` —
+reset discards uncommitted work in the tree without warning.
+
+### After any code change
+1. Run the tests: `venv311/bin/python -m pytest tests -q`
+   (3 failures in tests/test_event_narrator.py are pre-existing on main — check
+   against a clean tree before blaming your change for a failure)
+2. git add <only the files you changed>
+3. git commit -m "perf/fix/feat: short description"
+4. Push the branch and open a PR (see Deploy process)
+5. After the squash-merge, confirm Railway picked it up
