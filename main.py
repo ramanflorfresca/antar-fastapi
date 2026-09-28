@@ -13689,10 +13689,14 @@ async def places_prescribe_endpoint(req: PlacesPrescribeReq):
     prescription = None
     if lead:
         cn = lead["concern"]
-        # The current city is the baseline, never a "move" — drop it from the fixes.
+        # A "fix" must ACTUALLY lift the area — drop the current city (baseline) and
+        # any place that doesn't meaningfully beat it, so the list is real fixes, not
+        # padding (the Hyderabad spot-check listed +/-1 cities as "fixes").
         _cur_norm = _norm(rec.get("current_city") or "")
+        _home_sc = home_by.get(cn, {}).get("score", 0)
         _within_pool = [s for s in ranked_by_concern.get(cn, [])
-                        if _norm((s.get("city") or {}).get("name")) != _cur_norm]
+                        if _norm((s.get("city") or {}).get("name")) != _cur_norm
+                        and ((s.get("score", 0) or 0) - _home_sc) >= _pdx.MEANINGFUL_LIFT]
         within_fix = [_shape_fix(cn, s) for s in _curate(_within_pool, limit)]
         # One optional far standout — ranked globally, taken only if it clearly
         # beats the best within-reach fix (kept clearly optional, never the lead).
