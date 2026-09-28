@@ -58,15 +58,19 @@ _QUALITY = {
 # [de-jargon 2026-09-21] Lead with the plain QUALITY the planet stands for, not
 # the planet NAME — "here structure and slow-built authority moves into career",
 # not "here your Saturn moves into career". Same meaning, no jargon.
+# [grammar 2026-09-28] {q} is a compound quality phrase ("hunger, ambition and
+# reinvention"), so it can't be the SUBJECT of a singular verb ("moves"/"entra").
+# Make it the OBJECT of a fixed singular subject ("your chart") so agreement holds
+# for any phrase, in every language.
 _LIFT = {
-    "en": "Here {q} moves into {area} — this ground lifts it in that part of your life.",
-    "es": "Aquí {q} entra en {area} — este lugar lo realza en esa parte de tu vida.",
-    "pt": "Aqui {q} entra em {area} — este lugar o realça nessa parte da sua vida.",
+    "en": "Here your chart moves {q} into {area} — this ground lifts that part of your life.",
+    "es": "Aquí tu carta sitúa {q} en {area} — este lugar realza esa parte de tu vida.",
+    "pt": "Aqui seu mapa leva {q} para {area} — este lugar realça essa parte da sua vida.",
 }
 _TEST = {
-    "en": "Here {q} moves into {area} — this ground asks more of that area, and can stir it into strain.",
-    "es": "Aquí {q} entra en {area} — este lugar exige más de esa área y puede tensarlo.",
-    "pt": "Aqui {q} entra em {area} — este lugar exige mais dessa área e pode tensioná-lo.",
+    "en": "Here your chart moves {q} into {area} — this ground asks more of that area, and can stir it into strain.",
+    "es": "Aquí tu carta sitúa {q} en {area} — este lugar exige más de esa área y puede tensarla.",
+    "pt": "Aqui seu mapa leva {q} para {area} — este lugar exige mais dessa área e pode tensioná-la.",
 }
 
 # render order: the angles astrocartography lights up first, then trines, gains,
