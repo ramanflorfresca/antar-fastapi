@@ -29217,12 +29217,29 @@ def dismiss_alert(alert_id: str):
 
 
 @app.post("/api/v1/alerts/subscribe")
-def subscribe_to_alerts(request: dict):
-    """Save email for alert delivery."""
+def subscribe_to_alerts(request: dict, authorization: str = Header(...)):
+    """Save email for alert delivery.
+
+    [email-guard 2026-09-28] Previously unauthenticated and it stamped ANY email
+    onto ANY chart_id — which cross-linked one account's email onto another
+    person's chart (a chart then resolved to the wrong user on login). Now: the
+    caller must be authenticated AND own the chart. A chart can only ever carry an
+    account email that belongs to its own user_id.
+    """
+    user_id = verify_token(authorization)
     chart_id = request.get("chart_id")
     email    = request.get("email")
     if not chart_id or not email:
         raise HTTPException(400, "chart_id and email required")
+    row = (supabase.table("charts").select("user_id")
+           .eq("id", chart_id).limit(1).execute()).data
+    if not row:
+        raise HTTPException(404, "chart not found")
+    owner = row[0].get("user_id")
+    if owner != user_id:
+        # never let one account write its email onto a chart it doesn't own
+        # (orphan charts, user_id=None, must be claimed via onboarding first)
+        raise HTTPException(403, "You can only set alerts on your own chart")
     supabase.table("charts").update({"email": email}).eq("id", chart_id).execute()
     return {"success": True, "message": "You will receive personal transit alerts at " + email}
 
