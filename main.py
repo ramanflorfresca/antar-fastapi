@@ -10324,30 +10324,82 @@ async def protect_season(chart_id: str, language: str = "en"):
         return {"available": False, "error": str(e)[:160]}
 
 
+# [life-events standardization 2026-09-28] Normalize the free-form capture so the
+# forward-validation loop (validate_from_life_events.py) and personalization can
+# consume it: canonical metadata.{direction, domain, magnitude} + a stamped
+# chart_id. Stored inside the existing metadata jsonb — no DDL. Unrecognized values
+# pass through untouched (never reject a user's log); the validator filters.
+_LE_DIRECTION = {
+    "rise": "rise", "up": "rise", "step up": "rise", "step-up": "rise",
+    "gain": "rise", "positive": "rise", "better": "rise", "improved": "rise",
+    "boom": "rise", "growth": "rise",
+    "decline": "decline", "down": "decline", "setback": "decline", "loss": "decline",
+    "worse": "decline", "negative": "decline", "drop": "decline", "fall": "decline",
+    "mixed": "mixed", "both": "mixed",
+}
+_LE_DOMAIN = {
+    "career": "career", "work": "career", "job": "career", "profession": "career",
+    "business": "career",
+    "money": "money", "finance": "money", "financial": "money", "wealth": "money",
+    "cash": "money", "funding": "money", "income": "money",
+    "love": "love", "relationship": "love", "romance": "love", "partner": "love",
+    "marriage": "love", "dating": "love",
+    "family": "family", "home": "family", "kids": "family", "children": "family",
+    "household": "family",
+    "health": "health", "body": "health", "illness": "health", "medical": "health",
+    "wellness": "health",
+}
+
+
+def _resolve_primary_chart_id(user_id):
+    """Best-effort: the user's primary chart, else their newest. Non-fatal."""
+    try:
+        p = (supabase.table("profiles").select("primary_chart_id")
+             .eq("id", user_id).limit(1).execute())
+        if p.data and p.data[0].get("primary_chart_id"):
+            return p.data[0]["primary_chart_id"]
+    except Exception:
+        pass
+    try:
+        c = (supabase.table("charts").select("id").eq("user_id", user_id)
+             .is_("deleted_at", "null").order("created_at", desc=True)
+             .limit(1).execute())
+        if c.data:
+            return c.data[0]["id"]
+    except Exception:
+        pass
+    return None
+
+
+def _normalize_life_event_meta(meta, user_id):
+    meta = dict(meta or {})
+    d = str(meta.get("direction", "")).strip().lower()
+    if d:
+        meta["direction"] = _LE_DIRECTION.get(d, d)
+    dom = str(meta.get("domain", "")).strip().lower()
+    if dom:
+        meta["domain"] = _LE_DOMAIN.get(dom, dom)
+    if meta.get("magnitude") not in (None, ""):
+        try:
+            meta["magnitude"] = min(3, max(1, int(meta["magnitude"])))
+        except Exception:
+            meta.pop("magnitude", None)
+    if not meta.get("chart_id"):
+        cid = _resolve_primary_chart_id(user_id)
+        if cid:
+            meta["chart_id"] = cid
+    return meta
+
+
 @app.post("/api/v1/user/life-events", response_model=LifeEventOut, status_code=201)
 def create_life_event(event: LifeEventCreate, authorization: str = Header(...)):
     user_id = verify_token(authorization)
     data = event.dict()
     data["user_id"] = user_id
+    data["metadata"] = _normalize_life_event_meta(data.get("metadata"), user_id)
     result = supabase.table("life_events").insert(data).execute()
     if not result.data:
         raise HTTPException(500, "Failed to create life event")
-    # Merge panchanga into result
-    if panchanga and not panchanga.get("error"):
-        result["panchanga"] = panchanga_formatted
-        result["rahu_kalam"]     = panchanga.get("rahu_kalam","")
-        result["abhijit"]        = panchanga.get("abhijit_muhurta","")
-        result["lucky_hours"]    = panchanga.get("lucky_hours",{})
-        result["do_today"]       = panchanga.get("do_today",[])
-        result["dont_today"]     = panchanga.get("dont_today",[])
-        result["day_color"]      = panchanga.get("day_color","")
-        result["day_number"]     = panchanga.get("day_number","")
-        result["day_mantra"]     = panchanga.get("day_mantra","")
-        result["tithi"]          = panchanga.get("tithi","")
-        result["yoga"]           = panchanga.get("yoga","")
-        result["day_quality"]    = panchanga.get("day_quality","")
-        result["panchanga_5"]    = panchanga_formatted.get("panchanga_5",{})
-
     return result.data[0]
 
 @app.get("/api/v1/user/life-events", response_model=List[LifeEventOut])
@@ -10383,6 +10435,9 @@ def update_life_event(
     update_data = {k: v for k, v in event.dict().items() if v is not None}
     if not update_data:
         raise HTTPException(400, "No fields to update")
+    if "metadata" in update_data:
+        update_data["metadata"] = _normalize_life_event_meta(
+            update_data["metadata"], user_id)
     result = supabase.table("life_events").update(update_data) \
         .eq("id", event_id).eq("user_id", user_id).execute()
     if not result.data:
