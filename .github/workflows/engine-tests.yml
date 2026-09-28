@@ -1,0 +1,80 @@
+name: Engine tests
+
+# The tests/ suite: 242 deterministic checks over the prediction engine —
+# verdict logic, timing windows, output strips, house significations, transit
+# events, vocational and places calibration.
+#
+# These lived in the repo for months without ever running in CI, and drifted
+# unnoticed: the _clamp_start_today() fix in antar_engine/event_narrator.py
+# (dated 2026-08-11) changed how an already-running window is labelled, which
+# silently broke three assertions in tests/test_event_narrator.py. Nothing
+# caught it, because nothing ran them. That is what this workflow is for.
+#
+# The suite needs NO secrets and NO network: it is pure Python over committed
+# data, and the Swiss Ephemeris files the engine reads live in the repo under
+# antar_engine/ephe, so a plain checkout is enough. Runtime is a few seconds.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      # main.py builds its LLM and Supabase clients at import time, and those
+      # constructors raise on a missing key. Nothing under tests/ imports main
+      # directly, but several engine modules import it lazily at call time
+      # (admin_inspect, prompt_registry, llm_log), so these keep that path
+      # reachable rather than having it fail differently under test than in
+      # production. They are deliberate placeholders, never real credentials:
+      # no client built from them is ever called and nothing leaves the runner.
+      # (The suite does currently pass with no environment at all.)
+      DEEPSEEK_API_KEY: ci-placeholder-not-a-real-key
+      SUPABASE_URL: https://ci.supabase.co
+      SUPABASE_SERVICE_ROLE_KEY: ci-placeholder-not-a-real-key
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # Matches runtime.txt (Railway builds on 3.11).
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-dev.txt
+
+      - name: Guard — no .env leaked into the checkout
+        run: |
+          if [ -f .env ]; then
+            echo "::error::.env is present in CI. It is gitignored and must never be committed."
+            exit 1
+          fi
+
+      - name: Guard — the ephemeris data the engine reads is present
+        # antar_engine/{chart,double_transit,lk_trigger,transits_engine}.py all
+        # point swisseph at antar_engine/ephe. Verified by moving the directory
+        # aside: the suite still reports 242 passed without it, so its removal
+        # would NOT surface as a test failure — swisseph degrades quietly
+        # rather than raising. Assert its presence explicitly, so the 379 MB of
+        # committed ephemeris data cannot go missing unnoticed.
+        run: |
+          if [ ! -d antar_engine/ephe ]; then
+            echo "::error::antar_engine/ephe is missing from the checkout."
+            exit 1
+          fi
+
+      - name: Engine test suite
+        # pytest exits 5 when it collects nothing and 2 on a collection error,
+        # so an accidentally-empty or un-importable suite fails this step
+        # rather than reporting a silent pass.
+        run: pytest tests/ -q

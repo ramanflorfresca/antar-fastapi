@@ -9,9 +9,40 @@ Run via the sandbox stub: python /tmp/run_tests.py  (module auto-discovered)
 or: cd ~/antarai && source venv311/bin/activate && python -m pytest tests/test_event_narrator.py -q
 """
 
+from datetime import date
+
 from antar_engine.event_narrator import (
     compute_event_verdict, build_reading_sequence_prompt,
 )
+
+
+# ── window fixture ───────────────────────────────────────────────────────────
+# [2026-09-28] These tests used to hard-code start="2026-03-01"/end="2026-09-01"
+# and assert the literal label "Mar 2026 – Sep 2026". _clamp_start_today()
+# presents an already-running window forward from today, so once real time
+# passed the start date the label collapsed onto the end month ("Sep 2026") and
+# the assertions began failing on a calendar date rather than on a code change.
+# Derive the window from today instead: it is always genuinely ahead of now, so
+# the clamp never applies and the label is always a two-month range.
+
+_MONTHS = ["", "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
+
+def _future_window(start_in=2, span=6):
+    """(start_iso, end_iso, expected_label) for a window opening `start_in`
+    months from now and running for `span` months.
+
+    The expected label is spelled out here rather than obtained from
+    _fmt_window(), so the assertion still exercises the formatter instead of
+    comparing it against itself.
+    """
+    today = date.today()
+    first = today.year * 12 + today.month - 1 + start_in
+    sy, sm0 = divmod(first, 12)
+    ey, em0 = divmod(first + span, 12)
+    return (f"{sy:04d}-{sm0 + 1:02d}-01", f"{ey:04d}-{em0 + 1:02d}-01",
+            f"{_MONTHS[sm0 + 1]} {sy} – {_MONTHS[em0 + 1]} {ey}")
 
 
 # ── minimal board builder: only the fields the verdict reads ─────────────────
@@ -57,13 +88,29 @@ def _board(*, event="funding", event_houses=(11, 2, 8, 6),
 # ── the six verdict branches ─────────────────────────────────────────────────
 
 def test_supported_when_gate_promise_and_dt_fires():
+    start, end, label = _future_window()
     b = _board(dasha_promise=True, gate=True, dt="fires",
-               pd={"lord": "Venus", "start": "2026-03-01", "end": "2026-09-01"})
+               pd={"lord": "Venus", "start": start, "end": end})
     v = compute_event_verdict(b)
     assert v["verdict"] == "supported"
     assert v["tone"] == "positive"
-    assert v["window"]["label"] == "Mar 2026 – Sep 2026"
+    assert v["window"]["label"] == label
     assert v["window"]["kind"] == "active_sub_period"
+
+
+def test_active_window_is_presented_forward_from_today():
+    """A sub-period that already began is shown from today, never from its real
+    start — the behaviour _clamp_start_today() exists for. Pinned here because
+    it is what silently broke the three hard-coded-window tests above."""
+    started = f"{date.today().year - 1:04d}-01-01"
+    _, end, _ = _future_window()
+    v = compute_event_verdict(_board(dasha_promise=True, gate=True, dt="fires",
+                                     pd={"lord": "Venus", "start": started,
+                                         "end": end}))
+    today = date.today()
+    assert v["window"]["label"].startswith(f"{_MONTHS[today.month]} {today.year}")
+    # the raw period is preserved even though the label is clamped
+    assert v["window"]["start"] == started
 
 
 def test_supported_likely_when_dt_moon_only():
@@ -160,12 +207,13 @@ def test_confidence_counts_layers():
 # ── narrator prompt: pins verdict/window, never leaks invent-license ─────────
 
 def test_narrator_prompt_pins_verdict_and_window():
+    start, end, label = _future_window()
     b = _board(dasha_promise=True, gate=True, dt="fires",
-               pd={"lord": "Venus", "start": "2026-03-01", "end": "2026-09-01"})
+               pd={"lord": "Venus", "start": start, "end": end})
     v = compute_event_verdict(b)
     p = build_reading_sequence_prompt(b, v)
     assert "PYTHON VERDICT (authoritative): supported" in p
-    assert "Mar 2026 – Sep 2026" in p
+    assert label in p
     assert "Interpret; never calculate" in p
     assert "WINDOW DISCIPLINE: month-level only" in p
     assert "NO planet names, house numbers" in p
@@ -187,8 +235,9 @@ def test_run_event_engine_orchestrator_shape():
     """run_event_engine glues board→verdict→client_verdict→timing for /ask
     wiring. Monkeypatch build_whole_board so no ephemeris is needed."""
     import antar_engine.event_evidence as ev
+    start, end, label = _future_window()
     canned = _board(dasha_promise=True, gate=True, dt="fires",
-                    pd={"lord": "Venus", "start": "2026-03-01", "end": "2026-09-01"})
+                    pd={"lord": "Venus", "start": start, "end": end})
     orig = ev.build_whole_board
     ev.build_whole_board = lambda *a, **k: canned
     try:
@@ -198,7 +247,7 @@ def test_run_event_engine_orchestrator_shape():
         ev.build_whole_board = orig
     assert out["verdict"]["verdict"] == "supported"
     assert out["client_verdict"] == "YES"
-    assert out["timing_label"] == "Mar 2026 – Sep 2026"
+    assert out["timing_label"] == label
     assert "PYTHON VERDICT (authoritative): supported" in out["narrator_prompt"]
 
 

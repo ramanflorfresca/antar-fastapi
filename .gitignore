@@ -31,7 +31,6 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
 yarn.lock
 tools/*
 # [iap-renewals 2026-09-22] keep the IAP webhook tests + cert helper tracked
@@ -39,22 +38,32 @@ tools/*
 !tools/test_iap_jws_security.py
 !tools/fetch_apple_root_ca.sh
 !tools/test_pricing_consistency.py
-.env
-llm_comarison.py
-/tmp/llm_comparison_*
-main.py.bak_*
-antar_engine/chart_context_builder.py.bak_*
+!tools/regression_predict.py
+
+# Editor/script backups of source files. These are scratch copies from
+# in-place edits; git history is the real record, so none of them belong
+# in the repo. The patterns below cover every shape that has actually
+# landed here: .bak, .bak_<tag>, .bak<n>, .backup, .backup_<tag>,
+# .backup.<stamp>, and the <name>.py_orig / <name>_orig form.
 *.bak
-*.bak_*
 *.bak.*
-**/*.bak.*
-main.py.bak
+*.bak_*
+*.bak[0-9]*
+*.backup
+*.backup.*
+*.backup_*
+*_orig
+*.pre_*.bak
+
+# One-off patch/migration scripts. Applied once against main.py and then
+# dead; keep them out of the tree so they cannot be mistaken for live code.
 patch_*.py
 !patch_iap_renewals.py
+
+llm_comarison.py
+/tmp/llm_comparison_*
 b_*_v3.json
 billionaire_*.json
 extract.py
 billionaire.py
 .env.find_chartid
-.env.find_chartid
-main.py.bak # if not already there
