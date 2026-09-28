@@ -377,10 +377,10 @@ def detect_varshphal_negatives(chart: dict, today_date: date, language: str = "e
                                f"you, now with a full year of support to build it up. Work on it "
                                f"steadily while the window is open.")
                     else:
-                        _wp = (f"La carta de este año debilita {_e} en ti — un área que suele "
+                        _wp = (f"La carta de este año debilita {_e} — un área que suele "
                                f"funcionar bien. La atención constante durante el año evita que decaiga."
                                if lang == "es" else
-                               f"This year's chart weakens {_e} for you — an area that usually works "
+                               f"This year's chart weakens {_e} — an area that usually works "
                                f"well. Steady attention across the year keeps it from slipping.")
                     out.append({
                         "scope": "varshphal_year", "planet": _planet,
