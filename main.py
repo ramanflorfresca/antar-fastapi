@@ -31807,7 +31807,7 @@ _WARMUP_COMPOSE_SECONDS = 25          # WOW + exec summary + highlights + strip
 
 
 @app.get("/api/v1/warmup/status/{chart_id}")
-def warmup_status(chart_id: str, language: str = "en"):
+async def warmup_status(chart_id: str, language: str = "en"):
     """Cheap, truthful readiness probe for the Today surface. See block comment."""
     from uuid import UUID as _UUID_W
     try:
@@ -31816,9 +31816,12 @@ def warmup_status(chart_id: str, language: str = "en"):
         raise HTTPException(404, "Chart not found")
 
     try:
-        _r = supabase.table("charts").select(
-            "created_at,language_preference,current_country,birth_country"
-        ).eq("id", chart_id).single().execute()
+        # [loop-unblock] sync client — off the loop. This endpoint is polled
+        # every few seconds by the first-run progress screen.
+        _r = await run_in_threadpool(
+            lambda: supabase.table("charts").select(
+                "created_at,language_preference,current_country,birth_country"
+            ).eq("id", chart_id).single().execute())
     except Exception:
         _r = None
     if not _r or not _r.data:
@@ -31829,10 +31832,30 @@ def warmup_status(chart_id: str, language: str = "en"):
     # rows those surfaces will actually write (an es user's cache is not 'en').
     language = _resolve_surface_language("warmup", language, row)
 
-    # Same local-date derivation as /daily-week, so we probe TODAY's rows.
-    _cc = _country_name(row.get("current_country") or row.get("birth_country") or "")
+    # [warmup-tz-fix 2026-09-28] Resolve "today" EXACTLY as /daily-signal does —
+    # geocoded current city -> IANA offset, falling back to the country table
+    # keyed by the RAW ISO code. The first version of this called
+    # _get_local_start_date(current_country=_country_name(...)), which passed a
+    # country NAME ("India") into a table keyed by CODE ("IN"), missed, and fell
+    # back to UTC. For any chart far enough from UTC to sit on a different
+    # calendar day, the probe then reported a local_date the engine had never
+    # written, so today_ready stayed false forever and the first-run progress
+    # screen could never reach "ready". Caught on a live India chart: probe said
+    # 2026-09-28, the engine had written 2026-09-29.
+    #
+    # The engine's date is the authority here because it is what keys the rows
+    # this endpoint counts.
+    _raw_country = row.get("current_country") or row.get("birth_country") or ""
+    _moment_loc = None
     try:
-        start_date = _get_local_start_date(current_country=_cc)
+        _moment_loc = await _resolve_current_moment_location(row, chart_id)
+    except Exception as _mle:
+        print(f"[warmup] current-location resolve non-fatal: {_mle}")
+    _moment_tz = _iana_offset_hours(_moment_loc[2]) if _moment_loc else None
+    _effective_offset = (_moment_tz if _moment_tz is not None
+                         else _COUNTRY_TZ_OFFSETS.get((_raw_country or "").upper(), 0))
+    try:
+        start_date = _get_local_start_date(tz_offset=_effective_offset)
     except Exception:
         start_date = datetime.utcnow()
     _week = [(start_date + timedelta(days=i)).strftime("%Y-%m-%d") for i in range(7)]
@@ -31841,10 +31864,11 @@ def warmup_status(chart_id: str, language: str = "en"):
     # 1. Per-day LLM signals (powers the card + the week strip).
     days_ready, today_ready = 0, False
     try:
-        _dr = (supabase.table("daily_signals_cache")
-               .select("signal_date")
-               .eq("chart_id", chart_id).eq("language", language)
-               .in_("signal_date", _week).execute())
+        _dr = await run_in_threadpool(
+            lambda: (supabase.table("daily_signals_cache")
+                     .select("signal_date")
+                     .eq("chart_id", chart_id).eq("language", language)
+                     .in_("signal_date", _week).execute()))
         _have = {str(d.get("signal_date"))[:10] for d in (_dr.data or [])}
         days_ready = len(_have)
         today_ready = _today_str in _have
@@ -31854,7 +31878,8 @@ def warmup_status(chart_id: str, language: str = "en"):
     # 2. The composed + localized card payload (skips generation AND translation).
     card_ready = False
     try:
-        card_ready = bool(_daily_surface_get(chart_id, "daily-signal", language, _today_str))
+        card_ready = bool(await run_in_threadpool(
+            _daily_surface_get, chart_id, "daily-signal", language, _today_str))
     except Exception as _e:
         print(f"[warmup] card probe failed (non-fatal) chart={chart_id[:8]}: {_e}")
 
