@@ -3,6 +3,15 @@
 # ─────────────────────────────────────────────────────────────────────
 
 import os
+import threading as _threading
+import time as _time
+# [loop-unblock 2026-09-28] Starlette's threadpool. `supabase-py` is a
+# SYNCHRONOUS client, so every query made directly inside an `async def`
+# handler blocks the whole event loop — not just that request. Awaiting the
+# call through run_in_threadpool yields the loop for its duration. Handlers
+# that never await at all are plain `def` instead; FastAPI threadpools those
+# for free. This helper is for the ones that genuinely interleave awaits.
+from starlette.concurrency import run_in_threadpool
 import uuid
 from contextlib import asynccontextmanager
 import json
@@ -1935,25 +1944,30 @@ async def _validation_exception_handler(request: Request, exc: RequestValidation
         content={'detail': errors},
     )
 
+# ══════════════════════════════════════════════════════════════════════════════
+# DASHA ROW CACHE — the single biggest event-loop blocker on the daily surfaces
+# ══════════════════════════════════════════════════════════════════════════════
+# [loop-unblock 2026-09-28] The cache itself lives in antar_engine/dasha_cache so
+# that engine modules share ONE copy of it — they cannot import main without a
+# cycle, and a second private cache would mean a second set of round trips and a
+# second thing to invalidate. See that module for why this is safe to cache.
+from antar_engine import dasha_cache as _dasha_cache
+
+
+def invalidate_dasha_cache(chart_id: str = None) -> None:
+    """Drop cached dasha rows. Call after ANY write to dasha_periods."""
+    _dasha_cache.invalidate(chart_id)
+
+
+def _fetch_dasha_rows(chart_id: str) -> list:
+    """Cached row fetch behind get_dashas_for_chart. READ-ONLY — see module."""
+    return _dasha_cache.rows_for_chart(supabase, chart_id)
+
+
 def get_dashas_for_chart(chart_id: str) -> dict:
-    # [dasha-truncation 2026-07-21] This used .limit(500). Charts carry ~903
-    # dasha rows, so 45% of every timeline was silently discarded — and because
-    # `sequence` is NOT chronological, the dropped rows punched arbitrary HOLES
-    # rather than trimming the tail. One chart had a 59-day hole sitting exactly
-    # over today, so "no pratyantardasha is running" was reported for a date that
-    # obviously has one. Everything downstream (predictions, daily card,
-    # life-arc, Ask) read from this. Page through instead of capping.
-    _rows = []
-    _page, _size = 0, 1000
-    while True:
-        _res = (supabase.table("dasha_periods").select("*")
-                .eq("chart_id", chart_id).order("sequence")
-                .range(_page * _size, _page * _size + _size - 1).execute())
-        _batch = _res.data or []
-        _rows.extend(_batch)
-        if len(_batch) < _size or _page >= 20:   # 20-page backstop
-            break
-        _page += 1
+    """All dasha systems for a chart, grouped by system. Rows come from the
+    TTL cache above — see its block comment for why that matters."""
+    _rows = _fetch_dasha_rows(chart_id)
 
     dashas_by_system = {}
     for row in _rows:
@@ -3227,7 +3241,7 @@ _PROCESS_STARTED_AT = datetime.utcnow().isoformat()
 
 
 @app.get("/health")
-async def health():
+def health():
     # [P0 observability 2026-09-05] Surface the LLM posture so a monitor can see
     # when we're NOT on Claude (config override) or the Claude client is down —
     # the two states that silently route users to DeepSeek. Config-only (no live
@@ -3300,7 +3314,7 @@ async def health_llm():
 # exposed — a commit SHA of a private repo is not a credential, and the
 # alternative is debugging blind.
 @app.get("/version")
-async def version():
+def version():
     sha = (os.getenv("RAILWAY_GIT_COMMIT_SHA")
            or os.getenv("SOURCE_COMMIT")
            or os.getenv("GIT_COMMIT") or "")
@@ -3320,7 +3334,7 @@ async def version():
 # value is a non-secret on/off flag, so it's shown to speed debugging). Used to
 # tell "var not set on this service" from "code problem" without Railway access.
 @app.get("/api/v1/admin/envcheck")
-async def envcheck():
+def envcheck():
     names = ["SPECULATION_LOGGER", "ADMIN_EXPORT_KEY", "SUPABASE_URL",
              "SUPABASE_SERVICE_ROLE_KEY", "ANTHROPIC_API_KEY", "DATABASE_URL"]
     present = {n: (os.getenv(n) is not None and os.getenv(n) != "") for n in names}
@@ -4889,7 +4903,7 @@ async def get_upcoming_themes(
         raise HTTPException(status_code=500, detail=f"Failed to compute upcoming themes: {str(e)}")
 
 @app.post("/api/v1/chart/{chart_id}/past-events/feedback")
-async def submit_past_event_feedback(
+def submit_past_event_feedback(
     chart_id: str,
     feedback: dict,
     authorization: Optional[str] = Header(None),
@@ -8573,7 +8587,7 @@ State a specific year. Never predict past events as future windows.
 # ── Conversations ─────────────────────────────────────────────────────────────
 
 @app.get("/api/v1/conversations")
-async def list_conversations(
+def list_conversations(
     limit:         int = 20,
     offset:        int = 0,
     authorization: str = Header(...),
@@ -8596,7 +8610,7 @@ async def list_conversations(
 
 
 @app.get("/api/v1/conversations/{conversation_id}/messages")
-async def get_conversation_messages(
+def get_conversation_messages(
     conversation_id: str,
     authorization:   str = Header(...),
 ):
@@ -8629,7 +8643,7 @@ async def get_conversation_messages(
 
 
 @app.delete("/api/v1/conversations/{conversation_id}")
-async def delete_conversation(
+def delete_conversation(
     conversation_id: str,
     authorization:   str = Header(...),
 ):
@@ -8827,7 +8841,7 @@ def _strip_payload_leaves(payload, language: str = "en"):
 
 
 @app.get("/api/v1/predict/patra-onboarding")
-async def get_patra_onboarding(chart_id: str, language: Optional[str] = None):
+def get_patra_onboarding(chart_id: str, language: Optional[str] = None):
     """
     Returns chart-specific conversational questions for onboarding.
 
@@ -8856,7 +8870,7 @@ async def get_patra_onboarding(chart_id: str, language: Optional[str] = None):
 # ── Locale ────────────────────────────────────────────────────────────────────
 
 @app.get("/api/v1/locale/{country_code}")
-async def get_locale(
+def get_locale(
     country_code: str,
     birth_country: Optional[str] = None,
 ):
@@ -8876,7 +8890,7 @@ async def get_locale(
     }
 
 @app.get("/api/v1/geo/country")
-async def geo_country(request: Request, country: Optional[str] = None):
+def geo_country(request: Request, country: Optional[str] = None):
     """
     Server-side country + currency detection for the marketing-site pricing
     block. Anonymous endpoint — must respond fast on every page load.
@@ -8924,7 +8938,7 @@ async def geo_country(request: Request, country: Optional[str] = None):
 
 
 @app.post("/api/v1/user/set-language")
-async def set_language(
+def set_language(
     request: LanguageSetRequest,
     authorization: str = Header(...)
 ):
@@ -8939,7 +8953,7 @@ async def set_language(
 # ── Patra ─────────────────────────────────────────────────────────────────────
 
 @app.get("/api/v1/user/patra/questions")
-async def get_patra_questions():
+def get_patra_questions():
     return {"questions": get_circumstance_questions()}
 
 @app.post("/api/v1/user/patra")
@@ -8950,7 +8964,7 @@ async def get_patra_questions():
 # marital/children/career were all None). Accept PATCH on the same handler so
 # every already-shipped client saves immediately, no Publish required.
 @app.patch("/api/v1/user/patra")
-async def update_patra(
+def update_patra(
     request: PatraUpdateRequest,
     authorization: str = Header(...)
 ):
@@ -9063,7 +9077,7 @@ def get_profile_gaps(chart_id: str, limit: int = 2):
 
 
 @app.post("/api/v1/user/push-token")
-async def register_push_token(
+def register_push_token(
     request: PushTokenRequest,
     authorization: str = Header(...)
 ):
@@ -9611,7 +9625,7 @@ class _UserPrefBody(BaseModel):
 
 
 @app.put("/api/v1/user/preferences")
-async def set_user_preferences(body: _UserPrefBody):
+def set_user_preferences(body: _UserPrefBody):
     from language_utils import VALID_LANGUAGES
     from antar_engine.i18n import i18n_error
     lang = (body.language or "en").split("-")[0].split("_")[0].lower()
@@ -9634,7 +9648,7 @@ async def set_user_preferences(body: _UserPrefBody):
 
 
 @app.get("/api/v1/user/preferences/{chart_id}")
-async def get_user_preferences(chart_id: str):
+def get_user_preferences(chart_id: str):
     lang = "en"
     try:
         r = supabase.table("user_preferences").select("language").eq("chart_id", chart_id).execute()
@@ -9901,7 +9915,7 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
 
 
 @app.post("/api/v1/predict/daily-practice/complete")
-async def daily_practice_complete(request: DailyPracticeCompleteRequest,
+def daily_practice_complete(request: DailyPracticeCompleteRequest,
                                   authorization: Optional[str] = Header(None)):
     user_id = None
     if authorization:
@@ -9982,7 +9996,7 @@ def _prac_auth_user(authorization):
 
 
 @app.post("/api/v1/predict/daily-practice/session/start")
-async def daily_practice_session_start(request: PracticeSessionStartReq,
+def daily_practice_session_start(request: PracticeSessionStartReq,
                                        authorization: Optional[str] = Header(None)):
     sid = str(_prac_uuid.uuid4())
     started = _prac_dt.now(_prac_tz.utc).isoformat()
@@ -10000,7 +10014,7 @@ async def daily_practice_session_start(request: PracticeSessionStartReq,
 
 
 @app.post("/api/v1/predict/daily-practice/session/complete")
-async def daily_practice_session_complete(request: PracticeSessionCompleteReq,
+def daily_practice_session_complete(request: PracticeSessionCompleteReq,
                                           authorization: Optional[str] = Header(None)):
     sres = supabase.table("practice_sessions").select("*").eq("id", request.session_id).execute()
     if not sres.data:
@@ -10056,7 +10070,7 @@ async def daily_practice_session_complete(request: PracticeSessionCompleteReq,
 
 
 @app.post("/api/v1/predict/daily-practice/session/abandon")
-async def daily_practice_session_abandon(request: PracticeSessionAbandonReq,
+def daily_practice_session_abandon(request: PracticeSessionAbandonReq,
                                          authorization: Optional[str] = Header(None)):
     try:
         supabase.table("practice_sessions").update({
@@ -10072,7 +10086,7 @@ async def daily_practice_session_abandon(request: PracticeSessionAbandonReq,
 
 
 @app.get("/api/v1/predict/daily-practice/chakra/{chakra_key}")
-async def daily_practice_chakra_mantra(chakra_key: str, chart_id: Optional[str] = None,
+def daily_practice_chakra_mantra(chakra_key: str, chart_id: Optional[str] = None,
                                        language: str = "en"):
     if chakra_key not in _prac_chakras.CHAKRA_MANTRAS:
         raise HTTPException(404, f"unknown chakra {chakra_key}")
@@ -10103,7 +10117,7 @@ async def daily_practice_chakra_mantra(chakra_key: str, chart_id: Optional[str] 
 # ── Prediction Fulfillment ────────────────────────────────────────────────────
 
 @app.post("/api/v1/predict/fulfill")
-async def fulfill_prediction(
+def fulfill_prediction(
     update: PredictionFulfillmentUpdate,
     authorization: str = Header(...)
 ):
@@ -10311,7 +10325,7 @@ async def protect_season(chart_id: str, language: str = "en"):
 
 
 @app.post("/api/v1/user/life-events", response_model=LifeEventOut, status_code=201)
-async def create_life_event(event: LifeEventCreate, authorization: str = Header(...)):
+def create_life_event(event: LifeEventCreate, authorization: str = Header(...)):
     user_id = verify_token(authorization)
     data = event.dict()
     data["user_id"] = user_id
@@ -10337,7 +10351,7 @@ async def create_life_event(event: LifeEventCreate, authorization: str = Header(
     return result.data[0]
 
 @app.get("/api/v1/user/life-events", response_model=List[LifeEventOut])
-async def get_life_events(
+def get_life_events(
     authorization: str = Header(...),
     limit: int = 50,
     offset: int = 0
@@ -10351,7 +10365,7 @@ async def get_life_events(
     return result.data
 
 @app.get("/api/v1/user/life-events/{event_id}", response_model=LifeEventOut)
-async def get_life_event(event_id: str, authorization: str = Header(...)):
+def get_life_event(event_id: str, authorization: str = Header(...)):
     user_id = verify_token(authorization)
     result = supabase.table("life_events").select("*") \
         .eq("id", event_id).eq("user_id", user_id).execute()
@@ -10360,7 +10374,7 @@ async def get_life_event(event_id: str, authorization: str = Header(...)):
     return result.data[0]
 
 @app.put("/api/v1/user/life-events/{event_id}", response_model=LifeEventOut)
-async def update_life_event(
+def update_life_event(
     event_id: str,
     event: LifeEventUpdate,
     authorization: str = Header(...)
@@ -10376,7 +10390,7 @@ async def update_life_event(
     return result.data[0]
 
 @app.delete("/api/v1/user/life-events/{event_id}")
-async def delete_life_event(event_id: str, authorization: str = Header(...)):
+def delete_life_event(event_id: str, authorization: str = Header(...)):
     user_id = verify_token(authorization)
     result = supabase.table("life_events").delete() \
         .eq("id", event_id).eq("user_id", user_id).execute()
@@ -10387,7 +10401,7 @@ async def delete_life_event(event_id: str, authorization: str = Header(...)):
 # ── Correlations ──────────────────────────────────────────────────────────────
 
 @app.get("/api/v1/user/correlations", response_model=LifeEventCorrelationResponse)
-async def get_correlations(
+def get_correlations(
     chart_id: str,
     authorization: str = Header(...)
 ):
@@ -10445,7 +10459,7 @@ async def get_correlations(
 # ── User Actions ──────────────────────────────────────────────────────────────
 
 @app.post("/api/v1/user/action")
-async def log_user_action(
+def log_user_action(
     action: UserActionCreate,
     authorization: Optional[str] = Header(None)
 ):
@@ -10468,7 +10482,7 @@ async def log_user_action(
 # ── Merge Guest ───────────────────────────────────────────────────────────────
 
 @app.post("/api/v1/user/merge-guest-data")
-async def merge_guest_data(
+def merge_guest_data(
     request: MergeGuestRequest,
     authorization: str = Header(...)
 ):
@@ -10851,7 +10865,7 @@ def _current_dasha_str(dashas: dict) -> str:
 
 
 @app.get("/api/v1/debug/btiming-raw")
-async def debug_btiming_raw(birth_date: str, birth_time: str, lat: float,
+def debug_btiming_raw(birth_date: str, birth_time: str, lat: float,
                             lng: float, tz: float, name: str = ""):
     """[vertical-fit calibration] Compute business-timing from RAW birth data (no
     DB write) so a validation cohort of public charts can be scored without
@@ -10894,7 +10908,7 @@ async def debug_btiming_raw(birth_date: str, birth_time: str, lat: float,
 
 
 @app.get("/api/v1/debug/vertical-fit/{chart_id}")
-async def debug_vertical_fit(chart_id: str):
+def debug_vertical_fit(chart_id: str):
     """[vertical-fit 2026-09-16] Read-only validation surface for the Vertical-Fit
     engine — ranks business verticals by potential (D-1 × D-9 × D-10) + overall
     enterprise-potential band. Used to blind-validate against known charts before
@@ -11630,6 +11644,12 @@ async def create_chart(
                 supabase.table("dasha_periods").insert(_rows[i:i+100]).execute()
             except Exception as e:
                 print(f"[dasha_insert:{_tag}] batch {i//100+1} FAILED: {e}")
+        # [loop-unblock 2026-09-28] Drop any cached rows for this chart. The
+        # deferred background batch lands AFTER the first Today read, so without
+        # this the cache would pin the Today-critical subset (MD+AD only) and the
+        # Ask/concern engines would read a chart with no PD level for the whole
+        # TTL. See invalidate_dasha_cache.
+        invalidate_dasha_cache(chart_id)
     if dasha_rows:
         _sync_rows = [r for r in dasha_rows
                       if (r["system"] == "vimsottari" and r["level"] in (1, 2))
@@ -11997,21 +12017,21 @@ class WaitlistRequest(BaseModel):
     name: Optional[str] = None
 
 @app.post("/api/v1/astrocartography/best-cities", response_model=AstroResponse)
-async def astrocartography_best_cities(request: AstroRequest, authorization: Optional[str] = Header(None)):
+def astrocartography_best_cities(request: AstroRequest, authorization: Optional[str] = Header(None)):
     # [P4 astro-consolidation 2026-07-29] Retired — the legacy v1 recommender is
     # gone; /api/v1/places/concern is the single "where to live" source.
     raise HTTPException(status_code=410, detail={"error": "deprecated", "use": "/api/v1/places/concern"})
 
 
 @app.post("/api/v1/astrocartography/city-reading")
-async def astrocartography_city_reading(request: CityReadingRequest, authorization: Optional[str] = Header(None)):
+def astrocartography_city_reading(request: CityReadingRequest, authorization: Optional[str] = Header(None)):
     # [P4 astro-consolidation 2026-07-29] Retired — use the named-city read.
     raise HTTPException(status_code=410, detail={"error": "deprecated", "use": "/api/v1/places/city"})
 
 
 
 @app.get("/api/v1/astrocartography/{chart_id}")
-async def get_astrocartography(chart_id: str, concern: str = "career", limit: int = 5):
+def get_astrocartography(chart_id: str, concern: str = "career", limit: int = 5):
     raise HTTPException(
         status_code=410,
         detail={"error": "deprecated", "use": "/api/v1/places/lines/{chart_id}"},
@@ -13222,7 +13242,7 @@ class PlacesPotentialReq(BaseModel):
 
 
 @app.post("/api/v1/places/potential")
-async def places_potential_endpoint(req: PlacesPotentialReq):
+def places_potential_endpoint(req: PlacesPotentialReq):
     """Where your <concern> has the most potential — a curated few places, each
     with a plain WHY and a minimal strong/moderate/weak fit. No scores/tiers."""
     lang = _pot_lang(req.language)
@@ -13538,7 +13558,7 @@ class PlacesPrescribeReq(BaseModel):
 
 
 @app.post("/api/v1/places/prescribe")
-async def places_prescribe_endpoint(req: PlacesPrescribeReq):
+def places_prescribe_endpoint(req: PlacesPrescribeReq):
     """DIAGNOSTIC-FIRST relocation. Reads the chart, scores the person's CURRENT
     city across every life-area to find where they're most STUCK (the natal
     problem, unrelieved if they still live in their birthplace), and prescribes
@@ -13800,7 +13820,7 @@ async def places_prescribe_endpoint(req: PlacesPrescribeReq):
 
 
 @app.get("/api/v1/places/lines/{chart_id}")
-async def places_lines_endpoint(chart_id: str, language: str = "en",
+def places_lines_endpoint(chart_id: str, language: str = "en",
                                 concern: Optional[str] = None):
     # [P1 astro-declutter 2026-07-29] The map used to return ALL 36 lines + up to
     # 60 parans unconditionally (~96 objects) — the core "too many options" source.
@@ -14064,7 +14084,7 @@ class PlacesSavedReq(BaseModel):
 
 
 @app.post("/api/v1/places/compare")
-async def places_compare_endpoint(req: PlacesCompareReq):
+def places_compare_endpoint(req: PlacesCompareReq):
     _ent_deny = _ent_places_deny(req.chart_id)
     if _ent_deny is not None:
         return _ent_deny
@@ -14099,7 +14119,7 @@ async def places_compare_endpoint(req: PlacesCompareReq):
 
 
 @app.post("/api/v1/places/saved")
-async def places_saved_add(req: PlacesSavedReq, authorization: Optional[str] = Header(None)):
+def places_saved_add(req: PlacesSavedReq, authorization: Optional[str] = Header(None)):
     user_id = verify_token(authorization or "")
     _ent_deny = _ent_places_deny(req.chart_id)
     if _ent_deny is not None:
@@ -14116,7 +14136,7 @@ async def places_saved_add(req: PlacesSavedReq, authorization: Optional[str] = H
 
 
 @app.get("/api/v1/places/saved/{chart_id}")
-async def places_saved_list(chart_id: str, authorization: Optional[str] = Header(None)):
+def places_saved_list(chart_id: str, authorization: Optional[str] = Header(None)):
     user_id = verify_token(authorization or "")
     _ent_deny = _ent_places_deny(chart_id)
     if _ent_deny is not None:
@@ -14128,7 +14148,7 @@ async def places_saved_list(chart_id: str, authorization: Optional[str] = Header
 
 
 @app.delete("/api/v1/places/saved/{saved_id}")
-async def places_saved_delete(saved_id: str, authorization: Optional[str] = Header(None)):
+def places_saved_delete(saved_id: str, authorization: Optional[str] = Header(None)):
     user_id = verify_token(authorization or "")
     supabase.table("places_saved_cities").delete().eq("id", saved_id).eq("user_id", user_id).execute()
     return {"status": "deleted", "id": saved_id}
@@ -14156,7 +14176,7 @@ def _places_velocity(name, cc):
 
 
 @app.post("/api/v1/astrocartography/waitlist")
-async def astrocartography_waitlist(request: WaitlistRequest):
+def astrocartography_waitlist(request: WaitlistRequest):
     try:
         supabase.table("astrocartography_waitlist").insert({
             "email":      request.email,
@@ -14739,7 +14759,7 @@ _CHART_PII_COLS = [
 
 
 @app.delete("/api/v1/me/charts/{chart_id}")
-async def settings_charts_delete(chart_id: str, authorization: Optional[str] = Header(None)):
+def settings_charts_delete(chart_id: str, authorization: Optional[str] = Header(None)):
     """
     [chart-tombstone 2026-06-09] Right-to-deletion fix.
 
@@ -14936,7 +14956,7 @@ _ACCOUNT_DELETE_TABLES = (
 
 
 @app.delete("/api/v1/account/{chart_id}")
-async def delete_account(chart_id: str, authorization: Optional[str] = Header(None)):
+def delete_account(chart_id: str, authorization: Optional[str] = Header(None)):
     """
     [account-delete] Full account deletion (Apple 5.1.1(v)).
     Auth-gated: the caller must own chart_id. Deletes every chart the user
@@ -15367,7 +15387,7 @@ async def require_admin(authorization: Optional[str] = Header(None)) -> str:
 
 
 @app.get("/api/v1/admin/overview")
-async def admin_overview(admin_email: str = Depends(require_admin)):
+def admin_overview(admin_email: str = Depends(require_admin)):
     from datetime import datetime as _adt, timedelta as _atd, timezone as _atz
     from collections import Counter as _aC
     now = _adt.now(_atz.utc)
@@ -15454,7 +15474,7 @@ async def admin_overview(admin_email: str = Depends(require_admin)):
 
 
 @app.get("/api/v1/admin/users")
-async def admin_users(limit: int = 50, offset: int = 0, plan: str = "",
+def admin_users(limit: int = 50, offset: int = 0, plan: str = "",
                       q: str = "", admin_email: str = Depends(require_admin)):
     from datetime import datetime as _adt, timezone as _atz
     limit = max(1, min(int(limit or 50), 200))
@@ -15553,7 +15573,7 @@ async def admin_users(limit: int = 50, offset: int = 0, plan: str = "",
 
 
 @app.get("/api/v1/admin/questions")
-async def admin_questions(limit: int = 50, offset: int = 0, language: str = "",
+def admin_questions(limit: int = 50, offset: int = 0, language: str = "",
                           admin_email: str = Depends(require_admin)):
     limit = max(1, min(int(limit or 50), 200))
     offset = max(0, int(offset or 0))
@@ -15581,7 +15601,7 @@ async def admin_questions(limit: int = 50, offset: int = 0, language: str = "",
 
 
 @app.get("/api/v1/admin/llm-usage")
-async def admin_llm_usage(days: int = 30, admin_email: str = Depends(require_admin)):
+def admin_llm_usage(days: int = 30, admin_email: str = Depends(require_admin)):
     from datetime import datetime as _adt, timedelta as _atd, timezone as _atz
     from fastapi.responses import JSONResponse as _AJR
     days = max(1, min(int(days or 30), 90))
@@ -15640,7 +15660,7 @@ async def _require_debug(authorization: Optional[str] = Header(None)) -> str:
 
 
 @app.get("/api/v1/admin/charts")
-async def admin_charts_search(q: str = "", limit: int = 40,
+def admin_charts_search(q: str = "", limit: int = 40,
                               admin_email: str = Depends(_require_debug)):
     """Searchable chart list for the debugger dropdown (name / email / id)."""
     limit = max(1, min(int(limit or 40), 200))
@@ -15737,7 +15757,7 @@ async def admin_preview_daily(chart_id: str, language: str = "en",
 
 
 @app.get("/api/v1/admin/chart-details/{chart_id}")
-async def admin_chart_details(chart_id: str, admin_email: str = Depends(_require_debug)):
+def admin_chart_details(chart_id: str, admin_email: str = Depends(_require_debug)):
     """Full inspector for a chart: identity, birth vs current location, the
     life-facts the USER selected (what personalizes their predictions), and the
     astro summary + running periods. Answers 'which chart is this and what did I
@@ -15931,7 +15951,7 @@ async def admin_ask(request: Request, admin_email: str = Depends(_require_debug)
 
 
 @app.get("/api/v1/admin/field-options")
-async def admin_field_options_endpoint(admin_email: str = Depends(_require_debug)):
+def admin_field_options_endpoint(admin_email: str = Depends(_require_debug)):
     """Dropdown choices for the create/edit forms — same source as Details."""
     try:
         from antar_engine.patra_catalog import admin_field_options
@@ -16505,7 +16525,7 @@ async def admin_preview_surface(surface: str, chart_id: str, language: str = "en
 
 
 @app.get("/api/v1/admin/config")
-async def admin_get_config(admin_email: str = Depends(_require_debug)):
+def admin_get_config(admin_email: str = Depends(_require_debug)):
     """All runtime config for the panel — effective value, default, choices."""
     from antar_engine import app_config
     return {"config": app_config.all_config(supabase)}
@@ -16530,7 +16550,7 @@ async def admin_set_config(request: Request,
 
 
 @app.get("/api/v1/admin/debug/predictions")
-async def admin_debug_page():
+def admin_debug_page():
     """Self-contained debugger UI (same-origin so it can call the admin API).
     Data endpoints are admin-gated; the admin pastes their bearer token here."""
     from fastapi.responses import HTMLResponse
@@ -16538,7 +16558,7 @@ async def admin_debug_page():
 
 
 @app.get("/admin")
-async def admin_debug_page_short():
+def admin_debug_page_short():
     """Short alias for the admin panel — same page as
     /api/v1/admin/debug/predictions. The data endpoints stay admin-gated."""
     from fastapi.responses import HTMLResponse
@@ -16997,7 +17017,7 @@ def _admin_page_html() -> str:
 
 
 @app.get("/api/v1/admin/version")
-async def admin_page_version():
+def admin_page_version():
     """Current panel content hash — no auth (it's just a build stamp)."""
     return {"version": _ADMIN_VERSION}
 
@@ -17049,7 +17069,7 @@ class _PastPredMarkReq(_PPBaseModel):
 
 
 @app.get("/api/v1/admin/past-predictions/accuracy")
-async def admin_past_predictions_accuracy(
+def admin_past_predictions_accuracy(
         admin_email: str = Depends(require_admin)):
     """Running tally over ALL persisted marks. passes_gate = overall >= 60%."""
     try:
@@ -17104,7 +17124,7 @@ async def admin_past_predictions_accuracy(
 
 
 @app.post("/api/v1/admin/past-predictions/mark")
-async def admin_past_predictions_mark(
+def admin_past_predictions_mark(
         req: _PastPredMarkReq,
         admin_email: str = Depends(require_admin)):
     """Upsert on (chart_id, prediction_id) — re-marking overwrites."""
@@ -17146,7 +17166,7 @@ async def admin_past_predictions_mark(
 
 
 @app.get("/api/v1/admin/past-predictions/{chart_id}")
-async def admin_past_predictions(chart_id: str, n: int = 3,
+def admin_past_predictions(chart_id: str, n: int = 3,
                                  min_layers: int = 2,
                                  min_score: float = 6.0,
                                  domains: str = "Love,Business,Family",
@@ -17194,7 +17214,7 @@ async def admin_past_predictions(chart_id: str, n: int = 3,
 # output schema are code-only constants, returned read-only for UI display.
 # Drafts never affect users; publish/rollback bump version monotonically.
 @app.get("/api/v1/admin/prompts")
-async def admin_prompts_list(admin_email: str = Depends(require_admin)):
+def admin_prompts_list(admin_email: str = Depends(require_admin)):
     from antar_engine.prompt_registry import SURFACES
     rows = []
     try:
@@ -17222,7 +17242,7 @@ async def admin_prompts_list(admin_email: str = Depends(require_admin)):
 
 
 @app.get("/api/v1/admin/prompts/{surface}")
-async def admin_prompts_get(surface: str, language: str = "en",
+def admin_prompts_get(surface: str, language: str = "en",
                             admin_email: str = Depends(require_admin)):
     from antar_engine.prompt_registry import (
         SURFACES, PROMPT_CONTRACT_HEADER, _schema_line, _hardcoded_for, _norm_lang,
@@ -17261,7 +17281,7 @@ async def admin_prompts_get(surface: str, language: str = "en",
 
 
 @app.put("/api/v1/admin/prompts/{surface}/draft")
-async def admin_prompts_save_draft(surface: str, language: str = "en",
+def admin_prompts_save_draft(surface: str, language: str = "en",
                                    request: dict = Body(...),
                                    admin_email: str = Depends(require_admin)):
     from antar_engine.prompt_registry import SURFACES, invalidate, _norm_lang
@@ -17281,7 +17301,7 @@ async def admin_prompts_save_draft(surface: str, language: str = "en",
 
 
 @app.post("/api/v1/admin/prompts/{surface}/publish")
-async def admin_prompts_publish(surface: str, language: str = "en",
+def admin_prompts_publish(surface: str, language: str = "en",
                                 admin_email: str = Depends(require_admin)):
     from antar_engine.prompt_registry import SURFACES, invalidate, _norm_lang
     if surface not in SURFACES:
@@ -17307,7 +17327,7 @@ async def admin_prompts_publish(surface: str, language: str = "en",
 
 
 @app.post("/api/v1/admin/prompts/{surface}/rollback")
-async def admin_prompts_rollback(surface: str, language: str = "en",
+def admin_prompts_rollback(surface: str, language: str = "en",
                                  request: dict = Body(...),
                                  admin_email: str = Depends(require_admin)):
     from antar_engine.prompt_registry import SURFACES, invalidate, _norm_lang
@@ -17341,7 +17361,7 @@ async def admin_prompts_rollback(surface: str, language: str = "en",
 
 
 @app.post("/api/v1/me/billing/portal")
-async def settings_billing_portal(authorization: Optional[str] = Header(None)):
+def settings_billing_portal(authorization: Optional[str] = Header(None)):
     from fastapi.responses import JSONResponse
     import os as _os
     user_id, email = _st_identity(authorization)
@@ -17369,7 +17389,7 @@ async def settings_billing_portal(authorization: Optional[str] = Header(None)):
 
 # ════════════════════════════════ SIGN OUT ════════════════════════════════
 @app.post("/api/v1/auth/signout")
-async def settings_signout(authorization: Optional[str] = Header(None)):
+def settings_signout(authorization: Optional[str] = Header(None)):
     from fastapi.responses import JSONResponse
     user_id, _ = _st_identity(authorization)
     if not user_id:
@@ -17502,7 +17522,7 @@ class ChapterArcRequest(BaseModel):
     language: str = "en"
 
 @app.post("/api/v1/chapter-arc")
-async def chapter_arc_endpoint(
+def chapter_arc_endpoint(
     request: ChapterArcRequest,
     authorization: Optional[str] = Header(None),
 ):
@@ -17595,7 +17615,7 @@ async def get_proof_points(request: ProofPointsRequest, language: str = "en"):
 
 
 @app.post("/api/v1/proof-points/evaluate")
-async def evaluate_proof_points(
+def evaluate_proof_points(
     request: ProofEvalRequest,
     authorization: Optional[str] = Header(None),
 ):
@@ -17684,7 +17704,7 @@ async def get_lk_remedies(
 
 
 @app.post("/api/v1/lal-kitab/varshphal/generate")
-async def generate_varshphal_endpoint(
+def generate_varshphal_endpoint(
     chart_id: str,
     year: Optional[int] = None,
     authorization: str = Header(...),
@@ -17705,7 +17725,7 @@ async def generate_varshphal_endpoint(
 
 
 @app.get("/api/v1/lal-kitab/varshphal/current")
-async def get_current_varshphal_endpoint(authorization: str = Header(...)):
+def get_current_varshphal_endpoint(authorization: str = Header(...)):
     user_id   = verify_token(authorization)
     varshphal = lal_kitab_gen.get_current_varshphal(user_id)
     if not varshphal:
@@ -17714,7 +17734,7 @@ async def get_current_varshphal_endpoint(authorization: str = Header(...)):
 
 
 @app.get("/api/v1/lal-kitab/mashaphal/current")
-async def get_current_mashaphal_endpoint(authorization: str = Header(...)):
+def get_current_mashaphal_endpoint(authorization: str = Header(...)):
     user_id   = verify_token(authorization)
     mashaphal = lal_kitab_gen.get_current_mashaphal(user_id)
     if not mashaphal:
@@ -17726,7 +17746,7 @@ async def get_current_mashaphal_endpoint(authorization: str = Header(...)):
 
 
 @app.post("/api/v1/lal-kitab/mashaphal/generate-all")
-async def generate_all_mashaphal_endpoint(
+def generate_all_mashaphal_endpoint(
     varshphal_id: str,
     authorization: str = Header(...),
 ):
@@ -17753,7 +17773,7 @@ async def generate_all_mashaphal_endpoint(
 
 # ── Prediction check-in response (from ping email link) ──────────────────────
 @app.get("/api/v1/checkin")
-async def prediction_checkin(pred: str, response: str):
+def prediction_checkin(pred: str, response: str):
     """
     Handles yes/no/partial responses from ping emails.
     pred = prediction_id, response = yes | no | partial
@@ -17821,7 +17841,7 @@ Return to Antar →</a>
 
 
 @app.post("/api/v1/lal-kitab/remedy/track")
-async def track_remedy_endpoint(
+def track_remedy_endpoint(
     remedy_id:    int,
     varshphal_id: str,
     status:       str,
@@ -18050,7 +18070,7 @@ def _forward_dasha_support(chart_a, dashas_a, chart_b, dashas_b, reason,
 
 
 @app.post("/api/v1/compatibility")
-async def get_compatibility(request: dict, http_request: Request = None):
+def get_compatibility(request: dict, http_request: Request = None):
     """
     Vedic compatibility analysis — D1+D9+Houses+Dasha timing.
     Supports: relationship | business compatibility types.
@@ -18278,7 +18298,7 @@ async def compat_six_layer(request: CompatRequest, http_request: Request = None)
 
 
 @app.get("/api/v1/compatibility/reasons")
-async def get_compatibility_reasons(
+def get_compatibility_reasons(
     language: Optional[str] = None,
     chart_id: Optional[str] = None,
     authorization: Optional[str] = Header(None),
@@ -18333,7 +18353,7 @@ async def get_compatibility_reasons(
 
 
 @app.post("/api/v1/timing/windows")
-async def get_timing_windows(request: dict):
+def get_timing_windows(request: dict):
     """
     Auspicious timing windows for specific life events.
     Uses dasha confluence + transit analysis.
@@ -18856,6 +18876,7 @@ async def compatibility_start(request: CompatibilityStartRequest,
                     for _i in range(0, len(_dasha_rows_b), 100):
                         _batch = _dasha_rows_b[_i:_i+100]
                         supabase.table("dasha_periods").insert(_batch).execute()
+                    invalidate_dasha_cache(chart_id_b)  # [loop-unblock 2026-09-28]
                     print(f"[compat] Chart B dashas stored: {len(_dasha_rows_b)} rows")
                 except Exception as _dbe:
                     print(f"[compat] Chart B dasha store non-fatal: {_dbe}")
@@ -19724,7 +19745,7 @@ class OnboardingSkipRequest(BaseModel):
 
 
 @app.post("/api/v1/onboarding/skip")
-async def onboarding_skip(request: OnboardingSkipRequest):
+def onboarding_skip(request: OnboardingSkipRequest):
     """User dismissed 'What brought you to Antar?' — never show it again."""
     from datetime import datetime as _odt, timezone as _otz
     try:
@@ -19738,7 +19759,7 @@ async def onboarding_skip(request: OnboardingSkipRequest):
 
 
 @app.get("/api/v1/onboarding/status/{chart_id}")
-async def onboarding_status(chart_id: str):
+def onboarding_status(chart_id: str):
     """Frontend gate: show the onboarding question only when completed=False."""
     try:
         _r = supabase.table("charts").select(
@@ -20926,7 +20947,7 @@ class AskEvidenceRequest(BaseModel):
 
 
 @app.post("/api/v1/ask/evidence")
-async def ask_evidence_debug(request: AskEvidenceRequest, http_request: Request):
+def ask_evidence_debug(request: AskEvidenceRequest, http_request: Request):
     from fastapi.responses import JSONResponse   # main.py imports this locally per-endpoint
     _dbg_key = os.environ.get("ANTAR_DEBUG_KEY")
     if _dbg_key and http_request.headers.get("X-Debug-Key") != _dbg_key:
@@ -26364,7 +26385,7 @@ async def ask_history(chart_id: str, limit: int = 30, before: str = None, langua
 
 
 @app.get("/api/v1/ask/state")
-async def ask_state(chart_id: str, language: str = "en"):
+def ask_state(chart_id: str, language: str = "en"):
     """Fast, read-only Yes/No lock state for screen mount.
     [ask-suggestions] Also carries the 4 chart-aware landing prompts the
     frontend renders (2-3 base + 1-2 promoted from live chart state)."""
@@ -26428,7 +26449,7 @@ class LanguageConfirmRequest(BaseModel):
 
 
 @app.post("/api/v1/language/confirm")
-async def language_confirm(request: LanguageConfirmRequest):
+def language_confirm(request: LanguageConfirmRequest):
     """[lang-learn 2026-09-24] Resolve the one-time 'switch Antar to <language>?'
     offer that /ask raised (via `language_offer` + charts.needs_lang_prompt).
 
@@ -26556,7 +26577,7 @@ async def prashna_followup(request: PrashnaFollowupRequest):
     }
 
 @app.get("/api/v1/prashna/session/{session_id}")
-async def get_prashna_session(session_id: str):
+def get_prashna_session(session_id: str):
     """Get full Prashna session with all follow-ups."""
     res = supabase.table("prashna_readings").select("*").eq("id",session_id).execute()
     if not res.data:
@@ -26576,7 +26597,7 @@ async def get_prashna_session(session_id: str):
 
 
 @app.post("/api/v1/debug/context")
-async def debug_context(request: dict):
+def debug_context(request: dict):
     """Debug endpoint — returns context build result for a chart+concern."""
     chart_id = request.get("chart_id")
     concern  = request.get("concern","career")
@@ -26648,7 +26669,7 @@ class OnboardingReasonRequest(BaseModel):
 
 
 @app.post("/api/v1/onboarding/reason")
-async def save_onboarding_reason(request: OnboardingReasonRequest):
+def save_onboarding_reason(request: OnboardingReasonRequest):
     """Store the onboarding concern ("why you came to Antar") on the chart.
 
     The frontend already holds this in localStorage (antar_signup_reason_category,
@@ -26769,7 +26790,11 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         # @translate_response only fills in the English panchanga block.
         from antar_engine.daily_prediction_engine import generate_weekly_signals
         from antar_engine.daily_panchanga import calculate_panchanga, format_daily_for_user
-        res = supabase.table("charts").select(
+        # [loop-unblock 2026-09-28] Off the loop — see the run_in_threadpool import.
+        # This and the L2 read below are the ENTIRE warm path: a returning user's
+        # Today request is these two queries and a return. Measured before this
+        # change, 4 concurrent warm requests held the loop frozen 99% of the time.
+        res = await run_in_threadpool(lambda: supabase.table("charts").select(
             "chart_data,jaimini_data,birth_date,name,gender,latitude,longitude,current_country,birth_country,current_city,"
             "children_status,marital_status,lal_kitab_data,language_preference,financial_status,"
             # [life-gate 2026-09-25] career_stage/profession drive the `employed`
@@ -26778,7 +26803,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             # resolve_life_facts below. Were absent, so the daily card ran with NO
             # life context at all (unlike life-arc).
             "career_stage,profession,life_work,life_relationship,life_kids"
-        ).eq("id", cid).execute()
+        ).eq("id", cid).execute())
         if not res.data: raise HTTPException(404, "Chart not found")
         row = res.data[0]
         cd  = row["chart_data"]
@@ -26863,7 +26888,9 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         # decorator the payload is final. Kill-switch: DAILY_DB_CACHE=off.
         _ds_cache_date = start_date.strftime("%Y-%m-%d") if hasattr(start_date, "strftime") else str(start_date)[:10]
         try:
-            _ds_full_cached = _daily_surface_get(cid, "daily-signal", language, _ds_cache_date)
+            # [loop-unblock 2026-09-28] off the loop — the other half of the warm path.
+            _ds_full_cached = await run_in_threadpool(
+                _daily_surface_get, cid, "daily-signal", language, _ds_cache_date)
         except Exception:
             _ds_full_cached = None
         if _ds_full_cached:
@@ -28043,7 +28070,7 @@ async def get_muhurta_endpoint(request: dict, language: str = "en"):
 
 # ── VARSHPHAL ─────────────────────────────────────────────────────
 @app.post("/api/v1/varshphal/annual")
-async def get_varshphal_endpoint(request: dict):
+def get_varshphal_endpoint(request: dict):
     chart_id = request.get("chart_id")
     year     = request.get("year", datetime.utcnow().year)
     if not chart_id: raise HTTPException(400,"chart_id required")
@@ -28124,7 +28151,7 @@ async def get_transit_alerts_endpoint(chart_id: str = None, request: dict = {}, 
 
 # ── Dasha Debug — raw computation from all sources ──
 @app.get("/api/v1/debug/chart-dasha/{chart_id}")
-async def debug_chart_dasha(chart_id: str):
+def debug_chart_dasha(chart_id: str):
     """
     Returns raw Vimsottari + Ashtottari dasha computation for a chart.
     Shows data from all three sources used across the system:
@@ -28320,7 +28347,7 @@ async def debug_chart_dasha(chart_id: str):
 
 
 @app.get("/api/v1/debug/lk-daily/{chart_id}")
-async def debug_lk_daily(chart_id: str, date: str = None, language: str = "en"):
+def debug_lk_daily(chart_id: str, date: str = None, language: str = "en"):
     """Returns raw LK daily diagnostic for a chart on a given date. No LLM, no strip."""
     from datetime import date as _date_cls
     try:
@@ -28419,7 +28446,7 @@ async def debug_predict_context(
 # analyze_career / analyze_concern (main.py:19405,19420,19718) — no reshaping, so
 # a fixture built from this scores what the live engine actually sees.
 @app.get("/api/v1/debug/engine-inputs/{chart_id}")
-async def debug_engine_inputs(chart_id: str):
+def debug_engine_inputs(chart_id: str):
     try:
         row = supabase.table("charts").select(
             "chart_data, birth_date, first_name, current_country"
@@ -28452,7 +28479,7 @@ async def debug_engine_inputs(chart_id: str):
 # and returns the labelled career cohort (chart_id + profession) so the harness
 # can be run server-side on real data.
 @app.get("/api/v1/debug/label-coverage")
-async def debug_label_coverage(limit: int = 300):
+def debug_label_coverage(limit: int = 300):
     try:
         cols = "id, first_name, profession, ventures, career_stage, marital_status, children"
         try:
@@ -28496,7 +28523,7 @@ async def debug_label_coverage(limit: int = 300):
 
 # [validation 2026-09-07] find a chart by first name or account email (debug).
 @app.get("/api/v1/debug/find-chart")
-async def debug_find_chart(name: str = "", email: str = ""):
+def debug_find_chart(name: str = "", email: str = ""):
     out = []
     try:
         if name:
@@ -28535,7 +28562,7 @@ async def debug_find_chart(name: str = "", email: str = ""):
 
 # --- JAIMINI BACKFILL ENDPOINT ---
 @app.get("/api/v1/backfill-jaimini/{chart_id}")
-async def backfill_jaimini(chart_id: str):
+def backfill_jaimini(chart_id: str):
     try:
         from antar_engine.jaimini_engine import (
             calculate_jaimini_analysis,
@@ -28807,7 +28834,7 @@ async def get_executive_summary(chart_id: str, language: str = "en"):
 # ═══════════════════════════════════════════════════════════════════
 
 @app.get("/debug/env")
-async def debug_env():
+def debug_env():
     """Debug endpoint to check environment variables"""
     import os
     return {
@@ -28821,7 +28848,7 @@ async def debug_env():
 # ── Prediction Tracking Endpoints ─────────────────────────────────
 
 @app.post("/api/v1/predictions/feedback")
-async def submit_prediction_feedback(request: dict):
+def submit_prediction_feedback(request: dict):
     """User submits yes/no/partial on a prediction claim or a pattern card."""
     from antar_engine.prediction_tracker import record_feedback
     # Frontend sends camelCase; accept snake_case too for safety.
@@ -28849,7 +28876,7 @@ def get_pending_feedback_endpoint(chart_id: str):
 
 
 @app.get("/api/v1/debug/test-alert")
-async def debug_test_alert(admin_email: str = Depends(_require_debug)):
+def debug_test_alert(admin_email: str = Depends(_require_debug)):
     """[alerting] Fire a test alert so you can confirm ALERT_WEBHOOK_URL delivers.
     Admin-gated. Returns whether a webhook URL is configured; if it is, a test
     message is POSTed to it (subject to the normal 5-min per-key throttle)."""
@@ -28888,7 +28915,7 @@ def get_prediction_accuracy_endpoint(chart_id: str, language: str = "en"):
 
 
 @app.get("/api/v1/kp/calibration")
-async def get_kp_calibration_endpoint(chart_id: Optional[str] = None):
+def get_kp_calibration_endpoint(chart_id: Optional[str] = None):
     """KP speculation (gambling) calibration scorecard — read-only observability.
 
     Scores the logged KP moment/number reads against the real reported win/loss
@@ -28950,7 +28977,7 @@ def _spec_current_md_ad(chart_id: str):
 
 
 @app.post("/api/v1/speculation/session")
-async def log_speculation_session(request: dict):
+def log_speculation_session(request: dict):
     """Shadow logger — record a speculation session + balance checkpoints, slice
     into KP sub-lord windows, allocate P&L. Returns {logged, windows} ONLY (no
     reading). Enabled only when SPECULATION_LOGGER=on."""
@@ -29023,7 +29050,7 @@ async def log_speculation_session(request: dict):
 
 
 @app.get("/api/v1/admin/speculation/export")
-async def export_speculation_windows(http_request: Request, chart_id: Optional[str] = None,
+def export_speculation_windows(http_request: Request, chart_id: Optional[str] = None,
                                      limit: int = 5000):
     """Admin-gated dump of speculation_windows for the study's regression. Requires
     header X-Admin-Key == env ADMIN_EXPORT_KEY (deny if unset)."""
@@ -29115,7 +29142,7 @@ async def get_alerts(chart_id: str, unread_only: bool = False, language: str = "
 
 
 @app.post("/api/v1/alerts/{alert_id}/read")
-async def mark_alert_read(alert_id: str):
+def mark_alert_read(alert_id: str):
     """Mark alert as read — clears badge."""
     from datetime import timezone
     supabase.table("user_alerts").update({
@@ -29125,7 +29152,7 @@ async def mark_alert_read(alert_id: str):
 
 
 @app.post("/api/v1/alerts/{alert_id}/dismiss")
-async def dismiss_alert(alert_id: str):
+def dismiss_alert(alert_id: str):
     """Dismiss alert permanently."""
     from datetime import timezone
     supabase.table("user_alerts").update({
@@ -29135,7 +29162,7 @@ async def dismiss_alert(alert_id: str):
 
 
 @app.post("/api/v1/alerts/subscribe")
-async def subscribe_to_alerts(request: dict):
+def subscribe_to_alerts(request: dict):
     """Save email for alert delivery."""
     chart_id = request.get("chart_id")
     email    = request.get("email")
@@ -29146,7 +29173,7 @@ async def subscribe_to_alerts(request: dict):
 
 
 @app.post("/api/v1/alerts/run-check")
-async def manual_alert_check(request: dict):
+def manual_alert_check(request: dict):
     """Manually trigger alert check — for testing."""
     secret = request.get("secret", "")
     if secret != os.getenv("ALERT_SECRET", "antar-alerts-2026"):
@@ -29237,7 +29264,7 @@ def get_upgrade_hook(chart_id: str):
 
 
 @app.post("/api/v1/subscription/verify")
-async def verify_subscription(request: dict):
+def verify_subscription(request: dict):
     """
     Verify payment and activate subscription.
     Called after Stripe/Razorpay payment succeeds.
@@ -29265,7 +29292,7 @@ async def verify_subscription(request: dict):
 
 
 @app.post("/api/v1/compat/slots/checkout")
-async def compat_slot_checkout(request: dict, authorization: Optional[str] = Header(None)):
+def compat_slot_checkout(request: dict, authorization: Optional[str] = Header(None)):
     """[compat-slots] One-time checkout for one additional compatibility chart.
     Body: { chart_id, success_url?, cancel_url?, current_country? }"""
     from antar_engine.payment_engine import create_compat_slot_checkout
@@ -29306,7 +29333,7 @@ async def stripe_webhook(request: Request):
 # ── Payment Checkout Endpoints ────────────────────────────────────
 
 @app.get("/api/v1/payments/pricing")
-async def payments_pricing(request: Request, country: Optional[str] = None):
+def payments_pricing(request: Request, country: Optional[str] = None):
     """[payments] The one paid tier's price for the caller's country + which
     provider handles it — powers the single 'Upgrade' button (show THEIR price,
     no plan matrix, no currency picker). Read-only. Auto-detects country from IP
@@ -29327,7 +29354,7 @@ async def payments_pricing(request: Request, country: Optional[str] = None):
 
 
 @app.post("/api/v1/payments/stripe/create-checkout")
-async def create_stripe_checkout_session(request: dict, authorization: Optional[str] = Header(None)):
+def create_stripe_checkout_session(request: dict, authorization: Optional[str] = Header(None)):
     """
     Create Stripe checkout session.
     Body: { chart_id, plan_key, success_url?, cancel_url? }
@@ -29376,7 +29403,7 @@ async def create_stripe_checkout_session(request: dict, authorization: Optional[
 
 
 @app.post("/api/v1/payments/stripe/verify")
-async def verify_stripe_payment(request: dict):
+def verify_stripe_payment(request: dict):
     """
     Verify Stripe checkout after redirect back from Stripe.
     Body: { session_id, chart_id }
@@ -29453,7 +29480,7 @@ def _apply_iap_result(res: dict, chart_id: str, provider: str) -> dict:
 
 
 @app.post("/api/v1/payments/apple/verify-receipt")
-async def verify_apple_receipt(request: dict):
+def verify_apple_receipt(request: dict):
     """
     [iap] Validate an App Store receipt, then grant the same entitlement
     Stripe grants. Body: { chart_id, receipt_data }.
@@ -29470,7 +29497,7 @@ async def verify_apple_receipt(request: dict):
 
 
 @app.post("/api/v1/payments/google/verify-purchase")
-async def verify_google_purchase(request: dict):
+def verify_google_purchase(request: dict):
     """
     [iap] Validate a Google Play purchase, then grant the same entitlement
     Stripe grants. Body: { chart_id, product_id, purchase_token, kind? }.
@@ -29492,7 +29519,7 @@ async def verify_google_purchase(request: dict):
 # alerts already computed in alert_engine.
 
 @app.post("/api/v1/push/register")
-async def push_register(request: dict, authorization: Optional[str] = Header(None)):
+def push_register(request: dict, authorization: Optional[str] = Header(None)):
     """[push] Register a device for transit-alert push. Auth-gated.
     Body: { chart_id?, platform, token }  platform: ios | android"""
     user_id, _ = _st_identity(authorization)
@@ -29515,7 +29542,7 @@ async def push_register(request: dict, authorization: Optional[str] = Header(Non
 
 
 @app.post("/api/v1/push/unregister")
-async def push_unregister(request: dict, authorization: Optional[str] = Header(None)):
+def push_unregister(request: dict, authorization: Optional[str] = Header(None)):
     """[push] Remove a device token (sign-out / notifications off)."""
     user_id, _ = _st_identity(authorization)
     if not user_id:
@@ -29533,7 +29560,7 @@ async def push_unregister(request: dict, authorization: Optional[str] = Header(N
 
 
 @app.post("/api/v1/push/send")
-async def push_send(request: dict):
+def push_send(request: dict):
     """[push] Server/cron: send a push to a chart's owner. Auth via the shared
     ALERT_SECRET (same gate the alert pipeline uses).
     Body: { secret, chart_id, title?, body, data? }."""
@@ -29968,7 +29995,7 @@ async def handle_stripe_webhook(request: Request):
 
 
 @app.post("/api/v1/payments/razorpay/create-order")
-async def create_razorpay_order_endpoint(request: dict):
+def create_razorpay_order_endpoint(request: dict):
     """
     Create Razorpay order for Indian payments.
     Body: { chart_id, plan_key }
@@ -29988,7 +30015,7 @@ async def create_razorpay_order_endpoint(request: dict):
 
 
 @app.post("/api/v1/payments/razorpay/verify")
-async def verify_razorpay_payment_endpoint(request: dict):
+def verify_razorpay_payment_endpoint(request: dict):
     """
     Verify Razorpay payment after widget success callback.
     Body: { payment_id, order_id, signature, chart_id, plan_key }
@@ -30021,7 +30048,7 @@ async def verify_razorpay_payment_endpoint(request: dict):
 
 
 @app.post("/api/v1/payments/razorpay/create-pack-order")
-async def create_razorpay_pack_order_endpoint(request: dict):
+def create_razorpay_pack_order_endpoint(request: dict):
     """[india-packs] Create a Razorpay one-time order for an ask credit pack.
     Body: { chart_id, pack_key }  (pack_key: pack_10 | pack_40 | pack_100)."""
     from antar_engine.payment_engine import create_razorpay_pack_order
@@ -30036,7 +30063,7 @@ async def create_razorpay_pack_order_endpoint(request: dict):
 
 
 @app.post("/api/v1/payments/razorpay/verify-pack")
-async def verify_razorpay_pack_endpoint(request: dict):
+def verify_razorpay_pack_endpoint(request: dict):
     """[india-packs] Verify a pack payment and top up PAID ask credits.
     Body: { payment_id, order_id, signature, chart_id, pack_key }.
     Credits are granted to the uncapped ledger kind 'ask_paid', idempotent on the
@@ -30783,7 +30810,7 @@ async def get_personal_remedies(
 # ── Compatibility Sessions List ───────────────────────────────────
 
 @app.get("/api/v1/compatibility/sessions/{chart_id}")
-async def list_compatibility_sessions(chart_id: str):
+def list_compatibility_sessions(chart_id: str):
     """List all past compatibility checks for a user."""
     res = supabase.table("compatibility_sessions").select(
         "id,name_a,name_b,compat_type,score,current_layer,created_at,has_time_a,has_time_b"
@@ -30897,7 +30924,7 @@ async def _network_prewarm(connection_chart_id):
 
 
 @app.get("/api/v1/network/{chart_id}")
-async def get_network(chart_id: str, language: str = "en"):
+def get_network(chart_id: str, language: str = "en"):
     """People-network digest: the user's saved people (deduped by person) + each
     person's TODAY glance, in one cached call for the Network tab. Additive;
     changes nothing else. Fail-open. Brief:
@@ -30991,7 +31018,7 @@ async def get_network(chart_id: str, language: str = "en"):
 
 
 @app.delete("/api/v1/network/{chart_id}/person/{connection_chart_id}")
-async def remove_network_person(chart_id: str, connection_chart_id: str):
+def remove_network_person(chart_id: str, connection_chart_id: str):
     """Remove a saved person from the user's People network.
 
     Deletes every compatibility session between the user's chart (Person A) and
@@ -31708,7 +31735,7 @@ _WARMUP_COMPOSE_SECONDS = 25          # WOW + exec summary + highlights + strip
 
 
 @app.get("/api/v1/warmup/status/{chart_id}")
-async def warmup_status(chart_id: str, language: str = "en"):
+def warmup_status(chart_id: str, language: str = "en"):
     """Cheap, truthful readiness probe for the Today surface. See block comment."""
     from uuid import UUID as _UUID_W
     try:
@@ -31818,7 +31845,7 @@ async def warmup_status(chart_id: str, language: str = "en"):
 # ── Google Auth Endpoints ─────────────────────────────────────────
 
 @app.post("/api/v1/auth/link-chart")
-async def link_chart_to_google(
+def link_chart_to_google(
     request: dict,
     background_tasks: BackgroundTasks,
     tz_offset: Optional[float] = None,
@@ -31994,7 +32021,7 @@ async def update_preferences(request: Request):
 
 # [auth-restore-fix] user_id-based lookup with Case A/B/C handling
 @app.get("/api/v1/auth/restore/{user_id}")
-async def restore_chart(
+def restore_chart(
     user_id: str,
     background_tasks: BackgroundTasks,
     request: Request = None,
@@ -32242,7 +32269,7 @@ async def restore_chart(
 
 
 @app.get("/api/v1/auth/profile/{google_id}")
-async def get_profile(google_id: str):
+def get_profile(google_id: str):
     """Get user profile for display in header/settings."""
     res = supabase.table("charts").select(
         "id,first_name,display_name,avatar_url,email,lagna_sign,moon_sign,created_at"
@@ -32441,7 +32468,7 @@ async def get_domain_signals(chart_id: str, language: str = "en"):
 
 # ── C3: Rate a prediction ─────────────────────────────────────────────────────
 @app.post("/api/v1/predictions/{prediction_id}/rate")
-async def rate_prediction(prediction_id: str, body: dict):
+def rate_prediction(prediction_id: str, body: dict):
     """
     User rates whether a prediction came true.
     Body: { "rating": 1 }  — 1 = accurate, 0 = did not happen
@@ -32467,7 +32494,7 @@ async def rate_prediction(prediction_id: str, body: dict):
 
 # ── C3: Pattern summary for a chart ──────────────────────────────────────────
 @app.get("/api/v1/patterns/{chart_id}")
-async def get_pattern_summary(chart_id: str):
+def get_pattern_summary(chart_id: str):
     """
     Returns pattern memory analysis for a chart:
     - Recurring themes
@@ -34374,7 +34401,7 @@ class ClientErrorRequest(BaseModel):
     user_agent: str = ""
 
 @app.post("/api/v1/client-error")
-async def log_client_error(payload: ClientErrorRequest):
+def log_client_error(payload: ClientErrorRequest):
     import logging as _logging
     _log = _logging.getLogger("antar.client")
     try:
@@ -35992,7 +36019,11 @@ async def _get_wow_signal_for_chart_v2(
             from antar_engine.symptom_library import build_executive_summary
             from datetime import datetime as _exdt
             import json as _jjson
-            _cr = supabase.table("charts").select("chart_data, jaimini_data, lal_kitab_data").eq("id", chart_id).single().execute()
+            # [loop-unblock 2026-09-28] off the loop — see the run_in_threadpool import.
+            _cr = await run_in_threadpool(
+                lambda: supabase.table("charts")
+                .select("chart_data, jaimini_data, lal_kitab_data")
+                .eq("id", chart_id).single().execute())
             if not _cr.data:
                 return None
             _cd = _cr.data.get("chart_data", {})
@@ -36008,8 +36039,12 @@ async def _get_wow_signal_for_chart_v2(
                 try: _lk = _jjson.loads(_lk)
                 except: _lk = {}
             _now = _exdt.utcnow().isoformat()
-            _dr = supabase.table("dasha_periods").select("planet_or_sign, level, end_date").eq("chart_id", chart_id).eq("system", "vimsottari").lte("start_date", _now).gte("end_date", _now).order("level").execute()
-            _dasha_list = _dr.data if _dr.data else []
+            # [loop-unblock 2026-09-28] Served from the shared dasha cache rather
+            # than a second round trip. dasha_cache.active_vimsottari applies the
+            # same system / date-range / level-order filter in Python.
+            from antar_engine.dasha_cache import active_vimsottari as _dc_active
+            _dasha_list = await run_in_threadpool(
+                _dc_active, supabase, chart_id, _now)
             _current_dasha = ""
             for _d in _dasha_list:
                 if _d.get("level") == 1: _current_dasha = _d["planet_or_sign"].strip()
@@ -36063,7 +36098,9 @@ async def _get_wow_signal_for_chart_v2(
             confidence = sd.get("confidence", "MEDIUM")
 
         # Check 24hr cache
-        cached = _get_wow_cache(chart_id, inst_name, local_date_str=local_date_str, language=language)
+        # [loop-unblock 2026-09-28] sync helper (it queries Supabase) — off the loop.
+        cached = await run_in_threadpool(
+            _get_wow_cache, chart_id, inst_name, local_date_str, language)
         if cached.get("hint"):
             print(f"[daily-week] v2 WOW cache HIT")
             return {
@@ -36163,7 +36200,11 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
             from antar_engine.symptom_library import build_executive_summary
             from datetime import datetime as _exdt
             import json as _jjson
-            _cr = supabase.table("charts").select("chart_data, jaimini_data, lal_kitab_data").eq("id", chart_id).single().execute()
+            # [loop-unblock 2026-09-28] off the loop — see the run_in_threadpool import.
+            _cr = await run_in_threadpool(
+                lambda: supabase.table("charts")
+                .select("chart_data, jaimini_data, lal_kitab_data")
+                .eq("id", chart_id).single().execute())
             if not _cr.data:
                 return None
             _cd = _cr.data.get("chart_data", {})
@@ -36179,8 +36220,12 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
                 try: _lk = _jjson.loads(_lk)
                 except: _lk = {}
             _now = _exdt.utcnow().isoformat()
-            _dr = supabase.table("dasha_periods").select("planet_or_sign, level, end_date").eq("chart_id", chart_id).eq("system", "vimsottari").lte("start_date", _now).gte("end_date", _now).order("level").execute()
-            _dasha_list = _dr.data if _dr.data else []
+            # [loop-unblock 2026-09-28] Served from the shared dasha cache rather
+            # than a second round trip. dasha_cache.active_vimsottari applies the
+            # same system / date-range / level-order filter in Python.
+            from antar_engine.dasha_cache import active_vimsottari as _dc_active
+            _dasha_list = await run_in_threadpool(
+                _dc_active, supabase, chart_id, _now)
             _current_dasha = ""
             for _d in _dasha_list:
                 if _d.get("level") == 1: _current_dasha = _d["planet_or_sign"].strip()
@@ -36220,7 +36265,9 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
         # best one not shown recently — genuine variety, still a real active
         # signal. Falls back to the top instrument if all were shown recently.
         if len(candidates) > 1:
-            _recent = _recent_wow_instruments(chart_id, local_date_str, days=3)
+            # [loop-unblock 2026-09-28] sync helper (it queries Supabase) — off the loop.
+            _recent = await run_in_threadpool(
+                _recent_wow_instruments, chart_id, local_date_str, 3)
             if _recent:
                 for _p, _s, _inst in candidates:
                     if (_inst.get("label", _inst.get("name", "")) or "").upper() not in _recent:
@@ -36255,7 +36302,9 @@ async def _get_wow_signal_for_chart(chart_id: str, chart_data: dict, today_naksh
 
         # Check cache first (skipped when force_refresh)
         if not force_refresh:
-            cached = _get_wow_cache(chart_id, inst_name, local_date_str=local_date_str, language=language)
+            # [loop-unblock 2026-09-28] sync helper (it queries Supabase) — off the loop.
+            cached = await run_in_threadpool(
+                _get_wow_cache, chart_id, inst_name, local_date_str, language)
             if cached.get("hint"):
                 return {
                     "fires": True,
@@ -36460,7 +36509,7 @@ def _translate_hora_es(result: dict) -> dict:
 # ============================================================
 
 @app.get("/api/v1/hora/{chart_id}")
-async def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8, language: Optional[str] = "en"):
+def get_hora(chart_id: str, tz_offset: Optional[int] = None, n: int = 8, language: Optional[str] = "en"):
     """
     Kala Hora — Planetary Hour Timing Engine.
     Returns current hora + upcoming N horas with FIELD×MODE guidance.
@@ -37028,7 +37077,11 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
     language = _pt_gate("daily-week", language)  # [pt-gate]
     try:
         # 1. Fetch chart
-        chart_resp = supabase.table("charts").select("*").eq("id", chart_id).single().execute()
+        # [loop-unblock 2026-09-28] off the loop — see the run_in_threadpool import.
+        # Every Today load calls this route alongside /daily-signal, so this is
+        # the second of the two blocking reads on a returning user's warm path.
+        chart_resp = await run_in_threadpool(
+            lambda: supabase.table("charts").select("*").eq("id", chart_id).single().execute())
         if not chart_resp.data:
             raise HTTPException(status_code=404, detail=f"Chart not found: {chart_id}")
         chart_data = chart_resp.data
@@ -37362,7 +37415,10 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
                             .replace(tzinfo=timezone.utc).isoformat()
                 except Exception:
                     _show_after = None
-                _sdc(chart_id, _today_sig, supabase, _show_after)
+                # [loop-unblock 2026-09-28] sync upsert into user_correlations —
+                # off the loop. Enrolment is bookkeeping for the verify card; it
+                # must never hold up the day's payload.
+                await run_in_threadpool(_sdc, chart_id, _today_sig, supabase, _show_after)
         except Exception as _enr_e:
             print(f"[daily-verify] enrolment non-fatal: {_enr_e}")
 
@@ -38094,7 +38150,7 @@ async def predict_year_attention(request: dict, language: str = None):
 
 
 @app.get("/api/v1/admin/lk-preview/{chart_id}")
-async def lk_preview(chart_id: str, surface: str = "both"):
+def lk_preview(chart_id: str, surface: str = "both"):
     """[lk-preview] Flagged preview of the deterministic Lal Kitab
     Varshphal (year) + Masik (month) engine. Read-only — does not change
     any live surface. surface = year | month | both."""
@@ -38789,7 +38845,7 @@ async def get_predict_week(
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.get("/api/v1/connections/{chart_id}")
-async def get_connections(chart_id: str):
+def get_connections(chart_id: str):
     """
     Returns all saved connections for a chart.
     Connections are auto-created after every compatibility reading.
@@ -38840,7 +38896,7 @@ async def get_connections(chart_id: str):
 
 
 @app.delete("/api/v1/connections/{chart_id}/{connection_id}")
-async def delete_connection(chart_id: str, connection_id: str):
+def delete_connection(chart_id: str, connection_id: str):
     """Remove a saved connection."""
     try:
         supabase.table("chart_connections").delete() \
@@ -38943,7 +38999,7 @@ def _ac_v2_apply_region_filter(top_cities, region, fallback_pool):
 
 
 @app.post("/api/v1/astrocartography/recommend")
-async def astrocartography_recommend(
+def astrocartography_recommend(
     request: AstroRecommendRequest,
     authorization: Optional[str] = Header(None),
 ):
@@ -39369,7 +39425,7 @@ async def get_signature_statements(chart_id: str, language: str = "en"):
 
 
 @app.post("/api/v1/chart/signature/confirm")
-async def confirm_signature(request: SignatureConfirmRequest):
+def confirm_signature(request: SignatureConfirmRequest):
     """
     Store user's signature confirmations.
     Used by onboarding to calibrate dasha accuracy.
@@ -39475,7 +39531,7 @@ async def confirm_signature(request: SignatureConfirmRequest):
 # ══════════════════════════════════════════════════════════════════════════════
 
 @app.get("/api/v1/transit/{chart_id}")
-async def get_transit_report_endpoint(chart_id: str):
+def get_transit_report_endpoint(chart_id: str):
     """
     Returns current transit positions and how they relate to the natal chart.
     Includes: planet positions, top aspects, house activation, major transits.
@@ -39510,7 +39566,7 @@ async def get_transit_report_endpoint(chart_id: str):
 # ── Daily Check-in ───────────────────────────────────────────────────────────
 
 @app.post("/api/v1/daily-feedback/{chart_id}")
-async def submit_daily_feedback(chart_id: str, body: dict):
+def submit_daily_feedback(chart_id: str, body: dict):
     """
     User rates how their day went. We compare to what we predicted.
     Body: { "date": "2026-04-16", "user_rating": 3, "user_note": "felt great" }
@@ -39635,7 +39691,7 @@ async def submit_daily_feedback(chart_id: str, body: dict):
 
 
 @app.get("/api/v1/daily-feedback/{chart_id}/stats")
-async def get_daily_feedback_stats(chart_id: str):
+def get_daily_feedback_stats(chart_id: str):
     """Returns accuracy stats for daily signal predictions."""
     try:
         _all = supabase.table("daily_feedback").select(
@@ -39705,7 +39761,7 @@ async def get_daily_feedback_stats(chart_id: str):
 # ── Prashna Follow-up ────────────────────────────────────────────────────────
 
 @app.get("/api/v1/prashna-followup/{chart_id}")
-async def get_prashna_followups(chart_id: str):
+def get_prashna_followups(chart_id: str):
     """Returns prashna questions from 30+ days ago that haven't been followed up."""
     try:
         from datetime import datetime as _pf_dt, timedelta as _pf_td
@@ -39746,7 +39802,7 @@ async def get_prashna_followups(chart_id: str):
 
 
 @app.post("/api/v1/prashna-followup/{chart_id}/{prashna_id}")
-async def submit_prashna_followup(chart_id: str, prashna_id: str, body: dict):
+def submit_prashna_followup(chart_id: str, prashna_id: str, body: dict):
     """
     User reports whether a prashna verdict came true.
     Body: { "outcome": "confirmed", "user_note": "took the job, going great" }
@@ -41378,7 +41434,7 @@ async def get_life_arc(
 
 
 @app.post("/api/v1/life-arc/{chart_id}/feedback")
-async def submit_life_arc_feedback(
+def submit_life_arc_feedback(
     chart_id: str,
     request: dict = Body(...),
     authorization: Optional[str] = Header(None),

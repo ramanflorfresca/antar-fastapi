@@ -13,6 +13,7 @@ Called by: GET /api/v1/daily-week/{chart_id}
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+import asyncio as _asyncio
 import logging
 import json
 import os
@@ -775,10 +776,12 @@ async def build_daily_context(chart_id: str, supabase_client) -> dict:
     Returns a dict ready for prompt injection.
     """
     try:
-        res = supabase_client.table("charts").select(
-            "chart_data, jaimini_data, lal_kitab_data, character_archetype, "
-            "current_country, birth_country, birth_date, name"
-        ).eq("id", chart_id).single().execute()
+        # [loop-unblock 2026-09-28] off the loop — see _get_cached_signal.
+        res = await _asyncio.to_thread(
+            lambda: supabase_client.table("charts").select(
+                "chart_data, jaimini_data, lal_kitab_data, character_archetype, "
+                "current_country, birth_country, birth_date, name"
+            ).eq("id", chart_id).single().execute())
 
         if not res.data:
             return None
@@ -816,10 +819,17 @@ async def build_daily_context(chart_id: str, supabase_client) -> dict:
         # Jaimini Chara — still reads from dasha_periods table
         dashas_dict = {}
         try:
-            dasha_res = supabase_client.table("dasha_periods").select("*").eq(
-                "chart_id", chart_id
-            ).order("sequence").limit(500).execute()
-            for d_row in (dasha_res.data or []):
+            # [loop-unblock 2026-09-28] Served from the shared dasha cache — no
+            # round trip on the loop, and it fixes a live truncation bug: this
+            # site still used .limit(500) on a table carrying ~903 rows per
+            # chart. Because `sequence` is NOT chronological the cap punched
+            # arbitrary HOLES in the Jaimini timeline rather than trimming its
+            # tail (the same defect fixed in get_dashas_for_chart on 2026-07-21;
+            # this caller was missed). dasha_cache pages the whole table.
+            from antar_engine.dasha_cache import rows_for_chart as _dc_rows
+            dasha_rows_cached = await _asyncio.to_thread(
+                _dc_rows, supabase_client, chart_id)
+            for d_row in dasha_rows_cached:
                 system = d_row.get("system", "vimsottari")
                 if system not in dashas_dict:
                     dashas_dict[system] = []
@@ -2402,13 +2412,44 @@ def _dpc_scrub_signal(obj):
 #     planet names preserved in the signals row.
 DAILY_LOGIC_VERSION = 2
 
+# [loop-unblock 2026-09-28] Which STRIP rules a cached row was written under.
+#
+# Every path into _save_cached_signal runs the full chain first
+# (_strip_day_names_from_signal + _tidy_signal(_strip_all_jargon_from_signal)),
+# so a row written by current code is already clean. The cache-hit path used to
+# run that whole chain AGAIN on every read, defensively, because a row written
+# before a strip rule changed would still carry the old text.
+#
+# That defence was costing more than it looked: 33,719 regex substitutions per
+# warm /daily-week. Measured on 4 concurrent warm requests, skipping the
+# redundant re-strip took the event loop from 0.38s frozen to 0.05s.
+#
+# So rows now carry the version of the rules they were written under, and the
+# read path re-strips only rows that predate the current ones.
+#
+# ⚠️  IF YOU CHANGE ANY STRIPPER — output_strips.py, narration_polish.py,
+#     _strip_all_jargon_from_signal, _strip_day_names_from_signal, _tidy_signal —
+#     BUMP THIS NUMBER. Otherwise every already-cached day keeps serving text
+#     written under the OLD rules, which is exactly the jargon-leak class of bug
+#     the re-strip existed to catch. Same contract as DAILY_LOGIC_VERSION above.
+DAILY_STRIP_VERSION = 1
+
 
 async def _get_cached_signal(chart_id: str, date_str: str, language: str, supabase_client) -> Optional[dict]:
-    """Check Supabase daily_signals cache."""
+    """Check Supabase daily_signals cache.
+
+    [loop-unblock 2026-09-28] The query runs in a worker thread. `supabase-py` is
+    synchronous, and a warm /daily-week calls this SEVEN times — once per day —
+    so run inline it froze the event loop for seven round trips back to back.
+    Measured: 4 concurrent warm week requests held the loop 90% frozen, worst
+    single stall 3765ms. asyncio.to_thread rather than Starlette's threadpool so
+    the engine stays framework-agnostic and does not compete for the pool
+    FastAPI uses to run sync request handlers."""
     try:
-        res = supabase_client.table("daily_signals_cache").select("signal_json").eq(
-            "chart_id", chart_id
-        ).eq("signal_date", date_str).eq("language", language).execute()
+        res = await _asyncio.to_thread(
+            lambda: supabase_client.table("daily_signals_cache").select("signal_json").eq(
+                "chart_id", chart_id
+            ).eq("signal_date", date_str).eq("language", language).execute())
         if res.data:
             cached = res.data[0].get("signal_json")
             if cached:
@@ -2465,13 +2506,18 @@ async def _save_cached_signal(chart_id: str, date_str: str, language: str, signa
         signal_json = _dpc_scrub_signal(signal_json)
         if isinstance(signal_json, dict):
             signal_json["_logic_version"] = DAILY_LOGIC_VERSION
-        supabase_client.table("daily_signals_cache").upsert({
-            "chart_id": chart_id,
-            "signal_date": date_str,
-            "language": language,
-            "signal_json": signal_json,
-            "created_at": datetime.utcnow().isoformat() + "Z",
-        }, on_conflict="chart_id,signal_date,language").execute()
+            # [loop-unblock 2026-09-28] Record which strip rules cleaned this row
+            # so the read path can skip re-cleaning it. See DAILY_STRIP_VERSION.
+            signal_json["_strip_version"] = DAILY_STRIP_VERSION
+        # [loop-unblock 2026-09-28] off the loop — see _get_cached_signal.
+        await _asyncio.to_thread(
+            lambda: supabase_client.table("daily_signals_cache").upsert({
+                "chart_id": chart_id,
+                "signal_date": date_str,
+                "language": language,
+                "signal_json": signal_json,
+                "created_at": datetime.utcnow().isoformat() + "Z",
+            }, on_conflict="chart_id,signal_date,language").execute())
     except Exception as e:
         logger.warning(f"[daily-cache] save failed (non-fatal): {e}")
 
@@ -2754,11 +2800,22 @@ async def generate_weekly_signals(
                 llm_signal = await _get_cached_signal(chart_id, date_str, language, supabase_client)
                 if llm_signal:
                     logger.info(f"[daily-week] Cache HIT for {chart_id}/{date_str}/{language}")
-                    # [why-block-leak-fix] rows cached BEFORE the el_movimiento
-                    # strip-exemption was removed still carry raw jargon —
-                    # re-strip on read. All strippers are idempotent.
-                    llm_signal = _strip_day_names_from_signal(llm_signal, language)
-                    llm_signal = _tidy_signal(_strip_all_jargon_from_signal(llm_signal, language), language)
+                    # [why-block-leak-fix] rows cached BEFORE a strip rule changed
+                    # still carry the old text (the original case: the
+                    # el_movimiento strip-exemption being removed), so they get
+                    # re-stripped on read. All strippers are idempotent.
+                    #
+                    # [loop-unblock 2026-09-28] But a row written under the CURRENT
+                    # rules was already stripped on the way in — every path into
+                    # _save_cached_signal runs this same chain first — so re-running
+                    # it was pure waste, and expensive waste: it was the single
+                    # biggest remaining hold on the event loop for a warm week
+                    # (0.38s -> 0.05s frozen across 4 concurrent requests).
+                    # Legacy rows (written before this stamp existed) still take the full pass;
+                    # they are keyed by date, so the cache self-heals within a day.
+                    if llm_signal.get("_strip_version") != DAILY_STRIP_VERSION:
+                        llm_signal = _strip_day_names_from_signal(llm_signal, language)
+                        llm_signal = _tidy_signal(_strip_all_jargon_from_signal(llm_signal, language), language)
 
             # [async-fast] fast_mode: never call Claude inline on a cache
             # miss — fall through to the v1 template branch (differentiated
