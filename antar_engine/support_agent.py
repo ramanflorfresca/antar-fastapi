@@ -374,20 +374,29 @@ OFFTOPIC_TEXT = {
           "a aplicação?",
 }
 
+# {email} is filled per response with the SAME address as `contact_email`, so
+# the footer can never contradict the route. Hardcoding CONTACT_EMAIL here
+# shipped a billing answer whose followup said "email hello@" while
+# contact_email said support@ — the widget then rendered both addresses, and the
+# disclaimer told a user with a payment problem to write to the general mailbox.
 DISCLAIMER_TEXT = {
-    "en": f"This is a support agent, not your account. For anything tied to your "
-          f"account or a payment, email {CONTACT_EMAIL}.",
-    "es": f"Esto es un agente de soporte, no tu cuenta. Para cualquier cosa "
-          f"relacionada con tu cuenta o un pago, escribe a {CONTACT_EMAIL}.",
-    "pt": f"Isto é um agente de apoio, não a sua conta. Para qualquer assunto "
-          f"ligado à sua conta ou a um pagamento, escreva para {CONTACT_EMAIL}.",
+    "en": "This is a support agent, not your account. For anything tied to your "
+          "account or a payment, email {email}.",
+    "es": "Esto es un agente de soporte, no tu cuenta. Para cualquier cosa "
+          "relacionada con tu cuenta o un pago, escribe a {email}.",
+    "pt": "Isto é um agente de apoio, não a sua conta. Para qualquer assunto "
+          "ligado à sua conta ou a um pagamento, escreva para {email}.",
 }
 
 FOLLOWUP_TEXT = {
-    "en": f"Need more help? Email {CONTACT_EMAIL}.",
-    "es": f"¿Necesitas más ayuda? Escribe a {CONTACT_EMAIL}.",
-    "pt": f"Precisa de mais ajuda? Escreva para {CONTACT_EMAIL}.",
+    "en": "Need more help? Email {email}.",
+    "es": "¿Necesitas más ayuda? Escribe a {email}.",
+    "pt": "Precisa de mais ajuda? Escreva para {email}.",
 }
+
+
+def _with_email(table: Dict[str, str], lang: str, email: str) -> str:
+    return table.get(lang, table["en"]).replace("{email}", email)
 
 
 def _fill(table: Dict[str, str], lang: str) -> str:
@@ -456,8 +465,8 @@ def compose_response(route: str, text: str, language: str) -> Dict[str, object]:
         "route": route,
         "contact_email": email,
         "contact_email_billing": CONTACT_EMAIL_BILLING,
-        "disclaimer": DISCLAIMER_TEXT.get(lang, DISCLAIMER_TEXT["en"]),
-        "followup": FOLLOWUP_TEXT.get(lang, FOLLOWUP_TEXT["en"]),
+        "disclaimer": _with_email(DISCLAIMER_TEXT, lang, email),
+        "followup": _with_email(FOLLOWUP_TEXT, lang, email),
         "language": lang,
     }
 
