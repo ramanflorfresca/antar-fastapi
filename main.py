@@ -13592,6 +13592,25 @@ async def places_prescribe_endpoint(req: PlacesPrescribeReq):
         return cands[0] if cands else None
 
     home = _find_home()
+    # [prescribe-coords 2026-09-28] The curated table is ~1k metros, so a suburb
+    # (Naperville) or smaller city won't name-match — which used to leave home=None
+    # and the whole diagnosis fell back to a false "you're well-placed". Score the
+    # home by its STORED COORDINATES instead, and infer the region from the country
+    # so within-reach filtering still works. Any current city with coords now gets
+    # a real diagnosis.
+    if home is None and rec.get("current_latitude") is not None \
+            and rec.get("current_longitude") is not None:
+        _cc = (rec.get("current_country") or "").upper()
+        _reg = next((c.get("region_group") for c in cities
+                     if str(c.get("country_code", "")).upper() == _cc and c.get("region_group")), None)
+        try:
+            home = {"name": rec.get("current_city"),
+                    "lat": float(rec["current_latitude"]),
+                    "lon": float(rec["current_longitude"]),
+                    "country": rec.get("current_country"),
+                    "country_code": _cc, "region_group": _reg, "rankable": False}
+        except Exception:
+            home = None
     home_region = home.get("region_group") if home else None
     home_name = (rec.get("current_city") or (home.get("name") if home else "")) or ""
     is_birthplace = bool(rec.get("current_city")) and bool(rec.get("birth_city")) \
