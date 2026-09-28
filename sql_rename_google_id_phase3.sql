@@ -9,9 +9,9 @@
 --      then confirm that file contains "auth_user_id" and that the hash has
 --      changed from the build that preceded it.
 --
--- Until both have shipped, an older client still queries google_id, and the
--- phase-1 trigger is what keeps it working. Dropping the column early breaks
--- sign-in for anyone on a cached bundle.
+-- Until both have shipped, an older client still queries google_id directly
+-- through PostgREST. Dropping the column early breaks sign-in for anyone still
+-- on a cached bundle.
 --
 -- Once this has run, delete the legacy fallbacks left in the code:
 --   main.py            request.get("google_id") in link-chart
@@ -33,6 +33,7 @@ BEGIN
     END IF;
 END $$;
 
+-- No-ops unless an early version of phase 1 managed to create these.
 DROP TRIGGER IF EXISTS charts_sync_auth_user_id_trg ON public.charts;
 DROP FUNCTION IF EXISTS public.charts_sync_auth_user_id();
 
