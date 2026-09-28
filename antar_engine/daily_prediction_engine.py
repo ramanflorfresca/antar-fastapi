@@ -13,6 +13,7 @@ Called by: GET /api/v1/daily-week/{chart_id}
 
 from datetime import datetime, timedelta, timezone
 from typing import Optional
+import asyncio as _asyncio
 import logging
 import json
 import os
@@ -775,10 +776,12 @@ async def build_daily_context(chart_id: str, supabase_client) -> dict:
     Returns a dict ready for prompt injection.
     """
     try:
-        res = supabase_client.table("charts").select(
-            "chart_data, jaimini_data, lal_kitab_data, character_archetype, "
-            "current_country, birth_country, birth_date, name"
-        ).eq("id", chart_id).single().execute()
+        # [loop-unblock 2026-09-28] off the loop — see _get_cached_signal.
+        res = await _asyncio.to_thread(
+            lambda: supabase_client.table("charts").select(
+                "chart_data, jaimini_data, lal_kitab_data, character_archetype, "
+                "current_country, birth_country, birth_date, name"
+            ).eq("id", chart_id).single().execute())
 
         if not res.data:
             return None
@@ -2404,11 +2407,20 @@ DAILY_LOGIC_VERSION = 2
 
 
 async def _get_cached_signal(chart_id: str, date_str: str, language: str, supabase_client) -> Optional[dict]:
-    """Check Supabase daily_signals cache."""
+    """Check Supabase daily_signals cache.
+
+    [loop-unblock 2026-09-28] The query runs in a worker thread. `supabase-py` is
+    synchronous, and a warm /daily-week calls this SEVEN times — once per day —
+    so run inline it froze the event loop for seven round trips back to back.
+    Measured: 4 concurrent warm week requests held the loop 90% frozen, worst
+    single stall 3765ms. asyncio.to_thread rather than Starlette's threadpool so
+    the engine stays framework-agnostic and does not compete for the pool
+    FastAPI uses to run sync request handlers."""
     try:
-        res = supabase_client.table("daily_signals_cache").select("signal_json").eq(
-            "chart_id", chart_id
-        ).eq("signal_date", date_str).eq("language", language).execute()
+        res = await _asyncio.to_thread(
+            lambda: supabase_client.table("daily_signals_cache").select("signal_json").eq(
+                "chart_id", chart_id
+            ).eq("signal_date", date_str).eq("language", language).execute())
         if res.data:
             cached = res.data[0].get("signal_json")
             if cached:
@@ -2465,13 +2477,15 @@ async def _save_cached_signal(chart_id: str, date_str: str, language: str, signa
         signal_json = _dpc_scrub_signal(signal_json)
         if isinstance(signal_json, dict):
             signal_json["_logic_version"] = DAILY_LOGIC_VERSION
-        supabase_client.table("daily_signals_cache").upsert({
-            "chart_id": chart_id,
-            "signal_date": date_str,
-            "language": language,
-            "signal_json": signal_json,
-            "created_at": datetime.utcnow().isoformat() + "Z",
-        }, on_conflict="chart_id,signal_date,language").execute()
+        # [loop-unblock 2026-09-28] off the loop — see _get_cached_signal.
+        await _asyncio.to_thread(
+            lambda: supabase_client.table("daily_signals_cache").upsert({
+                "chart_id": chart_id,
+                "signal_date": date_str,
+                "language": language,
+                "signal_json": signal_json,
+                "created_at": datetime.utcnow().isoformat() + "Z",
+            }, on_conflict="chart_id,signal_date,language").execute())
     except Exception as e:
         logger.warning(f"[daily-cache] save failed (non-fatal): {e}")
 

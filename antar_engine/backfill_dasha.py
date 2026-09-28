@@ -91,6 +91,11 @@ def backfill_chart(ch):
                 "sequence": i, "metadata": {},
             })
 
+    # [loop-unblock 2026-09-28] main.get_dashas_for_chart caches these rows in
+    # process. This script runs OUT of process (and the API runs 8 uvicorn
+    # workers), so there is no cache to invalidate from here — the API picks the
+    # new rows up when DASHA_CACHE_TTL expires, 5 minutes by default. If you
+    # backfill a chart and need it live immediately, restart the API.
     try:
         for i in range(0, len(dasha_rows), 100):
             sb.table("dasha_periods").insert(dasha_rows[i:i+100]).execute()
