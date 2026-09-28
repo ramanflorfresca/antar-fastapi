@@ -271,18 +271,55 @@ def _dominant_tier(ranked: list[dict]) -> str:
 
 
 def compose_texture_line(concern: str, ranked: list[dict], lang: str) -> str:
+    """[top-line-polish 2026-09-28] Lead with the SHAPE of the actual field — how
+    many places clearly stand out and which leads — instead of a domain-only
+    template ("the map opens up") that said nothing about this chart."""
     lang = _lang(lang)
-    tier = _dominant_tier(ranked)
-    frame = PLACES_TEMPLATES["texture_lines"].get((lang, concern, tier)) \
-        or PLACES_TEMPLATES["texture_lines"].get((lang, concern, "MIXED"))
-    return frame.format(domain=_domain(concern, lang))
+    dom = _domain(concern, lang)
+    if not ranked:
+        frame = PLACES_TEMPLATES["texture_lines"].get((lang, concern, "STRAIN")) \
+            or PLACES_TEMPLATES["texture_lines"].get((lang, concern, "MIXED")) or ""
+        return frame.format(domain=dom) if frame else ""
+    top = sorted(ranked, key=lambda c: -c.get("score", 0))[0]
+    top_city = top.get("city") or ""
+    n_flow = sum(1 for c in ranked if c.get("tier") == "FLOW")
+    key = "many" if n_flow >= 2 else "one" if n_flow == 1 else "none"
+    return {
+        "en": {"many": f"{n_flow} places clearly lift {dom} — {top_city} leads.",
+               "one":  f"One place clearly lifts {dom}: {top_city}.",
+               "none": f"No place clearly lifts {dom} — {top_city} is the best of an even field."},
+        "es": {"many": f"{n_flow} lugares elevan claramente {dom} — {top_city} encabeza.",
+               "one":  f"Un lugar eleva claramente {dom}: {top_city}.",
+               "none": f"Ningún lugar eleva claramente {dom} — {top_city} es el mejor de un campo parejo."},
+        "pt": {"many": f"{n_flow} lugares elevam claramente {dom} — {top_city} lidera.",
+               "one":  f"Um lugar eleva claramente {dom}: {top_city}.",
+               "none": f"Nenhum lugar eleva claramente {dom} — {top_city} é o melhor de um campo parelho."},
+    }[lang][key]
 
 
 def compose_global_pattern(concern: str, ranked: list[dict], lang: str) -> str:
+    """[top-line-polish 2026-09-28] Name the THROUGH-LINE the best places share
+    (their common channel), or say plainly when the field is even — instead of the
+    old vacuous 'your strongest ground clusters where supports meet'."""
     lang = _lang(lang)
-    tier = _dominant_tier(ranked)
-    frame = _GLOBAL[lang].get(tier, _GLOBAL[lang]["MIXED"])
-    return frame.format(domain=_domain(concern, lang))
+    dom = _domain(concern, lang)
+    if not ranked:
+        frame = _GLOBAL[lang].get("STRAIN", _GLOBAL[lang].get("MIXED", ""))
+        return frame.format(domain=dom) if frame else ""
+    top = sorted(ranked, key=lambda c: -c.get("score", 0))[0]
+    channel = (top.get("signature") or {}).get("energy") or ""
+    n_flow = sum(1 for c in ranked if c.get("tier") == "FLOW")
+    if channel and n_flow >= 1:
+        return {
+            "en": f"The through-line: your strongest places for {dom} work through {channel}.",
+            "es": f"El hilo común: tus mejores lugares para {dom} funcionan a través de {channel}.",
+            "pt": f"O fio comum: seus melhores lugares para {dom} funcionam através de {channel}.",
+        }[lang]
+    return {
+        "en": f"No place strongly lifts {dom} — the field is even, so a move would shift its emphasis more than fix it.",
+        "es": f"Ningún lugar eleva con fuerza {dom} — el campo es parejo, así que una mudanza cambiaría el énfasis más que arreglarlo.",
+        "pt": f"Nenhum lugar eleva fortemente {dom} — o campo é parelho, então uma mudança mudaria a ênfase mais que resolveria.",
+    }[lang]
 
 
 def compose_compare_summary(concern: str, enriched: list[dict], lang: str) -> str:
