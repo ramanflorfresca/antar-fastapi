@@ -14924,6 +14924,8 @@ def settings_charts_delete(chart_id: str, authorization: Optional[str] = Header(
     # to be a second hand-maintained copy and had fallen 26 tables behind it.
     _CASCADE_TABLES = _CHART_DERIVED_TABLES
     _purge_errors = []
+    # Must run BEFORE the prashna rows go — it reads them to find the sessions.
+    _purge_prashna_followups(chart_id)
     for _tbl in _CASCADE_TABLES:
         try:
             supabase.table(_tbl).delete().eq("chart_id", chart_id).execute()
@@ -15036,24 +15038,40 @@ _CHART_DERIVED_TABLES = (
     "chart_daily_headlines", "chart_transits", "layered_domains_cache",
     "year_narration_cache", "translation_cache",
     # Lal Kitab / varshphal
-    "lal_kitab_remedies", "lal_kitab_varshphal_charts", "user_varshphal_history",
+    "lal_kitab_varshphal_charts", "user_varshphal_history",
     # user-content keyed by chart
-    "life_events", "user_alerts", "llm_call_log", "alert_log",
+    "user_alerts", "llm_call_log", "alert_log",
     "places_saved_cities", "user_preferences",
     # the user's own questions — PII, and previously left behind entirely
     "signature_question_log", "intent_classify_log",
-    # Prashna oracle (user questions + natal-grounded verdicts)
-    "prashna_log", "prashna_readings", "prashna_followups",
+    # Prashna oracle (user questions + natal-grounded verdicts). followups are
+    # keyed by session_id, not chart_id — purged by _purge_prashna_followups.
+    "prashna_log", "prashna_readings",
     # Ask Antar. chat_messages was purged but `conversations` was not, so the
     # parent rows survived carrying `title` and `preview` — message text.
     "chat_messages", "conversations",
     # push targeting
     "device_tokens",
     # engagement / feedback / accuracy
-    "practice_log", "practice_completions", "practice_sessions",
+    "practice_log",
     "daily_feedback", "life_arc_feedback", "user_correlations",
-    "prediction_accuracy", "prediction_accuracy_marks", "past_event_feedback",
-    "user_actions", "verification_ratings", "reward_ledger",
+    "prediction_accuracy_marks", "verification_ratings", "reward_ledger",
+    # NOT here on purpose:
+    #   lal_kitab_remedies   — a STATIC reference library keyed by planet/house
+    #     (117 rows of remedy text shared by every chart). It has no chart_id;
+    #     it was in the delete path purely by category confusion.
+    #   life_events, user_actions — keyed by user_id, not chart_id. User-level,
+    #     so the account delete removes them in its user_id pass; one chart of
+    #     several going away must not take them.
+    #   prashna_followups    — keyed by session_id; see _purge_prashna_followups.
+    #   prediction_accuracy  — a VIEW aggregating prediction_accuracy_marks.
+    #     `delete` on it always fails ("cannot delete from view ... contains
+    #     GROUP BY"), so it logged a purge error on every single chart delete
+    #     and the response claimed partial_cascade every time. Its rows vanish
+    #     when the marks do; verified against production.
+    #   practice_completions, practice_sessions, past_event_feedback — no such
+    #     tables in the schema. Inherited from the account list; every delete
+    #     spent a round trip failing to find them.
 )
 
 # Billing and quota. Deliberately NOT part of a single-chart delete: a
@@ -15064,6 +15082,33 @@ _CHART_DERIVED_TABLES = (
 _ACCOUNT_ONLY_TABLES = (
     "subscriptions", "usage_tracking", "compat_slot_purchases", "ask_usage",
 )
+
+
+def _purge_prashna_followups(chart_id: str) -> int:
+    """Delete follow-ups belonging to a chart's prashna sessions.
+
+    They are keyed by session_id, so a chart_id delete cannot reach them and
+    they were outliving the readings they belong to. They carry the user's
+    follow-up question text.
+    """
+    removed = 0
+    try:
+        ids = set()
+        for _t in ("prashna_readings", "prashna_log"):
+            try:
+                r = supabase.table(_t).select("id").eq("chart_id", chart_id).execute()
+                ids.update(x["id"] for x in (r.data or []) if x.get("id"))
+            except Exception:
+                continue
+        for _sid in ids:
+            try:
+                supabase.table("prashna_followups").delete().eq("session_id", _sid).execute()
+                removed += 1
+            except Exception:
+                continue
+    except Exception as _fe:
+        print(f"[chart-delete] prashna_followups purge failed (non-fatal): {_fe}")
+    return removed
 
 
 def _purge_proxy_cache(chart_id: str) -> int:
@@ -15129,6 +15174,7 @@ def delete_account(chart_id: str, authorization: Optional[str] = Header(None)):
 
     # 1. Cascade-delete every chart-keyed row.
     for _cid in chart_ids:
+        _purge_prashna_followups(_cid)
         for _tbl in _ACCOUNT_DELETE_TABLES:
             try:
                 supabase.table(_tbl).delete().eq("chart_id", _cid).execute()
@@ -15147,7 +15193,11 @@ def delete_account(chart_id: str, authorization: Optional[str] = Header(None)):
                     _purge_errors.append({"table": _tbl, "error": str(_ce)})
 
     # 3. user_id-keyed content (conversations / messages / device tokens / profile).
-    for _tbl in ("conversations", "messages", "device_tokens", "profiles"):
+    # user_id-keyed, so the per-chart loop above cannot reach them. life_events
+    # and user_actions were listed in the chart cascade where they could only
+    # ever fail; this is where they actually belong.
+    for _tbl in ("conversations", "messages", "device_tokens", "profiles",
+                 "life_events", "user_actions"):
         try:
             supabase.table(_tbl).delete().eq("user_id", user_id).execute()
         except Exception as _ue:
