@@ -34132,24 +34132,24 @@ def _translate_practice_schedule_es(sched):
             "Tu capacidad de soltar, desapego y confianza en tu intuicion se esta desarrollando. Esta practica te ayuda a soltar resultados que bloquean tu siguiente capitulo.",
     }
     PRACTICE_WHY_SCIENCE_ES = {
-        "Repetitive intention-setting at the same time daily recalibrates your reticular activating system — the brain's filter that decides what opportunities to notice.":
-            "La fijacion repetitiva de intencion a la misma hora recalibra tu sistema reticular activador — el filtro cerebral que decide que oportunidades notar.",
-        "The Moon's cycle directly affects human fluid systems and sleep rhythms. Consistent evening practice syncs your nervous system to a calmer biological rhythm.":
-            "El ciclo lunar afecta directamente los sistemas de fluidos y ritmos de sueno. La practica nocturna constante sincroniza tu sistema nervioso con un ritmo biologico mas calmado.",
-        "High-intensity breath patterns (like Kapalabhati) activate the sympathetic nervous system constructively — releasing accumulated stress hormones without aggression.":
-            "Los patrones de respiracion intensa activan el sistema nervioso simpatico de forma constructiva — liberando hormonas de estres acumuladas sin agresion.",
-        "Vocal repetition of structured sound patterns activates Broca's area and the prefrontal cortex simultaneously — literally training clearer thinking and expression.":
-            "La repeticion vocal de patrones de sonido estructurados activa el area de Broca y la corteza prefrontal simultaneamente — entrenando literalmente un pensamiento y expresion mas claros.",
-        "21 days is the neurological minimum to form a new cognitive habit. Gratitude and expansion practices literally rewire the brain's default mode network toward opportunity-seeking.":
-            "21 dias es el minimo neurologico para formar un nuevo habito cognitivo. Las practicas de gratitud y expansion literalmente reconectan la red de modo predeterminado del cerebro hacia la busqueda de oportunidades.",
-        "Loving-kindness practices (the emotional equivalent of Venus remedies) measurably increase oxytocin, reduce cortisol, and improve relationship satisfaction within 21 days.":
-            "Las practicas de bondad amorosa aumentan la oxitocina, reducen el cortisol y mejoran la satisfaccion en las relaciones en 21 dias.",
-        "40 days is the clinical minimum for breaking a deeply ingrained behavioral pattern (used in addiction recovery, habit formation research). Saturn rules exactly this kind of structural change.":
-            "40 dias es el minimo clinico para romper un patron conductual profundamente arraigado. Saturno gobierna exactamente este tipo de cambio estructural.",
-        "18 days of consistent mindfulness around a specific pattern is enough to create metacognitive awareness — the ability to observe your own obsessive tendencies without being controlled by them.":
-            "18 dias de atencion plena consistente alrededor de un patron especifico es suficiente para crear conciencia metacognitiva — la capacidad de observar tus propias tendencias obsesivas sin ser controlado por ellas.",
-        "Detachment practices activate the default mode network differently than goal-focused thinking — they increase insight and creativity by reducing cognitive fixation.":
-            "Las practicas de desapego activan la red de modo predeterminado de manera diferente al pensamiento enfocado en metas — aumentan la percepcion y creatividad al reducir la fijacion cognitiva.",
+        "The effect is habit, not magic: a short practice at the same time each day builds a routine, and steady routine is what shifts a pattern over weeks.":
+            "El efecto es hábito, no magia: una práctica corta a la misma hora cada día crea una rutina, y la rutina constante es lo que cambia un patrón a lo largo de semanas.",
+        "A slow evening practice with long exhales engages the body's rest response, which supports calmer, steadier sleep when done consistently.":
+            "Una práctica nocturna lenta con exhalaciones largas activa la respuesta de descanso del cuerpo, lo que favorece un sueño más calmado y estable cuando se hace con constancia.",
+        "Vigorous breath and movement give built-up tension a physical outlet, so restless or angry energy is discharged in the body instead of leaking into conflict.":
+            "La respiración y el movimiento intensos le dan a la tensión acumulada una salida física, para que la energía inquieta o la ira se descargue en el cuerpo y no en el conflicto.",
+        "Saying a structured phrase aloud narrows attention and slows racing thought — repeated daily, it's practice at clear, deliberate expression.":
+            "Decir una frase estructurada en voz alta enfoca la atención y frena el pensamiento acelerado — repetido a diario, es práctica de una expresión clara y deliberada.",
+        "The mechanism is attention and habit: a daily act of noticing and giving trains you to spot and use opportunities you'd otherwise miss. Consistency over weeks is what counts.":
+            "El mecanismo es atención y hábito: un acto diario de notar y dar te entrena a ver y aprovechar oportunidades que de otro modo pasarías por alto. La constancia durante semanas es lo que cuenta.",
+        "Regular acts of care and giving are a well-established way to strengthen connection and lift mood — the point is steady repetition, not one grand gesture.":
+            "Los actos regulares de cuidado y generosidad son una forma bien establecida de fortalecer el vínculo y mejorar el ánimo — la clave es la repetición constante, no un solo gran gesto.",
+        "Lasting change comes from showing up daily over weeks — steady, unglamorous repetition is how an ingrained pattern actually loosens.":
+            "El cambio duradero viene de presentarte a diario durante semanas — la repetición constante y poco vistosa es como un patrón arraigado realmente se afloja.",
+        "Regularly pausing to observe your own restlessness builds the ability to catch a compulsive pull before it drives you — awareness first, then choice.":
+            "Pausar con regularidad para observar tu propia inquietud desarrolla la capacidad de detectar un impulso compulsivo antes de que te arrastre — primero conciencia, luego elección.",
+        "Short, regular stillness lowers mental fixation, which tends to make room for clearer perspective and fresh insight.":
+            "La quietud breve y regular reduce la fijación mental, lo que tiende a dar espacio a una perspectiva más clara y a nuevas ideas.",
     }
 
     # --- Duration label translations ---
