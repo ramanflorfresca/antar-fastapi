@@ -183,8 +183,11 @@ def daily_convergence(day_signals: list, season_register: str,
                         f"({_join(aligned)}), others the opposite ({_join(tension)}). "
                         f"Hold this as a mixed read, not a sure thing.")
             else:
-                line = ("Only one reading is really speaking today — take it as a "
-                        "light lean, not a strong signal.")
+                # [copy 2026-09-28] was "Only one reading is really speaking today"
+                # — read like a system message / a bug to users. Same honest meaning
+                # (a lone directional layer, the rest neutral) in plain human voice.
+                line = ("Today's read is light — only part of the picture is leaning "
+                        "right now, so take it as a gentle nudge, not a strong signal.")
 
         return {"available": True, "level": level, "score": round(score, 2),
                 "aligned": aligned, "tension": tension,
