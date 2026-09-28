@@ -1954,6 +1954,37 @@ async def _validation_exception_handler(request: Request, exc: RequestValidation
 from antar_engine import dasha_cache as _dasha_cache
 
 
+# [bg-gc 2026-09-28] asyncio keeps only a WEAK reference to a task, so a bare
+# `create_task(...)` whose handle is discarded can be garbage-collected before it
+# finishes. On this codebase that silently kills exactly the work a new user is
+# waiting on — the warm-on-create prewarm, and the pass that upgrades a pending
+# day to its real reading. Symptom: the first-run progress screen climbs a little
+# and then stops forever, with no error anywhere.
+#
+# Route handlers should prefer FastAPI's BackgroundTasks. This is for the places
+# that have no request to hang the work on (in-process callers, schedulers).
+_BG_TASKS: set = set()
+
+
+def _spawn_bg(coro, label: str = ""):
+    """Fire-and-forget a coroutine, holding a strong reference until it ends."""
+    import asyncio as _bg_aio
+    task = _bg_aio.create_task(coro)
+    _BG_TASKS.add(task)
+
+    def _done(t):
+        _BG_TASKS.discard(t)
+        try:
+            exc = t.exception()
+        except Exception:
+            return
+        if exc:
+            print(f"[bg{':' + label if label else ''}] task failed (non-fatal): {exc!r}")
+
+    task.add_done_callback(_done)
+    return task
+
+
 def invalidate_dasha_cache(chart_id: str = None) -> None:
     """Drop cached dasha rows. Call after ANY write to dasha_periods."""
     _dasha_cache.invalidate(chart_id)
@@ -11755,7 +11786,7 @@ async def create_chart(
             or "en"
         )
         _welcome_lang = str(_welcome_lang).lower()[:2]
-        _asyncio.create_task(generate_welcome_signal(
+        _spawn_bg(generate_welcome_signal(
             chart_id=chart_id,
             chart_data=chart_data,
             dashas={"vimsottari": vim_dashas or []},
@@ -11909,7 +11940,7 @@ async def create_chart(
         import asyncio as _wc_asyncio
         _wc_lang = (getattr(request, "language_preference", None)
                     or getattr(request, "language", None) or "en")
-        _wc_asyncio.create_task(_prewarm_daily_week_cache(chart_id, None, _wc_lang))
+        _spawn_bg(_prewarm_daily_week_cache(chart_id, None, _wc_lang), "prewarm-daily-week")
         print(f"[chart/create] daily-week prewarm fired for {chart_id[:8]}")
     except Exception as _wc_e:
         print(f"[chart/create] daily-week prewarm failed (non-fatal): {_wc_e}")
@@ -27009,7 +27040,17 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     print(f"[daily-signal] background full pass failed (non-fatal) chart={_cid[:8]}: {_bg_e}")
             try:
                 import asyncio as _ds_aio_fp
-                _ds_aio_fp.create_task(_ds_full_pass())
+                _ds_task = _ds_aio_fp.create_task(_ds_full_pass())
+                # [bg-gc 2026-09-28] Keep a strong reference. asyncio holds only a
+                # WEAK one, so a bare create_task() whose handle goes out of scope
+                # can be garbage-collected mid-flight — the pass silently stops and
+                # today's card never upgrades past the deterministic template,
+                # leaving the first-run progress screen stuck short of ready. The
+                # dasha insert at chart/create guards the same way for the same
+                # reason; this call site was missing it.
+                _ds_bg = globals().setdefault("_pending_daily_tasks", set())
+                _ds_bg.add(_ds_task)
+                _ds_task.add_done_callback(lambda t: globals()["_pending_daily_tasks"].discard(t))
                 print(f"[daily-signal] fast return chart={cid[:8]} lang={language} — full pass scheduled")
             except Exception as _ds_sched_e:
                 print(f"[daily-signal] full pass schedule failed: {_ds_sched_e}")
@@ -27904,7 +27945,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                             except Exception as _bgn_e:
                                 print(f"[daily-signal] bg narration failed: {_bgn_e}")
                         import asyncio as _ds_nar_aio
-                        _ds_nar_aio.create_task(_bg_today_narration())
+                        _spawn_bg(_bg_today_narration(), "today-narration")
             except Exception as _nar_err:
                 print(f"[daily-signal] narration skipped (template fallback): {_nar_err}")
 
@@ -27960,7 +28001,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             try:
                 import asyncio as _ds_aio
                 if not _inspect_active():
-                    _ds_aio.create_task(_prewarm_deep_read(cid, language, effective_offset))
+                    _spawn_bg(_prewarm_deep_read(cid, language, effective_offset), "deep-read")
             except Exception as _pw_err:
                 print(f"[daily-signal] deep-read prewarm skipped: {_pw_err}")
         except Exception as _th_err:
@@ -29286,7 +29327,7 @@ async def start_alert_scheduler():
     if not _become_scheduler_leader():
         print("[startup] Alert scheduler skipped (non-leader worker)")
         return
-    asyncio.create_task(_daily_alert_job())
+    _spawn_bg(_daily_alert_job(), "daily-alert")
     print("[startup] Alert scheduler started — runs daily 06:00 UTC")
 
 
@@ -31082,7 +31123,7 @@ def get_network(chart_id: str, language: str = "en"):
                  and p["connection_chart_id"] not in _NETWORK_PREWARM_INFLIGHT]
         for cid_b in _cold[:_NETWORK_PREWARM_MAX]:
             _NETWORK_PREWARM_INFLIGHT.add(cid_b)
-            _aio.create_task(_network_prewarm(cid_b))
+            _spawn_bg(_network_prewarm(cid_b), "network-prewarm")
     except Exception as _e:
         print(f"[network] prewarm scheduling skipped: {_e}")
 
@@ -37417,8 +37458,14 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
             if background_tasks is not None:
                 background_tasks.add_task(_dw_full_pass)
             else:
+                # [bg-gc 2026-09-28] Same weak-reference hazard as the daily-signal
+                # pass above — this branch runs when the route is called in-process
+                # (the prewarmers), where FastAPI injects no BackgroundTasks.
                 import asyncio as _aio
-                _aio.create_task(_dw_full_pass())
+                _dw_task = _aio.create_task(_dw_full_pass())
+                _dw_bg = globals().setdefault("_pending_daily_tasks", set())
+                _dw_bg.add(_dw_task)
+                _dw_task.add_done_callback(lambda t: globals()["_pending_daily_tasks"].discard(t))
             print(f"[daily-week] fast return: pending_days={len(_pending_days)} wow_deferred={_wow_deferred}")
 
         # [daily-strip-fix 2026-06-09] scrub the daily payload
