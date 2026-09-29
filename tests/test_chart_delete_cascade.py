@@ -119,3 +119,117 @@ def test_no_chart_keyed_table_is_missing_from_the_cascade(m):
         "chart-keyed tables missing from the delete cascade — they will leak "
         f"when a chart is deleted: {missing}"
     )
+
+
+# ── Timeout-safe deletes ────────────────────────────────────────────────────
+# A chart owns ~1,100 dasha_periods rows. Removing them in one statement came
+# back 57014 "canceling statement due to statement timeout" against production,
+# and because every cascade delete is wrapped in a try/except so it can never
+# block a user-facing delete, the timeout just logged a warning and left the
+# rows behind.
+
+
+class _FakeTable:
+    """Minimal stand-in for supabase.table(...) — records what it was asked."""
+
+    def __init__(self, store, name):
+        self.store, self.name = store, name
+        self._op = None
+        self._filters = []
+        self._limit = None
+
+    def delete(self):
+        self._op = "delete"
+        return self
+
+    def select(self, _cols):
+        self._op = "select"
+        return self
+
+    def eq(self, col, val):
+        self._filters.append(("eq", col, val))
+        return self
+
+    def in_(self, col, vals):
+        self._filters.append(("in", col, list(vals)))
+        return self
+
+    def limit(self, n):
+        self._limit = n
+        return self
+
+    def execute(self):
+        rows = self.store["rows"]
+        if self._op == "delete":
+            kind, col, val = self._filters[-1]
+            if kind == "eq":
+                self.store["single_stmt_attempts"] += 1
+                if self.store["timeout_single_stmt"]:
+                    raise RuntimeError(
+                        "{'message': 'canceling statement due to statement "
+                        "timeout', 'code': '57014'}"
+                    )
+                self.store["rows"] = []
+            else:
+                self.store["batches"].append(len(val))
+                self.store["rows"] = [r for r in rows if r["id"] not in set(val)]
+            return type("R", (), {"data": []})()
+        # select — PostgREST caps a page, and so does the caller
+        page = self.store["rows"][: (self._limit or 1000)]
+        return type("R", (), {"data": list(page)})()
+
+
+def _fake_supabase(row_count, timeout_single_stmt):
+    store = {
+        "rows": [{"id": i} for i in range(row_count)],
+        "batches": [],
+        "single_stmt_attempts": 0,
+        "timeout_single_stmt": timeout_single_stmt,
+    }
+    client = type("C", (), {"table": lambda self, n: _FakeTable(store, n)})()
+    return client, store
+
+
+def test_small_table_still_deletes_in_one_statement(m, monkeypatch):
+    """The fast path must stay the default — 40-odd small tables would pay for
+    an extra round trip each otherwise."""
+    client, store = _fake_supabase(12, timeout_single_stmt=False)
+    monkeypatch.setattr(m, "supabase", client)
+
+    m._delete_rows_by("user_alerts", "chart_id", "cid")
+
+    assert store["single_stmt_attempts"] == 1
+    assert store["batches"] == []
+    assert store["rows"] == []
+
+
+def test_a_timeout_falls_back_to_batches_and_still_clears_the_table(m, monkeypatch):
+    """1,119 rows is a real dasha_periods count. The batch pass must remove all
+    of them, not the first page — PostgREST caps a select at 1000."""
+    client, store = _fake_supabase(1119, timeout_single_stmt=True)
+    monkeypatch.setattr(m, "supabase", client)
+
+    m._delete_rows_by("dasha_periods", "chart_id", "cid")
+
+    assert store["single_stmt_attempts"] == 1, "should try the cheap path first"
+    assert store["rows"] == [], "every row must go, including past the 1000 cap"
+    assert sum(store["batches"]) == 1119
+    assert max(store["batches"]) <= m._DELETE_BATCH
+
+
+def test_the_batch_pass_gives_up_loudly_rather_than_looping_forever(m, monkeypatch):
+    """If rows keep reappearing, the caller must SEE it — silence here is the
+    whole reason the timeout went unnoticed."""
+    client, store = _fake_supabase(5, timeout_single_stmt=True)
+
+    class _NeverDeletes(_FakeTable):
+        def execute(self):
+            if self._op == "delete" and self._filters[-1][0] == "in":
+                return type("R", (), {"data": []})()   # accepts, removes nothing
+            return super().execute()
+
+    monkeypatch.setattr(
+        m, "supabase", type("C", (), {"table": lambda s, n: _NeverDeletes(store, n)})()
+    )
+    with pytest.raises(RuntimeError, match="batched passes"):
+        m._delete_rows_by("dasha_periods", "chart_id", "cid")

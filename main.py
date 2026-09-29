@@ -14929,7 +14929,7 @@ def settings_charts_delete(chart_id: str, authorization: Optional[str] = Header(
     _purge_prashna_followups(chart_id)
     for _tbl in _CASCADE_TABLES:
         try:
-            supabase.table(_tbl).delete().eq("chart_id", chart_id).execute()
+            _delete_rows_by(_tbl, "chart_id", chart_id)
         except Exception as _ce:
             _purge_errors.append({"table": _tbl, "error": str(_ce)})
             _log.warning(f"[chart-delete] cascade {_tbl} failed cid={chart_id}: {_ce}")
@@ -15085,6 +15085,60 @@ _ACCOUNT_ONLY_TABLES = (
 )
 
 
+_DELETE_BATCH = 200
+# 200 x 100 = 20k rows for one chart in one table — far past anything real.
+_DELETE_MAX_PASSES = 100
+
+
+def _delete_rows_by(table: str, column: str, value: str) -> None:
+    """Delete every row of `table` where `column` = `value`, timeout-safe.
+
+    [delete-timeout 2026-09-29] A plain `delete().eq(...)` asks Postgres to
+    remove every matching row in ONE statement and hand them all back. On the
+    biggest per-chart table that is too much work: `dasha_periods` holds ~1,100
+    rows for a single chart (four systems, several levels each) and the call
+    comes back 57014 "canceling statement due to statement timeout" — observed
+    live while cleaning up a test chart.
+
+    That mattered because every caller wraps its delete in a try/except so a
+    missing table can never block a user-facing delete. A timeout took the same
+    path: warning logged, rows left behind. It is the most plausible explanation
+    for part of the orphan population we purged — `dasha_periods` is by a wide
+    margin the largest thing a chart owns.
+
+    So: try the single statement first (one round trip, right for the 40-odd
+    small tables), and on ANY failure fall back to deleting by primary key in
+    batches. Batching is also why this re-selects each pass rather than paging a
+    snapshot: PostgREST caps a select at 1000 rows, so a snapshot would silently
+    miss the tail. The fallback is idempotent — a timed-out statement may have
+    committed part of its work already, and the batch pass just removes what is
+    left.
+    """
+    try:
+        supabase.table(table).delete().eq(column, value).execute()
+        return
+    except Exception as _exc:
+        # Python unbinds an `except ... as` name at the end of the block, so
+        # keep it for the failure message below.
+        single_stmt_error = _exc
+
+    for _ in range(_DELETE_MAX_PASSES):
+        rows = (supabase.table(table).select("id")
+                .eq(column, value).limit(_DELETE_BATCH).execute()).data or []
+        # `is not None`, not truthiness: an integer primary key of 0 is a
+        # valid id, and skipping it would spin this loop to its cap.
+        ids = [r["id"] for r in rows if r.get("id") is not None]
+        if not ids:
+            return
+        supabase.table(table).delete().in_("id", ids).execute()
+
+    raise RuntimeError(
+        f"{table}.{column}={value} still had rows after {_DELETE_MAX_PASSES} "
+        f"batched passes (single-statement delete failed with: "
+        f"{single_stmt_error})"
+    )
+
+
 def _purge_prashna_followups(chart_id: str) -> int:
     """Delete follow-ups belonging to a chart's prashna sessions.
 
@@ -15178,7 +15232,7 @@ def delete_account(chart_id: str, authorization: Optional[str] = Header(None)):
         _purge_prashna_followups(_cid)
         for _tbl in _ACCOUNT_DELETE_TABLES:
             try:
-                supabase.table(_tbl).delete().eq("chart_id", _cid).execute()
+                _delete_rows_by(_tbl, "chart_id", _cid)
             except Exception as _ce:
                 _purge_errors.append({"table": _tbl, "chart_id": _cid, "error": str(_ce)})
         # Path-keyed, so no chart_id column for the loop to match on.
@@ -15189,7 +15243,7 @@ def delete_account(chart_id: str, authorization: Optional[str] = Header(None)):
         for _tbl in ("compatibility_sessions", "chart_connections"):
             for _col in ("chart_id_a", "chart_id_b"):
                 try:
-                    supabase.table(_tbl).delete().eq(_col, _cid).execute()
+                    _delete_rows_by(_tbl, _col, _cid)
                 except Exception as _ce:
                     _purge_errors.append({"table": _tbl, "error": str(_ce)})
 
@@ -15200,7 +15254,7 @@ def delete_account(chart_id: str, authorization: Optional[str] = Header(None)):
     for _tbl in ("conversations", "messages", "device_tokens", "profiles",
                  "life_events", "user_actions"):
         try:
-            supabase.table(_tbl).delete().eq("user_id", user_id).execute()
+            _delete_rows_by(_tbl, "user_id", user_id)
         except Exception as _ue:
             _purge_errors.append({"table": _tbl, "error": str(_ue)})
 
