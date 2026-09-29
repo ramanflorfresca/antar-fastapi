@@ -143,7 +143,7 @@ def _expire_stale_claims(chart_id: str, rows: list, sb) -> None:
             pass
 
 
-def get_pending_feedback(chart_id: str, sb, limit: int = 3) -> list:
+def get_pending_feedback(chart_id: str, sb, limit: int = 3, language: str = "en") -> list:
     """Return up to `limit` predictions ready for user verification."""
     now_dt = datetime.now(timezone.utc)
     res = (
@@ -177,7 +177,61 @@ def get_pending_feedback(chart_id: str, sb, limit: int = 3) -> list:
 
     if stale:
         _expire_stale_claims(chart_id, stale, sb)
-    return out[:limit]
+
+    out = out[:limit]
+    # [feedback-verb 2026-09-29] A speculation card asks about a real money
+    # outcome, so "Did this read feel true? Yes/No" is the wrong verb — and it
+    # corrupts calibration when a loss whose read felt fair gets tapped "yes".
+    # Hand the FE an explicit render hint per row so it shows Won/Lost for bets
+    # and the standard truth framing for everything else. The stored status is
+    # unchanged (yes=1.0 win, no=0.0 loss); only the labels differ.
+    for r in out:
+        r["feedback_ui"] = _feedback_ui(r.get("concern"), language)
+    return out
+
+
+def _feedback_ui(concern: str, language: str = "en") -> dict:
+    """Render hint for the VERIFY card: prompt + button labels the FE displays.
+
+    The `value` each option posts to /predictions/feedback is unchanged
+    (yes/no/partial), so the calibration + accuracy math needs no change; only
+    the words the user reads differ. Speculation cards ask Won/Lost."""
+    lang = (language or "en").split("-")[0].lower()
+    if lang not in ("es", "pt"):
+        lang = "en"
+    if str(concern or "").lower() == "speculation":
+        prompt = {
+            "en": "Did the bet win or lose?",
+            "es": "¿La apuesta ganó o perdió?",
+            "pt": "A aposta ganhou ou perdeu?",
+        }[lang]
+        won = {"en": "Won", "es": "Ganó", "pt": "Ganhou"}[lang]
+        lost = {"en": "Lost", "es": "Perdió", "pt": "Perdeu"}[lang]
+        return {
+            "style": "win_loss",
+            "prompt": prompt,
+            "options": [
+                {"value": "yes", "label": won},
+                {"value": "no", "label": lost},
+            ],
+        }
+    prompt = {
+        "en": "Did this read feel true?",
+        "es": "¿Sentiste que esta lectura fue acertada?",
+        "pt": "Esta leitura pareceu verdadeira?",
+    }[lang]
+    yes = {"en": "Yes", "es": "Sí", "pt": "Sim"}[lang]
+    partial = {"en": "Partly", "es": "En parte", "pt": "Em parte"}[lang]
+    no = {"en": "No", "es": "No", "pt": "Não"}[lang]
+    return {
+        "style": "truth",
+        "prompt": prompt,
+        "options": [
+            {"value": "yes", "label": yes},
+            {"value": "partial", "label": partial},
+            {"value": "no", "label": no},
+        ],
+    }
 
 
 def _looks_like_uuid(value) -> bool:
