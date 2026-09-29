@@ -91,8 +91,11 @@ reset discards uncommitted work in the tree without warning.
 
 ### After any code change
 1. Run the tests: `venv311/bin/python -m pytest tests -q`
-   (3 failures in tests/test_event_narrator.py are pre-existing on main — check
-   against a clean tree before blaming your change for a failure)
+   **The suite is GREEN — 297 passed, 0 failed.** Any red is yours; do not
+   wave one through as pre-existing. (Until 2026-09-29 three
+   tests/test_event_narrator.py failures were treated that way. They were a
+   stale time-dependent fixture, not broken code, and they trained everyone to
+   read past a red suite — which is how a real regression slips in.)
 2. git add <only the files you changed>
 3. git commit -m "perf/fix/feat: short description"
 4. Push the branch and open a PR (see Deploy process)

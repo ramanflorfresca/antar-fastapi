@@ -9,9 +9,46 @@ Run via the sandbox stub: python /tmp/run_tests.py  (module auto-discovered)
 or: cd ~/antarai && source venv311/bin/activate && python -m pytest tests/test_event_narrator.py -q
 """
 
+from datetime import date as _real_date
+
+import pytest
+
+import antar_engine.event_narrator as ev
 from antar_engine.event_narrator import (
     compute_event_verdict, build_reading_sequence_prompt,
 )
+
+
+# ── the clock ───────────────────────────────────────────────────────────────────────
+# These fixtures pin literal dates, and `_select_window` presents an already-
+# running period FORWARD FROM TODAY (`_clamp_start_today`) so a "when does X"
+# answer never opens months in the past. Together those make the expected label
+# a function of WHEN THE SUITE RUNS: the connecting period below is
+# 2026-03-01 -> 2026-09-01, so this file matched while it was written, drifted
+# to "<this month> 2026 - Sep 2026" from March onward, and collapsed to a bare
+# "Sep 2026" once the real date passed the period's end. Three tests had been
+# failing ever since and were being waved through as "pre-existing" - which is
+# exactly how a real regression gets missed.
+#
+# So freeze today INSIDE the window: the period is genuinely running, which is
+# the state `supported` describes, and the clamp is exercised rather than
+# stepped around.
+FROZEN_TODAY = _real_date(2026, 6, 15)
+
+# The window every "supported" fixture below produces, given that clock.
+ACTIVE_WINDOW_LABEL = "Jun 2026 – Sep 2026"
+
+
+class _FrozenDate(_real_date):
+    @classmethod
+    def today(cls):
+        return FROZEN_TODAY
+
+
+@pytest.fixture(autouse=True)
+def _freeze_today(monkeypatch):
+    """`event_narrator` reads the clock through its module-level `date`."""
+    monkeypatch.setattr(ev, "date", _FrozenDate)
 
 
 # ── minimal board builder: only the fields the verdict reads ─────────────────
@@ -62,8 +99,41 @@ def test_supported_when_gate_promise_and_dt_fires():
     v = compute_event_verdict(b)
     assert v["verdict"] == "supported"
     assert v["tone"] == "positive"
-    assert v["window"]["label"] == "Mar 2026 – Sep 2026"
+    assert v["window"]["label"] == ACTIVE_WINDOW_LABEL
     assert v["window"]["kind"] == "active_sub_period"
+
+
+# ── how a running window is presented ───────────────────────────────────────
+# `_clamp_start_today` is the reason the labels above depend on the clock, and
+# nothing asserted it directly — so the rule it enforces was only ever visible
+# as a mysteriously drifting string.
+
+def test_a_running_window_opens_today_not_at_its_stale_start():
+    """An active sub-period legitimately began months ago, but answering "when"
+    with a window that opened in the past reads as stale. It is presented from
+    today forward."""
+    b = _board(dasha_promise=True, gate=True, dt="fires",
+               pd={"lord": "Venus", "start": "2026-01-05", "end": "2026-09-01"})
+    label = compute_event_verdict(b)["window"]["label"]
+    assert label == "Jun 2026 – Sep 2026"   # today, not January
+    assert "Jan" not in label
+
+
+def test_a_future_window_keeps_its_real_start():
+    """The clamp must only pull PAST starts forward. A period that has not
+    begun yet has to keep its own opening month, or every forecast would claim
+    to start today."""
+    b = _board(dasha_promise=True, gate=True, dt="fires",
+               pd={"lord": "Venus", "start": "2026-08-01", "end": "2026-11-01"})
+    assert compute_event_verdict(b)["window"]["label"] == "Aug 2026 – Nov 2026"
+
+
+def test_a_window_closing_this_month_reads_as_one_month():
+    """Clamped start and end in the same month collapse to a single month
+    rather than rendering "Jun 2026 – Jun 2026"."""
+    b = _board(dasha_promise=True, gate=True, dt="fires",
+               pd={"lord": "Venus", "start": "2026-02-01", "end": "2026-06-28"})
+    assert compute_event_verdict(b)["window"]["label"] == "Jun 2026"
 
 
 def test_supported_likely_when_dt_moon_only():
@@ -165,7 +235,7 @@ def test_narrator_prompt_pins_verdict_and_window():
     v = compute_event_verdict(b)
     p = build_reading_sequence_prompt(b, v)
     assert "PYTHON VERDICT (authoritative): supported" in p
-    assert "Mar 2026 – Sep 2026" in p
+    assert ACTIVE_WINDOW_LABEL in p
     assert "Interpret; never calculate" in p
     assert "WINDOW DISCIPLINE: month-level only" in p
     assert "NO planet names, house numbers" in p
@@ -198,7 +268,7 @@ def test_run_event_engine_orchestrator_shape():
         ev.build_whole_board = orig
     assert out["verdict"]["verdict"] == "supported"
     assert out["client_verdict"] == "YES"
-    assert out["timing_label"] == "Mar 2026 – Sep 2026"
+    assert out["timing_label"] == ACTIVE_WINDOW_LABEL
     assert "PYTHON VERDICT (authoritative): supported" in out["narrator_prompt"]
 
 
