@@ -14,11 +14,11 @@ print("=" * 60)
 
 all_pass = True
 
-# Test 1: Link chart to Google user
-print("\n[1] Link chart to Google user ...")
+# Test 1: Link a guest chart to an account (any provider)
+print("\n[1] Link chart to account ...")
 r1 = requests.post(f"{BASE}/api/v1/auth/link-chart", json={
     "chart_id":     CID,
-    "google_id":    "google_test_123",
+    "auth_user_id": "auth_test_123",
     "email":        "ramandeep@test.com",
     "display_name": "Ramandeep Chadha",
     "avatar_url":   "https://lh3.googleusercontent.com/test",
@@ -70,7 +70,7 @@ else:
 print("\n[4] Simulate returning user (link again) ...")
 r4 = requests.post(f"{BASE}/api/v1/auth/link-chart", json={
     "chart_id":     "different-chart-id",
-    "google_id":    "google_test_123",
+    "auth_user_id": "auth_test_123",
     "email":        "ramandeep@test.com",
     "display_name": "Ramandeep Chadha",
     "avatar_url":   "",

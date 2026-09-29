@@ -32195,8 +32195,7 @@ def link_chart_to_google(
 
     Body: {
         chart_id: string,       -- the anonymous chart from localStorage
-        auth_user_id: string,   -- user.id from Supabase Auth (ANY provider);
-                                --   legacy key `google_id` still accepted
+        auth_user_id: string,   -- user.id from Supabase Auth (ANY provider)
         email: string,
         display_name: string,
         avatar_url: string
@@ -32207,7 +32206,7 @@ def link_chart_to_google(
     # provider — email magic link and Apple included, never only Google. Accept
     # the new key first and fall back to the legacy one so an unpublished
     # frontend keeps working during the rename.
-    auth_user_id = request.get("auth_user_id") or request.get("google_id") or ""
+    auth_user_id = request.get("auth_user_id") or ""
     email        = request.get("email","")
     display_name = request.get("display_name","")
     avatar_url   = request.get("avatar_url","")
@@ -32219,10 +32218,9 @@ def link_chart_to_google(
     if not chart_id or not auth_user_id:
         raise HTTPException(400, "chart_id and auth_user_id required")
 
-    # Does this account already own a chart? Query BOTH columns for the length
-    # of the rename — a row written by older code has only google_id set.
-    existing = supabase.table("charts").select("id").or_(
-        f"auth_user_id.eq.{auth_user_id},google_id.eq.{auth_user_id}"
+    # Does this account already own a chart?
+    existing = supabase.table("charts").select("id").eq(
+        "auth_user_id", auth_user_id
     ).execute()
 
     if existing.data:
@@ -32256,12 +32254,11 @@ def link_chart_to_google(
         }
 
     # New account — link the guest chart to it. Writes the same Supabase auth
-    # subject to user_id, auth_user_id and (until phase 3) google_id, so
-    # /auth/restore succeeds whichever column it matches on.
+    # subject to both user_id and auth_user_id, so /auth/restore succeeds
+    # whichever of the two it matches on.
     supabase.table("charts").update({
         "user_id":      auth_user_id,
         "auth_user_id": auth_user_id,
-        "google_id":    auth_user_id,   # dropped in phase 3 of the rename
         "email":        email,
         "display_name": display_name,
         "avatar_url":   avatar_url,
@@ -32426,18 +32423,15 @@ def restore_chart(
 
     # 2. Look up user's charts. The path param is the OAuth subject UUID
     # (Supabase auth.users.id). In the charts table this value can live in
-    # any of `user_id`, `auth_user_id` or the legacy `google_id`:
+    # either `user_id` or `auth_user_id`:
     #   - `auth_user_id` is set by /auth/link-chart (any provider)
-    #   - `google_id` is the legacy name for the same value, being dropped in
-    #     phase 3 of the rename — still matched so rows written by an
-    #     unpublished frontend stay visible
     #   - `user_id` is set by /auth/link-chart and by historical signup flows
     charts_res = _sb_retry(lambda: supabase.table("charts").select(
         "id,user_id,chart_type,first_name,display_name,avatar_url,email,"
         "lagna_sign,moon_sign,moon_nakshatra,sun_sign,created_at,onboarding_completed_at,"
         "deleted_at"
     ).or_(
-        f"user_id.eq.{user_id},auth_user_id.eq.{user_id},google_id.eq.{user_id}"
+        f"user_id.eq.{user_id},auth_user_id.eq.{user_id}"
     ).order("created_at", desc=True).execute(), label="auth/restore charts")
 
     # [tombstone-restore 2026-09-10] Exclude DELETED (tombstoned) charts from the
@@ -32619,14 +32613,11 @@ def restore_chart(
 def get_profile(auth_user_id: str):
     """Get user profile for display in header/settings.
 
-    The path param is the Supabase auth user id for any provider. Matches both
-    column names until google_id is dropped in phase 3 of the rename.
+    The path param is the Supabase auth user id for any provider.
     """
     res = supabase.table("charts").select(
         "id,first_name,display_name,avatar_url,email,lagna_sign,moon_sign,created_at"
-    ).or_(
-        f"auth_user_id.eq.{auth_user_id},google_id.eq.{auth_user_id}"
-    ).limit(1).execute()
+    ).eq("auth_user_id", auth_user_id).limit(1).execute()
 
     if not res.data:
         raise HTTPException(404, "Profile not found")
