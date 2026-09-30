@@ -22403,6 +22403,142 @@ def _ask_career_clarify_payload(language: str = "en") -> dict:
     }
 
 
+# [lifefact-gate 2026-09-30] Ask ONE prerequisite life-fact when a question's
+# concern genuinely needs it and we don't know it yet — married/single for a
+# relationship read, children for a 5th-house read. Same proven contract as the
+# career clarify above: a stable marker phrase in the clarify `read` lets the
+# NEXT turn recognise itself as the reply (the FE sends the tapped chip back as
+# the next question), harvest the value onto the chart, and answer fully. One
+# fact at a time, always a "prefer not to say" skip, never re-asked on a reply
+# turn — need-based, not an AskYogi-style interrogation ("we read the season").
+_LIFEFACT_CLARIFY_MARK = "one quick thing so i read this right"
+
+# concern-key set + keyword triggers per fact; each option carries the canonical
+# value written to the chart column (value=None => the skip chip).
+_ASK_LIFEFACT_SPEC = {
+    "marital_status": {
+        "concerns": {"relationship", "relationship_entry", "marriage",
+                     "separation", "compatibility", "love", "partner"},
+        "kw": ("relationship", "marriage", "married", "get married", "divorce",
+               "spouse", "husband", "wife", "boyfriend", "girlfriend",
+               "love life", "find love", "dating", "break up", "breakup",
+               "my ex", "my partner", "separation"),
+        "read": {
+            "en": ("Happy to look at this — {mark}: where are you at in "
+                   "relationships right now?"),
+            "es": ("Con gusto lo miro — {mark}: ¿cómo estás en el amor ahora "
+                   "mismo?"),
+            "pt": ("Com prazer — {mark}: como você está nos relacionamentos "
+                   "agora?"),
+        },
+        "next": {
+            "en": "Tell me and I'll read it against your chart.",
+            "es": "Dímelo y lo leo contra tu carta.",
+            "pt": "Me diga e eu leio contra o seu mapa.",
+        },
+        "options": [
+            {"value": "single",       "label": {"en": "Single", "es": "Soltero/a", "pt": "Solteiro/a"}},
+            {"value": "relationship", "label": {"en": "In a relationship", "es": "En una relación", "pt": "Em um relacionamento"}},
+            {"value": "married",      "label": {"en": "Married", "es": "Casado/a", "pt": "Casado/a"}},
+            {"value": "divorced",     "label": {"en": "Divorced", "es": "Divorciado/a", "pt": "Divorciado/a"}},
+            {"value": None,           "label": {"en": "Prefer not to say", "es": "Prefiero no decir", "pt": "Prefiro não dizer"}},
+        ],
+    },
+    "children_status": {
+        "concerns": {"children", "progeny", "fertility", "parenting"},
+        "kw": ("have kids", "having kids", "have a child", "have children",
+               "having a baby", "want kids", "want children", "get pregnant",
+               "getting pregnant", "conceive", "conception", "fertility",
+               "start a family", "my son", "my daughter", "become a father",
+               "become a mother", "5th house", "parenting"),
+        "read": {
+            "en": ("Glad to — {mark}: do you have children?"),
+            "es": ("Claro — {mark}: ¿tienes hijos?"),
+            "pt": ("Claro — {mark}: você tem filhos?"),
+        },
+        "next": {
+            "en": "Tell me and I'll read the timing properly.",
+            "es": "Dímelo y leo bien el tiempo.",
+            "pt": "Me diga e eu leio o tempo direito.",
+        },
+        "options": [
+            {"value": "yes",       "label": {"en": "I have children", "es": "Tengo hijos", "pt": "Tenho filhos"}},
+            {"value": "no",        "label": {"en": "No children", "es": "Sin hijos", "pt": "Sem filhos"}},
+            {"value": "expecting", "label": {"en": "Expecting / trying", "es": "En camino / intentando", "pt": "Esperando / tentando"}},
+            {"value": None,        "label": {"en": "Prefer not to say", "es": "Prefiero no decir", "pt": "Prefiro não dizer"}},
+        ],
+    },
+}
+
+_LIFEFACT_ABSENT = {"", "unknown", "none", "n/a", "na", "prefer not to say",
+                    "not sure", "undecided", "mid_career"}
+
+
+def _ask_lifefact_missing(fact_key: str, chart_record: dict) -> bool:
+    """True when we do not yet know this life-fact on the chart."""
+    v = ((chart_record or {}).get(fact_key) or "").strip().lower()
+    return v in _LIFEFACT_ABSENT
+
+
+def _ask_lifefact_reply_pending(thread: list) -> bool:
+    """The prior assistant turn was our own life-fact clarify — so THIS turn is
+    the reply; never re-ask on a reply turn."""
+    return bool(thread and _LIFEFACT_CLARIFY_MARK in
+                ((thread[-1] or {}).get("a") or "").lower())
+
+
+def _ask_needs_lifefact_clarify(question: str, concern: str,
+                                chart_record: dict, thread: list):
+    """Return the fact_key to ask for (one at a time), or None. Fires only when
+    the concern/keywords genuinely need the fact AND it is missing."""
+    if _ask_lifefact_reply_pending(thread):
+        return None
+    ql = (question or "").lower()
+    c = (concern or "").lower()
+    for fact_key, spec in _ASK_LIFEFACT_SPEC.items():
+        needed = (c in spec["concerns"]) or any(k in ql for k in spec["kw"])
+        if needed and _ask_lifefact_missing(fact_key, chart_record):
+            return fact_key
+    return None
+
+
+def _ask_lifefact_clarify_payload(fact_key: str, language: str = "en") -> dict:
+    lang = (language or "en").split("-")[0].lower()
+    if lang not in ("es", "pt"):
+        lang = "en"
+    spec = _ASK_LIFEFACT_SPEC[fact_key]
+    opts = [{"value": o["value"], "label": o["label"][lang]} for o in spec["options"]]
+    return {
+        "mode": "explore",
+        "read": spec["read"][lang].format(mark=_LIFEFACT_CLARIFY_MARK),
+        "next": spec["next"][lang],
+        "locked": False,
+        "needs_clarification": True,
+        "clarification_chips": [o["label"] for o in opts],
+        # structured hint for a richer FE render (optional; chips already work)
+        "clarification_fact": fact_key,
+        "clarification_options": opts,
+    }
+
+
+def _ask_harvest_lifefact_reply(question: str, thread: list):
+    """If the prior turn was our life-fact clarify, map this reply (the tapped
+    chip label, or free text) to (column, value). (None, None) => skip/unknown."""
+    if not _ask_lifefact_reply_pending(thread):
+        return None, None
+    reply = (question or "").strip().lower()
+    if not reply or reply in _LIFEFACT_ABSENT:
+        return None, None
+    for fact_key, spec in _ASK_LIFEFACT_SPEC.items():
+        for o in spec["options"]:
+            if o["value"] is None:
+                continue
+            for lbl in (o["label"][l].lower() for l in ("en", "es", "pt")):
+                if reply == lbl or lbl in reply or reply in lbl:
+                    return fact_key, o["value"]
+    return None, None
+
+
 # [ask-followups 2026-09-24] Every real Ask answer should LEAD the reader to a
 # natural next question rather than dead-end — the FE renders these as tappable
 # chips below YOUR MOVE, and a tap re-asks that question. Deterministic (no LLM
@@ -23455,6 +23591,48 @@ async def ask_endpoint(request: AskRequest):
                 except Exception as _cc_pe:
                     print(f"[ask][career-clarify] persist non-fatal: {_cc_pe}")
                 return _cc_payload
+
+            # [lifefact-gate 2026-09-30] Relationship/5th-house questions need a
+            # fact the chart may not carry (married/single, children). First,
+            # harvest a reply to our own prior life-fact clarify onto the chart
+            # so THIS answer uses it; otherwise, if a needed fact is still
+            # missing, ask ONE (skippable) before answering. Reuses the same
+            # marker-in-prior-turn contract as the career clarify above.
+            try:
+                _lf_col, _lf_val = _ask_harvest_lifefact_reply(question, _ask_thread)
+                if _lf_col and _lf_val:
+                    try:
+                        supabase.table("charts").update({_lf_col: _lf_val}) \
+                            .eq("id", chart_id).execute()
+                    except Exception as _lfw:
+                        print(f"[ask][lifefact] write non-fatal: {_lfw}")
+                    chart_row.data[_lf_col] = _lf_val
+                    try:
+                        _lrow_ask[_lf_col] = _lf_val
+                        from antar_engine.life_context import (
+                            resolve_life_facts as _rlf2,
+                            life_constraint_block as _lcb2)
+                        _ask_life = _rlf2(_lrow_ask)
+                        _ask_life_block = _lcb2(_ask_life)
+                    except Exception:
+                        pass
+                    print(f"[ask][lifefact] harvested {_lf_col}={_lf_val} "
+                          f"for {chart_id[:8]}")
+                elif not _ask_crisis:
+                    _lf_concern = _ask_concern_route(question) or _detect_concern(question)
+                    _lf_need = _ask_needs_lifefact_clarify(
+                        question, _lf_concern, chart_row.data, _ask_thread)
+                    if _lf_need:
+                        _lf_payload = _ask_lifefact_clarify_payload(_lf_need, language)
+                        print(f"[ask][lifefact] {_lf_need} unknown — asking first")
+                        try:
+                            await _ask_persist(supabase, chart_id, question,
+                                               _lf_payload, language, "explore", None)
+                        except Exception as _lfpe:
+                            print(f"[ask][lifefact] persist non-fatal: {_lfpe}")
+                        return _lf_payload
+            except Exception as _lfe:
+                logger.warning(f"[ask] lifefact-gate skipped (non-fatal): {_lfe}")
 
             # [money-flow 2026-09-16] money-PATTERN questions (income vs outgo,
             # gains vs losses, earned vs unearned) → a DESCRIPTIVE house-anchored
