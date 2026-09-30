@@ -22539,6 +22539,64 @@ def _ask_harvest_lifefact_reply(question: str, thread: list):
     return None, None
 
 
+# [deeper-reasoning 2026-09-30] A second, cross-system grounding layer for /ask,
+# appended to the internal CHART TIMING LAYERS block (which the narrator already
+# translates to plain, no-jargon language). Two signals: (1) a Jaimini chara-daśā
+# convergence read for THIS concern (KN Rao's own cross-check of Vimśottarī), and
+# (2) a Lal Kitab pattern that is ACTIVE right now — surfaced ONLY when its planet
+# is a currently-running Vimśottarī lord (the same activation-gate the daily
+# engine uses), so static natal flags don't fire year-round. Specific ritual
+# remedies are deliberately NOT emitted here — /ask's practice surfacer owns those;
+# this layer only adds the caution/strength grounding + the deeper timing read.
+def _ask_deeper_reasoning(chart_record: dict, dashas: dict, concern: str) -> str:
+    lines = []
+    # (1) chara-daśā convergence, concern-specific
+    try:
+        from antar_engine.jaimini_integration import score_jaimini_convergence
+        _jc = (score_jaimini_convergence(chart_record, concern or "") or "").strip()
+        if _jc and "no specific" not in _jc.lower():
+            _jc = _jc.split(":", 1)[-1].strip() if ":" in _jc else _jc
+            # keep only the plain signal-strength head; drop the technical/
+            # bilingual tail after the em-dash ("Dasha sign is Nth from UL …")
+            _jc = _jc.split("—")[0].strip().rstrip(".")
+            if _jc:
+                lines.append("- A second, deeper timing layer reads: "
+                             + _jc + " for this area.")
+    except Exception:
+        pass
+    # (2) Lal Kitab pattern ACTIVE now (its planet is a running Vimśottarī lord)
+    try:
+        from antar_engine.concern_engines import _vim_active_lords
+        _run = {str(x).title() for x in (_vim_active_lords(dashas) or set())}
+        _lk = (chart_record or {}).get("lal_kitab_data")
+        if isinstance(_lk, str):
+            try:
+                _lk = json.loads(_lk)
+            except Exception:
+                _lk = {}
+        if _run and isinstance(_lk, dict):
+            _shown = 0
+            for _e in (_lk.get("enemy_houses") or []):
+                _p = str(_e.get("planet") or "").title()
+                if _p and _p in _run and _shown < 2:
+                    # keep only the plain tail after the last em-dash (drops the
+                    # "X in Y's house — <yoga> —" jargon prefix)
+                    _tail = str(_e.get("problem") or "").split("—")[-1].strip()
+                    if _tail:
+                        lines.append(
+                            "- A deeper pattern is active in this very period: "
+                            + _tail + ". Steady, grounded choices tend to work "
+                            "better than bold new bets while this runs.")
+                        _shown += 1
+    except Exception:
+        pass
+    if not lines:
+        return ""
+    return ("\n\nDEEPER CROSS-CHECK (internal reference — translate to plain, "
+            "everyday language; never name systems, planets, houses, signs, "
+            "nakshatras, or Sanskrit terms in your reply):\n" + "\n".join(lines))
+
+
 # [ask-followups 2026-09-24] Every real Ask answer should LEAD the reader to a
 # natural next question rather than dead-end — the FE renders these as tappable
 # chips below YOUR MOVE, and a tap re-asks that question. Deterministic (no LLM
@@ -24800,6 +24858,19 @@ async def ask_endpoint(request: AskRequest):
                 _ask_layers_block += _ask_wealth_text
             if locals().get("_ask_event_text"):
                 _ask_layers_block += _ask_event_text
+
+            # [deeper-reasoning 2026-09-30] Append the chara-daśā convergence +
+            # activation-gated Lal Kitab grounding (KN Rao cross-check). Internal
+            # reference only; the narrator translates it to plain language.
+            try:
+                _ask_deeper = _ask_deeper_reasoning(
+                    chart_row.data, _ask_dashas, _ask_concern)
+                if _ask_deeper:
+                    _ask_layers_block += _ask_deeper
+                    print(f"[ask][deeper] cross-check layer added "
+                          f"({len(_ask_deeper)}c) for {chart_id[:8]}")
+            except Exception as _dre:
+                logger.warning(f"[ask] deeper-reasoning skipped (non-fatal): {_dre}")
 
             # [ask-timeframe 2026-09-15] Day-scope questions ("today or tomorrow",
             # "tomorrow") must get a DAY-BY-DAY read, not a single collapsed
