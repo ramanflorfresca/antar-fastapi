@@ -313,7 +313,7 @@ def build_layer1_prompt(
     brief_b: str,
     name_a: str,
     name_b: str,
-    compat_type: str,  # "relationship" | "business" | "cofounder" | "employee"
+    compat_type: str,  # canonical reason: romantic|business|cofounder|friend|family|employee|boss-or-manager
     has_time_a: bool,
     has_time_b: bool,
     employee_role: str = "",
@@ -335,8 +335,15 @@ Be clear: "Based on available data (birth time not provided for X)..."
 """
 
     # ── Type-specific scoring instructions ───────────────────────────────────
+    # [compat-type-coverage 2026-09-29] Keyed by the CANONICAL reason that
+    # normalize_reason() emits (romantic/business/cofounder/friend/family/
+    # employee/boss-or-manager). Previously this dict had only 4 keys and used
+    # "relationship" (not the canonical "romantic"), so romantic/friend/family/
+    # boss-or-manager all silently fell through to the cofounder default below —
+    # i.e. a love reading was scored as a cofounder pairing. All 7 reasons now
+    # have their own lens; the .get() default remains cofounder as a safety net.
     TYPE_CONFIG = {
-        "relationship": {
+        "romantic": {
             "focus_planets": "Moon, Venus, Jupiter, 7th house lord",
             "score_weights": "Emotional resonance 35% + 7th house compatibility 25% + Venus harmony 20% + Dasha alignment 20%",
             "key_questions": [
@@ -426,7 +433,74 @@ Be clear: "Based on available data (birth time not provided for X)..."
 [Practical guidance for the employer: how to manage this person, where they need structure, what motivates them, what to watch for.]""",
             "score_note": "Score 85-100: Excellent role fit — hire/retain with confidence. 70-84: Strong fit, set clear expectations. 55-69: Workable with structure and support. Below 55: Likely a role mismatch.",
         },
+        "friend": {
+            "focus_planets": "Moon, Mercury, Jupiter, 3rd house (companionship), 11th house (shared circles)",
+            "score_weights": "Shared values + trust (soul/Moon) 30% + Ease of communication (Mercury/3rd) 25% + Staying power through seasons (Saturn/friction) 25% + Fun + rapport (Venus/Moon) 20%",
+            "key_questions": [
+                "Do their Moon signs make being around each other easy and recharging, or draining?",
+                "Does Mercury between the charts support honest, low-effort communication?",
+                "Do they share values and outlook (graha maitri), or only circumstance?",
+                "Will this friendship survive distance and life changes (Saturn, dasha seasons)?",
+                "Is the rapport mutual, or does one person carry the connection?",
+            ],
+            "extra_sections": f"""
+## The Rhythm Between Them
+[How do their Moon signs and Mercury interact? Is time together easy and recharging, or does it take effort? Reference specific placements.]
+
+## What Keeps It Alive
+[What is the glue — shared values, humor, loyalty? Where does the friendship need intention to stay close?]
+
+## Through the Seasons
+[Will this hold across distance and life change? Reference Saturn and current dashas — is this a lifelong friendship or a chapter one?]""",
+            "score_note": "Score 85-100: A friendship that recharges itself. 70-84: Close with a little intention. 55-69: Real but effort-dependent. Below 55: A friendship across a genuine gap.",
+        },
+        "family": {
+            "focus_planets": "Moon, 4th house (roots/nurture), Jupiter (dharma), Saturn (duty/karma), Ketu (karmic ties)",
+            "score_weights": "Core bond + emotional safety (Moon/4th) 30% + Shared values + dharma (soul/Jupiter) 25% + Karmic + duty pattern (Saturn/Ketu/friction) 25% + Life-arc alignment (dasha/lifepath) 20%",
+            "key_questions": [
+                "Is there natural emotional safety and warmth (Moon/4th), or underlying tension?",
+                "Do their values and sense of duty align (Jupiter/Saturn), or clash?",
+                "Is there a karmic/old-debt pattern to this bond (Ketu, 6/8/12 contacts) that keeps recurring?",
+                "Are their life chapters supporting closeness right now, or pulling apart (dashas)?",
+                "Where does this relationship ask for acceptance rather than trying to change the other?",
+            ],
+            "extra_sections": f"""
+## The Core Bond
+[How safe and warm is this connection at the root? Reference Moon/4th-house interactions. Name where the natural closeness is and where the friction lives.]
+
+## The Karmic Thread
+[Is there an old, repeating pattern to this bond? Reference Ketu and any 6/8/12 contacts. What does it keep asking them to resolve?]
+
+## Where to Meet Them
+[Practical guidance: where to lead with acceptance vs. boundaries, and what strengthens the bond over time.]""",
+            "score_note": "Score 85-100: A deeply supportive family bond. 70-84: Close, with a few tender spots. 55-69: Loving but with recurring friction. Below 55: A bond that asks for patience and firm boundaries.",
+        },
+        "boss-or-manager": {
+            "focus_planets": "10th house (authority), Sun (leadership), Saturn (fairness/structure), Jupiter (mentorship/9th), Mercury (communication)",
+            "score_weights": "Fairness + steadiness of their authority (Sun/Saturn/10th) 30% + Whether they'll mentor + grow you (Jupiter/9th) 25% + Communication + being heard (Mercury/3rd) 25% + Dasha timing for a good tenure under them 20%",
+            "key_questions": [
+                "Does this manager's chart show fair, steady authority (Sun/Saturn/10th), or ego-driven or erratic leadership?",
+                "Will they mentor and advance the person reporting to them, or block growth (Jupiter/9th)?",
+                "Can the report communicate and actually be heard by them (Mercury/3rd)?",
+                "Is this a supportive period to work under them (shared dasha timing)?",
+                "What does the report need to manage upward to thrive in this reporting line?",
+            ],
+            "extra_sections": f"""
+## The Kind of Leader They Are
+[What is this manager built for — fair and steady, visionary, controlling, hands-off? Reference Sun/Saturn/10th. Be honest about the leadership style.]
+
+## Will They Grow You
+[Does this chart mentor and open doors, or gatekeep? Reference Jupiter/9th interactions and the shared dasha window.]
+
+## Managing Upward
+[Practical guidance for the person reporting in: how to communicate with them, where to push, where to protect yourself, and how long this is likely to be a good tenure.]""",
+            "score_note": "Score 85-100: A manager worth following — join/stay with confidence. 70-84: Good with clear expectations. 55-69: Workable if you manage upward. Below 55: A difficult reporting line — protect yourself.",
+        },
     }
+    # [compat-type-coverage 2026-09-29] Defensive alias: normalize_reason() maps
+    # "relationship" -> "romantic", but keep the old key resolving in case any
+    # caller passes it directly.
+    TYPE_CONFIG.setdefault("relationship", TYPE_CONFIG["romantic"])
 
     cfg = TYPE_CONFIG.get(compat_type, TYPE_CONFIG["cofounder"])
 
