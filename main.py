@@ -22613,6 +22613,29 @@ _LIFESTAGE_KW = (
 )
 
 
+def _ask_date_rule(tz_offset=0) -> str:
+    """[date-aware 2026-09-30] A strong, reusable timing anchor for every /ask
+    system prompt. Uses the reader's LOCAL date (tz_offset is minutes from UTC)
+    and forces relative framing so the narrator never describes the current or a
+    past month as future — the 'opens after late 2026' bug when it is already
+    late 2026. Injected into the decision, reflective, and yes/no prompts."""
+    try:
+        _d = _prac_local_date(tz_offset)
+    except Exception:
+        from datetime import datetime as _dt2, timezone as _tz2
+        _d = _dt2.now(_tz2.utc).date()
+    _my = _d.strftime("%B %Y")
+    return (
+        f"Today is {_d.isoformat()} ({_my}). TIMING RULE — anchor every time "
+        f"reference to today: any month or period at or before {_my} is NOW or "
+        "already underway, never 'upcoming', 'later', or 'opens after'. If a "
+        "window is here now, say 'now' / 'already underway' / 'through <end>'; "
+        "for an imminent one say 'the coming weeks' or 'this quarter'. Never "
+        "describe the current or a past period as future, and never say a window "
+        "'opens after' a date that has already arrived. "
+    )
+
+
 def _ask_lifestage_relevant(question: str) -> bool:
     ql = (question or "").lower()
     return any(k in ql for k in _LIFESTAGE_KW)
@@ -25604,8 +25627,8 @@ async def ask_endpoint(request: AskRequest):
                 _ex_state, _ex_state_hint = _timing_state(
                     _ask_conv.get("window_start"), _ask_conv.get("window_end"))
                 _sys = (
-                    f"Today is {datetime.now(timezone.utc).date().isoformat()}. "
-                    f"Timing window state: {_ex_state}. {_ex_state_hint} "
+                    _ask_date_rule(request.tz_offset)
+                    + f"Timing window state: {_ex_state}. {_ex_state_hint} "
                     # [prompt-registry 2026-06-10] editable body (immutable
                     # contract header prepended inside _registry_prefix).
                     + _registry_prefix("ask_decision")
@@ -25786,9 +25809,12 @@ async def ask_endpoint(request: AskRequest):
                         "specific date the engine did not compute.\n"
                     )
                 _sys = (
+                    # [date-aware 2026-09-30] anchor timing to the reader's local
+                    # today so a current/past window is never narrated as future.
+                    _ask_date_rule(request.tz_offset)
                     # [prompt-registry 2026-06-10] editable body (immutable
                     # contract header prepended inside _registry_prefix).
-                    _registry_prefix("ask_reflective")
+                    + _registry_prefix("ask_reflective")
                     + _ASK_HUMAN_VOICE
                     + (
                         "(4) An intraday window IS computed — name the HARD CLOCK token "
@@ -26852,8 +26878,8 @@ async def ask_endpoint(request: AskRequest):
                     "never state any other date, month, or window."
                 )
             _why_sys = (
-                f"Today is {datetime.now(timezone.utc).date().isoformat()}. "
-                f"Timing window state: {_yn_state}. {_yn_state_hint} "
+                _ask_date_rule(request.tz_offset)
+                + f"Timing window state: {_yn_state}. {_yn_state_hint} "
                 # [prompt-registry 2026-06-10] editable body (immutable
                 # contract header prepended inside _registry_prefix).
                 + _registry_prefix("ask_yesno")
