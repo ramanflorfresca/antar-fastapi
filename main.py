@@ -22597,6 +22597,112 @@ def _ask_deeper_reasoning(chart_record: dict, dashas: dict, concern: str) -> str
             "nakshatras, or Sanskrit terms in your reply):\n" + "\n".join(lines))
 
 
+# [lifestage 2026-09-30] Age-aware reasoning: when a question turns on timing or
+# life-stage ("too late?", retirement, "when will I…", "at my age"), feed the
+# reader's age + life stage into the internal reasoning so the answer is
+# realistic for their stage. birth_date is an onboarding prerequisite (present on
+# virtually every chart), so the ask path only fires on the rare chart with none.
+_AGEBAND_CLARIFY_MARK = "which stage of life you're in"
+_LIFESTAGE_KW = (
+    "too late", "too old", "too young", "at my age", "by what age", "by when",
+    "by which age", "what age", "retire", "retirement", "still time",
+    "time left", "run out of time", "start over", "start again", "begin again",
+    "change career", "switch career", "late in life", "this late",
+    "second chance", "am i too", "before it's too late", "how long until",
+    "when will i", "by then", "at this point in my life",
+)
+
+
+def _ask_lifestage_relevant(question: str) -> bool:
+    ql = (question or "").lower()
+    return any(k in ql for k in _LIFESTAGE_KW)
+
+
+def _ask_age_from_bdate(birth_date):
+    from datetime import date as _d
+    try:
+        s = str(birth_date or "")[:10]
+        y, m, dd = int(s[:4]), int(s[5:7]), int(s[8:10])
+        t = _d.today()
+        a = t.year - y - ((t.month, t.day) < (m, dd))
+        return a if 0 < a < 120 else None
+    except Exception:
+        return None
+
+
+def _lifestage_band(age):
+    if age is None:
+        return None
+    if age < 30:
+        return "early adulthood — laying foundations"
+    if age < 45:
+        return "the establishing years — momentum and consolidation"
+    if age < 60:
+        return "midlife — reinvention and hard-won authority"
+    return "the senior years — legacy, meaning, and mentorship"
+
+
+def _ask_lifestage_note(birth_date, question) -> str:
+    """Internal-reference line making a timing answer age-aware; '' when N/A."""
+    if not _ask_lifestage_relevant(question):
+        return ""
+    band = _lifestage_band(_ask_age_from_bdate(birth_date))
+    if not band:
+        return ""
+    age = _ask_age_from_bdate(birth_date)
+    return ("\n\nLIFE-STAGE (internal reference — translate to plain language; "
+            "never state an age system): the reader is about %d, in %s. Make any "
+            "timing realistic AND encouraging for this stage; never imply it is "
+            "simply 'too late', and weigh 'when' answers against the years they "
+            "realistically have ahead." % (age, band))
+
+
+def _ask_ageband_payload(language: str = "en") -> dict:
+    lang = (language or "en").split("-")[0].lower()
+    if lang not in ("es", "pt"):
+        lang = "en"
+    read = {
+        "en": "Happy to look at the timing — %s? It sets the pace of the read." % _AGEBAND_CLARIFY_MARK,
+        "es": "Con gusto veo el tiempo — ¿en qué etapa de la vida estás? Marca el ritmo de la lectura.",
+        "pt": "Com prazer vejo o tempo — em que fase da vida você está? Define o ritmo da leitura.",
+    }[lang]
+    nxt = {"en": "Pick your stage and I'll time it right.",
+           "es": "Elige tu etapa y ajusto el tiempo.",
+           "pt": "Escolha sua fase e ajusto o tempo."}[lang]
+    chips = {
+        "en": ["Under 30", "In my 30s", "In my 40s", "In my 50s", "60 or older", "Prefer not to say"],
+        "es": ["Menos de 30", "En mis 30", "En mis 40", "En mis 50", "60 o más", "Prefiero no decir"],
+        "pt": ["Menos de 30", "Nos meus 30", "Nos meus 40", "Nos meus 50", "60 ou mais", "Prefiro não dizer"],
+    }[lang]
+    return {"mode": "explore", "read": read, "next": nxt, "locked": False,
+            "needs_clarification": True, "clarification_chips": chips,
+            "clarification_fact": "life_stage"}
+
+
+def _ask_ageband_reply_note(question, thread) -> str:
+    """If the prior turn was our age-band ask, map the tapped band -> a life-stage
+    internal note for THIS answer. No persistence — birth_date is never faked."""
+    if not (thread and _AGEBAND_CLARIFY_MARK in ((thread[-1] or {}).get("a") or "").lower()):
+        return ""
+    r = (question or "").lower()
+    band = None
+    if "under 30" in r or "menos de 30" in r or "menos de 30" in r:
+        band = _lifestage_band(25)
+    elif " 30" in r or "30s" in r or "meus 30" in r or "mis 30" in r:
+        band = _lifestage_band(35)
+    elif " 40" in r or "40s" in r or "meus 40" in r or "mis 40" in r:
+        band = _lifestage_band(47)
+    elif " 50" in r or "50s" in r or "meus 50" in r or "mis 50" in r:
+        band = _lifestage_band(55)
+    elif "60" in r or "older" in r or "más" in r or "mais" in r:
+        band = _lifestage_band(65)
+    if not band:
+        return ""
+    return ("\n\nLIFE-STAGE (internal reference — translate to plain language): "
+            "the reader is in %s. Make timing realistic and encouraging for "
+            "this stage." % band)
+
+
 # [ask-followups 2026-09-24] Every real Ask answer should LEAD the reader to a
 # natural next question rather than dead-end — the FE renders these as tappable
 # chips below YOUR MOVE, and a tap re-asks that question. Deterministic (no LLM
@@ -23689,6 +23795,22 @@ async def ask_endpoint(request: AskRequest):
                         except Exception as _lfpe:
                             print(f"[ask][lifefact] persist non-fatal: {_lfpe}")
                         return _lf_payload
+                    # [lifestage] birth_date is an onboarding prerequisite, so ask
+                    # an age band ONLY on the rare chart with none, for a life-
+                    # stage/timing question, and never on a reply turn.
+                    _agb_pending = bool(_ask_thread and _AGEBAND_CLARIFY_MARK in
+                                        ((_ask_thread[-1] or {}).get("a") or "").lower())
+                    if (not _agb_pending
+                            and _ask_lifestage_relevant(question)
+                            and _ask_age_from_bdate(_ask_birth_date) is None):
+                        _agb = _ask_ageband_payload(language)
+                        print("[ask][lifestage] birth_date missing — asking age band")
+                        try:
+                            await _ask_persist(supabase, chart_id, question,
+                                               _agb, language, "explore", None)
+                        except Exception as _agpe:
+                            print(f"[ask][lifestage] persist non-fatal: {_agpe}")
+                        return _agb
             except Exception as _lfe:
                 logger.warning(f"[ask] lifefact-gate skipped (non-fatal): {_lfe}")
 
@@ -24871,6 +24993,19 @@ async def ask_endpoint(request: AskRequest):
                           f"({len(_ask_deeper)}c) for {chart_id[:8]}")
             except Exception as _dre:
                 logger.warning(f"[ask] deeper-reasoning skipped (non-fatal): {_dre}")
+
+            # [lifestage 2026-09-30] Make timing/life-stage answers age-aware. Use
+            # the reader's real age (birth_date) when present; else fold in the
+            # age-band they just tapped (reply to our age-band ask). Internal
+            # reference; the narrator renders it in plain, encouraging language.
+            try:
+                _ls_note = (_ask_ageband_reply_note(question, _ask_thread)
+                            or _ask_lifestage_note(_ask_birth_date, question))
+                if _ls_note:
+                    _ask_layers_block += _ls_note
+                    print(f"[ask][lifestage] age-aware layer added for {chart_id[:8]}")
+            except Exception as _lse:
+                logger.warning(f"[ask] lifestage layer skipped (non-fatal): {_lse}")
 
             # [ask-timeframe 2026-09-15] Day-scope questions ("today or tomorrow",
             # "tomorrow") must get a DAY-BY-DAY read, not a single collapsed
