@@ -33420,6 +33420,11 @@ async def get_monthly_deepdive(chart_id: str, refresh: bool = False, language: s
             lk_context=lk_ctx,
             supabase=supabase,
             claude_client=claude_client,
+            # [monthly-resilience 2026-09-29] inject the resilient wrapper so the
+            # monthly deep-dive falls back Claude->DeepSeek (real chart reading)
+            # instead of dropping to the generic hardcoded template on a Claude
+            # outage / empty credit balance.
+            llm_fn=call_llm_claude,
             language=language,
             birth_date=chart_record.get("birth_date", ""),
             # [age-fix 2026-07-20] was None. The life-stage layer silently fell

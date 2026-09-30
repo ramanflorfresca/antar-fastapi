@@ -569,6 +569,7 @@ async def generate_monthly_deepdive(
     language:      str = "en",
     lk_data:       Optional[dict] = None,  # [2026-06-07] LK JSONB for condition engine
     chart_record:  Optional[dict] = None,  # [life-context 2026-07-19] patra row
+    llm_fn=None,   # [monthly-resilience 2026-09-29] resilient Claude->DeepSeek wrapper
 ) -> dict:
     """
     Generate or return cached monthly deep-dive.
@@ -666,7 +667,7 @@ async def generate_monthly_deepdive(
         logger.debug("[monthly] life-gate skipped (non-fatal): %s", _mlce)
 
     # Call Claude
-    result = await _call_claude(context, claude_client, language)
+    result = await _call_claude(context, claude_client, language, llm_fn=llm_fn)
     result["chart_id"]  = chart_id
     result["month_key"] = month_key
     # [2026-06-07] evidence trail (mirrors Today's _debug_reasoning) — which
@@ -1330,21 +1331,35 @@ def _build_deepdive_context(
     return "\n".join(lines)
 
 
-async def _call_claude(context: str, claude_client, language: str = "en") -> dict:
+async def _call_claude(context: str, claude_client, language: str = "en", llm_fn=None) -> dict:
+    # [monthly-resilience 2026-09-29] Prefer the shared call_llm_claude wrapper
+    # (injected as llm_fn): it falls back Claude->DeepSeek, so a Claude outage or
+    # empty credit balance degrades to a real chart-derived reading instead of
+    # dropping straight to the generic hardcoded template. The raw-client path is
+    # kept only as a legacy fallback for callers that don't inject llm_fn; the
+    # template (_fallback_deepdive) remains the true last resort.
     try:
-        response = await claude_client.messages.create(
-            model="claude-sonnet-4-5",
-            max_tokens=1000,
-            system=_select_monthly_prompt(language),
-            messages=[{"role": "user", "content": context}]
-        )
-        text = response.content[0].text.strip()
+        if llm_fn is not None:
+            text, _ = await llm_fn(
+                context,
+                system_override=_select_monthly_prompt(language),
+                max_tokens_override=1000,
+            )
+        else:
+            response = await claude_client.messages.create(
+                model="claude-sonnet-4-5",
+                max_tokens=1000,
+                system=_select_monthly_prompt(language),
+                messages=[{"role": "user", "content": context}]
+            )
+            text = response.content[0].text
+        text = (text or "").strip()
         text = re.sub(r"^```json\s*", "", text)
         text = re.sub(r"^```\s*",     "", text)
         text = re.sub(r"\s*```$",     "", text)
         return json.loads(text.strip())
     except Exception as e:
-        logger.error(f"[monthly] Claude call failed: {e}")
+        logger.error(f"[monthly] LLM call failed: {e}")
         return _fallback_deepdive()
 
 
