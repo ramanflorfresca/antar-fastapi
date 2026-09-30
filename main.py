@@ -7389,7 +7389,8 @@ VOCABULARY RULES:
     # ── end practice bridge ───────────────────────────────────────────────────
 
     # Jargon-only constraint — prepended to ALL modes (format rules live in system prompt)
-    _today_str = __import__('datetime').datetime.utcnow().strftime("%B %d, %Y")
+    # [date-aware 2026-09-30] reader-LOCAL today (was UTC), so predict never mis-dates.
+    _today_str = _prac_local_date(getattr(request, "tz_offset", 0) or 0).strftime("%B %d, %Y")
     _jargon_only = (
         "ABSOLUTE RULES (no exceptions):\n"
         "1. NAME THEMES AS DIRECT NOUNS. Never hyphenated phrases. Never \"energy\" suffix. "
@@ -7405,7 +7406,7 @@ VOCABULARY RULES:
         "3. NEVER use Sanskrit terms (Dasha, Nakshatra, Lagna, Yoga, Rashi, etc).\n"
         "4. NEVER use FIELD×MODE codenames (Magnetism Field, Revenue Pipeline, Ambition Engine, etc). DEPRECATED.\n"
         "5. NEVER use: MD, AD, PD, mahadasha, antardasha. Use: chapter, sub-chapter, inner window.\n"
-        f"6. Today is {_today_str}. The current year is 2026.\n"
+        f"6. {_ask_date_rule(getattr(request, 'tz_offset', 0) or 0)}The current year is 2026.\n"
         "7. Answer the QUESTION directly. Lead with VERDICT in first sentence.\n"
         "8. THE MOVE at the end — one specific action for this week."
     )
@@ -21242,6 +21243,13 @@ def _timing_state(window_start, window_end, today=None):
     ws, we = _d(window_start), _d(window_end)
     if ws is None:
         return ("UNKNOWN", "Describe a building phase; do not state specific dates.")
+    # [date-aware 2026-09-30] respect the END: a window whose end has passed is
+    # CLOSED, not "open now". Previously window_end was ignored, so a fully-ended
+    # window was still narrated ACTIVE / "open now".
+    if we is not None and we < today:
+        return ("ENDED",
+                "This window has already CLOSED — do NOT narrate it as open or "
+                "upcoming. Acknowledge it has passed and point to the NEXT window.")
     if today >= ws:
         return ("ACTIVE",
                 "This window is OPEN NOW. Use present tense. NEVER say 'wait until' a "
@@ -25625,7 +25633,8 @@ async def ask_endpoint(request: AskRequest):
                 # never as a future "opens..." (live bug: Jun 2026 window
                 # narrated as "not this year" on 2026-06-05).
                 _ex_state, _ex_state_hint = _timing_state(
-                    _ask_conv.get("window_start"), _ask_conv.get("window_end"))
+                    _ask_conv.get("window_start"), _ask_conv.get("window_end"),
+                    today=_prac_local_date(request.tz_offset))
                 _sys = (
                     _ask_date_rule(request.tz_offset)
                     + f"Timing window state: {_ex_state}. {_ex_state_hint} "
@@ -26857,6 +26866,7 @@ async def ask_endpoint(request: AskRequest):
             _yn_state, _yn_state_hint = _timing_state(
                 (_yn_conv or {}).get("window_start"),
                 (_yn_conv or {}).get("window_end"),
+                today=_prac_local_date(request.tz_offset),
             )
             # [narrator-hardbind 2026-06-05] Reconciled internal reasoning:
             # when the convergence check found no window, the engine's raw
