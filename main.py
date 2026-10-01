@@ -3712,6 +3712,110 @@ async def get_aligned_path(chart_id: str, language: str = "en"):
     return out
 
 
+# ── "Your Pattern" — venture history mirrored against chart shape + season ──
+# Storage: a `ventures` table (Lovable Cloud owns the DDL — see the ventures-table
+# brief). The backend is FAIL-OPEN: if the table does not exist yet, reads return
+# the empty "capture" state (never a 500) so this ships before the table lands.
+def _ventures_table_missing(err) -> bool:
+    m = str(err).lower()
+    return ("pgrst205" in m or "could not find the table" in m
+            or "does not exist" in m or "404" in m)
+
+
+def _read_ventures(chart_id: str) -> list:
+    """Read a chart's captured ventures. Fail-open to [] when the table is absent."""
+    try:
+        r = (supabase.table("ventures")
+             .select("id,label,kind,started_on,outcome")
+             .eq("chart_id", chart_id).order("started_on").limit(200).execute())
+        return r.data or []
+    except Exception as e:
+        if _ventures_table_missing(e):
+            return []
+        print(f"[your-pattern] venture read failed (non-fatal): {e}")
+        return []
+
+
+class VentureCreate(BaseModel):
+    label:      str
+    started_on: Optional[str] = None     # 'YYYY' | 'YYYY-MM' | 'YYYY-MM-DD'
+    outcome:    Optional[str] = ""       # failed | succeeded | ongoing | ''
+    kind:       Optional[str] = None     # optional user tag; the engine re-derives
+
+
+def _build_pattern_payload(chart_id: str, language: str = "en") -> dict:
+    row = supabase.table("charts").select(
+        "chart_data,first_name").eq("id", chart_id).single().execute()
+    if not row.data:
+        raise HTTPException(404, "Chart not found")
+    cd = row.data.get("chart_data") or {}
+    if isinstance(cd, str):
+        try:
+            cd = json.loads(cd)
+        except Exception:
+            cd = {}
+    try:
+        dashas = get_dashas_for_chart(chart_id)
+    except Exception:
+        dashas = {}
+    from antar_engine.your_pattern import build_pattern
+    out = build_pattern(cd, dashas, _read_ventures(chart_id),
+                        first_name=row.data.get("first_name") or "")
+    out["chart_id"] = chart_id
+    out["available"] = bool(out.get("items"))
+    return out
+
+
+@app.get("/api/v1/chart/{chart_id}/pattern")
+@translate_response(fields_to_translate=["summary"], endpoint_name="your-pattern")
+async def get_your_pattern(chart_id: str, language: str = "en"):
+    """"Your Pattern" — mirrors the user's OWN venture history against their
+    chart's shape + the season each was launched in. Descriptive, never a
+    predictor (see antar_engine/your_pattern.py). Empty capture-state until the
+    user adds ventures. Jargon-free; fail-open."""
+    return _build_pattern_payload(chart_id, language)
+
+
+@app.post("/api/v1/chart/{chart_id}/ventures")
+async def add_venture(chart_id: str, venture: VentureCreate,
+                      authorization: str = Header(...), language: str = "en"):
+    """Capture one past venture, then return the refreshed pattern. Requires the
+    `ventures` table (Lovable DDL); a clear 503 until it exists."""
+    user_id = verify_token(authorization)
+    rec = {"chart_id": chart_id, "user_id": user_id,
+           "label": (venture.label or "").strip(),
+           "started_on": (venture.started_on or "").strip() or None,
+           "outcome": (venture.outcome or "").strip().lower() or None,
+           "kind": (venture.kind or "").strip() or None}
+    if not rec["label"]:
+        raise HTTPException(400, "label is required")
+    try:
+        supabase.table("ventures").insert(rec).execute()
+    except Exception as e:
+        if _ventures_table_missing(e):
+            raise HTTPException(503, "ventures storage not set up yet")
+        print(f"[your-pattern] venture insert failed: {e}")
+        raise HTTPException(500, "Failed to save venture")
+    return _build_pattern_payload(chart_id, language)
+
+
+@app.delete("/api/v1/chart/{chart_id}/ventures/{venture_id}")
+async def delete_venture(chart_id: str, venture_id: str,
+                         authorization: str = Header(...), language: str = "en"):
+    """Remove one captured venture (owner only), then return the refreshed pattern."""
+    user_id = verify_token(authorization)
+    try:
+        (supabase.table("ventures").delete()
+         .eq("id", venture_id).eq("chart_id", chart_id)
+         .eq("user_id", user_id).execute())
+    except Exception as e:
+        if _ventures_table_missing(e):
+            raise HTTPException(503, "ventures storage not set up yet")
+        print(f"[your-pattern] venture delete failed: {e}")
+        raise HTTPException(500, "Failed to delete venture")
+    return _build_pattern_payload(chart_id, language)
+
+
 @app.get("/api/v1/me/chart-identity")
 @translate_response(fields_to_translate=["effect"], endpoint_name="chart-identity")
 async def get_my_chart_identity(authorization: Optional[str] = Header(None),
