@@ -565,18 +565,21 @@ def entitlement_summary(chart_id: str, sb) -> dict:
     # see the "preview" level and get gated.
     _feats = {f: FEATURE_MATRIX[f][tier] for f in FEATURE_MATRIX}
     _gf = (tier not in PAID_TIERS) and is_grandfathered(chart_id, sb)
-    # [resplit-trial] a NEW free user (not grandfathered) gets the flagship at
-    # "full" while inside their 30-day trial, then it reverts to "preview".
-    # Grandfathering wins over the trial (it's permanent), so only compute the
-    # trial for non-grandfathered free users. The FE uses flagship_trial to show
-    # a "N days of full access left" countdown + a convert nudge — distinct from
-    # grandfathered (silent full, no countdown).
+    # [resplit] / [resplit-trial] a free user sees the flagship at "full" when
+    # either (a) grandfathered (pre-cutoff, permanent, SILENT — no countdown) or
+    # (b) inside their 30-day trial (new user, show a countdown + convert nudge).
+    # Grandfathering wins over the trial, so only compute the trial for
+    # non-grandfathered free users. Paid users already have "full" from the matrix.
     _ft = None
-    if (tier not in PAID_TIERS) and not _gf:
-        _ft = flagship_trial_state(chart_id, sb)
-        if _ft.get("active"):
+    if tier not in PAID_TIERS:
+        if _gf:
             for _ff in GRANDFATHERED_FEATURES:
                 _feats[_ff] = "full"
+        else:
+            _ft = flagship_trial_state(chart_id, sb)
+            if _ft.get("active"):
+                for _ff in GRANDFATHERED_FEATURES:
+                    _feats[_ff] = "full"
     return {
         "tier": tier,
         "ask_used": quota["used"],
