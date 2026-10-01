@@ -38,59 +38,140 @@ STRONG_HOUSES = {1, 4, 5, 7, 9, 10, 11}   # kendra/trikona/labha/wealth
 # Each domain: trigger keywords, the significator houses + karakas, and the
 # domain's NATURAL shape (how it inherently works). The chart then tells us how
 # THIS person's version of that shape runs.
+# [i18n 2026-10-01] Keywords are matched against the RAW question text, which may
+# be EN / ES / PT (Antar answers in the question's language). English-only keywords
+# silently broke the whole venture guardrail for ES/PT askers — e.g. Andrés asking
+# "conseguir los recursos para cerrar este negocio de finca raíz" resolved to
+# generic `funding`/`supported` (a soft green-light) instead of `property`/
+# `misaligned_approach`. Each domain carries EN + ES + PT triggers. Keep terms
+# distinctive (avoid bare common words that would cross domains).
 DOMAIN_SPEC = {
     "property": {
         "kw": ("real estate", "property", "land", "plot", "developer", "lease",
                "realty", "flip", "house sale", "sell the land", "apartment",
-               "building", "construction"),
+               "building", "construction",
+               # ES
+               "finca raíz", "finca raiz", "bienes raíces", "bienes raices",
+               "inmueble", "inmobiliari", "propiedad", "terreno", "lote",
+               "predio", "apartamento",
+               # PT
+               "imóvel", "imovel", "imóveis", "imoveis", "imobiliári",
+               "imobiliari", "propriedade", "terreno", "loteamento",
+               # Hinglish (romanized Hindi)
+               "zameen", "zamin", "makaan", "makan", "jaaydaad", "jaidad",
+               "jaydad", "property ki", "plot le"),
         "houses": [4], "karakas": ["Mars", "Saturn"],
         "nature": "slow, owned, long-hold",
     },
     "tech": {
         "kw": ("tech", "software", "app ", "platform", " ai", "a.i", "saas",
                "startup", "digital product", "build a product", "engineering",
-               "code ", "web app", "mobile app"),
+               "code ", "web app", "mobile app",
+               # ES
+               "tecnología", "tecnologia", "plataforma", "aplicación",
+               "aplicativo", "inteligencia artificial", "producto digital",
+               # PT
+               "tecnologia", "plataforma", "aplicativo", "aplicação",
+               "inteligência artificial", "produto digital"),
         "houses": [3, 10], "karakas": ["Mercury", "Rahu"],
         "nature": "fast, networked, scalable",
     },
     "hospitality": {
         "kw": ("restaurant", "hospitality", "cafe", "hotel", "food business",
                "catering", "retail", "consumer brand", "salon", "store",
-               "service business", "shop"),
+               "service business", "shop",
+               # ES
+               "restaurante", "cafetería", "cafeteria", "tienda",
+               "negocio de comida", "hostelería", "hoteler",
+               # PT
+               "restaurante", "cafeteria", "loja", "negócio de comida",
+               "hotelaria"),
         "houses": [2, 7, 10], "karakas": ["Venus", "Moon"],
         "nature": "public-facing, presence-driven",
     },
     "partnership": {
         "kw": ("co-founder", "cofounder", "business partner", "partnership",
-               "joint venture", "equity partner", "take on a partner"),
+               "joint venture", "equity partner", "take on a partner",
+               # ES
+               "socio", "cofundador", "co-fundador", "sociedad",
+               "empresa conjunta",
+               # PT
+               "sócio", "socio", "cofundador", "parceria", "parceiro",
+               "sociedade",
+               # Hinglish
+               "saajhedaar", "sajhedaar", "saajhedari", "sajhedari",
+               "partner ke saath"),
         "houses": [7], "karakas": ["Venus", "Mercury"],
         "nature": "shared / other-dependent",
     },
     "speculation": {
         "kw": ("speculat", "gamble", "betting", "a bet", "trading", "day trade",
-               "stocks", "crypto", "lottery", "options", "forex"),
+               "stocks", "crypto", "lottery", "options", "forex",
+               # ES
+               "especula", "apuesta", "apostar", "lotería", "loteria",
+               "cripto", "acciones",
+               # PT
+               "especula", "aposta", "apostar", "loteria", "cripto",
+               "ações", "acoes",
+               # Hinglish
+               "satta", "sattebaazi", "jua", "juaa"),
         "houses": [5], "karakas": ["Rahu", "Ketu", "Mercury"],
         "nature": "high-variance, speculative",
     },
     "career": {
         "kw": ("job", "career", "promotion", "my work", "a role", "position",
-               "employment", "my boss", "corporate"),
+               "employment", "my boss", "corporate",
+               # ES
+               "trabajo", "empleo", "carrera", "puesto", "ascenso", "jefe",
+               # PT
+               "emprego", "carreira", "cargo", "promoção", "promocao", "chefe",
+               # Hinglish
+               "naukri", "nokri", "naukari", "job ki", "promotion mil"),
         "houses": [10, 6], "karakas": ["Sun", "Saturn", "Mercury"],
         "nature": "role / structure-driven",
     },
     "funding": {   # generic capital — only used when NO specific asset domain
         "kw": ("funding", "investor", "raise capital", "backer", "venture capital",
-               "angel", "fundraise", "capital for"),
+               "angel", "fundraise", "capital for",
+               # ES
+               "financiación", "financiacion", "financiamiento", "inversionista",
+               "inversor", "levantar capital", "conseguir recursos",
+               "conseguir los recursos", "recursos para", "préstamo", "prestamo",
+               "crédito", "credito", "fondos",
+               # PT
+               "financiamento", "investidor", "captar recursos", "captar capital",
+               "empréstimo", "emprestimo", "crédito", "fundos", "recursos para",
+               # Hinglish
+               "paisa", "paise", "udhaar", "udhar", "karza", "karz",
+               "funding chahiye", "paise jutana"),
         "houses": [11, 2, 8], "karakas": ["Jupiter", "Venus"],
         "nature": "gains-timing dependent",
     },
 }
 # Approach the question implies: fast/leveraged vs slow/owned. A fast approach
-# to a slow-shape domain = misaligned_approach.
+# to a slow-shape domain = misaligned_approach. EN + ES + PT.
 _FAST_APPROACH = ("flip", "quick", "raise", "investor", "capital", "fund", "sell",
-                  "fast", "scale fast", "leverage", "loan", "borrow", "backer")
+                  "fast", "scale fast", "leverage", "loan", "borrow", "backer",
+                  # ES
+                  "recursos", "conseguir recursos", "levantar", "captar",
+                  "inversionista", "inversor", "financia", "préstamo", "prestamo",
+                  "crédito", "credito", "vender", "rápido", "rapido", "cerrar el negocio",
+                  "cerrar la operación", "cerrar la operacion", "cerrar este negocio",
+                  # PT
+                  "captar", "investidor", "financia", "empréstimo", "emprestimo",
+                  "vender", "rápido", "rapido", "fechar o negócio", "fechar negócio",
+                  # Hinglish
+                  "paisa", "paise", "udhaar", "udhar", "karza", "karz", "bech",
+                  "bechna", "jaldi", "jutana", "fund chahiye")
 _SLOW_APPROACH = ("buy and hold", "own", "develop", "build", "long term",
-                  "long-term", "hold", "rent out", "construct")
+                  "long-term", "hold", "rent out", "construct",
+                  # ES
+                  "comprar y mantener", "largo plazo", "construir", "alquilar",
+                  "mantener", "conservar",
+                  # PT
+                  "comprar e manter", "longo prazo", "construir", "alugar", "manter",
+                  # Hinglish
+                  "rakhna", "banana", "kiraye pe", "lambe samay", "lamba")
 
 
 def _dignity(planet, sign):
@@ -122,9 +203,16 @@ def _resolve_domain(question, concern):
                 "career": "career", "business": "tech", "venture": "tech",
                 "speculation": "speculation"}
         hit = cmap.get(c)
-    # is the question ALSO about raising money for that domain?
-    raising = any(k in ql for k in ("raise", "investor", "capital", "fund",
-                                    "backer", "loan"))
+    # is the question ALSO about raising money for that domain? EN + ES + PT + Hinglish.
+    raising = any(k in ql for k in (
+        "raise", "investor", "capital", "fund", "backer", "loan",
+        # ES
+        "recursos", "inversionista", "inversor", "financia", "préstamo",
+        "prestamo", "crédito", "credito", "levantar capital", "conseguir recursos",
+        # PT
+        "captar", "investidor", "financiamento", "empréstimo", "emprestimo",
+        # Hinglish
+        "paisa", "paise", "udhaar", "udhar", "karza", "karz", "funding"))
     return hit, raising
 
 
