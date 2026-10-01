@@ -24789,11 +24789,32 @@ async def ask_endpoint(request: AskRequest):
                                        "partner 'will enter' or predict a first marriage. Read "
                                        "the EXISTING relationship — its stability, its good "
                                        "windows, what strengthens it.")
-                        elif _partnered is False:
+                        elif _partnered is False and _detect_concern(question) != "reconciliation":
                             _rp.append("The reader is NOT currently partnered — entry/timing "
                                        "framing is appropriate.")
                         # facet lead
-                        if _ri == "partner":
+                        # [reconciliation 2026-10-01] Reunion with an EXISTING partner
+                        # is NOT new-partner entry. It had no branch, so a "when can I
+                        # get back with my wife" question fell into the entry path →
+                        # "a new person will be attracted to you / widen your circle"
+                        # + business bleed. Handle it FIRST and ban that framing.
+                        _is_reconcile = (_detect_concern(question) == "reconciliation")
+                        if _is_reconcile:
+                            _rp.append(
+                                "RECONCILIATION — the reader asks about REUNITING with their "
+                                "EXISTING / former partner (separated or married), NOT meeting a "
+                                "new one. Do NOT describe a new partner's traits or 'how they'll "
+                                "meet someone', and NEVER advise 'widen/expand your circle', 'meet "
+                                "someone new', or give business/income/career advice. Read whether "
+                                "and WHEN the EXISTING bond can re-activate — its strain and what it "
+                                "would take — and speak to their agency toward that specific reunion "
+                                "(an honest conversation; the groundwork on their side). If the "
+                                "chart doesn't support reunion, say so gently; never promise it.")
+                            _rp.append(
+                                f"Existing-bond strain level: {_du['level']}."
+                                + (f" Watch-points: {'; '.join(_du['flags'])}." if _du.get('flags') else "")
+                                + (f" What relieves it: {'; '.join(_du['relief'])}." if _du.get('relief') else ""))
+                        elif _ri == "partner":
                             _traits = (_pt["from_darakaraka"] or {}).get("traits") \
                                 or (_pt["from_7th_sign"] or {}).get("traits")
                             _rp.append(f"LEAD WITH THE PARTNER: they tend to be {_traits}. "
