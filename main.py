@@ -3886,6 +3886,79 @@ async def get_chart_arc(chart_id: str, language: str = "en"):
     }
 
 
+# ── First-run "aha": earn trust before the dashboard ──
+# A high-confidence, RECOGNIZABLE read for the first screen after onboarding:
+# "this is you" (archetype) + "confirm a past season" (a PAST chapter the user can
+# recognize). Past-anchored + confidence-gated (skip the past-season if the chart
+# doesn't yield a clean one — never force a weak hit that breaks trust). Jargon-free.
+@app.get("/api/v1/chart/{chart_id}/first-read")
+async def get_first_read(chart_id: str, language: str = "en"):
+    """{available, archetype, identity_line, past_season:{window,theme,prompt}}.
+    The FE shows identity_line + the confirmable past_season BEFORE revealing the
+    app. past_season is null when confidence is low (honest > a miss)."""
+    from datetime import date as _fr_date
+    row = (supabase.table("charts")
+           .select("chart_data,character_archetype,planet_signatures,first_name")
+           .eq("id", chart_id).single().execute())
+    if not row.data:
+        raise HTTPException(404, "Chart not found")
+    cd = _safe_jsonb(row.data.get("chart_data")) or {}
+    # identity line — the archetype's plain "this is you" (never Sanskrit)
+    arch = _safe_jsonb(row.data.get("character_archetype")) or {}
+    if not arch:
+        try:
+            arch = derive_archetype(_safe_jsonb(row.data.get("planet_signatures"))
+                                    or compute_natal_signatures(cd)) or {}
+        except Exception:
+            arch = {}
+    identity_line = (arch.get("strength") or arch.get("tagline")
+                     or arch.get("description") or "")
+    archetype_name = arch.get("name") or ""
+
+    # past season — the most recent COMPLETED Vimśottarī chapter, plain-themed
+    past_season = None
+    try:
+        from antar_engine.chart_identity import _plain_l as _fr_plain
+
+        def _pd(s):
+            try:
+                y, m, d = str(s or "").split("T")[0].split(" ")[0].split("-")[:3]
+                return _fr_date(int(y), int(m), int(d))
+            except Exception:
+                return None
+        today = _fr_date.today()
+        vim = (get_dashas_for_chart(chart_id) or {}).get("vimsottari") or []
+        past = []
+        for r in vim:
+            if (r.get("level") or "").lower() != "mahadasha":
+                continue
+            s = _pd(r.get("start_date") or r.get("start"))
+            e = _pd(r.get("end_date") or r.get("end"))
+            lord = r.get("planet_or_sign") or r.get("lord_or_sign")
+            if s and e and e < today and _fr_plain(language, lord):
+                past.append((e, s, lord))
+        if past:
+            past.sort(reverse=True)           # most recently ended first
+            e, s, lord = past[0]
+            theme = _fr_plain(language, lord)
+            past_season = {
+                "window": f"{s.year}–{e.year}",
+                "theme": theme,
+                "prompt": f"From around {s.year}, you were in a long chapter about "
+                          f"{theme}. Did that land for you?",
+            }
+    except Exception as _fre:
+        print(f"[first-read] past-season skipped (non-fatal): {_fre}")
+
+    return {
+        "available": bool(identity_line or past_season),
+        "chart_id": chart_id,
+        "archetype": archetype_name,
+        "identity_line": identity_line,
+        "past_season": past_season,   # null = low confidence; FE shows identity only
+    }
+
+
 @app.get("/api/v1/me/chart-identity")
 @translate_response(fields_to_translate=["effect"], endpoint_name="chart-identity")
 async def get_my_chart_identity(authorization: Optional[str] = Header(None),

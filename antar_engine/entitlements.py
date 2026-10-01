@@ -46,31 +46,47 @@ ASK_TRIAL_LAUNCH_ISO = "2026-06-05T00:00:00+00:00"
 # Every content surface is full for everyone — free has to be genuinely
 # usable or the streak never forms, and the streak is what converts.
 _FULL_FOR_ALL = {"free": "full", "paid": "full", "seeker": "full", "navigator": "full"}
+# [resplit 2026-10-01] The historical stance (above) was "every content surface is
+# full for everyone; only Ask volume + compatibility count are metered" — kept here
+# for the DAILY STREAK LOOP (today/practice-today/daily signal), which must stay
+# free or the streak never forms. The re-split adds a DEPTH tier: the uniquely-
+# Antar, repeat-value assets become the paid flagship ("Operator is your life GPS")
+# while free stays complete-but-shallow. free="preview" = the FE shows a taste +
+# an unlock trigger. PHASE 2 (not here — needs A/B vs the streak rationale):
+# gating year/month/places DEPTH. Grandfather existing active free users.
+_PREVIEW_FREE = {"free": "preview", "paid": "full", "seeker": "full", "navigator": "full"}
 FEATURE_MATRIX = {
-    "today":         dict(_FULL_FOR_ALL),
-    "month":         dict(_FULL_FOR_ALL),
-    "year":          dict(_FULL_FOR_ALL),
-    "cycle":         dict(_FULL_FOR_ALL),
-    "ask":           {"free": "limited", "paid": "full", "seeker": "full", "navigator": "full"},
-    "compatibility": {"free": "limited", "paid": "full", "seeker": "full", "navigator": "full"},
-    "places":        dict(_FULL_FOR_ALL),
-    "practice":      dict(_FULL_FOR_ALL),
-    "history":       dict(_FULL_FOR_ALL),
-    "remedies":      dict(_FULL_FOR_ALL),
+    "today":            dict(_FULL_FOR_ALL),   # daily hook — never gate
+    "month":            dict(_FULL_FOR_ALL),   # phase-2 candidate
+    "year":             dict(_FULL_FOR_ALL),   # phase-2 candidate
+    "cycle":            dict(_FULL_FOR_ALL),   # current season free; see forward_arc
+    "ask":              {"free": "limited", "paid": "full", "seeker": "full", "navigator": "full"},
+    "compatibility":    {"free": "limited", "paid": "full", "seeker": "full", "navigator": "full"},
+    "places":           dict(_FULL_FOR_ALL),   # phase-2 candidate (top-pick free)
+    "practice":         dict(_FULL_FOR_ALL),   # today's practice free — streak loop
+    "history":          dict(_FULL_FOR_ALL),
+    "remedies":         dict(_FULL_FOR_ALL),
+    # ── Operator flagship (the depth you pay for) ──
+    "forward_arc":      dict(_PREVIEW_FREE),   # ⭐ the 18-yr forward timeline + What's Ahead
+    "operating_manual": dict(_PREVIEW_FREE),   # Aligned Path (full) + Your Pattern
+    "chakra_program":   dict(_PREVIEW_FREE),   # multi-week guided chakra program + premium practices
 }
 
 # Lowest tier at which the feature is "full".
 FEATURE_REQUIRED_TIER = {
-    "today":         "free",
-    "month":         "free",
-    "year":          "free",
-    "cycle":         "free",
-    "ask":           "paid",      # unlimited Ask = any active subscription
-    "compatibility": "paid",      # unlimited partners = any active subscription
-    "places":        "free",      # [final-launch]
-    "practice":      "free",
-    "remedies":      "free",      # [final-launch] remedies free for everyone
-    "history":       "free",      # [final-launch]
+    "today":            "free",
+    "month":            "free",
+    "year":             "free",
+    "cycle":            "free",
+    "ask":              "paid",      # unlimited Ask = any active subscription
+    "compatibility":    "paid",      # unlimited partners = any active subscription
+    "places":           "free",
+    "practice":         "free",
+    "remedies":         "free",
+    "history":          "free",
+    "forward_arc":      "paid",      # ⭐ paid flagship
+    "operating_manual": "paid",
+    "chakra_program":   "paid",
 }
 
 # ── Compatibility chart slots [compat-slots] ──────────────────────
