@@ -26312,9 +26312,18 @@ async def ask_endpoint(request: AskRequest):
                             # [rel-durability] a rejected durability read must
                             # collapse to a proper strain read, not the generic
                             # 'timing supports the marriage' positive line.
-                            _fc_body = (locals().get("_ask_durability_body") or "") if (
-                                _is_relationship_q(question)
-                                and _relationship_intent(question) == "durability") else ""
+                            # [domain-fit-veto] a misaligned APPROACH must NOT fall
+                            # back to the domain-blind "money comes through backers,
+                            # timing supports it" funding body here — that re-opens the
+                            # exact false positive. Lead the fail-closed read with the
+                            # engine's own jargon-free plain_read instead.
+                            _fc_body = ""
+                            if _df_veto and isinstance(_df, dict) and _df.get("plain_read"):
+                                _fc_body = _df["plain_read"]
+                            if not _fc_body:
+                                _fc_body = (locals().get("_ask_durability_body") or "") if (
+                                    _is_relationship_q(question)
+                                    and _relationship_intent(question) == "durability") else ""
                             # [era-aware wealth] credit the modern wealth-power
                             # signature on the collapse instead of a generic line.
                             if not _fc_body:
@@ -26354,7 +26363,10 @@ async def ask_endpoint(request: AskRequest):
                                 _win = ""
                             # [ask-voice-gate dedupe] don't restate the window if the
                             # verdict phrase already names it.
-                            if _win and _win.lower() not in _vp.lower():
+                            # [domain-fit-veto] suppress the "Best window" when the
+                            # venture's approach is misaligned — naming a window reads
+                            # as "do it then", the opposite of the veto.
+                            if _win and not _df_veto and _win.lower() not in _vp.lower():
                                 _fc.append("Best window: " + _win + ".")
                         _clean_next = None
                         for _cand in ([next_txt] + list(_ask_actions or [])):
@@ -26483,7 +26495,10 @@ async def ask_endpoint(request: AskRequest):
                 payload["verdict"]  = (None if (_is_cessation_when
                                         or _ask_conv.get("suppress_verdict"))
                                         else _det_verdict)
-                payload["timing"]   = _det_timing
+                # [domain-fit-veto] a named window on a misaligned-approach answer
+                # reads as "go do it then" — suppress it; the read carries the
+                # prepare-and-wait season note instead.
+                payload["timing"]   = (None if _df_veto else _det_timing)
                 payload["actions"]  = _ask_actions
                 # [ask-slice5] final jargon net — read/next are owned by the
                 # voice-gate; drop any residual jargon-carrying action (a list,

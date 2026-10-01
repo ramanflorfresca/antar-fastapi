@@ -261,9 +261,45 @@ def assess_domain_fit(chart_data, dashas, question, concern, running_lords=None)
                     "alignment": alignment, "reasons": reasons})
         out["directive"] = _directive(domain, shape, alignment, out["period_fit"],
                                       reasons, raising)
+        # plain_read: a jargon-free, USER-FACING sentence for the veto case. The
+        # narrator normally translates `directive` itself; plain_read is the
+        # deterministic fallback the fail-closed/voice-gate path drops in when the
+        # LLM read is unavailable — so a vetoed answer never collapses back to the
+        # domain-blind "money comes through backers, timing supports it" template.
+        out["plain_read"] = _plain_read(domain, shape, alignment, out["period_fit"])
         return out
     except Exception:
         return out
+
+
+# Domain → a plain, jargon-free noun phrase (no planets/houses/Sanskrit).
+_DOMAIN_PHRASE = {
+    "property": "property", "tech": "tech", "hospitality": "a public-facing business",
+    "partnership": "a partnership", "speculation": "speculation",
+    "career": "your work", "funding": "raising outside money",
+}
+
+
+def _plain_read(domain, shape, alignment, period_fit):
+    """One honest, jargon-free sentence for the deterministic fail-closed path.
+    Only meaningful for the veto alignments (misaligned_approach / caution);
+    empty otherwise so the normal narrator/body logic stays in charge."""
+    dp = _DOMAIN_PHRASE.get(domain, "this")
+    if alignment == "misaligned_approach":
+        s = ("This isn't the approach to back here. For you, %s works %s — not raised "
+             "against or rushed to a close. So don't chase investors or a quick close "
+             "for this one; put that same drive into the lane you're actually built to "
+             "run." % (dp, shape))
+        if period_fit == "caution":
+            s += " And this isn't the clean season to force it — prepare now, move when it clears."
+        return s
+    if alignment == "caution":
+        s = ("Go carefully with %s right now — it's not the thing to push hard on or "
+             "raise money for. Protect what you already have first." % dp)
+        if period_fit == "caution":
+            s += " This isn't the season to force it; wait for a cleaner window."
+        return s
+    return ""
 
 
 def _directive(domain, shape, alignment, period_fit, reasons, raising):
