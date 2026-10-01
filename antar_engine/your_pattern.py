@@ -127,6 +127,13 @@ def build_pattern(chart_data, dashas, ventures, first_name=""):
                               "roughly when, and how it went — and I'll show you the "
                               "pattern across them.").strip()
             return out
+        # A pattern needs at least two points — one entry can't have a thread yet.
+        # Acknowledge the one they added and invite more (never a bare name).
+        if len(items) < 2:
+            out["summary"] = (lead + "that's one down. Add a couple more — even "
+                              "roughly — and I'll show you the thread that runs "
+                              "across them.").strip()
+            return out
 
         # ---- aggregate the DESCRIPTIVE pattern ----
         n = len(items)
