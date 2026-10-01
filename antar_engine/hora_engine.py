@@ -427,6 +427,10 @@ def get_hora_schedule(
     def utc_to_local_str(iso_str):
         dt = datetime.fromisoformat(iso_str)
         local = dt + timedelta(hours=tz_offset)
+        # [gentle-time 2026-10-01] round to nearest 5 min — hora boundaries land on
+        # odd minutes (2:01, 5:21) that read robotic as user-facing windows.
+        total = int(round((local.hour * 60 + local.minute) / 5.0)) * 5
+        local = local.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(minutes=total)
         return local.strftime("%I:%M %p").lstrip("0")
 
     sunrise_local = (sunrise + timedelta(hours=tz_offset)).strftime("%I:%M %p").lstrip("0")

@@ -134,7 +134,10 @@ def moon_day_profile(local_date, tz_offset_hours: float) -> Dict[str, Any]:
 
     hh = int(cross_hours) % 24
     mm = int(round((cross_hours - int(cross_hours)) * 60))
-    if mm == 60:
+    # [gentle-time 2026-10-01] round to nearest 5 min — raw crossings land on odd
+    # minutes (2:01, 5:21) that read robotic in a gentle-nudge product.
+    mm = int(round(mm / 5.0)) * 5
+    if mm >= 60:
         hh, mm = (hh + 1) % 24, 0
     label = datetime(2000, 1, 1, hh, mm).strftime("%-I:%M %p")
 
