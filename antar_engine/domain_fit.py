@@ -258,7 +258,10 @@ def assess_domain_fit(chart_data, dashas, question, concern, running_lords=None)
             alignment = "neutral"
 
         out.update({"available": True, "domain": domain, "shape": shape,
-                    "alignment": alignment, "reasons": reasons})
+                    "alignment": alignment, "reasons": reasons,
+                    # raw shape score (no approach penalty) so callers like the
+                    # Aligned-Path engine can RANK which domains fit this chart best.
+                    "support": support, "afflict": afflict, "net": support - afflict})
         out["directive"] = _directive(domain, shape, alignment, out["period_fit"],
                                       reasons, raising)
         # plain_read: a jargon-free, USER-FACING sentence for the veto case. The
@@ -300,6 +303,28 @@ def _plain_read(domain, shape, alignment, period_fit):
             s += " This isn't the season to force it; wait for a cleaner window."
         return s
     return ""
+
+
+# Venture domains worth ranking for "what you're built for" (funding is generic
+# capital, not a venture; speculation is a trap, never an edge — both excluded).
+_EDGE_DOMAINS = ("tech", "property", "hospitality", "partnership", "career")
+
+
+def fit_all_domains(chart_data, dashas, running_lords=None):
+    """Score every venture domain for THIS chart with a NEUTRAL probe (the domain's
+    own name, no approach words) so `net` reflects pure shape-fit, not the approach
+    penalty. Returns {domain: result}. Used by the Aligned-Path engine to rank the
+    person's natural edge and name the domain-level trap. Fail-open → {}."""
+    out = {}
+    try:
+        for d in _EDGE_DOMAINS:
+            probe = DOMAIN_SPEC[d]["kw"][0]  # neutral keyword, no fast/slow verbs
+            r = assess_domain_fit(chart_data, dashas, probe, d, running_lords=running_lords)
+            if r.get("available"):
+                out[d] = r
+    except Exception:
+        pass
+    return out
 
 
 def _directive(domain, shape, alignment, period_fit, reasons, raising):

@@ -3668,6 +3668,50 @@ def _chart_identity_for(chart_id: str, language: str = "en") -> dict:
     return out
 
 
+@app.get("/api/v1/chart/{chart_id}/aligned-path")
+@translate_response(fields_to_translate=["title", "text"],
+                    endpoint_name="aligned-path")
+async def get_aligned_path(chart_id: str, language: str = "en"):
+    """"Your Aligned Path" — the operating-manual card: four jargon-free blocks
+    (Edge / Trap / Season / Move) built from the Domain-Fit shape ranking + the
+    chart-level strategic stance. Guardrail, not an oracle: SHAPE / APPROACH /
+    TIMING, never a success promise (see antar_engine/aligned_path.py). Jargon-
+    free + deterministic; localized es/pt via the decorator; fail-open."""
+    row = supabase.table("charts").select(
+        "chart_data,first_name,name,birth_date").eq("id", chart_id).single().execute()
+    if not row.data:
+        raise HTTPException(404, "Chart not found")
+    cd = row.data.get("chart_data") or {}
+    if isinstance(cd, str):
+        try:
+            cd = json.loads(cd)
+        except Exception:
+            cd = {}
+    _name = row.data.get("first_name") or ""
+    try:
+        _dashas = get_dashas_for_chart(chart_id)
+    except Exception as _de:
+        print(f"[aligned-path] dasha load failed (non-fatal): {_de}")
+        _dashas = {}
+    # running Vimśottarī lords (season) + chart-level stance (expand/consolidate)
+    try:
+        from antar_engine.concern_engines import _vim_active_lords
+        _run = {str(x).title() for x in (_vim_active_lords(_dashas) or set())}
+    except Exception:
+        _run = set()
+    try:
+        _stance, _ = _ask_strategic_stance(cd, _dashas, "business")
+    except Exception as _se:
+        print(f"[aligned-path] stance skipped (non-fatal): {_se}")
+        _stance = ""
+    from antar_engine.aligned_path import build_aligned_path
+    out = build_aligned_path(cd, _dashas, stance=_stance,
+                             running_lords=_run, first_name=_name)
+    out["chart_id"] = chart_id
+    out["available"] = bool((out.get("edge") or {}).get("text"))
+    return out
+
+
 @app.get("/api/v1/me/chart-identity")
 @translate_response(fields_to_translate=["effect"], endpoint_name="chart-identity")
 async def get_my_chart_identity(authorization: Optional[str] = Header(None),
