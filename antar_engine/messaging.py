@@ -131,8 +131,9 @@ def format_ask_for_telegram(payload: dict, language: str = "en") -> str:
         lines.append(("→ " + nxt))
     pc = p.get("practice_cta") or {}
     if pc.get("available") and pc.get("label"):
-        act = pc.get("action") or ""
-        lines.append("🧘 " + pc["label"] + (f" — {act}" if act else ""))
+        step = (pc.get("step") or "").strip()
+        body = "🧘 " + pc["label"] + (("\n" + step) if step else "")
+        lines.append(body)
     sq = [q for q in (p.get("suggested_questions") or []) if isinstance(q, str) and q.strip()][:3]
     if sq:
         head = {"es": "También puedes preguntar:", "pt": "Você também pode perguntar:"}.get(

@@ -23855,65 +23855,85 @@ _ASK_MONEY_CONCERNS = {"wealth", "finance", "money", "funding"}
 # [practice-pull 2026-10-01] /ask is peak intent — the moment the user asks what to
 # do. Attach a deep-link into the Practice habit loop (streak + completion) so the
 # answer converts into a ritual. Distinct from `practices` (inline one-off
-# remedies): this CTA drives the daily practice surface. Concern-aware label.
-_ASK_PRACTICE_CTA_LABEL = {
+# remedies): this CTA drives the daily practice surface.
+#
+# [practice-cta honesty 2026-10-01] The label used to claim the practice was
+# tailored to the question ("Today's practice supports your work and ventures"),
+# but the linked surface is the user's FIXED daily/yearly-focus ritual, not a
+# per-question remedy — an over-claim (owner flag: "WHAT DOES HE SUPPOSE TO DO?").
+# Now the CTA is honest about what it is: a steadying ground before you act, and
+# it carries a CONCRETE, concern-relevant grounding micro-step (`step`) the user
+# can actually do in a minute — an INNER practice, deliberately distinct from the
+# tactical real-world action in `next` (TU PASO). EN/ES/PT (i18n-correctness rule).
+_ASK_PRACTICE_CTA_HEAD = {
+    "en": "A grounding minute before you act",
+    "es": "Un minuto para afianzarte antes de actuar",
+    "pt": "Um minuto para se firmar antes de agir",
+}
+_ASK_PRACTICE_STEP = {
     "en": {
-        "love": "Today's practice strengthens your heart and connection",
-        "money": "Today's practice tends your money and abundance",
-        "funding": "Today's practice steadies your money and gains",
-        "wealth": "Today's practice tends your money and abundance",
-        "finance": "Today's practice tends your money and abundance",
-        "career": "Today's practice supports your work and standing",
-        "business": "Today's practice supports your work and ventures",
-        "health": "Today's practice supports your body and energy",
-        "family": "Today's practice tends your home and family",
-        "peace": "Today's practice settles your mind",
-        "speculation": "Today's practice steadies you before any risk",
-        "_default": "Today's practice supports what you're working on",
+        "love": "Take a few quiet breaths and picture the person with warmth — presence, not a pitch. Carry that into your next contact.",
+        "money": "Before any money move, sit a minute and name what you already have steady — decide from calm, not pressure.",
+        "funding": "Before any money move, sit a minute and name what you already have steady — decide from calm, not pressure.",
+        "wealth": "Before any money move, sit a minute and name what you already have steady — decide from calm, not pressure.",
+        "finance": "Before any money move, sit a minute and name what you already have steady — decide from calm, not pressure.",
+        "career": "Before the hard conversation, take five slow breaths and remind yourself: your steady results speak for you.",
+        "business": "Before the hard conversation, take five slow breaths and remind yourself: your steady results speak for you.",
+        "health": "Do one steady thing for your body today — an early night or a slow walk. Constancy over intensity.",
+        "family": "Take a few unhurried minutes with someone at home — a real moment, no screen, no agenda.",
+        "peace": "Ten minutes of quiet today — set down one worry you can't control, and let the rest wait.",
+        "speculation": "Before any bet, pause and set a hard limit you can walk away from — then breathe before you decide.",
+        "_default": "Take a few quiet minutes today to steady yourself before you act.",
     },
     "es": {
-        "love": "La práctica de hoy fortalece tu corazón y tus vínculos",
-        "money": "La práctica de hoy cuida tu dinero y abundancia",
-        "funding": "La práctica de hoy estabiliza tu dinero y ganancias",
-        "wealth": "La práctica de hoy cuida tu dinero y abundancia",
-        "finance": "La práctica de hoy cuida tu dinero y abundancia",
-        "career": "La práctica de hoy apoya tu trabajo y posición",
-        "business": "La práctica de hoy apoya tu trabajo y proyectos",
-        "health": "La práctica de hoy apoya tu cuerpo y energía",
-        "family": "La práctica de hoy cuida tu hogar y familia",
-        "peace": "La práctica de hoy calma tu mente",
-        "speculation": "La práctica de hoy te estabiliza antes de cualquier riesgo",
-        "_default": "La práctica de hoy apoya lo que estás trabajando",
+        "love": "Respira en calma unos minutos y piensa en esa persona con cariño — presencia, no una propuesta. Lleva eso a tu próximo contacto.",
+        "money": "Antes de cualquier movimiento de dinero, siéntate un minuto y nombra lo que ya tienes firme — decide en calma, no por presión.",
+        "funding": "Antes de cualquier movimiento de dinero, siéntate un minuto y nombra lo que ya tienes firme — decide en calma, no por presión.",
+        "wealth": "Antes de cualquier movimiento de dinero, siéntate un minuto y nombra lo que ya tienes firme — decide en calma, no por presión.",
+        "finance": "Antes de cualquier movimiento de dinero, siéntate un minuto y nombra lo que ya tienes firme — decide en calma, no por presión.",
+        "career": "Antes de la conversación difícil, respira hondo cinco veces y recuerda: tus resultados constantes hablan por ti.",
+        "business": "Antes de la conversación difícil, respira hondo cinco veces y recuerda: tus resultados constantes hablan por ti.",
+        "health": "Haz hoy una cosa constante por tu cuerpo — dormir temprano o una caminata tranquila. Constancia antes que intensidad.",
+        "family": "Dedica unos minutos sin prisa a alguien de tu casa — un momento real, sin pantalla, sin agenda.",
+        "peace": "Diez minutos de silencio hoy — suelta una preocupación que no puedes controlar y deja que el resto espere.",
+        "speculation": "Antes de cualquier apuesta, haz una pausa y define un límite del que puedas alejarte — luego respira antes de decidir.",
+        "_default": "Tómate unos minutos en calma hoy para afianzarte antes de actuar.",
     },
     "pt": {
-        "love": "A prática de hoje fortalece seu coração e seus vínculos",
-        "money": "A prática de hoje cuida do seu dinheiro e abundância",
-        "funding": "A prática de hoje estabiliza seu dinheiro e ganhos",
-        "wealth": "A prática de hoje cuida do seu dinheiro e abundância",
-        "finance": "A prática de hoje cuida do seu dinheiro e abundância",
-        "career": "A prática de hoje apoia seu trabalho e posição",
-        "business": "A prática de hoje apoia seu trabalho e projetos",
-        "health": "A prática de hoje apoia seu corpo e energia",
-        "family": "A prática de hoje cuida do seu lar e família",
-        "peace": "A prática de hoje acalma sua mente",
-        "speculation": "A prática de hoje te estabiliza antes de qualquer risco",
-        "_default": "A prática de hoje apoia o que você está trabalhando",
+        "love": "Respire em calma por alguns minutos e pense nessa pessoa com carinho — presença, não uma proposta. Leve isso para o próximo contato.",
+        "money": "Antes de qualquer movimento de dinheiro, sente-se um minuto e nomeie o que já tem firme — decida em calma, não por pressão.",
+        "funding": "Antes de qualquer movimento de dinheiro, sente-se um minuto e nomeie o que já tem firme — decida em calma, não por pressão.",
+        "wealth": "Antes de qualquer movimento de dinheiro, sente-se um minuto e nomeie o que já tem firme — decida em calma, não por pressão.",
+        "finance": "Antes de qualquer movimento de dinheiro, sente-se um minuto e nomeie o que já tem firme — decida em calma, não por pressão.",
+        "career": "Antes da conversa difícil, respire fundo cinco vezes e lembre: seus resultados constantes falam por você.",
+        "business": "Antes da conversa difícil, respire fundo cinco vezes e lembre: seus resultados constantes falam por você.",
+        "health": "Faça hoje uma coisa constante pelo seu corpo — dormir cedo ou uma caminhada tranquila. Constância antes de intensidade.",
+        "family": "Reserve alguns minutos sem pressa para alguém de casa — um momento real, sem tela, sem agenda.",
+        "peace": "Dez minutos de silêncio hoje — largue uma preocupação que você não controla e deixe o resto esperar.",
+        "speculation": "Antes de qualquer aposta, faça uma pausa e defina um limite do qual você possa se afastar — depois respire antes de decidir.",
+        "_default": "Reserve alguns minutos de calma hoje para se firmar antes de agir.",
     },
 }
-_ASK_PRACTICE_CTA_ACTION = {"en": "Do it now", "es": "Hazla ahora", "pt": "Faça agora"}
+_ASK_PRACTICE_CTA_ACTION = {"en": "Open today's practice", "es": "Abrir la práctica de hoy", "pt": "Abrir a prática de hoje"}
 
 
 def _ask_practice_cta(concern, language: str = "en") -> dict:
     """Deep-link CTA from an /ask answer into the Practice habit loop. The FE
-    renders `label` + `action` under 'Your Move' and routes to the Practice tab."""
+    renders `label` (honest framing) + `step` (a concrete grounding micro-step for
+    this concern) + `action` under 'Your Move', and routes to the Practice tab.
+
+    Honest by construction: the label never claims the practice fixes the concern
+    — it offers a minute of grounding before acting, and `step` is a real inner
+    action distinct from the tactical `next` step."""
     lang = (language or "en").split("-")[0].split("_")[0].lower()
     if lang not in ("en", "es", "pt"):
         lang = "en"
-    m = _ASK_PRACTICE_CTA_LABEL.get(lang, _ASK_PRACTICE_CTA_LABEL["en"])
+    steps = _ASK_PRACTICE_STEP.get(lang, _ASK_PRACTICE_STEP["en"])
     return {
         "available": True,
-        "label": m.get((concern or "").lower(), m["_default"]),
-        "action": _ASK_PRACTICE_CTA_ACTION.get(lang, "Do it now"),
+        "label": _ASK_PRACTICE_CTA_HEAD.get(lang, _ASK_PRACTICE_CTA_HEAD["en"]),
+        "step": steps.get((concern or "").lower(), steps["_default"]),
+        "action": _ASK_PRACTICE_CTA_ACTION.get(lang, "Open today's practice"),
         "target": "practice",
         "concern": (concern or "general"),
     }
