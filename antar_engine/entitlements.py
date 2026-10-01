@@ -89,6 +89,17 @@ FEATURE_REQUIRED_TIER = {
     "chakra_program":   "paid",
 }
 
+# ── Grandfathering [resplit 2026-10-01] ───────────────────────────
+# The flagship features above USED to be free for everyone. Charging for them
+# now must NOT strip existing users — only NEW signups hit the paywall. A chart
+# created before the cutoff keeps the flagship features at "full" even on the free
+# tier. Set GRANDFATHER_CUTOFF to the date the FE paywall actually goes live; err
+# toward a LATER date (over-grandfathering is generous; a past date would strip
+# recent users). Fail-OPEN everywhere: never lock a user on a transient error.
+GRANDFATHER_CUTOFF = "2026-11-01"   # YYYY-MM-DD — charts created before this are grandfathered
+GRANDFATHERED_FEATURES = ("forward_arc", "operating_manual", "chakra_program")
+_GF_CACHE: dict = {}
+
 # ── Compatibility chart slots [compat-slots] ──────────────────────
 # Navigator includes N charts; additional charts are one-time purchases
 # (compat_slot_purchases). A purchase binds permanently to one partner
@@ -245,8 +256,47 @@ def get_entitlement(chart_id: str, sb) -> str:
 
 
 def feature_access(tier: str, feature: str) -> str:
-    """Access level for (tier, feature): full/headline/teaser/preview/sample/limited/locked."""
+    """Access level for (tier, feature): full/headline/teaser/preview/sample/limited/locked.
+    PURE (tier-only) — does NOT apply grandfathering. Use effective_feature_access()
+    when you have a chart_id and must honor grandfathered users."""
     return FEATURE_MATRIX.get(feature, {}).get(tier, "full")
+
+
+def is_grandfathered(chart_id: str, sb) -> bool:
+    """True if this chart predates the paywall cutoff → keeps the flagship features
+    at full even on free. Fail-OPEN (True on any error): never strip a user because
+    of a transient lookup. 60s TTL cache."""
+    if not chart_id:
+        return False
+    hit = _GF_CACHE.get(chart_id)
+    if hit and hit[0] > time.time():
+        return hit[1]
+    gf = True
+    try:
+        r = sb.table("charts").select("created_at").eq("id", chart_id).single().execute()
+        created = (r.data or {}).get("created_at")
+        if created:
+            gf = str(created)[:10] < GRANDFATHER_CUTOFF
+    except Exception:
+        gf = True   # fail-open: assume grandfathered rather than lock a real user
+    _GF_CACHE[chart_id] = (time.time() + _ENT_TTL, gf)
+    return gf
+
+
+def effective_feature_access(chart_id: str, sb, feature: str, tier: Optional[str] = None) -> str:
+    """feature_access + grandfathering. Returns 'full' for a grandfathered free
+    user on a flagship feature; otherwise the plain tier-based level. Use THIS for
+    any gate decision that has a chart_id (so existing users aren't stripped)."""
+    tier = tier or get_entitlement(chart_id, sb)
+    lvl = feature_access(tier, feature)
+    if (tier not in PAID_TIERS and feature in GRANDFATHERED_FEATURES
+            and is_grandfathered(chart_id, sb)):
+        return "full"
+    return lvl
+
+
+def bust_grandfather_cache(chart_id: str) -> None:
+    _GF_CACHE.pop(chart_id, None)
 
 
 def has_unlimited_ask(chart_id: str, sb) -> bool:
@@ -461,6 +511,14 @@ def entitlement_summary(chart_id: str, sb) -> dict:
     except Exception:
         _earned_ask = _earned_compat = 0
     _free_rem = quota["remaining"]
+    # [resplit] grandfather existing free users: keep the flagship features full so
+    # the FE never locks someone who already had them. New signups (post-cutoff)
+    # see the "preview" level and get gated.
+    _feats = {f: FEATURE_MATRIX[f][tier] for f in FEATURE_MATRIX}
+    _gf = (tier not in PAID_TIERS) and is_grandfathered(chart_id, sb)
+    if _gf:
+        for _ff in GRANDFATHERED_FEATURES:
+            _feats[_ff] = "full"
     return {
         "tier": tier,
         "ask_used": quota["used"],
@@ -470,6 +528,7 @@ def entitlement_summary(chart_id: str, sb) -> dict:
         "ask_credits": _earned_ask,
         "ask_total_available": (None if _free_rem is None else _free_rem + _earned_ask),
         "compat_credits": _earned_compat,
-        "features": {f: FEATURE_MATRIX[f][tier] for f in FEATURE_MATRIX},
+        "features": _feats,
+        "grandfathered": bool(_gf),
         "compat_slots": compat_slots(chart_id, sb, tier),
     }
