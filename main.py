@@ -23657,6 +23657,73 @@ _ASK_WEALTH_HOW = {
 _ASK_MONEY_CONCERNS = {"wealth", "finance", "money", "funding"}
 
 
+# [practice-pull 2026-10-01] /ask is peak intent — the moment the user asks what to
+# do. Attach a deep-link into the Practice habit loop (streak + completion) so the
+# answer converts into a ritual. Distinct from `practices` (inline one-off
+# remedies): this CTA drives the daily practice surface. Concern-aware label.
+_ASK_PRACTICE_CTA_LABEL = {
+    "en": {
+        "love": "Today's practice strengthens your heart and connection",
+        "money": "Today's practice tends your money and abundance",
+        "funding": "Today's practice steadies your money and gains",
+        "wealth": "Today's practice tends your money and abundance",
+        "finance": "Today's practice tends your money and abundance",
+        "career": "Today's practice supports your work and standing",
+        "business": "Today's practice supports your work and ventures",
+        "health": "Today's practice supports your body and energy",
+        "family": "Today's practice tends your home and family",
+        "peace": "Today's practice settles your mind",
+        "speculation": "Today's practice steadies you before any risk",
+        "_default": "Today's practice supports what you're working on",
+    },
+    "es": {
+        "love": "La práctica de hoy fortalece tu corazón y tus vínculos",
+        "money": "La práctica de hoy cuida tu dinero y abundancia",
+        "funding": "La práctica de hoy estabiliza tu dinero y ganancias",
+        "wealth": "La práctica de hoy cuida tu dinero y abundancia",
+        "finance": "La práctica de hoy cuida tu dinero y abundancia",
+        "career": "La práctica de hoy apoya tu trabajo y posición",
+        "business": "La práctica de hoy apoya tu trabajo y proyectos",
+        "health": "La práctica de hoy apoya tu cuerpo y energía",
+        "family": "La práctica de hoy cuida tu hogar y familia",
+        "peace": "La práctica de hoy calma tu mente",
+        "speculation": "La práctica de hoy te estabiliza antes de cualquier riesgo",
+        "_default": "La práctica de hoy apoya lo que estás trabajando",
+    },
+    "pt": {
+        "love": "A prática de hoje fortalece seu coração e seus vínculos",
+        "money": "A prática de hoje cuida do seu dinheiro e abundância",
+        "funding": "A prática de hoje estabiliza seu dinheiro e ganhos",
+        "wealth": "A prática de hoje cuida do seu dinheiro e abundância",
+        "finance": "A prática de hoje cuida do seu dinheiro e abundância",
+        "career": "A prática de hoje apoia seu trabalho e posição",
+        "business": "A prática de hoje apoia seu trabalho e projetos",
+        "health": "A prática de hoje apoia seu corpo e energia",
+        "family": "A prática de hoje cuida do seu lar e família",
+        "peace": "A prática de hoje acalma sua mente",
+        "speculation": "A prática de hoje te estabiliza antes de qualquer risco",
+        "_default": "A prática de hoje apoia o que você está trabalhando",
+    },
+}
+_ASK_PRACTICE_CTA_ACTION = {"en": "Do it now", "es": "Hazla ahora", "pt": "Faça agora"}
+
+
+def _ask_practice_cta(concern, language: str = "en") -> dict:
+    """Deep-link CTA from an /ask answer into the Practice habit loop. The FE
+    renders `label` + `action` under 'Your Move' and routes to the Practice tab."""
+    lang = (language or "en").split("-")[0].split("_")[0].lower()
+    if lang not in ("en", "es", "pt"):
+        lang = "en"
+    m = _ASK_PRACTICE_CTA_LABEL.get(lang, _ASK_PRACTICE_CTA_LABEL["en"])
+    return {
+        "available": True,
+        "label": m.get((concern or "").lower(), m["_default"]),
+        "action": _ASK_PRACTICE_CTA_ACTION.get(lang, "Do it now"),
+        "target": "practice",
+        "concern": (concern or "general"),
+    }
+
+
 def _ask_wealth_how_phrase(concern, chart_data) -> str:
     """Plain-English 'how the money arrives' for money questions, from the
     chart's wealth archetype. "" for non-money concerns or on any failure."""
@@ -27089,6 +27156,12 @@ async def ask_endpoint(request: AskRequest):
                         print(f"[ask][lang-offer] offering {_offer['language']}")
             except Exception as _loe:
                 print(f"[ask][lang-offer] non-fatal: {_loe}")
+            # [practice-pull] deep-link the answer into the Practice habit loop
+            try:
+                payload.setdefault("practice_cta",
+                                   _ask_practice_cta(locals().get("_ask_concern"), language))
+            except Exception:
+                pass
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "explore", locals().get("_ask_concern"))
             return payload
@@ -27162,6 +27235,12 @@ async def ask_endpoint(request: AskRequest):
                     for _mf in ("read", "why", "verdict", "next", "timing"):
                         if isinstance(payload.get(_mf), str):
                             payload[_mf] = _ask_md(payload[_mf])
+                except Exception:
+                    pass
+                # [practice-pull] deep-link the answer into the Practice habit loop
+                try:
+                    payload.setdefault("practice_cta",
+                                       _ask_practice_cta(locals().get("_ask_concern"), language))
                 except Exception:
                     pass
                 return payload
@@ -30268,6 +30347,52 @@ def export_speculation_windows(http_request: Request, chart_id: Optional[str] = 
         return {"windows": q.execute().data or []}
     except Exception as e:
         return {"available": False, "error": str(e)[:200]}
+
+
+@app.get("/api/v1/admin/practice-engagement")
+def practice_engagement(http_request: Request, days: int = 30):
+    """[practice-pull 2026-10-01] Server-side practice-engagement funnel from
+    practice_completions — the OUTCOME side (completion + return), so you can see
+    whether users actually do the practice without waiting on an analytics stack.
+    (Visit→start events are FE analytics — not here.) Admin-gated (X-Admin-Key)."""
+    from fastapi.responses import JSONResponse
+    from datetime import date as _pe_date, timedelta as _pe_td
+    from collections import defaultdict as _pe_dd
+    _admin = os.getenv("ADMIN_EXPORT_KEY")
+    if not _admin or http_request.headers.get("X-Admin-Key") != _admin:
+        return JSONResponse(status_code=403, content={"error": "forbidden"})
+    days = max(1, min(int(days or 30), 120))
+    today = _pe_date.today()
+    cutoff = (today - _pe_td(days=days)).isoformat()
+    try:
+        rows = (supabase.table("practice_completions")
+                .select("chart_id,local_date")
+                .gte("local_date", cutoff).limit(100000).execute()).data or []
+    except Exception as e:
+        if "PGRST205" in str(e) or "Could not find the table" in str(e):
+            return {"available": False, "reason": "practice_completions table missing"}
+        return {"available": False, "error": str(e)[:200]}
+    by_chart, by_day = _pe_dd(set), _pe_dd(set)
+    for r in rows:
+        c, d = r.get("chart_id"), r.get("local_date")
+        if c and d:
+            by_chart[c].add(d); by_day[d].add(c)
+    uniq = len(by_chart)
+    d7 = (today - _pe_td(days=7)).isoformat()
+    active_7d = len({c for d, cs in by_day.items() if d >= d7 for c in cs})
+    returners = sum(1 for ds in by_chart.values() if len(ds) >= 2)
+    return {
+        "available": True,
+        "window_days": days,
+        "total_completions": len(rows),
+        "unique_charts_completed": uniq,          # how many people did ANY practice
+        "active_today": len(by_day.get(today.isoformat(), set())),
+        "active_7d": active_7d,
+        "returners_2plus_days": returners,        # came back ≥2 days = habit forming
+        "return_rate": round(returners / uniq, 3) if uniq else 0.0,
+        "avg_active_days_per_chart": round(sum(len(ds) for ds in by_chart.values()) / uniq, 1) if uniq else 0.0,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
 
 
 # ── Alert System Endpoints ────────────────────────────────────────
