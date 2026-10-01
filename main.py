@@ -22734,6 +22734,118 @@ def _ask_ageband_reply_note(question, thread) -> str:
             "this stage." % band)
 
 
+# [strategic-stance 2026-09-30] A whole-chart posture — EXPAND / CONSOLIDATE /
+# PROTECT — that GATES money/funding/venture answers so a locally-"supported"
+# funding-timing read doesn't coach expansion for a chart wired to consolidate
+# (the Shashi false-positive: "funding is coming, build your deck" when his
+# 2nd-lord-in-12th leak + afflicted-7th partnership axis say consolidate first).
+# Business-domain sibling of _chapter_stance (press/build/hold). Internal
+# reference only; the narrator reframes the MOVE accordingly. Fail-open.
+_STANCE_SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo", "Libra",
+                 "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
+_STANCE_LORD = {"Aries": "Mars", "Taurus": "Venus", "Gemini": "Mercury",
+                "Cancer": "Moon", "Leo": "Sun", "Virgo": "Mercury", "Libra": "Venus",
+                "Scorpio": "Mars", "Sagittarius": "Jupiter", "Capricorn": "Saturn",
+                "Aquarius": "Saturn", "Pisces": "Jupiter"}
+_STANCE_DEBIL = {"Sun": "Libra", "Moon": "Scorpio", "Mars": "Cancer",
+                 "Mercury": "Pisces", "Jupiter": "Capricorn", "Venus": "Virgo",
+                 "Saturn": "Aries"}
+_STANCE_DUSTHANA = {6, 8, 12}
+_STANCE_MONEY_CONCERNS = {"income", "funding", "wealth", "money", "finance",
+                          "career", "business", "venture", "speculation"}
+
+
+def _ask_strategic_stance(chart_data: dict, dashas: dict, concern: str):
+    """Return (stance, internal_directive_block). stance in
+    expand|consolidate/protect|'' ; block is '' when not a money/venture concern
+    or when the posture is neutral."""
+    try:
+        c = (concern or "").lower()
+        if c not in _STANCE_MONEY_CONCERNS:
+            return "", ""
+        cd = chart_data or {}
+        planets = cd.get("planets") or {}
+        lagna = (cd.get("lagna") or {}).get("sign")
+        if not planets or lagna not in _STANCE_SIGNS:
+            return "", ""
+        li = _STANCE_SIGNS.index(lagna)
+
+        def sign_of_house(h):
+            return _STANCE_SIGNS[(li + h - 1) % 12]
+
+        def lord_house(h):
+            lord = _STANCE_LORD[sign_of_house(h)]
+            pv = planets.get(lord)
+            return (pv.get("house") if isinstance(pv, dict) else None), lord
+
+        protect, expand, pr, er = 0, 0, [], []
+        # wealth lord (2nd) placement — the 12th is a true outflow leak; 8th is
+        # volatility/other-people's-money; 6th is debt/service (not pure outflow)
+        h2, _ = lord_house(2)
+        if h2 == 12:
+            protect += 2; pr.append("the wealth line leaks — money structurally flows out")
+        elif h2 == 8:
+            protect += 1; pr.append("wealth is volatile and exposed to other people's money")
+        elif h2 == 6:
+            protect += 1; pr.append("wealth is tied up in debt and service")
+        elif h2 in (1, 2, 5, 9, 10, 11):
+            expand += 1; er.append("the wealth line is well placed")
+        # gains lord (11th)
+        h11, _ = lord_house(11)
+        if h11 in _STANCE_DUSTHANA:
+            protect += 1; pr.append("gains tend to dissipate")
+        elif h11 in (1, 2, 5, 9, 10, 11):
+            expand += 1
+        # partnership/funding axis (7th): afflicted if a debilitated planet sits
+        # there, or the 7th lord is debilitated / in a dusthana
+        sev = sign_of_house(7)
+        occ7 = [p for p, v in planets.items() if isinstance(v, dict) and v.get("house") == 7]
+        l7 = _STANCE_LORD[sev]
+        pv7 = planets.get(l7) or {}
+        axis_weak = (any((planets.get(p) or {}).get("sign") == _STANCE_DEBIL.get(p) for p in occ7)
+                     or pv7.get("sign") == _STANCE_DEBIL.get(l7)
+                     or pv7.get("house") in _STANCE_DUSTHANA)
+        if axis_weak:
+            protect += 1; pr.append("the partnership / outside-money axis is weak for them")
+        # expansion season: a currently-running Vimsottari lord occupies a gains
+        # house (11/2/10), and especially Rahu in the 11th running now
+        try:
+            from antar_engine.concern_engines import _vim_active_lords
+            run = {str(x).title() for x in (_vim_active_lords(dashas) or set())}
+        except Exception:
+            run = set()
+        gains_occ = {p for p, v in planets.items()
+                     if isinstance(v, dict) and v.get("house") in (2, 10, 11)}
+        if run & gains_occ:
+            expand += 1; er.append("a gains-house influence is active in this period")
+        rahu = planets.get("Rahu") or {}
+        if rahu.get("house") == 11 and "Rahu" in run:
+            expand += 1; er.append("they are in a genuine gains/expansion chapter")
+
+        if protect >= 2 and protect > expand:
+            why = "; ".join(pr) or "the chart is wired to protect, not expand"
+            return ("consolidate/protect",
+                    "\n\nSTRATEGIC STANCE (internal reference — GATE the money/"
+                    "funding/venture answer by this; translate to plain language): "
+                    "this chart is in a CONSOLIDATE/PROTECT posture — " + why + ". "
+                    "Even if favourable timing windows exist, do NOT coach chasing "
+                    "funding, raising outside money, or expanding. Give the window "
+                    "honestly, then make the MOVE a consolidate-first one: "
+                    "strengthen their own cashflow and clear what's leaking FIRST; "
+                    "if they do take money, keep it small and defensive and protect "
+                    "it (it can reverse); and steer them away from leaning on "
+                    "partners/equity.")
+        if expand >= 2 and expand > protect:
+            why = "; ".join(er) or "gains significators are active"
+            return ("expand",
+                    "\n\nSTRATEGIC STANCE (internal reference): this chart is in an "
+                    "EXPAND posture (" + why + ") — growth/raising can be encouraged, "
+                    "but counsel tight FOCUS on one thing and no speculation.")
+        return "", ""
+    except Exception:
+        return "", ""
+
+
 # [ask-followups 2026-09-24] Every real Ask answer should LEAD the reader to a
 # natural next question rather than dead-end — the FE renders these as tappable
 # chips below YOUR MOVE, and a tap re-asks that question. Deterministic (no LLM
@@ -25037,6 +25149,19 @@ async def ask_endpoint(request: AskRequest):
                     print(f"[ask][lifestage] age-aware layer added for {chart_id[:8]}")
             except Exception as _lse:
                 logger.warning(f"[ask] lifestage layer skipped (non-fatal): {_lse}")
+
+            # [strategic-stance 2026-09-30] Gate money/funding/venture answers by
+            # the whole-chart posture (expand / consolidate-protect), so a
+            # locally-"supported" funding-timing read doesn't coach expansion for
+            # a chart wired to consolidate. Internal reference; narrator reframes.
+            try:
+                _stance, _stance_block = _ask_strategic_stance(
+                    chart_data, _ask_dashas, _ask_concern)
+                if _stance_block:
+                    _ask_layers_block += _stance_block
+                    print(f"[ask][stance] {_stance} for {chart_id[:8]}")
+            except Exception as _ste:
+                logger.warning(f"[ask] strategic-stance skipped (non-fatal): {_ste}")
 
             # [ask-timeframe 2026-09-15] Day-scope questions ("today or tomorrow",
             # "tomorrow") must get a DAY-BY-DAY read, not a single collapsed
