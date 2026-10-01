@@ -109,6 +109,9 @@ def build_pattern(chart_data, dashas, ventures, first_name=""):
             asked_fast = raising or any(w in ql for w in _FAST_WORDS)
             season = _season_at(chart_data, dashas, when) if when else "ordinary"
             items.append({
+                # carry the DB id through so the UI can delete/edit THIS row
+                # (its absence sent DELETE .../ventures/undefined → 500).
+                "id": v.get("id"),
                 "label": label,
                 "when": when.isoformat() if when else "",
                 "year": when.year if when else None,
