@@ -770,9 +770,16 @@ def detect_concern(question: str) -> str:
         "rekindle","rekindling","second chance with","another chance with",
         "fix things with","work things out with","fix it with",
         "patch things up","patching things up",
-        # Spanish
-        "volveremos","volver con","volver juntos","reconciliarnos","reconciliar",
-        "rehacer la relación","una segunda oportunidad",
+        # Spanish — incl LatAm "regresar" (not just "volver")
+        "volveremos","volver con","volver juntos","volver a estar juntos",
+        "reconciliarnos","reconciliar","rehacer la relación","una segunda oportunidad",
+        "regresar con","regresar juntos","volver a mi","recuperar a mi",
+        "reconquistar","volver a mi esposa","regresar con mi esposa",
+        # Portuguese
+        "voltar com","voltar juntos","voltar a ficar","reatar","reconciliação",
+        "reconciliar","segunda chance",
+        # Hinglish (romanized)
+        "wapas","dobara saath","dubara saath","phir se saath","patch up kar",
     ]
     if any(w in q for w in reconcile_words):
         return "reconciliation"
@@ -838,14 +845,24 @@ def detect_concern(question: str) -> str:
                   "boyfriend","girlfriend","partner","soulmate","when will i meet",
                   "when will i find love","find someone","marriage prospects",
                   "will i get married","arranged marriage","love marriage","ex ",
-                  "ex-","heartbreak","fall in love","in love"]
+                  "ex-","heartbreak","fall in love","in love",
+                  # [i18n] ES / PT / Hinglish
+                  "amor","romance","pareja","novia","novio","cita","enamorar",
+                  "enamorad","alma gemela","encontrar el amor","mi ex",
+                  "namorad","paixão","paixao","alma gêmea","alma gemea","meu ex",
+                  "pyaar","ishq"]
     if any(w in q for w in love_words) and not _has_biz:
         return "love"
 
     # ── Marriage (distinct from love — existing partnership) ──
     # OVERRIDE: skip if business keywords also present
     marriage_words = ["marriage","married","wedding","husband","wife","spouse",
-                      "my relationship","my marriage","my partner"]
+                      "my relationship","my marriage","my partner",
+                      # [i18n] ES / PT / Hinglish
+                      "matrimonio","esposa","esposo","marido","mi relación",
+                      "mi relacion","mi matrimonio","mi pareja","casado","casada",
+                      "casamento","minha esposa","meu marido","cônjuge","conjuge",
+                      "meu casamento","shaadi","shadi","biwi","pati","patni"]
     if any(w in q for w in marriage_words) and not _has_biz:
         return "marriage"
 

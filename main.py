@@ -21738,28 +21738,59 @@ def _is_relationship_q(question):
         "life partner", "settle down", "divorce", "separat", "break up", "breakup",
         "girlfriend", "boyfriend", "dating", "get engaged", "engagement",
         "will i find someone", "meet someone", "find love", "fall in love",
+        # [i18n 2026-10-01] ES/PT/Hinglish — relationship logic was English-only, so
+        # Spanish questions ("regresar con mi esposa") fell to 'general' + bled
+        # business. Same silent-keyword bug class as the domain-fit veto.
+        # Spanish
+        "esposa", "esposo", "marido", "pareja", "matrimonio", "casarme", "casar",
+        "relación", "relacion", "noviazgo", "novia", "novio", "amor", "divorcio",
+        "separad", "separar", "regresar con", "volver con", "mi ex",
+        # Portuguese
+        "cônjuge", "conjuge", "casamento", "casar", "relacionamento", "namorad",
+        "divórcio", "divorcio", "separaçã", "voltar com", "minha ex",
+        # Hinglish
+        "shaadi", "shadi", "biwi", "pati", "patni", "rishta", "pyaar", "talaq",
     ))
 
 
 def _relationship_intent(question):
     """Which facet of the relationship engine to lead with."""
     ql = (question or "").lower()
+    # [i18n 2026-10-01] ES/PT/Hinglish added to every facet (English-only before).
     if any(w in ql for w in ("when", "what year", "what age", "how long until",
-                             "time", "soon", "which year", "at what")):
+                             "time", "soon", "which year", "at what",
+                             # ES / PT / Hinglish
+                             "cuándo", "cuando", "qué año", "que año", "qué edad",
+                             "en cuánto tiempo", "en cuanto tiempo", "pronto",
+                             "quando", "que ano", "kab")):
         return "timing"
     if any(w in ql for w in ("what is my partner", "what will my partner", "what will my spouse",
                              "what is my spouse", "who will i marry", "who will my",
                              "describe", "what kind of", "what will they be like",
                              "what is he like", "what is she like", "how do i meet",
-                             "where will i meet", "how will i meet")):
+                             "where will i meet", "how will i meet",
+                             # ES / PT
+                             "cómo es mi pareja", "como es mi pareja", "con quién", "con quien",
+                             "quién es", "quien es", "cómo será", "como sera",
+                             "como é meu parceiro", "quem vou", "quem é")):
         return "partner"
     if any(w in ql for w in ("last", "survive", "work out", "stable", "strain",
                              "divorce", "separat", "break up", "breakup", "end my",
                              "leave my", "save my", "falling apart", "problems in",
-                             "trouble in")):
+                             "trouble in",
+                             # ES / PT / Hinglish
+                             "durar", "durará", "durara", "va a durar", "funcionar",
+                             "funcionará", "funcionara", "sobrevivir", "divorcio",
+                             "separa", "dejar a", "salvar mi", "problemas con mi",
+                             "vai durar", "sobreviver", "divórcio", "salvar meu",
+                             "talaq", "chalega")):
         return "durability"
     if any(w in ql for w in ("how is my marriage", "quality", "happy", "harmon",
-                             "married life", "family life")):
+                             "married life", "family life",
+                             # ES / PT
+                             "cómo va mi matrimonio", "como va mi matrimonio", "feliz",
+                             "mi matrimonio", "vida de casado", "como está meu casamento",
+                             "meu casamento")):
         return "quality"
     return "entry"
 
