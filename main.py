@@ -25154,16 +25154,40 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _lse:
                 logger.warning(f"[ask] lifestage layer skipped (non-fatal): {_lse}")
 
-            # [strategic-stance 2026-09-30] Gate money/funding/venture answers by
-            # the whole-chart posture (expand / consolidate-protect), so a
-            # locally-"supported" funding-timing read doesn't coach expansion for
-            # a chart wired to consolidate. Internal reference; narrator reframes.
+            # [domain-fit 2026-09-30] VENTURE-level gate (ahead of the chart-level
+            # stance): is THIS domain + approach + season a fit? Catches the
+            # Andres case — chart posture is 'expand' but raising for a speculative
+            # real-estate flip in his illusion season is misaligned. Guardrail:
+            # shape / approach / timing / speculation-caution, never success.
+            _df_align = None
+            try:
+                from antar_engine.domain_fit import assess_domain_fit as _adf
+                from antar_engine.concern_engines import _vim_active_lords as _val
+                _df_run = {str(x).title() for x in (_val(_ask_dashas) or set())}
+                _df = _adf(chart_data, _ask_dashas, question, _ask_concern,
+                           running_lords=_df_run)
+                _df_align = _df.get("alignment")
+                if _df.get("directive"):
+                    _ask_layers_block += _df["directive"]
+                    print(f"[ask][domain-fit] {_df.get('domain')}/{_df_align} for {chart_id[:8]}")
+            except Exception as _dfe:
+                logger.warning(f"[ask] domain-fit skipped (non-fatal): {_dfe}")
+
+            # [strategic-stance 2026-09-30] CHART-level posture (expand /
+            # consolidate-protect). Suppress the EXPAND push when domain-fit says
+            # this specific venture is misaligned/caution — the venture-level read
+            # wins over the general-chart posture (no "expand" + "don't do this").
             try:
                 _stance, _stance_block = _ask_strategic_stance(
                     chart_data, _ask_dashas, _ask_concern)
-                if _stance_block:
+                _suppress_stance = (_stance == "expand"
+                                    and _df_align in ("misaligned_approach", "caution"))
+                if _stance_block and not _suppress_stance:
                     _ask_layers_block += _stance_block
                     print(f"[ask][stance] {_stance} for {chart_id[:8]}")
+                elif _suppress_stance:
+                    print(f"[ask][stance] expand suppressed by domain-fit "
+                          f"({_df_align}) for {chart_id[:8]}")
             except Exception as _ste:
                 logger.warning(f"[ask] strategic-stance skipped (non-fatal): {_ste}")
 
