@@ -96,22 +96,30 @@ FEATURE_REQUIRED_TIER = {
 # tier. Set GRANDFATHER_CUTOFF to the date the FE paywall actually goes live; err
 # toward a LATER date (over-grandfathering is generous; a past date would strip
 # recent users). Fail-OPEN everywhere: never lock a user on a transient error.
-GRANDFATHER_CUTOFF = "2026-11-01"   # YYYY-MM-DD — charts created before this are grandfathered
+# The flagship features (the depth you pay for) — referenced by the gate below.
 GRANDFATHERED_FEATURES = ("forward_arc", "operating_manual", "chakra_program")
 _GF_CACHE: dict = {}
 
-# ── Flagship 30-day full-access trial [resplit-trial 2026-10-01] ───
-# The revenue model is TRIAL → FREEMIUM (not a hard wall): a NEW signup gets the
-# full flagship (forward_arc / operating_manual / chakra_program) free for its
-# first 30 days — habit-forming full-access onboarding that shows the paid ceiling
-# — then drops to the free "preview" level. It NEVER drops to a wall: the daily
-# streak loop (today / practice / limited Ask) stays free forever, so the funnel
-# and App Store DAU survive and users convert later at a value moment. Paid
-# unlocks flagship again; pre-cutoff users are grandfathered (full forever, a
-# separate mechanic that wins over the trial). Anchored purely on the chart's
-# created_at (signup), independent of the Ask trial above. Fail-OPEN: on any
-# error treat as in-trial (full) — never strip a user on a transient lookup.
+# ── Flagship 30-day full-access trial [resplit-trial 2026-10-08] ───
+# The revenue model is TRIAL → FREEMIUM (not a hard wall), and the trial is
+# LAUNCH-ANCHORED for everyone (owner call 2026-10-08): the 30-day full-access
+# clock is anchored at max(signup, LAUNCH). So EXISTING users at launch all get a
+# fresh 30 days from 2026-10-08 (ending ~Nov 7) — "grandfathered into the trial",
+# NOT free forever — and anyone who signs up AFTER launch gets 30 days from their
+# own signup. This mirrors the Ask trial's _trial_anchor (same max(created,launch)
+# shape). During the trial, the flagship (forward_arc / operating_manual /
+# chakra_program) reads "full"; after it, those drop to the free "preview" level.
+# It NEVER drops to a wall: the daily streak loop (today / practice / limited Ask)
+# stays free forever, so the funnel and App Store DAU survive and users convert at
+# a value moment. Paid unlocks flagship again. Independent of the Ask trial above.
+# Fail-OPEN: on any error treat as in-trial (full) — never strip a user on a blip.
+#
+# NOTE: this REPLACES the earlier "free forever for pre-cutoff users" grandfather
+# grant. is_grandfathered()/GRANDFATHER_CUTOFF are retained for analytics only and
+# NO LONGER grant permanent access — the launch-anchored trial governs everyone.
 FLAGSHIP_TRIAL_DAYS = 30
+FLAGSHIP_TRIAL_LAUNCH = "2026-10-08T00:00:00+00:00"   # clock starts here for existing users
+GRANDFATHER_CUTOFF = "2026-10-08"   # analytics marker (= launch); no longer grants access
 _FT_CACHE: dict = {}
 
 # ── Compatibility chart slots [compat-slots] ──────────────────────
@@ -298,9 +306,10 @@ def is_grandfathered(chart_id: str, sb) -> bool:
 
 
 def flagship_trial_state(chart_id: str, sb) -> dict:
-    """30-day full-access trial window, anchored on the chart's signup date.
-    {active, started_on, ends_on, days_left}. Fail-OPEN (active=True) on any
-    error — never strip a user because a lookup blipped. 60s TTL cache."""
+    """30-day full-access trial window, LAUNCH-ANCHORED: start = max(signup, LAUNCH)
+    so existing users get a fresh 30 days from launch and new users from signup.
+    {active, started_on, ends_on, days_left}. Fail-OPEN (active=True) on any error
+    — never strip a user because a lookup blipped. 60s TTL cache."""
     from datetime import datetime, timedelta, timezone
     if not chart_id:
         return {"active": False, "started_on": None, "ends_on": None, "days_left": 0}
@@ -308,38 +317,39 @@ def flagship_trial_state(chart_id: str, sb) -> dict:
     if hit and hit[0] > time.time():
         return hit[1]
     now = datetime.now(timezone.utc)
-    # fail-open default: treat as in-trial (full) if we can't read the signup date
-    state = {"active": True, "started_on": None, "ends_on": None, "days_left": FLAGSHIP_TRIAL_DAYS}
+    launch = _parse_ts(FLAGSHIP_TRIAL_LAUNCH) or now
+    # start = later of signup and launch; fall back to launch if signup unreadable
+    start = launch
     try:
         r = sb.table("charts").select("created_at").eq("id", chart_id).single().execute()
         created = _parse_ts((r.data or {}).get("created_at"))
         if created:
-            ends = created + timedelta(days=FLAGSHIP_TRIAL_DAYS)
-            state = {
-                "active": now < ends,
-                "started_on": created.date().isoformat(),
-                "ends_on": ends.date().isoformat(),
-                "days_left": max(0, (ends - now).days),
-            }
+            start = max(created, launch)
     except Exception:
-        pass  # keep the fail-open default
+        pass  # keep launch anchor — fail-open (generous), never strips
+    ends = start + timedelta(days=FLAGSHIP_TRIAL_DAYS)
+    # days_left capped at the trial length (pre-launch "now" would otherwise read >30)
+    days_left = max(0, min(FLAGSHIP_TRIAL_DAYS, (ends - now).days))
+    state = {
+        "active": now < ends,
+        "started_on": start.date().isoformat(),
+        "ends_on": ends.date().isoformat(),
+        "days_left": days_left,
+    }
     _FT_CACHE[chart_id] = (time.time() + _ENT_TTL, state)
     return state
 
 
 def effective_feature_access(chart_id: str, sb, feature: str, tier: Optional[str] = None) -> str:
-    """feature_access + grandfathering + the 30-day flagship trial. Returns 'full'
-    for a flagship feature when the free user is grandfathered (pre-cutoff) OR still
-    inside their 30-day full-access trial; otherwise the plain tier-based level. Use
-    THIS for any gate decision that has a chart_id (so existing users aren't stripped
-    and new users get their trial)."""
+    """feature_access + the 30-day launch-anchored flagship trial. Returns 'full'
+    for a flagship feature when the free user is still inside their trial window
+    (existing users: 30 days from launch; new users: 30 days from signup); otherwise
+    the plain tier-based level. Use THIS for any gate decision that has a chart_id."""
     tier = tier or get_entitlement(chart_id, sb)
     lvl = feature_access(tier, feature)
-    if tier not in PAID_TIERS and feature in GRANDFATHERED_FEATURES:
-        if is_grandfathered(chart_id, sb):
-            return "full"
-        if flagship_trial_state(chart_id, sb).get("active"):
-            return "full"
+    if (tier not in PAID_TIERS and feature in GRANDFATHERED_FEATURES
+            and flagship_trial_state(chart_id, sb).get("active")):
+        return "full"
     return lvl
 
 
@@ -564,22 +574,17 @@ def entitlement_summary(chart_id: str, sb) -> dict:
     # the FE never locks someone who already had them. New signups (post-cutoff)
     # see the "preview" level and get gated.
     _feats = {f: FEATURE_MATRIX[f][tier] for f in FEATURE_MATRIX}
-    _gf = (tier not in PAID_TIERS) and is_grandfathered(chart_id, sb)
-    # [resplit] / [resplit-trial] a free user sees the flagship at "full" when
-    # either (a) grandfathered (pre-cutoff, permanent, SILENT — no countdown) or
-    # (b) inside their 30-day trial (new user, show a countdown + convert nudge).
-    # Grandfathering wins over the trial, so only compute the trial for
-    # non-grandfathered free users. Paid users already have "full" from the matrix.
+    # [resplit-trial 2026-10-08] a FREE user sees the flagship at "full" while inside
+    # their launch-anchored 30-day trial (existing users: from launch; new users:
+    # from signup), then it reverts to "preview". The FE uses flagship_trial to show
+    # a "N days of full access left" countdown + a convert nudge. Paid users already
+    # have "full" from the matrix. No free-forever cohort — the trial governs all.
     _ft = None
     if tier not in PAID_TIERS:
-        if _gf:
+        _ft = flagship_trial_state(chart_id, sb)
+        if _ft.get("active"):
             for _ff in GRANDFATHERED_FEATURES:
                 _feats[_ff] = "full"
-        else:
-            _ft = flagship_trial_state(chart_id, sb)
-            if _ft.get("active"):
-                for _ff in GRANDFATHERED_FEATURES:
-                    _feats[_ff] = "full"
     return {
         "tier": tier,
         "ask_used": quota["used"],
@@ -590,7 +595,7 @@ def entitlement_summary(chart_id: str, sb) -> dict:
         "ask_total_available": (None if _free_rem is None else _free_rem + _earned_ask),
         "compat_credits": _earned_compat,
         "features": _feats,
-        "grandfathered": bool(_gf),
-        "flagship_trial": _ft,   # {active,started_on,ends_on,days_left} for new free users; None if grandfathered/paid
+        "grandfathered": False,  # deprecated — launch-anchored trial governs everyone now
+        "flagship_trial": _ft,   # {active,started_on,ends_on,days_left} for free users; None if paid
         "compat_slots": compat_slots(chart_id, sb, tier),
     }
