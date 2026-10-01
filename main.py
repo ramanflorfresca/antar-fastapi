@@ -3959,6 +3959,97 @@ async def get_first_read(chart_id: str, language: str = "en"):
     }
 
 
+# ── /ask over messaging (Telegram first) ──
+# [messaging 2026-10-01] Wrap the existing /ask pipeline for chat channels.
+# Identity: user generates a one-time code in-app (link/start), sends it to the
+# bot, which binds their Telegram id ↔ chart_id. Then every message is an /ask —
+# same engine, same quota (ask_endpoint enforces it), same language handling.
+# Needs: `messaging_links` table (Lovable DDL), env TELEGRAM_BOT_TOKEN,
+# TELEGRAM_BOT_USERNAME, TELEGRAM_WEBHOOK_SECRET. Fail-open everywhere.
+class _MsgLinkStart(BaseModel):
+    chart_id: Optional[str] = None
+    channel: Optional[str] = "telegram"
+
+
+@app.post("/api/v1/messaging/link/start")
+def messaging_link_start(req: _MsgLinkStart, authorization: str = Header(...)):
+    """Generate a one-time link code + deep link for the user to send to the bot."""
+    from antar_engine import messaging as _msg
+    user_id = verify_token(authorization)
+    chart_id = req.chart_id or _resolve_primary_chart_id(user_id)
+    if not chart_id:
+        raise HTTPException(400, "no chart to link")
+    out = _msg.create_pending_link(supabase, chart_id, user_id, req.channel or "telegram")
+    if not out.get("available"):
+        raise HTTPException(503, out.get("reason") or "messaging not set up yet")
+    uname = os.getenv("TELEGRAM_BOT_USERNAME")
+    out["deep_link"] = (f"https://t.me/{uname}?start={out['code']}" if uname else None)
+    out["instructions"] = ("Open the link, or message the bot: /start " + out["code"])
+    return out
+
+
+@app.post("/api/v1/messaging/telegram/webhook")
+async def messaging_telegram_webhook(http_request: Request):
+    """Telegram update webhook: link codes + /ask. Always 200 (no retry storms)."""
+    from antar_engine import messaging as _msg
+    # verify secret when configured
+    _secret = os.getenv("TELEGRAM_WEBHOOK_SECRET")
+    if _secret and http_request.headers.get("X-Telegram-Bot-Api-Secret-Token") != _secret:
+        from fastapi.responses import JSONResponse
+        return JSONResponse(status_code=403, content={"ok": False})
+    token = os.getenv("TELEGRAM_BOT_TOKEN")
+    try:
+        update = await http_request.json()
+    except Exception:
+        return {"ok": True}
+    msg = (update or {}).get("message") or (update or {}).get("edited_message") or {}
+    text = (msg.get("text") or "").strip()
+    chat_id = (msg.get("chat") or {}).get("id")
+    from_id = (msg.get("from") or {}).get("id")
+    lang = _msg.telegram_lang((msg.get("from") or {}).get("language_code"))
+    if not token or not text or chat_id is None or from_id is None:
+        return {"ok": True}
+    _L = {  # tiny localized channel strings
+        "need_link": {"es": "Primero conecta tu cuenta: abre la app → Conectar Telegram.",
+                      "pt": "Primeiro conecte sua conta: abra o app → Conectar Telegram.",
+                      "en": "First connect your account: open the app → Connect Telegram."},
+        "linked":    {"es": "✅ ¡Conectado! Ahora puedes preguntarme lo que quieras.",
+                      "pt": "✅ Conectado! Agora pode me perguntar o que quiser.",
+                      "en": "✅ Connected! Ask me anything now."},
+        "bad_code":  {"es": "Ese código no es válido o ya se usó. Genera uno nuevo en la app.",
+                      "pt": "Esse código é inválido ou já foi usado. Gere um novo no app.",
+                      "en": "That code is invalid or already used. Generate a new one in the app."},
+        "welcome":   {"es": "Hola 🙏 Conecta tu cuenta en la app (Conectar Telegram) y envíame el código.",
+                      "pt": "Olá 🙏 Conecte sua conta no app (Conectar Telegram) e me envie o código.",
+                      "en": "Hi 🙏 Connect your account in the app (Connect Telegram) and send me the code."},
+    }
+    try:
+        if text.startswith("/start"):
+            parts = text.split(maxsplit=1)
+            code = parts[1].strip() if len(parts) > 1 else ""
+            if code:
+                cid = _msg.bind_link(supabase, code, "telegram", from_id)
+                _msg.telegram_send(token, chat_id, _L["linked" if cid else "bad_code"][lang])
+            else:
+                _msg.telegram_send(token, chat_id, _L["welcome"][lang])
+            return {"ok": True}
+        # a question → resolve chart → reuse the /ask pipeline
+        cid = _msg.resolve_chart(supabase, "telegram", from_id)
+        if not cid:
+            _msg.telegram_send(token, chat_id, _L["need_link"][lang])
+            return {"ok": True}
+        try:
+            payload = await ask_endpoint(AskRequest(
+                question=text, chart_id=cid, mode="explore", language=lang, tz_offset=0))
+        except HTTPException as he:
+            print(f"[messaging] ask failed {he.status_code}")
+            payload = {}
+        _msg.telegram_send(token, chat_id, _msg.format_ask_for_telegram(payload, lang))
+    except Exception as e:
+        print(f"[messaging] telegram webhook non-fatal: {e}")
+    return {"ok": True}
+
+
 @app.get("/api/v1/me/chart-identity")
 @translate_response(fields_to_translate=["effect"], endpoint_name="chart-identity")
 async def get_my_chart_identity(authorization: Optional[str] = Header(None),
