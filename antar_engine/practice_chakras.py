@@ -84,6 +84,16 @@ _W_BASE = 0.5
 _W_V    = 0.20
 _W_VM   = 0.20
 
+# [weak-focus-coherence 2026-10-01] The Practice's priority_planet IS the weakened
+# area it tells the user to TEND this season/year. Before this, that signal never
+# reached the chakra axes, so the focus center (e.g. Heart for a Venus "Love &
+# Beauty" year) could read "balanced/STEADY" while the Practice said "this area is
+# weakening" — a visible contradiction. We fold the weak-focus into valence (so
+# state + wellness reflect it naturally) and floor the primary-focus chakra so it
+# can never read better than "needs attention".
+_WEAK_FOCUS_V_PENALTY = 0.55
+_WEAK_FOCUS_WELLNESS_CAP = 38   # keeps _status_3state in the "needs_attention" tier
+
 # Constants intentionally exposed for post-launch calibration; do not change
 # the structure (separate M/V/state/wellness fields) — only these numbers.
 _M_W_NATAL   = 0.45
@@ -536,6 +546,11 @@ def compute_chakra_states(
                    "Venus", "Saturn", "Rahu", "Ketu"):
         m = _compute_M(planet, chart, conditions, dashas, transits, ashtakavarga)
         v = _compute_V(planet, chart, conditions, lk_data, lagna_sign)
+        # [weak-focus-coherence] the weakened area the Practice tells the user to
+        # tend must pull its own chakra toward "needs attention" — fold the signal
+        # into valence so state + wellness reflect it (not a cosmetic override).
+        if priority_planet and planet == priority_planet:
+            v = max(-1.0, v - _WEAK_FOCUS_V_PENALTY)
         st = _state_from_axes(m, v)
         w = _wellness_from_axes(m, v)
         per_planet[planet] = {
@@ -613,6 +628,17 @@ def compute_chakra_states(
             priority = "secondary"
         else:
             priority = "none"
+
+        # [weak-focus-coherence] GUARANTEE: the primary-focus chakra is the weakened
+        # area the Practice is actively tending — it must never surface as
+        # balanced/steady/strong (that contradicts the practice on the same screen).
+        # The valence penalty above usually lands it here already; this floors the
+        # edge cases (a strong partner-ruler diluting the mean).
+        if priority == "primary":
+            if chakra_state in ("FLOWING", "DORMANT", "NEEDS_BALANCE"):
+                chakra_state = "FRICTION" if chakra_m >= _STATE_M_CUT else "DEPLETED"
+            if chakra_wellness > _WEAK_FOCUS_WELLNESS_CAP:
+                chakra_wellness = _WEAK_FOCUS_WELLNESS_CAP
 
         # Reason — pull each ruler's dignity condition for the legacy narrator
         states_for_reason = []
