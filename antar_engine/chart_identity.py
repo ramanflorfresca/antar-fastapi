@@ -190,14 +190,12 @@ def _reading(asc_sign, asc_lord, sun, moon, atma, chapter, lang: str = "en") -> 
             bits.append(f"El hilo al que tu vida vuelve una y otra vez es {PL(atma)}.")
         if chapter.get("maha"):
             m = chapter["maha"]
-            line = f"Ahora mismo estás en un capítulo de {P(m)}"
-            if PL(m):
-                line += f" — una larga temporada sobre {PL(m)}"
+            line = (f"Ahora mismo estás en un largo capítulo sobre {PL(m)}"
+                    if PL(m) else "Ahora mismo estás en un capítulo distinto de tu vida")
             if chapter.get("maha_ends"):
                 line += f", y se cierra el {chapter['maha_ends']}"
-                if chapter.get("next_maha"):
-                    nxt = chapter["next_maha"]
-                    line += f", dando paso a una temporada de {P(nxt)} sobre {PL(nxt) or P(nxt)}"
+                if chapter.get("next_maha") and PL(chapter["next_maha"]):
+                    line += f", dando paso a una temporada de {PL(chapter['next_maha'])}"
             bits.append(line + ".")
     elif lang == "pt":
         if asc_sign:
@@ -213,14 +211,12 @@ def _reading(asc_sign, asc_lord, sun, moon, atma, chapter, lang: str = "en") -> 
             bits.append(f"O fio ao qual sua vida sempre retorna é {PL(atma)}.")
         if chapter.get("maha"):
             m = chapter["maha"]
-            line = f"Agora você está num capítulo de {P(m)}"
-            if PL(m):
-                line += f" — uma longa temporada sobre {PL(m)}"
+            line = (f"Agora você está num longo capítulo sobre {PL(m)}"
+                    if PL(m) else "Agora você está num capítulo distinto da sua vida")
             if chapter.get("maha_ends"):
                 line += f", e ele se encerra em {chapter['maha_ends']}"
-                if chapter.get("next_maha"):
-                    nxt = chapter["next_maha"]
-                    line += f", passando para uma temporada de {P(nxt)} sobre {PL(nxt) or P(nxt)}"
+                if chapter.get("next_maha") and PL(chapter["next_maha"]):
+                    line += f", passando para uma temporada de {PL(chapter['next_maha'])}"
             bits.append(line + ".")
     else:
         if asc_sign:
@@ -235,15 +231,15 @@ def _reading(asc_sign, asc_lord, sun, moon, atma, chapter, lang: str = "en") -> 
         if atma and PL(atma):
             bits.append(f"The thread your life keeps returning to is {PL(atma)}.")
         if chapter.get("maha"):
+            # [jargon-fix] never name the planet in user-facing prose — use the
+            # plain energy phrase only (the card + this reading are user surfaces).
             m = chapter["maha"]
-            line = f"Right now you are in a {m}"
-            if PL(m):
-                line += f" chapter — a long season about {PL(m)}"
+            line = (f"Right now you are in a long chapter about {PL(m)}"
+                    if PL(m) else "Right now you are in a distinct life chapter")
             if chapter.get("maha_ends"):
                 line += f", and it closes on {chapter['maha_ends']}"
-                if chapter.get("next_maha"):
-                    nxt = chapter["next_maha"]
-                    line += f", handing over to a {nxt} season of {PL(nxt) or nxt}"
+                if chapter.get("next_maha") and PL(chapter["next_maha"]):
+                    line += f", handing over to a season of {PL(chapter['next_maha'])}"
             bits.append(line + ".")
     return " ".join(bits)
 
@@ -299,11 +295,18 @@ def build_chart_identity(chart_data: Any, vim_rows: Any = None,
     _rank = {"strong": 0, "moderate": 1, "weak": 2}
     yogas.sort(key=lambda y: _rank.get((y.get("strength") or "").lower(), 3))
 
-    # Localize the running-chapter lords (Rahu/Ketu unchanged by the map).
+    # [jargon-fix 2026-09-30] current_period is a USER-REACHABLE payload surface
+    # (the FE's "chapter you're in" card renders these fields verbatim), so it
+    # must carry PLAIN language, never planet names — same rule the yogas block
+    # above follows. Previously these were run through _planet_l, which only
+    # LOCALIZES the planet name (Rahu stayed "Rahu"), leaking "You're in your
+    # Rahu chapter / into Jupiter". Emit the plain energy phrase instead
+    # ("ambition and the unfamiliar", "growth and wisdom"); _reading() still gets
+    # the raw `chapter` dict, so the prose line is unaffected.
     chapter_loc = dict(chapter) if chapter else {}
     for _k in ("maha", "antar", "pratyantar", "next_maha"):
         if chapter_loc.get(_k):
-            chapter_loc[_k] = _planet_l(lang, chapter_loc[_k])
+            chapter_loc[_k] = _plain_l(lang, chapter_loc[_k]) or chapter_loc[_k]
 
     def _place_loc(pl):
         return {
