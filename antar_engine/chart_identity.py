@@ -135,10 +135,12 @@ def _parse_day(s: Any) -> Optional[date]:
 
 def _running_chapter(vim_rows: Any, today: date) -> Dict[str, Any]:
     """Current maha / antar / pratyantar lords + when the maha hands over,
-    and which lord it hands over to. Any gap is simply omitted."""
+    and which lord it hands over to, PLUS the nearer sub-chapter (antardasha)
+    handover. Any gap is simply omitted."""
     rows = vim_rows if isinstance(vim_rows, list) else []
     out: Dict[str, Any] = {}
     maha_end: Optional[date] = None
+    antar_end: Optional[date] = None
 
     def _lord(r):
         return r.get("lord_or_sign") or r.get("planet_or_sign")
@@ -155,6 +157,8 @@ def _running_chapter(vim_rows: Any, today: date) -> Dict[str, Any]:
             maha_end = ed
         elif lvl in ("antardasha", "bhukti"):
             out["antar"] = _lord(r)
+            out["antar_ends"] = ed.isoformat()
+            antar_end = ed
         elif lvl == "pratyantardasha":
             out["pratyantar"] = _lord(r)
 
@@ -165,6 +169,17 @@ def _running_chapter(vim_rows: Any, today: date) -> Dict[str, Any]:
                 continue
             if _parse_day(r.get("start_date") or r.get("start")) == maha_end:
                 out["next_maha"] = _lord(r)
+                break
+    # [chapter-card 2026-10-01] the nearer, actionable shift: the antardasha
+    # (sub-chapter) handover. The maha handover can be 15+ years out, so leading
+    # the card with it reads as "nothing changes for a generation". Capture the
+    # next antardasha so the card can surface the near shift instead.
+    if antar_end:
+        for r in rows:
+            if (r.get("level") or "").lower() not in ("antardasha", "bhukti"):
+                continue
+            if _parse_day(r.get("start_date") or r.get("start")) == antar_end:
+                out["next_antar"] = _lord(r)
                 break
     return out
 
@@ -304,9 +319,21 @@ def build_chart_identity(chart_data: Any, vim_rows: Any = None,
     # ("ambition and the unfamiliar", "growth and wisdom"); _reading() still gets
     # the raw `chapter` dict, so the prose line is unaffected.
     chapter_loc = dict(chapter) if chapter else {}
-    for _k in ("maha", "antar", "pratyantar", "next_maha"):
+    for _k in ("maha", "antar", "pratyantar", "next_maha", "next_antar"):
         if chapter_loc.get(_k):
             chapter_loc[_k] = _plain_l(lang, chapter_loc[_k]) or chapter_loc[_k]
+    # [chapter-card 2026-10-01] Surface the NEXT MEANINGFUL SHIFT for the card —
+    # the nearer of the sub-chapter (antardasha) handover vs the maha handover, so
+    # the card never leads with a date 15+ years out. Prefer the sub shift when it
+    # lands before the maha one. Plain + localized; the FE renders these two.
+    _ne_sub = chapter.get("antar_ends"); _nxt_sub = chapter_loc.get("next_antar")
+    _ne_maha = chapter.get("maha_ends"); _nxt_maha = chapter_loc.get("next_maha")
+    if _ne_sub and _nxt_sub and (not _ne_maha or _ne_sub < _ne_maha):
+        chapter_loc["next_shift_on"] = _ne_sub
+        chapter_loc["next_shift_to"] = _nxt_sub
+    elif _ne_maha and _nxt_maha:
+        chapter_loc["next_shift_on"] = _ne_maha
+        chapter_loc["next_shift_to"] = _nxt_maha
 
     def _place_loc(pl):
         return {

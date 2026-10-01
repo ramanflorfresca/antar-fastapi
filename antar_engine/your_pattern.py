@@ -216,6 +216,28 @@ def build_pattern(chart_data, dashas, ventures, first_name=""):
         out["summary"] = (lead + (head + tail).strip()).strip() or (
             lead + "here's your track record — tell me how each went and I'll mirror "
             "the pattern back.").strip()
+
+        # [pattern-beats 2026-10-01] The full summary is 3-5 sentences — dense as one
+        # block. Split it into short beats (observation / honest read / the move) so
+        # the card can render them as separate lines. `summary` stays as the joined
+        # fallback. No content lost, just broken up.
+        _beats = []
+        _obs = (lead + head).strip()
+        if _obs:
+            _beats.append(_obs)
+        _tail = tail.strip()
+        if _tail:
+            _split = False
+            for _mk in ("The pattern says", "That's the repeat"):
+                _i = _tail.find(_mk)
+                if _i > 0:
+                    _beats.append(_tail[:_i].strip())
+                    _beats.append(_tail[_i:].strip())
+                    _split = True
+                    break
+            if not _split:
+                _beats.append(_tail)
+        out["summary_beats"] = [b for b in _beats if b] or [out["summary"]]
         return out
     except Exception:
         return out
