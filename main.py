@@ -25119,14 +25119,47 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _ale:
                 logger.warning(f"[ask] layer context failed (non-fatal): {_ale}")
 
+            # [domain-fit-veto 2026-09-30] Compute the venture-level fit FIRST, so
+            # a misaligned APPROACH (e.g. raising/flipping a property the chart only
+            # holds slowly) can suppress the positive money/funding-window layers
+            # BELOW before they are ever injected — otherwise the narrator echoes
+            # "funding window is open, money comes through backers" and the whole
+            # guardrail is drowned out by a concrete positive signal. _df is reused
+            # for the directive + verdict veto further down (never recomputed).
+            # Hard boundary unchanged: SHAPE / APPROACH / TIMING, never success.
+            _df = None
+            _df_align = None
+            _df_veto = False
+            try:
+                from antar_engine.domain_fit import assess_domain_fit as _adf
+                from antar_engine.concern_engines import _vim_active_lords as _val
+                _df_run = {str(x).title() for x in (_val(_ask_dashas) or set())}
+                _df = _adf(chart_data, _ask_dashas, question, _ask_concern,
+                           running_lords=_df_run)
+                _df_align = _df.get("alignment")
+                # "misaligned_approach" = the approach they're ASKING about fights
+                # the chart's shape for this domain (fast/leveraged ask on a slow,
+                # owned domain). That is the structural false-positive; veto it.
+                # (speculation is handled by its own guard, always "caution".)
+                _df_veto = (_df_align == "misaligned_approach")
+            except Exception as _dfe0:
+                logger.warning(f"[ask] domain-fit precompute skipped (non-fatal): {_dfe0}")
+
             # [money-flow/wealth 2026-09-16] now that _ask_layers_block exists, fold
             # in the deferred money-flow + modern wealth-power-signature context.
-            if locals().get("_ask_money_text"):
-                _ask_layers_block += _ask_money_text
-            if locals().get("_ask_wealth_text"):
-                _ask_layers_block += _ask_wealth_text
-            if locals().get("_ask_event_text"):
-                _ask_layers_block += _ask_event_text
+            # [domain-fit-veto] when the venture's APPROACH is misaligned, these
+            # positive money/funding-window layers answer the wrong question for THIS
+            # ask and get echoed as a false "yes" — skip them so the directive leads.
+            if not _df_veto:
+                if locals().get("_ask_money_text"):
+                    _ask_layers_block += _ask_money_text
+                if locals().get("_ask_wealth_text"):
+                    _ask_layers_block += _ask_wealth_text
+                if locals().get("_ask_event_text"):
+                    _ask_layers_block += _ask_event_text
+            else:
+                print(f"[ask][domain-fit] veto ({_df_align}) — positive money/event "
+                      f"layers suppressed for {chart_id[:8]}")
 
             # [deeper-reasoning 2026-09-30] Append the chara-daśā convergence +
             # activation-gated Lal Kitab grounding (KN Rao cross-check). Internal
@@ -25159,19 +25192,16 @@ async def ask_endpoint(request: AskRequest):
             # Andres case — chart posture is 'expand' but raising for a speculative
             # real-estate flip in his illusion season is misaligned. Guardrail:
             # shape / approach / timing / speculation-caution, never success.
-            _df_align = None
+            # (_df / _df_align / _df_veto were precomputed above, before the
+            # money/event layers, so the veto could gate them. Here we only append
+            # the directive as a LATE, authoritative block the narrator translates.)
             try:
-                from antar_engine.domain_fit import assess_domain_fit as _adf
-                from antar_engine.concern_engines import _vim_active_lords as _val
-                _df_run = {str(x).title() for x in (_val(_ask_dashas) or set())}
-                _df = _adf(chart_data, _ask_dashas, question, _ask_concern,
-                           running_lords=_df_run)
-                _df_align = _df.get("alignment")
-                if _df.get("directive"):
+                if _df and _df.get("directive"):
                     _ask_layers_block += _df["directive"]
-                    print(f"[ask][domain-fit] {_df.get('domain')}/{_df_align} for {chart_id[:8]}")
+                    print(f"[ask][domain-fit] {_df.get('domain')}/{_df_align} "
+                          f"veto={_df_veto} for {chart_id[:8]}")
             except Exception as _dfe:
-                logger.warning(f"[ask] domain-fit skipped (non-fatal): {_dfe}")
+                logger.warning(f"[ask] domain-fit directive skipped (non-fatal): {_dfe}")
 
             # [strategic-stance 2026-09-30] CHART-level posture (expand /
             # consolidate-protect). Suppress the EXPAND push when domain-fit says
@@ -26156,6 +26186,19 @@ async def ask_endpoint(request: AskRequest):
                     _ask_legal_lean, _ask_legal_jup, language)
                 _ask_conv["suppress_verdict"] = False
                 print(f"[ask][legal-framing] verdict lean-override: {_ask_legal_lean}")
+
+            # [domain-fit-veto 2026-09-30] A misaligned APPROACH must not wear an
+            # affirmative chip or a "Yes —" lead: that green-lights the very approach
+            # the chart doesn't support (raise/flip a slow, owned domain). Suppress
+            # the chip (None) and clear the lead phrase — the directive-driven read
+            # now carries the honest answer (wrong approach / aligned lane / season).
+            # We suppress, never flip to a hard "NO": the boundary is approach+timing,
+            # not outcome. Fires only on the structural misalignment, nothing else.
+            if _df_veto and _ask_conv:
+                _ask_conv["suppress_verdict"] = True
+                _ask_conv["verdict_phrase"] = ""
+                print(f"[ask][domain-fit] verdict chip + lead phrase suppressed "
+                      f"(misaligned approach) for {chart_id[:8]}")
 
             if _ask_decision and _ask_conv:
                 _verdict_phrase = (_ask_conv.get("verdict_phrase") or "").strip()
