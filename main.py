@@ -22828,13 +22828,17 @@ def _ask_strategic_stance(chart_data: dict, dashas: dict, concern: str):
                     "\n\nSTRATEGIC STANCE (internal reference — GATE the money/"
                     "funding/venture answer by this; translate to plain language): "
                     "this chart is in a CONSOLIDATE/PROTECT posture — " + why + ". "
-                    "Even if favourable timing windows exist, do NOT coach chasing "
-                    "funding, raising outside money, or expanding. Give the window "
-                    "honestly, then make the MOVE a consolidate-first one: "
-                    "strengthen their own cashflow and clear what's leaking FIRST; "
-                    "if they do take money, keep it small and defensive and protect "
-                    "it (it can reverse); and steer them away from leaning on "
-                    "partners/equity.")
+                    "Give the timing window honestly, but do NOT coach chasing "
+                    "funding, raising outside money, building a deck, or expanding. "
+                    "The MOVE and the WHAT-TO-DO MUST be consolidate actions and "
+                    "must NOT be empty — e.g. 'this week, name your single biggest "
+                    "cash leak or overdue payment and tackle one', 'collect what "
+                    "you're already owed before chasing anything new', 'strengthen "
+                    "your own cashflow first'. If they do take money, keep it small "
+                    "and defensive and protect it (it can reverse), and steer them "
+                    "away from leaning on partners or equity. NEVER render a "
+                    "funding-outreach, investor-intro, or deck-building action for "
+                    "this chart.")
         if expand >= 2 and expand > protect:
             why = "; ".join(er) or "gains significators are active"
             return ("expand",
