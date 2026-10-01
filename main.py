@@ -3816,6 +3816,76 @@ async def delete_venture(chart_id: str, venture_id: str,
     return _build_pattern_payload(chart_id, language)
 
 
+# ── Life-Chapter ARC data — powers the interactive/scrubbable arc ──
+# The big /life-arc endpoint owns the narrative + What's-Ahead events; this is a
+# lightweight, deterministic companion that gives the FE the arc's SPINE: the
+# current chapter's bounds, today's position, and the sub-chapter (antardasha)
+# BANDS within it (the piece the FE can't derive). Jargon-free (plain energy
+# labels), no LLM, fail-open.
+@app.get("/api/v1/chart/{chart_id}/arc")
+async def get_chart_arc(chart_id: str, language: str = "en"):
+    """{available, start, end, now, span_years, bands[{start,end,label,is_current}]}
+    for the current Vimśottarī chapter. Bands = antardasha sub-periods, plain-
+    labelled. The FE plots the What's-Ahead events (from /life-arc) as nodes on
+    this spine and uses `now` for the 'you're here' scrubber."""
+    from datetime import date as _arc_date
+    row = supabase.table("charts").select("chart_data").eq("id", chart_id).single().execute()
+    if not row.data:
+        raise HTTPException(404, "Chart not found")
+    try:
+        vim = (get_dashas_for_chart(chart_id) or {}).get("vimsottari") or []
+    except Exception as _ae:
+        print(f"[arc] dasha load failed (non-fatal): {_ae}")
+        vim = []
+    from antar_engine.chart_identity import _plain_l as _arc_plain
+
+    def _pd(s):
+        try:
+            y, m, d = str(s or "").split("T")[0].split(" ")[0].split("-")[:3]
+            return _arc_date(int(y), int(m), int(d))
+        except Exception:
+            return None
+
+    def _lord(r):
+        return r.get("planet_or_sign") or r.get("lord_or_sign")
+
+    today = _arc_date.today()
+    maha = None
+    for r in vim:
+        if (r.get("level") or "").lower() != "mahadasha":
+            continue
+        s, e = _pd(r.get("start_date") or r.get("start")), _pd(r.get("end_date") or r.get("end"))
+        if s and e and s <= today <= e:
+            maha = {"start": s, "end": e}
+            break
+    if not maha:
+        return {"available": False, "chart_id": chart_id}
+
+    bands = []
+    for r in vim:
+        if (r.get("level") or "").lower() not in ("antardasha", "bhukti"):
+            continue
+        s, e = _pd(r.get("start_date") or r.get("start")), _pd(r.get("end_date") or r.get("end"))
+        if not (s and e) or e <= maha["start"] or s >= maha["end"]:
+            continue
+        lord = _lord(r)
+        bands.append({
+            "start": s.isoformat(), "end": e.isoformat(),
+            "label": (_arc_plain(language, lord) or lord or ""),
+            "is_current": s <= today <= e,
+        })
+    bands.sort(key=lambda b: b["start"])
+    return {
+        "available": True,
+        "chart_id": chart_id,
+        "start": maha["start"].isoformat(),
+        "end": maha["end"].isoformat(),
+        "now": today.isoformat(),
+        "span_years": round((maha["end"] - maha["start"]).days / 365.25, 1),
+        "bands": bands,
+    }
+
+
 @app.get("/api/v1/me/chart-identity")
 @translate_response(fields_to_translate=["effect"], endpoint_name="chart-identity")
 async def get_my_chart_identity(authorization: Optional[str] = Header(None),
