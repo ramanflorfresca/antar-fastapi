@@ -4442,6 +4442,12 @@ _WA_TZ_BY_PREFIX = (("+91", 330), ("+971", 240), ("+65", 480), ("+44", 60),
 _WA_L = {
     "reading":  {"en": "Reading your chart…", "es": "Leyendo tu carta…", "pt": "Lendo seu mapa…",
                  "hinglish": "Aapka chart padh raha hoon…"},
+    # [whatsapp-pending] used while outbound sends are failing (e.g. Twilio
+    # compliance pending): the answer is kept and returned on the next message.
+    "reading_pull": {"en": "Reading your chart… this one takes a little longer. Reply *ok* in about 20 seconds and I'll send it.",
+                     "es": "Leyendo tu carta… esta tarda un poco más. Responde *ok* en unos 20 segundos y te la envío.",
+                     "pt": "Lendo seu mapa… esta demora um pouco mais. Responda *ok* em uns 20 segundos e eu envio.",
+                     "hinglish": "Aapka chart padh raha hoon… isme thoda time lagega. Lagbhag 20 second baad *ok* bhejiye, main bhej dunga."},
     "welcome":  {"en": "✅ Connected — I'm reading *{name}*'s chart.\n\nAsk me anything about your life, timing or a decision. Or reply with a number:",
                  "es": "✅ Conectado — estoy leyendo la carta de *{name}*.\n\nPregúntame lo que quieras sobre tu vida, tus tiempos o una decisión. O responde con un número:",
                  "pt": "✅ Conectado — estou lendo o mapa de *{name}*.\n\nPergunte o que quiser sobre sua vida, seus tempos ou uma decisão. Ou responda com um número:",
@@ -4657,7 +4663,17 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
     ctx = _msg.link_context(link)
     lang = _wa_lang(body, ctx.get("lang") or "en") if body else (ctx.get("lang") or "en")
     sink = sink or _WaSink(number, inbound_ts, inline=False)
-    send = sink.send
+    undelivered: list = []          # [whatsapp-pending] REST sends that failed
+    rest_seen = {"ok": False, "fail": False}
+
+    def send(txt):
+        via_rest = not (sink.inline and not sink.closed)
+        ok = sink.send(txt)
+        if via_rest:
+            rest_seen["ok" if ok else "fail"] = True
+            if not ok:
+                undelivered.append(txt)
+        return ok
 
     def _save(c):
         c = dict(c)
@@ -4699,6 +4715,16 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             send(_wa_text("need_link", lang, how=how))
             return
 
+        # [whatsapp-pending] an answer that couldn't be sent earlier goes out first
+        pend = ctx.get("pending") or {}
+        if pend.get("items") and _time.time() - int(pend.get("at") or 0) < 24 * 3600:
+            for t in pend["items"]:
+                send(t)
+            ctx.pop("pending", None)
+            _save(ctx)
+            if _msg.is_thanks(body) or body.strip().lower().strip(" .!?") in (
+                    "", "?", "ready", "send", "listo", "pronto", "haan", "yes", "si", "sí", "sim"):
+                return
         if cmd == "help":
             send(_wa_text("help", lang))
             return
@@ -4769,7 +4795,8 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         try:
             payload = await asyncio.wait_for(asyncio.shield(ask), timeout=sink.reading_after())
         except asyncio.TimeoutError:
-            send(_wa_text("reading", lang))
+            blocked = _time.time() - int(ctx.get("rest_blocked_at") or 0) < 24 * 3600
+            send(_wa_text("reading_pull" if (blocked and sink.inline) else "reading", lang))
             try:
                 payload = await asyncio.wait_for(ask, timeout=90)
             except asyncio.TimeoutError:
@@ -4806,6 +4833,23 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             send(_wa_text("failed", lang))
         except Exception:
             pass
+    finally:
+        # [whatsapp-pending] keep what we couldn't send; hand it over on the next
+        # message (which can be answered inline). Track whether REST works.
+        try:
+            if link and (undelivered or rest_seen["ok"]):
+                c = _msg.link_context(link)
+                if undelivered:
+                    prev = (c.get("pending") or {}).get("items") or []
+                    c["pending"] = {"items": (prev + undelivered)[-4:], "at": int(_time.time())}
+                    c["rest_blocked_at"] = int(_time.time())
+                    print(f"[whatsapp] kept {len(undelivered)} undelivered for next message …{number[-4:]}")
+                elif rest_seen["ok"]:
+                    c.pop("rest_blocked_at", None)
+                c["lang"] = lang
+                await asyncio.to_thread(_msg.save_link_context, sb, link, c)
+        except Exception as e:
+            print(f"[whatsapp] pending save failed: {e}")
 
 
 @app.post("/api/v1/messaging/whatsapp/webhook")
