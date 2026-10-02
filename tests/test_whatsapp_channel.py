@@ -431,3 +431,18 @@ def test_alerts_opt_in_is_separate_and_off_by_default(m, monkeypatch):
     c.post("/api/v1/messaging/link/start", json=dict(body, alerts_opt_in=True),
            headers={"Authorization": "Bearer x"})
     assert rows[0]["alerts_opt_in"] is False and rows[1]["alerts_opt_in"] is True
+
+
+def test_help_is_answered_inline_with_twiml(m, monkeypatch):
+    from fastapi.testclient import TestClient
+    handled = []
+
+    async def fake_handle(*a, **k):
+        handled.append(a)
+    monkeypatch.setattr(m, "_wa_handle", fake_handle)
+    raw, sig = _signed({"MessageSid": "SM9", "From": "whatsapp:+919812345678",
+                        "Body": "ayuda", "NumMedia": "0"})
+    r = TestClient(m.app).post("/api/v1/messaging/whatsapp/webhook", content=raw, headers={
+        "Content-Type": "application/x-www-form-urlencoded", "X-Twilio-Signature": sig})
+    assert r.status_code == 200 and r.text.startswith("<Response><Message>")
+    assert "Hazme cualquier pregunta" in r.text and handled == []

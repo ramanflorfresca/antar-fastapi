@@ -4533,8 +4533,18 @@ def _wa_text(key: str, lang: str, **kw) -> str:
     return s.format(**kw) if kw else s
 
 
+_WA_CMD_LANG = {"ayuda": "es", "parar": "es", "desconectar": "es", "cambiar": "es",
+                "gracias": "es", "ajuda": "pt", "trocar": "pt", "obrigado": "pt",
+                "obrigada": "pt", "madad": "hinglish", "band": "hinglish",
+                "badlo": "hinglish", "shukriya": "hinglish", "dhanyavad": "hinglish"}
+
+
 def _wa_lang(text: str, fallback: str = "en") -> str:
-    """en / es / pt / hinglish from the message text; `fallback` when unclear."""
+    """en / es / pt / hinglish from the message text; `fallback` when unclear.
+    One-word commands are too short for the detectors, so the word itself decides."""
+    first = (text or "").strip().lower().strip(" .!¡?¿").split(" ")[0] if text else ""
+    if first in _WA_CMD_LANG:
+        return _WA_CMD_LANG[first]
     try:
         d = _ask_detect_text_lang(text)
         if d in ("es", "pt"):
@@ -4797,6 +4807,16 @@ async def messaging_whatsapp_webhook(http_request: Request):
         num_media = 0
     if not number or (not body and not num_media):   # status pings: nothing to answer
         return _empty
+    # [whatsapp-twiml] `help` is answered INSIDE the webhook response (TwiML
+    # <Message>) — instant, no DB, no REST send. Also tells us whether Twilio lets
+    # in-response replies through while the account's compliance profile is pending
+    # (REST sends fail with 20003 until it's approved).
+    if _msg.parse_wa_command(body)[0] == "help":
+        from xml.sax.saxutils import escape as _xml_escape
+        txt = _xml_escape(_wa_text("help", _wa_lang(body)))
+        print(f"[whatsapp] help via TwiML …{number[-4:]}")
+        return _Resp(content=f"<Response><Message>{txt}</Message></Response>",
+                     media_type="text/xml")
     task = asyncio.create_task(_wa_handle(number, body, now, num_media))
     _WA_TASKS.add(task)
     task.add_done_callback(_WA_TASKS.discard)
@@ -7138,64 +7158,6 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
         diagnostic_block = ""
     # --- END DIAGNOSTIC PRE-SCAN ---
 
-    # --- SYSTEM STATE INJECTION (Sprint Apr7 Step 2) ---
-    system_state_block = ""
-    try:
-        import logging as _ss_log
-        _ssl = _ss_log.getLogger("antar.system_state")
-
-        # Pull instrument scores from executive_dashboard if available
-        instr = {}
-        try:
-            from antar_engine.executive_dashboard import get_instrument_scores
-            instr = get_instrument_scores(chart_data) if chart_data else {}
-        except Exception as _ie:
-            _ssl.debug(f"Instrument scores unavailable: {_ie}")
-
-        # Pull LK sleeping/rin state
-        lk_state = {}
-        try:
-            from antar_engine.lal_kitab_advanced import get_lk_state
-            lk_state = get_lk_state(chart_data) if chart_data else {}
-        except Exception as _lke:
-            _ssl.debug(f"LK state unavailable: {_lke}")
-
-        lines = ["\nCURRENT SYSTEM STATE:"]
-
-        # Top 6 instrument gauges by score
-        if instr:
-            sorted_instr = sorted(instr.items(), key=lambda x: x[1].get("score", 0), reverse=True)
-            for name, val in sorted_instr[:6]:
-                _score  = val.get("score", 0)
-                _status = val.get("status", "")
-                _lock   = val.get("lock_level", "")
-                _lock_str = f" — {_lock}" if _lock else ""
-                lines.append(f"  {name}: {_status} ({_score}/100){_lock_str}")
-
-        # Lal Kitab sleeping planets and active Rin debts
-        sleeping = lk_state.get("sleeping_planets", []) if lk_state else []
-        rins     = lk_state.get("active_rins", []) if lk_state else []
-        if sleeping or rins:
-            lines.append("KARMIC STATE (Lal Kitab):")
-            for sp in sleeping[:3]:
-                _planet    = sp.get("planet", sp) if isinstance(sp, dict) else sp
-                _reason    = sp.get("reason", "") if isinstance(sp, dict) else ""
-                _reason_str = f" — {_reason}" if _reason else ""
-                lines.append(f"  Sleeping {_planet}{_reason_str}")
-            for rin in rins[:2]:
-                _rin_type  = rin.get("type", rin) if isinstance(rin, dict) else rin
-                _effect    = rin.get("effect", "") if isinstance(rin, dict) else ""
-                _effect_str = f" — affects {_effect}" if _effect else ""
-                lines.append(f"  Active Rin: {_rin_type}{_effect_str}")
-
-        if len(lines) > 1:
-            system_state_block = "\n".join(lines) + "\n"
-            _ssl.info("System state block ready for injection")
-    except Exception as _sse:
-        import logging as _fb_log
-        _fb_log.getLogger("antar").warning(f"System state injection failed (non-critical): {_sse}")
-        system_state_block = ""
-    # --- END SYSTEM STATE INJECTION ---
 
     # --- DKP CONTEXT BLOCKS (Sprint Apr7 Step 3) ---
     dkp_block = ""
@@ -8226,8 +8188,6 @@ Do not use any planet names or astrological jargon — translate everything into
         except Exception as _je:
             print(f"Jaimini context failed (non-blocking): {_je}")
         # --- INJECT STEP 2+3 BLOCKS INTO FULL CONTEXT ---
-        if system_state_block:
-            _full_context += "\n" + system_state_block
         if dkp_block and dkp_block not in _full_context:
             _full_context += "\n" + dkp_block
         if divisional_block and divisional_block not in _full_context:
