@@ -25806,7 +25806,11 @@ async def ask_endpoint(request: AskRequest):
                 from antar_engine.ask_timeframe import (
                     detect_horizon as _tf_detect, score_day_for_concern as _tf_score)
                 _tf = _tf_detect(question)
-                if _tf and _tf.get("kind") == "days" and isinstance(chart_data, dict):
+                # [apple-4.3 2026-10-02] A gambling-flavoured question must not get a
+                # per-day "best day to bet" ranking — answer it as a period/house
+                # speculation read, not a dated pick.
+                if (_tf and _tf.get("kind") == "days" and isinstance(chart_data, dict)
+                        and not _is_gambling_q(question)):
                     import datetime as _tfdt
                     _TF_SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
                                  "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
@@ -25865,8 +25869,13 @@ async def ask_endpoint(request: AskRequest):
                 from antar_engine.ask_timeframe import (
                     detect_horizon as _tfw_detect, scan_window as _tfw_scan)
                 _tfw = _tfw_detect(question)
+                # [apple-4.3 2026-10-02] Same for a "which day this week" window-scan —
+                # a gambling-flavoured question must not become a dated "best day"
+                # pick (this block injects WINDOW-SCAN FACTS into the prompt + sets the
+                # timing chip). Gate it off so speculation stays a period/house read.
                 if (_tfw and _tfw.get("kind") == "window" and _tfw.get("scan")
-                        and isinstance(chart_data, dict)):
+                        and isinstance(chart_data, dict)
+                        and not _is_gambling_q(question)):
                     import datetime as _tfwdt
                     _TFW_SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
                                   "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
