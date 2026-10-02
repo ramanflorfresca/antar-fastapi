@@ -607,3 +607,52 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
         lines.append("\n".join(f"{i}  {q}" for i, q in enumerate(fus, 1)))
     text = "\n\n".join(l for l in lines if l).strip()
     return text, fus
+
+
+# ── typing indicator (Twilio Messaging v3, public beta) ──
+# [whatsapp-typing] Shows "typing…" under Antar's name and marks the user's
+# message read (blue ticks). Lasts until our reply is delivered or 25s; re-send
+# to extend. Replaces any "Reading your chart…" holding message: the user only
+# ever receives COMPLETE answers. Fail-soft (beta; may be blocked pre-approval).
+_TWILIO_TYPING_API = "https://messaging.twilio.com/v3/Indicators/Typing.json"
+
+
+def whatsapp_typing(message_sid: str) -> bool:
+    import os
+    sid, token = os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN")
+    if not (sid and token and message_sid):
+        return False
+    try:
+        auth = base64.b64encode(f"{sid}:{token}".encode()).decode()
+        req = urllib.request.Request(
+            _TWILIO_TYPING_API, method="POST",
+            data=json.dumps({"channel": "WHATSAPP", "messageId": message_sid}).encode(),
+            headers={"Authorization": "Basic " + auth, "Content-Type": "application/json"})
+        urllib.request.urlopen(req, timeout=8)
+        return True
+    except urllib.error.HTTPError as e:
+        print(f"[whatsapp] typing failed: {e.code} {e.read()[:200]!r}")
+        return False
+    except Exception as e:
+        print(f"[whatsapp] typing failed: {e}")
+        return False
+
+
+_GREETINGS = frozenset("""
+hi hello hey hola oi ola olá namaste namaskar hii hiii yo hallo buenas
+waiting wait still there anyone ping hello? hey? hmm
+""".split())
+
+
+def is_nudge(text: str) -> bool:
+    """A short non-question: greeting, 'waiting', 'still there', 'ok', thanks.
+    Never sent to Ask as a question."""
+    t = (text or "").strip().lower().strip(" .!¡¿")
+    if not t:
+        return True
+    if is_thanks(text) or t in ("?", "??", "???"):
+        return True
+    words = re.findall(r"[\w']+", t)
+    if not words or len(words) > 3 or (t.endswith("?") and len(words) > 1):
+        return False
+    return all(w in _GREETINGS or w in _THANKS for w in words)
