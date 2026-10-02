@@ -996,6 +996,151 @@ async def _yesno_checkback_job():
           f"(push_configured={push_ok}, email={'on' if email_on else 'off'})")
 
 
+def _ec_flag(name: str) -> bool:
+    return (os.environ.get(name) or "").strip().lower() in ("1", "on", "true", "yes")
+
+
+def _ec_tz_hours(chart: dict) -> float:
+    _cc = (chart.get("current_country") or chart.get("birth_country") or "").upper()
+    return float(_COUNTRY_TZ_OFFSETS.get(_cc, _COUNTRY_TZ_OFFSETS.get("DEFAULT", 0)))
+
+
+async def _ec_targets(label: str):
+    """(tokens_by_chart, charts_by_id) for every chart with a device token."""
+    import asyncio as _aio_ec
+    toks: dict = {}
+    rows = await _aio_ec.to_thread(lambda: supabase.table("device_tokens")
+                                   .select("token,chart_id,platform").execute().data or [])
+    for t in rows:
+        if t.get("token") and t.get("chart_id"):
+            toks.setdefault(t["chart_id"], []).append({"token": t["token"], "platform": t.get("platform")})
+    charts: dict = {}
+    ids = sorted(toks)
+    for i in range(0, len(ids), 150):
+        part = ids[i:i + 150]
+        for c in await _aio_ec.to_thread(lambda: supabase.table("charts")
+                                         .select("id,current_country,birth_country,language_preference,language,deleted_at")
+                                         .in_("id", part).execute().data or []):
+            if not c.get("deleted_at"):
+                charts[c["id"]] = c
+    print(f"[{label}] {len(charts)} charts with device tokens")
+    return toks, charts
+
+
+async def _evening_checkin_job():
+    """[evening-checkin 2026-10-02] HOURLY. At ~8 PM local, if today's daily claim
+    (key daily-<local date>) is still unanswered, push "Did today land?" → Today,
+    where the check-in card lives. Push only; OFF unless EVENING_CHECKIN_PUSH=on.
+    Dedupe = acts only in the chart's local 20:00 hour (once per local day), like
+    the morning nudge — the claim's key is its upsert identity, never stamped."""
+    from antar_engine import push_sender
+    from antar_engine import evening_checkin as ec
+    import asyncio as _aio_ec
+    if not _ec_flag("EVENING_CHECKIN_PUSH"):
+        return
+    if not push_sender.is_configured():
+        print("[evening_checkin] push not configured — skipping")
+        return
+    now = datetime.now(timezone.utc)
+    try:
+        toks, charts = await _ec_targets("evening_checkin")
+        due_charts = [cid for cid, c in charts.items()
+                      if ec.is_local_hour(now, _ec_tz_hours(c), ec.EVENING_HOUR)]
+        if not due_charts:
+            print(f"[evening_checkin] @{now.hour:02d}:xx UTC — no chart at local 8 PM")
+            return
+        rows = []
+        for i in range(0, len(due_charts), 150):
+            part = due_charts[i:i + 150]
+            rows += await _aio_ec.to_thread(lambda: supabase.table("user_correlations")
+                .select("id,chart_id,correlation_key,trackable_claim,show_after,feedback_status")
+                .in_("chart_id", part).like("correlation_key", "daily-%")
+                .eq("feedback_status", "pending")
+                .gte("show_after", (now - timedelta(days=2)).isoformat())
+                .execute().data or [])
+    except Exception as e:
+        print(f"[evening_checkin] FATAL fetch: {e}")
+        return
+    stats = {"charts_at_8pm": len(due_charts), "due": 0, "sent": 0}
+    for r in rows:
+        c = charts.get(r.get("chart_id"))
+        if not c or not ec.evening_due(r, now, _ec_tz_hours(c)):
+            continue
+        stats["due"] += 1
+        try:
+            title, body = ec.build_evening_message(
+                r.get("trackable_claim"), ec.norm_lang(c.get("language_preference"), c.get("language")))
+            res = await push_sender.send_to_tokens(
+                supabase, toks.get(c["id"]) or [], title=title, body=body,
+                data={"type": "evening_checkin", "route": ec.ROUTE_TODAY,
+                      "correlation_id": str(r.get("id"))})
+            if res.get("sent"):
+                stats["sent"] += 1
+        except Exception as e:
+            print(f"[evening_checkin] row {str(r.get('id'))[:8]} non-fatal: {e}")
+    print(f"[evening_checkin] @{now.hour:02d}:xx UTC — {stats}")
+
+
+def _ec_week_rows(chart_id: str, since_iso: str) -> list:
+    """Claims answered OR enrolled since `since_iso` (two cheap queries, merged by id)."""
+    cols = "id,trackable_claim,feedback_status,feedback_at,created_at,show_after"
+    out = {}
+    for q in (
+        supabase.table("user_correlations").select(cols).eq("chart_id", chart_id).gte("feedback_at", since_iso),
+        supabase.table("user_correlations").select(cols).eq("chart_id", chart_id).gte("created_at", since_iso),
+    ):
+        try:
+            for r in (q.limit(400).execute().data or []):
+                out[r["id"]] = r
+        except Exception as e:
+            print(f"[weekly_receipt] rows non-fatal: {e}")
+    return list(out.values())
+
+
+async def _weekly_receipt_job():
+    """[weekly-receipt 2026-10-02] HOURLY. Sunday ~7 PM local: "Your week with
+    Antar — 4 landed and 1 partly, out of 6 you checked." Only when >= 2 were
+    answered that week. Push only; OFF unless WEEKLY_RECEIPT_PUSH=on. Dedupe =
+    the Sunday 19:00 local slot (once per local week)."""
+    from antar_engine import push_sender
+    from antar_engine import evening_checkin as ec
+    import asyncio as _aio_ec
+    if not _ec_flag("WEEKLY_RECEIPT_PUSH"):
+        return
+    if not push_sender.is_configured():
+        print("[weekly_receipt] push not configured — skipping")
+        return
+    now = datetime.now(timezone.utc)
+    try:
+        toks, charts = await _ec_targets("weekly_receipt")
+    except Exception as e:
+        print(f"[weekly_receipt] FATAL fetch: {e}")
+        return
+    stats = {"in_slot": 0, "qualified": 0, "sent": 0}
+    since = (now - timedelta(days=8)).isoformat()
+    for cid, c in charts.items():
+        tzh = _ec_tz_hours(c)
+        if not ec.is_local_weekly_slot(now, tzh):
+            continue
+        stats["in_slot"] += 1
+        try:
+            rows = await _aio_ec.to_thread(_ec_week_rows, cid, since)
+            rec = ec.weekly_receipt(rows, now, tzh)
+            if not ec.weekly_should_send(rec):
+                continue
+            stats["qualified"] += 1
+            title, body = ec.build_weekly_message(
+                rec, ec.norm_lang(c.get("language_preference"), c.get("language")))
+            res = await push_sender.send_to_tokens(
+                supabase, toks.get(cid) or [], title=title, body=body,
+                data={"type": "weekly_receipt", "route": ec.ROUTE_TODAY})
+            if res.get("sent"):
+                stats["sent"] += 1
+        except Exception as e:
+            print(f"[weekly_receipt] chart {cid[:8]} non-fatal: {e}")
+    print(f"[weekly_receipt] @{now.hour:02d}:xx UTC — {stats}")
+
+
 def _clip_claim(text: str, limit: int) -> str:
     """[checkin-clip 2026-10-02] Shorten a stored claim for a check-in WITHOUT
     cutting mid-word. A hard [:120] slice put "…courage and decisive action are
@@ -1432,6 +1577,10 @@ scheduler.add_job(_ping_checkin_job, "cron", minute=9,
                   id="ping_checkin_daily", replace_existing=True)  # hourly; pings per-chart at local ~8 AM
 scheduler.add_job(_yesno_checkback_job, "cron", minute=13,
                   id="yesno_checkback", replace_existing=True)  # hourly; Yes/No "did it happen?" at local ~8 AM
+scheduler.add_job(_evening_checkin_job, "cron", minute=17,
+                  id="evening_checkin", replace_existing=True)  # hourly; "did today land?" at local ~8 PM (EVENING_CHECKIN_PUSH)
+scheduler.add_job(_weekly_receipt_job, "cron", minute=19,
+                  id="weekly_receipt", replace_existing=True)  # hourly; Sunday ~7 PM local (WEEKLY_RECEIPT_PUSH)
 scheduler.add_job(_monthly_briefing_job, "cron", minute=11,
                   id="monthly_briefing_send", replace_existing=True)  # hourly; sends per-chart at local 1st ~8 AM
 scheduler.add_job(_daily_polarity_log_job, "cron", hour=3, minute=0,
@@ -31318,6 +31467,41 @@ def debug_test_alert(admin_email: str = Depends(_require_debug)):
                  "ALERT_WEBHOOK_URL is not set — the alert was logged to Railway "
                  "logs only. Set the env var, then call this again."),
     }
+
+
+@app.get("/api/v1/predictions/weekly-receipt/{chart_id}")
+def get_weekly_receipt_endpoint(chart_id: str, tz_offset: float = None):
+    """[weekly-receipt 2026-10-02] The last 7 local days of verification for a
+    weekly card: tracked / answered / landed / partly / missed / accuracy_pct /
+    best_landed, plus `show` (>= 2 answered) and the lifetime /accuracy block.
+    tz_offset: minutes east of UTC (web contract) or hours; else chart country."""
+    from antar_engine import evening_checkin as ec
+    from antar_engine.prediction_tracker import get_accuracy_score
+    from uuid import UUID as _UUID_wr
+    try:
+        _UUID_wr(str(chart_id))
+    except (ValueError, TypeError):
+        raise HTTPException(404, "Chart not found")
+    tzh = None
+    if tz_offset is not None:
+        try:
+            tzh = float(tz_offset)
+            if abs(tzh) > 14:
+                tzh /= 60.0
+        except (TypeError, ValueError):
+            tzh = None
+    if tzh is None:
+        try:
+            c = (supabase.table("charts").select("current_country,birth_country")
+                 .eq("id", chart_id).limit(1).execute().data or [{}])[0]
+            tzh = _ec_tz_hours(c)
+        except Exception:
+            tzh = 0.0
+    now = datetime.now(timezone.utc)
+    rec = ec.weekly_receipt(_ec_week_rows(chart_id, (now - timedelta(days=8)).isoformat()), now, tzh)
+    rec["show"] = ec.weekly_should_send(rec)
+    rec["lifetime"] = get_accuracy_score(chart_id, supabase)
+    return rec
 
 
 @app.get("/api/v1/predictions/accuracy/{chart_id}")
