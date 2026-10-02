@@ -692,3 +692,45 @@ def _selftest() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(_selftest())
+
+
+def tidy_domain_rows(rows: Optional[List[Dict[str, Any]]], altitude: str,
+                     language: str = "en") -> List[Dict[str, Any]]:
+    """[year-rows 2026-10-02] Serve-time twin of the _fallback_copy fixes, for
+    rows read back from the layered cache (built before the fix, or phrased by
+    the model with the same repeats): key = domain; no substance that repeats
+    the hook; no depth that re-states hook/substance; year rows never carry the
+    month tail; "*ships stays" → "*ships stay". Idempotent; never raises."""
+    import re as _re_t
+    _lang = (language or "en")[:2]
+    out: List[Dict[str, Any]] = []
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        r = dict(r)
+        try:
+            if not r.get("key") and r.get("domain"):
+                r["key"] = r["domain"]
+            hook = (r.get("hook") or "").strip()
+            sub = (r.get("substance") or "").strip()
+            dep = (r.get("depth") or "").strip()
+            if _lang == "en":
+                hook = _re_t.sub(r"\b(\w+ships) stays\b", r"\1 stay", hook)
+                sub = _re_t.sub(r"\b(\w+ships) stays\b", r"\1 stay", sub)
+                dep = _re_t.sub(r"\b(\w+ships) stays\b", r"\1 stay", dep)
+            if sub and sub == hook:
+                sub = ""
+            for lead in (hook, sub):
+                if lead and dep.startswith(lead):
+                    dep = dep[len(lead):].strip()
+            if altitude != ALT_MONTH:
+                for k, v in _MONTH_TAIL.items():
+                    dep = dep.replace(v, _YEAR_TAIL.get(k, _YEAR_TAIL["en"]))
+            if not dep:
+                dep = (_YEAR_TAIL if (sub and altitude != ALT_MONTH) else _GENTLE_TAIL).get(
+                    _lang, _GENTLE_TAIL["en"])
+            r["hook"], r["substance"], r["depth"] = hook, sub, dep
+        except Exception:
+            pass
+        out.append(r)
+    return out
