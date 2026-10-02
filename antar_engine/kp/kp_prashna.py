@@ -204,11 +204,15 @@ def resolve_number(request_number=None, question=""):
 # Casting at the seat
 # --------------------------------------------------------------------------
 def _seat_local(now_utc):
-    """-> (naive local datetime at the seat, tz offset hours)."""
-    from zoneinfo import ZoneInfo
+    """-> (naive local datetime at the seat, tz offset hours).
+
+    pytz, not zoneinfo: pytz ships its own tz database, while zoneinfo needs
+    system tzdata that slim deploy images may lack — a ZoneInfoNotFoundError
+    here would silently push every Yes/No back to the classic engine."""
+    import pytz
     if now_utc.tzinfo is None:
         now_utc = now_utc.replace(tzinfo=timezone.utc)
-    local = now_utc.astimezone(ZoneInfo(ASTROLOGER_SEAT["tz"]))
+    local = now_utc.astimezone(pytz.timezone(ASTROLOGER_SEAT["tz"]))
     off = local.utcoffset().total_seconds() / 3600.0
     return local.replace(tzinfo=None), off
 

@@ -192,6 +192,13 @@ def test_feedback_card_asks_did_it_happen():
     assert _feedback_ui("career", "en")["style"] == "truth"   # unchanged
 
 
+def test_seat_clock_is_dst_aware():
+    from antar_engine.kp.kp_prashna import _seat_local
+    assert _seat_local(datetime(2026, 7, 1, 16, tzinfo=timezone.utc))[1] == -4.0   # EDT
+    assert _seat_local(datetime(2026, 12, 1, 17, tzinfo=timezone.utc)) == (
+        datetime(2026, 12, 1, 12, 0), -5.0)                                          # EST
+
+
 def test_seat_is_edgewater():
     assert ASTROLOGER_SEAT["name"] == "Edgewater, NJ"
     assert ASTROLOGER_SEAT["tz"] == "America/New_York"
