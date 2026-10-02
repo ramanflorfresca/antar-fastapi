@@ -4182,6 +4182,14 @@ def messaging_link_start(req: _MsgLinkStart, authorization: str = Header(...)):
     out = _msg.create_pending_link(supabase, chart_id, user_id, req.channel or "telegram")
     if not out.get("available"):
         raise HTTPException(503, out.get("reason") or "messaging not set up yet")
+    if (req.channel or "") == "whatsapp":
+        # [whatsapp] wa.me opens WhatsApp with "LINK <code>" pre-typed; one tap sends it.
+        digits = re.sub(r"\D", "", os.getenv("TWILIO_WHATSAPP_FROM") or "")
+        out["deep_link"] = (f"https://wa.me/{digits}?text=LINK%20{out['code']}"
+                            if digits else None)
+        out["expires_in_minutes"] = _msg.WA_LINK_CODE_MAX_AGE_MIN
+        out["instructions"] = "Open the link and tap send, or message Antar: LINK " + out["code"]
+        return out
     uname = os.getenv("TELEGRAM_BOT_USERNAME")
     out["deep_link"] = (f"https://t.me/{uname}?start={out['code']}" if uname else None)
     out["instructions"] = ("Open the link, or message the bot: /start " + out["code"])
@@ -4248,6 +4256,231 @@ async def messaging_telegram_webhook(http_request: Request):
     except Exception as e:
         print(f"[messaging] telegram webhook non-fatal: {e}")
     return {"ok": True}
+
+
+# ── /ask over WhatsApp (Twilio) ──
+# [whatsapp 2026-10-02] Spec: "Antar on WhatsApp — Ask Channel Spec" (Claude Doc).
+# Twilio POSTs every inbound message here. We verify the signature, ACK with empty
+# TwiML in < 1s (Twilio gives up at 15s and /ask is slower), then a background task
+# resolves number → linked chart → /ask → reply via the Twilio send API.
+# Env: WHATSAPP_ENABLED, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_WHATSAPP_FROM,
+# optional TWILIO_WEBHOOK_URL (exact public URL Twilio calls, for the signature),
+# optional WHATSAPP_LINK_SECRET + WHATSAPP_CONNECT_URL (sign-in link for unknown numbers).
+_WA_TASKS: set = set()            # strong refs — a bare create_task can be GC'd mid-flight
+_WA_SEEN: dict = {}               # MessageSid → ts (Twilio retry dedupe, per worker)
+_WA_BAD_CODES: dict = {}          # number → [ts…] wrong LINK attempts (brute-force guard)
+
+# Reader-local "today" for Ask, from the number's country code (minutes east of UTC).
+_WA_TZ_BY_PREFIX = (("+91", 330), ("+971", 240), ("+65", 480), ("+44", 60),
+                    ("+34", 120), ("+351", 60), ("+55", -180), ("+54", -180),
+                    ("+57", -300), ("+52", -360), ("+56", -180), ("+51", -300),
+                    ("+1", -240))
+
+_WA_L = {
+    "reading":  {"en": "Reading your chart…", "es": "Leyendo tu carta…", "pt": "Lendo seu mapa…"},
+    "linked":   {"en": "✅ Connected to {name}. Ask me anything about your life, timing or a decision.",
+                 "es": "✅ Conectado a {name}. Pregúntame lo que quieras sobre tu vida, tus tiempos o una decisión.",
+                 "pt": "✅ Conectado a {name}. Pergunte o que quiser sobre sua vida, seus tempos ou uma decisão."},
+    "bad_code": {"en": "That code is invalid or expired. Open the Antar app → Connect WhatsApp to get a new one.",
+                 "es": "Ese código no es válido o venció. Abre la app de Antar → Conectar WhatsApp para obtener uno nuevo.",
+                 "pt": "Esse código é inválido ou expirou. Abra o app Antar → Conectar WhatsApp para gerar um novo."},
+    "need_link": {"en": "Hi 🙏 I'm Antar. To read your chart I first need to know it's you.\n\n{how}",
+                  "es": "Hola 🙏 Soy Antar. Para leer tu carta primero necesito saber que eres tú.\n\n{how}",
+                  "pt": "Olá 🙏 Sou o Antar. Para ler seu mapa, primeiro preciso saber que é você.\n\n{how}"},
+    "how_app":  {"en": "Open the Antar app → Connect WhatsApp, then tap send.",
+                 "es": "Abre la app de Antar → Conectar WhatsApp y toca enviar.",
+                 "pt": "Abra o app Antar → Conectar WhatsApp e toque em enviar."},
+    "how_link": {"en": "Sign in here to connect this number (link valid 15 minutes):\n{url}",
+                 "es": "Inicia sesión aquí para conectar este número (enlace válido 15 minutos):\n{url}",
+                 "pt": "Entre aqui para conectar este número (link válido por 15 minutos):\n{url}"},
+    "unlinked": {"en": "Done — this number is disconnected from Antar. Reconnect anytime from the app.",
+                 "es": "Listo — este número quedó desconectado de Antar. Puedes reconectarlo desde la app.",
+                 "pt": "Pronto — este número foi desconectado do Antar. Reconecte quando quiser pelo app."},
+    "help":     {"en": "Ask me any question about your life, timing or a decision — I read it from your chart.\n\nCommands: *STOP* disconnects this number.",
+                 "es": "Hazme cualquier pregunta sobre tu vida, tus tiempos o una decisión — la leo desde tu carta.\n\nComandos: *STOP* desconecta este número.",
+                 "pt": "Faça qualquer pergunta sobre sua vida, seus tempos ou uma decisão — eu leio pelo seu mapa.\n\nComandos: *STOP* desconecta este número."},
+    "failed":   {"en": "Something went wrong reading your chart — please ask again in a moment.",
+                 "es": "Algo salió mal al leer tu carta — vuelve a preguntar en un momento.",
+                 "pt": "Algo deu errado ao ler seu mapa — pergunte novamente em instantes."},
+    "too_many": {"en": "Too many wrong codes. Please try again in an hour.",
+                 "es": "Demasiados códigos incorrectos. Inténtalo de nuevo en una hora.",
+                 "pt": "Muitos códigos incorretos. Tente novamente em uma hora."},
+}
+
+
+def _wa_on() -> bool:
+    return (os.getenv("WHATSAPP_ENABLED") or "").strip().lower() in ("1", "true", "yes", "on")
+
+
+def _wa_text(key: str, lang: str, **kw) -> str:
+    s = _WA_L[key].get(lang) or _WA_L[key]["en"]
+    return s.format(**kw) if kw else s
+
+
+def _wa_lang(text: str) -> str:
+    try:
+        d = _ask_detect_text_lang(text)
+        return d if d in ("es", "pt") else "en"
+    except Exception:
+        return "en"
+
+
+def _wa_tz(number: str) -> int:
+    for pre, mins in _WA_TZ_BY_PREFIX:
+        if number.startswith(pre):
+            return mins
+    return 0
+
+
+def _wa_chart_name(chart_id: str) -> str:
+    try:
+        r = (supabase.table("charts").select("name").eq("id", chart_id)
+             .limit(1).execute()).data or []
+        return (r[0].get("name") or "").strip() or "your chart"
+    except Exception:
+        return "your chart"
+
+
+async def _wa_handle(number: str, body: str, inbound_ts: float):
+    """Background worker for one inbound WhatsApp message. Never raises."""
+    from antar_engine import messaging as _msg
+    from starlette.responses import Response as _StarResp
+    lang = _wa_lang(body)
+    send = lambda txt: _msg.whatsapp_send(number, txt, inbound_ts)  # noqa: E731
+    try:
+        cmd, arg = _msg.parse_wa_command(body)
+        if cmd == "link":
+            now = _time.time()
+            bad = [t for t in _WA_BAD_CODES.get(number, []) if now - t < 3600]
+            if len(bad) >= 5:
+                send(_wa_text("too_many", lang))
+                return
+            cid = await asyncio.to_thread(_msg.bind_link_whatsapp, supabase, arg, number)
+            if cid:
+                _WA_BAD_CODES.pop(number, None)
+                name = await asyncio.to_thread(_wa_chart_name, cid)
+                send(_wa_text("linked", lang, name=name))
+            else:
+                _WA_BAD_CODES[number] = bad + [now]
+                send(_wa_text("bad_code", lang))
+            return
+        if cmd == "unlink":
+            await asyncio.to_thread(_msg.unlink_whatsapp, supabase, number)
+            send(_wa_text("unlinked", lang))
+            return
+        if cmd == "help":
+            send(_wa_text("help", lang))
+            return
+
+        cid = await asyncio.to_thread(_msg.resolve_chart, supabase, "whatsapp", number)
+        if not cid:
+            secret = os.getenv("WHATSAPP_LINK_SECRET")
+            base = os.getenv("WHATSAPP_CONNECT_URL")     # e.g. https://antar.world/wa/connect
+            if secret and base:
+                tok = _msg.make_connect_token(secret, number)
+                how = _wa_text("how_link", lang, url=f"{base}?t={tok}")
+            else:
+                how = _wa_text("how_app", lang)
+            send(_wa_text("need_link", lang, how=how))
+            return
+
+        send(_wa_text("reading", lang))
+        try:
+            payload = await asyncio.wait_for(ask_endpoint(AskRequest(
+                question=body, chart_id=cid, mode="explore", language=lang,
+                tz_offset=_wa_tz(number))), timeout=90)
+        except HTTPException as he:
+            print(f"[whatsapp] ask failed {he.status_code}")
+            payload = None
+        if isinstance(payload, _StarResp):
+            try:
+                payload = json.loads(payload.body or b"{}")
+            except Exception:
+                payload = None
+        if not isinstance(payload, dict) or (payload.get("error") and not payload.get("read")):
+            send(_wa_text("failed", lang))
+            return
+        send(_msg.format_ask_for_whatsapp(payload, lang))
+    except Exception as e:
+        print(f"[whatsapp] handler non-fatal …{number[-4:]}: {e}")
+        try:
+            send(_wa_text("failed", lang))
+        except Exception:
+            pass
+
+
+@app.post("/api/v1/messaging/whatsapp/webhook")
+async def messaging_whatsapp_webhook(http_request: Request):
+    """Twilio inbound-message webhook. Verifies X-Twilio-Signature, ACKs with empty
+    TwiML immediately, answers asynchronously. Always 200 once verified."""
+    from antar_engine import messaging as _msg
+    from fastapi.responses import Response as _Resp
+    from urllib.parse import parse_qs
+    _empty = _Resp(content="<Response></Response>", media_type="text/xml")
+    raw = (await http_request.body()).decode("utf-8", "replace")
+    params = {k: v[0] for k, v in parse_qs(raw, keep_blank_values=True).items()}
+    auth_token = os.getenv("TWILIO_AUTH_TOKEN")
+    if not auth_token:
+        return _Resp(status_code=503, content="whatsapp not configured")
+    url = os.getenv("TWILIO_WEBHOOK_URL") or str(http_request.url).replace(
+        "http://", (http_request.headers.get("x-forwarded-proto") or "https") + "://", 1)
+    if not _msg.twilio_signature_ok(auth_token, url, params,
+                                    http_request.headers.get("X-Twilio-Signature") or ""):
+        print(f"[whatsapp] bad signature (url={url})")
+        return _Resp(status_code=403, content="bad signature")
+    if not _wa_on():
+        return _empty
+    sid = params.get("MessageSid") or params.get("SmsMessageSid") or ""
+    number = _msg.wa_number(params.get("From"))
+    body = (params.get("Body") or "").strip()
+    now = _time.time()
+    if sid:
+        if sid in _WA_SEEN:
+            return _empty
+        _WA_SEEN[sid] = now
+        if len(_WA_SEEN) > 5000:
+            for k in [k for k, t in _WA_SEEN.items() if now - t > 3600]:
+                _WA_SEEN.pop(k, None)
+    if not number or not body:            # media-only / status pings: nothing to answer
+        return _empty
+    task = asyncio.create_task(_wa_handle(number, body, now))
+    _WA_TASKS.add(task)
+    task.add_done_callback(_WA_TASKS.discard)
+    return _empty
+
+
+class _WaConnect(BaseModel):
+    token: str
+    chart_id: Optional[str] = None
+
+
+@app.post("/api/v1/messaging/whatsapp/connect")
+def messaging_whatsapp_connect(req: _WaConnect, authorization: str = Header(...)):
+    """Path B: an unknown number got a signed sign-in link; the signed-in user
+    confirms it here and the number is linked to their (primary) chart."""
+    from antar_engine import messaging as _msg
+    user_id = verify_token(authorization)
+    secret = os.getenv("WHATSAPP_LINK_SECRET")
+    if not secret:
+        raise HTTPException(503, "whatsapp linking not configured")
+    number = _msg.read_connect_token(secret, req.token)
+    if not number:
+        raise HTTPException(400, "link expired or invalid — message Antar on WhatsApp again")
+    chart_id = req.chart_id or _resolve_primary_chart_id(user_id)
+    if not chart_id:
+        raise HTTPException(400, "no chart to link")
+    if req.chart_id:
+        own = (supabase.table("charts").select("id").eq("id", chart_id)
+               .eq("user_id", user_id).limit(1).execute()).data
+        if not own:
+            raise HTTPException(403, "not your chart")
+    if not _msg.link_whatsapp_direct(supabase, chart_id, user_id, number):
+        raise HTTPException(503, "messaging storage not set up yet")
+    # The token is ≤15 min old and was issued in reply to the user's message,
+    # so we are still inside the 24h window.
+    _msg.whatsapp_send(number, _wa_text("linked", "en", name=_wa_chart_name(chart_id)),
+                       _time.time() - 15 * 60)
+    return {"linked": True, "number_last4": number[-4:], "chart_id": chart_id}
 
 
 @app.get("/api/v1/me/chart-identity")
