@@ -553,3 +553,42 @@ def test_astro_voice_swap_does_not_capitalise_mid_sentence_text():
 def test_astro_voice_swaps_are_english_only():
     es = "La energía de hoy crea fricción interna."
     assert strip_prediction_astro_voice(es, "es") == es
+
+
+# ─── [dated-weekday 2026-10-02] real dates keep their weekday ─────────────
+# Live WhatsApp/Ask answers read ", Oct 5 is your least-strained day",
+# "Avoid, Oct 3" and "Hold … until, then" because every weekday was stripped,
+# even ones attached to a computed calendar date.
+
+def test_dated_weekday_is_kept():
+    out = apply_user_facing_strips(
+        'Monday, Oct 5 is your least-strained day. Avoid Saturday, Oct 3.', 'en', field_type='plain')
+    assert out.startswith('Monday, Oct 5 is') and 'Saturday, Oct 3' in out
+
+
+def test_dated_weekday_is_corrected_when_wrong():
+    from antar_engine.output_strips import _weekday_for
+    from datetime import date
+    names = ('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday')
+    d = date.today()
+    right = names[_weekday_for(d.month, d.day)]
+    wrong = names[(names.index(right) + 1) % 7]
+    out = _strip_day_names(f'{wrong}, {d.strftime("%b")} {d.day} is calm.', 'en')
+    assert out.startswith(f'{right}, ')
+
+
+def test_bare_weekday_goes_with_its_preposition():
+    out = apply_user_facing_strips(
+        'Hold any speculative move until Monday, then keep it small.', 'en', field_type='plain')
+    assert out == 'Hold any speculative move, then keep it small.'
+
+
+def test_spanish_dated_weekday_kept():
+    out = _strip_day_names('El lunes 5 de octubre es tu mejor día.', 'es')
+    assert 'lunes 5 de octubre' in out
+
+
+def test_astro_voice_keeps_dated_weekday_but_swaps_lore():
+    from antar_engine.output_strips import strip_prediction_astro_voice
+    out = strip_prediction_astro_voice('Tuesday amplifies courage. Monday (Oct 5) is calmer.')
+    assert out.startswith('Today amplifies courage.') and 'Monday (Oct 5)' in out

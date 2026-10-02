@@ -609,6 +609,75 @@ def _strip_raw_scores(text: str) -> str:
     return _tidy(cleaned)
 
 
+# [dated-weekday 2026-10-02] A weekday attached to a real calendar date ("Monday,
+# Oct 5", "lunes 5 de octubre") is not invented timing — Ask/KP now compute real
+# dates. Stripping it left ", Oct 5 is…" / "Avoid, Oct 3" / "until, then" in live
+# answers. Dated weekdays are kept (and corrected if wrong for that date); bare
+# weekdays are still removed, together with their preposition so the sentence
+# stays grammatical.
+_WD_INDEX = {d: i for i, d in enumerate(_DAY_NAMES_EN)}
+_WD_INDEX.update({"lunes": 0, "martes": 1, "miércoles": 2, "miercoles": 2, "jueves": 3,
+                  "viernes": 4, "sábado": 5, "sabado": 5, "domingo": 6})
+_MONTHS = {
+    "jan": 1, "january": 1, "feb": 2, "february": 2, "mar": 3, "march": 3, "apr": 4,
+    "april": 4, "may": 5, "jun": 6, "june": 6, "jul": 7, "july": 7, "aug": 8,
+    "august": 8, "sep": 9, "sept": 9, "september": 9, "oct": 10, "october": 10,
+    "nov": 11, "november": 11, "dec": 12, "december": 12,
+    "ene": 1, "enero": 1, "febrero": 2, "marzo": 3, "abr": 4, "abril": 4, "mayo": 5,
+    "junio": 6, "julio": 7, "ago": 8, "agosto": 8, "septiembre": 9, "setiembre": 9,
+    "octubre": 10, "noviembre": 11, "dic": 12, "diciembre": 12,
+}
+_WD_ALT = "|".join(sorted((re.escape(d) for d in _WD_INDEX), key=len, reverse=True))
+_MON_ALT = "|".join(sorted((re.escape(m) for m in _MONTHS), key=len, reverse=True))
+_DATED_WEEKDAY = re.compile(
+    rf"\b(?P<wd>{_WD_ALT})\b(?P<sep>,?\s*\(?\s*)"
+    rf"(?P<date>(?P<m1>{_MON_ALT})\.?\s+(?P<d1>\d{{1,2}})\b"
+    rf"|(?P<d2>\d{{1,2}})(?:\s+de)?\s+(?P<m2>{_MON_ALT})\b)",
+    re.IGNORECASE)
+_BARE_PREP = r"(?:on|until|till|by|before|after|from|next|coming|el|hasta|antes\s+del?|después\s+del?)"
+
+
+def _weekday_for(month: int, day: int):
+    """Weekday index of the nearest such date (this year, or next if >6 months past)."""
+    from datetime import date
+    today = date.today()
+    for year in (today.year, today.year + 1, today.year - 1):
+        try:
+            d = date(year, month, day)
+        except ValueError:
+            return None
+        if (d - today).days >= -183:
+            return d.weekday()
+    return None
+
+
+def _protect_dated_weekdays(text: str):
+    """Replace dated weekdays with placeholders (weekday corrected if wrong for
+    the date). Returns (text, restore)."""
+    keep: list = []
+
+    def _sub(mo):
+        wd = mo.group("wd")
+        month = _MONTHS.get((mo.group("m1") or mo.group("m2") or "").lower().rstrip("."))
+        day = int(mo.group("d1") or mo.group("d2") or 0)
+        idx = _weekday_for(month, day) if month and day else None
+        if idx is not None and _WD_INDEX.get(wd.lower()) != idx:
+            spanish = wd.lower() in ("lunes", "martes", "miércoles", "miercoles", "jueves",
+                                     "viernes", "sábado", "sabado", "domingo")
+            names = (("lunes", "martes", "miércoles", "jueves", "viernes", "sábado", "domingo")
+                     if spanish else tuple(d.capitalize() for d in _DAY_NAMES_EN))
+            right = names[idx]
+            wd = right.capitalize() if wd[:1].isupper() else right
+        keep.append(wd + mo.group("sep") + mo.group("date"))
+        return f"\x00WD{len(keep) - 1}\x00"
+
+    out = _DATED_WEEKDAY.sub(_sub, text)
+
+    def restore(t: str) -> str:
+        return re.sub(r"\x00WD(\d+)\x00", lambda m: keep[int(m.group(1))], t)
+    return out, restore
+
+
 def _strip_day_names(text: str, language: str = 'es') -> str:
     """Remove day-of-week name leaks from sentences.
 
@@ -634,8 +703,11 @@ def _strip_day_names(text: str, language: str = 'es') -> str:
     # sweep each day twice).
     seen = set()
     dedup_days = tuple(d for d in all_days if not (d in seen or seen.add(d)))
-    result = text
+    result, restore = _protect_dated_weekdays(text)
     for day in dedup_days:
+        # [dated-weekday] a bare weekday goes WITH its preposition ("until Monday,")
+        result = re.sub(rf'\s*\b{_BARE_PREP}\s+{re.escape(day)}\b', '', result,
+                        flags=re.IGNORECASE)
         # Qualified forms collapse to 'hoy/today' — supports plural too
         result = re.sub(
             rf'\b(este|esta|un|una|the|this|a|los|las)\s+{re.escape(day)}s?\b',
@@ -643,7 +715,10 @@ def _strip_day_names(text: str, language: str = 'es') -> str:
         )
         # Bare day names (singular or plural) drop
         result = re.sub(rf'\b{re.escape(day)}s?\b', '', result, flags=re.IGNORECASE)
-    return _tidy(result)
+    result = _tidy(restore(result))
+    if result and text[:1].isupper() and result[:1].islower():
+        result = result[:1].upper() + result[1:]
+    return result
 
 
 def _strip_planet_names(text: str, language: str = 'es', keep_planet_actors: bool = False) -> str:
@@ -965,9 +1040,10 @@ def strip_prediction_astro_voice(text, language="en"):
         return text
     if (language or "en") != "en":
         return text
-    out = text
+    out, restore = _protect_dated_weekdays(text)     # [dated-weekday]
     for _rx, _repl in _ASTRO_VOICE_SWAPS_EN:
         out = _rx.sub(_repl, out)
+    out = restore(out)
     out = re.sub(r"\s{2,}", " ", out)
     out = re.sub(r"\s+([,.;:])", r"\1", out)
     out = out.strip()
