@@ -40330,6 +40330,11 @@ async def predict_year_attention(request: dict, language: str = None):
                 payload["year"]["domains"] = _lf_yfb(_lf_yinputs, _lf_ylang)
                 _layered_spawn(_layered_phrase_and_cache(
                     _lf_yinputs, "year", _lf_ylang, chart_id, "year", _lf_ypkey))
+            try:  # [year-rows 2026-10-02] tidy cached + fallback rows alike
+                from antar_engine.layered_phrasing import tidy_domain_rows as _lf_tidy, ALT_YEAR as _lf_AY
+                payload["year"]["domains"] = _lf_tidy(payload["year"].get("domains"), _lf_AY, _lf_ylang)
+            except Exception as _lf_te:
+                print(f"[year-attention] row tidy skipped: {_lf_te}")
             payload["year"]["monthly_handoff"] = _lf_handoff(_lf_ylang)
     except Exception as _lf_ye:
         print(f"[year-attention] layered domains failed (non-blocking): {_lf_ye}")

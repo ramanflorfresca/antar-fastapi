@@ -30,3 +30,22 @@ def test_year_rows_never_say_month_and_grammar():
 def test_month_rows_keep_month_tail():
     (r,) = _rows(ALT_MONTH, [("money", "positive", 2, "Good for a raise.")])
     assert "month's shape" in r["depth"]
+
+
+def test_serve_time_tidy_fixes_cached_rows():
+    from antar_engine.layered_phrasing import tidy_domain_rows
+    cached = [{
+        "domain": "relationships",
+        "hook": "Relationships stays steady through the year.",
+        "substance": "Relationships stays steady through the year.",
+        "depth": "Relationships stays steady through the year. Let it stay a gentle direction rather than a hard plan.",
+    }, {
+        "domain": "career", "hook": "Work has been the year's main arena.",
+        "substance": "Strong — favourable for patient build.",
+        "depth": "Strong — favourable for patient build. Treat it as the month's shape, not a fixed appointment.",
+    }]
+    a, b = tidy_domain_rows(cached, ALT_YEAR, "en")
+    assert a["key"] == "relationships" and a["hook"].startswith("Relationships stay ")
+    assert a["substance"] == "" and a["depth"] == "Let it stay a gentle direction rather than a hard plan."
+    assert b["depth"] == "Treat it as the year's shape, not a fixed date."
+    assert tidy_domain_rows([a, b], ALT_YEAR, "en") == [a, b]  # idempotent
