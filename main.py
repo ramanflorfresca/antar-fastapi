@@ -27447,7 +27447,15 @@ async def ask_endpoint(request: AskRequest):
                     if _kw and _kw.get("available"):
                         _days = [d for d in _kw["days"] if isinstance(d.get("score"), int)]
                         _top = sorted(_days, key=lambda d: d["score"], reverse=True)[:2]
-                        _top_txt = "; ".join(f"{d['date']} (~{d['score']}/100)" for d in _top)
+                        # [ask-readable-dates 2026-10-02] "2026-09-24 (~92/100)" read as
+                        # raw data on the Ask landing; say the day like a person would.
+                        def _kp_day(_iso):
+                            try:
+                                _dd = datetime.strptime(str(_iso)[:10], "%Y-%m-%d")
+                                return f"{_dd.strftime('%a, %b')} {_dd.day}"
+                            except Exception:
+                                return str(_iso)
+                        _top_txt = " and ".join(f"{_kp_day(d['date'])} (~{d['score']}/100)" for d in _top)
                         _kline = (f"Across the days ahead, the KP signal is strongest on {_top_txt}. "
                                   f"{_sig_label} These are approximate — treat them as a ranking, "
                                   "not odds. Whatever day you pick, keep any stake small and capped, "
