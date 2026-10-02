@@ -203,3 +203,22 @@ def test_soft_cap_jsonresponse_is_unwrapped(m, monkeypatch):
     monkeypatch.setattr(m, "ask_endpoint", fake_ask)
     asyncio.run(m._wa_handle("+15551234567", "Should I move?", time.time()))
     assert "used today's" in sent[-1]
+
+
+# ─── status / unlink endpoints ─────────────────────────────────────
+
+def test_status_and_unlink_endpoints(m, monkeypatch):
+    from fastapi.testclient import TestClient
+    monkeypatch.setattr(m, "verify_token", lambda a: "user-1")
+    monkeypatch.setenv("TWILIO_WHATSAPP_FROM", "whatsapp:+14155238886")
+    monkeypatch.setattr(msg, "whatsapp_status", lambda sb, uid: {
+        "linked": True, "number_last4": "5678", "chart_id": "c1", "linked_at": "2026-10-02"})
+    monkeypatch.setattr(m, "_wa_chart_name", lambda cid: "Raman Singh")
+    revoked = []
+    monkeypatch.setattr(msg, "_revoke_whatsapp", lambda sb, **kw: revoked.append(kw) or True)
+    c = TestClient(m.app)
+    r = c.get("/api/v1/messaging/whatsapp/status", headers={"Authorization": "Bearer x"}).json()
+    assert r["linked"] and r["number_last4"] == "5678" and r["chart_name"] == "Raman Singh"
+    assert r["available"] is True and r["antar_number"] == "+14155238886"
+    r = c.post("/api/v1/messaging/whatsapp/unlink", headers={"Authorization": "Bearer x"}).json()
+    assert r == {"linked": False} and revoked == [{"user_id": "user-1"}]
