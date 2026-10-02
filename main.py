@@ -28696,6 +28696,23 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                            + list(panchanga.get("dont_today") or [])),
             )
 
+            # [day-turn 2026-10-02] ONE human lead line for WHEN, from the day's
+            # best window (the precise windows[] still render below). A concrete
+            # time — not a mood/atmosphere line — so it respects the checkable-claim
+            # rule in daily_system_prompt (11c/11d). FE renders it in the glance.
+            try:
+                _best_w = next((w for w in (result.get("windows") or [])
+                                if isinstance(w, dict) and w.get("kind") == "best"
+                                and w.get("start")), None)
+                if _best_w and _best_w.get("start"):
+                    _bt = str(_best_w["start"]).strip()
+                    result["day_turn"] = {
+                        "es": f"Tu ventana más clara de hoy es alrededor de {_bt}.",
+                        "pt": f"Sua janela mais clara hoje é por volta de {_bt}.",
+                    }.get(language, f"Your clearest window today is around {_bt}.")
+            except Exception as _dt_err:
+                print(f"[daily-signal] day_turn skipped (non-fatal): {_dt_err}")
+
             # ── [today-times] One authority on WHEN ─────────────────────
             # windows[] above is computed from panchanga. The LLM prose was
             # inventing its own, contradictory, clock times alongside it.
@@ -29114,6 +29131,29 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                             result["is_friction_day"] = (_band == "friction")
                     except Exception as _band_err:
                         print(f"[daily-coherence] day-band reconcile skipped: {_band_err}")
+
+                    # [bright-spot 2026-10-02] On a FRICTION/LIGHTER (caution) day the
+                    # card can leave the user with only "go gently." Surface ONE genuine
+                    # positive so there's something to lean into — the top-ranked
+                    # OPPORTUNITY area that isn't the caution lead. Concrete (names the
+                    # area), never vague atmosphere. FE renders it in the glance.
+                    try:
+                        _band_fin = (result.get("day_energy") or {}).get("key")
+                        if result.get("is_friction_day") or _band_fin in ("friction", "light"):
+                            _act = result.get("active_domains") or []
+                            _bright = next((a for a in _act if isinstance(a, dict)
+                                            and a.get("polarity") == "opportunity"
+                                            and not a.get("caution")), None) \
+                                      or next((a for a in _act if isinstance(a, dict)
+                                               and a.get("polarity") == "opportunity"), None)
+                            _bsay = ((_bright or {}).get("say") or (_bright or {}).get("label") or "").strip()
+                            if _bsay:
+                                result["bright_spot"] = {
+                                    "es": f"Una cosa sí juega a tu favor hoy — {_bsay}. Apóyate en eso.",
+                                    "pt": f"Uma coisa está a seu favor hoje — {_bsay}. Apoie-se nisso.",
+                                }.get(language, f"One thing is genuinely working today — {_bsay}. Lean on it.")
+                    except Exception as _bs_err:
+                        print(f"[daily-signal] bright_spot skipped (non-fatal): {_bs_err}")
 
                     # [daily-coherence 2026-09-08 #5] NUDGE RECONCILE. The
                     # TODAY'S NUDGE / move / el_movimiento line was derived from
