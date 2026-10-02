@@ -792,13 +792,36 @@ async def _birthday_recompute_job():
 
 
 # ── "Did this happen?" ping cron ──────────────────────────────────────────────
+def _tz_hours_by_chart(chart_ids) -> dict:
+    """chart_id -> local tz offset (hours), from current (else birth) country via
+    _COUNTRY_TZ_OFFSETS. UTC(0) fallback. Used by the user-facing cron jobs to send
+    at each user's LOCAL morning instead of a fixed UTC hour. _COUNTRY_TZ_OFFSETS is
+    defined later in the module; it resolves at call time."""
+    out: dict = {}
+    ids = [c for c in (chart_ids or []) if c]
+    if not ids:
+        return out
+    try:
+        rows = (supabase.table("charts").select("id,current_country,birth_country")
+                .in_("id", ids).execute()).data or []
+        for c in rows:
+            cc = (c.get("current_country") or c.get("birth_country") or "").upper()
+            out[c["id"]] = float(_COUNTRY_TZ_OFFSETS.get(cc, _COUNTRY_TZ_OFFSETS.get("DEFAULT", 0)))
+    except Exception as e:
+        print(f"[tz] chart tz fetch failed (UTC fallback): {e}")
+    return out
+
+
 async def _ping_checkin_job():
     """
-    Daily cron — 08:00 UTC.
-    Finds predictions whose window_end is within the next 7 days (or just passed),
-    not yet checked in. Sends a gentle ping asking: "Did this happen?"
-    This is the moat — turns predictions into a learning system.
+    HOURLY cron. Finds predictions whose window_end is within the next 7 days (or just
+    passed) and not yet checked in, and sends a gentle "Did this happen?" ping — AT THE
+    USER'S LOCAL MORNING. Runs every hour; a due prediction is only pinged when its
+    chart's local hour == TARGET_LOCAL_HOUR (else it's left for its own local morning,
+    not pinged/marked). Was a fixed 08:00 UTC = 1:30 PM in India. This is the moat —
+    turns predictions into a learning system.
     """
+    _CHECKIN_LOCAL_HOUR = 8   # ~8 AM local
     now = datetime.utcnow()
     window_start = (now).isoformat()
     window_end   = (now + timedelta(days=7)).isoformat()
@@ -818,13 +841,20 @@ async def _ping_checkin_job():
             print(f"[ping_cron] {now.date()} — no predictions due for check-in")
             return
 
-        print(f"[ping_cron] {now.date()} — {len(due.data)} predictions to ping")
+        print(f"[ping_cron] {now.date()} — {len(due.data)} predictions due; "
+              f"pinging those at local ~{_CHECKIN_LOCAL_HOUR}:00")
+        _tz = _tz_hours_by_chart([p.get("chart_id") for p in due.data])
 
         for pred in due.data:
             user_id    = pred["user_id"]
             pred_id    = pred["id"]
             pred_text  = pred["prediction_text"]
             category   = pred["category"]
+            # Only ping at the user's LOCAL morning; otherwise leave it un-pinged
+            # for the hour its own local time reaches the target.
+            _cid = pred.get("chart_id")
+            if (now + timedelta(hours=_tz.get(_cid, 0.0))).hour != _CHECKIN_LOCAL_HOUR:
+                continue
 
             # Get user email
             try:
@@ -945,13 +975,13 @@ async def _monthly_briefing_job():
     Generates + emails monthly briefing to all active users.
     Skips users who already received one this month.
     """
-    now        = datetime.utcnow()
-    month_year = now.strftime("%B %Y")
+    now = datetime.utcnow()
+    TARGET_LOCAL_HOUR = 8   # ~8 AM on the user's LOCAL 1st of the month
 
     try:
-        # Get all charts with an associated user
+        # Get all charts with an associated user (+ country for local-time gating)
         charts_res = supabase.table("charts") \
-            .select("id, user_id, country_code, language_preference") \
+            .select("id, user_id, country_code, current_country, birth_country, language_preference") \
             .not_.is_("user_id", "null") \
             .limit(500) \
             .execute()
@@ -960,18 +990,38 @@ async def _monthly_briefing_job():
             print(f"[monthly_cron] No charts found")
             return
 
-        # Filter out users who already got a briefing this month
+        # Candidates = charts whose LOCAL time is the 1st at ~8 AM this hour. Running
+        # hourly every day + this gate sends each user their briefing at their own
+        # local morning on their own 1st (correct across month-boundary timezones),
+        # instead of a fixed 06:00 UTC (= 11:30 AM in India). _COUNTRY_TZ_OFFSETS
+        # resolves at call time. The heavy LLM generation sits AFTER this gate, so
+        # the hourly runs that match nothing cost only two light reads.
+        candidates = []
+        for c in charts_res.data:
+            _cc_tz = (c.get("current_country") or c.get("birth_country")
+                      or c.get("country_code") or "").upper()
+            _tzh = float(_COUNTRY_TZ_OFFSETS.get(_cc_tz, _COUNTRY_TZ_OFFSETS.get("DEFAULT", 0)))
+            _ln = now + timedelta(hours=_tzh)
+            if _ln.day == 1 and _ln.hour == TARGET_LOCAL_HOUR:
+                candidates.append((c, _ln.strftime("%B %Y")))
+        if not candidates:
+            return   # no chart at its local 1st ~8 AM this hour
+
+        # Dedup by LOCAL month_year (not UTC) so boundary timezones get the right month.
+        _uids = list({c["user_id"] for c, _ in candidates})
+        _months = list({my for _, my in candidates})
         already_res = supabase.table("monthly_briefings") \
-            .select("user_id") \
-            .eq("month_year", month_year) \
+            .select("user_id, month_year") \
+            .in_("user_id", _uids).in_("month_year", _months) \
             .execute()
-        already_sent = {r["user_id"] for r in (already_res.data or [])}
+        already_sent = {(r["user_id"], r["month_year"]) for r in (already_res.data or [])}
 
-        to_send = [c for c in charts_res.data if c.get("user_id") not in already_sent]
-        print(f"[monthly_cron] {month_year} — {len(to_send)} briefings to send "
-              f"(skipping {len(already_sent)} already sent)")
+        to_send = [(c, my) for c, my in candidates if (c["user_id"], my) not in already_sent]
+        print(f"[monthly_cron] local-1st-{TARGET_LOCAL_HOUR}:00 this hour — "
+              f"{len(to_send)} briefings to send (candidates={len(candidates)}, "
+              f"already_sent={len(already_sent)})")
 
-        for chart_record in to_send:
+        for chart_record, month_year in to_send:
             chart_id = chart_record["id"]
             user_id  = chart_record["user_id"]
             cc       = chart_record.get("country_code", "IN")
@@ -1256,10 +1306,10 @@ scheduler.add_job(_birthday_recompute_job, "cron", hour=2, minute=0,
                   id="birthday_lk_recompute", replace_existing=True)
 scheduler.add_job(_daily_push_job, "cron", minute=7,
                   id="daily_push_nudge", replace_existing=True)  # hourly; job sends per-chart at local ~8 AM
-scheduler.add_job(_ping_checkin_job, "cron", hour=8, minute=0,
-                  id="ping_checkin_daily", replace_existing=True)
-scheduler.add_job(_monthly_briefing_job, "cron", day=1, hour=6, minute=0,
-                  id="monthly_briefing_send", replace_existing=True)
+scheduler.add_job(_ping_checkin_job, "cron", minute=9,
+                  id="ping_checkin_daily", replace_existing=True)  # hourly; pings per-chart at local ~8 AM
+scheduler.add_job(_monthly_briefing_job, "cron", minute=11,
+                  id="monthly_briefing_send", replace_existing=True)  # hourly; sends per-chart at local 1st ~8 AM
 scheduler.add_job(_daily_polarity_log_job, "cron", hour=3, minute=0,
                   id="daily_polarity_log", replace_existing=True)
 scheduler.add_job(_deep_read_warm_job, "cron", hour=1, minute=0,
