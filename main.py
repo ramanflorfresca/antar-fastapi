@@ -19436,12 +19436,13 @@ def _d10_synastry(chart_a, chart_b):
             return (_rel(x, y) + _rel(y, x)) / 2.0
 
         score = round(0.5 * _mutual(la[0], lb[0]) + 0.5 * _mutual(la[1], lb[1]))
+        # [dejargon 2026-10-02] user-facing line — plain language, no chart/planet terms.
         if score >= 75:
-            line = "Your career charts pull the same way — the D-10 professional engines are friendly."
+            line = "Your working selves are built the same way — you value the same things in work and pull in the same professional direction."
         elif score >= 55:
-            line = "Your career charts are workable — the D-10 professional engines neither clash nor amplify."
+            line = "Your working selves fit — similar enough to collaborate smoothly, different enough to divide the work."
         else:
-            line = "Your career charts pull different ways — the D-10 professional engines sit in tension."
+            line = "Your working selves pull different ways — you approach work and professional priorities from different angles, so define clear lanes early."
         return {"score": score, "line": line, "a_lords": la, "b_lords": lb}
     except Exception as _e:
         print(f"[compat][d10-synastry] non-fatal: {_e}")
@@ -19488,12 +19489,14 @@ def _dasha_lord_maitri(dashas_a, dashas_b):
         opp_season = (la in EXP and lb in CON) or (la in CON and lb in EXP)
         season_adj = 6 if same_season else (-6 if opp_season else 0)
         score = max(0, min(100, round(maitri + season_adj)))
+        # [dejargon 2026-10-02] This `line` is user-facing (surfaced on the compat
+        # card) — plain language only, no planet/dasha terms.
         if score >= 75:
-            line = "Your current cycles get along — your dasha lords are friendly and roughly in step."
+            line = "Your current life chapters are in step — you're both moving through seasons that pull the same way, so the timing favors acting together now."
         elif score >= 55:
-            line = "Your current cycles are workable — the dasha lords neither clash nor strongly amplify."
+            line = "Your current chapters sit comfortably side by side — neither of you is pulling hard against the other's timing right now."
         else:
-            line = "Your current cycles pull different ways — the two dasha lords sit in tension these years."
+            line = "You're on different clocks right now — one of you is in a push-forward, expansive season while the other is consolidating. Split the pace: let the builder set structure and the mover set momentum."
         return {"score": score, "line": line, "lord_a": la, "lord_b": lb}
     except Exception as _e:
         print(f"[compat][dasha-maitri] non-fatal: {_e}")
@@ -20590,6 +20593,14 @@ async def compatibility_start(request: CompatibilityStartRequest,
         "person_enemy_alerts": _person_enemy,
         "language": request.language or "en",
     }
+    # [why-lines 2026-10-02] Surface the two explanatory "why" lines on the card:
+    # cycle-timing fit (all reasons) + working-self/career fit (work reasons only).
+    _dm_line = (_compat_raw.get("_dasha_maitri") or {}).get("line")
+    if _dm_line:
+        _resp["dasha_timing_note"] = _dm_line
+    _d10_line = (_compat_raw.get("d10_synastry") or {}).get("line")
+    if _d10_line and _v2_reason in ("business", "cofounder", "employee", "boss-or-manager"):
+        _resp["career_fit_note"] = _d10_line
     if (request.language or "en") in ("es", "pt"):
         try:
             from antar_engine.translation_middleware import translate_dict
@@ -20599,6 +20610,8 @@ async def compatibility_start(request: CompatibilityStartRequest,
                                      # [compat-convergence] the "how sure" line + its
                                      # layer-label arrays (level stays an enum).
                                      "line", "aligned", "tension",
+                                     # [why-lines 2026-10-02] the two card "why" notes
+                                     "dasha_timing_note", "career_fit_note",
                                      "why", "remedies", "remedy_why", "active_when", "timing"},
                 endpoint_name="compat_start", chart_id=request.chart_id_a)
         except Exception as _te2:
@@ -21072,6 +21085,13 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                                         "v2_layers": {l["layer_key"]: l["score"] for l in _v2.get("layers", [])},
                                         "v2": True},
                 })
+                # [why-lines 2026-10-02] same two card notes as /start.
+                _dm_line = (_raw.get("_dasha_maitri") or {}).get("line")
+                if _dm_line:
+                    out["dasha_timing_note"] = _dm_line
+                _d10_line = (_raw.get("d10_synastry") or {}).get("line")
+                if _d10_line and _reason in ("business", "cofounder", "employee", "boss-or-manager"):
+                    out["career_fit_note"] = _d10_line
     except Exception as _sre:
         print(f"[compat][session-rich] recompose non-fatal: {_sre}")
         # fallback: at least surface the stored score so the card/badge render.
@@ -21087,6 +21107,7 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                 fields_to_translate={"headline", "summary", "detail", "layer_label",
                                      "catalysts", "watch_points", "layer1", "layer2", "layer3",
                                      "line", "aligned", "tension",
+                                     "dasha_timing_note", "career_fit_note",
                                      "why", "remedies", "remedy_why", "active_when", "timing"},
                 endpoint_name="compat_session", chart_id=s.get("chart_id_a"))
         except Exception as _tse:
