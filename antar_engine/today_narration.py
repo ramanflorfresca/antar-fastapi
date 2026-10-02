@@ -259,7 +259,9 @@ def _apply_life_context(domain, nouns, theme, ctx):
     if domain in ("partner", "partnership", "marriage") and not _is_partnered(ctx):
         nouns = [n for n in nouns if not _SPOUSE_WORDS.search(n)] or \
                 ["a partner or close collaborator", "a deal or agreement"]
-        if _SPOUSE_WORDS.search(theme or ""):
+        # theme carries "your partner" (house 7), which _SPOUSE_WORDS (spouse/
+        # wife/husband) never matched — so the theme was never reworded.
+        if _SPOUSE_WORDS.search(theme or "") or re.search(r"(?i)\byour partner\b", theme or ""):
             theme = "your partnerships and the deals you make"
     return nouns, theme
 

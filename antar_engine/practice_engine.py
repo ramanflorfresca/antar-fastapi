@@ -380,8 +380,9 @@ RIN_CLEARING = {
     "spouse_debt": {
         "label": "Partnership Pattern",
         "why": "Relationship patterns repeat — the same conflicts, the same distance. Something from the past is echoing into current partnerships.",
-        "IN": "Donate white items on Friday. Serve your partner with respect.",
-        "GLOBAL": "Write an honest letter to your partner (send or don't). Practice one act of unconditional kindness toward them daily.",
+        # [life-gate 2026-10-02] partner-neutral: shown to single/divorced readers too.
+        "IN": "Donate white items on Friday. Treat the people closest to you with respect.",
+        "GLOBAL": "Write an honest letter to a partner, past or present (send it or don't). Practice one act of unconditional kindness in a close relationship each day.",
         "duration": "21 days",
     },
 }

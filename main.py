@@ -30460,8 +30460,10 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 try:
                     from antar_engine.life_context import active_life as _al_beats
                     _emp_beats = (_al_beats() or {}).get("employed")
+                    _ptn_beats = (_al_beats() or {}).get("partnered")
                 except Exception:
                     _emp_beats = None
+                    _ptn_beats = None
                 def _degate_boss_theme(_t):
                     if _emp_beats is not True and _t and "boss" in _t.lower():
                         import re as _bre
@@ -30472,6 +30474,13 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                         _t = _bre.sub(r"\byour boss\b\s*(?:,|\band\b)\s*", "", _t, flags=_bre.I)
                         _t = _bre.sub(r"\s{2,}", " ", _t)
                         _t = _bre.sub(r"\s+(?:,|and)$", "", _t).strip(" ,")
+                    # [life-gate 2026-10-02] same gap for the 7th house: "your
+                    # partner and the deals you make" reached single / divorced /
+                    # separated readers. Only a KNOWN partner keeps "your partner".
+                    if _ptn_beats is not True and _t:
+                        import re as _pre
+                        _t = _pre.sub(r"\byour (?:partner|spouse|wife|husband)\b",
+                                      "your partnerships", _t, flags=_pre.I)
                     return _t
                 result["beats"] = [{
                     "area":      _b.get("domain"),
@@ -37134,13 +37143,22 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
                 if isinstance(_sched, dict) and not _sched.get("lal_kitab"):
                     try:
                         from antar_engine.lk_varshphal_year import read_year as _lk_ry, read_month as _lk_rm
-                        _lkc = supabase.table("charts").select("chart_data, birth_date, gender").eq("id", chart_id).single().execute()
+                        _lkc = supabase.table("charts").select("chart_data, birth_date, gender, marital_status, children_status, career_stage, profession, life_work, life_relationship, life_kids").eq("id", chart_id).single().execute()
                         if _lkc.data:
                             _lk_cd = _safe_jsonb(_lkc.data.get("chart_data"))
                             _lk_g = _lkc.data.get("gender") or ""
                             _lk_bd = _lkc.data.get("birth_date")
-                            _lk_y = _lk_ry(_lk_cd, _lk_bd, _lk_g)
-                            _lk_m = _lk_rm(_lk_cd, _lk_bd, _lk_g)
+                            # [life-gate 2026-10-02] activate the reader's facts so
+                            # the year read names "your marriage" only when true.
+                            from antar_engine.life_context import (
+                                resolve_life_facts as _rlf_ps, set_active_life as _sal_ps,
+                                reset_active_life as _ral_ps)
+                            _ps_tok = _sal_ps(_rlf_ps(_lkc.data))
+                            try:
+                                _lk_y = _lk_ry(_lk_cd, _lk_bd, _lk_g)
+                                _lk_m = _lk_rm(_lk_cd, _lk_bd, _lk_g)
+                            finally:
+                                _ral_ps(_ps_tok)
                             _sched["lal_kitab"] = {
                                 "year": ({
                                     "verdict": _lk_y.get("verdict"),
@@ -37195,7 +37213,7 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
                         print(f"[es-loc] /practices cache translate non-fatal: {_ptd_e}")
                 _sched["life_context"] = get_life_context(chart_id, supabase=supabase)  # [life-context]
                 return {"status": "ok", "source": "cache", "schedule": _sched}
-        _chart = supabase.table("charts").select("chart_data, jaimini_data, lal_kitab_data, current_country, birth_date, gender").eq("id", chart_id).single().execute()
+        _chart = supabase.table("charts").select("chart_data, jaimini_data, lal_kitab_data, current_country, birth_date, gender, marital_status, children_status, career_stage, profession, life_work, life_relationship, life_kids").eq("id", chart_id).single().execute()
         if not _chart.data:
             return {"status": "error", "message": "Chart not found"}
         _c = _chart.data
@@ -37267,8 +37285,16 @@ async def get_practice_schedule_endpoint(chart_id: str, language: str = "es", re
             _lk_cd = _safe_jsonb(_c.get("chart_data"))
             _lk_g = _c.get("gender") or ""
             _lk_bd = _c.get("birth_date")
-            _lk_y = _lk_ry(_lk_cd, _lk_bd, _lk_g)
-            _lk_m = _lk_rm(_lk_cd, _lk_bd, _lk_g)
+            # [life-gate 2026-10-02] reader's facts for the year/month read
+            from antar_engine.life_context import (
+                resolve_life_facts as _rlf_ps2, set_active_life as _sal_ps2,
+                reset_active_life as _ral_ps2)
+            _ps2_tok = _sal_ps2(_rlf_ps2(_c))
+            try:
+                _lk_y = _lk_ry(_lk_cd, _lk_bd, _lk_g)
+                _lk_m = _lk_rm(_lk_cd, _lk_bd, _lk_g)
+            finally:
+                _ral_ps2(_ps2_tok)
             _sched["lal_kitab"] = {
                 "year": ({
                     "verdict": _lk_y.get("verdict"),
