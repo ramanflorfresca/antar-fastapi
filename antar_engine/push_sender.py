@@ -15,7 +15,8 @@ Env vars (Railway):
   APNS_KEY_P8 | APNS_KEY_P8_BASE64   the .p8 private key (PEM; \\n-escaped ok)
   APNS_KEY_ID, APNS_TEAM_ID
   APNS_BUNDLE_ID    (default "world.antar.app")
-  APNS_USE_SANDBOX  "1" (default) sandbox host; "0" production
+  APNS_USE_SANDBOX  "0" (default) production host; "1" sandbox. A BadDeviceToken
+                    is retried on the other host before the token is pruned.
   # FCM (Android)
   FCM_SERVICE_ACCOUNT_JSON | FCM_SERVICE_ACCOUNT_JSON_BASE64
                     the Firebase service-account JSON (Project settings →
@@ -42,8 +43,16 @@ except Exception:  # pragma: no cover
 _BUNDLE_ID = os.getenv("APNS_BUNDLE_ID", "world.antar.app")
 _KEY_ID = os.getenv("APNS_KEY_ID")
 _TEAM_ID = os.getenv("APNS_TEAM_ID")
-_USE_SANDBOX = os.getenv("APNS_USE_SANDBOX", "1") not in ("0", "false", "False", "")
-_APNS_HOST = "api.sandbox.push.apple.com" if _USE_SANDBOX else "api.push.apple.com"
+# [ios-push 2026-10-02] TestFlight + App Store builds register PRODUCTION tokens;
+# only Xcode debug runs get sandbox tokens. Default = production (was sandbox,
+# which would reject every real token with BadDeviceToken — and the dead-token
+# prune below would then DELETE it). A BadDeviceToken is retried once on the
+# other environment before the token is treated as dead.
+_APNS_PROD_HOST = "api.push.apple.com"
+_APNS_SANDBOX_HOST = "api.sandbox.push.apple.com"
+_USE_SANDBOX = os.getenv("APNS_USE_SANDBOX", "0") not in ("0", "false", "False", "")
+_APNS_HOST = _APNS_SANDBOX_HOST if _USE_SANDBOX else _APNS_PROD_HOST
+_APNS_ALT_HOST = _APNS_PROD_HOST if _USE_SANDBOX else _APNS_SANDBOX_HOST
 _APNS_DEAD = {"Unregistered", "BadDeviceToken", "DeviceTokenNotForTopic"}
 
 # ── FCM config ───────────────────────────────────────────────────────────────
@@ -112,14 +121,15 @@ def _apns_provider_jwt() -> Optional[str]:
         return None
 
 
-async def _send_apns_one(client, jwt_token, device_token, title, body, data):
+async def _send_apns_one(client, jwt_token, device_token, title, body, data,
+                         host=None):
     payload = {"aps": {"alert": {"title": title, "body": body}, "sound": "default"}}
     if data:
         payload.update(data)
     headers = {"authorization": f"bearer {jwt_token}", "apns-topic": _BUNDLE_ID,
                "apns-push-type": "alert", "apns-priority": "10"}
     try:
-        r = await client.post(f"https://{_APNS_HOST}/3/device/{device_token}",
+        r = await client.post(f"https://{host or _APNS_HOST}/3/device/{device_token}",
                               json=payload, headers=headers)
         if r.status_code == 200:
             return True, 200, "ok"
@@ -143,6 +153,20 @@ async def _send_apns(sb, rows, title, body, data):
         results = await asyncio.gather(*[
             _send_apns_one(client, jwt_token, r["token"], title, body, data) for r in rows
         ], return_exceptions=True)
+        # Environment mismatch (a sandbox token sent to production or vice
+        # versa) comes back as BadDeviceToken — retry those once on the other
+        # host before calling the token dead.
+        retry_idx = [i for i, res in enumerate(results)
+                     if not isinstance(res, Exception) and not res[0]
+                     and res[2] == "BadDeviceToken"]
+        if retry_idx:
+            retried = await asyncio.gather(*[
+                _send_apns_one(client, jwt_token, rows[i]["token"], title, body, data,
+                               host=_APNS_ALT_HOST) for i in retry_idx
+            ], return_exceptions=True)
+            for i, res in zip(retry_idx, retried):
+                if not isinstance(res, Exception):
+                    results[i] = res
     for r, res in zip(rows, results):
         if isinstance(res, Exception):
             failed += 1
