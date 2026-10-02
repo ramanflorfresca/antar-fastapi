@@ -21803,6 +21803,12 @@ def _ask_concern_route(question):
     health) or None. Order matters: separation is checked before relationship so
     'divorce' doesn't fall into the relationship bucket."""
     ql = (question or "").lower()
+    # [apple-4.3 2026-10-01] Speculation / gambling-type questions answer from the
+    # 5th/11th/8th-house speculation engine (neutral, finance-framed — never a
+    # casino "lucky day / signal 0-100" read). Checked FIRST so a speculative
+    # "should I bet / play / punt" question doesn't fall through to funding/income.
+    if _is_gambling_q(question):
+        return "speculation"
     if any(w in ql for w in ("fund", "loan", "invest", "raise money", "capital",
                              "borrow", "mortgage", "financing")):
         return "funding"
@@ -23903,7 +23909,7 @@ _ASK_PRACTICE_STEP = {
         "health": "Haz hoy una cosa constante por tu cuerpo — dormir temprano o una caminata tranquila. Constancia antes que intensidad.",
         "family": "Dedica unos minutos sin prisa a alguien de tu casa — un momento real, sin pantalla, sin agenda.",
         "peace": "Diez minutos de silencio hoy — suelta una preocupación que no puedes controlar y deja que el resto espere.",
-        "speculation": "Antes de cualquier apuesta, haz una pausa y define un límite del que puedas alejarte — luego respira antes de decidir.",
+        "speculation": "Antes de cualquier movimiento especulativo, haz una pausa y define un límite del que puedas alejarte — luego respira antes de decidir.",
         "_default": "Tómate unos minutos en calma hoy para afianzarte antes de actuar.",
     },
     "pt": {
@@ -23917,7 +23923,7 @@ _ASK_PRACTICE_STEP = {
         "health": "Faça hoje uma coisa constante pelo seu corpo — dormir cedo ou uma caminhada tranquila. Constância antes de intensidade.",
         "family": "Reserve alguns minutos sem pressa para alguém de casa — um momento real, sem tela, sem agenda.",
         "peace": "Dez minutos de silêncio hoje — largue uma preocupação que você não controla e deixe o resto esperar.",
-        "speculation": "Antes de qualquer aposta, faça uma pausa e defina um limite do qual você possa se afastar — depois respire antes de decidir.",
+        "speculation": "Antes de qualquer movimento especulativo, faça uma pausa e defina um limite do qual você possa se afastar — depois respire antes de decidir.",
         "_default": "Reserve alguns minutos de calma hoje para se firmar antes de agir.",
     },
 }
@@ -25184,7 +25190,14 @@ async def ask_endpoint(request: AskRequest):
             _kp_week = None
             _kp_is_range = False
             try:
-                if _is_gambling_q(question):
+                # [apple-4.3 2026-10-01] The KP casino "signal 0-100 / best day to
+                # gamble" surface is retired from /ask (App Store Guideline 4.3 — a
+                # gambling-timing read is a fortune-telling spam aggravator). These
+                # questions now answer from the 5th/11th/8th-house speculation engine
+                # (see _ask_concern_route -> "speculation") in neutral, non-gambling
+                # language. _kp_horary stays None, so the deterministic KP override
+                # and its calibration log below both no-op. Web + native identical.
+                if False:  # retired — speculation now routes to the concern engine
                     from antar_engine.kp.kp_speculation import (
                         kp_horary_speculation, kp_horary_week)
                     _kp_lat, _kp_lon = None, None
@@ -26277,19 +26290,19 @@ async def ask_endpoint(request: AskRequest):
                                     elif _client in ("SUPPORTED", "YES"):
                                         _phrase = (
                                             f"A speculative window is open through {_label} "
-                                            "— but keep any stake small and capped; "
+                                            "— but keep any position small and capped; "
                                             "speculation is high-variance, never a sure "
                                             "thing." if _label else
                                             "A speculative window is open — but keep any "
-                                            "stake small and capped; speculation is high-"
+                                            "position small and capped; speculation is high-"
                                             "variance, never a sure thing.")
                                     elif _client == "LIKELY":
                                         _phrase = (
                                             f"A speculative window is forming around "
-                                            f"{_label} — treat it as a small, capped stake at "
+                                            f"{_label} — treat it as a small, capped position at "
                                             "most." if _label else
                                             "A speculative window is forming — treat it as "
-                                            "a small, capped stake at most.")
+                                            "a small, capped position at most.")
                                     # NOT_YET / NO keep their cautious phrasing.
                                 elif _is_loss_q and _client in ("SUPPORTED", "YES", "LIKELY"):
                                     _phrase = (
@@ -26473,7 +26486,7 @@ async def ask_endpoint(request: AskRequest):
                         "open, clear, tight, charged.\n"
                         "Examples of the SHAPE only (do not copy the words):\n"
                         "  - \"Speculation is moderately favorable today — hold steady, don't add risk.\"\n"
-                        "  - \"Speculation is under pressure today — wait, don't deploy into a new bet.\"\n"
+                        "  - \"Speculation is under pressure today — wait, don't deploy into a new position.\"\n"
                         "  - \"Career conversations are open today — make the senior call before midday.\"\n"
                         "  - \"Property decisions are strained right now — postpone the offer.\"\n"
                     )
