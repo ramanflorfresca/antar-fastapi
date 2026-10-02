@@ -158,15 +158,24 @@ def _expire_stale_claims(chart_id: str, rows: list, sb) -> None:
             pass
 
 
-def get_pending_feedback(chart_id: str, sb, limit: int = 3, language: str = "en") -> list:
-    """Return up to `limit` predictions ready for user verification."""
+def get_pending_feedback(chart_id: str, sb, limit: int = 3, language: str = "en",
+                         concern: str = None) -> list:
+    """Return up to `limit` predictions ready for user verification.
+
+    [yesno-followup 2026-10-02] `concern` scopes the pool (e.g. "yesno" for the
+    Ask check-back card) so older pending claims of other kinds can't crowd a
+    surface's own follow-ups out of the limit."""
     now_dt = datetime.now(timezone.utc)
-    res = (
+    q = (
         sb.table("user_correlations")
         .select("*")
         .eq("chart_id", chart_id)
         .eq("feedback_status", "pending")
-        .lte("show_after", now_dt.isoformat())
+    )
+    if concern:
+        q = q.eq("concern", concern)
+    res = (
+        q.lte("show_after", now_dt.isoformat())
         .order("show_after", desc=False)
         # Over-fetch: the stale/duplicate daily rows being filtered out here are
         # exactly what a limit(3) at the DB would have handed back.
