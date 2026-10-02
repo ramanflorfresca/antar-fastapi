@@ -34238,6 +34238,72 @@ def get_daily_wisdom(chart_id: str, language: str = "en"):
     return build_daily_wisdom(chart_data, dashas, chart_id=chart_id, language=lang)
 
 
+_WISDOM_SYSTEM = """You are Antar's wisdom companion — a warm, grounded guide to the Bhagavad Gita and the broader Vedic wisdom tradition. You help people reflect on scripture and live it.
+
+Voice: warm, plain, concrete. Short paragraphs. Speak to meaning and how to apply it, not academic commentary. No lecturing, no purple prose.
+
+Rules:
+- Stay in the spiritual / wisdom lane: the verse and its meaning, how to practice it, meditation, mantras, dharma, equanimity, devotion, everyday application.
+- Do NOT fabricate scripture. Never invent verse numbers or Sanskrit you are unsure of — speak to meaning and theme instead. Keep any quote to widely known lines.
+- Never give medical, financial, or legal advice. For personal timing or "when should I…" questions about the person's own life, gently point them to the Ask tab (that is where Antar reads their chart) — and make NO astrological claims yourself here.
+- If asked for a mantra, you may suggest a well-known one (e.g. the Gayatri, Om Namah Shivaya, a Hanuman mantra for courage) with one plain line on how and when to use it, and note that their Practice tab has mantras matched to their own chart.
+- Respond in the person's language. Keep replies focused — usually 2 to 4 short paragraphs.
+## LIVE DATA"""
+
+
+@app.post("/api/v1/daily-wisdom/chat")
+async def daily_wisdom_chat(request: dict = None, language: str = "en"):
+    """Conversational layer for Daily Wisdom — a scripture/spiritual guide, kept
+    deliberately SEPARATE from the astrology Ask engine so a 'tell me more about
+    this verse' question gets a wisdom answer, not a timing reading. Body:
+    {message, chart_id?, verse_reference?, ask_context?, history?, language?}.
+    Integrity-wrapped LLM (Claude→DeepSeek fallback). Never invents scripture."""
+    req = request or {}
+    msg = (req.get("message") or "").strip()[:2000]
+    if not msg:
+        raise HTTPException(status_code=400, detail="message required")
+    lang = (req.get("language") or language or "en").split("-")[0].lower()
+    ask_ctx = (req.get("ask_context") or "").strip()[:1200]
+    vref = (req.get("verse_reference") or "").strip()[:24]
+    chart_id = req.get("chart_id") or ""
+
+    hist = []
+    for h in (req.get("history") or [])[-8:]:
+        if isinstance(h, dict) and h.get("role") in ("user", "assistant") and h.get("content"):
+            hist.append({"role": h["role"], "content": str(h["content"])[:2000]})
+
+    # Light season context (never block the loop on the sync dasha read).
+    season = ""
+    if chart_id:
+        try:
+            import asyncio as _aio
+            from antar_engine.daily_wisdom import _season as _wseason
+            _dd = await _aio.to_thread(get_dashas_for_chart, chart_id)
+            season = _wseason(_dd or {})
+        except Exception as _se:
+            print(f"[wisdom-chat] season skip: {_se}")
+
+    _lang_name = {"en": "English", "es": "Spanish", "pt": "Portuguese"}.get(lang, "English")
+    _dyn = []
+    if ask_ctx:
+        _dyn.append(ask_ctx)
+    elif vref:
+        _dyn.append(f"The reader is reflecting on Bhagavad Gita {vref}.")
+    if season:
+        _dyn.append(f"(Their current life season reads as '{season}' — you may gently tailor "
+                    f"encouragement to that tone, but make NO specific astrological predictions.)")
+    _dyn.append(f"Respond in {_lang_name}.")
+    system = _WISDOM_SYSTEM + "\n" + "\n".join(_dyn)
+
+    try:
+        reply, _ = await call_llm_claude(msg, history=hist, system_override=system,
+                                         max_tokens_override=700, temperature_override=0.5)
+    except Exception as e:
+        print(f"[wisdom-chat] llm error: {e}")
+        raise HTTPException(status_code=503, detail="wisdom_unavailable")
+    return {"available": True, "reply": (reply or "").strip(), "language": lang}
+
+
 # ── Master Dashboard Endpoint ─────────────────────────────────────
 
 
