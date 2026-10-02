@@ -4426,35 +4426,88 @@ _WA_TZ_BY_PREFIX = (("+91", 330), ("+971", 240), ("+65", 480), ("+44", 60),
                     ("+1", -240))
 
 _WA_L = {
-    "reading":  {"en": "Reading your chart…", "es": "Leyendo tu carta…", "pt": "Lendo seu mapa…"},
-    "linked":   {"en": "✅ Connected to {name}. Ask me anything about your life, timing or a decision.",
-                 "es": "✅ Conectado a {name}. Pregúntame lo que quieras sobre tu vida, tus tiempos o una decisión.",
-                 "pt": "✅ Conectado a {name}. Pergunte o que quiser sobre sua vida, seus tempos ou uma decisão."},
+    "reading":  {"en": "Reading your chart…", "es": "Leyendo tu carta…", "pt": "Lendo seu mapa…",
+                 "hinglish": "Aapka chart padh raha hoon…"},
+    "welcome":  {"en": "✅ Connected — I'm reading *{name}*'s chart.\n\nAsk me anything about your life, timing or a decision. Or reply with a number:",
+                 "es": "✅ Conectado — estoy leyendo la carta de *{name}*.\n\nPregúntame lo que quieras sobre tu vida, tus tiempos o una decisión. O responde con un número:",
+                 "pt": "✅ Conectado — estou lendo o mapa de *{name}*.\n\nPergunte o que quiser sobre sua vida, seus tempos ou uma decisão. Ou responda com um número:",
+                 "hinglish": "✅ Connected — main *{name}* ka chart padh raha hoon.\n\nZindagi, timing ya kisi decision ke baare mein kuch bhi poochiye. Ya ek number bhejiye:"},
+    "welcome_tail": {"en": "Type *help* anytime.", "es": "Escribe *ayuda* cuando quieras.",
+                     "pt": "Digite *ajuda* quando quiser.", "hinglish": "Kabhi bhi *help* likhiye."},
+    "switch_hint": {"en": "You can also ask about {names} — type *switch*.",
+                    "es": "También puedes preguntar por {names} — escribe *cambiar*.",
+                    "pt": "Você também pode perguntar sobre {names} — digite *trocar*.",
+                    "hinglish": "Aap {names} ke baare mein bhi pooch sakte hain — *switch* likhiye."},
     "bad_code": {"en": "That code is invalid or expired. Open the Antar app → Connect WhatsApp to get a new one.",
                  "es": "Ese código no es válido o venció. Abre la app de Antar → Conectar WhatsApp para obtener uno nuevo.",
-                 "pt": "Esse código é inválido ou expirou. Abra o app Antar → Conectar WhatsApp para gerar um novo."},
+                 "pt": "Esse código é inválido ou expirou. Abra o app Antar → Conectar WhatsApp para gerar um novo.",
+                 "hinglish": "Yeh code galat hai ya expire ho gaya. Antar app → Connect WhatsApp se naya code lijiye."},
     "need_link": {"en": "Hi 🙏 I'm Antar. To read your chart I first need to know it's you.\n\n{how}",
                   "es": "Hola 🙏 Soy Antar. Para leer tu carta primero necesito saber que eres tú.\n\n{how}",
-                  "pt": "Olá 🙏 Sou o Antar. Para ler seu mapa, primeiro preciso saber que é você.\n\n{how}"},
+                  "pt": "Olá 🙏 Sou o Antar. Para ler seu mapa, primeiro preciso saber que é você.\n\n{how}",
+                  "hinglish": "Namaste 🙏 Main Antar hoon. Aapka chart padhne se pehle mujhe pata hona chahiye ki yeh aap hi hain.\n\n{how}"},
     "how_app":  {"en": "Open the Antar app → Connect WhatsApp, then tap send.",
                  "es": "Abre la app de Antar → Conectar WhatsApp y toca enviar.",
-                 "pt": "Abra o app Antar → Conectar WhatsApp e toque em enviar."},
-    "how_link": {"en": "Sign in here to connect this number (link valid 15 minutes):\n{url}",
-                 "es": "Inicia sesión aquí para conectar este número (enlace válido 15 minutos):\n{url}",
-                 "pt": "Entre aqui para conectar este número (link válido por 15 minutos):\n{url}"},
+                 "pt": "Abra o app Antar → Conectar WhatsApp e toque em enviar.",
+                 "hinglish": "Antar app kholiye → Connect WhatsApp, phir send dabaiye."},
+    "how_link": {"en": "Tap to connect this number (link valid 15 minutes):\n{url}\n\nNew to Antar? The same link lets you sign up.",
+                 "es": "Toca para conectar este número (enlace válido 15 minutos):\n{url}\n\n¿Nuevo en Antar? El mismo enlace te deja registrarte.",
+                 "pt": "Toque para conectar este número (link válido por 15 minutos):\n{url}\n\nNovo no Antar? O mesmo link permite criar sua conta.",
+                 "hinglish": "Yeh number connect karne ke liye tap kijiye (link 15 minute valid):\n{url}\n\nAntar par naye hain? Isi link se sign up kar sakte hain."},
     "unlinked": {"en": "Done — this number is disconnected from Antar. Reconnect anytime from the app.",
                  "es": "Listo — este número quedó desconectado de Antar. Puedes reconectarlo desde la app.",
-                 "pt": "Pronto — este número foi desconectado do Antar. Reconecte quando quiser pelo app."},
-    "help":     {"en": "Ask me any question about your life, timing or a decision — I read it from your chart.\n\nCommands: *STOP* disconnects this number.",
-                 "es": "Hazme cualquier pregunta sobre tu vida, tus tiempos o una decisión — la leo desde tu carta.\n\nComandos: *STOP* desconecta este número.",
-                 "pt": "Faça qualquer pergunta sobre sua vida, seus tempos ou uma decisão — eu leio pelo seu mapa.\n\nComandos: *STOP* desconecta este número."},
+                 "pt": "Pronto — este número foi desconectado do Antar. Reconecte quando quiser pelo app.",
+                 "hinglish": "Ho gaya — yeh number Antar se disconnect ho gaya. App se kabhi bhi dobara connect kar sakte hain."},
+    "help":     {"en": "Ask me any question about your life, timing or a decision — I read it from your chart.\n\n*switch* — choose whose chart I read\n*1–3* — pick a suggested question\n*STOP* — disconnect this number",
+                 "es": "Hazme cualquier pregunta sobre tu vida, tus tiempos o una decisión — la leo desde tu carta.\n\n*cambiar* — elige qué carta leo\n*1–3* — elige una pregunta sugerida\n*STOP* — desconecta este número",
+                 "pt": "Faça qualquer pergunta sobre sua vida, seus tempos ou uma decisão — eu leio pelo seu mapa.\n\n*trocar* — escolha qual mapa eu leio\n*1–3* — escolha uma pergunta sugerida\n*STOP* — desconecta este número",
+                 "hinglish": "Zindagi, timing ya kisi decision ke baare mein koi bhi sawaal poochiye — main aapke chart se padhta hoon.\n\n*switch* — kiska chart padhun, chuniye\n*1–3* — suggested sawaal chuniye\n*STOP* — yeh number disconnect kijiye"},
     "failed":   {"en": "Something went wrong reading your chart — please ask again in a moment.",
                  "es": "Algo salió mal al leer tu carta — vuelve a preguntar en un momento.",
-                 "pt": "Algo deu errado ao ler seu mapa — pergunte novamente em instantes."},
+                 "pt": "Algo deu errado ao ler seu mapa — pergunte novamente em instantes.",
+                 "hinglish": "Chart padhne mein kuch gadbad ho gayi — thodi der mein dobara poochiye."},
     "too_many": {"en": "Too many wrong codes. Please try again in an hour.",
                  "es": "Demasiados códigos incorrectos. Inténtalo de nuevo en una hora.",
-                 "pt": "Muitos códigos incorretos. Tente novamente em uma hora."},
+                 "pt": "Muitos códigos incorretos. Tente novamente em uma hora.",
+                 "hinglish": "Bahut saare galat code. Ek ghante baad try kijiye."},
+    "thanks":   {"en": "Anytime 🙏", "es": "Cuando quieras 🙏", "pt": "Sempre que precisar 🙏",
+                 "hinglish": "Kabhi bhi 🙏"},
+    "media":    {"en": "I can only read text for now — type your question and I'll answer.",
+                 "es": "Por ahora solo leo texto — escribe tu pregunta y te respondo.",
+                 "pt": "Por enquanto só leio texto — digite sua pergunta e eu respondo.",
+                 "hinglish": "Abhi main sirf text padh sakta hoon — apna sawaal likh kar bhejiye."},
+    "limit":    {"en": "You've used today's free question. It resets tomorrow — or ask without limits with Antar Operator: {url}",
+                 "es": "Ya usaste tu pregunta gratis de hoy. Se renueva mañana — o pregunta sin límites con Antar Operator: {url}",
+                 "pt": "Você já usou sua pergunta grátis de hoje. Ela renova amanhã — ou pergunte sem limites com o Antar Operator: {url}",
+                 "hinglish": "Aaj ka free sawaal ho gaya. Kal phir milega — ya Antar Operator ke saath bina limit poochiye: {url}"},
+    "limit_again": {"en": "Today's free question is used — it resets tomorrow.",
+                    "es": "La pregunta gratis de hoy ya se usó — se renueva mañana.",
+                    "pt": "A pergunta grátis de hoje já foi usada — renova amanhã.",
+                    "hinglish": "Aaj ka free sawaal ho chuka hai — kal phir milega."},
+    "switch_q": {"en": "Whose chart should I read?", "es": "¿Qué carta leo?",
+                 "pt": "Qual mapa devo ler?", "hinglish": "Kiska chart padhun?"},
+    "switch_tail": {"en": "Reply with a number.", "es": "Responde con un número.",
+                    "pt": "Responda com um número.", "hinglish": "Number bhejiye."},
+    "switch_only": {"en": "There's only your own chart on this account. Add people in the Antar app to ask about them.",
+                    "es": "En esta cuenta solo está tu carta. Agrega personas en la app de Antar para preguntar por ellas.",
+                    "pt": "Nesta conta só existe o seu mapa. Adicione pessoas no app Antar para perguntar sobre elas.",
+                    "hinglish": "Is account mein sirf aapka chart hai. Doosron ke baare mein poochne ke liye Antar app mein unhe add kijiye."},
+    "switched": {"en": "Now reading *{name}*'s chart. Type *switch* to change.",
+                 "es": "Ahora leo la carta de *{name}*. Escribe *cambiar* para cambiar.",
+                 "pt": "Agora estou lendo o mapa de *{name}*. Digite *trocar* para mudar.",
+                 "hinglish": "Ab *{name}* ka chart padh raha hoon. Badalne ke liye *switch* likhiye."},
+    "no_match": {"en": "I couldn't find \"{name}\" in your saved charts.",
+                 "es": "No encontré \"{name}\" entre tus cartas guardadas.",
+                 "pt": "Não encontrei \"{name}\" nos seus mapas salvos.",
+                 "hinglish": "\"{name}\" aapke saved charts mein nahi mila."},
+    "back_self": {"en": "That chart was removed, so I'm reading your own chart again.",
+                  "es": "Esa carta se eliminó, así que vuelvo a leer tu propia carta.",
+                  "pt": "Esse mapa foi removido, então voltei a ler o seu.",
+                  "hinglish": "Woh chart hata diya gaya, isliye ab phir aapka apna chart padh raha hoon."},
+    "you":      {"en": "you", "es": "tú", "pt": "você", "hinglish": "aap"},
 }
+
+_WA_READING_AFTER_S = 4.0     # only say "Reading your chart…" when the answer is slow
 
 
 def _wa_on() -> bool:
@@ -4466,12 +4519,19 @@ def _wa_text(key: str, lang: str, **kw) -> str:
     return s.format(**kw) if kw else s
 
 
-def _wa_lang(text: str) -> str:
+def _wa_lang(text: str, fallback: str = "en") -> str:
+    """en / es / pt / hinglish from the message text; `fallback` when unclear."""
     try:
         d = _ask_detect_text_lang(text)
-        return d if d in ("es", "pt") else "en"
+        if d in ("es", "pt"):
+            return d
+        if _ask_detect_hinglish(text):
+            return "hinglish"
+        if _ask_is_english(text):
+            return "en"
     except Exception:
-        return "en"
+        pass
+    return fallback if fallback in ("en", "es", "pt", "hinglish") else "en"
 
 
 def _wa_tz(number: str) -> int:
@@ -4490,12 +4550,57 @@ def _wa_chart_name(chart_id: str) -> str:
         return "your chart"
 
 
-async def _wa_handle(number: str, body: str, inbound_ts: float):
+def _wa_chart_alive(chart_id: str) -> bool:
+    try:
+        r = (supabase.table("charts").select("id").eq("id", chart_id)
+             .is_("deleted_at", "null").limit(1).execute()).data
+        return bool(r)
+    except Exception:
+        return True      # fail-open: never strand the user on a lookup error
+
+
+def _wa_welcome(link: dict, lang: str) -> tuple:
+    """(text, starter questions) sent once right after linking."""
+    from antar_engine import messaging as _msg
+    cid = link.get("chart_id")
+    name = _wa_chart_name(cid)
+    starters = []
+    try:
+        from antar_engine.ask_suggestions import build_suggested_prompts
+        starters = [s.get("text") for s in build_suggested_prompts(
+            cid, supabase, language=("en" if lang == "hinglish" else lang))
+            if isinstance(s, dict) and s.get("text")][:3]
+    except Exception as e:
+        print(f"[whatsapp] starters skipped: {e}")
+    parts = [_wa_text("welcome", lang, name=name)]
+    if starters:
+        parts.append("\n".join(f"{i}  {q}" for i, q in enumerate(starters, 1)))
+    others = []
+    if link.get("user_id"):
+        primary = _resolve_primary_chart_id(link["user_id"])
+        others = [c[1] for c in _msg.list_user_charts(supabase, link["user_id"], primary)
+                  if c[0] != cid][:2]
+    if others:
+        parts.append(_wa_text("switch_hint", lang, names=" / ".join(others)))
+    parts.append(_wa_text("welcome_tail", lang))
+    return "\n\n".join(parts), starters
+
+
+async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int = 0):
     """Background worker for one inbound WhatsApp message. Never raises."""
     from antar_engine import messaging as _msg
     from starlette.responses import Response as _StarResp
-    lang = _wa_lang(body)
+    sb = supabase
+    link = await asyncio.to_thread(_msg.get_whatsapp_link, sb, number)
+    ctx = _msg.link_context(link)
+    lang = _wa_lang(body, ctx.get("lang") or "en") if body else (ctx.get("lang") or "en")
     send = lambda txt: _msg.whatsapp_send(number, txt, inbound_ts)  # noqa: E731
+
+    def _save(c):
+        c = dict(c)
+        c["lang"] = lang
+        _msg.save_link_context(sb, link, c)
+
     try:
         cmd, arg = _msg.parse_wa_command(body)
         if cmd == "link":
@@ -4504,25 +4609,23 @@ async def _wa_handle(number: str, body: str, inbound_ts: float):
             if len(bad) >= 5:
                 send(_wa_text("too_many", lang))
                 return
-            cid = await asyncio.to_thread(_msg.bind_link_whatsapp, supabase, arg, number)
-            if cid:
-                _WA_BAD_CODES.pop(number, None)
-                name = await asyncio.to_thread(_wa_chart_name, cid)
-                send(_wa_text("linked", lang, name=name))
-            else:
+            cid = await asyncio.to_thread(_msg.bind_link_whatsapp, sb, arg, number)
+            if not cid:
                 _WA_BAD_CODES[number] = bad + [now]
                 send(_wa_text("bad_code", lang))
+                return
+            _WA_BAD_CODES.pop(number, None)
+            link = await asyncio.to_thread(_msg.get_whatsapp_link, sb, number) or {"chart_id": cid}
+            text, starters = await asyncio.to_thread(_wa_welcome, link, lang)
+            send(text)
+            _save(_msg.remember_options({}, "ask", starters))
             return
         if cmd == "unlink":
-            await asyncio.to_thread(_msg.unlink_whatsapp, supabase, number)
+            await asyncio.to_thread(_msg.unlink_whatsapp, sb, number)
             send(_wa_text("unlinked", lang))
             return
-        if cmd == "help":
-            send(_wa_text("help", lang))
-            return
 
-        cid = await asyncio.to_thread(_msg.resolve_chart, supabase, "whatsapp", number)
-        if not cid:
+        if not link:
             secret = os.getenv("WHATSAPP_LINK_SECRET")
             base = os.getenv("WHATSAPP_CONNECT_URL")     # e.g. https://antar.world/wa/connect
             if secret and base:
@@ -4533,11 +4636,81 @@ async def _wa_handle(number: str, body: str, inbound_ts: float):
             send(_wa_text("need_link", lang, how=how))
             return
 
-        send(_wa_text("reading", lang))
+        if cmd == "help":
+            send(_wa_text("help", lang))
+            return
+        if not body and num_media:
+            send(_wa_text("media", lang))
+            return
+        if _msg.is_thanks(body):
+            send(_wa_text("thanks", lang))
+            return
+
+        user_id = link.get("user_id")
+        primary = await asyncio.to_thread(_resolve_primary_chart_id, user_id) if user_id else None
+
+        # chart switching: "switch", "switch Mom", "ask about Ana"
+        sw = _msg.parse_switch(body)
+        if sw is not None:
+            charts = await asyncio.to_thread(_msg.list_user_charts, sb, user_id, primary) if user_id else []
+            if len(charts) < 2:
+                send(_wa_text("switch_only", lang))
+                return
+            if sw:
+                hit = _msg.match_chart(charts, sw)
+                if hit:
+                    await asyncio.to_thread(_msg.set_link_chart, sb, link, hit[0])
+                    send(_wa_text("switched", lang, name=hit[1]))
+                    return
+                send(_wa_text("no_match", lang, name=sw))
+            lines = [_wa_text("switch_q", lang), ""]
+            for i, (cid_, nm, is_self) in enumerate(charts[:9], 1):
+                mark = " ✓" if cid_ == link.get("chart_id") else ""
+                you = f" ({_wa_text('you', lang)})" if is_self else ""
+                lines.append(f"{i}  {nm}{you}{mark}")
+            lines += ["", _wa_text("switch_tail", lang)]
+            send("\n".join(lines))
+            _save(_msg.remember_options(ctx, "chart", [[c[0], c[1]] for c in charts[:9]]))
+            return
+
+        # a bare digit picks from the last numbered list
+        question = body
+        n = _msg.parse_pick(body)
+        if n is not None:
+            kind, item = _msg.pick_option(ctx, n)
+            if kind == "chart" and item:
+                await asyncio.to_thread(_msg.set_link_chart, sb, link, item[0])
+                send(_wa_text("switched", lang, name=item[1]))
+                ctx.pop("options", None)
+                _save(ctx)
+                return
+            if kind == "ask" and item:
+                question = item
+
+        cid = link.get("chart_id")
+        if cid and not await asyncio.to_thread(_wa_chart_alive, cid):
+            if primary and primary != cid:
+                await asyncio.to_thread(_msg.set_link_chart, sb, link, primary)
+                cid = primary
+                send(_wa_text("back_self", lang))
+        header = None
+        if primary and cid != primary:
+            header = await asyncio.to_thread(_wa_chart_name, cid)
+
+        ask = asyncio.create_task(ask_endpoint(AskRequest(
+            question=question, chart_id=cid, mode="explore",
+            language=("hinglish" if lang == "hinglish" else lang),
+            tz_offset=_wa_tz(number))))
+        _WA_TASKS.add(ask)
+        ask.add_done_callback(_WA_TASKS.discard)
         try:
-            payload = await asyncio.wait_for(ask_endpoint(AskRequest(
-                question=body, chart_id=cid, mode="explore", language=lang,
-                tz_offset=_wa_tz(number))), timeout=90)
+            payload = await asyncio.wait_for(asyncio.shield(ask), timeout=_WA_READING_AFTER_S)
+        except asyncio.TimeoutError:
+            send(_wa_text("reading", lang))
+            try:
+                payload = await asyncio.wait_for(ask, timeout=90)
+            except asyncio.TimeoutError:
+                payload = None
         except HTTPException as he:
             print(f"[whatsapp] ask failed {he.status_code}")
             payload = None
@@ -4546,10 +4719,24 @@ async def _wa_handle(number: str, body: str, inbound_ts: float):
                 payload = json.loads(payload.body or b"{}")
             except Exception:
                 payload = None
-        if not isinstance(payload, dict) or (payload.get("error") and not payload.get("read")):
+        if not isinstance(payload, dict) or (payload.get("error") and not payload.get("read")
+                                             and not payload.get("soft_capped")):
             send(_wa_text("failed", lang))
             return
-        send(_msg.format_ask_for_whatsapp(payload, lang))
+        if payload.get("soft_capped"):
+            today = datetime.now(timezone.utc).date().isoformat()
+            if ctx.get("limit_notice") == today:
+                send(_wa_text("limit_again", lang))
+            else:
+                from antar_engine.entitlements import UPGRADE_URL as _up
+                send(_wa_text("limit", lang, url=_up))
+                ctx["limit_notice"] = today
+                _save(ctx)
+            return
+        prefix = f"*→ {question}*\n\n" if question != body else ""
+        text, fus = _msg.format_ask_whatsapp_v2(payload, lang, header=header)
+        send(prefix + text if text else _wa_text("failed", lang))
+        _save(_msg.remember_options(ctx, "ask", fus) if fus else {k: v for k, v in ctx.items() if k != "options"})
     except Exception as e:
         print(f"[whatsapp] handler non-fatal …{number[-4:]}: {e}")
         try:
@@ -4590,9 +4777,13 @@ async def messaging_whatsapp_webhook(http_request: Request):
         if len(_WA_SEEN) > 5000:
             for k in [k for k, t in _WA_SEEN.items() if now - t > 3600]:
                 _WA_SEEN.pop(k, None)
-    if not number or not body:            # media-only / status pings: nothing to answer
+    try:
+        num_media = int(params.get("NumMedia") or 0)
+    except ValueError:
+        num_media = 0
+    if not number or (not body and not num_media):   # status pings: nothing to answer
         return _empty
-    task = asyncio.create_task(_wa_handle(number, body, now))
+    task = asyncio.create_task(_wa_handle(number, body, now, num_media))
     _WA_TASKS.add(task)
     task.add_done_callback(_WA_TASKS.discard)
     return _empty
@@ -4651,8 +4842,11 @@ def messaging_whatsapp_connect(req: _WaConnect, authorization: str = Header(...)
         raise HTTPException(503, "messaging storage not set up yet")
     # The token is ≤15 min old and was issued in reply to the user's message,
     # so we are still inside the 24h window.
-    _msg.whatsapp_send(number, _wa_text("linked", "en", name=_wa_chart_name(chart_id)),
-                       _time.time() - 15 * 60)
+    link = _msg.get_whatsapp_link(supabase, number) or {"chart_id": chart_id, "user_id": user_id}
+    lang = (_msg.link_context(link).get("lang")) or "en"
+    text, starters = _wa_welcome(link, lang)
+    _msg.whatsapp_send(number, text, _time.time() - 15 * 60)
+    _msg.save_link_context(supabase, link, _msg.remember_options({"lang": lang}, "ask", starters))
     return {"linked": True, "number_last4": number[-4:], "chart_id": chart_id}
 
 
