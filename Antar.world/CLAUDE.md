@@ -91,7 +91,7 @@ reset discards uncommitted work in the tree without warning.
 
 ### After any code change
 1. Run the tests: `venv311/bin/python -m pytest tests -q`
-   **The suite is GREEN — 445 passed, 0 failed (2026-10-02).** Any red is yours; do not
+   **The suite is GREEN — 447 passed, 0 failed (2026-10-02).** Any red is yours; do not
    wave one through as pre-existing. (Until 2026-09-29 three
    tests/test_event_narrator.py failures were treated that way. They were a
    stale time-dependent fixture, not broken code, and they trained everyone to

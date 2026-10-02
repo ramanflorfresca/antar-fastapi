@@ -7138,64 +7138,6 @@ Answer specifically about {_other_name}'s strengths/weaknesses for the question 
         diagnostic_block = ""
     # --- END DIAGNOSTIC PRE-SCAN ---
 
-    # --- SYSTEM STATE INJECTION (Sprint Apr7 Step 2) ---
-    system_state_block = ""
-    try:
-        import logging as _ss_log
-        _ssl = _ss_log.getLogger("antar.system_state")
-
-        # Pull instrument scores from executive_dashboard if available
-        instr = {}
-        try:
-            from antar_engine.executive_dashboard import get_instrument_scores
-            instr = get_instrument_scores(chart_data) if chart_data else {}
-        except Exception as _ie:
-            _ssl.debug(f"Instrument scores unavailable: {_ie}")
-
-        # Pull LK sleeping/rin state
-        lk_state = {}
-        try:
-            from antar_engine.lal_kitab_advanced import get_lk_state
-            lk_state = get_lk_state(chart_data) if chart_data else {}
-        except Exception as _lke:
-            _ssl.debug(f"LK state unavailable: {_lke}")
-
-        lines = ["\nCURRENT SYSTEM STATE:"]
-
-        # Top 6 instrument gauges by score
-        if instr:
-            sorted_instr = sorted(instr.items(), key=lambda x: x[1].get("score", 0), reverse=True)
-            for name, val in sorted_instr[:6]:
-                _score  = val.get("score", 0)
-                _status = val.get("status", "")
-                _lock   = val.get("lock_level", "")
-                _lock_str = f" — {_lock}" if _lock else ""
-                lines.append(f"  {name}: {_status} ({_score}/100){_lock_str}")
-
-        # Lal Kitab sleeping planets and active Rin debts
-        sleeping = lk_state.get("sleeping_planets", []) if lk_state else []
-        rins     = lk_state.get("active_rins", []) if lk_state else []
-        if sleeping or rins:
-            lines.append("KARMIC STATE (Lal Kitab):")
-            for sp in sleeping[:3]:
-                _planet    = sp.get("planet", sp) if isinstance(sp, dict) else sp
-                _reason    = sp.get("reason", "") if isinstance(sp, dict) else ""
-                _reason_str = f" — {_reason}" if _reason else ""
-                lines.append(f"  Sleeping {_planet}{_reason_str}")
-            for rin in rins[:2]:
-                _rin_type  = rin.get("type", rin) if isinstance(rin, dict) else rin
-                _effect    = rin.get("effect", "") if isinstance(rin, dict) else ""
-                _effect_str = f" — affects {_effect}" if _effect else ""
-                lines.append(f"  Active Rin: {_rin_type}{_effect_str}")
-
-        if len(lines) > 1:
-            system_state_block = "\n".join(lines) + "\n"
-            _ssl.info("System state block ready for injection")
-    except Exception as _sse:
-        import logging as _fb_log
-        _fb_log.getLogger("antar").warning(f"System state injection failed (non-critical): {_sse}")
-        system_state_block = ""
-    # --- END SYSTEM STATE INJECTION ---
 
     # --- DKP CONTEXT BLOCKS (Sprint Apr7 Step 3) ---
     dkp_block = ""
@@ -8226,8 +8168,6 @@ Do not use any planet names or astrological jargon — translate everything into
         except Exception as _je:
             print(f"Jaimini context failed (non-blocking): {_je}")
         # --- INJECT STEP 2+3 BLOCKS INTO FULL CONTEXT ---
-        if system_state_block:
-            _full_context += "\n" + system_state_block
         if dkp_block and dkp_block not in _full_context:
             _full_context += "\n" + dkp_block
         if divisional_block and divisional_block not in _full_context:
@@ -32497,26 +32437,6 @@ def push_unregister(request: dict, authorization: Optional[str] = Header(None)):
     except Exception as e:
         raise HTTPException(500, f"unregister failed: {e}")
     return {"ok": True}
-
-
-@app.post("/api/v1/push/send")
-def push_send(request: dict):
-    """[push] Server/cron: send a push to a chart's owner. Auth via the shared
-    ALERT_SECRET (same gate the alert pipeline uses).
-    Body: { secret, chart_id, title?, body, data? }."""
-    if request.get("secret", "") != os.getenv("ALERT_SECRET", "antar-alerts-2026"):
-        raise HTTPException(403, "forbidden")
-    from antar_engine.push_engine import send_to_chart
-    chart_id = request.get("chart_id", "")
-    body = request.get("body", "")
-    if not chart_id:
-        raise HTTPException(400, "chart_id required")
-    if not body:
-        raise HTTPException(400, "body required")
-    return send_to_chart(
-        chart_id, request.get("title", "Antar"), body,
-        supabase, data=request.get("data") or {},
-    )
 
 
 # ── Store renewal / lifecycle notifications [iap-renewals 2026-09-22] ──
