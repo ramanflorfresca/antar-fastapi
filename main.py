@@ -3777,8 +3777,8 @@ async def get_your_pattern(chart_id: str, language: str = "en"):
 
 
 @app.post("/api/v1/chart/{chart_id}/ventures")
-async def add_venture(chart_id: str, venture: VentureCreate,
-                      authorization: str = Header(...), language: str = "en"):
+def add_venture(chart_id: str, venture: VentureCreate,
+                authorization: str = Header(...), language: str = "en"):
     """Capture one past venture, then return the refreshed pattern. Requires the
     `ventures` table (Lovable DDL); a clear 503 until it exists."""
     user_id = verify_token(authorization)
@@ -3800,8 +3800,8 @@ async def add_venture(chart_id: str, venture: VentureCreate,
 
 
 @app.delete("/api/v1/chart/{chart_id}/ventures/{venture_id}")
-async def delete_venture(chart_id: str, venture_id: str,
-                         authorization: str = Header(...), language: str = "en"):
+def delete_venture(chart_id: str, venture_id: str,
+                   authorization: str = Header(...), language: str = "en"):
     """Remove one captured venture (owner only), then return the refreshed pattern."""
     user_id = verify_token(authorization)
     try:
@@ -3823,7 +3823,7 @@ async def delete_venture(chart_id: str, venture_id: str,
 # BANDS within it (the piece the FE can't derive). Jargon-free (plain energy
 # labels), no LLM, fail-open.
 @app.get("/api/v1/chart/{chart_id}/arc")
-async def get_chart_arc(chart_id: str, language: str = "en"):
+def get_chart_arc(chart_id: str, language: str = "en"):
     """{available, start, end, now, span_years, bands[{start,end,label,is_current}]}
     for the current Vimśottarī chapter. Bands = antardasha sub-periods, plain-
     labelled. The FE plots the What's-Ahead events (from /life-arc) as nodes on
@@ -3892,7 +3892,7 @@ async def get_chart_arc(chart_id: str, language: str = "en"):
 # recognize). Past-anchored + confidence-gated (skip the past-season if the chart
 # doesn't yield a clean one — never force a weak hit that breaks trust). Jargon-free.
 @app.get("/api/v1/chart/{chart_id}/first-read")
-async def get_first_read(chart_id: str, language: str = "en"):
+def get_first_read(chart_id: str, language: str = "en"):
     """{available, archetype, identity_line, past_season:{window,theme,prompt}}.
     The FE shows identity_line + the confirmable past_season BEFORE revealing the
     app. past_season is null when confidence is low (honest > a miss)."""
@@ -15444,9 +15444,12 @@ _CHART_DERIVED_TABLES = (
     # push targeting
     "device_tokens",
     # engagement / feedback / accuracy
-    "practice_log",
+    "practice_log", "practice_completions",
     "daily_feedback", "life_arc_feedback", "user_correlations",
     "prediction_accuracy_marks", "verification_ratings", "reward_ledger",
+    # "Your Pattern" — the user's own captured venture history (chart_id-keyed,
+    # also carries user_id). Added with the feature ~2026-10-01.
+    "ventures",
     # NOT here on purpose:
     #   lal_kitab_remedies   — a STATIC reference library keyed by planet/house
     #     (117 rows of remedy text shared by every chart). It has no chart_id;
@@ -15460,9 +15463,10 @@ _CHART_DERIVED_TABLES = (
     #     GROUP BY"), so it logged a purge error on every single chart delete
     #     and the response claimed partial_cascade every time. Its rows vanish
     #     when the marks do; verified against production.
-    #   practice_completions, practice_sessions, past_event_feedback — no such
-    #     tables in the schema. Inherited from the account list; every delete
-    #     spent a round trip failing to find them.
+    #   practice_sessions, past_event_feedback — no such tables in the schema.
+    #     Inherited from the account list; every delete spent a round trip
+    #     failing to find them. (practice_completions, once in the same boat,
+    #     now exists and is chart_id-keyed, so it is registered above.)
 )
 
 # Billing and quota. Deliberately NOT part of a single-chart delete: a
