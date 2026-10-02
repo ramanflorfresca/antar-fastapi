@@ -23882,7 +23882,7 @@ _ASK_PRACTICE_STEP = {
         "health": "Do one steady thing for your body today — an early night or a slow walk. Constancy over intensity.",
         "family": "Take a few unhurried minutes with someone at home — a real moment, no screen, no agenda.",
         "peace": "Ten minutes of quiet today — set down one worry you can't control, and let the rest wait.",
-        "speculation": "Before any bet, pause and set a hard limit you can walk away from — then breathe before you decide.",
+        "speculation": "Before any speculative move, pause and set a hard limit you can walk away from — then breathe before you decide.",
         "_default": "Take a few quiet minutes today to steady yourself before you act.",
     },
     "es": {
@@ -25247,9 +25247,12 @@ async def ask_endpoint(request: AskRequest):
                                     _kp_lat, _kp_lon, tz_offset=_kp_tz, days=_kp_days)
                     if _kp_horary and _kp_horary.get("available"):
                         _kpp = [
-                            "SPECULATION / GAMBLING QUESTION — answer as a KP (Krishnamurti) "
-                            "astrologer casting the HORARY for this moment. This is a candid "
-                            "READING, not a validated predictor and NOT a guarantee. Give a "
+                            "SPECULATION QUESTION (speculative, high-variance money — markets, "
+                            "a risky punt, games of chance) — answer as a KP (Krishnamurti) "
+                            "astrologer casting the HORARY for this moment. Frame it as "
+                            "SPECULATION (never 'gambling'); you are an astrologer guiding the "
+                            "person, not a betting tout. This is a candid READING, not a "
+                            "validated predictor and NOT a guarantee. Give a "
                             "GRADED KP SIGNAL (a 0-100 number), never a flat yes/no. Rules you "
                             "MUST follow:",
                             f"KP SIGNAL NOW: {_kp_horary.get('score')}/100 "
@@ -26267,19 +26270,19 @@ async def ask_endpoint(request: AskRequest):
                                     elif _client in ("SUPPORTED", "YES"):
                                         _phrase = (
                                             f"A speculative window is open through {_label} "
-                                            "— but keep any bet small and capped; "
+                                            "— but keep any stake small and capped; "
                                             "speculation is high-variance, never a sure "
                                             "thing." if _label else
                                             "A speculative window is open — but keep any "
-                                            "bet small and capped; speculation is high-"
+                                            "stake small and capped; speculation is high-"
                                             "variance, never a sure thing.")
                                     elif _client == "LIKELY":
                                         _phrase = (
                                             f"A speculative window is forming around "
-                                            f"{_label} — treat it as a small, capped bet at "
+                                            f"{_label} — treat it as a small, capped stake at "
                                             "most." if _label else
                                             "A speculative window is forming — treat it as "
-                                            "a small, capped bet at most.")
+                                            "a small, capped stake at most.")
                                     # NOT_YET / NO keep their cautious phrasing.
                                 elif _is_loss_q and _client in ("SUPPORTED", "YES", "LIKELY"):
                                     _phrase = (
@@ -27264,7 +27267,7 @@ async def ask_endpoint(request: AskRequest):
                         _top_txt = "; ".join(f"{d['date']} (~{d['score']}/100)" for d in _top)
                         _kline = (f"Across the days ahead, the KP signal is strongest on {_top_txt}. "
                                   f"{_sig_label} These are approximate — treat them as a ranking, "
-                                  "not odds. Whatever day you pick, keep any bet small and capped, "
+                                  "not odds. Whatever day you pick, keep any stake small and capped, "
                                   "and only stake what you can walk away from.")
                         _knext = ("If you play at all, favour the higher-signal day, set a hard "
                                   "loss cap in advance, and stop when you hit it.")
@@ -27305,7 +27308,7 @@ async def ask_endpoint(request: AskRequest):
                         _kp_pred_text = (
                             "**Speculation moment-read**\n"
                             f"KP signal was {_kh.get('score')}/100 ({_lean_plain}) for a "
-                            f"small, capped bet — tell us how it went.")
+                            f"small, capped stake — tell us how it went.")
                         _kp_marker = (
                             f"[KP_LEAN={_v};"
                             f"score={_kh.get('score')};conf={_kh.get('confidence')};"
@@ -28206,7 +28209,7 @@ _DAILY_DO_DONT_BY_DOMAIN = {
     "work":         {"do": "push a stuck work task to done",              "dont": "don't over-commit or take on more than you can finish"},
     "authority":    {"do": "make the ask to someone senior",             "dont": "don't clash with someone in charge"},
     "money":        {"do": "handle a money task you've been putting off", "dont": "don't make a big purchase or transfer"},
-    "speculation":  {"do": "take a small, capped bet only if you must",   "dont": "don't stake what you can't afford to lose"},
+    "speculation":  {"do": "take a small, capped position only if you must",   "dont": "don't stake what you can't afford to lose"},
     "home":         {"do": "put real time into home or a household fix",  "dont": "don't force a big home decision"},
     "relationship": {"do": "reach out to someone close",                  "dont": "don't force a hard conversation"},
     "family":       {"do": "give family some real attention",            "dont": "don't reopen an old family tension"},

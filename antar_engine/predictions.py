@@ -86,7 +86,7 @@ DASHA_ENERGY = {
     "Mercury": "an intellectual cycle — communication, business, and the power of your mind are highlighted",
     "Jupiter": "an expansive growth period — the universe is leaning toward yes for you",
     "Venus":   "a long season of the heart — love, beauty, and creative expression as teachers",
-    "Saturn":  "a clarifying pressure — Saturn is asking what is truly real and lasting in your life",
+    "Saturn":  "a clarifying pressure — asking what is truly real and lasting in your life",
     "Rahu":    "a period of hungry becoming — ambition, transformation, and the pull toward something new",
     "Ketu":    "a releasing cycle — your soul is lightening its load to make room for something truer",
 }
@@ -295,9 +295,9 @@ def layer1_dasha_windows(chart_data: dict, dashas: dict, concern: str = "general
                 "confidence": 0.88,
                 "type":       "sub_theme",
                 "title":      "The Sub-Theme Active Right Now",
-                "what":       f"Within your larger chapter, right now {ad_energy} is the sub-theme coloring everything.",
+                "what":       f"Within your larger chapter, the thread coloring everything right now is {ad_energy}.",
                 "why":        (f"Life has both long chapters and shorter sub-themes running inside them. "
-                               f"Your current sub-theme through {ad_planet}'s energy brings "
+                               f"Your current sub-theme brings "
                                f"{ad_theme['domain']} into the foreground of your daily experience."),
                 "what_it_means": ad_theme["positive"],
                 "invitation": ad_theme["invitation"],
