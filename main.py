@@ -34214,6 +34214,30 @@ def put_connection_note(chart_id: str, connection_chart_id: str, request: dict =
         raise HTTPException(status_code=503, detail="notes_unavailable")
 
 
+# ── Daily Wisdom (prototype) — chart-aware daily scripture ────────────────────
+@app.get("/api/v1/daily-wisdom/{chart_id}")
+def get_daily_wisdom(chart_id: str, language: str = "en"):
+    """A Bhagavad Gita verse chosen to match the reader's current season, plus
+    conversational follow-ups (the chips route into /ask with `ask_context`).
+    Curated corpus — never LLM-generated scripture. Fail-open: returns a verse
+    even with no chart/dashas. Sync endpoint (threadpool) so the synchronous
+    Supabase reads don't block the event loop."""
+    from antar_engine.daily_wisdom import build_daily_wisdom
+    lang = (language or "en").split("-")[0].lower()
+    chart_data, dashas = {}, {}
+    try:
+        _r = supabase.table("charts").select("chart_data").eq("id", chart_id).limit(1).execute()
+        if _r.data:
+            chart_data = _safe_jsonb(_r.data[0].get("chart_data")) or {}
+    except Exception as _e:
+        print(f"[daily-wisdom] chart read skip {str(chart_id)[:8]}: {_e}")
+    try:
+        dashas = get_dashas_for_chart(chart_id) or {}
+    except Exception as _e:
+        print(f"[daily-wisdom] dashas skip {str(chart_id)[:8]}: {_e}")
+    return build_daily_wisdom(chart_data, dashas, chart_id=chart_id, language=lang)
+
+
 # ── Master Dashboard Endpoint ─────────────────────────────────────
 
 
