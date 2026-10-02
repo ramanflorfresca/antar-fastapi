@@ -353,3 +353,81 @@ def test_status_and_unlink_endpoints(m, monkeypatch):
     assert r["available"] is True and r["antar_number"] == "+14155238886"
     r = c.post("/api/v1/messaging/whatsapp/unlink", headers={"Authorization": "Bearer x"}).json()
     assert r == {"linked": False} and revoked == [{"user_id": "user-1"}]
+
+
+# ─── consent (opt-in + Terms/Privacy) ──────────────────────────────
+
+def test_link_start_requires_current_consent(m, monkeypatch):
+    from fastapi.testclient import TestClient
+    monkeypatch.setattr(m, "verify_token", lambda a: "user-1")
+    monkeypatch.setattr(m, "_resolve_primary_chart_id", lambda uid: "chart-1")
+    rows = []
+    monkeypatch.setattr(msg, "create_pending_link",
+                        lambda sb, cid, uid, ch, extra=None: rows.append(extra) or
+                        {"available": True, "code": "abc12345", "channel": ch})
+    c = TestClient(m.app)
+    h = {"Authorization": "Bearer x"}
+    r = c.post("/api/v1/messaging/link/start", json={"channel": "whatsapp"}, headers=h)
+    assert r.status_code == 400 and r.json()["detail"]["error"] == "consent_required"
+    r = c.post("/api/v1/messaging/link/start", headers=h, json={
+        "channel": "whatsapp", "consent_accepted": True, "consent_version": "old"})
+    assert r.status_code == 400 and rows == []
+    r = c.post("/api/v1/messaging/link/start", headers=h, json={
+        "channel": "whatsapp", "consent_accepted": True,
+        "consent_version": msg.WA_CONSENT_VERSION})
+    assert r.status_code == 200
+    assert rows[0]["consent_version"] == msg.WA_CONSENT_VERSION
+    assert rows[0]["consent_source"] == "app" and rows[0]["consent_at"]
+
+
+class _FakeQ:
+    def __init__(self, store):
+        self.store, self.upd = store, None
+    def select(self, *a): return self
+    def eq(self, *a): return self
+    def neq(self, *a): return self
+    def limit(self, *a): return self
+    def update(self, d): self.upd = d; return self
+    def execute(self):
+        if self.upd is not None:
+            self.store["updates"].append(self.upd)
+            return type("R", (), {"data": []})()
+        return type("R", (), {"data": self.store["rows"]})()
+
+
+class _FakeSB:
+    def __init__(self, rows): self.store = {"rows": rows, "updates": []}
+    def table(self, name): return _FakeQ(self.store)
+
+
+def test_bind_refuses_code_without_consent():
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).isoformat()
+    sb = _FakeSB([{"id": 1, "chart_id": "c1", "user_id": "u1", "created_at": now}])
+    assert msg.bind_link_whatsapp(sb, "abc12345", "+919812345678") is None
+    assert not any(u.get("status") == "linked" for u in sb.store["updates"])
+    sb2 = _FakeSB([{"id": 1, "chart_id": "c1", "user_id": "u1", "created_at": now,
+                    "consent_at": now, "consent_version": msg.WA_CONSENT_VERSION}])
+    assert msg.bind_link_whatsapp(sb2, "abc12345", "+919812345678") == "c1"
+    assert any(u.get("status") == "linked" for u in sb2.store["updates"])
+
+
+def test_direct_link_requires_consent():
+    assert msg.link_whatsapp_direct(_FakeSB([]), "c1", "u1", "+919812345678") is False
+
+
+def test_alerts_opt_in_is_separate_and_off_by_default(m, monkeypatch):
+    from fastapi.testclient import TestClient
+    monkeypatch.setattr(m, "verify_token", lambda a: "user-1")
+    monkeypatch.setattr(m, "_resolve_primary_chart_id", lambda uid: "chart-1")
+    rows = []
+    monkeypatch.setattr(msg, "create_pending_link",
+                        lambda sb, cid, uid, ch, extra=None: rows.append(extra) or
+                        {"available": True, "code": "abc12345", "channel": ch})
+    c = TestClient(m.app)
+    body = {"channel": "whatsapp", "consent_accepted": True,
+            "consent_version": msg.WA_CONSENT_VERSION}
+    c.post("/api/v1/messaging/link/start", json=body, headers={"Authorization": "Bearer x"})
+    c.post("/api/v1/messaging/link/start", json=dict(body, alerts_opt_in=True),
+           headers={"Authorization": "Bearer x"})
+    assert rows[0]["alerts_opt_in"] is False and rows[1]["alerts_opt_in"] is True
