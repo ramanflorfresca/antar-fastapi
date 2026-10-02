@@ -24351,6 +24351,13 @@ async def ask_endpoint(request: AskRequest):
     # (previously only the explore path was gated; a yes/no crisis fell through).
     if mode != "explore" and _ask_detect_crisis(question):
         mode = "explore"
+    # [yesno-kp 2026-10-02] a betting / games-of-chance question never gets a
+    # Yes/No verdict (Apple 4.3) — it takes the Explore speculation framing.
+    try:
+        if mode == "yesno" and _is_gambling_q(question):
+            mode = "explore"
+    except Exception:
+        pass
 
     # [life-gate] resolve the reader's known facts once — appended to the
     # narrator's system prompt below so Ask never tells a business owner about
@@ -27619,7 +27626,7 @@ async def ask_endpoint(request: AskRequest):
             last = None
             try:
                 last = supabase.table("prashna_log") \
-                    .select("created_at, question, verdict, timing, explanation") \
+                    .select("created_at, question, verdict, timing, explanation, breakdown") \
                     .eq("chart_id", chart_id) \
                     .order("created_at", desc=True) \
                     .limit(1).execute()
@@ -27642,6 +27649,16 @@ async def ask_endpoint(request: AskRequest):
                     "locked_until": cd.get("cooldown_until"),
                     "question": prev.get("question"),
                 }
+                # [yesno-kp 2026-10-02] replay the 4-state lean when the stored
+                # answer came from the KP engine (breakdown.answered_by == "kp").
+                try:
+                    _pbd = _safe_jsonb(prev.get("breakdown")) or {}
+                    _pkp = _pbd.get("kp_prashna") or {}
+                    if _pbd.get("answered_by") == "kp" and _pkp.get("lean"):
+                        payload["lean"] = _pkp["lean"]
+                        payload["method"] = _pkp.get("method")
+                except Exception:
+                    pass
                 # [ask-narration 2026-06-08 strip-why] re-scrub on replay:
                 # rows persisted before the post-LLM scrub landed need cleanup.
                 try:
@@ -27690,7 +27707,7 @@ async def ask_endpoint(request: AskRequest):
             # 2. NOT LOCKED — cast a fresh chart at the moment of asking.
             try:
                 chart_row = supabase.table("charts") \
-                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, birth_country, country_code, latitude, longitude") \
+                    .select("chart_data, jaimini_data, lal_kitab_data, birth_date, first_name, current_country, birth_country, country_code, latitude, longitude, needs_reconfirm") \
                     .eq("id", chart_id).single().execute()
             except Exception as _nfe:
                 if "PGRST116" in str(_nfe) or "0 rows" in str(_nfe):
@@ -27793,6 +27810,37 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _cve:
                 logger.warning(f"[ask] convergence failed (non-fatal): {_cve}")
 
+            # [yesno-kp 2026-10-02] KP Prashna — spec: Antar.world/SPEC_ASK_YESNO_KP_PRASHNA.md
+            # ASK_YESNO_ENGINE: "kp" (default, owner 2026-10-02: KP answers; classic
+            # is logged for the head-to-head) | "kp_shadow" (classic answers, KP
+            # logged) | "tajik" (classic only — emergency rollback, no deploy).
+            # Cast for the ASTROLOGER's seat (Edgewater, NJ), number 1-249 optional.
+            # Unmappable questions / any KP failure fall back to classic.
+            _tajik_verdict = verdict
+            _yn_engine = (os.environ.get("ASK_YESNO_ENGINE") or "kp").strip().lower()
+            _yn_kp = {"available": False, "reason": "engine=tajik"}
+            _yn_kp_primary = False
+            if _yn_engine in ("kp", "kp_shadow"):
+                try:
+                    from antar_engine.kp.kp_prashna import kp_prashna as _kp_prashna
+                    _yn_kp = _kp_prashna(cdata, question,
+                                         number=getattr(request, "horary_number", None),
+                                         now_utc=cast_ts)
+                except Exception as _kpe:
+                    _yn_kp = {"available": False, "reason": f"kp import/run failed: {_kpe}"}
+                print(f"[ask][yesno-kp] engine={_yn_engine} avail={_yn_kp.get('available')} "
+                      f"lean={_yn_kp.get('lean')} qt={_yn_kp.get('question_type')} "
+                      f"method={_yn_kp.get('method')} | classic={_tajik_verdict} "
+                      f"{_yn_kp.get('reason') or ''}")
+            if _yn_engine == "kp" and _yn_kp.get("available"):
+                _yn_kp_primary = True
+                verdict = _yn_kp["verdict"]
+                # Timing is KP-horary ONLY (owner, 2026-10-02): yes / not_now /
+                # conditional show the ruling-planet-confirmed horary window; a KP
+                # "no" shows none. No natal-dasha window is borrowed.
+                from antar_engine.kp.kp_prashna import shown_window as _kp_shown
+                timing = ((_kp_shown(_yn_kp) or {}).get("label")) or None
+
             # Event Engine Phase 2b — YESNO is SHADOW-ONLY (prashna keeps the
             # binary verdict; primary here is a Phase-2c founder decision).
             if (os.environ.get("ASK_EVENT_ENGINE_MODE", "off") or "off").lower() in ("shadow", "primary"):
@@ -27825,7 +27873,12 @@ async def ask_endpoint(request: AskRequest):
             # sources in one prompt. A compact reconciled summary replaces it.
             _yn_has_window = bool((_yn_conv or {}).get("convergence_met")
                                   and (_yn_conv or {}).get("window_label"))
-            if _yn_has_window:
+            if _yn_kp_primary:
+                # [yesno-kp] the KP bundle is the single authority for the why.
+                from antar_engine.kp.kp_prashna import narrator_block as _kp_nb
+                _yn_internal = _kp_nb({**_yn_kp, "window": (
+                    {"label": timing} if timing else None)})
+            elif _yn_has_window:
                 _yn_internal = f"Internal reasoning: {(engine_result.get('claude_prompt') or '')[:1200]}"
             else:
                 _yn_wp = engine_result.get("weakest_planet", {}) or {}
@@ -27848,7 +27901,8 @@ async def ask_endpoint(request: AskRequest):
                 "odds of a good outcome. No astrology, no planets, houses, signs, nakshatras, "
                 "Sanskrit, numbers, or scores anywhere. JSON only, no code fences. "
                 f"{_yn_internal}"
-                f"\n\n{_yn_conv_block}"
+                # KP-primary: the horary is the only reasoning — no natal-dasha block.
+                + ("" if _yn_kp_primary else f"\n\n{_yn_conv_block}")
             )
             # [ask-scratch] ephemeral override for THIS call only.
             if isinstance(getattr(request, "scratch_prompt", None), str) \
@@ -27935,13 +27989,50 @@ async def ask_endpoint(request: AskRequest):
                     "label":          engine_result.get("label"),
                     "timing":         timing,
                     "explanation":    why,
-                    "breakdown":      json.dumps(engine_result.get("breakdown", {}), default=str),
+                    # [yesno-kp] KP bundle rides inside the existing JSON column —
+                    # no new prashna_log columns (an unknown column fails the insert).
+                    "breakdown":      json.dumps({
+                        **(engine_result.get("breakdown") or {}),
+                        "answered_by": "kp" if _yn_kp_primary else "classic",
+                        "classic_verdict": _tajik_verdict,
+                        "kp_prashna": _yn_kp,
+                    }, default=str),
                     "prashna_chart":  json.dumps(engine_result.get("prashna_chart", {}), default=str),
                     "weakest_planet": wp.get("planet"),
                     "cooldown_until": engine_result.get("cooldown_until") or locked_until,
                 }).execute()
             except Exception as _ie:
                 logger.warning(f"[ask] prashna_log insert failed (non-blocking): {_ie}")
+
+            # [yesno-kp 2026-10-02] did-it-happen follow-up. Logged for EVERY fresh
+            # Yes/No answer (shadow or primary) so KP and classic are scored
+            # head-to-head against the same real outcomes. The human sentence goes
+            # in the claim (shown in the VERIFY card); the machine marker goes in
+            # correlation_key (never shown). Crisis questions never reach here.
+            _yn_verify_after = None
+            try:
+                from antar_engine.prediction_tracker import save_trackable_claim
+                from antar_engine.kp.kp_prashna import (
+                    calibration_marker as _kp_marker, verify_after as _kp_verify_after)
+                import uuid as _uuid_yn
+                _yn_verify_after = _kp_verify_after(
+                    _yn_kp if _yn_kp.get("available") else None, cast_ts)
+                # off the event loop — a bare sync supabase call in an async def
+                # freezes every request (see cold-start notes).
+                await asyncio.to_thread(
+                    save_trackable_claim,
+                    chart_id, str(_uuid_yn.uuid4()), question, "yesno", supabase,
+                    correlation_key=_kp_marker(
+                        _yn_kp if _yn_kp.get("available") else None,
+                        _tajik_verdict, "kp" if _yn_kp_primary else "classic",
+                        asked_at),
+                    # the VERIFY card quotes the claim itself — store the bare question
+                    claim_override=question[:200],
+                    claim_window_override=timing or _yn_verify_after.strftime("%B %Y"),
+                    show_after_override=_yn_verify_after.isoformat(),
+                )
+            except Exception as _yce:
+                logger.warning(f"[ask] yesno calibration log failed (non-fatal): {_yce}")
 
             _yn_practices = _ask_get_practices(
                 chart_id, natal_chart or {}, jaimini_data,
@@ -27966,6 +28057,13 @@ async def ask_endpoint(request: AskRequest):
                 "practices": _yn_practices,
                 "convergence": _yn_conv.get("public_summary"),
             }
+            # [yesno-kp] additive fields — FE renders lean when present, else binary.
+            if _yn_kp_primary:
+                payload["lean"] = _yn_kp.get("lean")
+                payload["method"] = _yn_kp.get("method")
+                payload["horary_number"] = _yn_kp.get("number")
+            if _yn_verify_after:
+                payload["verify_after"] = _yn_verify_after.date().isoformat()
             # [KP A5 shadow 2026-06-23] additive KP verdict (yesno) —
             # gate + mode guarded in kp_service; not user-facing until KP_MODE=primary.
             try:
@@ -30696,6 +30794,15 @@ def get_pending_feedback_endpoint(chart_id: str, language: str = "en"):
     from antar_engine.prediction_tracker import get_pending_feedback
     items = get_pending_feedback(chart_id, supabase, language=language)
     return {"pending": items, "count": len(items)}
+
+
+@app.get("/api/v1/debug/yesno-calibration")
+def debug_yesno_calibration(admin_email: str = Depends(_require_debug)):
+    """[yesno-kp 2026-10-02] Admin-gated head-to-head: KP Prashna lean vs the
+    classic Yes/No verdict, scored against users' did-it-happen answers.
+    Report only — switching ASK_YESNO_ENGINE stays a manual owner decision."""
+    from antar_engine.kp.kp_prashna import score_yesno_calibration
+    return score_yesno_calibration(supabase)
 
 
 @app.get("/api/v1/debug/test-alert")
