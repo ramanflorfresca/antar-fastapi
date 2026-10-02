@@ -634,6 +634,12 @@ _DATED_WEEKDAY = re.compile(
     rf"(?P<date>(?P<m1>{_MON_ALT})\.?\s+(?P<d1>\d{{1,2}})\b"
     rf"|(?P<d2>\d{{1,2}})(?:\s+de)?\s+(?P<m2>{_MON_ALT})\b)",
     re.IGNORECASE)
+# Date first, weekday after: "Oct 5 (Monday)", "Oct 5, Monday", "5 de octubre (lunes)".
+_DATED_WEEKDAY_AFTER = re.compile(
+    rf"(?P<date>(?P<m1>{_MON_ALT})\.?\s+(?P<d1>\d{{1,2}})\b"
+    rf"|(?P<d2>\d{{1,2}})(?:\s+de)?\s+(?P<m2>{_MON_ALT})\b)"
+    rf"(?P<sep>,?\s*\(?\s*)(?P<wd>{_WD_ALT})\b(?P<close>\s*\))?",
+    re.IGNORECASE)
 _BARE_PREP = r"(?:on|until|till|by|before|after|from|next|coming|el|hasta|antes\s+del?|después\s+del?)"
 
 
@@ -656,7 +662,7 @@ def _protect_dated_weekdays(text: str):
     the date). Returns (text, restore)."""
     keep: list = []
 
-    def _sub(mo):
+    def _sub(mo, after=False):
         wd = mo.group("wd")
         month = _MONTHS.get((mo.group("m1") or mo.group("m2") or "").lower().rstrip("."))
         day = int(mo.group("d1") or mo.group("d2") or 0)
@@ -668,10 +674,17 @@ def _protect_dated_weekdays(text: str):
                      if spanish else tuple(d.capitalize() for d in _DAY_NAMES_EN))
             right = names[idx]
             wd = right.capitalize() if wd[:1].isupper() else right
-        keep.append(wd + mo.group("sep") + mo.group("date"))
+        if after:
+            close = mo.group("close") or ""
+            if "(" in mo.group("sep") and not close:
+                close = ")"
+            keep.append(mo.group("date") + mo.group("sep") + wd + close)
+        else:
+            keep.append(wd + mo.group("sep") + mo.group("date"))
         return f"\x00WD{len(keep) - 1}\x00"
 
     out = _DATED_WEEKDAY.sub(_sub, text)
+    out = _DATED_WEEKDAY_AFTER.sub(lambda mo: _sub(mo, after=True), out)
 
     def restore(t: str) -> str:
         return re.sub(r"\x00WD(\d+)\x00", lambda m: keep[int(m.group(1))], t)
@@ -715,6 +728,7 @@ def _strip_day_names(text: str, language: str = 'es') -> str:
         )
         # Bare day names (singular or plural) drop
         result = re.sub(rf'\b{re.escape(day)}s?\b', '', result, flags=re.IGNORECASE)
+    result = re.sub(r"\s*\(\s*\)", "", result)        # "Oct 5 ()" leftovers
     result = _tidy(restore(result))
     if result and text[:1].isupper() and result[:1].islower():
         result = result[:1].upper() + result[1:]
