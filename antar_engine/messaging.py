@@ -578,6 +578,24 @@ def _wl(key: str, lang: str) -> str:
 
 
 _OPENER = re.compile(r"^[A-ZÁÉÍÓÚÑ][\w'-]{1,20},\s")      # "Raman, the wait is real…"
+# An opener is only small talk when it's about feelings; "Raman, tomorrow looks
+# like a day to protect…" IS the answer and stays the bold line. EN/ES/PT/Hinglish.
+_EMPATHY = re.compile(
+    r"(?i)\b(wait|waiting|frustrat\w*|hard|heavy|tough|worr\w*|anxious|understand|"
+    r"feel\w*|hear you|carrying|exhaust\w*|tired|lonely|hurt\w*|"
+    r"espera|frustra\w*|dif[ií]cil|pesad\w*|preocupa\w*|entiendo|sientes|cansad\w*|"
+    r"esperar|frustrante|entendo|sente|cansativ\w*|preocupad\w*|"
+    r"intezaar|pareshan|mushkil|samajh|thak\w*)\b")
+
+
+def _norm_q(q: str) -> set:
+    return set(re.findall(r"[a-záéíóúñãõç]+", (q or "").lower())) - {
+        "is", "the", "for", "me", "my", "a", "how", "what", "de", "la", "el", "o", "para", "mi", "meu"}
+
+
+def _same_question(a: str, b: str) -> bool:
+    x, y = _norm_q(a), _norm_q(b)
+    return bool(x and y) and len(x & y) / len(x | y) >= 0.6
 _OFFER = re.compile(
     r"(?i)^(want me to|shall i|should i (look|check)|would you like( me)? to|do you want me to|"
     r"quieres que|te gustar[ií]a que|quer que|gostaria que|kya main|kya aap chahte)")
@@ -588,7 +606,7 @@ def _split_sentences(text: str) -> list:
 
 
 def format_ask_whatsapp_v2(payload: dict, language: str = "en",
-                           header: Optional[str] = None) -> tuple:
+                           header: Optional[str] = None, asked: str = "") -> tuple:
     """(text, followups). Layout per the UX spec: optional 'Antar · <name>' header,
     the answer sentence in *bold* (a warm "Name, …" opener stays plain above it),
     the rest of the read, 🗓 _window_, → your move, 🧘 practice + its step, then
@@ -599,14 +617,16 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
     if header:
         lines.append(f"_Antar · {header}_")
     fus = [q.strip() for q in (p.get("suggested_questions") or [])
-           if isinstance(q, str) and q.strip()][:3]
+           if isinstance(q, str) and q.strip() and not _same_question(q, asked)][:3]
     read = re.sub(r"\*\*(.+?)\*\*", r"\1", (p.get("read") or p.get("why") or "").strip())
+    read = re.sub(r"^[\s,;:.\-—–]+", "", read)          # e.g. ", Oct 5 is…" from Ask
     sents = _split_sentences(read) if read else []
     if fus and len(sents) > 1 and sents[-1].endswith("?") and _OFFER.match(sents[-1]):
         sents = sents[:-1]
     if sents:
         opener = None
-        if len(sents) > 1 and _OPENER.match(sents[0]) and len(sents[0]) <= 90:
+        if (len(sents) > 1 and _OPENER.match(sents[0]) and len(sents[0]) <= 90
+                and _EMPATHY.search(sents[0])):
             opener, sents = sents[0], sents[1:]
         head, rest = sents[0], " ".join(sents[1:])
         if opener:
@@ -678,3 +698,106 @@ def is_nudge(text: str) -> bool:
     if not words or len(words) > 3 or (t.endswith("?") and len(words) > 1):
         return False
     return all(w in _GREETINGS or w in _THANKS for w in words)
+
+
+# ── interactive lists (Twilio Content API, twilio/list-picker) ──
+# [whatsapp-lists] Numbered follow-ups/starters/chart choices become a tappable
+# "Choose" list. In-session only (no Meta approval), REST-only (not TwiML), so
+# they're used once replies go through the REST API. One content template per
+# item count, every field a variable; created on first use and cached.
+_CONTENT_API = "https://content.twilio.com/v1/Content"
+_LIST_SIDS: dict = {}
+LIST_MAX_ITEMS = 10
+
+
+def short_title(text: str, limit: int = 24) -> str:
+    t = (text or "").strip()
+    if len(t) <= limit:
+        return t
+    cut = t[: limit - 1].rsplit(" ", 1)[0].rstrip(",.;:—-")
+    return (cut or t[: limit - 1]) + "…"
+
+
+def _twilio_auth() -> Optional[str]:
+    import os
+    sid, token = os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_AUTH_TOKEN")
+    return base64.b64encode(f"{sid}:{token}".encode()).decode() if sid and token else None
+
+
+def list_template_sid(n: int) -> Optional[str]:
+    """ContentSid of the all-variable list-picker with n items (find or create)."""
+    if n in _LIST_SIDS:
+        return _LIST_SIDS[n]
+    auth = _twilio_auth()
+    if not auth or not (1 <= n <= LIST_MAX_ITEMS):
+        return None
+    name = f"antar_list_{n}_v1"
+    hdr = {"Authorization": "Basic " + auth, "Content-Type": "application/json"}
+    try:
+        url = _CONTENT_API + "?PageSize=200"
+        while url:
+            with urllib.request.urlopen(urllib.request.Request(url, headers=hdr), timeout=10) as r:
+                page = json.loads(r.read())
+            for c in page.get("contents") or []:
+                if c.get("friendly_name") == name:
+                    _LIST_SIDS[n] = c["sid"]
+                    return c["sid"]
+            url = (page.get("meta") or {}).get("next_page_url")
+        variables = {"1": "Here is your answer.", "2": "Ask next"}
+        items = []
+        for k in range(n):
+            a, b, c = 3 + 3 * k, 4 + 3 * k, 5 + 3 * k
+            variables.update({str(a): f"Question {k + 1}", str(b): f"q:{k + 1}",
+                              str(c): f"Full question {k + 1}"})
+            items.append({"item": "{{%d}}" % a, "id": "{{%d}}" % b, "description": "{{%d}}" % c})
+        body = json.dumps({"friendly_name": name, "language": "en", "variables": variables,
+                           "types": {"twilio/list-picker": {
+                               "body": "{{1}}", "button": "{{2}}", "items": items}}}).encode()
+        with urllib.request.urlopen(urllib.request.Request(
+                _CONTENT_API, data=body, headers=hdr, method="POST"), timeout=10) as r:
+            sid = json.loads(r.read()).get("sid")
+        if sid:
+            _LIST_SIDS[n] = sid
+        return sid
+    except urllib.error.HTTPError as e:
+        print(f"[whatsapp] list template {n} failed: {e.code} {e.read()[:200]!r}")
+    except Exception as e:
+        print(f"[whatsapp] list template {n} failed: {e}")
+    return None
+
+
+def whatsapp_send_list(to_number: str, body: str, button: str, items: list,
+                       last_inbound_ts: Optional[float]) -> bool:
+    """items = [(title, id, description)]. False → caller falls back to text."""
+    import os
+    sid, sender, auth = os.getenv("TWILIO_ACCOUNT_SID"), os.getenv("TWILIO_WHATSAPP_FROM"), _twilio_auth()
+    to = wa_number(to_number)
+    items = list(items)[:LIST_MAX_ITEMS]
+    if not (sid and sender and auth and to and items and len(body) <= 1024):
+        return False
+    if not wa_window_open(last_inbound_ts):
+        return False
+    content_sid = list_template_sid(len(items))
+    if not content_sid:
+        return False
+    if not sender.startswith("whatsapp:"):
+        sender = "whatsapp:" + sender
+    variables = {"1": body, "2": short_title(button, 20)}
+    for k, (title, iid, desc) in enumerate(items):
+        variables[str(3 + 3 * k)] = short_title(title, 24)
+        variables[str(4 + 3 * k)] = (iid or "")[:200]
+        variables[str(5 + 3 * k)] = short_title(desc or title, 72)
+    try:
+        data = urllib.parse.urlencode({"From": sender, "To": "whatsapp:" + to,
+                                       "ContentSid": content_sid,
+                                       "ContentVariables": json.dumps(variables)}).encode()
+        urllib.request.urlopen(urllib.request.Request(
+            _TWILIO_MSG_API.format(sid=sid), data=data, method="POST",
+            headers={"Authorization": "Basic " + auth,
+                     "Content-Type": "application/x-www-form-urlencoded"}), timeout=15)
+        return True
+    except urllib.error.HTTPError as e:
+        print(f"[whatsapp] list send failed …{to[-4:]}: {e.code} {e.read()[:200]!r}")
+    except Exception as e:
+        print(f"[whatsapp] list send failed …{to[-4:]}: {e}")
+    return False
