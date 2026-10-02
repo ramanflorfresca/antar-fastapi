@@ -10508,20 +10508,27 @@ def daily_practice_session_abandon(request: PracticeSessionAbandonReq,
 
 @app.get("/api/v1/predict/daily-practice/chakra/{chakra_key}")
 def daily_practice_chakra_mantra(chakra_key: str, chart_id: Optional[str] = None,
-                                       language: str = "en"):
+                                       language: str = "en",
+                                       priority_planet: Optional[str] = None):
     if chakra_key not in _prac_chakras.CHAKRA_MANTRAS:
         raise HTTPException(404, f"unknown chakra {chakra_key}")
     out = {
         "chakra_key": chakra_key,
         "balance_mantra": _prac_chakras.build_chakra_mantra_response(chakra_key, language),
     }
-    # score_pct + state for this chakra (needs the chart)
+    # score_pct + state for this chakra (needs the chart).
+    # [weak-focus-coherence 2026-10-01] pass priority_planet so the tap-through
+    # detail applies the SAME weak-focus floor as the map (compose_practice_response
+    # already floors the primary-focus chakra). Without it, a tapped primary chakra
+    # read un-floored (e.g. Heart STEADY 51%) and contradicted the map (needs_attention
+    # 38%). The FE passes the map's today_priority.planet here.
     if chart_id:
         try:
             _cres = supabase.table("charts").select("chart_data").eq("id", chart_id).execute()
             if _cres.data:
                 _chart = _prac_safe(_cres.data[0]["chart_data"])
-                _states = _prac_chakras.compute_chakra_states(_chart, language=language)
+                _states = _prac_chakras.compute_chakra_states(
+                    _chart, language=language, priority_planet=priority_planet)
                 _cs = _states.get(chakra_key, {}) or {}
                 out["state"] = _cs.get("state")
                 out["status"] = _cs.get("status")  # [chakra-3state]
@@ -25260,9 +25267,12 @@ async def ask_endpoint(request: AskRequest):
                                     _kp_lat, _kp_lon, tz_offset=_kp_tz, days=_kp_days)
                     if _kp_horary and _kp_horary.get("available"):
                         _kpp = [
-                            "SPECULATION / GAMBLING QUESTION — answer as a KP (Krishnamurti) "
-                            "astrologer casting the HORARY for this moment. This is a candid "
-                            "READING, not a validated predictor and NOT a guarantee. Give a "
+                            "SPECULATION QUESTION (speculative, high-variance money — markets, "
+                            "a risky punt, games of chance) — answer as a KP (Krishnamurti) "
+                            "astrologer casting the HORARY for this moment. Frame it as "
+                            "SPECULATION (never 'gambling'); you are an astrologer guiding the "
+                            "person, not a betting tout. This is a candid READING, not a "
+                            "validated predictor and NOT a guarantee. Give a "
                             "GRADED KP SIGNAL (a 0-100 number), never a flat yes/no. Rules you "
                             "MUST follow:",
                             f"KP SIGNAL NOW: {_kp_horary.get('score')}/100 "
@@ -27277,7 +27287,7 @@ async def ask_endpoint(request: AskRequest):
                         _top_txt = "; ".join(f"{d['date']} (~{d['score']}/100)" for d in _top)
                         _kline = (f"Across the days ahead, the KP signal is strongest on {_top_txt}. "
                                   f"{_sig_label} These are approximate — treat them as a ranking, "
-                                  "not odds. Whatever day you pick, keep any bet small and capped, "
+                                  "not odds. Whatever day you pick, keep any stake small and capped, "
                                   "and only stake what you can walk away from.")
                         _knext = ("If you play at all, favour the higher-signal day, set a hard "
                                   "loss cap in advance, and stop when you hit it.")
@@ -27318,7 +27328,7 @@ async def ask_endpoint(request: AskRequest):
                         _kp_pred_text = (
                             "**Speculation moment-read**\n"
                             f"KP signal was {_kh.get('score')}/100 ({_lean_plain}) for a "
-                            f"small, capped bet — tell us how it went.")
+                            f"small, capped stake — tell us how it went.")
                         _kp_marker = (
                             f"[KP_LEAN={_v};"
                             f"score={_kh.get('score')};conf={_kh.get('confidence')};"
@@ -28897,7 +28907,15 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 _contradiction = bool(_lead) and (
                     (_sweep_dir == "adverse" and _cur_dir == "positive")
                     or (_sweep_dir == "positive" and _cur_dir == "adverse"))
-                if _lead and (_quiet_card or _contradiction):
+                # (c) [coherence 2026-10-01] a CAUTION-flagged lead (high-variance:
+                # speculation / a dusthana theme) must read "lean in, but keep a stop"
+                # — never a pure green light. The warm LLM narration can drift into an
+                # unqualified "a sharp creative opening — precise enough to act on"
+                # over exactly the area the do/don't list flags to cap, contradicting
+                # it on the same screen. Force the deterministic caution template and
+                # skip the LLM for a caution lead so the two can't diverge.
+                _lead_caution = bool(_lead) and bool(_lead.get("caution"))
+                if _lead and (_quiet_card or _contradiction or _lead_caution):
                     # Reconcile HEADLINE + HIGHLIGHT + DIRECTION to the sweep's lead
                     # in one voice. Overriding only the highlight (as before) left a
                     # stale headline that could still contradict it (e.g. headline
@@ -28927,10 +28945,13 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                         result["highlight"] = (f"Today's momentum is in {_say} — "
                                                "put your focus here.")
                     result["direction"] = _sweep_dir
-                    if _contradiction:
+                    if _contradiction or _lead_caution:
                         # keep every downstream consumer (narration gate,
                         # today-signal commit) on the sweep's direction, and force
                         # the honest template instead of the contradicting LLM prose.
+                        # _lead_caution: a caution lead must keep the "keep a stop"
+                        # template; letting the LLM re-narrate reintroduces the pure
+                        # green-light contradiction.
                         _skip_narration = True
                         try:
                             _th["direction"] = _sweep_dir
@@ -29184,12 +29205,17 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     for _a in _dd_active:
                         if _a.get("caution"):
                             _m = _DAILY_DO_DONT_BY_DOMAIN.get((_a.get("key") or "").lower())
-                            if _m and _m["dont"] not in _dd_dont:
+                            # [coherence 2026-10-01] never let ONE domain be both a DO
+                            # and a DON'T — an opportunity+caution lead already gave its
+                            # DO ("take a small, capped position"), so adding its DON'T
+                            # ("keep creative projects on the shelf") contradicts it on
+                            # the same card. Skip any domain already represented in DO.
+                            if _m and _m["dont"] not in _dd_dont and _m["do"] not in _dd_do:
                                 _dd_dont.append(_m["dont"])
                                 break
                     if not _dd_dont and _dd_active:
                         _m = _DAILY_DO_DONT_BY_DOMAIN.get((_dd_active[0].get("key") or "").lower())
-                        if _m:
+                        if _m and _m["do"] not in _dd_do:
                             _dd_dont.append(_m["dont"])
                 if _dd_do:
                     result["do_today"] = _dd_do[:3]
