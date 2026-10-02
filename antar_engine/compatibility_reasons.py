@@ -17,6 +17,8 @@ REASON_DEFINITIONS = {
     "cofounder":       {"label": "Cofounder",               "needs_role": False, "direction": None},
     "friend":          {"label": "Friend",                  "needs_role": False, "direction": None},
     "family":          {"label": "Family member",           "needs_role": False, "direction": None},
+    "parent":          {"label": "My parent",               "needs_role": False, "direction": None},
+    "child":           {"label": "My child",                "needs_role": False, "direction": None},
     "employee":        {"label": "Someone reporting to me", "needs_role": True,  "direction": "user_senior"},
     "boss-or-manager": {"label": "Someone I report to",     "needs_role": True,  "direction": "user_junior"},
 }
@@ -42,6 +44,8 @@ REASON_WEIGHTS = {
     "business":        {"soul": 10, "chemistry": 5,  "public": 30, "lifepath": 25, "communication": 20, "friction": 10},
     "friend":          {"soul": 25, "chemistry": 5,  "public": 10, "lifepath": 15, "communication": 25, "friction": 20},
     "family":          {"soul": 30, "chemistry": 0,  "public": 5,  "lifepath": 25, "communication": 20, "friction": 20},
+    "parent":          {"soul": 30, "chemistry": 0,  "public": 5,  "lifepath": 25, "communication": 25, "friction": 15},
+    "child":           {"soul": 30, "chemistry": 0,  "public": 5,  "lifepath": 20, "communication": 20, "friction": 25},
     "employee":        {"soul": 10, "chemistry": 0,  "public": 30, "lifepath": 15, "communication": 25, "friction": 20},
     "boss-or-manager": {"soul": 10, "chemistry": 0,  "public": 25, "lifepath": 20, "communication": 25, "friction": 20},
 }
@@ -162,6 +166,9 @@ def normalize_reason(compat_type=None, mode=None, default="romantic") -> str:
         "boss_or_manager": "boss-or-manager", "boss-manager": "boss-or-manager",
         "relationship": "romantic", "partner": "romantic", "marriage": "romantic",
         "co-founder": "cofounder", "co_founder": "cofounder",
+        "mother": "parent", "father": "parent", "mom": "parent", "mum": "parent",
+        "dad": "parent", "parents": "parent", "parent-child": "parent",
+        "son": "child", "daughter": "child", "kid": "child", "kids": "child",
     }
     raw = aliases.get(raw, raw)
     return raw if raw in REASON_DEFINITIONS else default
@@ -179,6 +186,7 @@ _REASON_I18N = {
             "cofounder": "Cofundador(a)", "friend": "Amistad",
             "family": "Familiar", "employee": "Alguien que me reporta",
             "boss-or-manager": "Alguien a quien le reporto",
+            "parent": "Mi padre o madre", "child": "Mi hijo o hija",
         },
         "question": {
             "romantic": "¿Cómo somos como pareja?",
@@ -186,6 +194,8 @@ _REASON_I18N = {
             "business": "¿Funcionará esta sociedad?",
             "friend": "¿De qué está hecha nuestra amistad?",
             "family": "¿Qué me pide esta relación?",
+            "parent": "¿Qué sostiene este vínculo con mi padre o madre?",
+            "child": "¿Qué sostiene este vínculo con mi hijo o hija?",
             "employee": "¿Esta persona funcionará bien en mi equipo?",
             "boss-or-manager": "¿Prosperaré con esta persona como líder?",
         },
@@ -194,7 +204,9 @@ _REASON_I18N = {
             "cofounder": "Sociedad con participación accionaria",
             "business": "Negocio o contrato en general",
             "friend": "No romántica, platónica",
-            "family": "Padres, hermanos, suegros, hijos",
+            "family": "Hermanos, suegros, familia extendida",
+            "parent": "Tu madre o padre",
+            "child": "Tu hijo o hija",
             "employee": "Tú eres el empleador / gerente",
             "boss-or-manager": "Tú eres quien reporta",
         },
@@ -215,6 +227,7 @@ _REASON_I18N = {
             "cofounder": "Cofundador(a)", "friend": "Amizade",
             "family": "Familiar", "employee": "Alguém que me reporta",
             "boss-or-manager": "Alguém a quem eu reporto",
+            "parent": "Meu pai ou mãe", "child": "Meu filho ou filha",
         },
         "question": {
             "romantic": "Como somos como casal?",
@@ -222,6 +235,8 @@ _REASON_I18N = {
             "business": "Esta parceria vai funcionar?",
             "friend": "Do que é feita a nossa amizade?",
             "family": "O que esta relação me pede?",
+            "parent": "O que sustenta este vínculo com meu pai ou mãe?",
+            "child": "O que sustenta este vínculo com meu filho ou filha?",
             "employee": "Esta pessoa vai funcionar bem na minha equipe?",
             "boss-or-manager": "Vou prosperar com esta pessoa como líder?",
         },
@@ -230,7 +245,9 @@ _REASON_I18N = {
             "cofounder": "Sociedade com participação societária",
             "business": "Negócio ou contrato em geral",
             "friend": "Não romântica, platônica",
-            "family": "Pais, irmãos, sogros, filhos",
+            "family": "Irmãos, sogros, família estendida",
+            "parent": "Seu pai ou mãe",
+            "child": "Seu filho ou filha",
             "employee": "Você é o empregador / gestor",
             "boss-or-manager": "Você é quem reporta",
         },
@@ -265,7 +282,9 @@ def reasons_directory(language: str = "en") -> dict:
         "cofounder":       ("Should we build this company together?", "Equity-tied venture partnership"),
         "business":        ("Will this partnership work?",            "Generic business or contractual"),
         "friend":          ("What is our friendship made of?",        "Non-romantic, platonic"),
-        "family":          ("What does this relationship ask of me?", "Parents, siblings, in-laws, children"),
+        "family":          ("What does this relationship ask of me?", "Siblings, in-laws, extended family"),
+        "parent":          ("What does this bond with my parent hold?", "Your mother or father"),
+        "child":           ("What does this bond with my child hold?",  "Your son or daughter"),
         "employee":        ("Will this person work well on my team?", "You are the employer / manager"),
         "boss-or-manager": ("Will I thrive under this person?",       "You are the report"),
     }
@@ -284,7 +303,7 @@ def reasons_directory(language: str = "en") -> dict:
         for r in role_dir
     ]
     # Stable display order (employer/report last, per the picker design).
-    order = ["romantic", "cofounder", "business", "friend", "family", "employee", "boss-or-manager"]
+    order = ["romantic", "cofounder", "business", "friend", "family", "parent", "child", "employee", "boss-or-manager"]
     out = []
     for key in order:
         d = REASON_DEFINITIONS[key]
