@@ -24351,6 +24351,13 @@ async def ask_endpoint(request: AskRequest):
     # (previously only the explore path was gated; a yes/no crisis fell through).
     if mode != "explore" and _ask_detect_crisis(question):
         mode = "explore"
+    # [yesno-kp 2026-10-02] a betting / games-of-chance question never gets a
+    # Yes/No verdict (Apple 4.3) — it takes the Explore speculation framing.
+    try:
+        if mode == "yesno" and _is_gambling_q(question):
+            mode = "explore"
+    except Exception:
+        pass
 
     # [life-gate] resolve the reader's known facts once — appended to the
     # narrator's system prompt below so Ask never tells a business owner about
@@ -27828,16 +27835,11 @@ async def ask_endpoint(request: AskRequest):
             if _yn_engine == "kp" and _yn_kp.get("available"):
                 _yn_kp_primary = True
                 verdict = _yn_kp["verdict"]
-                # KP window only where it means "when it comes" (yes / not_now).
-                # conditional / no keep the birth-chart window (agency: what's next),
-                # which is the same timing Explore voices for this concern.
-                _kpw = (_yn_kp.get("window") or {}).get("label")
-                if _yn_kp.get("lean") in ("yes", "not_now") and _kpw:
-                    timing = _kpw
-                elif _yn_conv.get("convergence_met") and _yn_conv.get("window_label"):
-                    timing = _yn_conv["window_label"]
-                else:
-                    timing = None
+                # Timing is KP-horary ONLY (owner, 2026-10-02): yes / not_now /
+                # conditional show the ruling-planet-confirmed horary window; a KP
+                # "no" shows none. No natal-dasha window is borrowed.
+                from antar_engine.kp.kp_prashna import shown_window as _kp_shown
+                timing = ((_kp_shown(_yn_kp) or {}).get("label")) or None
 
             # Event Engine Phase 2b — YESNO is SHADOW-ONLY (prashna keeps the
             # binary verdict; primary here is a Phase-2c founder decision).
@@ -27899,7 +27901,8 @@ async def ask_endpoint(request: AskRequest):
                 "odds of a good outcome. No astrology, no planets, houses, signs, nakshatras, "
                 "Sanskrit, numbers, or scores anywhere. JSON only, no code fences. "
                 f"{_yn_internal}"
-                f"\n\n{_yn_conv_block}"
+                # KP-primary: the horary is the only reasoning — no natal-dasha block.
+                + ("" if _yn_kp_primary else f"\n\n{_yn_conv_block}")
             )
             # [ask-scratch] ephemeral override for THIS call only.
             if isinstance(getattr(request, "scratch_prompt", None), str) \

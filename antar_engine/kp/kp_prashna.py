@@ -69,6 +69,20 @@ _QT_RULES = [
     (("marry", "marriage", "wedding", "engaged", "propose", "casar", "boda",
       "matrimonio", "casamento", "shaadi", "shadi", "vivah", "rishta"),
      "marriage", None),
+    # a specific person returning / reconciling / reaching out
+    (("come back", "comes back", "get back together", "back together",
+      "reconcil", "my ex", "text me", "call me", "reach out", "volver",
+      "vuelva", "regresar", "voltar", "volte", "wapas", "vapas"), "reunion", None),
+    (("pregnan", "conceiv", "baby", "child", "kids", "fertil", "ivf",
+      "embaraz", "bebé", "bebe", "hijo", "gravidez", "grávida", "gravida",
+      "filho", "bachcha", "bacha", "santan"), "childbirth", None),
+    (("visa", "abroad", "overseas", "foreign", "green card", "h1b", "h-1b",
+      "immigra", "emigra", "relocat", "move to", "settle in", "citizenship",
+      "extranjero", "exterior", "videsh", "bahar ja"), "foreign_travel", None),
+    (("exam", "admission", "admit", "university", "college", "degree",
+      "pass the", "scholarship", "test result", "examen", "universidad",
+      "admisión", "admisi", "prova", "vestibular", "faculdade", "pariksha",
+      "imtihaan"), "education", None),
     (("promot", "a raise", "pay rise", "salary hike", "hike", "ascens",
       "aumento de sueldo", "aumento de salário", "aumento salarial"),
      "promotion", None),
@@ -77,7 +91,8 @@ _QT_RULES = [
       "emprego", "vaga", "naukri", "naukari"), "job_new", None),
     (("house", "home", "property", "apartment", "flat", "plot of land",
       "casa", "propiedad", "piso", "imóvel", "imovel", "apartamento",
-      "ghar", "makaan", "zameen"), "property", None),
+      "ghar", "makaan", "zameen", "car", "vehicle", "coche", "carro",
+      "gaadi", "gadi"), "property", None),
     (("lawsuit", "litig", "court", "legal case", "the case", "legal", "pleito", "demanda",
       "juicio", "processo", "mukadma", "kesh"), "litigation_win", None),
     (("recover", "heal", "surgery", "health", "cure", "salud", "recuper",
@@ -90,14 +105,10 @@ _QT_RULES = [
       "paid", "profit", "gain", "financ", "inversi", "dinero", "préstamo",
       "prestamo", "dinheiro", "empréstimo", "emprestimo", "investimento",
       "paisa", "paise", "paisaa", "lakh", "crore"), "gain", None),
+    (("lost", "missing", "misplaced", "stolen", "find my", "perdí", "perdi",
+      "extravi", "robad", "roubad", "kho gay", "kho gai", "chori"),
+     "lost_found", None),
 ]
-
-# generic "will it happen?" → the 11th (fulfilment of desire) is the KP generic.
-_GENERIC_EVENT = re.compile(
-    r"\b(will|shall|would|is it going to|am i going to|do i get|will i get|"
-    r"va a|vou|vai|será|sera|voy a|"
-    r"hoga|hogi|milega|milegi|milenge)\b", re.I)
-
 
 # word-START matching: "fund" hits "funding" but "round" never hits "around".
 _QT_COMPILED = [
@@ -107,7 +118,8 @@ _QT_COMPILED = [
 
 
 # [apple-4.3] betting / games of chance never get a KP verdict — the casino
-# surface was retired 2026-10-01. They fall back to the classic engine.
+# surface was retired 2026-10-01. /ask sends them to Explore before Yes/No runs;
+# this is the engine-level backstop.
 _GAMBLING = re.compile(
     r"(?<!\w)(?:gambl|casino|poker|lotter|lotto|bets?\b|betting|wager|blackjack|"
     r"roulette|jackpot|sports ?book|apuesta|aposta|loter[ií]a|satta|juaa?)", re.I)
@@ -121,7 +133,10 @@ def classify_question(question):
     for rx, qt, lh in _QT_COMPILED:
         if rx.search(q):
             return qt, lh, False
-    if _GENERIC_EVENT.search(q):
+    # Everything else is still a KP horary: the 11th — fulfilment of the
+    # querent's desire — is the KP generic. Confidence is capped at 1 because
+    # the matter was inferred, not named.
+    if q.strip():
         return "gain", None, True
     return None, None, False
 
@@ -233,6 +248,15 @@ def _natal_verdict(chart_record, question_type, loss_house):
 def _fmt_day(iso):
     d = datetime.strptime(iso[:10], "%Y-%m-%d")
     return f"{d.strftime('%b')} {d.day}, {d.year}"
+
+
+def shown_window(kp):
+    """The window the user sees. KP-only: yes / not_now / conditional show the
+    horary's ruling-planet-confirmed window; a KP 'no' shows none — the horary
+    denies it, and we don't borrow a date from another system."""
+    if not kp or not kp.get("available") or kp.get("lean") == "no":
+        return None
+    return kp.get("window")
 
 
 def window_label(start, end):
@@ -364,8 +388,10 @@ def narrator_block(kp):
         parts.append("The person's wider life pattern does not strongly promise this "
                      "matter, so the path to it needs a different route or more effort.")
     if w.get("label"):
-        parts.append(f"AUTHORITATIVE TIMING: {w['label']} — never state any other "
-                     "date, month, or window.")
+        _role = {"conditional": "the window in which the condition can clear",
+                 "not_now": "when it opens"}.get(lean, "when it comes")
+        parts.append(f"AUTHORITATIVE TIMING ({_role}): {w['label']} — never state "
+                     "any other date, month, or window.")
     else:
         parts.append("No confirmed window — do not invent one.")
     if lean in ("no", "not_now", "conditional"):

@@ -111,6 +111,37 @@ QUESTION_TYPES = {
         "materialization_gate": False,
         "label": {"yes": "Recovery holds", "no": "Recovery is not supported"},
     },
+    # [yesno-kp 2026-10-02] horary groups so EVERY Yes/No question is KP.
+    # foreign travel / visa / settling abroad — 12th CSL via 3·9·12; home (4) denies
+    "foreign_travel": {
+        "primary_cusp": 12, "favour": [3, 9, 12], "against": [4],
+        "materialization_gate": False,
+        "label": {"yes": "The move abroad happens", "no": "The move abroad stalls"},
+    },
+    # exam pass / admission / course — 4·9·11; 3·8·12 deny
+    "education": {
+        "primary_cusp": 4, "favour": [4, 9, 11], "against": [3, 8, 12],
+        "materialization_gate": True,
+        "label": {"yes": "It clears", "no": "It does not clear"},
+    },
+    # conception / childbirth — 5th CSL via 2·5·11; 1·4·10 deny
+    "childbirth": {
+        "primary_cusp": 5, "favour": [2, 5, 11], "against": [1, 4, 10],
+        "materialization_gate": True,
+        "label": {"yes": "A child comes", "no": "Not supported now"},
+    },
+    # a person returns / reconciles / reaches out — 7th CSL via 2·7·11
+    "reunion": {
+        "primary_cusp": 7, "favour": [2, 7, 11], "against": [1, 6, 10, 12],
+        "materialization_gate": True,
+        "label": {"yes": "They come back", "no": "They do not come back"},
+    },
+    # lost article recovered — 2·6·11 via the 11th; 5·8·12 deny
+    "lost_found": {
+        "primary_cusp": 11, "favour": [2, 6, 11], "against": [5, 8, 12],
+        "materialization_gate": True,
+        "label": {"yes": "It is found", "no": "It is not found"},
+    },
     # generic LOSS / separation / ending — handled via Bhavat Bhavam at runtime
     # by passing question_type='loss' with a loss_house argument to verdict().
 }

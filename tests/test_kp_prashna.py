@@ -30,15 +30,24 @@ from antar_engine.prediction_tracker import _feedback_ui
     ("Vou conseguir o emprego?", "job_new"),
     ("Kya meri shaadi is saal hogi?", "marriage"),
     ("Kya funding milegi?", "gain"),
+    ("Will my visa get approved?", "foreign_travel"),
+    ("Will I move abroad this year?", "foreign_travel"),
+    ("Will I pass the exam?", "education"),
+    ("Will I get admission to Columbia?", "education"),
+    ("Will we have a baby?", "childbirth"),
+    ("Will my ex come back?", "reunion"),
+    ("Will I find my lost ring?", "lost_found"),
+    ("Will I buy a car?", "property"),
 ])
 def test_routing(q, qt):
     assert classify_question(q)[0] == qt
 
 
 def test_word_start_matching_not_substring():
-    # "around" must not read as a funding "round"; "just in case" is not a lawsuit.
-    assert classify_question("Should I travel around Europe?")[0] is None
-    assert classify_question("Is it worth keeping just in case?")[0] is None
+    # "around" must not read as a funding "round"; "just in case" is not a lawsuit
+    # — both fall to the KP generic, never to a named matter.
+    assert classify_question("Should I travel around Europe?") == ("gain", None, True)
+    assert classify_question("Is it worth keeping just in case?") == ("gain", None, True)
 
 
 @pytest.mark.parametrize("q", [
@@ -54,9 +63,20 @@ def test_gambling_filter_does_not_eat_ordinary_words():
     assert classify_question("Will I get the interview slot?")[0] == "job_new"
 
 
-def test_generic_event_falls_back_with_flag():
-    qt, _, generic = classify_question("Will it work out?")
-    assert qt == "gain" and generic is True
+def test_every_question_is_kp_generic_when_unnamed():
+    # Owner, 2026-10-02: Prashna is KP end to end — nothing falls to classic.
+    for q in ("Will it work out?", "Should I do it?", "Is this the right path?"):
+        assert classify_question(q) == ("gain", None, True)
+    assert classify_question("   ")[0] is None
+
+
+def test_shown_window_is_horary_only():
+    from antar_engine.kp.kp_prashna import shown_window
+    w = {"start": "2026-10-10", "end": "2026-10-20", "label": "x", "ruler_ok": True}
+    for lean in ("yes", "not_now", "conditional"):
+        assert shown_window({"available": True, "lean": lean, "window": w}) == w
+    assert shown_window({"available": True, "lean": "no", "window": w}) is None
+    assert shown_window({"available": False}) is None
 
 
 @pytest.mark.parametrize("q,days", [
@@ -221,6 +241,7 @@ def test_needs_reconfirm_skips_natal_damper():
 
 def test_unmappable_and_bad_input_never_raise():
     from antar_engine.kp.kp_prashna import kp_prashna
-    assert kp_prashna({}, "Tell me about my week", now_utc=NOW)["available"] is False
+    assert kp_prashna({}, "", now_utc=NOW)["available"] is False
+    assert kp_prashna({}, "Will I win at the casino?", now_utc=NOW)["available"] is False
     r = kp_prashna(None, "Will I get this job?", number=999, now_utc=NOW)
     assert r["available"] and r["number"] is None and r["natal"] is None
