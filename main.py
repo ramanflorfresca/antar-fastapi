@@ -792,13 +792,36 @@ async def _birthday_recompute_job():
 
 
 # ── "Did this happen?" ping cron ──────────────────────────────────────────────
+def _tz_hours_by_chart(chart_ids) -> dict:
+    """chart_id -> local tz offset (hours), from current (else birth) country via
+    _COUNTRY_TZ_OFFSETS. UTC(0) fallback. Used by the user-facing cron jobs to send
+    at each user's LOCAL morning instead of a fixed UTC hour. _COUNTRY_TZ_OFFSETS is
+    defined later in the module; it resolves at call time."""
+    out: dict = {}
+    ids = [c for c in (chart_ids or []) if c]
+    if not ids:
+        return out
+    try:
+        rows = (supabase.table("charts").select("id,current_country,birth_country")
+                .in_("id", ids).execute()).data or []
+        for c in rows:
+            cc = (c.get("current_country") or c.get("birth_country") or "").upper()
+            out[c["id"]] = float(_COUNTRY_TZ_OFFSETS.get(cc, _COUNTRY_TZ_OFFSETS.get("DEFAULT", 0)))
+    except Exception as e:
+        print(f"[tz] chart tz fetch failed (UTC fallback): {e}")
+    return out
+
+
 async def _ping_checkin_job():
     """
-    Daily cron — 08:00 UTC.
-    Finds predictions whose window_end is within the next 7 days (or just passed),
-    not yet checked in. Sends a gentle ping asking: "Did this happen?"
-    This is the moat — turns predictions into a learning system.
+    HOURLY cron. Finds predictions whose window_end is within the next 7 days (or just
+    passed) and not yet checked in, and sends a gentle "Did this happen?" ping — AT THE
+    USER'S LOCAL MORNING. Runs every hour; a due prediction is only pinged when its
+    chart's local hour == TARGET_LOCAL_HOUR (else it's left for its own local morning,
+    not pinged/marked). Was a fixed 08:00 UTC = 1:30 PM in India. This is the moat —
+    turns predictions into a learning system.
     """
+    _CHECKIN_LOCAL_HOUR = 8   # ~8 AM local
     now = datetime.utcnow()
     window_start = (now).isoformat()
     window_end   = (now + timedelta(days=7)).isoformat()
@@ -818,13 +841,20 @@ async def _ping_checkin_job():
             print(f"[ping_cron] {now.date()} — no predictions due for check-in")
             return
 
-        print(f"[ping_cron] {now.date()} — {len(due.data)} predictions to ping")
+        print(f"[ping_cron] {now.date()} — {len(due.data)} predictions due; "
+              f"pinging those at local ~{_CHECKIN_LOCAL_HOUR}:00")
+        _tz = _tz_hours_by_chart([p.get("chart_id") for p in due.data])
 
         for pred in due.data:
             user_id    = pred["user_id"]
             pred_id    = pred["id"]
             pred_text  = pred["prediction_text"]
             category   = pred["category"]
+            # Only ping at the user's LOCAL morning; otherwise leave it un-pinged
+            # for the hour its own local time reaches the target.
+            _cid = pred.get("chart_id")
+            if (now + timedelta(hours=_tz.get(_cid, 0.0))).hour != _CHECKIN_LOCAL_HOUR:
+                continue
 
             # Get user email
             try:
@@ -945,13 +975,13 @@ async def _monthly_briefing_job():
     Generates + emails monthly briefing to all active users.
     Skips users who already received one this month.
     """
-    now        = datetime.utcnow()
-    month_year = now.strftime("%B %Y")
+    now = datetime.utcnow()
+    TARGET_LOCAL_HOUR = 8   # ~8 AM on the user's LOCAL 1st of the month
 
     try:
-        # Get all charts with an associated user
+        # Get all charts with an associated user (+ country for local-time gating)
         charts_res = supabase.table("charts") \
-            .select("id, user_id, country_code, language_preference") \
+            .select("id, user_id, country_code, current_country, birth_country, language_preference") \
             .not_.is_("user_id", "null") \
             .limit(500) \
             .execute()
@@ -960,18 +990,38 @@ async def _monthly_briefing_job():
             print(f"[monthly_cron] No charts found")
             return
 
-        # Filter out users who already got a briefing this month
+        # Candidates = charts whose LOCAL time is the 1st at ~8 AM this hour. Running
+        # hourly every day + this gate sends each user their briefing at their own
+        # local morning on their own 1st (correct across month-boundary timezones),
+        # instead of a fixed 06:00 UTC (= 11:30 AM in India). _COUNTRY_TZ_OFFSETS
+        # resolves at call time. The heavy LLM generation sits AFTER this gate, so
+        # the hourly runs that match nothing cost only two light reads.
+        candidates = []
+        for c in charts_res.data:
+            _cc_tz = (c.get("current_country") or c.get("birth_country")
+                      or c.get("country_code") or "").upper()
+            _tzh = float(_COUNTRY_TZ_OFFSETS.get(_cc_tz, _COUNTRY_TZ_OFFSETS.get("DEFAULT", 0)))
+            _ln = now + timedelta(hours=_tzh)
+            if _ln.day == 1 and _ln.hour == TARGET_LOCAL_HOUR:
+                candidates.append((c, _ln.strftime("%B %Y")))
+        if not candidates:
+            return   # no chart at its local 1st ~8 AM this hour
+
+        # Dedup by LOCAL month_year (not UTC) so boundary timezones get the right month.
+        _uids = list({c["user_id"] for c, _ in candidates})
+        _months = list({my for _, my in candidates})
         already_res = supabase.table("monthly_briefings") \
-            .select("user_id") \
-            .eq("month_year", month_year) \
+            .select("user_id, month_year") \
+            .in_("user_id", _uids).in_("month_year", _months) \
             .execute()
-        already_sent = {r["user_id"] for r in (already_res.data or [])}
+        already_sent = {(r["user_id"], r["month_year"]) for r in (already_res.data or [])}
 
-        to_send = [c for c in charts_res.data if c.get("user_id") not in already_sent]
-        print(f"[monthly_cron] {month_year} — {len(to_send)} briefings to send "
-              f"(skipping {len(already_sent)} already sent)")
+        to_send = [(c, my) for c, my in candidates if (c["user_id"], my) not in already_sent]
+        print(f"[monthly_cron] local-1st-{TARGET_LOCAL_HOUR}:00 this hour — "
+              f"{len(to_send)} briefings to send (candidates={len(candidates)}, "
+              f"already_sent={len(already_sent)})")
 
-        for chart_record in to_send:
+        for chart_record, month_year in to_send:
             chart_id = chart_record["id"]
             user_id  = chart_record["user_id"]
             cc       = chart_record.get("country_code", "IN")
@@ -1189,14 +1239,20 @@ async def _daily_surface_prewarm_job():
 
 # ── Daily push nudge cron ─────────────────────────────────────────────────────
 async def _daily_push_job():
-    """Daily cron — nudges every device with a registered token to open today's
-    reading. Sends a lightweight alert (not the content itself), so there's no
-    per-chart LLM cost and nothing sensitive rides in the payload. No-op until
-    APNs is configured (APNS_* env vars). Dead tokens are pruned by the sender."""
+    """HOURLY cron — nudges each device to open today's reading at the USER'S LOCAL
+    MORNING, not a fixed UTC time. Runs every hour; for each chart it derives the
+    local hour from the chart's current (else birth) country via _COUNTRY_TZ_OFFSETS
+    and only sends when that local hour == TARGET_LOCAL_HOUR. Fixes the bug where the
+    job fired once at 14:00 UTC for everyone, so Indian users (+5:30) got "your
+    reading is ready" at 7:30 PM instead of the morning. Lightweight alert only (no
+    per-chart LLM cost). No-op until APNs is configured. Dead tokens pruned by sender.
+    _COUNTRY_TZ_OFFSETS is defined later in the module; it resolves at call time."""
     from antar_engine import push_sender
     if not push_sender.is_configured():
         print("[push_cron] APNs not configured — skipping daily nudge")
         return
+    from datetime import datetime as _pdt, timezone as _ptz, timedelta as _ptd
+    TARGET_LOCAL_HOUR = 8   # ~8 AM local
     try:
         res = supabase.table("device_tokens").select("token, chart_id, platform").execute()
         rows = res.data or []
@@ -1211,8 +1267,28 @@ async def _daily_push_job():
         if r.get("token"):
             by_chart.setdefault(r.get("chart_id"), []).append(
                 {"token": r["token"], "platform": r.get("platform")})
+    # Derive each chart's local tz from its country (current > birth); UTC fallback.
+    tz_by_chart: dict = {}
+    _cids = [c for c in by_chart if c]
+    if _cids:
+        try:
+            crows = (supabase.table("charts")
+                     .select("id,current_country,birth_country")
+                     .in_("id", _cids).execute()).data or []
+            for c in crows:
+                _cc = (c.get("current_country") or c.get("birth_country") or "").upper()
+                tz_by_chart[c["id"]] = float(
+                    _COUNTRY_TZ_OFFSETS.get(_cc, _COUNTRY_TZ_OFFSETS.get("DEFAULT", 0)))
+        except Exception as e:
+            print(f"[push_cron] chart tz fetch failed (UTC fallback): {e}")
+    now_utc = _pdt.now(_ptz.utc)
     total = {"sent": 0, "failed": 0, "pruned": 0}
+    matched = 0
     for _cid, toks in by_chart.items():
+        _tzh = tz_by_chart.get(_cid, 0.0)
+        if (now_utc + _ptd(hours=_tzh)).hour != TARGET_LOCAL_HOUR:
+            continue   # not this chart's local morning yet
+        matched += 1
         summary = await push_sender.send_to_tokens(
             supabase, toks,
             title="Antar",
@@ -1221,19 +1297,19 @@ async def _daily_push_job():
         )
         for k in total:
             total[k] += summary.get(k, 0)
-    print(f"[push_cron] daily nudge — charts={len(by_chart)} sent={total['sent']} "
-          f"failed={total['failed']} pruned={total['pruned']}")
+    print(f"[push_cron] hourly nudge @{now_utc.hour:02d}:xx UTC — matched_charts={matched} "
+          f"sent={total['sent']} failed={total['failed']} pruned={total['pruned']}")
 
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 scheduler.add_job(_birthday_recompute_job, "cron", hour=2, minute=0,
                   id="birthday_lk_recompute", replace_existing=True)
-scheduler.add_job(_daily_push_job, "cron", hour=14, minute=0,
-                  id="daily_push_nudge", replace_existing=True)
-scheduler.add_job(_ping_checkin_job, "cron", hour=8, minute=0,
-                  id="ping_checkin_daily", replace_existing=True)
-scheduler.add_job(_monthly_briefing_job, "cron", day=1, hour=6, minute=0,
-                  id="monthly_briefing_send", replace_existing=True)
+scheduler.add_job(_daily_push_job, "cron", minute=7,
+                  id="daily_push_nudge", replace_existing=True)  # hourly; job sends per-chart at local ~8 AM
+scheduler.add_job(_ping_checkin_job, "cron", minute=9,
+                  id="ping_checkin_daily", replace_existing=True)  # hourly; pings per-chart at local ~8 AM
+scheduler.add_job(_monthly_briefing_job, "cron", minute=11,
+                  id="monthly_briefing_send", replace_existing=True)  # hourly; sends per-chart at local 1st ~8 AM
 scheduler.add_job(_daily_polarity_log_job, "cron", hour=3, minute=0,
                   id="daily_polarity_log", replace_existing=True)
 scheduler.add_job(_deep_read_warm_job, "cron", hour=1, minute=0,
@@ -10034,6 +10110,29 @@ def _prac_streaks(chart_id, local_today):
     return streaks, completed
 
 
+def _prac_apply_completion(payload, chart_id, local_today):
+    """Patch a (possibly CACHED) practice payload with LIVE streak/completion, so a
+    same-day 'mark complete' always reflects — even on an L1 (_PRACTICE_CACHE) or L2
+    (daily_surface_cache) hit, which otherwise bake in completed_today=False from when
+    the day was first computed. Cheap: one practice_completions read. Mutates+returns."""
+    try:
+        streaks, completed = _prac_streaks(chart_id, local_today)
+        tp = payload.get("today_priority")
+        if isinstance(tp, dict) and tp.get("planet"):
+            p = tp["planet"]; st = streaks.get(p, {})
+            tp["completed_today"] = bool(completed.get(p, False))
+            tp["streak_days"] = int(st.get("days", tp.get("streak_days", 0) or 0))
+            tp["streak_best"] = int(st.get("best", tp.get("streak_best", 0) or 0))
+        for a in (payload.get("active") or []):
+            if isinstance(a, dict) and a.get("planet"):
+                p = a["planet"]; st = streaks.get(p, {})
+                a["completed_today"] = bool(completed.get(p, False))
+                a["streak_days"] = int(st.get("days", a.get("streak_days", 0) or 0))
+    except Exception as _e:
+        print(f"[practice] completion refresh skipped (non-fatal): {_e}")
+    return payload
+
+
 
 # ── Language preference endpoints (patch_language_fidelity, vector 9) ───────
 # charts.language is the column resolve_language() already reads, so persisting
@@ -10109,7 +10208,9 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
     if cached and cached[0] >= _prac_time.time():
         # refresh only the streak/completion fields (cheap) so a same-day
         # completion reflects without recomputing the whole engine
-        return _ent_practice_view(cached[1], request.chart_id)
+        return _ent_practice_view(
+            _prac_apply_completion(cached[1], request.chart_id, local_today),
+            request.chart_id)
     # [daily-db-cache 2026-06-16] L1 miss -> shared DB L2 before recompute.
     _db_variant = "food" if request.include_chart_food else ""
     _db_payload = _daily_surface_get(request.chart_id, "practice",
@@ -10117,7 +10218,9 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
                                      _db_variant)
     if _db_payload:
         _PRACTICE_CACHE[ckey] = (_prac_time.time() + _PRACTICE_TTL, _db_payload)
-        return _ent_practice_view(_db_payload, request.chart_id)
+        return _ent_practice_view(
+            _prac_apply_completion(_db_payload, request.chart_id, local_today),
+            request.chart_id)
 
     conditions = _prac_conditions(chart)
     try:
@@ -15447,8 +15550,9 @@ _CHART_DERIVED_TABLES = (
     "practice_log", "practice_completions",
     "daily_feedback", "life_arc_feedback", "user_correlations",
     "prediction_accuracy_marks", "verification_ratings", "reward_ledger",
-    # "Your Pattern" — the user's own captured venture history (chart_id-keyed,
-    # also carries user_id). Added with the feature ~2026-10-01.
+    # "Your Pattern" ventures — user-logged ventures, chart-keyed, PII. Added
+    # 2026-10-02: the table was created with the Your-Pattern feature and was
+    # leaking on delete (test_chart_delete_cascade caught it).
     "ventures",
     # NOT here on purpose:
     #   lal_kitab_remedies   — a STATIC reference library keyed by planet/house
@@ -15465,8 +15569,9 @@ _CHART_DERIVED_TABLES = (
     #     when the marks do; verified against production.
     #   practice_sessions, past_event_feedback — no such tables in the schema.
     #     Inherited from the account list; every delete spent a round trip
-    #     failing to find them. (practice_completions, once in the same boat,
-    #     now exists and is chart_id-keyed, so it is registered above.)
+    #     failing to find them. (practice_completions, once in this note as
+    #     "no such table", DOES exist now and carries chart_id — it is purged
+    #     above alongside `ventures`; both were caught leaking by the cascade test.)
 )
 
 # Billing and quota. Deliberately NOT part of a single-chart delete: a
@@ -21807,6 +21912,12 @@ def _ask_concern_route(question):
     health) or None. Order matters: separation is checked before relationship so
     'divorce' doesn't fall into the relationship bucket."""
     ql = (question or "").lower()
+    # [apple-4.3 2026-10-01] Speculation / gambling-type questions answer from the
+    # 5th/11th/8th-house speculation engine (neutral, finance-framed — never a
+    # casino "lucky day / signal 0-100" read). Checked FIRST so a speculative
+    # "should I bet / play / punt" question doesn't fall through to funding/income.
+    if _is_gambling_q(question):
+        return "speculation"
     if any(w in ql for w in ("fund", "loan", "invest", "raise money", "capital",
                              "borrow", "mortgage", "financing")):
         return "funding"
@@ -23907,7 +24018,7 @@ _ASK_PRACTICE_STEP = {
         "health": "Haz hoy una cosa constante por tu cuerpo — dormir temprano o una caminata tranquila. Constancia antes que intensidad.",
         "family": "Dedica unos minutos sin prisa a alguien de tu casa — un momento real, sin pantalla, sin agenda.",
         "peace": "Diez minutos de silencio hoy — suelta una preocupación que no puedes controlar y deja que el resto espere.",
-        "speculation": "Antes de cualquier apuesta, haz una pausa y define un límite del que puedas alejarte — luego respira antes de decidir.",
+        "speculation": "Antes de cualquier movimiento especulativo, haz una pausa y define un límite del que puedas alejarte — luego respira antes de decidir.",
         "_default": "Tómate unos minutos en calma hoy para afianzarte antes de actuar.",
     },
     "pt": {
@@ -23921,7 +24032,7 @@ _ASK_PRACTICE_STEP = {
         "health": "Faça hoje uma coisa constante pelo seu corpo — dormir cedo ou uma caminhada tranquila. Constância antes de intensidade.",
         "family": "Reserve alguns minutos sem pressa para alguém de casa — um momento real, sem tela, sem agenda.",
         "peace": "Dez minutos de silêncio hoje — largue uma preocupação que você não controla e deixe o resto esperar.",
-        "speculation": "Antes de qualquer aposta, faça uma pausa e defina um limite do qual você possa se afastar — depois respire antes de decidir.",
+        "speculation": "Antes de qualquer movimento especulativo, faça uma pausa e defina um limite do qual você possa se afastar — depois respire antes de decidir.",
         "_default": "Reserve alguns minutos de calma hoje para se firmar antes de agir.",
     },
 }
@@ -25188,7 +25299,14 @@ async def ask_endpoint(request: AskRequest):
             _kp_week = None
             _kp_is_range = False
             try:
-                if _is_gambling_q(question):
+                # [apple-4.3 2026-10-01] The KP casino "signal 0-100 / best day to
+                # gamble" surface is retired from /ask (App Store Guideline 4.3 — a
+                # gambling-timing read is a fortune-telling spam aggravator). These
+                # questions now answer from the 5th/11th/8th-house speculation engine
+                # (see _ask_concern_route -> "speculation") in neutral, non-gambling
+                # language. _kp_horary stays None, so the deterministic KP override
+                # and its calibration log below both no-op. Web + native identical.
+                if False:  # retired — speculation now routes to the concern engine
                     from antar_engine.kp.kp_speculation import (
                         kp_horary_speculation, kp_horary_week)
                     _kp_lat, _kp_lon = None, None
@@ -25295,6 +25413,37 @@ async def ask_endpoint(request: AskRequest):
                         _ask_kp_horary_block = "\n".join(_kpp)
             except Exception as _kpe:
                 logger.warning(f"[ask] kp-horary skipped (non-fatal): {_kpe}")
+
+            # [apple-4.3 2026-10-02] Speculation framing for the narrator. The retired
+            # KP block above used to carry the "frame as speculation, never 'gambling'"
+            # rule; re-add it in the LIVE path so a gambling-phrased question is answered
+            # as a SPECULATION reading (from the 5th/11th/8th houses the concern engine
+            # already supplied) — never with gambling vocabulary, never as a single
+            # "best day" to place a bet.
+            try:
+                if _is_gambling_q(question):
+                    _ask_kp_horary_block = (
+                        "SPECULATION QUESTION — the user is asking about high-variance / "
+                        "speculative money, which they may phrase as gambling, a casino, "
+                        "cards, a bet, the lottery, etc. Answer it as an astrologer reading "
+                        "SPECULATION from their chart (the speculation / gains / sudden-money "
+                        "houses, supplied above), guiding the person — never as a betting "
+                        "tout. RULES you MUST follow:\n"
+                        "1) NEVER use the words gambling, casino, bet, betting, wager, "
+                        "lottery, poker, or the name of any game — not even to echo the "
+                        "question back. Frame it as speculation, a high-variance money move, "
+                        "or a speculative position.\n"
+                        "2) Do NOT name a single 'best day' and do NOT pick a date or day to "
+                        "act. Speak to whether the broader period reads as supportive or not "
+                        "(a weeks/months stance), and stay honest that speculation is "
+                        "high-variance and can go either way.\n"
+                        "3) Protect the person: only ever risk what they can walk away from, "
+                        "keep any position small and capped, and on a weak read say the "
+                        "kinder call is to sit it out. Never promise a gain, never say "
+                        "'lucky', never cheerlead."
+                    )
+            except Exception as _spe:
+                logger.warning(f"[ask] speculation-framing skipped (non-fatal): {_spe}")
 
             # [residence engine] change-of-home TIMING (the WHEN) — disposition +
             # varshphal-weighted convergence window + nature (local vs distant/foreign).
@@ -25766,7 +25915,11 @@ async def ask_endpoint(request: AskRequest):
                 from antar_engine.ask_timeframe import (
                     detect_horizon as _tf_detect, score_day_for_concern as _tf_score)
                 _tf = _tf_detect(question)
-                if _tf and _tf.get("kind") == "days" and isinstance(chart_data, dict):
+                # [apple-4.3 2026-10-02] A gambling-flavoured question must not get a
+                # per-day "best day to bet" ranking — answer it as a period/house
+                # speculation read, not a dated pick.
+                if (_tf and _tf.get("kind") == "days" and isinstance(chart_data, dict)
+                        and not _is_gambling_q(question)):
                     import datetime as _tfdt
                     _TF_SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
                                  "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
@@ -25825,8 +25978,13 @@ async def ask_endpoint(request: AskRequest):
                 from antar_engine.ask_timeframe import (
                     detect_horizon as _tfw_detect, scan_window as _tfw_scan)
                 _tfw = _tfw_detect(question)
+                # [apple-4.3 2026-10-02] Same for a "which day this week" window-scan —
+                # a gambling-flavoured question must not become a dated "best day"
+                # pick (this block injects WINDOW-SCAN FACTS into the prompt + sets the
+                # timing chip). Gate it off so speculation stays a period/house read.
                 if (_tfw and _tfw.get("kind") == "window" and _tfw.get("scan")
-                        and isinstance(chart_data, dict)):
+                        and isinstance(chart_data, dict)
+                        and not _is_gambling_q(question)):
                     import datetime as _tfwdt
                     _TFW_SIGNS = ["Aries", "Taurus", "Gemini", "Cancer", "Leo", "Virgo",
                                   "Libra", "Scorpio", "Sagittarius", "Capricorn", "Aquarius", "Pisces"]
@@ -26281,19 +26439,19 @@ async def ask_endpoint(request: AskRequest):
                                     elif _client in ("SUPPORTED", "YES"):
                                         _phrase = (
                                             f"A speculative window is open through {_label} "
-                                            "— but keep any stake small and capped; "
+                                            "— but keep any position small and capped; "
                                             "speculation is high-variance, never a sure "
                                             "thing." if _label else
                                             "A speculative window is open — but keep any "
-                                            "stake small and capped; speculation is high-"
+                                            "position small and capped; speculation is high-"
                                             "variance, never a sure thing.")
                                     elif _client == "LIKELY":
                                         _phrase = (
                                             f"A speculative window is forming around "
-                                            f"{_label} — treat it as a small, capped stake at "
+                                            f"{_label} — treat it as a small, capped position at "
                                             "most." if _label else
                                             "A speculative window is forming — treat it as "
-                                            "a small, capped stake at most.")
+                                            "a small, capped position at most.")
                                     # NOT_YET / NO keep their cautious phrasing.
                                 elif _is_loss_q and _client in ("SUPPORTED", "YES", "LIKELY"):
                                     _phrase = (
@@ -26477,7 +26635,7 @@ async def ask_endpoint(request: AskRequest):
                         "open, clear, tight, charged.\n"
                         "Examples of the SHAPE only (do not copy the words):\n"
                         "  - \"Speculation is moderately favorable today — hold steady, don't add risk.\"\n"
-                        "  - \"Speculation is under pressure today — wait, don't deploy into a new bet.\"\n"
+                        "  - \"Speculation is under pressure today — wait, don't deploy into a new position.\"\n"
                         "  - \"Career conversations are open today — make the senior call before midday.\"\n"
                         "  - \"Property decisions are strained right now — postpone the offer.\"\n"
                     )
@@ -27339,6 +27497,18 @@ async def ask_endpoint(request: AskRequest):
                         print(f"[ask] kp-horary calibration log non-fatal: {_kle}")
             except Exception as _khe:
                 print(f"[ask] kp-horary guarantee non-fatal: {_khe}")
+            # [apple-4.3 2026-10-02] A gambling-flavoured question (poker/casino/bet/
+            # "best day to gamble") must NOT come back as a dated "best day" pick — that
+            # is the gambling-timing pattern we removed. The 5/8/11 house read + the
+            # speculation framing carry the answer in period terms; suppress the dated
+            # verdict/timing/convergence chips so no single day reads as "go bet then".
+            try:
+                if _is_gambling_q(question):
+                    payload["verdict"] = None
+                    payload["timing"] = None
+                    payload["convergence"] = None
+            except Exception as _spg:
+                print(f"[ask] speculation chip-suppress non-fatal: {_spg}")
             # [es-loc 2026-06-09] expanded fields: actions[]/practices[]/convergence
             # are container keys — translate_dict recurses into their subtrees.
             payload = await _ask_localize(payload, language, [
@@ -28629,6 +28799,23 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                            + list(panchanga.get("dont_today") or [])),
             )
 
+            # [day-turn 2026-10-02] ONE human lead line for WHEN, from the day's
+            # best window (the precise windows[] still render below). A concrete
+            # time — not a mood/atmosphere line — so it respects the checkable-claim
+            # rule in daily_system_prompt (11c/11d). FE renders it in the glance.
+            try:
+                _best_w = next((w for w in (result.get("windows") or [])
+                                if isinstance(w, dict) and w.get("kind") == "best"
+                                and w.get("start")), None)
+                if _best_w and _best_w.get("start"):
+                    _bt = str(_best_w["start"]).strip()
+                    result["day_turn"] = {
+                        "es": f"Tu ventana más clara de hoy es alrededor de {_bt}.",
+                        "pt": f"Sua janela mais clara hoje é por volta de {_bt}.",
+                    }.get(language, f"Your clearest window today is around {_bt}.")
+            except Exception as _dt_err:
+                print(f"[daily-signal] day_turn skipped (non-fatal): {_dt_err}")
+
             # ── [today-times] One authority on WHEN ─────────────────────
             # windows[] above is computed from panchanga. The LLM prose was
             # inventing its own, contradictory, clock times alongside it.
@@ -29048,6 +29235,29 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     except Exception as _band_err:
                         print(f"[daily-coherence] day-band reconcile skipped: {_band_err}")
 
+                    # [bright-spot 2026-10-02] On a FRICTION/LIGHTER (caution) day the
+                    # card can leave the user with only "go gently." Surface ONE genuine
+                    # positive so there's something to lean into — the top-ranked
+                    # OPPORTUNITY area that isn't the caution lead. Concrete (names the
+                    # area), never vague atmosphere. FE renders it in the glance.
+                    try:
+                        _band_fin = (result.get("day_energy") or {}).get("key")
+                        if result.get("is_friction_day") or _band_fin in ("friction", "light"):
+                            _act = result.get("active_domains") or []
+                            _bright = next((a for a in _act if isinstance(a, dict)
+                                            and a.get("polarity") == "opportunity"
+                                            and not a.get("caution")), None) \
+                                      or next((a for a in _act if isinstance(a, dict)
+                                               and a.get("polarity") == "opportunity"), None)
+                            _bsay = ((_bright or {}).get("say") or (_bright or {}).get("label") or "").strip()
+                            if _bsay:
+                                result["bright_spot"] = {
+                                    "es": f"Una cosa sí juega a tu favor hoy — {_bsay}. Apóyate en eso.",
+                                    "pt": f"Uma coisa está a seu favor hoje — {_bsay}. Apoie-se nisso.",
+                                }.get(language, f"One thing is genuinely working today — {_bsay}. Lean on it.")
+                    except Exception as _bs_err:
+                        print(f"[daily-signal] bright_spot skipped (non-fatal): {_bs_err}")
+
                     # [daily-coherence 2026-09-08 #5] NUDGE RECONCILE. The
                     # TODAY'S NUDGE / move / el_movimiento line was derived from
                     # _th["direction"] (the pre-sweep engine) BEFORE this block,
@@ -29425,6 +29635,29 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     result["_confidence_capped"] = True
             except Exception as _cf_e:
                 print(f"[daily-signal] confidence-headline reconcile skipped (non-fatal): {_cf_e}")
+
+            # [daily-coherence 2026-10-02] HEADLINE DAY-TYPE must match the final band
+            # (the pill). The warm narration headline could assert "a friction day"
+            # over a LIGHTER-TOUCH / STEADY band, contradicting the day-quality pill on
+            # the same card (seen live: pill "LIGHTER-TOUCH DAY" vs headline "A friction
+            # day — …"). The band was reconciled above and is the authority, so snap the
+            # headline's day-TYPE word to it. Runs after the narration-cache read, so it
+            # corrects even a cached LLM headline on every served response.
+            try:
+                import re as _re_dt
+                _hl_dt = str(result.get("headline") or "")
+                _band_now = (result.get("day_energy") or {}).get("key") or (
+                    "friction" if result.get("is_friction_day") else "")
+                _BAND_WORD = {"friction": "friction day", "light": "lighter-touch day",
+                              "steady": "steady day"}
+                _want_dt = _BAND_WORD.get(_band_now)
+                _DT_RE = r"friction day|lighter[- ]touch day|lighter day|light day|steady day"
+                _found_dt = _re_dt.search(_DT_RE, _hl_dt, _re_dt.I)
+                if _want_dt and _found_dt and _found_dt.group(0).lower() != _want_dt.lower():
+                    result["headline"] = _re_dt.sub(_DT_RE, _want_dt, _hl_dt, count=1,
+                                                    flags=_re_dt.I)
+            except Exception as _dt_e:
+                print(f"[daily-signal] headline day-type reconcile skipped (non-fatal): {_dt_e}")
 
             # [one-signal] Commit the day's selection (domains + direction +
             # the DISPLAYED headline/highlight + BODY state) so the Deep Read

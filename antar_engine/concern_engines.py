@@ -73,6 +73,24 @@ CONCERN_SPEC = {
         "primary_karakas": ["Jupiter", "Rahu"],
         "subject": "outside money — a loan, investment, or funding",
     },
+    "speculation": {
+        # [apple-4.3 2026-10-01] Speculation/gambling-type questions are answered
+        # from the classical speculation houses — 5th (speculation & risk-taking),
+        # 11th (gains realised), 8th (sudden/unearned money and the risk of sudden
+        # loss) — NOT a casino "signal 0-100 / lucky day" read. Neutral, finance-
+        # framed language; the node-in-money-house instability warning (2/8/11) is
+        # inherited from analyze_concern and is desirable here.
+        "polarity": "gain", "varga": "d9",
+        "houses": [5, 11, 8],
+        "house_meaning": {5: "speculation, risk-taking and luck with chance",
+                          11: "gains and what actually comes in",
+                          8: "sudden or unearned money — windfalls, and the risk of sudden loss"},
+        "karakas": ["Jupiter", "Venus", "Mercury", "Rahu"],
+        # Rahu (sudden / unconventional gain) and Venus (the 5th's speculation
+        # significator) are the speculation-specific drivers; Jupiter/Mercury secondary.
+        "primary_karakas": ["Rahu", "Venus"],
+        "subject": "speculative, high-variance money (markets, trading, high-risk ventures)",
+    },
     "relationship_entry": {
         "polarity": "gain", "varga": "d9",
         "houses": [7, 5, 11],
@@ -500,6 +518,7 @@ def _facts_block(concern, spec, verdict, drivers, d9, dasha_active, lords, in_ho
 
 
 def analyze_funding(chart_data, dashas):        return analyze_concern("funding", chart_data, dashas)
+def analyze_speculation(chart_data, dashas):     return analyze_concern("speculation", chart_data, dashas)
 def analyze_relationship_entry(chart_data, dashas): return analyze_concern("relationship_entry", chart_data, dashas)
 def analyze_separation(chart_data, dashas):     return analyze_concern("separation", chart_data, dashas)
 def analyze_health(chart_data, dashas):         return analyze_concern("health", chart_data, dashas)
