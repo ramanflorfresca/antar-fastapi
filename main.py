@@ -21156,6 +21156,9 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                 endpoint_name="compat_session", chart_id=s.get("chart_id_a"))
         except Exception as _tse:
             print(f"[compat][session-i18n] non-fatal: {_tse}")
+    # [conn-note 2026-10-02] the user's permanent note on this person (user-authored
+    # → never translated). Added after i18n so it's returned verbatim.
+    out["user_note"] = _connection_note_get(s.get("chart_id_a"), s.get("chart_id_b")).get("note", "")
     return out
 
 
@@ -33954,6 +33957,11 @@ def get_network(chart_id: str, language: str = "en"):
         p["today"] = _network_today_glance(cid_b, lang)
         people.append(p)
 
+    # [conn-note 2026-10-02] attach each person's permanent note in one query.
+    _notes = _connection_notes_bulk(chart_id, [p["connection_chart_id"] for p in people])
+    for p in people:
+        p["note"] = _notes.get(p["connection_chart_id"], "")
+
     # fire-and-forget: warm the first few COLD connections for next time (see
     # _network_prewarm). /network's own response stays a pure cache read.
     try:
@@ -33995,6 +34003,71 @@ def remove_network_person(chart_id: str, connection_chart_id: str):
     except Exception as e:
         print(f"[network] remove person failed cid_a={str(chart_id)[:8]}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Connection notes (permanent, per-person; survive compat re-runs) ──────────
+# Stored in `connection_notes` (PK chart_id_a+chart_id_b), independent of
+# compatibility_sessions (which are regenerated on every re-run). Fail-open
+# everywhere: if the table doesn't exist yet, reads return an empty note and the
+# parent /network and /session calls never break (PostgREST errors on an unknown
+# table, so the lookup is always isolated in its own try/except).
+def _connection_note_get(chart_id_a: str, connection_chart_id: str):
+    try:
+        r = (supabase.table("connection_notes")
+             .select("note,updated_at")
+             .eq("chart_id_a", chart_id_a).eq("chart_id_b", connection_chart_id)
+             .limit(1).execute())
+        if r.data:
+            return {"note": r.data[0].get("note") or "", "updated_at": r.data[0].get("updated_at")}
+    except Exception as _e:
+        print(f"[network][note] read skip cid_a={str(chart_id_a)[:8]}: {_e}")
+    return {"note": "", "updated_at": None}
+
+
+def _connection_notes_bulk(chart_id_a: str, connection_ids: list):
+    """{connection_chart_id: note_str} for the user's people, in one query. Fail-open to {}."""
+    if not connection_ids:
+        return {}
+    try:
+        r = (supabase.table("connection_notes")
+             .select("chart_id_b,note")
+             .eq("chart_id_a", chart_id_a)
+             .in_("chart_id_b", connection_ids).execute())
+        return {row["chart_id_b"]: (row.get("note") or "") for row in (r.data or [])}
+    except Exception as _e:
+        print(f"[network][note] bulk read skip cid_a={str(chart_id_a)[:8]}: {_e}")
+        return {}
+
+
+@app.get("/api/v1/network/{chart_id}/person/{connection_chart_id}/note")
+def get_connection_note(chart_id: str, connection_chart_id: str):
+    """The user's free-text note on this saved person. Always 200 (empty if none)."""
+    if not chart_id or not connection_chart_id:
+        raise HTTPException(status_code=400, detail="chart_id and connection_chart_id required")
+    return {"success": True, **_connection_note_get(chart_id, connection_chart_id)}
+
+
+@app.put("/api/v1/network/{chart_id}/person/{connection_chart_id}/note")
+def put_connection_note(chart_id: str, connection_chart_id: str, request: dict = None):
+    """Create/replace the user's note on this person (upsert on the pair). An empty
+    string clears it. Scoped to the caller's own chart as Person A."""
+    if not chart_id or not connection_chart_id:
+        raise HTTPException(status_code=400, detail="chart_id and connection_chart_id required")
+    note = ((request or {}).get("note") or "")
+    if not isinstance(note, str):
+        raise HTTPException(status_code=400, detail="note must be a string")
+    note = note.strip()[:5000]
+    try:
+        supabase.table("connection_notes").upsert({
+            "chart_id_a": chart_id, "chart_id_b": connection_chart_id,
+            "note": note, "updated_at": "now()",
+        }, on_conflict="chart_id_a,chart_id_b").execute()
+        print(f"[network][note] saved cid_a={str(chart_id)[:8]} cid_b={str(connection_chart_id)[:8]} len={len(note)}")
+        return {"success": True, "note": note}
+    except Exception as e:
+        # Most likely cause before the DDL has run: the table doesn't exist yet.
+        print(f"[network][note] save failed cid_a={str(chart_id)[:8]}: {e}")
+        raise HTTPException(status_code=503, detail="notes_unavailable")
 
 
 # ── Master Dashboard Endpoint ─────────────────────────────────────
