@@ -398,6 +398,11 @@ _MONTH_TAIL = {
     "es": "Tómalo como la forma del mes, no como una cita fija.",
     "pt": "Encare como a forma do mês, não como um compromisso fixo.",
 }
+_YEAR_TAIL = {
+    "en": "Treat it as the year's shape, not a fixed date.",
+    "es": "Tómalo como la forma del año, no como una fecha fija.",
+    "pt": "Encare como a forma do ano, não como uma data fixa.",
+}
 _GENTLE_TAIL = {
     "en": "Let it stay a gentle direction rather than a hard plan.",
     "es": "Déjalo como una dirección suave, no como un plan rígido.",
@@ -441,13 +446,18 @@ def _fallback_copy(inp: Dict[str, Any], language: str = "en") -> Dict[str, str]:
                     if _late else
                     f"{Label} tends to build across the year.")
         else:
-            hook = f"{Label} stays steady through the year."
-    substance = seed or hook
-    # give depth a distinct second beat even in fallback (avoid substance==depth)
+            _verb = "stay" if label.endswith("ships") else "stays"
+            hook = f"{Label} {_verb} steady through the year."
+    # [year-rows 2026-10-02] Never repeat a beat: This Year showed "Money stays
+    # steady through the year." three times (hook, substance, deeper read), and a
+    # YEAR row said "the month's shape". substance = the seed only (empty when
+    # there is none — the hook already says it); depth = the altitude's tail.
+    _tail = (_YEAR_TAIL if inp["altitude"] != ALT_MONTH else _MONTH_TAIL)
+    substance = seed if seed and seed != hook else ""
     if seed:
-        depth = f"{seed} {_MONTH_TAIL.get(_lang, _MONTH_TAIL['en'])}"
+        depth = _tail.get(_lang, _tail["en"])
     else:
-        depth = f"{hook} {_GENTLE_TAIL.get(_lang, _GENTLE_TAIL['en'])}"
+        depth = _GENTLE_TAIL.get(_lang, _GENTLE_TAIL["en"])
     return {"hook": hook, "substance": substance, "depth": depth}
 
 
