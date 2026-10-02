@@ -446,6 +446,38 @@ def compose_practice_response(
             if isinstance(_item, dict):
                 _item.setdefault("why", _REMEDY_WHY[_rk].get(lang, _REMEDY_WHY[_rk]["en"]))
 
+        # [practice-why 2026-10-02] Per-step HOW line for the DAILY practices so the FE
+        # stops rendering "The specific reason for this step isn't available yet." Generic
+        # per step-TYPE (like the remedies). Shallow-copy each step so we never mutate the
+        # shared PRACTICE_LIBRARY dicts. The set-level why_this_works already explains the
+        # whole set; this says what each individual step contributes.
+        _STEP_WHY = {
+            "mantra": {
+                "en": "Repeating this sound holds your attention on this season's focus and quiets the mind — the repetition itself is the work.",
+                "es": "Repetir este sonido mantiene tu atención en el foco de esta temporada y aquieta la mente — la repetición misma es el trabajo.",
+                "pt": "Repetir este som mantém sua atenção no foco desta temporada e aquieta a mente — a repetição em si é o trabalho.",
+            },
+            "body": {
+                "en": "This posture works the body where this energy sits, so the practice lands physically — not just in your head.",
+                "es": "Esta postura trabaja el cuerpo donde reside esta energía, para que la práctica se asiente físicamente — no solo en la mente.",
+                "pt": "Esta postura trabalha o corpo onde esta energia reside, para que a prática se fixe fisicamente — não só na mente.",
+            },
+            "breath": {
+                "en": "Shaping and slowing the breath calms the nervous system and steadies the whole session.",
+                "es": "Moldear y ralentizar la respiración calma el sistema nervioso y estabiliza toda la sesión.",
+                "pt": "Moldar e desacelerar a respiração acalma o sistema nervoso e estabiliza toda a sessão.",
+            },
+            "daily_action": {
+                "en": "A concrete real-world act that turns the practice into something you do — not just something you feel.",
+                "es": "Un acto concreto en el mundo real que convierte la práctica en algo que haces — no solo algo que sientes.",
+                "pt": "Um ato concreto no mundo real que transforma a prática em algo que você faz — não apenas algo que sente.",
+            },
+        }
+        for _sk in ("mantra", "body", "breath", "daily_action"):
+            _s = today_priority.get(_sk)
+            if isinstance(_s, dict) and not _s.get("why"):
+                today_priority[_sk] = {**_s, "why": _STEP_WHY[_sk].get(lang, _STEP_WHY[_sk]["en"])}
+
         # Auditability — which scopes fired and which was chosen.
         today_priority["derivation_layers"] = build_derivation_layers(actives, priority)
 
