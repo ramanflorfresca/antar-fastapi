@@ -24,9 +24,9 @@ language). Chart-stable — regenerates only on period shift.
 
 Emitted as top-level `chart_food` on /predict/daily-practice. Free.
 """
-from antar_engine.constants import HAIKU_MODEL
-
 from __future__ import annotations
+
+from antar_engine.constants import HAIKU_MODEL
 import asyncio
 import hashlib
 import json

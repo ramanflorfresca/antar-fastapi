@@ -32459,26 +32459,6 @@ def push_unregister(request: dict, authorization: Optional[str] = Header(None)):
     return {"ok": True}
 
 
-@app.post("/api/v1/push/send")
-def push_send(request: dict):
-    """[push] Server/cron: send a push to a chart's owner. Auth via the shared
-    ALERT_SECRET (same gate the alert pipeline uses).
-    Body: { secret, chart_id, title?, body, data? }."""
-    if request.get("secret", "") != os.getenv("ALERT_SECRET", "antar-alerts-2026"):
-        raise HTTPException(403, "forbidden")
-    from antar_engine.push_engine import send_to_chart
-    chart_id = request.get("chart_id", "")
-    body = request.get("body", "")
-    if not chart_id:
-        raise HTTPException(400, "chart_id required")
-    if not body:
-        raise HTTPException(400, "body required")
-    return send_to_chart(
-        chart_id, request.get("title", "Antar"), body,
-        supabase, data=request.get("data") or {},
-    )
-
-
 # ── Store renewal / lifecycle notifications [iap-renewals 2026-09-22] ──
 # Purchase-time verification (verify-receipt / verify-purchase) only ever sees
 # period 1. Renewals, refunds, cancellations, billing retry, grace periods and
