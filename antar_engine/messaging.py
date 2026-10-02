@@ -143,3 +143,243 @@ def format_ask_for_telegram(payload: dict, language: str = "en") -> str:
     return out or {"es": "No pude leer una señal clara ahora — intenta de nuevo en un momento.",
                    "pt": "Não consegui ler um sinal claro agora — tente novamente em instantes.",
                    }.get(language, "I couldn't read a clear signal just now — try again in a moment.")
+
+
+# ── WhatsApp over Twilio ──
+# [whatsapp 2026-10-02] Same identity model as Telegram: messaging_links rows with
+# channel="whatsapp" and channel_user_id = the sender's E.164 number. A number is
+# only trusted because Twilio's request signature is verified (twilio_signature_ok);
+# a number typed into a form is never trusted. Ask-only: the user always writes
+# first, so every reply is inside WhatsApp's 24-hour window (wa_window_open guards
+# it anyway, so a later proactive feature can't break the rule by accident).
+import base64
+import hashlib
+import hmac
+import re
+import time
+import urllib.parse
+
+_TWILIO_MSG_API = "https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.json"
+WA_MAX_CHARS = 1600          # Twilio's per-message body limit for WhatsApp
+WA_WINDOW_SECONDS = 24 * 3600
+WA_LINK_CODE_MAX_AGE_MIN = 15
+
+
+def wa_number(addr: Optional[str]) -> str:
+    """'whatsapp:+919812345678' → '+919812345678' ('' when unusable)."""
+    s = (addr or "").strip()
+    if s.lower().startswith("whatsapp:"):
+        s = s[9:]
+    s = re.sub(r"[^\d+]", "", s)
+    if s and not s.startswith("+"):
+        s = "+" + s
+    return s if re.fullmatch(r"\+\d{7,15}", s) else ""
+
+
+def twilio_signature_ok(auth_token: str, url: str, params: dict, signature: str) -> bool:
+    """Twilio X-Twilio-Signature check: base64(HMAC-SHA1(url + sorted k+v)).
+    `params` = the POSTed form fields (first value per key)."""
+    if not auth_token or not signature:
+        return False
+    data = url + "".join(k + (params.get(k) or "") for k in sorted(params))
+    digest = hmac.new(auth_token.encode(), data.encode("utf-8"), hashlib.sha1).digest()
+    expected = base64.b64encode(digest).decode()
+    return hmac.compare_digest(expected, signature)
+
+
+def wa_window_open(last_inbound_ts: Optional[float], now: Optional[float] = None) -> bool:
+    """True while a free-form reply is allowed (< 24h since the user last wrote)."""
+    if not last_inbound_ts:
+        return False
+    return ((now or time.time()) - float(last_inbound_ts)) < WA_WINDOW_SECONDS
+
+
+def wa_split(text: str, limit: int = WA_MAX_CHARS) -> list:
+    """Split on paragraph, then line, then hard breaks so each part ≤ limit."""
+    text = (text or "").strip()
+    if len(text) <= limit:
+        return [text] if text else []
+    parts, cur = [], ""
+    for para in text.split("\n\n"):
+        cand = (cur + "\n\n" + para) if cur else para
+        if len(cand) <= limit:
+            cur = cand
+            continue
+        if cur:
+            parts.append(cur)
+        while len(para) > limit:
+            cut = para.rfind("\n", 0, limit)
+            cut = cut if cut > limit // 2 else para.rfind(" ", 0, limit)
+            cut = cut if cut > 0 else limit
+            parts.append(para[:cut].rstrip())
+            para = para[cut:].lstrip()
+        cur = para
+    if cur:
+        parts.append(cur)
+    return parts
+
+
+def whatsapp_send(to_number: str, text: str, last_inbound_ts: Optional[float]) -> bool:
+    """Send free-form text through Twilio. Refuses outside the 24h window (that
+    needs an approved template — not in v1). Fail-soft (logs, returns False)."""
+    import os
+    sid = os.getenv("TWILIO_ACCOUNT_SID")
+    token = os.getenv("TWILIO_AUTH_TOKEN")
+    sender = os.getenv("TWILIO_WHATSAPP_FROM")       # e.g. whatsapp:+14155238886
+    to = wa_number(to_number)
+    if not (sid and token and sender and to and text):
+        print("[whatsapp] send skipped: twilio env or recipient missing")
+        return False
+    if not wa_window_open(last_inbound_ts):
+        print(f"[whatsapp] send blocked: 24h window closed for …{to[-4:]}")
+        return False
+    if not sender.startswith("whatsapp:"):
+        sender = "whatsapp:" + sender
+    auth = base64.b64encode(f"{sid}:{token}".encode()).decode()
+    ok = True
+    for part in wa_split(text):
+        try:
+            data = urllib.parse.urlencode(
+                {"From": sender, "To": "whatsapp:" + to, "Body": part}).encode()
+            req = urllib.request.Request(
+                _TWILIO_MSG_API.format(sid=sid), data=data, method="POST",
+                headers={"Authorization": "Basic " + auth,
+                         "Content-Type": "application/x-www-form-urlencoded"})
+            urllib.request.urlopen(req, timeout=15)
+        except urllib.error.HTTPError as e:
+            print(f"[whatsapp] send failed …{to[-4:]}: {e.code} {e.read()[:300]!r}")
+            ok = False
+            break
+        except Exception as e:
+            print(f"[whatsapp] send failed …{to[-4:]}: {e}")
+            ok = False
+            break
+    return ok
+
+
+def parse_wa_command(text: str) -> tuple:
+    """(command, arg) for channel commands, else ("", "") = an Ask question.
+    Whole-message match only, so a question that merely contains 'stop' is a question."""
+    t = (text or "").strip()
+    m = re.fullmatch(r"(?i)(?:link|conectar|ligar|connect)\s+([A-Za-z0-9_\-]{4,32})", t)
+    if m:
+        return ("link", m.group(1))
+    low = t.lower().strip(" .!¡?¿")
+    if low in ("stop", "unlink", "parar", "desconectar", "band", "band karo", "unsubscribe"):
+        return ("unlink", "")
+    if low in ("help", "ayuda", "ajuda", "menu", "madad", "?"):
+        return ("help", "")
+    return ("", "")
+
+
+def bind_link_whatsapp(sb, code: str, number: str) -> Optional[str]:
+    """Bind a pending in-app code to a WhatsApp number (Path A). Enforces
+    uniqueness: the number and the account each keep ONE active whatsapp link —
+    the newest proven link wins, older ones are revoked. Returns chart_id."""
+    code = (code or "").strip()
+    number = wa_number(number)
+    if not code or not number:
+        return None
+    try:
+        rows = (sb.table("messaging_links").select("id,chart_id,user_id,created_at")
+                .eq("link_code", code).eq("channel", "whatsapp")
+                .eq("status", "pending").limit(1).execute()).data or []
+        if not rows:
+            return None
+        row = rows[0]
+        try:
+            created = datetime.fromisoformat(str(row.get("created_at")).replace("Z", "+00:00"))
+            age_min = (datetime.now(timezone.utc) - created).total_seconds() / 60
+            if age_min > WA_LINK_CODE_MAX_AGE_MIN:
+                sb.table("messaging_links").update({"status": "expired", "link_code": None}) \
+                    .eq("id", row["id"]).execute()
+                return None
+        except Exception:
+            pass
+        _revoke_whatsapp(sb, number=number, user_id=row.get("user_id"), keep_id=row["id"])
+        (sb.table("messaging_links").update({
+            "channel_user_id": number, "status": "linked", "link_code": None,
+            "linked_at": datetime.now(timezone.utc).isoformat(),
+        }).eq("id", row["id"]).execute())
+        return row["chart_id"]
+    except Exception as e:
+        if _table_missing(e):
+            return None
+        print(f"[whatsapp] bind_link failed: {e}")
+        return None
+
+
+def link_whatsapp_direct(sb, chart_id: str, user_id: Optional[str], number: str) -> bool:
+    """Path B: the signed-in user confirmed a number proven by a signed token."""
+    number = wa_number(number)
+    if not (chart_id and number):
+        return False
+    try:
+        _revoke_whatsapp(sb, number=number, user_id=user_id)
+        sb.table("messaging_links").insert({
+            "chart_id": chart_id, "user_id": user_id, "channel": "whatsapp",
+            "channel_user_id": number, "status": "linked", "link_code": None,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "linked_at": datetime.now(timezone.utc).isoformat(),
+        }).execute()
+        return True
+    except Exception as e:
+        print(f"[whatsapp] direct link failed: {e}")
+        return False
+
+
+def unlink_whatsapp(sb, number: str) -> bool:
+    return _revoke_whatsapp(sb, number=wa_number(number))
+
+
+def _revoke_whatsapp(sb, number: str = "", user_id: Optional[str] = None,
+                     keep_id=None) -> bool:
+    try:
+        for col, val in (("channel_user_id", number), ("user_id", user_id)):
+            if not val:
+                continue
+            q = (sb.table("messaging_links").update({"status": "revoked"})
+                 .eq("channel", "whatsapp").eq("status", "linked").eq(col, val))
+            if keep_id is not None:
+                q = q.neq("id", keep_id)
+            q.execute()
+        return True
+    except Exception as e:
+        if not _table_missing(e):
+            print(f"[whatsapp] revoke failed: {e}")
+        return False
+
+
+def make_connect_token(secret: str, number: str, ttl_s: int = 15 * 60) -> str:
+    """Signed, expiring token carrying a Twilio-verified number (Path B link)."""
+    body = base64.urlsafe_b64encode(json.dumps(
+        {"n": wa_number(number), "e": int(time.time()) + ttl_s,
+         "r": secrets.token_hex(4)}, separators=(",", ":")).encode()).decode().rstrip("=")
+    sig = hmac.new(secret.encode(), body.encode(), hashlib.sha256).hexdigest()[:32]
+    return f"{body}.{sig}"
+
+
+def read_connect_token(secret: str, token: str) -> Optional[str]:
+    """The number inside a valid, unexpired token, else None."""
+    try:
+        body, sig = (token or "").rsplit(".", 1)
+        good = hmac.new(secret.encode(), body.encode(), hashlib.sha256).hexdigest()[:32]
+        if not hmac.compare_digest(good, sig):
+            return None
+        data = json.loads(base64.urlsafe_b64decode(body + "=" * (-len(body) % 4)))
+        if int(data.get("e") or 0) < time.time():
+            return None
+        return wa_number(data.get("n")) or None
+    except Exception:
+        return None
+
+
+def format_ask_for_whatsapp(payload: dict, language: str = "en") -> str:
+    """Telegram's chat rendering + WhatsApp markup (*bold* verdict, _italic_ labels)."""
+    p = payload or {}
+    text = format_ask_for_telegram(p, language)
+    text = re.sub(r"\*\*(.+?)\*\*", r"*\1*", text)          # markdown bold → WA bold
+    verdict = p.get("verdict")
+    if isinstance(verdict, str) and verdict.strip() and verdict.strip().lower() not in text.lower()[:80]:
+        text = f"*{verdict.strip()}*\n\n{text}"
+    return text
