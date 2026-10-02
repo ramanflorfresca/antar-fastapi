@@ -592,3 +592,20 @@ def test_astro_voice_keeps_dated_weekday_but_swaps_lore():
     from antar_engine.output_strips import strip_prediction_astro_voice
     out = strip_prediction_astro_voice('Tuesday amplifies courage. Monday (Oct 5) is calmer.')
     assert out.startswith('Today amplifies courage.') and 'Monday (Oct 5)' in out
+
+
+def test_weekday_after_date_is_kept_no_empty_parens():
+    # live 2026-10-02: "Oct 5 () is your least-strained day", "Avoid Oct 3 ()"
+    out = apply_user_facing_strips(
+        'Oct 5 (Monday) is your least-strained day. Avoid Oct 3 (Saturday).', 'en', field_type='plain')
+    assert 'Oct 5 (Monday)' in out and 'Oct 3 (Saturday)' in out and '()' not in out
+
+
+def test_weekday_after_date_comma_and_spanish():
+    assert 'Oct 5, Monday' in _strip_day_names('Oct 5, Monday is calm.', 'en')
+    assert '5 de octubre (lunes)' in _strip_day_names('El 5 de octubre (lunes) es tu día.', 'es')
+
+
+def test_stripped_weekday_leaves_no_empty_parens():
+    out = _strip_day_names('Momentum builds (Saturday) through the week.', 'en')
+    assert '()' not in out and 'saturday' not in out.lower()
