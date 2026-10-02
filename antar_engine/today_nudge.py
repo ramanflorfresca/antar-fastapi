@@ -68,13 +68,40 @@ _GIVING_PLACE_BY_COUNTRY = {
 _GIVING_PLACE_DEFAULT = "community kitchen or a place of worship near you"
 
 # ── Nudge banks — keyed by the engine's lead highlight domain ────────────────
+# [nudge-variety 2026-10-02] Each slot is a SMALL BANK, not one line: with one
+# sentence per (direction, domain) every money-caution day read the identical
+# "Take the money move today…" (seen on Sep 30 and Oct 2 in Day Log), which
+# reads as canned. _pick() chooses deterministically by date, so a given day
+# is stable across reloads/surfaces but consecutive days vary. Every variant
+# keeps the SAME stance as the first (same lean, same cap) — only the wording
+# and the concrete act change.
 # Adverse day: hold-the-line nudges in the SAME domain the highlight flags.
 _ADVERSE_NUDGE = {
-    "money":         "Hold off on any big purchase or transfer today — let money sit still.",
-    "work":          "Don't lock in new commitments today — keep what you agree to reversible.",
-    "relationships": "Go easy in conversations today — let the small frictions pass without comment.",
-    "body":          "Keep meals simple and light today, and skip the drink if you can.",
-    "mind":          "Go easy on travel and noise today — fewer inputs, clearer head.",
+    "money": [
+        "Hold off on any big purchase or transfer today — let money sit still.",
+        "Leave the wallet closed on anything non-essential today — tomorrow's price will still be there.",
+        "Don't move money today — park the transfer or the purchase until the pressure eases.",
+    ],
+    "work": [
+        "Don't lock in new commitments today — keep what you agree to reversible.",
+        "Say \"let me come back to you\" today instead of yes — nothing new gets signed off.",
+        "Finish what's already on the desk today; leave new commitments for a clearer day.",
+    ],
+    "relationships": [
+        "Go easy in conversations today — let the small frictions pass without comment.",
+        "Let one sharp remark go unanswered today — it won't matter by the weekend.",
+        "Keep the hard conversation for another day — today, listen more than you reply.",
+    ],
+    "body": [
+        "Keep meals simple and light today, and skip the drink if you can.",
+        "Go to bed earlier than usual tonight and keep today's meals plain.",
+        "Swap the hard workout for a walk today — the body wants maintenance, not a push.",
+    ],
+    "mind": [
+        "Go easy on travel and noise today — fewer inputs, clearer head.",
+        "Cut one input today — the feed, the news, or the extra meeting — and keep your head clear.",
+        "Skip the optional trip today and give yourself a quiet hour instead.",
+    ],
 }
 
 # Caution lead: the day LIGHTS UP this domain but under real risk (a high-
@@ -83,20 +110,61 @@ _ADVERSE_NUDGE = {
 # so the nudge must speak the SAME lean-in-with-a-cap voice — not the pure
 # "avoid it" adverse line, which reads as the card contradicting itself.
 _CAUTION_NUDGE = {
-    "money":         "Take the money move today if you want it — but keep it small and reversible, and set a hard stop before you commit.",
-    "work":          "Push the work forward today, but don't over-promise — take on less than you're tempted to and keep an exit.",
-    "relationships": "Lean into the connection today, but don't force the hard conversation — leave yourself room to step back.",
-    "body":          "Use the energy today, but don't redline it — keep something in reserve for tomorrow.",
-    "mind":          "Take the trip or the risk today if it calls you — but cap the downside and keep one clear exit.",
+    "money": [
+        "Take the money move today if you want it — but keep it small and reversible, and set a hard stop before you commit.",
+        "If a money decision is ready, make it today at half the size you planned — and write the exit number down first.",
+        "Act on the money opportunity today, but only with what you could lose without it hurting — cap it before you start.",
+        "Move on the money today if it's in front of you — a trial amount, not the full commitment, with a clear walk-away line.",
+    ],
+    "work": [
+        "Push the work forward today, but don't over-promise — take on less than you're tempted to and keep an exit.",
+        "Say yes to the one piece of work that matters today and no to the second — protect your bandwidth.",
+        "Make progress on the main project today, but put a time limit on it — stop before you're stretched.",
+    ],
+    "relationships": [
+        "Lean into the connection today, but don't force the hard conversation — leave yourself room to step back.",
+        "Reach out today, keep it light — save the heavy topic for when you both have room.",
+        "Make the warm gesture today, but don't push for an answer — let the other side come to you.",
+    ],
+    "body": [
+        "Use the energy today, but don't redline it — keep something in reserve for tomorrow.",
+        "Train or move today, but stop at about 80% — tomorrow should still feel good.",
+        "Ride today's energy for the physical task, then rest properly tonight — don't spend it all.",
+    ],
+    "mind": [
+        "Take the trip or the risk today if it calls you — but cap the downside and keep one clear exit.",
+        "Follow the bold idea today, but test it small before you tell anyone it's the plan.",
+        "Say yes to the new thing today — with one clear condition under which you'll stop.",
+    ],
 }
 
 # Positive / benefic day: a small act of giving, anchored to the real place.
 _POSITIVE_NUDGE = {
-    "money":         "Some of today's flow isn't yours to keep — drop a small donation at the {place}.",
-    "work":          "Share the credit on what lands today — and leave a small donation at the {place} on your way.",
-    "relationships": "Give a little without being asked today — start with a small donation at the {place}.",
-    "body":          "Spend an hour of today's energy on someone who needs it — or drop a small donation at the {place}.",
-    "mind":          "Put the clarity to generous use — a small donation at the {place} keeps the day flowing your way.",
+    "money": [
+        "Some of today's flow isn't yours to keep — drop a small donation at the {place}.",
+        "Let some of today's luck travel — a small donation at the {place} keeps it moving.",
+        "Pay a little of today's good fortune forward — a small gift at the {place}.",
+    ],
+    "work": [
+        "Share the credit on what lands today — and leave a small donation at the {place} on your way.",
+        "Name someone else's part in today's win out loud — and leave a little at the {place}.",
+        "Pull a colleague into what's working today, and drop a small donation at the {place}.",
+    ],
+    "relationships": [
+        "Give a little without being asked today — start with a small donation at the {place}.",
+        "Do one thoughtful thing for someone today before they ask — and leave a little at the {place}.",
+        "Be generous first today — a kind word, a small gift, a little at the {place}.",
+    ],
+    "body": [
+        "Spend an hour of today's energy on someone who needs it — or drop a small donation at the {place}.",
+        "Use today's strength to help someone with a physical task — or leave a little at the {place}.",
+        "Put some of today's energy into helping out — an hour of your time or a small gift at the {place}.",
+    ],
+    "mind": [
+        "Put the clarity to generous use — a small donation at the {place} keeps the day flowing your way.",
+        "Use today's clear head to help someone think something through — and leave a little at the {place}.",
+        "Share what you've figured out with someone who's stuck — and drop a small donation at the {place}.",
+    ],
 }
 
 # [no-income 2026-09-23] When money is strained or income is absent, a
@@ -104,12 +172,51 @@ _POSITIVE_NUDGE = {
 # doesn't have (owner flagged: a user with money strain / NO income was told to
 # donate). Non-monetary generosity: give TIME and help, never money.
 _POSITIVE_NUDGE_NONMONEY = {
-    "money":         "Money's tight today, so don't give it away — but a little of your time for someone who needs it still pays you back.",
-    "work":          "Share the credit on what lands today, and lift someone with your time — no money needed.",
-    "relationships": "Give a little without being asked today — your attention and a helping hand, not your wallet.",
-    "body":          "Spend an hour of today's energy on someone who needs it.",
-    "mind":          "Put the clarity to generous use — offer someone your time or a hand today.",
+    "money": [
+        "Money's tight today, so don't give it away — but a little of your time for someone who needs it still pays you back.",
+        "Keep your cash today — give an hour of help to someone instead; it comes back.",
+        "No need to spend to be generous today — a favour or an introduction goes further.",
+    ],
+    "work": [
+        "Share the credit on what lands today, and lift someone with your time — no money needed.",
+        "Name someone else's part in today's win out loud — it costs nothing and it's remembered.",
+        "Help a colleague get unstuck today — your time is the gift.",
+    ],
+    "relationships": [
+        "Give a little without being asked today — your attention and a helping hand, not your wallet.",
+        "Do one thoughtful thing for someone today before they ask — a call, a hand, your time.",
+        "Be generous first today with your attention — put the phone down and really listen.",
+    ],
+    "body": [
+        "Spend an hour of today's energy on someone who needs it.",
+        "Use today's strength to help someone with a physical task.",
+        "Put some of today's energy into helping out — an hour of your time.",
+    ],
+    "mind": [
+        "Put the clarity to generous use — offer someone your time or a hand today.",
+        "Use today's clear head to help someone think something through.",
+        "Share what you've figured out with someone who's stuck.",
+    ],
 }
+
+
+def _pick(bank: dict, lead: str, date_str: str = "") -> Optional[str]:
+    """Deterministic variant for (lead, date): stable within a day, varies
+    across days. No date → the first (canonical) line."""
+    opts = bank.get(lead)
+    if not opts:
+        return None
+    if isinstance(opts, str):
+        return opts
+    if not date_str:
+        return opts[0]
+    # Rotate by calendar day (offset per lead) so consecutive days never repeat.
+    from datetime import date as _date
+    try:
+        day_n = _date.fromisoformat(str(date_str)[:10]).toordinal()
+    except ValueError:
+        return opts[0]
+    return opts[(day_n + sum(map(ord, lead))) % len(opts)]
 
 
 def _giving_place(current_country: str) -> str:
@@ -124,6 +231,7 @@ def derive_todays_nudge(
     current_country: str = "",
     lk_daily: Optional[dict] = None,
     can_give_money: bool = True,
+    date_str: str = "",
 ) -> Optional[str]:
     """One-line, day-scale behavioral nudge tied to the chosen highlight.
 
@@ -138,15 +246,15 @@ def derive_todays_nudge(
     lead = domains[0]
     _pos = _POSITIVE_NUDGE if can_give_money else _POSITIVE_NUDGE_NONMONEY
     if direction == "adverse":
-        return _ADVERSE_NUDGE.get(lead)
+        return _pick(_ADVERSE_NUDGE, lead, date_str)
     if direction == "caution":
         # lean-in-with-a-cap; fall back to the giving nudge if the domain
         # has no caution line so the field is never left contradicting.
-        _fb = _pos.get(lead, "")
-        return _CAUTION_NUDGE.get(lead) or (
+        _fb = _pick(_pos, lead, date_str) or ""
+        return _pick(_CAUTION_NUDGE, lead, date_str) or (
             (_fb.format(place=_giving_place(current_country)) if "{place}" in _fb else _fb)
             or None)
-    tmpl = _pos.get(lead)
+    tmpl = _pick(_pos, lead, date_str)
     if not tmpl:
         return None
     return tmpl.format(place=_giving_place(current_country)) if "{place}" in tmpl else tmpl
