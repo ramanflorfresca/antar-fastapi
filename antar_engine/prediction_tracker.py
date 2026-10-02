@@ -24,6 +24,10 @@ FEEDBACK_DELAY_DAYS = {
     # same night or the next — reconcile fast so the KP moment-read can be scored
     # against the real win/loss (calibration log).
     "speculation":   1,
+    # [yesno-kp 2026-10-02] a Yes/No horary question — the real verify date is
+    # computed per question (asked horizon / window end) and passed as
+    # show_after_override; this is only the fallback.
+    "yesno":        30,
     "general":      21,
 }
 
@@ -79,6 +83,9 @@ def save_trackable_claim(
     concern: str,
     sb,
     correlation_key: str = None,
+    claim_override: str = None,
+    claim_window_override: str = None,
+    show_after_override: str = None,
 ) -> dict:
     """Extract claim and persist to user_correlations.
 
@@ -89,6 +96,14 @@ def save_trackable_claim(
     if concern == "daily":
         return {}
     tracking = extract_trackable_claim(prediction_text, concern)
+    # [yesno-kp 2026-10-02] callers that already know the exact claim / verify
+    # date (the Yes/No horary) skip the regex extraction.
+    if claim_override:
+        tracking["trackable_claim"] = claim_override[:200]
+    if claim_window_override:
+        tracking["claim_window"] = claim_window_override
+    if show_after_override:
+        tracking["show_feedback_after"] = show_after_override
     _row = {
         "chart_id":        chart_id,
         "prediction_id":   prediction_id,
@@ -213,6 +228,25 @@ def _feedback_ui(concern: str, language: str = "en") -> dict:
             "options": [
                 {"value": "yes", "label": won},
                 {"value": "no", "label": lost},
+            ],
+        }
+    if str(concern or "").lower() == "yesno":
+        # [yesno-kp 2026-10-02] a Yes/No question is about an EVENT — ask whether
+        # it happened, not whether the read "felt true" (that would corrupt the
+        # KP-vs-classic calibration). yes = happened, no = did not.
+        prompt = {
+            "en": "You asked this. Did it happen?",
+            "es": "Preguntaste esto. ¿Sucedió?",
+            "pt": "Você perguntou isto. Aconteceu?",
+        }[lang]
+        return {
+            "style": "happened",
+            "prompt": prompt,
+            "options": [
+                {"value": "yes", "label": {"en": "It happened", "es": "Sucedió",
+                                           "pt": "Aconteceu"}[lang]},
+                {"value": "no", "label": {"en": "It didn't", "es": "No sucedió",
+                                          "pt": "Não aconteceu"}[lang]},
             ],
         }
     prompt = {
