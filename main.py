@@ -4522,6 +4522,43 @@ _WA_L = {
 }
 
 _WA_READING_AFTER_S = 4.0     # only say "Reading your chart…" when the answer is slow
+# [whatsapp-inline] Replies ready within this many seconds go back INSIDE the
+# webhook response (TwiML <Message>) — instant, and delivered even while REST
+# sends are blocked (compliance profile pending). Twilio waits 15s; keep margin.
+_WA_INLINE_DEADLINE_S = 10.0
+
+
+def _wa_inline_on() -> bool:
+    return (os.getenv("WHATSAPP_INLINE_REPLIES") or "on").strip().lower() not in ("0", "off", "false", "no")
+
+
+class _WaSink:
+    """Where a handler's replies go: buffered for the webhook's TwiML response
+    until the inline deadline closes it, then sent through the REST API."""
+    def __init__(self, number: str, inbound_ts: float, inline: bool):
+        self.number, self.inbound_ts, self.inline = number, inbound_ts, inline
+        self.buf: list = []
+        self.closed = False
+        self.t0 = _time.monotonic()
+
+    def send(self, text: str) -> bool:
+        if self.inline and not self.closed:
+            self.buf.append(text)
+            return True
+        from antar_engine import messaging as _msg
+        return _msg.whatsapp_send(self.number, text, self.inbound_ts)
+
+    def close(self) -> list:
+        self.closed = True
+        out, self.buf = self.buf, []
+        return out
+
+    def reading_after(self) -> float:
+        """Inline: only ack "Reading…" if the answer would miss the deadline."""
+        if self.inline and not self.closed:
+            left = _WA_INLINE_DEADLINE_S - (_time.monotonic() - self.t0)
+            return max(0.5, left - 1.5)
+        return _WA_READING_AFTER_S
 
 
 def _wa_on() -> bool:
@@ -4610,7 +4647,8 @@ def _wa_welcome(link: dict, lang: str) -> tuple:
     return "\n\n".join(parts), starters
 
 
-async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int = 0):
+async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int = 0,
+                     sink: Optional["_WaSink"] = None):
     """Background worker for one inbound WhatsApp message. Never raises."""
     from antar_engine import messaging as _msg
     from starlette.responses import Response as _StarResp
@@ -4618,7 +4656,8 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
     link = await asyncio.to_thread(_msg.get_whatsapp_link, sb, number)
     ctx = _msg.link_context(link)
     lang = _wa_lang(body, ctx.get("lang") or "en") if body else (ctx.get("lang") or "en")
-    send = lambda txt: _msg.whatsapp_send(number, txt, inbound_ts)  # noqa: E731
+    sink = sink or _WaSink(number, inbound_ts, inline=False)
+    send = sink.send
 
     def _save(c):
         c = dict(c)
@@ -4728,7 +4767,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         _WA_TASKS.add(ask)
         ask.add_done_callback(_WA_TASKS.discard)
         try:
-            payload = await asyncio.wait_for(asyncio.shield(ask), timeout=_WA_READING_AFTER_S)
+            payload = await asyncio.wait_for(asyncio.shield(ask), timeout=sink.reading_after())
         except asyncio.TimeoutError:
             send(_wa_text("reading", lang))
             try:
@@ -4817,9 +4856,21 @@ async def messaging_whatsapp_webhook(http_request: Request):
         print(f"[whatsapp] help via TwiML …{number[-4:]}")
         return _Resp(content=f"<Response><Message>{txt}</Message></Response>",
                      media_type="text/xml")
-    task = asyncio.create_task(_wa_handle(number, body, now, num_media))
+    sink = _WaSink(number, now, inline=_wa_inline_on())
+    task = asyncio.create_task(_wa_handle(number, body, now, num_media, sink))
     _WA_TASKS.add(task)
     task.add_done_callback(_WA_TASKS.discard)
+    if sink.inline:
+        await asyncio.wait({task}, timeout=_WA_INLINE_DEADLINE_S)
+        msgs = sink.close()              # later replies (slow Ask answers) go via REST
+        if msgs:
+            from xml.sax.saxutils import escape as _xml_escape
+            parts = [p for t in msgs for p in _msg.wa_split(t)]
+            print(f"[whatsapp] {len(parts)} inline repl{'y' if len(parts) == 1 else 'ies'} …{number[-4:]}"
+                  f"{'' if task.done() else ' (answer continues via REST)'}")
+            return _Resp(content="<Response>" + "".join(
+                f"<Message>{_xml_escape(p)}</Message>" for p in parts) + "</Response>",
+                media_type="text/xml")
     return _empty
 
 

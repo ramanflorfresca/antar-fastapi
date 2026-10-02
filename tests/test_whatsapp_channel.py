@@ -147,7 +147,7 @@ def test_webhook_acks_fast_and_answers_in_background(m, monkeypatch):
     from fastapi.testclient import TestClient
     handled = []
 
-    async def fake_handle(number, body, ts, num_media=0):
+    async def fake_handle(number, body, ts, num_media=0, sink=None):
         handled.append((number, body, num_media))
     monkeypatch.setattr(m, "_wa_handle", fake_handle)
     params = {"MessageSid": "SM1", "From": "whatsapp:+919812345678",
@@ -446,3 +446,46 @@ def test_help_is_answered_inline_with_twiml(m, monkeypatch):
         "Content-Type": "application/x-www-form-urlencoded", "X-Twilio-Signature": sig})
     assert r.status_code == 200 and r.text.startswith("<Response><Message>")
     assert "Hazme cualquier pregunta" in r.text and handled == []
+
+
+
+# ─── inline (TwiML) replies ────────────────────────────────────────
+
+def _post(m, params):
+    from fastapi.testclient import TestClient
+    raw, sig = _signed(params)
+    return TestClient(m.app).post("/api/v1/messaging/whatsapp/webhook", content=raw, headers={
+        "Content-Type": "application/x-www-form-urlencoded", "X-Twilio-Signature": sig})
+
+
+def test_fast_answer_returns_inline_twiml(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link())
+    r = _post(m, {"MessageSid": "SMf1", "From": "whatsapp:+919812345678",
+                  "Body": "When will I change jobs?", "NumMedia": "0"})
+    assert r.status_code == 200
+    assert r.text.count("<Message>") == 1 and "Hold until spring" in r.text
+    assert cv.sent == []                       # nothing went through REST
+
+
+def test_slow_answer_reading_inline_then_rest(m, monkeypatch):
+    monkeypatch.setattr(m, "_WA_INLINE_DEADLINE_S", 2.0)
+    from fastapi.testclient import TestClient
+    cv = _Conv(m, monkeypatch, link=_link(), delay=2.5)
+    raw, sig = _signed({"MessageSid": "SMs1", "From": "whatsapp:+919812345678",
+                        "Body": "When will I change jobs?", "NumMedia": "0"})
+    with TestClient(m.app) as c:       # keep the loop alive, as uvicorn does
+        r = c.post("/api/v1/messaging/whatsapp/webhook", content=raw, headers={
+            "Content-Type": "application/x-www-form-urlencoded", "X-Twilio-Signature": sig})
+        assert "Reading your chart" in r.text and "Hold until spring" not in r.text
+        deadline = time.time() + 5
+        while not cv.sent and time.time() < deadline:
+            time.sleep(0.1)
+    assert cv.sent and "Hold until spring" in cv.sent[-1]   # answer followed via REST
+
+
+def test_inline_can_be_switched_off(m, monkeypatch):
+    monkeypatch.setenv("WHATSAPP_INLINE_REPLIES", "off")
+    cv = _Conv(m, monkeypatch, link=_link())
+    r = _post(m, {"MessageSid": "SMo1", "From": "whatsapp:+919812345678",
+                  "Body": "When will I change jobs?", "NumMedia": "0"})
+    assert r.text == "<Response></Response>"
