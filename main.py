@@ -8666,17 +8666,18 @@ VOCABULARY RULES:
     if _using_master:
         # Add concern focus to prompt (not system override — avoids empty responses)
         try:
-            from antar_engine.concern_router import get_priority_context_instruction
-            _priority_instr = get_priority_context_instruction(concern)
-            prompt += f"\n\n{_priority_instr}"
+            from antar_engine.concern_router import get_priority_context_instruction, is_enabled as _cr_on
+            if _cr_on():   # off by default — see concern_router.is_enabled
+                _priority_instr = get_priority_context_instruction(concern)
+                prompt += f"\n\n{_priority_instr}"
         except Exception:
             pass
         prompt += "\n\nCRITICAL: Do NOT use 'YOUR SIGNAL RIGHT NOW' or 'THE PATTERN THAT\'S ACTIVE' as headers. Answer the question directly in the first sentence."
 
         # Sprint D: Use domain-specific system prompt as system_override
         try:
-            from antar_engine.concern_router import build_concern_system_prompt
-            _domain_system = build_concern_system_prompt(concern)
+            from antar_engine.concern_router import build_concern_system_prompt, is_enabled as _cr_on
+            _domain_system = build_concern_system_prompt(concern) if _cr_on() else ""
         except Exception:
             _domain_system = ""
 
@@ -9303,8 +9304,8 @@ State a specific year. Never predict past events as future windows.
     else:
         # Sprint D: domain system prompt for non-master path too
         try:
-            from antar_engine.concern_router import build_concern_system_prompt
-            _domain_system_fallback = build_concern_system_prompt(concern)
+            from antar_engine.concern_router import build_concern_system_prompt, is_enabled as _cr_on
+            _domain_system_fallback = build_concern_system_prompt(concern) if _cr_on() else ""
         except Exception:
             _domain_system_fallback = ""
         # --- Sprint L: Language injection (fallback path) ---
