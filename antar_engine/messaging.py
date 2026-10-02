@@ -401,3 +401,191 @@ def whatsapp_status(sb, user_id: str) -> dict:
     r = rows[0]
     return {"linked": True, "number_last4": (r.get("channel_user_id") or "")[-4:],
             "chart_id": r.get("chart_id"), "linked_at": r.get("linked_at")}
+
+
+# ── WhatsApp conversation layer (UX spec 2026-10-02) ──
+# Per-number conversation state lives on the link row (messaging_links.context,
+# jsonb) because Railway runs several uvicorn workers — process memory isn't
+# shared. Fail-open: if the column doesn't exist yet, numbered replies just
+# behave like ordinary questions.
+WA_OPTIONS_TTL_S = 24 * 3600
+
+_THANKS = frozenset("""
+thanks thank thx ty ok okay okk k cool great nice perfect amazing awesome got it
+gracias vale genial perfecto listo obrigado obrigada valeu beleza otimo ótimo
+shukriya dhanyavad dhanyawad theek thik accha acha badhiya
+""".split()) | {"thank you", "got it", "muchas gracias", "muito obrigado",
+                "muito obrigada", "thik hai", "theek hai", "bahut badhiya", "🙏", "👍", "❤️", "🙌"}
+
+
+def is_thanks(text: str) -> bool:
+    """A pure acknowledgement (no question in it) — answered without using quota."""
+    t = (text or "").strip().lower().strip(" .!¡?¿")
+    if not t or "?" in (text or "") or len(t) > 30:
+        return False
+    if t in _THANKS:
+        return True
+    words = re.findall(r"[\w']+|[^\w\s]", t)
+    return bool(words) and all(w in _THANKS for w in words)
+
+
+def parse_switch(text: str) -> Optional[str]:
+    """'switch' → '' (show the list); 'switch Mom' / 'ask about Ana' / 'cambiar a Ana'
+    → the name; anything else → None."""
+    t = (text or "").strip()
+    m = re.fullmatch(r"(?i)(?:switch|cambiar|trocar|badlo|change)(?:\s+(?:to|a|para|pe)?\s*(.+))?", t)
+    if m:
+        return (m.group(1) or "").strip(" .!?")
+    m = re.fullmatch(r"(?i)(?:ask about|read|pregunta sobre|preguntar por|perguntar sobre)\s+(.+?)[\s.!?]*", t)
+    if m and len(m.group(1)) <= 40:
+        return m.group(1).strip()
+    return None
+
+
+def parse_pick(text: str) -> Optional[int]:
+    """A bare digit 1-9 picks from Antar's last numbered list."""
+    t = (text or "").strip().strip(".)")
+    return int(t) if re.fullmatch(r"[1-9]", t) else None
+
+
+def get_whatsapp_link(sb, number: str) -> Optional[dict]:
+    """The active link row for a number (select * so a missing optional column
+    never fails the whole call)."""
+    try:
+        rows = (sb.table("messaging_links").select("*")
+                .eq("channel", "whatsapp").eq("channel_user_id", wa_number(number))
+                .eq("status", "linked").limit(1).execute()).data or []
+        return rows[0] if rows else None
+    except Exception as e:
+        if not _table_missing(e):
+            print(f"[whatsapp] get_link failed: {e}")
+        return None
+
+
+def link_context(link: Optional[dict]) -> dict:
+    c = (link or {}).get("context")
+    if isinstance(c, str):
+        try:
+            c = json.loads(c)
+        except Exception:
+            c = None
+    return c if isinstance(c, dict) else {}
+
+
+def save_link_context(sb, link: dict, ctx: dict) -> bool:
+    if not link or "context" not in link:      # column not created yet → fail-open
+        return False
+    try:
+        sb.table("messaging_links").update({"context": ctx}).eq("id", link["id"]).execute()
+        link["context"] = ctx
+        return True
+    except Exception as e:
+        print(f"[whatsapp] save context failed: {e}")
+        return False
+
+
+def set_link_chart(sb, link: dict, chart_id: str) -> bool:
+    try:
+        sb.table("messaging_links").update({"chart_id": chart_id}).eq("id", link["id"]).execute()
+        link["chart_id"] = chart_id
+        return True
+    except Exception as e:
+        print(f"[whatsapp] set chart failed: {e}")
+        return False
+
+
+def remember_options(ctx: dict, kind: str, options: list, now: Optional[float] = None) -> dict:
+    """Store the numbered list we just sent: kind 'ask' (question strings) or
+    'chart' ([chart_id, name] pairs)."""
+    ctx = dict(ctx or {})
+    ctx["options"] = {"kind": kind, "items": list(options)[:9], "at": int(time.time() if now is None else now)}
+    return ctx
+
+
+def pick_option(ctx: dict, n: int, now: Optional[float] = None):
+    """(kind, item) for digit n from the last list, or (None, None) if expired/absent."""
+    o = (ctx or {}).get("options") or {}
+    items = o.get("items") or []
+    if not items or (time.time() if now is None else now) - int(o.get("at") or 0) > WA_OPTIONS_TTL_S:
+        return None, None
+    if 1 <= n <= len(items):
+        return o.get("kind"), items[n - 1]
+    return None, None
+
+
+def list_user_charts(sb, user_id: str, primary_id: Optional[str]) -> list:
+    """[(chart_id, name, is_self)] — the user's own chart first, then saved people."""
+    try:
+        rows = (sb.table("charts").select("id,name,created_at").eq("user_id", user_id)
+                .is_("deleted_at", "null").order("created_at").limit(20).execute()).data or []
+    except Exception as e:
+        print(f"[whatsapp] list charts failed: {e}")
+        return []
+    out = [(r["id"], (r.get("name") or "").strip() or "Chart", r["id"] == primary_id) for r in rows]
+    out.sort(key=lambda x: (not x[2],))
+    return out
+
+
+def match_chart(charts: list, name: str):
+    """The one chart whose name matches (exact, then first-name / substring)."""
+    n = (name or "").strip().lower()
+    if not n:
+        return None
+    exact = [c for c in charts if c[1].lower() == n]
+    if len(exact) == 1:
+        return exact[0]
+    hits = [c for c in charts if n in c[1].lower() or c[1].lower().split()[0] == n]
+    return hits[0] if len(hits) == 1 else None
+
+
+_SENT_END = re.compile(r"(?<=[.!?])\s+(?=[A-ZÁÉÍÓÚÑ¿¡\"'*])")
+
+
+def _first_sentence(text: str) -> tuple:
+    parts = _SENT_END.split(text.strip(), maxsplit=1)
+    head = parts[0].strip()
+    rest = parts[1].strip() if len(parts) > 1 else ""
+    return head, rest
+
+
+_WA_LABELS = {
+    "window": {"en": "Window", "es": "Ventana", "pt": "Janela", "hinglish": "Window"},
+    "also":   {"en": "Reply with a number:", "es": "Responde con un número:",
+               "pt": "Responda com um número:", "hinglish": "Number bhejiye:"},
+}
+
+
+def _wl(key: str, lang: str) -> str:
+    return _WA_LABELS[key].get(lang) or _WA_LABELS[key]["en"]
+
+
+def format_ask_whatsapp_v2(payload: dict, language: str = "en",
+                           header: Optional[str] = None) -> tuple:
+    """(text, followups). Layout per the UX spec: optional 'Antar · <name>' header,
+    *bold first sentence*, the rest of the read, 🗓 _window_, → your move,
+    🧘 practice, then numbered follow-ups (max 3)."""
+    p = payload or {}
+    lines = []
+    if header:
+        lines.append(f"_Antar · {header}_")
+    read = re.sub(r"\*\*(.+?)\*\*", r"\1", (p.get("read") or p.get("why") or "").strip())
+    if read:
+        head, rest = _first_sentence(read)
+        lines.append(f"*{head}*" if 0 < len(head) <= 180 else head)
+        if rest:
+            lines.append(rest)
+    timing = (p.get("timing") or "").strip()
+    if timing and timing.lower() not in read.lower():
+        lines.append(f"🗓 _{_wl('window', language)}: {timing}_")
+    nxt = (p.get("next") or "").strip()
+    if nxt:
+        lines.append("→ " + nxt)
+    pc = p.get("practice_cta") or {}
+    if pc.get("available") and pc.get("label"):
+        lines.append("🧘 " + pc["label"].strip())
+    fus = [q.strip() for q in (p.get("suggested_questions") or [])
+           if isinstance(q, str) and q.strip()][:3]
+    if fus:
+        lines.append("\n".join(f"{i}  {q}" for i, q in enumerate(fus, 1)))
+    text = "\n\n".join(l for l in lines if l).strip()
+    return text, fus
