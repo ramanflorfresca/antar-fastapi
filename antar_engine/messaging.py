@@ -383,3 +383,21 @@ def format_ask_for_whatsapp(payload: dict, language: str = "en") -> str:
     if isinstance(verdict, str) and verdict.strip() and verdict.strip().lower() not in text.lower()[:80]:
         text = f"*{verdict.strip()}*\n\n{text}"
     return text
+
+
+def whatsapp_status(sb, user_id: str) -> dict:
+    """The signed-in user's active WhatsApp link, for the app's settings row.
+    Never returns the full number — only its last 4 digits."""
+    try:
+        rows = (sb.table("messaging_links").select("chart_id,channel_user_id,linked_at")
+                .eq("channel", "whatsapp").eq("user_id", user_id).eq("status", "linked")
+                .order("linked_at", desc=True).limit(1).execute()).data or []
+    except Exception as e:
+        if not _table_missing(e):
+            print(f"[whatsapp] status failed: {e}")
+        return {"linked": False}
+    if not rows:
+        return {"linked": False}
+    r = rows[0]
+    return {"linked": True, "number_last4": (r.get("channel_user_id") or "")[-4:],
+            "chart_id": r.get("chart_id"), "linked_at": r.get("linked_at")}

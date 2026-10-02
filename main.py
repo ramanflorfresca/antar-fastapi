@@ -4454,6 +4454,30 @@ class _WaConnect(BaseModel):
     chart_id: Optional[str] = None
 
 
+@app.get("/api/v1/messaging/whatsapp/status")
+def messaging_whatsapp_status(authorization: str = Header(...)):
+    """Is WhatsApp connected for the signed-in user? Drives the Connect WhatsApp
+    button / settings row. `available` is false until the channel is switched on."""
+    from antar_engine import messaging as _msg
+    user_id = verify_token(authorization)
+    out = _msg.whatsapp_status(supabase, user_id)
+    out["available"] = _wa_on()
+    digits = re.sub(r"\D", "", os.getenv("TWILIO_WHATSAPP_FROM") or "")
+    out["antar_number"] = ("+" + digits) if digits else None
+    if out.get("chart_id"):
+        out["chart_name"] = _wa_chart_name(out["chart_id"])
+    return out
+
+
+@app.post("/api/v1/messaging/whatsapp/unlink")
+def messaging_whatsapp_unlink(authorization: str = Header(...)):
+    """Disconnect the signed-in user's WhatsApp number (same effect as sending STOP)."""
+    from antar_engine import messaging as _msg
+    user_id = verify_token(authorization)
+    _msg._revoke_whatsapp(supabase, user_id=user_id)
+    return {"linked": False}
+
+
 @app.post("/api/v1/messaging/whatsapp/connect")
 def messaging_whatsapp_connect(req: _WaConnect, authorization: str = Header(...)):
     """Path B: an unknown number got a signed sign-in link; the signed-in user
