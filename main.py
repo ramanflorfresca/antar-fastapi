@@ -10034,6 +10034,29 @@ def _prac_streaks(chart_id, local_today):
     return streaks, completed
 
 
+def _prac_apply_completion(payload, chart_id, local_today):
+    """Patch a (possibly CACHED) practice payload with LIVE streak/completion, so a
+    same-day 'mark complete' always reflects — even on an L1 (_PRACTICE_CACHE) or L2
+    (daily_surface_cache) hit, which otherwise bake in completed_today=False from when
+    the day was first computed. Cheap: one practice_completions read. Mutates+returns."""
+    try:
+        streaks, completed = _prac_streaks(chart_id, local_today)
+        tp = payload.get("today_priority")
+        if isinstance(tp, dict) and tp.get("planet"):
+            p = tp["planet"]; st = streaks.get(p, {})
+            tp["completed_today"] = bool(completed.get(p, False))
+            tp["streak_days"] = int(st.get("days", tp.get("streak_days", 0) or 0))
+            tp["streak_best"] = int(st.get("best", tp.get("streak_best", 0) or 0))
+        for a in (payload.get("active") or []):
+            if isinstance(a, dict) and a.get("planet"):
+                p = a["planet"]; st = streaks.get(p, {})
+                a["completed_today"] = bool(completed.get(p, False))
+                a["streak_days"] = int(st.get("days", a.get("streak_days", 0) or 0))
+    except Exception as _e:
+        print(f"[practice] completion refresh skipped (non-fatal): {_e}")
+    return payload
+
+
 
 # ── Language preference endpoints (patch_language_fidelity, vector 9) ───────
 # charts.language is the column resolve_language() already reads, so persisting
@@ -10109,7 +10132,9 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
     if cached and cached[0] >= _prac_time.time():
         # refresh only the streak/completion fields (cheap) so a same-day
         # completion reflects without recomputing the whole engine
-        return _ent_practice_view(cached[1], request.chart_id)
+        return _ent_practice_view(
+            _prac_apply_completion(cached[1], request.chart_id, local_today),
+            request.chart_id)
     # [daily-db-cache 2026-06-16] L1 miss -> shared DB L2 before recompute.
     _db_variant = "food" if request.include_chart_food else ""
     _db_payload = _daily_surface_get(request.chart_id, "practice",
@@ -10117,7 +10142,9 @@ async def daily_practice(request: DailyPracticeRequest, authorization: Optional[
                                      _db_variant)
     if _db_payload:
         _PRACTICE_CACHE[ckey] = (_prac_time.time() + _PRACTICE_TTL, _db_payload)
-        return _ent_practice_view(_db_payload, request.chart_id)
+        return _ent_practice_view(
+            _prac_apply_completion(_db_payload, request.chart_id, local_today),
+            request.chart_id)
 
     conditions = _prac_conditions(chart)
     try:
