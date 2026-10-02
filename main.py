@@ -901,6 +901,101 @@ async def _ping_checkin_job():
         print(f"[ping_cron] FATAL: {e}")
 
 
+async def _yesno_checkback_job():
+    """[yesno-checkback 2026-10-02] HOURLY. Keeps the Yes/No promise "We'll check
+    back with you around {date}": once a Yes/No claim's show_after passes, send ONE
+    "Did it happen?" reminder at the person's LOCAL morning (~8 AM, like the daily
+    nudge) that brings them to Ask, where the check-back card lives.
+
+    Push first (device_tokens). Email fallback for people with no device — OFF
+    unless YESNO_CHECKBACK_EMAIL=on (owner decision; it emails real users).
+    Dedupe stamp rides in correlation_key (no DDL) — see yesno_checkback.py.
+    Fail-open per row; sync supabase calls run off the event loop."""
+    from antar_engine import push_sender
+    from antar_engine import yesno_checkback as yc
+    import asyncio as _aio_yc
+    now = datetime.now(timezone.utc)
+    email_on = (os.environ.get("YESNO_CHECKBACK_EMAIL") or "").strip().lower() in ("1", "on", "true", "yes")
+
+    def _q(fn):
+        return _aio_yc.to_thread(lambda: fn().data or [])
+
+    try:
+        rows = await _q(lambda: supabase.table("user_correlations")
+                        .select("id,chart_id,concern,trackable_claim,created_at,show_after,"
+                                "feedback_status,correlation_key")
+                        .eq("concern", "yesno").eq("feedback_status", "pending")
+                        .lte("show_after", now.isoformat())
+                        .gte("show_after", (now - timedelta(days=yc.LOOKBACK_DAYS)).isoformat())
+                        .limit(500).execute())
+    except Exception as e:
+        print(f"[yesno_checkback] FATAL fetch: {e}")
+        return
+    due = [r for r in rows if yc.is_due(r, now)]
+    if not due:
+        print(f"[yesno_checkback] @{now.hour:02d}:xx UTC — nothing due")
+        return
+
+    cids = sorted({r["chart_id"] for r in due if r.get("chart_id")})
+    try:
+        charts = {c["id"]: c for c in await _q(lambda: supabase.table("charts")
+                  .select("id,user_id,current_country,birth_country,language_preference,language")
+                  .in_("id", cids).execute())}
+        toks: dict = {}
+        for t in await _q(lambda: supabase.table("device_tokens")
+                          .select("token,chart_id,platform").in_("chart_id", cids).execute()):
+            if t.get("token"):
+                toks.setdefault(t["chart_id"], []).append(
+                    {"token": t["token"], "platform": t.get("platform")})
+    except Exception as e:
+        print(f"[yesno_checkback] FATAL charts/tokens: {e}")
+        return
+
+    stats = {"due": len(due), "morning": 0, "push": 0, "email": 0, "unreachable": 0}
+    push_ok = push_sender.is_configured()
+    base_url = os.getenv("FRONTEND_URL", "https://antar.world")
+    for r in due:
+        c = charts.get(r.get("chart_id"))
+        if not c:
+            continue                      # deleted / tombstoned chart
+        _cc = (c.get("current_country") or c.get("birth_country") or "").upper()
+        _tzh = float(_COUNTRY_TZ_OFFSETS.get(_cc, _COUNTRY_TZ_OFFSETS.get("DEFAULT", 0)))
+        if not yc.is_local_morning(now, _tzh):
+            continue                      # left for this chart's own local morning
+        stats["morning"] += 1
+        lang = yc.norm_lang(c.get("language_preference"), c.get("language"))
+        title, body = yc.build_message(r.get("trackable_claim"), r.get("created_at"), lang)
+        channel = None
+        try:
+            if push_ok and toks.get(c["id"]):
+                s = await push_sender.send_to_tokens(
+                    supabase, toks[c["id"]], title=title, body=body,
+                    data={"type": "yesno_checkback", "route": yc.ROUTE,
+                          "correlation_id": str(r["id"])})
+                if s.get("sent"):
+                    channel = "push"
+            if not channel and email_on and c.get("user_id"):
+                _u = await _aio_yc.to_thread(supabase.auth.admin.get_user_by_id, c["user_id"])
+                _email = _u.user.email if _u and getattr(_u, "user", None) else None
+                if _email:
+                    subj, html = yc.email_html(r.get("trackable_claim"), r.get("created_at"),
+                                               lang, base_url)
+                    if await send_email(to=_email, subject=subj, html=html):
+                        channel = "email"
+            if channel:
+                _k = yc.mark_notified(r.get("correlation_key"), channel, now.isoformat())
+                await _aio_yc.to_thread(lambda: supabase.table("user_correlations")
+                                        .update({"correlation_key": _k})
+                                        .eq("id", r["id"]).execute())
+                stats[channel] += 1
+            else:
+                stats["unreachable"] += 1
+        except Exception as e:
+            print(f"[yesno_checkback] row {str(r.get('id'))[:8]} non-fatal: {e}")
+    print(f"[yesno_checkback] @{now.hour:02d}:xx UTC — {stats} "
+          f"(push_configured={push_ok}, email={'on' if email_on else 'off'})")
+
+
 def _clip_claim(text: str, limit: int) -> str:
     """[checkin-clip 2026-10-02] Shorten a stored claim for a check-in WITHOUT
     cutting mid-word. A hard [:120] slice put "…courage and decisive action are
@@ -1335,6 +1430,8 @@ scheduler.add_job(_daily_push_job, "cron", minute=7,
                   id="daily_push_nudge", replace_existing=True)  # hourly; job sends per-chart at local ~8 AM
 scheduler.add_job(_ping_checkin_job, "cron", minute=9,
                   id="ping_checkin_daily", replace_existing=True)  # hourly; pings per-chart at local ~8 AM
+scheduler.add_job(_yesno_checkback_job, "cron", minute=13,
+                  id="yesno_checkback", replace_existing=True)  # hourly; Yes/No "did it happen?" at local ~8 AM
 scheduler.add_job(_monthly_briefing_job, "cron", minute=11,
                   id="monthly_briefing_send", replace_existing=True)  # hourly; sends per-chart at local 1st ~8 AM
 scheduler.add_job(_daily_polarity_log_job, "cron", hour=3, minute=0,
