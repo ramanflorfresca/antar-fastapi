@@ -62,7 +62,7 @@ from antar_engine import compatibility_evidence as _EV
 LAYER_DEFINITIONS = {
     "soul":          {"sources": ["d9_overall", "graha_maitri", "varna"],            "weights": [0.50, 0.35, 0.15]},
     "chemistry":     {"sources": ["yoni", "venus_compatibility", "mars_compatibility"], "weights": [0.40, 0.35, 0.25]},
-    "public":        {"sources": ["house_7", "house_10", "house_11"],                "weights": [0.40, 0.40, 0.20]},
+    "public":        {"sources": ["house_7", "house_10", "house_11", "d10_synastry"], "weights": [0.30, 0.30, 0.15, 0.25]},
     "lifepath":      {"sources": ["dasha_timing", "bhakoot"],                         "weights": [0.70, 0.30]},
     "communication": {"sources": ["mercury_compatibility", "graha_maitri", "gana"],   "weights": [0.40, 0.30, 0.30]},
     "friction":      {"sources": ["mutual_6_8", "nadi_dosha", "growth_areas_count", "cross_aspect_harmony"], "weights": [0.35, 0.25, 0.15, 0.25]},
@@ -194,6 +194,10 @@ def resolve_source(name: str, engine_result: dict, chart_a: dict, chart_b: dict)
         return SYN.house_quality_score(chart_a, chart_b, 11)
     if name == "dasha_timing":
         return float(engine_result.get("dasha_timing", {}).get("score", 50))
+    if name == "d10_synastry":
+        # Career-chart (D-10) professional-self fit; 50 (neutral) when the
+        # connection chart has no computed D-10. Injected by the compat endpoints.
+        return float((engine_result.get("d10_synastry") or {}).get("score", 50))
     if name == "mutual_6_8":
         return _mutual_6_8(chart_a, chart_b)
     if name == "nadi_dosha":

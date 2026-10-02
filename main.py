@@ -18705,6 +18705,104 @@ _FWD_REL_SPEC = {
 }
 
 
+def _d10_synastry(chart_a, chart_b):
+    """D-10 (dasamsa / career chart) compatibility — the PROFESSIONAL-self fit used
+    mainly for business & cofounder reads (KN Rao reads D-10 for career). Compares the
+    maitri (planetary friendship) of the two people's D-10 lagna lords and D-10 10th
+    lords. Returns {score, line, a_lords, b_lords} or None when either chart has no
+    computed D-10 (e.g. an on-the-fly connection with no divisional charts). Fail-open."""
+    try:
+        from antar_engine.d10_career import _sign_n_from, SIGN_LORD
+        from antar_engine.Compatibility import PLANET_FRIENDS
+
+        def _d10_lords(cd):
+            d10 = ((cd or {}).get("divisional_charts") or {}).get("d10") or {}
+            lg = d10.get("lagna")
+            if not lg:
+                return None
+            return (SIGN_LORD.get(lg), SIGN_LORD.get(_sign_n_from(lg, 10)))
+
+        la, lb = _d10_lords(chart_a), _d10_lords(chart_b)
+        if not la or not lb:
+            return None
+
+        def _rel(src, dst):
+            if not src or not dst:
+                return 60.0
+            t = PLANET_FRIENDS.get(src, {})
+            if dst in t.get("friends", []):  return 90.0
+            if dst in t.get("neutral", []):  return 65.0
+            if dst in t.get("enemies", []):  return 40.0
+            return 60.0
+
+        def _mutual(x, y):
+            return (_rel(x, y) + _rel(y, x)) / 2.0
+
+        score = round(0.5 * _mutual(la[0], lb[0]) + 0.5 * _mutual(la[1], lb[1]))
+        if score >= 75:
+            line = "Your career charts pull the same way — the D-10 professional engines are friendly."
+        elif score >= 55:
+            line = "Your career charts are workable — the D-10 professional engines neither clash nor amplify."
+        else:
+            line = "Your career charts pull different ways — the D-10 professional engines sit in tension."
+        return {"score": score, "line": line, "a_lords": la, "b_lords": lb}
+    except Exception as _e:
+        print(f"[compat][d10-synastry] non-fatal: {_e}")
+        return None
+
+
+def _dasha_lord_maitri(dashas_a, dashas_b):
+    """The two people's CURRENT mahadasha LORDS compared for mutual friendship
+    (PLANET_FRIENDS) + season alignment (expansive vs contracting). Your model: a
+    Sun-dasha person and a Rahu-dasha person (natural enemies) read as friction; two
+    friendly lords in the same season read as flow. Returns {score, line, lord_a,
+    lord_b} or None. Fail-open."""
+    try:
+        from antar_engine.Compatibility import PLANET_FRIENDS
+        from datetime import datetime as _dtm
+        EXP = {"Jupiter", "Rahu", "Venus", "Sun", "Moon"}
+        CON = {"Saturn", "Ketu", "Mars"}
+        _today = _dtm.utcnow().date().isoformat()
+
+        def _cur_lord(dashas):
+            rows = (dashas or {}).get("vimsottari") or (dashas or {}).get("vimshottari") or []
+            for r in rows:
+                if str(r.get("level") or r.get("type", "")).lower() not in ("mahadasha", "maha", "md", "1"):
+                    continue
+                s = str(r.get("start_date") or r.get("start") or "")[:10]
+                e = str(r.get("end_date") or r.get("end") or "")[:10]
+                if s and e and s <= _today <= e:
+                    return r.get("planet_or_sign") or r.get("lord_or_sign")
+            return None
+
+        la, lb = _cur_lord(dashas_a), _cur_lord(dashas_b)
+        if not la or not lb:
+            return None
+
+        def _rel(src, dst):
+            t = PLANET_FRIENDS.get(src, {})
+            if dst in t.get("friends", []):  return 90.0
+            if dst in t.get("neutral", []):  return 65.0
+            if dst in t.get("enemies", []):  return 40.0
+            return 60.0
+
+        maitri = (_rel(la, lb) + _rel(lb, la)) / 2.0
+        same_season = (la in EXP and lb in EXP) or (la in CON and lb in CON)
+        opp_season = (la in EXP and lb in CON) or (la in CON and lb in EXP)
+        season_adj = 6 if same_season else (-6 if opp_season else 0)
+        score = max(0, min(100, round(maitri + season_adj)))
+        if score >= 75:
+            line = "Your current cycles get along — your dasha lords are friendly and roughly in step."
+        elif score >= 55:
+            line = "Your current cycles are workable — the dasha lords neither clash nor strongly amplify."
+        else:
+            line = "Your current cycles pull different ways — the two dasha lords sit in tension these years."
+        return {"score": score, "line": line, "lord_a": la, "lord_b": lb}
+    except Exception as _e:
+        print(f"[compat][dasha-maitri] non-fatal: {_e}")
+        return None
+
+
 def _forward_dasha_support(chart_a, dashas_a, chart_b, dashas_b, reason,
                            birth_a="", birth_b="", gender_a=None, gender_b=None,
                            horizon=5):
@@ -19697,6 +19795,27 @@ async def compatibility_start(request: CompatibilityStartRequest,
                   f"overlap={_fwd.get('overlap_years')} sep={_fwd.get('separation_flag')}")
     except Exception as _fwe:
         print(f"[compat][forward-dasha] wire non-fatal: {_fwe}")
+    # [dasha-maitri 2026-10-02] Fold the two people's dasha-LORD friendship + season
+    # alignment into dasha_timing (the house-overlap forward-dasha above is the base).
+    try:
+        _dm = _dasha_lord_maitri(dashas_a, dashas_b)
+        if _dm:
+            _dt2 = _compat_raw.get("dasha_timing") or {}
+            _dt2["score"] = round(0.6 * float(_dt2.get("score", 50)) + 0.4 * _dm["score"])
+            _compat_raw["dasha_timing"] = _dt2
+            _compat_raw["_dasha_maitri"] = _dm
+            print(f"[compat][dasha-maitri] {_dm['lord_a']}×{_dm['lord_b']} score={_dm['score']} → dasha_timing={_dt2['score']}")
+    except Exception as _dme:
+        print(f"[compat][dasha-maitri] wire non-fatal: {_dme}")
+    # [d10-synastry 2026-10-02] Career-chart (D-10) fit → feeds the public layer,
+    # dominant for business/cofounder via the reason weights.
+    try:
+        _d10 = _d10_synastry(_ca, _cb)
+        if _d10:
+            _compat_raw["d10_synastry"] = _d10
+            print(f"[compat][d10] reason={_v2_reason} score={_d10['score']}")
+    except Exception as _d10e:
+        print(f"[compat][d10] wire non-fatal: {_d10e}")
     _v2 = _CL.compose_compat_v2(_compat_raw, _ca, _cb, _v2_reason, _v2_role,
                                 a_name=name_a, b_name=_name_b, strip_fn=apply_user_facing_strips)
 
@@ -20218,6 +20337,19 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                         _dt["score"] = _fwd["score"]
                         _raw["dasha_timing"] = _dt
                         _raw["_forward_dasha"] = _fwd   # so compose_compat_v2 can build `timing`
+                except Exception:
+                    pass
+                # [dasha-maitri + d10 2026-10-02] same enrichments as /start.
+                try:
+                    _dm = _dasha_lord_maitri(_da, _db)
+                    if _dm:
+                        _dt = _raw.get("dasha_timing") or {}
+                        _dt["score"] = round(0.6 * float(_dt.get("score", 50)) + 0.4 * _dm["score"])
+                        _raw["dasha_timing"] = _dt
+                        _raw["_dasha_maitri"] = _dm
+                    _d10 = _d10_synastry(_ca, _cb)
+                    if _d10:
+                        _raw["d10_synastry"] = _d10
                 except Exception:
                     pass
                 _v2 = _CL.compose_compat_v2(_raw, _ca, _cb, _reason, None,
