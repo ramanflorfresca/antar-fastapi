@@ -487,6 +487,9 @@ def assemble_domain_field(
 
     field: Dict[str, Any] = {
         "domain": dom,
+        # [year-rows 2026-10-02] the FE keys rows by `key` (then `name`); without
+        # it This Year printed the row INDEX (0-4) where the area name belongs.
+        "key": dom,
         "status_label": status_label,
         "status_color": status_color,
         "conviction": conv,
