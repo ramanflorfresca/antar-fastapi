@@ -25305,6 +25305,37 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _kpe:
                 logger.warning(f"[ask] kp-horary skipped (non-fatal): {_kpe}")
 
+            # [apple-4.3 2026-10-02] Speculation framing for the narrator. The retired
+            # KP block above used to carry the "frame as speculation, never 'gambling'"
+            # rule; re-add it in the LIVE path so a gambling-phrased question is answered
+            # as a SPECULATION reading (from the 5th/11th/8th houses the concern engine
+            # already supplied) — never with gambling vocabulary, never as a single
+            # "best day" to place a bet.
+            try:
+                if _is_gambling_q(question):
+                    _ask_kp_horary_block = (
+                        "SPECULATION QUESTION — the user is asking about high-variance / "
+                        "speculative money, which they may phrase as gambling, a casino, "
+                        "cards, a bet, the lottery, etc. Answer it as an astrologer reading "
+                        "SPECULATION from their chart (the speculation / gains / sudden-money "
+                        "houses, supplied above), guiding the person — never as a betting "
+                        "tout. RULES you MUST follow:\n"
+                        "1) NEVER use the words gambling, casino, bet, betting, wager, "
+                        "lottery, poker, or the name of any game — not even to echo the "
+                        "question back. Frame it as speculation, a high-variance money move, "
+                        "or a speculative position.\n"
+                        "2) Do NOT name a single 'best day' and do NOT pick a date or day to "
+                        "act. Speak to whether the broader period reads as supportive or not "
+                        "(a weeks/months stance), and stay honest that speculation is "
+                        "high-variance and can go either way.\n"
+                        "3) Protect the person: only ever risk what they can walk away from, "
+                        "keep any position small and capped, and on a weak read say the "
+                        "kinder call is to sit it out. Never promise a gain, never say "
+                        "'lucky', never cheerlead."
+                    )
+            except Exception as _spe:
+                logger.warning(f"[ask] speculation-framing skipped (non-fatal): {_spe}")
+
             # [residence engine] change-of-home TIMING (the WHEN) — disposition +
             # varshphal-weighted convergence window + nature (local vs distant/foreign).
             _ask_residence_block = ""
@@ -27348,6 +27379,18 @@ async def ask_endpoint(request: AskRequest):
                         print(f"[ask] kp-horary calibration log non-fatal: {_kle}")
             except Exception as _khe:
                 print(f"[ask] kp-horary guarantee non-fatal: {_khe}")
+            # [apple-4.3 2026-10-02] A gambling-flavoured question (poker/casino/bet/
+            # "best day to gamble") must NOT come back as a dated "best day" pick — that
+            # is the gambling-timing pattern we removed. The 5/8/11 house read + the
+            # speculation framing carry the answer in period terms; suppress the dated
+            # verdict/timing/convergence chips so no single day reads as "go bet then".
+            try:
+                if _is_gambling_q(question):
+                    payload["verdict"] = None
+                    payload["timing"] = None
+                    payload["convergence"] = None
+            except Exception as _spg:
+                print(f"[ask] speculation chip-suppress non-fatal: {_spg}")
             # [es-loc 2026-06-09] expanded fields: actions[]/practices[]/convergence
             # are container keys — translate_dict recurses into their subtrees.
             payload = await _ask_localize(payload, language, [
