@@ -27,7 +27,7 @@ AUDITABLE DOCTRINAL CHOICES
     Computed for the MOMENT of the question (KP ayanamsa, mean node).
 
   RULING PLANETS (RP) — the confirmation/timing set, from the MOMENT chart:
-    day-lord (weekday) + Moon (sign-lord, star-lord, sub-lord)
+    day-lord (weekday, sunrise-to-sunrise) + Moon (sign-lord, star-lord, sub-lord)
     + Lagna (sign-lord, star-lord, sub-lord of the moment's real ascendant).
     A node joins the RP set if its star-lord is already an RP (standard).
 
@@ -39,6 +39,7 @@ AUDITABLE DOCTRINAL CHOICES
     DAYS_PER_YEAR = 365.25 (recorded so timing is reproducible).
 """
 
+import math
 from datetime import datetime, timezone as _tz
 
 import swisseph as swe
@@ -71,12 +72,50 @@ def number_to_ascendant(number):
 # --------------------------------------------------------------------------
 # Ruling Planets at a moment
 # --------------------------------------------------------------------------
+def last_sunrise_jd(jd_utc, lat, lon):
+    """JD (UT) of the most recent sunrise at or before jd_utc at (lat, lon), or
+    None where the Sun doesn't rise (polar day/night). Disc-centre rising, the
+    same convention as day_chart_engine._compute_sunrise_jd."""
+    geopos = (float(lon), float(lat), 0.0)
+    flags = swe.CALC_RISE | swe.BIT_DISC_CENTER
+    try:
+        t = jd_utc - 2.0
+        last = None
+        for _ in range(4):                       # ≤ 3 sunrises fit in 2 days
+            res, tret = swe.rise_trans(t, swe.SUN, flags, geopos, 0.0, 0.0,
+                                       swe.FLG_SWIEPH)
+            if res != 0 or tret[0] > jd_utc:
+                break
+            last = tret[0]
+            t = last + 0.01
+        return last
+    except Exception:
+        return None
+
+
+def vedic_weekday(jd_utc, lat, lon, civil_weekday):
+    """
+    (weekday Mon=0..Sun=6, basis). In KP the day — and so the day lord — runs
+    from SUNRISE to sunrise, not midnight to midnight: a question at 3 AM on a
+    Friday still belongs to Thursday. The weekday is that of the local date on
+    which the governing sunrise fell (local mean time from longitude; sunrise
+    is hours from midnight, so zone-time vs LMT can't change the date).
+    Falls back to the civil weekday where there is no sunrise.
+    """
+    s = last_sunrise_jd(jd_utc, lat, lon)
+    if s is None:
+        return int(civil_weekday) % 7, "civil"
+    # floor(JD + 0.5) is the civil day number; day number 0 mod 7 == Monday.
+    return int(math.floor(s + 0.5 + float(lon) / 360.0)) % 7, "sunrise"
+
+
 def ruling_planets(jd_utc, lat, lon, weekday_index):
     """
     Return {'day_lord', 'moon':{...}, 'lagna':{...}, 'set':[unique planets]}.
-    weekday_index is the LOCAL weekday at the question moment (Mon=0..Sun=6),
-    with the KP day boundary at local sunrise left to the caller; we accept the
-    civil weekday for the foundation build (documented limitation).
+    weekday_index is the LOCAL civil weekday at the question moment (Mon=0..
+    Sun=6). [kp-sunrise 2026-10-02] The day lord follows the KP day, which
+    starts at local SUNRISE (vedic_weekday); the civil weekday is only the
+    fallback where the Sun doesn't rise.
     """
     _assert_kp_ayanamsa()
     cusps, ascmc = swe.houses_ex(jd_utc, float(lat), float(lon), HSYS,
@@ -86,7 +125,8 @@ def ruling_planets(jd_utc, lat, lon, weekday_index):
     planets = compute_planets(jd_utc)
     moon = planets["Moon"]
 
-    day_lord = WEEKDAY_LORDS[weekday_index % 7]
+    _wd, _day_basis = vedic_weekday(jd_utc, lat, lon, weekday_index)
+    day_lord = WEEKDAY_LORDS[_wd]
     rp_set = []
     for cand in (day_lord,
                  moon["sign_lord"], moon["star_lord"], moon["sub_lord"],
@@ -101,6 +141,7 @@ def ruling_planets(jd_utc, lat, lon, weekday_index):
 
     return {
         "day_lord": day_lord,
+        "day_basis": _day_basis,
         "moon": {"sign_lord": moon["sign_lord"], "star_lord": moon["star_lord"],
                  "sub_lord": moon["sub_lord"]},
         "lagna": {"sign_lord": lagna["sign_lord"], "star_lord": lagna["star_lord"],
