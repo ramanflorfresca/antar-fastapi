@@ -1189,14 +1189,20 @@ async def _daily_surface_prewarm_job():
 
 # ── Daily push nudge cron ─────────────────────────────────────────────────────
 async def _daily_push_job():
-    """Daily cron — nudges every device with a registered token to open today's
-    reading. Sends a lightweight alert (not the content itself), so there's no
-    per-chart LLM cost and nothing sensitive rides in the payload. No-op until
-    APNs is configured (APNS_* env vars). Dead tokens are pruned by the sender."""
+    """HOURLY cron — nudges each device to open today's reading at the USER'S LOCAL
+    MORNING, not a fixed UTC time. Runs every hour; for each chart it derives the
+    local hour from the chart's current (else birth) country via _COUNTRY_TZ_OFFSETS
+    and only sends when that local hour == TARGET_LOCAL_HOUR. Fixes the bug where the
+    job fired once at 14:00 UTC for everyone, so Indian users (+5:30) got "your
+    reading is ready" at 7:30 PM instead of the morning. Lightweight alert only (no
+    per-chart LLM cost). No-op until APNs is configured. Dead tokens pruned by sender.
+    _COUNTRY_TZ_OFFSETS is defined later in the module; it resolves at call time."""
     from antar_engine import push_sender
     if not push_sender.is_configured():
         print("[push_cron] APNs not configured — skipping daily nudge")
         return
+    from datetime import datetime as _pdt, timezone as _ptz, timedelta as _ptd
+    TARGET_LOCAL_HOUR = 8   # ~8 AM local
     try:
         res = supabase.table("device_tokens").select("token, chart_id, platform").execute()
         rows = res.data or []
@@ -1211,8 +1217,28 @@ async def _daily_push_job():
         if r.get("token"):
             by_chart.setdefault(r.get("chart_id"), []).append(
                 {"token": r["token"], "platform": r.get("platform")})
+    # Derive each chart's local tz from its country (current > birth); UTC fallback.
+    tz_by_chart: dict = {}
+    _cids = [c for c in by_chart if c]
+    if _cids:
+        try:
+            crows = (supabase.table("charts")
+                     .select("id,current_country,birth_country")
+                     .in_("id", _cids).execute()).data or []
+            for c in crows:
+                _cc = (c.get("current_country") or c.get("birth_country") or "").upper()
+                tz_by_chart[c["id"]] = float(
+                    _COUNTRY_TZ_OFFSETS.get(_cc, _COUNTRY_TZ_OFFSETS.get("DEFAULT", 0)))
+        except Exception as e:
+            print(f"[push_cron] chart tz fetch failed (UTC fallback): {e}")
+    now_utc = _pdt.now(_ptz.utc)
     total = {"sent": 0, "failed": 0, "pruned": 0}
+    matched = 0
     for _cid, toks in by_chart.items():
+        _tzh = tz_by_chart.get(_cid, 0.0)
+        if (now_utc + _ptd(hours=_tzh)).hour != TARGET_LOCAL_HOUR:
+            continue   # not this chart's local morning yet
+        matched += 1
         summary = await push_sender.send_to_tokens(
             supabase, toks,
             title="Antar",
@@ -1221,15 +1247,15 @@ async def _daily_push_job():
         )
         for k in total:
             total[k] += summary.get(k, 0)
-    print(f"[push_cron] daily nudge — charts={len(by_chart)} sent={total['sent']} "
-          f"failed={total['failed']} pruned={total['pruned']}")
+    print(f"[push_cron] hourly nudge @{now_utc.hour:02d}:xx UTC — matched_charts={matched} "
+          f"sent={total['sent']} failed={total['failed']} pruned={total['pruned']}")
 
 
 scheduler = AsyncIOScheduler(timezone="UTC")
 scheduler.add_job(_birthday_recompute_job, "cron", hour=2, minute=0,
                   id="birthday_lk_recompute", replace_existing=True)
-scheduler.add_job(_daily_push_job, "cron", hour=14, minute=0,
-                  id="daily_push_nudge", replace_existing=True)
+scheduler.add_job(_daily_push_job, "cron", minute=7,
+                  id="daily_push_nudge", replace_existing=True)  # hourly; job sends per-chart at local ~8 AM
 scheduler.add_job(_ping_checkin_job, "cron", hour=8, minute=0,
                   id="ping_checkin_daily", replace_existing=True)
 scheduler.add_job(_monthly_briefing_job, "cron", day=1, hour=6, minute=0,
