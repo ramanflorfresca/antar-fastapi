@@ -577,19 +577,41 @@ def _wl(key: str, lang: str) -> str:
     return _WA_LABELS[key].get(lang) or _WA_LABELS[key]["en"]
 
 
+_OPENER = re.compile(r"^[A-ZÁÉÍÓÚÑ][\w'-]{1,20},\s")      # "Raman, the wait is real…"
+_OFFER = re.compile(
+    r"(?i)^(want me to|shall i|should i (look|check)|would you like( me)? to|do you want me to|"
+    r"quieres que|te gustar[ií]a que|quer que|gostaria que|kya main|kya aap chahte)")
+
+
+def _split_sentences(text: str) -> list:
+    return [x.strip() for x in _SENT_END.split(text.strip()) if x.strip()]
+
+
 def format_ask_whatsapp_v2(payload: dict, language: str = "en",
                            header: Optional[str] = None) -> tuple:
     """(text, followups). Layout per the UX spec: optional 'Antar · <name>' header,
-    *bold first sentence*, the rest of the read, 🗓 _window_, → your move,
-    🧘 practice, then numbered follow-ups (max 3)."""
+    the answer sentence in *bold* (a warm "Name, …" opener stays plain above it),
+    the rest of the read, 🗓 _window_, → your move, 🧘 practice + its step, then
+    numbered follow-ups (max 3). Ask's own closing offer ("Want me to…?") is
+    dropped when numbered follow-ups replace it."""
     p = payload or {}
     lines = []
     if header:
         lines.append(f"_Antar · {header}_")
+    fus = [q.strip() for q in (p.get("suggested_questions") or [])
+           if isinstance(q, str) and q.strip()][:3]
     read = re.sub(r"\*\*(.+?)\*\*", r"\1", (p.get("read") or p.get("why") or "").strip())
-    if read:
-        head, rest = _first_sentence(read)
-        lines.append(f"*{head}*" if 0 < len(head) <= 180 else head)
+    sents = _split_sentences(read) if read else []
+    if fus and len(sents) > 1 and sents[-1].endswith("?") and _OFFER.match(sents[-1]):
+        sents = sents[:-1]
+    if sents:
+        opener = None
+        if len(sents) > 1 and _OPENER.match(sents[0]) and len(sents[0]) <= 90:
+            opener, sents = sents[0], sents[1:]
+        head, rest = sents[0], " ".join(sents[1:])
+        if opener:
+            lines.append(opener)
+        lines.append(f"*{head}*" if len(head) <= 180 else head)
         if rest:
             lines.append(rest)
     timing = (p.get("timing") or "").strip()
@@ -600,9 +622,9 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
         lines.append("→ " + nxt)
     pc = p.get("practice_cta") or {}
     if pc.get("available") and pc.get("label"):
-        lines.append("🧘 " + pc["label"].strip())
-    fus = [q.strip() for q in (p.get("suggested_questions") or [])
-           if isinstance(q, str) and q.strip()][:3]
+        step = (pc.get("step") or "").strip()
+        lines.append("🧘 " + pc["label"].strip()
+                     + (("\n" + step) if step and len(step) <= 200 else ""))
     if fus:
         lines.append("\n".join(f"{i}  {q}" for i, q in enumerate(fus, 1)))
     text = "\n\n".join(l for l in lines if l).strip()

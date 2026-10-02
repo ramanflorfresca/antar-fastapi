@@ -567,3 +567,16 @@ def test_in_flight_flag_cleared_after_answer(m, monkeypatch):
     cv = _Conv(m, monkeypatch, link=link)
     cv.run("When will I change jobs?")
     assert "in_flight_at" not in link["context"]
+
+def test_format_bolds_the_answer_not_the_warm_opener_and_drops_offer():
+    t, fus = msg.format_ask_whatsapp_v2({
+        "read": "Raman, the wait is real. The trigger is a key client noticing your work. "
+                "Want me to look at early 2027?",
+        "practice_cta": {"available": True, "label": "A grounding minute", "step": "Six slow breaths."},
+        "suggested_questions": ["Q1", "Q2"]})
+    assert t.startswith("Raman, the wait is real.\n\n*The trigger is a key client noticing your work.*")
+    assert "Want me to look" not in t
+    assert "\U0001f9d8 A grounding minute\nSix slow breaths." in t
+    # without numbered follow-ups the offer stays (it's the only next step)
+    t2, _ = msg.format_ask_whatsapp_v2({"read": "It opens in March. Want me to look at money?"})
+    assert "Want me to look at money?" in t2
