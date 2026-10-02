@@ -901,9 +901,36 @@ async def _ping_checkin_job():
         print(f"[ping_cron] FATAL: {e}")
 
 
+def _clip_claim(text: str, limit: int) -> str:
+    """[checkin-clip 2026-10-02] Shorten a stored claim for a check-in WITHOUT
+    cutting mid-word. A hard [:120] slice put "…courage and decisive action are
+    your fuel is the sub..." on Today's check-in. Prefer the first whole
+    sentence; else cut at the last clause/word break and add an ellipsis.
+    Also runs the user-facing jargon strip ("Saturn is asking…" → plain)."""
+    import re as _re_clip
+    t = " ".join(str(text or "").split())
+    try:
+        from antar_engine.output_strips import apply_user_facing_strips
+        t = apply_user_facing_strips(t, "en") or t
+    except Exception:
+        pass
+    if len(t) <= limit:
+        return t
+    m = _re_clip.match(r"(.+?[.!?])(\s|$)", t)
+    if m and 40 <= len(m.group(1)) <= limit:
+        return m.group(1)
+    cut = t[: limit - 1]
+    for sep in (" — ", "; ", ", ", " "):
+        i = cut.rfind(sep)
+        if i >= limit * 0.5:
+            cut = cut[:i]
+            break
+    return cut.rstrip(" ,;:—-") + "…"
+
+
 def _build_ping_text(prediction_text: str, category: str) -> str:
     """Short in-app ping message."""
-    short = prediction_text[:120].rstrip() + ("..." if len(prediction_text) > 120 else "")
+    short = _clip_claim(prediction_text, 160)
     intros = {
         "current_chapter":  "Your chart said:",
         "sub_theme":        "Your pattern suggested:",
@@ -918,7 +945,7 @@ def _build_ping_text(prediction_text: str, category: str) -> str:
 
 def _build_ping_email_html(prediction_text: str, category: str, pred_id: str) -> str:
     """HTML email for the ping check-in."""
-    short = prediction_text[:200].rstrip() + ("..." if len(prediction_text) > 200 else "")
+    short = _clip_claim(prediction_text, 220)
     base_url = os.getenv("FRONTEND_URL", "https://antar.world")
     yes_url  = f"{base_url}/checkin?pred={pred_id}&response=yes"
     no_url   = f"{base_url}/checkin?pred={pred_id}&response=no"
