@@ -30944,14 +30944,18 @@ def submit_prediction_feedback(request: dict):
 
 
 @app.get("/api/v1/predictions/pending-feedback/{chart_id}")
-def get_pending_feedback_endpoint(chart_id: str, language: str = "en"):
+def get_pending_feedback_endpoint(chart_id: str, language: str = "en",
+                                  concern: Optional[str] = None):
     """Return predictions ready for user verification (max 3).
 
     Each item carries a `feedback_ui` hint (prompt + button labels) so the FE
     renders Won/Lost for speculation cards and the standard truth framing
-    otherwise; posted status values (yes/no/partial) are unchanged."""
+    otherwise; posted status values (yes/no/partial) are unchanged.
+
+    `?concern=yesno` returns only Yes/No check-backs (the Ask follow-up card)."""
     from antar_engine.prediction_tracker import get_pending_feedback
-    items = get_pending_feedback(chart_id, supabase, language=language)
+    _c = (concern or "").strip().lower() or None
+    items = get_pending_feedback(chart_id, supabase, language=language, concern=_c)
     return {"pending": items, "count": len(items)}
 
 

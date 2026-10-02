@@ -252,3 +252,53 @@ def test_unmappable_and_bad_input_never_raise():
     assert kp_prashna({}, "Will I win at the casino?", now_utc=NOW)["available"] is False
     r = kp_prashna(None, "Will I get this job?", number=999, now_utc=NOW)
     assert r["available"] and r["number"] is None and r["natal"] is None
+
+
+# ── Ask follow-up card: pending-feedback scoped to Yes/No ───────────────────
+class _RecordingSB:
+    def __init__(self, rows):
+        self.rows, self.filters = rows, []
+
+    def table(self, _):
+        return self
+
+    def select(self, *_):
+        return self
+
+    def eq(self, col, val):
+        self.filters.append((col, val))
+        return self
+
+    def lte(self, *_):
+        return self
+
+    def order(self, *_, **__):
+        return self
+
+    def limit(self, *_):
+        return self
+
+    def update(self, *_):
+        return self
+
+    def execute(self):
+        rows = [r for r in self.rows
+                if all(r.get(c) == v for c, v in self.filters if c == "concern")]
+        return type("R", (), {"data": rows})()
+
+
+def test_pending_feedback_concern_scope():
+    from antar_engine.prediction_tracker import get_pending_feedback
+    rows = [{"id": "a", "concern": "career", "show_after": "2026-01-01"},
+            {"id": "b", "concern": "finance", "show_after": "2026-01-02"},
+            {"id": "c", "concern": "health", "show_after": "2026-01-03"},
+            {"id": "d", "concern": "yesno", "show_after": "2026-01-04"}]
+    sb = _RecordingSB(rows)
+    out = get_pending_feedback("chart", sb, concern="yesno")
+    assert ("concern", "yesno") in sb.filters
+    assert [r["id"] for r in out] == ["d"]
+    assert out[0]["feedback_ui"]["style"] == "happened"
+    # unscoped (Today) is unchanged: no concern filter applied
+    sb2 = _RecordingSB(rows)
+    get_pending_feedback("chart", sb2)
+    assert not any(c == "concern" for c, _ in sb2.filters)
