@@ -15444,9 +15444,13 @@ _CHART_DERIVED_TABLES = (
     # push targeting
     "device_tokens",
     # engagement / feedback / accuracy
-    "practice_log",
+    "practice_log", "practice_completions",
     "daily_feedback", "life_arc_feedback", "user_correlations",
     "prediction_accuracy_marks", "verification_ratings", "reward_ledger",
+    # "Your Pattern" ventures — user-logged ventures, chart-keyed, PII. Added
+    # 2026-10-02: the table was created with the Your-Pattern feature and was
+    # leaking on delete (test_chart_delete_cascade caught it).
+    "ventures",
     # NOT here on purpose:
     #   lal_kitab_remedies   — a STATIC reference library keyed by planet/house
     #     (117 rows of remedy text shared by every chart). It has no chart_id;
@@ -15460,9 +15464,11 @@ _CHART_DERIVED_TABLES = (
     #     GROUP BY"), so it logged a purge error on every single chart delete
     #     and the response claimed partial_cascade every time. Its rows vanish
     #     when the marks do; verified against production.
-    #   practice_completions, practice_sessions, past_event_feedback — no such
-    #     tables in the schema. Inherited from the account list; every delete
-    #     spent a round trip failing to find them.
+    #   practice_sessions, past_event_feedback — no such tables in the schema.
+    #     Inherited from the account list; every delete spent a round trip
+    #     failing to find them. (practice_completions, once in this note as
+    #     "no such table", DOES exist now and carries chart_id — it is purged
+    #     above alongside `ventures`; both were caught leaking by the cascade test.)
 )
 
 # Billing and quota. Deliberately NOT part of a single-chart delete: a
