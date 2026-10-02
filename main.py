@@ -4494,6 +4494,12 @@ _WA_L = {
                  "es": "Hola 🙏 ¿Qué te gustaría saber? Escribe tu pregunta o responde con un número:",
                  "pt": "Olá 🙏 O que você gostaria de saber? Escreva sua pergunta ou responda com um número:",
                  "hinglish": "Namaste 🙏 Aap kya jaanna chahte hain? Apna sawaal likhiye, ya ek number bhejiye:"},
+    "btn_choose": {"en": "Choose a question", "es": "Elegir pregunta", "pt": "Escolher pergunta",
+                   "hinglish": "Sawaal chuniye"},
+    "btn_next": {"en": "Ask next", "es": "Siguiente pregunta", "pt": "Próxima pergunta",
+                 "hinglish": "Agla sawaal"},
+    "btn_chart": {"en": "Choose chart", "es": "Elegir carta", "pt": "Escolher mapa",
+                  "hinglish": "Chart chuniye"},
     "thanks":   {"en": "Anytime 🙏", "es": "Cuando quieras 🙏", "pt": "Sempre que precisar 🙏",
                  "hinglish": "Kabhi bhi 🙏"},
     "media":    {"en": "I can only read text for now — type your question and I'll answer.",
@@ -4538,6 +4544,17 @@ _WA_READING_AFTER_S = 4.0     # only say "Reading your chart…" when the answer
 _WA_INLINE_DEADLINE_S = 10.0
 
 
+def _wa_interactive_on() -> bool:
+    return (os.getenv("WHATSAPP_INTERACTIVE") or "on").strip().lower() not in ("0", "off", "false", "no")
+
+
+def _wa_strip_numbered(text: str) -> str:
+    """The message without its numbered-choices paragraph (the list carries them)."""
+    paras = [p for p in (text or "").split("\n\n")
+             if not re.match(r"^\d\s{1,2}\S", p.strip())]
+    return "\n\n".join(paras).strip()
+
+
 def _wa_inline_on() -> bool:
     return (os.getenv("WHATSAPP_INLINE_REPLIES") or "on").strip().lower() not in ("0", "off", "false", "no")
 
@@ -4551,12 +4568,38 @@ class _WaSink:
         self.closed = False
         self.t0 = _time.monotonic()
 
+        self.outbox: list = []        # REST sends, flushed off the event loop
+
     def send(self, text: str) -> bool:
         if self.inline and not self.closed:
             self.buf.append(text)
-            return True
+        else:
+            self.outbox.append(("text", text, None))
+        return True
+
+    def send_choices(self, body: str, button: str, items: list, text: str) -> bool:
+        """A tappable list when replies go via REST; numbered `text` otherwise."""
+        if (self.inline and not self.closed) or not _wa_interactive_on() or not items:
+            return self.send(text)
+        self.outbox.append(("list", text, (body, button, items)))
+        return True
+
+    def flush(self) -> tuple:
+        """Send queued REST messages in order (call via asyncio.to_thread).
+        Returns (failed_texts, any_ok)."""
         from antar_engine import messaging as _msg
-        return _msg.whatsapp_send(self.number, text, self.inbound_ts)
+        failed, any_ok = [], False
+        for kind, text, lst in self.outbox:
+            ok = False
+            if kind == "list":
+                ok = _msg.whatsapp_send_list(self.number, lst[0], lst[1], lst[2], self.inbound_ts)
+            if not ok:
+                ok = _msg.whatsapp_send(self.number, text, self.inbound_ts)
+            any_ok = any_ok or ok
+            if not ok:
+                failed.append(text)
+        self.outbox = []
+        return failed, any_ok
 
     def close(self) -> list:
         self.closed = True
@@ -4658,7 +4701,8 @@ def _wa_welcome(link: dict, lang: str) -> tuple:
 
 
 async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int = 0,
-                     sink: Optional["_WaSink"] = None, message_sid: str = ""):
+                     sink: Optional["_WaSink"] = None, message_sid: str = "",
+                     choice_id: str = ""):
     """Background worker for one inbound WhatsApp message. Never raises."""
     from antar_engine import messaging as _msg
     from starlette.responses import Response as _StarResp
@@ -4670,15 +4714,14 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
     undelivered: list = []          # [whatsapp-pending] REST sends that failed
     owns_flight = False             # only the handler that started the Ask clears in_flight
     rest_seen = {"ok": False, "fail": False}
+    send = sink.send
 
-    def send(txt):
-        via_rest = not (sink.inline and not sink.closed)
-        ok = sink.send(txt)
-        if via_rest:
-            rest_seen["ok" if ok else "fail"] = True
-            if not ok:
-                undelivered.append(txt)
-        return ok
+    def send_choices(text: str, button_key: str, items: list):
+        """`text` = the numbered fallback; items = [(title, id, description)]."""
+        sink.send_choices(_wa_strip_numbered(text) or text, _wa_text(button_key, lang), items, text)
+
+    def _q_items(qs):
+        return [(q, "q:" + q, q) for q in qs]
 
     def _save(c):
         c = dict(c)
@@ -4701,7 +4744,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             _WA_BAD_CODES.pop(number, None)
             link = await asyncio.to_thread(_msg.get_whatsapp_link, sb, number) or {"chart_id": cid}
             text, starters = await asyncio.to_thread(_wa_welcome, link, lang)
-            send(text)
+            send_choices(text, "btn_choose", _q_items(starters))
             _save(_msg.remember_options({}, "ask", starters))
             return
         if cmd == "unlink":
@@ -4756,8 +4799,9 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                     if isinstance(x, dict) and x.get("text")][:3]
             except Exception as e:
                 print(f"[whatsapp] menu starters skipped: {e}")
-            send(_wa_text("menu", lang) + ("\n\n" + "\n".join(
-                f"{i}  {q}" for i, q in enumerate(starters, 1)) if starters else ""))
+            send_choices(_wa_text("menu", lang) + ("\n\n" + "\n".join(
+                f"{i}  {q}" for i, q in enumerate(starters, 1)) if starters else ""),
+                "btn_choose", _q_items(starters))
             if starters:
                 _save(_msg.remember_options(ctx, "ask", starters))
             return
@@ -4785,12 +4829,27 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                 you = f" ({_wa_text('you', lang)})" if is_self else ""
                 lines.append(f"{i}  {nm}{you}{mark}")
             lines += ["", _wa_text("switch_tail", lang)]
-            send("\n".join(lines))
+            sink.send_choices(_wa_text("switch_q", lang), _wa_text("btn_chart", lang),
+                              [(nm + (f" ({_wa_text('you', lang)})" if is_self else ""),
+                                "chart:" + cid_, ("\u2713 " if cid_ == link.get("chart_id") else "") + nm)
+                               for cid_, nm, is_self in charts[:9]],
+                              "\n".join(lines))
             _save(_msg.remember_options(ctx, "chart", [[c[0], c[1]] for c in charts[:9]]))
             return
 
+        # [whatsapp-lists] a tap on a list row arrives with its id
+        if choice_id.startswith("chart:"):
+            cid_pick = choice_id[6:]
+            charts = await asyncio.to_thread(_msg.list_user_charts, sb, user_id, primary) if user_id else []
+            hit = next((c for c in charts if c[0] == cid_pick), None)
+            if hit:
+                await asyncio.to_thread(_msg.set_link_chart, sb, link, hit[0])
+                send(_wa_text("switched", lang, name=hit[1]))
+                return
         # a bare digit picks from the last numbered list
         question = body
+        if choice_id.startswith("q:") and choice_id[2:].strip():
+            question = choice_id[2:].strip()
         n = _msg.parse_pick(body)
         if n is not None:
             kind, item = _msg.pick_option(ctx, n)
@@ -4869,8 +4928,11 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                 _save(ctx)
             return
         prefix = f"*→ {question}*\n\n" if question != body else ""
-        text, fus = _msg.format_ask_whatsapp_v2(payload, lang, header=header)
-        send(prefix + text if text else _wa_text("failed", lang))
+        text, fus = _msg.format_ask_whatsapp_v2(payload, lang, header=header, asked=question)
+        if not text:
+            send(_wa_text("failed", lang))
+        else:
+            send_choices(prefix + text, "btn_next", _q_items(fus))
         _save(_msg.remember_options(ctx, "ask", fus) if fus else {k: v for k, v in ctx.items() if k != "options"})
     except Exception as e:
         print(f"[whatsapp] handler non-fatal …{number[-4:]}: {e}")
@@ -4879,6 +4941,12 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         except Exception:
             pass
     finally:
+        try:
+            failed, any_ok = await asyncio.to_thread(sink.flush)
+            undelivered.extend(failed)
+            rest_seen["ok"] = rest_seen["ok"] or any_ok
+        except Exception as e:
+            print(f"[whatsapp] flush failed: {e}")
         # [whatsapp-pending] keep what we couldn't send; hand it over on the next
         # message (which can be answered inline). Track whether REST works.
         try:
@@ -4948,7 +5016,8 @@ async def messaging_whatsapp_webhook(http_request: Request):
         return _Resp(content=f"<Response><Message>{txt}</Message></Response>",
                      media_type="text/xml")
     sink = _WaSink(number, now, inline=_wa_inline_on())
-    task = asyncio.create_task(_wa_handle(number, body, now, num_media, sink, sid))
+    choice = (params.get("ListId") or params.get("ButtonPayload") or "").strip()
+    task = asyncio.create_task(_wa_handle(number, body, now, num_media, sink, sid, choice))
     _WA_TASKS.add(task)
     task.add_done_callback(_WA_TASKS.discard)
     if sink.inline:

@@ -147,7 +147,7 @@ def test_webhook_acks_fast_and_answers_in_background(m, monkeypatch):
     from fastapi.testclient import TestClient
     handled = []
 
-    async def fake_handle(number, body, ts, num_media=0, sink=None, sid=""):
+    async def fake_handle(number, body, ts, num_media=0, sink=None, sid="", choice=""):
         handled.append((number, body, num_media))
     monkeypatch.setattr(m, "_wa_handle", fake_handle)
     params = {"MessageSid": "SM1", "From": "whatsapp:+919812345678",
@@ -189,6 +189,11 @@ class _Conv:
         monkeypatch.setattr(msg, "list_user_charts", lambda sb, uid, p: charts or [])
         self.typing = []
         monkeypatch.setattr(msg, "whatsapp_typing", lambda sid: self.typing.append(sid) or True)
+        self.lists = []
+        self.list_ok = False          # default: lists unavailable → numbered text
+        monkeypatch.setattr(msg, "whatsapp_send_list",
+                            lambda n, b, btn, items, ts: (self.lists.append((b, btn, items)) or True)
+                            if self.list_ok else False)
         monkeypatch.setattr(m, "_resolve_primary_chart_id", lambda uid: primary)
         monkeypatch.setattr(m, "_wa_chart_alive", lambda cid: True)
         monkeypatch.setattr(m, "_wa_chart_name", lambda cid: {"self-1": "Raman Singh", "mom-1": "Mom"}.get(cid, "X"))
@@ -580,3 +585,58 @@ def test_format_bolds_the_answer_not_the_warm_opener_and_drops_offer():
     # without numbered follow-ups the offer stays (it's the only next step)
     t2, _ = msg.format_ask_whatsapp_v2({"read": "It opens in March. Want me to look at money?"})
     assert "Want me to look at money?" in t2
+
+
+
+# ─── interactive lists ─────────────────────────────────────────────
+
+def test_answer_followups_become_a_list_when_rest_is_used(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link())                 # direct run = REST path
+    cv.list_ok = True
+    cv.run("When will I change jobs?")
+    assert cv.sent == [] and len(cv.lists) == 1
+    body, btn, items = cv.lists[0]
+    assert body.startswith("*Hold until spring.*") and "1  " not in body
+    assert btn == "Ask next" and items[0] == ("Which role fits me?", "q:Which role fits me?", "Which role fits me?")
+
+
+def test_list_failure_falls_back_to_numbered_text(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link())
+    cv.run("When will I change jobs?")
+    assert cv.lists == [] and cv.sent and "1  Which role fits me?" in cv.sent[-1]
+
+
+def test_inline_mode_keeps_numbered_text(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link())
+    cv.list_ok = True
+    r = _post(m, {"MessageSid": "SMl1", "From": "whatsapp:+919812345678",
+                  "Body": "When will I change jobs?", "NumMedia": "0"})
+    assert "1  Which role fits me?" in r.text and cv.lists == []
+
+
+def test_interactive_switch_off(m, monkeypatch):
+    monkeypatch.setenv("WHATSAPP_INTERACTIVE", "off")
+    cv = _Conv(m, monkeypatch, link=_link())
+    cv.list_ok = True
+    cv.run("When will I change jobs?")
+    assert cv.lists == [] and "1  Which role fits me?" in cv.sent[-1]
+
+
+def test_list_tap_asks_the_full_question(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link())
+    asyncio.run(m._wa_handle("+919812345678", "Which day this week is\u2026", time.time(),
+                             0, None, "SMt", "q:Which day this week is best for me?"))
+    assert cv.asked[-1].question == "Which day this week is best for me?"
+
+
+def test_chart_tap_switches(m, monkeypatch):
+    link = _link()
+    cv = _Conv(m, monkeypatch, link=link,
+               charts=[("self-1", "Raman Singh", True), ("mom-1", "Mom", False)])
+    asyncio.run(m._wa_handle("+919812345678", "Mom", time.time(), 0, None, "SMc", "chart:mom-1"))
+    assert link["chart_id"] == "mom-1" and cv.asked == [] and "Mom" in cv.sent[-1]
+
+
+def test_short_title():
+    assert msg.short_title("Which day this week is best for me?") == "Which day this week is\u2026"
+    assert len(msg.short_title("x" * 40)) == 24 and msg.short_title("Short") == "Short"
