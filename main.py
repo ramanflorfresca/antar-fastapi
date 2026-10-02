@@ -29744,8 +29744,8 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
         # [new-chapter banner 2026-09-21] Surface on Today when a new multi-year
         # life chapter (Vimshottari mahadasha) began recently — the single biggest
         # thing happening to someone, which otherwise lives only in the Life
-        # Chapter tab that naive users never open. is_new = started within ~6
-        # months. Structured only (FE composes + localizes the banner copy).
+        # Chapter tab that naive users never open. is_new = started within 30
+        # days. Structured only (FE composes + localizes the banner copy).
         try:
             from datetime import date as _nc_date
             _nc_today = _nc_date.today()
@@ -29768,7 +29768,10 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             if _nc_md:
                 _sdd, _edd = _nc_md
                 _days_in = (_nc_today - _sdd).days
-                if 0 <= _days_in <= 190:
+                # [chapter-banner-once 2026-10-02] was 190 days: the Today banner
+                # sat on top of the day every morning for ~6 months (wallpaper).
+                # 30 days, matching the FE cap (src/lib/chapterBanner.ts).
+                if 0 <= _days_in <= 30:
                     result["new_chapter"] = {
                         "is_new": True,
                         "began": _sdd.isoformat(),
