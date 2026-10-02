@@ -629,7 +629,7 @@ def explain_failure(score: Dict) -> List[str]:
 # ════════════════════════════════════════════════════════════════════════════
 # 7. CONCERN → NOUN PALETTE (for /ask reflective-mode noun injection)
 # ════════════════════════════════════════════════════════════════════════════
-# `detect_concern()` (predictions.py / concern_router.py) returns concerns
+# `detect_concern()` (predictions.py) returns concerns
 # like "finance", "career", "love", "domestic_move", "foreign_move". The
 # gate's DOMAIN_HOUSES uses cleaner keys ("money", "career", "love",
 # "relocation"). This bridge maps between them so the /ask reflective-

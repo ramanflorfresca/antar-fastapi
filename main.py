@@ -8664,22 +8664,7 @@ VOCABULARY RULES:
     print(f"[predict] using_master={_using_master} prompt_len={len(prompt)}")
 
     if _using_master:
-        # Add concern focus to prompt (not system override — avoids empty responses)
-        try:
-            from antar_engine.concern_router import get_priority_context_instruction, is_enabled as _cr_on
-            if _cr_on():   # off by default — see concern_router.is_enabled
-                _priority_instr = get_priority_context_instruction(concern)
-                prompt += f"\n\n{_priority_instr}"
-        except Exception:
-            pass
         prompt += "\n\nCRITICAL: Do NOT use 'YOUR SIGNAL RIGHT NOW' or 'THE PATTERN THAT\'S ACTIVE' as headers. Answer the question directly in the first sentence."
-
-        # Sprint D: Use domain-specific system prompt as system_override
-        try:
-            from antar_engine.concern_router import build_concern_system_prompt, is_enabled as _cr_on
-            _domain_system = build_concern_system_prompt(concern) if _cr_on() else ""
-        except Exception:
-            _domain_system = ""
 
         # v5.1 voice-enriched format rules + translation glossary
         _voice_rules = (
@@ -8861,11 +8846,11 @@ VOCABULARY RULES:
             "CRITICAL: Never duplicate content. If you stated the answer in VERDICT, do not re-explain it in another section. One archetype mention maximum per response.\n"
         )
         _format_rules = _voice_rules + "\n" + (_archetype_defs if _phase2_context else "") + _format_rules
-        _master_system = (_domain_system if _domain_system else (
+        _master_system = (
             "You are Antar — a precise Vedic astrology AI. "
             "Answer directly using the data provided. "
             "Lead with the actual answer in the first sentence. "
-        )) + "\n\n" + _format_rules
+        ) + "\n\n" + _format_rules
         # --- Sprint L: Language injection ---
         from language_utils import build_language_instruction, resolve_language
         _lang = resolve_language({"language": getattr(request, "language", None)}, chart_record)
@@ -9302,12 +9287,10 @@ State a specific year. Never predict past events as future windows.
 
 
     else:
-        # Sprint D: domain system prompt for non-master path too
-        try:
-            from antar_engine.concern_router import build_concern_system_prompt, is_enabled as _cr_on
-            _domain_system_fallback = build_concern_system_prompt(concern) if _cr_on() else ""
-        except Exception:
-            _domain_system_fallback = ""
+        # [concern-router removed 2026-10-02] the per-domain system prompt was
+        # never live (module failed to import Mar–Oct); the language block is
+        # the whole fallback system prompt, as it has been in production.
+        _domain_system_fallback = ""
         # --- Sprint L: Language injection (fallback path) ---
         if '_lang_block' not in dir() or not _lang_block:
             from language_utils import build_language_instruction, resolve_language
