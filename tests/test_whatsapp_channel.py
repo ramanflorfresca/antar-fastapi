@@ -489,3 +489,39 @@ def test_inline_can_be_switched_off(m, monkeypatch):
     r = _post(m, {"MessageSid": "SMo1", "From": "whatsapp:+919812345678",
                   "Body": "When will I change jobs?", "NumMedia": "0"})
     assert r.text == "<Response></Response>"
+
+
+# ─── undelivered answers handed over on the next message ───────────
+
+def test_failed_send_is_kept_and_delivered_on_next_message(m, monkeypatch):
+    link = _link()
+    cv = _Conv(m, monkeypatch, link=link)
+    monkeypatch.setattr(msg, "whatsapp_send", lambda n, t, ts: False)     # REST blocked
+    cv.run("When will I change jobs?")
+    ctx = link["context"]
+    assert "Hold until spring" in ctx["pending"]["items"][-1] and ctx.get("rest_blocked_at")
+    asked_before = len(cv.asked)
+    monkeypatch.setattr(msg, "whatsapp_send", lambda n, t, ts: cv.sent.append(t) or True)
+    cv.run("ok")
+    assert any("Hold until spring" in t for t in cv.sent)
+    assert len(cv.asked) == asked_before                  # "ok" didn't trigger a new Ask
+    assert "pending" not in link["context"] and "rest_blocked_at" not in link["context"]
+
+
+def test_pending_then_new_question_answers_both(m, monkeypatch):
+    link = _link()
+    link["context"] = {"pending": {"items": ["*Old answer.*"], "at": int(time.time())}}
+    cv = _Conv(m, monkeypatch, link=link)
+    cv.run("And what about money?")
+    assert cv.sent[0] == "*Old answer.*" and "Hold until spring" in cv.sent[-1]
+    assert cv.asked[-1].question == "And what about money?"
+
+
+def test_reading_message_asks_for_ok_while_rest_blocked(m, monkeypatch):
+    monkeypatch.setattr(m, "_WA_INLINE_DEADLINE_S", 2.0)
+    link = _link()
+    link["context"] = {"rest_blocked_at": int(time.time())}
+    cv = _Conv(m, monkeypatch, link=link, delay=2.5)
+    r = _post(m, {"MessageSid": "SMp1", "From": "whatsapp:+919812345678",
+                  "Body": "When will I change jobs?", "NumMedia": "0"})
+    assert "Reply *ok* in about 20 seconds" in r.text
