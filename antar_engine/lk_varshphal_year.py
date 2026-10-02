@@ -129,11 +129,27 @@ def transit_houses_now(lagna_idx, today=None):
         return {}
 
 
+def _spouse_area():
+    """[life-gate 2026-10-02] The spouse planet's plain label is an AREA, gated
+    on the reader's known facts (life_context.active_life). It used to be a
+    PERSON ("your wife"), which (a) broke templates — "Don't force big moves in
+    your wife" — and (b) told divorced/single readers about a spouse they don't
+    have. Unknown → the neutral area, which is never wrong."""
+    try:
+        from antar_engine.life_context import active_life
+        life = active_life() or {}
+    except Exception:
+        life = {}
+    if life.get("partnered") is True:
+        return "your marriage" if life.get("marital") == "married" else "your relationship"
+    return "your love life and partnerships"
+
+
 def _domain_label(p, ah, gender, plain):
     spouse = R.spouse_karaka(gender)
     if plain:
         if p == spouse:
-            return "your husband" if spouse == "Jupiter" else "your wife"
+            return _spouse_area()
         return R.PLAIN_DOMAIN.get(p) or _house_domain(ah)
     sig = R.planet_significations(p, gender)
     return sig[0] if sig else _house_domain(ah)
@@ -230,7 +246,9 @@ def _read_placements(placements, gender, transit_houses, age, period="year", pla
             if rt:
                 remedies.append({"text": rt} if plain else {"planet": p, "house": ah, "text": rt})
             if ah == R.EVENT_HOUSE or t_malefic or (p in t_event):
-                if p == spouse:
+                if p == spouse and plain:
+                    tag = _spouse_area()
+                elif p == spouse:
                     tag = "your husband and marriage" if spouse == "Jupiter" else "your wife and marriage"
                 else:
                     tag = domain
