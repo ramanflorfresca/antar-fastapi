@@ -147,7 +147,7 @@ def test_webhook_acks_fast_and_answers_in_background(m, monkeypatch):
     from fastapi.testclient import TestClient
     handled = []
 
-    async def fake_handle(number, body, ts, num_media=0, sink=None):
+    async def fake_handle(number, body, ts, num_media=0, sink=None, sid=""):
         handled.append((number, body, num_media))
     monkeypatch.setattr(m, "_wa_handle", fake_handle)
     params = {"MessageSid": "SM1", "From": "whatsapp:+919812345678",
@@ -187,6 +187,8 @@ class _Conv:
         monkeypatch.setattr(msg, "set_link_chart",
                             lambda sb, l, cid: l.__setitem__("chart_id", cid) or True)
         monkeypatch.setattr(msg, "list_user_charts", lambda sb, uid, p: charts or [])
+        self.typing = []
+        monkeypatch.setattr(msg, "whatsapp_typing", lambda sid: self.typing.append(sid) or True)
         monkeypatch.setattr(m, "_resolve_primary_chart_id", lambda uid: primary)
         monkeypatch.setattr(m, "_wa_chart_alive", lambda cid: True)
         monkeypatch.setattr(m, "_wa_chart_name", lambda cid: {"self-1": "Raman Singh", "mom-1": "Mom"}.get(cid, "X"))
@@ -236,11 +238,11 @@ def test_digit_asks_the_numbered_followup(m, monkeypatch):
     assert cv.sent[-1].startswith("*→ How will money be?*")
 
 
-def test_slow_answer_sends_reading_first(m, monkeypatch):
+def test_slow_answer_sends_only_the_complete_answer(m, monkeypatch):
     monkeypatch.setattr(m, "_WA_READING_AFTER_S", 0.05)
     cv = _Conv(m, monkeypatch, link=_link(), delay=0.2)
     cv.run("When will I change jobs?")
-    assert cv.sent[0] == "Reading your chart…" and "Hold until spring" in cv.sent[1]
+    assert len(cv.sent) == 1 and "Hold until spring" in cv.sent[0]   # no holding message
 
 
 def test_thanks_uses_no_question(m, monkeypatch):
@@ -476,7 +478,7 @@ def test_slow_answer_reading_inline_then_rest(m, monkeypatch):
     with TestClient(m.app) as c:       # keep the loop alive, as uvicorn does
         r = c.post("/api/v1/messaging/whatsapp/webhook", content=raw, headers={
             "Content-Type": "application/x-www-form-urlencoded", "X-Twilio-Signature": sig})
-        assert "Reading your chart" in r.text and "Hold until spring" not in r.text
+        assert r.text == "<Response></Response>"          # nothing partial goes out
         deadline = time.time() + 5
         while not cv.sent and time.time() < deadline:
             time.sleep(0.1)
@@ -526,6 +528,45 @@ def test_reading_message_asks_for_ok_while_rest_blocked(m, monkeypatch):
                   "Body": "When will I change jobs?", "NumMedia": "0"})
     assert "Reply *ok* in about 20 seconds" in r.text
 
+
+
+# ─── no partial messages: typing indicator + nudges ────────────────
+
+def test_typing_indicator_fires_for_a_question(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link(), delay=0.1)
+    asyncio.run(m._wa_handle("+919812345678", "When will I change jobs?", time.time(),
+                             0, None, "SMabc"))
+    assert cv.typing and cv.typing[0] == "SMabc"
+    assert len(cv.sent) == 1 and "Hold until spring" in cv.sent[0]
+
+
+def test_nudge_while_answer_in_flight_sends_nothing(m, monkeypatch):
+    link = _link()
+    link["context"] = {"in_flight_at": int(time.time())}
+    cv = _Conv(m, monkeypatch, link=link)
+    for t in ("Waiting", "hello?", "still there", "ok"):
+        asyncio.run(m._wa_handle("+919812345678", t, time.time(), 0, None, "SMn"))
+    assert cv.sent == [] and cv.asked == [] and cv.typing
+
+
+def test_greeting_gets_menu_not_an_ask(m, monkeypatch):
+    import antar_engine.ask_suggestions as sugg
+    monkeypatch.setattr(sugg, "build_suggested_prompts",
+                        lambda cid, sb, language="en": [{"text": "Q1"}, {"text": "Q2"}, {"text": "Q3"}])
+    link = _link()
+    cv = _Conv(m, monkeypatch, link=link)
+    cv.run("Hello")
+    assert cv.asked == []
+    assert cv.sent[0].startswith("Hi \U0001f64f What would you like to know?") and "3  Q3" in cv.sent[0]
+    cv.run("2")
+    assert cv.asked[-1].question == "Q2"
+
+
+def test_in_flight_flag_cleared_after_answer(m, monkeypatch):
+    link = _link()
+    cv = _Conv(m, monkeypatch, link=link)
+    cv.run("When will I change jobs?")
+    assert "in_flight_at" not in link["context"]
 
 def test_format_bolds_the_answer_not_the_warm_opener_and_drops_offer():
     t, fus = msg.format_ask_whatsapp_v2({

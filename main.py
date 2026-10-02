@@ -4490,6 +4490,10 @@ _WA_L = {
                  "es": "Demasiados códigos incorrectos. Inténtalo de nuevo en una hora.",
                  "pt": "Muitos códigos incorretos. Tente novamente em uma hora.",
                  "hinglish": "Bahut saare galat code. Ek ghante baad try kijiye."},
+    "menu":     {"en": "Hi 🙏 What would you like to know? Type your question, or reply with a number:",
+                 "es": "Hola 🙏 ¿Qué te gustaría saber? Escribe tu pregunta o responde con un número:",
+                 "pt": "Olá 🙏 O que você gostaria de saber? Escreva sua pergunta ou responda com um número:",
+                 "hinglish": "Namaste 🙏 Aap kya jaanna chahte hain? Apna sawaal likhiye, ya ek number bhejiye:"},
     "thanks":   {"en": "Anytime 🙏", "es": "Cuando quieras 🙏", "pt": "Sempre que precisar 🙏",
                  "hinglish": "Kabhi bhi 🙏"},
     "media":    {"en": "I can only read text for now — type your question and I'll answer.",
@@ -4654,7 +4658,7 @@ def _wa_welcome(link: dict, lang: str) -> tuple:
 
 
 async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int = 0,
-                     sink: Optional["_WaSink"] = None):
+                     sink: Optional["_WaSink"] = None, message_sid: str = ""):
     """Background worker for one inbound WhatsApp message. Never raises."""
     from antar_engine import messaging as _msg
     from starlette.responses import Response as _StarResp
@@ -4664,6 +4668,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
     lang = _wa_lang(body, ctx.get("lang") or "en") if body else (ctx.get("lang") or "en")
     sink = sink or _WaSink(number, inbound_ts, inline=False)
     undelivered: list = []          # [whatsapp-pending] REST sends that failed
+    owns_flight = False             # only the handler that started the Ask clears in_flight
     rest_seen = {"ok": False, "fail": False}
 
     def send(txt):
@@ -4722,8 +4727,8 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                 send(t)
             ctx.pop("pending", None)
             _save(ctx)
-            if _msg.is_thanks(body) or body.strip().lower().strip(" .!?") in (
-                    "", "?", "ready", "send", "listo", "pronto", "haan", "yes", "si", "sí", "sim"):
+            if _msg.is_nudge(body) or body.strip().lower().strip(" .!?") in (
+                    "ready", "send", "listo", "pronto", "haan", "yes", "si", "sí", "sim"):
                 return
         if cmd == "help":
             send(_wa_text("help", lang))
@@ -4731,8 +4736,30 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         if not body and num_media:
             send(_wa_text("media", lang))
             return
-        if _msg.is_thanks(body):
-            send(_wa_text("thanks", lang))
+        # [whatsapp-typing] short non-questions never become Ask questions:
+        #   answer in progress → just keep "typing…" going (no message);
+        #   thanks → a short reply; greeting/"waiting" → a menu of starters.
+        if _msg.is_nudge(body):
+            if _time.time() - int(ctx.get("in_flight_at") or 0) < 90:
+                if message_sid:
+                    await asyncio.to_thread(_msg.whatsapp_typing, message_sid)
+                return
+            if _msg.is_thanks(body):
+                send(_wa_text("thanks", lang))
+                return
+            starters = []
+            try:
+                from antar_engine.ask_suggestions import build_suggested_prompts
+                starters = [x.get("text") for x in await asyncio.to_thread(
+                    build_suggested_prompts, link.get("chart_id"), sb,
+                    ("en" if lang == "hinglish" else lang))
+                    if isinstance(x, dict) and x.get("text")][:3]
+            except Exception as e:
+                print(f"[whatsapp] menu starters skipped: {e}")
+            send(_wa_text("menu", lang) + ("\n\n" + "\n".join(
+                f"{i}  {q}" for i, q in enumerate(starters, 1)) if starters else ""))
+            if starters:
+                _save(_msg.remember_options(ctx, "ask", starters))
             return
 
         user_id = link.get("user_id")
@@ -4786,17 +4813,35 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         if primary and cid != primary:
             header = await asyncio.to_thread(_wa_chart_name, cid)
 
+        ctx["in_flight_at"] = int(_time.time())
+        owns_flight = True
+        await asyncio.to_thread(_msg.save_link_context, sb, link, dict(ctx, lang=lang))
         ask = asyncio.create_task(ask_endpoint(AskRequest(
             question=question, chart_id=cid, mode="explore",
             language=("hinglish" if lang == "hinglish" else lang),
             tz_offset=_wa_tz(number))))
         _WA_TASKS.add(ask)
         ask.add_done_callback(_WA_TASKS.discard)
+
+        async def _keep_typing():
+            # "typing…" lasts ≤25s on WhatsApp; refresh until the answer is ready
+            for _ in range(5):
+                if ask.done() or not message_sid:
+                    return
+                await asyncio.to_thread(_msg.whatsapp_typing, message_sid)
+                await asyncio.sleep(20)
+        typing = asyncio.create_task(_keep_typing())
+        _WA_TASKS.add(typing)
+        typing.add_done_callback(_WA_TASKS.discard)
         try:
             payload = await asyncio.wait_for(asyncio.shield(ask), timeout=sink.reading_after())
         except asyncio.TimeoutError:
+            # No holding message: the user only ever gets a COMPLETE answer.
+            # Exception while outbound sends are failing (compliance pending):
+            # tell them how to collect it, or they'd wait forever.
             blocked = _time.time() - int(ctx.get("rest_blocked_at") or 0) < 24 * 3600
-            send(_wa_text("reading_pull" if (blocked and sink.inline) else "reading", lang))
+            if blocked and sink.inline:
+                send(_wa_text("reading_pull", lang))
             try:
                 payload = await asyncio.wait_for(ask, timeout=90)
             except asyncio.TimeoutError:
@@ -4837,8 +4882,10 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         # [whatsapp-pending] keep what we couldn't send; hand it over on the next
         # message (which can be answered inline). Track whether REST works.
         try:
-            if link and (undelivered or rest_seen["ok"]):
+            if link and (undelivered or rest_seen["ok"] or owns_flight):
                 c = _msg.link_context(link)
+                if owns_flight:
+                    c.pop("in_flight_at", None)
                 if undelivered:
                     prev = (c.get("pending") or {}).get("items") or []
                     c["pending"] = {"items": (prev + undelivered)[-4:], "at": int(_time.time())}
@@ -4901,7 +4948,7 @@ async def messaging_whatsapp_webhook(http_request: Request):
         return _Resp(content=f"<Response><Message>{txt}</Message></Response>",
                      media_type="text/xml")
     sink = _WaSink(number, now, inline=_wa_inline_on())
-    task = asyncio.create_task(_wa_handle(number, body, now, num_media, sink))
+    task = asyncio.create_task(_wa_handle(number, body, now, num_media, sink, sid))
     _WA_TASKS.add(task)
     task.add_done_callback(_WA_TASKS.discard)
     if sink.inline:
