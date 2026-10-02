@@ -11,7 +11,19 @@ Each domain gets:
   5. Answer format — how to structure the response
 """
 
+import os
 from typing import Optional
+
+
+def is_enabled() -> bool:
+    """[concern-router 2026-10-02] This module failed to IMPORT from 2026-03-30
+    (a stray `}` orphaned DOMAIN_CONFIGS["general"]); main.py's try/except hid
+    it, so production has run WITHOUT these prompts for six months. Its
+    instructions predate the voice rules (they ask for planet names, D7/D60,
+    "Luck Blueprint" headers) and would REPLACE /predict's base system prompt.
+    So loading is fixed, but use stays OFF unless CONCERN_ROUTER_MODE=on —
+    turning it on is a deliberate, reviewed change, not a side effect."""
+    return (os.environ.get("CONCERN_ROUTER_MODE") or "").strip().lower() == "on"
 
 # ── Concern detection ─────────────────────────────────────────────
 
@@ -886,7 +898,6 @@ MUST mention: luck type, timing window, WOW effects if present""",
 **One Action**
 [How to align with the lucky energy + one remedy]""",
     },
-}
 
     "general": {
         "display_name": "General Reading",
