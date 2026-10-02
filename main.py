@@ -21968,6 +21968,33 @@ def _is_wealth_magnitude_q(question):
     return _magnitude or _stability or _which_venture
 
 
+# [kp-speculation OFF 2026-10-02] The KP games-of-chance reading is disabled.
+# Deliberately a constant and not an app_config key: re-enabling re-exposes an
+# unvalidated 0-100 signal (KP_SPECULATION_TIMING_STUDY.md puts the bar at >=70%
+# on >=20 real cases) and surfaces real-money-gaming content in markets that
+# restrict it, so it should take a PR and a conversation, not a panel toggle.
+# A config read here would also mean a blocking Supabase call inside the async
+# ask_endpoint. Flip to True only once the study's gate actually opens.
+KP_SPECULATION_ENABLED = False
+
+
+def _is_games_of_chance_q(question):
+    """The games-of-chance subset of _is_gambling_q — real-money play on a random
+    outcome. Narrower on purpose: market speculation and day trading are ordinary
+    money questions and keep flowing to the normal wealth/timing engines."""
+    ql = (question or "").lower()
+    return any(k in ql for k in (
+        "gambl", "casino", "poker", "lottery", "lotto", " bet ", " bet?",
+        " bet.", " bet,", "betting", "wager", "blackjack", "roulette",
+        "jackpot", "slot machine", "baccarat", "craps",
+        "play cards", "playing cards", "card game", "teen patti", "teenpatti",
+        "rummy", "andar bahar", "andar-bahar", "satta", "dice", "flush ",
+        "call break", "callbreak",
+        "horse rac", "horse bet", "sports bet", "sportsbook", "sports book",
+        "apuesta", "apostar", "loter", "juego de azar", "aposta", "jogo de azar",
+    ))
+
+
 def _is_gambling_q(question):
     """True for a speculation/gambling timing question ('should I play poker
     tonight', 'is now a good time for the casino', 'lucky day to bet'). KP
@@ -25184,7 +25211,7 @@ async def ask_endpoint(request: AskRequest):
             _kp_week = None
             _kp_is_range = False
             try:
-                if _is_gambling_q(question):
+                if _is_gambling_q(question) and KP_SPECULATION_ENABLED:
                     from antar_engine.kp.kp_speculation import (
                         kp_horary_speculation, kp_horary_week)
                     _kp_lat, _kp_lon = None, None
@@ -25291,6 +25318,19 @@ async def ask_endpoint(request: AskRequest):
                         _ask_kp_horary_block = "\n".join(_kpp)
             except Exception as _kpe:
                 logger.warning(f"[ask] kp-horary skipped (non-fatal): {_kpe}")
+            # Disabled -> decline a games-of-chance question outright, rather
+            # than letting it fall through to a generic money answer.
+            if not _ask_kp_horary_block and _is_games_of_chance_q(question):
+                _ask_kp_horary_block = (
+                    "GAMES-OF-CHANCE QUESTION — DECLINE IT. Antar does not advise on "
+                    "betting, casino play, lotteries, card/dice games or other games of "
+                    "chance. You MUST NOT rate, time, rank, score or otherwise judge "
+                    "whether to play: no signal, no number, no day, no window, no "
+                    "'better time'. In one or two warm sentences say plainly that this "
+                    "is not something Antar reads. Then name what it does read — income, "
+                    "a deal, a career move, a decision they actually control — and invite "
+                    "that question instead. No lecture, no moralising, no planet, house "
+                    "or Sanskrit.")
 
             # [residence engine] change-of-home TIMING (the WHEN) — disposition +
             # varshphal-weighted convergence window + nature (local vs distant/foreign).
