@@ -203,8 +203,10 @@ def protect_this_season(chart_data: dict, birth_date, dashas: dict,
                 "available": True,
                 "headline": "Protect this season",
                 "clear": True,
-                "intro": ("Nothing in your chart is running hard enough right now to need "
-                          "protecting — this is a clear stretch. Keep your usual steady habits."),
+                "intro": ("Nothing at the season level is running hard enough to need "
+                          "protecting right now — clear at the big-picture level. Keep your "
+                          "usual steady habits, and check This Month for any finer, dated "
+                          "windows to time around."),
                 "cards": [],
                 "note": "",
             }
