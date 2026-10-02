@@ -28045,7 +28045,8 @@ async def ask_endpoint(request: AskRequest):
                 _vios = _ask_voice_vios(read_txt, next_txt, *(_ask_actions or []))
                 if _vios:
                     print(f"[ask][voice-gate] explore violations -> regenerate: {_vios[:6]}")
-                    _corr = (_sys + "\n\nREWRITE (your previous answer was rejected). "
+                    _corr = (_sys + "\n\nREWRITE (your previous answer was rejected for: "
+                             + "; ".join(str(v) for v in _vios[:6]) + "). "
                              "FORBIDDEN: planet/sign/house words; the words energy, energies, "
                              "or forces; the word interventions; vague cosmic timing such as "
                              "'the sky aligns' or 'when the structure aligns'. Name the concrete "
@@ -28690,6 +28691,36 @@ async def ask_endpoint(request: AskRequest):
                                    _ask_practice_cta(locals().get("_ask_concern"), language))
             except Exception:
                 pass
+            # [integrity-gate 2026-10-02] Last check after every filter: broken
+            # fragments (", Oct 5", "until, then", "Oct 5 ()") and dates the
+            # engines never computed. One Haiku grammar-only rewrite, verified;
+            # else a deterministic tidy. Never blocks the answer.
+            try:
+                from antar_engine.integrity_gate import run_gate as _ig_run
+                _ig_ground = "\n".join(str(x) for x in (
+                    locals().get("_sys") or "", question, payload.get("timing") or "",
+                    locals().get("_ee_timing") or "") if x)
+
+                async def _ig_rewrite(_sysp, _userp):
+                    _rt = await call_llm_claude(prompt=_userp, system_override=_sysp,
+                                                model_override=HAIKU_MODEL)
+                    return _rt[0] if isinstance(_rt, tuple) else _rt
+                _ig_vfn = locals().get("_ask_voice_vios")
+                _ig_fields = {"read": payload.get("read"), "next": payload.get("next")}
+                for _ig_i, _ig_a in enumerate(payload.get("actions") or []):
+                    _ig_fields[f"action_{_ig_i}"] = _ig_a
+                _ig_out, _ig_rep = await _ig_run(_ig_fields, _ig_ground, language,
+                                                 _ig_rewrite, _ig_vfn)
+                if _ig_rep.get("issues"):
+                    print(f"[ask][integrity] {_ig_rep.get('action')} issues={_ig_rep.get('issues')}"
+                          + (f" after={_ig_rep.get('after')}" if _ig_rep.get("after") else ""))
+                    payload["read"] = _ig_out.get("read")
+                    payload["next"] = _ig_out.get("next")
+                    if payload.get("actions"):
+                        payload["actions"] = [_ig_out.get(f"action_{i}") or a
+                                              for i, a in enumerate(payload["actions"])]
+            except Exception as _ige:
+                print(f"[ask][integrity] non-fatal: {_ige}")
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "explore", locals().get("_ask_concern"))
             return payload
