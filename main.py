@@ -23582,11 +23582,25 @@ def _ask_role_concern(question: str, thread: list):
     _short_followup = len(_q_low.split()) <= 9
     if not (_deal_here or _short_followup):
         return None
+    # [role-ctx-user-only 2026-10-02] Read ONLY the user's words (this question +
+    # their earlier questions), never our answers. The role-clarify answer itself
+    # lists every role ("broker/agent earning a commission, taking an equity
+    # stake…"), so including answers made the NEXT short question after a
+    # clarify — "How wealthy can I become in this lifetime?" — resolve to
+    # 'career' from our own text and come back as a "your strongest fields" read.
     ctx = ((question or "") + " " + " ".join(
-        (t.get("q", "") + " " + t.get("a", "")) for t in (thread or [])
+        t.get("q", "") for t in (thread or [])
     )).lower()
     if not any(w in ctx for w in _ASK_DEAL_WORDS):
         return None
+    # A short question that names its OWN non-deal subject (wealth size, a
+    # career-fit question) is not a role reply — leave its concern alone.
+    if not _deal_here:
+        try:
+            if _is_wealth_magnitude_q(question) or _is_career_type_q(question):
+                return None
+        except Exception:
+            pass
     if any(w in ctx for w in ("commission", "broker", "finder",
                               "corredor", "agente", "comisión")):
         return "career"
@@ -28583,6 +28597,12 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             _ds_full_cached = None
         if _ds_full_cached:
             print(f"[daily-signal] L2 full-payload HIT chart={cid[:8]} lang={language} date={_ds_cache_date}")
+            try:  # [area-dedupe 2026-10-02] payloads cached before the dedupe existed
+                from antar_engine.daily_life_areas import dedupe_day_map as _ddm
+                if isinstance(_ds_full_cached.get("day_map"), list):
+                    _ds_full_cached = {**_ds_full_cached, "day_map": _ddm(_ds_full_cached["day_map"])}
+            except Exception:
+                pass
             return {**_ds_full_cached, "_already_localized": True}
 
         # [es-latency] Block only on TODAY (signals[0]). Generating all 7
@@ -28977,6 +28997,7 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     current_country=current_country,
                     lk_daily=_th_lk,
                     can_give_money=_can_give_money_now(row.get("financial_status")),
+                    date_str=(start_date.strftime("%Y-%m-%d") if hasattr(start_date, "strftime") else str(start_date)[:10]),
                 )
             except Exception as _ng_err:
                 print(f"[daily-signal] nudge derivation failed: {_ng_err}")
@@ -29290,7 +29311,8 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                         if _n_coarse:
                             _n_new = _dtn(direction=_n_dir, domains=[_n_coarse],
                                           current_country=current_country, lk_daily=_th_lk,
-                                          can_give_money=_can_give_money_now(row.get("financial_status")))
+                                          can_give_money=_can_give_money_now(row.get("financial_status")),
+                                          date_str=(start_date.strftime("%Y-%m-%d") if hasattr(start_date, "strftime") else str(start_date)[:10]),)
                             if _n_new:
                                 try:
                                     from antar_engine.daily_prediction_engine import _faith_neutralize as _fn
@@ -29674,6 +29696,15 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     displayed_headline=result.get("headline") or "",
                     displayed_highlight=result.get("highlight") or "",
                     chandra_bala=((signals[0].get("chandra_bala") if signals else "") or ""),
+                    # [today-authority 2026-10-02] card facts /daily-week reconciles to
+                    card={
+                        "language": language,
+                        "day_energy": result.get("day_energy"),
+                        "score": (result.get("day_energy") or {}).get("score"),
+                        "windows": result.get("windows"),
+                        "move": result.get("move"),
+                        "day_turn": result.get("day_turn"),
+                    },
                 )
             except Exception as _ts_err:
                 print(f"[daily-signal] today-signal commit skipped: {_ts_err}")
@@ -39261,6 +39292,47 @@ async def get_daily_week(chart_id: str, tz_offset: float = None, language: str =
                         _row["available"] = False
         except Exception as _ta_e:
             print(f"[daily-week] transit signal patch non-fatal: {_ta_e}")
+
+        # [today-authority 2026-10-02] The Today card stitches /daily-week's today
+        # entry (headline, time dial, do/avoid) together with /daily-signal (band,
+        # move, area list). Snap the weekly entry to the committed daily-signal card
+        # so the two halves can't contradict. Also make every other day's headline
+        # day-type agree with its own band. Fail-open; runs BEFORE enrolment so the
+        # verify card asks about the reading the user actually saw.
+        try:
+            from antar_engine.today_signal import (
+                read_today_signal as _rts, reconcile_week_today as _rwt,
+                snap_day_type as _sdt,
+            )
+            _local_iso = start_date.strftime("%Y-%m-%d")
+            for _d in signals or []:
+                if not isinstance(_d, dict):
+                    continue
+                if _d.get("date") == _local_iso:
+                    # Prefer the served /daily-signal payload itself (exactly what the
+                    # card renders); fall back to the committed card snapshot.
+                    _auth = None
+                    try:
+                        _sig = await run_in_threadpool(
+                            _daily_surface_get, chart_id, "daily-signal", language, _local_iso)
+                    except Exception:
+                        _sig = None
+                    if isinstance(_sig, dict) and _sig.get("day_energy"):
+                        _auth = {"headline": _sig.get("headline") or "",
+                                 "card": {"language": language,
+                                          "day_energy": _sig.get("day_energy"),
+                                          "score": (_sig.get("day_energy") or {}).get("score"),
+                                          "windows": _sig.get("windows"),
+                                          "move": _sig.get("move"),
+                                          "day_turn": _sig.get("day_turn")}}
+                    else:
+                        _auth = await run_in_threadpool(_rts, supabase, chart_id, _local_iso)
+                    _rwt(_d, _auth, language)
+                elif (language or "en").startswith("en") and _d.get("verdict_subline"):
+                    _d["verdict_subline"] = _sdt(_d["verdict_subline"],
+                                                 (_d.get("day_energy") or {}).get("key"))
+        except Exception as _ta_e:
+            print(f"[daily-week] today-authority reconcile non-fatal: {_ta_e}")
 
         # [daily-verify 2026-07-20] Enrol TODAY's claim so the user can mark it
         # right or wrong. The tracker, tables, endpoints and frontend types all

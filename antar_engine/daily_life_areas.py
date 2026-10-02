@@ -150,6 +150,9 @@ def _row(dom: dict, key: str, with_move: bool) -> dict:
     }
 
 
+_DISPLAY_GROUP = {"authority": "work", "career": "work"}
+
+
 def build_day_map(active_domains: Optional[list],
                   quiet_domains: Optional[list],
                   life_ctx: Optional[dict] = None,
@@ -193,12 +196,17 @@ def build_day_map(active_domains: Optional[list],
 
     ordered = active + [q for q in quiet if _notable(q)]
 
+    # [area-dedupe 2026-10-02] Keys that render under ONE label on the card.
+    # The FE (areaDisplay.tsx) maps both "work" and "authority" to "Work &
+    # standing", so a day carrying both showed that row twice with different
+    # lines. Keep the higher-ranked one only.
     seen, out = set(), []
     for dom in ordered:
         key = (dom.get("key") or "").lower()
-        if not key or key in seen or key not in _LINES:
+        grp = _DISPLAY_GROUP.get(key, key)
+        if not key or grp in seen or key not in _LINES:
             continue
-        seen.add(key)
+        seen.add(grp)
         out.append(_row(dom, key, with_move=len(out) < move_lead))
         if len(out) >= max_areas:
             break
@@ -212,10 +220,27 @@ def build_day_map(active_domains: Optional[list],
             if k and k not in by_key:
                 by_key[k] = dom
         for key in force:
-            if key in seen or key not in _LINES:
+            grp = _DISPLAY_GROUP.get(key, key)
+            if grp in seen or key not in _LINES:
                 continue
             dom = by_key.get(key) or {"key": key, "polarity": "neutral"}
-            seen.add(key)
+            seen.add(grp)
             out.append(_row(dom, key, with_move=len(out) < move_lead))
 
+    return out
+
+
+def dedupe_day_map(rows: Optional[list]) -> list:
+    """Serve-time twin of build_day_map's display-group dedupe, for payloads that
+    were cached before it existed (keeps the first, i.e. higher-ranked, row)."""
+    seen, out = set(), []
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        k = (r.get("key") or "").lower()
+        grp = _DISPLAY_GROUP.get(k, k)
+        if grp and grp in seen:
+            continue
+        seen.add(grp)
+        out.append(r)
     return out
