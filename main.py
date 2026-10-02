@@ -24978,6 +24978,10 @@ async def _ask_persist(supabase, chart_id, question, payload, language, mode, do
     try:
         if not (chart_id and question):
             return
+        try:
+            question = _ASK_TYPED_Q.get() or question     # [conversation-layer]
+        except Exception:
+            pass
         await save_chat_message(
             supabase, chart_id, str(question),
             payload if isinstance(payload, dict) else {},
@@ -24998,7 +25002,7 @@ def _ask_recent_thread(chart_id: str, limit: int = 4, within_minutes: int = 240)
         from datetime import datetime as _dt, timezone as _tz, timedelta as _td
         cutoff = (_dt.now(_tz.utc) - _td(minutes=within_minutes)).isoformat()
         rows = (supabase.table("chat_messages")
-                .select("question, prediction_text, plain_summary, domain, created_at")
+                .select("question, prediction_text, plain_summary, action_item, domain, created_at")
                 .eq("chart_id", chart_id).gte("created_at", cutoff)
                 .order("created_at", desc=True).limit(limit).execute().data) or []
         out = []
@@ -25007,7 +25011,8 @@ def _ask_recent_thread(chart_id: str, limit: int = 4, within_minutes: int = 240)
             if not q:
                 continue
             a = (r.get("prediction_text") or r.get("plain_summary") or "").strip()
-            out.append({"q": q, "a": a[:400], "domain": (r.get("domain") or "").strip()})
+            out.append({"q": q, "a": a[:400], "domain": (r.get("domain") or "").strip(),
+                        "m": (r.get("action_item") or "").strip()})
         return out
     except Exception as _te:
         print(f"[ask-thread] recent fetch failed (non-fatal): {_te}")
@@ -25019,6 +25024,9 @@ import contextvars as _cv_ask
 # daily cap AND the usage increment for THIS call only — the debugger must be
 # able to ask freely without burning a user's quota. Admin-gated at the caller.
 _ASK_ADMIN_BYPASS = _cv_ask.ContextVar("ask_admin_bypass", default=False)
+# [conversation-layer] when /ask rewrote a follow-up ("How about tomorrow") into a
+# standalone question for the engines, history still records what was TYPED.
+_ASK_TYPED_Q = _cv_ask.ContextVar("ask_typed_question", default=None)
 
 # [ask-free-launch 2026-09-07] GROWTH PHASE: Ask is free + uncapped to acquire
 # users (same posture as /predict's disabled limits). The daily soft-cap is a
@@ -25421,6 +25429,30 @@ async def ask_endpoint(request: AskRequest):
         language = "en"
         logger.info(f"[ask][lang] question is English; answering en "
                     f"(client sent {_orig_lang})")
+
+    # [conversation-layer 2026-10-02] A short follow-up ("How about tomorrow",
+    # "y mañana?") is rewritten into a standalone question BEFORE any routing, so
+    # every engine (intent, concern, KP, chips, integrity) sees the full question.
+    # One verified Haiku call, only for likely follow-ups within the last hour.
+    # History keeps what was typed (_ASK_TYPED_Q). Kill switch: ASK_CONVERSATION_LAYER=off.
+    _ASK_TYPED_Q.set(None)
+    if (os.getenv("ASK_CONVERSATION_LAYER") or "on").strip().lower() not in ("0", "off", "false", "no"):
+        try:
+            from antar_engine import conversation as _convl
+            _cl_thread = await asyncio.to_thread(
+                _ask_recent_thread, chart_id, 2, _convl.FOLLOWUP_WINDOW_MIN)
+            if _convl.looks_like_followup(question, _cl_thread):
+                _cl_raw = await asyncio.wait_for(call_llm_claude(
+                    prompt=_convl.rewrite_request(question, _cl_thread, language),
+                    system_override=_convl.REWRITE_SYSTEM, model_override=HAIKU_MODEL), timeout=8)
+                _cl_raw = _cl_raw[0] if isinstance(_cl_raw, tuple) else _cl_raw
+                _cl_q = _convl.parse_rewrite(_cl_raw, question)
+                if _cl_q:
+                    print(f"[ask][conversation] follow-up resolved: {question!r} -> {_cl_q!r}")
+                    _ASK_TYPED_Q.set(question)
+                    question = _cl_q
+        except Exception as _cle:
+            print(f"[ask][conversation] skipped (non-fatal): {_cle}")
 
     # [crisis-safety 2026-09-07] A question carrying genuine distress must NEVER be
     # answered with a binary horary verdict ("no — the timing is against you") — that
@@ -27911,6 +27943,11 @@ async def ask_endpoint(request: AskRequest):
                              "current question, do not repeat these:\n")
                     for _tt in _ask_thread[-3:]:
                         _conv += f"- User asked: {_tt['q']}\n  You answered: {_tt['a'][:200]}\n"
+                    try:   # [conversation-layer] no repeated advice across turns
+                        from antar_engine.conversation import moves_block as _cl_moves
+                        _conv += _cl_moves(_ask_thread)
+                    except Exception:
+                        pass
                     _sys = _sys + _conv
                 if isinstance(_sys, str):
                     _sys = _sys + _ask_lang_directive(language)   # [ask-hinglish]
