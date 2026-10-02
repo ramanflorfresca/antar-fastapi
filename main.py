@@ -27811,13 +27811,13 @@ async def ask_endpoint(request: AskRequest):
                 logger.warning(f"[ask] convergence failed (non-fatal): {_cve}")
 
             # [yesno-kp 2026-10-02] KP Prashna — spec: Antar.world/SPEC_ASK_YESNO_KP_PRASHNA.md
-            # ASK_YESNO_ENGINE: "tajik" (classic only) | "kp_shadow" (default: KP is
-            # computed + logged for the did-it-happen calibration, classic answers)
-            # | "kp" (KP answers; classic is logged for the head-to-head).
+            # ASK_YESNO_ENGINE: "kp" (default, owner 2026-10-02: KP answers; classic
+            # is logged for the head-to-head) | "kp_shadow" (classic answers, KP
+            # logged) | "tajik" (classic only — emergency rollback, no deploy).
             # Cast for the ASTROLOGER's seat (Edgewater, NJ), number 1-249 optional.
             # Unmappable questions / any KP failure fall back to classic.
             _tajik_verdict = verdict
-            _yn_engine = (os.environ.get("ASK_YESNO_ENGINE") or "kp_shadow").strip().lower()
+            _yn_engine = (os.environ.get("ASK_YESNO_ENGINE") or "kp").strip().lower()
             _yn_kp = {"available": False, "reason": "engine=tajik"}
             _yn_kp_primary = False
             if _yn_engine in ("kp", "kp_shadow"):
