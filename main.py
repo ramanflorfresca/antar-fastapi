@@ -10508,20 +10508,27 @@ def daily_practice_session_abandon(request: PracticeSessionAbandonReq,
 
 @app.get("/api/v1/predict/daily-practice/chakra/{chakra_key}")
 def daily_practice_chakra_mantra(chakra_key: str, chart_id: Optional[str] = None,
-                                       language: str = "en"):
+                                       language: str = "en",
+                                       priority_planet: Optional[str] = None):
     if chakra_key not in _prac_chakras.CHAKRA_MANTRAS:
         raise HTTPException(404, f"unknown chakra {chakra_key}")
     out = {
         "chakra_key": chakra_key,
         "balance_mantra": _prac_chakras.build_chakra_mantra_response(chakra_key, language),
     }
-    # score_pct + state for this chakra (needs the chart)
+    # score_pct + state for this chakra (needs the chart).
+    # [weak-focus-coherence 2026-10-01] pass priority_planet so the tap-through
+    # detail applies the SAME weak-focus floor as the map (compose_practice_response
+    # already floors the primary-focus chakra). Without it, a tapped primary chakra
+    # read un-floored (e.g. Heart STEADY 51%) and contradicted the map (needs_attention
+    # 38%). The FE passes the map's today_priority.planet here.
     if chart_id:
         try:
             _cres = supabase.table("charts").select("chart_data").eq("id", chart_id).execute()
             if _cres.data:
                 _chart = _prac_safe(_cres.data[0]["chart_data"])
-                _states = _prac_chakras.compute_chakra_states(_chart, language=language)
+                _states = _prac_chakras.compute_chakra_states(
+                    _chart, language=language, priority_planet=priority_planet)
                 _cs = _states.get(chakra_key, {}) or {}
                 out["state"] = _cs.get("state")
                 out["status"] = _cs.get("status")  # [chakra-3state]
