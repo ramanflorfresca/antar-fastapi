@@ -28894,7 +28894,15 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                 _contradiction = bool(_lead) and (
                     (_sweep_dir == "adverse" and _cur_dir == "positive")
                     or (_sweep_dir == "positive" and _cur_dir == "adverse"))
-                if _lead and (_quiet_card or _contradiction):
+                # (c) [coherence 2026-10-01] a CAUTION-flagged lead (high-variance:
+                # speculation / a dusthana theme) must read "lean in, but keep a stop"
+                # — never a pure green light. The warm LLM narration can drift into an
+                # unqualified "a sharp creative opening — precise enough to act on"
+                # over exactly the area the do/don't list flags to cap, contradicting
+                # it on the same screen. Force the deterministic caution template and
+                # skip the LLM for a caution lead so the two can't diverge.
+                _lead_caution = bool(_lead) and bool(_lead.get("caution"))
+                if _lead and (_quiet_card or _contradiction or _lead_caution):
                     # Reconcile HEADLINE + HIGHLIGHT + DIRECTION to the sweep's lead
                     # in one voice. Overriding only the highlight (as before) left a
                     # stale headline that could still contradict it (e.g. headline
@@ -28924,10 +28932,13 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                         result["highlight"] = (f"Today's momentum is in {_say} — "
                                                "put your focus here.")
                     result["direction"] = _sweep_dir
-                    if _contradiction:
+                    if _contradiction or _lead_caution:
                         # keep every downstream consumer (narration gate,
                         # today-signal commit) on the sweep's direction, and force
                         # the honest template instead of the contradicting LLM prose.
+                        # _lead_caution: a caution lead must keep the "keep a stop"
+                        # template; letting the LLM re-narrate reintroduces the pure
+                        # green-light contradiction.
                         _skip_narration = True
                         try:
                             _th["direction"] = _sweep_dir
@@ -29181,12 +29192,17 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
                     for _a in _dd_active:
                         if _a.get("caution"):
                             _m = _DAILY_DO_DONT_BY_DOMAIN.get((_a.get("key") or "").lower())
-                            if _m and _m["dont"] not in _dd_dont:
+                            # [coherence 2026-10-01] never let ONE domain be both a DO
+                            # and a DON'T — an opportunity+caution lead already gave its
+                            # DO ("take a small, capped position"), so adding its DON'T
+                            # ("keep creative projects on the shelf") contradicts it on
+                            # the same card. Skip any domain already represented in DO.
+                            if _m and _m["dont"] not in _dd_dont and _m["do"] not in _dd_do:
                                 _dd_dont.append(_m["dont"])
                                 break
                     if not _dd_dont and _dd_active:
                         _m = _DAILY_DO_DONT_BY_DOMAIN.get((_dd_active[0].get("key") or "").lower())
-                        if _m:
+                        if _m and _m["do"] not in _dd_do:
                             _dd_dont.append(_m["dont"])
                 if _dd_do:
                     result["do_today"] = _dd_do[:3]
