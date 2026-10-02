@@ -33,15 +33,16 @@ def gen_link_code() -> str:
 
 
 def create_pending_link(sb, chart_id: str, user_id: Optional[str],
-                        channel: str = "telegram") -> dict:
+                        channel: str = "telegram", extra: Optional[dict] = None) -> dict:
     """Create a pending link row; returns {available, code} (or available:False
-    when the table isn't set up yet)."""
+    when the table isn't set up yet). `extra` = additional columns (e.g. consent)."""
     code = gen_link_code()
     row = {
         "chart_id": chart_id, "user_id": user_id, "channel": channel,
         "link_code": code, "status": "pending",
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
+    row.update(extra or {})
     try:
         sb.table("messaging_links").insert(row).execute()
         return {"available": True, "code": code, "channel": channel}
@@ -163,6 +164,15 @@ _TWILIO_MSG_API = "https://api.twilio.com/2010-04-01/Accounts/{sid}/Messages.jso
 WA_MAX_CHARS = 1600          # Twilio's per-message body limit for WhatsApp
 WA_WINDOW_SECONDS = 24 * 3600
 WA_LINK_CODE_MAX_AGE_MIN = 15
+# [whatsapp-consent] Bump when the consent wording shown in the app changes; the
+# backend only links a number whose row carries consent to the CURRENT version.
+WA_CONSENT_VERSION = "wa-2026-10-02"
+
+
+def consent_row(source: str) -> dict:
+    """Columns recording the user's WhatsApp opt-in + Terms/Privacy acceptance."""
+    return {"consent_at": datetime.now(timezone.utc).isoformat(),
+            "consent_version": WA_CONSENT_VERSION, "consent_source": source}
 
 
 def wa_number(addr: Optional[str]) -> str:
@@ -281,12 +291,15 @@ def bind_link_whatsapp(sb, code: str, number: str) -> Optional[str]:
     if not code or not number:
         return None
     try:
-        rows = (sb.table("messaging_links").select("id,chart_id,user_id,created_at")
+        rows = (sb.table("messaging_links").select("*")
                 .eq("link_code", code).eq("channel", "whatsapp")
                 .eq("status", "pending").limit(1).execute()).data or []
         if not rows:
             return None
         row = rows[0]
+        if not row.get("consent_at"):          # [whatsapp-consent] never link without opt-in
+            print("[whatsapp] bind refused: pending code has no recorded consent")
+            return None
         try:
             created = datetime.fromisoformat(str(row.get("created_at")).replace("Z", "+00:00"))
             age_min = (datetime.now(timezone.utc) - created).total_seconds() / 60
@@ -309,19 +322,23 @@ def bind_link_whatsapp(sb, code: str, number: str) -> Optional[str]:
         return None
 
 
-def link_whatsapp_direct(sb, chart_id: str, user_id: Optional[str], number: str) -> bool:
-    """Path B: the signed-in user confirmed a number proven by a signed token."""
+def link_whatsapp_direct(sb, chart_id: str, user_id: Optional[str], number: str,
+                         consent: Optional[dict] = None) -> bool:
+    """Path B: the signed-in user confirmed a number proven by a signed token.
+    `consent` (consent_row) is required — no opt-in, no link."""
     number = wa_number(number)
-    if not (chart_id and number):
+    if not (chart_id and number and consent):
         return False
     try:
         _revoke_whatsapp(sb, number=number, user_id=user_id)
-        sb.table("messaging_links").insert({
+        row = {
             "chart_id": chart_id, "user_id": user_id, "channel": "whatsapp",
             "channel_user_id": number, "status": "linked", "link_code": None,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "linked_at": datetime.now(timezone.utc).isoformat(),
-        }).execute()
+        }
+        row.update(consent)
+        sb.table("messaging_links").insert(row).execute()
         return True
     except Exception as e:
         print(f"[whatsapp] direct link failed: {e}")
@@ -389,7 +406,7 @@ def whatsapp_status(sb, user_id: str) -> dict:
     """The signed-in user's active WhatsApp link, for the app's settings row.
     Never returns the full number — only its last 4 digits."""
     try:
-        rows = (sb.table("messaging_links").select("chart_id,channel_user_id,linked_at")
+        rows = (sb.table("messaging_links").select("*")
                 .eq("channel", "whatsapp").eq("user_id", user_id).eq("status", "linked")
                 .order("linked_at", desc=True).limit(1).execute()).data or []
     except Exception as e:
@@ -400,7 +417,8 @@ def whatsapp_status(sb, user_id: str) -> dict:
         return {"linked": False}
     r = rows[0]
     return {"linked": True, "number_last4": (r.get("channel_user_id") or "")[-4:],
-            "chart_id": r.get("chart_id"), "linked_at": r.get("linked_at")}
+            "chart_id": r.get("chart_id"), "linked_at": r.get("linked_at"),
+            "alerts_opt_in": bool(r.get("alerts_opt_in"))}
 
 
 # ── WhatsApp conversation layer (UX spec 2026-10-02) ──

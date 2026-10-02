@@ -4318,6 +4318,13 @@ def get_first_read(chart_id: str, language: str = "en"):
 class _MsgLinkStart(BaseModel):
     chart_id: Optional[str] = None
     channel: Optional[str] = "telegram"
+    # [whatsapp-consent] required for channel=whatsapp: the user ticked the opt-in
+    # + Terms/Privacy box for THIS consent version (GET .../whatsapp/status has it).
+    consent_accepted: Optional[bool] = None
+    consent_version: Optional[str] = None
+    # [whatsapp-consent] separate, optional opt-in for event alerts (v2 templates).
+    # Never implied by linking; default off.
+    alerts_opt_in: Optional[bool] = False
 
 
 @app.post("/api/v1/messaging/link/start")
@@ -4328,7 +4335,14 @@ def messaging_link_start(req: _MsgLinkStart, authorization: str = Header(...)):
     chart_id = req.chart_id or _resolve_primary_chart_id(user_id)
     if not chart_id:
         raise HTTPException(400, "no chart to link")
-    out = _msg.create_pending_link(supabase, chart_id, user_id, req.channel or "telegram")
+    extra = None
+    if (req.channel or "") == "whatsapp":
+        if not (req.consent_accepted is True and req.consent_version == _msg.WA_CONSENT_VERSION):
+            raise HTTPException(400, {"error": "consent_required",
+                                      "consent_version": _msg.WA_CONSENT_VERSION})
+        extra = _msg.consent_row("app")
+        extra["alerts_opt_in"] = bool(req.alerts_opt_in)
+    out = _msg.create_pending_link(supabase, chart_id, user_id, req.channel or "telegram", extra)
     if not out.get("available"):
         raise HTTPException(503, out.get("reason") or "messaging not set up yet")
     if (req.channel or "") == "whatsapp":
@@ -4792,6 +4806,8 @@ async def messaging_whatsapp_webhook(http_request: Request):
 class _WaConnect(BaseModel):
     token: str
     chart_id: Optional[str] = None
+    consent_accepted: Optional[bool] = None
+    consent_version: Optional[str] = None
 
 
 @app.get("/api/v1/messaging/whatsapp/status")
@@ -4802,11 +4818,33 @@ def messaging_whatsapp_status(authorization: str = Header(...)):
     user_id = verify_token(authorization)
     out = _msg.whatsapp_status(supabase, user_id)
     out["available"] = _wa_on()
+    out["consent_version"] = _msg.WA_CONSENT_VERSION
     digits = re.sub(r"\D", "", os.getenv("TWILIO_WHATSAPP_FROM") or "")
     out["antar_number"] = ("+" + digits) if digits else None
     if out.get("chart_id"):
         out["chart_name"] = _wa_chart_name(out["chart_id"])
     return out
+
+
+class _WaAlerts(BaseModel):
+    enabled: bool
+
+
+@app.post("/api/v1/messaging/whatsapp/alerts")
+def messaging_whatsapp_alerts(req: _WaAlerts, authorization: str = Header(...)):
+    """Turn event alerts on WhatsApp on/off for the signed-in user's active link.
+    Alerts are a separate opt-in from Ask; turning them on records when."""
+    user_id = verify_token(authorization)
+    patch = {"alerts_opt_in": bool(req.enabled)}
+    if req.enabled:
+        patch["alerts_opt_in_at"] = datetime.now(timezone.utc).isoformat()
+    try:
+        (supabase.table("messaging_links").update(patch).eq("channel", "whatsapp")
+         .eq("user_id", user_id).eq("status", "linked").execute())
+    except Exception as e:
+        print(f"[whatsapp] alerts toggle failed: {e}")
+        raise HTTPException(503, "alerts not available yet")
+    return {"alerts_opt_in": bool(req.enabled)}
 
 
 @app.post("/api/v1/messaging/whatsapp/unlink")
@@ -4824,6 +4862,9 @@ def messaging_whatsapp_connect(req: _WaConnect, authorization: str = Header(...)
     confirms it here and the number is linked to their (primary) chart."""
     from antar_engine import messaging as _msg
     user_id = verify_token(authorization)
+    if not (req.consent_accepted is True and req.consent_version == _msg.WA_CONSENT_VERSION):
+        raise HTTPException(400, {"error": "consent_required",
+                                  "consent_version": _msg.WA_CONSENT_VERSION})
     secret = os.getenv("WHATSAPP_LINK_SECRET")
     if not secret:
         raise HTTPException(503, "whatsapp linking not configured")
@@ -4838,7 +4879,8 @@ def messaging_whatsapp_connect(req: _WaConnect, authorization: str = Header(...)
                .eq("user_id", user_id).limit(1).execute()).data
         if not own:
             raise HTTPException(403, "not your chart")
-    if not _msg.link_whatsapp_direct(supabase, chart_id, user_id, number):
+    if not _msg.link_whatsapp_direct(supabase, chart_id, user_id, number,
+                                     consent=_msg.consent_row("wa_signin")):
         raise HTTPException(503, "messaging storage not set up yet")
     # The token is ≤15 min old and was issued in reply to the user's message,
     # so we are still inside the 24h window.
@@ -16260,6 +16302,8 @@ _CHART_DERIVED_TABLES = (
     # user-content keyed by chart
     "user_alerts", "llm_call_log", "alert_log",
     "places_saved_cities", "user_preferences",
+    # WhatsApp/Telegram links — the linked phone number is PII
+    "messaging_links",
     # the user's own questions — PII, and previously left behind entirely
     "signature_question_log", "intent_classify_log",
     # Prashna oracle (user questions + natal-grounded verdicts). followups are
