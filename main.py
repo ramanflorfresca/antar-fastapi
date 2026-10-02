@@ -29493,6 +29493,29 @@ async def get_daily_signal_endpoint(chart_id: str = None, request: dict = {}, la
             except Exception as _cf_e:
                 print(f"[daily-signal] confidence-headline reconcile skipped (non-fatal): {_cf_e}")
 
+            # [daily-coherence 2026-10-02] HEADLINE DAY-TYPE must match the final band
+            # (the pill). The warm narration headline could assert "a friction day"
+            # over a LIGHTER-TOUCH / STEADY band, contradicting the day-quality pill on
+            # the same card (seen live: pill "LIGHTER-TOUCH DAY" vs headline "A friction
+            # day — …"). The band was reconciled above and is the authority, so snap the
+            # headline's day-TYPE word to it. Runs after the narration-cache read, so it
+            # corrects even a cached LLM headline on every served response.
+            try:
+                import re as _re_dt
+                _hl_dt = str(result.get("headline") or "")
+                _band_now = (result.get("day_energy") or {}).get("key") or (
+                    "friction" if result.get("is_friction_day") else "")
+                _BAND_WORD = {"friction": "friction day", "light": "lighter-touch day",
+                              "steady": "steady day"}
+                _want_dt = _BAND_WORD.get(_band_now)
+                _DT_RE = r"friction day|lighter[- ]touch day|lighter day|light day|steady day"
+                _found_dt = _re_dt.search(_DT_RE, _hl_dt, _re_dt.I)
+                if _want_dt and _found_dt and _found_dt.group(0).lower() != _want_dt.lower():
+                    result["headline"] = _re_dt.sub(_DT_RE, _want_dt, _hl_dt, count=1,
+                                                    flags=_re_dt.I)
+            except Exception as _dt_e:
+                print(f"[daily-signal] headline day-type reconcile skipped (non-fatal): {_dt_e}")
+
             # [one-signal] Commit the day's selection (domains + direction +
             # the DISPLAYED headline/highlight + BODY state) so the Deep Read
             # opens from the SAME snapshot instead of re-deriving its own.
