@@ -1123,6 +1123,88 @@ async def _outcome_checkin_job():
     print(f"[outcome_checkin] @{now.hour:02d}:xx UTC — {stats} (push_configured={push_ok})")
 
 
+async def _wa_alert_job():
+    """[wa-alert-senders 2026-10-03] HOURLY :25. For each linked WhatsApp number
+    with alerts ON: (1) at ~9 AM their time, at most one calm life alert a week
+    (money window / new chapter — never caution alerts, see wa_alerts); (2) an
+    answer we owed them that missed the 24h window → the answer-ready template.
+    Inside 24h it's a normal message; outside, the approved template (no SID yet
+    = nothing sent). Kill switch: WHATSAPP_ALERTS=off."""
+    if (os.getenv("WHATSAPP_ALERTS") or "on").strip().lower() in ("0", "off", "false", "no"):
+        return
+    import asyncio as _aio_wa
+    from datetime import date as _date
+    from antar_engine import messaging as _msg, wa_alerts as _wal, wa_templates as _wt
+    from antar_engine.life_alerts import _maha_rows
+    stats = {"links": 0, "alert_sent": 0, "alert_template": 0, "answer_ready": 0}
+    try:
+        links = await _aio_wa.to_thread(lambda: supabase.table("messaging_links").select("*")
+                                        .eq("channel", "whatsapp").eq("status", "linked")
+                                        .execute().data) or []
+    except Exception as e:
+        print(f"[wa_alerts] links fetch skipped: {e}")
+        return
+    now = datetime.now(timezone.utc)
+    for ln in links:
+        try:
+            ctx = _msg.link_context(ln)
+            if ctx.get("opted_out") or not ln.get("alerts_opt_in") or not ln.get("chart_id"):
+                continue
+            stats["links"] += 1
+            number, cid = ln["channel_user_id"], ln["chart_id"]
+            last_in = float(ctx.get("last_in") or 0)
+            in_window = _msg.wa_window_open(last_in)
+            lang = ctx.get("lang") or (await _aio_wa.to_thread(_wa_saved_lang, cid)) or "en"
+            name_row = await _aio_wa.to_thread(lambda: supabase.table("charts").select("name")
+                                               .eq("id", cid).limit(1).execute().data)
+            first = ((name_row or [{}])[0].get("name") or "").split(" ")[0]
+            changed = False
+
+            # (2) answer-ready: owed answer, window closed, not yet nudged (<= 72h old)
+            pend = ctx.get("pending") or {}
+            if (pend.get("items") and not pend.get("notified") and not in_window
+                    and now.timestamp() - float(pend.get("at") or 0) < 72 * 3600 and pend.get("q")):
+                if await _aio_wa.to_thread(_wt.send, number, "antar_answer_ready_v1", lang,
+                                           {"1": first or "there", "2": pend["q"]}):
+                    pend["notified"] = int(now.timestamp())
+                    ctx["pending"] = pend
+                    stats["answer_ready"] += 1
+                    changed = True
+
+            # (1) one calm life alert, ~9 AM local
+            tz_min = (await _aio_wa.to_thread(_wa_resolve_tz, cid, number, ctx))[0]
+            local = now + timedelta(minutes=int(tz_min or 0))
+            if local.hour == _wal.LOCAL_HOUR:
+                await _sync_life_alerts(cid)
+                rows = await _aio_wa.to_thread(lambda: supabase.table("user_alerts").select("*")
+                                               .eq("chart_id", cid).is_("dismissed_at", "null")
+                                               .in_("alert_type", list(_wal.SENDABLE))
+                                               .execute().data) or []
+                a = _wal.pick(rows, ctx.get("alerts_sent") or [], local.date())
+                if a:
+                    lord = None
+                    if a["alert_type"] == "dasha_turn":
+                        lord = _wal.lord_for(a, _maha_rows(await _aio_wa.to_thread(get_dashas_for_chart, cid)))
+                    r = _wal.render(a, lang, first, lord)
+                    if in_window:
+                        ok = await _aio_wa.to_thread(_msg.whatsapp_send, number, r["text"], last_in)
+                        kind = "alert_sent"
+                    else:
+                        ok = await _aio_wa.to_thread(_wt.send, number, r["template"], lang, r["variables"])
+                        kind = "alert_template"
+                    if ok:
+                        sent = (ctx.get("alerts_sent") or []) + [{"id": str(a["id"]), "at": local.date().isoformat()}]
+                        ctx["alerts_sent"] = sent[-30:]
+                        ctx["last_alert"] = {"q": r["how_q"], "at": int(now.timestamp())}
+                        stats[kind] += 1
+                        changed = True
+            if changed:
+                await _aio_wa.to_thread(_msg.save_link_context, supabase, ln, ctx)
+        except Exception as e:
+            print(f"[wa_alerts] link …{str(ln.get('channel_user_id'))[-4:]} non-fatal: {e}")
+    print(f"[wa_alerts] @{now.hour:02d}:25 UTC — {stats}")
+
+
 def _accuracy_snapshot_save(board: dict) -> bool:
     """Write one board as a dated row (accuracy_board_snapshots). Fail-open until
     the table exists (sql_accuracy_board.sql, Lovable DDL)."""
@@ -1740,6 +1822,7 @@ scheduler.add_job(_ping_checkin_job, "cron", minute=9,
                   id="ping_checkin_daily", replace_existing=True)  # hourly; pings per-chart at local ~8 AM
 scheduler.add_job(_yesno_checkback_job, "cron", minute=13,
                   id="yesno_checkback", replace_existing=True)  # hourly; Yes/No "did it happen?" at local ~8 AM
+scheduler.add_job(_wa_alert_job, "cron", minute=25, id="wa_alerts", replace_existing=True)
 scheduler.add_job(_outcome_checkin_job, "cron", minute=15,
                   id="outcome_checkin", replace_existing=True)  # hourly; dated Ask claims "did it happen?" at local ~8 AM
 scheduler.add_job(_accuracy_board_job, "cron", hour=3, minute=40,
@@ -5664,7 +5747,8 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                     c.pop("in_flight_at", None)
                 if undelivered:
                     prev = (c.get("pending") or {}).get("items") or []
-                    c["pending"] = {"items": (prev + undelivered)[-4:], "at": int(_time.time())}
+                    c["pending"] = {"items": (prev + undelivered)[-4:], "at": int(_time.time()),
+                                    "q": str(locals().get("question") or body or "")[:120]}
                     c["rest_blocked_at"] = int(_time.time())
                     print(f"[whatsapp] kept {len(undelivered)} undelivered for next message …{number[-4:]}")
                 elif rest_seen["ok"]:
