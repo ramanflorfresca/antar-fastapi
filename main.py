@@ -29344,6 +29344,14 @@ async def ask_endpoint(request: AskRequest):
                     if _pbd.get("answered_by") == "kp" and _pkp.get("lean"):
                         payload["lean"] = _pkp["lean"]
                         payload["method"] = _pkp.get("method")
+                        try:   # [kp-conditions] the replay names its condition too
+                            from antar_engine.kp.kp_conditions import explain as _kp_explain
+                            _kx = _kp_explain(_pkp, language, prev.get("question") or question)
+                            if _kx.get("condition"):
+                                payload["condition"] = _kx["condition"]
+                                payload["condition_label"] = _kx["label"]
+                        except Exception:
+                            pass
                 except Exception:
                     pass
                 # [ask-narration 2026-06-08 strip-why] re-scrub on replay:
@@ -29564,7 +29572,7 @@ async def ask_endpoint(request: AskRequest):
                 # [yesno-kp] the KP bundle is the single authority for the why.
                 from antar_engine.kp.kp_prashna import narrator_block as _kp_nb
                 _yn_internal = _kp_nb({**_yn_kp, "window": (
-                    {"label": timing} if timing else None)})
+                    {"label": timing} if timing else None)}, question)
             elif _yn_has_window:
                 _yn_internal = f"Internal reasoning: {(engine_result.get('claude_prompt') or '')[:1200]}"
             else:
@@ -29746,6 +29754,14 @@ async def ask_endpoint(request: AskRequest):
             }
             # [yesno-kp] additive fields — FE renders lean when present, else binary.
             if _yn_kp_primary:
+                try:   # [kp-conditions] what the answer hinges on, in plain words
+                    from antar_engine.kp.kp_conditions import explain as _kp_explain
+                    _kx = _kp_explain(_yn_kp, language, question)
+                    if _kx.get("condition"):
+                        payload["condition"] = _kx["condition"]
+                        payload["condition_label"] = _kx["label"]
+                except Exception as _kxe:
+                    print(f"[ask] kp condition skipped: {_kxe}")
                 payload["lean"] = _yn_kp.get("lean")
                 payload["method"] = _yn_kp.get("method")
                 payload["horary_number"] = _yn_kp.get("number")
