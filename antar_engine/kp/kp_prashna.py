@@ -378,7 +378,7 @@ _LEAN_PLAIN = {
 }
 
 
-def narrator_block(kp):
+def narrator_block(kp, question: str = ""):
     """Reconciled internal reasoning for the why/actions LLM call. Jargon-free:
     no planets, houses, signs, sub-lords — the narrator must not echo any."""
     lean = kp.get("lean")
@@ -401,6 +401,17 @@ def narrator_block(kp):
     if lean in ("no", "not_now", "conditional"):
         parts.append("Never say a flat 'no' and stop: name what would change the "
                      "outcome, and what to do meanwhile.")
+    # [kp-conditions] the SPECIFIC condition — the why must name it, never a
+    # generic "one hurdle" / "one piece falls into place"
+    try:
+        from .kp_conditions import explain
+        ex = explain(kp, "en", question or kp.get("question") or "")
+        if ex.get("condition"):
+            parts.append("SPECIFIC CONDITION (authoritative — the why MUST name this in "
+                         "plain words, never a vague 'one hurdle' or 'one piece'): "
+                         + ex["condition"])
+    except Exception:
+        pass
     return " ".join(parts)
 
 

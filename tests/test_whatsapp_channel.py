@@ -753,7 +753,7 @@ def test_yesno_asks_for_the_kp_number_then_answers(m, monkeypatch):
     assert req.question == "Will I raise funding by March?"
     out = cv.sent[-1]
     assert out.startswith("*→ Will I raise funding by March?*\n_Prashna · #74_")
-    assert "*Possible — once one piece falls into place.*" in out
+    assert "*Possible — on one condition.*" in out
     assert "check back after Jan 31" in out and "kp_pending" not in link["context"]
 
 
@@ -945,3 +945,15 @@ def test_unlock_label_always_names_the_day(m):
     assert m._wa_when_label(datetime(2026, 10, 2, 23, 0), now, "en") == "11:00 PM"
     assert m._wa_when_label(datetime(2026, 10, 5, 9, 0), now, "en") == "Mon Oct 5, 9:00 AM"
     assert m._wa_when_label(datetime(2026, 10, 3, 21, 25), now, "pt") == "das 21:25 de amanhã"
+
+
+
+def test_yesno_shows_the_specific_condition():
+    p = {"mode": "yesno", "lean": "conditional", "why": "Funding can come, through the right route.",
+         "timing": "Oct 3, 2026 – Jan 23, 2027", "verify_after": "2027-01-23",
+         "condition": "It can come through people who already know your work, but only if you "
+                      "steer clear of money with heavy strings attached.",
+         "condition_label": "What it hinges on"}
+    out, _ = msg.format_ask_whatsapp_v2(p, "en", compact=True)
+    assert out.startswith("*Possible — on one condition.*")
+    assert "*What it hinges on:* It can come through people who already know your work" in out

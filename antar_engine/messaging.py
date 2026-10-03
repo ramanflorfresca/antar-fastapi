@@ -666,13 +666,13 @@ def is_yesno_question(text: str) -> bool:
 
 _LEAN_HEAD = {
     "en": {"yes": "Leaning yes.", "not_now": "Not right now — the timing isn't there yet.",
-           "conditional": "Possible — once one piece falls into place.", "no": "Leaning no."},
+           "conditional": "Possible — on one condition.", "no": "Leaning no."},
     "es": {"yes": "Inclina a que sí.", "not_now": "Ahora no — el momento aún no llega.",
-           "conditional": "Posible — cuando encaje una pieza.", "no": "Inclina a que no."},
+           "conditional": "Posible — con una condición.", "no": "Inclina a que no."},
     "pt": {"yes": "Tende a sim.", "not_now": "Agora não — o momento ainda não chegou.",
-           "conditional": "Possível — quando uma peça se encaixar.", "no": "Tende a não."},
+           "conditional": "Possível — com uma condição.", "no": "Tende a não."},
     "hinglish": {"yes": "Haan ki taraf jhukav hai.", "not_now": "Abhi nahi — sahi waqt abhi nahi aaya.",
-                 "conditional": "Ho sakta hai — jab ek cheez apni jagah aa jaye.",
+                 "conditional": "Ho sakta hai — ek shart par.",
                  "no": "Na ki taraf jhukav hai."},
 }
 _CHECKBACK = {"en": "_I'll check back after {d} to ask if it happened._",
@@ -690,6 +690,9 @@ def _yesno_as_read(p: dict, language: str) -> dict:
         head = _LEAN_HEAD[lang]["yes" if v == "YES" else "no" if v == "NO" else "conditional"]
     q = dict(p)
     q["read"] = (head + " " + (p.get("why") or "")).strip()
+    # [kp-conditions] the specific condition rides as the move line
+    if p.get("condition") and not p.get("next"):
+        q["next"] = f"*{p.get('condition_label') or 'What it hinges on'}:* {p['condition']}"
     return q
 
 
