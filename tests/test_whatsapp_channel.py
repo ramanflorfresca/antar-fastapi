@@ -482,7 +482,9 @@ def test_fast_answer_returns_inline_twiml(m, monkeypatch):
 def test_slow_answer_reading_inline_then_rest(m, monkeypatch):
     monkeypatch.setattr(m, "_WA_INLINE_DEADLINE_S", 2.0)
     from fastapi.testclient import TestClient
-    cv = _Conv(m, monkeypatch, link=_link(), delay=2.5)
+    link = _link()
+    link["context"] = {"rest_ok_at": int(time.time())}       # REST known to work here
+    cv = _Conv(m, monkeypatch, link=link, delay=2.5)
     raw, sig = _signed({"MessageSid": "SMs1", "From": "whatsapp:+919812345678",
                         "Body": "When will I change jobs?", "NumMedia": "0"})
     with TestClient(m.app) as c:       # keep the loop alive, as uvicorn does
@@ -535,6 +537,17 @@ def test_reading_message_asks_for_ok_while_rest_blocked(m, monkeypatch):
     link["context"] = {"rest_blocked_at": int(time.time())}
     cv = _Conv(m, monkeypatch, link=link, delay=2.5)
     r = _post(m, {"MessageSid": "SMp1", "From": "whatsapp:+919812345678",
+                  "Body": "When will I change jobs?", "NumMedia": "0"})
+    assert "Reply *ok* in about 20 seconds" in r.text
+
+
+def test_slow_answer_asks_for_ok_even_without_a_recent_block(m, monkeypatch):
+    # live 2026-10-03 (Andres): last block >24h ago → no note → he waited for nothing
+    monkeypatch.setattr(m, "_WA_INLINE_DEADLINE_S", 2.0)
+    link = _link()
+    link["context"] = {}
+    cv = _Conv(m, monkeypatch, link=link, delay=2.5)
+    r = _post(m, {"MessageSid": "SMp2", "From": "whatsapp:+919812345678",
                   "Body": "When will I change jobs?", "NumMedia": "0"})
     assert "Reply *ok* in about 20 seconds" in r.text
 
