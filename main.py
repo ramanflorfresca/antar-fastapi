@@ -28027,6 +28027,18 @@ async def ask_endpoint(request: AskRequest):
                     _ask_life_block = ((_ask_life_block or "") + _und.guardrails_block()).strip()
                 except Exception:
                     pass
+                # [parent-work 2026-10-03] working with / relating to a parent
+                try:
+                    from antar_engine import parent_work as _pw
+                    _pw_rel = _pw.who(question, _ask_u)
+                    if _pw_rel:
+                        _pwb = _pw.block(chart_row.data.get("chart_data"),
+                                         chart_row.data.get("birth_date") or "", _pw_rel)
+                        if _pwb:
+                            _ask_life_block = ((_ask_life_block or "") + _pwb).strip()
+                            print(f"[ask][parent-work] {_pw_rel} block added for {chart_id[:8]}")
+                except Exception as _pwe:
+                    print(f"[ask][parent-work] skipped (non-fatal): {_pwe}")
                 if _ask_u:
                     _sb = _und.stated_block(_ask_u) + _und.tone_block(_ask_u) + _und.outcome_block(_ask_u)
                     if _sb:
