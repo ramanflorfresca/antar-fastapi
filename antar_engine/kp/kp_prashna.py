@@ -77,7 +77,7 @@ _QT_RULES = [
       "embaraz", "bebé", "bebe", "hijo", "gravidez", "grávida", "gravida",
       "filho", "bachcha", "bacha", "santan"), "childbirth", None),
     (("visa", "abroad", "overseas", "foreign", "green card", "h1b", "h-1b",
-      "immigra", "emigra", "relocat", "move to", "settle in", "citizenship",
+      "immigra", "emigra", "citizenship", "move abroad", "move overseas",
       "extranjero", "exterior", "videsh", "bahar ja"), "foreign_travel", None),
     (("exam", "admission", "admit", "university", "college", "degree",
       "pass the", "scholarship", "test result", "examen", "universidad",
@@ -89,6 +89,12 @@ _QT_RULES = [
     (("job", "offer letter", "the offer", "hired", "hire me", "interview",
       "employ", "position", "the role", "trabajo", "empleo", "puesto",
       "emprego", "vaga", "naukri", "naukari"), "job_new", None),
+    # [kp-residence] change of residence — after job (a "move to a new job" is
+    # a job question), before property ("move to a new house" is a move)
+    (("move", "moving", "relocat", "shift house", "shift home", "shift to",
+      "shifting", "change my residence", "change residence", "new place to live",
+      "settle in", "mudar", "mudanza", "mudarme", "trasladar", "mudança",
+      "mudanca", "ghar badal", "ghar badl", "naya ghar", "shift ho"), "residence", None),
     (("house", "home", "property", "apartment", "flat", "plot of land",
       "casa", "propiedad", "piso", "imóvel", "imovel", "apartamento",
       "ghar", "makaan", "zameen", "car", "vehicle", "coche", "carro",
@@ -332,15 +338,27 @@ def kp_prashna(chart_record, question, number=None, now_utc=None):
 
         window = None
         if win.get("ruler_ok") and win.get("start"):
-            window = {"start": win["start"], "end": win.get("end"),
-                      "label": window_label(win["start"], win.get("end")),
-                      "ruler_ok": True}
+            w_end = win.get("end")
+            clipped = False
+            # [kp-horizon] asked "in the next 30 days" → never show a window that
+            # runs months past it; cut it at the horizon the person asked about
+            if horizon and w_end:
+                try:
+                    h_end = (now_utc.date() + timedelta(days=horizon)).isoformat()
+                    if win["start"][:10] <= h_end < w_end[:10]:
+                        w_end, clipped = h_end, True
+                except Exception:
+                    pass
+            window = {"start": win["start"], "end": w_end,
+                      "label": window_label(win["start"], w_end),
+                      "ruler_ok": True, "clipped_to_horizon": clipped}
 
         return {
             "available": True,
             "lean": lean,
             "verdict": "YES" if lean == "yes" else "NO",
             "question_type": qt,
+            "question": (question or "")[:300],
             "generic": generic,
             "method": chart["method"],
             "number": number,

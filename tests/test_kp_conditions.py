@@ -55,3 +55,47 @@ def test_clients_question_gets_sales_meanings_not_loans():
     assert "referrals from people who know your work" in c and "loan" not in c
     f = explain(kp, "en", "Will I raise funding by March?")["condition"]
     assert "a loan or credit" in f
+
+
+# ─── change of residence (live: "will i move in next 30 days" read as money) ───
+
+def test_move_questions_classify_as_residence():
+    from antar_engine.kp.kp_prashna import classify_question as c
+    for q in ("will i move in next 30 days", "Will I move to a new house this year?",
+              "Will I relocate to Canada?", "¿Me voy a mudar este año?", "Kya main ghar badlunga?",
+              "Will I shift to Pune?"):
+        assert c(q)[0] == "residence", q
+    assert c("Will I move abroad?")[0] == "foreign_travel"
+    assert c("Will I move to a new job?")[0] == "job_new"
+    assert c("Will I sell my house?")[0] == "property"
+
+
+def test_residence_spec_and_condition():
+    from antar_engine.kp.kp_significators import QUESTION_TYPES
+    spec = QUESTION_TYPES["residence"]
+    assert spec["primary_cusp"] == 3 and spec["favour"] == [3, 10, 12] and spec["against"] == [4]
+    c = explain(_kp("yes", "residence", [3, 10], []), "en", "will i move in next 30 days")["condition"]
+    assert c == "It's carried by actually leaving where you are now and a new base tied to your work."
+    assert "income" not in c
+    blk = explain(_kp("conditional", "residence", [12], [4]), "en", "will I move?")["condition"]
+    assert "the pull to stay (lease, family or home ties)" in blk
+
+
+def test_window_is_clipped_to_the_asked_horizon():
+    from datetime import datetime, timezone
+    import antar_engine.kp.kp_prashna as kpp
+    orig = kpp.window_label
+    seen = {}
+
+    def fake_window(chart, qt, rp, horizon_days, loss_house=None):
+        return {"start": "2026-10-03", "end": "2027-01-20", "ruler_ok": True}
+    import antar_engine.kp.kp_horary as kh
+    real = kh.timed_window
+    kh.timed_window = fake_window
+    try:
+        r = kpp.kp_prashna({}, "will i move in next 30 days", number=26,
+                           now_utc=datetime(2026, 10, 3, 3, 0, tzinfo=timezone.utc))
+    finally:
+        kh.timed_window = real
+    assert r["window"]["end"] == "2026-11-02" and r["window"]["clipped_to_horizon"] is True
+    assert r["window"]["label"] == "Oct 3 – Nov 2, 2026"

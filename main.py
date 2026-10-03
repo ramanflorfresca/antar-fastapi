@@ -22535,8 +22535,23 @@ def _prashna_lock_row(sb, chart_id, question):
             .select("created_at, question, verdict, timing, explanation, breakdown")
             .eq("chart_id", chart_id).gte("created_at", since)
             .order("created_at", desc=True).limit(50).execute()).data or []
+    try:
+        from antar_engine.kp.kp_prashna import classify_question as _pcq
+        _qt_now = _pcq(question)[0]
+    except Exception:
+        _qt_now = None
     for r in rows:
         if _prashna_same_question(r.get("question"), question):
+            # [kp-residence] a cast stored under a DIFFERENT question type was read
+            # as the wrong matter (e.g. a move scored as money before residence
+            # existed) — cast fresh rather than replay a wrong answer
+            try:
+                _bd = _safe_jsonb(r.get("breakdown")) or {}
+                _qt_then = ((_bd.get("kp_prashna") or {}).get("question_type"))
+                if _qt_now and _qt_then and _qt_then != _qt_now:
+                    continue
+            except Exception:
+                pass
             return r
     return None
 
