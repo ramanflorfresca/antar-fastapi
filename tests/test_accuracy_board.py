@@ -86,12 +86,16 @@ def test_holdout_halves_are_deterministic_and_wilson_sane():
     assert 0.78 < lo < 0.9 < hi <= 1.0 and ab.wilson(0, 0) == (None, None)
 
 
-def test_endpoint_is_admin_gated_and_page_is_served():
+def test_endpoint_is_admin_gated_and_job_saves_a_snapshot(monkeypatch):
+    import asyncio
     from dotenv import load_dotenv
     load_dotenv()
     import main
     from fastapi.testclient import TestClient
-    c = TestClient(main.app)
-    assert c.get("/api/v1/admin/accuracy-board").status_code == 401
-    page = c.get("/admin/accuracy")
-    assert page.status_code == 200 and "Accuracy board" in page.text
+    assert TestClient(main.app).get("/api/v1/admin/accuracy-board").status_code == 401
+    assert TestClient(main.app).get("/admin/accuracy").status_code == 404     # no UI (owner)
+    saved = []
+    monkeypatch.setattr(ab, "load", lambda sb: ([_claim(1)], []))
+    monkeypatch.setattr(main, "_accuracy_snapshot_save", lambda board: saved.append(board) or True)
+    asyncio.run(main._accuracy_board_job())
+    assert saved and saved[0]["health"]["claims"] == 1 and saved[0]["computed_at"]
