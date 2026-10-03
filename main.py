@@ -34455,12 +34455,17 @@ async def daily_wisdom_chat(request: dict = None, language: str = "en"):
         print(f"[wisdom-chat] llm error: {e}")
         raise HTTPException(status_code=503, detail="wisdom_unavailable")
     _reply = (reply or "").strip()
-    # [wisdom-cta 2026-10-02] Flag replies that talk about mantras so the FE can
-    # show the "See my mantras →" Practice deep-link off a backend signal instead
-    # of guessing by the chip's position in the list (which breaks if the list is
-    # reordered AND misses free-typed mantra questions). "mantra" is the same token
-    # in EN/ES/PT, so one case-insensitive check covers all three languages.
-    _mentions_mantra = "mantra" in _reply.lower()
+    # [wisdom-cta 2026-10-02] Tell the FE when to show the "See my mantras →"
+    # Practice deep-link, off a backend signal instead of the chip's position in
+    # the list (brittle on reorder, blind to free-typed questions). Keyed on the
+    # USER'S intent, not the reply: the guide mentions mantras in passing often, so
+    # scanning the reply fires almost always — the question "am I asking about a
+    # mantra?" is the stable signal. Multilingual tokens (EN/ES/PT/Hinglish); the
+    # localized chip always contains "mantra", typed synonyms are covered too.
+    _msg_l = msg.lower()
+    _MANTRA_TOKENS = ("mantra", "chant", "japa", "jaap", "jap ",
+                      "canto", "cantar", "rezo", "oração", "oracao")
+    _mentions_mantra = any(tok in _msg_l for tok in _MANTRA_TOKENS)
     return {"available": True, "reply": _reply, "language": lang,
             "mentions_mantra": _mentions_mantra}
 
