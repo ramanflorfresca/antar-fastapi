@@ -4834,6 +4834,28 @@ def _wa_lang(text: str, fallback: str = "en") -> str:
     return fallback if fallback in ("en", "es", "pt", "hinglish") else "en"
 
 
+def _wa_saved_lang(chart_id: Optional[str]) -> Optional[str]:
+    """The language saved on the chart (app setting) as en/es/pt/hinglish, or None.
+    [whatsapp-lang 2026-10-03] owner: WhatsApp follows the saved language unless
+    the message itself is clearly in another one."""
+    if not chart_id:
+        return None
+    try:
+        r = (supabase.table("charts").select("language_preference,language")
+             .eq("id", chart_id).limit(1).execute()).data or []
+    except Exception:
+        return None
+    if not r:
+        return None
+    v = str(r[0].get("language_preference") or r[0].get("language") or "").strip().lower()
+    if not v:
+        return None
+    if v.startswith("hinglish") or v.startswith("hi"):
+        return "hinglish"
+    v = v.replace("_", "-").split("-")[0]
+    return v if v in ("en", "es", "pt") else None
+
+
 def _wa_tz(number: str) -> int:
     for pre, mins in _WA_TZ_BY_PREFIX:
         if number.startswith(pre):
@@ -5049,7 +5071,11 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
     sb = supabase
     link = await asyncio.to_thread(_msg.get_whatsapp_link, sb, number)
     ctx = _msg.link_context(link)
-    lang = _wa_lang(body, ctx.get("lang") or "en") if body else (ctx.get("lang") or "en")
+    # [whatsapp-lang] a message clearly in a language → that language; otherwise the
+    # chart's saved language; otherwise the last language used here.
+    _saved = await asyncio.to_thread(_wa_saved_lang, (link or {}).get("chart_id")) if link else None
+    _fb = _saved or ctx.get("lang") or "en"
+    lang = _wa_lang(body, _fb) if body else _fb
     sink = sink or _WaSink(number, inbound_ts, inline=False)
     undelivered: list = []          # [whatsapp-pending] REST sends that failed
     owns_flight = False             # only the handler that started the Ask clears in_flight
@@ -5623,7 +5649,7 @@ def messaging_whatsapp_connect(req: _WaConnect, authorization: str = Header(...)
     # The token is ≤15 min old and was issued in reply to the user's message,
     # so we are still inside the 24h window.
     link = _msg.get_whatsapp_link(supabase, number) or {"chart_id": chart_id, "user_id": user_id}
-    lang = (_msg.link_context(link).get("lang")) or "en"
+    lang = _wa_saved_lang(chart_id) or (_msg.link_context(link).get("lang")) or "en"
     text, starters = _wa_welcome(link, lang)
     _msg.whatsapp_send(number, text, _time.time() - 15 * 60)
     _msg.save_link_context(supabase, link, _msg.remember_options({"lang": lang}, "ask", starters))
