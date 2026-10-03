@@ -884,6 +884,53 @@ def _pick(candidates: list, seed_str: str) -> dict:
     return candidates[h % len(candidates)]
 
 
+# One well-known mantra per season, matched to its tone. Sanskrit + IAST are
+# language-invariant (the mantra itself); only the "how/when to use" line is
+# localized. These are standard, public-domain mantras — not LLM-generated.
+MANTRAS = {
+    "consolidating": {
+        "name": "Om Namah Shivaya",
+        "sanskrit": "ॐ नमः शिवाय",
+        "transliteration": "oṃ namaḥ śivāya",
+        "use": {
+            "en": "Repeat slowly, 11 or 108 times, to loosen the grip of worry and settle into steady effort.",
+            "es": "Repite despacio, 11 o 108 veces, para aflojar la tensión de la preocupación y asentarte en el esfuerzo constante.",
+            "pt": "Repita devagar, 11 ou 108 vezes, para afrouxar o aperto da preocupação e assentar-se no esforço constante.",
+        },
+    },
+    "expansive": {
+        "name": "Om Gam Ganapataye Namaha",
+        "sanskrit": "ॐ गं गणपतये नमः",
+        "transliteration": "oṃ gaṃ gaṇapataye namaḥ",
+        "use": {
+            "en": "Chant 11 or 108 times before you begin something — it clears the way and steadies your push forward.",
+            "es": "Canta 11 o 108 veces antes de empezar algo — despeja el camino y afirma tu impulso hacia adelante.",
+            "pt": "Cante 11 ou 108 vezes antes de começar algo — abre o caminho e firma o seu avanço.",
+        },
+    },
+    "steady": {
+        "name": "Gayatri Mantra",
+        "sanskrit": "ॐ भूर्भुवः स्वः। तत्सवितुर्वरेण्यं भर्गो देवस्य धीमहि धियो यो नः प्रचोदयात्॥",
+        "transliteration": "oṃ bhūr bhuvaḥ svaḥ tat savitur vareṇyaṃ bhargo devasya dhīmahi dhiyo yo naḥ pracodayāt",
+        "use": {
+            "en": "Chant at dawn or before focused work, 3 or 11 times, to clear and sharpen the mind.",
+            "es": "Canta al amanecer o antes de un trabajo de concentración, 3 u 11 veces, para aclarar y agudizar la mente.",
+            "pt": "Cante ao amanhecer ou antes de um trabalho de concentração, 3 ou 11 vezes, para clarear e aguçar a mente.",
+        },
+    },
+}
+
+
+def _mantra_for(season: str, lang: str) -> dict:
+    m = MANTRAS.get(season) or MANTRAS["steady"]
+    return {
+        "name": m["name"],
+        "sanskrit": m["sanskrit"],
+        "transliteration": m["transliteration"],
+        "use": m["use"].get(lang) or m["use"]["en"],
+    }
+
+
 def build_daily_wisdom(chart_data: dict, dashas: dict, chart_id: str = "",
                        language: str = "en", today: Optional[str] = None) -> dict:
     """The verse of the day, matched to the reader's season, + conversational
@@ -922,6 +969,7 @@ def build_daily_wisdom(chart_data: dict, dashas: dict, chart_id: str = "",
                 "translation": tr,
             },
             "why_now": WHY_NOW.get(season, WHY_NOW["steady"])[lang],
+            "mantra": _mantra_for(season, lang),
             "suggested_questions": suggested,
             "ask_context": ask_context,
             "language": lang,
@@ -937,6 +985,7 @@ def build_daily_wisdom(chart_data: dict, dashas: dict, chart_id: str = "",
                       "sanskrit": v["sanskrit"], "transliteration": v["translit"],
                       "translation": v["translation"]},
             "why_now": WHY_NOW["steady"]["en"],
+            "mantra": _mantra_for("steady", "en"),
             "suggested_questions": [s["en"] for s in SUGGESTED],
             "ask_context": "", "language": "en", "corpus_size": len(VERSES),
         }
