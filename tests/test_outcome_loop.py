@@ -46,7 +46,7 @@ def test_yesno_claim():
 
 
 def test_checkin_text_and_sensitive_topics():
-    c = {"language": "en", "topic": "business", "claim_type": "window",
+    c = {"language": "en", "topic": "business", "claim_type": "window", "source": "ask_explore",
          "text_shown": "The strong business window is Nov 2026 – Jan 2027."}
     t = oc.checkin_text(c)
     assert "We said:" in t and "Did things move for your business in that time?" in t
@@ -89,3 +89,11 @@ def test_answer_endpoint_rejects_bad_outcome(m, monkeypatch):
     r = TestClient(m.app).post("/api/v1/outcomes/k1", json={"outcome": "maybe"},
                                headers={"Authorization": "Bearer x"})
     assert r.status_code == 400
+
+
+def test_life_arc_text_is_never_quoted():
+    t = oc.checkin_text({"language": "en", "topic": "current_chapter", "claim_type": "window",
+                         "source": "life_arc",
+                         "text_shown": "You are in a clarifying pressure — Saturn is asking what is true."})
+    assert "Saturn" not in t and t == "Did it happen?"
+    assert "life_arc" not in oc.CHECKABLE_SOURCES
