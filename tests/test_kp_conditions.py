@@ -106,9 +106,10 @@ def test_window_is_clipped_to_the_asked_horizon():
 def test_unrecognised_question_is_never_worded_as_money():
     kp = dict(_kp("conditional", "gain", [2, 6, 11], [8, 12]), generic=True)
     c = explain(kp, "en", "will my sister visit?")["condition"]
-    for w in ("income", "savings", "loan", "credit", "money", "side income"):
+    for w in ("income", "savings", "loan", "credit", "side income"):
         assert w not in c.lower(), w
-    assert "people who already know you" in c
+    # 2026-10-03: no invented specifics at all — an honest "general" note instead
+    assert "doesn't name one area of life" in c and "people who already know you" not in c
 
 
 def test_narrator_told_not_to_assume_money_for_unrecognised():
@@ -196,3 +197,33 @@ def test_app_why_becomes_the_condition():
     q = {"mode": "yesno", "why": "Binary why stays."}
     main._yn_why_is_condition(q)
     assert q["why"] == "Binary why stays."
+
+
+# ── live 2026-10-03, #2: "Will my partnership break" read as generic gain ──
+@pytest.mark.parametrize("q", ["Will my partnership break", "Will my business partner leave the company?",
+                               "will we end the partnership this year", "Will my co-founder quit?",
+                               "¿Se va a romper mi sociedad?", "Meu sócio vai sair da empresa?"])
+def test_partnership_ending_is_a_separation(q):
+    from antar_engine.kp.kp_prashna import classify_question
+    assert classify_question(q)[:2] == ("loss", 7)
+
+
+def test_partnership_growth_is_not_a_separation():
+    from antar_engine.kp.kp_prashna import classify_question
+    assert classify_question("Will my partnership make money?")[0] != "loss"
+
+
+def test_separation_wording_reads_as_a_split():
+    k = {"lean": "conditional", "question_type": "loss", "debug": {"favour_hit": [6], "against_hit": [7], "gate_ok": True}}
+    c = explain(k, "en", "Will my partnership break")["condition"]
+    assert c == ("It can split over disputes about work, money or terms, unless your partner's "
+                 "own wish to keep it going holds it together.")
+    assert "hard, steady work" not in c
+
+
+def test_generic_question_gets_an_honest_note_not_fake_specifics():
+    k = {"lean": "conditional", "question_type": "gain", "generic": True,
+         "debug": {"favour_hit": [6, 11], "against_hit": [8, 12], "gate_ok": True}}
+    x = explain(k, "en", "Will it happen?")
+    assert x["label"] == "Note" and "doesn't name one area of life" in x["condition"]
+    assert "hard, steady work" not in x["condition"] and "people who already know" not in x["condition"]

@@ -1088,3 +1088,15 @@ def test_asking_yesno_on_betting_says_why(m, monkeypatch):
     cv.run("yes or no: will I win at the casino tonight?")
     assert cv.asked[-1].mode == "explore" and "1 to 249" not in " ".join(cv.sent)
     assert "aren't given for betting or speculation" in cv.sent[-1]
+
+
+def test_unplaceable_question_gets_no_yesno_choice(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link())
+    cv.run("Will it happen?")
+    assert cv.asked and cv.asked[-1].mode == "explore" and "1  *Yes or no*" not in " ".join(cv.sent)
+
+
+def test_forcing_yesno_on_an_unplaceable_question_says_why(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link())
+    cv.run("yes or no: will it happen?")
+    assert cv.asked[-1].mode == "explore" and "needs a clear area of life" in cv.sent[-1]

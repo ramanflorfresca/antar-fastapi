@@ -20,7 +20,7 @@ from typing import Optional
 _FAMILY = {
     "gain": "money", "money": "money", "deal_closes": "money", "speculation": "money",
     "job_new": "work", "promotion": "work",
-    "marriage": "union", "reunion": "union", "romance": "union",
+    "marriage": "union", "reunion": "union", "romance": "union", "loss": "separation",
     "property": "property", "residence": "residence", "litigation_win": "legal", "recovery": "health",
     "foreign_travel": "travel", "education": "study", "childbirth": "child",
     "lost_found": "lost",
@@ -53,6 +53,10 @@ _HOUSE = {
                  8: "office politics or a stalled process", 9: "a far-off option pulling you away",
                  10: "the people who decide on the role", 11: "a referral from your network",
                  12: "a move that costs more than it pays"},
+        "separation": {1: "one of you choosing your own path", 2: "money you have tied up together",
+                       6: "disputes about work, money or terms", 7: "your partner's own wish to keep it going",
+                       8: "a sudden rupture or something hidden coming out", 11: "shared goals that still pay off",
+                       12: "a quiet exit or the cost of staying"},
         "union": {1: "insisting on your own terms", 2: "family acceptance",
                   3: "you making the first move", 5: "real chemistry",
                   6: "old friction", 7: "the other person's own willingness",
@@ -93,6 +97,10 @@ _HOUSE = {
                     11: "los contactos que aportan tus socios", 12: "costos que se acumulan antes de que pague"},
         "work": {6: "hacer bien el trabajo en sí", 10: "quienes deciden sobre el puesto",
                  11: "una recomendación de tu red"},
+        "separation": {1: "que uno de los dos elija su propio camino", 2: "el dinero que tienen atado juntos",
+                       6: "disputas por trabajo, dinero o condiciones", 7: "el deseo de tu socio o pareja de seguir",
+                       8: "una ruptura repentina o algo oculto que sale a la luz", 11: "metas compartidas que aún rinden",
+                       12: "una salida silenciosa o el costo de quedarse"},
         "union": {3: "dar tú el primer paso", 5: "química de verdad", 6: "viejas fricciones", 7: "la propia disposición de la otra persona",
                   11: "amigos y familia que ayudan"},
     },
@@ -119,6 +127,10 @@ _HOUSE = {
                     11: "os contatos que seus sócios trazem", 12: "custos que se acumulam antes de pagar"},
         "work": {6: "fazer bem o trabalho em si", 10: "quem decide sobre a vaga",
                  11: "uma indicação da sua rede"},
+        "separation": {1: "um de vocês escolher o próprio caminho", 2: "o dinheiro que vocês têm amarrado juntos",
+                       6: "disputas por trabalho, dinheiro ou condições", 7: "a vontade do seu sócio ou parceiro de continuar",
+                       8: "uma ruptura repentina ou algo oculto vindo à tona", 11: "metas em comum que ainda rendem",
+                       12: "uma saída silenciosa ou o custo de ficar"},
         "union": {3: "você dar o primeiro passo", 5: "química de verdade", 6: "velhos atritos", 7: "a própria vontade da outra pessoa",
                   11: "amigos e família ajudando"},
     },
@@ -135,7 +147,12 @@ _TEMPLATES = {
            "gate_blk": " Watch out for {blk}.",
            "no": "No supporting route shows up for this right now.",
            "no_blk": " What stands in the way: {blk}.",
-           "label": "What it hinges on"},
+           "label": "What it hinges on",
+           "sep_yes": "What drives the split: {sup}.", "sep_yes_hold": " What could still hold it together: {blk}.",
+           "sep_cond": "It can split over {sup}, unless {blk} holds it together.",
+           "sep_no": "Nothing in this reading pushes it to break right now.", "sep_no_hold": " What holds it together: {blk}.",
+           "generic": "This reading is general — the question doesn't name one area of life, so there's no specific condition to give. Ask it again naming the area (work, money, a relationship, a move) for a sharper read.",
+           "generic_label": "Note"},
     "es": {"and": " y ",
            "yes": "Lo sostiene {sup}.", "yes_drag": " Vigila {blk}.",
            "cond": "Puede llegar a través de {sup}, pero solo si evitas {blk}.",
@@ -146,7 +163,12 @@ _TEMPLATES = {
            "gate_blk": " Cuidado con {blk}.",
            "no": "Ahora mismo no aparece una vía que lo respalde.",
            "no_blk": " Lo que se interpone: {blk}.",
-           "label": "De qué depende"},
+           "label": "De qué depende",
+           "sep_yes": "Lo que empuja la separación: {sup}.", "sep_yes_hold": " Lo que aún podría sostenerlo: {blk}.",
+           "sep_cond": "Puede romperse por {sup}, a menos que {blk} lo sostenga.",
+           "sep_no": "Nada en esta lectura lo empuja a romperse ahora.", "sep_no_hold": " Lo que lo sostiene: {blk}.",
+           "generic": "Esta lectura es general: la pregunta no nombra un área de la vida, así que no hay una condición concreta que dar. Vuelve a preguntarlo nombrando el área (trabajo, dinero, una relación, una mudanza) para una lectura más precisa.",
+           "generic_label": "Nota"},
     "pt": {"and": " e ",
            "yes": "Quem sustenta isso é {sup}.", "yes_drag": " Fique de olho em {blk}.",
            "cond": "Pode vir através de {sup}, mas só se você evitar {blk}.",
@@ -157,7 +179,12 @@ _TEMPLATES = {
            "gate_blk": " Cuidado com {blk}.",
            "no": "Agora não aparece um caminho que sustente isso.",
            "no_blk": " O que está no caminho: {blk}.",
-           "label": "Do que depende"},
+           "label": "Do que depende",
+           "sep_yes": "O que empurra a separação: {sup}.", "sep_yes_hold": " O que ainda pode segurar: {blk}.",
+           "sep_cond": "Pode romper por {sup}, a menos que {blk} segure.",
+           "sep_no": "Nada nesta leitura empurra para romper agora.", "sep_no_hold": " O que segura: {blk}.",
+           "generic": "Esta leitura é geral: a pergunta não nomeia uma área da vida, então não há uma condição específica para dar. Pergunte de novo nomeando a área (trabalho, dinheiro, um relacionamento, uma mudança) para uma leitura mais precisa.",
+           "generic_label": "Nota"},
 }
 
 
@@ -220,12 +247,13 @@ def explain(kp: dict, language: str = "en", question: str = "") -> dict:
     lang = _lang(language)
     family = _FAMILY.get(qt, "generic")
     if kp.get("generic"):
-        # [kp-neutral-fallback] the classifier didn't recognise the matter and KP
-        # fell back to its generic "will it happen" (scored on the 11th like
-        # money). Never word it as money — live, a move question got "your
-        # existing income, extra work or a side income".
-        family = "generic"
-    elif family == "money" and qt != "speculation":
+        # [kp-honest-generic 2026-10-03] owner: "can't have same answers or reasoning
+        # for every question". An unrecognised matter has no area-specific houses to
+        # name — say so, never dress generic house meanings up as a specific condition.
+        T = _TEMPLATES[lang]
+        return {"supports": [], "blocks": [], "close_ok": dbg.get("gate_ok", True) is not False,
+                "condition": T["generic"], "label": T["generic_label"], "generic": True}
+    if family == "money" and qt != "speculation":
         family = _money_family(question or kp.get("question") or "")
     sup = [_phrase(h, family, lang) for h in (dbg.get("favour_hit") or [])]
     blk = [_phrase(h, family, lang) for h in (dbg.get("against_hit") or [])]
@@ -240,7 +268,15 @@ def explain(kp: dict, language: str = "en", question: str = "") -> dict:
     blk_top = [_phrase(h, family, lang) for h in _bh]
     s = _join(sup, lang)
     b1, b2 = _join(blk_top[:1], lang), _join(blk_top[:2], lang)
-    if lean in ("no",) or not sup:
+    if family == "separation":
+        # favour = what drives the ending; against = what keeps it together
+        if lean in ("no",) or not sup:
+            text = T["sep_no"] + (T["sep_no_hold"].format(blk=b2) if b2 else "")
+        elif lean in ("conditional", "not_now") and b1:
+            text = T["sep_cond"].format(sup=s, blk=b1)
+        else:
+            text = T["sep_yes"].format(sup=s) + (T["sep_yes_hold"].format(blk=b1) if b1 else "")
+    elif lean in ("no",) or not sup:
         text = T["no"] + (T["no_blk"].format(blk=b2) if b2 else "")
     elif not gate_ok:
         g = T.get("gate_" + family) or T["gate"]

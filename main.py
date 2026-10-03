@@ -4684,6 +4684,12 @@ _WA_L = {
                    "es": "_No doy respuestas de sí o no sobre apuestas o especulación — aquí va la lectura completa._",
                    "pt": "_Não dou respostas de sim ou não sobre apostas ou especulação — aqui vai a leitura completa._",
                    "hinglish": "_Satta ya speculation par haan/na jawab nahi diya jaata — yeh poori reading hai._"},
+    # [whatsapp-kp-generic 2026-10-03] a question the yes/no engine can't tie to
+    # an area of life gets the full reading instead of a generic yes/no.
+    "kp_no_area": {"en": "_A yes-or-no reading needs a clear area of life (work, money, a relationship, a move…) — here's the full reading instead._",
+                   "es": "_Una respuesta de sí o no necesita un área clara de la vida (trabajo, dinero, una relación, una mudanza…) — aquí va la lectura completa._",
+                   "pt": "_Uma resposta de sim ou não precisa de uma área clara da vida (trabalho, dinheiro, um relacionamento, uma mudança…) — aqui vai a leitura completa._",
+                   "hinglish": "_Haan/na jawab ke liye zindagi ka ek saaf area chahiye (kaam, paisa, rishta, shift…) — yeh poori reading hai._"},
     "kp_offer": {"en": "_Want a straight yes-or-no reading on this? Reply *yes or no*._",
                  "es": "_¿Quieres una respuesta directa de sí o no? Responde *sí o no*._",
                  "pt": "_Quer uma resposta direta de sim ou não? Responda *sim ou não*._",
@@ -4850,6 +4856,16 @@ def _wa_lang(text: str, fallback: str = "en") -> str:
     except Exception:
         pass
     return fallback if fallback in ("en", "es", "pt", "hinglish") else "en"
+
+
+def _wa_kp_generic(question: str) -> bool:
+    """True when KP Prashna can't tie the question to an area of life (its
+    generic fallback) — such a question gets the full reading, not a yes/no."""
+    try:
+        from antar_engine.kp.kp_prashna import classify_question as _kp_cq
+        return bool(_kp_cq(question)[2])
+    except Exception:
+        return False
 
 
 def _wa_saved_lang(chart_id: Optional[str]) -> Optional[str]:
@@ -5363,6 +5379,12 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             if _is_gambling_q(question):
                 if _mode == "yesno":
                     _spec_note = _wa_text("kp_no_spec", lang)
+                _mode, _force_read = "explore", True
+            elif not _force_read and _wa_kp_generic(question):
+                # [whatsapp-kp-generic] no area → no yes/no (it would read generic)
+                if _mode == "yesno":
+                    _spec_note = _wa_text("kp_no_area", lang)
+                    print(f"[kp][unmapped][whatsapp] {question[:120]!r}")
                 _mode, _force_read = "explore", True
         except Exception:
             pass
