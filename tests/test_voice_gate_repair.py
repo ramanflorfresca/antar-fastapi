@@ -31,3 +31,12 @@ def test_keep_clean_sentences_gives_up_when_too_little_survives():
 
 def test_career_practice_no_longer_assumes_a_hard_conversation():
     assert "hard conversation" not in main._ASK_PRACTICE_STEP["en"]["career"]
+
+
+def test_next_step_cut_mid_question_is_trimmed_to_the_complete_part():
+    t = ("Schedule one informational call this week with someone working in finance or law "
+         "— ask how they got.")
+    assert main._ask_repair_next(t) == ("Schedule one informational call this week with someone "
+                                        "working in finance or law.")
+    ok = "Message one former colleague and ask how they got started."
+    assert main._ask_repair_next(ok) == ok

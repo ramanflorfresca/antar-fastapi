@@ -87,6 +87,12 @@ AREAS = {
     "general":             (None, "general"),
 }
 
+# how the person sounds in THIS message (drives the opening line, never the verdict)
+FEELINGS = ("neutral", "curious", "hopeful", "excited", "worried", "anxious", "stuck",
+            "overwhelmed", "sad", "lonely", "frustrated", "ashamed", "grieving", "angry")
+STRUGGLING = frozenset({"worried", "anxious", "stuck", "overwhelmed", "sad", "lonely",
+                        "frustrated", "ashamed", "grieving", "angry"})
+
 WORK = ("employed", "unemployed", "self_employed", "student", "retired", "homemaker")
 RELATIONSHIP = ("single", "dating", "married", "separated", "divorced", "widowed")
 
@@ -120,6 +126,7 @@ SYSTEM = (
     "without one more detail,\n"
     ' "clarify": one short question to ask back (same language) or "",\n'
     ' "confidence": 0.0-1.0 for the area,\n'
+    ' "feeling": how the person sounds in this message, one of ' + json.dumps(list(FEELINGS)) + ',\n'
     ' "stated_facts": facts the person STATES about their own life in THIS message '
     '(never infer, never guess): {"work": one of ' + json.dumps(list(WORK)) + ' or null, '
     '"relationship": one of ' + json.dumps(list(RELATIONSHIP)) + ' or null, '
@@ -182,6 +189,7 @@ def parse(raw: str, original: str = "") -> Optional[dict]:
         "other": [str(x).strip()[:80] for x in other if str(x).strip()][:3],
     }
     return {
+        "feeling": _clean_enum(obj.get("feeling"), FEELINGS, "neutral"),
         "stated_facts": facts,
         "language": _clean_enum(obj.get("language"), LANGS, "other"),
         "standalone": standalone,
@@ -351,3 +359,22 @@ def life_overrides(u: Optional[dict]) -> dict:
     if f.get("children") in ("yes", "no"):
         out["has_children"] = f["children"] == "yes"
     return out
+
+
+# ── warm opening (owner 2026-10-03) ─────────────────────────────────────────
+# Same question, two answers: "Harleen, this paralysis is real — but it's not
+# permanent." (lands) vs "Harleen, this freeze is costing you savings you can't
+# afford to lose right now." (blames). When someone sounds like they're
+# struggling, the first line meets them before the reading starts.
+def tone_block(u: Optional[dict]) -> str:
+    """Narrator instruction for the opening line; '' unless the person sounds
+    like they are struggling. Never changes the verdict, dates or advice."""
+    f = (u or {}).get("feeling")
+    if f not in STRUGGLING:
+        return ""
+    return ("\n\nOPENING LINE — they sound " + f + ". Start the answer with ONE short, warm "
+            "sentence that names what they are going through in plain words and gives "
+            "steady hope (e.g. \"this paralysis is real — but it's not permanent.\"). "
+            "Never open with blame, cost, fear or a warning (NOT \"this is costing you…\", "
+            "NOT \"you can't afford…\"). Be honest after that — the reading, timing and "
+            "the one move stay exactly as they are. No pity, no therapy-speak, one sentence.")

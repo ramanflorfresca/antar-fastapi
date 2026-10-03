@@ -140,3 +140,17 @@ def test_harvest_writes_only_empty_fields(monkeypatch):
     main._ask_harvest_stated("c1", row, r)
     assert wrote == [{"career_stage": {"value": "seeking", "evidence": "stated (nlu)"}}]
     assert row["career_stage"] == "seeking" and row["marital_status"] == "married"
+
+
+
+# ── warm opening ──
+def test_struggling_feeling_adds_a_warm_opening_rule():
+    r = u.parse(_raw(feeling="stuck"))
+    b = u.tone_block(r)
+    assert "they sound stuck" in b and "Never open with blame" in b
+
+
+def test_neutral_or_unknown_feeling_adds_nothing():
+    assert u.tone_block(u.parse(_raw(feeling="curious"))) == ""
+    assert u.parse(_raw(feeling="ecstatic-ish"))["feeling"] == "neutral"
+    assert u.tone_block(u.parse(_raw())) == ""

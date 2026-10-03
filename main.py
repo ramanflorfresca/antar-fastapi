@@ -25654,6 +25654,16 @@ def _ask_repair_next(next_txt):
     if not isinstance(next_txt, str) or not next_txt.strip():
         return next_txt if isinstance(next_txt, str) else None
     t = next_txt.strip()
+    # [cut-clause 2026-10-03] live: "Schedule one informational call this week with
+    # someone working in finance or law — ask how they got." A question clause cut
+    # mid-way (wh-word + subject + bare verb, no object). Cut back to the last
+    # complete part before the separator.
+    _cut = _re_crisis.search(
+        r"(?i)\s*(?:[—–-]|,|;)\s*[^—–,;]*\b(?:how|what|why|when|where|who|which|whether|if)\s+"
+        r"(?:they|you|he|she|it|we|i|people|someone)\s+(?:got|get|did|do|does|went|go|made|make|"
+        r"started|start|found|find|became|become|had|have|has)\.?\s*$", t)
+    if _cut and _cut.start() > 15:
+        t = t[:_cut.start()].rstrip(" ,;—–-") + "."
     try:
         from antar_engine.daily_prediction_engine import _looks_broken as _lb
     except Exception:
@@ -27764,10 +27774,11 @@ async def ask_endpoint(request: AskRequest):
                         if _ask_life_block else _cb2
                     )
                 if _ask_u:
-                    _sb = _und.stated_block(_ask_u)
+                    _sb = _und.stated_block(_ask_u) + _und.tone_block(_ask_u)
                     if _sb:
                         _ask_life_block = ((_ask_life_block or "") + _sb).strip()
-                        print(f"[ask][stated-facts] {(_ask_u.get('stated_facts') or {})} for {chart_id[:8]}")
+                        print(f"[ask][stated-facts] {(_ask_u.get('stated_facts') or {})} "
+                              f"feeling={_ask_u.get('feeling')} for {chart_id[:8]}")
             except Exception as _lce:
                 logger.warning(f"[ask] life context failed (non-fatal): {_lce}")
 
