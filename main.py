@@ -1043,7 +1043,7 @@ async def _outcome_checkin_job():
         for r in recent:
             sent_week[r["chart_id"]] = sent_week.get(r["chart_id"], 0) + 1
         charts = {c["id"]: c for c in await _q(lambda: supabase.table("charts")
-                  .select("id,user_id,current_timezone,current_country,birth_country")
+                  .select("id,user_id,name,current_timezone,current_country,birth_country")
                   .in_("id", cids).is_("deleted_at", "null").execute())}
         toks: dict = {}
         for t in await _q(lambda: supabase.table("device_tokens")
@@ -1065,7 +1065,8 @@ async def _outcome_checkin_job():
         h = float(_COUNTRY_TZ_OFFSETS.get(cc, _COUNTRY_TZ_OFFSETS.get("DEFAULT", 0)))
         return (now + timedelta(hours=h)).hour
 
-    stats = {"due": len(claims), "morning": 0, "whatsapp": 0, "push": 0, "in_app_only": 0}
+    stats = {"due": len(claims), "morning": 0, "whatsapp": 0, "whatsapp_template": 0,
+             "push": 0, "in_app_only": 0}
     push_ok = push_sender.is_configured()
     for cl in _oc.pick_due(claims, sent_week, answered):
         c = charts.get(cl["chart_id"])
@@ -1090,6 +1091,20 @@ async def _outcome_checkin_job():
                             ctx = _msg.remember_options(ctx, "outcome", opts)
                             await _aio_oc.to_thread(_msg.save_link_context, supabase, links[0], ctx)
                             channel = "whatsapp"
+                    elif links[0].get("alerts_opt_in") and not ctx.get("opted_out"):
+                        # [wa-templates] outside 24h: the approved check-in template
+                        # (buttons 1-4 = the typed replies). No SID yet → push.
+                        from antar_engine import wa_templates as _wt
+                        _tv = _oc.template_vars(cl, (c.get("name") or "").split(" ")[0])
+                        if _tv:
+                            ok = await _aio_oc.to_thread(
+                                _wt.send, links[0]["channel_user_id"], "antar_checkin_v1",
+                                cl.get("language") or "en", _tv)
+                            if ok:
+                                _, opts = _oc.whatsapp_checkin(cl)
+                                ctx = _msg.remember_options(ctx, "outcome", opts)
+                                await _aio_oc.to_thread(_msg.save_link_context, supabase, links[0], ctx)
+                                channel = "whatsapp_template"
             if not channel and push_ok and toks.get(cl["chart_id"]):
                 title, body = _oc.push_message(cl)
                 s_ = await push_sender.send_to_tokens(
@@ -4630,10 +4645,10 @@ _WA_L = {
                  "es": "Listo — este número quedó desconectado de Antar. Puedes reconectarlo desde la app.",
                  "pt": "Pronto — este número foi desconectado do Antar. Reconecte quando quiser pelo app.",
                  "hinglish": "Ho gaya — yeh number Antar se disconnect ho gaya. App se kabhi bhi dobara connect kar sakte hain."},
-    "help":     {"en": "Ask me any question about your life, timing or a decision — I read it from your chart.\n\n*switch* — choose whose chart I read\n*yes or no:* your question — a straight yes-or-no reading\n*1–3* — pick a suggested question\n*STOP* — disconnect this number",
-                 "es": "Hazme cualquier pregunta sobre tu vida, tus tiempos o una decisión — la leo desde tu carta.\n\n*cambiar* — elige qué carta leo\n*sí o no:* tu pregunta — una respuesta directa de sí o no\n*1–3* — elige una pregunta sugerida\n*STOP* — desconecta este número",
-                 "pt": "Faça qualquer pergunta sobre sua vida, seus tempos ou uma decisão — eu leio pelo seu mapa.\n\n*trocar* — escolha qual mapa eu leio\n*sim ou não:* sua pergunta — uma resposta direta de sim ou não\n*1–3* — escolha uma pergunta sugerida\n*STOP* — desconecta este número",
-                 "hinglish": "Zindagi, timing ya kisi decision ke baare mein koi bhi sawaal poochiye — main aapke chart se padhta hoon.\n\n*switch* — kiska chart padhun, chuniye\n*prashna:* aapka sawaal — seedha haan/na jawab\n*1–3* — suggested sawaal chuniye\n*STOP* — yeh number disconnect kijiye"},
+    "help":     {"en": "Ask me any question about your life, timing or a decision — I read it from your chart.\n\n*switch* — choose whose chart I read\n*yes or no:* your question — a straight yes-or-no reading\n*1–3* — pick a suggested question\n*tips* — how to get the best answers (and what never to send)\n*STOP* — disconnect this number",
+                 "es": "Hazme cualquier pregunta sobre tu vida, tus tiempos o una decisión — la leo desde tu carta.\n\n*cambiar* — elige qué carta leo\n*sí o no:* tu pregunta — una respuesta directa de sí o no\n*1–3* — elige una pregunta sugerida\n*tips* — cómo obtener las mejores respuestas (y qué nunca enviar)\n*STOP* — desconecta este número",
+                 "pt": "Faça qualquer pergunta sobre sua vida, seus tempos ou uma decisão — eu leio pelo seu mapa.\n\n*trocar* — escolha qual mapa eu leio\n*sim ou não:* sua pergunta — uma resposta direta de sim ou não\n*1–3* — escolha uma pergunta sugerida\n*dicas* — como ter as melhores respostas e o que nunca enviar\n*STOP* — desconecta este número",
+                 "hinglish": "Zindagi, timing ya kisi decision ke baare mein koi bhi sawaal poochiye — main aapke chart se padhta hoon.\n\n*switch* — kiska chart padhun, chuniye\n*prashna:* aapka sawaal — seedha haan/na jawab\n*1–3* — suggested sawaal chuniye\n*tips* — best jawab kaise paayein, aur kya kabhi na bhejein\n*STOP* — yeh number disconnect kijiye"},
     "failed":   {"en": "Something went wrong reading your chart — please ask again in a moment.",
                  "es": "Algo salió mal al leer tu carta — vuelve a preguntar en un momento.",
                  "pt": "Algo deu errado ao ler seu mapa — pergunte novamente em instantes.",
@@ -4690,6 +4705,76 @@ _WA_L = {
                    "es": "_Una respuesta de sí o no necesita un área clara de la vida (trabajo, dinero, una relación, una mudanza…) — aquí va la lectura completa._",
                    "pt": "_Uma resposta de sim ou não precisa de uma área clara da vida (trabalho, dinheiro, um relacionamento, uma mudança…) — aqui vai a leitura completa._",
                    "hinglish": "_Haan/na jawab ke liye zindagi ka ek saaf area chahiye (kaam, paisa, rishta, shift…) — yeh poori reading hai._"},
+    # [wa-templates 2026-10-03] alert / answer-ready buttons
+    "alerts_off": {"en": "Done — no more alerts on WhatsApp. You can still ask me anything here, and turn alerts back on in the app (Settings → WhatsApp).",
+                   "es": "Listo — no más alertas por WhatsApp. Puedes seguir preguntándome lo que quieras aquí, y reactivarlas en la app (Ajustes → WhatsApp).",
+                   "pt": "Pronto — sem mais alertas no WhatsApp. Você ainda pode me perguntar o que quiser aqui, e reativar no app (Ajustes → WhatsApp).",
+                   "hinglish": "Ho gaya — WhatsApp par ab alerts nahi aayenge. Yahan kuch bhi pooch sakte hain; alerts app mein (Settings → WhatsApp) wapas on kar sakte hain."},
+    "answer_gone": {"en": "That answer has expired — just ask your question again and I'll read it fresh.",
+                    "es": "Esa respuesta ya expiró — vuelve a hacer tu pregunta y la leo de nuevo.",
+                    "pt": "Essa resposta expirou — faça sua pergunta de novo e eu leio outra vez.",
+                    "hinglish": "Woh jawab expire ho gaya — apna sawaal dobara bhejiye, main phir se padhta hoon."},
+    # [wa-user-guide 2026-10-03] owner: user awareness — what to do / not do
+    "tips": {"en": ("*Getting the best from Antar on WhatsApp*\n\n"
+                    "✅ *Do*\n"
+                    "• Ask one question at a time, in your own words.\n"
+                    "• Say what's going on (\"I'm between jobs\", \"we just separated\") — I use what you tell me.\n"
+                    "• Name the area and time if you can (\"my visa, this year\").\n"
+                    "• For a straight answer, start with *yes or no:*\n"
+                    "• Travelling? Send \"I'm in London\" so \"today\" is your today.\n"
+                    "• When I ask \"did it happen?\", answer honestly — it makes me more accurate.\n\n"
+                    "🚫 *Don't*\n"
+                    "• Never send passwords, bank or card numbers, ID numbers or OTP codes — Antar never asks for them.\n"
+                    "• Don't treat a reading as medical, legal or financial advice, or as a reason to bet.\n"
+                    "• Don't share someone else's birth details without their OK.\n\n"
+                    "Antar never asks for money in chat and only writes first for check-ins and alerts you turned on. "
+                    "If you're in danger or thinking of harming yourself, contact local emergency services now.\n\n"
+                    "*STOP* — disconnect · *stop alerts* — no alerts · *help* — commands"),
+             "es": ("*Cómo sacar lo mejor de Antar en WhatsApp*\n\n"
+                    "✅ *Sí*\n"
+                    "• Haz una pregunta a la vez, con tus palabras.\n"
+                    "• Cuéntame qué está pasando (\"estoy sin trabajo\", \"nos acabamos de separar\") — uso lo que me dices.\n"
+                    "• Di el área y el tiempo si puedes (\"mi visa, este año\").\n"
+                    "• Para una respuesta directa, empieza con *sí o no:*\n"
+                    "• ¿De viaje? Escribe \"estoy en Madrid\" para que \"hoy\" sea tu hoy.\n"
+                    "• Cuando pregunte \"¿pasó?\", responde con sinceridad — me hace más preciso.\n\n"
+                    "🚫 *No*\n"
+                    "• Nunca envíes contraseñas, números de banco o tarjeta, documentos de identidad ni códigos OTP — Antar nunca los pide.\n"
+                    "• No tomes una lectura como consejo médico, legal o financiero, ni como motivo para apostar.\n"
+                    "• No compartas los datos de nacimiento de otra persona sin su permiso.\n\n"
+                    "Antar nunca pide dinero en el chat y solo escribe primero para seguimientos y alertas que activaste. "
+                    "Si estás en peligro o piensas en hacerte daño, contacta ahora a los servicios de emergencia.\n\n"
+                    "*STOP* — desconectar · *parar alertas* — sin alertas · *ayuda* — comandos"),
+             "pt": ("*Como aproveitar o Antar no WhatsApp*\n\n"
+                    "✅ *Faça*\n"
+                    "• Uma pergunta por vez, com suas palavras.\n"
+                    "• Conte o que está acontecendo (\"estou sem emprego\", \"acabamos de nos separar\") — eu uso o que você me diz.\n"
+                    "• Diga a área e o tempo se puder (\"meu visto, este ano\").\n"
+                    "• Para uma resposta direta, comece com *sim ou não:*\n"
+                    "• Viajando? Mande \"estou em Lisboa\" para que \"hoje\" seja o seu hoje.\n"
+                    "• Quando eu perguntar \"aconteceu?\", responda com sinceridade — isso me deixa mais preciso.\n\n"
+                    "🚫 *Não faça*\n"
+                    "• Nunca envie senhas, números de banco ou cartão, documentos ou códigos OTP — o Antar nunca pede.\n"
+                    "• Não trate uma leitura como conselho médico, jurídico ou financeiro, nem como motivo para apostar.\n"
+                    "• Não compartilhe os dados de nascimento de outra pessoa sem permissão.\n\n"
+                    "O Antar nunca pede dinheiro no chat e só escreve primeiro para acompanhamentos e alertas que você ativou. "
+                    "Se você está em perigo ou pensando em se machucar, procure agora os serviços de emergência.\n\n"
+                    "*STOP* — desconectar · *parar alertas* — sem alertas · *ajuda* — comandos"),
+             "hinglish": ("*WhatsApp par Antar ka best use*\n\n"
+                    "✅ *Karein*\n"
+                    "• Ek baar mein ek sawaal, apne shabdon mein.\n"
+                    "• Batayein kya chal raha hai (\"abhi job nahi hai\", \"hum alag ho gaye\") — main wahi use karta hoon.\n"
+                    "• Area aur time batayein (\"mera visa, is saal\").\n"
+                    "• Seedha jawab chahiye? *prashna:* se shuru karein.\n"
+                    "• Travel kar rahe hain? \"I'm in London\" bhejiye.\n"
+                    "• \"Hua kya?\" poochun to sach batayein — isse main aur sahi hota hoon.\n\n"
+                    "🚫 *Na karein*\n"
+                    "• Password, bank/card number, Aadhaar/ID ya OTP kabhi na bhejein — Antar kabhi nahi maangta.\n"
+                    "• Reading ko medical, legal ya financial salah ya satta lagane ki wajah na samjhein.\n"
+                    "• Kisi aur ki birth details unki ijazat ke bina na bhejein.\n\n"
+                    "Antar chat mein kabhi paise nahi maangta, aur sirf aapke on kiye check-ins/alerts ke liye pehle message karta hai. "
+                    "Agar aap khatre mein hain ya khud ko nuksaan pahunchane ka soch rahe hain, abhi local emergency services se sampark karein.\n\n"
+                    "*STOP* — disconnect · *stop alerts* — alerts band · *help* — commands")},
     "kp_offer": {"en": "_Want a straight yes-or-no reading on this? Reply *yes or no*._",
                  "es": "_¿Quieres una respuesta directa de sí o no? Responde *sí o no*._",
                  "pt": "_Quer uma resposta direta de sim ou não? Responda *sim ou não*._",
@@ -5174,8 +5259,30 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             if _msg.is_nudge(body) or body.strip().lower().strip(" .!?") in (
                     "ready", "send", "listo", "pronto", "haan", "yes", "si", "sí", "sim"):
                 return
+        # [wa-templates] template button taps
+        if choice_id == "show_answer":
+            if not pend.get("items"):
+                send(_wa_text("answer_gone", lang))
+            return
+        if choice_id == "alert_stop" or cmd == "alerts_off":
+            try:
+                await asyncio.to_thread(lambda: sb.table("messaging_links").update(
+                    {"alerts_opt_in": False}).eq("id", link["id"]).execute())
+            except Exception as _ae:
+                print(f"[whatsapp] alerts off failed …{number[-4:]}: {_ae}")
+            send(_wa_text("alerts_off", lang))
+            return
+        if choice_id == "alert_how":
+            _la = (ctx.get("last_alert") or {}).get("q")
+            if not _la:
+                send(_wa_text("help", lang))
+                return
+            body = _la                       # answered as a regular question below
         if cmd == "help":
             send(_wa_text("help", lang))
+            return
+        if cmd == "tips":
+            send(_wa_text("tips", lang))
             return
         if not body and num_media:
             send(_wa_text("media", lang))
@@ -5333,7 +5440,8 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                     question, _force_read = _rc, True
         if choice_id.startswith("q:") and choice_id[2:].strip():
             question = choice_id[2:].strip()
-        n = None if (_kp_number is not None or _force_kp or _force_read) else _msg.parse_pick(body)
+        n = None if (_kp_number is not None or _force_kp or _force_read) else (
+            int(choice_id) if choice_id.isdigit() else _msg.parse_pick(body))
         if n is not None:
             kind, item = _msg.pick_option(ctx, n)
             if kind == "outcome" and item:
