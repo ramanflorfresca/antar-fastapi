@@ -1108,6 +1108,42 @@ async def _outcome_checkin_job():
     print(f"[outcome_checkin] @{now.hour:02d}:xx UTC — {stats} (push_configured={push_ok})")
 
 
+def _accuracy_snapshot_save(board: dict) -> bool:
+    """Write one board as a dated row (accuracy_board_snapshots). Fail-open until
+    the table exists (sql_accuracy_board.sql, Lovable DDL)."""
+    try:
+        h = board.get("health") or {}
+        supabase.table("accuracy_board_snapshots").insert({
+            "computed_at": board.get("computed_at"),
+            "claims": int(h.get("claims") or 0),
+            "answered": int(h.get("answered") or 0),
+            "baselines_available": bool((board.get("rules") or {}).get("baselines_available")),
+            "board": board,
+        }).execute()
+        return True
+    except Exception as e:
+        print(f"[accuracy_board] snapshot not saved: {e}")
+        return False
+
+
+async def _accuracy_board_job():
+    """[accuracy-board 2026-10-02] NIGHTLY 03:40 UTC: compute the board and keep it
+    as a record — no UI (owner). One row per night = the history/trend."""
+    import asyncio as _aio_ab
+    from antar_engine import accuracy_board as _ab
+    try:
+        claims, outs = await _aio_ab.to_thread(_ab.load, supabase)
+        board = _ab.build(claims, outs)
+        board["computed_at"] = datetime.now(timezone.utc).isoformat()
+        globals().get("_ACC_BOARD_CACHE", {})["v"] = (_time.time(), board)
+        ok = await _aio_ab.to_thread(_accuracy_snapshot_save, board)
+        h = board.get("health") or {}
+        print(f"[accuracy_board] claims={h.get('claims')} answered={h.get('answered')} "
+              f"cells={len(board.get('engines') or [])} saved={ok}")
+    except Exception as e:
+        print(f"[accuracy_board] job non-fatal: {e}")
+
+
 def _ec_flag(name: str) -> bool:
     return (os.environ.get(name) or "").strip().lower() in ("1", "on", "true", "yes")
 
@@ -1691,6 +1727,8 @@ scheduler.add_job(_yesno_checkback_job, "cron", minute=13,
                   id="yesno_checkback", replace_existing=True)  # hourly; Yes/No "did it happen?" at local ~8 AM
 scheduler.add_job(_outcome_checkin_job, "cron", minute=15,
                   id="outcome_checkin", replace_existing=True)  # hourly; dated Ask claims "did it happen?" at local ~8 AM
+scheduler.add_job(_accuracy_board_job, "cron", hour=3, minute=40,
+                  id="accuracy_board", replace_existing=True)  # nightly; board → accuracy_board_snapshots
 scheduler.add_job(_evening_checkin_job, "cron", minute=17,
                   id="evening_checkin", replace_existing=True)  # hourly; "did today land?" at local ~8 PM (EVENING_CHECKIN_PUSH)
 scheduler.add_job(_weekly_receipt_job, "cron", minute=19,
@@ -18734,6 +18772,28 @@ def admin_debug_page():
     return HTMLResponse(_admin_page_html(), headers={"Cache-Control": "no-store, max-age=0"})
 
 
+_ACC_BOARD_CACHE: dict = {}
+
+
+@app.get("/api/v1/admin/accuracy-board")
+def admin_accuracy_board(fresh: bool = False, admin_email: str = Depends(_require_debug)):
+    """[accuracy-board 2026-10-02] Outcome loop week 3: per engine × topic, the
+    hit rate on answered check-ins, its 95% interval, the two holdout halves,
+    answer rate, distinct windows, and a status (Too few answers / Unreliable /
+    No baseline yet / Beats chance / No better than chance). Totals only.
+    Cached 10 min (?fresh=true to recompute). Nightly snapshots are stored in
+    accuracy_board_snapshots — this endpoint is for reading it on demand."""
+    from antar_engine import accuracy_board as _ab
+    hit = _ACC_BOARD_CACHE.get("v")
+    if hit and not fresh and _time.time() - hit[0] < 600:
+        return hit[1]
+    claims, outs = _ab.load(supabase)
+    board = _ab.build(claims, outs)
+    board["computed_at"] = datetime.now(timezone.utc).isoformat()
+    _ACC_BOARD_CACHE["v"] = (_time.time(), board)
+    return board
+
+
 @app.get("/admin")
 def admin_debug_page_short():
     """Short alias for the admin panel — same page as
@@ -29938,11 +29998,16 @@ async def ask_endpoint(request: AskRequest):
                 payload["timing"] = _lds(_ask_tf_timing, language)
             try:   # [outcome-loop] Yes/No lean → prediction_claims
                 from antar_engine.outcomes import build_claim as _oc_build, record_claim as _oc_rec
+                _yn_qt = (locals().get("_yn_kp") or {}).get("question_type")
                 _oc_claim = _oc_build(chart_id, _ASK_TYPED_Q.get() or question, payload,
-                                      mode="yesno", topic=locals().get("_ask_concern") or "general",
+                                      mode="yesno",
+                                      # [accuracy-board] KP's own matter (residence,
+                                      # deal_closes…) — Ask's concern says "general"
+                                      topic=_yn_qt or locals().get("_ask_concern") or "general",
                                       language=language, channel=_ASK_CHANNEL.get(),
                                       engines={"kp": {"lean": payload.get("lean"),
-                                                      "method": payload.get("method")}})
+                                                      "method": payload.get("method"),
+                                                      "question_type": _yn_qt}})
                 if _oc_claim:
                     await asyncio.to_thread(_oc_rec, supabase, _oc_claim)
             except Exception as _oce:
