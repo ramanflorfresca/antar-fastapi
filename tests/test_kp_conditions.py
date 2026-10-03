@@ -32,7 +32,7 @@ def test_family_meanings_differ():
 
 def test_languages_and_no_jargon():
     es = explain(_kp("conditional", "gain", [2, 11], [5, 8]), "es")["condition"]
-    assert "pero solo si evitas" in es
+    assert "lo que podría frenarlo" in es
     for lang in ("en", "es", "pt"):
         c = explain(_kp("conditional", "gain", [2, 11], [5, 8, 12]), lang)["condition"].lower()
         assert not any(w in c for w in ("house", "casa 1", "planet", "sub-lord", "cusp"))
@@ -227,3 +227,19 @@ def test_generic_question_gets_an_honest_note_not_fake_specifics():
     x = explain(k, "en", "Will it happen?")
     assert x["label"] == "Note" and "doesn't name one area of life" in x["condition"]
     assert "hard, steady work" not in x["condition"] and "people who already know" not in x["condition"]
+
+
+def test_every_question_type_reads_differently():
+    # owner 2026-10-03: "the reasoning cannot be the same for every question"
+    from antar_engine.kp.kp_significators import QUESTION_TYPES as Q
+    qs = {"gain": "Will I make more money this year?", "money": "Will I get the loan?",
+          "deal_closes": "Will the client sign the contract?"}
+    for lang in ("en", "es", "pt"):
+        seen = {}
+        for qt, v in Q.items():
+            for gate in (True, False):
+                k = {"lean": "conditional", "question_type": qt,
+                     "debug": {"favour_hit": v["favour"][:2], "against_hit": v["against"][:2], "gate_ok": gate}}
+                c = explain(k, lang, qs.get(qt, "q"))["condition"]
+                assert c not in seen or seen[c] == qt, (lang, qt, seen.get(c), c)
+                seen[c] = qt
