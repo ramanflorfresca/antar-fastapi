@@ -951,10 +951,12 @@ def build_daily_wisdom(chart_data: dict, dashas: dict, chart_id: str = "",
         tr = verse.get(f"translation_{lang}") or verse["translation"]
         suggested = [s[lang] for s in SUGGESTED]
         ask_context = (
-            f"The reader is reflecting on Bhagavad Gita {verse['ref']}: "
-            f"\"{verse['translation']}\" (theme: {primary}). Answer their question "
-            f"about this verse or about spiritual practice in plain, warm language — "
-            f"no Sanskrit jargon unless they ask for it."
+            f"The reader is in a '{season}' season (its theme is {primary}) and is "
+            f"reflecting on Bhagavad Gita {verse['ref']}: \"{verse['translation']}\". "
+            f"Let the season shape your tone — a consolidating reader needs steadying, "
+            f"an expansive one needs encouragement to move, a steady one needs clarity. "
+            f"Answer their question about this verse or about spiritual practice in plain, "
+            f"warm language — no Sanskrit jargon unless they ask, and no astrological predictions."
         )
 
         return {

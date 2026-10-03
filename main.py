@@ -34609,15 +34609,21 @@ async def daily_wisdom_chat(request: dict = None, language: str = "en"):
     ask_ctx = (req.get("ask_context") or "").strip()[:1200]
     vref = (req.get("verse_reference") or "").strip()[:24]
     chart_id = req.get("chart_id") or ""
+    # [season-aware chat 2026-10-03] The guide must actually KNOW the reader's
+    # season + theme, not just the verse. Prefer what the FE passes (it already
+    # has them from the verse call); fall back to computing the season from the
+    # chart. `theme` is the verse's season-theme (e.g. equanimity, courage).
+    season = (req.get("season") or "").strip()[:24].lower()
+    theme = (req.get("theme") or "").strip()[:40]
 
     hist = []
     for h in (req.get("history") or [])[-8:]:
         if isinstance(h, dict) and h.get("role") in ("user", "assistant") and h.get("content"):
             hist.append({"role": h["role"], "content": str(h["content"])[:2000]})
 
-    # Light season context (never block the loop on the sync dasha read).
-    season = ""
-    if chart_id:
+    # Fall back to computing the season from the chart only when the FE didn't
+    # pass it (never block the loop on the sync reads).
+    if not season and chart_id:
         try:
             import asyncio as _aio
             from datetime import date as _date
@@ -34635,6 +34641,11 @@ async def daily_wisdom_chat(request: dict = None, language: str = "en"):
         except Exception as _se:
             print(f"[wisdom-chat] season skip: {_se}")
 
+    _SEASON_GUIDE = {
+        "consolidating": "patience, steadiness, endurance and letting go",
+        "expansive": "courage, action, momentum and purpose",
+        "steady": "clarity, balance and an even mind",
+    }
     _lang_name = {"en": "English", "es": "Spanish", "pt": "Portuguese"}.get(lang, "English")
     _dyn = []
     if ask_ctx:
@@ -34642,8 +34653,13 @@ async def daily_wisdom_chat(request: dict = None, language: str = "en"):
     elif vref:
         _dyn.append(f"The reader is reflecting on Bhagavad Gita {vref}.")
     if season:
-        _dyn.append(f"(Their current life season reads as '{season}' — you may gently tailor "
-                    f"encouragement to that tone, but make NO specific astrological predictions.)")
+        _lean = _SEASON_GUIDE.get(season, "balance and an even mind")
+        _theme_bit = f", and the verse they're sitting with turns on {theme}" if theme else ""
+        _dyn.append(
+            f"The reader's current season reads as '{season}'{_theme_bit}. This season leans toward "
+            f"{_lean} — let it genuinely shape your tone and any practical suggestion you give (a "
+            f"consolidating reader needs steadying, an expansive one needs encouragement to move). "
+            f"Speak to it in plain words; do NOT name planets or dashas or make astrological predictions.")
     _dyn.append(f"Respond in {_lang_name}.")
     system = _WISDOM_SYSTEM + "\n" + "\n".join(_dyn)
 
