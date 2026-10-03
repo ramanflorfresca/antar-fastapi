@@ -23332,6 +23332,98 @@ kaunsi kitne kabhi abhi aayega aayegi jayega jayegi hoga rahega rahegi
 """.split())
 
 
+def _nlu_mode() -> str:
+    m = (os.getenv("NLU_MODE") or "shadow").strip().lower()
+    return m if m in ("off", "shadow", "primary") else "shadow"
+
+
+async def _nlu_read(message: str, chart_id: Optional[str], saved_lang: str = "") -> Optional[dict]:
+    """[nlu] One validated model reading of a message (antar_engine.understand).
+    Memoised per worker; fail-open → None."""
+    from antar_engine import understand as _u
+    if not _u.worth_reading(message):
+        return None
+    try:
+        thread = (await asyncio.to_thread(_ask_recent_thread, chart_id, 2, 60)) if chart_id else []
+    except Exception:
+        thread = []
+    k = _u.memo_key(message, thread, saved_lang)
+    hit = _u.memo_get(k)
+    if hit is not None:
+        return hit
+    try:
+        raw = await asyncio.wait_for(call_llm_claude(
+            prompt=_u.request(message, thread, saved_lang), system_override=_u.SYSTEM,
+            model_override=HAIKU_MODEL, max_tokens_override=320, temperature_override=0), timeout=6)
+        raw = raw[0] if isinstance(raw, tuple) else raw
+        parsed = _u.parse(raw, message)
+    except Exception as e:
+        print(f"[nlu] read failed (non-fatal): {type(e).__name__}")
+        return None
+    if parsed:
+        _u.memo_put(k, parsed)
+    return parsed
+
+
+def _nlu_keyword_view(question: str, language: str, mode: str) -> dict:
+    """What the existing keyword paths decide for the same message."""
+    from antar_engine import messaging as _m
+    out = {"language": None, "kp_type": None, "concern": None, "yes_no": None,
+           "gambling": None, "crisis": None}
+    try:
+        out["language"] = _wa_lang(question, (language or "en"))
+    except Exception:
+        pass
+    try:
+        from antar_engine.kp.kp_prashna import classify_question as _cq
+        qt, _lh, gen = _cq(question)
+        out["kp_type"] = None if gen else qt
+    except Exception:
+        pass
+    try:
+        out["concern"] = _detect_concern(question)
+    except Exception:
+        pass
+    try:
+        out["yes_no"] = bool(_m.is_yesno_question(question))
+    except Exception:
+        pass
+    try:
+        out["gambling"] = bool(_is_gambling_q(question))
+    except Exception:
+        pass
+    try:
+        out["crisis"] = bool(_ask_detect_crisis(question))
+    except Exception:
+        pass
+    return out
+
+
+async def _nlu_shadow(question: str, chart_id: Optional[str], language: str,
+                      channel: str, mode: str) -> None:
+    """[nlu shadow] read the message, log model vs keyword side by side (stdout
+    always; nlu_log table when it exists). Never affects the answer."""
+    try:
+        from antar_engine import understand as _u
+        u = await _nlu_read(question, chart_id, language or "")
+        if not u:
+            return
+        kw = _nlu_keyword_view(question, language, mode)
+        diff = _u.compare(u, kw)
+        dis = [f for f, d in diff.items() if not d["agree"]]
+        print(f"[nlu][shadow] ch={channel} lang={u['language']} intent={u['intent']} "
+              f"area={u['area']} subj={u['subject']} pol={u['polarity']} hz={u['horizon_days']} "
+              f"yn={u['yes_no_fit']} conf={u['confidence']:.2f} disagree={dis} q={question[:100]!r}")
+        row = {"chart_id": chart_id, "channel": channel, "mode": mode, "question": question[:600],
+               "understanding": u, "keyword": kw, "disagree": dis}
+        try:
+            await asyncio.to_thread(lambda: supabase.table("nlu_log").insert(row).execute())
+        except Exception:
+            pass          # table not created yet — stdout is the record
+    except Exception as e:
+        print(f"[nlu][shadow] skipped (non-fatal): {e}")
+
+
 def _yn_why_is_condition(payload: dict) -> None:
     """[kp-one-condition 2026-10-03] owner: the app and WhatsApp must say the same
     thing. A KP Yes/No's specific condition (kp_conditions.explain, already in the
@@ -26276,6 +26368,17 @@ async def ask_endpoint(request: AskRequest):
                     question = _cl_q
         except Exception as _cle:
             print(f"[ask][conversation] skipped (non-fatal): {_cle}")
+
+    # [nlu 2026-10-03] one model reading of the message, logged beside the keyword
+    # decisions (shadow; NLU_MODE=off disables). Background — no latency.
+    if _nlu_mode() != "off":
+        try:
+            _nlu_t = asyncio.create_task(_nlu_shadow(question, chart_id, language,
+                                                     _ASK_CHANNEL.get() or "app", mode))
+            _WA_TASKS.add(_nlu_t)
+            _nlu_t.add_done_callback(_WA_TASKS.discard)
+        except Exception:
+            pass
 
     # [crisis-safety 2026-09-07] A question carrying genuine distress must NEVER be
     # answered with a binary horary verdict ("no — the timing is against you") — that
