@@ -185,7 +185,13 @@ def explain(kp: dict, language: str = "en", question: str = "") -> dict:
         return {}
     lang = _lang(language)
     family = _FAMILY.get(qt, "generic")
-    if family == "money" and qt != "speculation":
+    if kp.get("generic"):
+        # [kp-neutral-fallback] the classifier didn't recognise the matter and KP
+        # fell back to its generic "will it happen" (scored on the 11th like
+        # money). Never word it as money — live, a move question got "your
+        # existing income, extra work or a side income".
+        family = "generic"
+    elif family == "money" and qt != "speculation":
         family = _money_family(question or kp.get("question") or "")
     sup = [_phrase(h, family, lang) for h in (dbg.get("favour_hit") or [])]
     blk = [_phrase(h, family, lang) for h in (dbg.get("against_hit") or [])]

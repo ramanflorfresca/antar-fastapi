@@ -99,3 +99,24 @@ def test_window_is_clipped_to_the_asked_horizon():
         kh.timed_window = real
     assert r["window"]["end"] == "2026-11-02" and r["window"]["clipped_to_horizon"] is True
     assert r["window"]["label"] == "Oct 3 – Nov 2, 2026"
+
+
+# ─── neutral fallback for questions KP didn't recognise ───
+
+def test_unrecognised_question_is_never_worded_as_money():
+    kp = dict(_kp("conditional", "gain", [2, 6, 11], [8, 12]), generic=True)
+    c = explain(kp, "en", "will my sister visit?")["condition"]
+    for w in ("income", "savings", "loan", "credit", "money", "side income"):
+        assert w not in c.lower(), w
+    assert "people who already know you" in c
+
+
+def test_narrator_told_not_to_assume_money_for_unrecognised():
+    nb = narrator_block(dict(_kp("yes", "gain", [11], []), generic=True, confidence=1, window={}))
+    assert "never assume it is about money" in nb
+
+
+def test_unmapped_question_is_logged(capsys):
+    from antar_engine.kp.kp_prashna import kp_prashna
+    kp_prashna({}, "will my sister visit soon", number=10)
+    assert "[kp][unmapped] 'will my sister visit soon'" in capsys.readouterr().out
