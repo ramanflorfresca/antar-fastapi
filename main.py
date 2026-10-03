@@ -1749,6 +1749,35 @@ async def _daily_surface_prewarm_job():
         print(f"[daily-prewarm] job FATAL: {e}")
 
 
+# ── Durable cron-run log ──────────────────────────────────────────────────────
+# Railway keeps only the ACTIVE deployment's logs, so a redeploy shortly after a
+# cron fire rolls the `[push_cron] …` line off before it can be read. Persist each
+# run to app_config (an existing table — no DDL, survives redeploys), as a rolling
+# list under `push_cron_log`, so the result can always be read back. Fail-open.
+def _record_cron_run(kind: str, utc_hour: int, matched: int, totals: dict):
+    try:
+        import json as _json
+        from datetime import datetime as _dt, timezone as _tz
+        from antar_engine import app_config as _ac
+        _key = "push_cron_log"
+        try:
+            _row = supabase.table("app_config").select("value").eq("key", _key).limit(1).execute()
+            _log = _json.loads(_row.data[0]["value"]) if (_row.data and _row.data[0].get("value")) else []
+            if not isinstance(_log, list):
+                _log = []
+        except Exception:
+            _log = []
+        _log.append({
+            "kind": kind, "ts": _dt.now(_tz.utc).isoformat(), "utc_hour": utc_hour,
+            "matched": int(matched or 0), "sent": int((totals or {}).get("sent", 0)),
+            "failed": int((totals or {}).get("failed", 0)), "pruned": int((totals or {}).get("pruned", 0)),
+        })
+        _log = _log[-60:]   # keep last ~60 runs
+        _ac.set_value(supabase, _key, _json.dumps(_log), by="cron")
+    except Exception as _e:
+        print(f"[push_cron] durable log skip: {_e}")
+
+
 # ── Daily push nudge cron ─────────────────────────────────────────────────────
 async def _daily_push_job():
     """HOURLY cron — nudges each device to open today's reading at the USER'S LOCAL
@@ -1811,6 +1840,7 @@ async def _daily_push_job():
             total[k] += summary.get(k, 0)
     print(f"[push_cron] hourly nudge @{now_utc.hour:02d}:xx UTC — matched_charts={matched} "
           f"sent={total['sent']} failed={total['failed']} pruned={total['pruned']}")
+    _record_cron_run("daily_push", now_utc.hour, matched, total)
 
 
 scheduler = AsyncIOScheduler(timezone="UTC")
