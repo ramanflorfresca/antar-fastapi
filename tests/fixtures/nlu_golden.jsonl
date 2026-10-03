@@ -36,3 +36,13 @@
 {"q": "Should I do the gold mine, processing plant and refinery deals or the defence deals with the government?", "language": "en", "intent": ["which", "yes_no", "what_to_do"]}
 {"q": "Does technology suit me to make me a millionaire?", "language": "en", "outcome_claim": true}
 {"q": "Which work will give me the most potential?", "language": "en", "outcome_claim": true}
+{"q": "I was laid off in March. Should I go back to accounting or try something new?", "language": "en", "intent": ["which", "what_to_do"], "area": ["career_job"]}
+{"q": "¿Cuándo voy a conseguir trabajo estable en los próximos 3 meses?", "language": "es", "intent": ["when"], "area": ["career_job"], "horizon_days": 90}
+{"q": "Meu sócio quer sair da empresa. Vale a pena comprar a parte dele?", "language": "pt", "area": ["business_partnership", "partnership_ending"]}
+{"q": "Mera beta 12th mein hai, uske liye engineering sahi rahega ya medical?", "language": "hinglish", "intent": ["which"], "area": ["education_exam", "children_wellbeing"], "subject": "child"}
+{"q": "We just got married. When is a good time to buy our first home?", "language": "en", "intent": ["when"], "area": ["property"]}
+{"q": "Will I make a million dollars from my startup by 2028?", "language": "en", "outcome_claim": true}
+{"q": "How is my health looking this year? My knee surgery is next month.", "language": "en", "intent": ["how"], "area": ["health_self"], "horizon_days": 365}
+{"q": "Is it a good time to talk to my ex again, or should I let it go?", "language": "en", "area": ["reunion_ex"]}
+{"q": "Why do I keep losing money even though I work hard?", "language": "en", "intent": ["why"], "area": ["income_money", "debt_owed_money"]}
+{"q": "My mother is getting older — should I move back to India to be near her?", "language": "en", "area": ["residence_move", "foreign_travel_visa", "family"], "subject": "parent"}

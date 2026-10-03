@@ -124,6 +124,37 @@ _EXPLICIT_EVIDENCE = {
         r"(hij[oa]s?|bebé)\b|\b(tenho|temos) (um |uma |\d+ |dois |duas |três )?(filh[oa]s?|bebê)\b"),
 }
 
+_WORK_EV = {
+    "unemployed": re.compile(r"(?i)\b(unemployed|jobless|out of work|between jobs|no job|laid off|lost my job|"
+                             r"fired|let go|not working|doing nothing|desempleado|sin (trabajo|empleo)|me despidieron|"
+                             r"desempregad|sem (trabalho|emprego)|fui demitid|berozgaar|naukri (nahi|chali gayi)|"
+                             r"kaam nahi)\b"),
+    "employed": re.compile(r"(?i)\b(my (job|boss|manager|employer|office|salary)|i work (at|for|as|in)|"
+                           r"got a (new )?job|mi (trabajo|jefe|empleo)|trabajo en|meu (trabalho|chefe|emprego)|"
+                           r"trabalho na|meri naukri|mera (boss|office))\b"),
+    "self_employed": re.compile(r"(?i)\b(my (own )?(business|startup|company|firm|agency|practice|shop|venture|"
+                                r"clients?)|i (run|own|founded|started) (a|an|my)|self.?employed|freelanc\w*|"
+                                r"founder|mi (propio )?(negocio|empresa|emprendimiento)|minha (pr[oó]pria )?empresa|"
+                                r"meu (pr[oó]prio )?neg[oó]cio|mera (apna )?(business|dhandha))\b"),
+    "student": re.compile(r"(?i)\b(i'?m (a )?student|i am (a )?student|my (studies|exams?|college|university|"
+                          r"degree)|studying|estudiante|estudio|estudante|estudo|padhai)\b"),
+    "retired": re.compile(r"(?i)\b(retired|retiring|jubilad[oa]|aposentad[oa]|retire ho)\b"),
+    "homemaker": re.compile(r"(?i)\b(homemaker|housewife|stay.at.home|ama de casa|dona de casa|grihini)\b"),
+}
+_REL_EV = re.compile(
+    r"(?i)\b(married|single|divorced|separated|widow(ed|er)?|engaged|dating|girlfriend|boyfriend|"
+    r"my (wife|husband|spouse|fianc[eé]e?|partner)|casad[oa]|solter[oa]|divorciad[oa]|separad[oa]|viud[oa]|"
+    r"comprometid[oa]|mi (esposa|esposo|novi[oa]|pareja)|solteir[oa]|vi[uú]v[oa]|noiv[oa]|"
+    r"minha (esposa|mulher|namorada)|meu (marido|namorado)|shaadi(shuda)?|meri (wife|biwi|patni)|mere pati)\b")
+_KIDS_EV = {
+    "yes": re.compile(r"(?i)\b(my (son|daughter|kids?|children|child|baby|boy|girl)|our (son|daughter|kids?|"
+                      r"children|baby)|i have (a |\d+ |two |three )?(kids?|children|son|daughter)|"
+                      r"mi(s)? (hij[oa]s?|beb[eé])|meu(s)? filh[oa]s?|minha(s)? filha(s)?|"
+                      r"mera (beta|bachcha|beti)|meri (beti|bachchi)|mere (bachche|bete))\b"),
+    "no": re.compile(r"(?i)\b(no (kids|children)|don'?t have (kids|children)|childless|sin hijos|"
+                     r"no tengo hijos|sem filhos|n[aã]o tenho filhos|koi bachcha nahi)\b"),
+}
+
 _PAST_WORK_EVIDENCE = re.compile(
     r"(?i)\b(worked as|working as|was (a|an)|used to (be|work)|former(ly)?|previously|"
     r"laid off|fired|let go|my last job|trabajaba|trabaj[eé] como|era (un|una)|trabalhava|"
@@ -251,12 +282,17 @@ def parse(raw: str, original: str = "") -> Optional[dict]:
                 "existing_relationship": "separation"}.get(area, area)
     sf = obj.get("stated_facts") if isinstance(obj.get("stated_facts"), dict) else {}
     other = sf.get("other") if isinstance(sf.get("other"), list) else []
+    # [stated-evidence 2026-10-03] a stated fact counts only if the message says it
+    # (live eval: "¿Cuándo voy a conseguir trabajo estable?" → work=unemployed;
+    # "talk to my ex again" → relationship=single; "meu sócio… da empresa" →
+    # self_employed — all guesses that would have reached the profile/narrator).
+    _w = _clean_enum(sf.get("work"), WORK, None) if sf.get("work") else None
+    _r = _clean_enum(sf.get("relationship"), RELATIONSHIP, None) if sf.get("relationship") else None
+    _c = str(sf.get("children")).lower() if str(sf.get("children")).lower() in ("yes", "no") else None
     facts = {
-        "work": _clean_enum(sf.get("work"), WORK, None) if sf.get("work") else None,
-        "relationship": (_clean_enum(sf.get("relationship"), RELATIONSHIP, None)
-                         if sf.get("relationship") else None),
-        "children": (str(sf.get("children")).lower() if str(sf.get("children")).lower() in ("yes", "no")
-                     else None),
+        "work": _w if (_w and _WORK_EV.get(_w) and _WORK_EV[_w].search(original or "")) else None,
+        "relationship": _r if (_r and _REL_EV.search(original or "")) else None,
+        "children": _c if (_c and _KIDS_EV[_c].search(original or "")) else None,
         "other": [str(x).strip()[:80] for x in other if str(x).strip()][:3],
         # an earning type counts only if the message itself says it (live: the
         # model "stated" trading for "Gold or defence?" — never said)

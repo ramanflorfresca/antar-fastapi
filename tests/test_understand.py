@@ -103,14 +103,16 @@ def test_feared_partnership_event_is_its_ending():
 # ── stated life facts (live 2026-10-03: unemployed reader told about a promotion) ──
 def test_stated_facts_parsed_and_menu_checked():
     r = u.parse(_raw(stated_facts={"work": "unemployed", "relationship": "astronaut",
-                                   "children": "maybe", "other": ["has debt", "", "x" * 200, "a", "b"]}))
+                                   "children": "maybe", "other": ["has debt", "", "x" * 200, "a", "b"]}),
+                "I am unemployed and I have debt.")
     f = r["stated_facts"]
     assert f["work"] == "unemployed" and f["relationship"] is None and f["children"] is None
     assert f["other"][0] == "has debt" and len(f["other"]) == 3 and len(f["other"][1]) <= 80
 
 
 def test_unemployed_block_forbids_promotion_and_boss():
-    r = u.parse(_raw(stated_facts={"work": "unemployed", "other": ["unfocused for months"]}))
+    r = u.parse(_raw(stated_facts={"work": "unemployed", "other": ["unfocused for months"]}),
+                "I am unemployed and unfocused for months.")
     b = u.stated_block(r)
     assert "UNEMPLOYED" in b and "promotion" in b and "boss" in b
     assert "They told you: unfocused for months." in b
@@ -123,7 +125,8 @@ def test_no_stated_facts_no_block():
 
 
 def test_relationship_and_children_overrides():
-    r = u.parse(_raw(stated_facts={"relationship": "divorced", "children": "no"}))
+    r = u.parse(_raw(stated_facts={"relationship": "divorced", "children": "no"}),
+                "I'm divorced and I don't have kids.")
     assert u.life_overrides(r) == {"partnered": False, "has_children": False}
     assert "DIVORCED" in u.stated_block(r) and "NO children" in u.stated_block(r)
 
@@ -135,7 +138,8 @@ def test_harvest_writes_only_empty_fields(monkeypatch):
     import antar_engine.profile_harvest as ph
     wrote = []
     monkeypatch.setattr(ph, "apply_harvest", lambda sb, cid, facts: wrote.append(facts) or {"written": list(facts)})
-    r = u.parse(_raw(stated_facts={"work": "unemployed", "relationship": "single"}))
+    r = u.parse(_raw(stated_facts={"work": "unemployed", "relationship": "single"}),
+                "I'm single and unemployed.")
     row = {"career_stage": "", "marital_status": "married"}
     main._ask_harvest_stated("c1", row, r)
     assert wrote == [{"career_stage": {"value": "between_jobs", "evidence": "stated (nlu)"}}]
@@ -398,3 +402,19 @@ def test_answer_audit_round_fixes():
     assert 'FIRST sentence of "read"' in b and "course" in b
     cb = u.comparison_block(u.parse(_raw(intent="which", options=["crypto", "gold"])))
     assert "INVESTMENTS" in cb and "SOMEONE ELSE" in cb and "FIELDS of work or study" in cb
+
+# ── stated facts need evidence in the message (live eval 2026-10-03) ──
+def test_guessed_facts_are_dropped():
+    r = u.parse(_raw(stated_facts={"work": "unemployed"}), "¿Cuándo voy a conseguir trabajo estable en los próximos 3 meses?")
+    assert r["stated_facts"]["work"] is None
+    r = u.parse(_raw(stated_facts={"relationship": "single"}), "Is it a good time to talk to my ex again?")
+    assert r["stated_facts"]["relationship"] is None
+    r = u.parse(_raw(stated_facts={"work": "self_employed"}), "Meu sócio quer sair da empresa. Vale a pena comprar a parte dele?")
+    assert r["stated_facts"]["work"] is None
+
+
+def test_real_statements_are_kept():
+    assert u.parse(_raw(stated_facts={"work": "unemployed"}), "I was laid off in March.")["stated_facts"]["work"] == "unemployed"
+    assert u.parse(_raw(stated_facts={"relationship": "married"}), "We just got married.")["stated_facts"]["relationship"] == "married"
+    assert u.parse(_raw(stated_facts={"children": "yes"}), "Mera beta 12th mein hai")["stated_facts"]["children"] == "yes"
+    assert u.parse(_raw(stated_facts={"work": "self_employed"}), "Will my startup get funded?")["stated_facts"]["work"] == "self_employed"
