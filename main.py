@@ -30130,6 +30130,53 @@ async def ask_endpoint(request: AskRequest):
                         print(f"[ask] kp-horary calibration log non-fatal: {_kle}")
             except Exception as _khe:
                 print(f"[ask] kp-horary guarantee non-fatal: {_khe}")
+            # [speculation-policy 2026-10-03] owner: speculation + gambling answered the
+            # way an astrologer would — does the chart support speculation (natal
+            # engine_speculation), is the unearned-gains window (5/8/11 timing) active
+            # now, and for gambling: no game-specific answer. A "no" is said straight.
+            try:
+                from antar_engine import speculation_policy as _spp0
+                _sp_gamb = _spp0.is_gambling(question)
+                _sp_area = ((locals().get("_ask_u") or {}).get("area") == "speculation_betting")
+                if _sp_gamb or _sp_area or _is_gambling_q(question) or locals().get("_ask_concern") == "speculation":
+                    from antar_engine import speculation_policy as _spp
+                    _sp_natal = _spp.natal_read(chart_data, locals().get("_ask_dashas") or {},
+                                                locals().get("_ask_bdate") or "")
+                    _sp_ee = locals().get("_ee") or {}
+                    _sp_ev = (_sp_ee.get("verdict") or {}) if isinstance(_sp_ee, dict) else {}
+                    _sp_win = ((_sp_ee.get("timing_label") if isinstance(_sp_ee, dict) else "")
+                               or (_ask_conv or {}).get("window_label")
+                               or (_ask_conv or {}).get("next_window_label") or "")
+                    _sp_client = (_sp_ee.get("client_verdict") if isinstance(_sp_ee, dict) else "") or ""
+                    if not _sp_win and not _sp_client:
+                        # the timing engine didn't run for this phrasing — run it for the
+                        # speculation concern so every phrasing gets the SAME window
+                        # (live: lottery in ES said "open now", casino in EN "Jun 2027").
+                        try:
+                            from antar_engine.event_narrator import run_event_engine as _sp_ree
+                            _sp_e2 = _sp_ree(chart_data, locals().get("_ask_jd"),
+                                             locals().get("_ask_dashas") or {},
+                                             locals().get("_ask_bdate") or "", "speculation")
+                            if _sp_e2:
+                                _sp_client = _sp_e2.get("client_verdict") or ""
+                                _sp_win = _sp_e2.get("timing_label") or ""
+                                _sp_ev = _sp_e2.get("verdict") or {}
+                        except Exception as _spe2:
+                            print(f"[ask][speculation-policy] timing engine fallback failed: {_spe2}")
+                    if not _sp_win and not _sp_client:
+                        _sp_client, _sp_win = _spp.natal_window(_sp_natal)
+                    _sp_state = _spp.state(_sp_natal, _sp_client, str(_sp_ev.get("verdict") or ""))
+                    _sp = _spp.lead(_sp_state, _sp_win, gambling=_sp_gamb, language=language)
+                    payload["read"] = _spp.merge(payload.get("read") or "", _sp["read"], _sp_state)
+                    payload["next"] = _sp["next"]
+                    if _sp_win and _sp_state in ("open", "later"):
+                        payload["timing"] = _sp_win          # one window everywhere
+                    elif _sp_state in ("losses", "no"):
+                        payload["timing"] = None
+                    print(f"[ask][speculation-policy] state={_sp_state} window={_sp_win!r} "
+                          f"gambling={_sp_gamb} score={(_sp_natal or {}).get('score')} for {chart_id[:8]}")
+            except Exception as _spe:
+                print(f"[ask][speculation-policy] skipped (non-fatal): {_spe}")
             # [apple-4.3 2026-10-02] A gambling-flavoured question (poker/casino/bet/
             # "best day to gamble") must NOT come back as a dated "best day" pick — that
             # is the gambling-timing pattern we removed. The 5/8/11 house read + the
