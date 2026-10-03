@@ -242,6 +242,17 @@ def parse(raw: str, original: str = "") -> Optional[dict]:
     facts["past_work"] = pw if (pw and _PAST_WORK_EVIDENCE.search(original or "")) else None
     opts = obj.get("options") if isinstance(obj.get("options"), list) else []
     options = [str(o).strip()[:60] for o in opts if str(o).strip()][:5]
+    # [question-forms 2026-10-03] a clear open question word decides the intent
+    # when the model gave the vaguer what_to_do / open (live check: "How is my
+    # income looking?" / "¿Cómo va mi deuda?" / "Where will … take me?" → what_to_do).
+    _intent = _clean_enum(obj.get("intent"), INTENTS, "open")
+    try:
+        from antar_engine import question_forms as _qf
+        _lex = _qf.intent(original or "")
+        if _lex in ("when", "how", "why", "where_who") and _intent in ("what_to_do", "open"):
+            _intent = _lex
+    except Exception:
+        pass
     return {
         "outcome_claim": bool(obj.get("outcome_claim")) or bool(_OUTCOME_Q.search(original or "")),
         "options": options,
@@ -249,7 +260,7 @@ def parse(raw: str, original: str = "") -> Optional[dict]:
         "stated_facts": facts,
         "language": _clean_enum(obj.get("language"), LANGS, "other"),
         "standalone": standalone,
-        "intent": _clean_enum(obj.get("intent"), INTENTS, "open"),
+        "intent": _intent,
         "area": area,
         "subject": _clean_enum(obj.get("subject"), SUBJECTS, "self"),
         "polarity": polarity,

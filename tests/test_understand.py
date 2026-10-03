@@ -331,3 +331,12 @@ def test_known_background_keeps_true_facts():
     kb = "Formerly finance / bookkeeping manager (laid off)"
     assert u.guard_answer(t, "What courses?", None, unemployed=True, known_background=kb) == t
     assert u.drop_invented_background(t, background_known=True) == t
+
+
+
+def test_clear_open_question_word_beats_a_vague_model_intent():
+    assert u.parse(_raw(intent="what_to_do"), "How is my income looking?")["intent"] == "how"
+    assert u.parse(_raw(intent="what_to_do"), "¿Cómo va mi deuda?")["intent"] == "how"
+    assert u.parse(_raw(intent="open"), "Where will my exam results take me?")["intent"] == "where_who"
+    assert u.parse(_raw(intent="what_to_do"), "What should I do about my career?")["intent"] == "what_to_do"
+    assert u.parse(_raw(intent="yes_no"), "When will I marry?")["intent"] == "yes_no"   # model's specific read kept

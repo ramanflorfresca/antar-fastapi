@@ -666,7 +666,14 @@ def is_yesno_question(text: str) -> bool:
         # "Is it…/Will…" are yes/no, but a later open word ("Will you tell me
         # WHEN…") makes it an open question
         return not _YN_OPEN.search(t) or first == "kya"
-    return bool(_YN_END_HINGLISH.search(t)) and not _YN_OPEN.search(t)
+    if _YN_END_HINGLISH.search(t) and not _YN_OPEN.search(t):
+        return True
+    # [question-forms 2026-10-03] the shared lexicon's yes/no forms (will / should /
+    # could / would in EN/ES/PT/Hinglish — "me conviene…", "vale a pena…", "…chalega",
+    # "…sakta") when no open word decides it
+    from antar_engine import question_forms as _qf
+    forms = _qf.detect(t)
+    return bool(forms) and _qf.primary(t) in _qf.YES_NO_FORMS and not (set(forms) & _qf.OPEN_FORMS)
 
 
 _LEAN_HEAD = {

@@ -29449,6 +29449,11 @@ async def ask_endpoint(request: AskRequest):
                 # the reading may have arrived after the life-block wait — take it now
                 if not locals().get("_ask_u"):
                     _ask_u = await _ask_await_nlu(locals().get("_ask_nlu_task"), 2.0)
+                if not locals().get("_ask_u"):
+                    # [question-forms] model reading unavailable → the lexicon's intent
+                    from antar_engine import question_forms as _qfv
+                    _fi = _qfv.intent(question)
+                    _ask_u = {"intent": _fi} if _fi else None
                 if _undv.suppress_verdict(locals().get("_ask_u")) and _ask_conv and \
                         _ask_conv.get("verdict_phrase"):
                     _ask_conv["suppress_verdict"] = True
