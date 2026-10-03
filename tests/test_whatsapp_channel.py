@@ -765,7 +765,15 @@ def test_is_yesno_question(q, yn):
     assert msg.is_yesno_question(q) is yn
 
 
-def test_timezone_uses_the_stored_current_timezone(m, monkeypatch):
+def test_timezone_follows_the_whatsapp_number(m, monkeypatch):
+    """WhatsApp sends no clock; the number is the live signal. Live bug: the chart
+    said Bogotá while the person was messaging from US Eastern."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+
+    def off(z):
+        return int(datetime.now(ZoneInfo(z)).utcoffset().total_seconds() // 60)
+
     class Q:
         def __init__(self, row): self.row = row
         def select(self, *a): return self
@@ -774,8 +782,7 @@ def test_timezone_uses_the_stored_current_timezone(m, monkeypatch):
         def execute(self): return type("R", (), {"data": [self.row]})()
     monkeypatch.setattr(m.supabase, "table",
                         lambda name: Q({"current_timezone": "America/Bogota", "current_country": "US"}))
-    assert m._wa_user_tz_minutes("c1", "+15551234567") == -300          # Bogota, not US Eastern
-    monkeypatch.setattr(m.supabase, "table",
-                        lambda name: Q({"current_timezone": None, "current_country": "IN"}))
-    assert m._wa_user_tz_minutes("c1", "+15551234567") == 330
-    assert m._wa_user_tz_minutes(None, "+919812345678") == 330         # phone prefix last
+    assert m._wa_user_tz_minutes("c1", "+14077825752") == off("America/New_York")   # 407 Orlando
+    assert m._wa_user_tz_minutes("c1", "+13105551234") == off("America/Los_Angeles")
+    assert m._wa_user_tz_minutes("c1", "+5592987654321") == off("America/Manaus")
+    assert m._wa_user_tz_minutes(None, "+919812345678") == 330

@@ -4660,26 +4660,52 @@ def _wa_tz(number: str) -> int:
 
 
 def _wa_user_tz_minutes(chart_id: Optional[str], number: str) -> int:
-    """The asker's local offset in minutes for "today" questions. [whatsapp-tz]
-    Order: the chart's stored current_timezone (IANA, DST-aware) → its
-    current_country → the phone's country prefix. Was phone prefix only, so every
-    +1 number was fixed at US Eastern (wrong for Pacific, wrong after DST)."""
+    """The sender's local offset in minutes for "today" questions. [whatsapp-tz]
+    WhatsApp never sends the sender's clock, so the WhatsApp NUMBER is the best
+    live signal: libphonenumber maps it to a timezone down to the area code
+    (+1 407 → New York, +1 310 → Los Angeles, +55 92 → Manaus), DST-aware via
+    zoneinfo. The chart's stored current_timezone only breaks a tie when a
+    number spans several zones (it can be stale — live: chart said Bogotá, the
+    person was messaging from US Eastern). Then current_country, then prefix."""
+    from zoneinfo import ZoneInfo
+
+    def _mins(tzname):
+        try:
+            off = datetime.now(ZoneInfo(tzname)).utcoffset()
+            return int(off.total_seconds() // 60) if off is not None else None
+        except Exception:
+            return None
+
+    zones = ()
     try:
-        if chart_id:
+        import phonenumbers
+        from phonenumbers import timezone as _pn_tz
+        zones = tuple(z for z in _pn_tz.time_zones_for_number(phonenumbers.parse(number))
+                      if z and z != "Etc/Unknown")
+    except Exception as e:
+        print(f"[whatsapp] number tz skipped: {e}")
+    stored, cc = "", ""
+    if chart_id and len(zones) != 1:
+        try:
             r = (supabase.table("charts").select("current_timezone,current_country")
                  .eq("id", chart_id).limit(1).execute()).data or []
             if r:
-                tzname = (r[0].get("current_timezone") or "").strip()
-                if tzname:
-                    from zoneinfo import ZoneInfo
-                    off = datetime.now(ZoneInfo(tzname)).utcoffset()
-                    if off is not None:
-                        return int(off.total_seconds() // 60)
+                stored = (r[0].get("current_timezone") or "").strip()
                 cc = (r[0].get("current_country") or "").strip().upper()
-                if cc and cc in _COUNTRY_TZ_OFFSETS:
-                    return int(float(_COUNTRY_TZ_OFFSETS[cc]) * 60)
-    except Exception as e:
-        print(f"[whatsapp] tz lookup skipped: {e}")
+        except Exception as e:
+            print(f"[whatsapp] stored tz lookup skipped: {e}")
+    if len(zones) == 1:
+        pick = zones[0]
+    elif zones:
+        pick = stored if stored in zones else zones[0]
+    else:
+        pick = stored
+    if pick:
+        m = _mins(pick)
+        if m is not None:
+            return m
+    if cc and cc in _COUNTRY_TZ_OFFSETS:
+        return int(float(_COUNTRY_TZ_OFFSETS[cc]) * 60)
     return _wa_tz(number)
 
 
