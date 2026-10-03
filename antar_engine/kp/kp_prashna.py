@@ -314,6 +314,11 @@ def kp_prashna(chart_record, question, number=None, now_utc=None):
         qt, loss_house, generic = classify_question(question)
         if qt is None:
             return {"available": False, "reason": "question not KP-mappable"}
+        if generic:
+            # [kp-neutral-fallback] surface topics the classifier is missing (the
+            # cast is also stored in prashna_log with generic=true — see
+            # scripts/kp_unmapped_report.py)
+            print(f"[kp][unmapped] {(question or '')[:120]!r}")
         now_utc = now_utc or datetime.now(timezone.utc)
         if now_utc.tzinfo is None:
             now_utc = now_utc.replace(tzinfo=timezone.utc)
@@ -406,6 +411,10 @@ def narrator_block(kp, question: str = ""):
         f"question says {_LEAN_PLAIN.get(lean, 'unclear')}.",
         f"Strength of the read: {kp.get('confidence', 0)} of 3.",
     ]
+    if kp.get("generic"):
+        parts.append("The matter was not recognised as a specific topic. Speak about "
+                     "the outcome the person asked about, in their own words — never "
+                     "assume it is about money, work or love unless they said so.")
     if kp.get("natal") == "no" and lean == "conditional":
         parts.append("The person's wider life pattern does not strongly promise this "
                      "matter, so the path to it needs a different route or more effort.")
