@@ -138,8 +138,8 @@ def test_harvest_writes_only_empty_fields(monkeypatch):
     r = u.parse(_raw(stated_facts={"work": "unemployed", "relationship": "single"}))
     row = {"career_stage": "", "marital_status": "married"}
     main._ask_harvest_stated("c1", row, r)
-    assert wrote == [{"career_stage": {"value": "seeking", "evidence": "stated (nlu)"}}]
-    assert row["career_stage"] == "seeking" and row["marital_status"] == "married"
+    assert wrote == [{"career_stage": {"value": "between_jobs", "evidence": "stated (nlu)"}}]
+    assert row["career_stage"] == "between_jobs" and row["marital_status"] == "married"
 
 
 
@@ -331,3 +331,52 @@ def test_known_background_keeps_true_facts():
     kb = "Formerly finance / bookkeeping manager (laid off)"
     assert u.guard_answer(t, "What courses?", None, unemployed=True, known_background=kb) == t
     assert u.drop_invented_background(t, background_known=True) == t
+
+
+# ── explicit statements update the profile (owner 2026-10-03) ──
+def _ex(msg, **sf):
+    return u.parse(_raw(stated_facts=sf), msg)
+
+
+def test_explicit_statement_updates_a_changed_value():
+    r = _ex("I'm married now and we just moved", relationship="married", explicit_now=["relationship"])
+    assert u.explicit_updates(r, {"marital_status": "single"}) == {"marital_status": ("single", "married")}
+    r = _ex("I was laid off last week", work="unemployed", explicit_now=["work"])
+    assert u.explicit_updates(r, {"career_stage": "mid_career"}) == {"career_stage": ("mid_career", "between_jobs")}
+
+
+def test_same_meaning_or_no_evidence_or_question_changes_nothing():
+    r = _ex("I run my own business", work="self_employed", explicit_now=["work"])
+    assert u.explicit_updates(r, {"career_stage": "entrepreneur"}) == {}             # same meaning
+    r = _ex("I have two kids", children="yes", explicit_now=["children"])
+    assert u.explicit_updates(r, {"children_status": "adult_children"}) == {}        # compatible
+    r = _ex("Will I get married next year?", relationship="married", explicit_now=["relationship"])
+    assert r["stated_facts"]["explicit_now"] == []                                   # a question
+    r = _ex("I'm separated. Will we get back together?", relationship="separated", explicit_now=["relationship"])
+    assert r["stated_facts"]["explicit_now"] == ["relationship"]                     # statement + question
+    r = _ex("Mi esposa y yo hablamos hoy", relationship="married", explicit_now=["relationship"])
+    assert u.explicit_updates(r, {"marital_status": "separated"}) == {}              # "my wife" ≠ status
+    r = _ex("Estoy separado de mi esposa", relationship="separated", explicit_now=["relationship"])
+    assert u.explicit_updates(r, {"marital_status": "married"}) == {"marital_status": ("married", "separated")}
+
+
+def test_between_jobs_reads_as_in_transition_not_job():
+    from antar_engine.life_context import _norm_career
+    assert _norm_career({"career_stage": "between_jobs"}) == "in_transition"
+
+
+def test_explicit_update_goes_through_harvest_and_logs(monkeypatch):
+    from dotenv import load_dotenv
+    load_dotenv()
+    import main
+    import antar_engine.profile_harvest as ph
+    wrote = []
+    monkeypatch.setattr(ph, "apply_harvest", lambda sb, cid, facts: wrote.append(facts) or {})
+    class T:
+        def insert(self, row): return self
+        def execute(self): return None
+    monkeypatch.setattr(main.supabase, "table", lambda n: T())
+    r = _ex("I just got a job at a bank", work="employed", explicit_now=["work"])
+    row = {"career_stage": "between_jobs", "profession": None, "life_work": "x"}
+    main._ask_harvest_stated("c1", row, r)
+    assert wrote[-1]["career_stage"]["value"] == "employed" and row["career_stage"] == "employed"
