@@ -30013,6 +30013,17 @@ async def ask_endpoint(request: AskRequest):
             # a token cutoff or the readability pass. Repair a dangling em-dash tail;
             # if still broken, drop `next` rather than ship a garbled instruction.
             payload["next"] = _ask_repair_next(payload.get("next"))
+            # [no-invented-role] a role they never stated is neutralised
+            try:
+                if locals().get("_ask_compare"):
+                    from antar_engine import understand as _und2
+                    _au = locals().get("_ask_u") or {}
+                    _known = (_und2.earning_text((_au.get("stated_facts") or {}).get("earning") or [])
+                              or locals().get("_known_earn") or "")
+                    for _rf in ("read", "next"):
+                        payload[_rf] = _und2.scrub_invented_role(payload.get(_rf), _known)
+            except Exception:
+                pass
             # [markdown-strip 2026-09-16] the app renders answers as plain text —
             # remove any **bold** / `code` the LLM added (was showing raw asterisks).
             try:
