@@ -671,6 +671,9 @@ def guardrails_block() -> str:
             "- Never state their money situation as a fact ('you don't have much saved', 'you have "
             "debt') unless they told you. Say what the reading shows: 'the reading shows pressure "
             "on savings'.\n"
+            "- Loans and debts: mention them ONLY when the question is about money, and never as a "
+            "fact they have one (no 'your loan', 'existing debt', 'debt repayments') unless they told "
+            "you. For career, business-launch, relationship or other questions, leave loans out.\n"
             "- Never invent their past: no 'your finance years', 'your old company', 'when you "
             "worked in…' unless they told you. Fields the reading favours are possibilities, not "
             "their history.")
@@ -695,9 +698,21 @@ _FIN_FACT = [
     (re.compile(r"(?i)\byou owe (money )?on (a|the|your) loans?\b"), "the reading shows loan pressure"),
     (re.compile(r"(?i)\byou owe money\b"), "the reading shows loan pressure"),
     (re.compile(r"(?i)\b(a|your|the) live loan burden\b"), "the loan pressure the reading shows"),
+    # [audit round 5 2026-10-03] loans/debts asserted as existing — EN / ES / PT
+    (re.compile(r"(?i)\b(the |your )?debt (repayments?|service)( payments?)?\b"), "the loan pressure the reading shows"),
+    (re.compile(r"(?i)\b(an? |your |any )?existing (loans?|debts?)\b"), "the loan pressure the reading shows"),
+    (re.compile(r"(?i)\b(un |el |tu |tus )?pr[eé]stamos? (existentes?|vigentes?|actuales?)\b"),
+     "la presión de préstamos que muestra la lectura"),
+    (re.compile(r"(?i)\b(una |la |tu )?(carga de )?deudas? (vigentes?|pendientes?|existentes?|actuales?)\b"),
+     "la presión de deudas que muestra la lectura"),
+    (re.compile(r"(?i)\btus t[eé]rminos de pr[eé]stamo( actuales)?\b"), "cualquier presión de préstamos que muestre la lectura"),
+    (re.compile(r"(?i)\b(um |o |seu |seus )?empr[eé]stimos? (existentes?|atuais?|vigentes?)\b"),
+     "a pressão de empréstimos que a leitura mostra"),
+    (re.compile(r"(?i)\b(as |suas |uma )?d[ií]vidas? (existentes?|atuais?|pendentes?|vigentes?)\b"),
+     "a pressão de dívidas que a leitura mostra"),
     (re.compile(r"(?i)\byour debt\b"), "loan pressure in the reading"),
 ]
-_FIN_WORDS = re.compile(r"(?i)sav(e|ing|ings)|debt|loan|money|cash|broke|deud|ahorro|d[ií]vida|poupan|karz|udhaar")
+_FIN_WORDS = re.compile(r"(?i)sav(e|ing|ings)|debt|loan|owe|broke|deud|pr[eé]stamo|ahorro|d[ií]vida|empr[eé]stimo|poupan|karz|udhaar")
 
 
 def _sentences(t: str) -> list:
