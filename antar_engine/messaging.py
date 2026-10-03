@@ -947,3 +947,62 @@ def whatsapp_send_list(to_number: str, body: str, button: str, items: list,
     except Exception as e:
         print(f"[whatsapp] list send failed …{to[-4:]}: {e}")
     return False
+
+
+# ── travel: where is the sender right now? ──
+# [whatsapp-travel 2026-10-02] A number keeps its home area code abroad, so the
+# number alone gets "today" wrong for travellers. Stronger, fresher signals win:
+#   1. a shared WhatsApp location or "I'm in London" → a 14-day override;
+#   2. the app's device clock, if seen in the last 48 hours;
+#   3. the number (libphonenumber) — the fallback.
+TRAVEL_OVERRIDE_DAYS = 14
+DEVICE_TZ_FRESH_S = 48 * 3600
+
+_IM_IN = re.compile(
+    r"(?i)^\s*(?:i'?m|i am|im|currently|now|estoy|estou|main|mai)\s+"
+    r"(?:in|en|em|at|currently in|now in|ahora en|agora em)?\s*"
+    r"([a-záéíóúñãõçü .'-]{2,40}?)"
+    r"\s*(?:now|ahora|agora|mein hoon|mein hu|me hoon|me hu|hoon)?\s*[.!]?\s*$")
+_HOME_AGAIN = re.compile(
+    r"(?i)^\s*(?:i'?m|i am|im|back)\s+(?:back\s+)?home\b|^\s*(?:estoy en casa|"
+    r"volv[ií] a casa|estou em casa|voltei para casa|ghar aa gaya|ghar aa gayi)\b")
+_NOT_A_PLACE = frozenset("""
+fine good ok okay well sad tired confused stuck worried scared happy great busy
+back here there home ready done lost a an the not so very really still also just
+bien mal cansado cansada triste feliz bem cansada ghar theek
+love trouble debt pain doubt hurry charge control danger shock denial between
+transition crisis business school college office work meeting hospital bed car
+traffic line queue doubt dilemma limbo pieces shape form position touch amor
+deuda problemas oficina trabajo reunión dívida problema escritório trabalho reunião
+pyaar pareshani karz kaam office
+""".split())
+
+
+def parse_travel(text: str):
+    """('home', None) | ('city', 'London') | (None, None)."""
+    t = (text or "").strip()
+    if not t or "?" in t or len(t.split()) > 7:
+        return None, None
+    if _HOME_AGAIN.search(t):
+        return "home", None
+    m = _IM_IN.match(t)
+    if not m:
+        return None, None
+    place = m.group(1).strip(" .'-")
+    words = place.lower().split()
+    if not words or words[0] in _NOT_A_PLACE or any(w in _NOT_A_PLACE for w in words[:1]):
+        return None, None
+    return "city", place
+
+
+def tz_label(tzname: str) -> str:
+    """'Asia/Kolkata' → 'Kolkata', 'America/New_York' → 'New York'."""
+    return (tzname or "").split("/")[-1].replace("_", " ")
+
+
+def tz_from_coords(lat, lon) -> Optional[str]:
+    try:
+        from timezonefinder import TimezoneFinder
+        return TimezoneFinder().timezone_at(lat=float(lat), lng=float(lon))
+    except Exception:
+        return None

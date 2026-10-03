@@ -4498,6 +4498,22 @@ _WA_L = {
                   "es": "_Responde *más* para la lectura completa._",
                   "pt": "_Responda *mais* para a leitura completa._",
                   "hinglish": "_Poora padhne ke liye *more* bhejiye._"},
+    "travel_set": {"en": "Got it — I'll use {city} time for the next 2 weeks. Reply *I'm home* to switch back.",
+                   "es": "Entendido — usaré la hora de {city} durante 2 semanas. Responde *estoy en casa* para volver.",
+                   "pt": "Entendido — vou usar o horário de {city} pelas próximas 2 semanas. Responda *estou em casa* para voltar.",
+                   "hinglish": "Theek hai — agle 2 hafte {city} ka time use karunga. Wapas ke liye *I'm home* bhejiye."},
+    "travel_home": {"en": "Welcome back — I'm using your home time again.",
+                    "es": "Bienvenido de vuelta — vuelvo a usar tu hora de casa.",
+                    "pt": "Bem-vindo de volta — voltei a usar o seu horário de casa.",
+                    "hinglish": "Welcome back — ab phir aapke ghar ka time use kar raha hoon."},
+    "travel_unknown": {"en": "I couldn't place \"{p}\" — share your location in WhatsApp and I'll use that.",
+                       "es": "No pude ubicar \"{p}\" — comparte tu ubicación en WhatsApp y la usaré.",
+                       "pt": "Não consegui localizar \"{p}\" — compartilhe sua localização no WhatsApp e eu uso.",
+                       "hinglish": "\"{p}\" samajh nahi aaya — WhatsApp mein apni location bhejiye."},
+    "travel_note": {"en": "_Using your local time ({label}) — looks like you're travelling._",
+                    "es": "_Uso tu hora local ({label}) — parece que estás de viaje._",
+                    "pt": "_Usando seu horário local ({label}) — parece que você está viajando._",
+                    "hinglish": "_Aapka local time ({label}) use kar raha hoon — lagta hai aap travel kar rahe hain._"},
     "btn_choose": {"en": "Choose a question", "es": "Elegir pregunta", "pt": "Escolher pergunta",
                    "hinglish": "Sawaal chuniye"},
     "btn_next": {"en": "Ask next", "es": "Siguiente pregunta", "pt": "Próxima pergunta",
@@ -4659,7 +4675,8 @@ def _wa_tz(number: str) -> int:
     return 0
 
 
-def _wa_user_tz_minutes(chart_id: Optional[str], number: str) -> int:
+def _wa_number_tz(chart_id: Optional[str], number: str) -> tuple:
+    """(minutes, tzname) from the WhatsApp number (see _wa_user_tz_minutes)."""
     """The sender's local offset in minutes for "today" questions. [whatsapp-tz]
     WhatsApp never sends the sender's clock, so the WhatsApp NUMBER is the best
     live signal: libphonenumber maps it to a timezone down to the area code
@@ -4703,10 +4720,72 @@ def _wa_user_tz_minutes(chart_id: Optional[str], number: str) -> int:
     if pick:
         m = _mins(pick)
         if m is not None:
-            return m
+            return m, pick
     if cc and cc in _COUNTRY_TZ_OFFSETS:
-        return int(float(_COUNTRY_TZ_OFFSETS[cc]) * 60)
-    return _wa_tz(number)
+        return int(float(_COUNTRY_TZ_OFFSETS[cc]) * 60), ""
+    return _wa_tz(number), ""
+
+
+def _wa_tz_minutes_for(tzname: str):
+    try:
+        from zoneinfo import ZoneInfo
+        off = datetime.now(ZoneInfo(tzname)).utcoffset()
+        return int(off.total_seconds() // 60) if off is not None else None
+    except Exception:
+        return None
+
+
+def _wa_resolve_tz(chart_id: Optional[str], number: str, ctx: Optional[dict] = None) -> tuple:
+    """(minutes, source, label). [whatsapp-travel] Freshest signal wins:
+    a travel override (shared location / "I'm in London", 14 days) → the app's
+    device clock seen in the last 48h → the WhatsApp number."""
+    ctx = ctx or {}
+    now = _time.time()
+    ov = ctx.get("tz_override") or {}
+    if ov.get("tz") and float(ov.get("until") or 0) > now:
+        m = _wa_tz_minutes_for(ov["tz"])
+        if m is not None:
+            return m, "override", ov.get("label") or ov["tz"]
+    dev = ctx.get("device_tz") or {}
+    if dev.get("minutes") is not None and now - float(dev.get("at") or 0) < 48 * 3600:
+        mins = int(dev["minutes"])
+        sign = "+" if mins >= 0 else "-"
+        return mins, "device", f"UTC{sign}{abs(mins) // 60}" + (f":{abs(mins) % 60:02d}" if mins % 60 else "")
+    mins, tzname = _wa_number_tz(chart_id, number)
+    return mins, "number", tzname
+
+
+def _wa_user_tz_minutes(chart_id: Optional[str], number: str, ctx: Optional[dict] = None) -> int:
+    """The sender's local offset in minutes for "today" questions."""
+    return _wa_resolve_tz(chart_id, number, ctx)[0]
+
+
+_WA_DEVICE_TZ_SEEN: dict = {}     # chart_id → (minutes, ts): throttle device-clock writes
+
+
+def _wa_note_device_tz(chart_id: str, minutes: int) -> None:
+    """[whatsapp-travel] Remember the app's device clock on the user's WhatsApp
+    link (context.device_tz) so WhatsApp answers follow a traveller's real time.
+    Throttled: only when it changes or every 6h. Never raises."""
+    try:
+        last = _WA_DEVICE_TZ_SEEN.get(chart_id)
+        if last and last[0] == minutes and _time.time() - last[1] < 6 * 3600:
+            return
+        _WA_DEVICE_TZ_SEEN[chart_id] = (minutes, _time.time())
+        u = (supabase.table("charts").select("user_id").eq("id", chart_id)
+             .limit(1).execute()).data or []
+        if not (u and u[0].get("user_id")):
+            return
+        rows = (supabase.table("messaging_links").select("*").eq("channel", "whatsapp")
+                .eq("user_id", u[0]["user_id"]).eq("status", "linked").limit(1).execute()).data or []
+        if not rows:
+            return
+        from antar_engine import messaging as _msg
+        ctx = _msg.link_context(rows[0])
+        ctx["device_tz"] = {"minutes": int(minutes), "at": int(_time.time())}
+        _msg.save_link_context(supabase, rows[0], ctx)
+    except Exception as e:
+        print(f"[whatsapp] device tz note skipped: {e}")
 
 
 def _wa_chart_name(chart_id: str) -> str:
@@ -4756,7 +4835,7 @@ def _wa_welcome(link: dict, lang: str) -> tuple:
 
 async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int = 0,
                      sink: Optional["_WaSink"] = None, message_sid: str = "",
-                     choice_id: str = ""):
+                     choice_id: str = "", lat_lon: Optional[tuple] = None):
     """Background worker for one inbound WhatsApp message. Never raises."""
     from antar_engine import messaging as _msg
     from starlette.responses import Response as _StarResp
@@ -4832,6 +4911,38 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             return
         if not body and num_media:
             send(_wa_text("media", lang))
+            return
+        # [whatsapp-travel] a shared location or "I'm in London" sets a 14-day
+        # timezone override; "I'm home" clears it
+        if lat_lon:
+            _tzn = _msg.tz_from_coords(*lat_lon)
+            if _tzn:
+                ctx["tz_override"] = {"tz": _tzn, "label": _msg.tz_label(_tzn), "source": "location",
+                                      "until": int(_time.time()) + _msg.TRAVEL_OVERRIDE_DAYS * 86400}
+                _save(ctx)
+                send(_wa_text("travel_set", lang, city=_msg.tz_label(_tzn)))
+                return
+        _tv_kind, _tv_place = _msg.parse_travel(body)
+        if _tv_kind == "home":
+            ctx.pop("tz_override", None)
+            _save(ctx)
+            send(_wa_text("travel_home", lang))
+            return
+        if _tv_kind == "city":
+            _tzn = None
+            try:
+                _g = await _geocode_city(_tv_place, "")
+                _tzn = _g[2] if _g and len(_g) > 2 and _g[2] and _g[2] != "UTC" else None
+            except Exception:
+                _tzn = None
+            if not _tzn:
+                send(_wa_text("travel_unknown", lang, p=_tv_place))
+                return
+            _city = _tv_place.title()
+            ctx["tz_override"] = {"tz": _tzn, "label": _city, "source": "city",
+                                  "until": int(_time.time()) + _msg.TRAVEL_OVERRIDE_DAYS * 86400}
+            _save(ctx)
+            send(_wa_text("travel_set", lang, city=_city))
             return
         # [whatsapp-compact] "more" → the full version of the last answer
         if (body.strip().lower().strip(" .!?¿¡") in _msg.WA_MORE_WORDS
@@ -4943,7 +5054,14 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         _mode = ("yesno" if ((os.getenv("WHATSAPP_YESNO_AUTO") or "on").strip().lower()
                              not in ("0", "off", "false", "no")
                              and _msg.is_yesno_question(question)) else "explore")
-        _tz_min = await asyncio.to_thread(_wa_user_tz_minutes, primary or cid, number)
+        _tz_min, _tz_src, _tz_label = await asyncio.to_thread(_wa_resolve_tz, primary or cid, number, ctx)
+        _travel_note = ""
+        if _tz_src == "device":
+            _home_min, _ = await asyncio.to_thread(_wa_number_tz, primary or cid, number)
+            if (abs(_tz_min - _home_min) >= 120
+                    and _time.time() - float(ctx.get("travel_note_at") or 0) > 7 * 86400):
+                _travel_note = _wa_text("travel_note", lang, label=_tz_label)
+                ctx["travel_note_at"] = int(_time.time())
         ask = asyncio.create_task(ask_endpoint(AskRequest(
             question=question, chart_id=cid, mode=_mode,
             language=("hinglish" if lang == "hinglish" else lang),
@@ -5019,6 +5137,8 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         if _show_pc and _pc_label in text:
             _seen["labels"] = (_seen["labels"] + [_pc_label])[-10:]
         ctx["practice_seen"] = _seen
+        if text and locals().get("_travel_note"):
+            text = text + "\n\n" + _travel_note
         if not text:
             send(_wa_text("failed", lang))
         else:
@@ -5093,7 +5213,13 @@ async def messaging_whatsapp_webhook(http_request: Request):
         num_media = int(params.get("NumMedia") or 0)
     except ValueError:
         num_media = 0
-    if not number or (not body and not num_media):   # status pings: nothing to answer
+    lat_lon = None
+    try:
+        if params.get("Latitude") and params.get("Longitude"):
+            lat_lon = (float(params["Latitude"]), float(params["Longitude"]))
+    except ValueError:
+        lat_lon = None
+    if not number or (not body and not num_media and not lat_lon):   # status pings
         return _empty
     # [whatsapp-twiml] `help` is answered INSIDE the webhook response (TwiML
     # <Message>) — instant, no DB, no REST send. Also tells us whether Twilio lets
@@ -5107,7 +5233,7 @@ async def messaging_whatsapp_webhook(http_request: Request):
                      media_type="text/xml")
     sink = _WaSink(number, now, inline=_wa_inline_on())
     choice = (params.get("ListId") or params.get("ButtonPayload") or "").strip()
-    task = asyncio.create_task(_wa_handle(number, body, now, num_media, sink, sid, choice))
+    task = asyncio.create_task(_wa_handle(number, body, now, num_media, sink, sid, choice, lat_lon))
     _WA_TASKS.add(task)
     task.add_done_callback(_WA_TASKS.discard)
     if sink.inline:
@@ -25631,6 +25757,16 @@ async def ask_endpoint(request: AskRequest):
     # One verified Haiku call, only for likely follow-ups within the last hour.
     # History keeps what was typed (_ASK_TYPED_Q). Kill switch: ASK_CONVERSATION_LAYER=off.
     _ASK_TYPED_Q.set(None)
+    # [whatsapp-travel] the app sends the device clock; remember it so WhatsApp
+    # answers follow a traveller's real local time (throttled, background)
+    if _ASK_CHANNEL.get() == "app" and request.tz_offset:
+        try:
+            _wa_dev = asyncio.create_task(asyncio.to_thread(
+                _wa_note_device_tz, chart_id, int(request.tz_offset)))
+            _WA_TASKS.add(_wa_dev)
+            _wa_dev.add_done_callback(_WA_TASKS.discard)
+        except Exception:
+            pass
     if (os.getenv("ASK_CONVERSATION_LAYER") or "on").strip().lower() not in ("0", "off", "false", "no"):
         try:
             from antar_engine import conversation as _convl
