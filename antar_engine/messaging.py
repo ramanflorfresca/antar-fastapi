@@ -693,6 +693,9 @@ def _yesno_as_read(p: dict, language: str) -> dict:
     # [kp-conditions] the specific condition rides as the move line
     if p.get("condition") and not p.get("next"):
         q["next"] = f"*{p.get('condition_label') or 'What it hinges on'}:* {p['condition']}"
+        # [kp-one-condition 2026-10-03] the narrated "why" restated the same
+        # condition in vaguer words right above it — say it once.
+        q["read"] = head
     return q
 
 
