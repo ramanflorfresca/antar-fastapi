@@ -32637,6 +32637,11 @@ def submit_prediction_feedback(request: dict):
         )
     except ValueError as e:
         raise HTTPException(400, str(e))
+    try:   # [yesno-bridge] mirror Yes/No answers into the outcome loop
+        from antar_engine.outcomes import bridge_yesno_feedback
+        bridge_yesno_feedback(supabase, correlation_id, status, note or None)
+    except Exception as _ybe:
+        print(f"[outcomes] yesno bridge non-fatal: {_ybe}")
     return {"success": True, "updated": result}
 
 

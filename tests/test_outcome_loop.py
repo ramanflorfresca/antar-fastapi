@@ -159,3 +159,57 @@ def test_whatsapp_digit_answers_the_checkin(monkeypatch):
     assert recorded == [("k9", "partly", "whatsapp")]
     assert sent[-1].startswith("Thanks — noted.")
     assert link["context"].get("last_in")
+
+
+# ─── Yes/No bridge (user_correlations → prediction_outcomes) ───
+
+class _Q:
+    def __init__(self, data): self.data_ = data
+    def select(self, *a): return self
+    def eq(self, *a): return self
+    def gte(self, *a): return self
+    def lte(self, *a): return self
+    def limit(self, *a): return self
+    def execute(self): return type("R", (), {"data": self.data_})()
+
+
+class _SB:
+    def __init__(self, tables): self.tables = tables
+    def table(self, name): return _Q(self.tables.get(name, []))
+
+
+def test_find_yesno_claim_picks_the_nearest_in_time():
+    sb = _SB({"prediction_claims": [
+        {"id": "far", "created_at": "2026-10-03T03:11:50+00:00"},
+        {"id": "near", "created_at": "2026-10-03T03:11:00.086+00:00"}]})
+    assert oc.find_yesno_claim(sb, "c1", "2026-10-03T03:10:59.874+00:00") == "near"
+    assert oc.find_yesno_claim(_SB({}), "c1", "2026-10-03T03:10:59+00:00") is None
+
+
+def test_bridge_maps_statuses_and_ignores_other_concerns(monkeypatch):
+    written = []
+    monkeypatch.setattr(oc, "find_yesno_claim", lambda sb, cid, t: "k1")
+    monkeypatch.setattr(oc, "record_outcome", lambda sb, cid, o, note, via="app": written.append((cid, o)) or True)
+    sb = _SB({"user_correlations": [{"id": "u1", "chart_id": "c1", "concern": "yesno",
+                                     "created_at": "2026-10-03T03:10:59+00:00"}]})
+    assert oc.bridge_yesno_feedback(sb, "u1", "partial") == "k1"
+    assert oc.bridge_yesno_feedback(sb, "u1", "skipped") is None
+    assert written == [("k1", "partly")]
+    sb2 = _SB({"user_correlations": [{"id": "u2", "chart_id": "c1", "concern": "career",
+                                      "created_at": "2026-10-03T03:10:59+00:00"}]})
+    assert oc.bridge_yesno_feedback(sb2, "u2", "yes") is None
+
+
+def test_feedback_endpoint_calls_the_bridge(monkeypatch):
+    from dotenv import load_dotenv
+    load_dotenv()
+    import main
+    from fastapi.testclient import TestClient
+    import antar_engine.prediction_tracker as pt
+    calls = []
+    monkeypatch.setattr(pt, "record_feedback", lambda cid, st, note, sb, chart_id=None: True)
+    monkeypatch.setattr(oc, "bridge_yesno_feedback",
+                        lambda sb, cid, st, note=None, via="app": calls.append((cid, st)))
+    r = TestClient(main.app).post("/api/v1/predictions/feedback",
+                                  json={"correlation_id": "u1", "status": "yes"})
+    assert r.status_code == 200 and calls == [("u1", "yes")]
