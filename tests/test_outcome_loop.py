@@ -110,3 +110,52 @@ def test_replayed_answer_is_not_a_claim_and_yesno_keys_by_question():
     b = oc.build_claim("c1", "Will I get the job?", base, mode="yesno",
                        topic="general", language="en", today=T)
     assert a["dedupe_key"] != b["dedupe_key"]
+
+
+# ─── week 2: sending check-ins ───
+
+def _due(i, chart, due="2026-10-01", src="ask_explore", sent=None):
+    return {"id": f"k{i}", "chart_id": chart, "source": src, "checkin_due_at": due,
+            "checkin_sent_at": sent, "language": "en", "topic": "business",
+            "claim_type": "window", "text_shown": "The strong business window is Nov 2026 – Jan 2027."}
+
+
+def test_pick_due_one_per_chart_cap_and_sources():
+    claims = [_due(1, "a", "2026-10-02"), _due(2, "a", "2026-10-01"), _due(3, "b"),
+              _due(4, "c"), _due(5, "d", src="ask_yesno"), _due(6, "e", src="life_arc")]
+    picked = oc.pick_due(claims, sent_last_week={"c": 2}, answered={"k3"})
+    assert [p["id"] for p in picked] == ["k2"]          # oldest for a; b answered; c capped; yesno/life_arc not here
+
+
+def test_push_and_whatsapp_checkin_text():
+    title, body = oc.push_message(dict(_due(1, "a"), source="ask_explore"))
+    assert title == "Did it happen?" and "Did things move for your business" in body
+    text, opts = oc.whatsapp_checkin(dict(_due(1, "a"), source="ask_explore"))
+    assert "1  Yes" in text and "4  Not sure yet" in text
+    assert opts == [["k1", "yes"], ["k1", "partly"], ["k1", "no"], ["k1", "not_sure"]]
+
+
+def test_whatsapp_digit_answers_the_checkin(monkeypatch):
+    import asyncio
+    import time
+    from dotenv import load_dotenv
+    load_dotenv()
+    import main
+    from antar_engine import messaging as msg
+    link = {"id": 1, "chart_id": "c1", "user_id": "u1",
+            "context": msg.remember_options({}, "outcome", [["k9", "yes"], ["k9", "partly"],
+                                                          ["k9", "no"], ["k9", "not_sure"]])}
+    sent, recorded = [], []
+    monkeypatch.setattr(msg, "get_whatsapp_link", lambda sb, n: link)
+    monkeypatch.setattr(msg, "whatsapp_send", lambda n, t, ts: sent.append(t) or True)
+    monkeypatch.setattr(msg, "save_link_context", lambda sb, l, c: l.__setitem__("context", c) or True)
+    monkeypatch.setattr(main, "_resolve_primary_chart_id", lambda uid: "c1")
+    monkeypatch.setattr(oc, "record_outcome", lambda sb, cid, o, note, via: recorded.append((cid, o, via)) or True)
+
+    async def no_ask(req):
+        raise AssertionError("a check-in answer must not start an Ask")
+    monkeypatch.setattr(main, "ask_endpoint", no_ask)
+    asyncio.run(main._wa_handle("+919812345678", "2", time.time()))
+    assert recorded == [("k9", "partly", "whatsapp")]
+    assert sent[-1].startswith("Thanks — noted.")
+    assert link["context"].get("last_in")
