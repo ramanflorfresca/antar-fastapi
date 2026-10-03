@@ -34454,7 +34454,15 @@ async def daily_wisdom_chat(request: dict = None, language: str = "en"):
     except Exception as e:
         print(f"[wisdom-chat] llm error: {e}")
         raise HTTPException(status_code=503, detail="wisdom_unavailable")
-    return {"available": True, "reply": (reply or "").strip(), "language": lang}
+    _reply = (reply or "").strip()
+    # [wisdom-cta 2026-10-02] Flag replies that talk about mantras so the FE can
+    # show the "See my mantras →" Practice deep-link off a backend signal instead
+    # of guessing by the chip's position in the list (which breaks if the list is
+    # reordered AND misses free-typed mantra questions). "mantra" is the same token
+    # in EN/ES/PT, so one case-insensitive check covers all three languages.
+    _mentions_mantra = "mantra" in _reply.lower()
+    return {"available": True, "reply": _reply, "language": lang,
+            "mentions_mantra": _mentions_mantra}
 
 
 # ── Master Dashboard Endpoint ─────────────────────────────────────
