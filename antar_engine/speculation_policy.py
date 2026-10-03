@@ -175,3 +175,36 @@ def natal_window(natal: Optional[dict]) -> tuple:
         if m:
             return "NOT_YET", m.group(1)
     return "", ""
+
+
+
+# ── KP on the birth chart (owner 2026-10-03: "KP is a good tool for speculation") ──
+def kp_natal(chart_record: dict) -> Optional[dict]:
+    """KP's natal speculation verdict (QUESTION_TYPES['speculation']: the deciding
+    cusp's sub-lord signifying 2/5/6/11 favours, 8/12 denies → losses).
+    {'verdict': yes|no|conditional, 'favour': [...], 'against': [...]} or None."""
+    try:
+        from antar_engine.kp.kp_service import _build_chart
+        from antar_engine.kp.kp_significators import verdict as _kpv
+        ch = _build_chart(chart_record or {})
+        if ch is None:
+            return None
+        v = _kpv(ch, "speculation")
+        d = v.get("debug") or {}
+        return {"verdict": str(v.get("verdict") or "").lower(),
+                "favour": list(d.get("favour_hit") or []), "against": list(d.get("against_hit") or [])}
+    except Exception:
+        return None
+
+
+def combine(natal_state: str, kp: Optional[dict], client: str = "") -> str:
+    """Two systems, astrologer-style: KP showing only the loss houses (8/12) is a
+    'no — losses' whatever else says; a KP yes lifts a lukewarm natal 'no' into
+    support (timing then decides open vs later); otherwise the natal state stands."""
+    if not kp:
+        return natal_state
+    if kp.get("against") and not kp.get("favour"):
+        return "losses"
+    if natal_state == "no" and kp.get("verdict") == "yes":
+        return "open" if (client or "").upper() in OPEN_CLIENTS else "later"
+    return natal_state

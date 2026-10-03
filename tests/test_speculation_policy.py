@@ -40,3 +40,14 @@ def test_gambling_vs_plain_speculation():
     assert not sp.is_gambling("Will I win in speculation?") and not sp.is_gambling("When will I gain from stocks?")
 
 
+
+
+
+def test_kp_combination():
+    assert sp.combine("later", {"verdict": "no", "favour": [], "against": [8, 12]}) == "losses"
+    assert sp.combine("open", {"verdict": "no", "favour": [], "against": [12]}) == "losses"
+    assert sp.combine("no", {"verdict": "yes", "favour": [5, 11], "against": []}, "SUPPORTED") == "open"
+    assert sp.combine("no", {"verdict": "yes", "favour": [5, 11], "against": []}, "NOT_YET") == "later"
+    assert sp.combine("later", {"verdict": "conditional", "favour": [11], "against": [8]}) == "later"
+    assert sp.combine("losses", {"verdict": "yes", "favour": [5], "against": []}) == "losses"
+    assert sp.combine("later", None) == "later"

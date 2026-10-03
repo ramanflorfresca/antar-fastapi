@@ -30166,6 +30166,9 @@ async def ask_endpoint(request: AskRequest):
                     if not _sp_win and not _sp_client:
                         _sp_client, _sp_win = _spp.natal_window(_sp_natal)
                     _sp_state = _spp.state(_sp_natal, _sp_client, str(_sp_ev.get("verdict") or ""))
+                    # KP on the birth chart — a second, independent check on promise
+                    _sp_kp = _spp.kp_natal(chart_row.data)
+                    _sp_state = _spp.combine(_sp_state, _sp_kp, _sp_client)
                     _sp = _spp.lead(_sp_state, _sp_win, gambling=_sp_gamb, language=language)
                     payload["read"] = _spp.merge(payload.get("read") or "", _sp["read"], _sp_state)
                     payload["next"] = _sp["next"]
@@ -30174,7 +30177,8 @@ async def ask_endpoint(request: AskRequest):
                     elif _sp_state in ("losses", "no"):
                         payload["timing"] = None
                     print(f"[ask][speculation-policy] state={_sp_state} window={_sp_win!r} "
-                          f"gambling={_sp_gamb} score={(_sp_natal or {}).get('score')} for {chart_id[:8]}")
+                          f"gambling={_sp_gamb} score={(_sp_natal or {}).get('score')} "
+                          f"kp={_sp_kp} for {chart_id[:8]}")
             except Exception as _spe:
                 print(f"[ask][speculation-policy] skipped (non-fatal): {_spe}")
             # [apple-4.3 2026-10-02] A gambling-flavoured question (poker/casino/bet/
