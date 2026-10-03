@@ -4888,6 +4888,13 @@ _WA_L = {
                     "Antar chat mein kabhi paise nahi maangta, aur sirf aapke on kiye check-ins/alerts ke liye pehle message karta hai. "
                     "Agar aap khatre mein hain ya khud ko nuksaan pahunchane ka soch rahe hain, abhi local emergency services se sampark karein.\n\n"
                     "*STOP* — disconnect · *stop alerts* — alerts band · *help* — commands")},
+    # [wa-voice 2026-10-03] voice notes
+    "voice_heard": {"en": "🎙 _I heard: “{t}”_", "es": "🎙 _Entendí: “{t}”_",
+                    "pt": "🎙 _Entendi: “{t}”_", "hinglish": "🎙 _Maine suna: “{t}”_"},
+    "voice_failed": {"en": "I couldn't make out that voice note — could you send it again, or type your question?",
+                     "es": "No pude entender esa nota de voz — ¿puedes enviarla otra vez o escribir tu pregunta?",
+                     "pt": "Não consegui entender esse áudio — pode mandar de novo ou escrever sua pergunta?",
+                     "hinglish": "Woh voice note samajh nahi aaya — dobara bhejiye ya apna sawaal likhiye."},
     "kp_offer": {"en": "_Want a straight yes-or-no reading on this? Reply *yes or no*._",
                  "es": "_¿Quieres una respuesta directa de sí o no? Responde *sí o no*._",
                  "pt": "_Quer uma resposta direta de sim ou não? Responda *sim ou não*._",
@@ -5296,7 +5303,8 @@ def _wa_welcome(link: dict, lang: str) -> tuple:
 
 async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int = 0,
                      sink: Optional["_WaSink"] = None, message_sid: str = "",
-                     choice_id: str = "", lat_lon: Optional[tuple] = None):
+                     choice_id: str = "", lat_lon: Optional[tuple] = None,
+                     media: Optional[tuple] = None):
     """Background worker for one inbound WhatsApp message. Never raises."""
     from antar_engine import messaging as _msg
     from starlette.responses import Response as _StarResp
@@ -5398,8 +5406,21 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             send(_wa_text("tips", lang))
             return
         if not body and num_media:
-            send(_wa_text("media", lang))
-            return
+            # [wa-voice] a voice note becomes the question (echoed so they can check it)
+            _mu, _mt = (media or (None, None))
+            if _mu and _msg.is_voice(_mt) and _msg.voice_enabled():
+                _vt, _vl = await asyncio.to_thread(_msg.transcribe_voice, _mu, _mt)
+                if not _vt:
+                    send(_wa_text("voice_failed", lang))
+                    return
+                body = _vt
+                lang = _vl if _vl in ("en", "es", "pt", "hinglish") else _wa_lang(_vt, lang)
+                _shown = _vt if len(_vt) <= 220 else _vt[:217].rsplit(" ", 1)[0] + "…"
+                send(_wa_text("voice_heard", lang, t=_shown))
+                print(f"[whatsapp][voice] transcribed {len(_vt)} chars lang={lang} …{number[-4:]}")
+            else:
+                send(_wa_text("media", lang))
+                return
         # [whatsapp-travel] a shared location or "I'm in London" sets a 14-day
         # timezone override; "I'm home" clears it
         if lat_lon:
@@ -5852,7 +5873,10 @@ async def messaging_whatsapp_webhook(http_request: Request):
                      media_type="text/xml")
     sink = _WaSink(number, now, inline=_wa_inline_on())
     choice = (params.get("ListId") or params.get("ButtonPayload") or "").strip()
-    task = asyncio.create_task(_wa_handle(number, body, now, num_media, sink, sid, choice, lat_lon))
+    _media = ((params.get("MediaUrl0") or "").strip() or None,
+              (params.get("MediaContentType0") or "").strip() or None) if num_media else None
+    task = asyncio.create_task(_wa_handle(number, body, now, num_media, sink, sid, choice, lat_lon,
+                                          _media))
     _WA_TASKS.add(task)
     task.add_done_callback(_WA_TASKS.discard)
     if sink.inline:

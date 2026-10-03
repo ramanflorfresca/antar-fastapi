@@ -1080,3 +1080,55 @@ def parse_read_command(text: str) -> Optional[str]:
     """'read: will I…' forces a regular read even for a yes/no question."""
     m = _READ_CMD.match(text or "")
     return m.group(1).strip() if m else None
+
+
+
+# ── voice notes (speech-to-text) ──
+# [wa-voice 2026-10-03] Owner: voice-to-text on WhatsApp. A voice note arrives as
+# MediaUrl0 (audio/ogg; codecs=opus). We download it from Twilio (account auth)
+# and transcribe it with ElevenLabs Speech-to-Text (Scribe; auto language —
+# English, Spanish, Portuguese, Hindi…). The text then goes through the normal
+# Ask flow. Needs ELEVENLABS_API_KEY; kill switch WHATSAPP_VOICE=off.
+VOICE_MAX_BYTES = 10 * 1024 * 1024
+_STT_URL = "https://api.elevenlabs.io/v1/speech-to-text"
+_STT_LANG = {"eng": "en", "en": "en", "spa": "es", "es": "es", "por": "pt", "pt": "pt",
+             "hin": "hinglish", "hi": "hinglish"}
+
+
+def voice_enabled() -> bool:
+    import os
+    if (os.getenv("WHATSAPP_VOICE") or "on").strip().lower() in ("0", "off", "false", "no"):
+        return False
+    return bool((os.getenv("ELEVENLABS_API_KEY") or "").strip())
+
+
+def is_voice(content_type: str) -> bool:
+    return (content_type or "").lower().startswith("audio/")
+
+
+def transcribe_voice(media_url: str, content_type: str = "audio/ogg") -> tuple:
+    """(text, lang) from a Twilio voice note, or ("", None). Never raises."""
+    import os
+    try:
+        import requests
+        auth = (os.getenv("TWILIO_ACCOUNT_SID") or "", os.getenv("TWILIO_AUTH_TOKEN") or "")
+        r = requests.get(media_url, auth=auth if all(auth) else None, timeout=20)
+        if r.status_code != 200 or not r.content or len(r.content) > VOICE_MAX_BYTES:
+            print(f"[whatsapp][voice] download failed: {r.status_code} {len(r.content or b'')}B")
+            return "", None
+        ext = "ogg" if "ogg" in (content_type or "") else (content_type or "audio/x").split("/")[-1][:5]
+        resp = requests.post(
+            _STT_URL, headers={"xi-api-key": os.getenv("ELEVENLABS_API_KEY") or ""},
+            data={"model_id": "scribe_v1", "tag_audio_events": "false"},
+            files={"file": (f"voice.{ext}", r.content, content_type or "audio/ogg")}, timeout=45)
+        if resp.status_code != 200:
+            print(f"[whatsapp][voice] stt failed: {resp.status_code} {resp.text[:200]!r}")
+            return "", None
+        d = resp.json()
+        text = " ".join(str(d.get("text") or "").split())
+        lang = _STT_LANG.get(str(d.get("language_code") or "").lower()[:3]) or \
+            _STT_LANG.get(str(d.get("language_code") or "").lower()[:2])
+        return text[:1000], lang
+    except Exception as e:
+        print(f"[whatsapp][voice] transcribe failed: {type(e).__name__}: {e}")
+        return "", None
