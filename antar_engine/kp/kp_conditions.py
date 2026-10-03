@@ -20,7 +20,7 @@ from typing import Optional
 _FAMILY = {
     "gain": "money", "money": "money", "deal_closes": "money", "speculation": "money",
     "job_new": "work", "promotion": "work",
-    "marriage": "union", "reunion": "union",
+    "marriage": "union", "reunion": "union", "romance": "union",
     "property": "property", "residence": "residence", "litigation_win": "legal", "recovery": "health",
     "foreign_travel": "travel", "education": "study", "childbirth": "child",
     "lost_found": "lost",
@@ -54,6 +54,7 @@ _HOUSE = {
                  10: "the people who decide on the role", 11: "a referral from your network",
                  12: "a move that costs more than it pays"},
         "union": {1: "insisting on your own terms", 2: "family acceptance",
+                  3: "you making the first move", 5: "real chemistry",
                   6: "old friction", 7: "the other person's own willingness",
                   10: "career pulling priorities away", 11: "friends and family helping",
                   12: "distance or secrecy"},
@@ -92,7 +93,7 @@ _HOUSE = {
                     11: "los contactos que aportan tus socios", 12: "costos que se acumulan antes de que pague"},
         "work": {6: "hacer bien el trabajo en sí", 10: "quienes deciden sobre el puesto",
                  11: "una recomendación de tu red"},
-        "union": {6: "viejas fricciones", 7: "la propia disposición de la otra persona",
+        "union": {3: "dar tú el primer paso", 5: "química de verdad", 6: "viejas fricciones", 7: "la propia disposición de la otra persona",
                   11: "amigos y familia que ayudan"},
     },
     "pt": {
@@ -118,7 +119,7 @@ _HOUSE = {
                     11: "os contatos que seus sócios trazem", 12: "custos que se acumulam antes de pagar"},
         "work": {6: "fazer bem o trabalho em si", 10: "quem decide sobre a vaga",
                  11: "uma indicação da sua rede"},
-        "union": {6: "velhos atritos", 7: "a própria vontade da outra pessoa",
+        "union": {3: "você dar o primeiro passo", 5: "química de verdade", 6: "velhos atritos", 7: "a própria vontade da outra pessoa",
                   11: "amigos e família ajudando"},
     },
 }

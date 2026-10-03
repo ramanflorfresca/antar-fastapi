@@ -73,6 +73,15 @@ _QT_RULES = [
     (("come back", "comes back", "get back together", "back together",
       "reconcil", "my ex", "text me", "call me", "reach out", "volver",
       "vuelva", "regresar", "voltar", "volte", "wapas", "vapas"), "reunion", None),
+    # [kp-romance] a NEW relationship (after reunion: "my girlfriend come back"
+    # is a reunion; before job/money so "date" words never fall to gain)
+    (("girlfriend", "girl friend", "boyfriend", "boy friend", "a relationship",
+      "new relationship", "in a relationship", "relationship with", "dating",
+      "go on a date", "fall in love", "find love", "love life", "someone special",
+      "soulmate", "soul mate", "crush", "novia", "novio", "pareja", "enamorar",
+      "namorada", "namorado", "namoro", "relacionamento", "relación", "relacion",
+      "girlfriend", "gf ", "bf ", "pyaar", "pyar", "mohabbat", "ishq",
+      "premika", "premi "), "romance", None),
     (("pregnan", "conceiv", "baby", "child", "kids", "fertil", "ivf",
       "embaraz", "bebé", "bebe", "hijo", "gravidez", "grávida", "gravida",
       "filho", "bachcha", "bacha", "santan"), "childbirth", None),
@@ -158,8 +167,8 @@ _UNIT_DAYS = {
     "year": 365, "years": 365, "año": 365, "años": 365, "ano": 365,
     "anos": 365, "saal": 365,
 }
-_NUM_UNIT = re.compile(
-    r"(\d{1,3})\s*(days?|weeks?|months?|years?|d[ií]as?|semanas?|mes(?:es)?|"
+_NUM_UNIT = re.compile(               # [kp-horizon] "60'days" / "60’days" / "60-day"
+    r"(\d{1,3})[\s'’‘`\-]*(days?|weeks?|months?|years?|d[ií]as?|semanas?|mes(?:es)?|"
     r"mês|meses|a[nñ]os?|din|hafte|hafta|mahine|mahina|saal)\b", re.I)
 _FIXED = [
     (("today", "tonight", "hoy", "hoje", "aaj"), 1),

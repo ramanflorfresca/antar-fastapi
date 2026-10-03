@@ -23291,6 +23291,19 @@ kaunsi kitne kabhi abhi aayega aayegi jayega jayegi hoga rahega rahegi
 """.split())
 
 
+def _yn_why_is_condition(payload: dict) -> None:
+    """[kp-one-condition 2026-10-03] owner: the app and WhatsApp must say the same
+    thing. A KP Yes/No's specific condition (kp_conditions.explain, already in the
+    reader's language) becomes the app's "why" — the app card renders `why`, not
+    `condition` — instead of a narrated paraphrase that can blur or repeat it."""
+    try:
+        c = (payload.get("condition") or "").strip()
+        if payload.get("mode") == "yesno" and c:
+            payload["why"] = c
+    except Exception:
+        pass
+
+
 def _ask_detect_hinglish(text):
     """Return 'hinglish' when the question is confidently Romanized Hindi / Hinglish,
     else None. Threshold 2 keeps a lone shared token from misfiring; English and
@@ -29657,6 +29670,7 @@ async def ask_endpoint(request: AskRequest):
                 except Exception as _rb_e:
                     print(f"[ask] readability non-fatal: {_rb_e}")
                 payload = await _ask_localize(payload, language, ["why", "timing"], chart_id)
+                _yn_why_is_condition(payload)
                 if locals().get("_ask_tf_windowscan") and locals().get("_ask_tf_timing"):
                     from antar_engine.translation_middleware import localize_date_str as _lds
                     payload["timing"] = _lds(_ask_tf_timing, language)
@@ -30073,6 +30087,7 @@ async def ask_endpoint(request: AskRequest):
             except Exception as _rb_e:
                 print(f"[ask] readability non-fatal: {_rb_e}")
             payload = await _ask_localize(payload, language, ["why", "timing"], chart_id)
+            _yn_why_is_condition(payload)
             if locals().get("_ask_tf_windowscan") and locals().get("_ask_tf_timing"):
                 from antar_engine.translation_middleware import localize_date_str as _lds
                 payload["timing"] = _lds(_ask_tf_timing, language)
