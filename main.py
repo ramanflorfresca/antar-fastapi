@@ -4678,6 +4678,12 @@ _WA_L = {
     "opt_yesno": {"en": "Yes or no", "es": "Sí o no", "pt": "Sim ou não", "hinglish": "Haan ya na"},
     "opt_detail": {"en": "Detailed reading", "es": "Lectura detallada", "pt": "Leitura detalhada",
                    "hinglish": "Detailed reading"},
+    # [whatsapp-speculation 2026-10-03] betting/speculation never gets a yes/no
+    # verdict (Ask rule, Apple 4.3) — say so instead of silently switching.
+    "kp_no_spec": {"en": "_Yes-or-no readings aren't given for betting or speculation — here's the full reading instead._",
+                   "es": "_No doy respuestas de sí o no sobre apuestas o especulación — aquí va la lectura completa._",
+                   "pt": "_Não dou respostas de sim ou não sobre apostas ou especulação — aqui vai a leitura completa._",
+                   "hinglish": "_Satta ya speculation par haan/na jawab nahi diya jaata — yeh poori reading hai._"},
     "kp_offer": {"en": "_Want a straight yes-or-no reading on this? Reply *yes or no*._",
                  "es": "_¿Quieres una respuesta directa de sí o no? Responde *sí o no*._",
                  "pt": "_Quer uma resposta direta de sim ou não? Responda *sim ou não*._",
@@ -5349,6 +5355,17 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         # Every question gets the regular chart read (same /ask logic); Prashna runs
         # only when asked for — "prashna: …", or a bare "prashna" after the offer.
         _mode = "yesno" if _force_kp else "explore"
+        # [whatsapp-speculation] never offer or run the yes/no ritual on a betting /
+        # speculation question (Ask diverts it to the full reading anyway — live,
+        # someone picked 13 and silently got a regular answer). Asked for anyway → say why.
+        _spec_note = ""
+        try:
+            if _is_gambling_q(question):
+                if _mode == "yesno":
+                    _spec_note = _wa_text("kp_no_spec", lang)
+                _mode, _force_read = "explore", True
+        except Exception:
+            pass
         if (_mode == "explore" and not _force_read and question == body
                 and _msg.is_yesno_question(question)):
             ctx["choice_pending"] = {"q": question, "at": int(_time.time()), "lang": lang}
@@ -5485,6 +5502,8 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         ctx["practice_seen"] = _seen
         if text and locals().get("_kp_lock_note"):
             text = _kp_lock_note + "\n\n" + text
+        if text and locals().get("_spec_note"):
+            text = _spec_note + "\n\n" + text
         if text and locals().get("_travel_note"):
             text = text + "\n\n" + _travel_note
         ctx.pop("last_q", None)
