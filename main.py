@@ -29360,6 +29360,16 @@ async def ask_endpoint(request: AskRequest):
             # normal answer shape AND any scratch override — appended last.
             if _ask_crisis and isinstance(_sys, str):
                 _sys = _sys + _ask_crisis_care_block()
+            # [answer-audit 2026-10-03] the practical-answer rule sat ~15k chars deep in a
+            # 19k prompt and was ignored ("What type of courses?" → no course named).
+            # Like crisis care, it goes LAST.
+            try:
+                from antar_engine import understand as _undw
+                _wtd = _undw.what_to_do_block(locals().get("_ask_u"))
+                if _wtd and isinstance(_sys, str) and not _ask_crisis:
+                    _sys = _sys + _wtd
+            except Exception:
+                pass
             raw = ""
             try:
                 if _ask_life_block and isinstance(_sys, str):

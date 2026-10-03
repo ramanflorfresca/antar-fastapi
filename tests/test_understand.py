@@ -388,3 +388,13 @@ def test_explicit_update_goes_through_harvest_and_logs(monkeypatch):
     row = {"career_stage": "between_jobs", "profession": None, "life_work": "x"}
     main._ask_harvest_stated("c1", row, r)
     assert wrote[-1]["career_stage"]["value"] == "employed" and row["career_stage"] == "employed"
+
+
+
+def test_answer_audit_round_fixes():
+    out = u.guard_answer("Be careful: you owe money on a loan, so go slow.", "What should I do to grow my business?")
+    assert "you owe" not in out and "the reading shows loan pressure" in out
+    b = u.what_to_do_block(u.parse(_raw(intent="what_to_do")))
+    assert 'FIRST sentence of "read"' in b and "course" in b
+    cb = u.comparison_block(u.parse(_raw(intent="which", options=["crypto", "gold"])))
+    assert "INVESTMENTS" in cb and "SOMEONE ELSE" in cb and "FIELDS of work or study" in cb

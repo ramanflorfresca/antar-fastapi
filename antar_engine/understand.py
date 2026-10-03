@@ -511,6 +511,14 @@ def comparison_block(u: Optional[dict], known_earning: str = "") -> str:
         "price swings, counterparties) — as things to check, not predictions.",
         "- If the role is the same in every option, say so plainly: the reading backs that "
         "role and their timing, not one industry.",
+        "- If the options are FIELDS of work or study for THEM (e.g. accounting vs something new, "
+        "finance vs law), DO say which fits their nature better, using the fields the reading favours "
+        "— framed as fit, never as earnings.",
+        "- If the options are about SOMEONE ELSE (a child's course, a partner's job), say plainly this is "
+        "THEIR reading, not the other person's, so it can't pick for them; then give 2-3 concrete ways "
+        "to decide (the other person's own interest, aptitude, a trial/visit).",
+        "- If the options are INVESTMENTS (crypto, gold, stocks, property as an investment), say plainly "
+        "you don't advise where to put money; give only timing and caution from the reading.",
         "- You may say one option suits their way of working better ONLY if their role "
         "really differs between the options, and say why in one sentence.",
         "- NEVER assume how a deal is structured or how they earn from it (no 'trading', "
@@ -645,6 +653,12 @@ _FIN_FACT = [
     (re.compile(r"(?i)\byou (don't|do not) have (much |enough |a lot of )?(extra )?(money|savings|cash)"
                 r"( saved( up)?)?\b"), "the reading shows pressure on your savings"),
     (re.compile(r"(?i)\byou have (a lot of |some |heavy )?debts?\b"), "the reading shows loan pressure"),
+    # [audit 2026-10-03] "the loan you took", "your loan", "a loan or debt situation…"
+    (re.compile(r"(?i)\bthe loans? you (took|have|got|are paying)\b"), "any loan pressure the reading shows"),
+    (re.compile(r"(?i)\ba loan or debt situation\b"), "the loan pressure the reading shows"),
+    (re.compile(r"(?i)\byou owe (money )?on (a|the|your) loans?\b"), "the reading shows loan pressure"),
+    (re.compile(r"(?i)\byou owe money\b"), "the reading shows loan pressure"),
+    (re.compile(r"(?i)\b(a|your|the) live loan burden\b"), "the loan pressure the reading shows"),
     (re.compile(r"(?i)\byour debt\b"), "loan pressure in the reading"),
 ]
 _FIN_WORDS = re.compile(r"(?i)sav(e|ing|ings)|debt|loan|money|cash|broke|deud|ahorro|d[ií]vida|poupan|karz|udhaar")
@@ -793,3 +807,17 @@ def explicit_updates(u: Optional[dict], row: dict) -> dict:
         if old and _KIDS_CLASS.get(old) != f["children"]:
             out["children_status"] = (old, new)
     return out
+
+
+
+# ── concreteness for "what should I do" questions (answer audit 2026-10-03) ──
+def what_to_do_block(u: Optional[dict]) -> str:
+    """Live audit: 'What type of courses should I take?' got a general career read
+    that named no course at all."""
+    if (u or {}).get("intent") != "what_to_do":
+        return ""
+    return ("\n\nANSWER THE PRACTICAL QUESTION — they asked what to DO. The FIRST sentence of "
+            "\"read\" must name 2-3 concrete options that answer it (e.g. for courses: actual course "
+            "types like 'management accounting', 'data analysis', 'negotiation'), drawn from what the "
+            "reading favours, each with a short reason it fits them. Timing or caution comes after, "
+            "only if it changes what to do. \"next\" is the first step on the best of those options.")
