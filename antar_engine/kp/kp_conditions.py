@@ -45,6 +45,10 @@ _HOUSE = {
         "income": {2: "your existing income", 5: "a speculative gamble", 6: "extra work or a side income",
                    8: "money tied up in other people's terms", 11: "people who already know your work",
                    12: "spending running ahead of income"},
+        "partner": {2: "your own stake in it", 5: "a risky side bet", 6: "doing the hands-on work yourself",
+                    7: "your partners' real commitment", 8: "a lopsided split with your partners",
+                    10: "your standing with the people who award the work",
+                    11: "the contacts your partners bring", 12: "costs piling up before it pays"},
         "work": {2: "the pay on offer", 5: "a risky, glamorous move", 6: "doing the job itself well",
                  8: "office politics or a stalled process", 9: "a far-off option pulling you away",
                  10: "the people who decide on the role", 11: "a referral from your network",
@@ -82,6 +86,10 @@ _HOUSE = {
         "residence": {3: "irte de donde estás ahora", 4: "lo que te ata a quedarte (contrato, familia, hogar)",
                       8: "demoras o condiciones de la mudanza (trámites, aprobaciones)",
                       10: "una nueva base ligada a tu trabajo", 12: "un nuevo comienzo más lejos"},
+        "partner": {2: "tu propia parte en esto", 6: "hacer tú mismo el trabajo práctico",
+                    7: "el compromiso real de tus socios", 8: "un reparto desigual con tus socios",
+                    10: "tu reputación ante quienes adjudican el trabajo",
+                    11: "los contactos que aportan tus socios", 12: "costos que se acumulan antes de que pague"},
         "work": {6: "hacer bien el trabajo en sí", 10: "quienes deciden sobre el puesto",
                  11: "una recomendación de tu red"},
         "union": {6: "viejas fricciones", 7: "la propia disposición de la otra persona",
@@ -104,6 +112,10 @@ _HOUSE = {
         "residence": {3: "sair de onde você está agora", 4: "o que te prende a ficar (contrato, família, casa)",
                       8: "atrasos ou condições da mudança (papelada, aprovações)",
                       10: "uma nova base ligada ao seu trabalho", 12: "um recomeço mais longe"},
+        "partner": {2: "sua própria parte nisso", 6: "fazer você mesmo o trabalho prático",
+                    7: "o compromisso real dos seus sócios", 8: "uma divisão desigual com seus sócios",
+                    10: "sua reputação com quem concede o trabalho",
+                    11: "os contatos que seus sócios trazem", 12: "custos que se acumulam antes de pagar"},
         "work": {6: "fazer bem o trabalho em si", 10: "quem decide sobre a vaga",
                  11: "uma indicação da sua rede"},
         "union": {6: "velhos atritos", 7: "a própria vontade da outra pessoa",
@@ -116,7 +128,10 @@ _TEMPLATES = {
            "yes": "It's carried by {sup}.", "yes_drag": " Keep an eye on {blk}.",
            "cond": "It can come through {sup}, but only if you steer clear of {blk}.",
            "gate": "The route is {sup}, but the final yes isn't locked in, so get a clear, written commitment before you count on it.",
-           "gate_blk": " Also watch {blk}.",
+           "gate_sales": "The route is {sup}, but the final yes isn't locked in, so count on it only once a client has signed and paid.",
+           "gate_partner": "The route is {sup}, but the final yes isn't locked in, so count on it only once the split with your partners is agreed in writing.",
+           "gate_income": "The route is {sup}, but the final yes isn't locked in, so count on it only once the first payment lands.",
+           "gate_blk": " Watch out for {blk}.",
            "no": "No supporting route shows up for this right now.",
            "no_blk": " What stands in the way: {blk}.",
            "label": "What it hinges on"},
@@ -124,7 +139,10 @@ _TEMPLATES = {
            "yes": "Lo sostiene {sup}.", "yes_drag": " Vigila {blk}.",
            "cond": "Puede llegar a través de {sup}, pero solo si evitas {blk}.",
            "gate": "La vía es {sup}, pero el sí final no está asegurado: consigue un compromiso claro y por escrito antes de contar con ello.",
-           "gate_blk": " Vigila también {blk}.",
+           "gate_sales": "La vía es {sup}, pero el sí final no está asegurado: cuenta con ello solo cuando un cliente haya firmado y pagado.",
+           "gate_partner": "La vía es {sup}, pero el sí final no está asegurado: cuenta con ello solo cuando el reparto con tus socios esté acordado por escrito.",
+           "gate_income": "La vía es {sup}, pero el sí final no está asegurado: cuenta con ello solo cuando llegue el primer pago.",
+           "gate_blk": " Cuidado con {blk}.",
            "no": "Ahora mismo no aparece una vía que lo respalde.",
            "no_blk": " Lo que se interpone: {blk}.",
            "label": "De qué depende"},
@@ -132,7 +150,10 @@ _TEMPLATES = {
            "yes": "Quem sustenta isso é {sup}.", "yes_drag": " Fique de olho em {blk}.",
            "cond": "Pode vir através de {sup}, mas só se você evitar {blk}.",
            "gate": "O caminho é {sup}, mas o sim final não está garantido: consiga um compromisso claro e por escrito antes de contar com isso.",
-           "gate_blk": " Atenção também a {blk}.",
+           "gate_sales": "O caminho é {sup}, mas o sim final não está garantido: conte com isso só quando um cliente tiver assinado e pago.",
+           "gate_partner": "O caminho é {sup}, mas o sim final não está garantido: conte com isso só quando a divisão com seus sócios estiver acordada por escrito.",
+           "gate_income": "O caminho é {sup}, mas o sim final não está garantido: conte com isso só quando o primeiro pagamento cair.",
+           "gate_blk": " Cuidado com {blk}.",
            "no": "Agora não aparece um caminho que sustente isso.",
            "no_blk": " O que está no caminho: {blk}.",
            "label": "Do que depende"},
@@ -143,7 +164,17 @@ _FUNDING_Q = re.compile(r"(?i)\b(fund|funding|funded|invest|investor|investment|
                         r"loan|capital|financ\w*|inversi\w*|pr[eé]stamo|empr[eé]stimo|captar|aporte)")
 _SALES_Q = re.compile(r"(?i)\b(client|clients|customer|customers|sale|sales|deal|deals|contract|"
                       r"order|orders|lead|leads|cliente|clientes|venta|ventas|venda|vendas|"
-                      r"contrato|pedido|pedidos)\b")
+                      r"contrato|pedido|pedidos|"
+                      # [kp-advisory 2026-10-03] advisory / consulting / services earn from
+                      # clients ("gold advisory" was read as generic side income)
+                      r"advisory|advisor|adviser|advising|consult\w*|agency|services|freelanc\w*|"
+                      r"asesor\w*|consultor\w*|assessor\w*|consultoria|agencia|agência)\b")
+
+
+_PARTNER_Q = re.compile(r"(?i)(\bwith (?:other people|others|partners?|my partners?|a partner|friends)\b|"
+                        r"\bpartners?(?:hip)?\b|\bjoint venture\b|\bco-?founders?\b|"
+                        r"\bs[oó]ci[oa]s?\b|\bsociedad\b|\bsociedade\b|"
+                        r"\bcon otr[oa]s\b|\bcom outr[oa]s\b)")
 
 
 def _money_family(question: str) -> str:
@@ -152,6 +183,8 @@ def _money_family(question: str) -> str:
     q = question or ""
     if _FUNDING_Q.search(q):
         return "money"
+    if _PARTNER_Q.search(q):
+        return "partner"          # [kp-partner 2026-10-03] "…business with other people"
     if _SALES_Q.search(q):
         return "sales"
     return "income"
@@ -198,14 +231,22 @@ def explain(kp: dict, language: str = "en", question: str = "") -> dict:
     gate_ok = dbg.get("gate_ok", True) is not False
     lean = str(kp.get("lean") or dbg.get("horary_verdict") or "").lower()
     T = _TEMPLATES[lang]
-    s, b = _join(sup, lang), _join(blk, lang)
+    # [kp-one-condition 2026-10-03] "Possible — on one condition" must then name ONE
+    # condition, not a list of four worries: at most one watch-out next to the
+    # closing gate or a yes, two next to a conditional/no.
+    _rank = [8, 12, 7, 5, 4, 3, 2, 6, 9, 10, 11, 1]
+    _bh = sorted(dbg.get("against_hit") or [], key=lambda h: _rank.index(h) if h in _rank else 99)
+    blk_top = [_phrase(h, family, lang) for h in _bh]
+    s = _join(sup, lang)
+    b1, b2 = _join(blk_top[:1], lang), _join(blk_top[:2], lang)
     if lean in ("no",) or not sup:
-        text = T["no"] + (T["no_blk"].format(blk=b) if b else "")
+        text = T["no"] + (T["no_blk"].format(blk=b2) if b2 else "")
     elif not gate_ok:
-        text = T["gate"].format(sup=s) + (T["gate_blk"].format(blk=b) if b else "")
-    elif lean in ("conditional", "not_now") and b:
-        text = T["cond"].format(sup=s, blk=b)
+        g = T.get("gate_" + family) or T["gate"]
+        text = g.format(sup=s) + (T["gate_blk"].format(blk=b1) if b1 else "")
+    elif lean in ("conditional", "not_now") and b2:
+        text = T["cond"].format(sup=s, blk=b2)
     else:
-        text = T["yes"].format(sup=s) + (T["yes_drag"].format(blk=b) if b else "")
+        text = T["yes"].format(sup=s) + (T["yes_drag"].format(blk=b1) if b1 else "")
     return {"supports": sup, "blocks": blk, "close_ok": gate_ok,
             "condition": text, "label": T["label"]}

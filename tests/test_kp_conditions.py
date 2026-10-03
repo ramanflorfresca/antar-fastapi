@@ -22,7 +22,7 @@ def test_gate_not_confirmed_asks_for_a_written_commitment():
 
 def test_no_names_what_stands_in_the_way():
     c = explain(_kp("no", "gain", [], [5, 8], gate=False))["condition"]
-    assert "What stands in the way: a speculative gamble" in c
+    assert "What stands in the way:" in c and "a speculative gamble" in c
 
 
 def test_family_meanings_differ():
@@ -120,3 +120,35 @@ def test_unmapped_question_is_logged(capsys):
     from antar_engine.kp.kp_prashna import kp_prashna
     kp_prashna({}, "will my sister visit soon", number=10)
     assert "[kp][unmapped] 'will my sister visit soon'" in capsys.readouterr().out
+
+
+def test_live_gold_advisory_cast_names_one_condition():
+    # live 2026-10-03, #88: "Will I make money with gold mine advisory" (side business)
+    # got the side-income family, a written-commitment gate AND three watch-outs.
+    kp = _kp("conditional", "gain", [6], [5, 8, 12], gate=False)
+    c = explain(kp, "en", "Will I make money with gold mine advisory")["condition"]
+    assert "serving well and outworking competitors" in c            # clients family
+    assert "once a client has signed and paid" in c
+    assert c.count("Watch out for") == 1 and "speculative" not in c and "cost more" not in c  # ONE
+    es = explain(kp, "es", "¿Voy a ganar dinero con mi asesoría de oro?")["condition"]
+    assert "un cliente haya firmado y pagado" in es
+
+
+def test_whatsapp_yesno_says_the_condition_once():
+    from antar_engine import messaging as msg
+    p = {"mode": "yesno", "lean": "conditional", "verdict": "NO",
+         "why": "A clear written commitment is missing, and spending is running ahead.",
+         "condition": "The route is X, but the final yes isn't locked in.",
+         "condition_label": "What it hinges on", "timing": "Oct 3, 2026 – Jan 9, 2027"}
+    text, _ = msg.format_ask_whatsapp_v2(p, "en")
+    assert "written commitment is missing" not in text and "What it hinges on" in text
+
+
+def test_business_with_other_people_reads_as_a_partnership():
+    # live 2026-10-03, #8: "defense related business with other people in Colombia"
+    kp = _kp("conditional", "gain", [6, 11], [8, 12], gate=True)
+    c = explain(kp, "en", "Will I make money in defense related business with other people in Colombia")
+    assert "a lopsided split with your partners" in c["condition"]
+    assert "the contacts your partners bring" in c["condition"]
+    es = explain(kp, "es", "¿Ganaré dinero en un negocio de defensa con socios en Colombia?")["condition"]
+    assert "socios" in es
