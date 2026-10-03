@@ -34453,9 +34453,18 @@ async def daily_wisdom_chat(request: dict = None, language: str = "en"):
     if chart_id:
         try:
             import asyncio as _aio
+            from datetime import date as _date
             from antar_engine.daily_wisdom import _season as _wseason
             _dd = await _aio.to_thread(get_dashas_for_chart, chart_id)
-            season = _wseason(_dd or {})
+            _cd = {}
+            try:
+                _rc = await _aio.to_thread(
+                    lambda: supabase.table("charts").select("chart_data").eq("id", chart_id).limit(1).execute())
+                if _rc.data:
+                    _cd = _safe_jsonb(_rc.data[0].get("chart_data")) or {}
+            except Exception:
+                pass
+            season = _wseason(_dd or {}, _cd, _date.today())
         except Exception as _se:
             print(f"[wisdom-chat] season skip: {_se}")
 

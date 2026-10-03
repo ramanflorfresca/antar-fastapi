@@ -794,13 +794,15 @@ def _lang(language: Optional[str]) -> str:
     return l if l in ("en", "es", "pt") else "en"
 
 
-def _current_md_lord(dashas: dict) -> Optional[str]:
-    """Current Vimsottari mahadasha lord (season source). Never raises."""
+def _current_lord(dashas: dict, level: str) -> Optional[str]:
+    """Current Vimsottari lord at a level ('mahadasha' | 'antardasha'). Never raises."""
     try:
         rows = (dashas or {}).get("vimsottari") or (dashas or {}).get("vimshottari") or []
         today = date.today().isoformat()
+        want = {"mahadasha": ("mahadasha", "maha", "md"),
+                "antardasha": ("antardasha", "bhukti", "ad")}.get(level, (level,))
         for r in rows:
-            if str(r.get("level") or r.get("type", "")).lower() not in ("mahadasha", "maha", "md"):
+            if str(r.get("level") or r.get("type", "")).lower() not in want:
                 continue
             s = str(r.get("start_date") or r.get("start") or "")[:10]
             e = str(r.get("end_date") or r.get("end") or "")[:10]
@@ -811,13 +813,68 @@ def _current_md_lord(dashas: dict) -> Optional[str]:
     return None
 
 
-def _season(dashas: dict) -> str:
-    lord = _current_md_lord(dashas)
+def _current_md_lord(dashas: dict) -> Optional[str]:
+    """Current Vimsottari mahadasha lord. Never raises."""
+    return _current_lord(dashas, "mahadasha")
+
+
+def _lord_tone(lord: Optional[str]) -> Optional[str]:
     if lord in CONTRACTING:
         return "consolidating"
     if lord in EXPANSIVE:
         return "expansive"
-    return "steady"  # Mercury, or unknown → steady/clear
+    return "steady" if lord else None   # Mercury / anything present → steady
+
+
+# Chandra gochar: the transit Moon's house FROM the natal Moon. Classically the
+# Moon's favourable transit houses are 1,3,6,7,10,11 (a forward/expansive day),
+# the hard houses are 4,8,12 (a turn-inward/consolidating day), the rest steady.
+# This is the DAILY-moving, per-reader layer — the Moon changes sign every ~2.25
+# days, so the season actually shifts instead of sitting on the multi-year dasha.
+_GOCHAR_EXPANSIVE = {1, 3, 6, 7, 10, 11}
+_GOCHAR_CONSOLIDATING = {4, 8, 12}
+
+
+def _moon_gochar_tone(chart_data: dict, today: Optional[date]) -> Optional[str]:
+    """Today's transit-Moon tone relative to the natal Moon. None if unavailable."""
+    try:
+        if not chart_data:
+            return None
+        from antar_engine.daily_transit_analyzer import (
+            _compute_all_transit_sign_indices as _tsi,
+            _get_natal_sign_index as _nsi,
+            house_from_reference as _hfr,
+        )
+        d = today if isinstance(today, date) else date.today()
+        tmoon = _tsi(d).get("Moon")
+        nmoon = _nsi(chart_data, "Moon")
+        if tmoon is None or nmoon is None or nmoon < 0:
+            return None
+        h = _hfr(tmoon, nmoon)  # 1..12
+        if h in _GOCHAR_EXPANSIVE:
+            return "expansive"
+        if h in _GOCHAR_CONSOLIDATING:
+            return "consolidating"
+        return "steady"
+    except Exception as _e:
+        print(f"[daily-wisdom] gochar tone non-fatal: {_e}")
+        return None
+
+
+def _season(dashas: dict, chart_data: dict = None, today: Optional[date] = None) -> str:
+    """The reader's CURRENT season — a real, daily-moving read, not a fixed label.
+    Two layers:
+      • daily transit (Chandra gochar: transit Moon's house from natal Moon) —
+        shifts every couple of days, per reader;
+      • the dasha chapter (antardasha, then mahadasha) — the slower undertone.
+    The daily layer LEADS when decisive (a clearly favourable or hard Moon day);
+    on a neutral Moon day the dasha chapter shows through. Fail-open: with no
+    chart it degrades to the dasha, then to 'steady'."""
+    moon = _moon_gochar_tone(chart_data, today)
+    if moon in ("expansive", "consolidating"):
+        return moon
+    dasha = _lord_tone(_current_lord(dashas, "antardasha")) or _lord_tone(_current_md_lord(dashas))
+    return dasha or "steady"
 
 
 def _pick(candidates: list, seed_str: str) -> dict:
@@ -835,7 +892,7 @@ def build_daily_wisdom(chart_data: dict, dashas: dict, chart_id: str = "",
     try:
         lang = _lang(language)
         today = today or date.today().isoformat()
-        season = _season(dashas)
+        season = _season(dashas, chart_data, date.today())
 
         prefs = SEASON_THEMES.get(season, [])
         candidates = [v for v in VERSES if set(v["themes"]) & set(prefs)] or VERSES
