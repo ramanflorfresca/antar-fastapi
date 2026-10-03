@@ -1021,6 +1021,14 @@ KP_SKIP_WORDS = frozenset({"skip", "saltar", "pular", "chhodo", "chodo", "moment
                            "sin número", "sem número", "none"})
 
 
+_BARE_PRASHNA = frozenset({"prashna", "prashn", "prashan", "horary", "horaria", "horária"})
+
+
+def is_bare_prashna(text: str) -> bool:
+    """'prashna' on its own: cast the question just asked."""
+    return (text or "").strip().lower().strip(" .!¡?¿*_") in _BARE_PRASHNA
+
+
 def parse_prashna_command(text: str) -> Optional[str]:
     m = _PRASHNA_CMD.match(text or "")
     return m.group(1).strip() if m else None

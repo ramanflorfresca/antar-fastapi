@@ -744,7 +744,7 @@ _YN_ANSWER = {"mode": "yesno", "verdict": "NO", "lean": "conditional",
 def test_yesno_asks_for_the_kp_number_then_answers(m, monkeypatch):
     link = _link()
     cv = _Conv(m, monkeypatch, link=link, answer=dict(_YN_ANSWER, method="kp_number", horary_number=74))
-    cv.run("Will I raise funding by March?")
+    cv.run("prashna: Will I raise funding by March?")
     assert cv.asked == [] and "number from 1 to 249" in cv.sent[-1]
     assert link["context"]["kp_pending"]["q"] == "Will I raise funding by March?"
     cv.run("74")
@@ -760,17 +760,17 @@ def test_yesno_asks_for_the_kp_number_then_answers(m, monkeypatch):
 def test_kp_skip_reads_the_moment_and_range_is_checked(m, monkeypatch):
     link = _link()
     cv = _Conv(m, monkeypatch, link=link, answer=dict(_YN_ANSWER))
-    cv.run("Will I get the job?")
+    cv.run("prashna: Will I get the job?")
     cv.run("300")
     assert "1 to 249" in cv.sent[-1] and cv.asked == []
-    cv.run("Will I get the job?")
+    cv.run("prashna: Will I get the job?")
     cv.run("skip")
     assert cv.asked[-1].mode == "yesno" and cv.asked[-1].horary_number is None
 
 
 def test_number_in_the_question_skips_the_ritual(m, monkeypatch):
     cv = _Conv(m, monkeypatch, link=_link(), answer=dict(_YN_ANSWER))
-    cv.run("Will I get the job? number 74")
+    cv.run("prashna: Will I get the job? number 74")
     assert cv.asked and cv.asked[-1].mode == "yesno"
 
 
@@ -785,7 +785,7 @@ def test_prashna_command_forces_kp(m, monkeypatch):
 def test_new_question_while_waiting_moves_on(m, monkeypatch):
     link = _link()
     cv = _Conv(m, monkeypatch, link=link)
-    cv.run("Will I get the job?")
+    cv.run("prashna: Will I get the job?")
     cv.run("How is my career looking this year overall")
     assert cv.asked[-1].mode == "explore" and "kp_pending" not in link["context"]
 
@@ -799,15 +799,27 @@ def test_choice_question_is_not_yesno(m, monkeypatch):
 def test_ritual_can_be_switched_off(m, monkeypatch):
     monkeypatch.setenv("WHATSAPP_KP_NUMBER_RITUAL", "off")
     cv = _Conv(m, monkeypatch, link=_link(), answer=dict(_YN_ANSWER))
-    cv.run("Will I raise funding by March?")
+    cv.run("prashna: Will I raise funding by March?")
     assert cv.asked[-1].mode == "yesno" and cv.asked[-1].horary_number is None
 
 
-def test_yesno_auto_can_be_switched_off(m, monkeypatch):
-    monkeypatch.setenv("WHATSAPP_YESNO_AUTO", "off")
-    cv = _Conv(m, monkeypatch, link=_link())
+def test_yesno_question_gets_a_regular_read_and_a_prashna_offer(m, monkeypatch):
+    # owner 2026-10-03: never auto-route to Prashna; offer it, cast only on request
+    link = _link()
+    cv = _Conv(m, monkeypatch, link=link, answer=dict(_YN_ANSWER, method="kp_number", horary_number=7))
     cv.run("Will I raise funding by March?")
     assert cv.asked[-1].mode == "explore"
+    assert "Reply *prashna*" in cv.sent[-1]
+    cv.run("prashna")
+    assert "number from 1 to 249" in cv.sent[-1]
+    cv.run("7")
+    assert cv.asked[-1].mode == "yesno" and cv.asked[-1].question == "Will I raise funding by March?"
+
+
+def test_open_question_gets_no_prashna_offer(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link())
+    cv.run("How is my career looking this year overall")
+    assert cv.asked[-1].mode == "explore" and "prashna" not in cv.sent[-1].lower()
 
 
 @pytest.mark.parametrize("q,yn", [
@@ -915,18 +927,18 @@ def test_same_question_replays_the_original_prashna(m, monkeypatch):
     unlock = (datetime.combine(local_now.date() + timedelta(days=1), datetime.min.time())
               + timedelta(hours=12) - timedelta(minutes=330)).replace(tzinfo=timezone.utc)
     monkeypatch.setattr(m, "_wa_prashna_lock", lambda cid, q="": unlock)
-    cv.run("Will I raise funding by March?")
+    cv.run("prashna: Will I raise funding by March?")
     assert cv.asked and cv.asked[-1].mode == "yesno" and cv.asked[-1].horary_number is None
     assert "number from 1 to 249" not in " ".join(cv.sent)
     out = cv.sent[-1]
-    assert out.startswith("_Prashna_\n\n_You asked this earlier — one Prashna per question a day")
+    assert out.startswith("*→ Will I raise funding by March?*\n_Prashna_\n\n_You asked this earlier — one Prashna per question a day")
     assert "tomorrow._" in out and "check back" not in out      # day always named; no new promise
 
 
 def test_read_command_forces_a_regular_answer(m, monkeypatch):
     cv = _Conv(m, monkeypatch, link=_link())
     cv.run("read: will I raise funding by March?")
-    assert cv.asked[-1].mode == "explore" and "Prashna" not in cv.sent[-1]
+    assert cv.asked[-1].mode == "explore" and "Prashna ·" not in cv.sent[-1]
 
 
 def test_prashna_same_question_matching(m):
