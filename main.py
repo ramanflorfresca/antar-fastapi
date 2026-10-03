@@ -25124,6 +25124,15 @@ _CAREER_STAGE_KNOWN = {
     "self_employed": "self-employed / running your own thing",
     "entrepreneur": "running your own venture",
     "student": "studying",
+    "studying": "studying",
+    # [career-clarify-listen 2026-10-03] live: Harleen told Antar she's unemployed
+    # (career_stage=between_jobs), then asked "what type of work is best suited for
+    # me?" and was asked what she does — reads as not listening. Being between
+    # jobs IS her current situation: answer the fit read for her next role.
+    "between_jobs": "between jobs, looking for the next role",
+    "seeking": "between jobs, looking for the next role",
+    "unemployed": "between jobs, looking for the next role",
+    "in_transition": "in a career transition",
 }
 _ROLE_JUNK = {"", "unknown", "none", "n/a", "na", "other", "prefer not to say",
               "not sure", "undecided", "exploring", "between things"}
@@ -25198,23 +25207,22 @@ def _ask_career_clarify_payload(language: str = "en") -> dict:
     if _lang.startswith("es"):
         read = ("Con gusto — y para decirte qué líneas encajan de verdad contigo, "
                 "necesito saber qué estás haciendo ahora mismo. ¿En qué trabajas, "
-                "qué estudias o qué estás construyendo? Dímelo y lo leo contra la "
-                "veta de tu carta.")
+                "qué estudias o qué estás construyendo? Dímelo y lo leo contra tu "
+                "lectura.")
         nxt = "Cuéntame qué haces hoy y te digo dónde rindes más."
         chips = ["Trabajo en…", "Estudio / considero…",
                  "Tengo mi propio negocio", "Entre cosas / explorando"]
     elif _lang.startswith("pt"):
         read = ("Com prazer — e para dizer quais caminhos combinam de verdade com "
                 "você, preciso saber o que você faz agora. Em que você trabalha, "
-                "estuda ou está construindo? Me conte e leio isso contra a sua carta.")
+                "estuda ou está construindo? Me conte e leio isso contra a sua leitura.")
         nxt = "Me diga o que você faz hoje e digo onde você rende mais."
         chips = ["Trabalho em…", "Estudo / considerando…",
                  "Tenho meu próprio negócio", "Entre coisas / explorando"]
     else:
         read = ("Happy to — and to tell you which lines genuinely fit you, I need to "
                 "know what you're doing right now. What do you work in, study, or are "
-                "you building something? Tell me and I'll read it against your chart's "
-                "grain.")
+                "you building something? Tell me and I'll read it against your reading.")
         nxt = "Tell me what you do today and I'll show you where you'd do best."
         chips = ["I work in…", "Studying / considering…",
                  "Running my own thing", "Between things / exploring"]
@@ -30106,8 +30114,10 @@ async def ask_endpoint(request: AskRequest):
             try:
                 from antar_engine import understand as _und3
                 _au3 = locals().get("_ask_u") or {}
+                _unemp = _und3.not_employed(_au3, (chart_row.data or {}).get("career_stage") or "")
                 for _rf in ("read", "next"):
-                    payload[_rf] = _und3.guard_answer(payload.get(_rf), question, _au3.get("options"))
+                    payload[_rf] = _und3.guard_answer(payload.get(_rf), question, _au3.get("options"),
+                                                      unemployed=_unemp)
             except Exception:
                 pass
             # [no-invented-role] a role they never stated is neutralised
