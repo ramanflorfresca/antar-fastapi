@@ -23697,6 +23697,13 @@ def _ask_harvest_stated(chart_id: str, row: dict, u: dict) -> None:
                                        "evidence": "stated (nlu)"}
         if f.get("children") and not str((row or {}).get("children_status") or "").strip():
             facts["children_status"] = {"value": f["children"], "evidence": "stated (nlu)"}
+        # [past-work 2026-10-03] what they did before → life_work (empty only), e.g.
+        # "Formerly finance / bookkeeping manager (laid off)"
+        if f.get("past_work") and not str((row or {}).get("life_work") or "").strip():
+            _lo = any("laid off" in str(o).lower() or "let go" in str(o).lower()
+                      for o in (f.get("other") or []))
+            facts["life_work"] = {"value": "Formerly " + f["past_work"] + (" (laid off)" if _lo else ""),
+                                  "evidence": "stated (nlu)"}
         # [ask-compare] how they earn → profession (empty only), e.g.
         # "earns via: advisory fees + commission + equity / sweat equity"
         if f.get("earning") and not str((row or {}).get("profession") or "").strip():
@@ -27291,6 +27298,15 @@ async def ask_endpoint(request: AskRequest):
                                    "'the years ahead' — never name a planet, dasha, or house.")
                         _parts.append(_tline)
                     _ask_career_block = "\n\n".join(_parts)
+                    # [no-invented-past 2026-10-03] the fields above are what FITS them —
+                    # the model kept turning them into history ("your finance years",
+                    # "your finance network", "expertise already built").
+                    if not (str(chart_row.data.get("profession") or "").strip()
+                            or str(chart_row.data.get("life_work") or "").strip()):
+                        _ask_career_block += ("\n\nIMPORTANT: the fields above are what FITS this "
+                                              "person — not their history. You do not know what they "
+                                              "have worked in. Never write 'your <field> network / "
+                                              "years / expertise / background'.")
             except Exception as _dce:
                 logger.warning(f"[ask] d10-career skipped (non-fatal): {_dce}")
 
@@ -28046,7 +28062,8 @@ async def ask_endpoint(request: AskRequest):
                 try:
                     from antar_engine import understand as _und
                     _known_earn = _und.stored_earning(chart_row.data.get("profession") or "")
-                    _el = _und.earning_line(chart_row.data.get("profession") or "")
+                    _el = (_und.earning_line(chart_row.data.get("profession") or "")
+                           + _und.past_work_line(chart_row.data.get("life_work") or ""))
                     if _el:
                         _ask_life_block = ((_ask_life_block or "") + "\n\nWHAT THEY TOLD YOU EARLIER:" + _el).strip()
                 except Exception:
@@ -29425,6 +29442,21 @@ async def ask_endpoint(request: AskRequest):
             # not outcome. Fires only on the structural misalignment, nothing else.
             # [ask-compare 2026-10-03] a choose-between question has no Yes/No:
             # same suppression as the veto (chip + lead phrase + fail-closed lead).
+            # [intent-verdict 2026-10-03] "what should I do / why / which…" gets no
+            # Yes/Not-yet lead (live: courses question → "Not yet — groundwork").
+            try:
+                from antar_engine import understand as _undv
+                # the reading may have arrived after the life-block wait — take it now
+                if not locals().get("_ask_u"):
+                    _ask_u = await _ask_await_nlu(locals().get("_ask_nlu_task"), 2.0)
+                if _undv.suppress_verdict(locals().get("_ask_u")) and _ask_conv and \
+                        _ask_conv.get("verdict_phrase"):
+                    _ask_conv["suppress_verdict"] = True
+                    _ask_conv["verdict_phrase"] = ""
+                    print(f"[ask][intent-verdict] lead suppressed (intent="
+                          f"{(locals().get('_ask_u') or {}).get('intent')}) for {chart_id[:8]}")
+            except Exception as _ive:
+                print(f"[ask][intent-verdict] skipped: {_ive}")
             if locals().get("_ask_compare") and _ask_conv:
                 _ask_conv["suppress_verdict"] = True
                 _ask_conv["verdict_phrase"] = ""
@@ -30115,9 +30147,15 @@ async def ask_endpoint(request: AskRequest):
                 from antar_engine import understand as _und3
                 _au3 = locals().get("_ask_u") or {}
                 _unemp = _und3.not_employed(_au3, (chart_row.data or {}).get("career_stage") or "")
+                _kb = " ".join(str((chart_row.data or {}).get(k) or "") for k in ("profession", "life_work"))
+                _bg_known = bool(str((chart_row.data or {}).get("profession") or "").strip()
+                                 or str((chart_row.data or {}).get("life_work") or "").strip()
+                                 or ((_au3.get("stated_facts") or {}).get("other")))
+                for _rf in ("read", "next"):
+                    payload[_rf] = _und3.drop_invented_background(payload.get(_rf), _bg_known)
                 for _rf in ("read", "next"):
                     payload[_rf] = _und3.guard_answer(payload.get(_rf), question, _au3.get("options"),
-                                                      unemployed=_unemp)
+                                                      unemployed=_unemp, known_background=_kb)
             except Exception:
                 pass
             # [no-invented-role] a role they never stated is neutralised
