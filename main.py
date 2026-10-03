@@ -5650,8 +5650,14 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             # No holding message: the user only ever gets a COMPLETE answer.
             # Exception while outbound sends are failing (compliance pending):
             # tell them how to collect it, or they'd wait forever.
-            blocked = _time.time() - int(ctx.get("rest_blocked_at") or 0) < 24 * 3600
-            if blocked and sink.inline:
+            # [wa-pull-always 2026-10-03] Unless an outbound (REST) send has actually
+            # worked for this number in the last 7 days, a slow answer gets the pull
+            # note — before Twilio's compliance clears, REST never works. Live:
+            # Andres picked "2" (detailed); the answer took >10s, the REST send
+            # failed 20003, and because he hadn't been blocked in the last 24h
+            # nothing told him to reply — he waited, got nothing.
+            _rest_ok = _time.time() - int(ctx.get("rest_ok_at") or 0) < 7 * 24 * 3600
+            if sink.inline and not _rest_ok:
                 send(_wa_text("reading_pull", lang))
             try:
                 payload = await asyncio.wait_for(ask, timeout=90)
@@ -5753,6 +5759,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                     print(f"[whatsapp] kept {len(undelivered)} undelivered for next message …{number[-4:]}")
                 elif rest_seen["ok"]:
                     c.pop("rest_blocked_at", None)
+                    c["rest_ok_at"] = int(_time.time())     # outbound works for this number
                 c["lang"] = lang
                 await asyncio.to_thread(_msg.save_link_context, sb, link, c)
         except Exception as e:
