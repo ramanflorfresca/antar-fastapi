@@ -605,17 +605,32 @@ def _split_sentences(text: str) -> list:
     return [x.strip() for x in _SENT_END.split(text.strip()) if x.strip()]
 
 
+# [whatsapp-compact 2026-10-02] WhatsApp collapses long messages behind "Read
+# more", which hid the numbered follow-ups on every answer. Compact mode keeps
+# the bold answer, one short supporting sentence, the window and the move; the
+# full read is one reply away ("more"). The practice line is shown at most once
+# a day per practice (the caller decides via include_practice).
+_TIMING_HINT = re.compile(
+    r"(?i)\b(window|morning|afternoon|evening|tonight|midday|noon|before|after|until|"
+    r"today|tomorrow|this week|next week|month|\d{1,2}:\d{2}|"
+    r"jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|"
+    r"mañana|tarde|noche|semana|mes|manhã|noite|mês|subah|shaam|raat|hafte|mahine)\b")
+WA_COMPACT_BUDGET = 520           # characters before the follow-ups
+WA_MORE_WORDS = frozenset({"more", "full", "read more", "tell me more", "más", "mas info",
+                           "leer más", "mais", "ver mais", "aur batao", "poora batao",
+                           "detail", "details"})
+
+
 def format_ask_whatsapp_v2(payload: dict, language: str = "en",
-                           header: Optional[str] = None, asked: str = "") -> tuple:
+                           header: Optional[str] = None, asked: str = "",
+                           compact: bool = False, include_practice: bool = True) -> tuple:
     """(text, followups). Layout per the UX spec: optional 'Antar · <name>' header,
     the answer sentence in *bold* (a warm "Name, …" opener stays plain above it),
     the rest of the read, 🗓 _window_, → your move, 🧘 practice + its step, then
     numbered follow-ups (max 3). Ask's own closing offer ("Want me to…?") is
-    dropped when numbered follow-ups replace it."""
+    dropped when numbered follow-ups replace it. compact=True trims to fit one
+    WhatsApp screen (see WA_COMPACT_BUDGET)."""
     p = payload or {}
-    lines = []
-    if header:
-        lines.append(f"_Antar · {header}_")
     fus = [q.strip() for q in (p.get("suggested_questions") or [])
            if isinstance(q, str) and q.strip() and not _same_question(q, asked)][:3]
     read = re.sub(r"\*\*(.+?)\*\*", r"\1", (p.get("read") or p.get("why") or "").strip())
@@ -623,28 +638,58 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
     sents = _split_sentences(read) if read else []
     if fus and len(sents) > 1 and sents[-1].endswith("?") and _OFFER.match(sents[-1]):
         sents = sents[:-1]
+    opener = head = rest = ""
     if sents:
-        opener = None
         if (len(sents) > 1 and _OPENER.match(sents[0]) and len(sents[0]) <= 90
                 and _EMPATHY.search(sents[0])):
             opener, sents = sents[0], sents[1:]
-        head, rest = sents[0], " ".join(sents[1:])
-        if opener:
-            lines.append(opener)
-        lines.append(f"*{head}*" if len(head) <= 180 else head)
-        if rest:
-            lines.append(rest)
+        head = sents[0]
+        rest = " ".join(sents[1:])
+        if compact:
+            # keep the sentence(s) that carry WHEN (a window, a time of day, a date)
+            # over general colour — the timing is what the reader acts on
+            more = sents[1:]
+            timed = [x for x in more if _TIMING_HINT.search(x)]
+            pick = (timed or more)[:2]
+            rest = " ".join(pick)
+            if len(rest) > 220:
+                rest = pick[0] if len(pick[0]) <= 220 else ""
     timing = (p.get("timing") or "").strip()
-    if timing and timing.lower() not in read.lower():
-        lines.append(f"🗓 _{_wl('window', language)}: {timing}_")
+    win = (f"🗓 _{_wl('window', language)}: {timing}_"
+           if timing and timing.lower() not in read.lower() else "")
     nxt = (p.get("next") or "").strip()
-    if nxt:
-        lines.append("→ " + nxt)
+    move = ("→ " + nxt) if nxt else ""
     pc = p.get("practice_cta") or {}
-    if pc.get("available") and pc.get("label"):
+    practice = ""
+    if include_practice and pc.get("available") and pc.get("label"):
         step = (pc.get("step") or "").strip()
-        lines.append("🧘 " + pc["label"].strip()
-                     + (("\n" + step) if step and len(step) <= 200 else ""))
+        practice = "🧘 " + pc["label"].strip() + (("\n" + step) if step and len(step) <= 200 else "")
+
+    def build(opener_, rest_, practice_):
+        parts = []
+        if header:
+            parts.append(f"_Antar · {header}_")
+        if opener_:
+            parts.append(opener_)
+        if head:
+            parts.append(f"*{head}*" if len(head) <= 180 else head)
+        parts += [x for x in (rest_, win, move, practice_) if x]
+        return parts
+
+    lines = build(opener, rest, practice)
+    if compact:
+        # Over budget → drop, in order: the practice, the warm opener, the
+        # supporting sentence. The bold answer, window and move always stay.
+        for drop in ("practice", "opener", "rest"):
+            if len("\n\n".join(lines)) <= WA_COMPACT_BUDGET:
+                break
+            if drop == "practice":
+                practice = ""
+            elif drop == "opener":
+                opener = ""
+            else:
+                rest = ""
+            lines = build(opener, rest, practice)
     if fus:
         lines.append("\n".join(f"{i}  {q}" for i, q in enumerate(fus, 1)))
     text = "\n\n".join(l for l in lines if l).strip()
