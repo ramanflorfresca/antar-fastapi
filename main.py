@@ -4659,6 +4659,30 @@ def _wa_tz(number: str) -> int:
     return 0
 
 
+def _wa_user_tz_minutes(chart_id: Optional[str], number: str) -> int:
+    """The asker's local offset in minutes for "today" questions. [whatsapp-tz]
+    Order: the chart's stored current_timezone (IANA, DST-aware) → its
+    current_country → the phone's country prefix. Was phone prefix only, so every
+    +1 number was fixed at US Eastern (wrong for Pacific, wrong after DST)."""
+    try:
+        if chart_id:
+            r = (supabase.table("charts").select("current_timezone,current_country")
+                 .eq("id", chart_id).limit(1).execute()).data or []
+            if r:
+                tzname = (r[0].get("current_timezone") or "").strip()
+                if tzname:
+                    from zoneinfo import ZoneInfo
+                    off = datetime.now(ZoneInfo(tzname)).utcoffset()
+                    if off is not None:
+                        return int(off.total_seconds() // 60)
+                cc = (r[0].get("current_country") or "").strip().upper()
+                if cc and cc in _COUNTRY_TZ_OFFSETS:
+                    return int(float(_COUNTRY_TZ_OFFSETS[cc]) * 60)
+    except Exception as e:
+        print(f"[whatsapp] tz lookup skipped: {e}")
+    return _wa_tz(number)
+
+
 def _wa_chart_name(chart_id: str) -> str:
     try:
         r = (supabase.table("charts").select("name").eq("id", chart_id)
@@ -4887,10 +4911,17 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         owns_flight = True
         await asyncio.to_thread(_msg.save_link_context, sb, link, dict(ctx, lang=lang))
         _ASK_CHANNEL.set("whatsapp")     # [outcome-loop] copied into the task's context
+        # [whatsapp-yesno] no toggle on WhatsApp: a yes/no-shaped question goes to
+        # KP Prashna like the app's Yes/No mode (Ask itself still diverts crisis and
+        # gambling questions to the explore path). Kill switch WHATSAPP_YESNO_AUTO=off.
+        _mode = ("yesno" if ((os.getenv("WHATSAPP_YESNO_AUTO") or "on").strip().lower()
+                             not in ("0", "off", "false", "no")
+                             and _msg.is_yesno_question(question)) else "explore")
+        _tz_min = await asyncio.to_thread(_wa_user_tz_minutes, primary or cid, number)
         ask = asyncio.create_task(ask_endpoint(AskRequest(
-            question=question, chart_id=cid, mode="explore",
+            question=question, chart_id=cid, mode=_mode,
             language=("hinglish" if lang == "hinglish" else lang),
-            tz_offset=_wa_tz(number))))
+            tz_offset=_tz_min)))
         _WA_TASKS.add(ask)
         ask.add_done_callback(_WA_TASKS.discard)
 

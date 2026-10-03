@@ -632,6 +632,67 @@ WA_MORE_WORDS = frozenset({"more", "full", "read more", "tell me more", "más", 
                            "detail", "details"})
 
 
+# [whatsapp-yesno 2026-10-02] The app has a Yes/No toggle (KP Prashna); WhatsApp
+# has no toggle, so a question SHAPED as yes/no goes to KP automatically.
+# A choice ("…alone OR with a partner?") is not yes/no. EN/ES/PT/Hinglish.
+_YN_START = re.compile(
+    r"(?i)^\s*¿?\s*("
+    r"will|would|should|shall|is|are|am|can|could|do|does|did|has|have|was|were|may|might|"
+    r"voy a|vas a|va a|debo|debería|deberia|será|sera|puedo|podré|podre|tendré|tendre|"
+    r"conseguiré|conseguire|lograré|lograre|me va|hay|habrá|habra|es buen|está|esta bien|"
+    r"vou|devo|deveria|posso|poderei|terei|vai|consigo|conseguirei|é bom|e bom|haverá|"
+    r"kya)\b")
+_YN_END_HINGLISH = re.compile(r"(?i)\b(hoga|hogi|honge|milega|milegi|karun|karoon|chahiye|"
+                              r"ho jayega|ho jayegi|banega|banegi)\s*\??\s*$")
+_YN_CHOICE = re.compile(r"(?i)\b(or|ou|ya|either|whether)\b")
+_YN_CHOICE_ES = re.compile(r"(?i)\bo\b")     # Spanish "or" — but Portuguese "the"
+_YN_OPEN = re.compile(r"(?i)\b(when|where|which|what|how|why|who|cu[aá]ndo|d[oó]nde|qu[eé]|"
+                      r"c[oó]mo|quando|onde|como|kab|kahan|kaise|kyun|kaun)\b")
+
+
+def is_yesno_question(text: str) -> bool:
+    t = (text or "").strip()
+    if not t or len(t) > 200 or _YN_CHOICE.search(t):
+        return False
+    if t.lstrip().startswith("¿") and _YN_CHOICE_ES.search(t):
+        return False
+    if _YN_START.search(t):
+        first = re.sub(r"^\s*¿?\s*", "", t).split()[0].lower() if t.split() else ""
+        # "Is it…/Will…" are yes/no, but a later open word ("Will you tell me
+        # WHEN…") makes it an open question
+        return not _YN_OPEN.search(t) or first == "kya"
+    return bool(_YN_END_HINGLISH.search(t)) and not _YN_OPEN.search(t)
+
+
+_LEAN_HEAD = {
+    "en": {"yes": "Leaning yes.", "not_now": "Not right now — the timing isn't there yet.",
+           "conditional": "Possible — once one piece falls into place.", "no": "Leaning no."},
+    "es": {"yes": "Inclina a que sí.", "not_now": "Ahora no — el momento aún no llega.",
+           "conditional": "Posible — cuando encaje una pieza.", "no": "Inclina a que no."},
+    "pt": {"yes": "Tende a sim.", "not_now": "Agora não — o momento ainda não chegou.",
+           "conditional": "Possível — quando uma peça se encaixar.", "no": "Tende a não."},
+    "hinglish": {"yes": "Haan ki taraf jhukav hai.", "not_now": "Abhi nahi — sahi waqt abhi nahi aaya.",
+                 "conditional": "Ho sakta hai — jab ek cheez apni jagah aa jaye.",
+                 "no": "Na ki taraf jhukav hai."},
+}
+_CHECKBACK = {"en": "_I'll check back after {d} to ask if it happened._",
+              "es": "_Te preguntaré después del {d} si pasó._",
+              "pt": "_Vou perguntar depois de {d} se aconteceu._",
+              "hinglish": "_{d} ke baad main poochunga ki hua ya nahi._"}
+
+
+def _yesno_as_read(p: dict, language: str) -> dict:
+    """A Yes/No payload has a lean + why and no read; give it a headline."""
+    lang = language if language in _LEAN_HEAD else "en"
+    head = _LEAN_HEAD[lang].get(str(p.get("lean") or "").lower())
+    if not head:
+        v = str(p.get("verdict") or "").upper()
+        head = _LEAN_HEAD[lang]["yes" if v == "YES" else "no" if v == "NO" else "conditional"]
+    q = dict(p)
+    q["read"] = (head + " " + (p.get("why") or "")).strip()
+    return q
+
+
 def format_ask_whatsapp_v2(payload: dict, language: str = "en",
                            header: Optional[str] = None, asked: str = "",
                            compact: bool = False, include_practice: bool = True) -> tuple:
@@ -642,6 +703,16 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
     dropped when numbered follow-ups replace it. compact=True trims to fit one
     WhatsApp screen (see WA_COMPACT_BUDGET)."""
     p = payload or {}
+    checkback = ""
+    if p.get("mode") == "yesno":
+        p = _yesno_as_read(p, language)
+        if p.get("verify_after"):
+            try:
+                _d = datetime.fromisoformat(str(p["verify_after"])[:10])
+                lang_cb = language if language in _CHECKBACK else "en"
+                checkback = _CHECKBACK[lang_cb].format(d=f"{_d.strftime('%b')} {_d.day}")
+            except ValueError:
+                checkback = ""
     fus = [q.strip() for q in (p.get("suggested_questions") or [])
            if isinstance(q, str) and q.strip() and not _same_question(q, asked)][:3]
     read = re.sub(r"\*\*(.+?)\*\*", r"\1", (p.get("read") or p.get("why") or "").strip())
@@ -693,7 +764,7 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
             parts.append(opener_)
         if head:
             parts.append(f"*{head}*" if len(head) <= 180 else head)
-        parts += [x for x in (rest_, win, move_, practice_) if x]
+        parts += [x for x in (rest_, win, move_, practice_, checkback) if x]
         if fus_:
             parts.append("\n".join(f"{i}  {q}" for i, q in enumerate(fus_, 1)))
         return "\n\n".join(parts).strip()

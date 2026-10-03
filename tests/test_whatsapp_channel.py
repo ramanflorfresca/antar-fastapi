@@ -196,6 +196,7 @@ class _Conv:
                             if self.list_ok else False)
         monkeypatch.setattr(m, "_resolve_primary_chart_id", lambda uid: primary)
         monkeypatch.setattr(m, "_wa_chart_alive", lambda cid: True)
+        monkeypatch.setattr(m, "_wa_user_tz_minutes", lambda cid, n: m._wa_tz(n))
         monkeypatch.setattr(m, "_wa_chart_name", lambda cid: {"self-1": "Raman Singh", "mom-1": "Mom"}.get(cid, "X"))
 
         async def fake_ask(req):
@@ -727,3 +728,54 @@ def test_source_question_skips_the_dated_verdict():
     for q in ("When will I get funding?", "Where will I be next year?", "Should I raise now?",
               "Which month is best to launch?"):
         assert not main._is_source_q(q), q
+
+
+
+# ─── Yes/No routing + timezone ─────────────────────────────────────
+
+def test_yesno_shaped_questions_go_to_kp(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link(), answer={
+        "mode": "yesno", "verdict": "NO", "lean": "conditional",
+        "why": "The door isn't open yet, but it can be if you clear one hurdle first.",
+        "timing": "Oct 3, 2026 – Jan 31, 2027", "verify_after": "2027-01-31"})
+    cv.run("Will I raise funding by March?")
+    assert cv.asked[-1].mode == "yesno"
+    out = cv.sent[-1]
+    assert out.startswith("*Possible — once one piece falls into place.*")
+    assert "check back after Jan 31" in out
+    cv.run("Should I build alone or bring in a partner?")
+    assert cv.asked[-1].mode == "explore"
+
+
+def test_yesno_auto_can_be_switched_off(m, monkeypatch):
+    monkeypatch.setenv("WHATSAPP_YESNO_AUTO", "off")
+    cv = _Conv(m, monkeypatch, link=_link())
+    cv.run("Will I raise funding by March?")
+    assert cv.asked[-1].mode == "explore"
+
+
+@pytest.mark.parametrize("q,yn", [
+    ("Will I raise funding by March?", True), ("Is this a good time to sign?", True),
+    ("Should I build alone or bring in a partner?", False), ("When will I marry?", False),
+    ("Will you tell me when I marry?", False), ("¿Voy a conseguir el trabajo?", True),
+    ("¿Debo emprender solo o con un socio?", False), ("Vou conseguir o emprego?", True),
+    ("kya meri shaadi is saal hogi?", True), ("Naukri milegi?", True),
+    ("How about tomorrow", False)])
+def test_is_yesno_question(q, yn):
+    assert msg.is_yesno_question(q) is yn
+
+
+def test_timezone_uses_the_stored_current_timezone(m, monkeypatch):
+    class Q:
+        def __init__(self, row): self.row = row
+        def select(self, *a): return self
+        def eq(self, *a): return self
+        def limit(self, *a): return self
+        def execute(self): return type("R", (), {"data": [self.row]})()
+    monkeypatch.setattr(m.supabase, "table",
+                        lambda name: Q({"current_timezone": "America/Bogota", "current_country": "US"}))
+    assert m._wa_user_tz_minutes("c1", "+15551234567") == -300          # Bogota, not US Eastern
+    monkeypatch.setattr(m.supabase, "table",
+                        lambda name: Q({"current_timezone": None, "current_country": "IN"}))
+    assert m._wa_user_tz_minutes("c1", "+15551234567") == 330
+    assert m._wa_user_tz_minutes(None, "+919812345678") == 330         # phone prefix last
