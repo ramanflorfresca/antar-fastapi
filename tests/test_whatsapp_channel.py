@@ -147,7 +147,7 @@ def test_webhook_acks_fast_and_answers_in_background(m, monkeypatch):
     from fastapi.testclient import TestClient
     handled = []
 
-    async def fake_handle(number, body, ts, num_media=0, sink=None, sid="", choice="", lat_lon=None):
+    async def fake_handle(number, body, ts, num_media=0, sink=None, sid="", choice="", lat_lon=None, media=None):
         handled.append((number, body, num_media))
     monkeypatch.setattr(m, "_wa_handle", fake_handle)
     params = {"MessageSid": "SM1", "From": "whatsapp:+919812345678",
@@ -210,9 +210,9 @@ class _Conv:
         monkeypatch.setattr(m, "ask_endpoint", fake_ask)
         self.m = m
 
-    def run(self, body, num_media=0, lat_lon=None, choice_id=""):
+    def run(self, body, num_media=0, lat_lon=None, choice_id="", media=None):
         asyncio.run(self.m._wa_handle("+919812345678", body, time.time(), num_media,
-                                      None, "", choice_id, lat_lon))
+                                      None, "", choice_id, lat_lon, media))
 
 
 def _link(chart="self-1"):
@@ -1113,3 +1113,49 @@ def test_forcing_yesno_on_an_unplaceable_question_says_why(m, monkeypatch):
     cv = _Conv(m, monkeypatch, link=_link())
     cv.run("yes or no: will it happen?")
     assert cv.asked[-1].mode == "explore" and "needs a clear area of life" in cv.sent[-1]
+
+
+
+# ─── voice notes (owner 2026-10-03) ──────────────────────────────
+
+def test_voice_note_is_transcribed_echoed_and_answered(m, monkeypatch):
+    monkeypatch.setattr(msg, "voice_enabled", lambda: True)
+    monkeypatch.setattr(msg, "transcribe_voice", lambda url, ct: ("How is my career looking this year", "en"))
+    cv = _Conv(m, monkeypatch, link=_link())
+    cv.run("", num_media=1, media=("https://api.twilio.com/x/Media/ME1", "audio/ogg; codecs=opus"))
+    assert any("I heard:" in t and "career looking this year" in t for t in cv.sent)
+    assert cv.asked and cv.asked[-1].question == "How is my career looking this year"
+
+
+def test_spanish_voice_note_answers_in_spanish(m, monkeypatch):
+    monkeypatch.setattr(msg, "voice_enabled", lambda: True)
+    monkeypatch.setattr(msg, "transcribe_voice", lambda url, ct: ("¿Cómo va mi carrera este año?", "es"))
+    cv = _Conv(m, monkeypatch, link=_link())
+    cv.run("", num_media=1, media=("https://x/ME2", "audio/ogg"))
+    assert any("Entendí:" in t for t in cv.sent) and cv.asked[-1].language == "es"
+
+
+def test_unclear_voice_note_asks_again(m, monkeypatch):
+    monkeypatch.setattr(msg, "voice_enabled", lambda: True)
+    monkeypatch.setattr(msg, "transcribe_voice", lambda url, ct: ("", None))
+    cv = _Conv(m, monkeypatch, link=_link())
+    cv.run("", num_media=1, media=("https://x/ME3", "audio/ogg"))
+    assert cv.asked == [] and "couldn't make out that voice note" in cv.sent[-1]
+
+
+def test_voice_without_key_or_an_image_keeps_the_text_only_reply(m, monkeypatch):
+    monkeypatch.setattr(msg, "voice_enabled", lambda: False)
+    cv = _Conv(m, monkeypatch, link=_link())
+    cv.run("", num_media=1, media=("https://x/ME4", "audio/ogg"))
+    assert cv.asked == [] and "only read text" in cv.sent[-1]
+    monkeypatch.setattr(msg, "voice_enabled", lambda: True)
+    cv.run("", num_media=1, media=("https://x/ME5", "image/jpeg"))
+    assert "only read text" in cv.sent[-1]
+
+
+def test_voice_enabled_needs_the_key(monkeypatch):
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    assert not msg.voice_enabled()
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "x")
+    monkeypatch.setenv("WHATSAPP_VOICE", "off")
+    assert not msg.voice_enabled()
