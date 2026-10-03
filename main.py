@@ -25371,6 +25371,22 @@ def _ask_ym_tokens(label):
     return out
 
 
+# [source-q 2026-10-02] WHERE / WHO / WHICH questions (EN/ES/PT/Hinglish) with no
+# timing words — they ask for a source, a person or a choice, not a date.
+_SOURCE_Q_RE = re.compile(
+    r"(?i)^\s*(¿\s*)?(where|from where|who|whom|which|what kind|"
+    r"d[oó]nde|de d[oó]nde|qui[eé]n|qui[eé]nes|cu[aá]l|cu[aá]les|"
+    r"onde|de onde|quem|qual|quais|kahan|kahaan|kaun|kaunsa|kaunsi|kis)\b")
+_TIMING_Q_RE = re.compile(
+    r"(?i)\b(when|what time|which (day|week|month|year|date)|how long|how soon|by when|"
+    r"timing|date|month|year|window|cu[aá]ndo|qu[eé] d[ií]a|quando|que dia|kab|kitne din)\b")
+
+
+def _is_source_q(question) -> bool:
+    q = (question or "").strip()
+    return bool(_SOURCE_Q_RE.search(q)) and not _TIMING_Q_RE.search(q)
+
+
 def _ask_window_phase(label, today=None) -> str:
     """'now' if the month-level window `label` ("Oct 2026", "Oct 2026 – Jan 2027")
     includes today's month, 'past' if it has fully ended, 'future' otherwise
@@ -27348,6 +27364,13 @@ async def ask_endpoint(request: AskRequest):
                 # should I switch') keeps the decision/convergence path.
                 if _ask_decision and (_is_career_type_q(question) or _is_biz_vs_job_q(question)) and not _is_career_timing_q(question):
                     print("[ask] career-aptitude — suppressing decision/timing path")
+                    _ask_decision = False
+                # [source-q 2026-10-02] "where will my first customers come from" /
+                # "who will fund me" asks WHERE/WHO, not WHEN — live it got a dated
+                # "Not yet — right now (Oct 2026)…" verdict stapled on top. Take the
+                # reflective path unless the question also asks about timing.
+                if _ask_decision and _is_source_q(question):
+                    print("[ask] where/who/which question — suppressing decision/timing path")
                     _ask_decision = False
                 # [money-flow 2026-09-16] a money-PATTERN question is descriptive,
                 # not a dated verdict — take the reflective path so the money-flow
