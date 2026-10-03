@@ -4668,6 +4668,16 @@ _WA_L = {
                     "hinglish": "_Aapka local time ({label}) use kar raha hoon — lagta hai aap travel kar rahe hain._"},
     # [whatsapp-plain-yesno 2026-10-03] owner: a non-Indian reader doesn't know
     # "Prashna" — en/es/pt say what it IS (a yes/no reading); Hinglish keeps the word.
+    # [whatsapp-choice 2026-10-03] owner: a yes/no-shaped question first asks WHICH
+    # answer the person wants; the 1-249 number comes only after "yes or no".
+    "yn_choice": {"en": "How would you like this answered?\n\n1  *Yes or no* — a straight answer\n2  *Detailed reading* — what your chart shows, the timing and what to do",
+                  "es": "¿Cómo quieres que te responda?\n\n1  *Sí o no* — una respuesta directa\n2  *Lectura detallada* — lo que muestra tu carta, los tiempos y qué hacer",
+                  "pt": "Como você quer a resposta?\n\n1  *Sim ou não* — uma resposta direta\n2  *Leitura detalhada* — o que seu mapa mostra, o momento e o que fazer",
+                  "hinglish": "Iska jawab kaise chahiye?\n\n1  *Haan ya na* — seedha jawab\n2  *Detailed reading* — aapka chart kya dikhata hai, timing aur kya karein"},
+    "btn_answer": {"en": "Choose", "es": "Elegir", "pt": "Escolher", "hinglish": "Chuniye"},
+    "opt_yesno": {"en": "Yes or no", "es": "Sí o no", "pt": "Sim ou não", "hinglish": "Haan ya na"},
+    "opt_detail": {"en": "Detailed reading", "es": "Lectura detallada", "pt": "Leitura detalhada",
+                   "hinglish": "Detailed reading"},
     "kp_offer": {"en": "_Want a straight yes-or-no reading on this? Reply *yes or no*._",
                  "es": "_¿Quieres una respuesta directa de sí o no? Responde *sí o no*._",
                  "pt": "_Quer uma resposta direta de sim ou não? Responda *sim ou não*._",
@@ -5273,7 +5283,20 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             ctx.pop("kp_pending", None)
             if _kp_number is not None:
                 question, _force_kp = _kp_pend["q"], True
+                lang = _kp_pend.get("lang") or lang      # a bare number carries no language
         _force_read = False
+        # [whatsapp-choice] answering "yes or no, or detailed?" for the pending question.
+        # Anything else is a new message: drop the pending choice and carry on.
+        _ch = ctx.pop("choice_pending", None) or {}
+        if (_kp_number is None and _ch.get("q")
+                and _time.time() - float(_ch.get("at") or 0) < 1800):
+            _pick = _msg.parse_answer_choice(body, choice_id)
+            if _pick:
+                lang = _ch.get("lang") or lang           # answer in the QUESTION's language
+            if _pick == "yesno":
+                question, _force_kp = _ch["q"], True
+            elif _pick == "detail":
+                question, _force_read = _ch["q"], True
         # [whatsapp-prashna-optin 2026-10-03] a bare "prashna" casts the question
         # the person just asked (offered under yes/no-shaped answers).
         if (not _force_kp and _msg.is_bare_prashna(body) and ctx.get("last_q")):
@@ -5288,7 +5311,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                     question, _force_read = _rc, True
         if choice_id.startswith("q:") and choice_id[2:].strip():
             question = choice_id[2:].strip()
-        n = None if _kp_number is not None else _msg.parse_pick(body)
+        n = None if (_kp_number is not None or _force_kp or _force_read) else _msg.parse_pick(body)
         if n is not None:
             kind, item = _msg.pick_option(ctx, n)
             if kind == "outcome" and item:
@@ -5326,6 +5349,14 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         # Every question gets the regular chart read (same /ask logic); Prashna runs
         # only when asked for — "prashna: …", or a bare "prashna" after the offer.
         _mode = "yesno" if _force_kp else "explore"
+        if (_mode == "explore" and not _force_read and question == body
+                and _msg.is_yesno_question(question)):
+            ctx["choice_pending"] = {"q": question, "at": int(_time.time()), "lang": lang}
+            _save(ctx)
+            send_choices(_wa_text("yn_choice", lang), "btn_answer",
+                         [(_wa_text("opt_yesno", lang), "yn:kp", ""),
+                          (_wa_text("opt_detail", lang), "yn:read", "")])
+            return
         # [whatsapp-prashna] Prashna is once per 24h per chart (app rule). While
         # locked, don't run the number ritual to replay an old cast: answer as a
         # regular read and say when the next Prashna opens.
@@ -5350,7 +5381,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             except Exception:
                 _has_num = False
             if not _has_num:
-                ctx["kp_pending"] = {"q": question, "at": int(_time.time())}
+                ctx["kp_pending"] = {"q": question, "at": int(_time.time()), "lang": lang}
                 _save(ctx)
                 send(_wa_text("kp_ask", lang))
                 return
@@ -5457,9 +5488,6 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         if text and locals().get("_travel_note"):
             text = text + "\n\n" + _travel_note
         ctx.pop("last_q", None)
-        if text and _mode == "explore" and _msg.is_yesno_question(question):
-            text = text + "\n\n" + _wa_text("kp_offer", lang)
-            ctx["last_q"] = question
         if not text:
             send(_wa_text("failed", lang))
         else:
