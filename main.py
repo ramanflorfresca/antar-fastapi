@@ -23689,6 +23689,8 @@ def _ask_harvest_stated(chart_id: str, row: dict, u: dict) -> None:
         f = (u or {}).get("stated_facts") or {}
         facts = {}
         cs = _und.WORK_TO_CAREER_STAGE.get(f.get("work") or "")
+        if cs == "seeking":
+            cs = "between_jobs"            # the value onboarding stores
         if cs and not str((row or {}).get("career_stage") or "").strip():
             facts["career_stage"] = {"value": cs, "evidence": "stated (nlu)"}
         rel = f.get("relationship")
@@ -23709,6 +23711,19 @@ def _ask_harvest_stated(chart_id: str, row: dict, u: dict) -> None:
         if f.get("earning") and not str((row or {}).get("profession") or "").strip():
             facts["profession"] = {"value": _und.EARNS_PREFIX + _und.earning_text(f["earning"]),
                                    "evidence": "stated (nlu)"}
+        # [profile-updates 2026-10-03] owner: an explicit present-tense statement
+        # ("I'm married now", "I was laid off") UPDATES a stored value; logged.
+        for k, (old, new) in _und.explicit_updates(u, row).items():
+            facts[k] = {"value": new, "evidence": "explicit statement (nlu)"}
+            print(f"[ask][profile-update] {chart_id[:8]} {k}: {old!r} -> {new!r}")
+            try:
+                supabase.table("nlu_log").insert({
+                    "chart_id": chart_id, "channel": "profile_update", "mode": k,
+                    "question": str((u or {}).get("standalone") or "")[:600],
+                    "understanding": {"field": k, "old": old, "new": new},
+                    "keyword": {}, "disagree": []}).execute()
+            except Exception:
+                pass
         if facts:
             apply_harvest(supabase, chart_id, facts)
             for k, v in facts.items():
