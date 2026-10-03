@@ -4520,6 +4520,10 @@ _WA_L = {
                "hinglish": "Apna sawaal mann mein rakhiye aur 1 se 249 ke beech ek number bhejiye — wahi number aapka Prashna chart banata hai.\n\n_Moment se padhne ke liye *skip* bhejiye._"},
     "kp_range": {"en": "Please send a number from 1 to 249.", "es": "Envía un número del 1 al 249.",
                  "pt": "Envie um número de 1 a 249.", "hinglish": "1 se 249 ke beech ka number bhejiye."},
+    "kp_locked": {"en": "_Prashna is once a day — your next one opens at {t}. Here's a regular read instead._",
+                  "es": "_El Prashna es una vez al día — el próximo se abre a las {t}. Aquí va una lectura normal._",
+                  "pt": "_O Prashna é uma vez por dia — o próximo abre às {t}. Aqui vai uma leitura normal._",
+                  "hinglish": "_Prashna din mein ek baar — agla {t} baje khulega. Abhi ek normal read:_"},
     "btn_choose": {"en": "Choose a question", "es": "Elegir pregunta", "pt": "Escolher pergunta",
                    "hinglish": "Sawaal chuniye"},
     "btn_next": {"en": "Ask next", "es": "Siguiente pregunta", "pt": "Próxima pergunta",
@@ -4792,6 +4796,25 @@ def _wa_note_device_tz(chart_id: str, minutes: int) -> None:
         _msg.save_link_context(supabase, rows[0], ctx)
     except Exception as e:
         print(f"[whatsapp] device tz note skipped: {e}")
+
+
+def _wa_prashna_lock(chart_id: str):
+    """[whatsapp-prashna] The app's one-Prashna-per-24h rule (Ask replays the
+    previous answer while locked, even for a DIFFERENT question). Returns the
+    unlock datetime (UTC) if locked, else None — so WhatsApp never runs the
+    number ritual just to replay an old cast. Fail-open (None)."""
+    try:
+        rows = (supabase.table("prashna_log").select("created_at").eq("chart_id", chart_id)
+                .order("created_at", desc=True).limit(1).execute()).data or []
+        if not rows:
+            return None
+        cd = check_cooldown(rows[0]["created_at"], cooldown_hours=ASK_YESNO_COOLDOWN_HOURS)
+        if cd.get("allowed"):
+            return None
+        return datetime.fromisoformat(str(cd.get("cooldown_until")).replace("Z", "+00:00"))
+    except Exception as e:
+        print(f"[whatsapp] prashna lock check skipped: {e}")
+        return None
 
 
 def _wa_chart_name(chart_id: str) -> str:
@@ -5078,6 +5101,18 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                                            not in ("0", "off", "false", "no")
                                            and _msg.is_yesno_question(question)))
                  else "explore")
+        # [whatsapp-prashna] Prashna is once per 24h per chart (app rule). While
+        # locked, don't run the number ritual to replay an old cast: answer as a
+        # regular read and say when the next Prashna opens.
+        _kp_lock_note = ""
+        if _mode == "yesno":
+            _unlock = await asyncio.to_thread(_wa_prashna_lock, cid)
+            if _unlock:
+                _tzm = await asyncio.to_thread(_wa_user_tz_minutes, primary or cid, number, ctx)
+                _loc = _unlock + timedelta(minutes=_tzm)
+                _t = _loc.strftime("%I:%M %p").lstrip("0") if lang == "en" else _loc.strftime("%H:%M")
+                _kp_lock_note = _wa_text("kp_locked", lang, t=_t)
+                _mode, _kp_number = "explore", None
         # [whatsapp-prashna] the traditional KP number ritual: ask for 1-249 first,
         # unless the question already carries one. WHATSAPP_KP_NUMBER_RITUAL=off.
         if (_mode == "yesno" and _kp_number is None
@@ -5158,7 +5193,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                 _save(ctx)
             return
         prefix = f"*→ {question}*\n\n" if question != body else ""
-        if locals().get("_kp_number"):
+        if locals().get("_kp_number") and str(payload.get("method") or "") == "kp_number":
             prefix = f"*→ {question}* · #{_kp_number}\n\n"
         # [whatsapp-compact] one screen per answer (no "Read more" hiding the
         # follow-ups); the full read is kept for a "more" reply. The practice
@@ -5182,6 +5217,8 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         if _show_pc and _pc_label in text:
             _seen["labels"] = (_seen["labels"] + [_pc_label])[-10:]
         ctx["practice_seen"] = _seen
+        if text and locals().get("_kp_lock_note"):
+            text = _kp_lock_note + "\n\n" + text
         if text and locals().get("_travel_note"):
             text = text + "\n\n" + _travel_note
         if not text:

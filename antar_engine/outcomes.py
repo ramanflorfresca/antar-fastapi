@@ -87,6 +87,8 @@ def build_claim(chart_id: str, question: str, payload: dict, *, mode: str,
     """A prediction_claims row for an answer that makes a checkable claim, else
     None. Only dated verdicts and Yes/No leans count — mood and advice don't."""
     p = payload or {}
+    if p.get("locked"):
+        return None          # a replay of an earlier answer, not a new prediction
     verdict = str(p.get("verdict") or "").upper().strip()
     if mode == "yesno":
         lean = str(p.get("lean") or verdict or "").upper().strip()
@@ -131,11 +133,20 @@ def build_claim(chart_id: str, question: str, payload: dict, *, mode: str,
         "verdict": verdict,
         "confidence_word": str(p.get("confidence") or p.get("confidence_label") or "")[:40] or None,
         "engines": engines or {},
-        "dedupe_key": f"{chart_id}|{(topic or 'general').lower()}|{claim_type}|"
-                      f"{start.isoformat() if start else ''}|{end.isoformat()}",
+        # every Prashna is its own question cast at its own moment — a Yes/No claim
+        # is keyed by its question too, so two different questions never merge
+        "dedupe_key": (f"{chart_id}|{(topic or 'general').lower()}|{claim_type}|"
+                       f"{start.isoformat() if start else ''}|{end.isoformat()}"
+                       + (f"|q:{_qkey(question)}" if claim_type == "yesno" else "")),
         "checkin_due_at": datetime.combine(end + timedelta(days=CHECKIN_DELAY_DAYS),
                                            datetime.min.time(), tzinfo=timezone.utc).isoformat(),
     }
+
+
+def _qkey(question: str) -> str:
+    import hashlib
+    norm = " ".join(re.findall(r"[\w']+", (question or "").lower()))
+    return hashlib.sha1(norm.encode()).hexdigest()[:12]
 
 
 def _table_missing(e) -> bool:
