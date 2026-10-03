@@ -909,14 +909,18 @@ def test_same_question_replays_the_original_prashna(m, monkeypatch):
     # one Prashna per DISTINCT question a day: re-asking replays the original cast
     from datetime import datetime, timezone
     cv = _Conv(m, monkeypatch, link=_link(), answer=dict(_YN_ANSWER, locked=True))
-    monkeypatch.setattr(m, "_wa_prashna_lock",
-                        lambda cid, q="": datetime(2026, 10, 4, 1, 25, tzinfo=timezone.utc))
+    from datetime import timedelta
+    # tomorrow at noon in the sender's zone (+91 → UTC+5:30), whatever time it is now
+    local_now = datetime.now(timezone.utc) + timedelta(minutes=330)
+    unlock = (datetime.combine(local_now.date() + timedelta(days=1), datetime.min.time())
+              + timedelta(hours=12) - timedelta(minutes=330)).replace(tzinfo=timezone.utc)
+    monkeypatch.setattr(m, "_wa_prashna_lock", lambda cid, q="": unlock)
     cv.run("Will I raise funding by March?")
     assert cv.asked and cv.asked[-1].mode == "yesno" and cv.asked[-1].horary_number is None
     assert "number from 1 to 249" not in " ".join(cv.sent)
     out = cv.sent[-1]
     assert out.startswith("_Prashna_\n\n_You asked this earlier — one Prashna per question a day")
-    assert "after 6:55 AM" in out and "check back" not in out      # a replay promises nothing new
+    assert "tomorrow._" in out and "check back" not in out      # day always named; no new promise
 
 
 def test_read_command_forces_a_regular_answer(m, monkeypatch):
@@ -931,3 +935,13 @@ def test_prashna_same_question_matching(m):
     assert same("Will I raise funding by March?", "Will I raise the funding by March")
     assert not same("Will I raise funding by March?", "Will I get the job?")
     assert not same("Will I raise funding by March?", "Will I raise funding by December?")
+
+
+
+def test_unlock_label_always_names_the_day(m):
+    from datetime import datetime
+    now = datetime(2026, 10, 2, 22, 34)
+    assert m._wa_when_label(datetime(2026, 10, 3, 21, 25), now, "en") == "9:25 PM tomorrow"
+    assert m._wa_when_label(datetime(2026, 10, 2, 23, 0), now, "en") == "11:00 PM"
+    assert m._wa_when_label(datetime(2026, 10, 5, 9, 0), now, "en") == "Mon Oct 5, 9:00 AM"
+    assert m._wa_when_label(datetime(2026, 10, 3, 21, 25), now, "pt") == "das 21:25 de amanhã"
