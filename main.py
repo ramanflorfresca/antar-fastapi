@@ -34493,20 +34493,36 @@ def get_daily_wisdom(chart_id: str, language: str = "en"):
     Curated corpus — never LLM-generated scripture. Fail-open: returns a verse
     even with no chart/dashas. Sync endpoint (threadpool) so the synchronous
     Supabase reads don't block the event loop."""
-    from antar_engine.daily_wisdom import build_daily_wisdom
     lang = (language or "en").split("-")[0].lower()
-    chart_data, dashas = {}, {}
     try:
-        _r = supabase.table("charts").select("chart_data").eq("id", chart_id).limit(1).execute()
-        if _r.data:
-            chart_data = _safe_jsonb(_r.data[0].get("chart_data")) or {}
+        from antar_engine.daily_wisdom import build_daily_wisdom
+        chart_data, dashas = {}, {}
+        try:
+            _r = supabase.table("charts").select("chart_data").eq("id", chart_id).limit(1).execute()
+            if _r.data:
+                chart_data = _safe_jsonb(_r.data[0].get("chart_data")) or {}
+        except Exception as _e:
+            print(f"[daily-wisdom] chart read skip {str(chart_id)[:8]}: {_e}")
+        try:
+            dashas = get_dashas_for_chart(chart_id) or {}
+        except Exception as _e:
+            print(f"[daily-wisdom] dashas skip {str(chart_id)[:8]}: {_e}")
+        return build_daily_wisdom(chart_data, dashas, chart_id=chart_id, language=lang)
     except Exception as _e:
-        print(f"[daily-wisdom] chart read skip {str(chart_id)[:8]}: {_e}")
-    try:
-        dashas = get_dashas_for_chart(chart_id) or {}
-    except Exception as _e:
-        print(f"[daily-wisdom] dashas skip {str(chart_id)[:8]}: {_e}")
-    return build_daily_wisdom(chart_data, dashas, chart_id=chart_id, language=lang)
+        # Never 500 — a verse always loads. Last-resort static fallback (with its
+        # reference) so the Practice card degrades gracefully instead of breaking.
+        print(f"[daily-wisdom] endpoint fallback {str(chart_id)[:8]}: {_e}")
+        return {
+            "available": True, "fallback": True, "season": "steady", "theme": "equanimity",
+            "verse": {
+                "source": "Bhagavad Gita 2.47", "reference": "2.47",
+                "sanskrit": "कर्मण्येवाधिकारस्ते मा फलेषु कदाचन।\nमा कर्मफलहेतुर्भूर्मा ते सङ्गोऽस्त्वकर्मणि",
+                "transliteration": "karmaṇy-evādhikāras te mā phaleṣu kadācana | mā karma-phala-hetur bhūr mā te saṅgo 'stv akarmaṇi",
+                "translation": "You have a right to your actions, never to their fruits. Don't act for the results — but don't withdraw from action either.",
+            },
+            "why_now": "A steadying word for today.",
+            "suggested_questions": [], "ask_context": "", "language": lang, "corpus_size": 0,
+        }
 
 
 _WISDOM_SYSTEM = """You are Antar's wisdom companion — a warm, grounded guide to the Bhagavad Gita and the broader Vedic wisdom tradition. You help people reflect on scripture and live it.
