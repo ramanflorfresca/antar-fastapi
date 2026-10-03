@@ -617,6 +617,10 @@ _TIMING_HINT = re.compile(
     r"mañana|tarde|noche|semana|mes|manhã|noite|mês|subah|shaam|raat|hafte|mahine)\b")
 # The WHOLE message (answer + follow-ups) must fit before WhatsApp folds it; the
 # caller's one-line "more" hint (~40 chars) rides on top. Live: 650 chars folded.
+_WHEN_Q = re.compile(
+    r"(?i)\b(when|what time|which (day|week|month|year|date)|how soon|how long|by when|"
+    r"best time|today|tomorrow|this week|next week|cu[aá]ndo|qu[eé] d[ií]a|mañana|"
+    r"quando|que dia|amanhã|kab|aaj|kal)\b")
 _SPECIFIC_TIME = re.compile(
     r"(?i)\b(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|june?|july?|aug(ust)?|sep(t(ember)?)?|"
     r"oct(ober)?|nov(ember)?|dec(ember)?|enero|febrero|marzo|abril|mayo|junio|julio|agosto|"
@@ -656,10 +660,17 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
             # keep the sentence(s) that carry WHEN (a window, a time of day, a date)
             # over general colour — the timing is what the reader acts on
             more = sents[1:]
-            timed = [x for x in more if _TIMING_HINT.search(x) or _SPECIFIC_TIME.search(x)]
-            # a named month / date / clock time beats a vague "months ahead"
-            timed.sort(key=lambda x: 0 if _SPECIFIC_TIME.search(x) else 1)
-            pick = (timed or more)[:2]
+            if _WHEN_Q.search(asked or ""):
+                timed = [x for x in more if _TIMING_HINT.search(x) or _SPECIFIC_TIME.search(x)]
+                # a named month / date / clock time beats a vague "months ahead"
+                timed.sort(key=lambda x: 0 if _SPECIFIC_TIME.search(x) else 1)
+                pick = (timed or more)[:2]
+            else:
+                # where / how / who / why: the substance comes first — keep the
+                # supporting sentences in order (live: preferring the "coming
+                # weeks" line dropped "Your network is your fastest path" and
+                # left "that short list" pointing at nothing)
+                pick = more[:2]
             rest = " ".join(pick)
             if len(rest) > 220:
                 rest = pick[0] if len(pick[0]) <= 220 else ""

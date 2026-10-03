@@ -695,8 +695,35 @@ def test_compact_budget_covers_the_whole_message():
          "suggested_questions": ["When is the best time to raise funding?",
                                  "Where will my first real customers come from?",
                                  "Should I build alone or bring in a partner?"]}
-    c, fus = msg.format_ask_whatsapp_v2(p, "en", compact=True, include_practice=False)
+    c, fus = msg.format_ask_whatsapp_v2(p, "en", asked="When does my startup take off",
+                                        compact=True, include_practice=False)
     assert len(c) <= msg.WA_COMPACT_BUDGET
     assert "into November" in c and "The potential is real" not in c     # specific timing wins
     assert c.startswith("*Not yet — right now (Oct 2026)") and "→ Pick one thing" in c
     assert len(fus) >= 2 and fus == [q for q in p["suggested_questions"] if q in c]
+
+
+
+def test_where_question_keeps_the_substance_not_the_timing_line():
+    # live 2026-10-02: kept "that short list" and dropped "Your network is your fastest path"
+    p = {"read": ("Not yet — right now (Oct 2026) is for laying groundwork. Your network is your "
+                  "fastest path — the people who already know your work are most likely to say yes "
+                  "first. Right now, caution is holding back bold outreach, so warm introductions "
+                  "beat cold pitches. The coming weeks are for building that short list."),
+         "next": "Write those 10 names today and send the first message before the week ends.",
+         "suggested_questions": ["When is the best time to raise funding?"]}
+    c, _ = msg.format_ask_whatsapp_v2(p, "en", asked="Where will my first real customers come from?",
+                                      compact=True, include_practice=False)
+    assert "Your network is your fastest path" in c
+
+
+def test_source_question_skips_the_dated_verdict():
+    from dotenv import load_dotenv
+    load_dotenv()
+    import main
+    for q in ("Where will my first real customers come from?", "Who will fund my startup?",
+              "¿De dónde vendrán mis primeros clientes?", "Kahan se customers aayenge?"):
+        assert main._is_source_q(q), q
+    for q in ("When will I get funding?", "Where will I be next year?", "Should I raise now?",
+              "Which month is best to launch?"):
+        assert not main._is_source_q(q), q
