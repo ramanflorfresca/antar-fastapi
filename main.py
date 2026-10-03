@@ -25356,6 +25356,24 @@ def _ask_ym_tokens(label):
     return out
 
 
+def _ask_window_phase(label, today=None) -> str:
+    """'now' if the month-level window `label` ("Oct 2026", "Oct 2026 – Jan 2027")
+    includes today's month, 'past' if it has fully ended, 'future' otherwise
+    ('' when it can't be parsed). [groundwork-tense 2026-10-02]"""
+    from datetime import date as _d
+    toks = _ask_ym_tokens(label)
+    if not toks:
+        return ""
+    t = today or _d.today()
+    cur = (t.year, t.month)
+    start, end = toks[0], toks[-1]
+    if end < cur:
+        return "past"
+    if start <= cur:
+        return "now"
+    return "future"
+
+
 def _ask_later_window(active_label, other_label) -> str:
     """Return other_label when it starts strictly AFTER active_label ends — a
     genuinely later, distinct window worth naming as the second stretch. "" when
@@ -27518,14 +27536,34 @@ async def ask_endpoint(request: AskRequest):
                                                 _ps.split(" point to ")[0]
                                                 + " point to " + _role_phrase)
                                     if _conv_earlier:
+                                        # [groundwork-tense 2026-10-02] the "earlier
+                                        # opening" may already be HERE (live: "an
+                                        # earlier opening Oct 2026" asked in Oct 2026)
+                                        # or over — say "right now", or drop it.
+                                        _gw = _ask_window_phase(_conv_win)
                                         if _client == "NOT_YET":
-                                            _phrase = (f"Not yet — an earlier opening {_conv_win} "
-                                                       f"to lay groundwork; the strong {_noun} is "
-                                                       f"{_label}.")
+                                            if _gw == "now":
+                                                _phrase = (f"Not yet — right now ({_conv_win}) is for "
+                                                           f"laying groundwork; the strong {_noun} is "
+                                                           f"{_label}.")
+                                            elif _gw == "past":
+                                                _phrase = f"Not yet — the strong {_noun} is {_label}."
+                                            else:
+                                                _phrase = (f"Not yet — an earlier opening {_conv_win} "
+                                                           f"to lay groundwork; the strong {_noun} is "
+                                                           f"{_label}.")
                                         else:
-                                            _phrase = (f"No strong {_noun} yet — an earlier opening "
-                                                       f"{_conv_win} to prepare; the next real window "
-                                                       f"is {_label}.")
+                                            if _gw == "now":
+                                                _phrase = (f"No strong {_noun} yet — right now "
+                                                           f"({_conv_win}) is for preparing; the next "
+                                                           f"real window is {_label}.")
+                                            elif _gw == "past":
+                                                _phrase = (f"No strong {_noun} yet — the next real "
+                                                           f"window is {_label}.")
+                                            else:
+                                                _phrase = (f"No strong {_noun} yet — an earlier opening "
+                                                           f"{_conv_win} to prepare; the next real window "
+                                                           f"is {_label}.")
                                         _ask_conv["partial_window_label"] = _conv_win
                                         _ask_conv["window_label"] = _label
                                         _recap_conv(f"the earlier groundwork window ({_conv_win})")
