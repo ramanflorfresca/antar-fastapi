@@ -113,6 +113,15 @@ QUESTION_TYPES = {
     },
     # [yesno-kp 2026-10-02] horary groups so EVERY Yes/No question is KP.
     # foreign travel / visa / settling abroad — 12th CSL via 3·9·12; home (4) denies
+    # [kp-residence 2026-10-02] change of residence (KP convention): the 3rd is
+    # the 12th from the 4th — leaving the present home; 10th = 7th from the 4th —
+    # the new place; 12th — going away. The 4th itself = staying put. Was missing:
+    # "will I move in the next 30 days" fell to the generic money type.
+    "residence": {
+        "primary_cusp": 3, "favour": [3, 10, 12], "against": [4],
+        "materialization_gate": False,
+        "label": {"yes": "A move happens", "no": "No move happens"},
+    },
     "foreign_travel": {
         "primary_cusp": 12, "favour": [3, 9, 12], "against": [4],
         "materialization_gate": False,
