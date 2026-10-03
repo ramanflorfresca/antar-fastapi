@@ -251,3 +251,64 @@ def due_claims(sb, chart_id: str, now: Optional[datetime] = None, limit: int = 2
         if not _table_missing(e):
             print(f"[outcomes] due_claims failed: {e}")
         return []
+
+
+# ── week 2: sending check-ins ──
+# [outcome-loop-checkins 2026-10-02] Dated Ask claims (source ask_explore) get one
+# "did it happen?" after the window ends, at ~8 AM local, at most 2 a week per
+# person, one a day. Yes/No claims keep the existing yesno_checkback job (their
+# answers live in user_correlations) — bridging is a follow-up.
+CHECKIN_SOURCES = ("ask_explore",)
+WEEKLY_CAP = 2
+LOCAL_HOUR = 8
+LOOKBACK_DAYS = 30
+
+
+def pick_due(claims: list, sent_last_week: dict, answered: set) -> list:
+    """At most ONE claim per chart per run, honouring the weekly cap; oldest due first."""
+    chosen, seen = [], set()
+    for c in sorted(claims, key=lambda r: r.get("checkin_due_at") or ""):
+        cid = c.get("chart_id")
+        if (not cid or cid in seen or c.get("id") in answered or c.get("checkin_sent_at")
+                or c.get("source") not in CHECKIN_SOURCES):
+            continue
+        if sent_last_week.get(cid, 0) >= WEEKLY_CAP:
+            continue
+        seen.add(cid)
+        chosen.append(c)
+    return chosen
+
+
+_PUSH_TITLE = {"en": "Did it happen?", "es": "¿Pasó?", "pt": "Aconteceu?"}
+
+
+def push_message(claim: dict) -> tuple:
+    lang = (claim.get("language") or "en")[:2]
+    lang = lang if lang in _PUSH_TITLE else "en"
+    body = checkin_text(claim).replace("\n\n", " ")
+    return _PUSH_TITLE[lang], (body[:177] + "…") if len(body) > 178 else body
+
+
+_WA_OPTIONS_LINE = {"en": "Reply with a number:", "es": "Responde con un número:",
+                    "pt": "Responda com um número:"}
+
+
+def whatsapp_checkin(claim: dict) -> tuple:
+    """(text, options) — options are [claim_id, outcome] pairs in display order."""
+    lang = (claim.get("language") or "en")[:2]
+    lang = lang if lang in OPTION_LABELS else "en"
+    labels = OPTION_LABELS[lang]
+    lines = [checkin_text(claim), "", _WA_OPTIONS_LINE[lang]]
+    lines += [f"{i}  {labels[o]}" for i, o in enumerate(OUTCOMES, 1)]
+    return "\n".join(lines), [[claim["id"], o] for o in OUTCOMES]
+
+
+_THANKS_FOR_OUTCOME = {
+    "en": "Thanks — noted. Every answer like this makes Antar's readings sharper.",
+    "es": "Gracias — anotado. Cada respuesta así hace más precisas las lecturas de Antar.",
+    "pt": "Obrigado — anotado. Cada resposta assim deixa as leituras do Antar mais precisas.",
+}
+
+
+def outcome_thanks(lang: str) -> str:
+    return _THANKS_FOR_OUTCOME.get((lang or "en")[:2], _THANKS_FOR_OUTCOME["en"])

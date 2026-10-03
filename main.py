@@ -996,6 +996,113 @@ async def _yesno_checkback_job():
           f"(push_configured={push_ok}, email={'on' if email_on else 'off'})")
 
 
+async def _outcome_checkin_job():
+    """[outcome-loop-checkins 2026-10-02] HOURLY. Dated Ask claims whose window
+    ended (prediction_claims, source ask_explore) get ONE "did it happen?" at the
+    person's ~8 AM local, max 2 a week, one a day. WhatsApp if they wrote within
+    the last 24h (free-form allowed); else push. The in-app card (GET
+    /api/v1/outcomes/due/{chart_id}) shows it whenever they open Ask either way.
+    Fail-open per claim; sync supabase calls run off the event loop."""
+    from antar_engine import outcomes as _oc, push_sender
+    from antar_engine import messaging as _msg
+    from zoneinfo import ZoneInfo
+    import asyncio as _aio_oc
+    now = datetime.now(timezone.utc)
+
+    def _q(fn):
+        return _aio_oc.to_thread(lambda: fn().data or [])
+
+    try:
+        claims = await _q(lambda: supabase.table("prediction_claims")
+                          .select("id,chart_id,source,topic,claim_type,window_end,text_shown,"
+                                  "language,checkin_due_at,checkin_sent_at")
+                          .in_("source", list(_oc.CHECKIN_SOURCES))
+                          .is_("checkin_sent_at", "null")
+                          .lte("checkin_due_at", now.isoformat())
+                          .gte("checkin_due_at", (now - timedelta(days=_oc.LOOKBACK_DAYS)).isoformat())
+                          .limit(500).execute())
+    except Exception as e:
+        print(f"[outcome_checkin] fetch skipped: {e}")
+        return
+    if not claims:
+        print(f"[outcome_checkin] @{now.hour:02d}:xx UTC — nothing due")
+        return
+    ids = [c["id"] for c in claims]
+    cids = sorted({c["chart_id"] for c in claims})
+    try:
+        answered = {r["claim_id"] for r in await _q(lambda: supabase.table("prediction_outcomes")
+                    .select("claim_id").in_("claim_id", ids).execute())}
+        recent = await _q(lambda: supabase.table("prediction_claims").select("chart_id")
+                          .in_("chart_id", cids)
+                          .gte("checkin_sent_at", (now - timedelta(days=7)).isoformat()).execute())
+        sent_week: dict = {}
+        for r in recent:
+            sent_week[r["chart_id"]] = sent_week.get(r["chart_id"], 0) + 1
+        charts = {c["id"]: c for c in await _q(lambda: supabase.table("charts")
+                  .select("id,user_id,current_timezone,current_country,birth_country")
+                  .in_("id", cids).is_("deleted_at", "null").execute())}
+        toks: dict = {}
+        for t in await _q(lambda: supabase.table("device_tokens")
+                          .select("token,chart_id,platform").in_("chart_id", cids).execute()):
+            if t.get("token"):
+                toks.setdefault(t["chart_id"], []).append({"token": t["token"], "platform": t.get("platform")})
+    except Exception as e:
+        print(f"[outcome_checkin] context fetch skipped: {e}")
+        return
+
+    def _local_hour(c):
+        tz = (c.get("current_timezone") or "").strip()
+        if tz:
+            try:
+                return now.astimezone(ZoneInfo(tz)).hour
+            except Exception:
+                pass
+        cc = (c.get("current_country") or c.get("birth_country") or "").upper()
+        h = float(_COUNTRY_TZ_OFFSETS.get(cc, _COUNTRY_TZ_OFFSETS.get("DEFAULT", 0)))
+        return (now + timedelta(hours=h)).hour
+
+    stats = {"due": len(claims), "morning": 0, "whatsapp": 0, "push": 0, "in_app_only": 0}
+    push_ok = push_sender.is_configured()
+    for cl in _oc.pick_due(claims, sent_week, answered):
+        c = charts.get(cl["chart_id"])
+        if not c or _local_hour(c) != _oc.LOCAL_HOUR:
+            continue
+        stats["morning"] += 1
+        channel = None
+        try:
+            # WhatsApp: only inside the 24h window (free-form) — templates come later
+            if c.get("user_id"):
+                links = await _q(lambda: supabase.table("messaging_links").select("*")
+                                 .eq("channel", "whatsapp").eq("user_id", c["user_id"])
+                                 .eq("status", "linked").limit(1).execute())
+                if links:
+                    ctx = _msg.link_context(links[0])
+                    last_in = float(ctx.get("last_in") or 0)
+                    if _msg.wa_window_open(last_in) and not ctx.get("opted_out"):
+                        text, opts = _oc.whatsapp_checkin(cl)
+                        ok = await _aio_oc.to_thread(_msg.whatsapp_send,
+                                                     links[0]["channel_user_id"], text, last_in)
+                        if ok:
+                            ctx = _msg.remember_options(ctx, "outcome", opts)
+                            await _aio_oc.to_thread(_msg.save_link_context, supabase, links[0], ctx)
+                            channel = "whatsapp"
+            if not channel and push_ok and toks.get(cl["chart_id"]):
+                title, body = _oc.push_message(cl)
+                s_ = await push_sender.send_to_tokens(
+                    supabase, toks[cl["chart_id"]], title=title, body=body,
+                    data={"type": "outcome_checkin", "route": "/ask", "claim_id": str(cl["id"])})
+                if s_.get("sent"):
+                    channel = "push"
+            channel = channel or "in_app_only"
+            await _aio_oc.to_thread(lambda: supabase.table("prediction_claims").update({
+                "checkin_sent_at": now.isoformat(), "checkin_channel": channel})
+                .eq("id", cl["id"]).execute())
+            stats[channel] += 1
+        except Exception as e:
+            print(f"[outcome_checkin] claim {str(cl.get('id'))[:8]} non-fatal: {e}")
+    print(f"[outcome_checkin] @{now.hour:02d}:xx UTC — {stats} (push_configured={push_ok})")
+
+
 def _ec_flag(name: str) -> bool:
     return (os.environ.get(name) or "").strip().lower() in ("1", "on", "true", "yes")
 
@@ -1577,6 +1684,8 @@ scheduler.add_job(_ping_checkin_job, "cron", minute=9,
                   id="ping_checkin_daily", replace_existing=True)  # hourly; pings per-chart at local ~8 AM
 scheduler.add_job(_yesno_checkback_job, "cron", minute=13,
                   id="yesno_checkback", replace_existing=True)  # hourly; Yes/No "did it happen?" at local ~8 AM
+scheduler.add_job(_outcome_checkin_job, "cron", minute=15,
+                  id="outcome_checkin", replace_existing=True)  # hourly; dated Ask claims "did it happen?" at local ~8 AM
 scheduler.add_job(_evening_checkin_job, "cron", minute=17,
                   id="evening_checkin", replace_existing=True)  # hourly; "did today land?" at local ~8 PM (EVENING_CHECKIN_PUSH)
 scheduler.add_job(_weekly_receipt_job, "cron", minute=19,
@@ -4910,6 +5019,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
     def _save(c):
         c = dict(c)
         c["lang"] = lang
+        c["last_in"] = int(inbound_ts)   # [outcome-loop] 24h window for check-ins
         _msg.save_link_context(sb, link, c)
 
     try:
@@ -5102,6 +5212,14 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         n = None if _kp_number is not None else _msg.parse_pick(body)
         if n is not None:
             kind, item = _msg.pick_option(ctx, n)
+            if kind == "outcome" and item:
+                # [outcome-loop] a reply to a "did it happen?" check-in
+                from antar_engine import outcomes as _oc
+                await asyncio.to_thread(_oc.record_outcome, sb, item[0], item[1], None, "whatsapp")
+                send(_oc.outcome_thanks(lang))
+                ctx.pop("options", None)
+                _save(ctx)
+                return
             if kind == "chart" and item:
                 await asyncio.to_thread(_msg.set_link_chart, sb, link, item[0])
                 send(_wa_text("switched", lang, name=item[1]))
