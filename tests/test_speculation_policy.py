@@ -51,3 +51,10 @@ def test_kp_combination():
     assert sp.combine("later", {"verdict": "conditional", "favour": [11], "against": [8]}) == "later"
     assert sp.combine("losses", {"verdict": "yes", "favour": [5], "against": []}) == "losses"
     assert sp.combine("later", None) == "later"
+
+
+def test_commodity_deal_is_not_speculation():
+    assert not sp.SPECULATION_Q.search("Gold or defence — which should I focus on?")
+    assert not sp.SPECULATION_Q.search("Will I make money with gold mine advisory")
+    assert sp.SPECULATION_Q.search("When will I gain from the stock market?")
+    assert sp.SPECULATION_Q.search("¿Voy a ganar con criptomonedas?")

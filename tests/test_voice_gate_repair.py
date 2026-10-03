@@ -40,3 +40,20 @@ def test_next_step_cut_mid_question_is_trimmed_to_the_complete_part():
                                         "working in finance or law.")
     ok = "Message one former colleague and ask how they got started."
     assert main._ask_repair_next(ok) == ok
+
+
+def test_placement_jargon_is_repaired_and_banned():
+    from antar_engine.narration_validator import validate_narration
+    t = "The reading also shows a straining placement that makes lenders harder to move right now."
+    fixed = main._ask_soft_repair(t)
+    assert "placement" not in fixed and "a strain in your reading" in fixed
+    assert any("astro_technical" in str(v) for v in validate_narration("Mars is retrograde in a placement", language="en"))
+
+
+def test_comparison_gets_fit_fields():
+    from antar_engine import understand as u
+    import json
+    r = u.parse("x " + json.dumps({"intent": "which", "area": "career_job", "options": ["technology", "brokerage"],
+                                    "confidence": 0.9}))
+    b = u.comparison_block(r, "", fit_fields=["technology", "networks", "media"], profession="startup founder")
+    assert "strongest fields for them: technology, networks, media" in b and "startup founder" in b

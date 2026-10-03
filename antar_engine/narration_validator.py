@@ -49,6 +49,11 @@ _RULES = [
     # [ask-voice-gate 2026-06-16] English transit jargon ("the slow-moving force
     # transiting through it"). Planet-motion vocabulary, never user-facing.
     ("transit_jargon", re.compile(r"\btransit(?:s|ing|ed)?\b", re.IGNORECASE)),
+    # [owner 2026-10-03] "a straining placement that makes lenders harder to move"
+    # — technical position words slipped past every rule above.
+    ("astro_technical", re.compile(
+        r"\b(?:placements?|retrograde|conjunction|conjunct|exalted|exaltation|debilitated|"
+        r"debilitation|ascendant|significators?|sub-?lords?)\b", re.IGNORECASE)),
     # ANY energy construction — energy-voice is retired from prediction
     # surfaces ("growth and wisdom energy", "your X energy", bare "energy").
     ("energy_voice", re.compile(r"\benerg(?:y|ies|\u00eda|ia)\b", re.IGNORECASE)),

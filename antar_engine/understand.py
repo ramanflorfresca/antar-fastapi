@@ -532,7 +532,8 @@ def earning_text(earning: list) -> str:
     return " + ".join(_EARNING_PLAIN.get(e, e) for e in (earning or []))
 
 
-def comparison_block(u: Optional[dict], known_earning: str = "") -> str:
+def comparison_block(u: Optional[dict], known_earning: str = "", fit_fields: Optional[list] = None,
+                     profession: str = "") -> str:
     """Narrator rules for a choose-between question. '' when not a comparison."""
     if not is_comparison(u):
         return ""
@@ -566,6 +567,27 @@ def comparison_block(u: Optional[dict], known_earning: str = "") -> str:
     ]
     if told:
         lines.insert(1, f"- How they earn (they told you): {told}. Use exactly this; never replace it.")
+    if fit_fields:
+        # deterministic match: which option names one of their top fields?
+        _hits = []
+        for o in opts:
+            ow = set(re.findall(r"[a-z]{4,}", o.lower()))
+            for i, f in enumerate(fit_fields):
+                if ow & set(re.findall(r"[a-z]{4,}", f.lower())):
+                    _hits.append((i, o))
+                    break
+        if _hits and len({o for _, o in _hits}) < len(opts):
+            best = sorted(_hits)[0]
+            lines.append(f"- MATCH: the option \"{best[1]}\" matches their #{best[0] + 1} field "
+                         f"(\"{fit_fields[best[0]]}\"). Say plainly that it fits their nature better and "
+                         "why, in the FIRST sentence — fit, not earnings.")
+        prof = (profession or "").strip()
+        lines.append(
+            "- The reading's strongest fields for them: " + ", ".join(fit_fields)
+            + (f" (their profile says: {prof})" if prof and not prof.lower().startswith("earns via") else "")
+            + ". If one option clearly matches these or the work they already do, and their ROLE would "
+            "differ between the options (e.g. building as a founder vs earning commission as a broker), "
+            "say plainly that it fits their nature better and why — fit, never earnings.")
     return "\n".join(lines)
 
 
