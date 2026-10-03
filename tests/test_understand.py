@@ -426,3 +426,16 @@ def test_own_topic_threshold_is_lower_than_override():
     assert u.concern_override(r, "general") is None                                   # 0.75 rule
     assert u.concern_override(r, "general", u.OWN_TOPIC_MIN_CONFIDENCE) == "divorce"  # beats inheritance
     assert u.concern_override(u.parse(_raw(area="general", confidence=0.99)), "general", 0.6) is None
+
+
+
+def test_loans_asserted_as_existing_are_rewritten_in_three_languages():
+    g = u.guard_answer
+    assert "existing" not in g("Watch your existing loans before expanding.", "How is my business this month?")
+    assert "debt service" not in g("The debt service claims each wave of income.", "Why does my money never last?")
+    assert "préstamo existente" not in g("Ten cuidado con un préstamo existente.", "¿Cómo está mi negocio este mes?")
+    assert "deuda vigente" not in g("Hay una carga de deuda vigente.", "¿Debo invertir en mi negocio ahora?")
+    assert "dívidas existentes" not in g("Cuidado com dívidas existentes.", "Devo investir no meu negócio agora?")
+    # they mentioned their loan → left alone
+    t = "Watch your existing loans before expanding."
+    assert g(t, "I have a loan — should I expand?") == t
