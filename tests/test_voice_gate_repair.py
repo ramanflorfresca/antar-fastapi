@@ -1,0 +1,33 @@
+"""Voice gate keeps a real answer over one banned word (live 2026-10-03: an
+empathetic 'I am unemployed… how do I get over this hurdle?' answer was thrown
+away for 'chart' and replaced by 'The timing genuinely supports your work')."""
+from dotenv import load_dotenv
+load_dotenv()
+import main
+from antar_engine.narration_validator import validate_narration
+
+
+def test_soft_repair_removes_chart_word_and_passes_the_gate():
+    t = ("Harleen, I hear that you're stuck. Your chart shows caution and self-doubt braking hard. "
+         "In your chart, motion itself breaks the freeze.")
+    fixed = main._ask_soft_repair(t)
+    assert "chart" not in fixed.lower()
+    assert "Your reading shows caution" in fixed and "In your reading, motion" in fixed
+    assert not [v for v in validate_narration(fixed, language="en") if "chart" in str(v)]
+
+
+def test_keep_clean_sentences_drops_only_the_bad_one():
+    bad = lambda t: ["x"] if "Saturn" in t else []
+    t = ("I hear that you're stuck. Saturn is braking you hard. Start with one small, concrete "
+         "thing this week. Motion itself breaks the freeze.")
+    out = main._ask_keep_clean_sentences(t, bad)
+    assert "Saturn" not in out and out.startswith("I hear that you're stuck.") and "Motion itself" in out
+
+
+def test_keep_clean_sentences_gives_up_when_too_little_survives():
+    bad = lambda t: ["x"] if "Saturn" in t or "Mars" in t else []
+    assert main._ask_keep_clean_sentences("Saturn blocks you. Mars too. Fine.", bad) == ""
+
+
+def test_career_practice_no_longer_assumes_a_hard_conversation():
+    assert "hard conversation" not in main._ASK_PRACTICE_STEP["en"]["career"]
