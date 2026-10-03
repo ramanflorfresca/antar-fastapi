@@ -198,6 +198,7 @@ class _Conv:
         monkeypatch.setattr(m, "_wa_chart_alive", lambda cid: True)
         monkeypatch.setattr(m, "_wa_resolve_tz", lambda cid, n, ctx=None: (m._wa_tz(n), "number", ""))
         monkeypatch.setattr(m, "_wa_number_tz", lambda cid, n: (m._wa_tz(n), ""))
+        monkeypatch.setattr(m, "_wa_prashna_lock", lambda cid: None)
         monkeypatch.setattr(m, "_wa_chart_name", lambda cid: {"self-1": "Raman Singh", "mom-1": "Mom"}.get(cid, "X"))
 
         async def fake_ask(req):
@@ -742,7 +743,7 @@ _YN_ANSWER = {"mode": "yesno", "verdict": "NO", "lean": "conditional",
 
 def test_yesno_asks_for_the_kp_number_then_answers(m, monkeypatch):
     link = _link()
-    cv = _Conv(m, monkeypatch, link=link, answer=dict(_YN_ANSWER))
+    cv = _Conv(m, monkeypatch, link=link, answer=dict(_YN_ANSWER, method="kp_number"))
     cv.run("Will I raise funding by March?")
     assert cv.asked == [] and "number from 1 to 249" in cv.sent[-1]
     assert link["context"]["kp_pending"]["q"] == "Will I raise funding by March?"
@@ -901,3 +902,17 @@ def test_travel_note_when_device_clock_differs(m, monkeypatch):
     assert "looks like you're travelling" in cv.sent[-1]
     cv.run("And tomorrow at work then later")
     assert "travelling" not in cv.sent[-1]            # once a week at most
+
+
+
+def test_prashna_lock_skips_the_ritual_and_says_when(m, monkeypatch):
+    # live 2026-10-02: an app Yes/No locked Prashna for 24h, WhatsApp still asked
+    # for a number, then Ask replayed the OLD cast under "· #13"
+    from datetime import datetime, timezone
+    cv = _Conv(m, monkeypatch, link=_link())
+    monkeypatch.setattr(m, "_wa_prashna_lock",
+                        lambda cid: datetime(2026, 10, 4, 1, 25, tzinfo=timezone.utc))
+    cv.run("Will I raise funding by March?")
+    assert cv.asked and cv.asked[-1].mode == "explore"
+    assert "number from 1 to 249" not in " ".join(cv.sent)
+    assert cv.sent[-1].startswith("_Prashna is once a day — your next one opens at 6:55 AM.")

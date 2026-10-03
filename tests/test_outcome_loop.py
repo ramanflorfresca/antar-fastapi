@@ -97,3 +97,16 @@ def test_life_arc_text_is_never_quoted():
                          "text_shown": "You are in a clarifying pressure — Saturn is asking what is true."})
     assert "Saturn" not in t and t == "Did it happen?"
     assert "life_arc" not in oc.CHECKABLE_SOURCES
+
+
+
+def test_replayed_answer_is_not_a_claim_and_yesno_keys_by_question():
+    base = {"lean": "conditional", "verify_after": "2027-01-31", "timing": "Oct 3 – Jan 31",
+            "why": "The door isn't open yet."}
+    assert oc.build_claim("c1", "Will I?", dict(base, locked=True), mode="yesno",
+                          topic="general", language="en", today=T) is None
+    a = oc.build_claim("c1", "Will I raise funding by March?", base, mode="yesno",
+                       topic="general", language="en", today=T)
+    b = oc.build_claim("c1", "Will I get the job?", base, mode="yesno",
+                       topic="general", language="en", today=T)
+    assert a["dedupe_key"] != b["dedupe_key"]
