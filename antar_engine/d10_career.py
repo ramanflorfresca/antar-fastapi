@@ -317,6 +317,18 @@ def analyze_career(chart_data: dict) -> dict:
         if any("raj" in str(y).lower() for y in (cd.get("yogas") or [])):
             _lead += 1.5
         leadership_level = "executive / leader" if _lead >= 2.5 else "individual / specialist"
+        # [drive-vs-fit 2026-10-03] leadership_level measures DRIVE/pull toward
+        # leading, NOT whether leading fits or succeeds. Surface that framing so
+        # consumers never read "executive / leader" as an endorsement. (The chart
+        # does not predict leadership/entrepreneurial SUCCESS — see the business-
+        # timing study; this is pull + significators only.)
+        leadership_frame = (
+            "a strong pull toward leading and visible authority — a drive, not proof it fits or "
+            "succeeds; unfocused, the same pull scatters into over-reach"
+            if _lead >= 2.5 else
+            "a pull toward depth and specialist mastery more than running things — strongest as "
+            "the expert others come to, not the one steering everyone"
+        )
         if _lead >= 2.5:
             for field in ("leadership & management", "executive roles"):
                 field_w[field] += _lead * 0.8
@@ -420,6 +432,9 @@ def analyze_career(chart_data: dict) -> dict:
         return {"available": True, "careers": careers_ranked[:6],
                 "drivers": drivers[:5], "factors": factors, "summary": summary,
                 "nodal_axis": nodal, "leadership_level": leadership_level,
+                "leadership_frame": leadership_frame,
+                "frame": ("Maps DRIVE and significators — what the chart pulls toward — "
+                          "not a verdict on fit or success."),
                 "top_significator": top}
     except Exception as e:
         return {"available": False, "error": str(e)[:160]}

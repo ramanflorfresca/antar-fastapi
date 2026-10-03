@@ -26486,13 +26486,13 @@ def _ask_career_fields_body(chart_data, first_name="", language="en") -> str:
         if _es:
             body = (f"{(nm + ', ') if nm else ''}tus áreas más fuertes son {flist} — "
                     "es donde tu forma de pensar y tu reputación construyen algo real.")
-            body += (" Estás hecho para liderar, no solo ejecutar — busca el rol donde seas la autoridad visible."
+            body += (" Sientes una fuerte atracción por liderar, no solo ejecutar — pero ese impulso rinde solo cuando está enfocado; apunta a ser la autoridad visible en un terreno lo bastante acotado para dominar."
                      if "executive" in lead or "leader" in lead else
                      " Tu ventaja está en la profundidad y el dominio del oficio — sé el experto al que acuden.")
         else:
             body = (f"{(nm + ', ') if nm else ''}your strongest fields are {flist} — "
                     "this is where your mind and your reputation build something real.")
-            body += (" You're built to lead, not just execute — aim for the role where you're the visible authority."
+            body += (" You're strongly pulled toward leading, not just executing — but that pull pays off only when it's focused; aim to be the visible authority in a lane narrow enough to master."
                      if "executive" in lead or "leader" in lead else
                      " Your edge is depth and craft — be the expert people come to.")
         return body
@@ -27184,7 +27184,10 @@ async def ask_endpoint(request: AskRequest):
                             "read — LEAD WITH IT. Do NOT open with a 'not yet / the window is …' "
                             "timing verdict; timing is secondary here, the FIT is the answer.\n"
                             f"RANKED CAREER FIELDS: {_fields}\n"
-                            + (f"LEADERSHIP LEVEL: {_car.get('leadership_level')}.\n"
+                            + (f"LEADERSHIP DRIVE: {_car.get('leadership_frame') or _car.get('leadership_level')} "
+                               "— this is a PULL toward leading, NOT proof it fits or succeeds; say so plainly, "
+                               "and note the same drive scatters into over-reach when unfocused. Frame as drive, "
+                               "not a verdict.\n"
                                if _car.get("leadership_level") else "")
                             + "ANSWER AS THREE HONEST TIERS (the reader explicitly wants to know "
                             "where they THRIVE vs STRUGGLE):\n"
