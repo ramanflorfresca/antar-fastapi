@@ -222,3 +222,38 @@ def test_earning_the_message_never_said_is_dropped():
     assert r["stated_facts"]["earning"] == []
     r = u.parse(_raw(stated_facts={"earning": ["trading", "commission"]}), "Gano comisión por cada trato")
     assert r["stated_facts"]["earning"] == ["commission"]
+
+
+# ── answer guards (live 2026-10-03, Raman's chart) ──
+def test_wealth_creation_and_max_potential_are_outcome_claims():
+    for q in ["Which helps me most with wealth creation or reaching my maximum potential?",
+              "¿Cuál me hará millonario?", "Qual me dá o maior potencial?", "Will tech make me rich?"]:
+        assert u.parse(_raw(), q)["outcome_claim"], q
+    assert not u.parse(_raw(), "How is my career this year?")["outcome_claim"]
+
+
+def test_investment_advice_sentence_is_dropped():
+    t = ("Technology fits how you work. Put your savings into a few different tech companies "
+         "instead of putting everything into just one. Cap what rides on any single venture.")
+    out = u.guard_answer(t, "Which works best for me?")
+    assert "savings into" not in out and out.startswith("Technology fits") and "Cap what rides" in out
+
+
+def test_invented_industry_claim_is_dropped():
+    t = ("Technology fits how you work. Defense and gold mining need lots of physical work and "
+         "careful cost-cutting, which doesn't match your strengths. Your window is open now.")
+    out = u.guard_answer(t, "q", ["defense", "gold mining", "technology"])
+    assert "physical work" not in out and "Your window is open now." in out
+
+
+def test_finances_are_reading_not_fact_unless_they_said_so():
+    t = "Since you don't have much extra money saved up, go after the fastest deal."
+    assert u.guard_answer(t, "Which works best?") == \
+        "Since the reading shows pressure on your savings, go after the fastest deal."
+    assert u.guard_answer(t, "I have no savings, which works best?") == t
+
+
+def test_guard_never_empties_and_rules_block_exists():
+    t = "Put your savings into stocks."
+    assert u.guard_answer(t, "q") == t
+    assert "Never tell them where to put savings" in u.guardrails_block()

@@ -27992,6 +27992,11 @@ async def ask_endpoint(request: AskRequest):
                     _cmp = _und.comparison_block(_ask_u, _known_earn)
                     _ask_life_block = ((_ask_life_block or "") + _cmp).strip()
                     print(f"[ask][compare] options={_ask_u.get('options')} for {chart_id[:8]}")
+                try:
+                    from antar_engine import understand as _und
+                    _ask_life_block = ((_ask_life_block or "") + _und.guardrails_block()).strip()
+                except Exception:
+                    pass
                 if _ask_u:
                     _sb = _und.stated_block(_ask_u) + _und.tone_block(_ask_u) + _und.outcome_block(_ask_u)
                     if _sb:
@@ -30013,6 +30018,15 @@ async def ask_endpoint(request: AskRequest):
             # a token cutoff or the readability pass. Repair a dangling em-dash tail;
             # if still broken, drop `next` rather than ship a garbled instruction.
             payload["next"] = _ask_repair_next(payload.get("next"))
+            # [answer-guard 2026-10-03] no investment advice, no invented industry
+            # claims, no chart inference stated as a fact about their money
+            try:
+                from antar_engine import understand as _und3
+                _au3 = locals().get("_ask_u") or {}
+                for _rf in ("read", "next"):
+                    payload[_rf] = _und3.guard_answer(payload.get(_rf), question, _au3.get("options"))
+            except Exception:
+                pass
             # [no-invented-role] a role they never stated is neutralised
             try:
                 if locals().get("_ask_compare"):
