@@ -1040,6 +1040,25 @@ def is_bare_prashna(text: str) -> bool:
     return t in _BARE_PRASHNA
 
 
+_DETAIL_WORDS = frozenset({"detailed", "detailed reading", "detail", "details", "full", "full reading",
+                           "reading", "detallada", "lectura detallada", "detalle", "completa",
+                           "detalhada", "leitura detalhada", "completo", "poora", "vistar"})
+
+
+def parse_answer_choice(text: str, choice_id: str = "") -> Optional[str]:
+    """Reply to 'yes or no, or a detailed reading?': 'yesno' | 'detail' | None."""
+    if choice_id == "yn:kp":
+        return "yesno"
+    if choice_id == "yn:read":
+        return "detail"
+    t = " ".join((text or "").strip().lower().strip(" .!¡?¿*_#").split())
+    if t in ("1",) or is_bare_prashna(t):
+        return "yesno"
+    if t in ("2",) or t in _DETAIL_WORDS:
+        return "detail"
+    return None
+
+
 def parse_prashna_command(text: str) -> Optional[str]:
     m = _PRASHNA_CMD.match(text or "")
     return m.group(1).strip() if m else None

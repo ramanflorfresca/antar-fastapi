@@ -210,9 +210,9 @@ class _Conv:
         monkeypatch.setattr(m, "ask_endpoint", fake_ask)
         self.m = m
 
-    def run(self, body, num_media=0, lat_lon=None):
+    def run(self, body, num_media=0, lat_lon=None, choice_id=""):
         asyncio.run(self.m._wa_handle("+919812345678", body, time.time(), num_media,
-                                      None, "", "", lat_lon))
+                                      None, "", choice_id, lat_lon))
 
 
 def _link(chart="self-1"):
@@ -804,23 +804,55 @@ def test_ritual_can_be_switched_off(m, monkeypatch):
     assert cv.asked[-1].mode == "yesno" and cv.asked[-1].horary_number is None
 
 
-def test_yesno_question_gets_a_regular_read_and_a_prashna_offer(m, monkeypatch):
-    # owner 2026-10-03: never auto-route to Prashna; offer it, cast only on request
+def test_yesno_question_first_asks_which_answer(m, monkeypatch):
+    # owner 2026-10-03: "do you want yes or no, or detailed?" → only then the number
     link = _link()
     cv = _Conv(m, monkeypatch, link=link, answer=dict(_YN_ANSWER, method="kp_number", horary_number=7))
-    cv.run("Will I raise funding by March?")
-    assert cv.asked[-1].mode == "explore"
-    assert "Reply *yes or no*" in cv.sent[-1] and "Prashna" not in cv.sent[-1]
-    cv.run("Yes or no")
-    assert "number from 1 to 249" in cv.sent[-1]
+    q = "Will I make good money doing defence deals with the government?"
+    cv.run(q)
+    assert cv.asked == [] and "1  *Yes or no*" in cv.sent[-1] and "2  *Detailed reading*" in cv.sent[-1]
+    assert "Prashna" not in cv.sent[-1]
+    cv.run("1")
+    assert cv.asked == [] and "number from 1 to 249" in cv.sent[-1]
     cv.run("7")
-    assert cv.asked[-1].mode == "yesno" and cv.asked[-1].question == "Will I raise funding by March?"
+    assert cv.asked[-1].mode == "yesno" and cv.asked[-1].question == q
+
+
+@pytest.mark.parametrize("reply", ["2", "detailed", "Detailed reading", "lectura detallada"])
+def test_choosing_detailed_gives_the_regular_read(m, monkeypatch, reply):
+    cv = _Conv(m, monkeypatch, link=_link())
+    cv.run("Will I get the job?")
+    cv.run(reply)
+    assert cv.asked[-1].mode == "explore" and cv.asked[-1].question == "Will I get the job?"
+    assert "Reply *yes or no*" not in cv.sent[-1]
+
+
+def test_choosing_yes_or_no_by_words_and_list_tap(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link(), answer=dict(_YN_ANSWER))
+    cv.run("¿Voy a conseguir el trabajo?")
+    assert "1  *Sí o no*" in cv.sent[-1]
+    cv.run("sí o no")
+    assert "1 al 249" in cv.sent[-1]                      # stays Spanish on a short reply
+    cv.run("7")
+    assert cv.asked[-1].mode == "yesno" and cv.asked[-1].language == "es"
+    cv.run("Will I get the job?")
+    cv.run("Detailed reading", choice_id="yn:read")             # list tap
+    assert cv.asked[-1].mode == "explore" and cv.asked[-1].question == "Will I get the job?"
+
+
+def test_a_new_question_instead_of_choosing_moves_on(m, monkeypatch):
+    link = _link()
+    cv = _Conv(m, monkeypatch, link=link)
+    cv.run("Will I get the job?")
+    cv.run("How is my career looking this year overall")
+    assert cv.asked[-1].question == "How is my career looking this year overall"
+    assert "choice_pending" not in link["context"]
 
 
 def test_open_question_gets_no_prashna_offer(m, monkeypatch):
     cv = _Conv(m, monkeypatch, link=_link())
     cv.run("How is my career looking this year overall")
-    assert cv.asked[-1].mode == "explore" and "prashna" not in cv.sent[-1].lower()
+    assert cv.asked[-1].mode == "explore" and "yes or no" not in cv.sent[-1].lower()
 
 
 @pytest.mark.parametrize("q,yn", [
@@ -979,9 +1011,9 @@ def test_saved_language_is_the_fallback_but_clear_text_wins(m, monkeypatch):
     monkeypatch.setattr(m, "_wa_saved_lang", lambda cid: "es")
     cv.run("ok 2026")                                   # nothing to detect → saved
     assert cv.asked[-1].language == "es"
-    cv.run("Will I make good money doing defence deals with the government this year?")
+    cv.run("How will my money look doing defence deals with the government this year?")
     assert cv.asked[-1].language == "en"                # clearly English → English
-    cv.run("kya meri shaadi is saal hogi?")
+    cv.run("meri shaadi kab hogi?")
     assert cv.asked[-1].language == "hinglish"
 
 
