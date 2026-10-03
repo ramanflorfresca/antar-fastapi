@@ -394,6 +394,15 @@ def test_explicit_update_goes_through_harvest_and_logs(monkeypatch):
     assert wrote[-1]["career_stage"]["value"] == "employed" and row["career_stage"] == "employed"
 
 
+
+def test_answer_audit_round_fixes():
+    out = u.guard_answer("Be careful: you owe money on a loan, so go slow.", "What should I do to grow my business?")
+    assert "you owe" not in out and "the reading shows loan pressure" in out
+    b = u.what_to_do_block(u.parse(_raw(intent="what_to_do")))
+    assert 'FIRST sentence of "read"' in b and "course" in b
+    cb = u.comparison_block(u.parse(_raw(intent="which", options=["crypto", "gold"])))
+    assert "INVESTMENTS" in cb and "SOMEONE ELSE" in cb and "FIELDS of work or study" in cb
+
 # ── stated facts need evidence in the message (live eval 2026-10-03) ──
 def test_guessed_facts_are_dropped():
     r = u.parse(_raw(stated_facts={"work": "unemployed"}), "¿Cuándo voy a conseguir trabajo estable en los próximos 3 meses?")
