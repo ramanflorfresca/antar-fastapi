@@ -266,16 +266,27 @@ def parse(raw: str, original: str = "") -> Optional[dict]:
     }
     ex = sf.get("explicit_now") if isinstance(sf.get("explicit_now"), list) else []
     # evidence must sit in a sentence that is NOT a question
-    _stmts = " ".join(m.group(0) for m in re.finditer(r"[^.!?]+[.!]?", original or "")
-                      if not m.group(0).rstrip().endswith("?")
-                      and not re.match(r"(?i)\s*(will|should|would|could|can|do|does|did|is|am|are|when|"
-                                       r"what|why|how|which|voy|vou|ser[aá]|cu[aá]ndo|quando|kya)\b", m.group(0)))
+    # [question-forms] the shared EN/ES/PT/Hinglish lexicon decides "is this a question?"
+    from antar_engine import question_forms as _qf
+    _stmts = " ".join(m.group(0) for m in re.finditer(r"[^.!?]+[.!?]?", original or "")
+                      if not _qf.is_question(m.group(0)))
     facts["explicit_now"] = [f for f in ("work", "relationship", "children")
                              if f in [str(x).lower() for x in ex] and _EXPLICIT_EVIDENCE[f].search(_stmts)]
     pw = str(sf.get("past_work") or "").strip()[:60]
     facts["past_work"] = pw if (pw and _PAST_WORK_EVIDENCE.search(original or "")) else None
     opts = obj.get("options") if isinstance(obj.get("options"), list) else []
     options = [str(o).strip()[:60] for o in opts if str(o).strip()][:5]
+    # [question-forms 2026-10-03] a clear open question word decides the intent
+    # when the model gave the vaguer what_to_do / open (live check: "How is my
+    # income looking?" / "¿Cómo va mi deuda?" / "Where will … take me?" → what_to_do).
+    _intent = _clean_enum(obj.get("intent"), INTENTS, "open")
+    try:
+        from antar_engine import question_forms as _qf
+        _lex = _qf.intent(original or "")
+        if _lex in ("when", "how", "why", "where_who") and _intent in ("what_to_do", "open"):
+            _intent = _lex
+    except Exception:
+        pass
     return {
         "outcome_claim": bool(obj.get("outcome_claim")) or bool(_OUTCOME_Q.search(original or "")),
         "options": options,
@@ -283,7 +294,7 @@ def parse(raw: str, original: str = "") -> Optional[dict]:
         "stated_facts": facts,
         "language": _clean_enum(obj.get("language"), LANGS, "other"),
         "standalone": standalone,
-        "intent": _clean_enum(obj.get("intent"), INTENTS, "open"),
+        "intent": _intent,
         "area": area,
         "subject": _clean_enum(obj.get("subject"), SUBJECTS, "self"),
         "polarity": polarity,
