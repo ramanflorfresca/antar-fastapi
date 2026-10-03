@@ -706,7 +706,7 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
     checkback = ""
     if p.get("mode") == "yesno":
         p = _yesno_as_read(p, language)
-        if p.get("verify_after"):
+        if p.get("verify_after") and not p.get("locked"):
             try:
                 _d = datetime.fromisoformat(str(p["verify_after"])[:10])
                 lang_cb = language if language in _CHECKBACK else "en"
@@ -1020,4 +1020,14 @@ KP_SKIP_WORDS = frozenset({"skip", "saltar", "pular", "chhodo", "chodo", "moment
 
 def parse_prashna_command(text: str) -> Optional[str]:
     m = _PRASHNA_CMD.match(text or "")
+    return m.group(1).strip() if m else None
+
+
+
+_READ_CMD = re.compile(r"(?i)^\s*(?:read|regular|lectura|leitura|normal)\s*[:,\-]\s*(.{3,})$")
+
+
+def parse_read_command(text: str) -> Optional[str]:
+    """'read: will I…' forces a regular read even for a yes/no question."""
+    m = _READ_CMD.match(text or "")
     return m.group(1).strip() if m else None
