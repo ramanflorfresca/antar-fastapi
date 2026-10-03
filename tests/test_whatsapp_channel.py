@@ -1008,3 +1008,35 @@ def test_bare_yesno_reply_words(t):
 @pytest.mark.parametrize("t", ["yes", "no", "sí", "Will I get the job yes or no?"])
 def test_bare_yesno_reply_is_not_a_plain_yes(t):
     assert not msg.is_bare_prashna(t)
+
+
+@pytest.mark.parametrize("t,q", [
+    ("yes or no: will I get the job?", "will I get the job?"),
+    ("Yes/No, will I raise funding by March?", "will I raise funding by March?"),
+    ("sí o no: ¿voy a conseguir el trabajo?", "¿voy a conseguir el trabajo?"),
+    ("Si o no voy a mudarme este año", "voy a mudarme este año"),
+    ("sim ou não: vou conseguir o emprego?", "vou conseguir o emprego?"),
+    ("haan ya na: naukri milegi?", "naukri milegi?"),
+    ("prashna: will I move?", "will I move?")])
+def test_yesno_prefix_commands(t, q):
+    assert msg.parse_prashna_command(t) == q
+
+
+@pytest.mark.parametrize("t", ["yes, I think so", "Is it yes or no for the job?", "no",
+                               "sí, claro", "yes or no"])
+def test_yesno_prefix_does_not_catch_ordinary_text(t):
+    assert msg.parse_prashna_command(t) is None
+
+
+def test_yesno_prefix_goes_straight_to_the_ritual(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link(), answer=dict(_YN_ANSWER))
+    cv.run("yes or no: will I get the job?")
+    assert cv.asked == [] and "number from 1 to 249" in cv.sent[-1]
+    cv.run("12")
+    assert cv.asked[-1].mode == "yesno" and cv.asked[-1].question == "will I get the job?"
+
+
+def test_help_lists_the_yesno_prefix(m):
+    assert "*yes or no:*" in m._wa_text("help", "en")
+    assert "*sí o no:*" in m._wa_text("help", "es")
+    assert "*sim ou não:*" in m._wa_text("help", "pt")

@@ -1016,7 +1016,12 @@ def tz_from_coords(lat, lon) -> Optional[str]:
 # [whatsapp-prashna 2026-10-02] "prashna: will I get the job?" forces the KP path
 # even when the wording isn't a clean yes/no; "skip" during the number ritual
 # reads the moment horary instead of a 1-249 number.
-_PRASHNA_CMD = re.compile(r"(?i)^\s*(?:prashna|prashn|prashan|horary|horaria|horária)\s*[:,\-]?\s+(.{3,})$")
+# [whatsapp-yesno-prefix 2026-10-03] plain-language prefixes (shown in *help*):
+# "yes or no: …" / "sí o no: …" / "sim ou não: …" do the same as "prashna: …".
+_PRASHNA_CMD = re.compile(
+    r"(?i)^\s*(?:prashna|prashn|prashan|horary|horaria|horária"
+    r"|yes\s*(?:or|/|-)\s*no|s[ií]\s*(?:o|/)\s*no|sim\s*(?:ou|/)\s*n[aã]o|haan\s*(?:ya|/)\s*naa?)"
+    r"\s*[:,\-]?\s+(.{3,})$")
 KP_SKIP_WORDS = frozenset({"skip", "saltar", "pular", "chhodo", "chodo", "moment", "no number",
                            "sin número", "sem número", "none"})
 
