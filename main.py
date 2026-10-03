@@ -21725,7 +21725,7 @@ async def compatibility_start(request: CompatibilityStartRequest,
     if _dm_line:
         _resp["dasha_timing_note"] = _dm_line
     _d10_line = (_compat_raw.get("d10_synastry") or {}).get("line")
-    if _d10_line and _v2_reason in ("business", "cofounder", "employee", "boss-or-manager"):
+    if _d10_line and _v2_reason in ("business", "cofounder", "employee", "boss-or-manager", "advisor"):
         _resp["career_fit_note"] = _d10_line
     if (request.language or "en") in ("es", "pt"):
         try:
@@ -22216,7 +22216,7 @@ async def get_compatibility_session(session_id: str, language: str = "en"):
                 if _dm_line:
                     out["dasha_timing_note"] = _dm_line
                 _d10_line = (_raw.get("d10_synastry") or {}).get("line")
-                if _d10_line and _reason in ("business", "cofounder", "employee", "boss-or-manager"):
+                if _d10_line and _reason in ("business", "cofounder", "employee", "boss-or-manager", "advisor"):
                     out["career_fit_note"] = _d10_line
     except Exception as _sre:
         print(f"[compat][session-rich] recompose non-fatal: {_sre}")
