@@ -17122,6 +17122,7 @@ _CHART_DERIVED_TABLES = (
     "messaging_links",
     # [outcome-loop] predictions; their outcomes go with them (ON DELETE CASCADE)
     "prediction_claims",
+    "nlu_log",                 # [nlu] stores the person's question text
     # the user's own questions — PII, and previously left behind entirely
     "signature_question_log", "intent_classify_log",
     # Prashna oracle (user questions + natal-grounded verdicts). followups are
@@ -23332,6 +23333,45 @@ kaunsi kitne kabhi abhi aayega aayegi jayega jayegi hoga rahega rahegi
 """.split())
 
 
+# [voice-gate-repair 2026-10-03] live: a good, empathetic answer to "I am
+# unemployed… how do I get over this hurdle?" used the banned word "chart" twice
+# (first pass + Haiku rewrite), the gate failed closed, and WhatsApp got the canned
+# "The timing genuinely supports your work right now" — a timing verdict on a
+# how-do-I-get-unstuck question. Repair the lexical slip; drop only bad sentences.
+_ASK_CHART_FIX = [
+    (re.compile(r"\b(your|the|this|my)\s+(?:birth\s+|natal\s+)?charts?\s+(shows?|says|suggests?|points?|indicates?)\b", re.I),
+     lambda m: f"{m.group(1)} reading {m.group(2)}"),
+    (re.compile(r"\b(in|from|on)\s+(your|the|this)\s+(?:birth\s+|natal\s+)?charts?\b", re.I),
+     lambda m: f"{m.group(1)} {m.group(2)} reading"),
+    (re.compile(r"\b(your|the|this)\s+(?:birth\s+|natal\s+)?charts?\b", re.I),
+     lambda m: f"{m.group(1)} reading"),
+    (re.compile(r"\bastrologically\b", re.I), lambda m: "in your timing"),
+]
+
+
+def _ask_soft_repair(text):
+    """Fix the common lexical slips the voice gate rejects ('your chart shows' →
+    'your reading shows') so a real answer isn't thrown away for one word."""
+    if not isinstance(text, str) or not text:
+        return text
+    for rx, rep in _ASK_CHART_FIX:
+        text = rx.sub(rep, text)
+    return text
+
+
+def _ask_keep_clean_sentences(text, vios_fn, min_sentences=2, min_share=0.4):
+    """Drop only the sentences the gate rejects; keep the answer when enough of it
+    survives (≥2 sentences and ≥40% of the text). '' when it doesn't."""
+    if not isinstance(text, str) or not text.strip():
+        return ""
+    sents = [x for x in re.split(r"(?<=[.!?])\s+", text.strip()) if x.strip()]
+    kept = [x for x in sents if not vios_fn(x)]
+    out = " ".join(kept).strip()
+    if len(kept) >= min_sentences and len(out) >= min_share * len(text.strip()) and not vios_fn(out):
+        return out
+    return ""
+
+
 def _nlu_mode() -> str:
     m = (os.getenv("NLU_MODE") or "shadow").strip().lower()
     return m if m in ("off", "shadow", "primary") else "shadow"
@@ -25967,7 +26007,7 @@ _ASK_PRACTICE_STEP = {
         "funding": "Before any money move, sit a minute and name what you already have steady — decide from calm, not pressure.",
         "wealth": "Before any money move, sit a minute and name what you already have steady — decide from calm, not pressure.",
         "finance": "Before any money move, sit a minute and name what you already have steady — decide from calm, not pressure.",
-        "career": "Before the hard conversation, take five slow breaths and remind yourself: your steady results speak for you.",
+        "career": "Before your next step, take five slow breaths and remind yourself: one steady move counts more than a perfect plan.",
         # [business-practice 2026-10-02] was a copy of career's "hard conversation"
         "business": "Before your next business decision, take two quiet minutes and write the one result that matters most this month — act toward that, not the noise.",
         "startup": "Before your next business decision, take two quiet minutes and write the one result that matters most this month — act toward that, not the noise.",
@@ -25983,7 +26023,7 @@ _ASK_PRACTICE_STEP = {
         "funding": "Antes de cualquier movimiento de dinero, siéntate un minuto y nombra lo que ya tienes firme — decide en calma, no por presión.",
         "wealth": "Antes de cualquier movimiento de dinero, siéntate un minuto y nombra lo que ya tienes firme — decide en calma, no por presión.",
         "finance": "Antes de cualquier movimiento de dinero, siéntate un minuto y nombra lo que ya tienes firme — decide en calma, no por presión.",
-        "career": "Antes de la conversación difícil, respira hondo cinco veces y recuerda: tus resultados constantes hablan por ti.",
+        "career": "Antes de tu próximo paso, respira hondo cinco veces y recuerda: un paso firme vale más que un plan perfecto.",
         "business": "Antes de tu próxima decisión de negocio, tómate dos minutos en calma y escribe el único resultado que más importa este mes — actúa hacia eso, no hacia el ruido.",
         "startup": "Antes de tu próxima decisión de negocio, tómate dos minutos en calma y escribe el único resultado que más importa este mes — actúa hacia eso, no hacia el ruido.",
         "health": "Haz hoy una cosa constante por tu cuerpo — dormir temprano o una caminata tranquila. Constancia antes que intensidad.",
@@ -25998,7 +26038,7 @@ _ASK_PRACTICE_STEP = {
         "funding": "Antes de qualquer movimento de dinheiro, sente-se um minuto e nomeie o que já tem firme — decida em calma, não por pressão.",
         "wealth": "Antes de qualquer movimento de dinheiro, sente-se um minuto e nomeie o que já tem firme — decida em calma, não por pressão.",
         "finance": "Antes de qualquer movimento de dinheiro, sente-se um minuto e nomeie o que já tem firme — decida em calma, não por pressão.",
-        "career": "Antes da conversa difícil, respire fundo cinco vezes e lembre: seus resultados constantes falam por você.",
+        "career": "Antes do seu próximo passo, respire fundo cinco vezes e lembre: um passo firme vale mais que um plano perfeito.",
         "business": "Antes da sua próxima decisão de negócio, tire dois minutos em silêncio e escreva o único resultado que mais importa este mês — aja em direção a isso, não ao ruído.",
         "startup": "Antes da sua próxima decisão de negócio, tire dois minutos em silêncio e escreva o único resultado que mais importa este mês — aja em direção a isso, não ao ruído.",
         "health": "Faça hoje uma coisa constante pelo seu corpo — dormir cedo ou uma caminhada tranquila. Constância antes de intensidade.",
@@ -29045,12 +29085,15 @@ async def ask_endpoint(request: AskRequest):
                     return _r, _n
                 # [ask-slice5] actions[] join the gate — a jargon-y action
                 # triggers the same regenerate->fail-closed as the prose.
+                read_txt, next_txt = _ask_soft_repair(read_txt), _ask_soft_repair(next_txt)
+                _ask_actions = [_ask_soft_repair(a) for a in (_ask_actions or [])]
                 _vios = _ask_voice_vios(read_txt, next_txt, *(_ask_actions or []))
                 if _vios:
                     print(f"[ask][voice-gate] explore violations -> regenerate: {_vios[:6]}")
                     _corr = (_sys + "\n\nREWRITE (your previous answer was rejected for: "
                              + "; ".join(str(v) for v in _vios[:6]) + "). "
-                             "FORBIDDEN: planet/sign/house words; the words energy, energies, "
+                             "FORBIDDEN: planet/sign/house words; the words chart, horoscope, "
+                             "astrology; the words energy, energies, "
                              "or forces; the word interventions; vague cosmic timing such as "
                              "'the sky aligns' or 'when the structure aligns'. Name the concrete "
                              "life event and a plain within-day window. Every sentence must be "
@@ -29071,6 +29114,7 @@ async def ask_endpoint(request: AskRequest):
                             _n2 = _p2.get("next")
                             _n2 = _n2.strip() if isinstance(_n2, str) and _n2.strip() else None
                             _r2, _n2 = _ask_finish_regen(_r2, _n2)
+                            _r2, _n2 = _ask_soft_repair(_r2), _ask_soft_repair(_n2)
                             if _r2 and not _ask_voice_vios(_r2, _n2):
                                 read_txt, next_txt = _r2, _n2
                                 _a2 = _p2.get("actions")
@@ -29080,6 +29124,16 @@ async def ask_endpoint(request: AskRequest):
                                 print("[ask][voice-gate] regeneration clean")
                     except Exception as _rg:
                         print(f"[ask][voice-gate] regenerate error: {_rg}")
+                    if not _ok:
+                        # [voice-gate-repair] keep the real answer minus its bad sentences
+                        _kept = _ask_keep_clean_sentences(read_txt, lambda t: _ask_voice_vios(t))
+                        if _kept:
+                            read_txt = _kept
+                            if next_txt and _ask_voice_vios(next_txt):
+                                next_txt = None
+                            _ask_actions = [a for a in (_ask_actions or []) if not _ask_voice_vios(a)]
+                            _ok = True
+                            print("[ask][voice-gate] kept the clean sentences (dropped only the offending ones)")
                     if not _ok:
                         # FAIL CLOSED: verdict + window + a clean action only.
                         print("[ask][voice-gate] fail-closed (verdict+window+move)")
@@ -29355,8 +29409,14 @@ async def ask_endpoint(request: AskRequest):
             # readability, fail closed to the verdict + window we already hold.
             try:
                 from antar_engine.narration_validator import validate_narration as _vnf
-                _rd = payload.get("read"); _nx = payload.get("next")
+                _rd = _ask_soft_repair(payload.get("read")); _nx = _ask_soft_repair(payload.get("next"))
+                payload["read"], payload["next"] = _rd, _nx
                 _rd_dirty = isinstance(_rd, str) and bool(_rd) and bool(_vnf(_rd, language="en"))
+                if _rd_dirty:
+                    _kept2 = _ask_keep_clean_sentences(_rd, lambda t: _vnf(t, language="en"))
+                    if _kept2:
+                        payload["read"], _rd_dirty = _kept2, False
+                        print("[ask][voice-gate] post-readability kept the clean sentences")
                 _nx_dirty = isinstance(_nx, str) and bool(_nx) and bool(_vnf(_nx, language="en"))
                 if _rd_dirty:
                     _fc2 = []
