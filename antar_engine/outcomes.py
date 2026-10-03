@@ -20,6 +20,10 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 OUTCOMES = ("yes", "partly", "no", "not_sure")
+# Only these sources get a check-in. Migrated life-arc rows are THEMES ("current
+# chapter", "sub-theme"), often in astrology wording ("Saturn is asking…") — not
+# events a person can answer yes/no to. They stay stored, never asked about.
+CHECKABLE_SOURCES = ("ask_explore", "ask_yesno", "decoy")
 CHECKIN_DELAY_DAYS = 3
 _VERDICTS_TRACKED = {"LIKELY", "NOT_YET", "YES", "NO", "LEAN_YES", "LEAN_NO", "MIXED"}
 
@@ -210,7 +214,9 @@ def checkin_text(claim: dict) -> str:
     topic = (claim.get("topic") or "").lower()
     sensitive = topic in ("health", "separation", "divorce", "pregnancy", "children")
     noun = _TOPIC_NOUN.get(lang, {}).get(topic)
-    said = (claim.get("text_shown") or "").strip()
+    # quote only what Ask said (plain-language by construction); never old texts
+    said = ((claim.get("text_shown") or "").strip()
+            if claim.get("source") in ("ask_explore", "ask_yesno") else "")
     head = said_t.format(said=said) if said and not sensitive else ""
     tail = moved_t.format(noun=noun) if (noun and claim.get("claim_type") == "window"
                                          and not sensitive) else plain_t
@@ -222,6 +228,7 @@ def due_claims(sb, chart_id: str, now: Optional[datetime] = None, limit: int = 2
     now = now or datetime.now(timezone.utc)
     try:
         rows = (sb.table("prediction_claims").select("*").eq("chart_id", chart_id)
+                .in_("source", list(CHECKABLE_SOURCES))
                 .lte("checkin_due_at", now.isoformat()).order("checkin_due_at")
                 .limit(20).execute()).data or []
         if not rows:

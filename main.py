@@ -16544,9 +16544,8 @@ _CHART_DERIVED_TABLES = (
     "places_saved_cities", "user_preferences",
     # WhatsApp/Telegram links — the linked phone number is PII
     "messaging_links",
-    # [outcome-loop] add "prediction_claims" here once Lovable creates it
-    # (sql_outcome_loop.sql) — test_no_chart_keyed_table_is_missing_from_the_cascade
-    # will fail until it is; outcomes then go with it via ON DELETE CASCADE.
+    # [outcome-loop] predictions; their outcomes go with them (ON DELETE CASCADE)
+    "prediction_claims",
     # the user's own questions — PII, and previously left behind entirely
     "signature_question_log", "intent_classify_log",
     # Prashna oracle (user questions + natal-grounded verdicts). followups are
