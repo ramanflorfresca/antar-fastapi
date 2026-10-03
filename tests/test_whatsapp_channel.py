@@ -196,6 +196,7 @@ class _Conv:
                             if self.list_ok else False)
         monkeypatch.setattr(m, "_resolve_primary_chart_id", lambda uid: primary)
         monkeypatch.setattr(m, "_wa_chart_alive", lambda cid: True)
+        monkeypatch.setattr(m, "_wa_saved_lang", lambda cid: None)
         monkeypatch.setattr(m, "_wa_resolve_tz", lambda cid, n, ctx=None: (m._wa_tz(n), "number", ""))
         monkeypatch.setattr(m, "_wa_number_tz", lambda cid, n: (m._wa_tz(n), ""))
         monkeypatch.setattr(m, "_wa_prashna_lock", lambda cid, q="": None)
@@ -969,3 +970,30 @@ def test_yesno_shows_the_specific_condition():
     out, _ = msg.format_ask_whatsapp_v2(p, "en", compact=True)
     assert out.startswith("*Possible — on one condition.*")
     assert "*What it hinges on:* It can come through people who already know your work" in out
+
+
+def test_saved_language_is_the_fallback_but_clear_text_wins(m, monkeypatch):
+    # owner 2026-10-03: follow the chart's saved language; a message clearly in
+    # another language is answered in that language.
+    cv = _Conv(m, monkeypatch, link=_link())
+    monkeypatch.setattr(m, "_wa_saved_lang", lambda cid: "es")
+    cv.run("ok 2026")                                   # nothing to detect → saved
+    assert cv.asked[-1].language == "es"
+    cv.run("Will I make good money doing defence deals with the government this year?")
+    assert cv.asked[-1].language == "en"                # clearly English → English
+    cv.run("kya meri shaadi is saal hogi?")
+    assert cv.asked[-1].language == "hinglish"
+
+
+@pytest.mark.parametrize("pref,lang,want", [
+    ("es", None, "es"), ("es-CO", None, "es"), ("pt_BR", None, "pt"), (None, "en", "en"),
+    ("hinglish", None, "hinglish"), ("fr", None, None), (None, None, None)])
+def test_saved_lang_normalizes(m, monkeypatch, pref, lang, want):
+    class Q:
+        def select(self, *a): return self
+        def eq(self, *a): return self
+        def limit(self, *a): return self
+        def execute(self):
+            return type("R", (), {"data": [{"language_preference": pref, "language": lang}]})()
+    monkeypatch.setattr(m.supabase, "table", lambda name: Q())
+    assert m._wa_saved_lang("c1") == want
