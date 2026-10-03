@@ -752,9 +752,11 @@ def guard_answer(text, question: str = "", options: Optional[list] = None,
 
 
 CONCERN_MIN_CONFIDENCE = 0.75
+OWN_TOPIC_MIN_CONFIDENCE = 0.6   # own topic vs inheriting the previous turn's
 
 
-def concern_override(u: Optional[dict], keyword_concern: str) -> Optional[str]:
+def concern_override(u: Optional[dict], keyword_concern: str,
+                     min_confidence: float = None) -> Optional[str]:
     """[nlu-primary: concern 2026-10-03] The Ask concern to use instead of the
     keyword router's, or None to keep it. Live: "How is my work with partners?"
     → keyword concern 'love' → an answer about his SPOUSE. Only a confident,
@@ -762,7 +764,8 @@ def concern_override(u: Optional[dict], keyword_concern: str) -> Optional[str]:
     c = concern(u)
     if not c or c == "general" or c == keyword_concern:
         return None
-    if float((u or {}).get("confidence") or 0) < CONCERN_MIN_CONFIDENCE:
+    if float((u or {}).get("confidence") or 0) < (CONCERN_MIN_CONFIDENCE if min_confidence is None
+                                                   else min_confidence):
         return None
     return c
 

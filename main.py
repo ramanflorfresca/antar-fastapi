@@ -28225,6 +28225,25 @@ async def ask_endpoint(request: AskRequest):
                         _prev_dom and _prev_dom != "general" and _is_followup
                         and (_ask_concern in ("", "general") or _kw_general)
                     )
+                    # [nlu-vs-thread 2026-10-03] a confident, specific reading of THIS
+                    # message beats inheritance (audit: "¿Cuándo mejorará mi separación?"
+                    # — keyword 'general' → inherited 'finance' from the prior cash-flow
+                    # turn → answered with the money window). Bare follow-ups ("and
+                    # tomorrow?") have no specific area of their own, so they still inherit.
+                    try:
+                        _u_th = await _ask_await_nlu(locals().get("_ask_nlu_task"), 2.5)
+                        if _u_th:
+                            from antar_engine import understand as _und_th
+                            _own = _und_th.concern_override(_u_th, "general",
+                                                            _und_th.OWN_TOPIC_MIN_CONFIDENCE)
+                            if _own:
+                                if _ask_concern != _own:
+                                    print(f"[ask-thread] own topic wins over inheritance: "
+                                          f"{_ask_concern} -> {_own} (area={_u_th.get('area')})")
+                                _ask_concern = _own
+                                _inherit_ok = False
+                    except Exception as _the:
+                        print(f"[ask-thread] nlu check failed: {type(_the).__name__}: {_the}")
                     if _inherit_ok and _ask_concern != _prev_dom:
                         print(f"[ask-thread] concern inherited from prior turn: "
                               f"{_ask_concern} -> {_prev_dom} (kw_general={_kw_general})")
