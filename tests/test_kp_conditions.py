@@ -186,3 +186,13 @@ def test_romance_condition_speaks_about_love():
     assert "real chemistry" in c and "friends and family helping" in c
     assert "old friction" in c and "career pulling priorities away" in c
     assert "your own resources" not in c and "a risky bet" not in c
+
+
+def test_app_why_becomes_the_condition():
+    import main
+    p = {"mode": "yesno", "why": "Vague narrated paraphrase.", "condition": "Count on it once a client has paid."}
+    main._yn_why_is_condition(p)
+    assert p["why"] == "Count on it once a client has paid."
+    q = {"mode": "yesno", "why": "Binary why stays."}
+    main._yn_why_is_condition(q)
+    assert q["why"] == "Binary why stays."
