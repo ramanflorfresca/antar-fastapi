@@ -140,11 +140,25 @@ _GAMBLING = re.compile(
     r"roulette|jackpot|sports ?book|apuesta|aposta|loter[ií]a|satta|juaa?)", re.I)
 
 
+_PARTNER_LOSS = re.compile(
+    r"(partner\w*|socio\w*|sócio\w*|sociedad\w*|sociedade\w*|co-?founder\w*|joint venture)"
+    r"[^.?!]{0,40}?(break|broke|end\b|ends\b|ending|split|dissolv|fall apart|falls apart|leave|leaving|quit|exit|walk away|"
+    r"romp|termin|disolv|separ|desfaz|acab|sair|sai\b|se va|toot|khatam)"
+    r"|(break|end|split|dissolv|leave|quit|exit|romper|terminar|disolver|desfazer|separarme|separar|sair de|salir de)"
+    r"[^.?!]{0,25}?(partner\w*|socio\w*|sócio\w*|sociedad\w*|sociedade\w*|co-?founder\w*|the company|our company|la empresa|a empresa)",
+    re.I)
+
+
 def classify_question(question):
     """-> (question_type, loss_house, generic: bool) or (None, None, False)."""
     q = (question or "").lower()
     if _GAMBLING.search(q):
         return None, None, False
+    # [kp-partnership-loss 2026-10-03] a partnership (business or personal)
+    # breaking / ending / a partner leaving = loss of the 7th — live, "Will my
+    # partnership break" fell to the generic gain read ("hard, steady work…").
+    if _PARTNER_LOSS.search(q):
+        return "loss", 7, False
     for rx, qt, lh in _QT_COMPILED:
         if rx.search(q):
             return qt, lh, False
