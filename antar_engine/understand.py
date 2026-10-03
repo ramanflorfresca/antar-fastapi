@@ -113,6 +113,14 @@ _EARNING_EVIDENCE = {
     "royalties": re.compile(r"(?i)royalt|regal[ií]a"),
 }
 
+# [wealth-promise backstop 2026-10-03] live: "which helps me most with wealth
+# creation or reaching my maximum potential?" wasn't flagged by the model.
+_OUTCOME_Q = re.compile(
+    r"(?i)\b(millionaire|billionaire|get rich|become rich|make me rich|wealth creation|create wealth|"
+    r"build wealth|maximum potential|max(imum)? potential|most potential|full potential|most money|"
+    r"richest|millonari[oa]|hacerme rico|volverme rico|riqueza|m[aá]ximo potencial|"
+    r"milion[aá]ri[oa]|ficar rico|maior potencial|crorepati|amir ban)\b")
+
 WORK = ("employed", "unemployed", "self_employed", "student", "retired", "homemaker")
 RELATIONSHIP = ("single", "dating", "married", "separated", "divorced", "widowed")
 
@@ -225,7 +233,7 @@ def parse(raw: str, original: str = "") -> Optional[dict]:
     opts = obj.get("options") if isinstance(obj.get("options"), list) else []
     options = [str(o).strip()[:60] for o in opts if str(o).strip()][:5]
     return {
-        "outcome_claim": bool(obj.get("outcome_claim")),
+        "outcome_claim": bool(obj.get("outcome_claim")) or bool(_OUTCOME_Q.search(original or "")),
         "options": options,
         "feeling": _clean_enum(obj.get("feeling"), FEELINGS, "neutral"),
         "stated_facts": facts,
@@ -538,3 +546,69 @@ def scrub_invented_role(text, known: str = ""):
     for rx, rep in _INVENTED_ROLE:
         text = rx.sub(rep, text)
     return text
+
+
+# ── answer guardrails (owner 2026-10-03, Raman's chart) ─────────────────────
+# Live answers: "Put your savings into a few different tech companies" (investment
+# advice), "Defense and gold mining need lots of physical work and careful
+# cost-cutting" (an invented claim about an industry), "Since you don't have much
+# extra money saved up" (a chart inference stated as a fact about their life).
+def guardrails_block() -> str:
+    """Always-on narrator rules for the explore answer."""
+    return ("\n\nNEVER IN AN ANSWER:\n"
+            "- Never tell them where to put savings or money (no 'invest in', 'put your savings "
+            "into', 'diversify across companies/funds/stocks/crypto/property'). You may talk about "
+            "protecting a cushion or capping what rides on one venture — never where to invest.\n"
+            "- Never describe what an industry or option demands (physical work, cost-cutting, "
+            "capital, regulation, connections) unless they said it. Speak about THEIR role, fit "
+            "and timing only.\n"
+            "- Never state their money situation as a fact ('you don't have much saved', 'you have "
+            "debt') unless they told you. Say what the reading shows: 'the reading shows pressure "
+            "on savings'.")
+
+
+_INVEST_SENT = re.compile(
+    r"(?i)\b(put|invest|move|park|allocate|split|spread|place)\b[^.!?]{0,30}\b(your |the )?"
+    r"(savings|money|capital|funds|cash|portfolio)\b[^.!?]{0,40}\b(in|into|across|between|among)\b"
+    r"[^.!?]{0,40}\b(compan(y|ies)|stocks?|shares|funds?|crypto|bonds?|gold|real estate|propert(y|ies)|"
+    r"startups?|ventures|assets)\b"
+    r"|\bdiversif\w*\b[^.!?]{0,30}\b(savings|investments?|portfolio|money|capital)\b")
+
+_FIN_FACT = [
+    (re.compile(r"(?i)\b(since|because|as) you (don't|do not|didn't) have (much |enough |a lot of )?(extra )?"
+                r"(money|savings|cash)( saved( up)?)?\b"), "since the reading shows pressure on your savings"),
+    (re.compile(r"(?i)\byou (don't|do not) have (much |enough |a lot of )?(extra )?(money|savings|cash)"
+                r"( saved( up)?)?\b"), "the reading shows pressure on your savings"),
+    (re.compile(r"(?i)\byou have (a lot of |some |heavy )?debts?\b"), "the reading shows loan pressure"),
+    (re.compile(r"(?i)\byour debt\b"), "loan pressure in the reading"),
+]
+_FIN_WORDS = re.compile(r"(?i)sav(e|ing|ings)|debt|loan|money|cash|broke|deud|ahorro|d[ií]vida|poupan|karz|udhaar")
+
+
+def _sentences(t: str) -> list:
+    return [x for x in re.split(r"(?<=[.!?])\s+", (t or "").strip()) if x.strip()]
+
+
+def guard_answer(text, question: str = "", options: Optional[list] = None):
+    """Deterministic backstop for the rules above. Drops investment-advice and
+    invented-industry sentences; rewrites stated-as-fact finances (unless the
+    person mentioned their money). Never empties an answer."""
+    if not isinstance(text, str) or not text.strip():
+        return text
+    opt_rx = None
+    words = [w for o in (options or []) for w in re.findall(r"[A-Za-z\u00C0-\u00FF]{4,}", o or "")]
+    if words:
+        opt_rx = re.compile(r"(?i)\b(" + "|".join(sorted(set(map(re.escape, words)))) + r")\b[^.!?]{0,60}"
+                            r"\b(needs?|requires?|demands?|involves?|relies on|rely on|depends? on)\b")
+    kept = []
+    for snt in _sentences(text):
+        if _INVEST_SENT.search(snt):
+            continue
+        if opt_rx and opt_rx.search(snt):
+            continue
+        kept.append(snt)
+    out = " ".join(kept).strip() if kept else text
+    if not _FIN_WORDS.search(question or ""):
+        for rx, rep in _FIN_FACT:
+            out = rx.sub(lambda m, r=rep: (r[0].upper() + r[1:]) if m.group(0)[0].isupper() else r, out)
+    return out
