@@ -93,6 +93,13 @@ FEELINGS = ("neutral", "curious", "hopeful", "excited", "worried", "anxious", "s
 STRUGGLING = frozenset({"worried", "anxious", "stuck", "overwhelmed", "sad", "lonely",
                         "frustrated", "ashamed", "grieving", "angry"})
 
+EARNING = ("advisory", "commission", "equity", "salary", "own_operations", "trading",
+           "investing", "freelance", "rental", "royalties")
+_EARNING_PLAIN = {"advisory": "advisory fees", "commission": "commission", "equity": "equity / sweat equity",
+                  "salary": "a salary", "own_operations": "running the operation themselves",
+                  "trading": "trading", "investing": "investing their own capital",
+                  "freelance": "freelance work", "rental": "rental income", "royalties": "royalties"}
+
 WORK = ("employed", "unemployed", "self_employed", "student", "retired", "homemaker")
 RELATIONSHIP = ("single", "dating", "married", "separated", "divorced", "widowed")
 
@@ -131,7 +138,16 @@ SYSTEM = (
     '(never infer, never guess): {"work": one of ' + json.dumps(list(WORK)) + ' or null, '
     '"relationship": one of ' + json.dumps(list(RELATIONSHIP)) + ' or null, '
     '"children": "yes" | "no" | null, "other": up to 3 short plain facts they said '
-    '(e.g. "has debt", "recently laid off", "caring for a sick parent") or []}}\n'
+    '(e.g. "has debt", "recently laid off", "caring for a sick parent") or [], '
+    '"earning": how THEY say they earn or would earn from the work in question, a list '
+    'from ' + json.dumps(list(EARNING)) + ' or [] (e.g. "advisory + commission + sweat '
+    'equity" → ["advisory","commission","equity"]; never guess)},\n'
+    ' "outcome_claim": true if they ask the reading to promise a wealth level or rank '
+    'options by how much money / potential / success they will bring (e.g. "will it make me '
+    'a millionaire", "which work gives me the most potential", "which will make me rich"),\n'
+    ' "options": the distinct options they are choosing between, as short labels in '
+    'their words (e.g. ["gold mine deals", "defence contracts", "real estate"]) — [] if '
+    'they are not comparing options}\n'
     "Rules: language = the language the message is WRITTEN in (English that mentions "
     "India is English; Hinglish = Hindi words in Latin script). A question about a "
     "partnership BREAKING, ending, splitting or a partner leaving is partnership_ending "
@@ -187,8 +203,14 @@ def parse(raw: str, original: str = "") -> Optional[dict]:
         "children": (str(sf.get("children")).lower() if str(sf.get("children")).lower() in ("yes", "no")
                      else None),
         "other": [str(x).strip()[:80] for x in other if str(x).strip()][:3],
+        "earning": [e for e in (str(x).strip().lower() for x in (sf.get("earning") or [])
+                                if isinstance(sf.get("earning"), list)) if e in EARNING][:4],
     }
+    opts = obj.get("options") if isinstance(obj.get("options"), list) else []
+    options = [str(o).strip()[:60] for o in opts if str(o).strip()][:5]
     return {
+        "outcome_claim": bool(obj.get("outcome_claim")),
+        "options": options,
         "feeling": _clean_enum(obj.get("feeling"), FEELINGS, "neutral"),
         "stated_facts": facts,
         "language": _clean_enum(obj.get("language"), LANGS, "other"),
@@ -378,3 +400,77 @@ def tone_block(u: Optional[dict]) -> str:
             "Never open with blame, cost, fear or a warning (NOT \"this is costing you…\", "
             "NOT \"you can't afford…\"). Be honest after that — the reading, timing and "
             "the one move stay exactly as they are. No pity, no therapy-speak, one sentence.")
+
+
+# ── comparisons + how they earn (owner 2026-10-03) ──────────────────────────
+# Live: "Gold or defence — which should I focus on?" → "Defence is the stronger
+# bet… Gold is a store of value, not a business-builder" — a winner the chart
+# can't support (business-vertical study: no better than chance), reasoned from a
+# deal structure he never stated (his gold work is advisory + commission + sweat
+# equity, the SAME role as his defence and real-estate deals).
+def is_comparison(u: Optional[dict]) -> bool:
+    u = u or {}
+    return len(u.get("options") or []) >= 2 or u.get("intent") == "which"
+
+
+def earning_text(earning: list) -> str:
+    return " + ".join(_EARNING_PLAIN.get(e, e) for e in (earning or []))
+
+
+def comparison_block(u: Optional[dict], known_earning: str = "") -> str:
+    """Narrator rules for a choose-between question. '' when not a comparison."""
+    if not is_comparison(u):
+        return ""
+    opts = (u or {}).get("options") or []
+    told = earning_text(((u or {}).get("stated_facts") or {}).get("earning") or []) or known_earning
+    lines = [
+        "\n\nCOMPARISON — they are weighing: " + ("; ".join(opts) if opts else "options") + ".",
+        "- Do NOT open with Yes/No. Do NOT name a winner, and never say one will make more "
+        "money or is 'the stronger bet' — the reading cannot rank industries or sectors.",
+        "- Compare ONLY on: (a) the ROLE they would play in each, (b) their TIMING window, "
+        "(c) practical risks to check (their capital at risk, how long until they get paid, "
+        "price swings, counterparties) — as things to check, not predictions.",
+        "- If the role is the same in every option, say so plainly: the reading backs that "
+        "role and their timing, not one industry.",
+        "- You may say one option suits their way of working better ONLY if their role "
+        "really differs between the options, and say why in one sentence.",
+        "- NEVER assume how a deal is structured or how they earn from it (no 'trading', "
+        "'investing', 'owning' unless they said so). If you don't know their role, say 'your "
+        "role in these deals'. If knowing it would change the answer, end with ONE short "
+        "question asking it.",
+        "- Close with how to decide: the deal closest to signing, with the shortest path to "
+        "their pay and the least of their own money at risk.",
+    ]
+    if told:
+        lines.insert(1, f"- How they earn (they told you): {told}. Use exactly this; never replace it.")
+    return "\n".join(lines)
+
+
+EARNS_PREFIX = "Earns via "
+
+
+def stored_earning(profession: str) -> str:
+    p = (profession or "").strip()
+    return p[len(EARNS_PREFIX):].strip() if p.lower().startswith(EARNS_PREFIX.lower()) else ""
+
+
+def earning_line(profession: str) -> str:
+    """Life-block line from what they told us earlier (stored on the chart)."""
+    e = stored_earning(profession)
+    if not e:
+        return ""
+    return ("\n- How they earn (they told you earlier): " + e
+            + ". Never assume a different deal structure.")
+
+
+def outcome_block(u: Optional[dict]) -> str:
+    """[ask-outcome-honesty] Wealth level / 'most potential' can't be read (D-2 wealth
+    study and business-vertical study both failed) — say so once, then help."""
+    if not (u or {}).get("outcome_claim"):
+        return ""
+    return ("\n\nWEALTH / POTENTIAL — they asked the reading to promise a wealth level or "
+            "rank options by how much they will make. In ONE plain sentence, say the reading "
+            "can't honestly promise an amount ('millionaire') or say which field earns most. "
+            "Then give what it CAN: how the work fits their nature and way of working, their "
+            "timing window, and how to approach it to give it the best chance. Never use "
+            "words like 'millionaire', 'rich', 'most potential' as a promise or a ranking.")
