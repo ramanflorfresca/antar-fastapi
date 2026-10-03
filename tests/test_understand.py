@@ -271,3 +271,63 @@ def test_concern_override_only_when_confident_and_specific():
     assert u.concern_override(r, "business") is None
     assert u.concern_override(u.parse(_raw(area="business_partnership", confidence=0.5)), "love") is None
     assert u.concern_override(u.parse(_raw(area="general", confidence=0.99)), "love") is None
+
+
+def test_what_to_do_questions_get_no_verdict_lead():
+    assert u.suppress_verdict(u.parse(_raw(intent="what_to_do")))
+    assert u.suppress_verdict(u.parse(_raw(intent="why")))
+    assert not u.suppress_verdict(u.parse(_raw(intent="when")))
+    assert not u.suppress_verdict(u.parse(_raw(intent="yes_no")))
+    assert not u.suppress_verdict(None)
+
+
+def test_invented_background_is_dropped_only_when_unknown():
+    t = ("Your strongest asset is already built — finance and bookkeeping management expertise "
+         "is real and marketable. Pick one low-cost course in financial analysis this week.")
+    out = u.drop_invented_background(t, background_known=False)
+    assert "already built" not in out and out.startswith("Pick one low-cost course")
+    assert u.drop_invented_background(t, background_known=True) == t
+    assert u.drop_invented_background("Your experience in sales helps.", False) == "Your experience in sales helps."  # never empty
+
+
+
+def test_invented_background_variants():
+    for t in ["Your core finance and bookkeeping expertise is already your strongest card — deepen it.",
+              "Your finance and bookkeeping management expertise is real and marketable.",
+              "Your background in finance is solid."]:
+        out = u.drop_invented_background(t + " Pick one course this week.", False)
+        assert out == "Pick one course this week.", (t, out)
+
+
+
+def test_field_network_becomes_your_network_when_background_unknown():
+    t = "Send one message to an authority figure from your finance network this week."
+    assert u.drop_invented_background(t, False) == \
+        "Send one message to an authority figure from your network this week."
+    assert u.drop_invented_background(t, True) == t
+    assert "your professional network" in u.drop_invented_background("Use your professional network.", False)
+
+
+
+def test_past_work_needs_evidence_and_is_saved_to_empty_life_work(monkeypatch):
+    msg = "Right now I am doing nothing. In June I was laid off, I was working as a finance/book keeping manager."
+    r = u.parse(_raw(stated_facts={"work": "unemployed", "past_work": "finance / bookkeeping manager",
+                                   "other": ["laid off in June"]}), msg)
+    assert r["stated_facts"]["past_work"] == "finance / bookkeeping manager"
+    assert u.parse(_raw(stated_facts={"past_work": "finance manager"}), "What work suits me?")["stated_facts"]["past_work"] is None
+    from dotenv import load_dotenv
+    load_dotenv()
+    import main
+    import antar_engine.profile_harvest as ph
+    wrote = []
+    monkeypatch.setattr(ph, "apply_harvest", lambda sb, cid, facts: wrote.append(facts) or {})
+    main._ask_harvest_stated("c1", {"life_work": None, "career_stage": "between_jobs"}, r)
+    assert wrote[-1]["life_work"]["value"] == "Formerly finance / bookkeeping manager (laid off)"
+    assert "finance / bookkeeping manager" in u.past_work_line("Formerly finance / bookkeeping manager (laid off)")
+
+
+def test_known_background_keeps_true_facts():
+    t = "Harleen, being laid off is a hard stop. Message one contact from your finance network."
+    kb = "Formerly finance / bookkeeping manager (laid off)"
+    assert u.guard_answer(t, "What courses?", None, unemployed=True, known_background=kb) == t
+    assert u.drop_invented_background(t, background_known=True) == t

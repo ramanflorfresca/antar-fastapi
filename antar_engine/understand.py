@@ -101,6 +101,11 @@ _EARNING_PLAIN = {"advisory": "advisory fees", "commission": "commission", "equi
                   "trading": "trading", "investing": "investing their own capital",
                   "freelance": "freelance work", "rental": "rental income", "royalties": "royalties"}
 
+_PAST_WORK_EVIDENCE = re.compile(
+    r"(?i)\b(worked as|working as|was (a|an)|used to (be|work)|former(ly)?|previously|"
+    r"laid off|fired|let go|my last job|trabajaba|trabaj[eé] como|era (un|una)|trabalhava|"
+    r"trabalhei como|pehle .{0,20}(kaam|job))\b")
+
 _EARNING_EVIDENCE = {
     "advisory": re.compile(r"(?i)advis|consult|asesor|assessor|consultor"),
     "commission": re.compile(r"(?i)commis|comisi|comiss"),
@@ -163,7 +168,9 @@ SYSTEM = (
     '(e.g. "has debt", "recently laid off", "caring for a sick parent") or [], '
     '"earning": how THEY say they earn or would earn from the work in question, a list '
     'from ' + json.dumps(list(EARNING)) + ' or [] (e.g. "advisory + commission + sweat '
-    'equity" → ["advisory","commission","equity"]; never guess)},\n'
+    'equity" → ["advisory","commission","equity"]; never guess), '
+    '"past_work": the job/field they SAY they did before, in their words (e.g. "finance / '
+    'bookkeeping manager"), or null},\n'
     ' "outcome_claim": true if they ask the reading to promise a wealth level or rank '
     'options by how much money / potential / success they will bring (e.g. "will it make me '
     'a millionaire", "which work gives me the most potential", "which will make me rich"),\n'
@@ -231,6 +238,8 @@ def parse(raw: str, original: str = "") -> Optional[dict]:
                                 if isinstance(sf.get("earning"), list))
                     if e in EARNING and _EARNING_EVIDENCE[e].search(original or "")][:4],
     }
+    pw = str(sf.get("past_work") or "").strip()[:60]
+    facts["past_work"] = pw if (pw and _PAST_WORK_EVIDENCE.search(original or "")) else None
     opts = obj.get("options") if isinstance(obj.get("options"), list) else []
     options = [str(o).strip()[:60] for o in opts if str(o).strip()][:5]
     return {
@@ -479,6 +488,13 @@ def stored_earning(profession: str) -> str:
     return p[len(EARNS_PREFIX):].strip() if p.lower().startswith(EARNS_PREFIX.lower()) else ""
 
 
+def past_work_line(life_work: str) -> str:
+    lw = (life_work or "").strip()
+    if not lw.lower().startswith("formerly"):
+        return ""
+    return "\n- Their work history (they told you earlier): " + lw + "."
+
+
 def earning_line(profession: str) -> str:
     """Life-block line from what they told us earlier (stored on the chart)."""
     e = stored_earning(profession)
@@ -606,7 +622,7 @@ def not_employed(u: Optional[dict], career_stage: str = "") -> bool:
 
 
 def guard_answer(text, question: str = "", options: Optional[list] = None,
-                 unemployed: bool = False):
+                 unemployed: bool = False, known_background: str = ""):
     """Deterministic backstop for the rules above. Drops investment-advice and
     invented-industry sentences; rewrites stated-as-fact finances (unless the
     person mentioned their money). Never empties an answer."""
@@ -630,7 +646,8 @@ def guard_answer(text, question: str = "", options: Optional[list] = None,
     if unemployed:
         # [between-jobs 2026-10-03] live: "a specialist your boss and colleagues come to"
         out = _WORKPLACE.sub(lambda m: "People" if m.group(0)[0].isupper() else "people", out)
-        if not re.search(r"(?i)laid off|fired|let go|despid|demitid|layoff", question or ""):
+        if not re.search(r"(?i)laid off|fired|let go|despid|demitid|layoff",
+                         (question or "") + " " + (known_background or "")):
             out = re.sub(r"(?i)\b(being|getting) (laid off|let go|fired)\b",
                          lambda m: ("Being" if m.group(0)[0].isupper() else "being") + " between jobs", out)
     if not _FIN_WORDS.search(question or ""):
@@ -653,3 +670,39 @@ def concern_override(u: Optional[dict], keyword_concern: str) -> Optional[str]:
     if float((u or {}).get("confidence") or 0) < CONCERN_MIN_CONFIDENCE:
         return None
     return c
+
+
+
+# ── no verdict on "what should I do" questions; no invented background ──────
+# [intent-verdict 2026-10-03] live (Harleen, voice): "What type of courses should I
+# take?" → "Not yet — right now (Oct 2026) is for laying groundwork…". The keyword
+# decision detector marked it a decision; the understanding read intent=what_to_do.
+NO_VERDICT_INTENTS = frozenset({"what_to_do", "why", "which", "where_who", "statement",
+                                "greeting", "thanks", "meta"})
+
+
+def suppress_verdict(u: Optional[dict]) -> bool:
+    """True when a Yes / Not-yet lead line doesn't answer this kind of question."""
+    return (u or {}).get("intent") in NO_VERDICT_INTENTS
+
+
+_BACKGROUND_CLAIM = re.compile(
+    r"(?i)\b(already built|already have the (skills|experience)|your (existing |proven |deep |core )?"
+    r"(expertise|experience|background|track record|years) (in|with|as)|you(?:'ve| have) (already )?"
+    r"(built|spent years|worked (in|as)|got experience)|from your \w+ years)\b"
+    r"|\byour [\w ,&/-]{0,50}\b(expertise|experience|background|track record|know-how)\b[^.!?]{0,30}"
+    r"\b(is|are) (already|real|proven|solid)\b"
+    r"|\b(expertise|experience|background) (is|are) already your\b")
+
+
+def drop_invented_background(text, background_known: bool):
+    """Live: 'Your strongest asset is already built — finance and bookkeeping
+    management expertise is real' for someone who never said she worked in
+    finance. Without a known background, such sentences are dropped."""
+    if background_known or not isinstance(text, str) or not text.strip():
+        return text
+    kept = [snt for snt in _sentences(text) if not _BACKGROUND_CLAIM.search(snt)]
+    out = " ".join(kept).strip() if kept else text
+    # "your finance network / contacts" → "your network / contacts"
+    return re.sub(r"\b([Yy]our) (?!own\b|professional\b|personal\b)[A-Za-z]+(?: [A-Za-z]+)? "
+                  r"(network|contacts|circle)\b", r"\1 \2", out)
