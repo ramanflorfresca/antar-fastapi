@@ -54,7 +54,8 @@ INTENTS = (
 )
 
 # area → (KP question type or None, Ask concern). One source of truth: a new
-# area MUST say how KP and Ask read it.
+# area MUST say how KP and Ask read it. Concerns are ask_consultation.CONCERN_HOUSES
+# keys (a test enforces it).
 AREAS = {
     "career_job":          ("job_new", "career"),
     "promotion":           ("promotion", "career"),
@@ -63,16 +64,16 @@ AREAS = {
     "funding_investment":  ("money", "funding"),
     "income_money":        ("gain", "finance"),
     "debt_owed_money":     ("gain", "finance"),
-    "speculation_betting": ("speculation", "finance"),
+    "speculation_betting": ("speculation", "speculation"),
     "property":            ("property", "property"),
-    "residence_move":      ("residence", "property"),
-    "foreign_travel_visa": ("foreign_travel", "foreign"),
+    "residence_move":      ("residence", "domestic_move"),
+    "foreign_travel_visa": ("foreign_travel", "foreign_move"),
     "education_exam":      ("education", "education"),
-    "marriage":            ("marriage", "relationship"),
-    "new_romance":         ("romance", "relationship"),
-    "existing_relationship": (None, "relationship"),
-    "reunion_ex":          ("reunion", "relationship"),
-    "separation":          ("loss", "relationship"),
+    "marriage":            ("marriage", "marriage"),
+    "new_romance":         ("romance", "love"),
+    "existing_relationship": (None, "love"),
+    "reunion_ex":          ("reunion", "reconciliation"),
+    "separation":          ("loss", "divorce"),
     "business_partnership": (None, "business"),
     "partnership_ending":  ("loss", "business"),
     "children_conception": ("childbirth", "children"),
@@ -81,7 +82,7 @@ AREAS = {
     "health_other":        (None, "health"),
     "legal_case":          ("litigation_win", "legal"),
     "lost_item":           ("lost_found", "general"),
-    "family":              (None, "family"),
+    "family":              (None, "general"),
     "purpose_spiritual":   (None, "spiritual"),
     "daily_timing":        (None, "general"),
     "general":             (None, "general"),
@@ -612,3 +613,19 @@ def guard_answer(text, question: str = "", options: Optional[list] = None):
         for rx, rep in _FIN_FACT:
             out = rx.sub(lambda m, r=rep: (r[0].upper() + r[1:]) if m.group(0)[0].isupper() else r, out)
     return out
+
+
+CONCERN_MIN_CONFIDENCE = 0.75
+
+
+def concern_override(u: Optional[dict], keyword_concern: str) -> Optional[str]:
+    """[nlu-primary: concern 2026-10-03] The Ask concern to use instead of the
+    keyword router's, or None to keep it. Live: "How is my work with partners?"
+    → keyword concern 'love' → an answer about his SPOUSE. Only a confident,
+    specific reading overrides; 'general' never overrides anything."""
+    c = concern(u)
+    if not c or c == "general" or c == keyword_concern:
+        return None
+    if float((u or {}).get("confidence") or 0) < CONCERN_MIN_CONFIDENCE:
+        return None
+    return c

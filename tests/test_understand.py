@@ -257,3 +257,17 @@ def test_guard_never_empties_and_rules_block_exists():
     t = "Put your savings into stocks."
     assert u.guard_answer(t, "q") == t
     assert "Never tell them where to put savings" in u.guardrails_block()
+
+
+def test_every_area_concern_is_a_real_ask_concern():
+    from antar_engine.ask_consultation import CONCERN_HOUSES
+    for area, (_qt, c) in u.AREAS.items():
+        assert c in CONCERN_HOUSES, (area, c)
+
+
+def test_concern_override_only_when_confident_and_specific():
+    r = u.parse(_raw(area="business_partnership", confidence=0.9))
+    assert u.concern_override(r, "love") == "business"          # live: partners -> spouse
+    assert u.concern_override(r, "business") is None
+    assert u.concern_override(u.parse(_raw(area="business_partnership", confidence=0.5)), "love") is None
+    assert u.concern_override(u.parse(_raw(area="general", confidence=0.99)), "love") is None
