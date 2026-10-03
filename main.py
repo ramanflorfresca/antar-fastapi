@@ -23611,6 +23611,11 @@ _ASK_CHART_FIX = [
     (re.compile(r"\b(your|the|this)\s+(?:birth\s+|natal\s+)?charts?\b", re.I),
      lambda m: f"{m.group(1)} reading"),
     (re.compile(r"\bastrologically\b", re.I), lambda m: "in your timing"),
+    # "a straining placement that…" → "a strain in your reading that…"
+    (re.compile(r"\b(an?|the)\s+(?:straining|strained|difficult|tense|weak|challenging|hard)\s+placements?\b", re.I),
+     lambda m: ("A" if m.group(1)[0].isupper() else "a") + " strain in your reading"),
+    (re.compile(r"\b(an?|the)\s+(?:strong|supportive|good|favou?rable)\s+placements?\b", re.I),
+     lambda m: ("A" if m.group(1)[0].isupper() else "a") + " strength in your reading"),
 ]
 
 
@@ -28086,7 +28091,20 @@ async def ask_endpoint(request: AskRequest):
                 _ask_compare = bool(_ask_u) and (_und.is_comparison(_ask_u)
                                                  or bool(_ask_u.get("outcome_claim")))
                 if _ask_compare and _und.is_comparison(_ask_u):
-                    _cmp = _und.comparison_block(_ask_u, _known_earn)
+                    # [compare-fit 2026-10-03] hand the comparison the reading's top
+                    # career fields so a choice between FIELDS gets a fit lean (live:
+                    # "technology or brokerage?" for a tech founder got the
+                    # same-role "no winner" template).
+                    _fit_fields = []
+                    try:
+                        from antar_engine.d10_career import analyze_career as _ac_fit
+                        _cd_fit = locals().get("chart_data") or _safe_jsonb(chart_row.data.get("chart_data")) or {}
+                        _car = _ac_fit(_cd_fit)
+                        _fit_fields = [c["field"] for c in (_car.get("careers") or [])[:3] if c.get("field")]
+                    except Exception:
+                        pass
+                    _cmp = _und.comparison_block(_ask_u, _known_earn, fit_fields=_fit_fields,
+                                                 profession=str(chart_row.data.get("profession") or ""))
                     _ask_life_block = ((_ask_life_block or "") + _cmp).strip()
                     print(f"[ask][compare] options={_ask_u.get('options')} for {chart_id[:8]}")
                 try:
@@ -28259,6 +28277,21 @@ async def ask_endpoint(request: AskRequest):
             # 'general' with the precise domain.
             try:
                 _role_c = _ask_role_concern(question, _ask_thread)
+                # [nlu-vs-role 2026-10-03] a role mentioned in an EARLIER turn must not
+                # override this message's own clear topic (live: "When will I get
+                # funding" after a "technology or brokerage?" turn → commission → career
+                # window, while the same question elsewhere got the funding window).
+                if _role_c and not _ask_role_concern(question, []):
+                    try:
+                        _u_rc = await _ask_await_nlu(locals().get("_ask_nlu_task"), 1.5)
+                        from antar_engine import understand as _und_rc
+                        if _u_rc and _und_rc.concern_override(_u_rc, "general",
+                                                              _und_rc.OWN_TOPIC_MIN_CONFIDENCE):
+                            print(f"[ask-role] earlier-turn role ignored — this message has its "
+                                  f"own topic ({_u_rc.get('area')})")
+                            _role_c = None
+                    except Exception:
+                        pass
                 if _role_c and _role_c != _ask_concern:
                     print(f"[ask-role] concern by role: {_ask_concern} -> {_role_c}")
                     _ask_concern = _role_c
@@ -30157,7 +30190,13 @@ async def ask_endpoint(request: AskRequest):
                 from antar_engine import speculation_policy as _spp0
                 _sp_gamb = _spp0.is_gambling(question)
                 _sp_area = ((locals().get("_ask_u") or {}).get("area") == "speculation_betting")
-                if _sp_gamb or _sp_area or _is_gambling_q(question) or locals().get("_ask_concern") == "speculation":
+                # [spec-scope 2026-10-03] the model files a commodity ("gold or defence")
+                # under speculation; the policy takes over only when the QUESTION is about
+                # speculation / trading / betting (live regression: Andres's gold-mine
+                # deals question got the speculation verdict).
+                _sp_words = _spp0.SPECULATION_Q.search(question or "")
+                if _sp_gamb or _is_gambling_q(question) or (
+                        _sp_words and (_sp_area or locals().get("_ask_concern") == "speculation")):
                     from antar_engine import speculation_policy as _spp
                     _sp_natal = _spp.natal_read(chart_data, locals().get("_ask_dashas") or {},
                                                 locals().get("_ask_bdate") or "")

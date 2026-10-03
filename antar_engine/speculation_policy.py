@@ -145,6 +145,13 @@ GAMBLING_Q = _re.compile(
     r"cassino|jogo de azar|satta|jua|juaa|teen patti|matka)\b")
 
 
+SPECULATION_Q = _re.compile(
+    r"(?i)\b(speculat\w*|stocks?|stock market|share market|shares|equit(y|ies) market|trading|trade[sr]?|"
+    r"day.?trad\w*|intraday|f&o|futures|options trading|forex|crypto\w*|bitcoin|commodit(y|ies) trading|"
+    r"windfall|unearned|especulaci\w*|acciones|bolsa|criptomoneda\w*|especula\w*|a[cç][oõ]es|"
+    r"criptomoeda\w*|satta|sattebaazi)\b")
+
+
 def is_gambling(question: str) -> bool:
     return bool(GAMBLING_Q.search(question or ""))
 

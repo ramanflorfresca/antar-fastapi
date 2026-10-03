@@ -439,3 +439,11 @@ def test_loans_asserted_as_existing_are_rewritten_in_three_languages():
     # they mentioned their loan → left alone
     t = "Watch your existing loans before expanding."
     assert g(t, "I have a loan — should I expand?") == t
+
+
+def test_comparison_match_names_the_fitting_option():
+    r = u.parse(_raw(intent="which", options=["technology", "brokerage transactions"]))
+    b = u.comparison_block(r, "", fit_fields=["technology & innovation", "science & research"])
+    assert 'MATCH: the option "technology" matches their #1 field' in b
+    r = u.parse(_raw(intent="which", options=["gold mine deals", "defence contracts"]))
+    assert "MATCH" not in u.comparison_block(r, "", fit_fields=["technology & innovation"])
