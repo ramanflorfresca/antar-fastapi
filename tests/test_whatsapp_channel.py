@@ -147,7 +147,7 @@ def test_webhook_acks_fast_and_answers_in_background(m, monkeypatch):
     from fastapi.testclient import TestClient
     handled = []
 
-    async def fake_handle(number, body, ts, num_media=0, sink=None, sid="", choice=""):
+    async def fake_handle(number, body, ts, num_media=0, sink=None, sid="", choice="", lat_lon=None):
         handled.append((number, body, num_media))
     monkeypatch.setattr(m, "_wa_handle", fake_handle)
     params = {"MessageSid": "SM1", "From": "whatsapp:+919812345678",
@@ -196,7 +196,8 @@ class _Conv:
                             if self.list_ok else False)
         monkeypatch.setattr(m, "_resolve_primary_chart_id", lambda uid: primary)
         monkeypatch.setattr(m, "_wa_chart_alive", lambda cid: True)
-        monkeypatch.setattr(m, "_wa_user_tz_minutes", lambda cid, n: m._wa_tz(n))
+        monkeypatch.setattr(m, "_wa_resolve_tz", lambda cid, n, ctx=None: (m._wa_tz(n), "number", ""))
+        monkeypatch.setattr(m, "_wa_number_tz", lambda cid, n: (m._wa_tz(n), ""))
         monkeypatch.setattr(m, "_wa_chart_name", lambda cid: {"self-1": "Raman Singh", "mom-1": "Mom"}.get(cid, "X"))
 
         async def fake_ask(req):
@@ -207,8 +208,9 @@ class _Conv:
         monkeypatch.setattr(m, "ask_endpoint", fake_ask)
         self.m = m
 
-    def run(self, body, num_media=0):
-        asyncio.run(self.m._wa_handle("+919812345678", body, time.time(), num_media))
+    def run(self, body, num_media=0, lat_lon=None):
+        asyncio.run(self.m._wa_handle("+919812345678", body, time.time(), num_media,
+                                      None, "", "", lat_lon))
 
 
 def _link(chart="self-1"):
@@ -786,3 +788,63 @@ def test_timezone_follows_the_whatsapp_number(m, monkeypatch):
     assert m._wa_user_tz_minutes("c1", "+13105551234") == off("America/Los_Angeles")
     assert m._wa_user_tz_minutes("c1", "+5592987654321") == off("America/Manaus")
     assert m._wa_user_tz_minutes(None, "+919812345678") == 330
+
+
+
+# ─── travel ────────────────────────────────────────────────────────
+
+@pytest.mark.parametrize("text,expected", [
+    ("I'm in London", ("city", "London")), ("im in new york now", ("city", "new york")),
+    ("Estoy en Madrid", ("city", "Madrid")), ("main Delhi mein hoon", ("city", "Delhi")),
+    ("I'm home", ("home", None)), ("back home", ("home", None)),
+    ("I am in love", (None, None)), ("I'm in trouble", (None, None)),
+    ("I'm in a meeting", (None, None)), ("I'm in a tough spot?", (None, None))])
+def test_parse_travel(text, expected):
+    assert msg.parse_travel(text) == expected
+
+
+def test_resolve_tz_prefers_override_then_device_then_number(m, monkeypatch):
+    monkeypatch.setattr(m, "_wa_number_tz", lambda cid, n: (-240, "America/New_York"))
+    now = time.time()
+    ov = {"tz_override": {"tz": "Asia/Kolkata", "label": "Delhi", "until": now + 3600}}
+    assert m._wa_resolve_tz("c", "+14077825752", ov)[:2] == (330, "override")
+    dev = {"device_tz": {"minutes": 60, "at": now - 3600}}
+    assert m._wa_resolve_tz("c", "+14077825752", dev) == (60, "device", "UTC+1")
+    stale = {"device_tz": {"minutes": 60, "at": now - 3 * 86400},
+             "tz_override": {"tz": "Asia/Kolkata", "until": now - 1}}
+    assert m._wa_resolve_tz("c", "+14077825752", stale)[:2] == (-240, "number")
+
+
+def test_shared_location_sets_override(m, monkeypatch):
+    link = _link()
+    cv = _Conv(m, monkeypatch, link=link)
+    cv.run("", lat_lon=(28.61, 77.21))
+    assert link["context"]["tz_override"]["tz"] == "Asia/Kolkata"
+    assert "Kolkata time for the next 2 weeks" in cv.sent[-1] and cv.asked == []
+
+
+def test_im_in_city_and_im_home(m, monkeypatch):
+    link = _link()
+    cv = _Conv(m, monkeypatch, link=link)
+
+    async def geo(city, country):
+        return (51.5, -0.12, "Europe/London", "test")
+    monkeypatch.setattr(m, "_geocode_city", geo)
+    cv.run("I'm in London")
+    assert link["context"]["tz_override"]["tz"] == "Europe/London" and "London time" in cv.sent[-1]
+    cv.run("I'm home")
+    assert "tz_override" not in link["context"] and "home time again" in cv.sent[-1]
+    assert cv.asked == []
+
+
+def test_travel_note_when_device_clock_differs(m, monkeypatch):
+    link = _link()
+    link["context"] = {"device_tz": {"minutes": 60, "at": time.time()}}
+    cv = _Conv(m, monkeypatch, link=link)
+    monkeypatch.setattr(m, "_wa_resolve_tz", lambda cid, n, ctx=None: (60, "device", "UTC+1"))
+    monkeypatch.setattr(m, "_wa_number_tz", lambda cid, n: (330, "Asia/Kolkata"))
+    cv.run("How is my day today?")
+    assert cv.asked[-1].tz_offset == 60
+    assert "looks like you're travelling" in cv.sent[-1]
+    cv.run("And tomorrow at work then later")
+    assert "travelling" not in cv.sent[-1]            # once a week at most
