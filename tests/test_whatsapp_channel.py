@@ -753,7 +753,7 @@ def test_yesno_asks_for_the_kp_number_then_answers(m, monkeypatch):
     assert req.mode == "yesno" and req.horary_number == 74
     assert req.question == "Will I raise funding by March?"
     out = cv.sent[-1]
-    assert out.startswith("*→ Will I raise funding by March?*\n_Prashna · #74_")
+    assert out.startswith("*→ Will I raise funding by March?*\n_Yes/No reading · #74_")
     assert "*Possible — on one condition.*" in out
     assert "check back after Jan 31" in out and "kp_pending" not in link["context"]
 
@@ -810,8 +810,8 @@ def test_yesno_question_gets_a_regular_read_and_a_prashna_offer(m, monkeypatch):
     cv = _Conv(m, monkeypatch, link=link, answer=dict(_YN_ANSWER, method="kp_number", horary_number=7))
     cv.run("Will I raise funding by March?")
     assert cv.asked[-1].mode == "explore"
-    assert "Reply *prashna*" in cv.sent[-1]
-    cv.run("prashna")
+    assert "Reply *yes or no*" in cv.sent[-1] and "Prashna" not in cv.sent[-1]
+    cv.run("Yes or no")
     assert "number from 1 to 249" in cv.sent[-1]
     cv.run("7")
     assert cv.asked[-1].mode == "yesno" and cv.asked[-1].question == "Will I raise funding by March?"
@@ -932,7 +932,7 @@ def test_same_question_replays_the_original_prashna(m, monkeypatch):
     assert cv.asked and cv.asked[-1].mode == "yesno" and cv.asked[-1].horary_number is None
     assert "number from 1 to 249" not in " ".join(cv.sent)
     out = cv.sent[-1]
-    assert out.startswith("*→ Will I raise funding by March?*\n_Prashna_\n\n_You asked this earlier — one Prashna per question a day")
+    assert out.startswith("*→ Will I raise funding by March?*\n_Yes/No reading_\n\n_You asked this earlier — a yes-or-no reading is cast once per question a day")
     assert "tomorrow._" in out and "check back" not in out      # day always named; no new promise
 
 
@@ -997,3 +997,14 @@ def test_saved_lang_normalizes(m, monkeypatch, pref, lang, want):
             return type("R", (), {"data": [{"language_preference": pref, "language": lang}]})()
     monkeypatch.setattr(m.supabase, "table", lambda name: Q())
     assert m._wa_saved_lang("c1") == want
+
+
+@pytest.mark.parametrize("t", ["yes or no", "Yes/No", "sí o no", "Si o no.", "sim ou não",
+                               "prashna", "*haan ya na*"])
+def test_bare_yesno_reply_words(t):
+    assert msg.is_bare_prashna(t)
+
+
+@pytest.mark.parametrize("t", ["yes", "no", "sí", "Will I get the job yes or no?"])
+def test_bare_yesno_reply_is_not_a_plain_yes(t):
+    assert not msg.is_bare_prashna(t)
