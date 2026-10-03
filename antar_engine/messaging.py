@@ -612,10 +612,17 @@ def _split_sentences(text: str) -> list:
 # a day per practice (the caller decides via include_practice).
 _TIMING_HINT = re.compile(
     r"(?i)\b(window|morning|afternoon|evening|tonight|midday|noon|before|after|until|"
-    r"today|tomorrow|this week|next week|month|\d{1,2}:\d{2}|"
+    r"today|tomorrow|weeks?|months?|days?|\d{1,2}:\d{2}|"
     r"jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec|"
     r"mañana|tarde|noche|semana|mes|manhã|noite|mês|subah|shaam|raat|hafte|mahine)\b")
-WA_COMPACT_BUDGET = 520           # characters before the follow-ups
+# The WHOLE message (answer + follow-ups) must fit before WhatsApp folds it; the
+# caller's one-line "more" hint (~40 chars) rides on top. Live: 650 chars folded.
+_SPECIFIC_TIME = re.compile(
+    r"(?i)\b(jan(uary)?|feb(ruary)?|mar(ch)?|apr(il)?|may|june?|july?|aug(ust)?|sep(t(ember)?)?|"
+    r"oct(ober)?|nov(ember)?|dec(ember)?|enero|febrero|marzo|abril|mayo|junio|julio|agosto|"
+    r"septiembre|octubre|noviembre|diciembre|janeiro|fevereiro|março|maio|junho|julho|"
+    r"setembro|outubro|novembro|dezembro|\d{1,2}:\d{2}|\d{4})\b")
+WA_COMPACT_BUDGET = 500
 WA_MORE_WORDS = frozenset({"more", "full", "read more", "tell me more", "más", "mas info",
                            "leer más", "mais", "ver mais", "aur batao", "poora batao",
                            "detail", "details"})
@@ -649,7 +656,9 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
             # keep the sentence(s) that carry WHEN (a window, a time of day, a date)
             # over general colour — the timing is what the reader acts on
             more = sents[1:]
-            timed = [x for x in more if _TIMING_HINT.search(x)]
+            timed = [x for x in more if _TIMING_HINT.search(x) or _SPECIFIC_TIME.search(x)]
+            # a named month / date / clock time beats a vague "months ahead"
+            timed.sort(key=lambda x: 0 if _SPECIFIC_TIME.search(x) else 1)
             pick = (timed or more)[:2]
             rest = " ".join(pick)
             if len(rest) > 220:
@@ -665,7 +674,7 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
         step = (pc.get("step") or "").strip()
         practice = "🧘 " + pc["label"].strip() + (("\n" + step) if step and len(step) <= 200 else "")
 
-    def build(opener_, rest_, practice_):
+    def build(opener_, rest_, practice_, move_, fus_):
         parts = []
         if header:
             parts.append(f"_Antar · {header}_")
@@ -673,26 +682,36 @@ def format_ask_whatsapp_v2(payload: dict, language: str = "en",
             parts.append(opener_)
         if head:
             parts.append(f"*{head}*" if len(head) <= 180 else head)
-        parts += [x for x in (rest_, win, move, practice_) if x]
-        return parts
+        parts += [x for x in (rest_, win, move_, practice_) if x]
+        if fus_:
+            parts.append("\n".join(f"{i}  {q}" for i, q in enumerate(fus_, 1)))
+        return "\n\n".join(parts).strip()
 
-    lines = build(opener, rest, practice)
+    text = build(opener, rest, practice, move, fus)
     if compact:
-        # Over budget → drop, in order: the practice, the warm opener, the
-        # supporting sentence. The bold answer, window and move always stay.
-        for drop in ("practice", "opener", "rest"):
-            if len("\n\n".join(lines)) <= WA_COMPACT_BUDGET:
+        # Over budget (whole message) → drop, in order: the practice, the warm
+        # opener, the second supporting sentence, the third follow-up, the move's
+        # extra sentences, then the supporting sentence. The bold answer, window,
+        # the move's first sentence and two follow-ups always stay.
+        rest_sents = _split_sentences(rest) if rest else []
+        move_sents = _split_sentences(nxt) if nxt else []
+        steps = ("practice", "opener", "rest2", "fus3", "move1", "rest")
+        for step in steps:
+            if len(text) <= WA_COMPACT_BUDGET:
                 break
-            if drop == "practice":
+            if step == "practice":
                 practice = ""
-            elif drop == "opener":
+            elif step == "opener":
                 opener = ""
-            else:
+            elif step == "rest2" and len(rest_sents) > 1:
+                rest = rest_sents[0]
+            elif step == "fus3":
+                fus = fus[:2]
+            elif step == "move1" and len(move_sents) > 1:
+                move = "→ " + move_sents[0]
+            elif step == "rest":
                 rest = ""
-            lines = build(opener, rest, practice)
-    if fus:
-        lines.append("\n".join(f"{i}  {q}" for i, q in enumerate(fus, 1)))
-    text = "\n\n".join(l for l in lines if l).strip()
+            text = build(opener, rest, practice, move, fus)
     return text, fus
 
 
