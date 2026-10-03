@@ -418,3 +418,11 @@ def test_real_statements_are_kept():
     assert u.parse(_raw(stated_facts={"relationship": "married"}), "We just got married.")["stated_facts"]["relationship"] == "married"
     assert u.parse(_raw(stated_facts={"children": "yes"}), "Mera beta 12th mein hai")["stated_facts"]["children"] == "yes"
     assert u.parse(_raw(stated_facts={"work": "self_employed"}), "Will my startup get funded?")["stated_facts"]["work"] == "self_employed"
+
+
+
+def test_own_topic_threshold_is_lower_than_override():
+    r = u.parse(_raw(area="separation", confidence=0.7))
+    assert u.concern_override(r, "general") is None                                   # 0.75 rule
+    assert u.concern_override(r, "general", u.OWN_TOPIC_MIN_CONFIDENCE) == "divorce"  # beats inheritance
+    assert u.concern_override(u.parse(_raw(area="general", confidence=0.99)), "general", 0.6) is None
