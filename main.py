@@ -4886,6 +4886,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         ctx["in_flight_at"] = int(_time.time())
         owns_flight = True
         await asyncio.to_thread(_msg.save_link_context, sb, link, dict(ctx, lang=lang))
+        _ASK_CHANNEL.set("whatsapp")     # [outcome-loop] copied into the task's context
         ask = asyncio.create_task(ask_endpoint(AskRequest(
             question=question, chart_id=cid, mode="explore",
             language=("hinglish" if lang == "hinglish" else lang),
@@ -5153,6 +5154,58 @@ def messaging_whatsapp_connect(req: _WaConnect, authorization: str = Header(...)
     _msg.whatsapp_send(number, text, _time.time() - 15 * 60)
     _msg.save_link_context(supabase, link, _msg.remember_options({"lang": lang}, "ask", starters))
     return {"linked": True, "number_last4": number[-4:], "chart_id": chart_id}
+
+
+# ── Outcome loop: did-it-happen check-ins ──
+# [outcome-loop 2026-10-02] Spec: "Outcome Loop & Accuracy Board — Spec".
+def _oc_owned_chart(user_id: str, chart_id: str) -> bool:
+    try:
+        return bool((supabase.table("charts").select("id").eq("id", chart_id)
+                     .eq("user_id", user_id).limit(1).execute()).data)
+    except Exception:
+        return False
+
+
+@app.get("/api/v1/outcomes/due/{chart_id}")
+def outcomes_due(chart_id: str, authorization: str = Header(...)):
+    """Check-ins due for this chart (max 2): the in-app card renders `text` and
+    the four `options`; answering posts to /api/v1/outcomes/{claim_id}."""
+    from antar_engine import outcomes as _oc
+    user_id = verify_token(authorization)
+    if not _oc_owned_chart(user_id, chart_id):
+        raise HTTPException(403, "not your chart")
+    out = []
+    for c in _oc.due_claims(supabase, chart_id):
+        lang = (c.get("language") or "en")[:2]
+        labels = _oc.OPTION_LABELS.get(lang, _oc.OPTION_LABELS["en"])
+        out.append({"claim_id": c["id"], "text": _oc.checkin_text(c),
+                    "topic": c.get("topic"), "window_end": c.get("window_end"),
+                    "options": [{"value": k, "label": labels[k]} for k in _oc.OUTCOMES]})
+    return {"due": out}
+
+
+class _OutcomeIn(BaseModel):
+    outcome: str
+    note: Optional[str] = None
+
+
+@app.post("/api/v1/outcomes/{claim_id}")
+def outcomes_answer(claim_id: str, body: _OutcomeIn, authorization: str = Header(...)):
+    """Record the person's answer: yes / partly / no / not_sure."""
+    from antar_engine import outcomes as _oc
+    user_id = verify_token(authorization)
+    if body.outcome not in _oc.OUTCOMES:
+        raise HTTPException(400, f"outcome must be one of {list(_oc.OUTCOMES)}")
+    try:
+        rows = (supabase.table("prediction_claims").select("chart_id").eq("id", claim_id)
+                .limit(1).execute()).data or []
+    except Exception:
+        rows = []
+    if not rows or not _oc_owned_chart(user_id, rows[0]["chart_id"]):
+        raise HTTPException(404, "claim not found")
+    if not _oc.record_outcome(supabase, claim_id, body.outcome, body.note, via="app"):
+        raise HTTPException(503, "could not save the answer")
+    return {"saved": True, "claim_id": claim_id, "outcome": body.outcome}
 
 
 @app.get("/api/v1/me/chart-identity")
@@ -16491,6 +16544,9 @@ _CHART_DERIVED_TABLES = (
     "places_saved_cities", "user_preferences",
     # WhatsApp/Telegram links — the linked phone number is PII
     "messaging_links",
+    # [outcome-loop] add "prediction_claims" here once Lovable creates it
+    # (sql_outcome_loop.sql) — test_no_chart_keyed_table_is_missing_from_the_cascade
+    # will fail until it is; outcomes then go with it via ON DELETE CASCADE.
     # the user's own questions — PII, and previously left behind entirely
     "signature_question_log", "intent_classify_log",
     # Prashna oracle (user questions + natal-grounded verdicts). followups are
@@ -25070,6 +25126,8 @@ _ASK_ADMIN_BYPASS = _cv_ask.ContextVar("ask_admin_bypass", default=False)
 # [conversation-layer] when /ask rewrote a follow-up ("How about tomorrow") into a
 # standalone question for the engines, history still records what was TYPED.
 _ASK_TYPED_Q = _cv_ask.ContextVar("ask_typed_question", default=None)
+# [outcome-loop] which surface asked (app | whatsapp) — recorded on each claim.
+_ASK_CHANNEL = _cv_ask.ContextVar("ask_channel", default="app")
 
 # [ask-free-launch 2026-09-07] GROWTH PHASE: Ask is free + uncapped to acquire
 # users (same posture as /predict's disabled limits). The daily soft-cap is a
@@ -27345,6 +27403,7 @@ async def ask_endpoint(request: AskRequest):
             _ee_primary = False
             _ee_verdict = None
             _ee_timing = None
+            _ask_engine_snap = {}     # [outcome-loop] each engine's OWN verdict
             # [evprimary-2026-06-07] Default to "primary" so the narrator gets the
             # rich whole-board evidence + KN Rao reading sequence. Override with
             # ASK_EVENT_ENGINE_MODE=off to fall back to the thin convergence block.
@@ -27483,6 +27542,18 @@ async def ask_endpoint(request: AskRequest):
                               f"client={_ee['client_verdict']} conf={_ev['confidence']} "
                               f"({_ev['layers_agreeing']}/6) window={_ee['timing_label']} "
                               f"| legacy={_legacy_v} legacy_window={_ask_conv.get('window_label')}")
+                        try:   # [outcome-loop] snapshot before verdicts are blended
+                            _ask_engine_snap = {
+                                "event_engine": {"verdict": _ev.get("verdict"),
+                                                 "client": _ee.get("client_verdict"),
+                                                 "window": _ee.get("timing_label"),
+                                                 "confidence": _ev.get("confidence")},
+                                "convergence": {"verdict": _legacy_v,
+                                                "window": _ask_conv.get("window_label"),
+                                                "confidence": _ask_conv.get("confidence")},
+                            }
+                        except Exception:
+                            pass
                         if _ask_ee_mode == "primary":
                             _ee_primary = True
                             _ee_verdict = _ee["client_verdict"]
@@ -28866,6 +28937,19 @@ async def ask_endpoint(request: AskRequest):
                                               for i, a in enumerate(payload["actions"])]
             except Exception as _ige:
                 print(f"[ask][integrity] non-fatal: {_ige}")
+            try:   # [outcome-loop] a checkable claim → prediction_claims
+                from antar_engine.outcomes import build_claim as _oc_build, record_claim as _oc_rec
+                _oc_claim = _oc_build(chart_id, _ASK_TYPED_Q.get() or question, payload,
+                                      mode="explore", topic=locals().get("_ask_concern") or "general",
+                                      language=language, channel=_ASK_CHANNEL.get(),
+                                      engines=locals().get("_ask_engine_snap") or {})
+                if _oc_claim:
+                    _oc_id = await asyncio.to_thread(_oc_rec, supabase, _oc_claim)
+                    if _oc_id:
+                        print(f"[outcomes] claim {_oc_claim['claim_type']} {_oc_claim['topic']} "
+                              f"{_oc_claim['window_start']}→{_oc_claim['window_end']}")
+            except Exception as _oce:
+                print(f"[outcomes] claim skipped (non-fatal): {_oce}")
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "explore", locals().get("_ask_concern"))
             return payload
@@ -29347,6 +29431,17 @@ async def ask_endpoint(request: AskRequest):
             if locals().get("_ask_tf_windowscan") and locals().get("_ask_tf_timing"):
                 from antar_engine.translation_middleware import localize_date_str as _lds
                 payload["timing"] = _lds(_ask_tf_timing, language)
+            try:   # [outcome-loop] Yes/No lean → prediction_claims
+                from antar_engine.outcomes import build_claim as _oc_build, record_claim as _oc_rec
+                _oc_claim = _oc_build(chart_id, _ASK_TYPED_Q.get() or question, payload,
+                                      mode="yesno", topic=locals().get("_ask_concern") or "general",
+                                      language=language, channel=_ASK_CHANNEL.get(),
+                                      engines={"kp": {"lean": payload.get("lean"),
+                                                      "method": payload.get("method")}})
+                if _oc_claim:
+                    await asyncio.to_thread(_oc_rec, supabase, _oc_claim)
+            except Exception as _oce:
+                print(f"[outcomes] yesno claim skipped (non-fatal): {_oce}")
             await _ask_persist(supabase, chart_id, question, payload, language,
                                "yesno", locals().get("_ask_concern"))
             return payload
