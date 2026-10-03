@@ -18734,6 +18734,88 @@ def admin_debug_page():
     return HTMLResponse(_admin_page_html(), headers={"Cache-Control": "no-store, max-age=0"})
 
 
+_ACC_BOARD_CACHE: dict = {}
+
+
+@app.get("/api/v1/admin/accuracy-board")
+def admin_accuracy_board(fresh: bool = False, admin_email: str = Depends(_require_debug)):
+    """[accuracy-board 2026-10-02] Outcome loop week 3: per engine × topic, the
+    hit rate on answered check-ins, its 95% interval, the two holdout halves,
+    answer rate, distinct windows, and a status (Too few answers / Unreliable /
+    No baseline yet / Beats chance / No better than chance). Totals only.
+    Cached 10 min (?fresh=true to recompute)."""
+    from antar_engine import accuracy_board as _ab
+    hit = _ACC_BOARD_CACHE.get("v")
+    if hit and not fresh and _time.time() - hit[0] < 600:
+        return hit[1]
+    claims, outs = _ab.load(supabase)
+    board = _ab.build(claims, outs)
+    board["computed_at"] = datetime.now(timezone.utc).isoformat()
+    _ACC_BOARD_CACHE["v"] = (_time.time(), board)
+    return board
+
+
+_ACC_BOARD_HTML = r"""<!doctype html><html><head><meta charset=utf-8>
+<meta name=viewport content="width=device-width,initial-scale=1">
+<title>Antar · Accuracy Board</title>
+<style>
+ :root{--bg:#0a0a0f;--panel:#12121a;--line:#23232e;--txt:#e7e7ea;--mut:#8a8a99;--ok:#3fb950;--warn:#d29922;--bad:#e5484d;--acc:#1f6feb}
+ *{box-sizing:border-box} body{font:14px/1.5 -apple-system,system-ui,sans-serif;margin:0;background:var(--bg);color:var(--txt)}
+ header{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+ h1{font-size:16px;margin:0 12px 0 0} h2{font-size:14px;margin:22px 0 8px;color:#cfd3ff}
+ main{padding:4px 18px 40px;max-width:1200px} input,button{font:13px inherit;padding:7px 10px;border-radius:8px;border:1px solid #2c2c38;background:#181820;color:var(--txt)}
+ button{background:var(--acc);border-color:var(--acc);font-weight:600;cursor:pointer}
+ table{border-collapse:collapse;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+ th,td{padding:7px 9px;border-bottom:1px solid var(--line);text-align:left;font-variant-numeric:tabular-nums;white-space:nowrap}
+ th{color:var(--mut);font-weight:600;font-size:12px} .note{color:var(--mut);font-size:12.5px;margin:6px 0}
+ .s{padding:2px 8px;border-radius:999px;font-size:12px;font-weight:600}
+ .s.ok{background:#3fb95022;color:var(--ok)} .s.bad{background:#e5484d22;color:var(--bad)} .s.mut{background:#8a8a9922;color:var(--mut)} .s.warn{background:#d2992222;color:var(--warn)}
+ .wrap{overflow-x:auto}
+</style></head><body>
+<header><h1>Accuracy board</h1><input id=tok type=password placeholder="debug token" size=28>
+<button onclick="load(true)">Recompute</button><span id=meta class=note></span></header>
+<main>
+<p class=note>Totals only. Hit rate: yes = 1, partly = 0.5, no = 0; "not sure" and unanswered are excluded but counted.
+A cell needs ≥ 30 answers; a finding must hold in both holdout halves (A/B). Until decoy check-ins exist there is no measured chance level, so nothing can say "Beats chance".</p>
+<div id=out class=note>Loading…</div></main>
+<script>
+const TK=document.getElementById('tok');TK.value=localStorage.getItem('antar_debug_tok')||'';
+const H=()=>{localStorage.setItem('antar_debug_tok',TK.value.trim());return{Authorization:'Bearer '+TK.value.trim()};};
+const pct=v=>v==null?'—':Math.round(v*100)+'%';
+const cls=s=>({'Beats chance':'ok','No better than chance':'bad','Unreliable':'warn'})[s]||'mut';
+const esc=s=>String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'})[c]);
+function rows(list,first,firstLabel){
+  if(!list.length) return '<p class=note>Nothing yet.</p>';
+  return '<div class=wrap><table><tr><th>'+firstLabel+'</th><th>Topic</th><th>Claims</th><th>Answered</th><th>Not sure</th><th>Answer rate</th><th>Hit rate</th><th>95% interval</th><th>Half A</th><th>Half B</th><th>Lift</th><th>Distinct windows</th><th>Status</th></tr>'+
+  list.map(r=>'<tr><td>'+esc(r[first])+'</td><td>'+esc(r.topic||'')+'</td><td>'+r.claims+'</td><td>'+r.answered+'</td><td>'+r.not_sure+'</td><td>'+pct(r.answer_rate)+'</td><td>'+pct(r.hit_rate)+'</td><td>'+(r.ci95[0]==null?'—':pct(r.ci95[0])+'–'+pct(r.ci95[1]))+'</td><td>'+pct(r.halves.A[0])+' (n'+r.halves.A[1]+')</td><td>'+pct(r.halves.B[0])+' (n'+r.halves.B[1]+')</td><td>'+(r.lift==null?'—':(r.lift>0?'+':'')+Math.round(r.lift*100)+' pts')+'</td><td>'+r.distinct_windows+'</td><td><span class="s '+cls(r.status)+'">'+esc(r.status)+'</span></td></tr>').join('')+'</table></div>';
+}
+async function load(fresh){
+  const out=document.getElementById('out');
+  try{
+    const r=await fetch('/api/v1/admin/accuracy-board'+(fresh?'?fresh=true':''),{headers:H()});
+    if(!r.ok){out.textContent='Error '+r.status+' — check the debug token.';return;}
+    const b=await r.json(),h=b.health;
+    document.getElementById('meta').textContent='computed '+new Date(b.computed_at).toLocaleString();
+    out.innerHTML='<h2>Check-in health</h2><div class=wrap><table><tr><th>Claims</th><th>Due</th><th>Sent</th><th>By channel</th><th>Answered</th><th>Not sure</th></tr><tr><td>'+h.claims+'</td><td>'+h.due+'</td><td>'+h.sent+'</td><td>'+esc(Object.entries(h.by_channel).map(e=>e.join(': ')).join(', ')||'—')+'</td><td>'+h.answered+'</td><td>'+h.not_sure+'</td></tr></table></div>'+
+      '<h2>Engines × topic</h2><p class=note>Engine rule (v1): positive when its own verdict isn't a denial and its own window overlaps the claim window. KP "conditional" leans are listed separately, never scored right/wrong.</p>'+rows(b.engines,'engine','Engine')+
+      '<h2>Final answers × topic</h2>'+rows(b.final_answers,'source','Source')+
+      '<h2>Calibration</h2><p class=note>Does a stronger confidence word really hit more often?</p>'+rows(b.calibration,'word','Confidence word')+
+      '<h2>Trend</h2>'+(b.trend.length?'<div class=wrap><table><tr><th>Month answered</th><th>Answered</th><th>Hit rate</th></tr>'+b.trend.map(t=>'<tr><td>'+t.month+'</td><td>'+t.answered+'</td><td>'+pct(t.hit_rate)+'</td></tr>').join('')+'</table></div>':'<p class=note>No answers yet.</p>')+
+      '<h2>Decoy base rates</h2>'+(Object.keys(b.baselines).length?'<p class=note>'+esc(JSON.stringify(b.baselines))+'</p>':'<p class=note>None — decoy check-ins are not running, so there is no measured chance level yet.</p>');
+  }catch(e){out.textContent='Error: '+e;}
+}
+load(false);
+</script></body></html>"""
+
+
+@app.get("/admin/accuracy")
+def admin_accuracy_page():
+    """Owner-only board page; data comes from the admin-gated JSON endpoint using
+    the same debug token the /admin console stores in localStorage."""
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(_ACC_BOARD_HTML, headers={"Cache-Control": "no-store, max-age=0"})
+
+
 @app.get("/admin")
 def admin_debug_page_short():
     """Short alias for the admin panel — same page as
@@ -29938,11 +30020,16 @@ async def ask_endpoint(request: AskRequest):
                 payload["timing"] = _lds(_ask_tf_timing, language)
             try:   # [outcome-loop] Yes/No lean → prediction_claims
                 from antar_engine.outcomes import build_claim as _oc_build, record_claim as _oc_rec
+                _yn_qt = (locals().get("_yn_kp") or {}).get("question_type")
                 _oc_claim = _oc_build(chart_id, _ASK_TYPED_Q.get() or question, payload,
-                                      mode="yesno", topic=locals().get("_ask_concern") or "general",
+                                      mode="yesno",
+                                      # [accuracy-board] KP's own matter (residence,
+                                      # deal_closes…) — Ask's concern says "general"
+                                      topic=_yn_qt or locals().get("_ask_concern") or "general",
                                       language=language, channel=_ASK_CHANNEL.get(),
                                       engines={"kp": {"lean": payload.get("lean"),
-                                                      "method": payload.get("method")}})
+                                                      "method": payload.get("method"),
+                                                      "question_type": _yn_qt}})
                 if _oc_claim:
                     await asyncio.to_thread(_oc_rec, supabase, _oc_claim)
             except Exception as _oce:
