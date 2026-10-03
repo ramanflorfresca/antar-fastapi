@@ -565,7 +565,10 @@ def guardrails_block() -> str:
             "and timing only.\n"
             "- Never state their money situation as a fact ('you don't have much saved', 'you have "
             "debt') unless they told you. Say what the reading shows: 'the reading shows pressure "
-            "on savings'.")
+            "on savings'.\n"
+            "- Never invent their past: no 'your finance years', 'your old company', 'when you "
+            "worked in…' unless they told you. Fields the reading favours are possibilities, not "
+            "their history.")
 
 
 _INVEST_SENT = re.compile(
@@ -590,7 +593,20 @@ def _sentences(t: str) -> list:
     return [x for x in re.split(r"(?<=[.!?])\s+", (t or "").strip()) if x.strip()]
 
 
-def guard_answer(text, question: str = "", options: Optional[list] = None):
+_WORKPLACE = re.compile(r"(?i)\byour (boss|manager|employer|colleagues|co-?workers|team lead)"
+                        r"(?:,? and (?:your )?(boss|manager|colleagues|co-?workers))?\b")
+_JOB_ONLY_SENT = re.compile(r"(?i)\b(promotion|pay rise|a raise|appraisal|your current job|your current role)\b")
+NOT_EMPLOYED_STAGES = frozenset({"between_jobs", "seeking", "unemployed"})
+
+
+def not_employed(u: Optional[dict], career_stage: str = "") -> bool:
+    """Known to be out of work: stated in this message, or the profile says so."""
+    w = (((u or {}).get("stated_facts") or {}).get("work") or "")
+    return w == "unemployed" or (career_stage or "").strip().lower() in NOT_EMPLOYED_STAGES
+
+
+def guard_answer(text, question: str = "", options: Optional[list] = None,
+                 unemployed: bool = False):
     """Deterministic backstop for the rules above. Drops investment-advice and
     invented-industry sentences; rewrites stated-as-fact finances (unless the
     person mentioned their money). Never empties an answer."""
@@ -605,10 +621,18 @@ def guard_answer(text, question: str = "", options: Optional[list] = None):
     for snt in _sentences(text):
         if _INVEST_SENT.search(snt):
             continue
+        if unemployed and _JOB_ONLY_SENT.search(snt):
+            continue
         if opt_rx and opt_rx.search(snt):
             continue
         kept.append(snt)
     out = " ".join(kept).strip() if kept else text
+    if unemployed:
+        # [between-jobs 2026-10-03] live: "a specialist your boss and colleagues come to"
+        out = _WORKPLACE.sub(lambda m: "People" if m.group(0)[0].isupper() else "people", out)
+        if not re.search(r"(?i)laid off|fired|let go|despid|demitid|layoff", question or ""):
+            out = re.sub(r"(?i)\b(being|getting) (laid off|let go|fired)\b",
+                         lambda m: ("Being" if m.group(0)[0].isupper() else "being") + " between jobs", out)
     if not _FIN_WORDS.search(question or ""):
         for rx, rep in _FIN_FACT:
             out = rx.sub(lambda m, r=rep: (r[0].upper() + r[1:]) if m.group(0)[0].isupper() else r, out)
