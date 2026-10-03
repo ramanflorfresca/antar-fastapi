@@ -16926,6 +16926,10 @@ _CHART_PII_COLS = [
 ]
 
 
+# profiles columns that point at a chart; cleared when that chart is deleted.
+_PROFILE_CHART_POINTER_COLS = ("primary_chart_id",)
+
+
 @app.delete("/api/v1/me/charts/{chart_id}")
 def settings_charts_delete(chart_id: str, authorization: Optional[str] = Header(None)):
     """
@@ -17054,12 +17058,10 @@ def settings_charts_delete(chart_id: str, authorization: Optional[str] = Header(
         _log.warning(f"[chart-delete] connections strip failed cid={chart_id}: {_ce}")
 
     # ── 4. Clear stale chart pointers on profiles ────────────────────────
-    # primary_chart_id is already blocked above, but a non-primary `chart_id`
-    # pointer could still resolve the deleted chart for /me/language etc.
-    # [profiles-rename 2026-06-16] Clear each pointer column independently so a
-    # missing column (mid-rename) can't block the other. Works before, during,
-    # and after the chart_id -> primary_chart_id migration.
-    for _pcol in ("primary_chart_id", "chart_id"):
+    # The chart_id -> primary_chart_id rename is complete: profiles has no
+    # `chart_id` column, and clearing it returned PGRST204 as a partial_cascade
+    # error on every delete. Only real columns belong in this tuple.
+    for _pcol in _PROFILE_CHART_POINTER_COLS:
         try:
             supabase.table("profiles").update({_pcol: None}).eq(_pcol, chart_id).execute()
         except Exception as _pe:
