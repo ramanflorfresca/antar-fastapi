@@ -4666,6 +4666,10 @@ _WA_L = {
                     "es": "_Uso tu hora local ({label}) — parece que estás de viaje._",
                     "pt": "_Usando seu horário local ({label}) — parece que você está viajando._",
                     "hinglish": "_Aapka local time ({label}) use kar raha hoon — lagta hai aap travel kar rahe hain._"},
+    "kp_offer": {"en": "_Want a Prashna (yes/no) reading on this? Reply *prashna*._",
+                 "es": "_¿Quieres una lectura Prashna (sí/no) sobre esto? Responde *prashna*._",
+                 "pt": "_Quer uma leitura Prashna (sim/não) sobre isso? Responda *prashna*._",
+                 "hinglish": "_Iska Prashna (haan/na) jawab chahiye? *prashna* bhejiye._"},
     "kp_ask": {"en": "Hold your question in mind and send me a number from 1 to 249 — that number sets your Prashna chart.\n\n_Reply *skip* to read the moment instead._",
                "es": "Mantén tu pregunta en mente y envíame un número del 1 al 249 — ese número fija tu carta de Prashna.\n\n_Responde *saltar* para leer el momento._",
                "pt": "Pense na sua pergunta e me envie um número de 1 a 249 — esse número define seu mapa de Prashna.\n\n_Responda *pular* para ler o momento._",
@@ -5242,6 +5246,10 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             if _kp_number is not None:
                 question, _force_kp = _kp_pend["q"], True
         _force_read = False
+        # [whatsapp-prashna-optin 2026-10-03] a bare "prashna" casts the question
+        # the person just asked (offered under yes/no-shaped answers).
+        if (not _force_kp and _msg.is_bare_prashna(body) and ctx.get("last_q")):
+            question, _force_kp = ctx["last_q"], True
         if not _force_kp:
             _pc = _msg.parse_prashna_command(question)
             if _pc:
@@ -5284,12 +5292,12 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
 
         # [whatsapp-yesno] no toggle on WhatsApp: a yes/no-shaped question (or a
         # "prashna:" command) goes to KP Prashna like the app's Yes/No mode (Ask
-        # still diverts crisis and gambling to explore). WHATSAPP_YESNO_AUTO=off.
-        _mode = ("yesno" if (_force_kp or (not _force_read
-                                           and (os.getenv("WHATSAPP_YESNO_AUTO") or "on").strip().lower()
-                                           not in ("0", "off", "false", "no")
-                                           and _msg.is_yesno_question(question)))
-                 else "explore")
+        # still diverts crisis and gambling to explore).
+        # [whatsapp-prashna-optin 2026-10-03] owner: questions are NOT auto-routed
+        # to Prashna any more ("why is every question now a Prashna question?").
+        # Every question gets the regular chart read (same /ask logic); Prashna runs
+        # only when asked for — "prashna: …", or a bare "prashna" after the offer.
+        _mode = "yesno" if _force_kp else "explore"
         # [whatsapp-prashna] Prashna is once per 24h per chart (app rule). While
         # locked, don't run the number ritual to replay an old cast: answer as a
         # regular read and say when the next Prashna opens.
@@ -5418,6 +5426,10 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             text = _kp_lock_note + "\n\n" + text
         if text and locals().get("_travel_note"):
             text = text + "\n\n" + _travel_note
+        ctx.pop("last_q", None)
+        if text and _mode == "explore" and _msg.is_yesno_question(question):
+            text = text + "\n\n" + _wa_text("kp_offer", lang)
+            ctx["last_q"] = question
         if not text:
             send(_wa_text("failed", lang))
         else:
@@ -23211,9 +23223,9 @@ def _ask_norm_lang(language):
 # in roman form — none collide with the en/es/pt stopword sets.
 _ASK_HINGLISH_WORDS = frozenset("""
 kya kyun kyu kaise kaisa kaisi kab kahan kaun kitna kitni kitne hai hain ho hoga
-hogi honge tha thi the raha rahi rahe mera meri mere mujhe main hum humein tum
+hogi honge tha thi raha rahi rahe mera meri mere mujhe main hum humein tum
 tumhe aap aapka aapki aapko apna apni kar karna karni karne karo karu chahiye
-chahta chahti nahi nahin haan aur ya lekin kyunki magar par se ko ka ki ke mein
+chahta chahti nahi nahin haan aur ya lekin kyunki magar se ko ka ki ke mein
 paisa paise paisa rupaya shaadi shadi vivah naukri kaam dhandha ghar pyaar pyar
 mohabbat zindagi kismat bhagya kismet bata batao bataye dikhao dekho acha accha
 theek thik yaar jaan bhai dost bacche shaadi karlu karloon milega milegi kaunsa
@@ -23229,7 +23241,17 @@ def _ask_detect_hinglish(text):
     toks = _re.findall(r"[a-z']+", (text or "").lower())
     if not toks:
         return None
-    return "hinglish" if sum(1 for w in toks if w in _ASK_HINGLISH_WORDS) >= 2 else None
+    # [hinglish-fp 2026-10-03] DISTINCT markers, and words that are also everyday
+    # English ("the", "par", "main") are not markers: "...doing defence deals with
+    # the government ... the company..." scored 2 on "the" alone and got a Hinglish reply.
+    hits = {w for w in toks if w in _ASK_HINGLISH_WORDS}
+    if hits and hits <= {"main", "ho", "ya", "hum", "jaan"}:
+        return None
+    if len(hits) < 2:
+        return None
+    # Mostly-English sentence with a couple of colliding tokens → English.
+    en = sum(1 for w in toks if w in _ASK_EN_WORDS and w not in _ASK_HINGLISH_WORDS)
+    return None if en >= 3 * len(hits) else "hinglish"
 
 
 def _ask_lang_directive(language):
