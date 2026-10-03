@@ -4521,8 +4521,8 @@ _WA_L = {
     "kp_range": {"en": "Please send a number from 1 to 249.", "es": "Envía un número del 1 al 249.",
                  "pt": "Envie um número de 1 a 249.", "hinglish": "1 se 249 ke beech ka number bhejiye."},
     "kp_locked": {"en": "_You asked this earlier — one Prashna per question a day, so here is your original answer. You can ask it fresh after {t}._",
-                  "es": "_Ya preguntaste esto hoy — un Prashna por pregunta al día, así que aquí va tu respuesta original. Puedes volver a preguntarlo después de las {t}._",
-                  "pt": "_Você já perguntou isso hoje — um Prashna por pergunta ao dia, então aqui está sua resposta original. Pode perguntar de novo depois das {t}._",
+                  "es": "_Ya preguntaste esto hoy — un Prashna por pregunta al día, así que aquí va tu respuesta original. Puedes volver a preguntarlo después de {t}._",
+                  "pt": "_Você já perguntou isso hoje — um Prashna por pergunta ao dia, então aqui está sua resposta original. Pode perguntar de novo depois {t}._",
                   "hinglish": "_Yeh aap pehle pooch chuke hain — ek sawaal ka Prashna din mein ek baar, isliye yeh aapka original jawab hai. {t} ke baad phir pooch sakte hain._"},
     "btn_choose": {"en": "Choose a question", "es": "Elegir pregunta", "pt": "Escolher pergunta",
                    "hinglish": "Sawaal chuniye"},
@@ -4796,6 +4796,29 @@ def _wa_note_device_tz(chart_id: str, minutes: int) -> None:
         _msg.save_link_context(supabase, rows[0], ctx)
     except Exception as e:
         print(f"[whatsapp] device tz note skipped: {e}")
+
+
+_WA_TOMORROW = {"en": "{t} tomorrow", "es": "las {t} de mañana", "pt": "das {t} de amanhã",
+                "hinglish": "kal {t}"}
+_WA_TODAY = {"en": "{t}", "es": "las {t}", "pt": "das {t}", "hinglish": "{t}"}
+_WA_WEEKDAYS = {"es": ("lun", "mar", "mié", "jue", "vie", "sáb", "dom"),
+                "pt": ("seg", "ter", "qua", "qui", "sex", "sáb", "dom")}
+
+
+def _wa_when_label(local_dt, local_now, lang: str) -> str:
+    """'9:25 PM' today, '9:25 PM tomorrow', or 'Sat Oct 4, 9:25 PM' — always
+    unambiguous. [prashna-unlock-day] Live: "ask it fresh after 9:25 PM" sent at
+    10:34 PM meant 9:25 PM TOMORROW."""
+    t = local_dt.strftime("%I:%M %p").lstrip("0") if lang in ("en", "hinglish") else local_dt.strftime("%H:%M")
+    days = (local_dt.date() - local_now.date()).days
+    if days <= 0:
+        return _WA_TODAY.get(lang, "{t}").format(t=t)
+    if days == 1:
+        return _WA_TOMORROW.get(lang, "{t} tomorrow").format(t=t)
+    if lang in _WA_WEEKDAYS:
+        lead = "de " if lang == "pt" else ""
+        return f"{lead}{_WA_WEEKDAYS[lang][local_dt.weekday()]} {local_dt.day}, {t}"
+    return f"{local_dt.strftime('%a %b')} {local_dt.day}, {t}"
 
 
 def _wa_prashna_lock(chart_id: str, question: str = ""):
@@ -5115,7 +5138,7 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             if _unlock:
                 _tzm = await asyncio.to_thread(_wa_user_tz_minutes, primary or cid, number, ctx)
                 _loc = _unlock + timedelta(minutes=_tzm)
-                _t = _loc.strftime("%I:%M %p").lstrip("0") if lang == "en" else _loc.strftime("%H:%M")
+                _t = _wa_when_label(_loc, datetime.now(timezone.utc) + timedelta(minutes=_tzm), lang)
                 _kp_lock_note = _wa_text("kp_locked", lang, t=_t)
                 _kp_number = None          # Ask replays the original cast; no ritual
         # [whatsapp-prashna] the traditional KP number ritual: ask for 1-249 first
