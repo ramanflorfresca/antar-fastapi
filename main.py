@@ -1024,6 +1024,10 @@ async def _outcome_checkin_job():
     except Exception as e:
         print(f"[outcome_checkin] fetch skipped: {e}")
         return
+    try:   # [reask-not-sure] "Not sure yet" answers get one more ask after 30 days
+        claims = claims + await _aio_oc.to_thread(_oc.reask_candidates, supabase, now)
+    except Exception as e:
+        print(f"[outcome_checkin] reask lookup skipped: {e}")
     if not claims:
         print(f"[outcome_checkin] @{now.hour:02d}:xx UTC — nothing due")
         return
@@ -1094,8 +1098,9 @@ async def _outcome_checkin_job():
                 if s_.get("sent"):
                     channel = "push"
             channel = channel or "in_app_only"
+            _stamp = channel + (_oc.REASK_MARK if cl.get("_reask") else "")
             await _aio_oc.to_thread(lambda: supabase.table("prediction_claims").update({
-                "checkin_sent_at": now.isoformat(), "checkin_channel": channel})
+                "checkin_sent_at": now.isoformat(), "checkin_channel": _stamp})
                 .eq("id", cl["id"]).execute())
             stats[channel] += 1
         except Exception as e:
@@ -5594,7 +5599,10 @@ def outcomes_due(chart_id: str, authorization: str = Header(...)):
     if not _oc_owned_chart(user_id, chart_id):
         raise HTTPException(403, "not your chart")
     out = []
-    for c in _oc.due_claims(supabase, chart_id):
+    _due = _oc.due_claims(supabase, chart_id)
+    _due += [r for r in _oc.reasks_awaiting_answer(supabase, chart_id)
+             if r["id"] not in {d["id"] for d in _due}]
+    for c in _due[:2]:
         lang = (c.get("language") or "en")[:2]
         labels = _oc.OPTION_LABELS.get(lang, _oc.OPTION_LABELS["en"])
         out.append({"claim_id": c["id"], "text": _oc.checkin_text(c),
