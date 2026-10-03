@@ -681,3 +681,22 @@ def test_practice_line_shows_once_a_day(m, monkeypatch):
     assert "A grounding minute" in cv.sent[-1]
     cv.run("And what about money this month in general")
     assert "A grounding minute" not in cv.sent[-1]
+
+
+def test_compact_budget_covers_the_whole_message():
+    # live 2026-10-02: ~650 chars incl. follow-ups still folded behind "Read more"
+    p = {"read": ("Not yet — right now (Oct 2026) is for laying groundwork; the strong business "
+                  "window is Nov 2026 – Jan 2027. The potential is real — your business sits in a "
+                  "genuine growth chapter in the months ahead. Right now the pieces aren't fully "
+                  "aligned yet; the trigger forms in the coming weeks into November."),
+         "next": ("Pick one thing that's stopping you — money, whether people want your product, "
+                  "or getting customers. Figure out which one matters most. Then spend this week "
+                  "doing one real thing to fix it."),
+         "suggested_questions": ["When is the best time to raise funding?",
+                                 "Where will my first real customers come from?",
+                                 "Should I build alone or bring in a partner?"]}
+    c, fus = msg.format_ask_whatsapp_v2(p, "en", compact=True, include_practice=False)
+    assert len(c) <= msg.WA_COMPACT_BUDGET
+    assert "into November" in c and "The potential is real" not in c     # specific timing wins
+    assert c.startswith("*Not yet — right now (Oct 2026)") and "→ Pick one thing" in c
+    assert len(fus) >= 2 and fus == [q for q in p["suggested_questions"] if q in c]
