@@ -152,3 +152,37 @@ def test_business_with_other_people_reads_as_a_partnership():
     assert "the contacts your partners bring" in c["condition"]
     es = explain(kp, "es", "¿Ganaré dinero en un negocio de defensa con socios en Colombia?")["condition"]
     assert "socios" in es
+
+
+import pytest  # noqa: E402
+
+
+# ── live 2026-10-03, #101: "Will I find a new girl friend in next 60’days" ──
+@pytest.mark.parametrize("q", ["Will I find a new girl friend in next 60’days",
+                               "will I get a girlfriend this year", "Will I have a boyfriend soon?",
+                               "¿Voy a tener novia este año?", "Vou arrumar uma namorada?",
+                               "kya mujhe pyaar milega"])
+def test_new_relationship_is_romance(q):
+    from antar_engine.kp.kp_prashna import classify_question
+    assert classify_question(q)[0] == "romance"
+
+
+def test_marriage_and_ex_still_win():
+    from antar_engine.kp.kp_prashna import classify_question
+    assert classify_question("Will I marry my girlfriend?")[0] == "marriage"
+    assert classify_question("Will my ex girlfriend come back?")[0] == "reunion"
+
+
+@pytest.mark.parametrize("q,days", [("in next 60’days", 60), ("in next 60'days", 60),
+                                    ("in the next 60-day stretch", 60), ("in 3 months", 90)])
+def test_horizon_reads_through_apostrophes(q, days):
+    from antar_engine.kp.kp_prashna import parse_horizon_days
+    assert parse_horizon_days(q) == days
+
+
+def test_romance_condition_speaks_about_love():
+    c = explain(_kp("conditional", "romance", [5, 11], [6, 10]), "en",
+                "Will I find a new girl friend in next 60 days")["condition"]
+    assert "real chemistry" in c and "friends and family helping" in c
+    assert "old friction" in c and "career pulling priorities away" in c
+    assert "your own resources" not in c and "a risky bet" not in c

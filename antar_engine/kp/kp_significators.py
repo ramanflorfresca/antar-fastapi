@@ -140,6 +140,13 @@ QUESTION_TYPES = {
         "label": {"yes": "A child comes", "no": "Not supported now"},
     },
     # a person returns / reconciles / reaches out — 7th CSL via 2·7·11
+    # [kp-romance 2026-10-03] a new love / relationship (not marriage): 5th cusp
+    # (romance), confirmed by 7 (a partner) and 11 (fulfilment); 1/6/10 deny.
+    "romance": {
+        "primary_cusp": 5, "favour": [5, 7, 11], "against": [1, 6, 10],
+        "materialization_gate": False,
+        "label": {"yes": "A new relationship forms", "no": "A new relationship doesn't form yet"},
+    },
     "reunion": {
         "primary_cusp": 7, "favour": [2, 7, 11], "against": [1, 6, 10, 12],
         "materialization_gate": True,
