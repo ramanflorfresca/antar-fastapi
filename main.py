@@ -12465,17 +12465,29 @@ _LE_DOMAIN = {
 
 
 def _resolve_primary_chart_id(user_id):
-    """Best-effort: the user's primary chart, else their newest. Non-fatal."""
+    """Best-effort: the user's primary chart, else their OLDEST (the same default
+    GET /me/charts sets). Non-fatal.
+
+    [primary-resolver 2026-10-03] This looked the profile up by profiles.id —
+    which never equals the auth user id (0 of 40 profiles) — so it ALWAYS fell
+    through to the NEWEST chart. Live: Harleen's WhatsApp linked to a nameless
+    duplicate chart created Sep 17 (16:00) instead of her main chart Leena (15:45),
+    so WhatsApp and the app read different charts. Look up by profiles.user_id,
+    and fall back to the oldest chart like /me/charts does."""
     try:
         p = (supabase.table("profiles").select("primary_chart_id")
-             .eq("id", user_id).limit(1).execute())
+             .eq("user_id", user_id).limit(1).execute())
         if p.data and p.data[0].get("primary_chart_id"):
-            return p.data[0]["primary_chart_id"]
+            pid = p.data[0]["primary_chart_id"]
+            alive = (supabase.table("charts").select("id").eq("id", pid)
+                     .eq("user_id", user_id).is_("deleted_at", "null").limit(1).execute())
+            if alive.data:
+                return pid
     except Exception:
         pass
     try:
         c = (supabase.table("charts").select("id").eq("user_id", user_id)
-             .is_("deleted_at", "null").order("created_at", desc=True)
+             .is_("deleted_at", "null").order("created_at", desc=False)
              .limit(1).execute())
         if c.data:
             return c.data[0]["id"]
