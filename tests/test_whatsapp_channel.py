@@ -1072,3 +1072,19 @@ def test_help_lists_the_yesno_prefix(m):
     assert "*yes or no:*" in m._wa_text("help", "en")
     assert "*sí o no:*" in m._wa_text("help", "es")
     assert "*sim ou não:*" in m._wa_text("help", "pt")
+
+
+def test_speculation_never_gets_the_yesno_choice(m, monkeypatch):
+    # live 2026-10-03: "Will I win in speculation?" → picked 1, then 13 → silently a
+    # regular read (Ask diverts betting to explore). Now: straight to the full read.
+    cv = _Conv(m, monkeypatch, link=_link())
+    cv.run("Will I win in speculation?")
+    assert cv.asked and cv.asked[-1].mode == "explore"
+    assert "1  *Yes or no*" not in " ".join(cv.sent) and "1 to 249" not in " ".join(cv.sent)
+
+
+def test_asking_yesno_on_betting_says_why(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link())
+    cv.run("yes or no: will I win at the casino tonight?")
+    assert cv.asked[-1].mode == "explore" and "1 to 249" not in " ".join(cv.sent)
+    assert "aren't given for betting or speculation" in cv.sent[-1]
