@@ -172,6 +172,32 @@ _DECISION_TRIGGERS = [
     "vai fechar", "fechará", "fechara", "vai sair", "sairá", "saira",
     "não está acontecendo", "nao esta acontecendo",
     "não vai acontecer", "nao vai acontecer",
+    # ── Hinglish [hinglish-decision 2026-10-03] ──────────────────────────
+    # Same functional gap pt had above: the list was en + es + pt with NO
+    # Hinglish, so every romanised-Hindi question failed this gate and lost
+    # the verdict, the convergence window, the actions and the practices.
+    # Measured on one chart: "When should I change jobs?" -> Oct 2026,
+    # "Job change kab karun?" -> no window at all. India is the market where
+    # the dated window is the differentiator, so it was missing exactly where
+    # it mattered most. Terms kept distinctive — bare common words like "hai"
+    # or "ka" would pull reflective questions into the dated path.
+    # hinglish — direct timing
+    "kab ", "kab?", "kab hoga", "kab hogi", "kab hoga?", "kab tak",
+    "kab milega", "kab milegi", "kab aayega", "kab aayegi", "kab start",
+    "kitne din", "kitna time", "kitne mahine", "kaunsa mahina", "kaun sa mahina",
+    "kis mahine", "kis saal", "sahi samay", "sahi waqt", "accha samay",
+    "acha samay", "shubh muhurat", "muhurat",
+    # hinglish — should / will framings
+    "karun", "karoon", "karu ", "karna chahiye", "karni chahiye",
+    "kya mujhe", "kya main", "chahiye ya nahi", "karun ya nahi",
+    "karoon ya nahi", "lena chahiye", "dena chahiye", "jaana chahiye",
+    # hinglish — chance / possibility / outcome
+    "ho payega", "ho paayega", "ho sakta hai kya", "sambhavna",
+    "sambhaavna", "chance hai", "hoga ya nahi", "hogi ya nahi",
+    "milega ya nahi", "banega ya nahi", "kaam banega", "ban jayega",
+    # hinglish — reconciliation
+    "wapas aayega", "wapas aayegi", "wapas aa jayega", "sulah",
+    "phir se saath", "dobara saath",
 ]
 
 
