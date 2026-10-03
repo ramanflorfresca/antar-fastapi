@@ -313,6 +313,30 @@ def whatsapp_checkin(claim: dict) -> tuple:
     return "\n".join(lines), [[claim["id"], o] for o in OUTCOMES]
 
 
+def template_vars(claim: dict, first_name: str = "") -> Optional[dict]:
+    """Variables for the antar_checkin_v1 template: {1: name, 2: date said, 3: what
+    Antar said}. None when there's nothing safe to quote (sensitive topics, no
+    Ask text) — those stay on push / in-app where the neutral wording lives."""
+    topic = (claim.get("topic") or "").lower()
+    if topic in ("health", "separation", "divorce", "pregnancy", "children", "loss"):
+        return None
+    said = ((claim.get("text_shown") or "").strip()
+            if claim.get("source") in ("ask_explore", "ask_yesno") else "")
+    if not said:
+        return None
+    try:
+        d = datetime.fromisoformat(str(claim.get("created_at"))[:19])
+        when = f"{d.strftime('%b')} {d.day}"
+    except Exception:
+        return None
+    said = said.rstrip(" .")
+    if len(said) > 110:
+        said = said[:109].rsplit(" ", 1)[0] + "\u2026"
+    lang = (claim.get("language") or "en")[:2]
+    name = (first_name or "").strip() or {"es": "de nuevo", "pt": "de novo"}.get(lang, "there")
+    return {"1": name, "2": when, "3": said}
+
+
 _THANKS_FOR_OUTCOME = {
     "en": "Thanks — noted. Every answer like this makes Antar's readings sharper.",
     "es": "Gracias — anotado. Cada respuesta así hace más precisas las lecturas de Antar.",

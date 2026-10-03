@@ -279,6 +279,11 @@ def parse_wa_command(text: str) -> tuple:
         return ("unlink", "")
     if low in ("help", "ayuda", "ajuda", "menu", "madad", "?"):
         return ("help", "")
+    if low in ("tips", "tip", "consejos", "dicas", "guide", "how to use", "rules"):
+        return ("tips", "")
+    if low in ("stop alerts", "alerts off", "no alerts", "parar alertas", "sin alertas",
+               "sem alertas", "alerts band", "alert band"):
+        return ("alerts_off", "")
     return ("", "")
 
 
