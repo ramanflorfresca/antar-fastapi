@@ -198,7 +198,7 @@ class _Conv:
         monkeypatch.setattr(m, "_wa_chart_alive", lambda cid: True)
         monkeypatch.setattr(m, "_wa_resolve_tz", lambda cid, n, ctx=None: (m._wa_tz(n), "number", ""))
         monkeypatch.setattr(m, "_wa_number_tz", lambda cid, n: (m._wa_tz(n), ""))
-        monkeypatch.setattr(m, "_wa_prashna_lock", lambda cid: None)
+        monkeypatch.setattr(m, "_wa_prashna_lock", lambda cid, q="": None)
         monkeypatch.setattr(m, "_wa_chart_name", lambda cid: {"self-1": "Raman Singh", "mom-1": "Mom"}.get(cid, "X"))
 
         async def fake_ask(req):
@@ -743,7 +743,7 @@ _YN_ANSWER = {"mode": "yesno", "verdict": "NO", "lean": "conditional",
 
 def test_yesno_asks_for_the_kp_number_then_answers(m, monkeypatch):
     link = _link()
-    cv = _Conv(m, monkeypatch, link=link, answer=dict(_YN_ANSWER, method="kp_number"))
+    cv = _Conv(m, monkeypatch, link=link, answer=dict(_YN_ANSWER, method="kp_number", horary_number=74))
     cv.run("Will I raise funding by March?")
     assert cv.asked == [] and "number from 1 to 249" in cv.sent[-1]
     assert link["context"]["kp_pending"]["q"] == "Will I raise funding by March?"
@@ -752,7 +752,7 @@ def test_yesno_asks_for_the_kp_number_then_answers(m, monkeypatch):
     assert req.mode == "yesno" and req.horary_number == 74
     assert req.question == "Will I raise funding by March?"
     out = cv.sent[-1]
-    assert out.startswith("*→ Will I raise funding by March?* · #74")
+    assert out.startswith("*→ Will I raise funding by March?*\n_Prashna · #74_")
     assert "*Possible — once one piece falls into place.*" in out
     assert "check back after Jan 31" in out and "kp_pending" not in link["context"]
 
@@ -905,14 +905,29 @@ def test_travel_note_when_device_clock_differs(m, monkeypatch):
 
 
 
-def test_prashna_lock_skips_the_ritual_and_says_when(m, monkeypatch):
-    # live 2026-10-02: an app Yes/No locked Prashna for 24h, WhatsApp still asked
-    # for a number, then Ask replayed the OLD cast under "· #13"
+def test_same_question_replays_the_original_prashna(m, monkeypatch):
+    # one Prashna per DISTINCT question a day: re-asking replays the original cast
     from datetime import datetime, timezone
-    cv = _Conv(m, monkeypatch, link=_link())
+    cv = _Conv(m, monkeypatch, link=_link(), answer=dict(_YN_ANSWER, locked=True))
     monkeypatch.setattr(m, "_wa_prashna_lock",
-                        lambda cid: datetime(2026, 10, 4, 1, 25, tzinfo=timezone.utc))
+                        lambda cid, q="": datetime(2026, 10, 4, 1, 25, tzinfo=timezone.utc))
     cv.run("Will I raise funding by March?")
-    assert cv.asked and cv.asked[-1].mode == "explore"
+    assert cv.asked and cv.asked[-1].mode == "yesno" and cv.asked[-1].horary_number is None
     assert "number from 1 to 249" not in " ".join(cv.sent)
-    assert cv.sent[-1].startswith("_Prashna is once a day — your next one opens at 6:55 AM.")
+    out = cv.sent[-1]
+    assert out.startswith("_Prashna_\n\n_You asked this earlier — one Prashna per question a day")
+    assert "after 6:55 AM" in out and "check back" not in out      # a replay promises nothing new
+
+
+def test_read_command_forces_a_regular_answer(m, monkeypatch):
+    cv = _Conv(m, monkeypatch, link=_link())
+    cv.run("read: will I raise funding by March?")
+    assert cv.asked[-1].mode == "explore" and "Prashna" not in cv.sent[-1]
+
+
+def test_prashna_same_question_matching(m):
+    same = m._prashna_same_question
+    assert same("Will I raise funding by March?", "will i raise funding by march")
+    assert same("Will I raise funding by March?", "Will I raise the funding by March")
+    assert not same("Will I raise funding by March?", "Will I get the job?")
+    assert not same("Will I raise funding by March?", "Will I raise funding by December?")

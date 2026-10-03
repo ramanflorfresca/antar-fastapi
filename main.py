@@ -4520,10 +4520,10 @@ _WA_L = {
                "hinglish": "Apna sawaal mann mein rakhiye aur 1 se 249 ke beech ek number bhejiye — wahi number aapka Prashna chart banata hai.\n\n_Moment se padhne ke liye *skip* bhejiye._"},
     "kp_range": {"en": "Please send a number from 1 to 249.", "es": "Envía un número del 1 al 249.",
                  "pt": "Envie um número de 1 a 249.", "hinglish": "1 se 249 ke beech ka number bhejiye."},
-    "kp_locked": {"en": "_Prashna is once a day — your next one opens at {t}. Here's a regular read instead._",
-                  "es": "_El Prashna es una vez al día — el próximo se abre a las {t}. Aquí va una lectura normal._",
-                  "pt": "_O Prashna é uma vez por dia — o próximo abre às {t}. Aqui vai uma leitura normal._",
-                  "hinglish": "_Prashna din mein ek baar — agla {t} baje khulega. Abhi ek normal read:_"},
+    "kp_locked": {"en": "_You asked this earlier — one Prashna per question a day, so here is your original answer. You can ask it fresh after {t}._",
+                  "es": "_Ya preguntaste esto hoy — un Prashna por pregunta al día, así que aquí va tu respuesta original. Puedes volver a preguntarlo después de las {t}._",
+                  "pt": "_Você já perguntou isso hoje — um Prashna por pergunta ao dia, então aqui está sua resposta original. Pode perguntar de novo depois das {t}._",
+                  "hinglish": "_Yeh aap pehle pooch chuke hain — ek sawaal ka Prashna din mein ek baar, isliye yeh aapka original jawab hai. {t} ke baad phir pooch sakte hain._"},
     "btn_choose": {"en": "Choose a question", "es": "Elegir pregunta", "pt": "Escolher pergunta",
                    "hinglish": "Sawaal chuniye"},
     "btn_next": {"en": "Ask next", "es": "Siguiente pregunta", "pt": "Próxima pergunta",
@@ -4798,17 +4798,16 @@ def _wa_note_device_tz(chart_id: str, minutes: int) -> None:
         print(f"[whatsapp] device tz note skipped: {e}")
 
 
-def _wa_prashna_lock(chart_id: str):
+def _wa_prashna_lock(chart_id: str, question: str = ""):
     """[whatsapp-prashna] The app's one-Prashna-per-24h rule (Ask replays the
     previous answer while locked, even for a DIFFERENT question). Returns the
     unlock datetime (UTC) if locked, else None — so WhatsApp never runs the
     number ritual just to replay an old cast. Fail-open (None)."""
     try:
-        rows = (supabase.table("prashna_log").select("created_at").eq("chart_id", chart_id)
-                .order("created_at", desc=True).limit(1).execute()).data or []
-        if not rows:
+        row = _prashna_lock_row(supabase, chart_id, question)
+        if not row:
             return None
-        cd = check_cooldown(rows[0]["created_at"], cooldown_hours=ASK_YESNO_COOLDOWN_HOURS)
+        cd = check_cooldown(row["created_at"], cooldown_hours=ASK_YESNO_COOLDOWN_HOURS)
         if cd.get("allowed"):
             return None
         return datetime.fromisoformat(str(cd.get("cooldown_until")).replace("Z", "+00:00"))
@@ -5066,10 +5065,15 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
             ctx.pop("kp_pending", None)
             if _kp_number is not None:
                 question, _force_kp = _kp_pend["q"], True
+        _force_read = False
         if not _force_kp:
             _pc = _msg.parse_prashna_command(question)
             if _pc:
                 question, _force_kp = _pc, True
+            else:
+                _rc = _msg.parse_read_command(question)
+                if _rc:
+                    question, _force_read = _rc, True
         if choice_id.startswith("q:") and choice_id[2:].strip():
             question = choice_id[2:].strip()
         n = None if _kp_number is not None else _msg.parse_pick(body)
@@ -5097,7 +5101,8 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         # [whatsapp-yesno] no toggle on WhatsApp: a yes/no-shaped question (or a
         # "prashna:" command) goes to KP Prashna like the app's Yes/No mode (Ask
         # still diverts crisis and gambling to explore). WHATSAPP_YESNO_AUTO=off.
-        _mode = ("yesno" if (_force_kp or ((os.getenv("WHATSAPP_YESNO_AUTO") or "on").strip().lower()
+        _mode = ("yesno" if (_force_kp or (not _force_read
+                                           and (os.getenv("WHATSAPP_YESNO_AUTO") or "on").strip().lower()
                                            not in ("0", "off", "false", "no")
                                            and _msg.is_yesno_question(question)))
                  else "explore")
@@ -5106,16 +5111,17 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
         # regular read and say when the next Prashna opens.
         _kp_lock_note = ""
         if _mode == "yesno":
-            _unlock = await asyncio.to_thread(_wa_prashna_lock, cid)
+            _unlock = await asyncio.to_thread(_wa_prashna_lock, cid, question)
             if _unlock:
                 _tzm = await asyncio.to_thread(_wa_user_tz_minutes, primary or cid, number, ctx)
                 _loc = _unlock + timedelta(minutes=_tzm)
                 _t = _loc.strftime("%I:%M %p").lstrip("0") if lang == "en" else _loc.strftime("%H:%M")
                 _kp_lock_note = _wa_text("kp_locked", lang, t=_t)
-                _mode, _kp_number = "explore", None
-        # [whatsapp-prashna] the traditional KP number ritual: ask for 1-249 first,
+                _kp_number = None          # Ask replays the original cast; no ritual
+        # [whatsapp-prashna] the traditional KP number ritual: ask for 1-249 first
+        # (skipped when this question's Prashna is locked — the replay needs none),
         # unless the question already carries one. WHATSAPP_KP_NUMBER_RITUAL=off.
-        if (_mode == "yesno" and _kp_number is None
+        if (_mode == "yesno" and _kp_number is None and not _kp_lock_note
                 and (os.getenv("WHATSAPP_KP_NUMBER_RITUAL") or "on").strip().lower()
                 not in ("0", "off", "false", "no")):
             try:
@@ -5192,9 +5198,16 @@ async def _wa_handle(number: str, body: str, inbound_ts: float, num_media: int =
                 ctx["limit_notice"] = today
                 _save(ctx)
             return
-        prefix = f"*→ {question}*\n\n" if question != body else ""
-        if locals().get("_kp_number") and str(payload.get("method") or "") == "kp_number":
-            prefix = f"*→ {question}* · #{_kp_number}\n\n"
+        # [whatsapp-prashna] every Prashna answer is labelled so the reader always
+        # knows it's a KP horary, not a regular read ("read: …" forces regular)
+        _head = []
+        if question != body:
+            _head.append(f"*→ {question}*")
+        if payload.get("mode") == "yesno":
+            _num = (payload.get("horary_number") if str(payload.get("method") or "") == "kp_number"
+                    else None)
+            _head.append(f"_Prashna · #{_num}_" if _num else "_Prashna_")
+        prefix = ("\n".join(_head) + "\n\n") if _head else ""
         # [whatsapp-compact] one screen per answer (no "Read more" hiding the
         # follow-ups); the full read is kept for a "more" reply. The practice
         # line shows once a day per practice.
@@ -22465,6 +22478,45 @@ async def ask_prashna(request: PrashnaRequest):
 # Global Yes/No lock window (hours), per chart_id. Matches the horary cooldown.
 ASK_YESNO_COOLDOWN_HOURS = 24
 
+# [prashna-per-question 2026-10-02] Owner: one Prashna per DISTINCT question per
+# 24h (was one per chart per 24h — any second Yes/No, even a different question,
+# replayed the first answer). The same question asked again inside the window
+# still replays its original cast (no re-rolling until the answer pleases);
+# small rewordings count as the same question.
+_PQ_STOP = frozenset("""
+will would should shall is are am can could do does did i my me the a an to of in on at by for
+be it this that get got have has will going gonna yes no please
+voy va vas debo deberia debería mi me el la los las de del en por para un una que se lo
+vou vai devo meu minha o a os as do da em por para um uma que se
+kya meri mera mere main mujhe hai hoga hogi ka ki ke ko se
+""".split())
+
+
+def _prashna_qwords(q) -> set:
+    return {w for w in re.findall(r"[\w']+", (q or "").lower()) if w not in _PQ_STOP}
+
+
+def _prashna_same_question(a, b) -> bool:
+    x, y = _prashna_qwords(a), _prashna_qwords(b)
+    if not x or not y:
+        return " ".join((a or "").lower().split()) == " ".join((b or "").lower().split())
+    return len(x & y) / len(x | y) >= 0.75
+
+
+def _prashna_lock_row(sb, chart_id, question):
+    """The most recent prashna_log row for THIS question inside the cooldown
+    window, or None. Rows for other questions never lock a new one."""
+    from datetime import datetime as _pdt, timezone as _ptz, timedelta as _ptd
+    since = (_pdt.now(_ptz.utc) - _ptd(hours=ASK_YESNO_COOLDOWN_HOURS)).isoformat()
+    rows = (sb.table("prashna_log")
+            .select("created_at, question, verdict, timing, explanation, breakdown")
+            .eq("chart_id", chart_id).gte("created_at", since)
+            .order("created_at", desc=True).limit(50).execute()).data or []
+    for r in rows:
+        if _prashna_same_question(r.get("question"), question):
+            return r
+    return None
+
 
 def _ask_build_layer_context(chart_data, dashas, birth_date, concern, question=""):
     """
@@ -29236,13 +29288,12 @@ async def ask_endpoint(request: AskRequest):
     if mode == "yesno":
         try:
             # 1. AUTHORITATIVE LOCK — recompute from stored asked_at, never trust the client.
+            # [prashna-per-question] only the SAME question locks (see
+            # _prashna_lock_row); a different question gets a fresh cast.
             last = None
             try:
-                last = supabase.table("prashna_log") \
-                    .select("created_at, question, verdict, timing, explanation, breakdown") \
-                    .eq("chart_id", chart_id) \
-                    .order("created_at", desc=True) \
-                    .limit(1).execute()
+                _plr = _prashna_lock_row(supabase, chart_id, question)
+                last = type("_PL", (), {"data": [_plr] if _plr else []})()
             except Exception as _le:
                 logger.warning(f"[ask] lock lookup failed (treating as unlocked): {_le}")
 
