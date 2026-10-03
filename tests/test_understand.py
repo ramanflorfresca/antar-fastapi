@@ -154,3 +154,50 @@ def test_neutral_or_unknown_feeling_adds_nothing():
     assert u.tone_block(u.parse(_raw(feeling="curious"))) == ""
     assert u.parse(_raw(feeling="ecstatic-ish"))["feeling"] == "neutral"
     assert u.tone_block(u.parse(_raw())) == ""
+
+
+# ── comparisons, how they earn, wealth promises (live 2026-10-03, Andres) ──
+def test_options_and_earning_parsed():
+    r = u.parse(_raw(intent="which", options=["gold mine deals", "defence contracts", "real estate", ""],
+                     stated_facts={"work": "self_employed", "earning": ["advisory", "commission", "equity", "magic"]}))
+    assert r["options"] == ["gold mine deals", "defence contracts", "real estate"]
+    assert r["stated_facts"]["earning"] == ["advisory", "commission", "equity"]
+    assert u.is_comparison(r)
+
+
+def test_comparison_block_forbids_a_winner_and_uses_how_they_earn():
+    r = u.parse(_raw(intent="which", options=["gold", "defence"],
+                     stated_facts={"earning": ["advisory", "commission", "equity"]}))
+    b = u.comparison_block(r)
+    assert "Do NOT name a winner" in b and "stronger bet" in b
+    assert "advisory fees + commission + equity / sweat equity" in b
+    assert "NEVER assume how a deal is structured" in b
+    assert u.comparison_block(u.parse(_raw())) == ""
+
+
+def test_stored_earning_roundtrip():
+    stored = u.EARNS_PREFIX + u.earning_text(["advisory", "commission"])
+    assert u.stored_earning(stored) == "advisory fees + commission"
+    assert "advisory fees + commission" in u.earning_line(stored)
+    assert u.earning_line("Engineer") == "" and u.stored_earning("") == ""
+
+
+def test_wealth_promise_gets_the_honesty_rule():
+    r = u.parse(_raw(outcome_claim=True))
+    assert "can't honestly promise an amount" in u.outcome_block(r)
+    assert u.outcome_block(u.parse(_raw())) == ""
+
+
+def test_earning_saved_into_empty_profession_only(monkeypatch):
+    from dotenv import load_dotenv
+    load_dotenv()
+    import main
+    import antar_engine.profile_harvest as ph
+    wrote = []
+    monkeypatch.setattr(ph, "apply_harvest", lambda sb, cid, facts: wrote.append(facts) or {})
+    r = u.parse(_raw(stated_facts={"earning": ["advisory", "commission", "equity"]}))
+    main._ask_harvest_stated("c1", {"profession": None, "career_stage": "x"}, r)
+    assert wrote[-1]["profession"]["value"] == "Earns via advisory fees + commission + equity / sweat equity"
+    wrote.clear()
+    main._ask_harvest_stated("c1", {"profession": "Lawyer", "career_stage": "x"}, r)
+    assert not wrote

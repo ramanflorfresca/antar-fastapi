@@ -23643,6 +23643,11 @@ def _ask_harvest_stated(chart_id: str, row: dict, u: dict) -> None:
                                        "evidence": "stated (nlu)"}
         if f.get("children") and not str((row or {}).get("children_status") or "").strip():
             facts["children_status"] = {"value": f["children"], "evidence": "stated (nlu)"}
+        # [ask-compare] how they earn → profession (empty only), e.g.
+        # "earns via: advisory fees + commission + equity / sweat equity"
+        if f.get("earning") and not str((row or {}).get("profession") or "").strip():
+            facts["profession"] = {"value": _und.EARNS_PREFIX + _und.earning_text(f["earning"]),
+                                   "evidence": "stated (nlu)"}
         if facts:
             apply_harvest(supabase, chart_id, facts)
             for k, v in facts.items():
@@ -27972,8 +27977,23 @@ async def ask_endpoint(request: AskRequest):
                         (_ask_life_block + "\n\n" + _cb2).strip()
                         if _ask_life_block else _cb2
                     )
+                # [ask-compare 2026-10-03] how they earn (stored earlier) + comparison rules
+                try:
+                    from antar_engine import understand as _und
+                    _known_earn = _und.stored_earning(chart_row.data.get("profession") or "")
+                    _el = _und.earning_line(chart_row.data.get("profession") or "")
+                    if _el:
+                        _ask_life_block = ((_ask_life_block or "") + "\n\nWHAT THEY TOLD YOU EARLIER:" + _el).strip()
+                except Exception:
+                    _known_earn = ""
+                _ask_compare = bool(_ask_u) and (_und.is_comparison(_ask_u)
+                                                 or bool(_ask_u.get("outcome_claim")))
+                if _ask_compare and _und.is_comparison(_ask_u):
+                    _cmp = _und.comparison_block(_ask_u, _known_earn)
+                    _ask_life_block = ((_ask_life_block or "") + _cmp).strip()
+                    print(f"[ask][compare] options={_ask_u.get('options')} for {chart_id[:8]}")
                 if _ask_u:
-                    _sb = _und.stated_block(_ask_u) + _und.tone_block(_ask_u)
+                    _sb = _und.stated_block(_ask_u) + _und.tone_block(_ask_u) + _und.outcome_block(_ask_u)
                     if _sb:
                         _ask_life_block = ((_ask_life_block or "") + _sb).strip()
                         print(f"[ask][stated-facts] {(_ask_u.get('stated_facts') or {})} "
@@ -29307,6 +29327,12 @@ async def ask_endpoint(request: AskRequest):
             # now carries the honest answer (wrong approach / aligned lane / season).
             # We suppress, never flip to a hard "NO": the boundary is approach+timing,
             # not outcome. Fires only on the structural misalignment, nothing else.
+            # [ask-compare 2026-10-03] a choose-between question has no Yes/No:
+            # same suppression as the veto (chip + lead phrase + fail-closed lead).
+            if locals().get("_ask_compare") and _ask_conv:
+                _ask_conv["suppress_verdict"] = True
+                _ask_conv["verdict_phrase"] = ""
+                print(f"[ask][compare] verdict chip + lead phrase suppressed for {chart_id[:8]}")
             if _df_veto and _ask_conv:
                 _ask_conv["suppress_verdict"] = True
                 _ask_conv["verdict_phrase"] = ""

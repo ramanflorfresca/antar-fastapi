@@ -32,3 +32,7 @@
 {"q": "Should I buy the apartment in Medellín?", "language": "en", "area": ["property"]}
 {"q": "Will my promotion come through before December?", "language": "en", "area": ["promotion"]}
 {"q": "thanks, that helps", "language": "en", "intent": ["thanks"]}
+{"q": "Gold or defence — which should I focus on?", "language": "en", "intent": ["which"]}
+{"q": "Should I do the gold mine, processing plant and refinery deals or the defence deals with the government?", "language": "en", "intent": ["which", "yes_no", "what_to_do"]}
+{"q": "Does technology suit me to make me a millionaire?", "language": "en", "outcome_claim": true}
+{"q": "Which work will give me the most potential?", "language": "en", "outcome_claim": true}
