@@ -28087,6 +28087,20 @@ async def ask_endpoint(request: AskRequest):
             # verdict, practices) reads the funding houses and answers with the
             # proper multi-system dive-down (Vimshottari + Chara + varshphal + D-10
             # + D-9), plus funding-relevant remedies.
+            # [nlu-primary: concern 2026-10-03] the understanding layer's area wins
+            # over the keyword router when it's confident (live: "How is my work
+            # with partners?" was routed to 'love' → an answer about his spouse).
+            try:
+                _ask_u_c = await _ask_await_nlu(locals().get("_ask_nlu_task"), 3.0)
+                if _ask_u_c:
+                    from antar_engine import understand as _undc
+                    _ov = _undc.concern_override(_ask_u_c, _ask_concern)
+                    if _ov:
+                        print(f"[ask][nlu-concern] {_ask_concern} -> {_ov} "
+                              f"(area={_ask_u_c.get('area')} conf={_ask_u_c.get('confidence')})")
+                        _ask_concern = _ov
+            except Exception as _nce:
+                logger.warning(f"[ask] nlu concern skipped (non-fatal): {_nce}")
             try:
                 if _ask_concern_route(question) == "funding" and _ask_concern in (
                         "business", "finance", "general", "wealth", ""):
