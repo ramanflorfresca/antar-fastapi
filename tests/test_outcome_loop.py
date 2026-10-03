@@ -213,3 +213,56 @@ def test_feedback_endpoint_calls_the_bridge(monkeypatch):
     r = TestClient(main.app).post("/api/v1/predictions/feedback",
                                   json={"correlation_id": "u1", "status": "yes"})
     assert r.status_code == 200 and calls == [("u1", "yes")]
+
+
+# ─── "Not sure yet" → asked once more after 30 days, then never again ───
+
+def test_reask_is_picked_even_though_already_sent_and_answered():
+    c = dict(_due(1, "a", sent="2026-11-05T12:00:00+00:00"), _reask=True)
+    assert [p["id"] for p in oc.pick_due([c], {}, answered={"k1"})] == ["k1"]
+
+
+def test_reask_text_explains_why_it_is_back():
+    c = dict(_due(1, "a"), source="ask_explore", _reask=True)
+    t = oc.checkin_text(c)
+    assert t.startswith("Last time you weren't sure yet. We said:")
+    es = oc.checkin_text(dict(c, language="es"))
+    assert es.startswith("La última vez aún no estabas seguro.")
+
+
+class _Q2(_Q):
+    def __init__(self, data, log): super().__init__(data); self.log = log
+    def in_(self, col, vals):
+        self.data_ = [r for r in self.data_ if r.get(col if col != "claim_id" else "claim_id") in vals
+                      or col == "source" and r.get("source") in vals]
+        return self
+    def like(self, *a): return self
+
+
+def test_reask_candidates_once_only():
+    outs = [{"claim_id": "k1", "answered_at": "2026-10-01T00:00:00+00:00"},
+            {"claim_id": "k2", "answered_at": "2026-10-01T00:00:00+00:00"}]
+    claims = [dict(_due(1, "a"), checkin_channel="push", source="ask_explore"),
+              dict(_due(2, "b"), checkin_channel="push+reask", source="ask_explore")]
+
+    class SB:
+        def table(self, name):
+            return _Q2(outs if name == "prediction_outcomes" else claims, [])
+    from datetime import datetime, timezone
+    got = oc.reask_candidates(SB(), now=datetime(2026, 11, 5, tzinfo=timezone.utc))
+    assert [g["id"] for g in got] == ["k1"] and got[0]["_reask"] is True
+
+
+def test_reask_awaiting_answer_until_answered_again():
+    claims = [dict(_due(1, "a"), checkin_channel="push+reask",
+                   checkin_sent_at="2026-11-05T12:00:00+00:00", source="ask_explore")]
+    first = [{"claim_id": "k1", "outcome": "not_sure", "answered_at": "2026-10-01T00:00:00+00:00"}]
+    again = [{"claim_id": "k1", "outcome": "not_sure", "answered_at": "2026-11-06T00:00:00+00:00"}]
+
+    def sb_with(outs):
+        class SB:
+            def table(self, name):
+                return _Q2(outs if name == "prediction_outcomes" else claims, [])
+        return SB()
+    assert [r["id"] for r in oc.reasks_awaiting_answer(sb_with(first), "a")] == ["k1"]
+    assert oc.reasks_awaiting_answer(sb_with(again), "a") == []      # answered again → done

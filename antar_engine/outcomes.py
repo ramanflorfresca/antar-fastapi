@@ -231,6 +231,8 @@ def checkin_text(claim: dict) -> str:
     head = said_t.format(said=said) if said and not sensitive else ""
     tail = moved_t.format(noun=noun) if (noun and claim.get("claim_type") == "window"
                                          and not sensitive) else plain_t
+    if claim.get("_reask"):
+        head = (_REASK_LEAD.get(lang, _REASK_LEAD["en"]) + (" " + head if head else "")).strip()
     return (head + "\n\n" + tail).strip()
 
 
@@ -259,6 +261,14 @@ def due_claims(sb, chart_id: str, now: Optional[datetime] = None, limit: int = 2
 # person, one a day. Yes/No claims keep the existing yesno_checkback job (their
 # answers live in user_correlations) — bridging is a follow-up.
 CHECKIN_SOURCES = ("ask_explore",)
+# [reask-not-sure 2026-10-02] owner: a "Not sure yet" is asked ONCE more, 30 days
+# later, then never again. The re-ask is marked in checkin_channel ("push+reask")
+# — no DDL.
+REASK_AFTER_DAYS = 30
+REASK_MARK = "+reask"
+_REASK_LEAD = {"en": "Last time you weren't sure yet.",
+               "es": "La última vez aún no estabas seguro.",
+               "pt": "Da última vez você ainda não tinha certeza."}
 WEEKLY_CAP = 2
 LOCAL_HOUR = 8
 LOOKBACK_DAYS = 30
@@ -269,8 +279,8 @@ def pick_due(claims: list, sent_last_week: dict, answered: set) -> list:
     chosen, seen = [], set()
     for c in sorted(claims, key=lambda r: r.get("checkin_due_at") or ""):
         cid = c.get("chart_id")
-        if (not cid or cid in seen or c.get("id") in answered or c.get("checkin_sent_at")
-                or c.get("source") not in CHECKIN_SOURCES):
+        if (not cid or cid in seen or c.get("source") not in CHECKIN_SOURCES
+                or (not c.get("_reask") and (c.get("id") in answered or c.get("checkin_sent_at")))):
             continue
         if sent_last_week.get(cid, 0) >= WEEKLY_CAP:
             continue
@@ -369,3 +379,50 @@ def bridge_yesno_feedback(sb, correlation_id: str, status: str,
     except Exception as e:
         print(f"[outcomes] yesno bridge skipped: {e}")
     return None
+
+
+
+def reask_candidates(sb, now: Optional[datetime] = None) -> list:
+    """Claims answered "not_sure" at least REASK_AFTER_DAYS ago that haven't been
+    re-asked yet — each marked _reask=True for pick_due / checkin_text."""
+    now = now or datetime.now(timezone.utc)
+    try:
+        outs = (sb.table("prediction_outcomes").select("claim_id,answered_at")
+                .eq("outcome", "not_sure")
+                .lte("answered_at", (now - timedelta(days=REASK_AFTER_DAYS)).isoformat())
+                .limit(500).execute()).data or []
+        if not outs:
+            return []
+        rows = (sb.table("prediction_claims")
+                .select("id,chart_id,source,topic,claim_type,window_end,text_shown,language,"
+                        "checkin_due_at,checkin_sent_at,checkin_channel")
+                .in_("id", [o["claim_id"] for o in outs])
+                .in_("source", list(CHECKIN_SOURCES)).execute()).data or []
+    except Exception as e:
+        if not _table_missing(e):
+            print(f"[outcomes] reask lookup failed: {e}")
+        return []
+    return [dict(r, _reask=True) for r in rows if REASK_MARK not in (r.get("checkin_channel") or "")]
+
+
+def reasks_awaiting_answer(sb, chart_id: str) -> list:
+    """For the in-app card: re-asked "not_sure" claims not answered since the re-ask."""
+    try:
+        rows = (sb.table("prediction_claims").select("*").eq("chart_id", chart_id)
+                .like("checkin_channel", f"%{REASK_MARK}").execute()).data or []
+        if not rows:
+            return []
+        outs = {o["claim_id"]: o for o in (sb.table("prediction_outcomes")
+                .select("claim_id,outcome,answered_at")
+                .in_("claim_id", [r["id"] for r in rows]).execute().data or [])}
+    except Exception as e:
+        if not _table_missing(e):
+            print(f"[outcomes] reask due lookup failed: {e}")
+        return []
+    out = []
+    for r in rows:
+        o = outs.get(r["id"])
+        if (o and o.get("outcome") == "not_sure"
+                and str(o.get("answered_at") or "") < str(r.get("checkin_sent_at") or "")):
+            out.append(dict(r, _reask=True))
+    return out
