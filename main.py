@@ -17408,7 +17408,7 @@ def settings_language(authorization: Optional[str] = Header(None), chart_id: Opt
         # [lang-401] Restore-based sessions can hold a stale/absent JWT while
         # the app still knows its chart_id. A language-preference READ is the
         # same trust level as the public /entitlements/{chart_id} — resolve
-        # the owner via profiles.chart_id (same mapping entitlements uses).
+        # the owner via charts.user_id (same mapping entitlements uses).
         try:
             from antar_engine.entitlements import _resolve_user_id as _lang_uid
             user_id = _lang_uid(chart_id, supabase)
