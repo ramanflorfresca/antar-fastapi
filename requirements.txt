@@ -42,3 +42,4 @@ babel==2.13.1
 PyJWT>=2.3.0
 cryptography>=3.4.8
 requests>=2.25.0
+phonenumbers==9.0.40
