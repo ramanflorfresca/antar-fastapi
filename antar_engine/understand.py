@@ -100,6 +100,19 @@ _EARNING_PLAIN = {"advisory": "advisory fees", "commission": "commission", "equi
                   "trading": "trading", "investing": "investing their own capital",
                   "freelance": "freelance work", "rental": "rental income", "royalties": "royalties"}
 
+_EARNING_EVIDENCE = {
+    "advisory": re.compile(r"(?i)advis|consult|asesor|assessor|consultor"),
+    "commission": re.compile(r"(?i)commis|comisi|comiss"),
+    "equity": re.compile(r"(?i)equity|sweat|stake|acciones|participaci|participa[cç][aã]o"),
+    "salary": re.compile(r"(?i)salar|sueldo|wage|paycheck|n[oó]mina"),
+    "own_operations": re.compile(r"(?i)\b(i|we) (run|own|operate)\b|my own (plant|factory|mine|shop|business)|opero|manejo"),
+    "trading": re.compile(r"(?i)\btrad(e|es|ing|er)\b|day.?trad|compraventa|negociar"),
+    "investing": re.compile(r"(?i)invest|inversi|investiment"),
+    "freelance": re.compile(r"(?i)freelanc|independ|aut[oó]nom"),
+    "rental": re.compile(r"(?i)\brent|alquil|aluguel|arriend"),
+    "royalties": re.compile(r"(?i)royalt|regal[ií]a"),
+}
+
 WORK = ("employed", "unemployed", "self_employed", "student", "retired", "homemaker")
 RELATIONSHIP = ("single", "dating", "married", "separated", "divorced", "widowed")
 
@@ -203,8 +216,11 @@ def parse(raw: str, original: str = "") -> Optional[dict]:
         "children": (str(sf.get("children")).lower() if str(sf.get("children")).lower() in ("yes", "no")
                      else None),
         "other": [str(x).strip()[:80] for x in other if str(x).strip()][:3],
+        # an earning type counts only if the message itself says it (live: the
+        # model "stated" trading for "Gold or defence?" — never said)
         "earning": [e for e in (str(x).strip().lower() for x in (sf.get("earning") or [])
-                                if isinstance(sf.get("earning"), list)) if e in EARNING][:4],
+                                if isinstance(sf.get("earning"), list))
+                    if e in EARNING and _EARNING_EVIDENCE[e].search(original or "")][:4],
     }
     opts = obj.get("options") if isinstance(obj.get("options"), list) else []
     options = [str(o).strip()[:60] for o in opts if str(o).strip()][:5]
@@ -474,3 +490,51 @@ def outcome_block(u: Optional[dict]) -> str:
             "Then give what it CAN: how the work fits their nature and way of working, their "
             "timing window, and how to approach it to give it the best chance. Never use "
             "words like 'millionaire', 'rich', 'most potential' as a promise or a ranking.")
+
+
+# [no-invented-role 2026-10-03] Even with the rule, a comparison answer said
+# "your trading role" for someone who never said he trades (Andres: advisory +
+# commission + sweat equity). When we don't know how they earn, a role the
+# model named is replaced with a neutral one. Known/stated roles are untouched.
+_ROLE_WORDS = r"(?:trading|trader|investing|investor|ownership|owner|operating|operator|broker(?:ing)?|dealer)"
+def role_phrase(known: str) -> str:
+    """'your role as an advisor earning commission and equity' from the stored /
+    stated earning text; '' when unknown."""
+    k = (known or "").lower()
+    if not k:
+        return ""
+    earn = [w for w, key in (("commission", "commission"), ("equity", "equity"), ("fees", "fees"))
+            if key in k]
+    if "advisory" in k:
+        tail = [w for w in earn if w != "fees"]
+        return "your role as an advisor" + (" earning " + " and ".join(tail) if tail else "")
+    return f"your role ({known.strip()})"
+
+
+_INVENTED_ROLE = [
+    re.compile(r"\b[Yy]our role as an? " + _ROLE_WORDS + r"\b"),
+    re.compile(r"\b[Yy]our " + _ROLE_WORDS + r" role\b"),
+    re.compile(r"\b[Aa]s an? " + _ROLE_WORDS + r"\b"),
+]
+
+
+def scrub_invented_role(text, known: str = ""):
+    """Replace a role they never stated ('your trading role') with the one they DID
+    state ('your role as an advisor earning commission and equity'), or with a
+    neutral 'your role in these deals' when we don't know how they earn."""
+    if not isinstance(text, str) or not text:
+        return text
+    real = role_phrase(known if isinstance(known, str) else "")
+
+    def _sub(m, neutral):
+        rep = real or neutral
+        return rep[0].upper() + rep[1:] if m.group(0)[0].isupper() else rep
+    text = _INVENTED_ROLE[0].sub(lambda m: _sub(m, "your role"), text)
+    text = _INVENTED_ROLE[1].sub(lambda m: _sub(m, "your role in these deals"), text)
+    text = _INVENTED_ROLE[2].sub(lambda m: _sub(m, "in your role").replace(
+        "Your role as", "In your role as").replace("your role as", "in your role as")
+        if real else _sub(m, "in your role"), text)
+    return text
+    for rx, rep in _INVENTED_ROLE:
+        text = rx.sub(rep, text)
+    return text

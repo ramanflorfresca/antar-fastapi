@@ -159,7 +159,8 @@ def test_neutral_or_unknown_feeling_adds_nothing():
 # ── comparisons, how they earn, wealth promises (live 2026-10-03, Andres) ──
 def test_options_and_earning_parsed():
     r = u.parse(_raw(intent="which", options=["gold mine deals", "defence contracts", "real estate", ""],
-                     stated_facts={"work": "self_employed", "earning": ["advisory", "commission", "equity", "magic"]}))
+                     stated_facts={"work": "self_employed", "earning": ["advisory", "commission", "equity", "magic"]}),
+                "Gold, defence or real estate? I earn advisory + commission + sweat equity")
     assert r["options"] == ["gold mine deals", "defence contracts", "real estate"]
     assert r["stated_facts"]["earning"] == ["advisory", "commission", "equity"]
     assert u.is_comparison(r)
@@ -167,7 +168,8 @@ def test_options_and_earning_parsed():
 
 def test_comparison_block_forbids_a_winner_and_uses_how_they_earn():
     r = u.parse(_raw(intent="which", options=["gold", "defence"],
-                     stated_facts={"earning": ["advisory", "commission", "equity"]}))
+                     stated_facts={"earning": ["advisory", "commission", "equity"]}),
+                "gold or defence, advisory + commission + equity")
     b = u.comparison_block(r)
     assert "Do NOT name a winner" in b and "stronger bet" in b
     assert "advisory fees + commission + equity / sweat equity" in b
@@ -195,9 +197,28 @@ def test_earning_saved_into_empty_profession_only(monkeypatch):
     import antar_engine.profile_harvest as ph
     wrote = []
     monkeypatch.setattr(ph, "apply_harvest", lambda sb, cid, facts: wrote.append(facts) or {})
-    r = u.parse(_raw(stated_facts={"earning": ["advisory", "commission", "equity"]}))
+    r = u.parse(_raw(stated_facts={"earning": ["advisory", "commission", "equity"]}),
+                "I do advisory for a commission plus sweat equity")
     main._ask_harvest_stated("c1", {"profession": None, "career_stage": "x"}, r)
     assert wrote[-1]["profession"]["value"] == "Earns via advisory fees + commission + equity / sweat equity"
     wrote.clear()
     main._ask_harvest_stated("c1", {"profession": "Lawyer", "career_stage": "x"}, r)
     assert not wrote
+
+
+def test_invented_role_is_replaced_by_the_stated_one_or_neutralised():
+    t = "Your trading role is the same in both."
+    known = "advisory fees + commission + equity / sweat equity"
+    assert u.scrub_invented_role(t, known) == "Your role as an advisor earning commission and equity is the same in both."
+    assert u.scrub_invented_role(t, "") == "Your role in these deals is the same in both."
+    assert u.scrub_invented_role("Your role as a trader matters.", "") == "Your role matters."
+    assert u.scrub_invented_role("As an investor you hold the lever.", "") == "In your role you hold the lever."
+    assert u.scrub_invented_role("Your role as an advisor is clear.", known) == "Your role as an advisor is clear."
+
+
+
+def test_earning_the_message_never_said_is_dropped():
+    r = u.parse(_raw(stated_facts={"earning": ["trading"]}), "Gold or defence — which should I focus on?")
+    assert r["stated_facts"]["earning"] == []
+    r = u.parse(_raw(stated_facts={"earning": ["trading", "commission"]}), "Gano comisión por cada trato")
+    assert r["stated_facts"]["earning"] == ["commission"]
