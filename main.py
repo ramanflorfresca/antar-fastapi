@@ -23406,7 +23406,7 @@ async def _nlu_read(message: str, chart_id: Optional[str], saved_lang: str = "")
     try:
         raw = await asyncio.wait_for(call_llm_claude(
             prompt=_u.request(message, thread, saved_lang), system_override=_u.SYSTEM,
-            model_override=HAIKU_MODEL, max_tokens_override=320, temperature_override=0), timeout=6)
+            model_override=HAIKU_MODEL, max_tokens_override=420, temperature_override=0), timeout=6)
         raw = raw[0] if isinstance(raw, tuple) else raw
         parsed = _u.parse(raw, message)
     except Exception as e:
@@ -23415,6 +23415,41 @@ async def _nlu_read(message: str, chart_id: Optional[str], saved_lang: str = "")
     if parsed:
         _u.memo_put(k, parsed)
     return parsed
+
+
+async def _ask_await_nlu(task, timeout: float = 3.0):
+    """The message reading, if it arrives in time; None otherwise (fail-open)."""
+    if task is None:
+        return None
+    try:
+        return await asyncio.wait_for(asyncio.shield(task), timeout)
+    except Exception:
+        return None
+
+
+def _ask_harvest_stated(chart_id: str, row: dict, u: dict) -> None:
+    """Persist stated facts into EMPTY chart fields only (a value the person set
+    deliberately always wins — same contract as profile_harvest). Best-effort."""
+    try:
+        from antar_engine import understand as _und
+        from antar_engine.profile_harvest import apply_harvest
+        f = (u or {}).get("stated_facts") or {}
+        facts = {}
+        cs = _und.WORK_TO_CAREER_STAGE.get(f.get("work") or "")
+        if cs and not str((row or {}).get("career_stage") or "").strip():
+            facts["career_stage"] = {"value": cs, "evidence": "stated (nlu)"}
+        rel = f.get("relationship")
+        if rel and not str((row or {}).get("marital_status") or "").strip():
+            facts["marital_status"] = {"value": "relationship" if rel == "dating" else rel,
+                                       "evidence": "stated (nlu)"}
+        if f.get("children") and not str((row or {}).get("children_status") or "").strip():
+            facts["children_status"] = {"value": f["children"], "evidence": "stated (nlu)"}
+        if facts:
+            apply_harvest(supabase, chart_id, facts)
+            for k, v in facts.items():
+                row[k] = v["value"]
+    except Exception as e:
+        print(f"[ask][stated-facts] harvest skipped (non-fatal): {e}")
 
 
 def _nlu_keyword_view(question: str, language: str, mode: str) -> dict:
@@ -23452,12 +23487,12 @@ def _nlu_keyword_view(question: str, language: str, mode: str) -> dict:
 
 
 async def _nlu_shadow(question: str, chart_id: Optional[str], language: str,
-                      channel: str, mode: str) -> None:
+                      channel: str, mode: str, task=None) -> None:
     """[nlu shadow] read the message, log model vs keyword side by side (stdout
     always; nlu_log table when it exists). Never affects the answer."""
     try:
         from antar_engine import understand as _u
-        u = await _nlu_read(question, chart_id, language or "")
+        u = (await asyncio.shield(task)) if task is not None else await _nlu_read(question, chart_id, language or "")
         if not u:
             return
         kw = _nlu_keyword_view(question, language, mode)
@@ -26423,10 +26458,16 @@ async def ask_endpoint(request: AskRequest):
 
     # [nlu 2026-10-03] one model reading of the message, logged beside the keyword
     # decisions (shadow; NLU_MODE=off disables). Background — no latency.
+    _ask_nlu_task = None
     if _nlu_mode() != "off":
         try:
+            # one read, shared: the shadow log AND the stated-facts block below
+            _ask_nlu_task = asyncio.create_task(_nlu_read(question, chart_id, language or ""))
+            _WA_TASKS.add(_ask_nlu_task)
+            _ask_nlu_task.add_done_callback(_WA_TASKS.discard)
             _nlu_t = asyncio.create_task(_nlu_shadow(question, chart_id, language,
-                                                     _ASK_CHANNEL.get() or "app", mode))
+                                                     _ASK_CHANNEL.get() or "app", mode,
+                                                     task=_ask_nlu_task))
             _WA_TASKS.add(_nlu_t)
             _nlu_t.add_done_callback(_WA_TASKS.discard)
         except Exception:
@@ -27707,12 +27748,26 @@ async def ask_endpoint(request: AskRequest):
                     resolve_life_facts as _rlf_ask2,
                     life_constraint_block as _lcb_ask2,
                 )
-                _cb2 = _lcb_ask2(_rlf_ask2(chart_row.data))
+                # [life-facts-in-answer 2026-10-03] what they said in THIS message
+                # outranks the stored profile for this answer (live: an unemployed
+                # reader was told about "a promotion that isn't coming").
+                _ask_u = await _ask_await_nlu(locals().get("_ask_nlu_task"))
+                _lf_now = _rlf_ask2(chart_row.data) or {}
+                if _ask_u:
+                    from antar_engine import understand as _und
+                    _lf_now = {**_lf_now, **_und.life_overrides(_ask_u)}
+                    _ask_harvest_stated(chart_id, chart_row.data, _ask_u)
+                _cb2 = _lcb_ask2(_lf_now)
                 if _cb2:
                     _ask_life_block = (
                         (_ask_life_block + "\n\n" + _cb2).strip()
                         if _ask_life_block else _cb2
                     )
+                if _ask_u:
+                    _sb = _und.stated_block(_ask_u)
+                    if _sb:
+                        _ask_life_block = ((_ask_life_block or "") + _sb).strip()
+                        print(f"[ask][stated-facts] {(_ask_u.get('stated_facts') or {})} for {chart_id[:8]}")
             except Exception as _lce:
                 logger.warning(f"[ask] life context failed (non-fatal): {_lce}")
 

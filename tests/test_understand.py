@@ -98,3 +98,45 @@ def test_feared_partnership_event_is_its_ending():
     assert r["area"] == "separation"
     r = u.parse(_raw(area="business_partnership", polarity="wanted"))
     assert r["area"] == "business_partnership"
+
+
+# ── stated life facts (live 2026-10-03: unemployed reader told about a promotion) ──
+def test_stated_facts_parsed_and_menu_checked():
+    r = u.parse(_raw(stated_facts={"work": "unemployed", "relationship": "astronaut",
+                                   "children": "maybe", "other": ["has debt", "", "x" * 200, "a", "b"]}))
+    f = r["stated_facts"]
+    assert f["work"] == "unemployed" and f["relationship"] is None and f["children"] is None
+    assert f["other"][0] == "has debt" and len(f["other"]) == 3 and len(f["other"][1]) <= 80
+
+
+def test_unemployed_block_forbids_promotion_and_boss():
+    r = u.parse(_raw(stated_facts={"work": "unemployed", "other": ["unfocused for months"]}))
+    b = u.stated_block(r)
+    assert "UNEMPLOYED" in b and "promotion" in b and "boss" in b
+    assert "They told you: unfocused for months." in b
+    assert u.life_overrides(r) == {"employed": False}
+
+
+def test_no_stated_facts_no_block():
+    r = u.parse(_raw())
+    assert u.stated_block(r) == "" and u.life_overrides(r) == {}
+
+
+def test_relationship_and_children_overrides():
+    r = u.parse(_raw(stated_facts={"relationship": "divorced", "children": "no"}))
+    assert u.life_overrides(r) == {"partnered": False, "has_children": False}
+    assert "DIVORCED" in u.stated_block(r) and "NO children" in u.stated_block(r)
+
+
+def test_harvest_writes_only_empty_fields(monkeypatch):
+    from dotenv import load_dotenv
+    load_dotenv()
+    import main
+    import antar_engine.profile_harvest as ph
+    wrote = []
+    monkeypatch.setattr(ph, "apply_harvest", lambda sb, cid, facts: wrote.append(facts) or {"written": list(facts)})
+    r = u.parse(_raw(stated_facts={"work": "unemployed", "relationship": "single"}))
+    row = {"career_stage": "", "marital_status": "married"}
+    main._ask_harvest_stated("c1", row, r)
+    assert wrote == [{"career_stage": {"value": "seeking", "evidence": "stated (nlu)"}}]
+    assert row["career_stage"] == "seeking" and row["marital_status"] == "married"

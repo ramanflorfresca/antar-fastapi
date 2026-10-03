@@ -87,6 +87,9 @@ AREAS = {
     "general":             (None, "general"),
 }
 
+WORK = ("employed", "unemployed", "self_employed", "student", "retired", "homemaker")
+RELATIONSHIP = ("single", "dating", "married", "separated", "divorced", "widowed")
+
 SUBJECTS = ("self", "partner_romantic", "business_partner", "child", "parent",
             "sibling", "friend", "colleague_boss", "other")
 POLARITY = ("wanted", "feared", "neutral")
@@ -116,7 +119,12 @@ SYSTEM = (
     ' "needs_clarification": true only if the question cannot be read at all '
     "without one more detail,\n"
     ' "clarify": one short question to ask back (same language) or "",\n'
-    ' "confidence": 0.0-1.0 for the area}\n'
+    ' "confidence": 0.0-1.0 for the area,\n'
+    ' "stated_facts": facts the person STATES about their own life in THIS message '
+    '(never infer, never guess): {"work": one of ' + json.dumps(list(WORK)) + ' or null, '
+    '"relationship": one of ' + json.dumps(list(RELATIONSHIP)) + ' or null, '
+    '"children": "yes" | "no" | null, "other": up to 3 short plain facts they said '
+    '(e.g. "has debt", "recently laid off", "caring for a sick parent") or []}}\n'
     "Rules: language = the language the message is WRITTEN in (English that mentions "
     "India is English; Hinglish = Hindi words in Latin script). A question about a "
     "partnership BREAKING, ending, splitting or a partner leaving is partnership_ending "
@@ -163,7 +171,18 @@ def parse(raw: str, original: str = "") -> Optional[dict]:
     if polarity == "feared":
         area = {"business_partnership": "partnership_ending",
                 "existing_relationship": "separation"}.get(area, area)
+    sf = obj.get("stated_facts") if isinstance(obj.get("stated_facts"), dict) else {}
+    other = sf.get("other") if isinstance(sf.get("other"), list) else []
+    facts = {
+        "work": _clean_enum(sf.get("work"), WORK, None) if sf.get("work") else None,
+        "relationship": (_clean_enum(sf.get("relationship"), RELATIONSHIP, None)
+                         if sf.get("relationship") else None),
+        "children": (str(sf.get("children")).lower() if str(sf.get("children")).lower() in ("yes", "no")
+                     else None),
+        "other": [str(x).strip()[:80] for x in other if str(x).strip()][:3],
+    }
     return {
+        "stated_facts": facts,
         "language": _clean_enum(obj.get("language"), LANGS, "other"),
         "standalone": standalone,
         "intent": _clean_enum(obj.get("intent"), INTENTS, "open"),
@@ -260,3 +279,75 @@ def worth_reading(message: str) -> bool:
     """Skip the model for bare numbers / single command words."""
     w = _WORD.findall(message or "")
     return len(w) >= 2 or (len(w) == 1 and not w[0].isdigit() and len(w[0]) > 3)
+
+
+# ── stated life facts → narrator constraints ─────────────────────────────────
+# [life-facts-in-answer 2026-10-03] live: "I am unemployed… how do I get over
+# this hurdle?" was answered "a new role fits better than waiting for a promotion
+# that isn't coming". What the person says in THIS message outranks the stored
+# profile for this answer.
+_WORK_RULE = {
+    "unemployed": ("The reader is currently UNEMPLOYED (they said so). NEVER mention a "
+                   "promotion, raise, appraisal, boss, manager, colleagues or 'your current "
+                   "job'. Career = finding the next role or path, from where they are now."),
+    "student": ("The reader is a STUDENT (they said so). No boss, promotion or salary as a "
+                "present fact — frame work as studies, first roles and skills."),
+    "retired": ("The reader is RETIRED (they said so). No boss, promotion or job hunt "
+                "unless they ask — frame work as purpose, projects or advisory."),
+    "self_employed": ("The reader is SELF-EMPLOYED / runs a business (they said so). Never "
+                      "write boss, manager, employer or promotion."),
+    "homemaker": ("The reader runs the home (they said so). No boss or promotion as a "
+                  "present fact."),
+    "employed": None,
+}
+_REL_RULE = {
+    "single": "The reader is SINGLE (they said so) — no 'your partner/spouse' as a present fact.",
+    "divorced": "The reader is DIVORCED (they said so) — no 'your spouse' as a present fact.",
+    "separated": "The reader is SEPARATED (they said so) — no 'your spouse' as a settled present fact.",
+    "widowed": "The reader is WIDOWED (they said so) — never refer to a living spouse; be gentle.",
+}
+
+
+def stated_block(u: Optional[dict]) -> str:
+    """Prompt block: what the person told us in this message. '' when nothing."""
+    f = (u or {}).get("stated_facts") or {}
+    lines = []
+    w = _WORK_RULE.get(f.get("work") or "")
+    if w:
+        lines.append("- " + w)
+    r = _REL_RULE.get(f.get("relationship") or "")
+    if r:
+        lines.append("- " + r)
+    if f.get("children") == "no":
+        lines.append("- The reader has NO children (they said so) — never mention 'your child'.")
+    for o in f.get("other") or []:
+        lines.append(f"- They told you: {o}.")
+    if not lines:
+        return ""
+    return ("\n\nWHAT THEY TOLD YOU IN THIS MESSAGE — this outranks anything else you "
+            "know about them. Answer the person in front of you; acknowledge their "
+            "situation; NEVER write anything that contradicts it:\n" + "\n".join(lines))
+
+
+# stated facts → chart columns (written only into EMPTY fields, see profile_harvest)
+WORK_TO_CAREER_STAGE = {"unemployed": "seeking", "self_employed": "running_business",
+                        "student": "studying", "employed": "employed"}
+
+
+def life_overrides(u: Optional[dict]) -> dict:
+    """Overrides for life_context.resolve_life_facts() output for THIS answer."""
+    f = (u or {}).get("stated_facts") or {}
+    out = {}
+    w = f.get("work")
+    if w in ("unemployed", "student", "retired", "self_employed", "homemaker"):
+        out["employed"] = False
+    elif w == "employed":
+        out["employed"] = True
+    r = f.get("relationship")
+    if r in ("single", "divorced", "separated", "widowed"):
+        out["partnered"] = False
+    elif r in ("married", "dating"):
+        out["partnered"] = True
+    if f.get("children") in ("yes", "no"):
+        out["has_children"] = f["children"] == "yes"
+    return out
