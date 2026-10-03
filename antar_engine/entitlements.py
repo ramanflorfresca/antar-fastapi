@@ -405,14 +405,21 @@ _ASK_USAGE_COLS = "chart_id,user_id,ask_count,ask_count_today,ask_count_date,ask
 
 
 def _resolve_user_id(chart_id: str, sb) -> Optional[str]:
-    try:
-        r = sb.table("profiles").select("user_id").eq(
-            "chart_id", chart_id
-        ).limit(1).execute()
-        if r.data:
-            return r.data[0].get("user_id")
-    except Exception:
-        pass
+    """Owner of a chart. charts.user_id is the source of truth; the profile
+    whose primary chart this is covers rows written before user_id was set.
+    (profiles has no chart_id column — querying it 42703'd silently, so this
+    always returned None.) Fail-open: any error → None."""
+    if not chart_id:
+        return None
+    for table, col in (("charts", "id"), ("profiles", "primary_chart_id")):
+        try:
+            r = sb.table(table).select("user_id").eq(
+                col, chart_id
+            ).limit(1).execute()
+            if r.data and r.data[0].get("user_id"):
+                return r.data[0]["user_id"]
+        except Exception:
+            pass
     return None
 
 
